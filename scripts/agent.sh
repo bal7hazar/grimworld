@@ -22,7 +22,8 @@
 #   --with-assets        initialise the `assets` submodule in the task worktree before launching
 #   --branch <name>      create the worktree from origin/main on branch <name> if it is missing
 # arguments:
-#   model     claude: sonnet | opus | fable or their full ids; codex: gpt-6-astra | gpt-6-sol | gpt-6-luna
+#   model     claude: sonnet (Sonnet 5.5) | opus | fable or their full ids (claude-sonnet-5 only to
+#             resume an agent started on it); codex: gpt-6-astra | gpt-6-sol | gpt-6-luna
 #   profile   research | implement | audit (default: research for claude new, audit for codex;
 #             on resume, the profile the task was launched with)
 #   sid       codex session id, for `codex … resume` (see `sid`); ignored by claude
@@ -59,13 +60,14 @@ running() { # <task>
 # The title tag of every unit, log line and session: the model's display name, never guessed.
 tag() { # <cli> <model> -> "<full id>|<display name>"
   case "$1:$2" in
-    claude:sonnet | claude:claude-sonnet-5) echo "claude-sonnet-5|Sonnet 5" ;;
+    claude:sonnet | claude:claude-sonnet-5-5) echo "claude-sonnet-5-5|Sonnet 5.5" ;;
+    claude:claude-sonnet-5) echo "claude-sonnet-5|Sonnet 5" ;;   # only to resume agents started on it
     claude:opus | claude:claude-opus-5-5) echo "claude-opus-5-5|Opus 5.5" ;;
     claude:fable | claude:claude-fable-5-1) echo "claude-fable-5-1|Fable 5.1" ;;
     codex:gpt-6-astra) echo "gpt-6-astra|GPT-6-Astra" ;;
     codex:gpt-6-sol) echo "gpt-6-sol|GPT-6-Sol" ;;
     codex:gpt-6-luna) echo "gpt-6-luna|GPT-6-Luna" ;;
-    *) die "unknown model '$2' for $1 (claude: sonnet|opus|fable; codex: gpt-6-astra|gpt-6-sol|gpt-6-luna)" ;;
+    *) die "unknown model '$2' for $1 (claude: sonnet|opus|fable, claude-sonnet-5 to resume; codex: gpt-6-astra|gpt-6-sol|gpt-6-luna)" ;;
   esac
 }
 
@@ -199,6 +201,11 @@ case "$task" in *[!A-Za-z0-9._-]* | "") die "task name '$task': letters, digits,
 case "$mode" in new | resume) ;; *) die "mode must be new or resume" ;; esac
 t=$(tag "$cli" "$model")
 model_id=${t%%|*} label=${t#*|}
+# A resumed agent keeps the model it started on until its task closes (OPERATIONS §2).
+if [ "$mode" = resume ] && [ -f "$L/$task.cli" ]; then
+  recorded=$(cut -d' ' -f2 "$L/$task.cli")
+  [ "$recorded" = "$model_id" ] || die "$task started on $recorded: resume it with that model, not $model_id"
+fi
 wt=$W/cli-$task
 
 if [ -z "$profile" ]; then
