@@ -44,10 +44,12 @@ export RAYON_NUM_THREADS="${RAYON_NUM_THREADS:-4}" CARGO_BUILD_JOBS="${CARGO_BUI
 
 cmd=("$@")
 # Called by something that already holds the heavy lock (a machine shim) without the project
-# lock: taking the project lock now would reverse the order and could deadlock. The heavy lock
-# already serialises every build of the machine, so the project lock is not needed.
+# lock: taking the project lock now would reverse the order and could deadlock, and skipping it
+# would break the one-build-at-a-time guarantee. Refused: take the locks through this script.
 if [ -n "${HEAVY_BUILD_LOCK_HELD:-}" ] && [ -z "${GRIMWORLD_BUILD_LOCK_HELD:-}" ]; then
-  export GRIMWORLD_BUILD_LOCK_HELD=1
+  echo "scripts/lock.sh: called under the heavy lock without the project lock (wrong order);" \
+    "run the outer command through scripts/lock.sh" >&2
+  exit 3
 fi
 if [ "$heavy" = 1 ] && [ -z "${HEAVY_BUILD_LOCK_HELD:-}" ]; then
   mkdir -p "$(dirname "$heavy_lock")"

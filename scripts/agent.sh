@@ -129,7 +129,9 @@ case "${1:-}" in
       # While running: the launcher's header of this run (at its recorded offset). Stopped: the
       # last line of the log, which the unit writes after the agent's output (`exit=…`).
       if running "$t"; then state=running
-        last=$(tail -c +$(($(cat "$L/$t.start" 2> /dev/null || echo 0) + 1)) "$f" | head -1)
+        # head closes the pipe early: tail's SIGPIPE is expected.
+        last=$(tail -c +$(($(cat "$L/$t.start" 2> /dev/null || echo 0) + 1)) "$f" 2> /dev/null |
+          head -1 || true)
       else state=stopped last=$(tail -1 "$f"); fi
       printf '%-24s %-8s %-10s ran=%-18s last write %s  %s\n' "$t" "$state" \
         "$(cat "$L/$t.profile" 2> /dev/null || echo -)" "$ran" \

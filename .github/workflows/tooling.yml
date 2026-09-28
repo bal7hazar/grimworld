@@ -54,6 +54,10 @@ jobs:
           for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
             if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi
           done
+          # Under the heavy lock without the project lock, the order would be reversed: refused.
+          if HEAVY_BUILD_LOCK_HELD=1 scripts/lock.sh scarb build 2> /dev/null; then
+            echo "lock.sh accepted a reversed lock order" >&2; exit 1
+          fi
 
       - name: no asset file committed (D-73)
         run: |
