@@ -6,8 +6,7 @@
 #     heavy Grim World command at a time, whichever agent runs it;
 #   * the machine-wide HEAVY lock ($HEAVY_BUILD_LOCK, default ~/orchestrator/heavy-build.lock),
 #     shared with every other programme. `scarb` and `snforge` on PATH are the machine's shims
-#     (~/.local/bin), which take it by themselves; this script takes it for `--heavy` and for the
-#     `sozo` commands that compile, since sozo does not go through those shims.
+#     (~/.local/bin), which take it by themselves; this script takes it for `--heavy`.
 # Nested calls inherit the locks already held and take only the ones they miss, in the same
 # order. Commands run under `nice -n 10` with capped parallelism.
 #
@@ -16,13 +15,12 @@
 #
 #   scripts/lock.sh [--heavy] scarb <build|test|lint|fmt|check|metadata|execute> [args...]
 #   scripts/lock.sh [--heavy] snforge test [args...]
-#   scripts/lock.sh [--heavy] sozo <build|test|migrate|inspect> [args...]
 #   scripts/lock.sh [--heavy] pnpm <install|build|test|lint|typecheck> [args...]
 set -euo pipefail
 
 refuse() {
   echo "scripts/lock.sh: $*" >&2
-  echo "usage: scripts/lock.sh [--heavy] <scarb|snforge|sozo|pnpm> <build or test subcommand> [args...]" >&2
+  echo "usage: scripts/lock.sh [--heavy] <scarb|snforge|pnpm> <build or test subcommand> [args...]" >&2
   exit 2
 }
 heavy=0
@@ -32,8 +30,6 @@ if [ "${1:-}" = --heavy ]; then heavy=1; shift; fi
 case "$1:$2" in
   scarb:build | scarb:test | scarb:lint | scarb:fmt | scarb:check | scarb:metadata | scarb:execute) ;;
   snforge:test) ;;
-  sozo:build | sozo:test | sozo:migrate) heavy=1 ;;
-  sozo:inspect) ;;
   pnpm:install | pnpm:build | pnpm:test | pnpm:lint | pnpm:typecheck) ;;
   *) refuse "does not wrap '$1 $2'" ;;
 esac

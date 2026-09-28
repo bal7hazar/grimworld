@@ -4,21 +4,17 @@
 # the repository's .tool-versions (never `asdf set -u`, never ~/.tool-versions, which is only
 # READ, below), and no plugin is ever removed.
 #
-#   .tool-versions   scarb, starknet-foundry, nodejs, pnpm, and sozo, katana, torii (the separate
-#                    plugins github.com/dojoengine/asdf-{sozo,katana,torii}; the combined `dojo`
-#                    plugin cannot install Dojo 1.8, see docs/research/SPK-5-toolchain.md)
+#   .tool-versions   scarb, starknet-foundry (which brings snforge and sncast), starknet-devnet (the
+#                    local node, NS-1: docs/research/SPK-5b-toolchain-native.md), nodejs, pnpm.
+#                    A native Starknet game on Cairo 2.19 (ADR-0007): no sozo, katana or torii.
+#                    The Dojo spikes pin their own set in spikes/*/.tool-versions and are not
+#                    installed by this script.
 #
-# WHAT IS WRITTEN OUTSIDE asdf's data directory (~/.asdf, or $ASDF_DATA_DIR):
-#   1. Exception of this script, one-time, and only at the very end of a run in which every tool
-#      was installed and verified: it removes the symlinks ~/.cargo/bin/sozo,
-#      ~/.cargo/bin/katana and ~/.cargo/bin/torii that a first version of this task created, and
-#      only if each points into ~/.grimworld/tools/ (else it is left alone). On a machine where
-#      they are gone, nothing happens. (~/.cargo/bin is $GRIMWORLD_BIN_DIR, ~/.grimworld/tools is
-#      $GRIMWORLD_TOOLS.) The directory ~/.grimworld/tools itself is not touched.
-#   2. Side effects of the third-party plugins, not of this script: node-build logs in /tmp
-#      (nodejs), and `curl | sh` of universal-sierra-compiler's installer by the starknet-foundry
-#      plugin, which puts `universal-sierra-compiler` in ~/.local/bin (already there on this
-#      machine, dated before this task, unchanged).
+# WHAT IS WRITTEN OUTSIDE asdf's data directory (~/.asdf, or $ASDF_DATA_DIR): nothing by this
+# script. Side effects of the third-party plugins, not of this script: node-build logs in /tmp
+# (nodejs), and `curl | sh` of universal-sierra-compiler's installer by the starknet-foundry
+# plugin, which puts `universal-sierra-compiler` in ~/.local/bin (already there on this machine,
+# dated before this task, unchanged).
 #
 # NODE AND PNPM come first from the system. Adding the asdf plugins nodejs and pnpm creates
 # shims that hide the system node and pnpm everywhere (docs/reports/INC-2026-09-28-asdf-node-shims.md).
@@ -30,12 +26,15 @@
 # already added (this machine), that local pin is what makes node work in the worktrees.
 #
 # INTEGRITY, tool by tool (sources read on 2026-09-28, see the research file §1):
-#   sozo, katana, torii  sha256 of the extracted binary pinned below, verified BEFORE the binary is
-#                        run, on every run (the plugins themselves check nothing).
-#   scarb                asdf-scarb (software-mansion/asdf-scarb, bin/download, lib/utils.bash):
+#   starknet-devnet      asdf-starknet-devnet (ptisserand/asdf-starknet-devnet, a plugin
+#                        generated from asdf's template): the release tarball of 0xSpaceShard/starknet-devnet over
+#                        HTTPS by curl, no checksum. The sha256 of the extracted binary is pinned
+#                        below (it comes from the release tarball, whose sha256 GitHub publishes as
+#                        the asset digest) and verified BEFORE the binary is run, on every run.
+#   scarb              asdf-scarb (software-mansion/asdf-scarb, bin/download, lib/utils.bash):
 #                        release tarball from github.com over HTTPS by curl; no checksum, no
 #                        signature. Not pinned here: the archive holds ~9 binaries per arch.
-#   snforge              asdf-starknet-foundry (foundry-rs/asdf-starknet-foundry): the same, and it
+#   snforge, sncast      asdf-starknet-foundry (foundry-rs/asdf-starknet-foundry): the same, and it
 #                        pipes universal-sierra-compiler's install.sh to `sh`; no checksum.
 #   node                 system package; or asdf-nodejs, which delegates to node-build: node-build
 #                        keeps a sha256 per release in its definitions and verifies the download
@@ -50,9 +49,6 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-# Where an earlier version of this script linked release binaries; only its own links are removed.
-legacy_tools=${GRIMWORLD_TOOLS:-$HOME/.grimworld/tools}
-legacy_bin_dir=${GRIMWORLD_BIN_DIR:-$HOME/.cargo/bin}
 
 log() { echo "setup-toolchain: $*"; }
 die() { echo "setup-toolchain: $*" >&2; exit 1; }
@@ -67,19 +63,8 @@ esac
 # with .tool-versions; a version without a pinned hash is refused.
 binary_sha256() {
   case "$1:$2:$3" in
-    sozo:1.8.7:amd64) echo f76a5a49b6ef6401595eae43859f936621799204d7ff52781c0be854f735ae63 ;;
-    sozo:1.8.7:arm64) echo 2b728fe055fe2471ab10875eec73330beb793097e5e7d127b60d49f4a80ab022 ;;
-    katana:1.7.1:amd64) echo 7ccdcbacd0de309d476470ba40bda832edc650daeacab0c672bc5f09c15c6b71 ;;
-    katana:1.7.1:arm64) echo 6ccc8f0f7f1a7623b445ba6243c1301528591bbf8e51748db9b11a0fa0cdc4b3 ;;
-    torii:1.8.16:amd64) echo cbf88d6b23bd742508f9d6b74c27b78375532ce6bb57f8e5b0fbd3ed91ff14b6 ;;
-    torii:1.8.16:arm64) echo 4a6451a33d1404738b3914a8b01245b74d0f0fa5012ac8c5146ac186a9c3d109 ;;
-  esac
-}
-
-# Where an asdf plugin lives when it is not in asdf's registry.
-plugin_source() {
-  case "$1" in
-    sozo | katana | torii) echo "https://github.com/dojoengine/asdf-$1.git" ;;
+    starknet-devnet:0.10.0:amd64) echo 4e2e6479fa9502f2952ed26740d5cc8ebeb3695c16e752edcc560f6e736b167c ;;
+    starknet-devnet:0.10.0:arm64) echo fe08fbe940e4e2efde9af3a199b6902e926822efb53207c79c81eb5b6b050111 ;;
   esac
 }
 
@@ -161,8 +146,7 @@ while read -r name version _ <&3; do
   case "$system_served" in *" $name "*) continue ;; esac
   if ! grep -qx "$name" <<< "$plugins"; then
     log "asdf plugin add $name"
-    source=$(plugin_source "$name")
-    if [ -n "$source" ]; then asdf plugin add "$name" "$source"; else asdf plugin add "$name"; fi
+    asdf plugin add "$name"
   fi
   # The pnpm plugin may report a failed download step on a first install although pnpm 12 works
   # afterwards (its shim fetches the binary on first use): the checks below decide.
@@ -209,10 +193,11 @@ check_hash() { # <tool> <version>
 
 check_version scarb "$(pinned scarb)" scarb --version
 check_version snforge "$(pinned starknet-foundry)" snforge --version
+check_version sncast "$(pinned starknet-foundry)" sncast --version
 check_version node "$(pinned nodejs)" node --version
 check_version pnpm "$(pinned pnpm)" pnpm --version
-# sozo, katana and torii: the pinned sha256 is verified BEFORE the binary is run at all.
-for tool in sozo katana torii; do
+# starknet-devnet: the pinned sha256 is verified BEFORE the binary is run at all.
+for tool in starknet-devnet; do
   version=$(pinned "$tool")
   [ -n "$version" ] || { fail "$tool is not pinned in .tool-versions"; continue; }
   check_hash "$tool" "$version" || { echo "setup-toolchain: $tool not run: its hash was not verified" >&2; continue; }
@@ -232,23 +217,5 @@ for tool in node pnpm; do
     echo "setup-toolchain: 'pnpm system' to ~/.tool-versions. This script does not edit that file." >&2
   fi
 done
-
-# --- an earlier version of this task linked the binaries into ~/.cargo/bin -------------------
-# The asdf shims replace them. Only now, when every tool above is installed and verified (a setup
-# that fails or stops earlier leaves the links in place), and only a link pointing inside our own
-# tools directory is removed.
-if [ "$status" = 0 ]; then
-  for tool in sozo katana torii; do
-    link=$legacy_bin_dir/$tool
-    [ -L "$link" ] || continue
-    case "$(readlink "$link")" in
-      "$legacy_tools"/*)
-        log "removing $link (linked by an earlier version of this task)"
-        rm -f "$link"
-        ;;
-      *) log "$link points elsewhere ($(readlink "$link")): not ours, left alone" ;;
-    esac
-  done
-fi
 
 exit "$status"
