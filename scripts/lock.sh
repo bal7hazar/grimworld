@@ -6,36 +6,40 @@
 #     heavy Grim World command at a time, whichever agent runs it;
 #   * the machine-wide HEAVY lock ($HEAVY_BUILD_LOCK, default ~/orchestrator/heavy-build.lock),
 #     shared with every other programme. `scarb` and `snforge` on PATH are the machine's shims
-#     (~/.local/bin), which take it by themselves; this script takes it for `--heavy` and for the
-#     `sozo` commands that compile, since sozo does not go through those shims.
+#     (~/.local/bin), which take it by themselves; this script takes it for `--heavy`.
 # Nested calls inherit the locks already held and take only the ones they miss, in the same
 # order. Commands run under `nice -n 10` with capped parallelism.
 #
 # Only build and test commands are wrapped: the audit profile allows `scripts/lock.sh …`, so
 # this script must not become a way to run anything else.
 #
-#   scripts/lock.sh [--heavy] scarb <build|test|lint|fmt|check|metadata|execute> [args...]
+#   scripts/lock.sh [--heavy] scarb [--manifest-path <path>] <build|test|lint|fmt|check|metadata|execute> [args...]
 #   scripts/lock.sh [--heavy] snforge test [args...]
-#   scripts/lock.sh [--heavy] sozo <build|test|migrate|inspect> [args...]
 #   scripts/lock.sh [--heavy] pnpm <install|build|test|lint|typecheck> [args...]
 set -euo pipefail
 
 refuse() {
   echo "scripts/lock.sh: $*" >&2
-  echo "usage: scripts/lock.sh [--heavy] <scarb|snforge|sozo|pnpm> <build or test subcommand> [args...]" >&2
+  echo "usage: scripts/lock.sh [--heavy] <scarb|snforge|pnpm> <build or test subcommand> [args...]" >&2
   exit 2
 }
 heavy=0
 if [ "${1:-}" = --heavy ]; then heavy=1; shift; fi
 [ $# -ge 2 ] || refuse "missing command"
-# The subcommand must come first, right after the tool: no global option can hide it.
-case "$1:$2" in
+# The subcommand must come right after the tool, so that no global option can hide it. The one
+# exception: Scarb 2.19 takes --manifest-path as a global option before its subcommand
+# (`scarb --manifest-path <path> build`), so that single option, with its value, may sit between.
+sub=$2
+if [ "$1" = scarb ] && [ "$2" = --manifest-path ]; then
+  [ $# -ge 4 ] || refuse "scarb --manifest-path needs a path and a subcommand"
+  case "$3" in -*) refuse "scarb --manifest-path needs a path, not '$3'" ;; esac
+  sub=$4
+fi
+case "$1:$sub" in
   scarb:build | scarb:test | scarb:lint | scarb:fmt | scarb:check | scarb:metadata | scarb:execute) ;;
   snforge:test) ;;
-  sozo:build | sozo:test | sozo:migrate) heavy=1 ;;
-  sozo:inspect) ;;
   pnpm:install | pnpm:build | pnpm:test | pnpm:lint | pnpm:typecheck) ;;
-  *) refuse "does not wrap '$1 $2'" ;;
+  *) refuse "does not wrap '$1 $sub'" ;;
 esac
 
 project_lock=${GRIMWORLD_BUILD_LOCK:-/tmp/grimworld-build.lock}

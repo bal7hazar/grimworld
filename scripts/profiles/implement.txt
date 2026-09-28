@@ -12,12 +12,10 @@
 Bash(scripts/lock.sh *)
 Bash(scarb *)
 Bash(snforge *)
-Bash(sozo *)
 Bash(katana *)
-Bash(torii *)
 # Native Starknet (ADR-0007): the deployment tool, against a local node only (an explicit
 # --url http://127.0.0.1:<port> or http://localhost:<port>, followed by further arguments, on
-# every call; no '@' anywhere), and a candidate local node (SPK-5b, NS-1). Accepted residual: a
+# every call; no '@' anywhere), and the local node (SPK-5b, NS-1: starknet-devnet). Accepted residual: a
 # second --url or a configuration file can change the endpoint; no funded key for a public
 # network is in the agent's environment.
 Bash(sncast *--url http://127.0.0.1:* *)

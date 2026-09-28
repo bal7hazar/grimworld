@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
+# COPY of scripts/with-katana.sh as it was on origin/main before SPK-5b removed it (ADR-0007: the game
+# runs on starknet-devnet through scripts/with-node.sh). It belongs to the Dojo baseline spike, which
+# keeps its own toolchain in spikes/SPK-5/.tool-versions. Changed from the original: only the paths,
+# and the `cd` below, which makes asdf resolve that .tool-versions (katana, torii, sozo, scarb 2.13)
+# wherever the script is called from. The command therefore runs from spikes/SPK-5/ (write
+# `bash run.sh`, not `bash spikes/SPK-5/run.sh`).
 # Runs a command against a local Katana (and optionally Torii) that live only as long as the
 # command: start the node(s), wait until they answer, run the command in the foreground, stop
 # them, exit with the command's status. This is how an agent runs anything that needs a node
 # without a background command (docs/briefs/COMMON.md §2).
 #
-#   scripts/with-katana.sh [--torii] [--world <address>] <command> [args...]
+#   spikes/SPK-5/with-katana.sh [--torii] [--world <address>] <command> [args...]
 #
 #   --torii            also start Torii, indexing the world at <address>
 #   --world <address>  the world Torii indexes (default: $DOJO_WORLD_ADDRESS); required with --torii.
@@ -32,9 +38,10 @@
 # unreachable (SC2317), 0.10 and later as never invoked (SC2329).
 # shellcheck disable=SC2317,SC2329
 set -uo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
 usage() {
-  echo "usage: scripts/with-katana.sh [--torii] [--world <address>] <command> [args...]" >&2
+  echo "usage: spikes/SPK-5/with-katana.sh [--torii] [--world <address>] <command> [args...]" >&2
   exit 2
 }
 
@@ -59,9 +66,9 @@ if [ "$torii" = 1 ] && [ -z "$world" ]; then
   echo "with-katana: --torii needs the world address (--world <address> or DOJO_WORLD_ADDRESS)" >&2
   exit 2
 fi
-command -v katana > /dev/null || { echo "with-katana: katana not found (scripts/setup-toolchain.sh)" >&2; exit 127; }
+command -v katana > /dev/null || { echo "with-katana: katana not found (spikes/SPK-5/.tool-versions: asdf install)" >&2; exit 127; }
 if [ "$torii" = 1 ]; then
-  command -v torii > /dev/null || { echo "with-katana: torii not found (scripts/setup-toolchain.sh)" >&2; exit 127; }
+  command -v torii > /dev/null || { echo "with-katana: torii not found (spikes/SPK-5/.tool-versions: asdf install)" >&2; exit 127; }
 fi
 
 log_dir=${WITH_KATANA_LOG_DIR:-$PWD/.with-katana}
