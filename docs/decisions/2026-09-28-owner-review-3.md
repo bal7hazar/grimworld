@@ -30,11 +30,14 @@
 | D-49 | Auction house strategy delegated to the orchestrator: one world market, listing fee only, Tin rank to sell |
 | — | Arcade packages are under MIT licence (owner's statement) |
 
-| D-95 | Rifts (the owner's word, instead of Maw): instances are individual; the first clear starts a closing delay for everyone |
+| D-95 | ~~Shared closing delay~~ Replaced by D-101 |
+| D-101 | Rifts (the owner's word, instead of Maw) are **personal**: 6 open, a new one opens when one is cleared, **10 cleared per day at most**, against farmers destabilising the economy |
+| D-100 | **No fee is ever paid by the player.** The business model covers network costs without the player knowing. The abstraction must let the player ignore the blockchain entirely |
 | D-96 | Stillstone is a rare reagent for precise operations of craft, alchemy and enchantment. It does not replace materials and is not the main income: the treasure is what goblins carry |
 | D-97 | English only for the first version, multilingual afterwards. Names short and international |
-| D-20 (revised) | Ten grades. Ladder proposed by the orchestrator, awaiting the owner: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Still |
+| D-20 (revised) | Ten grades, accepted: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Onyx |
 
+| D-98b | Stillstone uses: personalisation (smith), modifiers (enchanter), hints (alchemist) |
 | D-98 | Roles: the smith crafts, recycles and personalises and never touches a modifier; modifiers belong to the enchanter (enchanting table) |
 | D-99 | Collectors are characters met in exploration zones who barter items against items. No stillstone, no gold |
 

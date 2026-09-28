@@ -154,9 +154,12 @@ Differences from Athanor, on purpose:
 | Re-brewing a known pair still consumes randomness | Known pairs skip the randomness request | Cheaper, and instantly confirmable by the client |
 | One game-wide book, fixed at 25 ingredients | One book per region | Horizontal scaling |
 | Any pair can reveal any recipe | A pair reveals only recipes of its rarity signature | Same ingredient cost for everyone |
-| Hints bought with gold | Hints earned as quest rewards from the hub alchemist | Ties alchemy to the guild loop |
+| Hints bought with gold, at a price that triples | Hints bought from the alchemist for **one stillstone** each | Ties alchemy to Rifts |
 
 ### Hints
+
+A hint is bought from the alchemist, in a hub, for **one stillstone**
+([17-rifts](17-rifts.md#what-it-is-for)). A few quests give one as a reward.
 
 A hint binds one undiscovered recipe to one ingredient: *"nightroot is part of the Draught
 of Stone"*. As in Athanor, the hinted recipe leaves the general pool and can only be found

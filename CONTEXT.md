@@ -125,7 +125,8 @@ owner, with the date), Superseded.
 | D-05 | Instances are not saved: leaving closes the instance, re-entering creates a new one | design/02 | Accepted 2026-09-28 |
 | D-10 | Zones have fixed layouts, dungeons shifting ones, same generator | design/01 | Accepted 2026-09-28 |
 | D-11 | Hexagonal maps, pointy-top, on `origami_hexmap` | design/02 | Accepted 2026-09-28 |
-| D-20 | Ten ranks; promotion needs merit and a trial quest in a dungeon. Names of the ladder proposed: Wood to Still | design/06 | Principle accepted 2026-09-28; names proposed |
+| D-20 | Ten ranks: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Onyx; promotion needs merit and a trial quest in a dungeon | design/06 | Accepted 2026-09-28 |
+| D-100 | **The chain is invisible**: the player never pays a fee, never sees a wallet, a signature, a transaction or a token. The business model covers network costs | design/00 | Accepted 2026-09-28 |
 | D-30 | Six professions; Vanguard, Warden, Arcanist in the MVP | design/03 | Proposed |
 | D-31 | GW1 numbers as baseline, 1 second = 1 tick | design/03 | Proposed |
 | D-40 | Combat is fully deterministic | design/04 | Accepted 2026-09-28 |
@@ -171,6 +172,9 @@ owner, with the date), Superseded.
 - **No block data in instances.** No rule inside an instance reads block number,
   timestamp or transaction hash.
 - **Bounded execution.** Every loop in a contract has a bound stated in the design.
+- **Invisible chain.** No fee is ever charged to the player and no blockchain vocabulary
+  reaches the interface (D-100). Abuse is limited by game rules (daily caps), never by
+  making the player pay.
 - **Two domains.** Persistent and ephemeral state never share a model (ADR-0001).
 - **Power budget.** The client has no permanent render loop (ADR-0003).
 - **Assets.** `assets/` and anything derived from it is never committed: the licence

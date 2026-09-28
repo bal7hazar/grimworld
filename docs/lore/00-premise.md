@@ -42,9 +42,9 @@ It is used where something must be undone or held without breaking:
 
 | Craft | What a stone does |
 |---|---|
-| Smiths | Lifts an enchantment off a blade without shattering the blade |
-| Alchemists | Holds a brew still long enough to read what it would have become |
-| Enchanters | Fixes a working that would otherwise fade |
+| Smiths | Binds a weapon to the one hand that will carry it |
+| Enchanters | Lifts a working off a blade without shattering the blade |
+| Alchemists | Holds a brew still long enough to read what it wants to become |
 
 The real wealth of a nest is what the goblins carry: what they stole, what they made, and
 what is left of those who came before. Stillstone is what the craftsmen ask for when
@@ -65,11 +65,11 @@ The Guild's **assayers** grade a Rift from outside, by the colour and weight of 
 stillstone dust at its mouth. The grade is the name of a metal, and it is the same ladder
 as the tags adventurers wear:
 
-> Wood · Tin · Copper · Iron · Steel · Bronze · Silver · Gold · Platinum · Still
+> Wood · Tin · Copper · Iron · Steel · Bronze · Silver · Gold · Platinum · Onyx
 
 A Copper tag means the Guild trusts you to come back from a Copper Rift. The tag is made
 of the material; a Wood tag is a chip of wood on a string, and everyone starts with one.
-The last tag is cut from stillstone itself. Few have seen one.
+The last tag, Onyx, is cut from stillstone itself, which is black. Few have seen one.
 
 Assayers are right most of the time.
 
@@ -145,14 +145,14 @@ from.
 | Guild ranks gate content | The Guild decides who enters which Rift |
 | Old goblins use adventurers' skills; elite skills are captured from bosses | Nests learn from those they killed |
 | The reagent for delicate work | Stillstone |
-| A cleared Rift closes for everyone after a delay | A Rift whose Heart is dead heals, slowly |
+| Each adventurer has their own Rifts | The Below opens for the one who looks for it. Two adventurers at the same crack in the rock do not find the same nest |
 | Boss trophy | Heartstone |
 
 ## Naming rule
 
 The game is in English for the first version and multilingual afterwards. Names must be
 **short** (one or two syllables when possible), made of common words, easy to say and to
-keep as they are in other languages: Rift, Hush, Heart, Spill, Still.
+keep as they are in other languages: Rift, Hush, Heart, Onyx.
 
 ## Names to avoid
 
@@ -168,7 +168,7 @@ works; its materials, its order and its last grade are ours (see design/06).
 | The place goblins come from | The Below | The Under, the Deep |
 | A dungeon's entrance | **Rift** (owner's choice) | Breach |
 | Time standing still | The Hush | The Stillness, the Held Breath |
-| The ore | Stillstone | **Still** (shorter) |
+| The ore | Stillstone | — |
 | A boss | Heart | Root, Marrow |
 | Goblins escaping an uncleared dungeon | Spill | Pour, Rising |
 | A sealed, misgraded dungeon | Red Rift | Shut Rift |

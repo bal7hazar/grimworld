@@ -118,7 +118,8 @@ before it is ever used as a fallback.
 | + | No infrastructure to operate beyond Torii; lowest time to a playable build |
 | + | Composability with mainnet assets and identity from day one |
 | − | **Game logic exists twice**: Cairo (authoritative) and client (prediction). Divergence is the main technical risk. Mitigation: shared test vectors generated from Cairo, a parity audit lens, and rollback to chain state on any mismatch |
-| − | Every action costs a fee. The paymaster budget is a running cost to size in Phase 0 |
+| − | Every action costs a fee, and **the player never pays it** (pillar 7): the paymaster sponsors every game transaction, without quota visible to the player. The cost per active player per day is a figure the business model must cover; it is bounded by game rules (daily cap on Rifts), measured in Phase 0 (SPK-2) and watched in production |
+| − | A sponsored game is a target for abuse (scripts burning the paymaster). Limits are game rules and silent rate limits per account, never fees |
 | − | Reorgs happen. The client must treat chain state as authoritative and be able to rewind its optimistic state at any time |
 | − | Dependency on Cartridge services (paymaster, vRNG) for liveness |
 

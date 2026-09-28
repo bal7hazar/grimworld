@@ -26,7 +26,7 @@ Ten grades. Ranks are worn as a tag made of the rank's material.
 | 6 | **Silver** | 6 000 | Tier 6 quests, **elite zones** |
 | 7 | **Gold** | 12 000 | Elite quests, region-level bounties |
 | 8 | **Platinum** | 25 000 | Prestige |
-| 9 | **Still** | 50 000 | The tag cut from stillstone; future content |
+| 9 | **Onyx** | 50 000 | The tag cut from stillstone, which is black; future content |
 
 Each rank gives access to the Rifts of its grade ([17-rifts](17-rifts.md#grades)).
 The ladder is a registry: ranks can be appended as regions are added.

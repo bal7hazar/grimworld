@@ -38,6 +38,9 @@ higher pillar wins.
    see [ADR-0001](../architecture/ADR-0001-execution-layer.md).)
 6. **Content scales horizontally.** New towns, zones, castes, skills and quests are data
    added to registries, not rewrites of core systems.
+7. **The chain is invisible.** Fully on-chain for us, not for the player. They never pay
+   a network fee, never see a wallet, a signature, a transaction hash or a token, and
+   could play for a year without learning the game runs on a blockchain.
 
 ## Player fantasy
 

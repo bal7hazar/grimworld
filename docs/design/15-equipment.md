@@ -48,7 +48,6 @@ Kinds of barter to explore, beyond trophies against equipment:
 | Armor piece, weapon | Goblin trophies |
 | A bag or a belt pouch | Trophies |
 | Potions | Ingredients the collector cannot find himself |
-| An alchemy hint | A rare ingredient |
 | A rare ingredient of another region | Ingredients of this one |
 | A rumour: the place of a chest, a vein, a Red Rift | Trophies of a high caste |
 
@@ -261,7 +260,7 @@ character, a piece is an icon; the MVP needs 15 icons for the first dungeon.
 ## Personalisation (D-48)
 
 As in the baseline, any weapon, shield, focus or armor piece can be **personalised** by a
-smith for a small fee in gold.
+smith, for **one stillstone** and a small fee in gold.
 
 | | |
 |---|---|

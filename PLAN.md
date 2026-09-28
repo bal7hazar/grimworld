@@ -54,7 +54,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | FND-02 | CI: build, format, lint, tests for contracts and client | FND-01 | Sonnet 5 | S Q | todo |
 | FND-03 | Agent tooling: `scripts/agent.sh` launcher ported from the owner's other repositories (profiles research / implement / audit, detached units, logs, resume), `docs/briefs/COMMON.md`, build lock, concurrency budget measured | FND-00 | Orchestrator | S | todo |
 | SPK-1 | Latency spike: submission → pre-confirmed → accepted, via Controller session | SPK-5 | Opus 5.5 | — | todo |
-| SPK-2 | Cost spike: worst-case tick and 10-move queue on a throwaway contract | SPK-5 | Opus 5.5 | C | todo |
+| SPK-2 | Cost spike: worst-case tick and 10-move queue on a throwaway contract; **cost of an active player per day** (10 Rifts, quests, hub actions), fully sponsored | SPK-5 | Opus 5.5 | C | todo |
 | SPK-3 | vRNG spike: overhead, latency, provider-down behaviour | SPK-5 | Opus 5.5 | S | todo |
 | SPK-4 | Parity spike, two options measured: (a) TypeScript mirror checked by Cairo-generated vectors; (b) **the Cairo code itself run in the client** through a Cairo VM in WebAssembly, as in the owner's physics game. Needs the game logic as a pure library (state in, state out) | SPK-5 | Opus 5.5 | P | todo |
 | SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, Controller session, vRNG (ADR-0003 thresholds); room size for portrait | SPK-5 | Opus 5.5 | — | todo |
@@ -182,6 +182,7 @@ the owner, and **due before the phase that consumes it**.
 
 | ID | Missing | Due before | Status |
 |---|---|---|---|
+| DES-18 | **Invisible chain**: vocabulary list banned from the interface, onboarding without wallet words, what the player sees when a transaction fails or the network is down | Phase 1 (CLI-01) | todo |
 | DES-01 | **Interface** (`docs/design/11-interface.md`): portrait screen layout, HUD, how to move / target / use a skill by touch, action queue display, facing and arc display, desktop responsive layout | Phase 1 (CLI-03) | todo |
 | DES-02 | **Vision**: what the adventurer sees inside a room (whole room or a radius), what goblins perceive, how line of sight and sleep interact | Phase 1 (ENG-07) | todo |
 | DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | todo |
