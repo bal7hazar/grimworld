@@ -97,25 +97,20 @@ jobs:
           out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
           grep -qF -- 'scarb\ publish' <<< "$out"
           grep -qF -- '.claude/\*\*' <<< "$out"
-          # The agent budget (OPERATIONS §3): stub systemctl and pgrep; three agents refuse, two allow, a
-          # counter that fails refuses (exit 4). The launch lock that serialises count and start is not
+          # The agent budget (OPERATIONS §3): stub systemctl; three agents refuse, two allow, a counter
+          # that fails refuses (exit 4). The launch lock that serialises count and start is not
           # exercised here (dry runs stop before it).
           stubs=$(mktemp -d); fake=$(mktemp -d)   # a fake HOME: no launcher records of the machine
           stub() { printf '#!/bin/sh\n%s\n' "$2" > "$stubs/$1"; chmod +x "$stubs/$1"; }
-          stub pgrep 'exit 1'
           stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\nquiver-c.service loaded active running c\n"'
           set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
           stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
           HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds
           stub systemctl 'exit 1'
           set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
-          stub systemctl 'exit 0'
-          stub pgrep 'exit 3'
-          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
           # Detached agents from the launchers' pid files, in a fake HOME: two launches in one directory
           # count once; a pid file whose live process is not its launch (a reused pid) does not count.
           flogs=$fake/projects/grimworld/.claude/worktrees/logs; mkdir -p "$flogs" "$fake/projects/grimworld/wt" "$fake/projects/grimworld/wt2"
-          stub pgrep 'exit 1'
           stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
           (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/one.log") & echo $! > "$flogs/one.pid"
           (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/two.log") & echo $! > "$flogs/two.pid"
@@ -130,7 +125,19 @@ jobs:
           HOME=$fake PATH="$stubs:$PATH" timeout 3 scripts/agent.sh locktest claude opus new "x" research; s=$?
           set -e; [ "$s" = 124 ]; wait "$holder"
           set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e; [ "$s" = 4 ]
-          kill $(cat "$flogs"/*.pid) 2> /dev/null || true
+          kill $(cat "$flogs"/*.pid) 2> /dev/null || true; rm -f "$flogs"/*.pid
+          # A codex audit started as the native binary, with no launch record, is found by its command line.
+          mkdir -p "$fake/projects/grimworld/wt3"
+          (cd "$fake/projects/grimworld/wt3" && exec -a codex python3 -c 'import time; time.sleep(120)' exec) & decoy=$!
+          sleep 1
+          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
+          echo "$out"; [ "$s" = 4 ]; grep -qF '3 Grim World agents running (2 units, 1 detached)' <<< "$out"
+          kill "$decoy"
+          # A launch record that holds no pid refuses the count.
+          echo "not a pid" > "$flogs/bad.pid"
+          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
+          echo "$out"; [ "$s" = 4 ]; grep -qF 'holds no pid' <<< "$out"
+          rm -f "$flogs/bad.pid"
           # The build lock wraps build and test subcommands only.
           for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
             if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi
