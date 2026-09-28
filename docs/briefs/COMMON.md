@@ -167,7 +167,10 @@ Each with its real output, trimmed to what matters. No figure that was not measu
 
 ## Cost
 | Entrypoint or algorithm | Before | After | Budget | Note |
-Every test and benchmark the lot touched (Cairo tasks). "—" for a task without Cairo.
+Every test and benchmark the lot touched (Cairo tasks), printed by
+`python3 scripts/gas_budgets.py --report` from the worktree root (FND-06; `origin/main` fetched).
+A raised budget shows `raised: <reason>` in the Note column: the orchestrator agrees or refuses
+it at review (docs/CAIRO.md §2). "—" for a task without Cairo.
 
 ## Acceptance criteria
 Each criterion of the brief, with the test or command that shows it.
