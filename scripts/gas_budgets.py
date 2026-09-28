@@ -21,13 +21,16 @@ Problems, per test identified by its full path `package::module::test` (never by
     `#[available_gas]` attribute is the comment `// gas: raised, <reason>` (CAIRO §2: a raise needs a
     written reason and the orchestrator's agreement; --report shows "raised: <reason>" in the Note
     column for the orchestrator to see);
-  * a date/commit kept from the existing BUDGETS.md whose commit is not in the history or whose
-    committer date differs from the date column.
-Fuzz tests: the measured figure is the MAXIMUM l2 gas over the runs (run with a fixed seed, so the
-figure is reproducible). Parameterized tests (`#[test_case]`): each generated case (test_sum_1_2_3)
-is its own row, mapped to its source function; the budget is the function's and every case must fit.
-Modules gated by a cfg other than `cfg(test)` are not evaluated: their tests are listed as
-"cfg-gated, not checked" unless the run measured them.
+  * a date/commit kept from the existing BUDGETS.md whose commit is not an ancestor of origin/main
+    (git merge-base --is-ancestor) or whose committer date differs from the date column.
+Fuzz and parameterized tests have ONE budget for all their runs or cases: N = ceil(1.05 x the most
+expensive) (CAIRO §2). A fuzz test's measured figure is the MAXIMUM l2 gas over its runs (run with a
+fixed seed, so the figure is reproducible). Parameterized tests (`#[test_case]`): each generated case
+(test_sum_1_2_3) is its own row, mapped to its source function; the function's budget is checked
+against the most expensive case.
+Modules gated by a cfg other than `cfg(test)` are not evaluated, but every test in them must still
+carry its budget attribute: it is checked, and the test is listed as "cfg-gated, not measured"
+unless the run measured it.
 
 Date and commit of a row are provenance: a row keeps the ones already in docs/BUDGETS.md while its
 measure and budget do not change, else it takes the committer date and short hash of the merge base
@@ -225,13 +228,13 @@ def analyse(package, decls, measured, baseline=None):
         full = f"{package}::{d.key}"
         where = f"{d.file}"
         got = mapped[d.key]
-        if d.budget is None and (got or not d.gated):
+        if d.budget is None:
             problems.append(f"{full}: no #[available_gas(l2_gas: N)] ({where})")
         if not got:
             if d.ignored:
                 rows.append(_row(package, d.key, None, d, 0, 0))
             elif d.gated:
-                notes.append(f"{full}: cfg-gated, not checked")
+                notes.append(f"{full}: cfg-gated, not measured (only its budget attribute is checked)")
             else:
                 problems.append(f"{full}: declared #[test] but not measured by the run ({where})")
             continue
@@ -323,12 +326,16 @@ def stamp():
     return date, commit
 
 
-def provenance_ok(date, commit):
+def provenance_ok(date, commit, cwd=ROOT, main="origin/main"):
+    """The commit exists, is an ancestor of origin/main (a branch commit can vanish in a squash
+    merge) and its committer date is the date column."""
     if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
         return False
-    if run(["git", "cat-file", "-e", f"{commit}^{{commit}}"]).returncode != 0:
+    if run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd).returncode != 0:
         return False
-    return run(["git", "show", "-s", "--format=%cs", commit]).stdout.strip() == date
+    if run(["git", "merge-base", "--is-ancestor", commit, main], cwd).returncode != 0:
+        return False
+    return run(["git", "show", "-s", "--format=%cs", commit], cwd).stdout.strip() == date
 
 
 def render(rows, previous, ws, packages, keep_invalid):
@@ -358,11 +365,13 @@ def render(rows, previous, ws, packages, keep_invalid):
         f"Source of truth for the cost budgets of `{ws}/` (docs/CAIRO.md §2, OPERATIONS §5). "
         "Written from a test run by `python3 scripts/gas_budgets.py`, checked in the CI by "
         "`--check`; never edit a figure by hand. Measured and budget are l2 gas as snforge "
-        "reports them; budget = ceil(1.05 × measured). A fuzz test's measured figure is the "
-        "maximum l2 gas over its runs (fixed seed); each case of a `#[test_case]` is its own "
-        "row; an `#[ignore]`d test is not measured and its row says `ignored`. Date and commit "
-        "are those of the origin/main commit (merge base) the figures were measured on top of, "
-        "kept while the row's figures do not change.",
+        "reports them; budget = ceil(1.05 × measured). A fuzz test or a `#[test_case]` function "
+        "has one budget for all its runs or cases: N = ceil(1.05 × the most expensive). A fuzz "
+        "test's measured figure is the maximum l2 gas over its runs (fixed seed); each case of a "
+        "`#[test_case]` is its own row; an `#[ignore]`d test is not measured and its row says "
+        "`ignored`. Date and commit are those of the origin/main commit (merge base) the figures "
+        "were measured on top of, an ancestor of origin/main, kept while the row's figures do "
+        "not change.",
         "",
         "| Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |",
         "|---|---|---:|---:|---|---|",
@@ -548,6 +557,10 @@ mod tests {
 mod gated {
     #[test]
     fn test_g() {}
+
+    #[test]
+    #[available_gas(l2_gas: 7)]
+    fn test_g_ok() {}
 }
 
 // gas: raised, the reveal now walks 3 chunks
@@ -624,10 +637,32 @@ class SelfTest(unittest.TestCase):
         self.assertIsNone(ok["measured"])
         self.assertEqual(ok["budget"], 5)
 
-    def test_cfg_gated_is_listed(self):  # 5
+    def test_cfg_gated_needs_a_budget(self):  # 5
         _, problems, notes = analyse("pkg", self.decls, [])
-        self.assertIn("pkg::t::gated::test_g: cfg-gated, not checked", notes)
-        self.assertFalse(any("test_g" in p for p in problems))
+        self.assertTrue(any("t::gated::test_g: no #[available_gas" in p for p in problems))
+        self.assertFalse(any("test_g_ok" in p for p in problems))
+        self.assertIn("pkg::t::gated::test_g_ok: cfg-gated, not measured "
+                      "(only its budget attribute is checked)", notes)
+
+    def test_provenance_needs_an_ancestor_of_main(self):  # 6
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            def git(*a):
+                return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                      cwd=d, capture_output=True, text=True, check=True).stdout.strip()
+
+            git("init", "-q", "-b", "main")
+            git("commit", "-q", "--allow-empty", "-m", "a")
+            on_main = git("rev-parse", "--short=7", "HEAD")
+            git("checkout", "-q", "-b", "branch")
+            git("commit", "-q", "--allow-empty", "-m", "b")
+            on_branch = git("rev-parse", "--short=7", "HEAD")
+            date = git("show", "-s", "--format=%cs", "HEAD")
+            self.assertTrue(provenance_ok(date, on_main, d, "main"))
+            self.assertFalse(provenance_ok(date, on_branch, d, "main"))  # date matches, not in main
+            self.assertFalse(provenance_ok("1999-01-01", on_main, d, "main"))
+            self.assertFalse(provenance_ok(date, "deadbee", d, "main"))
 
     def test_raise_needs_a_reason(self):  # 4
         d = self.keys["t::test_sum"]
