@@ -26,11 +26,11 @@ native contracts in production form costs **$0.69 to $0.93**. The threshold is *
 21,687,750,610 fri and L1 data gas 1,544,531,203,854 fri (block 15,591,320, 2026-09-28T19:30Z);
 STRK $0.04061 (CoinGecko, 19:30:18Z).
 
-**For the threshold to hold, an action must cost at most $0.50 / 300 = $0.001667**, which is
-**1,833,096 L2 gas per action** at those prices, with 832 L1 data gas (DA) per action included.
-Each measured native action, per player action:
+**Equal-allocation reference** (not a budget for any one action): $0.50 / 300 = **$0.001667 per
+action**, which is **1,833,096 L2 gas per action** at those prices, with 832 L1 data gas (DA) per
+action included. Each measured native action, per player action, against that reference:
 
-| Native action (owner checked) | L2 gas per action | $ per action | × the budget |
+| Native action (owner checked) | L2 gas per action | $ per action | × the equal-allocation reference |
 |---|---:|---:|---:|
 | Fight: the game's worst tick under D-127 (15 layers, 8 goblins reached) | 5,156,800 | 0.004594 | **2.76** |
 | Fight, goblins packed per instance | 5,036,800 | 0.004488 | 2.69 |
@@ -43,12 +43,51 @@ Each measured native action, per player action:
 | Enter / leave | 3,425,280 / 1,576,320 | 0.003057 / 0.001424 | 1.83 / 0.85 |
 | Brew (new pair), accept quest, claim quest | 2,485,920 / 1,473,680 / 1,713,680 | 0.002222 / 0.001314 / 0.001533 | 1.33 / 0.79 / 0.92 |
 
-Exploration is well under budget; moves near goblins are at or just over it; **fights are 2.7× to
-2.8× over**, and they are a third of an expedition. Per expedition the native average is
-$0.0023 to $0.0031 per action (1.38× to 1.86×). The threshold would hold at an L2 gas price of
-**11.6 to 15.6 Gfri** (today 21.7; 18.1 to 30.8 over two weeks), or with a fight near 1.8M L2 gas.
-Mainnet may meter these contracts in Sierra gas, below devnet's VM-resource figures used here: to
-be measured on Sepolia (§8.6). Detail in §9.
+Exploration is well under the reference, moves near goblins are at or just over it, and fights are
+2.7× to 2.8× over it. The expedition average is $0.0023 to $0.0031 per action (1.38× to 1.86×).
+
+**The reference is not what a fight must cost.** Fights at 1,833,096 L2 gas, everything else as
+measured, still leave S1 at **$0.635** and S4 at **$0.631**. What a fight would have to cost for each
+scenario to reach $0.50 exactly, every other transaction and every DA as measured (fix loop 3,
+C-6):
+
+| Scenario (§9.3) | Fights per expedition | Measured fight | **Fight budget** | Share of today's fight |
+|---|---:|---:|---:|---:|
+| S1 worst case everywhere | 100 | 5,156,800 | **295,792** | 5.7 % |
+| S2 mixed (2/3 of the moves exploring) | 100 | 5,156,800 | **2,836,494** | 55 % |
+| S3 mixed, goblins packed | 100 | 5,036,800 | **2,862,094** | 57 % |
+| S4 worst case everywhere, goblins packed | 100 | 5,036,800 | **340,592** | 6.8 % |
+| S5 serpentine queues (capped; 120 fight-priced transactions) | 120 | 5,156,800 | **2,589,914** | 50 % |
+
+A cheaper tick would also cheapen the queued moves: each carries a tick. So the **correlated
+case** is modelled too. The tick's part of a transaction is taken as the slope of the queues with
+8 goblins: 1,659,874 L2 gas per move, least squares on 1, 5 and 10 moves. It is scaled by the same
+factor *r* in every fight and every queued move near goblins, with the rest kept. The model is
+linear over receipts, which is an assumption.
+
+| Scenario | Expedition with free ticks (*r* = 0) | *r* for $0.50 | Fight at that *r* |
+|---|---:|---:|---:|
+| S1 | $0.490 | **0.024** | 3,536,464 |
+| S2 | $0.441 | 0.223 | 3,867,741 |
+| S3 | $0.428 | 0.272 | 3,828,630 |
+| S4 | $0.475 | 0.057 | 3,471,397 |
+| S5 | $0.381 | 0.305 | 4,003,722 |
+
+**Plainly: the threshold does not hold at today's prices, and no plausible cheapening of the fight
+alone makes it hold in the worst case.**
+
+- **S1 (every move near goblins).** A fight would have to cost 295,792 L2 gas with everything
+  else unchanged. That is 5.7 % of today's 5,156,800, and under the fight's own non-tick part in
+  the model (about 3.5M: account, fee transfer, instance and goblin reads and writes). If the tick
+  cheapens everywhere at once, S1 reaches $0.50 only with the tick's part at **2.4 %** of today's;
+  even free ticks leave $0.490.
+- **Mixed expeditions (S2, S3).** They pass with fights at about 2.84M to 2.86M (55 % to 57 % of
+  today's), or with the tick's part at about a quarter of today's everywhere.
+- **Other routes.** An L2 gas price of **11.6 to 15.6 Gfri** (today 21.7; 18.1 to 30.8 over two
+  weeks), or mainnet metering these contracts in Sierra gas, below devnet's VM-resource figures
+  used here: to be measured on Sepolia (§8.6).
+
+Detail in §9 and §9.4.
 
 ## Verdict (part 1, Dojo)
 
@@ -525,9 +564,13 @@ All 75 measured transactions succeeded: 29 native (Cairo 2.19), the same 29 on t
 
 On this node, a transaction's cost therefore follows its VM resources. That explains why the flood's delta differs between the sides. On Dojo, the world's large step count hides the flood's bitwise work; natively the bitwise work shows. This reading assumes that VM-resource pricing takes the largest weighted resource rather than a sum; it is an inference, not a measurement.
 
-**Where a native transaction goes** (devnet trace; devnet reports invocation gas in steps of 40,000, so the rest can be slightly negative):
+**Invocation figures of native traces** (devnet). *Fix loop 3 (C-1): these figures are **not
+additive**.* A transaction's fee is a weighted maximum over its resources
+(<https://docs.starknet.io/learn/protocol/fees>), so the invocations do not sum to the receipt.
+The last column is only the **non-additive residual**, the receipt minus their sum, not the cost
+of anything. It can be negative: −643,200 here, −592,000 on the capped serpentine queue.
 
-| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Rest |
+| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Non-additive residual |
 |---|---:|---:|---:|---:|---:|---:|
 | Worst-case tick, owner checked | 4,996,800 | 320,000 | 80,000 | 3,920,000 | 400,000 | 276,800 |
 | Queue of 10 moves, checked | 20,128,000 | 320,000 | 40,000 | 19,040,000 | 400,000 | 328,000 |
@@ -537,11 +580,11 @@ On this node, a transaction's cost therefore follows its VM resources. That expl
 | Accept quest | 1,473,680 | 320,000 | 120,000 | 240,000 | 400,000 | 393,680 |
 | Enter | 3,425,280 | 320,000 | 160,000 | 800,000 | 400,000 | 1,745,280 |
 
-- **Account and protocol:** 0.76M to 0.88M per transaction (validation, the account's own execution, the fee transfer).
-- **Game calls:** everything the game's contracts execute, **syscalls included**. Under VM-resource metering, devnet does not separate syscalls.
+- **No allocation is drawn from these figures** (fix loop 3, C-1). An earlier version of this section gave an "account and protocol" share of 0.76M to 0.88M per transaction, and read the residual as calldata, events and rounding. Both are withdrawn: neither was derived from the resource vectors and the fee formula.
+- **Game calls:** the invocation figure of everything the game's contracts execute, syscalls included. Under VM-resource metering, devnet does not separate syscalls.
 - **Execution alone:** snforge's Sierra-gas call, without syscalls (§8.3, second table).
 - **Syscalls cannot be isolated on this node.** The gap between devnet's figure and the Sierra-gas figure mixes the syscalls with the change of meter.
-- **The rest:** calldata, signature, events and state-diff charges outside the invocations.
+- **What is additive is the receipt:** the transaction's L2 gas and L1 data gas. Every cost, ratio and scenario in this file uses receipts only.
 
 ### 8.3 C-2 — the controlled comparison
 
@@ -685,7 +728,7 @@ Notes on the table:
 - The native in-memory tick figure is native's snforge run: 1,676,463 − 83,670.
 - Unlimited figures are fix loop 1's, from the same code without the cap (`devnet-output-fixloop1-uncapped.txt`).
 - All 85 transactions of this run succeeded (`devnet-output.txt`).
-- The native tick checked (production form) costs the same 5,156,800 on devnet (devnet reports invocation gas in steps of 40,000).
+- The native tick checked (production form) costs the same 5,156,800 on devnet as unchecked: the owner check does not move this receipt (on part 1's fixture it added 40,000).
 
 The cap makes the game's worst tick **5,156,800 natively, 1.03× part 1's fixture** (4,996,800
 checked) instead of 1.8×. The deep and maze boards get cheaper than the fixture: their far goblins
@@ -709,7 +752,54 @@ Uncapped, fix loop 1's S5 cost $1.348 natively. With the cap, the serpentine que
 goblins hold, and **S1 is the worst scenario**.
 
 **Verdict: ADR-0001's threshold does not hold for the native contracts at today's prices**, by
-1.38× to 1.86×. It would hold with fights at about 1.8M L2 gas (a third of today's 5.16M). The
-other routes are an L2 gas price at or below 11.6 to 15.6 Gfri, or mainnet metering these
-classes in Sierra gas well below devnet's VM resources (§8.6). The per-action comparison is in
-the summary at the top.
+1.38× to 1.86×. ~~It would hold with fights at about 1.8M L2 gas.~~ *Withdrawn in fix loop 3
+(C-6):* 1.8M is the equal-allocation reference, not a fight budget. With fights at 1,833,096, S1
+still costs $0.635 and S4 $0.631. The scenario-specific fight budgets and the correlated case
+are in §9.4. The other routes are an L2 gas price at or below 11.6 to 15.6 Gfri, or mainnet
+metering these classes in Sierra gas well below devnet's VM resources (§8.6).
+
+### 9.4 Fix loop 3 — what a fight would have to cost (C-6)
+
+Computed by `money_devnet.py` from the same receipts and prices (`money-devnet-output.txt`); no
+measurement changed.
+
+- **Equal-allocation reference.** $0.50 / 300 = $0.001667 per action, which is 1,833,096 L2 gas
+  with 832 L1 data gas per action. It is a yardstick for any single action, not a budget: the
+  actions of an expedition do not cost the same.
+- **Fight budget per scenario.** The fight L2 gas F at which the expedition costs exactly $0.50,
+  every other transaction and every DA as measured:
+  F = ($0.50 − others' USD − fights' DA USD) / (fights × L2 gas price × STRK × 10⁻¹⁸).
+
+  | Scenario | Fights | Measured fight | Fight budget | Expedition with fights at 1,833,096 |
+  |---|---:|---:|---:|---:|
+  | S1 | 100 | 5,156,800 | **295,792** | 0.635 |
+  | S2 | 100 | 5,156,800 | 2,836,494 | 0.412 |
+  | S3 | 100 | 5,036,800 | 2,862,094 | 0.409 |
+  | S4 | 100 | 5,036,800 | **340,592** | 0.631 |
+  | S5 | 120 | 5,156,800 | 2,589,914 | 0.420 |
+
+  The auditor's figures for S1 and S4 (about 295,792 and 340,592) are reproduced exactly. The
+  auditor's $0.632 and $0.629 at 1,833,096 differ from these by $0.003; not investigated.
+- **Correlated case.** A queued move near goblins carries a tick. The tick's part of a transaction
+  is taken as the slope of the checked queues with 8 goblins over 1, 5 and 10 moves:
+  **1,659,874 L2 gas per tick**, the same for both layouts. That part is scaled by r in every
+  fight (1 tick), every queued move near goblins (1 tick per move) and every "other" transaction
+  (1 tick); in the serpentine queue it is capped at the queue's own cost. Exploring moves,
+  enter, leave and the rest of each transaction are kept.
+
+  | Scenario | Free ticks (r = 0) | r for $0.50 | Fight at that r |
+  |---|---:|---:|---:|
+  | S1 | $0.490 | 0.024 | 3,536,464 |
+  | S2 | $0.441 | 0.223 | 3,867,741 |
+  | S3 | $0.428 | 0.272 | 3,828,630 |
+  | S4 | $0.475 | 0.057 | 3,471,397 |
+  | S5 | $0.381 | 0.305 | 4,003,722 |
+
+  The model is linear over receipts. The receipts are what is additive, but the linear split of
+  a VM-resource fee (a weighted maximum) into a per-tick part and a rest is an assumption.
+- **Conclusion.**
+  - **Worst case (S1, S4).** Cutting the fight alone cannot reach $0.50. The fight budget
+    (0.30M to 0.34M) is below the fight's own non-tick part in the model (about 3.5M), and even
+    free ticks everywhere leave S1 at $0.490 and S4 at $0.475, just under.
+  - **Mixed expeditions (S2, S3).** They pass with fights at 55 % to 57 % of today's, or with the
+    tick's part at about a quarter of today's in every tick-bearing transaction.

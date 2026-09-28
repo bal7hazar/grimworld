@@ -165,9 +165,12 @@ for label in (
     print(f"| {label} | {n['l2_gas']:,} | {usd(n):.5f} |")
 print()
 
-print("Where a native transaction goes (trace; devnet reports invocation gas in steps of 40,000, "
-      "so the rest can be slightly negative)")
-print("| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Rest |")
+print("Invocation figures of the native traces. Not additive: a transaction's fee is a weighted "
+      "maximum over its resources (https://docs.starknet.io/learn/protocol/fees), so the invocations do "
+      "not sum to the receipt; the last column is the non-additive residual, receipt minus their sum, "
+      "not a cost of anything")
+print("| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | "
+      "Non-additive residual |")
 print("|---|---:|---:|---:|---:|---:|---:|")
 for label in ("capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked",
               "worst-case tick, one felt per goblin, checked", "queue of 10 moves, checked",
@@ -306,3 +309,97 @@ print("|---|---:|---:|")
 for name, d, n in SCENARIOS:
     per = dollars(expedition(*n)) / ACTIONS
     print(f"| {name} | {per:.6f} | {per / BUDGET_USD:.2f} |")
+
+# ---------------------------------------------------------------------------------------------
+# Fix loop 3 (C-6): what the FIGHT would have to cost for each scenario to reach $0.50, every other
+# cost and the DA fixed; and the correlated case where a cheaper tick also cheapens queued moves.
+# BUDGET_L2 above is an equal-allocation reference ($0.50 over 300 actions), not a fight budget.
+
+FIGHT_LABELS = {FIGHT, FIGHT_PACKED, CAPPED_DOJO}
+
+
+def parts(side, fight, near_queue, near_len, far_queue, other, near, est=False):
+    """[(count, label, side used)] of an expedition, as `expedition` composes it."""
+    q = "dojo-est" if est else side
+    n_near = -(-round(MOVES * near) // near_len)
+    n_far = -(-(MOVES - round(MOVES * near)) // 10)
+    return [(n_near, near_queue, q), (n_far, far_queue, side), (FIGHTS, fight, side), (OTHERS, other, q),
+            (1, "enter", side), (1, "leave", side)]
+
+
+def usd_of(l2, da):
+    return (l2 * P_L2 + da * P_DA) * FRI * STRK_USD
+
+
+print()
+print("Fight budget per scenario (C-6): the L2 gas of one fight at which the expedition costs $0.50, "
+      "every other transaction and every DA as measured")
+print("| Scenario | Fights per expedition | Measured fight L2 gas | Fight budget (L2 gas) | "
+      "Expedition with fights at the equal-allocation reference |")
+print("|---|---:|---:|---:|---:|")
+for name, d, n in SCENARIOS:
+    ps = parts(*n)
+    fixed_usd, n_fight = 0.0, 0
+    for count, label, side in ps:
+        l2, da = gas(side, label)
+        if label in FIGHT_LABELS:
+            n_fight += count
+            fixed_usd += usd_of(0, count * da)
+        else:
+            fixed_usd += usd_of(count * l2, count * da)
+    budget = (THRESHOLD - fixed_usd) / (n_fight * P_L2 * STRK_USD * FRI)
+    at_ref = fixed_usd + usd_of(n_fight * BUDGET_L2, 0)
+    fight_l2 = gas(N, n[1])[0]
+    shown = f"{budget:,.0f}" if budget > 0 else f"none (other costs alone exceed $0.50: {budget:,.0f})"
+    print(f"| {name} | {n_fight} | {fight_l2:,} | {shown} | {at_ref:.3f} |")
+
+
+# Correlated case: the part of a transaction that grows with the tick. The queues with 8 goblins
+# give it as the slope of cost per move (least squares on 1, 5 and 10 moves): each move carries
+# one tick. A fight carries one tick; a queue of n moves carries n. A cheaper tick scales that
+# part by r (0: free ticks) in every tick-bearing transaction near goblins; the rest (account,
+# fee transfer, reads and writes of the instance and its goblins, exploring moves) is kept.
+def slope(labels):
+    xs = [1, 5, 10]
+    ys = [rows[(N, lab)]["l2_gas"] for lab in labels]
+    mx, my = sum(xs) / 3, sum(ys) / 3
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+
+
+T_FELT = slope(["queue of 1 move, checked", "queue of 5 moves, checked", "queue of 10 moves, checked"])
+T_PACKED = slope(["queue of 1 move, goblins packed, checked", "queue of 5 moves, goblins packed, checked",
+                  "queue of 10 moves, goblins packed, checked"])
+TICKS = {
+    "queue of 5 moves, checked": 5,
+    "queue of 1 move, checked": 1,
+    "queue of 5 moves, goblins packed, checked": 5,
+    "queue of 1 move, goblins packed, checked": 1,
+    "queue of 10 moves, serpentine (capped), checked": 10,
+    FIGHT: 1,
+    FIGHT_PACKED: 1,
+}
+print()
+print(f"Correlated case (C-6): tick part = {T_FELT:,.0f} L2 gas per tick (slope of the queues with 8 goblins, "
+      f"one felt per goblin), {T_PACKED:,.0f} (packed); scaled by r in fights and queued moves near goblins "
+      f"alike (in the serpentine queue, at most its own cost per move)")
+print("| Scenario | Tick part per tick | Expedition with free ticks (r = 0) | r for $0.50 | Fight L2 gas at that r |")
+print("|---|---:|---:|---:|---:|")
+for name, d, n in SCENARIOS:
+    ps = parts(*n)
+    t = T_PACKED if n[1] == FIGHT_PACKED else T_FELT
+    base_l2, base_da, tick_l2 = 0, 0, 0.0
+    for count, label, side in ps:
+        l2, da = gas(side, label)
+        base_l2 += count * l2
+        base_da += count * da
+        k = TICKS.get(label, 0)
+        tick_l2 += count * min(k * t, l2)
+    full = usd_of(base_l2, base_da)
+    free = usd_of(base_l2 - tick_l2, base_da)
+    if free > THRESHOLD:
+        r_text, fight_text = "none: above $0.50 even with free ticks", "—"
+    else:
+        r = (THRESHOLD - free) / (full - free)
+        fight = gas(N, n[1])[0] - (1 - r) * t
+        r_text, fight_text = f"{r:.3f}", f"{fight:,.0f}"
+    print(f"| {name} | {t:,.0f} | {free:.3f} | {r_text} | {fight_text} |")

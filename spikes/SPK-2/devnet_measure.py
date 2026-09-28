@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""SPK-2, fix loop 1 (C-1): both sides on one node and one account, metered in Sierra gas.
+"""SPK-2, fix loop 1 (C-1): both sides on one node and one account (devnet turned out to meter in
+VM resources, not Sierra gas: docs/research/SPK-2-cost.md §8.2).
 
 On starknet-devnet (scripts/with-node.sh), declare and deploy an OpenZeppelin account compiled with
 Cairo 2.19 (spikes/SPK-2/account/), then send through it:
   - the native contracts' transactions (spikes/SPK-2/native/);
   - the Dojo world's transactions (part 1, migrated with sozo 1.8.7 from this folder's pins).
-For each transaction: the receipt, and the breakdown of its trace (`starknet_traceTransaction`):
-validation, the account's own execution, the game's calls, the fee transfer, and the rest of the
-receipt (calldata, signature, events and state-diff charges outside the invocations).
+For each transaction: the receipt, and the invocation figures of its trace
+(`starknet_traceTransaction`): validation, the account's own execution, the game's calls, the fee
+transfer. They are not additive: a fee is a weighted maximum over resources
+(https://docs.starknet.io/learn/protocol/fees). The field `rest` is only the non-additive residual,
+receipt minus their sum (fix loop 3), not a cost of calldata, events or anything else.
 Prints one JSON line per record. From the repository root:
 
     scripts/with-node.sh python3 spikes/SPK-2/devnet_measure.py > spikes/SPK-2/devnet-output.txt

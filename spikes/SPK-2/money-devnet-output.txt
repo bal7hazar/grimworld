@@ -66,8 +66,8 @@ Native only: the owner check (production form) and the layout experiment
 | queue of 10 moves, 11 slots per goblin, checked | 25,064,000 | 0.02217 |
 | queue of 10 moves, serpentine (capped), checked | 13,568,000 | 0.01197 |
 
-Where a native transaction goes (trace; devnet reports invocation gas in steps of 40,000, so the rest can be slightly negative)
-| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Rest |
+Invocation figures of the native traces. Not additive: a transaction's fee is a weighted maximum over its resources (https://docs.starknet.io/learn/protocol/fees), so the invocations do not sum to the receipt; the last column is the non-additive residual, receipt minus their sum, not a cost of anything
+| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Non-additive residual |
 |---|---:|---:|---:|---:|---:|---:|
 | capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 5,156,800 | 320,000 | 40,000 | 4,120,000 | 400,000 | 276,800 |
 | worst-case tick, one felt per goblin, checked | 4,996,800 | 320,000 | 80,000 | 3,920,000 | 400,000 | 276,800 |
@@ -115,3 +115,21 @@ Per action, for 300 actions ≤ $0.50: $0.001667 per action; with 832 L1 data ga
 | S3 mixed, goblins packed per instance | 0.002305 | 1.38 |
 | S4 worst case everywhere, goblins packed per instance | 0.003045 | 1.83 |
 | S5 adversarial (every move near goblins in serpentine queues, capped) | 0.002571 | 1.54 |
+
+Fight budget per scenario (C-6): the L2 gas of one fight at which the expedition costs $0.50, every other transaction and every DA as measured
+| Scenario | Fights per expedition | Measured fight L2 gas | Fight budget (L2 gas) | Expedition with fights at the equal-allocation reference |
+|---|---:|---:|---:|---:|
+| S1 worst case everywhere | 100 | 5,156,800 | 295,792 | 0.635 |
+| S2 mixed (2/3 of the moves exploring) | 100 | 5,156,800 | 2,836,494 | 0.412 |
+| S3 mixed, goblins packed per instance | 100 | 5,036,800 | 2,862,094 | 0.409 |
+| S4 worst case everywhere, goblins packed per instance | 100 | 5,036,800 | 340,592 | 0.631 |
+| S5 adversarial (every move near goblins in serpentine queues, capped) | 120 | 5,156,800 | 2,589,914 | 0.420 |
+
+Correlated case (C-6): tick part = 1,659,874 L2 gas per tick (slope of the queues with 8 goblins, one felt per goblin), 1,659,874 (packed); scaled by r in fights and queued moves near goblins alike (in the serpentine queue, at most its own cost per move)
+| Scenario | Tick part per tick | Expedition with free ticks (r = 0) | r for $0.50 | Fight L2 gas at that r |
+|---|---:|---:|---:|---:|
+| S1 worst case everywhere | 1,659,874 | 0.490 | 0.024 | 3,536,464 |
+| S2 mixed (2/3 of the moves exploring) | 1,659,874 | 0.441 | 0.223 | 3,867,741 |
+| S3 mixed, goblins packed per instance | 1,659,874 | 0.428 | 0.272 | 3,828,630 |
+| S4 worst case everywhere, goblins packed per instance | 1,659,874 | 0.475 | 0.057 | 3,471,397 |
+| S5 adversarial (every move near goblins in serpentine queues, capped) | 1,659,874 | 0.381 | 0.305 | 4,003,722 |
