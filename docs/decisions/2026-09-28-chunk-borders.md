@@ -36,4 +36,16 @@ speaks only of shared edges. SPK-7 keeps every corner as wall.
 **Recommendation: (a).** Deterministic and local to one chunk (a reveal never depends on a diagonal
 neighbour), and the openings of each side already connect chunks.
 
-Expected: the project manager's decision on both, recorded here and in ADR-0006.
+## Decision
+
+By the project manager on 2026-09-28, under D-128 (D-134).
+
+| # | Decision | Why |
+|---|---|---|
+| 1 | **A margin of void chunks surrounds every location.** A void chunk is wall everywhere, is never revealed and never stored: the assembly of the window takes a constant in its place. The window stays centred on the adventurer (D-120). The same holds for a chunk of the bounding grid that is outside the outline of a zone | It keeps the rule that what is simulated and shown depends on the adventurer's position only. Clamping would put the adventurer off centre and bring back the defect D-120 removed |
+| 2 | **The four corner tiles of a chunk are always wall.** Chunks connect through their edges only | The reveal of a chunk then never depends on a diagonal neighbour, which may not exist yet. The openings of each side already connect the chunks |
+
+What would reverse 2: generated maps that read as a grid because of their closed corners, seen
+in a playtest. Corners would then follow a rule decided by the first of the four chunks
+revealed.
+

@@ -30,6 +30,7 @@ The machine also runs the owner's other programmes: about 6 agents in all.
 | D-132 | Publications on scarbs.xyz are decided by the project manager in the owner's name | Owner |
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
+| D-134 | Void chunks around every location; chunk corners are wall. SPK-7 measured the chunked map at +720k gas per tick with goblins (+14 %) | Project manager |
 | D-131 | The API of `quiver_quest` and `quiver_achievement` accepted | Project manager |
 | — | LIB-03 and LIB-04 merged after more than three fix loops, their open findings carried as tasks | Project manager |
 
