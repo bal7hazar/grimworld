@@ -15,8 +15,12 @@ Bash(snforge *)
 Bash(sozo *)
 Bash(katana *)
 Bash(torii *)
-# Native Starknet (ADR-0007): the deployment tool and a candidate local node (SPK-5b, NS-1).
-Bash(sncast *)
+# Native Starknet (ADR-0007): the deployment tool, against a local node only (an explicit local
+# --url on every call), and a candidate local node (SPK-5b, NS-1).
+Bash(sncast *--url http://127.0.0.1*)
+Bash(sncast *--url http://localhost*)
+Bash(sncast --version)
+Bash(sncast *--help*)
 Bash(starknet-devnet *)
 Bash(pnpm *)
 Bash(node *)
@@ -31,9 +35,11 @@ Bash(curl *)
 Bash(tar *)
 Bash(unzip *)
 
-# Rust, for spikes that build a tool (cairo-vm to WebAssembly, SPK-4). Toolchains and targets
-# are added, never made default; binaries are installed only under --root (inside the
-# worktree), never into the shared ~/.cargo/bin.
+# Rust, for spikes that build a tool (cairo-vm to WebAssembly, SPK-4), with the toolchains
+# already on the machine (1.89.0 with wasm32 is installed): no rustup install, no default
+# change. Binaries are installed only under spikes/ (cargo install --root spikes/...). No
+# absolute, home or parent path, no --target-dir: outputs stay in the worktree. Builds do
+# write to cargo's shared download caches (~/.cargo/registry, ~/.cargo/git), additively.
 Bash(cargo build*)
 Bash(cargo run*)
 Bash(cargo test*)
@@ -41,13 +47,10 @@ Bash(cargo fetch*)
 Bash(cargo metadata*)
 Bash(cargo tree*)
 Bash(cargo --version)
-Bash(cargo install --root *)
+Bash(cargo install --root spikes/*)
 Bash(rustup --version)
 Bash(rustup show*)
-Bash(rustup target add *)
-Bash(rustup toolchain install *)
 Bash(rustc --version)
-Bash(firefox --headless *)
 
 # Project scripts and tools (tools/<name>/.venv/bin/… included).
 Bash(scripts/*)
@@ -138,12 +141,34 @@ Bash(gh pr comment*)
 !Bash(claude *)
 !Bash(codex *)
 
-# Never: change the machine's Rust defaults or install into the shared ~/.cargo/bin.
+# Never: change the machine's Rust setup, write outside the worktree through cargo, or send a
+# transaction anywhere but the local node.
 !Bash(rustup default*)
 !Bash(rustup self*)
 !Bash(rustup uninstall*)
-!Bash(rustup toolchain uninstall*)
+!Bash(rustup toolchain*)
+!Bash(rustup target*)
 !Bash(rustup override*)
+!Bash(rustup update*)
+!Bash(cargo *..*)
+!Bash(cargo * /*)
+!Bash(cargo *=/*)
+!Bash(cargo *~*)
+!Bash(cargo *$HOME*)
+!Bash(cargo *--target-dir*)
 !Bash(* ~/.cargo/bin*)
 !Bash(* $HOME/.cargo/bin*)
 !Bash(* /home/claude/.cargo/bin*)
+!Bash(sncast *--network*)
+!Bash(sncast *--profile*)
+!Bash(sncast *mainnet*)
+!Bash(sncast *sepolia*)
+
+# Never: reach outside the project's folders through a relative path.
+!Bash(scripts/*..*)
+!Bash(./scripts/*..*)
+!Bash(bash scripts/*..*)
+!Bash(tools/*..*)
+!Bash(./tools/*..*)
+!Bash(spikes/*..*)
+!Bash(./spikes/*..*)
