@@ -92,6 +92,8 @@ CALLS = [
     ("setup tick S move", False, "setup_standin", ["6", "1"]),
     ("setup tick B' wait", False, "setup_worst_case", ["7", "0", "1"]),
     ("setup tick B' move", False, "setup_worst_case", ["8", "1", "1"]),
+    ("setup tick B' move pending", False, "setup_worst_case", ["9", "1", "1"]),
+    ("setup tick B' move pending, stale chunks", False, "setup_stale", ["9"]),
 ]
 for b, name in enumerate(BIOMES):
     CALLS += [
@@ -108,7 +110,8 @@ CALLS += [
     ("worst-case tick, S (SPK-2's stand-in), adventurer waits", True, "act_standin", ["5", STAY]),
     ("worst-case tick, S (SPK-2's stand-in), adventurer moves", True, "act_standin", ["6", EAST]),
     ("worst-case tick, B' (stored, occupancy deferred), adventurer waits", True, "act_deferred", ["7", STAY]),
-    ("worst-case tick, B' (stored, occupancy deferred, written back and re-centred), adventurer moves", True, "act_deferred", ["8", EAST]),
+    ("worst-case tick, B' (stored, occupancy deferred, nothing pending, re-centred), adventurer moves", True, "act_deferred", ["8", EAST]),
+    ("worst-case tick, B' (stored, occupancy deferred, 4 chunks written back, re-centred), adventurer moves", True, "act_deferred", ["9", EAST]),
 ]
 for b, name in enumerate(BIOMES):
     CALLS += [
@@ -140,6 +143,6 @@ for label, measured, function, calldata in CALLS:
     }), flush=True)
 
 # The four ticks leave the same goblins (the snforge tests check chunks and windows too)
-goblins = {i: call(MAP, "goblins", [str(i)]) for i in (1, 2, 3, 4, 5, 6, 7, 8)}
-print(json.dumps({"check": "goblins after the eight ticks are equal", "ok": len(set(goblins.values())) == 1,
+goblins = {i: call(MAP, "goblins", [str(i)]) for i in (1, 2, 3, 4, 5, 6, 7, 8, 9)}
+print(json.dumps({"check": "goblins after the nine ticks are equal", "ok": len(set(goblins.values())) == 1,
                   "goblins": goblins[1]}), flush=True)

@@ -39,7 +39,9 @@ Source of truth for the cost budgets of `.with-node/gasws/` (docs/CAIRO.md §2, 
 | spk7 | `test_chunk::test_generate_open_border_and_copy` | 609264104 | 639727310 | 2026-09-28 | 19b5048 |
 | spk7 | `test_chunk::test_keep_component_matches_oracle_both_parities` | 76585976 | 80415275 | 2026-09-28 | 19b5048 |
 | spk7 | `test_chunk::test_smooth_matches_oracle_both_parities` | 661568850 | 694647293 | 2026-09-28 | 19b5048 |
+| spk7 | `test_contract::test_act_deferred_pending_setup_baseline` | 27853966 | 29246665 | 2026-09-28 | 19b5048 |
 | spk7 | `test_contract::test_act_deferred_worst_case_move` | 20229611 | 21241092 | 2026-09-28 | 19b5048 |
+| spk7 | `test_contract::test_act_deferred_worst_case_move_pending` | 31694891 | 33279636 | 2026-09-28 | 19b5048 |
 | spk7 | `test_contract::test_act_deferred_worst_case_wait` | 19730933 | 20717480 | 2026-09-28 | 19b5048 |
 | spk7 | `test_contract::test_act_deferred_writes_back_when_the_window_moves` | 52985416 | 55634687 | 2026-09-28 | 19b5048 |
 | spk7 | `test_contract::test_act_every_variant_moves_the_goblins` | 165459212 | 173732173 | 2026-09-28 | 19b5048 |

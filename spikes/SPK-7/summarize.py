@@ -46,9 +46,11 @@ def main():
     for what in ("waits", "moves"):
         a = gas(f"worst-case tick, A (assembled), adventurer {what}")[0]
         s = gas(f"worst-case tick, S (SPK-2's stand-in), adventurer {what}")[0]
-        b = [v for k, v in ((k, first[k][0]) for k in first) if k.startswith("worst-case tick, B") and k.endswith(what)][0]
+        b = [first[k][0] for k in first if k.startswith("worst-case tick, B (") and k.endswith(what)][0]
+        d = max(first[k][0] for k in first if k.startswith("worst-case tick, B' (") and k.endswith(what))
         print(f"| A − S, adventurer {what} (the chunked map's part of the tick) | {a - s:,} |")
-        print(f"| B − A, adventurer {what} (stored against assembled) | {b - a:,} |")
+        print(f"| B − A, adventurer {what} (stored, chunks kept in sync, against assembled) | {b - a:,} |")
+        print(f"| B′ − A, adventurer {what} (stored, occupancy deferred, its costliest case, against assembled) | {d - a:,} |")
     print("\n| Reveal | Most expensive biome | L2 gas (max over runs) |")
     print("|---|---|---:|")
     for case in ("reveal 1 chunk, no neighbour known", "reveal 1 chunk, 4 neighbours known",

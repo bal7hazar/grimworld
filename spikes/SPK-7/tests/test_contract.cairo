@@ -142,6 +142,24 @@ fn test_act_deferred_worst_case_move() {
 }
 
 #[test]
+#[available_gas(l2_gas: 29246665)] // ceil(1.05 × 27853966 measured)
+fn test_act_deferred_pending_setup_baseline() {
+    let map = deploy();
+    map.setup_worst_case(1, true, true);
+    map.setup_stale(1);
+}
+
+#[test]
+#[available_gas(l2_gas: 33279636)] // ceil(1.05 × 31694891 measured)
+fn test_act_deferred_worst_case_move_pending() {
+    // The re-centre writes the 4 chunks back
+    let map = deploy();
+    map.setup_worst_case(1, true, true);
+    map.setup_stale(1);
+    map.act_deferred(1, EAST);
+}
+
+#[test]
 #[available_gas(l2_gas: 55634687)] // ceil(1.05 × 52985416 measured)
 fn test_act_deferred_writes_back_when_the_window_moves() {
     // Wait (the window keeps the moves), then step West: the window moves, its occupancy goes back

@@ -46,6 +46,7 @@ pub trait IMap<T> {
     fn setup_worst_case(ref self: T, instance: u32, moved: bool, stored: bool);
     fn setup_reveal(ref self: T, instance: u32, biome: u8, case: u8);
     fn setup_standin(ref self: T, instance: u32, moved: bool);
+    fn setup_stale(ref self: T, instance: u32);
     // Measured
     fn reveal(ref self: T, instance: u32, chunks: Array<(u8, u8)>);
     fn act(ref self: T, instance: u32, direction: u8);
@@ -355,6 +356,14 @@ pub mod Instances {
             self.setup_adventurer(instance, x, y);
             if stored {
                 self.setup_window(instance);
+            }
+        }
+
+        /// Variant B' with moves pending: the chunks' occupied layers are cleared, as if the stored
+        /// window held moves not yet written back in each of them.
+        fn setup_stale(ref self: ContractState, instance: u32) {
+            for (cx, cy, _) in worst_chunks() {
+                self.chunks.entry(chunk_key(instance, cx, cy)).occupied.write(0);
             }
         }
 
