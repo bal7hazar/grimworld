@@ -1,0 +1,28 @@
+{
+  "network": "SN_SEPOLIA",
+  "deployed_at": "2026-09-28T20:42:24.365Z",
+  "source": "spikes/SPK-2/native (unchanged), scarb build, Cairo 2.19",
+  "admin": "the owner's Sepolia account (address not recorded)",
+  "contracts": {
+    "Hub": {
+      "class_hash": "0x5c1cf7384c44b93377f7a9d72ee85a82aa41907c8326976c10ff12c21a64bb4",
+      "compiled_class_hash_blake2s": "0x5807f355aaa371f5f57ec091bd0861bb04ae10cb943ca1237f7d819c2fae3b7",
+      "sierra": "1.9.3",
+      "compiler": "2.19.4",
+      "address": "0x98e5e98dd076c62ad0f89c2931d29be06a227a4ef2901b42e33a1bb5015300",
+      "declare_tx": "0x69c25052d6adcb341330e10e1c7b835f8d70595fa04b5a516a0ed9806e695b8",
+      "deploy_tx": "0x415d441ee08af9a59db3e1e5e33aa61f59562d0b0461ea64dab2a33b1d4c791"
+    },
+    "Instances": {
+      "class_hash": "0x79755c0ea06ff01a3cc50b9d926ec13a035860e7def2279d1100fcac4ab0f09",
+      "compiled_class_hash_blake2s": "0x26b96020a263e60579dafebe6f62e05dfc50151b557a057c31c50806f35361f",
+      "sierra": "1.9.3",
+      "compiler": "2.19.4",
+      "address": "0x408dbc81e3d39ef65ee9393464f2dee3cce13df43f9e65edda07d4c63393a84",
+      "declare_tx": "0x4b77d34b3995c401647a4347702432ca7c898ebb550d5d49e1ae674d6a83412",
+      "deploy_tx": "0x19ba0d4f7eaf0c9b977a9564e090fe6cfb5babb059453a2ce6eeb2f1e73f341"
+    }
+  },
+  "transactions": 7,
+  "fee_fri": "55947039326550254545"
+}
