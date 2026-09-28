@@ -19,7 +19,9 @@ owner (bal7hazar)
 
 - The **owner** decides on vision, scope, design decisions (`D-xx`), releases and
   mainnet. Speaks French.
-- The **project manager** owns `PLAN.md`, `STATUS.md`, `CONTEXT.md` and the decision log.
+- The **project manager** owns `PLAN.md`, `PROGRAMME.md`, `CONTEXT.md` and the decision log.
+  `STATUS.md` is the live state of the game track and is rewritten by the game
+  orchestrator; nobody else writes it.
   It **creates the orchestrator sessions** in the Claude App and chooses their model
   (Opus or Fable) according to the difficulty of what they will orchestrate. It gives
   them their objectives, answers their questions, arbitrates, prepares the owner's
@@ -300,7 +302,8 @@ rules of [docs/CAIRO.md](docs/CAIRO.md).
 | Technical decisions | `docs/architecture/ADR-*` | Same |
 | Decisions and their history | `docs/decisions/` (one file per decision; `PENDING-*.md` for the owner's open questions), indexed in `CONTEXT.md` | — |
 | Scope, order | `PLAN.md` | — |
-| Live state | `STATUS.md`, dated, rewritten at every check-in | — |
+| Live state of a track | The track's `STATUS.md`, dated, rewritten by its orchestrator at every check-in | — |
+| State of the programme | `PROGRAMME.md`, by the project manager: tracks, decisions, what waits for the owner | — |
 | Research | `docs/research/` | — |
 | Numbers (balance) | Registries' seed data | Design docs give initial values; seed data wins once it exists |
 | Cairo engineering rules | [docs/CAIRO.md](docs/CAIRO.md) | The code is wrong |
