@@ -43,16 +43,40 @@ jobs:
             grep -q -- ' -s read-only ' <<< "$out"
             if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag: codex" >&2; exit 1; fi
           done
-          grep -q -- 'sandbox_mode=' <<< "$(scripts/agent.sh --dry-run smoke codex gpt-6-sol resume "x" audit 0000)"
-          # Refusals: codex never implements; a model without a known tag is never launched.
+          grep -qF -- "-c sandbox_mode=\\\"read-only\\\" " \
+            <<< "$(scripts/agent.sh --dry-run smoke codex gpt-6-sol resume "x" audit 0000)"
+          # Refusals: codex never implements; a model without a known tag is never launched;
+          # only the three named profiles exist.
           if scripts/agent.sh --dry-run smoke codex gpt-6-sol new "x" implement; then exit 1; fi
           if scripts/agent.sh --dry-run smoke claude sonnet-4 new "x"; then exit 1; fi
+          if scripts/agent.sh --dry-run smoke claude sonnet new "x" ../profiles/implement; then exit 1; fi
+          # The build lock wraps build and test subcommands only.
+          for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
+            if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi
+          done
 
       - name: no asset file committed (D-73)
         run: |
-          files=$(git ls-files | grep -iE '\.(png|jpe?g|gif|webp|bmp|tga|psd|aseprite|ase|kra|wav|ogg|mp3|flac)$' || true)
-          if [ -n "$files" ]; then
-            echo "Image or audio files are not allowed in this repository (D-73):" >&2
-            echo "$files" >&2
+          set -euo pipefail
+          exts='png|jpe?g|gif|webp|bmp|tga|psd|aseprite|ase|kra|svg|wav|ogg|mp3|flac|ttf|otf|woff2?|fnt'
+          files=$(git ls-files | grep -iE "\.($exts)\$" || true)
+          # A sprite atlas descriptor (TexturePacker-style JSON) is derived from the pack too.
+          atlases=$(git ls-files -z '*.json' | xargs -0 -r grep -lE '"frames"[[:space:]]*:' |
+            xargs -r grep -lE '"image"[[:space:]]*:' || true)
+          if [ -n "$files$atlases" ]; then
+            echo "Image, audio, font or atlas files are not allowed in this repository (D-73):" >&2
+            echo "$files $atlases" >&2
+            exit 1
+          fi
+
+      # The submodule pointer moves only in the orchestrator's own pull request (chore/assets-*).
+      - name: assets pointer unchanged (D-73)
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'chore/assets-')
+        run: |
+          git fetch -q --depth=1 origin "$GITHUB_BASE_REF"
+          base=$(git ls-tree FETCH_HEAD assets | awk '{print $3}')
+          head=$(git ls-tree HEAD assets | awk '{print $3}')
+          if [ "$base" != "$head" ]; then
+            echo "The assets submodule pointer moved ($base -> $head)." >&2
             exit 1
           fi

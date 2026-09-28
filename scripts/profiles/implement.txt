@@ -1,6 +1,10 @@
 # Profile `implement`: everything `audit` grants, plus editing, the project's toolchain, git
 # except force-push, and opening the pull request. Never merging it.
 # Format: see research.txt.
+# The deny rules below stop these actions when they are typed as commands. They do not stop an
+# interpreter, a test or a project script, which can do anything the user can: that is the
+# price of running code. What holds whatever the agent runs is elsewhere: no secret in the
+# agent's environment, the CI checks (assets), and the protection of `main` on GitHub.
 
 @audit
 
@@ -45,7 +49,10 @@ Bash(awk *)
 # git and the pull request.
 Bash(git add *)
 Bash(git commit *)
-Bash(git push*)
+# Pushing: exactly these two forms (COMMON.md §6). Any other form (a refspec, a flag, a
+# colon deleting a remote branch) is refused as unlisted.
+Bash(git push)
+Bash(git push -u origin HEAD)
 Bash(git fetch*)
 Bash(git merge *)
 Bash(git checkout *)
@@ -59,19 +66,9 @@ Bash(gh pr create*)
 Bash(gh pr edit*)
 Bash(gh pr comment*)
 
-# Never: force-push or delete a remote branch (a branch that needs a rebase merges origin/main
-# instead), skip hooks, merge or close the pull request, act on another repository, touch the
-# assets submodule, force-add ignored files, use the stash (shared by every worktree), change
-# git configuration.
-!Bash(git push --force*)
-!Bash(git push * --force*)
-!Bash(git push -f*)
-!Bash(git push * -f*)
-!Bash(git push *+*)
-!Bash(git push *--mirror*)
-!Bash(git push *--delete*)
-!Bash(git push * -d *)
-!Bash(git push *--no-verify*)
+# Never: rebase (a branch that needs it merges origin/main instead), skip hooks, merge or
+# close the pull request, act on another repository, touch the assets submodule, force-add
+# ignored files, use the stash (shared by every worktree), change git configuration.
 !Bash(git commit *--no-verify*)
 !Bash(git commit -n*)
 !Bash(git commit * -n*)
@@ -102,9 +99,13 @@ Bash(gh pr comment*)
 !Bash(* $HOME/orchestrator*)
 !Bash(* /home/claude/orchestrator*)
 
-# Never: delete outside the worktree.
-!Bash(rm * /)
+# Never: delete outside the worktree (absolute paths, home, parent directories).
+!Bash(rm /*)
 !Bash(rm * /*)
+!Bash(rm ~*)
 !Bash(rm * ~*)
+!Bash(rm $HOME*)
 !Bash(rm * $HOME*)
+!Bash(rm ..*)
 !Bash(rm * ..*)
+!Bash(rm *../*)

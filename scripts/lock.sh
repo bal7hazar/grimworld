@@ -8,35 +8,48 @@
 #     shared with every other programme. `scarb` and `snforge` on PATH are the machine's shims
 #     (~/.local/bin), which take it by themselves; this script takes it for `--heavy` and for the
 #     `sozo` commands that compile, since sozo does not go through those shims.
-# Nested calls inherit the locks. Commands run under `nice -n 10` with capped parallelism.
+# Nested calls inherit the locks already held and take only the ones they miss, in the same
+# order. Commands run under `nice -n 10` with capped parallelism.
 #
-#   scripts/lock.sh [--heavy] <scarb|snforge|sozo|pnpm> [args...]
+# Only build and test commands are wrapped: the audit profile allows `scripts/lock.sh …`, so
+# this script must not become a way to run anything else.
+#
+#   scripts/lock.sh [--heavy] scarb <build|test|lint|fmt|check|metadata|execute> [args...]
+#   scripts/lock.sh [--heavy] snforge test [args...]
+#   scripts/lock.sh [--heavy] sozo <build|test|migrate|inspect> [args...]
+#   scripts/lock.sh [--heavy] pnpm <install|build|test|lint|typecheck> [args...]
 set -euo pipefail
 
-usage() {
-  echo "usage: scripts/lock.sh [--heavy] <scarb|snforge|sozo|pnpm> [args...]" >&2
+refuse() {
+  echo "scripts/lock.sh: $*" >&2
+  echo "usage: scripts/lock.sh [--heavy] <scarb|snforge|sozo|pnpm> <build or test subcommand> [args...]" >&2
   exit 2
 }
 heavy=0
 if [ "${1:-}" = --heavy ]; then heavy=1; shift; fi
-[ $# -gt 0 ] || usage
-case "$1" in
-  scarb | snforge | sozo | pnpm) ;;
-  *) echo "scripts/lock.sh wraps scarb, snforge, sozo and pnpm only, not '$1'" >&2; exit 2 ;;
+[ $# -ge 2 ] || refuse "missing command"
+# The subcommand must come first, right after the tool: no global option can hide it.
+case "$1:$2" in
+  scarb:build | scarb:test | scarb:lint | scarb:fmt | scarb:check | scarb:metadata | scarb:execute) ;;
+  snforge:test) ;;
+  sozo:build | sozo:test | sozo:migrate) heavy=1 ;;
+  sozo:inspect) ;;
+  pnpm:install | pnpm:build | pnpm:test | pnpm:lint | pnpm:typecheck) ;;
+  *) refuse "does not wrap '$1 $2'" ;;
 esac
-case "$1:${2:-}" in sozo:build | sozo:test | sozo:migrate) heavy=1 ;; esac
 
 project_lock=${GRIMWORLD_BUILD_LOCK:-/tmp/grimworld-build.lock}
 heavy_lock=${HEAVY_BUILD_LOCK:-$HOME/orchestrator/heavy-build.lock}
 export RAYON_NUM_THREADS="${RAYON_NUM_THREADS:-4}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
 
-if [ -n "${GRIMWORLD_BUILD_LOCK_HELD:-}" ]; then
-  exec "$@"
-fi
-export GRIMWORLD_BUILD_LOCK_HELD=1
+cmd=("$@")
 if [ "$heavy" = 1 ] && [ -z "${HEAVY_BUILD_LOCK_HELD:-}" ]; then
   mkdir -p "$(dirname "$heavy_lock")"
   export HEAVY_BUILD_LOCK_HELD=1
-  exec nice -n 10 flock "$project_lock" flock "$heavy_lock" "$@"
+  cmd=(flock "$heavy_lock" "${cmd[@]}")
 fi
-exec nice -n 10 flock "$project_lock" "$@"
+if [ -z "${GRIMWORLD_BUILD_LOCK_HELD:-}" ]; then
+  export GRIMWORLD_BUILD_LOCK_HELD=1
+  cmd=(flock "$project_lock" "${cmd[@]}")
+fi
+exec nice -n 10 "${cmd[@]}"

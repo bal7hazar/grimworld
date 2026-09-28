@@ -113,7 +113,8 @@ modified.
   `Claude Fable 5.1`).
 - Never force-push, never rebase a pushed branch (merge `origin/main` into it instead),
   never skip hooks, never commit a secret.
-- Open the pull request yourself: `git push -u origin <branch>`, then
+- Push with exactly `git push -u origin HEAD` the first time and `git push` afterwards
+  (the only two forms your profile allows). Open the pull request yourself with
   `gh pr create --base main`, title `[<Model>] <TASK-ID> <short description>`, body with the
   summary, the acceptance criteria ticked, the gas table for a Cairo task, and a last line
   `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.

@@ -187,7 +187,7 @@ never merged by the agent.
 | step | how |
 |---|---|
 | brief | `docs/briefs/<ID>-<slug>.md`, with `docs/briefs/COMMON.md` for the rules shared by all briefs |
-| worktree | `git worktree add .claude/worktrees/cli-<task> -b <branch> origin/main`, or `--branch <branch>` at launch |
+| worktree | `git worktree add --no-track .claude/worktrees/cli-<task> -b <branch> origin/main`, or `--branch <branch>` at launch |
 | launch | `scripts/agent.sh [--with-assets] [--branch <branch>] <task> <claude\|codex> <model> new "Read docs/briefs/<ID>-<slug>.md and docs/briefs/COMMON.md, then execute the task." <profile>` |
 | status | `scripts/agent.sh status`; log `.claude/worktrees/logs/<task>.log`, each run ending with `exit=<status>` |
 | wait | `scripts/agent.sh wait <task>`, as a background command titled with the model |
@@ -204,15 +204,23 @@ it is not initialised.
 
 A launch with `--dangerously-skip-permissions` is not used. Profiles grant an explicit tool
 allowlist, committed in `scripts/profiles/<profile>.txt` and passed as
-`--permission-mode acceptEdits --allowedTools … --disallowedTools …`; `acceptEdits` approves
-file edits inside the task's worktree only, and anything not allowed is refused, not
-prompted. The profiles are guard-rails against mistakes, not a sandbox:
+`--permission-mode acceptEdits --allowedTools … --disallowedTools …`. What this gives, as
+tested on 2026-09-28: every profile may edit files and run common file commands (`mkdir`,
+`touch`) **inside its own worktree**, which is disposable; a write outside it is refused; a
+command matching a deny rule is refused; any other command not allowed (`python3`, `curl`,
+`node`, `git commit` in `research`) is refused, since nobody is there to approve it.
+
+The profiles are **guard-rails against mistakes, not a sandbox**. Denied actions are refused
+when typed as commands, but an interpreter, a test or a project script that a profile allows
+can do anything the user can. What holds whatever an agent runs is elsewhere: no secret in
+the agent's environment, the CI checks (asset files, the `assets` pointer), and the
+protection of `main` on GitHub.
 
 | Profile | Grants | For |
 |---|---|---|
 | `research` | Read, search, the web, read-only shell and `gh pr view`; writes in the worktree | Spikes that only read and report |
 | `audit` | `research`, plus builds and tests through `scripts/lock.sh` | Auditors that reproduce a finding or a gas figure |
-| `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `sozo`, `katana`, `torii`, `pnpm`, `asdf install`), the project's `scripts/` and `tools/`, file commands, `git` and `gh pr create`. Denied: force-push, rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree | Implementation tasks |
+| `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `sozo`, `katana`, `torii`, `pnpm`, `asdf install`), the project's `scripts/` and `tools/`, file commands, `git`, pushing as `git push -u origin HEAD` or `git push` only, and `gh pr create`. Denied as commands: rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree | Implementation tasks |
 
 Codex runs only with `audit`, in its `read-only` sandbox; its last message, the audit
 report, is saved in `.claude/worktrees/logs/<task>.last.md`.

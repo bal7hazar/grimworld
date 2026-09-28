@@ -72,7 +72,8 @@ tag() { # <cli> <model> -> "<full id>|<display name>"
 # profile `name`; `#` starts a comment.
 read_profile() { # <profile> <depth>: appends to the arrays allow and deny
   local f=$P/$1.txt line
-  [ -f "$f" ] || die "no profile $f (research | implement | audit)"
+  case "$1" in research | audit | implement) ;; *) die "unknown profile '$1' (research | audit | implement)" ;; esac
+  [ -f "$f" ] || die "no profile $f"
   [ "$2" -lt 4 ] || die "profile includes nested too deep at $1"
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%%#*}
@@ -103,7 +104,8 @@ reported_model() { # <task>
   fi
   wt=$W/cli-$1
   dir=$HOME/.claude/projects/$(printf '%s' "$wt" | sed 's#[/.]#-#g')
-  f=$(ls -t "$dir"/*.jsonl 2> /dev/null | head -1)
+  f=$(find "$dir" -maxdepth 1 -name '*.jsonl' -printf '%T@ %p\n' 2> /dev/null | sort -n |
+    tail -1 | cut -d' ' -f2-)
   [ -n "$f" ] || { echo unknown; return; }
   grep -ho '"model":"[^"]*"' "$f" | cut -d'"' -f4 | grep -v '^<synthetic>$' | sort -u |
     paste -sd, - | grep . || echo unknown
@@ -139,7 +141,7 @@ case "${1:-}" in
     [ -n "${2:-}" ] || die "usage: agent.sh sid <task>"
     wt=$W/cli-$2
     grep -l -F "\"cwd\":\"$wt\"" "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2> /dev/null |
-      xargs -r ls -t | head -1 | sed -E 's/.*rollout-.{19}-(.*)\.jsonl$/\1/'
+      sort | tail -1 | sed -E 's/.*rollout-.{19}-(.*)\.jsonl$/\1/'   # names start with the date
     exit 0 ;;
 esac
 
@@ -226,7 +228,7 @@ fi
 if [ ! -d "$wt" ]; then
   [ -n "$branch" ] || die "no worktree $wt (create it, or pass --branch <type>/<task-id>-<slug>)"
   git -C "$main" fetch -q origin main
-  git -C "$main" worktree add -q "$wt" -b "$branch" origin/main
+  git -C "$main" worktree add -q --no-track "$wt" -b "$branch" origin/main
 fi
 command -v "$cli" > /dev/null || die "$cli is not on PATH"
 mkdir -p "$L"
