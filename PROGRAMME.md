@@ -32,6 +32,7 @@ The machine also runs the owner's other programmes: about 6 agents in all.
 | D-130 | The indexer is our own | Project manager |
 | D-134 | Void chunks around every location; chunk corners are wall. SPK-7 measured the chunked map at +720k gas per tick with goblins (+14 %) | Project manager |
 | D-131 | The API of `quiver_quest` and `quiver_achievement` accepted | Project manager |
+| D-135 | `quiver_quest` bounds what a player holds (4 quests), not what a task reaches: worst call about 5.6M gas instead of 704M | Project manager |
 | — | LIB-03 and LIB-04 merged after more than three fix loops, their open findings carried as tasks | Project manager |
 
 Every decision has its file in [docs/decisions/](docs/decisions/) and its row in

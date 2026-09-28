@@ -16,3 +16,4 @@ Written by the game's side, answered by the track through releases.
 | A-9 | The edge cases found by reading the Dojo packages are tests: unlock firing on every decrement, an inactive dependent quest reverting the whole progress call, a recurring prerequisite underflowing a lock counter, event mode untested | ADR-0004, points 3 and 4 | 2026-09-28 | — |
 | A-10 | At most 16 distinct tasks reported per call; the game snapshots at entry the task ids an instance will report, 16 at most (D-131) | Bounded execution | 2026-09-28 | — |
 | A-11 | An acceptance of a recurring quest expires at rollover, with its progress (D-131) | Guild contracts (design/14) | 2026-09-28 | — |
+| A-12 | Every quest is accepted before it progresses; a player holds at most 4 quests at a time (3 active quests and one contract); the cost of a progress call depends on the held quests only (D-135) | design/06, design/14; cost | 2026-09-28 | — |
