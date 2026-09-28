@@ -107,7 +107,7 @@ can go up):
 | Benchmark | Test L2 gas | Baseline | Algorithm |
 |---|---:|---:|---:|
 | Flood, worst-case window, 8 goblins, 12 layers | 2,013,172 | 1,318,950 | **694,222** (58k per layer) |
-| World tick, worst case (flood, 2 attacks, 6 steps, conditions) | 2,562,824 | 1,313,290 | **1,249,534** |
+| World tick, worst case (flood, 2 attacks, 6 steps, conditions) | 2,563,624 | 1,313,290 | **1,250,334** |
 | Discovery, C + U pair, recipe found: signed / unsigned | 73,916 / 34,986 | 14,020 | **59,896 / 20,966** (+38,930) |
 | Discovery, same pair, failed: signed / unsigned | 54,936 / 27,846 | 14,020 | **40,916 / 13,826** (+27,090) |
 
