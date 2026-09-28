@@ -3,7 +3,8 @@
 
 Reads the private art pack (submodule `assets`), writes atlases, JSON, a report and a preview to
 `tools/art/out/` (ignored by git, D-73). Sets up its own virtualenv on first run. Deterministic:
-two runs give byte-identical outputs.
+two runs give byte-identical outputs. `--check` also parses the atlases with PixiJS 8 (needs
+node and pnpm from .tool-versions, see scripts/setup-toolchain.sh).
 """
 
 import hashlib
@@ -136,6 +137,17 @@ def main():
     preview.write(OUT / "preview.html", pages, index, origins)
     forbidden_word_check()
     print_report(report)
+    if "--check" in sys.argv[1:]:
+        sys.stdout.flush()
+        pixi_check()
+
+
+def pixi_check():
+    """AC-4: the atlases parse in PixiJS 8 (tools/art/check, its own package, outside the root
+    pnpm workspace, hence --ignore-workspace)."""
+    pnpm = ["pnpm", "--dir", str(HERE / "check"), "--ignore-workspace"]
+    subprocess.run([*pnpm, "install", "--frozen-lockfile"], check=True)
+    subprocess.run([*pnpm, "run", "check"], check=True)
 
 
 def verify(pages, index, sprites, s):

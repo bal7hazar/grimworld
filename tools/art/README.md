@@ -71,6 +71,20 @@ animations, source rows or files, frame rates (12 to 15, ADR-0003) and looping. 
 offers a choice, the generated sheet is taken when it exists. The `slinger` is a placeholder (no
 goblin slinger exists); the Arcanist has no sprite (Q-12) and is left out.
 
+## PixiJS 8 check
+
+`check/` is a small Node package of its own (exact `pixi.js` version of `client/app`, lockfile
+committed). It is **not** part of the root pnpm workspace: always pass `--ignore-workspace`,
+otherwise pnpm installs the whole workspace. It parses each atlas with PixiJS's own
+`Spritesheet` (the PNG is replaced by a texture stand-in of its real size) and checks that every
+animation of `out/sprites.json` resolves to frames of the right count and cell size.
+
+    tools/art/build.py --check          # build, then the check
+    pnpm --dir tools/art/check install --ignore-workspace --frozen-lockfile   # by hand
+    pnpm --dir tools/art/check --ignore-workspace run check                   # after a build
+
+Node and pnpm come from `.tool-versions` (`scripts/setup-toolchain.sh`).
+
 ## Loading in PixiJS 8
 
     import { Assets, AnimatedSprite } from 'pixi.js';

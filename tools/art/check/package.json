@@ -1,0 +1,17 @@
+{
+  "name": "grimworld-art-check",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless check that the atlases built in ../out parse in PixiJS 8 (ART-00, AC-4). Not part of the root pnpm workspace.",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "dependencies": {
+    "pixi.js": "8.21.0"
+  }
+}
