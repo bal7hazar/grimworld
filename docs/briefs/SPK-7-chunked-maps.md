@@ -35,19 +35,27 @@ L-M1 must beat.
   ties), design/18 (biomes and walkable shares, generation order, features), docs/CAIRO.md in
   full (arithmetic, then bitwise, then loops; `u252`; tables of constants; oracles; a gas
   budget on every test).
-- **Map library** (D-119): the game uses **`origami_hexmap` 1.8.0** until `hexx-cairo` is
-  published; the functions of milestone L-M1 (generation with margins, assembly, line of
-  sight, the shared flood with extra obstacles) do not exist yet. **Build what the spike needs
-  in `spikes/SPK-7/` on top of 1.8.0's primitives**, following the library's conventions, and
-  say which parts would move to the library. If generation with margins cannot be made
-  seamless within the spike, measure the fallback of R-15 and R-18 instead
-  (**rooms and corridors** for dungeons) and say so.
-- Depends on: SPK-5 (merged), and FND-01 (merged: it proves `origami_hexmap` 1.8.0 builds on
-  Cairo 2.13). SPK-2 measures the tick on an already assembled window; you measure the rest,
-  so that the two add up.
+- **Compiler and map library** (D-122, [docs/decisions/2026-09-28-N-9-compiler-target.md](../decisions/2026-09-28-N-9-compiler-target.md)):
+  the game's Dojo world is on Cairo 2.13, and `origami_hexmap` 1.8.0 does not build there
+  (docs/needs/hexmap.md, N-9). **This spike is therefore a standalone Scarb package outside the
+  Dojo workspace, on Cairo 2.19.4 and snforge 0.61** (the machine's global versions), with its
+  own `spikes/SPK-7/.tool-versions` pinning `scarb 2.19.4` and `starknet-foundry 0.61.0`, and
+  `origami_hexmap` 1.8.0 by published version. It must not change the game's toolchain:
+  nothing outside `spikes/SPK-7/` moves off 2.13. **Every figure is stated as measured on
+  Cairo 2.19 and as an order of magnitude**, to be measured again on the library's release for
+  Cairo 2.13. The milestone L-M1 functions (generation with margins, assembly, line of sight,
+  the shared flood with extra obstacles) do not exist yet: build what the spike needs on top of
+  1.8.0's primitives, following the library's conventions, and say which parts belong in the
+  library. The fallback of R-15 / R-18 (the game's own map code, rooms and corridors) is **not**
+  triggered (D-122 §2.5): do not write it.
+- Storage and the Dojo world are measured by SPK-2 on Cairo 2.13, not here. Where this spike
+  needs storage (the stored window of item 6), use a plain Starknet contract deployed in
+  snforge tests, and say so.
+- Depends on: SPK-5 (merged: `scripts/lock.sh`, the machine's shims). SPK-2 measures the tick
+  on an already assembled window on 2.13; you measure the rest, so that the two add up.
 
 ## Scope
-- In: a throwaway Dojo world in `spikes/SPK-7/`:
+- In: a standalone Scarb package in `spikes/SPK-7/` (not a Dojo world):
   1. **Chunk generation with margins**, from a random word (a stand-in for `fate(domain)`
      reading the transaction hash) and the edges of the neighbours already generated: base,
      smoothing with the known margins, edges and openings, per biome's walkable share
@@ -70,8 +78,8 @@ L-M1 must beat.
   7. **The fallback**, only if the worst case exceeds what SPK-2's figures and ADR-0001's
      threshold allow: sight 5 on 13 × 14 (the width then differs from the chunk's: say what
      the assembly becomes).
-- Measure everything as **snforge tests with gas budgets** and, for the worst-case tick and
-  the reveal of 3 chunks, as transactions on a local Katana (`scripts/with-katana.sh`).
+- Measure everything as **snforge tests with gas budgets**, on Cairo 2.19 (no Katana: the
+  Dojo world is SPK-2's).
 - `docs/research/SPK-7-chunked-maps.md`: what was built, how far from ADR-0006, every figure
   with its command and output, the comparison stored / not stored, the verdict on R-12, what
   the library should provide (with the gas each function must beat), open questions for
@@ -94,8 +102,10 @@ Throwaway. Name the functions after the library's needs they prototype (`assembl
       in one window.
 - [ ] AC-3 Every function and the worst-case tick have a test with a gas budget
       (`ceil(1.05 × measured)`); the worst case is the one named above.
-- [ ] AC-4 The worst-case tick measured with and without a stored window, side by side, with
-      the Katana receipts for both.
+- [ ] AC-4 The worst-case tick measured with and without a stored window, side by side
+      (the stored one through a plain contract's storage in snforge).
+- [ ] AC-7 `spikes/SPK-7/.tool-versions` pins Cairo 2.19; `git diff origin/main -- .tool-versions contracts client`
+      is empty; every figure in the report says "Cairo 2.19, order of magnitude".
 - [ ] AC-5 The reveal of one chunk and of 3 chunks in one action measured, with the biome
       that is the most expensive.
 - [ ] AC-6 The research file gives a verdict on R-12 and the gas targets for L-M1.
@@ -103,9 +113,9 @@ Throwaway. Name the functions after the library's needs they prototype (`assembl
 ## Verification
 From the worktree root:
 ```
-scripts/lock.sh sozo build --manifest-path spikes/SPK-7/Scarb.toml
-scripts/lock.sh sozo test --manifest-path spikes/SPK-7/Scarb.toml
-scripts/with-katana.sh <the command that migrates and sends the worst-case transactions>
+cd spikes/SPK-7 && scarb --version && snforge --version     # 2.19.4 and 0.61.0, from its .tool-versions
+scripts/lock.sh scarb build --manifest-path spikes/SPK-7/Scarb.toml
+cd spikes/SPK-7 && snforge test                             # through the machine's shim, which takes the heavy lock
 ```
 
 ## Audits
