@@ -31,8 +31,11 @@ and **FND-02** (CI fix loop 1). Next: SPK-11 (indexer), then SPK-7, FND-05, SPK-
 | SPK-2 cost spike | `grimworld-SPK-2-180513` (resumed) | `claude-opus-5-5` / `claude-opus-5-5` | implement | Cost fix loop 1 |
 | FND-02 continuous integration | `grimworld-FND-02-175911` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
 
-Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
-library. Machine at 18:05 UTC: load 5.5, 13 GB available.
+Budget (OPERATIONS §3, d9b2c3c): 3 Grim World agents at a time, audits included, across the
+game, the map library and quiver: **1 slot of the game's own, 1 shared**. The game holds 2 now
+(SPK-2, SPK-11); the first slot freed goes once to quiver's ARC-01, then the shared slot is the
+game's first. Before each launch: count every running `grimworld-*`, `hexmap-*`, `quiver-*` unit
+and codex audit. Machine at 18:05 UTC: load 5.5, 13 GB available.
 
 ## Decided by the owner, gate L-G2
 
