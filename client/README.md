@@ -31,3 +31,9 @@ scripts/lock.sh pnpm build
 
 The root scripts run `pnpm -r …`; one package: `pnpm --filter @grimworld/sim test`. Format with
 `pnpm format`. The dev server is `pnpm --filter @grimworld/app dev`.
+
+## CI
+
+The job `client` of `.github/workflows/ci.yml` runs on every pull request and on `main`, with the Node and pnpm
+of `.tool-versions`: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`,
+`pnpm exec prettier --check client`.
