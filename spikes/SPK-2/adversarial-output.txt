@@ -1,0 +1,19 @@
+maze: layers 45, goblins [111, 16, 211, 213, 215, 217, 219, 221], distances [1, 44, 0, 0, 0, 0, 0, 0]
+  terrain 0xfff9fff00027ffc8001fff00027ffc8001fff00027ffc8001fff0000
+comb (part 1 fixture): layers 12, goblins [111, 97, 16, 28, 211, 223, 103, 151], distances [1, 1, 11, 10, 11, 11, 6, 9]
+  terrain 0xfff9fff01047ffcfff9fff01047ffcfff9fff01047ffcfff9fff0000
+sealed: layers 13, goblins [111, 97, 16, 28, 211, 223, 103, 151], distances [1, 1, 11, 10, 11, 11, 6, 0]
+  terrain 0xfff9fff01047ff8ffe9ffe01047ffcfff9fff01047ffcfff9fff0000
+deep: eccentricity 93
+deep: layers 92, goblins [113, 28, 61, 100, 101, 192, 193, 208], distances [1, 12, 28, 52, 53, 0, 0, 91]
+  terrain 0xedb136d300207dcd0c16e3227a5f04f5f00a03d7e4604c3697db0000
+under D-127 (15 layers):
+  maze: layers 16, goblins [111, 79, 88, 118], distances [1, 15, 7, 6], distinct 4
+    terrain 0xfff9fff00027ffc8001fff00027ffc8001fff00027ffc8001fff0000
+  deep: layers 16, goblins [98, 93, 160, 101, 100], distances [1, 15, 14, 4, 3], distinct 5
+    terrain 0xedb136d300207dcd0c16e3227a5f04f5f00a03d7e4604c3697db0000
+  comb: layers 12, goblins [97, 208, 16, 18, 19, 20, 21, 37], distances [1, 11, 10, 9, 8, 7, 7, 5], distinct 7
+    terrain 0xfff9fff01047ffcfff9fff01047ffcfff9fff01047ffcfff9fff0000
+winding board for D-127 (hill climb from the comb): full 15 layers True, reached 8 of 8, distinct distances 8, eccentricity 14
+  layers 16, goblins [97, 18, 48, 91, 81, 79, 94, 26], distances [1, 15, 14, 13, 12, 11, 10, 9]
+  terrain 0xfad126313cc044016984bf21122facf6c8dba332673b0ce615470000
