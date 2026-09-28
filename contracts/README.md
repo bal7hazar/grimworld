@@ -47,3 +47,10 @@ scripts/lock.sh sozo test --manifest-path contracts/Scarb.toml
 
 `sozo` runs the `scarb` and `snforge` of `.tool-versions`. Every test carries
 `#[available_gas(l2_gas: N)]` with `N = ceil(1.05 × measured)`.
+
+## CI
+
+The workflow `.github/workflows/ci.yml` (job `discover`, then `cairo (<package>)` per package) runs on every pull
+request and on `main`. Every Scarb package of the repository is found by the job `discover` (`contracts/` and each
+`spikes/*/`), and gets the Scarb and snforge of its nearest `.tool-versions`: `scarb fmt --check`, `scarb build`,
+`snforge test`. The Dojo packages need no `sozo` in CI (`sozo build` and `sozo test` run these same tools).
