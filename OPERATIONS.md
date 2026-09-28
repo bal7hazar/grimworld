@@ -34,8 +34,15 @@ owner (bal7hazar)
 - **Separation of duties.** The agent that wrote something never audits it. Auditors
   receive the deliverable and the specification, not the implementer's reasoning.
 
-One orchestrator is enough to start. The project manager opens others when tracks run in
-parallel with separate write sets (contracts, client, content), one per track.
+Orchestrators planned:
+
+| Orchestrator | Repository | Owns |
+|---|---|---|
+| **Game** | This one | Contracts, client, content. Split later into several if tracks run in parallel with separate write sets |
+| **Hexmap** | The map library's | Track LIB of the plan: analysis of `hexx`, port, releases on scarbs.xyz |
+
+An orchestrator learns what another did from that other's repository (`main`, changelog,
+published versions). Needs flow through the project manager, never sideways.
 
 ### Project manager and orchestrators
 

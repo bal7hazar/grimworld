@@ -72,7 +72,11 @@ anglais.
      quel modèle, avec quelles tâches, quel modèle de sous-agent pour chacune, dans quel
      ordre, combien en parallèle compte tenu de la charge.
 
-5. Après mon accord, tu crées le premier orchestrateur. Sa première tâche est FND-03 :
+5. Deux orchestrateurs sont prévus : celui du jeu, dans ce dépôt, et celui de la lib
+   hexmap, dans le dépôt de la lib (piste LIB du plan, qui commence par l'analyse du
+   crate Rust hexx). Dis-moi dans quel ordre tu proposes de les créer.
+
+   Après mon accord, tu crées le premier orchestrateur. Sa première tâche est FND-03 :
    porter le lanceur d'agents
    (scripts/agent.sh), les verrous de build et docs/briefs/COMMON.md depuis mes autres
    dépôts (glam-cairo est la référence), puis mettre à jour STATUS.md.
