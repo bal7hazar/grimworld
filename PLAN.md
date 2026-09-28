@@ -140,7 +140,7 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
 | WLD-01 | Hub unlock and map travel | Phase 4 | Opus 5.5 | D S Q | todo |
-| WLD-04 | Maws: appearance, stages, grades, Red Maws, mining, stillstone | WLD-02 | Opus 5.5 | D S P C Q | todo |
+| WLD-04 | Rifts: appearance, stages, grades, Red Rifts, mining, stillstone | WLD-02 | Opus 5.5 | D S P C Q | todo |
 | WLD-02 | Multi-floor dungeons, boss rooms, boss AI profile | Phase 4 | Opus 5.5 | D P C Q | todo |
 | CNT-04 | Region 1 full content: locations, gates, spawn tables | WLD-01, WLD-02 | Sonnet 5 | D V | todo |
 | CNT-05 | Content validation suite (reachability, tables, ranges) | CNT-04 | Sonnet 5 | Q | todo |
@@ -196,7 +196,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-12 | **Hubs**: what a town and an outpost look like, services and their characters, presence display | Phase 5 (WLD-03) | todo |
 | DES-13 | **Region 1 content**: zones, dungeon floors, spawn tables | Phase 5 (CNT-04) | todo |
 | DES-14 | **Lore**: premise written (`docs/lore/00-premise.md`), awaiting the owner's reaction; then names (Q-11), Region 1's story, **audio** direction | Phase 5 (LORE-01) | doing |
-| DES-17 | **Maws** (`docs/design/17-maws.md`): owner's ruling, then spawn rules and prices | Phase 5 (WLD-02) | doing |
+| DES-17 | **Rifts** (`docs/design/17-rifts.md`): owner's ruling, then spawn rules and prices | Phase 5 (WLD-02) | doing |
 | DES-16 | Sets of the first dungeon: fixed modifiers and the 3- and 5-piece bonuses for the three professions, within the budget rule | Phase 4 (RWD-08) | todo |
 | DES-15 | **Ownership and economy**: tokens, transfers, registry governance, who funds the paymaster (Q-07, Q-08, Q-10), checked against store rules | Before Phase 4 | todo |
 

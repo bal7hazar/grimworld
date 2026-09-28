@@ -13,19 +13,22 @@ Level is the tutorial; rank is the career (pillar 2).
 
 ## Rank ladder (D-20)
 
-Ranks are worn as a tag made of the rank's material.
+Ten grades. Ranks are worn as a tag made of the rank's material.
 
 | # | Rank | Merit to be eligible | Unlocks |
 |---|---|---|---|
-| 0 | **Wood** | — (registration) | Region 1 town, tier 1–2 quests |
-| 1 | **Tin** | 100 | Tier 3 quests, first dungeon |
+| 0 | **Wood** | — (registration) | Region 1 town, tier 1–2 quests, Wood Rifts |
+| 1 | **Tin** | 100 | Tier 3 quests, first nest, selling at the auction house |
 | 2 | **Copper** | 300 | Tier 4 quests, **secondary profession** quest |
 | 3 | **Iron** | 700 | Second outpost trainers |
-| 4 | **Bronze** | 1 500 | Tier 5 quests |
-| 5 | **Silver** | 3 000 | Tier 6 quests, **elite zones** |
-| 6 | **Gold** | 6 000 | Elite quests, region-level bounties |
-| 7 | **Platinum** | 12 000 | Prestige; future content |
+| 4 | **Steel** | 1 500 | Region 2 |
+| 5 | **Bronze** | 3 000 | Tier 5 quests |
+| 6 | **Silver** | 6 000 | Tier 6 quests, **elite zones** |
+| 7 | **Gold** | 12 000 | Elite quests, region-level bounties |
+| 8 | **Platinum** | 25 000 | Prestige |
+| 9 | **Still** | 50 000 | The tag cut from stillstone; future content |
 
+Each rank gives access to the Rifts of its grade ([17-rifts](17-rifts.md#grades)).
 The ladder is a registry: ranks can be appended as regions are added.
 
 ### Promotion

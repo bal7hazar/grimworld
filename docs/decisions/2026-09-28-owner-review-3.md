@@ -30,6 +30,11 @@
 | D-49 | Auction house strategy delegated to the orchestrator: one world market, listing fee only, Tin rank to sell |
 | — | Arcade packages are under MIT licence (owner's statement) |
 
+| D-95 | Rifts (the owner's word, instead of Maw): instances are individual; the first clear starts a closing delay for everyone |
+| D-96 | Stillstone is a rare reagent for precise operations of craft, alchemy and enchantment. It does not replace materials and is not the main income: the treasure is what goblins carry |
+| D-97 | English only for the first version, multilingual afterwards. Names short and international |
+| D-20 (revised) | Ten grades. Ladder proposed by the orchestrator, awaiting the owner: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Still |
+
 ## To study before deciding
 
 | # | Question | Input needed |

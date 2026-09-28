@@ -129,7 +129,7 @@ known, its modifiers are not.
 |---|---|---|
 | Basic | Common materials | The item is consumed |
 | Expert | One modifier of the item, chosen by the player; or materials | **The item is destroyed one time in two** (Fate) |
-| Perfect (rare) | One modifier | None; no materials |
+| Expert + 1 stillstone | One modifier | **None** ([17-rifts](17-rifts.md#what-it-is-for)) |
 
 Materials feed smiths and armorers. Setting a modifier on an item replaces the one in the
 slot, which is lost.

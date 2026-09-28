@@ -33,7 +33,7 @@ are all playable end to end by a stranger, on a public network.
 2. Cleric, then Gravecaller and Beguiler
 3. Elite zone, elite skills and capture
 4. Remaining castes (Trapper, Wolf rider, Hexer, Champion, Paladin, Lord)
-5. Ranks Iron → Platinum
+5. Ranks Iron → Still
 6. Region 2
 7. Tokenisation (Q-07)
 9. Estate (idle layer)

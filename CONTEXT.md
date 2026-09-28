@@ -95,8 +95,8 @@ Use these words, in code and in prose, with these meanings only.
 | **Awake** | A goblin that is simulated each tick |
 | **Build** | Attributes + 8 skills + belt, locked during an expedition |
 | **Remains** | What a dead goblin leaves; looting it rolls the drop |
-| **Maw** | A dungeon that appears for a limited time, graded by the Guild. **Nest**: a permanent dungeon |
-| **Stillstone** | The ore mined in Maws: material and main income |
+| **Rift** | A dungeon that appears for a limited time, graded by the Guild. **Nest**: a permanent dungeon |
+| **Stillstone** | The ore mined in Rifts: material and main income |
 | **The Hush** | In the lore, why time moves only when the adventurer moves |
 | **Guild** | The Adventurers' Guild: the institution that ranks adventurers and posts quests. Never a group of players |
 | **Company** | A group of players (what the `social` package calls a guild). Post-MVP |
@@ -125,7 +125,7 @@ owner, with the date), Superseded.
 | D-05 | Instances are not saved: leaving closes the instance, re-entering creates a new one | design/02 | Accepted 2026-09-28 |
 | D-10 | Zones have fixed layouts, dungeons shifting ones, same generator | design/01 | Accepted 2026-09-28 |
 | D-11 | Hexagonal maps, pointy-top, on `origami_hexmap` | design/02 | Accepted 2026-09-28 |
-| D-20 | Rank ladder Wood → Platinum; promotion needs merit and a trial quest in a dungeon | design/06 | Accepted 2026-09-28 |
+| D-20 | Ten ranks; promotion needs merit and a trial quest in a dungeon. Names of the ladder proposed: Wood to Still | design/06 | Principle accepted 2026-09-28; names proposed |
 | D-30 | Six professions; Vanguard, Warden, Arcanist in the MVP | design/03 | Proposed |
 | D-31 | GW1 numbers as baseline, 1 second = 1 tick | design/03 | Proposed |
 | D-40 | Combat is fully deterministic | design/04 | Accepted 2026-09-28 |
