@@ -271,9 +271,9 @@ sends the next one.
 
 | | |
 |---|---|
-| Kept | On the device, **written before the action is drawn**: instance id, adventurer id, expected sequence, the actions |
-| The app closes or crashes | Sent at the next launch, before any new action, if the chain's instance still exists at the expected sequence |
-| The chain moved meanwhile (another device played this adventurer, a reorg) | The kept actions are dropped; the chain's state is shown (design/11) |
+| Kept | On the device, **written before the action is drawn**: instance id, adventurer id, expected sequence, the actions, and **the result the player saw** after each one (the predicted state, or its hash) |
+| The app closes or crashes | At the next launch the client reads the whole instance (*The client's copy*) and **recovers** the kept actions (*The chain's answer*) before any new action |
+| The chain moved meanwhile (another device played this adventurer, a reorg) | Recovery keeps the kept actions whose results are still the same on the chain's state, and drops the rest (design/11) |
 | The device is lost | Lost with it, as the burner is (ADR-0005) |
 | How much can be lost | **At most two batches, weight 20**: the one filling and the one in flight not yet included. The bound is in actions, not seconds |
 | Taken back | Never, in our client (I-5). A modified client can already compute any sequence before sending it: nothing is given away (*Security*) |
@@ -285,6 +285,21 @@ which is what the player can lose.
 
 This amends D-05: an instance resumed **on another device** resumes at the last action the
 chain has; the actions played on the first device and not sent, at most two batches, are lost.
+
+### The client's copy of the instance
+
+The client simulates only over **authoritative state it holds**. The indexer is never a
+source of simulation state: no indexer is needed to play (ADR-0007); it serves display
+(other players, hubs).
+
+| | |
+|---|---|
+| What the copy holds | The instance (sequence, clock, entropy, status); the adventurers in it; **every revealed chunk** (terrain, occupancy, objects, remains); **every goblin of the instance, frozen or awake**, with its full state (position, facing, health, conditions, effects, activation, deadlines, AI state and memory, spawn) |
+| How it is read | Reads **pinned to one accepted block hash**: several calls pinned to the same block are one coherent state. `instance_state(instance_id)` for the instance and what the windows hold; `instance_region(instance_id, chunk range)` for the rest, paged by chunks |
+| At launch, on another device, after a reorg | The **whole instance** is read that way, at one block, before play resumes |
+| After a confirmed batch | The snapshot of *Reconciling*; and, once the batch's block is accepted, `instance_state` again with the regions the batch's windows crossed, all at that block hash (a `pre_confirmed` read is one call and cannot be joined to another) |
+| Crossing into a chunk | Speculation runs **only over state the copy holds**. Before a batch would bring the window to a chunk the copy lacks, the client reads that region, pinned, first; play waits for it (design/11: "saving…") |
+| What speculation adds | The predicted state of the actions played and not confirmed, layered over the copy; never written into it |
 
 ### The chain's answer
 
@@ -329,7 +344,7 @@ chest) happen in the same invocation (ADR-0002, rule 5).
 |---|---|---|
 | **Succeeded** | Executed; `BatchPlayed` (or `Refused`) is in the receipt | Reconciles (below) |
 | **Reverted** | Included, **nonce consumed, fee charged, no event, no state change**: the batch ran out of resources, or the contract panicked (a bug) | Resubmits the same actions, same sequence, **with a fresh nonce, in batches half the size**. A single action that reverts is not retried: the client rewinds to the chain's state, reports it, and the player is told their last steps were lost |
-| **Not found** | **Unknown**: not received yet, rejected, dropped, or included and not yet visible to this node. Not a free nonce | Keeps the transaction's identity and **rebroadcasts the same signed transaction** (same nonce): at most one of them can run. Up to 5 times over about 60 seconds, then decides (below) |
+| **Not found** | **Unknown**: not received yet, rejected, dropped, or included and not yet visible to this node. Not a free nonce | Keeps the transaction's identity and **rebroadcasts the same signed transaction** (same nonce): at most one of them can run. Up to 5 times over about 60 seconds; then asks once more for its receipt and events. Still unknown: **recovers** (below) |
 
 **Reconciling.** The chain's state is the truth; the client checks its prediction against it
 after every succeeded batch.
@@ -345,7 +360,7 @@ after every succeeded batch.
 | Snapshot's sequence | Means | The client |
 |---|---|---|
 | **Equal** | The snapshot is the state right after the batch | Compares field by field. Equal, and `played` is the whole batch: the batch is confirmed. A difference, or fewer played: **rewind** (below) |
-| **Greater** | Later actions ran after the batch: another device, a co-op member | Adopts the snapshot as the chain's state, drops what it played after the batch. **Not a divergence**: nothing is reported as a bug |
+| **Greater** | Later actions ran after the batch: another device, a co-op member | Adopts the snapshot as the chain's state and **recovers** what it played after the batch (below). **Not a divergence**: nothing is reported as a bug |
 | **Smaller** | The read is stale (a node behind the one that gave the receipt) | Reads again; never installs it |
 
 5. **Rewind**: take the snapshot as the state, drop every action played after the difference,
@@ -354,21 +369,35 @@ after every succeeded batch.
 A state built from several reads is **never installed**. No state commitment is stored or
 emitted on chain: hashing the state costs gas on every batch.
 
-**When a transaction stays not found.** After the rebroadcasts, the client reads the
-account's nonce and one snapshot (above), and decides:
+**Recovering.** When the outcome of a transaction stays unknown, and at every launch, the
+client uses **only what it can observe**, never which transaction ran:
 
-| The account's nonce | The snapshot | The client |
-|---|---|---|
-| Moved past the transaction's | Shows the batch ran (its `from` and `played` are accounted for) | Reconciles as for a succeeded batch |
-| Moved past the transaction's | Something else ran (another device) | The batch is dropped. Each kept action is played again on the snapshot by the shared rules and kept only if it is valid and gives the result the player saw; the first that does not, and all after it, are dropped: a rewind |
-| Did not move | — | Resubmits the batch, signed again |
-| The node cannot be reached | — | Only then: play is suspended, "connection lost"; the actions stay on the device and sending resumes when the node answers |
+1. Read **the account's nonce** from the account, never assumed, pinned to one accepted block
+   hash.
+2. Read **one coherent snapshot** of the instance at the same block (*The client's copy*).
+3. **Adopt the snapshot as the chain's state**, without claiming which transaction ran.
+4. **Re-simulate, in order**, every action played and not seen confirmed, on the snapshot. The
+   prefix whose results match what the player saw is **kept**, renumbered from the snapshot's
+   sequence, and sent with the nonce read in step 1. From the first mismatch on, the actions
+   are dropped and the view rewinds.
+
+| What happened, unknown to the client | What recovery does, the same steps |
+|---|---|
+| The batch ran | Its actions are already in the snapshot; the next ones match from its sequence and are kept |
+| The batch was included and reverted (nonce moved, sequence not) | Its actions replay on the snapshot with the same results and are sent again with the new nonce |
+| The nonce was taken by something else (another device) | The actions replay on what that device did; those with the same results are kept, the rest dropped |
+| Nothing was included | Same as the second line, with the old nonce |
+
+A modified or unlucky history cannot make recovery keep an action whose result the player did
+not see. **Only a node that cannot be reached** is shown as a lost connection: play is
+suspended, the actions stay on the device, and recovery runs when the node answers.
 
 **Reorgs.** A reorg can undo **any depth**: batches, and also Fate draws and gates that were
 confirmed, and the instance itself (an `enter` that is gone). The two batches of speculation
-are no ceiling on it. When the indexer reports a reorg (D-130), or a confirmed transaction is
-no longer found, the client drops every prediction and every kept action, reads the canonical
-state and shows it: the same instance at an earlier sequence, another instance, or the hub,
+are no ceiling on it. When a confirmed receipt's block is no longer on the canonical chain
+(checked at the next pinned read; the indexer, D-130, may say so sooner), or a confirmed
+transaction is no longer found, the client drops every prediction and every kept action,
+reads the whole instance again (*The client's copy*), or finds it gone, and shows the result: the same instance at an earlier sequence, another instance, or the hub,
 with a reward gone from the inventory if its draw is gone. Nothing is replayed for the player.
 
 **How often.** In solo, on a deterministic action, **a difference is a bug** (S-3 asks for 0);
@@ -471,7 +500,8 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
 |---|---|
 | Bounds | 1 to 10 actions per invocation; weight ≤ 10; each action's ticks bounded by its tick cost ([04](04-combat.md#actions)); each tick by the simulation budget above |
 | Other events | Each action emits what it emits alone (a goblin killed, a chunk revealed, defeat); `BatchPlayed` is the batch's summary |
-| View | **`instance_state(instance_id)`**, one call, readable at a block hash or at `pre_confirmed`: the instance (sequence, clock, entropy, status); the adventurers in it (position, facing, health, energy, adrenaline, conditions, effects, deadlines, activation, belt); every goblin of their windows (the same, plus AI state and memory); the occupancy and terrain of the chunks their windows overlap (tiles, objects, remains). Everything a played action depends on, in one snapshot. Chunks outside the windows come from the indexer for display and are never part of a comparison |
+| View | **`instance_state(instance_id)`**, one call, readable at a block hash or at `pre_confirmed`: the instance (sequence, clock, entropy, status); the adventurers in it (position, facing, health, energy, adrenaline, conditions, effects, deadlines, activation, belt); every goblin of their windows (the same, plus AI state and memory); the occupancy and terrain of the chunks their windows overlap (tiles, objects, remains). Everything a played action depends on, in one snapshot |
+| View | **`instance_region(instance_id, chunk range)`**, readable at a block hash: for each revealed chunk of the range, its terrain, occupancy, objects and remains, and every goblin standing in it, frozen or not, with its full state. Paged: a range is bounded so that one call fits a node's limits. With `instance_state` at the same block, the whole instance |
 | Never read | Block number, timestamp, transaction hash (ADR-0001) |
 
 ### What ENG-01 must do
@@ -493,7 +523,11 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
    them. Measure a revealed chunk.
 7. The view `instance_state(instance_id)` above: one call, everything a played action
    depends on, readable at a block hash and at `pre_confirmed`.
-8. Permission: the caller controls `adventurer_id`, and that adventurer is in `instance_id` (M-6).
+8. The view `instance_region(instance_id, chunk range)`, readable at a block hash, with its page
+   bound. Tests: **restart**, the whole instance read by `instance_state` and every region at
+   one block equals the contract's state; **window crossing**, a goblin frozen outside the
+   window read back by region has the state it had when it left.
+9. Permission: the caller controls `adventurer_id`, and that adventurer is in `instance_id` (M-6).
 
 ### What CLI-03 must do
 
@@ -506,18 +540,24 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
 4. One call per transaction; sign resources for the batch's proven bound.
 5. Handle the three receipt statuses as above: succeeded (reconcile), reverted (fresh nonce,
    half-size batches, never a single action twice), not found (keep the transaction's
-   identity, rebroadcast it with the same nonce 5 times over about 60 s, then read the
-   account's nonce and one snapshot and decide by the table; "connection lost" only when the
-   node cannot be reached).
+   identity, rebroadcast it with the same nonce 5 times over about 60 s, ask once more for its
+   receipt, then **recover**; "connection lost" only when the node cannot be reached).
 6. Reconcile after every succeeded batch with one `instance_state` snapshot pinned to the
    receipt's block hash, or at `pre_confirmed`: equal sequence, compare and rewind on a
-   difference; greater, adopt it without reporting a divergence; smaller, read again. Never
-   install a state built from several reads.
+   difference; greater, adopt it and recover without reporting a divergence; smaller, read
+   again. Never install a state built from reads at different blocks.
 7. Recover from a reorg of any depth: drop predictions and kept actions, show the canonical
-   state, including an instance that no longer exists and a draw or a gate that is gone.
-8. At launch, send the kept batch if the instance exists at the expected sequence, else drop
-   it and show the chain's state.
+   state (the whole instance read again), including an instance that no longer exists and a
+   draw or a gate that is gone.
+8. At launch or on another device, read the whole instance at one block, then recover the
+   kept actions. Recovery: nonce read from the account and snapshot at one block; adopt it;
+   re-simulate every unconfirmed action in order; keep the prefix whose results match what the
+   player saw, renumbered and sent with the nonce read; drop from the first mismatch.
 9. Send a Fate action or a gate alone, after the batch before it is confirmed; take the new
    instance id from the entry event.
 10. Report every rewind and every reverted batch with both states.
 11. Never take a played action back.
+12. Keep the copy of the instance: every revealed chunk and every goblin, frozen or not, read
+    pinned to one block; refresh the regions a confirmed batch's windows crossed; before the
+    window reaches a chunk the copy lacks, read it first and wait. Never take simulation state
+    from the indexer.
