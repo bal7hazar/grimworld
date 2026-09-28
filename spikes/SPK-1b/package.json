@@ -1,0 +1,10 @@
+{
+  "name": "spk1-sepolia",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPK-1: latency and cost of the SPK-2 native contracts on Sepolia (starknet.js).",
+  "dependencies": {
+    "starknet": "10.8.0"
+  }
+}
