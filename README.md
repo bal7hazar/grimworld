@@ -30,6 +30,7 @@ you do** — and every goblin in it is waiting for your next step.
 | [docs/decisions/](docs/decisions/) | One file per decision; `PENDING-*.md` for the owner's open questions |
 | `docs/briefs/`, `docs/reports/`, `docs/research/` | Task briefs, archived agent reports, research (from Phase 0) |
 | [docs/design/](docs/design/00-vision.md) | Game design documents |
+| [docs/lore/](docs/lore/00-premise.md) | The world and its story |
 | [docs/architecture/](docs/architecture/ADR-0001-execution-layer.md) | Architecture decision records |
 
 ## Stack (proposed)

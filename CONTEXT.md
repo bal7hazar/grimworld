@@ -95,6 +95,9 @@ Use these words, in code and in prose, with these meanings only.
 | **Awake** | A goblin that is simulated each tick |
 | **Build** | Attributes + 8 skills + belt, locked during an expedition |
 | **Remains** | What a dead goblin leaves; looting it rolls the drop |
+| **Maw** | A dungeon that appears for a limited time, graded by the Guild. **Nest**: a permanent dungeon |
+| **Stillstone** | The ore mined in Maws: material and main income |
+| **The Hush** | In the lore, why time moves only when the adventurer moves |
 | **Guild** | The Adventurers' Guild: the institution that ranks adventurers and posts quests. Never a group of players |
 | **Company** | A group of players (what the `social` package calls a guild). Post-MVP |
 | **Contract** | A repeatable daily quest posted by the Guild |
