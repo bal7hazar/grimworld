@@ -197,12 +197,14 @@ check_version sncast "$(pinned starknet-foundry)" sncast --version
 check_version node "$(pinned nodejs)" node --version
 check_version pnpm "$(pinned pnpm)" pnpm --version
 # starknet-devnet: the pinned sha256 is verified BEFORE the binary is run at all.
-for tool in starknet-devnet; do
-  version=$(pinned "$tool")
-  [ -n "$version" ] || { fail "$tool is not pinned in .tool-versions"; continue; }
-  check_hash "$tool" "$version" || { echo "setup-toolchain: $tool not run: its hash was not verified" >&2; continue; }
-  check_version "$tool" "$version" "$tool" --version
-done
+devnet_version=$(pinned starknet-devnet)
+if [ -z "$devnet_version" ]; then
+  fail "starknet-devnet is not pinned in .tool-versions"
+elif check_hash starknet-devnet "$devnet_version"; then
+  check_version starknet-devnet "$devnet_version" starknet-devnet --version
+else
+  echo "setup-toolchain: starknet-devnet not run: its hash was not verified" >&2
+fi
 
 # --- node and pnpm outside a pinned directory (incident INC-2026-09-28) ------------------------
 # The shims of the nodejs and pnpm plugins answer "No version is set" where no .tool-versions
