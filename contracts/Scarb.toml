@@ -1,26 +1,22 @@
-[package]
-name = "grimworld"
+[workspace]
+members = ["logic", "persistent", "ephemeral"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024_07"
-cairo-version = "2.13"
+cairo-version = "2.19"
+
+[workspace.dependencies]
+starknet = "2.19"
+snforge_std = "0.61"
+assert_macros = "2.19"
+origami_hexmap = "1.8.0"
 
 [cairo]
 sierra-replace-ids = true
 
-[dependencies]
-starknet = "2.13"
-dojo = "1.8.0"
-
-[dev-dependencies]
-snforge_std = "0.51"
-assert_macros = "2.13"
-dojo_snf_test = "1.8.0"
-
-[[target.starknet-contract]]
-build-external-contracts = ["dojo::world::world_contract::world"]
-
-[scripts]
+[workspace.scripts]
 test = "snforge test"
 
-[tool.scarb]
-allow-prebuilt-plugins = ["dojo_cairo_macros", "snforge_std"]
+[workspace.tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
