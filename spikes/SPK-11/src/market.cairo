@@ -7,16 +7,26 @@ pub trait IMarket<T> {
     /// Posts `quantity` of `item` at `price` (per lot); returns the lot id. Emits `LotPosted`.
     fn post(ref self: T, item: u32, quantity: u16, price: u64) -> u64;
     /// The same write as `post`, without the event: measurement only (the gas of the event is
-    /// the difference).
+    /// the difference). It breaks the completeness invariant on purpose: the indexer's
+    /// reconciliation must detect it (docs/research/SPK-11-indexer.md §6).
     fn post_silent(ref self: T, item: u32, quantity: u16, price: u64) -> u64;
     /// Buys an open lot. Emits `LotClosed { sold: true }`.
     fn buy(ref self: T, lot: u64);
     /// Withdraws an open lot. Emits `LotClosed { sold: false }`.
     fn withdraw(ref self: T, lot: u64);
+    /// The same write as `withdraw`, without the event: measurement only.
+    fn withdraw_silent(ref self: T, lot: u64);
     /// Places the adventurer in `hub` (0: in no hub). Emits `AdventurerLocated`.
     fn locate(ref self: T, adventurer: u32, hub: u16);
+    /// `locate` without the event (nothing else is written): measurement only.
+    fn locate_silent(ref self: T, adventurer: u32, hub: u16);
+    /// Sets the lot counter, so that the next lot id is `count + 1`: test only, to reach the
+    /// boundaries of u64 ids. Emits `LotCountSet`, so the counter never changes unannounced.
+    fn skip_lots(ref self: T, count: u64);
     /// The lot: (item, quantity, price, open).
     fn lot(self: @T, lot: u64) -> (u32, u16, u64, bool);
+    /// The number of lot ids handed out: the indexer's reconciliation reads it.
+    fn lot_count(self: @T) -> u64;
 }
 
 #[starknet::contract]
@@ -44,6 +54,12 @@ pub mod Market {
         LotPosted: LotPosted,
         LotClosed: LotClosed,
         AdventurerLocated: AdventurerLocated,
+        LotCountSet: LotCountSet,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct LotCountSet {
+        pub count: u64,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -99,12 +115,11 @@ pub mod Market {
             lot
         }
 
-        fn close(ref self: ContractState, lot: u64, sold: bool) {
+        fn close(ref self: ContractState, lot: u64) {
             let packed = self.lots.read(lot);
             let (_, _, _, open) = unpack(packed);
             assert(open, 'lot not open');
             self.lots.write(lot, packed - 1);
-            self.emit(LotClosed { lot, sold });
         }
     }
 
@@ -121,19 +136,36 @@ pub mod Market {
         }
 
         fn buy(ref self: ContractState, lot: u64) {
-            self.close(lot, true);
+            self.close(lot);
+            self.emit(LotClosed { lot, sold: true });
         }
 
         fn withdraw(ref self: ContractState, lot: u64) {
-            self.close(lot, false);
+            self.close(lot);
+            self.emit(LotClosed { lot, sold: false });
+        }
+
+        fn withdraw_silent(ref self: ContractState, lot: u64) {
+            self.close(lot);
         }
 
         fn locate(ref self: ContractState, adventurer: u32, hub: u16) {
             self.emit(AdventurerLocated { hub, adventurer });
         }
 
+        fn locate_silent(ref self: ContractState, adventurer: u32, hub: u16) {}
+
+        fn skip_lots(ref self: ContractState, count: u64) {
+            self.lot_count.write(count);
+            self.emit(LotCountSet { count });
+        }
+
         fn lot(self: @ContractState, lot: u64) -> (u32, u16, u64, bool) {
             unpack(self.lots.read(lot))
+        }
+
+        fn lot_count(self: @ContractState) -> u64 {
+            self.lot_count.read()
         }
     }
 }
