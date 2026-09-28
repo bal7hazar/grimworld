@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "packageManager": "pnpm@12.5.1",
+  "devEngines": { "packageManager": { "name": "pnpm", "version": ">=1" } },
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
