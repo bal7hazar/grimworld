@@ -1,13 +1,14 @@
 # Status
 
-**2026-09-28 20:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 20:55 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-03, SPK-5, SPK-5b, FND-01,
 FND-01b, FND-02, ART-00, **SPK-2** (cost), **SPK-11** (indexer). Running: **FND-06** (gas tooling,
-Sonnet 5.5). Next: SPK-7, FND-05, SPK-4. **SPK-1 blocked** on the Sepolia credentials (not in the
-environment, checked by names only).
+Sonnet 5.5). **SPK-1 unblocked** (the owner's Sepolia account, 20:21 UTC): first at the next free
+slot, with `--with-sepolia`; the budget of 3 is full (FND-06, hexmap LIB-04, quiver ARC-02). Then
+the `[GPT-6-Sol]` audit of #43, SPK-7, FND-05, SPK-4.
 
 ## What moved
 
@@ -17,7 +18,8 @@ environment, checked by names only).
 | **SPK-11 merged** | [#31](https://github.com/bal7hazar/grimworld/pull/31): our own indexer, reorg-safe (no stale answer on restart, live or mid-read), nine events for ENG-01. `[GPT-6-Sol]` PASS after two fix loops. Decided: **D-130**, our own indexer (IDX-01, IDX-02) |
 | Sonnet 5.5 | [#33](https://github.com/bal7hazar/grimworld/pull/33): `sonnet` launches `[Sonnet 5.5]`; a resume needs its launch record and the same model; `new` needs a closed task |
 | Secrets | [#38](https://github.com/bal7hazar/grimworld/pull/38): every agent runs with the registry token emptied; reading `~/.claude`, printing it, `env`, `scarb publish` denied. Residual (an interpreter can read the same user's settings file) sent to the project manager for the owner |
-| SPK-1 brief | [docs/briefs/SPK-1-sepolia.md](docs/briefs/SPK-1-sepolia.md): the orchestrator deploys and funds, the agent never sees a credential |
+| Sepolia account | [#43](https://github.com/bal7hazar/grimworld/pull/43): the launcher empties the account's variables for every agent unless launched with `--with-sepolia` (the claude CLI would otherwise hand them to all). [SPK-1 brief](docs/briefs/SPK-1-sepolia.md): the agent deploys and measures with the account, by name only, chain id checked before sending, at most 70 measured transactions |
+| D-131 | quiver gate A-G1: an instance snapshots up to 16 task ids at entry and reports them in one aggregated call; an ENG-01 input (PLAN row) |
 | Process | A `gh pr checks … \| tail -1` chain went on after a failed check (no merge followed); every merged PR was verified green; checks are now read by their exit code |
 
 ## Orchestrators and agents
