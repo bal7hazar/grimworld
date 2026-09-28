@@ -1,39 +1,44 @@
 # Status
 
-**2026-09-28 14:25 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 15:01 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations.** The game orchestrator is running (mandate:
-[docs/briefs/ORCH-game.md](docs/briefs/ORCH-game.md)). Its first task, **FND-03 agent
-tooling**, is in its pull request, awaiting the `[GPT-6-Sol]` audit (lenses S and Q) before
-merge. No sub-agent of the game can be launched before it merges.
+**Phase 0 — Foundations.** FND-03 (agent tooling) is **merged**; wave 1 is running:
+**SPK-5** (toolchain pins) and **ART-00** (asset pipeline), both on Sonnet 5, in parallel
+(allowlists do not overlap).
 
 ## What moved
 
 | | |
 |---|---|
-| FND-03 | `scripts/agent.sh` launcher: transient systemd user units `grimworld-<task>-<hhmmss>` whose description carries the model tag, `status`, `wait`, `sid`, `--dry-run`, `--with-assets`, `--branch`; resume with context. Three committed profiles (`scripts/profiles/research`, `audit`, `implement`) instead of `--dangerously-skip-permissions`. Build lock `scripts/lock.sh` (project lock, then the machine-wide heavy lock). `docs/briefs/COMMON.md`. CI `tooling`: shellcheck, launcher dry-run, no asset file |
-| Launcher verified | A trivial `[Sonnet 5]` research task ran as a systemd unit, listed by `status`, log ending `model=claude-sonnet-5` then `exit=0`, `REPORT.md` written. Six permission probes by real agents (smoke to smoke6, logs in `.claude/worktrees/logs/`): unlisted commands (`python3`, `curl`, `node`, `git commit` in `research`) refused; file commands allowed inside the worktree and refused outside it, quotes, `$HOME` and `..` included; pushing only as `git push -u origin HEAD` / `git push`; the stash, `gh pr merge`, `ls ~/.local/bin` refused. (An early probe ran `scripts/lock.sh pnpm --version`; the lock now wraps build and test subcommands only and refuses it) |
-| FND-03 audit | `[GPT-6-Sol]`, lenses S and Q: FAIL, then fixes; see the pull request |
-| Concurrency measured | Empty Dojo 1.8.0 project: `scarb build` peaks at 1.4 GB, 11 s. A `claude` agent holds about 0.3 GB. Budget kept at 3 (OPERATIONS §3) |
+| FND-03 merged | [#8](https://github.com/bal7hazar/grimworld/pull/8): `scripts/agent.sh` (claude agents as systemd units, codex detached with its sandbox, model actually run recorded), profiles `research` / `audit` / `implement` (never `--dangerously-skip-permissions`), `scripts/lock.sh`, `docs/briefs/COMMON.md`, CI `tooling`. Report: [docs/reports/FND-03-agent-tooling.md](docs/reports/FND-03-agent-tooling.md) |
+| FND-03 audit | `[GPT-6-Sol]`, lenses S and Q: FAIL, three fix loops, then **PASS WITH FINDINGS** (all notes): [docs/reports/FND-03-audit-gpt-6-sol.md](docs/reports/FND-03-audit-gpt-6-sol.md). One finding disproved by a real run; the inherent one (an interpreter runs anything) documented, with G-1 below |
+| Concurrency measured | Empty Dojo 1.8.0 project: `scarb build` 1.4 GB peak, 11 s; a `claude` agent about 0.3 GB. Budget kept at 3 (OPERATIONS §3) |
+| Wave-1 briefs | [SPK-5](docs/briefs/SPK-5-toolchain.md), [ART-00](docs/briefs/ART-00-asset-pipeline.md) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) started |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-03 in review: pull request #8, `[GPT-6-Sol]` audit in its second fix loop. Next: SPK-5 ∥ ART-00 |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-03 done. SPK-5 and ART-00 running |
 | Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-01 and LIB-02 merged. **Stopped at gate L-G1** |
 
-Game sub-agents running: none (FND-03 is executed by the orchestrator itself). Budget: 3
-Grim World agents at a time (D-118): 2 for the game, 1 for the library in wave 1. Machine at
-14:49 UTC: load about 4 on 8 vCPU, 26 GB of 31 available.
+| Game agent | Unit | Model asked / ran | Profile | Started |
+|---|---|---|---|---|
+| SPK-5 toolchain pins | `grimworld-SPK-5-150017` | `claude-sonnet-5` / `claude-sonnet-5` | implement | 15:00 UTC |
+| ART-00 asset pipeline | `grimworld-ART-00-150022` (`--with-assets`) | `claude-sonnet-5` / checked at close | implement | 15:00 UTC |
 
-Models that actually ran, read from the CLIs' own session records (2026-09-28): LIB-02 on
-`claude-opus-5-5`; the audits on `gpt-6-sol`, effort high, read-only; launcher smoke tests
-on `claude-sonnet-5`. One in-session research agent of the game orchestrator was titled
-`[Opus 5.5]` and ran on `claude-haiku-4-5`: corrected. From FND-03 on, the launcher records
-the model each CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
+Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
+library (idle at L-G1). Machine at 15:00 UTC: load 11.7 on 8 vCPU (five units of the owner's
+other programmes), 22 GB of 31 available.
+
+Models that actually ran, read from the CLIs' own records (2026-09-28): LIB-02 on
+`claude-opus-5-5`; the FND-03 audits on `gpt-6-sol`, effort high, read-only; launcher smoke
+tests on `claude-sonnet-5`. One in-session research agent of the game orchestrator was titled
+`[Opus 5.5]` and ran on `claude-haiku-4-5`: corrected. The launcher now records the model each
+CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 
 ## Waiting for the owner
 
@@ -44,17 +49,15 @@ the model each CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh sta
 
 ## Next
 
-1. `[GPT-6-Sol]` audit of FND-03, fixes, merge.
-2. Briefs of **SPK-5** (toolchain pins; also writes `scripts/with-katana.sh`) and **ART-00**
-   (asset pipeline outside git, the only wave-1 task with `--with-assets`), launched in
-   parallel on Sonnet 5.
-3. Then FND-01 → FND-02 → FND-06 on Sonnet 5; SPK-2 on Opus 5.5 as soon as SPK-5 is merged.
+1. Close SPK-5 and ART-00 (review, audits: Q for SPK-5, IP check for ART-00, merge).
+2. Then FND-01 → FND-02 → FND-06 on Sonnet 5; SPK-2 on Opus 5.5 as soon as SPK-5 is merged.
+3. Then FND-05 (with a `[GPT-6-Astra]` audit), SPK-4, SPK-8 on Opus 5.5; SPK-7 after them.
 
 ## Blocked
 
 | What | By |
 |---|---|
-| Every game sub-agent | FND-03's merge (today) |
+| FND-01, SPK-2, and every task that builds Cairo | SPK-5 (running) |
 | SPK-1, deployments | Sepolia credentials, Phase 1 |
 | SPK-6 | Real phones: the owner runs the protocol the orchestrator writes |
 | Mainnet | An explicit go from the owner, each time (D-116) |
