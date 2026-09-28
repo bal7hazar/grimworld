@@ -10,15 +10,23 @@ a single repository. What differs is said explicitly.
 
 ```
 owner (bal7hazar)
-  └─ orchestrator session (this, Claude Desktop, Fable/Opus)    owns the plan, briefs, reviews, merges, status
-       └─ sub-agents: claude CLI, Opus 5.5 / Sonnet 5; codex CLI for audits only
+  └─ project-manager session (Claude App, Fable/Opus)       owns the plan, status, decisions, arbitration
+       └─ orchestrator session(s) (Claude App, Opus or Fable, by the project manager's judgement)
+            │                                               own briefs, worktrees, reviews, merges
+            ├─ sub-agents: claude CLI (Opus 5.5 / Sonnet 5 / Fable 5.1, by difficulty)   execution
+            └─ auditors:   codex CLI (gpt-5.6-sol, astra, …, by kind of task)            audits, when needed
 ```
 
 - The **owner** decides on vision, scope, design decisions (`D-xx`), releases and
-  deployments to public networks. Speaks French.
-- The **orchestrator** owns the repository: `PLAN.md`, `STATUS.md`, briefs, worktrees,
-  reviews, merges, the decision log. It **never implements anything large itself**. It
-  prepares the owner's decisions and records the answers.
+  mainnet. Speaks French.
+- The **project manager** owns `PLAN.md`, `STATUS.md`, `CONTEXT.md` and the decision log.
+  It **creates the orchestrator sessions** in the Claude App and chooses their model
+  (Opus or Fable) according to the difficulty of what they will orchestrate. It gives
+  them their objectives, answers their questions, arbitrates, prepares the owner's
+  decisions and records the answers. It never implements and never merges.
+- An **orchestrator** answers to the project manager. It turns objectives into briefs,
+  launches and resumes sub-agents, reviews their reports and pull requests, orders audits,
+  merges. It **never implements anything large itself**.
 - A **sub-agent** owns one task, one worktree, one branch, one pull request, one
   `REPORT.md`. It never merges and never touches a shared file: it escalates in its report
   instead. A sub-agent that meets an ambiguity in the design stops and reports it; it does
@@ -26,22 +34,42 @@ owner (bal7hazar)
 - **Separation of duties.** The agent that wrote something never audits it. Auditors
   receive the deliverable and the specification, not the implementer's reasoning.
 
-If the project later splits into several repositories (contracts, client, content), each
-gets its own orchestrator session and this session becomes the project manager, as in the
-owner's other programmes.
+One orchestrator is enough to start. The project manager opens others when tracks run in
+parallel with separate write sets (contracts, client, content), one per track.
+
+### Project manager and orchestrators
+
+| | |
+|---|---|
+| Creating an orchestrator | The project manager opens a session in the Claude App on the repository, with a first message that names the track, the objectives, the documents to read and the model policy |
+| Talking to it | Cross-session messages: first line = the subject; body = the path of a file in the repository and the decision or result expected. Anything longer than a few lines is a committed file, not a message |
+| Hearing from it | The repository is the interface: merged pull requests, `STATUS.md`, archived reports. A message back only when a decision is needed |
+| Silence is not agreement | The project manager checks the repository at its next check-in |
+| Titles | Session titles and every background task carry the model in brackets |
 
 ## 2. Model and account policy
 
 | level | runs on | models |
 |---|---|---|
-| orchestrator | Claude Desktop session | Fable 5.1 or Opus 5.5 |
-| sub-agents (execution) | `claude -p …` launched by the orchestrator through the launcher (§4) | **Opus 5.5** for design, game logic, numerics, debugging; **Sonnet 5** for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Fable 5.1 only marginally**, for a genuinely hard problem, and the brief says why |
-| audits, second opinions **only** | `codex exec …` | `gpt-5.5` / `gpt-5.6-sol`; **never for implementation**. Small quota: spend it on security and determinism audits of merged lots and on cross-checks of design decisions |
+| project manager | Claude App session | Fable 5.1 or Opus 5.5 |
+| orchestrator | Claude App session, created by the project manager | **Opus 5.5 or Fable 5.1**, chosen by the project manager |
+| sub-agents (execution) | `claude -p …` launched by an orchestrator through the launcher (§4) | **Sonnet 5** for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Opus 5.5** for design, game logic, algorithms, debugging; **Fable 5.1** for the hardest problems. The brief states the model and, for Fable, why |
+| audits and second opinions | `codex exec …`, **when needed** | `gpt-5.6-sol`, `astra` and others, chosen **by the kind of task**; **never for implementation** |
+
+When an audit by codex is needed:
+
+| Always | When the orchestrator judges it useful | Not needed |
+|---|---|---|
+| Anything that holds or moves value: trade, auction house, inventory settlement | A contested design or numeric decision | Documentation |
+| Randomness and its providers | An algorithm whose gas figure looks too good or too bad | Seed data, once validated by the content suite |
+| Access control and ownership | A lot that went through three fix loops | Interface work |
+| Chunk reveal and the simulation window (determinism, cost) | | |
 
 - **Never use the in-session Agent tool for implementation work**: it burns the session's
   own quota. Short read-only research through the Agent tool is fine.
 - Model ids for the CLI: `--model claude-opus-5-5`, `--model sonnet`,
-  `--model claude-fable-5-1`.
+  `--model claude-fable-5-1`. Codex model names are checked with the CLI before the first
+  launch, not assumed.
 - The `claude` CLI must be logged in as **claude-b7r** on whichever machine runs the
   agents, so that sub-agents do not spend the session's quota: check with
   `claude auth status` before the first launch, and stop if it shows another account.
@@ -64,10 +92,11 @@ that produced it. The tag is never omitted and never guessed.
 
 ## 3. The machine: what every launch must respect
 
-Ideation happened on the owner's Mac. **Implementation runs on the VPS**, from a new
-project-manager session (account bal7hazar) bootstrapped with
-[docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md). Task FND-03 ports the
-launcher and the build locks of the owner's other programmes. The rules:
+Ideation happened on the owner's Mac. **Implementation runs on the VPS**: a new
+project-manager session (account bal7hazar) is bootstrapped with
+[docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) and creates the first
+orchestrator. Task FND-03 ports the launcher and the build locks of the owner's other
+programmes. The rules:
 
 - **Agents do not run as children of the session.** A restart of the desktop app must not
   kill them (transient systemd user units on Linux; an equivalent detached launch on
@@ -148,7 +177,8 @@ deviations from the brief, escalations, open questions.
 
 `COMMON.md` carries what every brief inherits: foreground only, package-scoped checks,
 conventional commits, the multiplayer constraints M-1…M-6, the determinism rules, the two
-domains (persistent / ephemeral), the glossary.
+domains (persistent / ephemeral), the glossary, and for every Cairo task the engineering
+rules of [docs/CAIRO.md](docs/CAIRO.md).
 
 ## 5. Sources of truth
 
@@ -161,7 +191,8 @@ domains (persistent / ephemeral), the glossary.
 | Live state | `STATUS.md`, dated, rewritten at every check-in | — |
 | Research | `docs/research/` | — |
 | Numbers (balance) | Registries' seed data | Design docs give initial values; seed data wins once it exists |
-| Cost budgets | `docs/BUDGETS.md` (from Phase 0) | A lot exceeding a budget does not merge without an owner decision |
+| Cairo engineering rules | [docs/CAIRO.md](docs/CAIRO.md) | The code is wrong |
+| Cost budgets | `docs/BUDGETS.md` (from Phase 0), fed by the gas figures of the tests | A lot exceeding a budget does not merge without an owner decision |
 
 **Design changes are made in the document first**, in the same pull request as the code
 that needs them.
@@ -186,7 +217,7 @@ that needs them.
 | **Design conformance** | Does it implement the documented rules, all of them and only them? | Every rule maps to code and to a test; no undocumented behaviour; M-1…M-6; two domains |
 | **Security** | Can a player gain something the rules do not allow? | Access control; ownership; state machine cannot be skipped (act in a hub, loot twice, act in a closed instance); overflow; randomness cannot be predicted, replayed or re-rolled; registry permissions |
 | **Determinism & parity** | Do chain and client compute the same result? | No block data inside an instance; fixed iteration and tie-break orders; shared vectors pass on both sides |
-| **Cost** | Does it fit the budget? | Worst case per entrypoint (8 awake goblins, longest queue); storage writes per action; packing |
+| **Cost** | Does it fit the budget, and is it as cheap as it can be? | Gas of every test against its budget; worst case per entrypoint (8 awake goblins, longest queue); storage writes per action; packing; the order of preference of `docs/CAIRO.md` (arithmetic, then bitwise, then loops); no `u256` without a written reason |
 | **Code quality** | Would the next agent understand and extend it? | Repository patterns; no dead code; meaningful tests; glossary names |
 | **Content validation** | Is the data playable? | Gates reachable; tables non-empty; ranges consistent; recipes ≤ pairs per signature; ids never reused |
 
@@ -262,7 +293,7 @@ on the whole phase; documents are reconciled; the owner has signed off.
 - [ ] Documents updated in the same pull request.
 - [ ] `REPORT.md` archived; `PLAN.md` and `STATUS.md` updated.
 
-## 10. The orchestrator's check-in loop
+## 10. The check-in loop (project manager and orchestrators)
 
 At every check-in (owner's request or scheduled wake-up), without spending more than a few
 minutes of context:
@@ -272,9 +303,10 @@ minutes of context:
 2. Running agents and machine load.
 3. Rewrite `STATUS.md` (dated); update `docs/decisions/PENDING-*`.
 4. Decide what to launch next within the concurrency budget.
-5. Report to the owner **in French**: what moved, what is blocked, what they must decide.
+5. Orchestrators report to the project manager through the repository; the project manager
+   reports to the owner **in French**: what moved, what is blocked, what they must decide.
 
-Owner decisions are **batched**: the orchestrator asks in chat when a decision blocks a
+Owner decisions are **batched**: the project manager asks in chat when a decision blocks a
 wave, and records the answer in `docs/decisions/` and in the documents concerned.
 
 ## 11. Language

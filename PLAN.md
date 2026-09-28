@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.10, 2026-09-28** (v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.11, 2026-09-28** (v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -51,6 +51,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | FND-00 | **Bootstrap the project-manager session on the VPS** from `docs/briefs/PM-vps-bootstrap.md`: checks accounts, toolchain, repository, credentials presence; reports to the owner | IDE-03 | Owner starts it | — | todo |
 | SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js, Controller); reproducible build | — | Sonnet 5 | Q | todo |
 | FND-01 | Repository scaffold: `contracts/`, `client/`, `docs/`, scripts, layering of CONTEXT §4 | SPK-5 | Sonnet 5 | Q | todo |
+| FND-06 | Gas tooling: budgets on tests, `docs/BUDGETS.md` generated from a test run, CI failing on a budget exceeded, gas table template for `REPORT.md` | FND-02 | Sonnet 5 | Q | todo |
 | FND-02 | CI: build, format, lint, tests for contracts and client | FND-01 | Sonnet 5 | S Q | todo |
 | FND-03 | Agent tooling: `scripts/agent.sh` launcher ported from the owner's other repositories (profiles research / implement / audit, detached units, logs, resume), `docs/briefs/COMMON.md`, build lock, concurrency budget measured | FND-00 | Orchestrator | S | todo |
 | SPK-1 | Latency spike: submission → pre-confirmed → accepted, via Controller session | SPK-5 | Opus 5.5 | — | todo |
@@ -75,7 +76,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| ENG-01 | Freeze core interfaces: persistent and ephemeral domains, snapshot and results interface, models, registry shapes, events | FND-04 | Orchestrator + Opus | D S | todo |
+| ENG-01 | Freeze core interfaces: persistent and ephemeral domains, snapshot and results interface, models, registry shapes, events | FND-04 | Orchestrator + Opus 5.5 | D S | todo |
 | ENG-02 | Helpers: packer, seeder, fixed-point table; hex line of sight and arcs on top of `origami_hexmap` | ENG-01 | Opus 5.5 | P C Q | todo |
 | ENG-03 | Registries: region, location, gate + seed data for a test region | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q | todo |
@@ -94,7 +95,7 @@ verified by the cross-cutting audit.
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| CBT-01 | Freeze combat interfaces: actor stats, skill and effect schema, caste schema | Phase 1 | Orchestrator + Opus | D | todo |
+| CBT-01 | Freeze combat interfaces: actor stats, skill and effect schema, caste schema | Phase 1 | Orchestrator + Opus 5.5 | D | todo |
 | CBT-02 | World tick pipeline (5 steps), regeneration, durations, recharges | CBT-01 | Opus 5.5 | D P C Q | todo |
 | CBT-03 | Weapon attacks, damage formula, armor, arcs, flank and critical | CBT-02 | Opus 5.5 | D S P C Q | todo |
 | CBT-04 | Conditions (MVP five) | CBT-02 | Opus 5.5 | D P Q | todo |

@@ -112,7 +112,8 @@ armor                    = target armor + bonuses − penetration
 ```
 
 Implementation constraint: `2^(x/40)` is read from a **lookup table** in fixed point for
-`x ∈ [−160, +80]`; out-of-range values clamp. No floating point, no runtime exponentiation.
+`x ∈ [−160, +80]`; out-of-range values clamp. No floating point, no runtime
+exponentiation, no `u256` ([CAIRO](../CAIRO.md)).
 
 Damage types: slashing, piercing, blunt, fire, cold, lightning, earth, shadow, holy. Armor
 can carry a bonus against a type. Life steal and degeneration ignore armor.
