@@ -54,7 +54,35 @@ parallel with separate write sets (contracts, client, content), one per track.
 | project manager | Claude App session | Fable 5.1 or Opus 5.5 |
 | orchestrator | Claude App session, created by the project manager | **Opus 5.5 or Fable 5.1**, chosen by the project manager |
 | sub-agents (execution) | `claude -p …` launched by an orchestrator through the launcher (§4) | **Sonnet 5** for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Opus 5.5** for design, game logic, algorithms, debugging; **Fable 5.1** for the hardest problems. The brief states the model and, for Fable, why |
-| audits and second opinions | `codex exec …`, **when needed** | `gpt-5.6-sol`, `astra` and others, chosen **by the kind of task**; **never for implementation** |
+| audits and second opinions | `codex exec …`, **when needed** | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, chosen **by the kind of task** (table below); **never for implementation** |
+
+### Models, as verified
+
+Verified on 2026-09-28 on the owner's Mac, from the CLIs themselves (`codex-cli` 0.156.1,
+its model list fetched that day; `claude` 2.1.281). **To verify again on the VPS before
+the first launch**: a model list belongs to an account and a date.
+
+| CLI | Model id | Described by the CLI as | Reasoning levels |
+|---|---|---|---|
+| codex | `gpt-6-astra` | Frontier intelligence for the most demanding work | low … ultra |
+| codex | `gpt-6-sol` | Workhorse model for coding and everyday work | low … ultra |
+| codex | `gpt-6-luna` | Fast and affordable model for easier tasks | low … max |
+| codex | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | Older models | — |
+| codex | `gpt-5.5` | Legacy | low … xhigh |
+| claude | `fable`, `opus`, `sonnet` (aliases), or a full name | — | — |
+
+| Kind of audit | Model | Reasoning |
+|---|---|---|
+| Security of what holds or moves value; randomness; access control | `gpt-6-astra` | high or xhigh |
+| Determinism and parity; cost of an algorithm; a contested design decision | `gpt-6-astra` | high |
+| Routine review of a merged lot; code quality | `gpt-6-sol` | medium or high |
+| Content validation, consistency of documents | `gpt-6-luna` | medium |
+
+Launch form: `codex exec -m <model> -c model_reasoning_effort=<level> -s read-only "<prompt pointing at the brief>"`.
+An auditor never needs to write in the repository: its report is its answer, saved by the
+launcher.
+
+Title prefixes use the display name: `[GPT-6-Astra]`, `[GPT-6-Sol]`, `[GPT-6-Luna]`.
 
 When an audit by codex is needed:
 
@@ -67,12 +95,13 @@ When an audit by codex is needed:
 
 - **Never use the in-session Agent tool for implementation work**: it burns the session's
   own quota. Short read-only research through the Agent tool is fine.
-- Model ids for the CLI: `--model claude-opus-5-5`, `--model sonnet`,
-  `--model claude-fable-5-1`. Codex model names are checked with the CLI before the first
-  launch, not assumed.
+- Model ids for the `claude` CLI: `--model claude-opus-5-5`, `--model sonnet`,
+  `--model claude-fable-5-1`, or the aliases `opus`, `sonnet`, `fable`.
 - The `claude` CLI must be logged in as **claude-b7r** on whichever machine runs the
   agents, so that sub-agents do not spend the session's quota: check with
   `claude auth status` before the first launch, and stop if it shows another account.
+  On 2026-09-28 the CLI of the owner's Mac was logged in as **bal7hazar**, not claude-b7r:
+  no sub-agent is to be launched from that machine until this is changed.
 
 ### Task titles carry the model (owner's rule)
 
@@ -82,7 +111,7 @@ used as a prefix, in square brackets**:
 ```
 [Opus 5.5] ENG-05 room generator
 [Sonnet 5] CNT-01 seed data
-[gpt-5.6-sol] Audit ENG-07 security
+[GPT-6-Astra] Audit ENG-07 security
 [Fable 5.1] Wait until ENG-05's CI is green        (a task not tied to an agent carries the session's model)
 ```
 

@@ -62,7 +62,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | FND-05 | Provider interfaces: `fate(domain)` with the transaction-hash implementation and a deployment check refusing it on mainnet; account provider with the burner implementation | FND-01 | Opus 5.5 | S Q | todo |
 | SPK-9 | **Before version 1.** Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
-| SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + codex | S | todo |
+| SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + GPT-6-Astra | S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
 | LIB-01 | Map library: **generation of a board given its margins** (owner, in the library), board assembly from chunks, line of sight; outside this repository | — | Owner | — | todo |
 | TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-01 | Opus 5.5 | D V Q | todo |
@@ -80,7 +80,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ENG-02 | Helpers: packer, seeder, fixed-point table; hex line of sight and arcs on top of `origami_hexmap` | ENG-01 | Opus 5.5 | P C Q | todo |
 | ENG-03 | Registries: region, location, gate + seed data for a test region | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q | todo |
-| ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D S P C Q + codex | todo |
+| ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D S P C Q + GPT-6-Astra | todo |
 | ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; instance seed (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
 | ENG-07 | Movement, facing, simulation window and its re-centring, action queue with stop conditions, instance clock | ENG-05, ENG-06 | Opus 5.5 | D S P C Q | todo |
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
@@ -134,10 +134,10 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | RWD-04 | Potions: effects, belt, use in instance | RWD-03, CBT-05 | Opus 5.5 | D S P Q | todo |
 | RWD-05 | Merchants, smiths, armorers, collectors | RWD-01 | Opus 5.5 | D S Q | todo |
 | RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance | RWD-01 | Opus 5.5 | D S P C Q | todo |
-| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + codex | todo |
+| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | RWD-08 | Boss items and boss armor sets with 3- and 5-piece bonuses | RWD-06 | Opus 5.5 | D S P Q | todo |
-| RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + codex | todo |
-| RWD-10 | Auction house: listings in lots, fees, expiry, purchase | RWD-09 | Opus 5.5 | D S C Q + codex | todo |
+| RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + GPT-6-Astra | todo |
+| RWD-10 | Auction house: listings in lots, fees, expiry, purchase | RWD-09 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | CNT-03 | Seed data: Region 1 book, loot tables, merchant stock | RWD-02…05 | Sonnet 5 | D V | todo |
 | CLI-07 | Inventory, loot reveal, alchemy and grimoire UI | RWD-01…05 | Opus 5.5 | D Q | todo |
 
@@ -160,12 +160,12 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| HRD-01 | Cross-cutting security audit of all systems | Phase 5 | Opus 5.5 + codex | S | todo |
+| HRD-01 | Cross-cutting security audit of all systems | Phase 5 | Opus 5.5 + GPT-6-Astra | S | todo |
 | HRD-02 | Cost pass: worst cases per entrypoint against budgets | Phase 5 | Opus 5.5 | C | todo |
 | HRD-03 | Registry permissions, multisig, upgrade policy (Q-08) | Phase 5 | Opus 5.5 | S | todo |
 | HRD-04 | Balance pass with BAL-01 and playtest data | PLY-01 | Orchestrator | D | todo |
 | HRD-05 | Public playtest on Sepolia | HRD-01…04 | Orchestrator | — | todo |
-| HRD-09 | Replace the provisional providers: verifiable randomness, production accounts, sponsored fees (ADR-0002, ADR-0005) | SPK-3, SPK-9 | Opus 5.5 | S + codex | todo |
+| HRD-09 | Replace the provisional providers: verifiable randomness, production accounts, sponsored fees (ADR-0002, ADR-0005) | SPK-3, SPK-9 | Opus 5.5 | S + GPT-6-Astra | todo |
 | HRD-06 | External audit | HRD-01 | External | S | todo |
 | HRD-07 | Paymaster budget and policies for mainnet (Q-10) | HRD-02 | Owner + Orchestrator | S | todo |
 | HRD-08 | Store readiness: policy check for on-chain games on both stores, bundled assets, review submission | Phase 5 | Orchestrator | — | todo |
