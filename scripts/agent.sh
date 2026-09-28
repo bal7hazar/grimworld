@@ -126,6 +126,13 @@ reported_model() { # <task>
 # average is above 12 or less than 8 GB of memory is available. Fixed here on purpose: no
 # variable can relax them. Running agents are never stopped for load.
 MAX_LOAD5=12 MIN_MEM_GB=8 MAX_AGENTS=3
+# The split of the budget between the tracks (OPERATIONS §3, project manager at 377576a): caps
+# game 2, map library 1, quiver 1, total 3, the game first. TRACK is this launcher's own track: the
+# copies of the map library and quiver set theirs (hexmap, quiver) and match this file otherwise.
+# While the game waits (the marker ~/orchestrator/waiting/game, less than 30 minutes old), the
+# other tracks launch nothing new.
+TRACK=grimworld
+declare -A CAP=([grimworld]=2 [hexmap]=1 [quiver]=1)
 thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   local load5 mem_kb
   load5=$(cut -d' ' -f2 /proc/loadavg)
@@ -168,7 +175,7 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   local d a0 a1 x argv is_exec
   for d in /proc/[0-9]*; do
     argv=()
-    mapfile -d '' -t argv < "$d/cmdline" 2> /dev/null || continue   # gone meanwhile
+    { mapfile -d '' -t argv < "$d/cmdline"; } 2> /dev/null || continue   # gone meanwhile
     [ "${#argv[@]}" -ge 2 ] || continue
     a0=${argv[0]##*/} a1=${argv[1]##*/}
     [[ $a0 == codex || ( $a0 == node && $a1 == codex.js ) ]] || continue
@@ -178,7 +185,14 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   done
   local f pid cmd dir
   for dir in "$HOME"/projects/{grimworld,hexx-cairo,quiver}/.claude/worktrees/logs; do
-    [ -e "$dir" ] || [ -L "$dir" ] || continue   # that repository has never launched an agent
+    # Absent (at any level of the path): that repository has never launched an agent. Any other
+    # failure to reach it (an ancestor that cannot be traversed) refuses the count.
+    local err
+    if ! err=$(LC_ALL=C stat -- "$dir" 2>&1 > /dev/null); then
+      case $err in *"No such file or directory"*) continue ;; esac
+      echo "agent.sh: the launch records in $dir cannot be reached, so the agents cannot be counted: check it" >&2
+      return 1
+    fi
     if ! [ -d "$dir" ] || ! [ -r "$dir" ] || ! [ -x "$dir" ]; then
       echo "agent.sh: the launch records in $dir cannot be listed, so the agents cannot be counted: check it" >&2
       return 1
@@ -203,15 +217,28 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   done
   dirs=$(while read -r p; do
       [ -n "$p" ] || continue
-      readlink "/proc/$p/cwd" 2> /dev/null || echo "/projects/grimworld/unreadable-$p"
-    done <<< "$plist" | grep -E '/projects/(grimworld|hexx-cairo|quiver)(/|$)' | sort -u || true)
+      readlink "/proc/$p/cwd" 2> /dev/null || echo "/projects/unknown/unreadable-$p"
+    done <<< "$plist" | grep -E '/projects/(grimworld|hexx-cairo|quiver|unknown)(/|$)' | sort -u || true)
   detached=$(grep -c . <<< "$dirs" || true)
   agents=$((units + detached))
   if [ "$agents" -ge "$MAX_AGENTS" ]; then
     echo "agent.sh: $agents Grim World agents running ($units units, $detached detached), the budget is $MAX_AGENTS: wait and check again" >&2
     return 1
   fi
-  echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available, $agents of $MAX_AGENTS agents: a launch may proceed"
+  # This track's cap; an agent whose directory cannot be read counts against every track.
+  local repo mine unknown
+  case $TRACK in grimworld) repo=grimworld ;; hexmap) repo=hexx-cairo ;; quiver) repo=quiver ;; *) repo=none ;; esac
+  unknown=$(grep -c '/projects/unknown/' <<< "$dirs" || true)
+  mine=$(( $(grep -c "^$TRACK-" <<< "$ulist" || true) + $(grep -cE "/projects/$repo(/|$)" <<< "$dirs" || true) + unknown ))
+  if [ -z "${CAP[$TRACK]:-}" ] || [ "$mine" -ge "${CAP[$TRACK]}" ]; then
+    echo "agent.sh: the $TRACK track has $mine agents running, its cap is ${CAP[$TRACK]:-unset}: wait and check again" >&2
+    return 1
+  fi
+  if [ "$TRACK" != grimworld ] && [ -n "$(find "$HOME/orchestrator/waiting/game" -mmin -30 2> /dev/null)" ]; then
+    echo "agent.sh: the game is waiting for a slot (~/orchestrator/waiting/game): wait and check again" >&2
+    return 1
+  fi
+  echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available, $agents of $MAX_AGENTS agents, $mine of ${CAP[$TRACK]} for $TRACK: a launch may proceed"
 }
 
 case "${1:-}" in
@@ -360,7 +387,7 @@ if [ "$cli" = claude ]; then
   [ -z "$effort" ] || cmd+=(--effort "$effort")
 fi
 
-unit="grimworld-$task-$(date -u +%H%M%S)"
+unit="$TRACK-$task-$(date -u +%H%M%S)"
 desc="[$label] $task $mode ($profile)"
 # Unit environment: the machine-wide scarb/snforge shims (~/.local/bin) come first on PATH, so
 # every Cairo build takes the shared heavy-build lock; long builds may run in the foreground.
