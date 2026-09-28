@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.13, 2026-09-28** (v0.13: reconciled after the project manager's first report; proposed decisions accepted; spikes moved to burner accounts; v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.14, 2026-09-28** (v0.14: Phase 0 opened by the project manager: M0 reached, IDE-07 closed, orchestrator briefs in `docs/briefs/ORCH-*.md`, ADR-0001/0003 spike rows moved to burner accounts; v0.13: reconciled after the project manager's first report; proposed decisions accepted; spikes moved to burner accounts; v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -38,7 +38,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | IDE-02 | Owner review, round 1: mainnet, deterministic combat, hexes, hubs, alchemy, ranks, instances | Owner | done |
 | IDE-02b | Revise documents after round 1 (v0.2) | Orchestrator | done |
 | IDE-03 | Owner's second review: client, machine, licence, merges | Owner | done |
-| IDE-07 | Owner rules on what remains open in `docs/decisions/2026-09-28-owner-review-2.md` (not blocking Phase 0) | Owner | todo |
+| IDE-07 | Owner rules on what remains open in `docs/decisions/2026-09-28-owner-review-2.md` (not blocking Phase 0) | Owner | done (2026-09-28: all proposed decisions accepted; Q-12 stays open, needed by Phase 2) |
 | IDE-08 | Commit and push the documents to `main` | Orchestrator, on the owner's request | done |
 | IDE-04 | Realign OPERATIONS, PLAN, STATUS and decisions on the owner's examples | Orchestrator | done |
 | IDE-06 | Write the VPS bootstrap prompt | Orchestrator | done |
@@ -267,7 +267,7 @@ the owner, and **due before the phase that consumes it**.
 
 | # | Milestone | Gate / owner decision | Depends on |
 |---|---|---|---|
-| M0 | Project documented, decisions of round 2 taken, project-manager session running on the VPS | FND-00 | – |
+| M0 | Project documented, decisions of round 2 taken, project-manager session running on the VPS — **reached 2026-09-28** | FND-00 | – |
 | M1 | Stack validated by measurements (spikes), budgets written | Owner: keep mainnet and the web-view client, or fall back | M0 |
 | M2 | Walking skeleton on Sepolia, played on a phone | – | M1 |
 | M3 | Combat playable with three professions, parity at zero divergence | – | M2 |

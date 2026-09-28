@@ -170,8 +170,11 @@ Run on at least one mid-range Android phone and one iPhone, inside the Capacitor
 | Battery drain over 30 minutes of play | ≤ 8% on the reference phones |
 | Temperature after 30 minutes | No thermal throttling reported by the system |
 | Idle screen, 5 minutes | Near-zero processor use with idle animations off |
-| Controller session flow in the shell | Login once with passkey; then no prompt per action |
-| vRNG transaction from the shell | Works through the session |
+| Transactions from a burner account in the shell | 50 actions in a row, no prompt, no fee shown (ADR-0005 stage A) |
+| Tile size and zoom for a sight of radius 6 | Taps land on the intended tile at the default zoom (ADR-0006 §5) |
+
+Controller session flow and vRNG from the shell were rows of this table; they belong to
+version 1 and moved to SPK-9 (PLAN v0.13).
 
 If the thresholds are not met after applying the power rules: second spike on **Godot**
 with the community SDK, then Unity.
