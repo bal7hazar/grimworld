@@ -236,6 +236,19 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
+# Machine thresholds (OPERATIONS §3): no agent starts while the 5-minute load average is above
+# 12 or less than 8 GB of memory is available. Wait and check again; running agents are never
+# stopped for load. GW_MAX_LOAD / GW_MIN_MEM_GB exist for tests only.
+load5=$(cut -d' ' -f2 /proc/loadavg)
+mem_gb=$(($(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo) / 1048576))
+if awk -v l="$load5" -v m="${GW_MAX_LOAD:-12}" 'BEGIN { exit !(l > m) }'; then
+  echo "agent.sh: 5-minute load average $load5 is above ${GW_MAX_LOAD:-12}: wait and check again" >&2
+  exit 4
+fi
+if [ "$mem_gb" -lt "${GW_MIN_MEM_GB:-8}" ]; then
+  echo "agent.sh: $mem_gb GB of memory available, under ${GW_MIN_MEM_GB:-8}: wait and check again" >&2
+  exit 4
+fi
 if [ ! -d "$wt" ]; then
   [ -n "$branch" ] || die "no worktree $wt (create it, or pass --branch <type>/<task-id>-<slug>)"
   git -C "$main" fetch -q origin main
