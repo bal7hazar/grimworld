@@ -10,7 +10,8 @@ of inputs checked, never a value.
   STARKNET_PRIVATE_KEY (every hex form with or without leading zeros, and decimal). A malformed
   value stops the check with a value-free message.
 - The burner keys: every `private_key` in spikes/SPK-1b/burners.secret.json (ignored by git), in
-  the same forms. The file itself is the one place they live: it is not scanned, and it must not
+  the same forms. The inventory is validated (fix loop 1): an object; the expected burner ("oz")
+  present; each entry exactly {"private_key": a nonzero felt}. Anything else fails, value-free. The file itself is the one place they live: it is not scanned, and it must not
   be tracked by git (checked).
 - History: `git log -p --all` (every ref). A git failure fails the check. Git shows binary files as
   "Binary files differ": their content is not scanned (this spike commits none).
@@ -62,15 +63,32 @@ for name in NAMES:
         patterns[name] = [f"0x0*{n:x}", rf"(?<![0-9]){n}(?![0-9])"]
 
 SECRETS = "spikes/SPK-1b/burners.secret.json"
+# The burners this spike generated (measure.mjs): each must be in the inventory, or the check would
+# pass without comparing against its key (fix loop 1)
+EXPECTED_BURNERS = ("oz",)
+STARK_PRIME = 2**251 + 17 * 2**192 + 1
 if not os.path.exists(SECRETS):
     fail(f"{SECRETS}: missing, cannot check the burner keys")
 import json  # noqa: E402
 
-for label, entry in json.load(open(SECRETS)).items():
+try:
+    inventory = json.load(open(SECRETS))
+except (ValueError, UnicodeDecodeError):
+    fail(f"{SECRETS}: not valid JSON (content not shown)")
+if not isinstance(inventory, dict):
+    fail(f"{SECRETS}: not an object of burners (content not shown)")
+for label in EXPECTED_BURNERS:
+    if label not in inventory:
+        fail(f"{SECRETS}: the expected burner {label!r} is missing: its key could not be checked")
+for label, entry in inventory.items():
+    if not isinstance(entry, dict) or set(entry) != {"private_key"}:
+        fail(f"burner {label!r}: an entry must be an object with exactly one field, private_key (content not shown)")
     value = entry["private_key"]
-    if not FELT.fullmatch(value):
-        fail(f"burner key {label}: not a 0x-prefixed hex felt (value not shown)")
+    if not isinstance(value, str) or not FELT.fullmatch(value):
+        fail(f"burner key {label!r}: not a 0x-prefixed hex felt (value not shown)")
     n = int(value, 16)
+    if not 0 < n < STARK_PRIME:
+        fail(f"burner key {label!r}: not a nonzero field element (value not shown)")
     patterns[f"burner key {label}"] = [f"0x0*{n:x}", rf"(?<![0-9]){n}(?![0-9])"]
 tracked = subprocess.run(["git", "ls-files", "--error-unmatch", SECRETS], capture_output=True, text=True)
 if tracked.returncode == 0:
