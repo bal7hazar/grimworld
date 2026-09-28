@@ -1,7 +1,7 @@
 use origami_hexmap::helpers::bits::Bits;
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 159590)] // ceil(1.05 × 151990 measured)
 fn micro_loop_baseline() {
     let mut i: u8 = 0;
     let mut acc: felt252 = 0;
@@ -13,7 +13,7 @@ fn micro_loop_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 292446)] // ceil(1.05 × 278520 measured)
 fn micro_pow() {
     let mut i: u8 = 0;
     let mut acc: felt252 = 0;
@@ -25,7 +25,7 @@ fn micro_pow() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 597398)] // ceil(1.05 × 568950 measured)
 fn micro_get() {
     let mut i: u8 = 0;
     let mut acc: felt252 = 0;

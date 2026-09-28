@@ -9,7 +9,9 @@
 //! - `goblins`: per instance, up to 8 goblins in one felt, `x + 2^8 y` in 16 bits each (goblin
 //!   `j` at bit 16 j), their count at bit 128. The goblins' other fields are SPK-2's;
 //! - `windows`: variant B only, the stored window `{ origin, terrain, occupied }` (D-120 rejected
-//!   it; here for comparison).
+//!   it; here for comparison);
+//! - `standins`: variant S only, SPK-2's stand-in: the terrain of the window already assembled, one
+//!   slot per instance (SPK-2 measured its tick on it; S is here so that the two add up).
 //! Each is read once and written once per transaction at most.
 //!
 //! Throwaway: the setup entrypoints are open, there is no owner check and no event.
@@ -43,10 +45,13 @@ pub trait IMap<T> {
     fn setup_window(ref self: T, instance: u32);
     fn setup_worst_case(ref self: T, instance: u32, moved: bool, stored: bool);
     fn setup_reveal(ref self: T, instance: u32, biome: u8, case: u8);
+    fn setup_standin(ref self: T, instance: u32, moved: bool);
     // Measured
     fn reveal(ref self: T, instance: u32, chunks: Array<(u8, u8)>);
     fn act(ref self: T, instance: u32, direction: u8);
     fn act_stored(ref self: T, instance: u32, direction: u8);
+    fn act_standin(ref self: T, instance: u32, direction: u8);
+    fn act_deferred(ref self: T, instance: u32, direction: u8);
     // Views
     fn chunk(self: @T, instance: u32, cx: u8, cy: u8) -> Layers;
     fn goblins(self: @T, instance: u32) -> Array<(u8, u8)>;
@@ -131,20 +136,18 @@ pub mod Instances {
     use core::poseidon::poseidon_hash_span;
     use origami_hexmap::helpers::bits::Bits;
     use starknet::get_tx_info;
+    use crate::boards::CAPPED_TERRAIN;
     use crate::chunk::{Biome, Side, Sides, generate_chunk};
     use crate::fixtures::{
         LOCATION, REVEAL_AROUND, neighbour_terrain, worst_adventurer, worst_chunks, worst_goblins,
     };
     use crate::flood::FLOOD_LAYERS;
     use crate::tick::{ChunkOccupancy, apply_moves, world_tick};
-    use crate::window::{Layers, assemble_window, window_chunks, window_origin};
+    use crate::window::{Layers, assemble_window, scatter_window, window_chunks, window_origin};
     use super::{
-        ChunkLayers, IMap, STAY, StoredWindow, chunk_key, errors, neighbour, pack_goblins,
-        unpack_goblins,
-    };
-    use super::{
-        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePathEntry,
-        StoragePointerReadAccess, StoragePointerWriteAccess,
+        ChunkLayers, IMap, Map, STAY, StorageMapReadAccess, StorageMapWriteAccess, StoragePathEntry,
+        StoragePointerReadAccess, StoragePointerWriteAccess, StoredWindow, chunk_key, errors,
+        neighbour, pack_goblins, unpack_goblins,
     };
 
     #[storage]
@@ -155,6 +158,7 @@ pub mod Instances {
         adventurers: Map<u32, felt252>,
         goblins: Map<u32, felt252>,
         windows: Map<u32, StoredWindow>,
+        standins: Map<u32, felt252>,
     }
 
     /// The random word of a reveal: a stand-in for `fate(domain)` reading the transaction hash
@@ -238,7 +242,15 @@ pub mod Instances {
         }
 
         /// Move the adventurer if asked: the tile must be walkable and free in the window.
-        fn settle(ref self: ContractState, instance: u32, x: u8, y: u8, moved: bool, window: Layers, centre: u8) {
+        fn settle(
+            ref self: ContractState,
+            instance: u32,
+            x: u8,
+            y: u8,
+            moved: bool,
+            window: Layers,
+            centre: u8,
+        ) {
             if !moved {
                 return;
             }
@@ -277,14 +289,21 @@ pub mod Instances {
 
     #[abi(embed_v0)]
     impl MapImpl of IMap<ContractState> {
-        fn setup_instance(ref self: ContractState, instance: u32, biome: u8, width: u8, height: u8) {
+        fn setup_instance(
+            ref self: ContractState, instance: u32, biome: u8, width: u8, height: u8,
+        ) {
             self
                 .instances
                 .write(instance, biome.into() + width.into() * 0x100 + height.into() * 0x10000);
         }
 
         fn setup_chunk(
-            ref self: ContractState, instance: u32, cx: u8, cy: u8, terrain: felt252, occupied: felt252,
+            ref self: ContractState,
+            instance: u32,
+            cx: u8,
+            cy: u8,
+            terrain: felt252,
+            occupied: felt252,
         ) {
             let entry = self.chunks.entry(chunk_key(instance, cx, cy));
             entry.terrain.write(terrain);
@@ -339,6 +358,19 @@ pub mod Instances {
             }
         }
 
+        /// The stand-in of variant S: the worst-case window's terrain, the goblins, the adventurer.
+        fn setup_standin(ref self: ContractState, instance: u32, moved: bool) {
+            self.setup_goblins(instance, worst_goblins());
+            let (x, y) = worst_adventurer();
+            let x = if moved {
+                x + 1
+            } else {
+                x
+            };
+            self.setup_adventurer(instance, x, y);
+            self.standins.write(instance, CAPPED_TERRAIN);
+        }
+
         /// Case 0: nothing revealed around the L of `fixtures`; 1: the 7 chunks around it; 2: those
         /// and B and C, so that A has its 4 neighbours known.
         fn setup_reveal(ref self: ContractState, instance: u32, biome: u8, case: u8) {
@@ -377,9 +409,19 @@ pub mod Instances {
                 assert(!Bits::get(known, bit), errors::REVEAL_KNOWN);
                 let seen = fresh.span();
                 let sides = Sides {
-                    east: self.facing(instance, cx > 0, cx - if cx > 0 { 1 } else { 0 }, cy, known, seen),
+                    east: self
+                        .facing(instance, cx > 0, cx - if cx > 0 {
+                            1
+                        } else {
+                            0
+                        }, cy, known, seen),
                     west: self.facing(instance, cx + 1 < width, cx + 1, cy, known, seen),
-                    south: self.facing(instance, cy > 0, cx, cy - if cy > 0 { 1 } else { 0 }, known, seen),
+                    south: self
+                        .facing(instance, cy > 0, cx, cy - if cy > 0 {
+                            1
+                        } else {
+                            0
+                        }, known, seen),
                     north: self.facing(instance, cy + 1 < height, cx, cy + 1, known, seen),
                 };
                 let key = chunk_key(instance, cx, cy);
@@ -421,7 +463,9 @@ pub mod Instances {
             let entry = self.windows.entry(instance);
             let stored_origin = entry.origin.read();
             let (window, mut occupancy, recentred) = if stored_origin == origin {
-                let window = Layers { terrain: entry.terrain.read(), occupied: entry.occupied.read() };
+                let window = Layers {
+                    terrain: entry.terrain.read(), occupied: entry.occupied.read(),
+                };
                 let (cx0, cy0, _, _) = window_chunks(origin_x, origin_y);
                 (window, ChunkOccupancy { cx0, cy0, slots: (0, 0, 0, 0), dirty: 0 }, false)
             } else {
@@ -473,6 +517,147 @@ pub mod Instances {
             }
         }
 
+        /// Variant S, SPK-2's stand-in: the window's terrain in one slot, the occupancy derived
+        /// from the goblins' tiles, no chunk read or write. What A adds to it is the chunked map's
+        /// cost.
+        fn act_standin(ref self: ContractState, instance: u32, direction: u8) {
+            let (x, y, moved) = self.position(instance, direction);
+            let (origin_x, origin_y, centre) = window_origin(x, y);
+            let goblins = unpack_goblins(self.goblins.read(instance));
+            let mut occupied: felt252 = 0;
+            for (gx, gy) in goblins.span() {
+                if *gx > origin_x && *gy > origin_y && *gx - origin_x < 14 && *gy - origin_y < 15 {
+                    occupied += Bits::pow((*gy - origin_y) * 15 + *gx - origin_x);
+                }
+            }
+            let window = Layers { terrain: self.standins.read(instance), occupied };
+            self.settle(instance, x, y, moved, window, centre);
+            let (next, moves, _, _) = world_tick(
+                origin_x, origin_y, centre, window, goblins.span(), FLOOD_LAYERS,
+            );
+            if moves.len() != 0 {
+                self.goblins.write(instance, pack_goblins(next.span()));
+            }
+        }
+
+        /// Variant B' (stored window as the working copy): while the window stays, the tick reads
+        /// and writes only the window; the chunks' occupied layers are brought up to date when it
+        /// moves (read, the old window written back into them, written), then it is re-centred.
+        fn act_deferred(ref self: ContractState, instance: u32, direction: u8) {
+            let (x, y, moved) = self.position(instance, direction);
+            let (origin_x, origin_y, centre) = window_origin(x, y);
+            let origin: felt252 = origin_x.into() + origin_y.into() * 0x100;
+            let entry = self.windows.entry(instance);
+            let stored_origin = entry.origin.read();
+            if stored_origin == origin {
+                let window = Layers {
+                    terrain: entry.terrain.read(), occupied: entry.occupied.read(),
+                };
+                self.settle(instance, x, y, moved, window, centre);
+                let goblins = unpack_goblins(self.goblins.read(instance));
+                let (next, moves, _, occupied) = world_tick(
+                    origin_x, origin_y, centre, window, goblins.span(), FLOOD_LAYERS,
+                );
+                if moves.len() != 0 {
+                    self.goblins.write(instance, pack_goblins(next.span()));
+                    entry.occupied.write(occupied);
+                }
+                return;
+            }
+            // [Effect] Write the old window's occupancy back into its chunks
+            let old: u256 = stored_origin.into();
+            let (old_y, old_x) = DivRem::div_rem(old.low, 0x100);
+            let (old_x, old_y): (u8, u8) = (old_x.try_into().unwrap(), old_y.try_into().unwrap());
+            let (cx0, cy0, dx, _) = window_chunks(old_x, old_y);
+            let four = dx != 0;
+            let before = (
+                self.chunks.entry(chunk_key(instance, cx0, cy0)).occupied.read(),
+                self.chunks.entry(chunk_key(instance, cx0, cy0 + 1)).occupied.read(),
+                if four {
+                    self.chunks.entry(chunk_key(instance, cx0 + 1, cy0)).occupied.read()
+                } else {
+                    0
+                },
+                if four {
+                    self.chunks.entry(chunk_key(instance, cx0 + 1, cy0 + 1)).occupied.read()
+                } else {
+                    0
+                },
+            );
+            let after = scatter_window(old_x, old_y, entry.occupied.read(), before);
+            let (b0, b1, b2, b3) = before;
+            let (a0, a1, a2, a3) = after;
+            if a0 != b0 {
+                self.chunks.entry(chunk_key(instance, cx0, cy0)).occupied.write(a0);
+            }
+            if a1 != b1 {
+                self.chunks.entry(chunk_key(instance, cx0, cy0 + 1)).occupied.write(a1);
+            }
+            if four && a2 != b2 {
+                self.chunks.entry(chunk_key(instance, cx0 + 1, cy0)).occupied.write(a2);
+            }
+            if four && a3 != b3 {
+                self.chunks.entry(chunk_key(instance, cx0 + 1, cy0 + 1)).occupied.write(a3);
+            }
+            // [Compute] Re-centre: the same chunks reuse the occupancy in memory
+            let (ncx0, ncy0, ndx, _) = window_chunks(origin_x, origin_y);
+            let window = if ncx0 == cx0 && ncy0 == cy0 && (ndx != 0) == four {
+                let mut chunks: Array<Layers> = array![
+                    Layers {
+                        terrain: self.chunks.entry(chunk_key(instance, cx0, cy0)).terrain.read(),
+                        occupied: a0,
+                    },
+                    Layers {
+                        terrain: self
+                            .chunks
+                            .entry(chunk_key(instance, cx0, cy0 + 1))
+                            .terrain
+                            .read(),
+                        occupied: a1,
+                    },
+                ];
+                if four {
+                    chunks
+                        .append(
+                            Layers {
+                                terrain: self
+                                    .chunks
+                                    .entry(chunk_key(instance, cx0 + 1, cy0))
+                                    .terrain
+                                    .read(),
+                                occupied: a2,
+                            },
+                        );
+                    chunks
+                        .append(
+                            Layers {
+                                terrain: self
+                                    .chunks
+                                    .entry(chunk_key(instance, cx0 + 1, cy0 + 1))
+                                    .terrain
+                                    .read(),
+                                occupied: a3,
+                            },
+                        );
+                }
+                assemble_window(origin_x, origin_y, chunks.span())
+            } else {
+                let (chunks, _) = self.read_chunks(instance, origin_x, origin_y);
+                assemble_window(origin_x, origin_y, chunks.span())
+            };
+            self.settle(instance, x, y, moved, window, centre);
+            let goblins = unpack_goblins(self.goblins.read(instance));
+            let (next, moves, _, occupied) = world_tick(
+                origin_x, origin_y, centre, window, goblins.span(), FLOOD_LAYERS,
+            );
+            if moves.len() != 0 {
+                self.goblins.write(instance, pack_goblins(next.span()));
+            }
+            self
+                .windows
+                .write(instance, StoredWindow { origin, terrain: window.terrain, occupied });
+        }
+
         fn chunk(self: @ContractState, instance: u32, cx: u8, cy: u8) -> Layers {
             self.read_chunk(instance, cx, cy)
         }
@@ -488,7 +673,10 @@ pub mod Instances {
 
         fn stored_window(self: @ContractState, instance: u32) -> (felt252, Layers) {
             let entry = self.windows.entry(instance);
-            (entry.origin.read(), Layers { terrain: entry.terrain.read(), occupied: entry.occupied.read() })
+            (
+                entry.origin.read(),
+                Layers { terrain: entry.terrain.read(), occupied: entry.occupied.read() },
+            )
         }
     }
 }

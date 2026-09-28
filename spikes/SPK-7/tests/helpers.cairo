@@ -10,9 +10,9 @@ pub fn has(value: felt252, index: u8) -> bool {
     Bits::get(value.into(), index)
 }
 
-/// The neighbours of `(x, y)` on a board of width 15 and height `height`, written from the direction
-/// table of the library (odd-r: an odd row's North and South neighbours are at x and x + 1, an even
-/// row's at x - 1 and x). `flip`: local row 0 is an odd global row.
+/// The neighbours of `(x, y)` on a board of width 15 and height `height`, written from the
+/// direction table of the library (odd-r: an odd row's North and South neighbours are at x and x +
+/// 1, an even row's at x - 1 and x). `flip`: local row 0 is an odd global row.
 pub fn neighbours(x: u8, y: u8, height: u8, flip: bool) -> Array<(u8, u8)> {
     let mut out: Array<(u8, u8)> = array![];
     if x > 0 {

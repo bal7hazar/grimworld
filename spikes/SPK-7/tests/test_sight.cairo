@@ -111,31 +111,31 @@ fn check_rows(from: u8, to: u8) -> u32 {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 1810916540)] // ceil(1.05 × 1724682419 measured)
 fn test_line_of_sight_rows_1_to_4() {
     check_rows(1, 5);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 2510685143)] // ceil(1.05 × 2391128707 measured)
 fn test_line_of_sight_rows_5_to_8() {
     check_rows(5, 9);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 1708392622)] // ceil(1.05 × 1627040592 measured)
 fn test_line_of_sight_rows_9_to_11() {
     check_rows(9, 12);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 1302886944)] // ceil(1.05 × 1240844708 measured)
 fn test_line_of_sight_rows_12_to_14() {
     check_rows(12, 15);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 48207)] // ceil(1.05 × 45911 measured)
 fn test_line_of_sight_values() {
     // Adjacent tiles see each other through nothing; a wall between blocks; actors do not
     let terrain = DEEP_TERRAIN;
@@ -144,15 +144,19 @@ fn test_line_of_sight_values() {
     // (7, 7) to (9, 7): (8, 7) between
     assert!(between_mask(112, 114) == Bits::pow(113));
     assert!(line_of_sight(112, 114, Bits::pow(113)));
-    assert!(!line_of_sight(112, 114, terrain - (if Bits::get(terrain.into(), 113) {
-        Bits::pow(113)
-    } else {
-        0
-    })));
+    assert!(
+        !line_of_sight(
+            112, 114, terrain - (if Bits::get(terrain.into(), 113) {
+                Bits::pow(113)
+            } else {
+                0
+            }),
+        ),
+    );
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'los: beyond range')]
 fn test_line_of_sight_beyond_range() {
     // (1, 7) to (8, 7): 7 apart

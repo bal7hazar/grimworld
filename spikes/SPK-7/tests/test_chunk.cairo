@@ -25,8 +25,7 @@ fn even(odd: bool) -> u256 {
         1
     } else {
         0
-    }])
-        .into()
+    }]).into()
 }
 
 /// The automaton one tile at a time.
@@ -82,7 +81,7 @@ fn cut(value: felt252, mask: felt252) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 694647293)] // ceil(1.05 × 661568850 measured)
 fn test_smooth_matches_oracle_both_parities() {
     let mut seed: felt252 = 1;
     while seed != 5 {
@@ -101,7 +100,7 @@ fn test_smooth_matches_oracle_both_parities() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 80415275)] // ceil(1.05 × 76585976 measured)
 fn test_keep_component_matches_oracle_both_parities() {
     let mut seed: felt252 = 1;
     while seed != 7 {
@@ -137,7 +136,7 @@ fn opened(value: felt252) -> u32 {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 639727310)] // ceil(1.05 × 609264104 measured)
 fn test_generate_open_border_and_copy() {
     let open = Sides { east: Side::Open, west: Side::Open, south: Side::Open, north: Side::Open };
     for biome in BIOMES.span() {
@@ -160,7 +159,9 @@ fn test_generate_open_border_and_copy() {
             let west = generate_chunk(
                 'C',
                 *biome,
-                Sides { east: Side::Copy(a), west: Side::Open, south: Side::Border, north: Side::Open },
+                Sides {
+                    east: Side::Copy(a), west: Side::Open, south: Side::Border, north: Side::Open,
+                },
                 odd,
             );
             check_chunk(west, odd);
@@ -169,7 +170,9 @@ fn test_generate_open_border_and_copy() {
             let north = generate_chunk(
                 'D',
                 *biome,
-                Sides { east: Side::Open, west: Side::Open, south: Side::Copy(a), north: Side::Open },
+                Sides {
+                    east: Side::Open, west: Side::Open, south: Side::Copy(a), north: Side::Open,
+                },
                 !odd,
             );
             check_chunk(north, !odd);
@@ -179,7 +182,9 @@ fn test_generate_open_border_and_copy() {
                 'E',
                 *biome,
                 Sides {
-                    east: Side::Open, west: Side::Copy(west), south: Side::Open,
+                    east: Side::Open,
+                    west: Side::Copy(west),
+                    south: Side::Open,
                     north: Side::Copy(north),
                 },
                 odd,
@@ -208,14 +213,16 @@ fn share(biome: Biome, n: u32) -> u32 {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 60883770)] // ceil(1.05 × 57984542 measured)
 fn test_generate_biome_shares() {
     // design/18 Biomes: meadow 80-90 %, forest 60-70 %, cave 45-55 %, ruin 40-50 %, on average
     let meadow = share(Biome::Meadow, 32);
     let forest = share(Biome::Forest, 32);
     let cave = share(Biome::Cave, 32);
     let ruin = share(Biome::Ruin, 32);
-    println!("shares (thousandths): meadow {} forest {} cave {} ruin {}", meadow, forest, cave, ruin);
+    println!(
+        "shares (thousandths): meadow {} forest {} cave {} ruin {}", meadow, forest, cave, ruin,
+    );
     assert!(meadow >= 800 && meadow <= 900, "meadow {}", meadow);
     assert!(forest >= 600 && forest <= 700, "forest {}", forest);
     assert!(cave >= 450 && cave <= 550, "cave {}", cave);

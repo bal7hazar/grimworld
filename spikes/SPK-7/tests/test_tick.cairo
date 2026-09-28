@@ -14,7 +14,7 @@ fn empty() -> ChunkOccupancy {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 24556)] // ceil(1.05 × 23386 measured)
 fn test_move_within_a_chunk() {
     // Chunk (2, 3) holds global (30..44, 45..59); a goblin at (31, 46) steps West to (32, 46)
     let mut chunks = empty();
@@ -26,7 +26,7 @@ fn test_move_within_a_chunk() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 33960)] // ceil(1.05 × 32342 measured)
 fn test_move_across_chunks() {
     // West across x = 45: chunk (2, 3) to chunk (3, 3), slot 0 to slot 2
     let mut chunks = empty();
@@ -43,7 +43,7 @@ fn test_move_across_chunks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'tick: chunk not in window')]
 fn test_move_outside_the_window_chunks() {
     let mut chunks = empty();
@@ -51,7 +51,7 @@ fn test_move_outside_the_window_chunks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 13232818)] // ceil(1.05 × 12602683 measured)
 fn test_worst_case_tick_in_memory() {
     let (origin_x, origin_y) = worst_origin();
     let mut layers: Array<Layers> = array![];
@@ -96,9 +96,8 @@ fn test_worst_case_tick_in_memory() {
         origin_x,
         origin_y,
         array![
-            Layers { terrain: CAPPED_TERRAIN, occupied: s0 },
-            Layers { terrain: 0, occupied: s1 }, Layers { terrain: 0, occupied: s2 },
-            Layers { terrain: 0, occupied: s3 },
+            Layers { terrain: CAPPED_TERRAIN, occupied: s0 }, Layers { terrain: 0, occupied: s1 },
+            Layers { terrain: 0, occupied: s2 }, Layers { terrain: 0, occupied: s3 },
         ]
             .span(),
     );

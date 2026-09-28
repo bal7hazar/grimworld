@@ -1,5 +1,6 @@
 //! N-8: the shared flood and the steps of rule (a) against a scalar queue BFS, both row parities of
-//! the adventurer, capped (D-127) and unlimited; the boards of boards.py and their expected figures.
+//! the adventurer, capped (D-127) and unlimited; the boards of boards.py and their expected
+//! figures.
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use origami_hexmap::helpers::bits::Bits;
@@ -94,7 +95,8 @@ fn check(terrain: felt252, start: u8, goblins: Span<u8>, limit: u8) -> (u32, Arr
         index += 1;
     }
     assert!(layers.len() <= limit.into() + 1);
-    // [Check] Distances (0 beyond the limit), then steps in ascending order on the current occupancy
+    // [Check] Distances (0 beyond the limit), then steps in ascending order on the current
+    // occupancy
     let depth: u8 = layers.len().try_into().unwrap();
     let mut current = occupied;
     let mut steps: Array<Option<u8>> = array![];
@@ -138,7 +140,7 @@ fn random_board(seed: felt252, keep: Span<u8>) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 62822348)] // ceil(1.05 × 59830807 measured)
 fn test_flood_capped_worst_case_matches_python() {
     // boards.py's capped worst case: 15 layers, 8 goblins reached, every one stepping
     let (depth, steps) = check(CAPPED_TERRAIN, 112, CAPPED_GOBLINS.span(), FLOOD_LAYERS);
@@ -164,7 +166,7 @@ fn test_flood_capped_worst_case_matches_python() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 578341824)] // ceil(1.05 × 550801737 measured)
 fn test_flood_deep_boards_every_limit() {
     // The deepest boards found: every limit agrees with the reference; unlimited runs to the end
     for limit in array![10_u8, 15, 20] {
@@ -178,7 +180,7 @@ fn test_flood_deep_boards_every_limit() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 601634994)] // ceil(1.05 × 572985708 measured)
 fn test_flood_random_boards_both_parities() {
     let mut seed: felt252 = 1;
     while seed != 7 {

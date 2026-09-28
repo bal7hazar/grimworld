@@ -2,7 +2,8 @@
 //! design/02 *Simulation budget*; design/04 *Goblin AI*; D-127).
 //!
 //! One breadth-first flood from the adventurer on the window, on the occupancy frozen at the start
-//! of the tick (the goblins are obstacles), stopped after `limit` layers (the tick passes 15, D-127).
+//! of the tick (the goblins are obstacles), stopped after `limit` layers (the tick passes 15,
+//! D-127).
 //! Each awake goblin, in ascending id order, steps to its free neighbour one layer closer, lowest
 //! tile index on ties, filtered by the occupancy **as it is now**; else to a free neighbour of its
 //! own layer; else it holds. A goblin the flood did not reach holds its position.
@@ -23,8 +24,7 @@ const TWO_POW_128: felt252 = 0x100000000000000000000000000000000;
 const INV_2: felt252 = 0x400000000000008800000000000000000000000000000000000000000000001;
 /// 256^j: the byte of goblin `j` in the packed distances.
 const BYTE: [felt252; 8] = [
-    0x1, 0x100, 0x10000, 0x1000000, 0x100000000, 0x10000000000, 0x1000000000000,
-    0x100000000000000,
+    0x1, 0x100, 0x10000, 0x1000000, 0x100000000, 0x10000000000, 0x1000000000000, 0x100000000000000,
 ];
 
 /// The flood (N-8).

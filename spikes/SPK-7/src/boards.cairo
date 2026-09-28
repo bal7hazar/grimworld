@@ -11,8 +11,8 @@ pub const DEEP_EVEN_TERRAIN: felt252 = 0xdef95312d1a422cbb414572ea262acb4b15b428
 pub const DEEP_EVEN_LAYERS: u32 = 92;
 
 /// Worst case of the tick under D-127 (D-127, ADR-0006 §4): winding (unlimited depth 20),
-/// 8 goblins reached at distances [13, 3, 15, 4, 3, 2, 5, 7], all stepping, 5 steps crossing a chunk
-/// boundary when the window's offsets in its chunks are dx = 7, dy = 7.
+/// 8 goblins reached at distances [13, 3, 15, 4, 3, 2, 5, 7], all stepping, 5 steps crossing a
+/// chunk boundary when the window's offsets in its chunks are dx = 7, dy = 7.
 pub const CAPPED_TERRAIN: felt252 = 0xfff9fff2ffe6ffcbff97ff2ffe6ffcbff9bff2f866f7cc1f9fff0000;
 pub const CAPPED_GOBLINS: [u8; 8] = [21, 67, 117, 124, 125, 126, 188, 206];
 pub const CAPPED_DISTANCES: [u8; 8] = [13, 3, 15, 4, 3, 2, 5, 7];

@@ -3,7 +3,7 @@ mod test_bench;
 mod test_chunk;
 mod test_contract;
 mod test_flood;
+mod test_micro;
 mod test_sight;
 mod test_tick;
 mod test_window;
-mod test_micro;

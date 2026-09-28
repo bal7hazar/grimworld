@@ -125,8 +125,7 @@ pub fn generate_chunk(word: felt252, biome: Biome, sides: Sides, odd: bool) -> f
         1
     } else {
         0
-    }])
-        .into();
+    }]).into();
     let mut grid = or(fill, lines);
     let mut pass = PASSES;
     while pass != 0 {

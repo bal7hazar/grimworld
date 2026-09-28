@@ -1,6 +1,6 @@
 //! The part of a tick SPK-7 measures, in memory: the goblins of the window act on one shared flood
-//! (N-8) and their moves update the occupied layers of the chunks (R-5, ADR-0006 §4: "moving writes
-//! the occupied bit of the chunk left and of the chunk entered"). Combat, conditions and the
+//! (N-8) and their moves update the occupied layers of the chunks (R-5, ADR-0006 §4: "moving
+//! writes the occupied bit of the chunk left and of the chunk entered"). Combat, conditions and the
 //! adventurer's own action are SPK-2's: a goblin at distance 1 only counts as an attack here.
 
 use origami_hexmap::helpers::bits::Bits;
@@ -48,14 +48,12 @@ pub fn locate(cx0: u8, cy0: u8, x: u8, y: u8) -> (u8, felt252) {
 #[inline(always)]
 fn add(ref chunks: ChunkOccupancy, slot: u8, value: felt252) {
     let (s0, s1, s2, s3) = chunks.slots;
-    chunks
-        .slots =
-            match slot {
-                0 => (s0 + value, s1, s2, s3),
-                1 => (s0, s1 + value, s2, s3),
-                2 => (s0, s1, s2 + value, s3),
-                _ => (s0, s1, s2, s3 + value),
-            };
+    chunks.slots = match slot {
+        0 => (s0 + value, s1, s2, s3),
+        1 => (s0, s1 + value, s2, s3),
+        2 => (s0, s1, s2 + value, s3),
+        _ => (s0, s1, s2, s3 + value),
+    };
     let flag: u8 = match slot {
         0 => 1,
         1 => 2,

@@ -128,3 +128,57 @@ pub fn assemble_window(origin_x: u8, origin_y: u8, chunks: Span<Layers>) -> Laye
     let (high, _, _) = Bits::bitwise(wide.high, ring.high);
     Layers { terrain: Bits::to_felt(u256 { low, high }), occupied }
 }
+
+/// `chunk` with its part under the window replaced by the window's.
+#[inline(always)]
+fn put_back(chunk: felt252, window: u256, mask: felt252, shift: felt252, back: felt252) -> felt252 {
+    let seen: u256 = (mask * shift).into();
+    let (low, _, _) = Bits::bitwise(window.low, seen.low);
+    let (high, _, _) = Bits::bitwise(window.high, seen.high);
+    let piece = Bits::to_felt(u256 { low, high }) * back;
+    let wide: u256 = chunk.into();
+    let mask: u256 = mask.into();
+    let (low, _, _) = Bits::bitwise(wide.low, mask.low);
+    let (high, _, _) = Bits::bitwise(wide.high, mask.high);
+    chunk - Bits::to_felt(u256 { low, high }) + piece
+}
+
+/// The inverse of `assemble_window` for one layer: the window's tiles written back into the chunks
+/// under it (the stored window of variant B', which writes its occupancy back when it moves).
+/// # Arguments
+/// * `origin_x`, `origin_y` - The window's origin
+/// * `window` - The window's layer
+/// * `chunks` - The same layer of the chunks under it, in the window's order (4 slots, the last two
+///   unused when `dx = 0`)
+/// # Returns
+/// * The chunks' layer with the window's tiles in place
+pub fn scatter_window(
+    origin_x: u8, origin_y: u8, window: felt252, chunks: (felt252, felt252, felt252, felt252),
+) -> (felt252, felt252, felt252, felt252) {
+    let (_, _, dx, dy) = window_chunks(origin_x, origin_y);
+    let (s0, s1, s2, s3) = chunks;
+    let window: u256 = window.into();
+    let rows_low = *ROWS_FROM.span()[dy.into()];
+    let rows_high = *ROWS_TO.span()[dy.into()];
+    let row = WIDTH * dy;
+    let cols = *COLS_FROM.span()[dx.into()];
+    let s0 = put_back(s0, window, cols * rows_low, Bits::inv(row + dx), Bits::pow(row + dx));
+    let s1 = put_back(
+        s1,
+        window,
+        cols * rows_high,
+        Bits::pow(225 - row) * Bits::inv(dx),
+        Bits::inv(225 - row) * Bits::pow(dx),
+    );
+    if dx == 0 {
+        return (s0, s1, s2, s3);
+    }
+    let cols = *COLS_TO.span()[dx.into()];
+    let side = Bits::pow(WIDTH - dx);
+    let back = Bits::inv(WIDTH - dx);
+    let s2 = put_back(s2, window, cols * rows_low, side * Bits::inv(row), back * Bits::pow(row));
+    let s3 = put_back(
+        s3, window, cols * rows_high, side * Bits::pow(225 - row), back * Bits::inv(225 - row),
+    );
+    (s0, s1, s2, s3)
+}

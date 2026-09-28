@@ -36,7 +36,9 @@ fn assemble_plain(origin_x: u8, origin_y: u8, chunks: Span<(u8, u8, Layers)>) ->
 }
 
 /// Random chunks around a window origin, in the window's order; the list for the oracle.
-fn chunks_at(origin_x: u8, origin_y: u8, seed: felt252) -> (Array<Layers>, Array<(u8, u8, Layers)>) {
+fn chunks_at(
+    origin_x: u8, origin_y: u8, seed: felt252,
+) -> (Array<Layers>, Array<(u8, u8, Layers)>) {
     let (cx0, cy0, dx, _) = window_chunks(origin_x, origin_y);
     let mut ordered: Array<Layers> = array![];
     let mut listed: Array<(u8, u8, Layers)> = array![];
@@ -90,25 +92,25 @@ fn check_offsets(dx_from: u8, dx_to: u8) {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 137406455)] // ceil(1.05 × 130863290 measured)
 fn test_assemble_matches_oracle_2_chunks() {
     check_offsets(0, 1);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 1273428303)] // ceil(1.05 × 1212788860 measured)
 fn test_assemble_matches_oracle_4_chunks_east() {
     check_offsets(1, 8);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 1273384760)] // ceil(1.05 × 1212747390 measured)
 fn test_assemble_matches_oracle_4_chunks_west() {
     check_offsets(8, 15);
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 70590)] // ceil(1.05 × 67228 measured)
 #[should_panic(expected: 'window: odd origin')]
 fn test_assemble_refuses_odd_origin() {
     let (ordered, _) = chunks_at(30, 31, 1);
@@ -116,7 +118,7 @@ fn test_assemble_refuses_odd_origin() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4000000000)]
+#[available_gas(l2_gas: 138445)] // ceil(1.05 × 131852 measured)
 #[should_panic(expected: 'window: wrong chunk count')]
 fn test_assemble_refuses_missing_chunks() {
     let (ordered, _) = chunks_at(30, 30, 1);
