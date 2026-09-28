@@ -73,5 +73,5 @@ Still with the owner, not blocking:
 
 | | |
 |---|---|
-| Reserving the name by publishing an empty `hexx` 0.0.1 (R-4) | **Not done.** A publication cannot be undone: it waits for a go that names it. The name was free on the registry on 2026-09-28 |
+| Reserving the name by publishing an empty `hexx` 0.0.1 (R-4) | **Declined by the owner on 2026-09-28**: not worth it. The first publication of `hexx` is 0.1.0, on the owner's go |
 | What becomes of `origami_hexmap` on `origami` `main` at the end (D-17) | At milestone L-M4 |

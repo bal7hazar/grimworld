@@ -43,7 +43,7 @@ library. Machine at 18:05 UTC: load 5.5, 13 GB available.
 
 ## Waiting for the owner
 
-Nothing blocks. One go that must be explicit because it cannot be undone: publishing an empty `hexx` 0.0.1 to reserve the name. Open without urgency: Q-12, the lore premise.
+Nothing blocks. The name `hexx` is not reserved by an empty release (owner, 2026-09-28). Open without urgency: Q-12, the lore premise.
 
 ## Next
 
