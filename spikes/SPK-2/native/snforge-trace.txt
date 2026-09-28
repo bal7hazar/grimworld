@@ -3,35 +3,8 @@
     Finished `dev` profile target(s) in 0 seconds
 
 
-Collected 19 test(s) from spk2n package
-Running 19 test(s) from tests/
-[PASS] spk2n_integrationtest::test_systems::test_brew_known_pair (l1_gas: ~0, l1_data_gas: ~3552, l2_gas: ~18744748)
-[test name] spk2n_integrationtest::test_systems::test_brew_known_pair
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_alchemy
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 1675170
-├─ [selector] brew
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 705088
-├─ [selector] brew
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 493050
-└─ [selector] grimoire
-   ├─ [contract name] Hub
-   └─ [L2 gas] 38220
-
+Collected 20 test(s) from spk2n package
+Running 20 test(s) from tests/
 [PASS] spk2n_integrationtest::test_systems::test_brew_unsigned_discovers (l1_gas: ~0, l1_data_gas: ~3552, l2_gas: ~18133988)
 [test name] spk2n_integrationtest::test_systems::test_brew_unsigned_discovers
 ├─ [selector] constructor
@@ -86,8 +59,8 @@ Running 19 test(s) from tests/
    ├─ [contract name] Hub
    └─ [L2 gas] 33970
 
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves_5 (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~76866324)
-[test name] spk2n_integrationtest::test_systems::test_queue_moves_5
+[PASS] spk2n_integrationtest::test_systems::test_brew_known_pair (l1_gas: ~0, l1_data_gas: ~3552, l2_gas: ~18744748)
+[test name] spk2n_integrationtest::test_systems::test_brew_known_pair
 ├─ [selector] constructor
 │  ├─ [contract name] Hub
 │  └─ [L2 gas] 48850
@@ -100,561 +73,18 @@ Running 19 test(s) from tests/
 ├─ [selector] set_hub
 │  ├─ [contract name] Instances
 │  └─ [L2 gas] 83990
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 33507760
-└─ [selector] walk
-   ├─ [contract name] Instances
-   └─ [L2 gas] 8401904
-
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves_no_goblin (l1_gas: ~0, l1_data_gas: ~2016, l2_gas: ~38504460)
-[test name] spk2n_integrationtest::test_systems::test_queue_moves_no_goblin
-├─ [selector] constructor
+├─ [selector] setup_alchemy
 │  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
+│  └─ [L2 gas] 1675170
+├─ [selector] brew
 │  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 27934010
-└─ [selector] walk
-   ├─ [contract name] Instances
-   └─ [L2 gas] 1325590
-
-[PASS] spk2n_integrationtest::test_systems::test_tick_refuses_a_stranger (l1_gas: ~0, l1_data_gas: ~7968, l2_gas: ~42254080)
-[test name] spk2n_integrationtest::test_systems::test_tick_refuses_a_stranger
-├─ [selector] constructor
+│  └─ [L2 gas] 705088
+├─ [selector] brew
 │  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-└─ [selector] attack
-   ├─ [contract name] Instances
-   └─ [L2 gas] 1019600
-
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~85868468)
-[test name] spk2n_integrationtest::test_systems::test_queue_moves
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 33507760
-├─ [selector] walk
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 15676138
-├─ [selector] adventurer
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 100410
-├─ [selector] instance
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 38730
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-└─ [selector] goblin_felt
-   ├─ [contract name] Instances
-   └─ [L2 gas] 56930
-
-[PASS] spk2n_integrationtest::test_systems::test_queue_stops_when_hit (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~71649313)
-[test name] spk2n_integrationtest::test_systems::test_queue_stops_when_hit
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 33507760
-├─ [selector] walk
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 2979083
-└─ [selector] adventurer
-   ├─ [contract name] Instances
-   └─ [L2 gas] 100410
-
-[PASS] spk2n_integrationtest::test_systems::test_results_only_from_the_instances (l1_gas: ~0, l1_data_gas: ~672, l2_gas: ~3432310)
-[test name] spk2n_integrationtest::test_systems::test_results_only_from_the_instances
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-└─ [selector] apply_results
+│  └─ [L2 gas] 493050
+└─ [selector] grimoire
    ├─ [contract name] Hub
-   └─ [L2 gas] 97270
-
-[PASS] spk2n_integrationtest::test_systems::test_tick_worst_case (l1_gas: ~0, l1_data_gas: ~7968, l2_gas: ~47278654)
-[test name] spk2n_integrationtest::test_systems::test_tick_worst_case
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 2967674
-├─ [selector] instance
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 38730
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-└─ [selector] adventurer
-   ├─ [contract name] Instances
-   └─ [L2 gas] 100410
-
-[PASS] spk2n_integrationtest::test_systems::test_queue_serpent (l1_gas: ~0, l1_data_gas: ~12768, l2_gas: ~141497498)
-[test name] spk2n_integrationtest::test_systems::test_queue_serpent
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_serpent
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 30416240
-├─ [selector] setup_serpent
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 30416240
-├─ [selector] walk
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 13065314
-└─ [selector] walk
-   ├─ [contract name] Instances
-   └─ [L2 gas] 13104234
-
-[PASS] spk2n_integrationtest::test_systems::test_tick_adversarial_boards (l1_gas: ~0, l1_data_gas: ~22560, l2_gas: ~125173417)
-[test name] spk2n_integrationtest::test_systems::test_tick_adversarial_boards
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_board
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 5977700
-├─ [selector] setup_board
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 5977890
-├─ [selector] setup_board
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 5977890
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 3327411
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 2890981
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 4987755
-├─ [selector] instance
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 38730
-├─ [selector] instance
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 38730
-└─ [selector] instance
-   ├─ [contract name] Instances
-   └─ [L2 gas] 38730
-
-[PASS] spk2n_integrationtest::test_systems::test_queue_drops_an_invalid_move (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~70353616)
-[test name] spk2n_integrationtest::test_systems::test_queue_drops_an_invalid_move
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 33507760
-├─ [selector] walk
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 1762486
-└─ [selector] instance
-   ├─ [contract name] Instances
-   └─ [L2 gas] 38730
-
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves_slots (l1_gas: ~0, l1_data_gas: ~16416, l2_gas: ~177140706)
-[test name] spk2n_integrationtest::test_systems::test_queue_moves_slots
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 33507760
-├─ [selector] setup_queue
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 33507760
-├─ [selector] walk
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 20553858
-├─ [selector] walk
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 15676138
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-└─ [selector] goblin_felt
-   ├─ [contract name] Instances
-   └─ [L2 gas] 56930
-
-[PASS] spk2n_integrationtest::test_systems::test_tick_worst_case_layouts (l1_gas: ~0, l1_data_gas: ~37536, l2_gas: ~224484290)
-[test name] spk2n_integrationtest::test_systems::test_tick_worst_case_layouts
-├─ [selector] constructor
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 48850
-├─ [selector] constructor
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 95020
-├─ [selector] set_instances
-│  ├─ [contract name] Hub
-│  └─ [L2 gas] 83990
-├─ [selector] set_hub
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 83990
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-├─ [selector] setup_worst_case
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7105000
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 2967674
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 3006594
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 7845394
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 2782334
-├─ [selector] attack
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 2821254
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 190430
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 190430
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 190620
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 190620
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 190810
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 190810
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191000
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191000
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191190
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191190
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191380
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191380
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191470
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191470
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin_felt
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 56930
-├─ [selector] goblin
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 236630
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191370
-├─ [selector] goblin_packed
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 191370
-├─ [selector] adventurer
-│  ├─ [contract name] Instances
-│  └─ [L2 gas] 100410
-└─ [selector] adventurer
-   ├─ [contract name] Instances
-   └─ [L2 gas] 100410
+   └─ [L2 gas] 38220
 
 [PASS] spk2n_integrationtest::test_systems::test_hub_day (l1_gas: ~0, l1_data_gas: ~1440, l2_gas: ~10544362)
 [test name] spk2n_integrationtest::test_systems::test_hub_day
@@ -710,7 +140,31 @@ Running 19 test(s) from tests/
    ├─ [contract name] Instances
    └─ [L2 gas] 38730
 
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves_1 (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~71504376)
+[PASS] spk2n_integrationtest::test_systems::test_queue_stops_when_hit (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~71655013)
+[test name] spk2n_integrationtest::test_systems::test_queue_stops_when_hit
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 33507760
+├─ [selector] walk
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2984783
+└─ [selector] adventurer
+   ├─ [contract name] Instances
+   └─ [L2 gas] 100410
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_1 (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~71510876)
 [test name] spk2n_integrationtest::test_systems::test_queue_moves_1
 ├─ [selector] constructor
 │  ├─ [contract name] Hub
@@ -729,9 +183,660 @@ Running 19 test(s) from tests/
 │  └─ [L2 gas] 33507760
 └─ [selector] walk
    ├─ [contract name] Instances
-   └─ [L2 gas] 3052916
+   └─ [L2 gas] 3059416
 
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves_packed (l1_gas: ~0, l1_data_gas: ~23136, l2_gas: ~225307488)
+[PASS] spk2n_integrationtest::test_systems::test_tick_refuses_a_stranger (l1_gas: ~0, l1_data_gas: ~7968, l2_gas: ~42254280)
+[test name] spk2n_integrationtest::test_systems::test_tick_refuses_a_stranger
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+└─ [selector] attack
+   ├─ [contract name] Instances
+   └─ [L2 gas] 1019800
+
+[PASS] spk2n_integrationtest::test_systems::test_tick_capped_worst_case (l1_gas: ~0, l1_data_gas: ~29856, l2_gas: ~167861902)
+[test name] spk2n_integrationtest::test_systems::test_tick_capped_worst_case
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5980530
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5980530
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5980530
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5980530
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 3303993
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 3342913
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 3157573
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 3118653
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190620
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190810
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191000
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191190
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191380
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191470
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+└─ [selector] goblin_packed
+   ├─ [contract name] Instances
+   └─ [L2 gas] 191370
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_slots (l1_gas: ~0, l1_data_gas: ~16416, l2_gas: ~177264306)
+[test name] spk2n_integrationtest::test_systems::test_queue_moves_slots
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 33507760
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 33507760
+├─ [selector] walk
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 20615658
+├─ [selector] walk
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 15737938
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+└─ [selector] goblin_felt
+   ├─ [contract name] Instances
+   └─ [L2 gas] 56930
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_5 (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~76896424)
+[test name] spk2n_integrationtest::test_systems::test_queue_moves_5
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 33507760
+└─ [selector] walk
+   ├─ [contract name] Instances
+   └─ [L2 gas] 8432004
+
+[PASS] spk2n_integrationtest::test_systems::test_tick_worst_case (l1_gas: ~0, l1_data_gas: ~7968, l2_gas: ~47287554)
+[test name] spk2n_integrationtest::test_systems::test_tick_worst_case
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2976574
+├─ [selector] instance
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 38730
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+└─ [selector] adventurer
+   ├─ [contract name] Instances
+   └─ [L2 gas] 100410
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_drops_an_invalid_move (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~70353616)
+[test name] spk2n_integrationtest::test_systems::test_queue_drops_an_invalid_move
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 33507760
+├─ [selector] walk
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 1762486
+└─ [selector] instance
+   ├─ [contract name] Instances
+   └─ [L2 gas] 38730
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_serpent (l1_gas: ~0, l1_data_gas: ~12768, l2_gas: ~135723234)
+[test name] spk2n_integrationtest::test_systems::test_queue_serpent
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_serpent
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 30416240
+├─ [selector] setup_serpent
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 30416240
+├─ [selector] walk
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 10178182
+└─ [selector] walk
+   ├─ [contract name] Instances
+   └─ [L2 gas] 10217102
+
+[PASS] spk2n_integrationtest::test_systems::test_results_only_from_the_instances (l1_gas: ~0, l1_data_gas: ~672, l2_gas: ~3432310)
+[test name] spk2n_integrationtest::test_systems::test_results_only_from_the_instances
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+└─ [selector] apply_results
+   ├─ [contract name] Hub
+   └─ [L2 gas] 97270
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~85930268)
+[test name] spk2n_integrationtest::test_systems::test_queue_moves
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 33507760
+├─ [selector] walk
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 15737938
+├─ [selector] adventurer
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 100410
+├─ [selector] instance
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 38730
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+└─ [selector] goblin_felt
+   ├─ [contract name] Instances
+   └─ [L2 gas] 56930
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_no_goblin (l1_gas: ~0, l1_data_gas: ~2016, l2_gas: ~38504460)
+[test name] spk2n_integrationtest::test_systems::test_queue_moves_no_goblin
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_queue
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 27934010
+└─ [selector] walk
+   ├─ [contract name] Instances
+   └─ [L2 gas] 1325590
+
+[PASS] spk2n_integrationtest::test_systems::test_tick_adversarial_boards (l1_gas: ~0, l1_data_gas: ~22560, l2_gas: ~122071402)
+[test name] spk2n_integrationtest::test_systems::test_tick_adversarial_boards
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5978990
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5979290
+├─ [selector] setup_board
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 5980160
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2549218
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2900781
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2649173
+├─ [selector] instance
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 38730
+├─ [selector] instance
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 38730
+└─ [selector] instance
+   ├─ [contract name] Instances
+   └─ [L2 gas] 38730
+
+[PASS] spk2n_integrationtest::test_systems::test_tick_worst_case_layouts (l1_gas: ~0, l1_data_gas: ~37536, l2_gas: ~224528790)
+[test name] spk2n_integrationtest::test_systems::test_tick_worst_case_layouts
+├─ [selector] constructor
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 48850
+├─ [selector] constructor
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 95020
+├─ [selector] set_instances
+│  ├─ [contract name] Hub
+│  └─ [L2 gas] 83990
+├─ [selector] set_hub
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 83990
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+├─ [selector] setup_worst_case
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7105000
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2976574
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 3015494
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 7854294
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2791234
+├─ [selector] attack
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 2830154
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190430
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190430
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190620
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190620
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190810
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 190810
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191000
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191000
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191190
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191190
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191380
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191380
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191470
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191470
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin_felt
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 56930
+├─ [selector] goblin
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 236630
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191370
+├─ [selector] goblin_packed
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 191370
+├─ [selector] adventurer
+│  ├─ [contract name] Instances
+│  └─ [L2 gas] 100410
+└─ [selector] adventurer
+   ├─ [contract name] Instances
+   └─ [L2 gas] 100410
+
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_packed (l1_gas: ~0, l1_data_gas: ~23136, l2_gas: ~225405888)
 [test name] spk2n_integrationtest::test_systems::test_queue_moves_packed
 ├─ [selector] constructor
 │  ├─ [contract name] Hub
@@ -756,15 +861,15 @@ Running 19 test(s) from tests/
 │  └─ [L2 gas] 33507760
 ├─ [selector] walk
 │  ├─ [contract name] Instances
-│  └─ [L2 gas] 15529718
+│  └─ [L2 gas] 15591518
 ├─ [selector] walk
 │  ├─ [contract name] Instances
-│  └─ [L2 gas] 8255484
+│  └─ [L2 gas] 8285584
 └─ [selector] walk
    ├─ [contract name] Instances
-   └─ [L2 gas] 2906496
+   └─ [L2 gas] 2912996
 
-[PASS] spk2n_integrationtest::test_systems::test_queue_moves_checked (l1_gas: ~0, l1_data_gas: ~24480, l2_gas: ~261016528)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_checked (l1_gas: ~0, l1_data_gas: ~24480, l2_gas: ~261114928)
 [test name] spk2n_integrationtest::test_systems::test_queue_moves_checked
 ├─ [selector] constructor
 │  ├─ [contract name] Hub
@@ -792,17 +897,17 @@ Running 19 test(s) from tests/
 │  └─ [L2 gas] 27934010
 ├─ [selector] walk
 │  ├─ [contract name] Instances
-│  └─ [L2 gas] 15715058
+│  └─ [L2 gas] 15776858
 ├─ [selector] walk
 │  ├─ [contract name] Instances
-│  └─ [L2 gas] 8440824
+│  └─ [L2 gas] 8470924
 ├─ [selector] walk
 │  ├─ [contract name] Instances
-│  └─ [L2 gas] 3091836
+│  └─ [L2 gas] 3098336
 └─ [selector] walk
    ├─ [contract name] Instances
    └─ [L2 gas] 1364510
 
 Running 0 test(s) from src/
-Tests: 19 passed, 0 failed, 0 ignored, 28 filtered out
+Tests: 20 passed, 0 failed, 0 ignored, 34 filtered out
 

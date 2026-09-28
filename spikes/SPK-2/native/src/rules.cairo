@@ -1,7 +1,7 @@
 //! The rules the measured actions run, in memory: damage, conditions, hex geometry, and one
 //! world tick (design/02 *The tick*). Nothing here reads or writes storage.
 
-use crate::board::{distance_of, flood, pow, step};
+use crate::board::{FLOOD_LAYERS, distance_of, flood, pow, step};
 use crate::models::{Goblin, InstanceAdventurer};
 use crate::tables::{DAMAGE, DAMAGE_MAX_INDEX, DAMAGE_OFFSET, WIDTH};
 
@@ -223,11 +223,12 @@ pub fn world_tick(
         }
     }
     let tiles = tiles.span();
-    // [Compute] One flood from the adventurer, shared by all goblins; none without a goblin awake
+    // [Compute] One flood from the adventurer, shared by all goblins, stopped at 15 layers
+    // (D-127: a goblin not reached holds its position); none without a goblin awake
     let (layers, distances) = if tiles.len() == 0 {
         (array![].span(), 0)
     } else {
-        flood(terrain - occupied - pow(centre), centre, tiles)
+        flood(terrain - occupied - pow(centre), centre, tiles, FLOOD_LAYERS)
     };
     // [Compute] Goblins act, in ascending id order
     let mut hit = false;

@@ -4,10 +4,11 @@
 //! reliable: gas is withdrawn in chunks).
 
 use spk2::alchemy::{REGION_1_PAIRS, REGION_1_REMAINING, discover};
-use spk2::board::{flood, pow};
+use spk2::board::{FLOOD_LAYERS, UNLIMITED, flood, pow};
 use spk2::fixtures::{
-    COMB, DEEP, DEEP_GOBLINS, DEEP_TERRAIN, MAZE, MAZE_GOBLINS, MAZE_TERRAIN, SEALED,
-    SEALED_GOBLINS, SEALED_TERRAIN, WORST, adventurer, board, window, worst_goblins,
+    CAPPED, CAPPED_GOBLINS, CAPPED_TERRAIN, COMB, DEEP, DEEP_GOBLINS, DEEP_TERRAIN, MAZE,
+    MAZE_GOBLINS, MAZE_TERRAIN, SEALED, SEALED_GOBLINS, SEALED_TERRAIN, WORST, adventurer, board,
+    window, worst_goblins,
 };
 use spk2::models::{Book, Grimoire};
 use spk2::rules::world_tick;
@@ -43,10 +44,10 @@ fn bench_flood_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 3494004)] // ceil(1.05 × 3327622 measured)
+#[available_gas(l2_gas: 3503349)] // ceil(1.05 × 3336522 measured)
 fn bench_flood_worst_case() {
     let (free, goblins) = flood_inputs();
-    let (layers, distances) = flood(free, 112, goblins);
+    let (layers, distances) = flood(free, 112, goblins, UNLIMITED);
     assert!(free != 0 && goblins.len() == 8);
     assert!(layers.len() == 12 && distances != 0);
 }
@@ -61,7 +62,7 @@ fn bench_world_tick_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4071978)] // ceil(1.05 × 3878074 measured)
+#[available_gas(l2_gas: 4081323)] // ceil(1.05 × 3886974 measured)
 fn bench_world_tick_worst_case() {
     let mut hero = adventurer(WORST, 1, true);
     let goblins = worst_goblins(WORST);
@@ -89,11 +90,11 @@ fn bench_flood_maze_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1333578)] // ceil(1.05 × 1270074 measured)
+#[available_gas(l2_gas: 1370748)] // ceil(1.05 × 1305474 measured)
 fn bench_flood_maze() {
     let free = board_inputs(MAZE_TERRAIN, MAZE_GOBLINS.span());
     assert!(free != 0);
-    let (layers, _) = flood(free, 112, MAZE_GOBLINS.span());
+    let (layers, _) = flood(free, 112, MAZE_GOBLINS.span(), UNLIMITED);
     assert!(layers.len() == 45);
 }
 
@@ -105,11 +106,11 @@ fn bench_flood_sealed_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 726019)] // ceil(1.05 × 691446 measured)
+#[available_gas(l2_gas: 736309)] // ceil(1.05 × 701246 measured)
 fn bench_flood_sealed() {
     let free = board_inputs(SEALED_TERRAIN, SEALED_GOBLINS.span());
     assert!(free != 0);
-    let (layers, _) = flood(free, 112, SEALED_GOBLINS.span());
+    let (layers, _) = flood(free, 112, SEALED_GOBLINS.span(), UNLIMITED);
     assert!(layers.len() == 13);
 }
 
@@ -121,11 +122,11 @@ fn bench_flood_deep_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2932430)] // ceil(1.05 × 2792790 measured)
+#[available_gas(l2_gas: 3009080)] // ceil(1.05 × 2865790 measured)
 fn bench_flood_deep() {
     let free = board_inputs(DEEP_TERRAIN, DEEP_GOBLINS.span());
     assert!(free != 0);
-    let (layers, _) = flood(free, 112, DEEP_GOBLINS.span());
+    let (layers, _) = flood(free, 112, DEEP_GOBLINS.span(), UNLIMITED);
     assert!(layers.len() == 92);
 }
 
@@ -144,39 +145,79 @@ fn tick_on(i: u32) {
 }
 
 #[test]
-#[available_gas(l2_gas: 85103)] // ceil(1.05 × 81050 measured)
+#[available_gas(l2_gas: 86468)] // ceil(1.05 × 82350 measured)
 fn bench_world_tick_maze_baseline() {
     tick_baseline(MAZE);
 }
 
 #[test]
-#[available_gas(l2_gas: 1787858)] // ceil(1.05 × 1702721 measured)
+#[available_gas(l2_gas: 970440)] // ceil(1.05 × 924228 measured)
 fn bench_world_tick_maze() {
     tick_on(MAZE);
 }
 
 #[test]
-#[available_gas(l2_gas: 85418)] // ceil(1.05 × 81350 measured)
+#[available_gas(l2_gas: 86783)] // ceil(1.05 × 82650 measured)
 fn bench_world_tick_sealed_baseline() {
     tick_baseline(SEALED);
 }
 
 #[test]
-#[available_gas(l2_gas: 1330110)] // ceil(1.05 × 1266771 measured)
+#[available_gas(l2_gas: 1340085)] // ceil(1.05 × 1276271 measured)
 fn bench_world_tick_sealed() {
     tick_on(SEALED);
 }
 
 #[test]
-#[available_gas(l2_gas: 85418)] // ceil(1.05 × 81350 measured)
+#[available_gas(l2_gas: 87696)] // ceil(1.05 × 83520 measured)
 fn bench_world_tick_deep_baseline() {
     tick_baseline(DEEP);
 }
 
 #[test]
-#[available_gas(l2_gas: 3531534)] // ceil(1.05 × 3363365 measured)
+#[available_gas(l2_gas: 1076621)] // ceil(1.05 × 1025353 measured)
 fn bench_world_tick_deep() {
     tick_on(DEEP);
+}
+
+// Under D-127 (fix loop 2): the flood stops at 15 layers. `bench_world_tick_*` above run the
+// game's tick, hence the cap; the flood benchmarks above are the unlimited ones.
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_capped_baseline() {
+    let free = board_inputs(CAPPED_TERRAIN, CAPPED_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 1098032)] // ceil(1.05 × 1045744 measured)
+fn bench_flood_capped() {
+    let free = board_inputs(CAPPED_TERRAIN, CAPPED_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, CAPPED_GOBLINS.span(), FLOOD_LAYERS);
+    assert!(layers.len() == 16);
+}
+
+#[test]
+#[available_gas(l2_gas: 621428)] // ceil(1.05 × 591836 measured)
+fn bench_flood_deep_capped() {
+    let free = board_inputs(DEEP_TERRAIN, DEEP_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, DEEP_GOBLINS.span(), FLOOD_LAYERS);
+    assert!(layers.len() == 16);
+}
+
+#[test]
+#[available_gas(l2_gas: 88085)] // ceil(1.05 × 83890 measured)
+fn bench_world_tick_capped_baseline() {
+    tick_baseline(CAPPED);
+}
+
+#[test]
+#[available_gas(l2_gas: 1764571)] // ceil(1.05 × 1680543 measured)
+fn bench_world_tick_capped() {
+    tick_on(CAPPED);
 }
 
 // Discovery of the pair (0, 5), C + U, the same word for both variants. Word 1 finds a recipe

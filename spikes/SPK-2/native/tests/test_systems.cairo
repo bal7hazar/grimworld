@@ -7,8 +7,8 @@ use snforge_std::{
     stop_cheat_caller_address,
 };
 use spk2n::fixtures::{
-    DEEP, MAZE, QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, SEALED, SERPENT, START_X,
-    START_Y, WEST, WORST, WORST_PACKED,
+    CAPPED, DEEP, MAZE, QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, SEALED, SERPENT,
+    START_X, START_Y, WEST, WORST, WORST_PACKED,
 };
 use spk2n::systems::hub::{IHubDispatcher, IHubDispatcherTrait};
 use spk2n::systems::instances::{
@@ -83,7 +83,7 @@ const QUEUE_1_PACKED: u32 = 10;
 const SERPENT_CHECKED: u32 = 25;
 
 #[test]
-#[available_gas(l2_gas: 49642587)] // ceil(1.05 × 47278654 measured)
+#[available_gas(l2_gas: 49651932)] // ceil(1.05 × 47287554 measured)
 fn test_tick_worst_case() {
     let game = deploy();
     as_player_instances(game);
@@ -117,7 +117,7 @@ fn test_tick_worst_case() {
 }
 
 #[test]
-#[available_gas(l2_gas: 235708505)] // ceil(1.05 × 224484290 measured)
+#[available_gas(l2_gas: 235755230)] // ceil(1.05 × 224528790 measured)
 fn test_tick_worst_case_layouts() {
     // The same action on every layout, checked or not: the same outcome.
     // Calls, in order: FELT checked, SLOTS checked, PACKED unchecked, PACKED checked.
@@ -153,7 +153,7 @@ fn test_tick_worst_case_layouts() {
 }
 
 #[test]
-#[available_gas(l2_gas: 44366784)] // ceil(1.05 × 42254080 measured)
+#[available_gas(l2_gas: 44366994)] // ceil(1.05 × 42254280 measured)
 #[should_panic(expected: 'not the owner')]
 fn test_tick_refuses_a_stranger() {
     let game = deploy();
@@ -177,7 +177,7 @@ fn west(n: u32) -> Array<u8> {
 }
 
 #[test]
-#[available_gas(l2_gas: 90161892)] // ceil(1.05 × 85868468 measured)
+#[available_gas(l2_gas: 90226782)] // ceil(1.05 × 85930268 measured)
 fn test_queue_moves() {
     let game = deploy();
     as_player_instances(game);
@@ -197,7 +197,7 @@ fn test_queue_moves() {
 }
 
 #[test]
-#[available_gas(l2_gas: 80709641)] // ceil(1.05 × 76866324 measured)
+#[available_gas(l2_gas: 80741246)] // ceil(1.05 × 76896424 measured)
 fn test_queue_moves_5() {
     let game = deploy();
     as_player_instances(game);
@@ -207,7 +207,7 @@ fn test_queue_moves_5() {
 }
 
 #[test]
-#[available_gas(l2_gas: 75079595)] // ceil(1.05 × 71504376 measured)
+#[available_gas(l2_gas: 75086420)] // ceil(1.05 × 71510876 measured)
 fn test_queue_moves_1() {
     let game = deploy();
     as_player_instances(game);
@@ -227,7 +227,7 @@ fn test_queue_moves_no_goblin() {
 }
 
 #[test]
-#[available_gas(l2_gas: 274067355)] // ceil(1.05 × 261016528 measured)
+#[available_gas(l2_gas: 274170675)] // ceil(1.05 × 261114928 measured)
 fn test_queue_moves_checked() {
     // Production form: calls in order 10, 5, 1 moves, 10 moves without goblin
     let game = deploy();
@@ -244,7 +244,7 @@ fn test_queue_moves_checked() {
 }
 
 #[test]
-#[available_gas(l2_gas: 236572863)] // ceil(1.05 × 225307488 measured)
+#[available_gas(l2_gas: 236676183)] // ceil(1.05 × 225405888 measured)
 fn test_queue_moves_packed() {
     // Goblins packed per instance, checked: calls in order 10, 5, 1 moves
     let game = deploy();
@@ -259,7 +259,7 @@ fn test_queue_moves_packed() {
 }
 
 #[test]
-#[available_gas(l2_gas: 185997742)] // ceil(1.05 × 177140706 measured)
+#[available_gas(l2_gas: 186127522)] // ceil(1.05 × 177264306 measured)
 fn test_queue_moves_slots() {
     // Layout experiment: one storage struct per goblin, 11 slots each, checked
     let game = deploy();
@@ -291,7 +291,7 @@ fn test_queue_drops_an_invalid_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 75231779)] // ceil(1.05 × 71649313 measured)
+#[available_gas(l2_gas: 75237764)] // ceil(1.05 × 71655013 measured)
 fn test_queue_stops_when_hit() {
     let game = deploy();
     as_player_instances(game);
@@ -306,7 +306,7 @@ fn test_queue_stops_when_hit() {
 // Adversarial cases (fix loop 1, C-3), as part 1: controlled (one felt per goblin, unchecked)
 
 #[test]
-#[available_gas(l2_gas: 131432088)] // ceil(1.05 × 125173417 measured)
+#[available_gas(l2_gas: 128174973)] // ceil(1.05 × 122071402 measured)
 fn test_tick_adversarial_boards() {
     let game = deploy();
     as_player_instances(game);
@@ -323,7 +323,42 @@ fn test_tick_adversarial_boards() {
 }
 
 #[test]
-#[available_gas(l2_gas: 148572373)] // ceil(1.05 × 141497498 measured)
+#[available_gas(l2_gas: 176254998)] // ceil(1.05 × 167861902 measured)
+fn test_tick_capped_worst_case() {
+    // Fix loop 2, D-127: the flood runs its 15 layers and reaches all 8 goblins; the 7 distant
+    // goblins each step. Calls, in order: one felt per goblin unchecked (30, the controlled pair)
+    // and checked (31); goblins packed checked (32) and unchecked (33)
+    let game = deploy();
+    as_player_instances(game);
+    let mut i = CAPPED;
+    while i != CAPPED + 4 {
+        game.instances.setup_board(i, player());
+        i += 1;
+    }
+    let mut before = array![];
+    let mut id: u32 = 1;
+    while id != 9 {
+        before.append(game.instances.goblin_felt(CAPPED, id));
+        id += 1;
+    }
+    game.instances.attack(CAPPED, 1, FELT, false);
+    game.instances.attack(CAPPED + 1, 1, FELT, true);
+    game.instances.attack(CAPPED + 2, 1, PACKED, true);
+    game.instances.attack(CAPPED + 3, 1, PACKED, false);
+    done(game);
+    let mut id: u32 = 2;
+    while id != 9 {
+        let after = game.instances.goblin_felt(CAPPED, id);
+        let b = before[id - 1];
+        assert!(after.x != *b.x || after.y != *b.y, "goblin {} held", id);
+        let packed = game.instances.goblin_packed(CAPPED + 2, id);
+        assert!(packed.x == after.x && packed.y == after.y);
+        id += 1;
+    }
+}
+
+#[test]
+#[available_gas(l2_gas: 142509396)] // ceil(1.05 × 135723234 measured)
 fn test_queue_serpent() {
     // The expensive valid queue: 10 moves, no stop; calls in order unchecked, checked
     let game = deploy();

@@ -8,8 +8,8 @@ use dojo_snf_test::{
     get_default_caller_address, set_caller_address, spawn_test_world,
 };
 use spk2::fixtures::{
-    DEEP, MAZE, QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, SEALED, SERPENT, START_X,
-    START_Y, WEST, WORST, WORST_PACKED,
+    CAPPED, DEEP, MAZE, QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, SEALED, SERPENT,
+    START_X, START_Y, WEST, WORST, WORST_PACKED,
 };
 use spk2::models::{
     Adventurer, Balance, Discovery, Goblin, Grimoire, Instance, InstanceAdventurer, Pack, QuestLog,
@@ -90,7 +90,7 @@ fn queue(world: @WorldStorage) -> IQueueMovesDispatcher {
 }
 
 #[test]
-#[available_gas(l2_gas: 65535388)] // ceil(1.05 × 62414655 measured)
+#[available_gas(l2_gas: 65544733)] // ceil(1.05 × 62423555 measured)
 fn test_tick_worst_case() {
     let world = world();
     setup(@world).worst_case(WORST);
@@ -115,7 +115,7 @@ fn test_tick_worst_case() {
 }
 
 #[test]
-#[available_gas(l2_gas: 83054323)] // ceil(1.05 × 79099355 measured)
+#[available_gas(l2_gas: 83073013)] // ceil(1.05 × 79117155 measured)
 fn test_tick_worst_case_packed() {
     // The same action with the goblins in one model: the same outcome
     let world = world();
@@ -139,7 +139,7 @@ fn test_tick_worst_case_packed() {
 // Queues of 10, 5 and 1 moves
 
 #[test]
-#[available_gas(l2_gas: 106966989)] // ceil(1.05 × 101873322 measured)
+#[available_gas(l2_gas: 107031879)] // ceil(1.05 × 101935122 measured)
 fn test_queue_moves() {
     let world = world();
     setup(@world).queue(QUEUE, 8);
@@ -157,7 +157,7 @@ fn test_queue_moves() {
 }
 
 #[test]
-#[available_gas(l2_gas: 91544472)] // ceil(1.05 × 87185211 measured)
+#[available_gas(l2_gas: 91576077)] // ceil(1.05 × 87215311 measured)
 fn test_queue_moves_5() {
     let world = world();
     setup(@world).queue(QUEUE_5, 8);
@@ -176,7 +176,7 @@ fn test_queue_moves_no_goblin() {
 }
 
 #[test]
-#[available_gas(l2_gas: 85024640)] // ceil(1.05 × 80975847 measured)
+#[available_gas(l2_gas: 85031465)] // ceil(1.05 × 80982347 measured)
 fn test_queue_moves_1() {
     let world = world();
     setup(@world).queue(QUEUE_1, 8);
@@ -197,7 +197,7 @@ fn test_queue_drops_an_invalid_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 85740357)] // ceil(1.05 × 81657482 measured)
+#[available_gas(l2_gas: 85746342)] // ceil(1.05 × 81663182 measured)
 fn test_queue_stops_when_hit() {
     let world = world();
     setup(@world).queue(QUEUE, 8);
@@ -212,7 +212,7 @@ fn test_queue_stops_when_hit() {
 // Adversarial cases (fix loop 1, C-3)
 
 #[test]
-#[available_gas(l2_gas: 106260515)] // ceil(1.05 × 101200490 measured)
+#[available_gas(l2_gas: 103003399)] // ceil(1.05 × 98098475 measured)
 fn test_tick_adversarial_boards() {
     let world = world();
     setup(@world).board(MAZE);
@@ -228,7 +228,35 @@ fn test_tick_adversarial_boards() {
 }
 
 #[test]
-#[available_gas(l2_gas: 93804288)] // ceil(1.05 × 89337417 measured)
+#[available_gas(l2_gas: 88335271)] // ceil(1.05 × 84128829 measured)
+fn test_tick_capped_worst_case() {
+    // Fix loop 2, D-127: the flood runs its 15 layers and reaches all 8 goblins; goblin 1 is hit
+    // and hits back, the 7 others each step. Calls: goblin models (30), packed goblins (31)
+    let world = world();
+    setup(@world).board(CAPPED);
+    setup(@world).board(CAPPED + 1);
+    let before = goblins(@world, CAPPED);
+    tick(@world).attack(CAPPED, 1);
+    tick(@world).attack_packed(CAPPED + 1, 1);
+    let after = goblins(@world, CAPPED);
+    let mut j: usize = 1;
+    while j != 8 {
+        assert!(after[j].x != before[j].x || after[j].y != before[j].y, "goblin {} held", j + 1);
+        j += 1;
+    }
+    let adventurer: InstanceAdventurer = world.read_model((CAPPED, 1_u32));
+    assert!(adventurer.health < 480);
+    let pack: Pack = world.read_model(CAPPED + 1);
+    let mut j: usize = 0;
+    for goblin in goblins(@world, CAPPED) {
+        let packed = unpack_goblin(CAPPED, goblin.id, *pack.goblins.span()[j]);
+        assert!(packed.x == goblin.x && packed.y == goblin.y && packed.health == goblin.health);
+        j += 1;
+    }
+}
+
+#[test]
+#[available_gas(l2_gas: 90772800)] // ceil(1.05 × 86450285 measured)
 fn test_queue_serpent() {
     // The expensive valid queue: 10 moves, no stop, every flood run to exhaustion
     let world = world();

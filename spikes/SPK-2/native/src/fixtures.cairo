@@ -37,6 +37,12 @@ pub const SEALED_GOBLINS: [u8; 8] = [111, 97, 16, 28, 211, 223, 103, 151];
 /// adventurer, goblin 1 adjacent): 92 layers with its 8 goblins, one of them 91 steps away.
 pub const DEEP_TERRAIN: felt252 = 0xedb136d300207dcd0c16e3227a5f04f5f00a03d7e4604c3697db0000;
 pub const DEEP_GOBLINS: [u8; 8] = [113, 28, 61, 100, 101, 192, 193, 208];
+/// The worst case of the tick under D-127 (fix loop 2): a winding board found by the hill climb
+/// of `adversarial.py` on which the flood runs its 15 layers with all 8 goblins reached, touched
+/// at 8 different distances (1 and 9 to 15), so that every goblin steps or attacks.
+pub const CAPPED: u32 = 30;
+pub const CAPPED_TERRAIN: felt252 = 0xfad126313cc044016984bf21122facf6c8dba332673b0ce615470000;
+pub const CAPPED_GOBLINS: [u8; 8] = [97, 18, 48, 91, 81, 79, 94, 26];
 /// Global terrain of the expensive queue: corridors on odd rows, walls on even rows with one gap
 /// every 14 columns, alternating sides (a serpentine), and two sealed pockets on row 28.
 pub const SERPENTINE: u8 = 2;
@@ -157,13 +163,17 @@ pub fn worst_goblins(i: u32) -> Array<Goblin> {
     ]
 }
 
-/// Terrain and goblins of an adversarial tick; the window's origin is (13, 14), goblins at
+/// Terrain and goblins of an adversarial tick (MAZE, SEALED, DEEP, CAPPED to CAPPED + 3); the
+/// window's origin is (13, 14), goblins at
 /// global (13 + x, 14 + y) of their local tile, all burning as in the worst-case fixture.
 pub fn board(i: u32) -> (felt252, Array<Goblin>) {
     let (terrain, tiles) = if i == MAZE {
         (MAZE_TERRAIN, MAZE_GOBLINS.span())
     } else if i == SEALED {
         (SEALED_TERRAIN, SEALED_GOBLINS.span())
+    } else if i >= CAPPED && i < CAPPED + 4 {
+        // Instances 30 to 33: the same board for each measured transaction (layouts, checks)
+        (CAPPED_TERRAIN, CAPPED_GOBLINS.span())
     } else {
         (DEEP_TERRAIN, DEEP_GOBLINS.span())
     };

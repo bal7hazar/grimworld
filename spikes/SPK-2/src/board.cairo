@@ -83,19 +83,27 @@ pub fn around(index: u8) -> felt252 {
     }
 }
 
+/// Depth of the tick's flood (D-127: design/02 *Simulation budget*, design/04 *Goblin AI*,
+/// ADR-0006 §4): a goblin with no way to the adventurer within 15 steps holds its position.
+pub const FLOOD_LAYERS: felt252 = 15;
+/// No limit: more layers than the interior has tiles (182). For the oracle tests.
+pub const UNLIMITED: felt252 = 255;
+
 /// The tick's single flood (design/02 *Simulation budget*, docs/needs/hexmap.md point 5, rule
 /// (a)): breadth first from the adventurer over `free`, the walkable interior tiles minus the
 /// occupancy frozen at the start of the tick. Layer `k` is the set of tiles at distance `k`.
-/// The flood stops as soon as every goblin has touched a layer, or the frontier runs out; its
-/// bound is the number of interior tiles (182).
+/// The flood stops as soon as every goblin has touched a layer, when the frontier runs out, or
+/// after `limit` layers (D-127: the tick passes `FLOOD_LAYERS`); a goblin not touched by then is
+/// unreachable for the tick (distance 0) and holds its position.
 ///
 /// # Arguments
 /// * `free` - Walkable interior tiles, not occupied at the start of the tick, adventurer excluded
 /// * `start` - The adventurer's tile
 /// * `goblins` - The tiles of the awake goblins, in ascending id order (at most 8)
+/// * `limit` - The most layers (distances) computed; `UNLIMITED` runs to the end of the frontier
 /// # Returns
 /// * The layers, and the distance of each goblin packed one byte each (0: unreachable)
-pub fn flood(free: felt252, start: u8, goblins: Span<u8>) -> (Span<u256>, felt252) {
+pub fn flood(free: felt252, start: u8, goblins: Span<u8>, limit: felt252) -> (Span<u256>, felt252) {
     let mut targets: felt252 = 0;
     for goblin in goblins {
         targets += pow(*goblin);
@@ -114,7 +122,7 @@ pub fn flood(free: felt252, start: u8, goblins: Span<u8>) -> (Span<u256>, felt25
     let mut pending_high = pending_wide.high;
     let mut distances: felt252 = 0;
     let mut distance: felt252 = 0;
-    while felt != 0 {
+    while felt != 0 && distance != limit {
         distance += 1;
         let (next_low, next_high) = dilate(low, high, felt);
         // [Compute] Next layer, kept even when it is the last: the farthest goblin's fallback

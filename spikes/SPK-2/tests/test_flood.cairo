@@ -2,10 +2,10 @@
 //! *Oracles*): a scalar queue BFS over coordinates, one tile at a time.
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
-use spk2::board::{distance_of, flood, has, pow, step};
+use spk2::board::{FLOOD_LAYERS, UNLIMITED, distance_of, flood, has, pow, step};
 use spk2::fixtures::{
-    COMB, DEEP_GOBLINS, DEEP_TERRAIN, MAZE_GOBLINS, MAZE_TERRAIN, PILLARS, SEALED_GOBLINS,
-    SEALED_TERRAIN, window,
+    CAPPED_GOBLINS, CAPPED_TERRAIN, COMB, DEEP_GOBLINS, DEEP_TERRAIN, MAZE_GOBLINS, MAZE_TERRAIN,
+    PILLARS, SEALED_GOBLINS, SEALED_TERRAIN, window,
 };
 
 const W: u8 = 15;
@@ -112,7 +112,7 @@ fn check(terrain: felt252, start: u8, goblins: Span<u8>) {
     }
     let free = terrain - occupied - pow(start);
     // [Check] Full flood (no goblin): every layer equals the tiles at that distance
-    let (layers, _) = flood(free, start, array![].span());
+    let (layers, _) = flood(free, start, array![].span(), UNLIMITED);
     let mut distances = reference(free + pow(start), start);
     let mut index: u8 = 0;
     while index != W * H {
@@ -126,7 +126,7 @@ fn check(terrain: felt252, start: u8, goblins: Span<u8>) {
         index += 1;
     }
     // [Check] Goblins: distances, then steps in ascending order on the current occupancy
-    let (layers, packed) = flood(free, start, goblins);
+    let (layers, packed) = flood(free, start, goblins, UNLIMITED);
     let mut current = occupied;
     let mut j: usize = 0;
     for goblin in goblins {
@@ -175,7 +175,7 @@ fn random_board(seed: u64, keep: Span<u8>) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 127818241)] // ceil(1.05 × 121731658 measured)
+#[available_gas(l2_gas: 127854991)] // ceil(1.05 × 121766658 measured)
 fn test_flood_matches_reference_on_the_fixtures() {
     // Worst-case window: adventurer local (7, 7) = 112, goblins as in fixtures::worst_goblins
     let goblins = array![111_u8, 97, 16, 28, 211, 223, 103, 151];
@@ -186,7 +186,7 @@ fn test_flood_matches_reference_on_the_fixtures() {
 }
 
 #[test]
-#[available_gas(l2_gas: 398100351)] // ceil(1.05 × 379143191 measured)
+#[available_gas(l2_gas: 398230026)] // ceil(1.05 × 379266691 measured)
 fn test_flood_matches_reference_on_random_boards() {
     let mut seed: u64 = 1;
     while seed != 7 {
@@ -205,28 +205,84 @@ fn test_flood_matches_reference_on_random_boards() {
 }
 
 #[test]
-#[available_gas(l2_gas: 3127638)] // ceil(1.05 × 2978702 measured)
+#[available_gas(l2_gas: 3137088)] // ceil(1.05 × 2987702 measured)
 fn test_flood_goblin_walled_in_is_unreachable() {
     // Goblin at local (1, 1) = 16 with its 3 interior neighbours walled: distance 0, no step
     let terrain = window(PILLARS, 13, 14) - pow(17) - pow(31) - pow(32);
     let free = terrain - pow(16) - pow(112);
-    let (layers, packed) = flood(free, 112, array![16].span());
+    let (layers, packed) = flood(free, 112, array![16].span(), UNLIMITED);
     assert!(distance_of(packed, 0) == 0);
     assert!(layers.len() > 1);
 }
 
-/// Layers of the tick's flood on a board with its goblins.
-fn depth(terrain: felt252, goblins: Span<u8>) -> u32 {
+/// Layers of the flood on a board with its goblins, up to `limit` layers.
+fn depth_with(terrain: felt252, goblins: Span<u8>, limit: felt252) -> u32 {
     let mut occupied: felt252 = 0;
     for goblin in goblins {
         occupied += pow(*goblin);
     }
-    let (layers, _) = flood(terrain - occupied - pow(112), 112, goblins);
+    let (layers, _) = flood(terrain - occupied - pow(112), 112, goblins, limit);
     layers.len()
 }
 
+/// Layers of the unlimited flood on a board with its goblins.
+fn depth(terrain: felt252, goblins: Span<u8>) -> u32 {
+    depth_with(terrain, goblins, UNLIMITED)
+}
+
+/// The capped flood (D-127) against the scalar reference: every layer it computes equals the
+/// tiles at that distance, it computes at most 15 distances, and a goblin farther than 15 steps
+/// is not reached (distance 0: it holds its position).
+fn check_capped(terrain: felt252, start: u8, goblins: Span<u8>) {
+    let mut occupied: felt252 = 0;
+    for goblin in goblins {
+        occupied += pow(*goblin);
+    }
+    let free = terrain - occupied - pow(start);
+    let mut distances = reference(free + pow(start), start);
+    let (layers, packed) = flood(free, start, goblins, FLOOD_LAYERS);
+    assert!(layers.len() <= 16, "{} layers", layers.len());
+    let mut index: u8 = 0;
+    while index != W * H {
+        let d = distances.get(index.into());
+        let mut k: u32 = 0;
+        while k != layers.len() {
+            let expected = d != 0 && (d - 1).into() == k;
+            assert!(has(*layers[k], index) == expected, "layer {} tile {}", k, index);
+            k += 1;
+        }
+        index += 1;
+    }
+    let mut j: usize = 0;
+    for goblin in goblins {
+        let unlimited = reference_goblin(ref distances, *goblin);
+        let expected = if unlimited <= 15 {
+            unlimited
+        } else {
+            0
+        };
+        let got = distance_of(packed, j);
+        assert!(got == expected, "goblin {} distance {} expected {}", *goblin, got, expected);
+        j += 1;
+    }
+}
+
 #[test]
-#[available_gas(l2_gas: 453022363)] // ceil(1.05 × 431449869 measured)
+#[available_gas(l2_gas: 226476584)] // ceil(1.05 × 215691984 measured)
+fn test_flood_capped_matches_reference() {
+    // Fix loop 2, D-127: the worst case under the cap (all 15 layers, 8 goblins reached), the
+    // deepest board (92 layers unlimited), the corridor maze and the part 1 fixture
+    check_capped(CAPPED_TERRAIN, 112, CAPPED_GOBLINS.span());
+    check_capped(DEEP_TERRAIN, 112, DEEP_GOBLINS.span());
+    check_capped(MAZE_TERRAIN, 112, MAZE_GOBLINS.span());
+    check_capped(window(COMB, 13, 14), 112, array![111_u8, 97, 16, 28, 211, 223, 103, 151].span());
+    assert!(depth_with(CAPPED_TERRAIN, CAPPED_GOBLINS.span(), FLOOD_LAYERS) == 16);
+    assert!(depth_with(DEEP_TERRAIN, DEEP_GOBLINS.span(), FLOOD_LAYERS) == 16);
+    assert!(depth(CAPPED_TERRAIN, CAPPED_GOBLINS.span()) == 16);
+}
+
+#[test]
+#[available_gas(l2_gas: 453394693)] // ceil(1.05 × 431804469 measured)
 fn test_flood_matches_reference_on_adversarial_boards() {
     // Fix loop 1, C-3: the corridor maze, an unreachable target, the deepest board found; the
     // numbers of layers are adversarial.py's

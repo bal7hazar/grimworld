@@ -4,7 +4,7 @@ use spk2::fixtures::{PILLARS, QUEUE, adventurer, queue_goblins, window};
 use spk2::rules::{damage, hex_distance, neighbour, window_origin, world_tick};
 
 #[test]
-#[available_gas(l2_gas: 41635648)] // ceil(1.05 × 39652998 measured)
+#[available_gas(l2_gas: 41700538)] // ceil(1.05 × 39714798 measured)
 fn test_queue_scenario_in_memory() {
     let mut hero = adventurer(QUEUE, 1, false);
     let mut goblins = queue_goblins(QUEUE);

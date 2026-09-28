@@ -1,42 +1,46 @@
 Prices
-  mainnet L2 gas 21,345,442,020 fri, L1 data gas 977,190,847,683 fri (https://api.cartridge.gg/x/starknet/mainnet, block 15590108, 2026-09-28T18:56:03Z, read 2026-09-28T18:56:07Z)
-  STRK $0.0411773 (https://api.coingecko.com/api/v3/simple/price?ids=starknet&vs_currencies=usd, read 2026-09-28T18:56:14Z)
-  => 1M L2 gas = $0.000879
+  mainnet L2 gas 21,687,750,610 fri, L1 data gas 1,544,531,203,854 fri (https://api.cartridge.gg/x/starknet/mainnet, block 15591320, 2026-09-28T19:30:08Z, read 2026-09-28T19:30:14Z)
+  STRK $0.04061002 (https://api.coingecko.com/api/v3/simple/price?ids=starknet&vs_currencies=usd, read 2026-09-28T19:30:18Z)
+  => 1M L2 gas = $0.000881
 
 Controlled pairs: starknet-devnet 0.10.0, the same Cairo 2.19 account, equal goblin storage, equal checks
 | Action | Dojo tx L2 gas | Native tx L2 gas | Difference | Native / Dojo | $ Dojo | $ native |
 |---|---:|---:|---:|---:|---:|---:|
-| Worst-case tick (goblins: one slot each) | 18,740,800 | 4,956,800 | -13,784,000 | 0.26 | 0.01651 | 0.00439 |
-| Worst-case tick (goblins packed per instance) | 8,727,680 | 4,876,800 | -3,850,880 | 0.56 | 0.00770 | 0.00432 |
-| Queue of 10 moves | 34,712,000 | 20,128,000 | -14,584,000 | 0.58 | 0.03054 | 0.01772 |
-| Queue of 5 moves | 25,686,400 | 11,662,400 | -14,024,000 | 0.45 | 0.02261 | 0.01028 |
-| Queue of 1 move | 18,785,920 | 5,201,920 | -13,584,000 | 0.28 | 0.01654 | 0.00460 |
-| Queue of 10 moves, no goblin | 8,451,840 | 2,208,000 | -6,243,840 | 0.26 | 0.00744 | 0.00195 |
-| Tick, corridor maze (45 layers) | 18,620,800 | 4,836,800 | -13,784,000 | 0.26 | 0.01640 | 0.00428 |
-| Tick, unreachable target (13 layers) | 18,660,800 | 4,876,800 | -13,784,000 | 0.26 | 0.01644 | 0.00432 |
-| Tick, deepest board found (92 layers) | 20,060,800 | 9,036,800 | -11,024,000 | 0.45 | 0.01767 | 0.00798 |
-| Queue of 10 moves, serpentine (expensive valid queue) | 27,764,480 | 24,408,000 | -3,356,480 | 0.88 | 0.02442 | 0.02147 |
-| Brew, signature, new pair | 7,507,040 | 2,485,920 | -5,021,120 | 0.33 | 0.00662 | 0.00221 |
-| Brew, no signature, new pair | 7,427,040 | 2,445,920 | -4,981,120 | 0.33 | 0.00655 | 0.00217 |
-| Brew, known pair | 4,900,160 | 1,401,920 | -3,498,240 | 0.29 | 0.00432 | 0.00125 |
-| Accept quest | 3,144,400 | 1,473,680 | -1,670,720 | 0.47 | 0.00277 | 0.00131 |
-| Claim quest | 5,037,520 | 1,713,680 | -3,323,840 | 0.34 | 0.00444 | 0.00152 |
-| Enter | 6,974,640 | 3,425,280 | -3,549,360 | 0.49 | 0.00615 | 0.00304 |
-| Leave | 5,414,080 | 1,576,320 | -3,837,760 | 0.29 | 0.00478 | 0.00141 |
+| Capped worst-case tick, D-127: 15 layers, 8 goblins reached (goblins: one slot each) | 18,940,800 | 5,156,800 | -13,784,000 | 0.27 | 0.01673 | 0.00459 |
+| Capped worst-case tick (goblins packed per instance) | 8,887,680 | 5,036,800 | -3,850,880 | 0.57 | 0.00788 | 0.00449 |
+| Worst-case tick, part 1 fixture (goblins: one slot each) | 18,740,800 | 4,956,800 | -13,784,000 | 0.26 | 0.01656 | 0.00442 |
+| Worst-case tick, part 1 fixture (goblins packed per instance) | 8,727,680 | 4,876,800 | -3,850,880 | 0.56 | 0.00774 | 0.00435 |
+| Queue of 10 moves | 34,712,000 | 20,128,000 | -14,584,000 | 0.58 | 0.03062 | 0.01778 |
+| Queue of 5 moves | 25,686,400 | 11,662,400 | -14,024,000 | 0.45 | 0.02268 | 0.01032 |
+| Queue of 1 move | 18,785,920 | 5,201,920 | -13,584,000 | 0.28 | 0.01659 | 0.00463 |
+| Queue of 10 moves, no goblin | 8,451,840 | 2,208,000 | -6,243,840 | 0.26 | 0.00746 | 0.00196 |
+| Tick, corridor maze (45 layers unlimited; capped at 15) | 18,180,800 | 4,396,800 | -13,784,000 | 0.24 | 0.01606 | 0.00392 |
+| Tick, unreachable target (13 layers) | 18,660,800 | 4,876,800 | -13,784,000 | 0.26 | 0.01649 | 0.00435 |
+| Tick, deepest board found (92 layers unlimited; capped at 15) | 18,260,800 | 4,476,800 | -13,784,000 | 0.25 | 0.01614 | 0.00400 |
+| Queue of 10 moves, serpentine (expensive valid queue, capped) | 25,004,480 | 13,568,000 | -11,436,480 | 0.54 | 0.02205 | 0.01197 |
+| Brew, signature, new pair | 7,507,040 | 2,485,920 | -5,021,120 | 0.33 | 0.00664 | 0.00222 |
+| Brew, no signature, new pair | 7,427,040 | 2,445,920 | -4,981,120 | 0.33 | 0.00657 | 0.00219 |
+| Brew, known pair | 4,900,160 | 1,401,920 | -3,498,240 | 0.29 | 0.00434 | 0.00126 |
+| Accept quest | 3,144,400 | 1,473,680 | -1,670,720 | 0.47 | 0.00279 | 0.00131 |
+| Claim quest | 5,037,520 | 1,713,680 | -3,323,840 | 0.34 | 0.00446 | 0.00153 |
+| Enter | 6,974,640 | 3,425,280 | -3,549,360 | 0.49 | 0.00617 | 0.00306 |
+| Leave | 5,414,080 | 1,576,320 | -3,837,760 | 0.29 | 0.00480 | 0.00142 |
 
 Controlled pairs, the call alone (snforge, Sierra gas, syscalls excluded)
 | Action | Dojo call | Native call | Native / Dojo |
 |---|---:|---:|---:|
-| Worst-case tick (goblins: one slot each) | 13,203,148 | 2,967,674 | 0.22 |
-| Worst-case tick (goblins packed per instance) | 6,619,410 | 2,782,334 | 0.42 |
-| Queue of 10 moves | 28,046,442 | 15,676,138 | 0.56 |
-| Queue of 5 moves | 19,705,588 | 8,401,904 | 0.43 |
-| Queue of 1 move | 13,503,304 | 3,052,916 | 0.23 |
+| Capped worst-case tick (goblins: one slot each) | 13,539,287 | 3,303,993 | 0.24 |
+| Capped worst-case tick (goblins packed per instance) | 6,955,549 | 3,118,653 | 0.45 |
+| Worst-case tick, part 1 fixture (goblins: one slot each) | 13,212,048 | 2,976,574 | 0.23 |
+| Worst-case tick, part 1 fixture (goblins packed per instance) | 6,628,310 | 2,791,234 | 0.42 |
+| Queue of 10 moves | 28,108,242 | 15,737,938 | 0.56 |
+| Queue of 5 moves | 19,735,688 | 8,432,004 | 0.43 |
+| Queue of 1 move | 13,509,804 | 3,059,416 | 0.23 |
 | Queue of 10 moves, no goblin | 7,052,124 | 1,325,590 | 0.19 |
-| Tick, corridor maze (45 layers) | 13,562,705 | 3,327,411 | 0.25 |
-| Tick, unreachable target (13 layers) | 13,126,455 | 2,890,981 | 0.22 |
-| Tick, deepest board found (92 layers) | 15,223,049 | 4,987,755 | 0.33 |
-| Queue of 10 moves, serpentine | 24,603,228 | 13,065,314 | 0.53 |
+| Tick, corridor maze (capped) | 12,784,512 | 2,549,218 | 0.20 |
+| Tick, unreachable target (13 layers) | 13,136,255 | 2,900,781 | 0.22 |
+| Tick, deepest board found (capped) | 12,884,467 | 2,649,173 | 0.21 |
+| Queue of 10 moves, serpentine (capped) | 21,716,096 | 10,178,182 | 0.47 |
 | Brew, signature, new pair | 4,646,384 | 755,698 | 0.16 |
 | Brew, known pair | 3,312,392 | 493,050 | 0.15 |
 | Accept quest | 1,710,148 | 248,930 | 0.15 |
@@ -47,37 +51,67 @@ Controlled pairs, the call alone (snforge, Sierra gas, syscalls excluded)
 Native only: the owner check (production form) and the layout experiment
 | Action | Native tx L2 gas | $ |
 |---|---:|---:|
-| worst-case tick, one felt per goblin, checked | 4,996,800 | 0.00443 |
-| worst-case tick, goblins packed, checked | 4,876,800 | 0.00432 |
-| worst-case tick, 11 slots per goblin, checked | 12,404,800 | 0.01096 |
-| queue of 10 moves, checked | 20,128,000 | 0.01772 |
-| queue of 5 moves, checked | 11,662,400 | 0.01028 |
-| queue of 1 move, checked | 5,201,920 | 0.00460 |
-| queue of 10 moves, no goblin, checked | 2,248,000 | 0.00199 |
-| queue of 10 moves, goblins packed, checked | 20,048,000 | 0.01765 |
-| queue of 5 moves, goblins packed, checked | 11,582,400 | 0.01021 |
-| queue of 1 move, goblins packed, checked | 5,121,920 | 0.00453 |
-| queue of 10 moves, 11 slots per goblin, checked | 24,984,000 | 0.02202 |
-| queue of 10 moves, serpentine, checked | 24,408,000 | 0.02147 |
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 5,156,800 | 0.00459 |
+| capped worst-case tick (15 layers, 8 goblins reached), goblins packed, checked | 5,036,800 | 0.00449 |
+| worst-case tick, one felt per goblin, checked | 4,996,800 | 0.00445 |
+| worst-case tick, goblins packed, checked | 4,876,800 | 0.00435 |
+| worst-case tick, 11 slots per goblin, checked | 12,444,800 | 0.01106 |
+| queue of 10 moves, checked | 20,128,000 | 0.01778 |
+| queue of 5 moves, checked | 11,662,400 | 0.01032 |
+| queue of 1 move, checked | 5,201,920 | 0.00463 |
+| queue of 10 moves, no goblin, checked | 2,248,000 | 0.00200 |
+| queue of 10 moves, goblins packed, checked | 20,048,000 | 0.01771 |
+| queue of 5 moves, goblins packed, checked | 11,582,400 | 0.01025 |
+| queue of 1 move, goblins packed, checked | 5,121,920 | 0.00456 |
+| queue of 10 moves, 11 slots per goblin, checked | 25,064,000 | 0.02217 |
+| queue of 10 moves, serpentine (capped), checked | 13,568,000 | 0.01197 |
 
 Where a native transaction goes (trace; devnet reports invocation gas in steps of 40,000, so the rest can be slightly negative)
 | Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Rest |
 |---|---:|---:|---:|---:|---:|---:|
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 5,156,800 | 320,000 | 40,000 | 4,120,000 | 400,000 | 276,800 |
 | worst-case tick, one felt per goblin, checked | 4,996,800 | 320,000 | 80,000 | 3,920,000 | 400,000 | 276,800 |
 | queue of 10 moves, checked | 20,128,000 | 320,000 | 40,000 | 19,040,000 | 400,000 | 328,000 |
 | queue of 10 moves, no goblin, checked | 2,248,000 | 320,000 | 120,000 | 1,320,000 | 400,000 | 88,000 |
-| tick, deepest board found (92 layers), unchecked | 9,036,800 | 320,000 | 0 | 8,960,000 | 400,000 | -643,200 |
+| tick, deepest board found (92 layers unlimited; capped at 15), unchecked | 4,476,800 | 320,000 | 40,000 | 3,440,000 | 400,000 | 276,800 |
 | brew, signature, new pair | 2,485,920 | 320,000 | 160,000 | 720,000 | 400,000 | 885,920 |
 | accept quest | 1,473,680 | 320,000 | 120,000 | 240,000 | 400,000 | 393,680 |
 | enter | 3,425,280 | 320,000 | 160,000 | 800,000 | 400,000 | 1,745,280 |
 
-Expedition: 180 moves + 100 fight actions + 20 others, plus enter and leave; day: 5 Rifts, 3 quests, 5 brews. Native in its production form (owner checked, except S5's ticks, measured unchecked: the check adds 40,000)
+Expedition: 180 moves + 100 fight actions + 20 others, plus enter and leave; day: 5 Rifts, 3 quests, 5 brews. Native in its production form (owner checked). Every fight is the capped worst-case tick (D-127)
 | Scenario | $ Dojo | $ native | Native / Dojo | Native × $0.50 | L2 gas price for native to pass | Native L2 gas per expedition | $ per day, native |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| S1 worst case everywhere | 2.806 | 0.909 | 0.32 | 1.82 | 11.68 Gfri | 1,028,566,400 | 4.57 |
-| S2 mixed (2/3 of the moves exploring) | 2.353 | 0.686 | 0.29 | 1.37 | 15.51 Gfri | 775,644,800 | 3.45 |
-| S3 mixed, goblins packed per instance | 1.191 | 0.674 | 0.57 | 1.35 | 15.81 Gfri | 761,084,800 | 3.39 |
-| S4 worst case everywhere, goblins packed per instance | 1.433 | 0.895 | 0.62 | 1.79 | 11.87 Gfri | 1,012,086,400 | 4.49 |
-| S5 adversarial floods (every fight on the deepest board, every move near goblins in serpentine queues) | 2.570 | 1.348 | 0.52 | 2.70 | 7.87 Gfri | 1,528,761,600 | 6.76 |
+| S1 worst case everywhere | 2.833 | 0.928 | 0.33 | 1.86 | 11.60 Gfri | 1,044,566,400 | 4.66 |
+| S2 mixed (2/3 of the moves exploring) | 2.378 | 0.704 | 0.30 | 1.41 | 15.33 Gfri | 791,644,800 | 3.54 |
+| S3 mixed, goblins packed per instance | 1.209 | 0.692 | 0.57 | 1.38 | 15.62 Gfri | 777,084,800 | 3.48 |
+| S4 worst case everywhere, goblins packed per instance | 1.451 | 0.914 | 0.63 | 1.83 | 11.78 Gfri | 1,028,086,400 | 4.59 |
+| S5 adversarial (every move near goblins in serpentine queues, capped) | 2.416 | 0.771 | 0.32 | 1.54 | 13.99 Gfri | 868,041,600 | 3.88 |
 
 Dojo's S3 and S4 use part 1's estimated packed queues (measured tick, estimated queues).
+Per action, for 300 actions ≤ $0.50: $0.001667 per action; with 832 L1 data gas per action at today's price, that is 1,833,096 L2 gas per action
+| Native action (production form) | Actions per tx | Tx L2 gas | L2 gas per action | $ per action | × budget |
+|---|---:|---:|---:|---:|---:|
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 1 | 5,156,800 | 5,156,800 | 0.004594 | 2.76 |
+| capped worst-case tick (15 layers, 8 goblins reached), goblins packed, checked | 1 | 5,036,800 | 5,036,800 | 0.004488 | 2.69 |
+| worst-case tick, one felt per goblin, checked | 1 | 4,996,800 | 4,996,800 | 0.004453 | 2.67 |
+| queue of 10 moves, checked | 10 | 20,128,000 | 2,012,800 | 0.001778 | 1.07 |
+| queue of 5 moves, checked | 5 | 11,662,400 | 2,332,480 | 0.002065 | 1.24 |
+| queue of 1 move, checked | 1 | 5,201,920 | 5,201,920 | 0.004630 | 2.78 |
+| queue of 10 moves, no goblin, checked | 10 | 2,248,000 | 224,800 | 0.000200 | 0.12 |
+| queue of 10 moves, goblins packed, checked | 10 | 20,048,000 | 2,004,800 | 0.001771 | 1.06 |
+| queue of 5 moves, goblins packed, checked | 5 | 11,582,400 | 2,316,480 | 0.002051 | 1.23 |
+| queue of 1 move, goblins packed, checked | 1 | 5,121,920 | 5,121,920 | 0.004559 | 2.74 |
+| queue of 10 moves, serpentine (capped), checked | 10 | 13,568,000 | 1,356,800 | 0.001197 | 0.72 |
+| enter | 1 | 3,425,280 | 3,425,280 | 0.003057 | 1.83 |
+| leave | 1 | 1,576,320 | 1,576,320 | 0.001424 | 0.85 |
+| brew, signature, new pair | 1 | 2,485,920 | 2,485,920 | 0.002222 | 1.33 |
+| accept quest | 1 | 1,473,680 | 1,473,680 | 0.001314 | 0.79 |
+| claim quest | 1 | 1,713,680 | 1,713,680 | 0.001533 | 0.92 |
+
+| Scenario | $ per action, native (expedition / 300) | × budget |
+|---|---:|---:|
+| S1 worst case everywhere | 0.003094 | 1.86 |
+| S2 mixed (2/3 of the moves exploring) | 0.002348 | 1.41 |
+| S3 mixed, goblins packed per instance | 0.002305 | 1.38 |
+| S4 worst case everywhere, goblins packed per instance | 0.003045 | 1.83 |
+| S5 adversarial (every move near goblins in serpentine queues, capped) | 0.002571 | 1.54 |

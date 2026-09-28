@@ -147,3 +147,93 @@ best = set(distances(best - {ADJACENT}, START)) | {ADJACENT}
 deep_goblins = [ADJACENT] + farthest(best - {ADJACENT}, 7)
 print(f"deep: eccentricity {best_score}")
 show("deep", best, deep_goblins)
+
+
+# ---------------------------------------------------------------------------------------------
+# Fix loop 2: the worst case under D-127 (the flood stops at 15 layers; a goblin not reached
+# holds its position). The costliest tick runs all 15 layers and has every goblin reached and
+# stepping, touched at as many different layers as possible. Searched on the winding boards: the
+# candidates are 1 goblin adjacent (the measured attack's target) and 7 reachable within 15
+# steps, the farthest first, one per distance where possible, each kept only if every goblin
+# placed so far is still reached within 15 steps once the others block.
+CAP = 15
+
+
+def capped(terrain, goblins, start=START):
+    """(layer array length under the cap, per-goblin distances, 0 = not reached)."""
+    free = terrain - set(goblins) - {start}
+    dist = distances(free | {start}, start)
+    depth = {}
+    for g in goblins:
+        ds = [dist[n] + 1 for n in neighbours(g) if n in dist and dist[n] + 1 <= CAP]
+        depth[g] = min(ds) if ds else 0
+    if all(depth.values()):
+        return max(depth.values()) + 1, depth
+    frontier = max(dist.values()) + 1  # the empty layer that ends an exhausted flood
+    return min(CAP, frontier) + 1, depth
+
+
+def worst_capped(terrain):
+    adjacent = min(n for n in neighbours(START) if n in terrain)
+    chosen = [adjacent]
+    free = terrain - {adjacent}
+    dist = distances(free, START)
+    used = set()
+    for d in range(CAP, 1, -1):
+        for t in sorted(t for t in dist if dist[t] == d and t not in chosen):
+            if d in used:
+                break
+            trial = chosen + [t]
+            _, depth = capped(terrain, trial)
+            if all(depth.values()):
+                chosen, used = trial, used | {d}
+                break
+        if len(chosen) == 8:
+            break
+    # Fill up to 8 with any tile that keeps every goblin reached
+    for t in sorted(dist, key=lambda t: (-dist[t], t)):
+        if len(chosen) == 8:
+            break
+        if t in chosen or t == START or dist[t] > CAP:
+            continue
+        trial = chosen + [t]
+        _, depth = capped(terrain, trial)
+        if all(depth.values()):
+            chosen = trial
+    return chosen
+
+
+print("under D-127 (15 layers):")
+for name, terrain in (("maze", MAZE), ("deep", best), ("comb", COMB)):
+    goblins = worst_capped(terrain)
+    n, depth = capped(terrain, goblins)
+    print(f"  {name}: layers {n}, goblins {goblins}, distances {[depth[g] for g in goblins]}, "
+          f"distinct {len(set(depth.values()))}")
+    print(f"    terrain {hex(felt(terrain))}")
+
+
+def capped_score(terrain):
+    """Costliest tick under the cap: the flood runs all 15 layers, every goblin is reached (it
+    steps), and the goblins are touched at many different layers."""
+    goblins = worst_capped(terrain)
+    n, depth = capped(terrain, goblins)
+    reached = sum(1 for d in depth.values() if d)
+    return (n == CAP + 1, reached, len(set(depth.values())), n), goblins
+
+
+rng2 = random.Random(127)
+best15 = set(COMB)
+score15, goblins15 = capped_score(best15)
+for _ in range(4000):
+    t = rng2.choice(INTERIOR)
+    if t == START or t in neighbours(START):
+        continue
+    trial = best15 ^ {t}
+    score, goblins = capped_score(trial)
+    if score >= score15:
+        best15, score15, goblins15 = trial, score, goblins
+n15, depth15 = capped(best15, goblins15)
+print(f"winding board for D-127 (hill climb from the comb): full 15 layers {score15[0]}, reached "
+      f"{score15[1]} of 8, distinct distances {score15[2]}, eccentricity {eccentricity(best15)}")
+print(f"  layers {n15}, goblins {goblins15}, distances {[depth15[g] for g in goblins15]}")
+print(f"  terrain {hex(felt(best15))}")
