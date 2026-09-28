@@ -158,6 +158,13 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
 - **Concurrency budget**: **3 Grim World agents at a time**, beside the agents of the
   owner's other programmes on the same machine (about 6 machine-wide). Before launching:
   `systemctl --user list-units --type=service --state=running`, `free -g`, `uptime`.
+  **Split between the three tracks** (project manager, 2026-09-28): the total of 3 holds
+  whatever the track. The game and the map library each have **one slot of their own**;
+  the third is **shared**: a track launches on it only while fewer than 3 Grim World agents
+  run. On a freed shared slot the priority is: a task that stands between the project and
+  a gate of the owner (an analysis whose report opens a gate) first; then the game; then
+  the library; then `quiver`. `quiver` has no slot of its own before Phase 2: its packages
+  are needed at Phase 3. An audit by codex counts as an agent while it runs.
   **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
   average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
   check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
