@@ -2,64 +2,60 @@
 
 ## Verdict
 
-**FAIL**
+**FAIL — one major remains**, to carry into ENG-01 under the supplied merge ruling.
 
-At **`6247949`**, F-11 and F-12’s original defects are resolved under the rulings. F-1 through F-10 remain resolved.
-
-The fixes introduce **one major contradiction** in chunk loading and **one minor contradiction** in the recovery example. After this third fix loop, these findings require the project-manager disposition specified by OPERATIONS §6.
+At **`2f8c9c8`**, F-13 is resolved. F-14’s read/wait problem is corrected, but its new chunk classifier assumes a registry outline that dungeons do not have. F-1 through F-12 remain resolved under the earlier rulings.
 
 ## Findings
 
-| # | Severity | Location | Finding | Evidence / failing scenario | Suggested fix |
+| # | Severity | Location | Finding | Evidence / failing scenario | Requirement to carry into ENG-01 |
 |---|---|---|---|---|---|
-| F-13 | **minor — new** | [02-core-loop.md:379](/home/claude/projects/grimworld/.claude/worktrees/cli-AUD-49/docs/design/02-core-loop.md:379), example at line 386 | **The “batch ran” example promises suffix recovery that the specified algorithm does not provide.** | Start at sequence/clock 0. The first `Wait` executes, but its receipt is unavailable; a second `Wait` remains unsent. Stored predicted results are `(1,1)` and `(2,2)`. Recovery adopts `(1,1)` and re-simulates **every unconfirmed action**, starting with the first `Wait`. Its result becomes `(2,2)`, differing from its stored `(1,1)`. The first-mismatch rule therefore drops both actions. The table instead says the next actions are retained. | Correct the example to describe this conservative loss. Retaining an unconfirmed suffix after skipping already-executed actions would require a separately specified rule; do not infer that prefix from the action count. |
-| F-14 | **major — new** | [02-core-loop.md:301](/home/claude/projects/grimworld/.claude/worktrees/cli-AUD-49/docs/design/02-core-loop.md:301), region view at line 504, CLI-03 item 12 | **The unconditional missing-chunk read can prevent exploration and movement near boundaries indefinitely.** | The client waits before entering any chunk its copy lacks, but `instance_region` returns only **revealed** chunks. A move that would reveal a new chunk cannot obtain that chunk from the preceding accepted block: the move itself must generate it. Waiting for that read creates a circular dependency, contradicting D-111’s client-computed reveal and line 198’s inclusion of reveal moves in batches. At a location boundary, [D-134](https://github.com/bal7hazar/grimworld/blob/d9af605b298b05878c922f3489d4697545718be8/docs/decisions/2026-09-28-chunk-borders.md#decision) makes the problem permanent: void chunks are never revealed or stored and must be assembled as constants without reading them. | Distinguish **revealed state missing from the cache**, **real chunks not yet revealed**, and **void chunks**. Fetch the first coherently; predict generation of the second under D-111 in the speculative overlay; synthesize the third under D-134 without reading or waiting. Define how views distinguish these cases and add reveal/boundary cases to the implementation requirements. |
+| F-14 | **major — partially resolved** | [02-core-loop.md:312](/home/claude/projects/grimworld/.claude/worktrees/cli-AUD-49/docs/design/02-core-loop.md:312), views at line 518, CLI-03 item 12 | **Chunk classification is specified for zones but incorrectly generalized to dungeons.** | The draft says every location’s outline is registry content, then classifies unrevealed coordinates by membership in that outline. [ADR-0006:177](/home/claude/projects/grimworld/.claude/worktrees/cli-AUD-49/docs/architecture/ADR-0006-chunked-maps.md:177) explicitly distinguishes registry-defined zone outlines from dungeon outlines that emerge during exploration. Dungeons instead have a target chunk count, generated borders and frontier constraints. At an open dungeon frontier before the target count is reached, the classifier needs to permit further generation, but the prescribed registry outline does not exist. Dungeons are included in the MVP. | **Freeze chunk classification separately for zones and emerging dungeons.** Zones may use the registry outline. Dungeons must use their generated boundaries, frontier and chunk-count rules; expose any required state coherently through the views. Make contract and client classification agree, including speculative reveals. Add tests for dungeon frontier growth, preservation of the last opening before the target count, and boundary closure when that count is reached. |
 
-**F-11 verification.** Recovery now reads nonce and instance state at one accepted block, adopts the snapshot without attributing execution, and re-simulates a prefix against persisted predicted results. Renumbering, the nonce to use and first-mismatch behavior are specified. This resolves the original reliance on unavailable transaction history. F-13 concerns the illustrative claim, not the accepted recovery algorithm.
+**F-13:** The [corrected example](/home/claude/projects/grimworld/.claude/worktrees/cli-AUD-49/docs/design/02-core-loop.md:401) now describes the conservative loss accurately: replaying an already-executed, unconfirmed first action causes a mismatch, so the remaining local suffix is discarded. It no longer promises suffix retention.
 
-**F-12 verification.** The authoritative copy now contains every revealed chunk and every goblin, including frozen actors and their full state. `instance_state` plus paged `instance_region` at one accepted block supplies restart and resynchronization data. The indexer is excluded from simulation, and ENG-01 includes restart/window-crossing checks. This resolves the original missing-actor-state defect; F-14 concerns the newly added loading prerequisite.
+**F-14’s completed portions:**
+
+- Revealed chunks missing from the copy are read at a pinned accepted block.
+- Unrevealed chunks are generated in the speculative overlay without waiting for stored data.
+- Void chunks are constants, without reads or waits.
+- The client waits for the standalone entry draw before predicting anything in the instance.
+- The views return chunk-kind information; ENG-01 item 8 and CLI-03 item 12 include reveal and boundary checks.
+- Design/11 limits the loading wait to previously explored data missing from the client.
+
+These changes remove the original circular wait and respect D-111/D-134. The remaining issue is specifically how those kinds are determined for emerging dungeons.
 
 ## Coverage
 
-Reviewed the final-loop diff and cumulative PR against the rulings, ADR-0001/0002/0006/0007, design/04, design/08 and D-133. D-134 is absent from this branch’s files, so its decision and revised ADR-0006 were read from **`origin/main`**.
+Reviewed the final-loop diff, affected views, ENG-01 item 8, CLI-03 item 12, design/11, and the earlier finding dispositions. Checked the merged D-134 decision and ADR-0006 against the new classifier, alongside the relevant execution, randomness, multiplayer and MVP rules.
 
-No additional contradiction was found in tick costs, goblin ordering, zero-tick restrictions, M-1…M-6, Fate’s accepted MVP weakness, the version-1 escalation, or the distinction between speculation and reorg rollback.
+No regression was found in F-1 through F-12. The remaining F-14 requirement does not reopen the accepted gas target, recovery algorithm, snapshot approach or MVP randomness ruling.
 
-Read-only throughout. Working tree clean; diff whitespace check passed. No implementation tests were run for this documentation-only task.
+Read-only throughout. Working tree clean; whitespace checks passed for both changed design files. No implementation tests were run for this documentation-only task.
 
 ## Final finding table
 
 | Finding | Final status | Open severity | Disposition |
 |---|---|---|---|
-| F-1 — Gas bound | **Resolved** | — | 40M and weights remain provisional; ENG-01 must prove or replace them. |
-| F-2 — Invocation versus transaction | **Resolved under ruling** | — | Limits and composition claims remain appropriately scoped. |
-| F-3 — Sequence versus history | **Resolved under ruling** | — | Optimistic divergence remains accepted; no history guarantee is restored. |
-| F-4 — Reorg depth | **Resolved** | — | Arbitrary rollback remains separate from two-batch speculation. |
-| F-5 — Included reverts | **Resolved** | — | Fresh-nonce recovery, batch splitting and singleton stopping remain specified. |
-| F-6 — Coherent reconciliation | **Resolved under ruling** | — | Pre-confirmed reads remain single-call; accepted multipart reads are pinned to one block. |
+| F-1 — Gas bound | **Resolved** | — | Provisional target; ENG-01 must prove or replace it. |
+| F-2 — Invocation versus transaction | **Resolved under ruling** | — | Limits and composition claims remain correctly scoped. |
+| F-3 — Sequence versus history | **Resolved under ruling** | — | Optimistic divergence remains explicitly accepted. |
+| F-4 — Reorg depth | **Resolved** | — | Arbitrary rollback remains separate from bounded speculation. |
+| F-5 — Included reverts | **Resolved** | — | Nonce handling, splitting and singleton stopping remain specified. |
+| F-6 — Coherent reconciliation | **Resolved under ruling** | — | Single-call pre-confirmed reads and consistently pinned accepted reads. |
 | F-7 — Standalone entrypoints | **Resolved** | — | Entry, transition, sequence and refusal semantics remain specified. |
-| F-8 — Weighted backpressure | **Resolved** | — | Capacity is measured by weight, not a fixed action count. |
-| F-9 — Batch age | **Resolved** | — | No elapsed-time loss guarantee is reinstated. |
-| F-10 — Version-1 randomness | **Resolved under ruling** | — | Requirements and ADR escalation remain explicit; no closure claim returns. |
-| F-11 — Unknown transaction outcome | **Resolved under ruling** | — | Recovery no longer requires transaction attribution. |
-| F-12 — Snapshot coverage | **Resolved under ruling** | — | Full revealed-instance and frozen-actor state are available through pinned views. |
-| F-13 — Recovery example | **New** | **minor** | Already-executed unconfirmed actions trigger the first-mismatch rule; the example incorrectly promises suffix retention. |
-| F-14 — Missing-chunk loading | **New** | **major** | The loading prerequisite needs separate handling for cached, unrevealed and void chunks. |
-## Orchestrator's note (`[Opus 5.5]`, 2026-09-28): escalated after three fix loops
+| F-8 — Weighted backpressure | **Resolved** | — | Waiting depends on weighted capacity. |
+| F-9 — Batch age | **Resolved** | — | No elapsed-time loss guarantee. |
+| F-10 — Version-1 randomness | **Resolved under ruling** | — | Requirements and ADR escalation replace the closure claim. |
+| F-11 — Unknown transaction outcome | **Resolved under ruling** | — | Recovery uses observable state without execution attribution. |
+| F-12 — Snapshot coverage | **Resolved under ruling** | — | Revealed chunks and frozen actors are available through pinned views. |
+| F-13 — Recovery example | **Resolved** | — | Example now states the conservative suffix loss. |
+| F-14 — Missing-chunk handling | **Partially resolved; carry into ENG-01** | **major** | Read/generate/constant behavior is correct; dungeon classification must follow its emerging outline rather than a nonexistent registry outline. |
+## Merge exception (`[Opus 5.5]`, 2026-09-28)
 
-PR 49 (DES-21) went through three fix loops; this is the fourth report. F-1 to F-12 are resolved.
-Two findings are new, introduced by the third loop's fix of F-12:
-
-- **F-14 (major)**: the client waits to read any chunk its copy lacks, but an unrevealed chunk can
-  only come into being through the move that reveals it (D-111), and a void chunk is never stored
-  (D-134): play would stall at every unexplored edge and at every location's boundary.
-- **F-13 (minor)**: the "batch ran" example promises to keep actions the first-mismatch rule drops.
-
-**Recommendation**: one narrow fourth loop on F-13 and F-14 only, with this ruling: the client's copy
-knows three kinds of chunk: *revealed* (read, pinned, as now), *not yet revealed* (predicted by the
-client's own generation under D-111 in the speculative overlay, then checked by reconciliation
-like any result), and *void* (a constant under D-134, never read, never waited for); only revealed
-chunks missing from the copy are read before the window reaches them; the views tell the three
-apart; reveal and boundary cases join the ENG-01 and CLI-03 lists. F-13: the example is corrected to
-the conservative loss. Then a re-audit on those two findings only. Merging with a known major
-contradiction in the design ENG-01 reads would cost more later.
+**Merged after four fix loops with one major open**, by the project manager's decision: a fourth
+loop was allowed on F-13 and F-14 only, with no fifth; a major left by its re-audit is merged as an
+open point of the document and carried into ENG-01's brief. F-13 is resolved. F-14 is resolved for
+zones and open for dungeons (the kind of an unrevealed chunk where the outline emerges while
+explored): design/02 *Open points*, OP-1 (commit e82d475), and ENG-01's PLAN row. OP-2, storage
+slots per transaction (quiver's measurement), was added at the same time.
