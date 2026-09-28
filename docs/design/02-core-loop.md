@@ -329,22 +329,40 @@ chest) happen in the same invocation (ADR-0002, rule 5).
 |---|---|---|
 | **Succeeded** | Executed; `BatchPlayed` (or `Refused`) is in the receipt | Reconciles (below) |
 | **Reverted** | Included, **nonce consumed, fee charged, no event, no state change**: the batch ran out of resources, or the contract panicked (a bug) | Resubmits the same actions, same sequence, **with a fresh nonce, in batches half the size**. A single action that reverts is not retried: the client rewinds to the chain's state, reports it, and the player is told their last steps were lost |
-| **Not found** (not received, rejected before execution, dropped) | Nothing ran; the nonce did not move | Sends the same transaction again, **same nonce**, so that at most one of the two can run: up to 5 times over about 60 seconds. Then play is suspended ("connection lost"), the actions stay on the device, and sending resumes when the network does |
+| **Not found** | **Unknown**: not received yet, rejected, dropped, or included and not yet visible to this node. Not a free nonce | Keeps the transaction's identity and **rebroadcasts the same signed transaction** (same nonce): at most one of them can run. Up to 5 times over about 60 seconds, then decides (below) |
 
 **Reconciling.** The chain's state is the truth; the client checks its prediction against it
 after every succeeded batch.
 
 1. Read `BatchPlayed` from the receipt: `from`, `played`, `stop`, `sequence` after.
 2. Take its own state after the first `played` actions of the batch.
-3. Read the instance through the **views** at the receipt's block (the RPC reads state at a
-   block id; a pre-confirmed receipt without a block yet is read at the pre-confirmed block):
-   the instance, the adventurer in it, the goblins of the window, and the chunks the batch
-   revealed or changed.
-4. Compare field by field. Equal, and `played` is the whole batch: the batch is confirmed.
-5. Otherwise **rewind**: take the chain's state, drop every action played after the
-   difference, including the batch filling, and report both states.
+3. Read **one snapshot**: a single call of `instance_state(instance_id)`, pinned to the
+   receipt's **block hash** once the block is accepted, or at `pre_confirmed` before it. One
+   call, because several reads are not one state; a block's state (and `pre_confirmed` above
+   all) can already hold later transactions.
+4. Compare the snapshot's `sequence` with `BatchPlayed`'s `sequence` after:
 
-No state commitment is stored or emitted on chain: hashing the state costs gas on every batch.
+| Snapshot's sequence | Means | The client |
+|---|---|---|
+| **Equal** | The snapshot is the state right after the batch | Compares field by field. Equal, and `played` is the whole batch: the batch is confirmed. A difference, or fewer played: **rewind** (below) |
+| **Greater** | Later actions ran after the batch: another device, a co-op member | Adopts the snapshot as the chain's state, drops what it played after the batch. **Not a divergence**: nothing is reported as a bug |
+| **Smaller** | The read is stale (a node behind the one that gave the receipt) | Reads again; never installs it |
+
+5. **Rewind**: take the snapshot as the state, drop every action played after the difference,
+   including the batch filling, and report both states.
+
+A state built from several reads is **never installed**. No state commitment is stored or
+emitted on chain: hashing the state costs gas on every batch.
+
+**When a transaction stays not found.** After the rebroadcasts, the client reads the
+account's nonce and one snapshot (above), and decides:
+
+| The account's nonce | The snapshot | The client |
+|---|---|---|
+| Moved past the transaction's | Shows the batch ran (its `from` and `played` are accounted for) | Reconciles as for a succeeded batch |
+| Moved past the transaction's | Something else ran (another device) | The batch is dropped. Each kept action is played again on the snapshot by the shared rules and kept only if it is valid and gives the result the player saw; the first that does not, and all after it, are dropped: a rewind |
+| Did not move | — | Resubmits the batch, signed again |
+| The node cannot be reached | — | Only then: play is suspended, "connection lost"; the actions stay on the device and sending resumes when the node answers |
 
 **Reorgs.** A reorg can undo **any depth**: batches, and also Fate draws and gates that were
 confirmed, and the instance itself (an `enter` that is gone). The two batches of speculation
@@ -392,7 +410,7 @@ anything of the transaction (ADR-0001), Fate apart (below).
 | Compose several `play` calls, or `play` with a gate, in one multicall | Nothing | The same as consecutive transactions: same state, same rules, each call checked on its own |
 | Ignore the stop conditions of a planned queue | Nothing | They protect the player from a walk they did not watch; the contract never needed them |
 | Steer the next chunk by the order of actions (D-111) | Nothing more | The player entropy is a set, not a sequence; trying irreversible options off-chain is possible without batches (ADR-0006) |
-| Put a Fate call in the same transaction as a batch | Nothing new in the MVP; closed in version 1 by the rule below | `play` cannot encode a Fate action, but a multicall can carry a Fate call after it |
+| Put a Fate call in the same transaction as a batch | Nothing new in the MVP; version 1 must close it (below) | `play` cannot encode a Fate action, but a multicall can carry a Fate call after it |
 | Burn gas with heavy batches or long multicalls | Nothing new | Weight 10 bounds one invocation, not a transaction; a transaction is bounded by the resources it signs. A sponsor's limit (ADR-0001's silent rate limits) must count **gas**, not transactions |
 
 **Fate (ADR-0002).**
@@ -401,10 +419,22 @@ anything of the transaction (ADR-0001), Fate apart (below).
   batch and then a Fate call adds one more thing to vary, not a new weakness: this is the
   accepted, pre-existing weakness of ADR-0002, with or without batches. Our client sends a
   Fate action alone, after the batch before it is confirmed, with the expected sequence.
-- **Version 1.** The provider **must not draw from anything the same transaction can steer**:
-  neither the transaction's hash or calldata, nor state that an earlier call of the same
-  transaction wrote. With that rule a Fate call behind a batch in one multicall draws what it
-  would draw alone. `request_random` stays first in its multicall (rule 3).
+- **Version 1: a requirement, not yet met.** Independent randomness is not enough. A
+  transaction the player controls can read its draw and **abort** (revert) when it is
+  unwanted, then try again; batching or not. The provider and the account design of version 1
+  must give:
+  - **Attempt-stable draws**: the same attempt cannot be retried for a new value; for example,
+    a request committed in one transaction and fulfilled in a later one, the result bound to
+    the request;
+  - **No re-roll by a conditional abort**: a transaction that reverts after seeing its draw
+    leaves the draw spent or the request pending with the same value;
+  - **The permitted composition stated**: which calls may share a transaction with a Fate call.
+  - Also: the provider does not draw from anything the same transaction can steer (its hash or
+    calldata, state an earlier call of it wrote). `request_random` stays first in its
+    multicall (rule 3).
+
+  This is ADR-0002's to decide (an escalation of DES-21); design/02 does not claim version 1
+  closes it.
 
 ### Entrypoints (for ENG-01 to freeze)
 
@@ -441,7 +471,7 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
 |---|---|
 | Bounds | 1 to 10 actions per invocation; weight ≤ 10; each action's ticks bounded by its tick cost ([04](04-combat.md#actions)); each tick by the simulation budget above |
 | Other events | Each action emits what it emits alone (a goblin killed, a chunk revealed, defeat); `BatchPlayed` is the batch's summary |
-| Views | Readable at any block: the instance (clock, sequence, entropy, status); the adventurer in it (position, facing, health, energy, adrenaline, conditions, effects, deadlines, activation, belt); every goblin of the window (the same, plus AI state and memory); a chunk by its coordinates (terrain, objects, remains). Everything an action depends on |
+| View | **`instance_state(instance_id)`**, one call, readable at a block hash or at `pre_confirmed`: the instance (sequence, clock, entropy, status); the adventurers in it (position, facing, health, energy, adrenaline, conditions, effects, deadlines, activation, belt); every goblin of their windows (the same, plus AI state and memory); the occupancy and terrain of the chunks their windows overlap (tiles, objects, remains). Everything a played action depends on, in one snapshot. Chunks outside the windows come from the indexer for display and are never part of a comparison |
 | Never read | Block number, timestamp, transaction hash (ADR-0001) |
 
 ### What ENG-01 must do
@@ -461,7 +491,8 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
    worst ticks, reveals and their new storage, events, validation and the account's overhead,
    and the cost of rejecting at the first invalid action. Keep 40M and the weights, or replace
    them. Measure a revealed chunk.
-7. The views above, readable at a block.
+7. The view `instance_state(instance_id)` above: one call, everything a played action
+   depends on, readable at a block hash and at `pre_confirmed`.
 8. Permission: the caller controls `adventurer_id`, and that adventurer is in `instance_id` (M-6).
 
 ### What CLI-03 must do
@@ -474,10 +505,14 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
    action.
 4. One call per transaction; sign resources for the batch's proven bound.
 5. Handle the three receipt statuses as above: succeeded (reconcile), reverted (fresh nonce,
-   half-size batches, never a single action twice), not found (same nonce, 5 times over about
-   60 s, then suspend).
-6. Reconcile after every succeeded batch through the views at the receipt's block; rewind on
-   any difference.
+   half-size batches, never a single action twice), not found (keep the transaction's
+   identity, rebroadcast it with the same nonce 5 times over about 60 s, then read the
+   account's nonce and one snapshot and decide by the table; "connection lost" only when the
+   node cannot be reached).
+6. Reconcile after every succeeded batch with one `instance_state` snapshot pinned to the
+   receipt's block hash, or at `pre_confirmed`: equal sequence, compare and rewind on a
+   difference; greater, adopt it without reporting a divergence; smaller, read again. Never
+   install a state built from several reads.
 7. Recover from a reorg of any depth: drop predictions and kept actions, show the canonical
    state, including an instance that no longer exists and a draw or a gate that is gone.
 8. At launch, send the kept batch if the instance exists at the expected sequence, else drop

@@ -108,10 +108,11 @@ played are never shown as queued ([02-core-loop](02-core-loop.md#planned-queues-
 | The batch filling is full while the one sent is not confirmed ([02](02-core-loop.md#when-a-batch-leaves)) | "saving…" stays; the next tap waits until it goes | A dialog |
 | A reward being drawn (loot, identification, brewing) | The reveal animation, which lasts as long as needed | A loading bar |
 | The chain disagrees with what was drawn (a rewind) | The room snaps to the true state; the actions dropped fade out as ghost markers along where they went; one line: "the world corrected itself". The selection is cleared; nothing is replayed | An error code, a count of actions lost |
-| Network down | Play goes on until the batch filling is full; then "Connection lost. Your expedition is safe." Play is suspended until the actions are confirmed | Anything about nodes or fees |
+| Network down (the node cannot be reached) | Play goes on until the batch filling is full; then "Connection lost. Your expedition is safe." Play is suspended until the actions are confirmed | Anything about nodes or fees |
 | Before a reward is drawn, a gate or travelling back | The action starts at once (the walk to the remains, the gate animation); the draw waits behind it for the actions before it to be confirmed | A wait before the tap is taken |
 | The app closes with actions not sent | At the next launch the instance opens where the player left it, and the actions are sent behind it | — |
 | …and the chain moved meanwhile (the adventurer played on another device) | The room shows the chain's state, with one line: "your last steps were lost" | Where they were lost, or why |
+| The same adventurer played on another device while a batch was being sent | The room shows the chain's state; the actions still valid on it stay, the others fade out; one line: "the world corrected itself" only if something was dropped | A conflict dialog |
 | Actions that could not be saved after the retries (a batch that failed down to one action) | The room snaps to the true state, with one line: "your last steps were lost" | An error code |
 | A reorg undid more than the actions being saved: a reward, a gate, the instance itself | The true state, whatever it is: an earlier moment of the instance, another instance, or the hub; a reward gone from the inventory. One line: "the world corrected itself" | An explanation of why |
 | First launch | Name of the adventurer, profession, play | Wallet, address, key, gas, sign, token, network, block, mint |
