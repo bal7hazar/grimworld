@@ -1,0 +1,6 @@
+# Everything the pipeline produces is derived from the private art pack (D-73): never committed.
+out/
+.venv/
+__pycache__/
+*.pyc
+node_modules/
