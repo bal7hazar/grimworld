@@ -13,7 +13,7 @@ owner.
 | Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Gates L-G1 and L-G2 passed. LIB-04 merged under option B; LIB-05 starts with the take-over of the engine, then the assembly and the flood | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
 | Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | Gate A-G1 passed. Workspace merged; `quiver_quest`: library merged, component in audit | `quiver_quest` 0.1.0: a publication, asked of the project manager |
 
-Budget: 3 agents at a time across the three tracks, audits included (D-118, OPERATIONS §3).
+Budget: 3 agents at a time across the three tracks, audits included (D-118). Caps: game 2, map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
 The machine also runs the owner's other programmes: about 6 agents in all.
 
 ## Decided on 2026-09-28
