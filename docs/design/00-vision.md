@@ -88,10 +88,12 @@ Career (weeks)                 rank up → new quests/zones/skills → elite zon
 | [08-multiplayer](08-multiplayer.md) | Shared spaces now, co-op later |
 | [09-mvp-scope](09-mvp-scope.md) | What ships first |
 | [10-art-direction](10-art-direction.md) | Pixel art, asset pack, constraints |
+| [11-interface](11-interface.md) | Screens, controls, what the rules need to show, the chain unseen |
 | [12-estate](12-estate.md) | Idle layer: the account's estate (post-MVP) |
 | [13-titles](13-titles.md) | Character and account titles |
 | [14-quests-region-1](14-quests-region-1.md) | Quests of the first region, experience curve |
 | [15-equipment](15-equipment.md) | Weapons, armor, rarity, identification, collectors, boss items and sets |
 | [16-trade](16-trade.md) | Trade between players, auction house |
 | [17-rifts](17-rifts.md) | Ephemeral graded dungeons, Red Rifts, stillstone |
+| [18-rooms](18-rooms.md) | Room size, generation, features, perception |
 | [lore/00-premise](../lore/00-premise.md) | The world: the Below, the Hush, Rifts, the Guild |

@@ -1,6 +1,6 @@
 # 17 — Rifts: ephemeral dungeons and stillstone
 
-> Status: **Draft v0.4** (v0.4: Rifts are personal; six open, ten a day; no shared closure)
+> Status: **Draft v0.5** (v0.5: three open, five a day, the fifth is the Red Rift)
 > Previous: **Draft v0.3** (v0.3: rotation by slots proposed; enchanter owns modifiers; no stillstone at collectors)
 > Previous: **Draft v0.2** (v0.2: Rift; closing delay triggered by the first clear; ten grades; stillstone is a rare reagent) — proposal following the lore premise
 > ([lore/00-premise](../lore/00-premise.md)). Numbers are initial values. Names are
@@ -21,40 +21,38 @@ resource, and changes nothing to the rules of instances.
 
 ## Supply (D-101)
 
-Rifts are **personal**. Nothing about them is shared between players: no race, no closure
-by others.
+Rifts are **personal**. Nothing about them is shared between players.
 
 | | |
 |---|---|
-| Open at any time | **6 Rifts** on the adventurer's board, spread over the grades their rank allows |
-| Clearing one | A new one opens **at once** in its place |
-| **Daily cap** | **10 Rifts cleared per day, per account**, all adventurers together |
-| Day | Changes at 00:00 UTC |
-| Left untouched | A Rift **ripens** after one day (harder, richer) and is replaced after two |
-| Defeat or leaving | The Rift stays on the board; entering again is a new instance of the same Rift. Only a clear counts towards the cap |
+| Open at the start of the day | **3 Rifts**, spread over the grades the account's adventurers can enter |
+| **Per day** | **5 Rifts, per account**, all adventurers together |
+| Clearing the 1st | The 4th opens |
+| Clearing the 2nd | **The 5th opens: the Red Rift** |
+| Day | Changes at 00:00 UTC. Rifts not cleared are replaced by the new day's |
+| Defeat or leaving | The Rift stays on the board; entering again is a new instance of the same Rift |
+
+```
+ day starts      ①  ②  ③
+ one cleared     ✓  ②  ③  ④
+ two cleared     ✓  ✓  ③  ④  ⑤ red
+```
+
+The day has a shape: three ordinary choices, a fourth as a reward for starting, and the
+Red Rift as the **finale**, earned by clearing two. A player who wants only the finale
+clears two easy Rifts first; a player who wants everything clears five.
 
 Why a cap, and why per account:
 
 | | |
 |---|---|
-| Against farming | Supply is otherwise endless. The cap bounds what one account can bring to the market per day, which protects prices |
-| Per account | Three adventurers must not mean three times the cap |
-| Bounds cost | Ten Rifts a day is also the upper bound of what an account can cost in network fees, which the game pays (pillar 7) |
-| No energy, no timer | The player chooses when and which. The cap is a number of clears, not a waiting time |
+| Against farming | Bounds what one account can bring to the market per day |
+| Per account | Three adventurers must not mean three times the cap, nor the feeling of repeating the same day on each of them |
+| Bounds cost | Five Rifts a day is also the upper bound of what an account costs in network fees, which the game pays (pillar 7) |
+| No energy, no timer | The player chooses when and which |
 
-What is left after the cap: zones, nests, quests, contracts, collectors, the estate, the
-market. The cap closes Rifts for the day, not the game.
-
-## Life of a Rift
-
-```
- opens ──▶ open ──▶ ripening ──▶ replaced
-             │          │
-             └────┬─────┘
-                  │ Heart killed
-                  ▼
-               cleared ──▶ a new one opens in its place
-```
+After the fifth: zones, nests, quests, contracts, collectors, the market. The cap closes
+Rifts for the day, not the game.
 
 ## Grades
 
@@ -76,17 +74,17 @@ no extra merit.
 
 ## Red Rifts
 
+The Red Rift is the **last Rift of the day**. It is announced: the player knows what they
+walk into.
+
 | | |
 |---|---|
-| Frequency | 1 Rift in 10, **not shown on the board**: the player learns it at the second room |
-| Cap | A Red Rift counts as one clear |
-| Decided | By the Fate draw of the instance seed, when entering |
-| Effect 1 — sealed | Travelling back to a hub is disabled. The instance ends by killing the Heart or by defeat |
-| Effect 2 — misgraded | Goblins and Heart are those of the grade above |
+| Opens | When two Rifts of the day are cleared |
+| Grade | The highest grade the adventurer entering it may enter |
+| **Sealed** | Travelling back to a hub is disabled. The instance ends by killing the Heart or by defeat |
+| **Misgraded** | Goblins and Heart are those of the grade above |
+| Attempts | Defeat costs the instance only (D-04): the Red Rift stays on the board until the day ends |
 | Reward | Rarity of looted equipment shifted one step up; boss item chance doubled; one stillstone guaranteed |
-| Defeat | As everywhere: costs the instance only (D-04) |
-
-Because a defeat costs little, a Red Rift is a surprise and a challenge, not a punishment.
 
 ## Stillstone
 
@@ -134,22 +132,20 @@ Rifts take over most of what repeatable contracts were for. Contracts stay for z
 
 | Point | Design |
 |---|---|
-| Board | Persistent domain, per adventurer: 6 slots, each with grade, seed, opening time |
-| Opening | Drawn with the Fate word of the transaction that cleared the previous one: no extra transaction |
-| Daily cap | One counter per account and per day, read when a clear is settled |
-| Ripening | Derived from the opening time, lazily |
+| Board | Persistent domain, **per account and per day**: five seeds derived from one Fate draw made by the first board action of the day, and a bitmap of cleared Rifts |
+| Opening | Derived: Rift 4 is enterable when one bit is set, Rift 5 when two are. No transaction opens a Rift |
+| Daily cap | Falls out of the five seeds: there is nothing more to enter |
 | Time | Real time is used **outside** instances only. Inside, the tick rule is untouched |
-| Red | A flag of the instance, derived from its Fate seed |
+| Red | The fifth Rift of the day |
 
 ## Scope
 
 | Release | Contains |
 |---|---|
-| **MVP** | Rifts of grades Wood to Copper in Region 1; six open, ten a day; mining; stillstone and its uses; Red Rifts; heartstone |
+| **MVP** | Rifts of grades Wood to Copper in Region 1; three open, five a day, the Red Rift last; mining; stillstone and its uses; heartstone |
 | Later | Higher grades with their regions |
 
 ## Open
 
 | # | Question |
 |---|---|
-| RF-4 | Should a Red Rift be announced on the board after enough players have met it, as rumour? |

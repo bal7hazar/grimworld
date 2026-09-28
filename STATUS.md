@@ -39,9 +39,10 @@ then withdrawn; ADR-0004 on the Arcade packages. The MVP has grown: see risk R-1
 
 ## Design coverage
 
-Rules and direction are written; interface, content and numbers are not. See the design
-backlog in [PLAN.md](PLAN.md#design-backlog): 15 items, two of them (interface, vision)
-due before Phase 1.
+Written: 19 design documents, the lore premise, 5 ADRs. The three documents due before
+Phase 1 (interface, perception, rooms) exist as drafts. Still to write before the phases
+that need them: effect catalogue, remaining skills, caste sheets, curves, content lists.
+See the design backlog in [PLAN.md](PLAN.md#design-backlog).
 
 ## Not verified
 

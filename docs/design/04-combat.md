@@ -33,7 +33,7 @@ GW1 ranges are mapped to hex distances.
 | Touch / adjacent | 1 | Melee, touch skills (6 tiles) |
 | Nearby | 2 | Small area effects (18 tiles) |
 | In the area | 3 | Large area effects (36 tiles) |
-| Alert radius | 5 | Goblin perception (halved if the goblin is asleep) |
+| Alert radius | 5 | Goblin perception ([18-rooms](18-rooms.md#what-goblins-perceive)) |
 | Ranged | 6 | Bows, spells. Requires line of sight |
 | Earshot | 8 | Shouts, pack alert propagation |
 

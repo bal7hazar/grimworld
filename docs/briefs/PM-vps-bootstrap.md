@@ -21,7 +21,7 @@ anglais.
 
 1. Lis, dans cet ordre, et en entier :
    CONTEXT.md, OPERATIONS.md, STATUS.md, les fichiers de docs/decisions/, PLAN.md,
-   puis docs/architecture/ADR-0001 à ADR-0003, puis docs/design/00 à 10.
+   puis docs/architecture/ADR-0001 à ADR-0005, puis docs/lore/, puis docs/design/00 à 18.
 
 2. Vérifie la machine, sans rien installer ni modifier, et rapporte ce que tu trouves :
    - `claude auth status` : le CLI doit être connecté au compte claude-b7r. Si c'est un

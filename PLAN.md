@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.6, 2026-09-28** (v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.7, 2026-09-28** (v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -58,6 +58,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-3 | vRNG spike: overhead, latency, provider-down behaviour | SPK-5 | Opus 5.5 | S | todo |
 | SPK-4 | Parity spike, two options measured: (a) TypeScript mirror checked by Cairo-generated vectors; (b) **the Cairo code itself run in the client** through a Cairo VM in WebAssembly, as in the owner's physics game. Needs the game logic as a pure library (state in, state out) | SPK-5 | Opus 5.5 | P | todo |
 | SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, Controller session, vRNG (ADR-0003 thresholds); room size for portrait | SPK-5 | Opus 5.5 | — | todo |
+| SPK-9 | Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
 | SPK-7 | Hexmap spike: room generation chain and shared flood for 8 goblins, measured; line-of-sight prototype | SPK-5 | Opus 5.5 | C P | todo |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
@@ -77,7 +78,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ENG-05 | Room generation with `origami_hexmap` (biome generator, entrances, single component, placement), fixed and shifting seeds | ENG-02 | Opus 5.5 | D P C Q | todo |
 | ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; instance seed (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
 | ENG-07 | Movement, facing, room transition, action queue with stop conditions, instance clock | ENG-05, ENG-06 | Opus 5.5 | D S P C Q | todo |
-| CLI-01 | Client shell in Capacitor: Controller login, session policies, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
+| CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
 | OPS-01 | Deployment scripts: Katana local, Sepolia; Torii | ENG-07 | Sonnet 5 | S Q | todo |
@@ -182,10 +183,10 @@ the owner, and **due before the phase that consumes it**.
 
 | ID | Missing | Due before | Status |
 |---|---|---|---|
-| DES-18 | **Invisible chain**: vocabulary list banned from the interface, onboarding without wallet words, what the player sees when a transaction fails or the network is down | Phase 1 (CLI-01) | todo |
-| DES-01 | **Interface** (`docs/design/11-interface.md`): portrait screen layout, HUD, how to move / target / use a skill by touch, action queue display, facing and arc display, desktop responsive layout | Phase 1 (CLI-03) | todo |
-| DES-02 | **Vision**: what the adventurer sees inside a room (whole room or a radius), what goblins perceive, how line of sight and sleep interact | Phase 1 (ENG-07) | todo |
-| DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | todo |
+| DES-18 | **Invisible chain**: first version in `docs/design/11-interface.md`; onboarding flow still to write with ADR-0005 | Phase 1 (CLI-01) | doing |
+| DES-01 | **Interface** (`docs/design/11-interface.md`) | Phase 1 (CLI-03) | done (draft v0.1) |
+| DES-02 | **Vision**: what the adventurer sees inside a room (whole room or a radius), what goblins perceive, how line of sight and sleep interact | Phase 1 (ENG-07) | done (`docs/design/18-rooms.md`) |
+| DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | done (`docs/design/18-rooms.md`) |
 | DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | todo |
 | DES-05 | **Skill lists**: the 6 trainer skills per MVP profession (only the 6 starters exist) | Phase 2 (CNT-01) | todo |
 | DES-06 | **Caste sheets**: health and armor per caste, skill list, priority list, boss phases | Phase 2 (CNT-01) | todo |
@@ -223,7 +224,7 @@ the owner, and **due before the phase that consumes it**.
 | R-2 | A tick with 8 goblins exceeds the cost budget | Medium | High | SPK-2 before any design is frozen; lower the cap; bounded pathfinding | Phase 0, 2 |
 | R-3 | Mainnet latency worse than claimed | Medium | Medium | SPK-1; queue hides it; fallback to option B | Phase 0 |
 | R-4 | Deterministic combat feels flat | Medium | High | Facing, interrupts, telegraphs; fun gate at Phase 3 before building rewards | Phase 3 |
-| R-5 | Dependency on Cartridge services | Medium | Medium | Interfaces around vRNG; deterministic play survives an outage | Phase 0, 7 |
+| R-5 | Dependency on Cartridge services; Controller may not be fit (owner's doubt) | High | High | Account provider interface, burners first, SPK-9; **fees and randomness are Cartridge services too and must be re-examined if Controller is dropped** | Phase 0, 7 |
 | R-6 | Skill system scope explodes | High | Medium | Effects are a closed, registry-driven set; 12 skills per profession in MVP | Phase 2 |
 | R-7 | Too derivative of inspirations (IP) | Low | High | IP check on LORE and ART; no reuse of names or assets | Phase 5 |
 | R-9 | Phone heats or drains despite the power rules | Medium | High | SPK-6 on real phones before any client work; renderer is replaceable | Phase 0 |

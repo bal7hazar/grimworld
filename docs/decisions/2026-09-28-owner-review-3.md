@@ -31,7 +31,8 @@
 | — | Arcade packages are under MIT licence (owner's statement) |
 
 | D-95 | ~~Shared closing delay~~ Replaced by D-101 |
-| D-101 | Rifts (the owner's word, instead of Maw) are **personal**: 6 open, a new one opens when one is cleared, **10 cleared per day at most**, against farmers destabilising the economy |
+| D-101 | Rifts (the owner's word, instead of Maw) are **personal**: **3 open, 5 per day and per account**, the fifth being the Red Rift; against farmers destabilising the economy, and against repeating the same day on each adventurer |
+| D-102 | Accounts: Cartridge Controller is not taken for granted. Burner accounts first; Controller evaluated; a solution of our own if needed |
 | D-100 | **No fee is ever paid by the player.** The business model covers network costs without the player knowing. The abstraction must let the player ignore the blockchain entirely |
 | D-96 | Stillstone is a rare reagent for precise operations of craft, alchemy and enchantment. It does not replace materials and is not the main income: the treasure is what goblins carry |
 | D-97 | English only for the first version, multilingual afterwards. Names short and international |

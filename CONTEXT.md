@@ -40,8 +40,9 @@ SPK-5, not here.
 | Chain | Starknet mainnet (Sepolia for testing, Katana locally) |
 | Contracts | Cairo, Dojo |
 | Indexer | Torii |
-| Account | Cartridge Controller, session policies, paymaster |
-| Randomness | Cartridge vRNG ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
+| Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
+| Fees | Always paid by the game |
+| Randomness | Cartridge vRNG ([ADR-0002](docs/architecture/ADR-0002-randomness.md)); tied to Cartridge's paymaster, re-examined with ADR-0005 |
 | Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 (pointy-top hexes, one felt per room) |
 | Client | TypeScript, dojo.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
 | Art | Pixel art, 64 × 64 tiles, *Tiny Swords* pack by Pixel Frog as prototype ([design/10](docs/design/10-art-direction.md)) |

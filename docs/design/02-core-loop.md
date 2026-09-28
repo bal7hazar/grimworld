@@ -127,7 +127,7 @@ Tile     ─ index = y × W + x        pointy-top hexes, odd rows shifted (odd-r
 |---|---|
 | Orientation | **Pointy-top**: every tile has an East and a West neighbour |
 | Directions | East, North-East, North-West, West, South-West, South-East |
-| Room size | Registry parameter per location. Default **15 × 15**; final default set by the client spike for portrait phones (e.g. 13 × 19) |
+| Room size | Registry parameter per location. Default **9 × 17** ([18-rooms](18-rooms.md)) |
 | Border | The outer ring of a room is wall, except **entrances** |
 | Distance | Hex distance (`hex_distance`) for ranges; path distance (`distance_to`) for movement |
 

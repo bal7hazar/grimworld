@@ -75,8 +75,8 @@ Assayers are right most of the time.
 
 ### Red Rifts
 
-Sometimes the dust at the mouth of a Rift is **red**, or turns red after the party has
-gone in. A Red Rift was misgraded: what lives inside is older and worse than the mouth
+Sometimes the dust at the mouth of a Rift is **red**. The Guild posts those last, for
+those who have already proved themselves that day. A Red Rift was misgraded: what lives inside is older and worse than the mouth
 suggested. And a Red Rift **closes behind those who enter**. There is no walking out. It
 opens again when the Heart is dead, or when nobody inside is left standing.
 
