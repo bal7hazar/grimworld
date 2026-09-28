@@ -36,7 +36,7 @@ depend on SPK-5b), 1 for the library. Machine at 17:10 UTC: load 6.3, 21 GB avai
 
 ## Waiting for the owner
 
-Nothing blocks the game today. **ARC-00**: names and visibility of the repositories of `quest` and `achievement`, and whether the project manager creates them. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
+Nothing blocks the game today. **ARC-00**: the name of the single repository of track ARC (D-125: one repository of separate Scarb packages, CI by affected package; in time the home of the other `*-cairo` libraries). Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
 
 ## Next
 
