@@ -1,28 +1,45 @@
 #!/usr/bin/env python3
 """Gas budgets of the game's Cairo workspace, enforced by a tool (docs/CAIRO.md §2).
 
-Runs `snforge test --workspace` in the workspace (default `contracts/`) through the build lock,
-reads the l2 gas snforge measured for every test, reads the `#[available_gas(l2_gas: N)]` of every
-test from the sources, and:
+Runs `snforge test --workspace --fuzzer-seed 1` in the workspace (default `contracts/`) through the
+build lock, reads the l2 gas snforge measured for every test, reads the `#[available_gas(l2_gas: N)]`
+of every declared test from the sources, and:
 
-  (default)   writes docs/BUDGETS.md and one GAS.md per package, deterministically;
-  --check     writes nothing; fails when a test has no budget, when a budget is loose
-              (N > ceil(1.05 x measured)) or when a generated file differs from the one on disk;
-  --report    prints the gas table of a REPORT.md (COMMON §7): before = docs/BUDGETS.md of
-              origin/main, after = this run, budget.
+  (default)    writes docs/BUDGETS.md and one GAS.md per package, deterministically;
+  --check      writes nothing; fails on any problem below or when a generated file differs from disk;
+  --report     prints the gas table of a REPORT.md (COMMON §7): before = docs/BUDGETS.md of
+               origin/main, after = this run, budget, note; fails on any problem;
+  --self-test  runs the fixtures of this script (snforge output lines, Cairo sources); no Scarb.
 
-A budget below ceil(1.05 x measured) is fine (lowering needs nothing) as long as the test passes.
+Problems, per test identified by its full path `package::module::test` (never by function name):
+  * a declared test (`#[test]` or `#[test_case]`, `#[ignore]`d ones included) without a budget;
+  * a budget above ceil(1.05 x measured) (a budget below is fine: lowering needs nothing, and a test
+    over its budget already fails in snforge);
+  * a declared test the run did not measure (an `#[ignore]`d one is not measured: only the presence
+    of its budget is checked, its row says "ignored"); a measured test with no source declaration;
+  * a budget higher than the one in origin/main's docs/BUDGETS.md, unless the line just above the
+    `#[available_gas]` attribute is the comment `// gas: raised, <reason>` (CAIRO §2: a raise needs a
+    written reason and the orchestrator's agreement; --report shows "raised: <reason>" in the Note
+    column for the orchestrator to see);
+  * a date/commit kept from the existing BUDGETS.md whose commit is not in the history or whose
+    committer date differs from the date column.
+Fuzz tests: the measured figure is the MAXIMUM l2 gas over the runs (run with a fixed seed, so the
+figure is reproducible). Parameterized tests (`#[test_case]`): each generated case (test_sum_1_2_3)
+is its own row, mapped to its source function; the budget is the function's and every case must fit.
+Modules gated by a cfg other than `cfg(test)` are not evaluated: their tests are listed as
+"cfg-gated, not checked" unless the run measured them.
+
 Date and commit of a row are provenance: a row keeps the ones already in docs/BUDGETS.md while its
-measure and budget do not change, else it takes the committer date and short hash of HEAD, so the
-same run on the same commit gives the same bytes. A row changed in a working tree names the commit
-the change was measured on, which is the parent of the commit that carries it.
+measure and budget do not change, else it takes the committer date and short hash of the merge base
+of HEAD and origin/main (a commit that stays in main's history after a squash merge; HEAD when
+origin/main is not known). The same run on the same commit gives the same bytes.
 
 A package opts in by being a member of the workspace given by --workspace (default `contracts/`);
-each workspace has its own budgets file (--budgets, default docs/BUDGETS.md). The spikes are their
-own workspaces or packages and stay out unless run with --workspace <dir> --budgets <file>.
+each workspace has its own budgets file (--budgets, default docs/BUDGETS.md). The spikes stay out
+unless run with --workspace <dir> --budgets <file>.
 
-  python3 scripts/gas_budgets.py [--check | --report] [--workspace DIR] [--budgets FILE]
-                                 [--no-lock] [--from-output FILE]
+  python3 scripts/gas_budgets.py [--check | --report | --self-test] [--workspace DIR]
+                                 [--budgets FILE] [--no-lock] [--from-output FILE]
 
 --no-lock runs snforge directly (the CI has no build lock). --from-output reads a saved snforge
 output instead of running the tests (debugging).
@@ -35,15 +52,22 @@ import re
 import subprocess
 import sys
 import tomllib
+import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RESULT = re.compile(
-    r"^\[(PASS|FAIL)\]\s+(\S+)\s+\(l1_gas: ~(\d+), l1_data_gas: ~(\d+), l2_gas: ~(\d+)\)"
+PLAIN = re.compile(
+    r"^\[(PASS)\]\s+(\S+)\s+\(l1_gas: ~(\d+), l1_data_gas: ~(\d+), l2_gas: ~(\d+)\)"
 )
+FUZZ = re.compile(
+    r"^\[PASS\]\s+(\S+)\s+\(runs: \d+, \(l1_gas: \{max: ~(\d+)[^)]*?l1_data_gas: \{max: ~(\d+)"
+    r"[^)]*?l2_gas: \{max: ~(\d+)"
+)
+FAIL = re.compile(r"^\[FAIL\]\s+(\S+)")
 COLLECTED = re.compile(r"^Collected \d+ test\(s\) from (\S+) package")
-BUDGET = re.compile(r"#\[available_gas\(\s*l2_gas:\s*(\d+)\s*\)\]")
-ATTR = re.compile(r"#\[[^\]]*\]")
-FN = re.compile(r"^\s*(?:pub\s+)?fn\s+(\w+)")
+BUDGET = re.compile(r"#\[\s*available_gas\(\s*l2_gas:\s*(\d+)\s*\)\s*\]")
+RAISED = re.compile(r"^//\s*gas:\s*raised,\s*(\S.*)$")
+TOKEN = re.compile(r"#\[[^\]]*\]|\bmod\s+(\w+)\s*\{|\bfn\s+(\w+)|[{};]")
+BLANK = re.compile(r"//[^\n]*|'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"")
 MARKER = "<!-- generated by scripts/gas_budgets.py: do not edit by hand -->"
 
 
@@ -52,9 +76,194 @@ def budget_for(measured):
     return (measured * 105 + 99) // 100
 
 
-def run(cmd, cwd):
+def run(cmd, cwd=ROOT):
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
 
+
+# ---------------------------------------------------------------- sources
+
+class Decl:
+    """A declared test function: full path, budget, and what the attributes say."""
+
+    def __init__(self, key, file, budget, line, reason, ignored, cases, gated):
+        self.key, self.file, self.budget, self.line = key, file, budget, line
+        self.reason, self.ignored, self.cases, self.gated = reason, ignored, cases, gated
+
+
+def parse_source(text, prefix, file="<source>"):
+    """Declared tests of one source file; `prefix` is the module path of the file itself."""
+    comments = {}
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("//"):
+            comments[n] = line.strip()
+    clean = BLANK.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+    decls, stack, pending = [], [], []  # stack: (module name or None, gated)
+    for m in TOKEN.finditer(clean):
+        tok = m.group(0)
+        if tok.startswith("#["):
+            pending.append((tok, m.start()))
+        elif m.group(1):
+            gated = any(_gates(a) for a, _ in pending)
+            stack.append((m.group(1), gated))
+            pending = []
+        elif m.group(2):
+            attrs = [a for a, _ in pending]
+            is_test = any(re.fullmatch(r"#\[\s*test\s*\]", a) or a.startswith("#[test_case") for a in attrs)
+            if is_test:
+                budget, line, reason = None, None, None
+                for a, pos in pending:
+                    b = BUDGET.fullmatch(a)
+                    if b:
+                        budget = int(b.group(1))
+                        line = clean.count("\n", 0, pos) + 1
+                        r = RAISED.match(comments.get(line - 1, ""))
+                        reason = r.group(1).strip() if r else None
+                mods = [n for n, _ in stack if n]
+                decls.append(
+                    Decl(
+                        "::".join(prefix + mods + [m.group(2)]),
+                        file,
+                        budget,
+                        line,
+                        reason,
+                        any(re.fullmatch(r"#\[\s*ignore\s*\]", a) for a in attrs),
+                        sum(a.startswith("#[test_case") for a in attrs),
+                        any(g for _, g in stack) or any(_gates(a) for a in attrs),
+                    )
+                )
+            pending = []
+        elif tok == "{":
+            stack.append((None, False))
+            pending = []
+        elif tok == "}":
+            if stack:
+                stack.pop()
+            pending = []
+        else:  # ;
+            pending = []
+    return decls
+
+
+def _gates(attr):
+    """True for a cfg attribute other than the plain `cfg(test)` (not evaluated here)."""
+    return attr.startswith("#[cfg(") and re.sub(r"\s+", "", attr) != "#[cfg(test)]"
+
+
+def package_decls(pkg_dir):
+    """Declared tests of a package: src/ (unit tests) and tests/ (integration tests)."""
+    decls = []
+    for sub in ("src", "tests"):
+        base = os.path.join(pkg_dir, sub)
+        for path in sorted(glob.glob(os.path.join(base, "**", "*.cairo"), recursive=True)):
+            segs = os.path.splitext(os.path.relpath(path, base))[0].split(os.sep)
+            if segs == ["lib"]:
+                segs = []
+            with open(path) as f:
+                decls += parse_source(f.read(), segs, os.path.relpath(path, ROOT))
+    return decls
+
+
+# ---------------------------------------------------------------- snforge output
+
+def parse_output(text):
+    """[(package, test path, l1, l1 data, l2)] of the passed tests (l2 is the max over the runs
+    of a fuzz test); raises on a failed one. Paths lose the target prefix (`<pkg>_integrationtest::`
+    or `<pkg>::`), so they read `module::test`."""
+    rows, package, failed = [], None, []
+    for line in text.splitlines():
+        m = COLLECTED.match(line)
+        if m:
+            package = m.group(1)
+            continue
+        m = FAIL.match(line)
+        if m:
+            failed.append(m.group(1))
+            continue
+        m = PLAIN.match(line)
+        if m:
+            _, name, l1, l1d, l2 = m.groups()
+        else:
+            m = FUZZ.match(line)
+            if not m:
+                continue
+            name, l1, l1d, l2 = m.groups()
+        if package is None:
+            raise SystemExit(f"test {name} came before any 'Collected ... package' line")
+        for prefix in (f"{package}_integrationtest::", f"{package}::"):
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                break
+        rows.append((package, name, int(l1), int(l1d), int(l2)))
+    if failed:
+        raise SystemExit("failed tests (a budget exceeded is a failed test):\n  " + "\n  ".join(failed))
+    return rows
+
+
+# ---------------------------------------------------------------- analysis
+
+def analyse(package, decls, measured, baseline=None):
+    """(rows, problems, notes) of one package. `measured` is [(test path, l1, l1d, l2)];
+    `baseline` is {(package, test): budget} of origin/main, or None when unknown."""
+    problems, notes, rows = [], [], []
+    by_key = {}
+    for d in decls:
+        by_key.setdefault(d.key, []).append(d)
+    for key, ds in by_key.items():
+        if len(ds) > 1:
+            problems.append(f"{package}::{key}: declared {len(ds)} times ({', '.join(d.file for d in ds)})")
+    mapped = {d.key: [] for d in decls}
+    for name, l1, l1d, l2 in measured:
+        d = by_key.get(name, [None])[0]
+        if d is None:  # a generated #[test_case] name: <function>_<arguments>
+            cands = [c for c in decls if c.cases and name.startswith(c.key + "_")]
+            d = max(cands, key=lambda c: len(c.key), default=None)
+        if d is None:
+            problems.append(f"{package}::{name}: measured, but no #[test] declaration found in the sources")
+            continue
+        mapped[d.key].append((name, l1, l1d, l2))
+    for d in decls:
+        full = f"{package}::{d.key}"
+        where = f"{d.file}"
+        got = mapped[d.key]
+        if d.budget is None and (got or not d.gated):
+            problems.append(f"{full}: no #[available_gas(l2_gas: N)] ({where})")
+        if not got:
+            if d.ignored:
+                rows.append(_row(package, d.key, None, d, 0, 0))
+            elif d.gated:
+                notes.append(f"{full}: cfg-gated, not checked")
+            else:
+                problems.append(f"{full}: declared #[test] but not measured by the run ({where})")
+            continue
+        if d.cases and len(got) != d.cases:
+            problems.append(f"{full}: {d.cases} #[test_case] declared, {len(got)} measured")
+        for name, l1, l1d, l2 in got:
+            rows.append(_row(package, name, l2, d, l1, l1d))
+        if d.budget is not None:
+            top = max(g[3] for g in got)
+            if d.budget > budget_for(top):
+                problems.append(
+                    f"{full}: budget {d.budget} is loose, measured {top} allows {budget_for(top)} "
+                    f"(ceil(1.05 x measured))"
+                )
+    for r in rows:
+        old = (baseline or {}).get((package, r["test"]))
+        if r["budget"] is not None and old is not None and r["budget"] > old:
+            r["raised"] = r["reason"] or ""
+            if not r["reason"]:
+                problems.append(
+                    f"{package}::{r['test']}: budget raised {old} -> {r['budget']} without a "
+                    f"`// gas: raised, <reason>` line just above the #[available_gas] attribute"
+                )
+    return rows, problems, notes
+
+
+def _row(package, test, l2, d, l1, l1d):
+    return {"package": package, "test": test, "measured": l2, "budget": d.budget, "l1": l1,
+            "l1d": l1d, "reason": d.reason}
+
+
+# ---------------------------------------------------------------- workspace, git, files
 
 def workspace_packages(ws):
     """{package name: directory} of the members of the workspace at ws (a repository path)."""
@@ -70,113 +279,15 @@ def workspace_packages(ws):
     return packages
 
 
-def parse_output(text):
-    """[(package, test path, l1, l1 data, l2)] of the passed tests; raises on a failed one."""
-    rows, package, failed = [], None, []
-    for line in text.splitlines():
-        m = COLLECTED.match(line)
-        if m:
-            package = m.group(1)
-            continue
-        m = RESULT.match(line)
-        if not m:
-            continue
-        status, name, l1, l1d, l2 = m.groups()
-        if status == "FAIL":
-            failed.append(name)
-        elif package is None:
-            raise SystemExit(f"test {name} came before any 'Collected ... package' line")
-        else:
-            name = re.sub(r"^\w+?_(?:integrationtest|unittest)::", "", name, count=1)
-            rows.append((package, name, int(l1), int(l1d), int(l2)))
-    if failed:
-        raise SystemExit("failed tests (a budget exceeded is a failed test):\n  " + "\n  ".join(failed))
-    return rows
-
-
-def declared_tests(path):
-    """{function: (budget or None, ignored)} of the `#[test]` functions of one source file."""
-    tests, pending = {}, []
-    with open(path) as f:
-        for raw in f:
-            line = raw.split("//")[0]
-            attrs = ATTR.findall(line)
-            if attrs:
-                pending += attrs
-                continue
-            m = FN.match(line)
-            if m:
-                if "#[test]" in pending:
-                    b = next((BUDGET.fullmatch(a) for a in pending if BUDGET.fullmatch(a)), None)
-                    tests[m.group(1)] = (int(b.group(1)) if b else None, "#[ignore]" in pending)
-                pending = []
-            elif line.strip():
-                pending = []
-    return tests
-
-
-def package_tests(pkg_dir):
-    """{function: [(file stem, budget, ignored)]} over the package's src/ and tests/."""
-    found = {}
-    for sub in ("src", "tests"):
-        for path in sorted(glob.glob(os.path.join(pkg_dir, sub, "**", "*.cairo"), recursive=True)):
-            stem = os.path.splitext(os.path.basename(path))[0]
-            for fn, (budget, ignored) in declared_tests(path).items():
-                found.setdefault(fn, []).append((stem, budget, ignored))
-    return found
-
-
-def collect(ws, output):
-    """(rows, problems): rows are dicts of package, test, measured, budget, l1, l1d."""
-    packages = workspace_packages(ws)
-    declared = {name: package_tests(path) for name, path in packages.items()}
-    measured, problems, rows = {}, [], []
-    for package, test, l1, l1d, l2 in parse_output(output):
-        if package not in packages:
-            continue
-        measured[(package, test)] = True
-        segments = test.split("::")
-        cands = declared[package].get(segments[-1], [])
-        by_stem = [c for c in cands if c[0] in segments[:-1]]
-        pick = by_stem if by_stem else cands
-        if len(pick) != 1:
-            problems.append(f"{package}::{test}: cannot tell which source function this is")
-            budget = None
-        else:
-            budget = pick[0][1]
-        rows.append(
-            {"package": package, "test": test, "measured": l2, "budget": budget, "l1": l1, "l1d": l1d}
-        )
-        if budget is None:
-            problems.append(f"{package}::{test}: no #[available_gas(l2_gas: N)]")
-        elif budget > budget_for(l2):
-            problems.append(
-                f"{package}::{test}: budget {budget} is loose, measured {l2} allows "
-                f"{budget_for(l2)} (ceil(1.05 x measured))"
-            )
-    seen = {(r["package"], r["test"].split("::")[-1]) for r in rows}
-    for package, fns in declared.items():
-        for fn, cands in fns.items():
-            if any(not ign for _, _, ign in cands) and (package, fn) not in seen:
-                problems.append(f"{package}::{fn}: declared #[test] but not measured by the run")
-    rows.sort(key=lambda r: (r["package"], r["test"]))
-    return rows, problems, packages
-
-
 def parse_budgets(text):
-    """{(package, test): (measured, budget, date, commit)} from a BUDGETS.md."""
+    """{(package, test): (measured or None if ignored, budget, date, commit)} of a BUDGETS.md."""
     rows = {}
     for line in text.splitlines():
         cells = [c.strip().strip("`") for c in line.strip().strip("|").split("|")]
-        if len(cells) == 6 and cells[2].isdigit() and cells[3].isdigit():
-            rows[(cells[0], cells[1])] = (int(cells[2]), int(cells[3]), cells[4], cells[5])
+        if len(cells) == 6 and (cells[2].isdigit() or cells[2] == "ignored") and cells[3].isdigit():
+            measured = int(cells[2]) if cells[2].isdigit() else None
+            rows[(cells[0], cells[1])] = (measured, int(cells[3]), cells[4], cells[5])
     return rows
-
-
-def head():
-    date = run(["git", "show", "-s", "--format=%cs", "HEAD"], ROOT).stdout.strip()
-    commit = run(["git", "rev-parse", "--short=7", "HEAD"], ROOT).stdout.strip()
-    return date, commit
 
 
 def read(path):
@@ -187,15 +298,58 @@ def read(path):
         return ""
 
 
-def render(rows, previous, ws, packages):
-    """{path: text} of docs/BUDGETS.md-style file and the GAS.md of each package."""
-    date, commit = head()
+def baseline_text(path):
+    """(text, state): state is 'ok' or 'absent' (no such file at origin/main: empty baseline).
+    Any git error exits non-zero."""
+    if run(["git", "rev-parse", "--verify", "-q", "origin/main^{commit}"]).returncode != 0:
+        raise SystemExit("git: origin/main is not known here (git fetch origin main)")
+    t = run(["git", "ls-tree", "origin/main", "--", path])
+    if t.returncode != 0:
+        raise SystemExit(f"git ls-tree origin/main -- {path} failed: {t.stderr.strip()}")
+    if not t.stdout.strip():
+        return "", "absent"
+    s = run(["git", "show", f"origin/main:{path}"])
+    if s.returncode != 0:
+        raise SystemExit(f"git show origin/main:{path} failed: {s.stderr.strip()}")
+    return s.stdout, "ok"
+
+
+def stamp():
+    """(date, short commit) of the merge base of HEAD and origin/main, else of HEAD."""
+    base = run(["git", "merge-base", "HEAD", "origin/main"])
+    ref = base.stdout.strip() if base.returncode == 0 and base.stdout.strip() else "HEAD"
+    date = run(["git", "show", "-s", "--format=%cs", ref]).stdout.strip()
+    commit = run(["git", "rev-parse", "--short=7", ref]).stdout.strip()
+    return date, commit
+
+
+def provenance_ok(date, commit):
+    if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
+        return False
+    if run(["git", "cat-file", "-e", f"{commit}^{{commit}}"]).returncode != 0:
+        return False
+    return run(["git", "show", "-s", "--format=%cs", commit]).stdout.strip() == date
+
+
+def render(rows, previous, ws, packages, keep_invalid):
+    """({path or 'BUDGETS': text}, problems). A row whose measure and budget are unchanged keeps
+    its date and commit if they verify; if not, it is stamped anew (write) or reported (check)."""
+    problems, fresh = [], None
     for r in rows:
         old = previous.get((r["package"], r["test"]))
         if old and old[0] == r["measured"] and old[1] == r["budget"]:
-            r["date"], r["commit"] = old[2], old[3]
-        else:
-            r["date"], r["commit"] = date, commit
+            if provenance_ok(old[2], old[3]):
+                r["date"], r["commit"] = old[2], old[3]
+                continue
+            if keep_invalid:
+                problems.append(
+                    f"{r['package']}::{r['test']}: date {old[2]} / commit {old[3]} do not verify "
+                    f"(commit missing from the history, or its committer date differs)"
+                )
+                r["date"], r["commit"] = old[2], old[3]
+                continue
+        fresh = fresh or stamp()
+        r["date"], r["commit"] = fresh
     budgets = [
         "# Gas budgets",
         "",
@@ -204,15 +358,18 @@ def render(rows, previous, ws, packages):
         f"Source of truth for the cost budgets of `{ws}/` (docs/CAIRO.md §2, OPERATIONS §5). "
         "Written from a test run by `python3 scripts/gas_budgets.py`, checked in the CI by "
         "`--check`; never edit a figure by hand. Measured and budget are l2 gas as snforge "
-        "reports them; budget = ceil(1.05 × measured). Date and commit are those of HEAD when "
-        "the row's figures last changed.",
+        "reports them; budget = ceil(1.05 × measured). A fuzz test's measured figure is the "
+        "maximum l2 gas over its runs (fixed seed); each case of a `#[test_case]` is its own "
+        "row; an `#[ignore]`d test is not measured and its row says `ignored`. Date and commit "
+        "are those of the origin/main commit (merge base) the figures were measured on top of, "
+        "kept while the row's figures do not change.",
         "",
         "| Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |",
         "|---|---|---:|---:|---|---|",
     ]
     for r in rows:
         budgets.append(
-            f"| {r['package']} | `{r['test']}` | {r['measured']} | {r['budget'] or '—'} "
+            f"| {r['package']} | `{r['test']}` | {_m(r)} | {r['budget'] or '—'} "
             f"| {r['date']} | {r['commit']} |"
         )
     out = {"BUDGETS": "\n".join(budgets) + "\n"}
@@ -224,26 +381,33 @@ def render(rows, previous, ws, packages):
             MARKER,
             "",
             "Detail of every test of the package, from the same run as docs/BUDGETS.md. "
-            "Headroom is the budget over the measure.",
+            "Headroom is the budget over the measure (a fuzz test's measure is the maximum over "
+            "its runs).",
             "",
             "| Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |",
             "|---|---:|---:|---:|---:|---:|---|---|",
         ]
         for r in mine:
-            head_room = "—"
-            if r["budget"] is not None:
-                head_room = f"{(r['budget'] - r['measured']) * 100 / r['measured']:.2f} %"
+            room, l1, l1d = "—", "—", "—"
+            if r["measured"] is not None:
+                l1, l1d = r["l1"], r["l1d"]
+                if r["budget"] is not None:
+                    room = f"{(r['budget'] - r['measured']) * 100 / r['measured']:.2f} %"
             gas.append(
-                f"| `{r['test']}` | {r['measured']} | {r['budget'] or '—'} | {head_room} | {r['l1']} "
-                f"| {r['l1d']} | {r['date']} | {r['commit']} |"
+                f"| `{r['test']}` | {_m(r)} | {r['budget'] or '—'} | {room} | {l1} | {l1d} "
+                f"| {r['date']} | {r['commit']} |"
             )
         out[os.path.join(path, "GAS.md")] = "\n".join(gas) + "\n"
-    return out
+    return out, problems
 
 
-def report(rows, base):
+def _m(r):
+    return "ignored" if r["measured"] is None else r["measured"]
+
+
+def report(rows, before):
     """The gas table of a REPORT.md, COMMON §7."""
-    before = parse_budgets(base)
+    before = dict(before)
     lines = [
         "| Entrypoint or algorithm | Before | After | Budget | Note |",
         "|---|---:|---:|---:|---|",
@@ -252,16 +416,35 @@ def report(rows, base):
         old = before.pop((r["package"], r["test"]), None)
         if old is None:
             b, note = "—", "new"
+        elif old[0] is None or r["measured"] is None:
+            b, note = ("—" if old[0] is None else str(old[0])), "ignored" if r["measured"] is None else "now measured"
         elif old[0] == r["measured"]:
             b, note = str(old[0]), "unchanged"
         else:
             b, note = str(old[0]), f"{(r['measured'] - old[0]) * 100 / old[0]:+.1f} %"
+        if r.get("raised") is not None:
+            note = f"raised: {r['raised']}; {note}"
         lines.append(
-            f"| {r['package']}::{r['test']} | {b} | {r['measured']} | {r['budget'] or '—'} | {note} |"
+            f"| {r['package']}::{r['test']} | {b} | {_m(r) if r['measured'] is not None else '—'} "
+            f"| {r['budget'] or '—'} | {note} |"
         )
     for (package, test), old in sorted(before.items()):
-        lines.append(f"| {package}::{test} | {old[0]} | — | — | removed |")
+        lines.append(f"| {package}::{test} | {old[0] if old[0] is not None else '—'} | — | — | removed |")
     return "\n".join(lines) + "\n"
+
+
+def collect(ws, output, baseline=None):
+    packages = workspace_packages(ws)
+    parsed = parse_output(output)
+    rows, problems, notes = [], [], []
+    for package, path in packages.items():
+        mine = [(n, a, b, c) for p, n, a, b, c in parsed if p == package]
+        r, p, n = analyse(package, package_decls(path), mine, baseline)
+        rows += r
+        problems += p
+        notes += n
+    rows.sort(key=lambda r: (r["package"], r["test"]))
+    return rows, problems, notes, packages
 
 
 def main():
@@ -269,17 +452,34 @@ def main():
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--report", action="store_true")
+    mode.add_argument("--self-test", action="store_true")
     ap.add_argument("--workspace", default="contracts")
     ap.add_argument("--budgets", default="docs/BUDGETS.md")
     ap.add_argument("--no-lock", action="store_true")
     ap.add_argument("--from-output")
     args = ap.parse_args()
     os.chdir(ROOT)
+    if args.self_test:
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(SelfTest)
+        sys.exit(0 if unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful() else 1)
+
+    strict = args.check or args.report
+    try:
+        base_text, state = baseline_text(args.budgets)
+    except SystemExit as e:
+        if strict:
+            raise
+        print(f"gas: warning, no baseline ({e}): raises are not checked", file=sys.stderr)
+        base_text, state = "", "unknown"
+    before = parse_budgets(base_text)
+    if state == "absent":
+        print(f"gas: {args.budgets} is absent at origin/main: empty baseline", file=sys.stderr)
+    baseline = {k: v[1] for k, v in before.items()} if state != "unknown" else None
 
     if args.from_output:
         text = read(args.from_output)
     else:
-        cmd = ["snforge", "test", "--workspace"]
+        cmd = ["snforge", "test", "--workspace", "--fuzzer-seed", "1"]
         if not args.no_lock:
             cmd = [os.path.join(ROOT, "scripts", "lock.sh"), "--heavy"] + cmd
         res = run(cmd, os.path.join(ROOT, args.workspace))
@@ -287,16 +487,22 @@ def main():
         if res.returncode != 0:
             sys.stderr.write(text + res.stderr)
             raise SystemExit(f"snforge test failed (exit {res.returncode})")
-    rows, problems, packages = collect(args.workspace, text)
+    rows, problems, notes, packages = collect(args.workspace, text, baseline)
     if not rows:
         raise SystemExit("the run measured no test")
+    for n in notes:
+        print(f"gas: {n}")
 
     if args.report:
-        base = run(["git", "show", f"origin/main:{args.budgets}"], ROOT)
-        sys.stdout.write(report(rows, base.stdout if base.returncode == 0 else ""))
+        if problems:
+            for p in problems:
+                print(f"gas report: {p}", file=sys.stderr)
+            raise SystemExit(1)
+        sys.stdout.write(report(rows, before))
         return
 
-    files = render(rows, parse_budgets(read(args.budgets)), args.workspace, packages)
+    files, more = render(rows, parse_budgets(read(args.budgets)), args.workspace, packages, args.check)
+    problems += more
     files[args.budgets] = files.pop("BUDGETS")
     if args.check:
         for path, text in files.items():
@@ -318,6 +524,128 @@ def main():
         print(f"wrote {path}")
     if problems:
         raise SystemExit(1)
+
+
+# ---------------------------------------------------------------- self-test
+
+SRC = """
+use x::y;
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[available_gas(
+        l2_gas: 1050
+    )]
+    fn test_a() {}
+
+    mod deep {
+        #[test]
+        fn test_a() {}          // same name, other module, no budget
+    }
+}
+
+#[cfg(feature: 'nope')]
+mod gated {
+    #[test]
+    fn test_g() {}
+}
+
+// gas: raised, the reveal now walks 3 chunks
+#[available_gas(l2_gas: 2100)]
+#[test_case(1, 2, 3)]
+#[test_case(4, 5, 9)]
+fn test_sum(a: u8, b: u8, c: u8) {}
+
+#[test]
+#[ignore]
+fn test_slow() {}
+
+#[test]
+#[ignore]
+#[available_gas(l2_gas: 5)]
+fn test_slow_ok() { let s = 'a{b'; }
+"""
+
+OUT = """
+Collected 5 test(s) from pkg package
+Running 5 test(s) from src/
+[PASS] pkg::tests::test_a (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1000)
+[PASS] pkg::tests::deep::test_a (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1000)
+[PASS] pkg_integrationtest::t::test_sum_1_2_3 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2000)
+[PASS] pkg_integrationtest::t::test_sum_4_5_9 (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2000)
+[PASS] pkg::tests::fuzz_it (runs: 5, (l1_gas: {max: ~0, min: ~0, mean: ~0, std deviation: ~0}, \
+l1_data_gas: {max: ~0, min: ~0, mean: ~0, std deviation: ~0}, \
+l2_gas: {max: ~90360, min: ~78720, mean: ~86868, std deviation: ~4656}))
+[IGNORE] pkg::tests::test_slow
+"""
+
+
+class SelfTest(unittest.TestCase):
+    def setUp(self):
+        self.decls = parse_source(SRC, ["t"], "f.cairo")
+        self.keys = {d.key: d for d in self.decls}
+
+    def test_snforge_lines(self):  # 2: fuzz max, plain, failure
+        rows = parse_output(OUT)
+        self.assertIn(("pkg", "tests::fuzz_it", 0, 0, 90360), rows)
+        self.assertIn(("pkg", "t::test_sum_1_2_3", 0, 0, 2000), rows)
+        with self.assertRaises(SystemExit):
+            parse_output("Collected 1 test(s) from pkg package\n[FAIL] pkg::t (runs: 3)\n")
+
+    def test_full_path_keys(self):  # 1
+        self.assertIn("t::tests::test_a", self.keys)
+        self.assertIn("t::tests::deep::test_a", self.keys)
+        self.assertEqual(self.keys["t::tests::test_a"].budget, 1050)  # multiline attribute (5)
+        self.assertIsNone(self.keys["t::tests::deep::test_a"].budget)
+
+    def test_same_name_other_module_is_rejected(self):  # 1
+        rows, problems, _ = analyse("pkg", self.decls, [("t::tests::test_a", 0, 0, 1000),
+                                                        ("t::tests::deep::test_a", 0, 0, 1000)])
+        self.assertTrue(any("t::tests::deep::test_a: no #[available_gas" in p for p in problems))
+        self.assertFalse(any("t::tests::test_a:" in p for p in problems))
+
+    def test_unmeasured_twin_is_not_hidden(self):  # 1
+        _, problems, _ = analyse("pkg", self.decls, [("t::tests::test_a", 0, 0, 1000)])
+        self.assertTrue(any("deep::test_a: declared #[test] but not measured" in p for p in problems))
+
+    def test_cases_map_to_source(self):  # 2
+        rows, problems, _ = analyse("pkg", self.decls, [("t::test_sum_1_2_3", 0, 0, 2000),
+                                                        ("t::test_sum_4_5_9", 0, 0, 2000)])
+        self.assertEqual([r["test"] for r in rows if "test_sum" in r["test"]],
+                         ["t::test_sum_1_2_3", "t::test_sum_4_5_9"])
+        self.assertFalse(any("test_sum" in p for p in problems))
+        _, problems, _ = analyse("pkg", self.decls, [("t::test_sum_1_2_3", 0, 0, 2000)])
+        self.assertTrue(any("2 #[test_case] declared, 1 measured" in p for p in problems))
+
+    def test_ignored_needs_a_budget(self):  # 3
+        rows, problems, _ = analyse("pkg", self.decls, [])
+        self.assertTrue(any("t::test_slow: no #[available_gas" in p for p in problems))
+        ok = [r for r in rows if r["test"] == "t::test_slow_ok"][0]
+        self.assertIsNone(ok["measured"])
+        self.assertEqual(ok["budget"], 5)
+
+    def test_cfg_gated_is_listed(self):  # 5
+        _, problems, notes = analyse("pkg", self.decls, [])
+        self.assertIn("pkg::t::gated::test_g: cfg-gated, not checked", notes)
+        self.assertFalse(any("test_g" in p for p in problems))
+
+    def test_raise_needs_a_reason(self):  # 4
+        d = self.keys["t::test_sum"]
+        self.assertEqual(d.reason, "the reveal now walks 3 chunks")
+        rows, problems, _ = analyse("pkg", self.decls, [("t::test_sum_1_2_3", 0, 0, 2000),
+                                                        ("t::test_sum_4_5_9", 0, 0, 2000)],
+                                    {("pkg", "t::test_sum_1_2_3"): 1000})
+        self.assertFalse(any("test_sum" in p for p in problems))
+        self.assertEqual([r["raised"] for r in rows if "raised" in r],
+                         ["the reveal now walks 3 chunks"])
+        _, problems, _ = analyse("pkg", self.decls, [("t::tests::test_a", 0, 0, 1000),
+                                                     ("t::tests::deep::test_a", 0, 0, 1000)],
+                                 {("pkg", "t::tests::test_a"): 500})
+        self.assertTrue(any("budget raised 500 -> 1050" in p for p in problems))
+
+    def test_loose(self):
+        _, problems, _ = analyse("pkg", self.decls, [("t::tests::test_a", 0, 0, 500)])
+        self.assertTrue(any("t::tests::test_a: budget 1050 is loose" in p for p in problems))
 
 
 if __name__ == "__main__":
