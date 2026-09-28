@@ -1,69 +1,50 @@
-# Status
+# Status — game track
 
-**2026-09-28 21:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 22:45 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+The live state of the game track only. The programme, the decisions and what waits for the owner
+are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 ## Where we are
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-03, SPK-5, SPK-5b, FND-01,
-FND-01b, FND-02, ART-00, SPK-2 (cost), SPK-11 (indexer), **FND-06** (gas tooling), **SPK-1**
-(Sepolia). Running: **SPK-7** (chunked maps, Opus 5.5). **Decision requested** of the project
-manager on the cost threshold (D-129 point 4). Launcher hardening (#48) in re-audit.
+FND-01b, FND-02, FND-06, ART-00, SPK-2, SPK-11, SPK-1. In review: **DES-21** (played batches,
+D-133), **SPK-7** (chunked maps), **SPK-1b** (fixed part of a transaction), launcher PR #48. Next:
+FND-05, SPK-4, then ENG-01 once DES-21 and SPK-7 are merged.
 
 ## What moved
 
 | | |
 |---|---|
-| **SPK-1 merged** | [#45](https://github.com/bal7hazar/grimworld/pull/45): SPK-2's native contracts deployed on Sepolia and measured from the owner's account, 105 transactions, 72.22 test STRK. Expedition **$0.874 / $0.685** at today's mainnet prices: **$0.50 does not hold**; about 1.09M L2 gas of every transaction is account and protocol, more than S1's whole fight budget. p95 to pre-confirmed 2.8 s (met), p50 not decided. `[GPT-6-Astra]` PASS WITH FINDINGS after one fix loop; the two remaining minors fixed by the orchestrator. Secret scan: 0 occurrences of the key or the address anywhere |
-| **Cost decision** | [docs/decisions/2026-09-28-sepolia-verdict.md](docs/decisions/2026-09-28-sepolia-verdict.md), sent to the project manager: recommend reopening the queue in fights (DES, before ENG-01), a narrow SPK-1b on the burner class and a paymaster, and no restated threshold yet |
-| **FND-06 merged** | [#42](https://github.com/bal7hazar/grimworld/pull/42): `scripts/gas_budgets.py` generates `docs/BUDGETS.md` and per-package `GAS.md`; CI fails on a test without budget, a loose budget, an unreasoned raise, a stale file. `[GPT-6-Sol]` PASS WITH FINDINGS after two fix loops. CAIRO §2: one budget per fuzz or parameterized test (the most expensive case); raises agreed by the orchestrator at review |
-| Sepolia account scoped | [#43](https://github.com/bal7hazar/grimworld/pull/43): agents get the account only with `--with-sepolia`; [#48](https://github.com/bal7hazar/grimworld/pull/48) binds it to the brief (in re-audit) |
-| Agent budget enforced | [#46](https://github.com/bal7hazar/grimworld/pull/46): the launcher refuses a launch at 3 agents, after I ran a fourth for one minute (FND-06, stopped and resumed). The audit found gaps (a count that failed open, races between orchestrators): #48 fails closed and serialises count and start under `~/orchestrator/agent-launch.lock`, **which the other tracks' launchers should take too** |
-| D-132 | No sub-agent publishes; COMMON §4 says so |
+| **D-133** | The project manager accepted the three points: fights played on the client and sent in batches (DES-21), SPK-1b added, $0.50 kept as the target |
+| DES-21 | [#49](https://github.com/bal7hazar/grimworld/pull/49): design/02 and design/11 say what a batch is, its size (weight 10, 40M L2 gas as a target ENG-01 proves), when it leaves, unsent actions, reorgs and reverted transactions, reconciliation by views at the receipt's block, the entrypoint `play(instance_id, adventurer_id, sequence, actions[1..10])`, and the ENG-01 and CLI-03 lists. `[GPT-6-Astra]` FAIL (6 majors) → fix loop 1 done; re-audit running |
+| SPK-7 | [#50](https://github.com/bal7hazar/grimworld/pull/50): the chunked map adds **760,000 L2 gas** to the worst tick (+14.7 %); reveal of 3 chunks 5.84M; R-12 partly realised, not a blocker. `[GPT-6-Astra]` FAIL (a Python/Cairo flood mismatch with no targets; the fallback unmeasured) → fix loop 1 running; the fallback stays unmeasured by scope amendment (D-133 takes the cost) |
+| SPK-1b | [#51](https://github.com/bal7hazar/grimworld/pull/51): an OpenZeppelin burner's fixed part is 717k L2 gas against 1.09M for the owner's account (1.5×); the fee transfer (455k) bounds any account at about 2.2×; paymasters cost more (1.77× our relayer, 3.35× AVNU's). **D-133's reversal condition is not met.** 44 transactions. Audit queued |
+| Launcher | [#48](https://github.com/bal7hazar/grimworld/pull/48): Sepolia grant bound to the committed brief, the agent count fails closed and runs under a shared launch lock. Past three fix loops: merge escalated to the project manager |
+| Process | Two misses of mine, both without harm: a fourth agent for one minute (now refused by the launcher), and a queue run from a worktree I had switched (launches now run from `orch-launcher`, a worktree on main) |
 
 ## Orchestrators and agents
 
-| Orchestrator | Session | Model (verified) | State |
+| Game agent | Unit | Model (ran) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-7 running; #48 re-audit queued |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)` | `claude-fable-5-1` | LIB-04 running |
+| SPK-7 fix loop 1 | `grimworld-SPK-7-223327` | `claude-opus-5-5` | running |
+| DES-21 re-audit | codex, detached | `gpt-6-astra` | running |
+| SPK-1b audit | codex, detached | `gpt-6-astra` | queued |
 
-| Game agent | Unit | Model (ran) | Profile | Started |
-|---|---|---|---|---|
-| SPK-7 chunked maps | `grimworld-SPK-7-212404` | `claude-opus-5-5` | implement | 21:24 UTC |
-
-Budget (OPERATIONS §3): 3 Grim World agents at a time, audits included. At 21:29 UTC: SPK-7,
-hexmap LIB-04, quiver ARC-03a. Load 7.0, 18 GB available.
-
-## Waiting for the owner
-
-| What | State |
-|---|---|
-| **The registry token reaches every sub-agent.** `SCARB_REGISTRY_AUTH_TOKEN` is in the user-level settings of the machine; the claude CLI injects it into every agent's shell, whatever the launcher does (measured by the library's orchestrator, names only). Profiles deny `scarb publish` as a typed command but cannot stop a program an agent runs. Remedy: take the token out of `~/.claude/settings.json` and keep it where a publication happens (a secret of a GitHub environment with a required reviewer, or a file the owner's own shell reads at release time) | A secret of the owner, used by the owner's other programmes too (D-128). Until then every implement agent is treated as able to publish: small tasks, audited |
-| **Secrets reach every sub-agent of every programme on the machine**: since 20:21 UTC the user-level settings hold the Sepolia account's private key beside the registry token and another programme's API key, (the file itself is restricted to its owner since 2026-09-28, mode 600, done by the owner). The owner confirmed on 2026-09-28 that the Sepolia key controls nothing on mainnet: that residual is accepted. The registry token stays in the settings of the machine: publications are decided by the project manager in the owner's name (D-132), no sub-agent publishes, the launchers empty the token in their agents; the residual (a program an agent runs can read the file) is accepted | Secrets and settings of the machine are the owner's (D-128). Nothing is blocked: SPK-1 is unblocked |
-
-Open without urgency: Q-12, the lore premise.
+Budget (OPERATIONS §3): 3 Grim World agents at a time, enforced by the launcher. At 22:45 UTC:
+SPK-7, AUD-49, quiver ARC-03b. Load 5.6, 20 GB available.
 
 ## Next
 
-1. #48: re-audit `[GPT-6-Sol]`, merge.
-2. SPK-7: review, audit, merge.
-3. FND-05 (with `[GPT-6-Astra]`), SPK-4; then what the project manager decides on the cost
-   threshold (a DES on the queue in fights, SPK-1b).
+1. DES-21 and SPK-1b audits, SPK-7's fix loop and re-audit; merge each on a passing audit.
+2. #48 on the project manager's answer.
+3. FND-05 (with `[GPT-6-Astra]`), SPK-4; ENG-01's brief once DES-21 and SPK-7 are merged.
 
-## For the project manager
+## Decisions needed
 
-C-1 to C-4 answered on 2026-09-28 (#34): C-1 the owner decides on SPK-2's audited native
-figures (they follow); C-2 PLAN corrected; C-3 DES-20 (before CBT-06); C-4
-[docs/decisions/2026-09-28-indexer-scope.md](docs/decisions/2026-09-28-indexer-scope.md), an
-input of SPK-11 and ENG-01.
-
-## Open questions from wave 1 (not blocking)
-
-| # | Question | From | For |
-|---|---|---|---|
-| ART-1 | Display scale: the generated goblins are drawn about twice as large as the pack's units; nothing is resampled. Which on-screen size per caste? | ART-00 | Owner (art direction), before CLI-03 |
-| ART-2 | Slinger placeholder: the Torch Goblin stands in (the pack's slinger is a gnome) | ART-00 | Owner, at the first commission (ART-01) |
-| TC-1 | `CONTEXT.md` §4 and `docs/CAIRO.md` should name Cairo 2.13 / Scarb 2.13.1 / snforge 0.51.2; ADR-0001 option B and ADR-0003's indexer consequence are confirmed by SPK-5 (Slot retired) | SPK-5 | Project manager (documents it owns) |
+| # | What | Sent |
+|---|---|---|
+| 1 | Merge launcher PR #48 now and re-audit after, or hold it for a fourth re-audit ([report](docs/reports/PR-43-46-48-launcher-audit-gpt-6-sol.md)) | 2026-09-28 22:40 |
+| 2 | The other tracks' launchers take `~/orchestrator/agent-launch.lock` around count and start | same message |
 
 ## Blocked
 
@@ -72,16 +53,13 @@ input of SPK-11 and ENG-01.
 | SPK-6 | Real phones: the owner runs the protocol the orchestrator writes |
 | Mainnet | An explicit go from the owner, each time (D-116) |
 
-## Decisions needed
+## Open questions from wave 1 (not blocking)
 
-**D-129 point 4**, the cost threshold on Sepolia's figures: sent to the project manager
-([request](docs/decisions/2026-09-28-sepolia-verdict.md)). G-1 was answered by the owner (D-121: `main` not protected
-for now; the residual of the FND-03 audit's finding F4 is accepted until the gate of Phase 0).
-
-## Open on the owner's side (not blocking)
-
-Q-12 Arcanist sprite or Cleric (Phase 2); reaction to the lore premise (DES-14); Q-08
-registry writers and Q-03 defeat severity (Phase 1).
+| # | Question | From | For |
+|---|---|---|---|
+| ART-1 | Display scale: the generated goblins are drawn about twice as large as the pack's units; nothing is resampled. Which on-screen size per caste? | ART-00 | Owner (art direction), before CLI-03 |
+| ART-2 | Slinger placeholder: the Torch Goblin stands in (the pack's slinger is a gnome) | ART-00 | Owner, at the first commission (ART-01) |
+| TC-1 | `CONTEXT.md` §4 and `docs/CAIRO.md` should name Cairo 2.13 / Scarb 2.13.1 / snforge 0.51.2; ADR-0001 option B and ADR-0003's indexer consequence are confirmed by SPK-5 (Slot retired) | SPK-5 | Project manager (documents it owns) |
 
 ## MVP and version 1
 
