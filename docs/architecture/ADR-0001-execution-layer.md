@@ -1,5 +1,7 @@
 # ADR-0001 — Execution layer
 
+> **Superseded in part by [ADR-0007](ADR-0007-native-starknet.md)** (2026-09-28, D-123): the game is built as native Starknet contracts, without Dojo, Torii or dojo.js. What this document says of them is kept for the record.
+
 | | |
 |---|---|
 | Status | **Accepted by the owner on 2026-09-28**, subject to the Phase 0 spikes. May be revisited later for cost or performance reasons |

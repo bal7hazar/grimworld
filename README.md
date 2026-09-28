@@ -36,7 +36,7 @@ you do** — and every goblin in it is waiting for your next step.
 
 ## Stack (proposed)
 
-Starknet mainnet · Cairo · Dojo · `origami_hexmap` · Torii · Cartridge Controller and
+Starknet mainnet · native Cairo contracts (no Dojo) · `origami_hexmap` · our own indexer · Cartridge Controller and
 vRNG · TypeScript client (PixiJS, Capacitor), mobile first.
 See [ADR-0001](docs/architecture/ADR-0001-execution-layer.md) and
 [ADR-0003](docs/architecture/ADR-0003-client.md).
