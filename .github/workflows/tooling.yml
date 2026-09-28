@@ -1,0 +1,87 @@
+# Minimal CI of the agent tooling (FND-03), so that "merge on green CI" holds from the first pull
+# request. FND-02 builds the real CI of contracts and client beside it.
+name: tooling
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The `assets` submodule is private and never needed here: it is not checked out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          shellcheck scripts/*.sh
+
+      - name: launcher dry-run
+        run: |
+          set -euo pipefail
+          out=$(scripts/agent.sh --dry-run smoke claude sonnet new "x" research)
+          echo "$out"
+          grep -q -- '^claude -p .* --permission-mode acceptEdits --allowedTools ' <<< "$out"
+          if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag in a launch" >&2; exit 1; fi
+          for profile in research audit implement; do
+            for model in sonnet opus fable; do
+              out=$(scripts/agent.sh --dry-run smoke claude "$model" new "x" "$profile")
+              if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag: $profile" >&2; exit 1; fi
+            done
+          done
+          grep -q -- '^# \[Opus 5.5\] smoke resume (implement)' \
+            <<< "$(scripts/agent.sh --dry-run smoke claude opus resume "x" implement)"
+          for model in gpt-6-astra gpt-6-sol gpt-6-luna; do
+            out=$(scripts/agent.sh --dry-run smoke codex "$model" new "x")
+            grep -q -- ' -s read-only ' <<< "$out"
+            if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag: codex" >&2; exit 1; fi
+          done
+          grep -qF -- "-c sandbox_mode=\\\"read-only\\\" " \
+            <<< "$(scripts/agent.sh --dry-run smoke codex gpt-6-sol resume "x" audit 0000)"
+          # Refusals: codex never implements; a model without a known tag is never launched;
+          # only the three named profiles exist.
+          if scripts/agent.sh --dry-run smoke codex gpt-6-sol new "x" implement; then exit 1; fi
+          if scripts/agent.sh --dry-run smoke claude sonnet-4 new "x"; then exit 1; fi
+          if scripts/agent.sh --dry-run smoke claude sonnet new "x" ../profiles/implement; then exit 1; fi
+          # The build lock wraps build and test subcommands only.
+          for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
+            if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi
+          done
+          # Under the heavy lock without the project lock, the order would be reversed: refused.
+          if HEAVY_BUILD_LOCK_HELD=1 scripts/lock.sh scarb build 2> /dev/null; then
+            echo "lock.sh accepted a reversed lock order" >&2; exit 1
+          fi
+
+      - name: no asset file committed (D-73)
+        run: |
+          set -euo pipefail
+          exts='png|jpe?g|gif|webp|bmp|tga|psd|aseprite|ase|kra|svg|wav|ogg|mp3|flac|ttf|otf|woff2?|fnt'
+          files=$(git ls-files | grep -iE "\.($exts)\$" || true)
+          # A sprite atlas descriptor (TexturePacker-style JSON) is derived from the pack too.
+          atlases=$(git ls-files -z '*.json' | xargs -0 -r grep -lE '"frames"[[:space:]]*:' |
+            xargs -r grep -lE '"image"[[:space:]]*:' || true)
+          if [ -n "$files$atlases" ]; then
+            echo "Image, audio, font or atlas files are not allowed in this repository (D-73):" >&2
+            echo "$files $atlases" >&2
+            exit 1
+          fi
+
+      # No pull request moves the submodule pointer: a branch name or a label would prove nothing,
+      # since agents create both. The orchestrator moves it by its own commit on main (OPERATIONS §7).
+      - name: assets pointer unchanged (D-73)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch -q --depth=1 origin "$GITHUB_BASE_REF"
+          base=$(git ls-tree FETCH_HEAD assets | awk '{print $3}')
+          head=$(git ls-tree HEAD assets | awk '{print $3}')
+          if [ "$base" != "$head" ]; then
+            echo "The assets submodule pointer moved ($base -> $head)." >&2
+            exit 1
+          fi

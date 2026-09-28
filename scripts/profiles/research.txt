@@ -1,0 +1,86 @@
+# Profile `research`: read, search, the web, and write a report in the task worktree.
+# Format (read by scripts/agent.sh): one Claude Code permission rule per line; `!rule` is a deny
+# rule (deny wins over allow); `@name` includes the profile `name`; `#` starts a comment.
+# Writing needs no rule: `--permission-mode acceptEdits` approves file edits inside the task
+# worktree only; anything outside it, and anything not listed here, is refused.
+# These lists are guard-rails against mistakes, not a sandbox against a hostile agent.
+
+Read
+Grep
+Glob
+WebSearch
+WebFetch
+
+# Moving around, for compound commands (`cd client && …`).
+Bash(cd *)
+Bash(pwd)
+
+# Read-only shell.
+Bash(ls)
+Bash(ls *)
+Bash(cat *)
+Bash(head *)
+Bash(tail *)
+Bash(wc *)
+Bash(grep *)
+Bash(rg *)
+Bash(find *)
+Bash(tree *)
+Bash(stat *)
+Bash(file *)
+Bash(du *)
+Bash(df *)
+Bash(sort *)
+Bash(uniq *)
+Bash(cut *)
+Bash(diff *)
+Bash(comm *)
+Bash(jq *)
+Bash(echo *)
+Bash(printf *)
+Bash(date*)
+Bash(which *)
+Bash(uname *)
+Bash(nproc)
+Bash(free *)
+Bash(uptime)
+Bash(pgrep *)
+Bash(ps *)
+
+# Repository history and pull requests, read-only.
+Bash(git status*)
+Bash(git log*)
+Bash(git show*)
+Bash(git diff*)
+Bash(git blame *)
+Bash(git ls-files*)
+Bash(git rev-parse *)
+Bash(git branch --show-current)
+Bash(git remote -v)
+Bash(gh pr view*)
+Bash(gh pr diff*)
+Bash(gh pr list*)
+Bash(gh issue view*)
+Bash(gh issue list*)
+Bash(gh repo view*)
+Bash(gh release view*)
+Bash(gh release list*)
+
+# Tool versions.
+Bash(scarb --version)
+Bash(snforge --version)
+Bash(sozo --version)
+Bash(katana --version)
+Bash(torii --version)
+Bash(node --version)
+Bash(pnpm --version)
+Bash(asdf --version)
+Bash(asdf current*)
+Bash(asdf list*)
+
+# `find` can delete and execute.
+!Bash(find * -delete*)
+!Bash(find * -exec*)
+!Bash(find * -ok*)
+!Bash(find * -fprint*)
+!Bash(find * -fls*)

@@ -1,0 +1,107 @@
+# Profile `implement`: everything `audit` grants, plus editing, the project's toolchain, git
+# except force-push, and opening the pull request. Never merging it.
+# Format: see research.txt.
+# The deny rules below stop these actions when they are typed as commands. They do not stop an
+# interpreter, a test or a project script, which can do anything the user can: that is the
+# price of running code. What holds whatever the agent runs is elsewhere: no secret in the
+# agent's environment, the CI checks (assets), and the protection of `main` on GitHub.
+
+@audit
+
+# Toolchain.
+Bash(scripts/lock.sh *)
+Bash(scarb *)
+Bash(snforge *)
+Bash(sozo *)
+Bash(katana *)
+Bash(torii *)
+Bash(pnpm *)
+Bash(node *)
+Bash(asdf install*)
+Bash(asdf plugin add *)
+Bash(asdf plugin list*)
+Bash(asdf set *)
+Bash(asdf where *)
+Bash(asdf latest *)
+Bash(python3 *)
+Bash(curl *)
+Bash(tar *)
+Bash(unzip *)
+
+# Project scripts and tools (tools/<name>/.venv/bin/… included).
+Bash(scripts/*)
+Bash(./scripts/*)
+Bash(bash scripts/*)
+Bash(tools/*)
+Bash(./tools/*)
+
+# Files: no rule for mkdir, touch, cp, mv, rm. `acceptEdits` approves them inside the worktree
+# and refuses them outside it, resolving quotes, $HOME and `..` (tested 2026-09-28); a prefix
+# rule here would override that check. Edits go through the Edit and Write tools.
+Bash(chmod +x *)
+Bash(sed -n *)
+
+# git and the pull request.
+Bash(git add *)
+Bash(git commit *)
+# Pushing: exactly these two forms (COMMON.md §6). Any other form (a refspec, a flag, a
+# colon deleting a remote branch) is refused as unlisted.
+Bash(git push)
+Bash(git push -u origin HEAD)
+Bash(git fetch*)
+Bash(git merge *)
+Bash(git checkout *)
+Bash(git switch *)
+Bash(git restore *)
+Bash(git reset *)
+Bash(git mv *)
+Bash(git rm *)
+Bash(git branch *)
+Bash(gh pr create*)
+Bash(gh pr edit*)
+Bash(gh pr comment*)
+
+# Never: rebase (a branch that needs it merges origin/main instead), skip hooks, merge or
+# close the pull request, act on another repository, touch the assets submodule, force-add
+# ignored files, use the stash (shared by every worktree), change git configuration.
+!Bash(git commit *--no-verify*)
+!Bash(git commit -n*)
+!Bash(git commit * -n*)
+!Bash(git rebase*)
+!Bash(git stash*)
+!Bash(git config*)
+!Bash(git -C *)
+!Bash(git submodule*)
+!Bash(git add assets*)
+!Bash(git add -f*)
+!Bash(git add * -f*)
+!Bash(git add *--force*)
+!Bash(gh pr merge*)
+!Bash(gh pr close*)
+!Bash(gh api*)
+
+# Never: change the machine's shared toolchain (other programmes use it) or its build shims.
+!Bash(asdf set -u*)
+!Bash(asdf set --home*)
+!Bash(asdf set -p*)
+!Bash(asdf set --parent*)
+!Bash(asdf uninstall*)
+!Bash(asdf plugin remove*)
+!Bash(* ~/.local/bin*)
+!Bash(* $HOME/.local/bin*)
+!Bash(* /home/claude/.local/bin*)
+!Bash(* ~/orchestrator*)
+!Bash(* $HOME/orchestrator*)
+!Bash(* /home/claude/orchestrator*)
+
+# Never: delete outside the worktree. `acceptEdits` already refuses it; these rules are a
+# second line should an allow rule ever cover rm.
+!Bash(rm /*)
+!Bash(rm * /*)
+!Bash(rm ~*)
+!Bash(rm * ~*)
+!Bash(rm $HOME*)
+!Bash(rm * $HOME*)
+!Bash(rm ..*)
+!Bash(rm * ..*)
+!Bash(rm *../*)
