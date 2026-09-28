@@ -95,8 +95,15 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
   id.
 - **The chain is invisible** (D-100): no fee, wallet, signature, transaction or token reaches
   the player's screen or text.
-- **Test networks only.** Nothing is deployed anywhere but a local Katana unless the brief
-  says so; deployments to Sepolia are the orchestrator's; mainnet is never touched.
+- **Test networks only.** Nothing is deployed anywhere but the local node unless the brief
+  says so; mainnet is never touched.
+- **Sepolia, when a brief grants it** (launched with `--with-sepolia`; OPERATIONS §7): the account
+  comes as variables used **by name only** (`STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS`,
+  `STARKNET_PRIVATE_KEY`, `STARKNET_NETWORK`): never print, log, echo or write a value. Every
+  script that sends a transaction first asks the RPC for its chain id and stops unless it is
+  `SN_SEPOLIA`; set a usual `User-Agent` header (the endpoint refuses requests without one). The
+  balance is the owner's money: measure, do not loop, and report how many transactions were sent
+  and their total cost. Without `--with-sepolia` these variables are empty in your environment.
 
 ## 5. Assets (D-73)
 
