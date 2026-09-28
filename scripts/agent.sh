@@ -297,7 +297,8 @@ esac
 # the account.
 # shellcheck disable=SC2016 # the backquotes are literal text of the brief
 GRANT='> Sepolia account: granted (launch with `--with-sepolia`).'
-ref=${GW_BRIEF_REF:-origin/main}   # CI checks a pull request's own briefs with GW_BRIEF_REF=HEAD
+ref=origin/main   # a real launch reads the grant from origin/main, whatever the environment says
+if [ "$dry" = 1 ]; then ref=${GW_BRIEF_REF:-origin/main}; fi   # CI's dry runs: GW_BRIEF_REF=HEAD
 if [ "$sepolia" = 1 ]; then
   briefs=()
   while read -r b; do
@@ -379,7 +380,10 @@ fi
 # calling session and keeps its sandbox; a restart of the desktop app kills it, and it is then
 # resumed (`codex exec resume`). An agent without sandbox is never the answer.
 use_unit=0
-if [ "$cli" = claude ] && systemctl --user list-units > /dev/null 2>&1; then use_unit=1; fi
+if [ "$cli" = claude ]; then
+  systemctl --user list-units > /dev/null 2>&1 || die "no systemd user manager: a claude agent is never detached (OPERATIONS §3)"
+  use_unit=1
+fi
 
 echo "$profile" > "$L/$task.profile"
 echo "$cli $model_id" > "$L/$task.cli"

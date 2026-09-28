@@ -88,6 +88,9 @@ jobs:
           if scripts/agent.sh --dry-run --with-sepolia tokenprobe claude opus resume "x" implement; then exit 1; fi
           # a brief that grants the account for another profile does not grant it for this one
           if scripts/agent.sh --dry-run --with-sepolia SPK-1 claude opus resume "x" research; then exit 1; fi
+          # GW_BRIEF_REF is honoured by dry runs only: a real launch reads the grant from origin/main,
+          # which this checkout does not have, so it refuses before any count or worktree (exit 2).
+          set +e; scripts/agent.sh --with-sepolia SPK-1 claude opus resume "x" implement; s=$?; set -e; [ "$s" = 2 ]
           if grep -qF -- "$only_token" <<< "$(scripts/agent.sh --dry-run sepnew claude opus new "x" implement)"; then exit 1; fi
           if scripts/agent.sh --dry-run --with-sepolia sepcodex codex gpt-6-sol new "x"; then exit 1; fi
           date > "$logs/SPK-1.sepolia"
@@ -112,12 +115,12 @@ jobs:
           set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
           # Detached agents from the launchers' pid files, in a fake HOME: two launches in one directory
           # count once; a pid file whose live process is not its launch (a reused pid) does not count.
-          flogs=$fake/projects/grimworld/.claude/worktrees/logs; mkdir -p "$flogs" "$fake/projects/grimworld/wt"
+          flogs=$fake/projects/grimworld/.claude/worktrees/logs; mkdir -p "$flogs" "$fake/projects/grimworld/wt" "$fake/projects/grimworld/wt2"
           stub pgrep 'exit 1'
           stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
           (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/one.log") & echo $! > "$flogs/one.pid"
           (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/two.log") & echo $! > "$flogs/two.pid"
-          sleep 120 & echo $! > "$flogs/reused.pid"
+          (cd "$fake/projects/grimworld/wt2" && exec sleep 120) & echo $! > "$flogs/reused.pid"   # right directory, not its launch
           set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
           echo "$out"; [ "$s" = 4 ]; grep -qF '3 Grim World agents running (2 units, 1 detached)' <<< "$out"
           # The launch lock: while another launcher holds it, a launch waits (killed by timeout: 124);
