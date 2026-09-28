@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Grim World launcher: start or resume a sub-agent in its task worktree, as a transient systemd
-# user unit, outside the process tree and the cgroup of the calling session (a restart of the
-# desktop app must not kill it). Falls back to `setsid nohup` where there is no systemd user
-# manager. Ported from the owner's glam-cairo launcher, with one deliberate difference: agents
-# never run with --dangerously-skip-permissions. Each launch uses a committed profile
+# Grim World launcher: start or resume a sub-agent in its task worktree. claude agents run as
+# transient systemd user units, outside the process tree and the cgroup of the calling session
+# (a restart of the desktop app must not kill them), or detached with `setsid nohup` where there
+# is no systemd user manager; codex auditors are always detached with setsid (see the note at
+# the launch below). Ported from the owner's glam-cairo launcher, with one deliberate
+# difference: agents never run with --dangerously-skip-permissions. Each launch uses a committed profile
 # (scripts/profiles/<profile>.txt) that becomes
 # `--permission-mode acceptEdits --allowedTools … --disallowedTools …`; codex always runs in its
 # read-only sandbox (codex audits, it never implements). See OPERATIONS.md §4 and
@@ -27,7 +28,7 @@
 # files, under <main checkout>/.claude/worktrees/:
 #   cli-<task>/            the task worktree
 #   logs/<task>.log        the agent's output; each run ends with a line `exit=<status> <date>`
-#   logs/<task>.unit       the systemd unit (or <task>.pid for the fallback)
+#   logs/<task>.unit       the systemd unit (or <task>.pid when detached with setsid)
 #   logs/<task>.profile    the profile of the launch, reused by `resume`
 #   logs/<task>.last.md    codex only: its last message, i.e. the audit report
 set -euo pipefail
@@ -184,7 +185,7 @@ inner='"$@" < /dev/null >> "$0" 2>&1; echo "exit=$? $(date -u +%FT%TZ)" >> "$0"'
 
 if [ "$dry" = 1 ]; then
   echo "# $desc"
-  echo "# worktree $wt  log $L/$task.log  unit $unit  with-assets=$assets"
+  echo "# worktree $wt  log $L/$task.log  $([ "$cli" = claude ] && echo "unit $unit" || echo "setsid")  with-assets=$assets"
   printf '%q ' "${cmd[@]}"
   echo
   exit 0
@@ -202,16 +203,24 @@ if [ "$assets" = 1 ]; then
   git -C "$wt" submodule update --init assets
 fi
 
+# codex never runs as a unit: its read-only sandbox (bubblewrap) needs an unprivileged user
+# namespace, which this kernel refuses to systemd user units (apparmor_restrict_unprivileged_userns)
+# and allows to the desktop app's own processes. codex is therefore detached with setsid from the
+# calling session and keeps its sandbox; a restart of the desktop app kills it, and it is then
+# resumed (`codex exec resume`). An agent without sandbox is never the answer.
+use_unit=0
+if [ "$cli" = claude ] && systemctl --user list-units > /dev/null 2>&1; then use_unit=1; fi
+
 echo "$profile" > "$L/$task.profile"
-echo "--- $(date -u +%FT%TZ) $desc $cli $model_id unit=$unit" >> "$L/$task.log"
+echo "--- $(date -u +%FT%TZ) $desc $cli $model_id $([ "$use_unit" = 1 ] && echo "unit=$unit" || echo setsid)" >> "$L/$task.log"
 rm -f "$L/$task.unit" "$L/$task.pid"
-if systemctl --user list-units > /dev/null 2>&1; then
+if [ "$use_unit" = 1 ]; then
   "${run[@]}" bash -c "$inner" "$L/$task.log" "${cmd[@]}"
   echo "$unit" > "$L/$task.unit"
   echo "$task: started [$label] as systemd user unit $unit, log $L/$task.log"
 else
   cd "$wt"
-  PATH=$path setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
+  PATH=$path nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
   echo "$!" > "$L/$task.pid"
-  echo "$task: started [$label] detached (no systemd user manager), pid $!, log $L/$task.log"
+  echo "$task: started [$label] detached with setsid, pid $!, log $L/$task.log"
 fi

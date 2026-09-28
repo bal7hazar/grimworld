@@ -140,7 +140,12 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
 
 - **Agents do not run as children of the session.** A restart of the desktop app must not
   kill them (transient systemd user units on Linux; an equivalent detached launch on
-  macOS).
+  macOS). One exception on this VPS: **codex auditors** are detached with `setsid` inside
+  the desktop app's cgroup, because their read-only sandbox (bubblewrap) needs an
+  unprivileged user namespace, which the kernel refuses to systemd user units
+  (`kernel.apparmor_restrict_unprivileged_userns=1`) and allows to the app's processes. An
+  app restart kills a running audit, which is then resumed. Running codex without its
+  sandbox is not an option.
 - **Foreground only.** A headless agent dies when its turn ends with a background command:
   every launch prompt says "foreground only; your turn ends when `REPORT.md` is written".
   Sonnet needs it repeated in the prompt itself; expect to resume a Sonnet agent once.
@@ -190,9 +195,9 @@ never merged by the agent.
 | close | read `REPORT.md` and the log; review the pull request (scope = allowlist, deviations, cost table); run the required audits (§6); `gh pr merge --squash` (no `--delete-branch`); archive the report in `docs/reports/`; `git worktree remove --force`; delete the branch; update `PLAN.md`, `STATUS.md` and the changelog on `main` |
 
 The launcher (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher) starts each
-agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description carries
-the model tag (`[Sonnet 5] SPK-5 new (implement)`), outside the session's cgroup, with a
-`setsid nohup` fallback. It maps the model to its tag and refuses a model it has no tag for.
+`claude` agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description
+carries the model tag (`[Sonnet 5] SPK-5 new (implement)`), outside the session's cgroup, with
+a `setsid nohup` fallback; `codex` is always detached with `setsid` (§3). It maps the model to its tag and refuses a model it has no tag for.
 It appends the foreground rule to every prompt. `--dry-run` prints the command and launches
 nothing. `--with-assets` initialises the `assets` submodule in the task's worktree; by default
 it is not initialised.

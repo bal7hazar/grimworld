@@ -74,6 +74,13 @@ need them: effect catalogue, remaining skills, caste sheets, curves, content lis
 - scarb 2.19.4 compiles a Dojo 1.8.0 project (dependency from scarbs.xyz, prebuilt
   `dojo_cairo_macros`); `sozo`, `katana`, `torii` are still absent (SPK-5).
 - `shellcheck` is not installed on the VPS: it runs in CI.
+- **codex's read-only sandbox does not work in a systemd user unit** on this VPS
+  (`bwrap: loopback: Failed RTM_NEWADDR`, then `setting up uid map: Permission denied`): the
+  kernel restricts unprivileged user namespaces through AppArmor, and only the desktop app's
+  profile allows them. The launcher therefore detaches codex with `setsid` inside the app's
+  cgroup, keeping the sandbox (OPERATIONS §3); an app restart kills a running audit, which is
+  then resumed. A root change (an AppArmor profile for `bwrap`) would let codex run as a unit;
+  not needed today.
 
 ## Not verified
 
