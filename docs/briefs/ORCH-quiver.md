@@ -59,8 +59,9 @@ ARC, docs/, `.gitignore`, a CI that checks at least scripts and links).
 the map library (D-118). The launcher refuses a launch above a 5-minute load of 12 or under
 8 GB available. `claude auth status` must show `claude-b7r` before the first launch.
 
-**Publishing** on scarbs.xyz is outward-facing and cannot be undone: the first publication
-of each package needs the project manager's go, who asks the owner.
+**Publishing** on scarbs.xyz is outward-facing and cannot be undone: every publication
+needs the project manager's go, who decides in the owner's name (D-132; procedure in
+the game's `OPERATIONS.md` §7). No sub-agent publishes.
 
 ## 4. First task: ARC-01 — analysis
 

@@ -39,10 +39,10 @@ audit, FND-06. Load 3.9, 22 GB available.
 
 ## Waiting for the owner
 
-| What | Why only the owner |
+| What | State |
 |---|---|
 | **The registry token reaches every sub-agent.** `SCARB_REGISTRY_AUTH_TOKEN` is in the user-level settings of the machine; the claude CLI injects it into every agent's shell, whatever the launcher does (measured by the library's orchestrator, names only). Profiles deny `scarb publish` as a typed command but cannot stop a program an agent runs. Remedy: take the token out of `~/.claude/settings.json` and keep it where a publication happens (a secret of a GitHub environment with a required reviewer, or a file the owner's own shell reads at release time) | A secret of the owner, used by the owner's other programmes too (D-128). Until then every implement agent is treated as able to publish: small tasks, audited |
-| **Secrets reach every sub-agent of every programme on the machine**: since 20:21 UTC the user-level settings hold the Sepolia account's private key beside the registry token and another programme's API key, (the file itself is restricted to its owner since 2026-09-28, mode 600, done by the owner). The owner confirmed on 2026-09-28 that the Sepolia key controls nothing on mainnet: that residual is accepted. Still asked of the owner: where the registry token lives | Secrets and settings of the machine are the owner's (D-128). Nothing is blocked: SPK-1 is unblocked |
+| **Secrets reach every sub-agent of every programme on the machine**: since 20:21 UTC the user-level settings hold the Sepolia account's private key beside the registry token and another programme's API key, (the file itself is restricted to its owner since 2026-09-28, mode 600, done by the owner). The owner confirmed on 2026-09-28 that the Sepolia key controls nothing on mainnet: that residual is accepted. The registry token stays in the settings of the machine: publications are decided by the project manager in the owner's name (D-132), no sub-agent publishes, the launchers empty the token in their agents; the residual (a program an agent runs can read the file) is accepted | Secrets and settings of the machine are the owner's (D-128). Nothing is blocked: SPK-1 is unblocked |
 
 Open without urgency: Q-12, the lore premise.
 
