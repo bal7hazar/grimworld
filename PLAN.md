@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.18, 2026-09-28** (v0.18: **native Starknet, without Dojo** (D-123, ADR-0007): SPK-5b, FND-01b, SPK-11 added, SPK-8 dropped, SPK-2 measures both, N-9 void; v0.17: N-9, the game cannot build `origami_hexmap` 1.8.0 on Dojo's Cairo 2.13: SPK-7 standalone on 2.19, compiler target studied by LIB-03 for L-G2; v0.16: the window follows the adventurer, 15 × 16, not stored (D-120): SPK-7, ENG-07, L-M1 and R-12 follow; v0.15: gate L-G1 decided by the owner: `hexx` ported in full in `hexx-cairo`, `origami_hexmap` decommissioned at the end (D-119); FND-03 done; v0.14: Phase 0 opened by the project manager: M0 reached, IDE-07 closed, orchestrator briefs in `docs/briefs/ORCH-*.md`, ADR-0001/0003 spike rows moved to burner accounts; v0.13: reconciled after the project manager's first report; proposed decisions accepted; spikes moved to burner accounts; v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.19, 2026-09-28** (v0.19: track ARC, the Arcade packages rewritten natively, one repository each (D-124); v0.18: **native Starknet, without Dojo** (D-123, ADR-0007): SPK-5b, FND-01b, SPK-11 added, SPK-8 dropped, SPK-2 measures both, N-9 void; v0.17: N-9, the game cannot build `origami_hexmap` 1.8.0 on Dojo's Cairo 2.13: SPK-7 standalone on 2.19, compiler target studied by LIB-03 for L-G2; v0.16: the window follows the adventurer, 15 × 16, not stored (D-120): SPK-7, ENG-07, L-M1 and R-12 follow; v0.15: gate L-G1 decided by the owner: `hexx` ported in full in `hexx-cairo`, `origami_hexmap` decommissioned at the end (D-119); FND-03 done; v0.14: Phase 0 opened by the project manager: M0 reached, IDE-07 closed, orchestrator briefs in `docs/briefs/ORCH-*.md`, ADR-0001/0003 spike rows moved to burner accounts; v0.13: reconciled after the project manager's first report; proposed decisions accepted; spikes moved to burner accounts; v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -63,7 +63,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, transactions from a burner account (ADR-0003 thresholds, without its Controller and vRNG rows, which move to SPK-9); tile size and zoom for sight of radius 6 | SPK-5 | Opus 5.5 | — | todo |
 | FND-05 | Provider interfaces: `fate(domain)` with the transaction-hash implementation and a deployment check refusing it on mainnet; account provider with the burner implementation | FND-01 | Opus 5.5 | S Q | todo |
 | SPK-9 | **Before version 1.** Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
-| SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | dropped (ADR-0007: the packages are Dojo packages; their edge cases become tests of GLD-02) |
+| SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | dropped (ADR-0007, D-124: replaced by ARC-01 on the native packages) |
 | SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + GPT-6-Astra | S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins; **window of 15 × 16 that follows the adventurer, assembled at each tick** from chunks of 15 × 15 without a loop over rows; shared flood for 8 goblins; goblins crossing chunks; line of sight; all measured. **Worst case of the tick**: 4 chunks overlapped, two layers each (terrain, occupied), 8 awake goblins, **compared with and without a stored window**. Fallback measured if needed: sight 5 on 13 × 14. Runs in the game's workspace on Cairo 2.19 (ADR-0007), with `origami_hexmap` 1.8.0 | SPK-5b | Opus 5.5 | C P | todo |
 | LIB-01 | Map library work needed by the game: see **track LIB** below (milestone L-M1) | — | Hexmap orchestrator | — | todo |
@@ -130,6 +130,31 @@ assumed.
 Generator outputs are API: a change in what a seed produces is a minor version and moves
 the game's test vectors.
 
+## Track ARC — the Arcade packages, native (D-124)
+
+Each package of the owner's Arcade suite that the game uses is **rewritten in a new
+repository of its own, without Dojo: pure Starknet components and pure Cairo**
+(ADR-0007). The game consumes them **by published version**. Same conventions as track LIB:
+`docs/CAIRO.md` in full, a gas budget on every test, results are API.
+
+| | |
+|---|---|
+| Reference | `cartridge-gg/arcade`, `packages/quest` and `packages/achievement` (MIT by the owner's statement; ADR-0004 lists what to settle: the licence file, event mode untested, the quest edge cases) |
+| Shape | The logic as a Cairo library without storage; a Starknet component around it with storage, events and hooks; no world, no model |
+| Order | `quest` (needed by GLD-02, Phase 3), then `achievement` (titles); `leaderboard` and `social` after the MVP |
+| Orchestrator | One for the track, created by the project manager when the repositories exist and a slot of the budget is free |
+| Interface with the game | The game writes its needs in `docs/needs/arcade.md`; the track answers by releases |
+
+| ID | Task | Depends on | Executor | Audits | Status |
+|---|---|---|---|---|---|
+| ARC-00 | Repositories created, names and visibility by the owner | — | Owner / project manager | — | todo |
+| ARC-01 | **Analysis** of `quest` and `achievement` as they are: data model, modes, hooks, the edge cases of ADR-0004, what depends on Dojo; API of the native packages; what Grim World needs first (quests one-shot and daily, prerequisites, progress keyed by adventurer id, claim hook; titles with tiers) | ARC-00 | Opus 5.5, research | GPT-6-Sol | todo |
+| **Gate A-G1** | **Is the API accepted?** Owner's decision | ARC-01 | Owner | — | — |
+| ARC-02 | Repository, CI, gas tooling, publication pipeline, for `quest` | A-G1 | Sonnet 5 | GPT-6-Luna | todo |
+| ARC-03 | `quest`: implementation, test-driven; released on scarbs.xyz | ARC-02 | Opus 5.5 | GPT-6-Astra (access control, ownership) | todo |
+| ARC-04 | `achievement`: repository, implementation, release | ARC-03 | Opus 5.5 | GPT-6-Astra | todo |
+| ARC-05 | `leaderboard`, `social` | After the MVP | — | — | todo |
+
 ## Phase 1 — Walking skeleton
 
 | ID | Task | Depends on | Executor | Audits | Status |
@@ -173,7 +198,7 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
 | GLD-01 | XP, level, attribute points | Phase 2 | Opus 5.5 | D S Q | todo |
-| GLD-02 | Quest registry, board, accept / progress / claim, written as a Starknet component modelled on the Arcade `quest` package (ADR-0007); its edge cases (ADR-0004, points 4 and 5) are test cases | Phase 2 | Opus 5.5 | D S C Q | todo |
+| GLD-02 | Quest registry, board, accept / progress / claim, on the **native `quest` package** (track ARC, D-124) in storage mode; the reward hook is the game's | Phase 2, ARC-03 | Opus 5.5 | D S C Q | todo |
 | GLD-03 | Objective tracking through the results interface: kill, reach, hand-in | GLD-02 | Opus 5.5 | D S P Q | todo |
 | GLD-04 | Merit, ranks, gates by rank | GLD-02 | Opus 5.5 | D S Q | todo |
 | GLD-05 | Promotion trials: guild quest in a fixed-seed dungeon | GLD-04 | Opus 5.5 | D S Q | todo |
@@ -306,4 +331,5 @@ the owner, and **due before the phase that consumes it**.
 | R-20 | The indexer is ours to build, host and watch; a fault in it shows wrong markets and rankings | High | Medium | Not on the path of a move; rebuilt from the chain; SPK-11 before CLI-01; rewind on reorg | Phase 0–1, 7 |
 | R-21 | Access control and upgrades are our code: a missing check is an exploit | Medium | High | Rules in ADR-0007; security lens and `[GPT-6-Astra]` on every lot touching it; external audit | Every phase |
 | R-22 | A contract exceeds the class size limit as features are added | Medium | Medium | Boundaries planned at ENG-01; class size printed in CI | Phase 1–4 |
+| R-23 | A third track (ARC) shares a budget of 3 agents with the game and the map library; the career loop waits for `quest` | Medium | Medium | `quest` only before Phase 3; analysis first; the owner may raise the budget | Phase 2–3 |
 | R-8 | Solo-only launch closes the co-op door by accident | Medium | High | M-1…M-6 checked by the design lens on every task | Every phase |
