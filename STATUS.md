@@ -1,37 +1,37 @@
 # Status
 
-**2026-09-28 16:05 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 16:22 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations.** FND-03 and SPK-5 merged. Running: **FND-01** (repository
-scaffold, Sonnet 5) and **SPK-2** (cost spike, Opus 5.5). ART-00 is done except its PixiJS
-check and resumes when a game slot frees.
+**Phase 0 — Foundations.** Merged: FND-03, SPK-5, FND-01, ART-00. Running: **SPK-2** (cost
+spike, Opus 5.5) and **FND-02** (CI, Sonnet 5). SPK-7 briefed on Cairo 2.19 (D-122); FND-05,
+SPK-4, SPK-8 to brief.
 
 ## What moved
 
 | | |
 |---|---|
-| SPK-5 merged | [#14](https://github.com/bal7hazar/grimworld/pull/14), `[Sonnet 5]`: **the game is on Cairo 2.13** (Scarb 2.13.1, snforge 0.51.2) and Dojo 1.8 (sozo 1.8.7, Katana 1.7.1, Torii 1.8.16, `dojo` 1.8.0), Node 24.21.0, pnpm 12.5.1, dojo.js 2.0.0; `scripts/setup-toolchain.sh`, `scripts/with-katana.sh`; Slot retired, Torii self-hosted. Audit `[GPT-6-Sol]` PASS WITH FINDINGS after three fix loops; checksums of asdf-plugin downloads deferred as HRD-10. [Report](docs/reports/SPK-5-toolchain.md), [audit](docs/reports/SPK-5-audit-gpt-6-sol.md) |
-| Launcher thresholds merged | [#11](https://github.com/bal7hazar/grimworld/pull/11): no agent starts above a 5-minute load of 12 or under 8 GB available |
-| Owner decisions applied to briefs | D-120 (window 15 × 16, follows the adventurer, not stored) in [SPK-2](docs/briefs/SPK-2-cost.md); [SPK-7](docs/briefs/SPK-7-chunked-maps.md) written from PLAN v0.16; D-119 (`origami_hexmap` 1.8.0 until `hexx-cairo` is published) in FND-01 and SPK-7 |
-| ART-00 | [#12](https://github.com/bal7hazar/grimworld/pull/12) open: IP check clean; AC-4 (PixiJS load) pending, now possible with the pinned pnpm |
-| Incident | [INC-2026-09-28](docs/reports/INC-2026-09-28-asdf-node-shims.md) still open (owner). `setup-toolchain.sh` no longer adds the Node or pnpm plugin when the system versions match the pins |
+| FND-01 merged | [#18](https://github.com/bal7hazar/grimworld/pull/18): `contracts/` (two namespaces, layering), `client/` (`sim` apart from `app`, PixiJS on demand). Audit `[GPT-6-Sol]` PASS WITH FINDINGS. **Found N-9**: `origami_hexmap` 1.8.0 cannot build on Cairo 2.13; arbitrated by the project manager (D-122) |
+| ART-00 merged | [#12](https://github.com/bal7hazar/grimworld/pull/12): 8 sprites cleaned and packed outside git; PixiJS 8 parses every animation; [IP check](docs/reports/ART-00-ip-check.md) PASS |
+| SPK-5 merged | [#14](https://github.com/bal7hazar/grimworld/pull/14): Cairo 2.13, Dojo 1.8, Node 24.21, pnpm 12.5.1; Torii self-hosted |
+| Incident closed | [INC-2026-09-28](docs/reports/INC-2026-09-28-asdf-node-shims.md): remedy applied on the owner's order; rule added to COMMON |
+| Briefs | [FND-02](docs/briefs/FND-02-ci.md) (per-package toolchains), [SPK-7](docs/briefs/SPK-7-chunked-maps.md) (standalone on Cairo 2.19, D-122) |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-01 and SPK-2 running; ART-00 waiting for a slot |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | Gate L-G1 decided (D-119). LIB-03 porting plan; next stop: gate L-G2 |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-2 and FND-02 running |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-03 porting plan, now also the compiler target (D-122); next stop: gate L-G2 |
 
-| Game agent | Unit | Model asked | Profile | Started |
+| Game agent | Unit | Model asked / ran | Profile | Started |
 |---|---|---|---|---|
-| FND-01 repository scaffold | `grimworld-FND-01-160350` | `claude-sonnet-5` | implement | 16:03 UTC |
-| SPK-2 cost spike | `grimworld-SPK-2-160353` | `claude-opus-5-5` | implement | 16:03 UTC |
+| SPK-2 cost spike | `grimworld-SPK-2-160353` | `claude-opus-5-5` / `claude-opus-5-5` | implement | 16:03 UTC |
+| FND-02 continuous integration | `grimworld-FND-02-162135` | `claude-sonnet-5` / at close | implement | 16:21 UTC |
 
 Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
-library. Machine at 16:03 UTC: load 3.9, 26 GB available.
+library. Machine at 16:21 UTC: load 7.5, 20 GB available.
 
 Models that actually ran, read from the CLIs' own records (2026-09-28): LIB-02 on
 `claude-opus-5-5`; the FND-03 audits on `gpt-6-sol`, effort high, read-only; launcher smoke
@@ -65,10 +65,9 @@ Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2),
 
 ## Next
 
-1. Close FND-01 and SPK-2 (audits: Q for FND-01, C for SPK-2).
-2. Resume ART-00 for its PixiJS check when a slot frees; then its merge.
-3. Then FND-02 → FND-06 on Sonnet 5; FND-05 (with a `[GPT-6-Astra]` audit), SPK-4, SPK-8 on
-   Opus 5.5; SPK-7 after them.
+1. Close SPK-2 (audit C) and FND-02 (audits S Q).
+2. Briefs of FND-05 (provider interfaces, `[GPT-6-Astra]` audit), SPK-4 (parity), SPK-8 (Arcade
+   packages) on Opus 5.5; then SPK-7; FND-06 after FND-02.
 
 ## Open questions from wave 1 (not blocking)
 
