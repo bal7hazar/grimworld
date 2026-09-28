@@ -7,6 +7,10 @@ pub trait ISetup<T> {
     /// The queue on an instance with its first `goblins` goblins (8: the worst case, 0: plain
     /// exploration), and the windows along its 10 moves.
     fn queue(ref self: T, instance_id: u32, goblins: u8);
+    /// An adversarial tick (fixtures::MAZE, SEALED or DEEP), as `worst_case`.
+    fn board(ref self: T, instance_id: u32);
+    /// The expensive valid queue on the serpentine (fixtures::SERPENT), as `queue`.
+    fn serpent(ref self: T, instance_id: u32);
     /// Adventurers 1 (signed) and 2 (unsigned) in hub 1, the Region 1 book, ingredients.
     fn alchemy(ref self: T);
     /// Adventurer 3 in hub 1, quests 1 (to accept) and 2 (done, to claim), location 10.
@@ -20,12 +24,12 @@ pub mod setup {
         REGION_1_MASKS, REGION_1_PAIRS, REGION_1_RARITIES, REGION_1_RECIPES, REGION_1_REMAINING,
     };
     use spk2::fixtures::{
-        COMB, PILLARS, QUEUE_LENGTH, START_X, START_Y, adventurer, queue_goblins, window,
-        worst_goblins,
+        COMB, PILLARS, QUEUE_LENGTH, SERPENTINE, START_X, START_Y, adventurer, board,
+        queue_goblins, serpent_goblins, window, worst_goblins,
     };
     use spk2::models::{
-        Adventurer, Balance, Book, Counter, Grimoire, Instance, Location, Pack, Quest, QuestLog,
-        Window, pack_goblin,
+        Adventurer, Balance, Book, Counter, Goblin, Grimoire, Instance, Location, Pack, Quest,
+        QuestLog, Window, pack_goblin,
     };
     use spk2::rules::{origin_key, window_origin};
     use starknet::get_caller_address;
@@ -50,25 +54,30 @@ pub mod setup {
         }
     }
 
-    #[abi(embed_v0)]
-    impl SetupImpl of ISetup<ContractState> {
-        fn worst_case(ref self: ContractState, instance_id: u32) {
-            let mut world = self.world(@"spk2");
-            world
-                .write_model(
-                    @Instance {
-                        id: instance_id, clock: 0, location: LOCATION, adventurer: 1, goblins: 8,
-                        entry_draw: 0,
-                    },
-                );
-            world.write_model(@adventurer(instance_id, 1, true));
-            let goblins = worst_goblins(instance_id);
-            let mut packed: Array<felt252> = array![];
-            for goblin in goblins.span() {
-                world.write_model(goblin);
-                packed.append(pack_goblin(goblin));
-            }
-            let p = packed.span();
+    /// An instance for one tick: goblin models, their packed copy (when 8), one window.
+    fn write_tick(
+        ref self: ContractState, instance_id: u32, goblins: Array<Goblin>, terrain: felt252,
+    ) {
+        let mut world = self.world(@"spk2");
+        world
+            .write_model(
+                @Instance {
+                    id: instance_id,
+                    clock: 0,
+                    location: LOCATION,
+                    adventurer: 1,
+                    goblins: goblins.len().try_into().unwrap(),
+                    entry_draw: 0,
+                },
+            );
+        world.write_model(@adventurer(instance_id, 1, true));
+        let mut packed: Array<felt252> = array![];
+        for goblin in goblins.span() {
+            world.write_model(goblin);
+            packed.append(pack_goblin(goblin));
+        }
+        let p = packed.span();
+        if p.len() == 8 {
             world
                 .write_model(
                     @Pack {
@@ -76,42 +85,68 @@ pub mod setup {
                         goblins: [*p[0], *p[1], *p[2], *p[3], *p[4], *p[5], *p[6], *p[7]],
                     },
                 );
-            let (x, y, _) = window_origin(START_X, START_Y);
+        }
+        let (x, y, _) = window_origin(START_X, START_Y);
+        world.write_model(@Window { instance_id, origin: origin_key(x, y), terrain });
+    }
+
+    /// An instance for a queue: goblin models and the windows along its 10 moves.
+    fn write_queue(ref self: ContractState, instance_id: u32, goblins: Array<Goblin>, kind: u8) {
+        let mut world = self.world(@"spk2");
+        world
+            .write_model(
+                @Instance {
+                    id: instance_id,
+                    clock: 0,
+                    location: LOCATION,
+                    adventurer: 1,
+                    goblins: goblins.len().try_into().unwrap(),
+                    entry_draw: 0,
+                },
+            );
+        world.write_model(@adventurer(instance_id, 1, false));
+        for goblin in goblins.span() {
+            world.write_model(goblin);
+        }
+        let (x, y, _) = window_origin(START_X, START_Y);
+        let mut step: u8 = 0;
+        while step <= QUEUE_LENGTH {
             world
                 .write_model(
-                    @Window { instance_id, origin: origin_key(x, y), terrain: window(COMB, x, y) },
+                    @Window {
+                        instance_id,
+                        origin: origin_key(x + step, y),
+                        terrain: window(kind, x + step, y),
+                    },
                 );
+            step += 1;
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl SetupImpl of ISetup<ContractState> {
+        fn worst_case(ref self: ContractState, instance_id: u32) {
+            let (x, y, _) = window_origin(START_X, START_Y);
+            write_tick(ref self, instance_id, worst_goblins(instance_id), window(COMB, x, y));
+        }
+
+        fn board(ref self: ContractState, instance_id: u32) {
+            let (terrain, goblins) = board(instance_id);
+            write_tick(ref self, instance_id, goblins, terrain);
+        }
+
+        fn serpent(ref self: ContractState, instance_id: u32) {
+            write_queue(ref self, instance_id, serpent_goblins(instance_id), SERPENTINE);
         }
 
         fn queue(ref self: ContractState, instance_id: u32, goblins: u8) {
-            let mut world = self.world(@"spk2");
-            world
-                .write_model(
-                    @Instance {
-                        id: instance_id, clock: 0, location: LOCATION, adventurer: 1, goblins,
-                        entry_draw: 0,
-                    },
-                );
-            world.write_model(@adventurer(instance_id, 1, false));
-            let all = queue_goblins(instance_id);
-            for goblin in all.span() {
-                if *goblin.id <= goblins.into() {
-                    world.write_model(goblin);
+            let mut kept: Array<Goblin> = array![];
+            for goblin in queue_goblins(instance_id) {
+                if goblin.id <= goblins.into() {
+                    kept.append(goblin);
                 }
             }
-            let (x, y, _) = window_origin(START_X, START_Y);
-            let mut step: u8 = 0;
-            while step <= QUEUE_LENGTH {
-                world
-                    .write_model(
-                        @Window {
-                            instance_id,
-                            origin: origin_key(x + step, y),
-                            terrain: window(PILLARS, x + step, y),
-                        },
-                    );
-                step += 1;
-            }
+            write_queue(ref self, instance_id, kept, PILLARS);
         }
 
         fn alchemy(ref self: ContractState) {

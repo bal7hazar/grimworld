@@ -7,14 +7,14 @@ use snforge_std::{
     stop_cheat_caller_address,
 };
 use spk2n::fixtures::{
-    QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, START_X, START_Y, WEST, WORST, WORST_PACKED,
+    DEEP, MAZE, QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, SEALED, SERPENT, START_X,
+    START_Y, WEST, WORST, WORST_PACKED,
 };
 use spk2n::systems::hub::{IHubDispatcher, IHubDispatcherTrait};
-use spk2n::systems::instances::{IInstancesDispatcher, IInstancesDispatcherTrait};
+use spk2n::systems::instances::{
+    FELT, IInstancesDispatcher, IInstancesDispatcherTrait, PACKED, SLOTS,
+};
 use starknet::ContractAddress;
-
-/// One more instance for the one-felt-per-goblin layout.
-const WORST_FELT: u32 = 7;
 
 fn player() -> ContractAddress {
     'player'.try_into().unwrap()
@@ -64,9 +64,26 @@ fn done(game: Game) {
 
 // ---------------------------------------------------------------------------------------------
 // Worst-case tick
+//
+// Instances (fix loop 1, C-2): the controlled pair against part 1 runs unchecked (part 1's
+// systems check no owner) on the same storage (one felt per goblin = part 1's packed goblin
+// model); the checked runs are the production form; SLOTS is a layout experiment.
+
+const WORST_FELT_CHECKED: u32 = 7;
+const WORST_SLOTS_CHECKED: u32 = 15;
+const WORST_PACKED_CHECKED: u32 = 16;
+const QUEUE_SLOTS_CHECKED: u32 = 17;
+const QUEUE_CHECKED: u32 = 18;
+const QUEUE_5_CHECKED: u32 = 19;
+const QUEUE_1_CHECKED: u32 = 20;
+const QUEUE_EMPTY_CHECKED: u32 = 21;
+const QUEUE_PACKED: u32 = 8;
+const QUEUE_5_PACKED: u32 = 9;
+const QUEUE_1_PACKED: u32 = 10;
+const SERPENT_CHECKED: u32 = 25;
 
 #[test]
-#[available_gas(l2_gas: 59463636)] // ceil(1.05 × 56632034 measured)
+#[available_gas(l2_gas: 49642587)] // ceil(1.05 × 47278654 measured)
 fn test_tick_worst_case() {
     let game = deploy();
     as_player_instances(game);
@@ -74,22 +91,22 @@ fn test_tick_worst_case() {
     let mut before = array![];
     let mut id: u32 = 1;
     while id != 9 {
-        before.append(game.instances.goblin(WORST, id));
+        before.append(game.instances.goblin_felt(WORST, id));
         id += 1;
     }
-    game.instances.attack(WORST, 1);
+    game.instances.attack(WORST, 1, FELT, false);
     done(game);
     let instance = game.instances.instance(WORST);
     assert!(instance.clock == 1);
-    let a0 = game.instances.goblin(WORST, 1);
-    let a1 = game.instances.goblin(WORST, 2);
+    let a0 = game.instances.goblin_felt(WORST, 1);
+    let a1 = game.instances.goblin_felt(WORST, 2);
     // Goblin 1 was hit by the sword and burns; goblins 1 and 2 hit back and stay
     assert!(a0.health < *before[0].health);
     assert!(a0.x == *before[0].x && a1.x == *before[1].x);
     // The 6 far goblins each stepped closer
     let mut id: u32 = 3;
     while id != 9 {
-        let after = game.instances.goblin(WORST, id);
+        let after = game.instances.goblin_felt(WORST, id);
         let b = before[id - 1];
         assert!(after.x != *b.x || after.y != *b.y, "goblin {} idle", id);
         id += 1;
@@ -100,41 +117,50 @@ fn test_tick_worst_case() {
 }
 
 #[test]
-#[available_gas(l2_gas: 146111083)] // ceil(1.05 × 139153412 measured)
+#[available_gas(l2_gas: 235708505)] // ceil(1.05 × 224484290 measured)
 fn test_tick_worst_case_layouts() {
-    // The same action on the three goblin layouts: the same outcome
+    // The same action on every layout, checked or not: the same outcome.
+    // Calls, in order: FELT checked, SLOTS checked, PACKED unchecked, PACKED checked.
     let game = deploy();
     as_player_instances(game);
     game.instances.setup_worst_case(WORST, player());
-    game.instances.setup_worst_case(WORST_FELT, player());
+    game.instances.setup_worst_case(WORST_FELT_CHECKED, player());
+    game.instances.setup_worst_case(WORST_SLOTS_CHECKED, player());
     game.instances.setup_worst_case(WORST_PACKED, player());
-    game.instances.attack(WORST, 1);
-    game.instances.attack_felt(WORST_FELT, 1);
-    game.instances.attack_packed(WORST_PACKED, 1);
+    game.instances.setup_worst_case(WORST_PACKED_CHECKED, player());
+    game.instances.attack(WORST, 1, FELT, false);
+    game.instances.attack(WORST_FELT_CHECKED, 1, FELT, true);
+    game.instances.attack(WORST_SLOTS_CHECKED, 1, SLOTS, true);
+    game.instances.attack(WORST_PACKED, 1, PACKED, false);
+    game.instances.attack(WORST_PACKED_CHECKED, 1, PACKED, true);
     done(game);
     let mut id: u32 = 1;
     while id != 9 {
-        let slots = game.instances.goblin(WORST, id);
-        let felt = game.instances.goblin_felt(WORST_FELT, id);
-        let packed = game.instances.goblin_packed(WORST_PACKED, id);
-        assert!(slots.x == felt.x && slots.y == felt.y && slots.health == felt.health);
-        assert!(slots.x == packed.x && slots.y == packed.y && slots.health == packed.health);
+        let felt = game.instances.goblin_felt(WORST, id);
+        for other in array![
+            game.instances.goblin_felt(WORST_FELT_CHECKED, id),
+            game.instances.goblin(WORST_SLOTS_CHECKED, id),
+            game.instances.goblin_packed(WORST_PACKED, id),
+            game.instances.goblin_packed(WORST_PACKED_CHECKED, id),
+        ] {
+            assert!(felt.x == other.x && felt.y == other.y && felt.health == other.health);
+        }
         id += 1;
     }
     let lhs = game.instances.adventurer(WORST);
-    let rhs = game.instances.adventurer(WORST_PACKED);
+    let rhs = game.instances.adventurer(WORST_PACKED_CHECKED);
     assert!(lhs.health == rhs.health && lhs.energy == rhs.energy);
 }
 
 #[test]
-#[available_gas(l2_gas: 43658969)] // ceil(1.05 × 41579970 measured)
+#[available_gas(l2_gas: 44366784)] // ceil(1.05 × 42254080 measured)
 #[should_panic(expected: 'not the owner')]
 fn test_tick_refuses_a_stranger() {
     let game = deploy();
     as_player_instances(game);
     game.instances.setup_worst_case(WORST, player());
     done(game);
-    game.instances.attack(WORST, 1);
+    game.instances.attack(WORST, 1, FELT, true);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -151,12 +177,12 @@ fn west(n: u32) -> Array<u8> {
 }
 
 #[test]
-#[available_gas(l2_gas: 86219163)] // ceil(1.05 × 82113488 measured)
+#[available_gas(l2_gas: 90161892)] // ceil(1.05 × 85868468 measured)
 fn test_queue_moves() {
     let game = deploy();
     as_player_instances(game);
     game.instances.setup_queue(QUEUE, 8, player());
-    let moved = game.instances.walk(QUEUE, west(10));
+    let moved = game.instances.walk(QUEUE, west(10), FELT, false);
     done(game);
     assert!(moved == QUEUE_LENGTH, "stopped after {}", moved);
     let adventurer = game.instances.adventurer(QUEUE);
@@ -164,96 +190,149 @@ fn test_queue_moves() {
     assert!(game.instances.instance(QUEUE).clock == QUEUE_LENGTH.into());
     let mut id: u32 = 1;
     while id != 9 {
-        let goblin = game.instances.goblin(QUEUE, id);
+        let goblin = game.instances.goblin_felt(QUEUE, id);
         assert!(goblin.x > START_X + 3, "goblin {} left behind at {}", id, goblin.x);
         id += 1;
     }
 }
 
 #[test]
-#[available_gas(l2_gas: 159066512)] // ceil(1.05 × 151491916 measured)
-fn test_queue_moves_packed() {
+#[available_gas(l2_gas: 80709641)] // ceil(1.05 × 76866324 measured)
+fn test_queue_moves_5() {
     let game = deploy();
     as_player_instances(game);
-    game.instances.setup_queue(QUEUE, 8, player());
     game.instances.setup_queue(QUEUE_5, 8, player());
-    assert!(game.instances.walk_packed(QUEUE, west(10)) == QUEUE_LENGTH);
-    // The same outcome as the per-goblin layout
-    assert!(game.instances.walk(QUEUE_5, west(10)) == QUEUE_LENGTH);
+    assert!(game.instances.walk(QUEUE_5, west(5), FELT, false) == 5);
+    done(game);
+}
+
+#[test]
+#[available_gas(l2_gas: 75079595)] // ceil(1.05 × 71504376 measured)
+fn test_queue_moves_1() {
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_queue(QUEUE_1, 8, player());
+    assert!(game.instances.walk(QUEUE_1, west(1), FELT, false) == 1);
+    done(game);
+}
+
+#[test]
+#[available_gas(l2_gas: 40429683)] // ceil(1.05 × 38504460 measured)
+fn test_queue_moves_no_goblin() {
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_queue(QUEUE_EMPTY, 0, player());
+    assert!(game.instances.walk(QUEUE_EMPTY, west(10), FELT, false) == QUEUE_LENGTH);
+    done(game);
+}
+
+#[test]
+#[available_gas(l2_gas: 274067355)] // ceil(1.05 × 261016528 measured)
+fn test_queue_moves_checked() {
+    // Production form: calls in order 10, 5, 1 moves, 10 moves without goblin
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_queue(QUEUE_CHECKED, 8, player());
+    game.instances.setup_queue(QUEUE_5_CHECKED, 8, player());
+    game.instances.setup_queue(QUEUE_1_CHECKED, 8, player());
+    game.instances.setup_queue(QUEUE_EMPTY_CHECKED, 0, player());
+    assert!(game.instances.walk(QUEUE_CHECKED, west(10), FELT, true) == QUEUE_LENGTH);
+    assert!(game.instances.walk(QUEUE_5_CHECKED, west(5), FELT, true) == 5);
+    assert!(game.instances.walk(QUEUE_1_CHECKED, west(1), FELT, true) == 1);
+    assert!(game.instances.walk(QUEUE_EMPTY_CHECKED, west(10), FELT, true) == QUEUE_LENGTH);
+    done(game);
+}
+
+#[test]
+#[available_gas(l2_gas: 236572863)] // ceil(1.05 × 225307488 measured)
+fn test_queue_moves_packed() {
+    // Goblins packed per instance, checked: calls in order 10, 5, 1 moves
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_queue(QUEUE_PACKED, 8, player());
+    game.instances.setup_queue(QUEUE_5_PACKED, 8, player());
+    game.instances.setup_queue(QUEUE_1_PACKED, 8, player());
+    assert!(game.instances.walk(QUEUE_PACKED, west(10), PACKED, true) == QUEUE_LENGTH);
+    assert!(game.instances.walk(QUEUE_5_PACKED, west(5), PACKED, true) == 5);
+    assert!(game.instances.walk(QUEUE_1_PACKED, west(1), PACKED, true) == 1);
+    done(game);
+}
+
+#[test]
+#[available_gas(l2_gas: 185997742)] // ceil(1.05 × 177140706 measured)
+fn test_queue_moves_slots() {
+    // Layout experiment: one storage struct per goblin, 11 slots each, checked
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_queue(QUEUE_SLOTS_CHECKED, 8, player());
+    game.instances.setup_queue(QUEUE, 8, player());
+    assert!(game.instances.walk(QUEUE_SLOTS_CHECKED, west(10), SLOTS, true) == QUEUE_LENGTH);
+    assert!(game.instances.walk(QUEUE, west(10), FELT, false) == QUEUE_LENGTH);
     done(game);
     let mut id: u32 = 1;
     while id != 9 {
-        let packed = game.instances.goblin_packed(QUEUE, id);
-        let slots = game.instances.goblin(QUEUE_5, id);
-        assert!(packed.x == slots.x && packed.y == slots.y);
+        let slots = game.instances.goblin(QUEUE_SLOTS_CHECKED, id);
+        let felt = game.instances.goblin_felt(QUEUE, id);
+        assert!(slots.x == felt.x && slots.y == felt.y);
         id += 1;
     }
 }
 
 #[test]
-#[available_gas(l2_gas: 124016036)] // ceil(1.05 × 118110510 measured)
-fn test_queue_moves_packed_short() {
-    let game = deploy();
-    as_player_instances(game);
-    game.instances.setup_queue(QUEUE_5, 8, player());
-    game.instances.setup_queue(QUEUE_1, 8, player());
-    assert!(game.instances.walk_packed(QUEUE_5, west(5)) == 5);
-    assert!(game.instances.walk_packed(QUEUE_1, west(1)) == 1);
-    done(game);
-}
-
-#[test]
-#[available_gas(l2_gas: 75257642)] // ceil(1.05 × 71673944 measured)
-fn test_queue_moves_5() {
-    let game = deploy();
-    as_player_instances(game);
-    game.instances.setup_queue(QUEUE_5, 8, player());
-    assert!(game.instances.walk(QUEUE_5, west(5)) == 5);
-    done(game);
-}
-
-#[test]
-#[available_gas(l2_gas: 69205496)] // ceil(1.05 × 65909996 measured)
-fn test_queue_moves_1() {
-    let game = deploy();
-    as_player_instances(game);
-    game.instances.setup_queue(QUEUE_1, 8, player());
-    assert!(game.instances.walk(QUEUE_1, west(1)) == 1);
-    done(game);
-}
-
-#[test]
-#[available_gas(l2_gas: 26520669)] // ceil(1.05 × 25257780 measured)
-fn test_queue_moves_no_goblin() {
-    let game = deploy();
-    as_player_instances(game);
-    game.instances.setup_queue(QUEUE_EMPTY, 0, player());
-    assert!(game.instances.walk(QUEUE_EMPTY, west(10)) == QUEUE_LENGTH);
-    done(game);
-}
-
-#[test]
-#[available_gas(l2_gas: 65001737)] // ceil(1.05 × 61906416 measured)
+#[available_gas(l2_gas: 73871297)] // ceil(1.05 × 70353616 measured)
 fn test_queue_drops_an_invalid_move() {
     let game = deploy();
     as_player_instances(game);
     game.instances.setup_queue(QUEUE, 8, player());
     // North-East of (20, 21) is a pillar (20, 22): the queue is dropped, nothing reverts
-    assert!(game.instances.walk(QUEUE, array![1, WEST, WEST]) == 0);
+    assert!(game.instances.walk(QUEUE, array![1, WEST, WEST], FELT, true) == 0);
     done(game);
     assert!(game.instances.instance(QUEUE).clock == 0);
 }
 
 #[test]
-#[available_gas(l2_gas: 68472719)] // ceil(1.05 × 65212113 measured)
+#[available_gas(l2_gas: 75231779)] // ceil(1.05 × 71649313 measured)
 fn test_queue_stops_when_hit() {
     let game = deploy();
     as_player_instances(game);
     game.instances.setup_queue(QUEUE, 8, player());
     // East, next to goblin 1 (18, 21): it hits during the tick, the queue stops
-    assert!(game.instances.walk(QUEUE, array![0, WEST, WEST]) == 1);
+    assert!(game.instances.walk(QUEUE, array![0, WEST, WEST], FELT, true) == 1);
     done(game);
     assert!(game.instances.adventurer(QUEUE).health < 480);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Adversarial cases (fix loop 1, C-3), as part 1: controlled (one felt per goblin, unchecked)
+
+#[test]
+#[available_gas(l2_gas: 131432088)] // ceil(1.05 × 125173417 measured)
+fn test_tick_adversarial_boards() {
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_board(MAZE, player());
+    game.instances.setup_board(SEALED, player());
+    game.instances.setup_board(DEEP, player());
+    game.instances.attack(MAZE, 1, FELT, false);
+    game.instances.attack(SEALED, 1, FELT, false);
+    game.instances.attack(DEEP, 1, FELT, false);
+    done(game);
+    for i in array![MAZE, SEALED, DEEP] {
+        assert!(game.instances.instance(i).clock == 1);
+    }
+}
+
+#[test]
+#[available_gas(l2_gas: 148572373)] // ceil(1.05 × 141497498 measured)
+fn test_queue_serpent() {
+    // The expensive valid queue: 10 moves, no stop; calls in order unchecked, checked
+    let game = deploy();
+    as_player_instances(game);
+    game.instances.setup_serpent(SERPENT, player());
+    game.instances.setup_serpent(SERPENT_CHECKED, player());
+    assert!(game.instances.walk(SERPENT, west(10), FELT, false) == QUEUE_LENGTH);
+    assert!(game.instances.walk(SERPENT_CHECKED, west(10), FELT, true) == QUEUE_LENGTH);
+    done(game);
 }
 
 // ---------------------------------------------------------------------------------------------

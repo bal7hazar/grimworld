@@ -1,0 +1,28 @@
+## sierra-gas
+| Test | Call | L2 gas | of which calls to the other contract |
+|---|---|---:|---:|
+| test_tick_worst_case | Instances.attack | 2,967,674 | 0 |
+| test_tick_adversarial_boards | Instances.attack | 3,327,411 | 0 |
+| test_tick_adversarial_boards | Instances.attack | 2,890,981 | 0 |
+| test_tick_adversarial_boards | Instances.attack | 4,987,755 | 0 |
+| test_tick_refuses_a_stranger | Instances.attack | 1,019,600 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 2,967,674 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 3,006,594 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 7,845,394 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 2,782,334 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 2,821,254 | 0 |
+
+## cairo-steps
+| Test | Call | L2 gas | of which calls to the other contract |
+|---|---|---:|---:|
+| test_tick_refuses_a_stranger | Instances.attack | 80,000 | 0 |
+| test_tick_adversarial_boards | Instances.attack | 4,225,600 | 0 |
+| test_tick_adversarial_boards | Instances.attack | 3,865,600 | 0 |
+| test_tick_adversarial_boards | Instances.attack | 8,985,600 | 0 |
+| test_tick_worst_case | Instances.attack | 3,945,600 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 3,945,600 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 3,945,600 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 7,585,600 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 3,865,600 | 0 |
+| test_tick_worst_case_layouts | Instances.attack | 3,865,600 | 0 |
+

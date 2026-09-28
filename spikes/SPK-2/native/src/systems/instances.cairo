@@ -1,14 +1,19 @@
 //! The ephemeral contract (ADR-0007: two contracts at least, persistent and ephemeral): instances,
 //! the adventurer's snapshot, goblins, and the stand-in of the window. The measured actions are the
-//! same as part 1's `tick_worst_case` and `queue_moves`, on three goblin layouts:
-//! - `attack`, `walk`: one storage struct per goblin, one slot per field (mirrors part 1's one
-//!   model per goblin);
-//! - `attack_felt`: one felt per goblin, packed by hand;
-//! - `attack_packed`, `walk_packed`: the 8 goblins of an instance packed under one key
-//!   (mirrors part 1's `Pack`).
+//! same as part 1's `tick_worst_case` and `queue_moves`, on three goblin layouts (`layout`):
+//! - `FELT`: one felt per goblin, packed by hand: the same storage as part 1's goblin model (one
+//!   slot, `IntrospectPacked`), hence the controlled comparison (fix loop 1, C-2);
+//! - `SLOTS`: one storage struct per goblin, one slot per field (11 slots): a layout experiment;
+//! - `PACKED`: the 8 goblins of an instance under one key (mirrors part 1's `Pack`).
+//! `checked` adds the owner check of ADR-0007; part 1's systems have none, so the controlled pair
+//! runs unchecked and the check is measured apart.
 
 use spk2n::models::{Goblin, Instance, InstanceAdventurer};
 use starknet::ContractAddress;
+
+pub const FELT: u8 = 0;
+pub const SLOTS: u8 = 1;
+pub const PACKED: u8 = 2;
 
 #[starknet::interface]
 pub trait IInstances<T> {
@@ -17,11 +22,12 @@ pub trait IInstances<T> {
     fn setup_worst_case(ref self: T, instance_id: u32, owner: ContractAddress);
     /// The queue on an instance with its first `goblins` goblins, in every layout.
     fn setup_queue(ref self: T, instance_id: u32, goblins: u8, owner: ContractAddress);
-    fn attack(ref self: T, instance_id: u32, target: u32);
-    fn attack_felt(ref self: T, instance_id: u32, target: u32);
-    fn attack_packed(ref self: T, instance_id: u32, target: u32);
-    fn walk(ref self: T, instance_id: u32, moves: Array<u8>) -> u8;
-    fn walk_packed(ref self: T, instance_id: u32, moves: Array<u8>) -> u8;
+    /// An adversarial tick (fixtures::MAZE, SEALED or DEEP), in every layout.
+    fn setup_board(ref self: T, instance_id: u32, owner: ContractAddress);
+    /// The expensive valid queue (fixtures::SERPENT), in every layout.
+    fn setup_serpent(ref self: T, instance_id: u32, owner: ContractAddress);
+    fn attack(ref self: T, instance_id: u32, target: u32, layout: u8, checked: bool);
+    fn walk(ref self: T, instance_id: u32, moves: Array<u8>, layout: u8, checked: bool) -> u8;
     /// Called by the hub on `enter`: a new instance and the adventurer's snapshot.
     fn open(
         ref self: T, owner: ContractAddress, adventurer: u32, location: u32, x: u8, y: u8, level: u8,
@@ -41,9 +47,10 @@ pub mod Instances {
     use core::num::traits::Zero;
     use spk2n::fate::fate;
     use spk2n::fixtures::{
-        COMB, PILLARS, QUEUE_LENGTH, START_X, START_Y, adventurer as fixture_adventurer,
-        queue_goblins, window, worst_goblins,
+        COMB, PILLARS, QUEUE_LENGTH, SERPENTINE, START_X, START_Y, adventurer as fixture_adventurer,
+        board, queue_goblins, serpent_goblins, window, worst_goblins,
     };
+    use super::{FELT, SLOTS};
     use spk2n::models::{
         Goblin, GoblinPack, GoblinSlots, Instance, InstanceAdventurer, from_slots, pack_adventurer,
         pack_goblin, pack_instance, to_slots, unpack_adventurer, unpack_goblin, unpack_instance,
@@ -128,6 +135,36 @@ pub mod Instances {
             unpack_instance(instance_id, self.instances.read(instance_id))
         }
 
+        /// The instance, with the owner check or without it (the controlled comparison, C-2).
+        fn load(self: @ContractState, instance_id: u32, checked: bool) -> Instance {
+            if checked {
+                return self.owned(instance_id);
+            }
+            unpack_instance(instance_id, self.instances.read(instance_id))
+        }
+
+        fn read_goblins(self: @ContractState, layout: u8, instance: @Instance) -> Array<Goblin> {
+            if layout == FELT {
+                self.read_felts(instance)
+            } else if layout == SLOTS {
+                self.read_slots(instance)
+            } else {
+                self.read_pack(instance)
+            }
+        }
+
+        fn write_goblins(
+            ref self: ContractState, layout: u8, instance_id: u32, goblins: Span<Goblin>,
+        ) {
+            if layout == FELT {
+                self.write_felts(goblins)
+            } else if layout == SLOTS {
+                self.write_slots(goblins)
+            } else {
+                self.write_pack(instance_id, goblins)
+            }
+        }
+
         fn read_adventurer(self: @ContractState, instance: @Instance) -> InstanceAdventurer {
             let (id, owner) = (*instance.id, *instance.adventurer);
             let adventurer = unpack_adventurer(id, owner, self.adventurers.read((id, owner)));
@@ -194,7 +231,7 @@ pub mod Instances {
         }
 
         fn write_pack(ref self: ContractState, instance_id: u32, goblins: Span<Goblin>) {
-            if goblins.len() == 0 {
+            if goblins.len() != 8 {
                 return;
             }
             self
@@ -360,49 +397,45 @@ pub mod Instances {
             }
         }
 
-        fn attack(ref self: ContractState, instance_id: u32, target: u32) {
-            let mut instance = self.owned(instance_id);
+        fn setup_board(ref self: ContractState, instance_id: u32, owner: ContractAddress) {
+            self.only_admin();
+            let (terrain, goblins) = board(instance_id);
+            self.write_fixture(instance_id, goblins.span(), owner, true);
+            let (x, y, _) = window_origin(START_X, START_Y);
+            self.windows.write((instance_id, origin_key(x, y)), terrain);
+        }
+
+        fn setup_serpent(ref self: ContractState, instance_id: u32, owner: ContractAddress) {
+            self.only_admin();
+            let goblins = serpent_goblins(instance_id);
+            self.write_fixture(instance_id, goblins.span(), owner, false);
+            let (x, y, _) = window_origin(START_X, START_Y);
+            let mut step: u8 = 0;
+            while step <= QUEUE_LENGTH {
+                self
+                    .windows
+                    .write((instance_id, origin_key(x + step, y)), window(SERPENTINE, x + step, y));
+                step += 1;
+            }
+        }
+
+        fn attack(ref self: ContractState, instance_id: u32, target: u32, layout: u8, checked: bool) {
+            let mut instance = self.load(instance_id, checked);
             let mut adventurer = self.read_adventurer(@instance);
-            let goblins = self.read_slots(@instance);
+            let goblins = self.read_goblins(layout, @instance);
             let goblins = self.act(ref instance, ref adventurer, goblins, target);
-            self.write_slots(goblins.span());
+            self.write_goblins(layout, instance_id, goblins.span());
             self.write_state(@instance, @adventurer);
         }
 
-        fn attack_felt(ref self: ContractState, instance_id: u32, target: u32) {
-            let mut instance = self.owned(instance_id);
+        fn walk(
+            ref self: ContractState, instance_id: u32, moves: Array<u8>, layout: u8, checked: bool,
+        ) -> u8 {
+            let mut instance = self.load(instance_id, checked);
             let mut adventurer = self.read_adventurer(@instance);
-            let goblins = self.read_felts(@instance);
-            let goblins = self.act(ref instance, ref adventurer, goblins, target);
-            self.write_felts(goblins.span());
-            self.write_state(@instance, @adventurer);
-        }
-
-        fn attack_packed(ref self: ContractState, instance_id: u32, target: u32) {
-            let mut instance = self.owned(instance_id);
-            let mut adventurer = self.read_adventurer(@instance);
-            let goblins = self.read_pack(@instance);
-            let goblins = self.act(ref instance, ref adventurer, goblins, target);
-            self.write_pack(instance_id, goblins.span());
-            self.write_state(@instance, @adventurer);
-        }
-
-        fn walk(ref self: ContractState, instance_id: u32, moves: Array<u8>) -> u8 {
-            let mut instance = self.owned(instance_id);
-            let mut adventurer = self.read_adventurer(@instance);
-            let goblins = self.read_slots(@instance);
+            let goblins = self.read_goblins(layout, @instance);
             let (goblins, done) = self.walk_on(ref instance, ref adventurer, goblins, moves);
-            self.write_slots(goblins.span());
-            self.write_state(@instance, @adventurer);
-            done
-        }
-
-        fn walk_packed(ref self: ContractState, instance_id: u32, moves: Array<u8>) -> u8 {
-            let mut instance = self.owned(instance_id);
-            let mut adventurer = self.read_adventurer(@instance);
-            let goblins = self.read_pack(@instance);
-            let (goblins, done) = self.walk_on(ref instance, ref adventurer, goblins, moves);
-            self.write_pack(instance_id, goblins.span());
+            self.write_goblins(layout, instance_id, goblins.span());
             self.write_state(@instance, @adventurer);
             done
         }

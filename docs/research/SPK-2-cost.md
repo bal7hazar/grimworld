@@ -9,6 +9,13 @@ worst cases as native Starknet contracts on Cairo 2.19, ADR-0007) is at the end.
 commands now run with its own pins: `spikes/SPK-2/test.sh` and
 `spikes/SPK-2/with-katana.sh bash run.sh` (see `spikes/SPK-2/README.md`).
 
+> **Fix loop 1 (§8) supersedes the comparisons and verdicts of §3 and §7.** After the
+> `[GPT-6-Astra]` cost audit, both sides were measured again on **one node and one account**
+> (starknet-devnet 0.10.0, an OpenZeppelin account compiled with Cairo 2.19), with **equal
+> goblin storage and equal checks**, adversarial flood cases and the corrected break-even formula.
+> §§1–7 stay as the record of what was measured before; where a figure differs, §8's is the one
+> to use.
+
 ## Verdict (part 1, Dojo)
 
 | Question | Answer |
@@ -307,6 +314,12 @@ For the design (not cost):
 
 ## 7. Part 2 — the same worst cases as native contracts (ADR-0007, D-123)
 
+> **Superseded by §8.** This section paired Dojo on Katana with native on devnet through
+> devnet's default account, and a one-slot Dojo goblin with an 11-slot native one. Its receipts
+> are kept (`spikes/SPK-2/native/devnet-default-account-output.txt`) as a harness measurement.
+> Its native entrypoints (`attack_felt`, `attack_packed`, `walk_packed`) are now `attack` and
+> `walk` with a layout and a check parameter.
+
 Measured on 2026-09-28 by `[Opus 5.5]` on the root toolchain: Scarb 2.19.4, snforge 0.61.0,
 sncast 0.61.0, starknet-devnet 0.10.0. Code and raw outputs: `spikes/SPK-2/native/`.
 
@@ -423,7 +436,7 @@ Dojo's figures differ from §3.3 only by the fresher prices.
 | Change | Effect |
 |---|---|
 | Fights | 100 packed fights are $0.46 alone: at today's prices the threshold cannot be met with one transaction per fight at 4.9M. A fight costs ≈ 2.8M of execution (world tick 1.25M, the flood 0.69M of it) and ≈ 2.1M around it |
-| The flood | Ours costs 58k per layer against the library's 19k (§2.1); with the map library on Cairo 2.19 (now possible, ADR-0007), ≈ −0.45M per tick |
+| The flood | ~~≈ −0.45M per tick with the map library~~ **Withdrawn (fix loop 1, C-4):** the figure set our flood (which records each goblin's distance and keeps every layer) against the library's per-layer cost for a different task. Using the library is an **unmeasured opportunity** |
 | Transaction overhead | 1.0M to 2.1M per transaction on devnet with its predeployed account and packed storage (up to 4.8M with a storage struct per goblin, the syscalls); the real one (Controller session, paymaster) is SPK-9 and SPK-1's to measure on Sepolia |
 | Layout | Packing goblins per instance cuts the fight by 61 % (12.59M to 4.91M) and the queues by 20 % (10 moves) to 63 % (1 move); per instance against one felt per goblin changes little (4.91M against 4.99M) |
 | Assembly of the window (SPK-7) | Natively, chunk reads are plain storage reads (≈ 17k each, §7.3) plus masks: much cheaper than the 0.5M per tick estimated through the Dojo world (§5) |
@@ -436,3 +449,154 @@ Dojo's figures differ from §3.3 only by the fresher prices.
    and decides whether one transaction per fight can ever fit 1.9M.
 3. **Threshold (R-2):** native narrows the gap (1.4× to 4.2× instead of 2.3× to 5.7× at the same
    prices) but does not close it; the owner's call stands (escalated in part 1).
+
+## 8. Fix loop 1 — decision-grade figures (after the `[GPT-6-Astra]` cost audit)
+
+Measured on 2026-09-28 by `[Opus 5.5]`. Five findings (C-1 to C-5), each fixed below. The
+figures of this section are the ones to use.
+
+### 8.1 Verdict
+
+| Question | Answer |
+|---|---|
+| **Native against Dojo, controlled** (same node, same account, equal goblin storage, equal checks) | **Every action is cheaper natively.** The worst-case tick costs **0.26×** Dojo's (4,956,800 against 18,740,800 L2 gas). Queues cost 0.28× to 0.58×, and 0.26× without goblin. The adversarial ticks cost 0.26× to 0.45×, the expensive valid queue 0.88×, brewing 0.29× to 0.33×, hub actions 0.29× to 0.49×. At call level (snforge, Sierra gas): 0.13× to 0.56× |
+| **ADR-0001 threshold, native (production form, owner checked)** | **Still not met at today's prices, but within 2×.** A 300-action expedition costs **$0.67 to $0.91** (1.35× to 1.82× the $0.50), against $1.19 to $2.81 for Dojo. With every fight on the deepest board found and every move near goblins in the expensive queue, it costs **$1.35** (2.7×). Break-even L2 gas price, DA held fixed: **11.7 to 15.8 Gfri** for the ordinary scenarios, **7.9 Gfri** for the adversarial one. Today: 21.3 Gfri; 17.9 to 30.5 over two weeks |
+| **Metering** | devnet 0.10.0 meters **both** sides in VM resources (Cairo steps), whatever the account or the Sierra version (§8.2). The ratios compare like with like. Whether mainnet meters these classes in Sierra gas instead is open, to be measured on Sepolia. Native's Sierra-gas call is 0.56× to 0.79× of its VM-resource call on the four ticks compared, so the native figures here are likely **upper bounds** |
+| **Flood depth** | **Not bounded by the design** (ADR-0006 §4, design/02 *Simulation budget*, design/18 say one flood per tick, nothing about its depth). The fixture's 12 layers is a property of the fixture. The deepest valid board found needs **92 layers**: in memory the flood costs 2.75M and the whole tick 3.28M. As a native transaction: **9.04M** (Dojo 20.06M). The expensive valid queue: **24.41M** for 10 moves (Dojo 27.76M). Question for FND-04 and the owner (§8.6) |
+| D-52 | Unchanged: keep it. Native: +40,000 L2 gas on devnet, +73,820 at call level |
+
+### 8.2 C-1 — one account compiled with Cairo 2.19, and what devnet meters
+
+| | Class hash | Sierra | Compiler |
+|---|---|---|---|
+| devnet's default predeployed account (part 2's harness) | `0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564` | 1.6.0 | 2.9.4 |
+| **The account used now**: OpenZeppelin `openzeppelin_account` 4.0.1 (`spikes/SPK-2/account/`), declared, deployed and funded on devnet | `0x3daacb519bf62c729e518fd406139288bbed05488d03b70c518f99421a0b65` | **1.9.3** | **2.19.4** |
+
+`spikes/SPK-2/devnet_measure.py`, run under `scripts/with-node.sh`, does the following:
+- declares and deploys that account;
+- deploys the native contracts, twice: built with Cairo 2.19 (Sierra 1.9.3), and the same sources built with Cairo 2.13 (Sierra 1.7.0, `spikes/SPK-2/native213/`);
+- migrates the **Dojo world to the same devnet** with sozo 1.8.7 (`--use-blake2s-casm-class-hash`: devnet checks Blake2s compiled class hashes);
+- sends every measured transaction of both sides through the one account, and records each receipt and trace (`spikes/SPK-2/devnet-output.txt`).
+
+All 75 measured transactions succeeded: 29 native (Cairo 2.19), the same 29 on the Cairo 2.13 build, and 17 Dojo.
+
+**What devnet meters.** The account was not what set the meter. devnet 0.10.0 charges every contract call in **VM resources**, for both sides:
+
+| Evidence | Figures |
+|---|---|
+| Native calls on devnet against snforge's Cairo-steps mode (`native/meter-check-output.txt`) | Worst-case tick 3,920,000 against 3,945,600; maze 4,200,000 against 4,225,600; unreachable target 3,840,000 against 3,865,600; deepest board 8,960,000 against 8,985,600: **the steps figure minus 25,600, every time**. The Sierra-gas figures are 2,967,674, 3,327,411, 2,890,981 and 4,987,755 |
+| Dojo on devnet against snforge's Cairo-steps mode (`meter-check-output.txt`) | Deepest board minus worst-case tick: **1,280,000 on devnet, 1,280,000 in steps mode**, 2,019,901 in Sierra gas |
+| Sierra version | The Cairo 2.13 build of the native sources (Sierra 1.7.0) gives the **same** figures as the 2.19 build, within 40,000 |
+| Account | The native tick through the default account (part 2's harness) cost 4,986,560; through the 2.19 account, 4,996,800 |
+
+On this node, a transaction's cost therefore follows its VM resources. That explains why the flood's delta differs between the sides. On Dojo, the world's large step count hides the flood's bitwise work; natively the bitwise work shows. This reading assumes that VM-resource pricing takes the largest weighted resource rather than a sum; it is an inference, not a measurement.
+
+**Where a native transaction goes** (devnet trace; devnet reports invocation gas in steps of 40,000, so the rest can be slightly negative):
+
+| Action | Receipt | Validate | Account execute | Game calls | Fee transfer | Rest |
+|---|---:|---:|---:|---:|---:|---:|
+| Worst-case tick, owner checked | 4,996,800 | 320,000 | 80,000 | 3,920,000 | 400,000 | 276,800 |
+| Queue of 10 moves, checked | 20,128,000 | 320,000 | 40,000 | 19,040,000 | 400,000 | 328,000 |
+| Queue of 10 moves, no goblin, checked | 2,248,000 | 320,000 | 120,000 | 1,320,000 | 400,000 | 88,000 |
+| Tick, deepest board (92 layers) | 9,036,800 | 320,000 | 0 | 8,960,000 | 400,000 | −643,200 |
+| Brew, new pair | 2,485,920 | 320,000 | 160,000 | 720,000 | 400,000 | 885,920 |
+| Accept quest | 1,473,680 | 320,000 | 120,000 | 240,000 | 400,000 | 393,680 |
+| Enter | 3,425,280 | 320,000 | 160,000 | 800,000 | 400,000 | 1,745,280 |
+
+- **Account and protocol:** 0.76M to 0.88M per transaction (validation, the account's own execution, the fee transfer).
+- **Game calls:** everything the game's contracts execute, **syscalls included**. Under VM-resource metering, devnet does not separate syscalls.
+- **Execution alone:** snforge's Sierra-gas call, without syscalls (§8.3, second table).
+- **Syscalls cannot be isolated on this node.** The gap between devnet's figure and the Sierra-gas figure mixes the syscalls with the change of meter.
+- **The rest:** calldata, signature, events and state-diff charges outside the invocations.
+
+### 8.3 C-2 — the controlled comparison
+
+- **Same storage per goblin on both sides.** Part 1's `Goblin` model is `IntrospectPacked` in one slot; the controlled native layout is one felt per goblin, packed by hand.
+- **Same checks on both sides.** Part 1's systems check no owner, so the controlled native runs skip the check. The check costs 40,000 on devnet (4,956,800 → 4,996,800) and is measured apart.
+- **The 11-slot layout is only a layout experiment:** 12,404,800 for the tick, 24,984,000 for 10 moves.
+- **Queues are redone the same way.** Same node, same account (`spikes/SPK-2/money-devnet-output.txt`), prices of §8.5:
+
+| Action | Dojo tx L2 gas | Native tx L2 gas | Difference | Native / Dojo | $ Dojo | $ native |
+|---|---:|---:|---:|---:|---:|---:|
+| Worst-case tick (goblins: one slot each) | 18,740,800 | 4,956,800 | −13,784,000 | **0.26** | 0.01651 | 0.00439 |
+| Worst-case tick (goblins packed per instance) | 8,727,680 | 4,876,800 | −3,850,880 | 0.56 | 0.00770 | 0.00432 |
+| Queue of 10 moves | 34,712,000 | 20,128,000 | −14,584,000 | 0.58 | 0.03054 | 0.01772 |
+| Queue of 5 moves | 25,686,400 | 11,662,400 | −14,024,000 | 0.45 | 0.02261 | 0.01028 |
+| Queue of 1 move | 18,785,920 | 5,201,920 | −13,584,000 | 0.28 | 0.01654 | 0.00460 |
+| Queue of 10 moves, no goblin | 8,451,840 | 2,208,000 | −6,243,840 | 0.26 | 0.00744 | 0.00195 |
+| Tick, corridor maze (45 layers) | 18,620,800 | 4,836,800 | −13,784,000 | 0.26 | 0.01640 | 0.00428 |
+| Tick, unreachable target (13 layers) | 18,660,800 | 4,876,800 | −13,784,000 | 0.26 | 0.01644 | 0.00432 |
+| Tick, deepest board found (92 layers) | 20,060,800 | 9,036,800 | −11,024,000 | 0.45 | 0.01767 | 0.00798 |
+| Queue of 10 moves, serpentine (expensive valid queue) | 27,764,480 | 24,408,000 | −3,356,480 | 0.88 | 0.02442 | 0.02147 |
+| Brew, signature, new pair | 7,507,040 | 2,485,920 | −5,021,120 | 0.33 | 0.00662 | 0.00221 |
+| Brew, no signature, new pair | 7,427,040 | 2,445,920 | −4,981,120 | 0.33 | 0.00655 | 0.00217 |
+| Brew, known pair | 4,900,160 | 1,401,920 | −3,498,240 | 0.29 | 0.00432 | 0.00125 |
+| Accept quest | 3,144,400 | 1,473,680 | −1,670,720 | 0.47 | 0.00277 | 0.00131 |
+| Claim quest | 5,037,520 | 1,713,680 | −3,323,840 | 0.34 | 0.00444 | 0.00152 |
+| Enter | 6,974,640 | 3,425,280 | −3,549,360 | 0.49 | 0.00615 | 0.00304 |
+| Leave | 5,414,080 | 1,576,320 | −3,837,760 | 0.29 | 0.00478 | 0.00141 |
+
+The same pairs at call level (snforge, Sierra gas, syscalls excluded): worst-case tick 13,203,148 → 2,967,674 (**0.22**); packed 6,619,410 → 2,782,334 (0.42); queue of 10 moves 28,046,442 → 15,676,138 (0.56); of 5, 0.43; of 1, 0.23; no goblin 0.19; maze 0.25; unreachable target 0.22; deepest board 0.33; serpentine 0.53; brewing 0.15 to 0.16; hub actions 0.13 to 0.20.
+
+**Native production figures** (owner checked, used in the scenarios):
+
+| Action | Tick | Queue of 10 | Queue of 5 | Queue of 1 | 10 moves, no goblin |
+|---|---:|---:|---:|---:|---:|
+| One felt per goblin | 4,996,800 | 20,128,000 | 11,662,400 | 5,201,920 | 2,248,000 |
+| Goblins packed per instance | 4,876,800 | 20,048,000 | 11,582,400 | 5,121,920 | — |
+
+### 8.4 C-3 — adversarial floods
+
+`spikes/SPK-2/adversarial.py` models the flood exactly (it gives the fixture's 12 layers). It builds three cases:
+- the auditor's corridor maze;
+- an unreachable target (the fixture's comb with goblin 8 walled in);
+- the deepest valid board found: a seeded hill climb from the maze, eccentricity 93 from the adventurer, with goblin 1 adjacent so that the measured attack is legal.
+
+All three are in `fixtures.cairo`, shared by both sides. They are checked against the scalar BFS oracle, with the layer count asserted (`test_flood_matches_reference_on_adversarial_boards`), benchmarked with baselines in memory, and measured as transactions on both sides.
+
+| Case | Layers | Flood in memory | World tick in memory | Dojo tx | Native tx |
+|---|---:|---:|---:|---:|---:|
+| Part 1's fixture (comb) | 12 | 694,022 | 1,256,774 | 18,740,800 | 4,956,800 |
+| Unreachable target (frontier exhausted) | 13 | 651,046 | 1,179,681 | 18,660,800 | 4,876,800 |
+| Corridor maze (auditor's board) | **45** | 1,229,674 | 1,616,111 | 18,620,800 | 4,836,800 |
+| **Deepest valid board found** | **92** | **2,752,390** | **3,276,455** | **20,060,800** | **9,036,800** |
+
+In-memory figures come from native's snforge (Sierra gas); part 1's agree within 6,000.
+
+The maze costs no more than the fixture on devnet. Six of its goblins are unreachable and stay put, and its layers are thin corridors: about 27k per layer against 58k on the open comb.
+
+The **expensive valid queue** walks 10 moves West along a serpentine: corridors on odd rows, one gap every 14 columns. Goblin 1 follows; goblins 2 to 5 are walled off behind it; two goblins sit in sealed pockets 7 rows away, never in sight. So every tick's flood runs until the frontier is exhausted. It completes its 10 moves on both sides (`test_queue_serpent`) and costs **24,408,000** natively against **27,764,480** on Dojo, and 13,065,314 against 24,603,228 at call level. It is the one action where native gains little: flood computation dominates, and the flood is the same code.
+
+### 8.5 C-5 and the money
+
+Break-even L2 gas price, per C-5: `(threshold − DA_USD) / (L2_gas × STRK_USD × 1e-18)`, with the data-availability dollars held at today's price (`spikes/SPK-2/money_devnet.py`).
+
+| | Value | Source, time |
+|---|---|---|
+| Mainnet L2 gas price | **21,345,442,020 fri** | `https://api.cartridge.gg/x/starknet/mainnet`, block 15,590,108, 2026-09-28T18:56:03Z (`spikes/SPK-2/prices-fixloop1-output.txt`) |
+| Mainnet L1 data gas price | 977,190,847,683 fri | same block |
+| STRK | **$0.0411773** | CoinGecko `simple/price`, 2026-09-28T18:56:14Z |
+| ⇒ | 1M L2 gas = **$0.000879** | |
+
+Expedition as §3.3 (180 moves in queues, 100 fight actions of one transaction each, 20 others, enter and leave); day as §3.4 (5 Rifts, 3 quests, 5 brews). Native in its production form:
+
+| Scenario | $ Dojo | $ native | Native / Dojo | Native × $0.50 | Break-even L2 gas price, native | Native L2 gas per expedition | $ per day, native |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| S1 worst case everywhere | 2.806 | **0.909** | 0.32 | 1.82 | 11.68 Gfri | 1,028,566,400 | 4.57 |
+| S2 mixed (2/3 of the moves exploring) | 2.353 | **0.686** | 0.29 | 1.37 | 15.51 Gfri | 775,644,800 | 3.45 |
+| S3 mixed, goblins packed per instance | 1.191 | **0.674** | 0.57 | 1.35 | 15.81 Gfri | 761,084,800 | 3.39 |
+| S4 worst case everywhere, goblins packed | 1.433 | **0.895** | 0.62 | 1.79 | 11.87 Gfri | 1,012,086,400 | 4.49 |
+| S5 adversarial floods (every fight on the deepest board, every move near goblins in serpentine queues) | 2.570 | **1.348** | 0.52 | 2.70 | 7.87 Gfri | 1,528,761,600 | 6.76 |
+
+Dojo's S3 and S4 use part 1's estimated packed queues; every native figure is measured.
+
+### 8.6 What remains open
+
+1. **FND-04 and the owner: bound the flood.** The design bounds the number of awake goblins (8) but not the flood's depth. On a valid window the flood can need 92 layers; the tick then costs 1.8× the fixture's (9.04M against 5.00M natively). Options:
+   - bound the depth, with goblins beyond it treated as unreachable for the tick;
+   - constrain generation (no corridor longer than N inside a window);
+   - budget for the worst case.
+   
+   The window's interior (182 tiles) is the only hard bound today.
+2. **Mainnet's meter.** devnet 0.10.0 meters in VM resources. Mainnet (Starknet 0.14.3 at the time of reading) may meter Sierra ≥ 1.7 classes in Sierra gas. To be measured on Sepolia (SPK-1, SPK-9) with the real account: native's figures here are likely upper bounds.
+3. **The library's flood (C-4):** an unmeasured opportunity, to benchmark against the oracle with identical results before any figure is claimed.

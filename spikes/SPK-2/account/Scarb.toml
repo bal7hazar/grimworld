@@ -1,0 +1,14 @@
+[package]
+name = "spk2account"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.19"
+
+[dependencies]
+starknet = "2.19"
+openzeppelin_account = "4.0.1"
+openzeppelin_introspection = "4"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true

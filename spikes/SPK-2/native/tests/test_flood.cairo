@@ -3,7 +3,10 @@
 
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use spk2n::board::{distance_of, flood, has, pow, step};
-use spk2n::fixtures::{COMB, PILLARS, window};
+use spk2n::fixtures::{
+    COMB, DEEP_GOBLINS, DEEP_TERRAIN, MAZE_GOBLINS, MAZE_TERRAIN, PILLARS, SEALED_GOBLINS,
+    SEALED_TERRAIN, window,
+};
 
 const W: u8 = 15;
 const H: u8 = 16;
@@ -172,7 +175,7 @@ fn random_board(seed: u64, keep: Span<u8>) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 124806169)] // ceil(1.05 × 118863018 measured)
+#[available_gas(l2_gas: 126093564)] // ceil(1.05 × 120089108 measured)
 fn test_flood_matches_reference_on_the_fixtures() {
     // Worst-case window: adventurer local (7, 7) = 112, goblins as in fixtures::worst_goblins
     let goblins = array![111_u8, 97, 16, 28, 211, 223, 103, 151];
@@ -202,7 +205,7 @@ fn test_flood_matches_reference_on_random_boards() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1635808)] // ceil(1.05 × 1557912 measured)
+#[available_gas(l2_gas: 2923203)] // ceil(1.05 × 2784002 measured)
 fn test_flood_goblin_walled_in_is_unreachable() {
     // Goblin at local (1, 1) = 16 with its 3 interior neighbours walled: distance 0, no step
     let terrain = window(PILLARS, 13, 14) - pow(17) - pow(31) - pow(32);
@@ -210,4 +213,27 @@ fn test_flood_goblin_walled_in_is_unreachable() {
     let (layers, packed) = flood(free, 112, array![16].span());
     assert!(distance_of(packed, 0) == 0);
     assert!(layers.len() > 1);
+}
+
+/// Layers of the tick's flood on a board with its goblins.
+fn depth(terrain: felt252, goblins: Span<u8>) -> u32 {
+    let mut occupied: felt252 = 0;
+    for goblin in goblins {
+        occupied += pow(*goblin);
+    }
+    let (layers, _) = flood(terrain - occupied - pow(112), 112, goblins);
+    layers.len()
+}
+
+#[test]
+#[available_gas(l2_gas: 452994884)] // ceil(1.05 × 431423699 measured)
+fn test_flood_matches_reference_on_adversarial_boards() {
+    // Fix loop 1, C-3: the corridor maze, an unreachable target, the deepest board found; the
+    // numbers of layers are adversarial.py's
+    check(MAZE_TERRAIN, 112, MAZE_GOBLINS.span());
+    check(SEALED_TERRAIN, 112, SEALED_GOBLINS.span());
+    check(DEEP_TERRAIN, 112, DEEP_GOBLINS.span());
+    assert!(depth(MAZE_TERRAIN, MAZE_GOBLINS.span()) == 45);
+    assert!(depth(SEALED_TERRAIN, SEALED_GOBLINS.span()) == 13);
+    assert!(depth(DEEP_TERRAIN, DEEP_GOBLINS.span()) == 92);
 }

@@ -5,7 +5,10 @@
 
 use spk2n::alchemy::{REGION_1_PAIRS, REGION_1_REMAINING, discover};
 use spk2n::board::{flood, pow};
-use spk2n::fixtures::{COMB, WORST, adventurer, window, worst_goblins};
+use spk2n::fixtures::{
+    COMB, DEEP, DEEP_GOBLINS, DEEP_TERRAIN, MAZE, MAZE_GOBLINS, MAZE_TERRAIN, SEALED,
+    SEALED_GOBLINS, SEALED_TERRAIN, WORST, adventurer, board, window, worst_goblins,
+};
 use spk2n::models::{Book, Grimoire};
 use spk2n::rules::world_tick;
 
@@ -66,6 +69,114 @@ fn bench_world_tick_worst_case() {
     assert!(hero.health != 0 && goblins.len() == 8 && terrain != 0);
     let (next, hit) = world_tick(ref hero, goblins.span(), terrain, 0);
     assert!(hit && next.len() == 8);
+}
+
+// Adversarial boards (fix loop 1, C-3): the flood and the whole world tick, each with a baseline.
+
+fn board_inputs(terrain: felt252, goblins: Span<u8>) -> felt252 {
+    let mut occupied: felt252 = 0;
+    for goblin in goblins {
+        occupied += pow(*goblin);
+    }
+    terrain - occupied - pow(112)
+}
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_maze_baseline() {
+    let free = board_inputs(MAZE_TERRAIN, MAZE_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 1333578)] // ceil(1.05 × 1270074 measured)
+fn bench_flood_maze() {
+    let free = board_inputs(MAZE_TERRAIN, MAZE_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, MAZE_GOBLINS.span());
+    assert!(layers.len() == 45);
+}
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_sealed_baseline() {
+    let free = board_inputs(SEALED_TERRAIN, SEALED_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 726019)] // ceil(1.05 × 691446 measured)
+fn bench_flood_sealed() {
+    let free = board_inputs(SEALED_TERRAIN, SEALED_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, SEALED_GOBLINS.span());
+    assert!(layers.len() == 13);
+}
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_deep_baseline() {
+    let free = board_inputs(DEEP_TERRAIN, DEEP_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 2932430)] // ceil(1.05 × 2792790 measured)
+fn bench_flood_deep() {
+    let free = board_inputs(DEEP_TERRAIN, DEEP_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, DEEP_GOBLINS.span());
+    assert!(layers.len() == 92);
+}
+
+fn tick_baseline(i: u32) {
+    let hero = adventurer(i, 1, true);
+    let (terrain, goblins) = board(i);
+    assert!(hero.health != 0 && goblins.len() == 8 && terrain != 0);
+}
+
+fn tick_on(i: u32) {
+    let mut hero = adventurer(i, 1, true);
+    let (terrain, goblins) = board(i);
+    assert!(hero.health != 0 && goblins.len() == 8 && terrain != 0);
+    let (next, _) = world_tick(ref hero, goblins.span(), terrain, 0);
+    assert!(next.len() == 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 84872)] // ceil(1.05 × 80830 measured)
+fn bench_world_tick_maze_baseline() {
+    tick_baseline(MAZE);
+}
+
+#[test]
+#[available_gas(l2_gas: 1781789)] // ceil(1.05 × 1696941 measured)
+fn bench_world_tick_maze() {
+    tick_on(MAZE);
+}
+
+#[test]
+#[available_gas(l2_gas: 85187)] // ceil(1.05 × 81130 measured)
+fn bench_world_tick_sealed_baseline() {
+    tick_baseline(SEALED);
+}
+
+#[test]
+#[available_gas(l2_gas: 1323852)] // ceil(1.05 × 1260811 measured)
+fn bench_world_tick_sealed() {
+    tick_on(SEALED);
+}
+
+#[test]
+#[available_gas(l2_gas: 85187)] // ceil(1.05 × 81130 measured)
+fn bench_world_tick_deep_baseline() {
+    tick_baseline(DEEP);
+}
+
+#[test]
+#[available_gas(l2_gas: 3525465)] // ceil(1.05 × 3357585 measured)
+fn bench_world_tick_deep() {
+    tick_on(DEEP);
 }
 
 // Discovery of the pair (0, 5), C + U, the same word for both variants. Word 1 finds a recipe

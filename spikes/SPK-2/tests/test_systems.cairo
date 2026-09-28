@@ -8,8 +8,8 @@ use dojo_snf_test::{
     get_default_caller_address, set_caller_address, spawn_test_world,
 };
 use spk2::fixtures::{
-    QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, START_X, START_Y, WEST, WORST,
-    WORST_PACKED,
+    DEEP, MAZE, QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, SEALED, SERPENT, START_X,
+    START_Y, WEST, WORST, WORST_PACKED,
 };
 use spk2::models::{
     Adventurer, Balance, Discovery, Goblin, Grimoire, Instance, InstanceAdventurer, Pack,
@@ -90,7 +90,7 @@ fn queue(world: @WorldStorage) -> IQueueMovesDispatcher {
 }
 
 #[test]
-#[available_gas(l2_gas: 64154092)] // ceil(1.05 × 61099135 measured)
+#[available_gas(l2_gas: 65535388)] // ceil(1.05 × 62414655 measured)
 fn test_tick_worst_case() {
     let world = world();
     setup(@world).worst_case(WORST);
@@ -115,7 +115,7 @@ fn test_tick_worst_case() {
 }
 
 #[test]
-#[available_gas(l2_gas: 80291731)] // ceil(1.05 × 76468315 measured)
+#[available_gas(l2_gas: 83054323)] // ceil(1.05 × 79099355 measured)
 fn test_tick_worst_case_packed() {
     // The same action with the goblins in one model: the same outcome
     let world = world();
@@ -139,7 +139,7 @@ fn test_tick_worst_case_packed() {
 // Queues of 10, 5 and 1 moves
 
 #[test]
-#[available_gas(l2_gas: 91951852)] // ceil(1.05 × 87573192 measured)
+#[available_gas(l2_gas: 106966989)] // ceil(1.05 × 101873322 measured)
 fn test_queue_moves() {
     let world = world();
     setup(@world).queue(QUEUE, 8);
@@ -157,7 +157,7 @@ fn test_queue_moves() {
 }
 
 #[test]
-#[available_gas(l2_gas: 76529336)] // ceil(1.05 × 72885081 measured)
+#[available_gas(l2_gas: 91544472)] // ceil(1.05 × 87185211 measured)
 fn test_queue_moves_5() {
     let world = world();
     setup(@world).queue(QUEUE_5, 8);
@@ -166,7 +166,7 @@ fn test_queue_moves_5() {
 }
 
 #[test]
-#[available_gas(l2_gas: 55485313)] // ceil(1.05 × 52843155 measured)
+#[available_gas(l2_gas: 70472898)] // ceil(1.05 × 67117045 measured)
 fn test_queue_moves_no_goblin() {
     let world = world();
     setup(@world).queue(QUEUE_EMPTY, 0);
@@ -176,7 +176,7 @@ fn test_queue_moves_no_goblin() {
 }
 
 #[test]
-#[available_gas(l2_gas: 70009503)] // ceil(1.05 × 66675717 measured)
+#[available_gas(l2_gas: 85024640)] // ceil(1.05 × 80975847 measured)
 fn test_queue_moves_1() {
     let world = world();
     setup(@world).queue(QUEUE_1, 8);
@@ -185,7 +185,7 @@ fn test_queue_moves_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 68826692)] // ceil(1.05 × 65549230 measured)
+#[available_gas(l2_gas: 83841828)] // ceil(1.05 × 79849360 measured)
 fn test_queue_drops_an_invalid_move() {
     let world = world();
     setup(@world).queue(QUEUE, 8);
@@ -197,7 +197,7 @@ fn test_queue_drops_an_invalid_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 70725220)] // ceil(1.05 × 67357352 measured)
+#[available_gas(l2_gas: 85740357)] // ceil(1.05 × 81657482 measured)
 fn test_queue_stops_when_hit() {
     let world = world();
     setup(@world).queue(QUEUE, 8);
@@ -206,6 +206,36 @@ fn test_queue_stops_when_hit() {
     assert!(done == 1);
     let adventurer: InstanceAdventurer = world.read_model((QUEUE, 1_u32));
     assert!(adventurer.health < 480);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Adversarial cases (fix loop 1, C-3)
+
+#[test]
+#[available_gas(l2_gas: 106260515)] // ceil(1.05 × 101200490 measured)
+fn test_tick_adversarial_boards() {
+    let world = world();
+    setup(@world).board(MAZE);
+    setup(@world).board(SEALED);
+    setup(@world).board(DEEP);
+    tick(@world).attack(MAZE, 1);
+    tick(@world).attack(SEALED, 1);
+    tick(@world).attack(DEEP, 1);
+    for i in array![MAZE, SEALED, DEEP] {
+        let instance: Instance = world.read_model(i);
+        assert!(instance.clock == 1);
+    }
+}
+
+#[test]
+#[available_gas(l2_gas: 93804288)] // ceil(1.05 × 89337417 measured)
+fn test_queue_serpent() {
+    // The expensive valid queue: 10 moves, no stop, every flood run to exhaustion
+    let world = world();
+    setup(@world).serpent(SERPENT);
+    let moves = array![WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST];
+    let done = queue(@world).walk(SERPENT, moves);
+    assert!(done == QUEUE_LENGTH, "stopped after {}", done);
 }
 
 // ---------------------------------------------------------------------------------------------

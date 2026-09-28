@@ -5,7 +5,10 @@
 
 use spk2::alchemy::{REGION_1_PAIRS, REGION_1_REMAINING, discover};
 use spk2::board::{flood, pow};
-use spk2::fixtures::{COMB, WORST, adventurer, window, worst_goblins};
+use spk2::fixtures::{
+    COMB, DEEP, DEEP_GOBLINS, DEEP_TERRAIN, MAZE, MAZE_GOBLINS, MAZE_TERRAIN, SEALED,
+    SEALED_GOBLINS, SEALED_TERRAIN, WORST, adventurer, board, window, worst_goblins,
+};
 use spk2::models::{Book, Grimoire};
 use spk2::rules::world_tick;
 
@@ -33,14 +36,14 @@ fn flood_inputs() -> (felt252, Span<u8>) {
 }
 
 #[test]
-#[available_gas(l2_gas: 1384898)] // ceil(1.05 × 1318950 measured)
+#[available_gas(l2_gas: 2765070)] // ceil(1.05 × 2633400 measured)
 fn bench_flood_baseline() {
     let (free, goblins) = flood_inputs();
     assert!(free != 0 && goblins.len() == 8);
 }
 
 #[test]
-#[available_gas(l2_gas: 2113831)] // ceil(1.05 × 2013172 measured)
+#[available_gas(l2_gas: 3494004)] // ceil(1.05 × 3327622 measured)
 fn bench_flood_worst_case() {
     let (free, goblins) = flood_inputs();
     let (layers, distances) = flood(free, 112, goblins);
@@ -49,7 +52,7 @@ fn bench_flood_worst_case() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1378955)] // ceil(1.05 × 1313290 measured)
+#[available_gas(l2_gas: 2759127)] // ceil(1.05 × 2627740 measured)
 fn bench_world_tick_baseline() {
     let hero = adventurer(WORST, 1, true);
     let goblins = worst_goblins(WORST);
@@ -58,7 +61,7 @@ fn bench_world_tick_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2691806)] // ceil(1.05 × 2563624 measured)
+#[available_gas(l2_gas: 4071978)] // ceil(1.05 × 3878074 measured)
 fn bench_world_tick_worst_case() {
     let mut hero = adventurer(WORST, 1, true);
     let goblins = worst_goblins(WORST);
@@ -66,6 +69,114 @@ fn bench_world_tick_worst_case() {
     assert!(hero.health != 0 && goblins.len() == 8 && terrain != 0);
     let (next, hit) = world_tick(ref hero, goblins.span(), terrain, 0);
     assert!(hit && next.len() == 8);
+}
+
+// Adversarial boards (fix loop 1, C-3): the flood and the whole world tick, each with a baseline.
+
+fn board_inputs(terrain: felt252, goblins: Span<u8>) -> felt252 {
+    let mut occupied: felt252 = 0;
+    for goblin in goblins {
+        occupied += pow(*goblin);
+    }
+    terrain - occupied - pow(112)
+}
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_maze_baseline() {
+    let free = board_inputs(MAZE_TERRAIN, MAZE_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 1333578)] // ceil(1.05 × 1270074 measured)
+fn bench_flood_maze() {
+    let free = board_inputs(MAZE_TERRAIN, MAZE_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, MAZE_GOBLINS.span());
+    assert!(layers.len() == 45);
+}
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_sealed_baseline() {
+    let free = board_inputs(SEALED_TERRAIN, SEALED_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 726019)] // ceil(1.05 × 691446 measured)
+fn bench_flood_sealed() {
+    let free = board_inputs(SEALED_TERRAIN, SEALED_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, SEALED_GOBLINS.span());
+    assert!(layers.len() == 13);
+}
+
+#[test]
+#[available_gas(l2_gas: 42420)] // ceil(1.05 × 40400 measured)
+fn bench_flood_deep_baseline() {
+    let free = board_inputs(DEEP_TERRAIN, DEEP_GOBLINS.span());
+    assert!(free != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 2932430)] // ceil(1.05 × 2792790 measured)
+fn bench_flood_deep() {
+    let free = board_inputs(DEEP_TERRAIN, DEEP_GOBLINS.span());
+    assert!(free != 0);
+    let (layers, _) = flood(free, 112, DEEP_GOBLINS.span());
+    assert!(layers.len() == 92);
+}
+
+fn tick_baseline(i: u32) {
+    let hero = adventurer(i, 1, true);
+    let (terrain, goblins) = board(i);
+    assert!(hero.health != 0 && goblins.len() == 8 && terrain != 0);
+}
+
+fn tick_on(i: u32) {
+    let mut hero = adventurer(i, 1, true);
+    let (terrain, goblins) = board(i);
+    assert!(hero.health != 0 && goblins.len() == 8 && terrain != 0);
+    let (next, _) = world_tick(ref hero, goblins.span(), terrain, 0);
+    assert!(next.len() == 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 85103)] // ceil(1.05 × 81050 measured)
+fn bench_world_tick_maze_baseline() {
+    tick_baseline(MAZE);
+}
+
+#[test]
+#[available_gas(l2_gas: 1787858)] // ceil(1.05 × 1702721 measured)
+fn bench_world_tick_maze() {
+    tick_on(MAZE);
+}
+
+#[test]
+#[available_gas(l2_gas: 85418)] // ceil(1.05 × 81350 measured)
+fn bench_world_tick_sealed_baseline() {
+    tick_baseline(SEALED);
+}
+
+#[test]
+#[available_gas(l2_gas: 1330110)] // ceil(1.05 × 1266771 measured)
+fn bench_world_tick_sealed() {
+    tick_on(SEALED);
+}
+
+#[test]
+#[available_gas(l2_gas: 85418)] // ceil(1.05 × 81350 measured)
+fn bench_world_tick_deep_baseline() {
+    tick_baseline(DEEP);
+}
+
+#[test]
+#[available_gas(l2_gas: 3531534)] // ceil(1.05 × 3363365 measured)
+fn bench_world_tick_deep() {
+    tick_on(DEEP);
 }
 
 // Discovery of the pair (0, 5), C + U, the same word for both variants. Word 1 finds a recipe
