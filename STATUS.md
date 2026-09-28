@@ -68,9 +68,15 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 |---|---|
 | D-123 | **Native Starknet contracts, without Dojo** (owner, 2026-09-28; [ADR-0007](docs/architecture/ADR-0007-native-starknet.md)). Cairo 2.19 for the game; probably an indexer of our own (SPK-11); quests and titles written in the game. N-9 and D-122 are void. Work built on Dojo today: the pins of SPK-5 and the scaffold of FND-01 are reworked by SPK-5b and FND-01b; SPK-2 keeps its Dojo figures as the baseline |
 
+## Decided today by the owner (continued)
+
+| | |
+|---|---|
+| D-124 | The Arcade packages are rewritten natively, one new repository each, pure Starknet components and pure Cairo. PLAN track ARC; needs in [docs/needs/arcade.md](docs/needs/arcade.md) |
+
 ## Waiting for the owner
 
-Nothing blocks. Open without urgency: a native version of the Arcade packages in their own repositories, for other games (programme level, ADR-0007); Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
+Nothing blocks the game today. **ARC-00**: names and visibility of the repositories of `quest` and `achievement`, and whether the project manager creates them. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
 
 ## Next
 

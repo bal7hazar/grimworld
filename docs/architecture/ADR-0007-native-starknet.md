@@ -101,11 +101,12 @@ They cannot be used as they are.
 
 | | |
 |---|---|
-| D-63 | Superseded: quests and titles are not built **on** the packages |
-| Instead | Written in the game as Starknet components, **modelled on the packages**: tasks with a target count, intervals, prerequisites, claim hooks; storage for what a rule reads, events for what is only shown |
-| SPK-8 | Dropped. Its edge cases (ADR-0004, points 4 and 5) become test cases of GLD-02 |
+| **Decision (owner, 2026-09-28, D-124)** | **Each package is rewritten in a new repository of its own, without Dojo: pure Starknet components and pure Cairo.** The game consumes them by published version, like the map library |
+| D-63 | Revised: quests on the native `quest` package in storage mode, titles on the native `achievement` package in event mode. The rule of ADR-0004 stands: storage when a game rule depends on the data, events when it is only shown |
+| What "pure" means | The logic (tasks with a target count, intervals, prerequisites, completion, claim) is a Cairo library without storage; a Starknet component wraps it with storage, events and hooks. No world, no model, no dependency on Dojo |
+| SPK-8 | Dropped as written. The edge cases of ADR-0004 (points 3, 4 and 5) become test cases of the new packages |
 | Lost | Quests and achievements shown in Controller's profile without interface work. Our own screens were already planned (design/11) |
-| For the owner | A native version of the packages, in their own repositories (Q-22), would serve other games too. It is a programme-level choice, outside this project |
+| Track | **ARC** in PLAN: `quest` first (the career loop, Phase 3), then `achievement`; `leaderboard` and `social` after the MVP |
 
 ## What is lost, and what it costs
 
