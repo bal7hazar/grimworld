@@ -53,15 +53,15 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 |---|---|
 | asdf shims broke `node`, `pnpm`, `codex` machine-wide (15:05 UTC) | **Fixed on 2026-09-28 by the project manager, on the owner's order**: `nodejs system` and `pnpm system` added to the global `~/.tool-versions` (backup `~/.tool-versions.bak`). Verified from `/tmp`: `node` v24.21.0, `pnpm` 12.5.1, `codex-cli` 0.155.1, exit 0; the SPK-5 worktree keeps its pins. Residual: `npm`, `npx` and `corepack` work but print one asdf warning on stderr ("No version is set for nodejs"). [Report](docs/reports/INC-2026-09-28-asdf-node-shims.md) |
 
-## Cross-track finding
+## Change of stack
 
 | | |
 |---|---|
-| N-9 | The game cannot build `origami_hexmap` 1.8.0: Dojo 1.8 imposes Cairo 2.13, the library asks 2.19. Arbitrated by the project manager ([file](docs/decisions/2026-09-28-N-9-compiler-target.md)): SPK-7 runs standalone on 2.19; LIB-03 studies the compiler floor; the owner decides at L-G2 |
+| D-123 | **Native Starknet contracts, without Dojo** (owner, 2026-09-28; [ADR-0007](docs/architecture/ADR-0007-native-starknet.md)). Cairo 2.19 for the game; probably an indexer of our own (SPK-11); quests and titles written in the game. N-9 and D-122 are void. Work built on Dojo today: the pins of SPK-5 and the scaffold of FND-01 are reworked by SPK-5b and FND-01b; SPK-2 keeps its Dojo figures as the baseline |
 
 ## Waiting for the owner
 
-Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
+Nothing blocks. Open without urgency: a native version of the Arcade packages in their own repositories, for other games (programme level, ADR-0007); Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
 
 ## Next
 

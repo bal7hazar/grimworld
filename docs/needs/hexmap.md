@@ -15,11 +15,12 @@ signatures are added here as the design settles.
 | N-6 | Range and ring as geometry | 2026-09-28 | — |
 | N-7 | Rotation, arcs relative to a facing | 2026-09-28 | — |
 | N-8 | One flood for many walkers, with extra obstacles | 2026-09-28 | — |
-| **N-9** | **A release the game can build**: Cairo 2.13 (Scarb 2.13.1), with `snforge_std` 0.51 or as a dev-dependency only, alongside `dojo` 1.8.0 and `dojo_snf_test` 1.8.0 (detail below). **Blocking**: `origami_hexmap` 1.8.0 does not build in the game today | 2026-09-28 (FND-01) | — |
+| N-9 | `snforge_std` declared as a **dev-dependency**, so that the library resolves next to any test setup of its consumer. *(The rest of N-9, a release for Cairo 2.13, is void since ADR-0007: the game is on Cairo 2.19)* | 2026-09-28 (FND-01), reduced the same day | — |
 
 ## N-9 in detail: the game cannot build `origami_hexmap` 1.8.0 (FND-01, 2026-09-28)
 
-**Arbitrated by the project manager**: [docs/decisions/2026-09-28-N-9-compiler-target.md](../decisions/2026-09-28-N-9-compiler-target.md).
+**Void since ADR-0007 (D-123)**: the game dropped Dojo and is on Cairo 2.19, the library's
+compiler. What remains of N-9: `snforge_std` as a dev-dependency. Earlier arbitration: [docs/decisions/2026-09-28-N-9-compiler-target.md](../decisions/2026-09-28-N-9-compiler-target.md).
 N-9 is part of milestone L-M1; SPK-7 runs standalone on Cairo 2.19 meanwhile; the compiler
 target is studied by LIB-03 and decided by the owner at gate L-G2.
 
