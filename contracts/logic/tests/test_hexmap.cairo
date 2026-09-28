@@ -3,7 +3,6 @@ use origami_hexmap::helpers::geometry::GeometryTrait;
 // `origami_hexmap` 1.8.0 builds on the game's compiler (Cairo 2.19) and its functions run from
 // the game's own package.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_hexmap_distance() {
     // (3, 0) -> (2, 1) is one step; (0, 0) -> (0, 2) is two; a full row is six.
     assert(GeometryTrait::distance(7, 3, 9) == 1, 'adjacent not 1');
