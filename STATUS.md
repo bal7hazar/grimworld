@@ -1,38 +1,38 @@
 # Status
 
-**2026-09-28 15:01 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 15:36 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations.** FND-03 (agent tooling) is **merged**; wave 1 is running:
-**SPK-5** (toolchain pins) and **ART-00** (asset pipeline), both on Sonnet 5, in parallel
-(allowlists do not overlap).
+**Phase 0 — Foundations.** FND-03 merged. Wave 1: **SPK-5** (toolchain pins) is in its first
+audit fix loop; **ART-00** (asset pipeline) is done except its PixiJS check, which needs the
+`pnpm` SPK-5 pins. FND-01 and SPK-2 are briefed and launch when SPK-5 merges.
 
 ## What moved
 
 | | |
 |---|---|
-| FND-03 merged | [#8](https://github.com/bal7hazar/grimworld/pull/8): `scripts/agent.sh` (claude agents as systemd units, codex detached with its sandbox, model actually run recorded), profiles `research` / `audit` / `implement` (never `--dangerously-skip-permissions`), `scripts/lock.sh`, `docs/briefs/COMMON.md`, CI `tooling`. Report: [docs/reports/FND-03-agent-tooling.md](docs/reports/FND-03-agent-tooling.md) |
-| FND-03 audit | `[GPT-6-Sol]`, lenses S and Q: FAIL, three fix loops, then **PASS WITH FINDINGS** (all notes): [docs/reports/FND-03-audit-gpt-6-sol.md](docs/reports/FND-03-audit-gpt-6-sol.md). One finding disproved by a real run; the inherent one (an interpreter runs anything) documented, with G-1 below |
-| Concurrency measured | Empty Dojo 1.8.0 project: `scarb build` 1.4 GB peak, 11 s; a `claude` agent about 0.3 GB. Budget kept at 3 (OPERATIONS §3) |
-| Wave-1 briefs | [SPK-5](docs/briefs/SPK-5-toolchain.md), [ART-00](docs/briefs/ART-00-asset-pipeline.md) |
-| Changelog | [CHANGELOG.md](CHANGELOG.md) started |
+| FND-03 merged | [#8](https://github.com/bal7hazar/grimworld/pull/8). Report: [docs/reports/FND-03-agent-tooling.md](docs/reports/FND-03-agent-tooling.md); audit `[GPT-6-Sol]` PASS WITH FINDINGS after three fix loops |
+| Launcher thresholds merged | [#11](https://github.com/bal7hazar/grimworld/pull/11): the launcher refuses to start or resume an agent above a 5-minute load of 12 or under 8 GB available; codex runs through the system `node`; `implement` denies direct agent-launch commands. Audit `[GPT-6-Sol]` PASS after two fix loops |
+| SPK-5 | [#14](https://github.com/bal7hazar/grimworld/pull/14), `[Sonnet 5]`: Scarb 2.13.1, snforge 0.51.2, sozo 1.8.7, Katana 1.7.1, Torii 1.8.16, Node 24.21.0, pnpm 12.5.1, `dojo` 1.8.0, dojo.js 2.0.0. **The game stays on Cairo 2.13** (Dojo 1.8's own chain; the machine's global Scarb 2.19.4 cannot build it). End to end proven: migrate, index, read back with dojo.js. **Slot hosting is retired: Torii is self-hosted.** Audit `[GPT-6-Sol]` FAIL (5 majors on the scripts: process cleanup, ports, symlink ownership, binary integrity, asdf plugins untested), all verified; fix loop 1 running |
+| ART-00 | [#12](https://github.com/bal7hazar/grimworld/pull/12), `[Sonnet 5]`: 8 sprites cleaned, renamed and packed outside git; IP check by the orchestrator clean (no image, no name from the manga, the generated folder resolved in code). AC-4 (PixiJS load) pending: `pnpm` could not run in the agent's worktree (no pinned version before SPK-5) |
+| Incident | [INC-2026-09-28](docs/reports/INC-2026-09-28-asdf-node-shims.md): SPK-5's asdf `nodejs`/`pnpm` plugins created machine-wide shims; `node`, `pnpm`, `codex` fail outside pinned directories. Cause: the orchestrator's brief. Remedy with the owner |
+| Briefs | [FND-01](docs/briefs/FND-01-scaffold.md) (proves `origami_hexmap` 1.8.0 builds on Cairo 2.13), [SPK-2](docs/briefs/SPK-2-cost.md) (5 Rifts a day per D-101, not PLAN's 10) |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-03 done. SPK-5 and ART-00 running |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-5 fix loop 1; ART-00 waiting for SPK-5 |
 | Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | Gate L-G1 decided by the owner (D-119: `hexx` in full, in `hexx-cairo`). LIB-03 porting plan running on Fable 5.1; next stop: gate L-G2 |
 
-| Game agent | Unit | Model asked / ran | Profile | Started |
+| Game agent | Unit | Model asked / ran | Profile | State |
 |---|---|---|---|---|
-| SPK-5 toolchain pins | `grimworld-SPK-5-150017` | `claude-sonnet-5` / `claude-sonnet-5` | implement | 15:00 UTC |
-| ART-00 asset pipeline | `grimworld-ART-00-150022` (`--with-assets`) | `claude-sonnet-5` / checked at close | implement | 15:00 UTC |
+| SPK-5 toolchain pins | `grimworld-SPK-5-153325` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
+| ART-00 asset pipeline | — | `claude-sonnet-5` / `claude-sonnet-5` | implement | Stopped, PR open, to resume after SPK-5 |
 
-Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
-library (idle at L-G1). Machine at 15:00 UTC: load 11.7 on 8 vCPU (five units of the owner's
-other programmes), 22 GB of 31 available.
+Budget: 3 Grim World agents at a time (D-118): 2 for the game (1 in use), 1 for the library
+(LIB-03). Machine at 15:33 UTC: load 8.6, 22 GB available.
 
 Models that actually ran, read from the CLIs' own records (2026-09-28): LIB-02 on
 `claude-opus-5-5`; the FND-03 audits on `gpt-6-sol`, effort high, read-only; launcher smoke
@@ -50,9 +50,19 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 
 ## Next
 
-1. Close SPK-5 and ART-00 (review, audits: Q for SPK-5, IP check for ART-00, merge).
-2. Then FND-01 → FND-02 → FND-06 on Sonnet 5; SPK-2 on Opus 5.5 as soon as SPK-5 is merged.
-3. Then FND-05 (with a `[GPT-6-Astra]` audit), SPK-4, SPK-8 on Opus 5.5; SPK-7 after them.
+1. SPK-5: fix loop 1, re-audit, merge; then add `.with-katana/` to the root `.gitignore`.
+2. Then, in parallel: **FND-01** (Sonnet 5) and **SPK-2** (Opus 5.5); ART-00 resumed for its
+   PixiJS check when a slot frees.
+3. Then FND-02 → FND-06 on Sonnet 5; FND-05 (with a `[GPT-6-Astra]` audit), SPK-4, SPK-8 on
+   Opus 5.5; SPK-7 after them.
+
+## Open questions from wave 1 (not blocking)
+
+| # | Question | From | For |
+|---|---|---|---|
+| ART-1 | Display scale: the generated goblins are drawn about twice as large as the pack's units; nothing is resampled. Which on-screen size per caste? | ART-00 | Owner (art direction), before CLI-03 |
+| ART-2 | Slinger placeholder: the Torch Goblin stands in (the pack's slinger is a gnome) | ART-00 | Owner, at the first commission (ART-01) |
+| TC-1 | `CONTEXT.md` §4 and `docs/CAIRO.md` should name Cairo 2.13 / Scarb 2.13.1 / snforge 0.51.2; ADR-0001 option B and ADR-0003's indexer consequence are confirmed by SPK-5 (Slot retired) | SPK-5 | Project manager (documents it owns) |
 
 ## Blocked
 
