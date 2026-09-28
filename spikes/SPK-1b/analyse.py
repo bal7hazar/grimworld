@@ -142,14 +142,38 @@ for action in ("enter", "leave"):
     for case in CASES:
         s = summary[(case, action)]
         print(f"  - {case}: remainder {s['remainder']:,} = {s['remainder'] / a['remainder']:.2f}× A's; account's fixed part "
-              f"{s['fixed']:,} = {s['fixed'] / a['fixed']:.2f}× A's ({a['fixed']:,}); difference from SPK-1's 1.09M: "
-              f"{s['fixed'] - 1_090_000:+,}")
+              f"{s['fixed']:,} = {s['fixed'] / a['fixed']:.2f}× A's ({a['fixed']:,}), A's is {a['fixed'] / s['fixed']:.2f}× it; "
+              f"difference from A measured today: {s['fixed'] - a['fixed']:+,} (from SPK-1's rounded 1.09M: {s['fixed'] - 1_090_000:+,})")
 
-print("\nThe floor no account removes (leave, B): fee transfer + second residual = "
-      f"{summary[('B burner direct', 'leave')]['fee_transfer'] + summary[('B burner direct', 'leave')]['residual_receipt']:,}; "
-      "with a zero-cost account (no validation, no execution) the account's fixed part could not go below it, "
-      f"{(summary[('A owner', 'leave')]['fixed']) / (summary[('B burner direct', 'leave')]['fee_transfer'] + summary[('B burner direct', 'leave')]['residual_receipt']):.2f}× "
-      "smaller than A's at best.")
+A, B = summary[("A owner", "leave")], summary[("B burner direct", "leave")]
+print(f"\nThe measured verdict: A's account's fixed part is {A['fixed'] / B['fixed']:.2f}× B's; A's non-game remainder is "
+      f"{A['remainder'] / B['remainder']:.2f}× B's (leave).")
+seconds = ", ".join(f"{c.split()[0]} {summary[(c, 'leave')]['residual_receipt']:,}" for c in CASES)
+print("\nESTIMATES, not measurements (fix loop 1): what no account would remove, on leave. Assumptions: the fee transfer "
+      f"({B['fee_transfer']:,}) is the STRK token's, whatever the account; the first residual stays as in B "
+      f"({B['residual_trace']:,}); the second residual is UNATTRIBUTED and varies ({seconds}).")
+floor = B["fee_transfer"] + B["residual_receipt"]
+print(f"- An account costing nothing to validate and execute, the second residual as in B: fixed part {floor:,}; "
+      f"A's is {A['fixed'] / floor:.2f}× it")
+print(f"- The same, holding only the fee transfer (the optimistic case): {B['fee_transfer']:,}; A's is "
+      f"{A['fixed'] / B['fee_transfer']:.2f}× it")
+rest = B["fee_transfer"] + B["residual_trace"] + B["residual_receipt"]
+print(f"- The non-game remainder of leave with such an account: {rest:,}; A's ({A['remainder']:,}) is {A['remainder'] / rest:.2f}× it")
+own = B["validate"] + B["account_exec"]
+sig = summary[("C burner via relayer", "leave")]["parts"]["burner execute_from_outside_v2: is_valid_signature"]
+print(f"- A minimal burner: the OZ burner's validation and own execution are {own:,}. If a minimal account cost what OZ's "
+      f"is_valid_signature costs ({sig:,}: an OZ figure, not a lower bound), it would save {own - sig:,} "
+      f"({(own - sig) / B['remainder']:.0%} of B's remainder, {(own - sig) / B['receipt']:.0%} of its receipt); at zero cost, "
+      f"{own:,} at most ({own / B['remainder']:.0%} of the remainder)")
+
+main_d = summary[("D burner via AVNU", "leave")]
+for v in rows[("D burner via AVNU", "leave")]:
+    if v["remainder"] != main_d["remainder"]:
+        dv = main_d["validate"] - v["validate"]
+        dr = main_d["residual_trace"] - v["residual_trace"]
+        total = main_d["remainder"] - v["remainder"]
+        print(f"\nThe D leave that differs ({v['tx'][:12]}…): {total:,} less remainder = {dv:,} less validation + {dr:,} less "
+              f"first residual (+ {total - dv - dr:,} elsewhere)")
 
 print("\nMoney per action (average fee in STRK at the blocks' prices; D also what the burner paid AVNU):\n")
 for case in CASES:
@@ -166,16 +190,28 @@ print(f"\nBlock prices over the run: L2 gas {min(p[0] for p in prices):,} to {ma
       f"L1 data gas {min(p[1] for p in prices):,} to {max(p[1] for p in prices):,} fri")
 
 # The transactions and their cost (AC-3)
-ledger = [json.loads(l) for l in open(os.path.join(HERE, "ledger.jsonl"))]
-by_type = defaultdict(lambda: [0, 0])
-for row in ledger:
-    by_type[row["label"].split(":")[0]][0] += 1
-    by_type[row["label"].split(":")[0]][1] += int(row["fee"])
-print(f"\nLedger: {len(ledger)} transactions, receipt fees {sum(int(r['fee']) for r in ledger) / 1e18:.4f} STRK")
-for label, (n, fee) in by_type.items():
-    print(f"- {label}: {n}, {fee / 1e18:.4f} STRK")
-avnu_receipts = sum(int(r["fee"]) for r in ledger if r["label"].startswith("D "))
-avnu_paid = sum(paid.values())
-print(f"Of which paid by AVNU's relayers (case D receipts): {avnu_receipts / 1e18:.4f} STRK; paid to AVNU by the burner "
-      f"instead: {avnu_paid / 1e18:.4f} STRK. The owner's money spent (the other receipts + what the burner paid AVNU): "
-      f"{(sum(int(r['fee']) for r in ledger) - avnu_receipts + avnu_paid) / 1e18:.4f} STRK, plus what stays in the burner")
+# The ledger (fix loop 1 format): one reservation, hash and settlement per transaction; the receipt's
+# fee (whoever paid it) and the owner's spending apart
+entries = {}
+for line in open(os.path.join(HERE, "ledger.jsonl")):
+    e = json.loads(line)
+    entries.setdefault(e["id"], {}).update(e if e["kind"] != "reserve" else {**e, "status": "reserved"})
+    if e["kind"] in ("settle", "void", "kept"):
+        entries[e["id"]]["status"] = e["kind"]
+counted = [e for e in entries.values() if e["status"] != "void"]
+by_type = defaultdict(lambda: [0, 0, 0])
+for e in counted:
+    t = by_type[e["label"].split(":")[0]]
+    t[0] += 1
+    t[1] += int(e.get("fee", 0))
+    t[2] += int(e["spent"]) if e["status"] == "settle" else int(e["max_fee"])
+fees = sum(t[1] for t in by_type.values())
+spent = sum(t[2] for t in by_type.values())
+print(f"\nLedger: {len(counted)} transactions ({sum(e['status'] != 'settle' for e in counted)} not settled); receipt fees "
+      f"{fees / 1e18:.4f} STRK; the owner's money spent {spent / 1e18:.4f} STRK")
+print("| Step | Transactions | Receipt fees (STRK) | The owner's money spent (STRK) |\n|---|---:|---:|---:|")
+for label, (n, fee, own) in by_type.items():
+    print(f"| {label} | {n} | {fee / 1e18:.4f} | {own / 1e18:.4f} |")
+print(f"| **Total** | **{len(counted)}** | **{fees / 1e18:.4f}** | **{spent / 1e18:.4f}** |")
+print("Through AVNU the receipt's fee is paid by AVNU's relayer; the owner's money spent is the burner's net STRK transfers "
+      "to AVNU in the receipt (equal to its balance change measured in the run). What stays in the burner is not counted.")

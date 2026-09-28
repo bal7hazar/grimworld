@@ -7,17 +7,23 @@ in `spikes/SPK-1b/`. The numbers below come from `analyse.py`, printed in `analy
 ## 1. The answer
 
 **D-133's reversal condition is not met.** The MVP's kind of account (a burner, ADR-0005 stage A)
-makes the fixed part of a transaction **1.5 times smaller** than the owner's account, not several
-times smaller:
+makes the fixed part of a transaction **1.52 times smaller** than the owner's account (measured),
+not several times smaller:
 
 - The fixed part is validation, the account's own execution, the fee transfer and the size
   residual. It is **717,435 L2 gas** with an OpenZeppelin burner sending directly, and 1,087,585
   with the owner's account (SPK-1's "about 1.09M", measured again today).
 - The whole non-game remainder of the cheap action (`leave`) is **977,915** against 1,348,065:
-  **1.38 times smaller**.
-- **No account can do much better.** The fee transfer (455,360) and the size residual (32,600) are
-  paid whatever the account. Even an account that cost nothing to validate and execute would leave
-  a fixed part of 487,960: at most **2.2 times smaller** than the owner's account.
+  **1.38 times smaller** (measured).
+- **No account is likely to do much better** (an estimate, §5). The fee transfer (455,360) is the
+  STRK token's and does not depend on the account. Assume an account that cost nothing to
+  validate and execute:
+  - with the size residual as measured with the burner (32,600): a fixed part of 487,960, which
+    the owner's account's is 2.23 times;
+  - holding only the fee transfer (the optimistic case): 455,360, which it is 2.39 times.
+
+  The size residual is unattributed and varies: 26,600 in C, 0 in D. Neither figure is
+  "several times".
 - **A paymaster makes it larger, not smaller.** With a relayer of our own the non-game remainder
   is 1.77× the reference; through AVNU's public paymaster it is 3.35×.
 
@@ -76,8 +82,10 @@ for the same action: it follows what the action writes, not the account.
 
 - **The reference reproduces SPK-1 exactly.** A's receipts, game calls and invocations are those of
   SPK-1 §4, to the unit: `enter` 3,927,367 and `leave` 2,030,065.
-- **One AVNU `leave` differs** (tx `0x34ee11cb…`): its validation is 320,000 instead of 400,000,
-  with the same relayer class, so its remainder is 4,274,320. Why is not established.
+- **One AVNU `leave` differs** (tx `0x34ee11cb…`), with the same relayer class. Its remainder is
+  4,274,320, 240,000 less than the others. That is 80,000 less validation (320,000 against
+  400,000) and 160,000 less first residual (700,240 against 860,240); nothing else differs. Why is
+  not established.
 - **Case D is metered differently.** AVNU's relayers are accounts of class `0x1a736d6e…2003`,
   Sierra 1.2.0, compiler 2.0.0 (`class-at.mjs`). Their figures are round (400,000, 80,000, 320,000)
   and the same game call costs 3% less there (`enter` 896,320 against 927,212). This is consistent
@@ -99,13 +107,17 @@ for the same action: it follows what the action writes, not the account.
 
 ## 4. The difference from SPK-1's 1.09M, and why
 
-- **B (the burner, direct): −372,565** (717,435 against 1,087,585). Almost all of it is
+The differences are in the account's fixed part on `leave`, against the reference A measured
+today (1,087,585). Against SPK-1's rounded 1.09M they would be 2,415 more negative
+(`analyse-output.txt` prints both).
+
+- **B (the burner, direct): −370,150** (717,435 against 1,087,585). Almost all of it is
   validation, 87,805 against 392,815. OpenZeppelin's `__validate__` checks one Stark signature;
   Braavos's goes through its signer management (multisig, secp256r1 signers, the daily withdrawal
   limit, sessions: see the interfaces in `classes.mjs`'s output). The account's own execution falls
   from 206,810 to 141,670. The fee transfer does not move: it is the STRK token's `transfer`,
   455,360 whatever the account. It is now **63% of the burner's fixed part**.
-- **C (a relayer of our own): +497,885** in the account's fixed part. A relayer pays its own
+- **C (a relayer of our own): +500,300** in the account's fixed part. A relayer pays its own
   validation and execution, and the outside execution comes on top: a signature check, a SNIP-9
   nonce and the call dispatch (502,760). The first residual also rises by 538,320 for `leave`,
   260,480 → 798,800, with the same game call. The likely cause is the SNIP-9 nonce: a new storage
@@ -114,7 +126,7 @@ for the same action: it follows what the action writes, not the account.
   - **Derived, not measured:** with an OpenZeppelin account as the relayer instead of Braavos
     (B's validation and own execution put in place of C's), the remainder of `leave` would be
     about 2.01M. That is still twice the burner sending directly.
-- **D (AVNU's public paymaster, default mode): +2,564,080.** On top of C's shape, the paymaster
+- **D (AVNU's public paymaster, default mode): +2,566,495.** On top of C's shape, the paymaster
   collects its fee in STRK: three token transfers (about 441,000 each), a `balanceOf`, and its
   forwarder's own work. The burner paid AVNU 1.19× (`enter`) to 1.21× (`leave`) the fee in the
   receipt. The *sponsored* mode, where the paymaster pays and takes nothing from the burner, needs
@@ -129,11 +141,19 @@ for the same action: it follows what the action writes, not the account.
   Sepolia.** It is declared and audited, it supports SNIP-9 v2 (useful later, ADR-0005 stage C),
   and nothing needs declaring. Whether the same class hash is declared on mainnet was not checked
   (never touched).
-- **A minimal burner is not justified.** The burner's validation and own execution are 229,475 of
-  its 977,915 remainder on `leave`. A minimal account must still check a Stark signature, which
-  costs 67,765 inside `is_valid_signature` here. At best it would save about 160,000: 16% of the
-  remainder and 10% of the receipt. It could never reach "several times smaller" (§1: the floor is
-  487,960 for the fixed part and 748,440 for the remainder of `leave`). No declare was spent on it.
+- **A minimal burner is not justified.** The measured part: the burner's validation and own
+  execution are 229,475 of its 977,915 remainder on `leave`. The rest are **estimates**, under
+  stated assumptions:
+  - A minimal account must still check a Stark signature. If that cost what OZ's
+    `is_valid_signature` costs here (67,765: an OpenZeppelin figure, not a lower bound), it would
+    save about 161,710: 17% of the remainder and 10% of the receipt.
+  - Even at zero cost it would save 229,475 at most (23%). That assumes the residuals stay as
+    measured with the burner; the second is unattributed and varies (§1).
+  - With such an account, the remainder of `leave` would be 748,440, which the owner's account's
+    is 1.80 times, and the fixed part 487,960 (2.23 times; 2.39 times holding only the fee
+    transfer).
+
+  None of these reaches "several times smaller". No declare was spent on it.
 - **A paymaster costs, it does not save.**
   - A relayer of our own adds 1.41M L2 gas to `leave` (+144%). Its only gain is that the burner
     needs no STRK, and D-100 is already met by a burner the game funds out of sight.
@@ -143,25 +163,46 @@ for the same action: it follows what the action writes, not the account.
 
 ## 6. The transactions and their cost (AC-3)
 
-Planned before sending: **44 transactions**, with hard caps in the code. Each script has its own
-cap, and `ledger.jsonl` records every transaction sent; `makeBudget` refuses past 60 transactions
-or 40 STRK of fees, whatever the script. All 44 were sent, none twice.
+Planned before sending: **44 transactions**, with hard caps in the code. All 44 were sent, none
+twice.
 
-| Step | Transactions | Receipt fees (STRK) |
-|---|---:|---:|
-| A: the owner's account, 5 × (enter, leave) | 10 | 0.6673 |
-| Fund the burner with 3 STRK and give it adventurer 3 (one multicall) | 1 | 0.0627 |
-| The burner's `DEPLOY_ACCOUNT` | 1 | 0.0485 |
-| B: the burner, direct | 10 | 0.5847 |
-| C: through a relayer of our own (the owner's account pays) | 10 | 0.9001 |
-| D: through AVNU (AVNU's relayers pay the receipts; the burner paid AVNU 1.6346 STRK) | 10 | 1.3629 |
-| Give adventurer 3 back to the owner | 1 | 0.0386 |
-| The burner returns its STRK to the owner | 1 | 0.0287 |
-| **Total** | **44** | **3.6938** |
+**The caps as they ran**, on 2026-09-28: each script had its own cap. `ledger.jsonl` recorded a
+transaction only after its receipt and trace, and its spending cap added receipt fees. Two faults
+were found by the audit (fix loop 1):
+- a failure after the broadcast could leave a sent transaction uncounted;
+- through AVNU the cap counted AVNU's receipt fee (1.3629 STRK), not what the burner paid it
+  (1.6346 STRK).
 
-- **The owner's money spent: 3.9654 STRK.** That is the receipts the owner and the burner paid
-  (3.6938 − 1.3629) plus what the burner paid AVNU (1.6346). The burner holds 0.0988 STRK, left
-  because the return kept a margin for its own fee.
+Neither changed what was sent: the run stayed far below both caps (44 of 60, 3.97 of 40 STRK).
+
+**The caps since fix loop 1** (`makeLedger` and `tracked` in `lib.mjs`, `test_ledger.mjs`):
+- Every transaction is **reserved before it is submitted**, at its maximum cost, and its hash is
+  written as soon as it is known.
+- It is **settled** after its receipt with two amounts apart: the receipt's fee, whoever paid it,
+  and the owner's money spent. Through a paymaster, the spending is the burner's net STRK transfers
+  in the receipt; if they cannot be read, the reservation stays.
+- An entry left unresolved by a failure counts at its maximum, and nothing may be reserved until
+  `reconcile` settles it (receipt found), voids it (the payer's nonce did not move) or keeps it
+  (counted at its maximum).
+- The caps: 60 transactions and 40 STRK of the owner's money.
+- The run's ledger was rewritten into this format (`migrate_ledger.py`; the original is kept as
+  `ledger-v1.jsonl`). Each AVNU settlement, the burner's net transfers in the receipt, equals the
+  burner's balance change measured in the run.
+
+| Step | Transactions | Receipt fees (STRK) | The owner's money spent (STRK) |
+|---|---:|---:|---:|
+| A: the owner's account, 5 × (enter, leave) | 10 | 0.6673 | 0.6673 |
+| Fund the burner with 3 STRK and give it adventurer 3 (one multicall) | 1 | 0.0627 | 0.0627 |
+| The burner's `DEPLOY_ACCOUNT` | 1 | 0.0485 | 0.0485 |
+| B: the burner, direct | 10 | 0.5847 | 0.5847 |
+| C: through a relayer of our own (the owner's account pays) | 10 | 0.9001 | 0.9001 |
+| D: through AVNU (AVNU's relayers pay the receipts; the burner pays AVNU) | 10 | 1.3629 | 1.6346 |
+| Give adventurer 3 back to the owner | 1 | 0.0386 | 0.0386 |
+| The burner returns its STRK to the owner | 1 | 0.0287 | 0.0287 |
+| **Total** | **44** | **3.6938** | **3.9654** |
+
+- **The owner's money spent: 3.9654 STRK** (cap 40). The burner holds 0.0988 STRK, left because
+  the return kept a margin for its own fee; that amount is not counted as spent.
 - **Stops and retries.** `measure.mjs` stopped after 35 transactions: AVNU's
   `paymaster_buildTransaction` simulated the second `leave` as "not the owner", on a state that did
   not yet include the `enter` accepted in the block before. Nothing was sent for it.
@@ -180,6 +221,12 @@ or 40 STRK of fees, whatever the script. All 44 were sent, none twice.
   mode 0600, never printed. `redactAlso` adds it to the redaction of every output from the moment
   it exists (`test_redaction.mjs`, synthetic values). `check_secrets.py`, adapted from SPK-1's,
   also counts the burner key and fails if the key file is tracked or not ignored.
+- **Fix loop 1: the redaction and the check.**
+  - Texts are redacted whole, then cut (`excerpt`). Cutting first could leave the prefix of a
+    value that crossed the cut. `test_redaction.mjs` puts each protected value across the cut at
+    every offset.
+  - `check_secrets.py` validates the burner inventory and requires the expected burner. Before, an
+    empty inventory passed without comparing against the key (`test_check_secrets.py`).
 
 ## 7. Open questions
 
