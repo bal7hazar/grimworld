@@ -8,7 +8,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hash } from "starknet";
 import {
-  account, accountAddress, describe, emit, makeSender, now, requireSepolia, strk, strkBalance, versions,
+  account, accountAddress, describe, emit, makeSender, now, provider, requireSepolia, rpc, strk, strkBalance,
+  versions,
 } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,22 @@ const OUT = join(HERE, "sepolia.json");
 if (existsSync(OUT)) {
   console.error("sepolia.json exists: the contracts are deployed; nothing is sent");
   process.exit(4);
+}
+
+/** A class declared by an earlier, interrupted run of this script: its declare transaction, from
+ * the recent blocks (read only), so that its fee is counted. */
+async function findDeclare(classHash) {
+  const latest = (await rpc("starknet_blockNumber"));
+  for (let n = latest; n > latest - 400; n -= 1) {
+    const block = await rpc("starknet_getBlockWithTxs", { block_id: { block_number: n } });
+    for (const t of block.transactions) {
+      if (t.type === "DECLARE" && BigInt(t.class_hash) === BigInt(classHash)
+          && BigInt(t.sender_address) === BigInt(accountAddress())) {
+        return t.transaction_hash;
+      }
+    }
+  }
+  return null;
 }
 
 const chain = await requireSepolia();
@@ -30,16 +47,18 @@ for (const name of ["Hub", "Instances"]) {
   const contract = JSON.parse(readFileSync(join(TARGET, `spk2n_${name}.contract_class.json`), "utf8"));
   const casm = JSON.parse(readFileSync(join(TARGET, `spk2n_${name}.compiled_contract_class.json`), "utf8"));
   const declare = await acc.declareIfNot({ contract, casm });
-  let declareTx = declare.transaction_hash || null;
+  let declareTx = declare.transaction_hash || (await findDeclare(declare.class_hash));
   if (declareTx) {
-    await acc.waitForTransaction(declareTx);
+    emit({ step: `declare ${name} sent`, tx: declareTx });
+    await provider.waitForTransaction(declareTx);
     const record = await describe(declareTx);
     emit({ step: `declare ${name}`, ...record });
     txs.push(record);
   }
   const classHash = declare.class_hash ?? hash.computeContractClassHash(contract);
   const deploy = await acc.deployContract({ classHash, constructorCalldata: [accountAddress()] });
-  await acc.waitForTransaction(deploy.transaction_hash);
+  emit({ step: `deploy ${name} sent`, tx: deploy.transaction_hash });
+  await provider.waitForTransaction(deploy.transaction_hash);
   const record = await describe(deploy.transaction_hash);
   emit({ step: `deploy ${name}`, ...record });
   txs.push(record);

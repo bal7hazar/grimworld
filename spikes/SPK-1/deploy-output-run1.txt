@@ -1,0 +1,1 @@
+{"step":"start","at":"2026-09-28T20:40:43.616Z","chain":"SN_SEPOLIA","strk_balance":305.129714554142}
