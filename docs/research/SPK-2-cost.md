@@ -14,7 +14,41 @@ commands now run with its own pins: `spikes/SPK-2/test.sh` and
 > (starknet-devnet 0.10.0, an OpenZeppelin account compiled with Cairo 2.19), with **equal
 > goblin storage and equal checks**, adversarial flood cases and the corrected break-even formula.
 > §§1–7 stay as the record of what was measured before; where a figure differs, §8's is the one
-> to use.
+> to use. **Fix loop 2 (§9) implements D-127** (the tick's flood stops at 15 layers) on both
+> sides and supersedes §8's scenarios and verdict: every fight is now the capped worst case.
+
+## Summary — does ADR-0001's threshold hold for the native contracts?
+
+**No, not at today's prices.** Measured on starknet-devnet 0.10.0 through an account compiled with
+Cairo 2.19, with the tick's flood stopped at 15 layers (D-127), a 300-action expedition on the
+native contracts in production form costs **$0.69 to $0.93**. The threshold is **$0.50**, so that is
+**1.38× to 1.86×**. The same expedition on Dojo costs $1.21 to $2.83. Prices: mainnet L2 gas
+21,687,750,610 fri and L1 data gas 1,544,531,203,854 fri (block 15,591,320, 2026-09-28T19:30Z);
+STRK $0.04061 (CoinGecko, 19:30:18Z).
+
+**For the threshold to hold, an action must cost at most $0.50 / 300 = $0.001667**, which is
+**1,833,096 L2 gas per action** at those prices, with 832 L1 data gas (DA) per action included.
+Each measured native action, per player action:
+
+| Native action (owner checked) | L2 gas per action | $ per action | × the budget |
+|---|---:|---:|---:|
+| Fight: the game's worst tick under D-127 (15 layers, 8 goblins reached) | 5,156,800 | 0.004594 | **2.76** |
+| Fight, goblins packed per instance | 5,036,800 | 0.004488 | 2.69 |
+| Fight on part 1's fixture (12 layers) | 4,996,800 | 0.004453 | 2.67 |
+| Move in a queue of 10, 8 goblins following | 2,012,800 | 0.001778 | 1.07 |
+| Move in a queue of 5, 8 goblins following | 2,332,480 | 0.002065 | 1.24 |
+| Move alone (queue of 1), 8 goblins following | 5,201,920 | 0.004630 | 2.78 |
+| Exploring move (queue of 10, no goblin) | 224,800 | 0.000200 | **0.12** |
+| Move in a queue of 10 on the serpentine (capped) | 1,356,800 | 0.001197 | 0.72 |
+| Enter / leave | 3,425,280 / 1,576,320 | 0.003057 / 0.001424 | 1.83 / 0.85 |
+| Brew (new pair), accept quest, claim quest | 2,485,920 / 1,473,680 / 1,713,680 | 0.002222 / 0.001314 / 0.001533 | 1.33 / 0.79 / 0.92 |
+
+Exploration is well under budget; moves near goblins are at or just over it; **fights are 2.7× to
+2.8× over**, and they are a third of an expedition. Per expedition the native average is
+$0.0023 to $0.0031 per action (1.38× to 1.86×). The threshold would hold at an L2 gas price of
+**11.6 to 15.6 Gfri** (today 21.7; 18.1 to 30.8 over two weeks), or with a fight near 1.8M L2 gas.
+Mainnet may meter these contracts in Sierra gas, below devnet's VM-resource figures used here: to
+be measured on Sepolia (§8.6). Detail in §9.
 
 ## Verdict (part 1, Dojo)
 
@@ -595,3 +629,87 @@ Dojo's S3 and S4 use part 1's estimated packed queues; every native figure is me
 1. **The flood's bound: answered by D-127 (15 layers).** Uncapped, a valid window can need 92 layers, and the tick then costs 1.8× the fixture's (9.04M against 5.00M natively). With the cap, the flood's cost is bounded near the 12-to-15-layer figures measured here: about 0.7M to 0.9M in memory on an open board, and less on corridors. The capped flood is SPK-7's to measure (10, 15, 20 layers and unlimited). This spike's code does not implement the cap. For FND-04: budget the tick at the cap, not at the fixture.
 2. **Mainnet's meter.** devnet 0.10.0 meters in VM resources. Mainnet (Starknet 0.14.3 at the time of reading) may meter Sierra ≥ 1.7 classes in Sierra gas. To be measured on Sepolia (SPK-1, SPK-9) with the real account: native's figures here are likely upper bounds.
 3. **The library's flood (C-4):** an unmeasured opportunity, to benchmark against the oracle with identical results before any figure is claimed.
+
+*(Fix loop 2 implements the cap: see §9.)*
+
+## 9. Fix loop 2 — the tick under D-127, and the threshold stated plainly
+
+Measured on 2026-09-28 by `[Opus 5.5]`. §9 supersedes §8's scenarios and verdict. The summary
+at the top of this file answers the threshold question.
+
+### 9.1 The cap, implemented on both sides
+
+`board::flood` takes a `limit`, and the tick passes `FLOOD_LAYERS = 15` (design/02 *Simulation
+budget*, design/04 *Goblin AI*, ADR-0006 §4). The flood computes at most 15 distances. A goblin
+it did not touch has distance 0 and **holds its position**; it still takes its conditions and
+regeneration. It would still use a ranged attack or a skill, which this spike's goblins do not
+have.
+
+`board` and `rules` are shared, byte for byte, by part 1 and the native package
+(`native/check.sh`). So **the Dojo tick is capped too, at no cost**, and the pairs stay
+controlled. `UNLIMITED` (255) keeps the uncapped flood for the oracle and the unlimited
+benchmarks.
+
+`test_flood_capped_matches_reference` checks the capped flood against the scalar BFS on four
+boards:
+- every computed layer;
+- at most 16 layers (the start and 15 distances);
+- a goblin farther than 15 steps has distance 0.
+
+### 9.2 The worst case under D-127
+
+Under the cap, the costliest tick computes all 15 layers and has every goblin reached, touched at
+as many different layers as possible (each hit layer tests the goblins), and stepping.
+
+- **Why not the one-tile corridors.** In one-tile corridors, goblins block one another under
+  rule (a), and at most 4 or 5 can be reached.
+- **The board.** `adversarial.py` hill-climbs a **winding board**: eccentricity 14 from the
+  adventurer, with detours around the goblins (`CAPPED_TERRAIN` in `fixtures.cairo`,
+  instances 30 to 33).
+- **What happens on it.** The flood runs its **15 layers**, and **all 8 goblins are reached**, at
+  distances 1, 9, 10, 11, 12, 13, 14 and 15. Goblin 1 is hit and hits back; the 7 others step
+  (`test_tick_capped_worst_case`, both sides).
+
+| Tick | Layer array (start included) | Flood in memory | Tick in memory | Dojo call | Native call | Dojo tx (devnet) | Native tx (devnet) | Native / Dojo |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **Worst case under D-127** (winding, 8 reached) | 16 | **1,005,344** | **1,592,793** | 13,539,287 | 3,303,993 | **18,940,800** | **5,156,800** | **0.27** |
+| The same, goblins packed per instance | 16 | — | — | 6,955,549 | 3,118,653 | 8,887,680 | 5,036,800 | 0.57 |
+| Part 1's fixture (comb) | 12 | 694,022 | 1,256,774 | 13,212,048 | 2,976,574 | 18,740,800 | 4,956,800 | 0.26 |
+| Deepest board found, **capped** | 16 | 551,436 | — | 12,884,467 | 2,649,173 | 18,260,800 | 4,476,800 | 0.25 |
+| Deepest board found, **unlimited** (fix loop 1) | 92 | 2,752,390 | 3,276,455 | 15,223,049 | 4,987,755 | 20,060,800 | 9,036,800 | 0.45 |
+| Corridor maze, capped / unlimited | 16 / 45 | — | — | 12,784,512 / 13,562,705 | 2,549,218 / 3,327,411 | 18,180,800 / 18,620,800 | 4,396,800 / 4,836,800 | 0.24 / 0.26 |
+| Expensive valid queue (10 moves), capped / unlimited | ≤ 16 / exhausted | — | — | 21,716,096 / 24,603,228 | 10,178,182 / 13,065,314 | 25,004,480 / 27,764,480 | 13,568,000 / 24,408,000 | 0.54 / 0.88 |
+
+Notes on the table:
+- D-127 counts distances (15); the layer array also holds the start (16), as the earlier sections count (the fixture's 12, the deep board's 92).
+- The native in-memory tick figure is native's snforge run: 1,676,463 − 83,670.
+- Unlimited figures are fix loop 1's, from the same code without the cap (`devnet-output-fixloop1-uncapped.txt`).
+- All 85 transactions of this run succeeded (`devnet-output.txt`).
+- The native tick checked (production form) costs the same 5,156,800 on devnet (devnet reports invocation gas in steps of 40,000).
+
+The cap makes the game's worst tick **5,156,800 natively, 1.03× part 1's fixture** (4,996,800
+checked) instead of 1.8×. The deep and maze boards get cheaper than the fixture: their far goblins
+now hold, and holding costs no step.
+
+### 9.3 Scenarios and verdict with the capped tick
+
+The money is in `spikes/SPK-2/money-devnet-output.txt` (`money_devnet.py`). Prices are those of
+the summary (`prices-fixloop2-output.txt`). Every fight is the capped worst-case tick; native is
+in production form (owner checked). The expedition is as in §3.3.
+
+| Scenario | $ Dojo | $ native | Native / Dojo | Native × $0.50 | Break-even L2 gas price, native | $ per day, native |
+|---|---:|---:|---:|---:|---:|---:|
+| S1 worst case everywhere | 2.833 | **0.928** | 0.33 | **1.86** | 11.60 Gfri | 4.66 |
+| S2 mixed (2/3 of the moves exploring) | 2.378 | **0.704** | 0.30 | 1.41 | 15.33 Gfri | 3.54 |
+| S3 mixed, goblins packed per instance | 1.209 | **0.692** | 0.57 | 1.38 | 15.62 Gfri | 3.48 |
+| S4 worst case everywhere, goblins packed | 1.451 | **0.914** | 0.63 | 1.83 | 11.78 Gfri | 4.59 |
+| S5 every move near goblins in serpentine queues (capped) | 2.416 | **0.771** | 0.32 | 1.54 | 13.99 Gfri | 3.88 |
+
+Uncapped, fix loop 1's S5 cost $1.348 natively. With the cap, the serpentine queue's walled-off
+goblins hold, and **S1 is the worst scenario**.
+
+**Verdict: ADR-0001's threshold does not hold for the native contracts at today's prices**, by
+1.38× to 1.86×. It would hold with fights at about 1.8M L2 gas (a third of today's 5.16M). The
+other routes are an L2 gas price at or below 11.6 to 15.6 Gfri, or mainnet metering these
+classes in Sierra gas well below devnet's VM resources (§8.6). The per-action comparison is in
+the summary at the top.
