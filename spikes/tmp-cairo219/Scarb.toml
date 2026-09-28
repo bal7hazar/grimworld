@@ -1,0 +1,17 @@
+[package]
+name = "tmp_cairo219"
+version = "0.1.0"
+edition = "2024_07"
+
+[dependencies]
+starknet = "2.19.4"
+
+[dev-dependencies]
+snforge_std = "0.61.0"
+assert_macros = "2.19.4"
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
