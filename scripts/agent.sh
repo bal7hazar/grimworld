@@ -16,6 +16,7 @@
 #   scripts/agent.sh wait <task>         block until the agent of <task> has exited
 #   scripts/agent.sh sid <task>          codex session id of <task> (for `resume`)
 #   scripts/agent.sh model <task>        the model that actually ran, as the CLI recorded it
+#   scripts/agent.sh thresholds          may an agent start now? (load and memory; exit 4 if not)
 # options:
 #   --dry-run            print what would be launched, launch nothing, need no worktree
 #   --with-assets        initialise the `assets` submodule in the task worktree before launching
@@ -117,7 +118,33 @@ reported_model() { # <task>
     paste -sd, - | grep . || echo unknown
 }
 
+# Machine thresholds (OPERATIONS §3): no agent starts or resumes while the 5-minute load
+# average is above 12 or less than 8 GB of memory is available. Fixed here on purpose: no
+# variable can relax them. Running agents are never stopped for load.
+MAX_LOAD5=12 MIN_MEM_GB=8
+thresholds_ok() { # prints the reason and returns 1 when a launch must wait
+  local load5 mem_kb
+  load5=$(cut -d' ' -f2 /proc/loadavg)
+  mem_kb=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+  if ! [[ $load5 =~ ^[0-9]+(\.[0-9]+)?$ && $mem_kb =~ ^[0-9]+$ ]]; then
+    echo "agent.sh: cannot read load ('$load5') or memory ('$mem_kb'): wait and check again" >&2
+    return 1
+  fi
+  if awk -v l="$load5" -v m="$MAX_LOAD5" 'BEGIN { exit !(l > m) }'; then
+    echo "agent.sh: 5-minute load average $load5 is above $MAX_LOAD5: wait and check again" >&2
+    return 1
+  fi
+  if [ "$((mem_kb / 1048576))" -lt "$MIN_MEM_GB" ]; then
+    echo "agent.sh: $((mem_kb / 1048576)) GB of memory available, under $MIN_MEM_GB: wait and check again" >&2
+    return 1
+  fi
+  echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available: a launch may proceed"
+}
+
 case "${1:-}" in
+  thresholds)
+    thresholds_ok || exit 4
+    exit 0 ;;
   status)
     mkdir -p "$L"
     shopt -s nullglob
@@ -189,17 +216,21 @@ prompt="$prompt
 
 Foreground only: never run a command in the background and never end your turn waiting for one; in headless mode that ends the session. $end"
 
+# codex's entry point is a Node script: start it with the system `node` explicitly, so that an
+# asdf `node` shim without a version (docs/reports/INC-2026-09-28-asdf-node-shims.md) cannot
+# stop it, while the commands it runs keep the normal PATH and a worktree's pinned tools.
+codex=(/usr/bin/node "$(readlink -f "$(command -v codex 2> /dev/null || echo /usr/bin/codex)")")
 case "$cli:$mode" in
   claude:new)
     cmd=(claude -p "$prompt" --model "$model_id" --name "[$label] $task") ;;
   claude:resume)
     cmd=(claude --continue -p "$prompt" --model "$model_id") ;;
   codex:new)
-    cmd=(codex exec -C "$wt" -m "$model_id" -c "model_reasoning_effort=${effort:-high}" -s read-only
+    cmd=("${codex[@]}" exec -C "$wt" -m "$model_id" -c "model_reasoning_effort=${effort:-high}" -s read-only
       -o "$L/$task.last.md" "$prompt") ;;
   codex:resume)
     [ -n "$sid" ] || die "codex resume needs the session id (scripts/agent.sh sid $task)"
-    cmd=(codex exec resume "$sid" -m "$model_id" -c "model_reasoning_effort=${effort:-high}"
+    cmd=("${codex[@]}" exec resume "$sid" -m "$model_id" -c "model_reasoning_effort=${effort:-high}"
       -c 'sandbox_mode="read-only"' -o "$L/$task.last.md" "$prompt") ;;
   *) die "cli must be claude or codex" ;;
 esac
@@ -236,6 +267,7 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
+thresholds_ok || exit 4
 if [ ! -d "$wt" ]; then
   [ -n "$branch" ] || die "no worktree $wt (create it, or pass --branch <type>/<task-id>-<slug>)"
   git -C "$main" fetch -q origin main

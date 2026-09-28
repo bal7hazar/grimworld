@@ -105,3 +105,12 @@ Bash(gh pr comment*)
 !Bash(rm ..*)
 !Bash(rm * ..*)
 !Bash(rm *../*)
+
+# Never: launch, resume or stop agents; that is the orchestrator's act.
+!Bash(scripts/agent.sh*)
+!Bash(./scripts/agent.sh*)
+!Bash(bash scripts/agent.sh*)
+!Bash(systemd-run*)
+!Bash(systemctl*)
+!Bash(claude *)
+!Bash(codex *)
