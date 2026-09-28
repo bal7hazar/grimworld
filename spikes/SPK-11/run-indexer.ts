@@ -22,7 +22,7 @@ export async function startIndexer(options: { address: string; db: string; from:
     let buffer = "";
     child.stdout.on("data", (chunk) => {
       const text = String(chunk);
-      if (!options.quiet) process.stdout.write(text);
+      if (!options.quiet || /failed|rewind/.test(text)) process.stdout.write(text);
       buffer += text;
       const match = /serving on (http:\/\/127\.0\.0\.1:\d+)/.exec(buffer);
       if (match) resolve(match[1]);
