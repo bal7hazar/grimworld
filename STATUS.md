@@ -1,48 +1,39 @@
 # Status
 
-**2026-09-28 18:06 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 20:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations, native Starknet (ADR-0007).** Merged since the last check-in:
-SPK-5b (toolchain without Dojo; local node starknet-devnet 0.10.0) and FND-01b (native
-scaffold; `origami_hexmap` 1.8.0 now builds in the game). Running: **SPK-2** (cost fix loop 1)
-and **FND-02** (CI fix loop 1). Next: SPK-11 (indexer), then SPK-7, FND-05, SPK-4.
+**Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-03, SPK-5, SPK-5b, FND-01,
+FND-01b, FND-02, ART-00, **SPK-2** (cost), **SPK-11** (indexer). Running: **FND-06** (gas tooling,
+Sonnet 5.5). Next: SPK-7, FND-05, SPK-4. **SPK-1 blocked** on the Sepolia credentials (not in the
+environment, checked by names only).
 
 ## What moved
 
 | | |
 |---|---|
-| **SPK-2, native measure — provisional** | [#25](https://github.com/bal7hazar/grimworld/pull/25). The agent's first native figures: a 300-action expedition **$0.72 to $2.08** natively against $1.15 to $2.86 on Dojo (same prices). **Not decision-grade yet**: the `[GPT-6-Astra]` cost audit found the headline comparison unfair (the native per-goblin layout used 11 storage slots against Dojo's 1; with equal packing the native tick is about **0.28×** Dojo's, not 0.70×), the devnet account metering misread (an old account class meters the whole transaction in VM resources), and the flood's "worst case" a property of the fixture (12 layers; a valid board needs 45). Fix loop 1 running; the figures go to the owner after it |
-| SPK-5b merged | [#24](https://github.com/bal7hazar/grimworld/pull/24): Cairo 2.19, snforge and sncast 0.61.0, **starknet-devnet 0.10.0** (Katana refuses Cairo 2.19 classes), starknet.js 10.8.0; `scripts/with-node.sh`; the Dojo spikes keep their own pins, wrapper and locks. Audit `[GPT-6-Sol]` PASS WITH FINDINGS after two fix loops |
-| FND-01b merged | [#27](https://github.com/bal7hazar/grimworld/pull/27): `contracts/` workspace (`grimworld_logic` pure with `origami_hexmap` 1.8.0, `Persistent`, `Ephemeral`), client on starknet.js. Audit PASS WITH FINDINGS; checks reproduced by the orchestrator |
-| FND-02 | [#21](https://github.com/bal7hazar/grimworld/pull/21) resumed on the native layout, green (6 checks, about 2.5 min); audit `[GPT-6-Sol]` FAIL (4 majors verified: workspace members, versions validated before download, a transitively unpinned action, the failing-test demonstration); fix loop 1 running |
-| Briefs | [SPK-11](docs/briefs/SPK-11-indexer.md) (indexer; devnet can abort blocks to simulate a reorg); SPK-2 part 2; COMMON follows the native toolchain |
+| **SPK-2 merged** | [#25](https://github.com/bal7hazar/grimworld/pull/25): native worst tick under D-127 **5.16M L2 gas** (0.27× Dojo); a 300-action expedition **$0.69 to $0.93** natively ($1.21 to $2.83 on Dojo): ADR-0001's $0.50 does not hold on the local node's figures. `[GPT-6-Astra]` PASS WITH FINDINGS after three fix loops. Decided by the project manager: **D-129**, the threshold stays the target, SPK-1 on Sepolia first |
+| **SPK-11 merged** | [#31](https://github.com/bal7hazar/grimworld/pull/31): our own indexer, reorg-safe (no stale answer on restart, live or mid-read), nine events for ENG-01. `[GPT-6-Sol]` PASS after two fix loops. Decided: **D-130**, our own indexer (IDX-01, IDX-02) |
+| Sonnet 5.5 | [#33](https://github.com/bal7hazar/grimworld/pull/33): `sonnet` launches `[Sonnet 5.5]`; a resume needs its launch record and the same model; `new` needs a closed task |
+| Secrets | [#38](https://github.com/bal7hazar/grimworld/pull/38): every agent runs with the registry token emptied; reading `~/.claude`, printing it, `env`, `scarb publish` denied. Residual (an interpreter can read the same user's settings file) sent to the project manager for the owner |
+| SPK-1 brief | [docs/briefs/SPK-1-sepolia.md](docs/briefs/SPK-1-sepolia.md): the orchestrator deploys and funds, the agent never sees a credential |
+| Process | A `gh pr checks … \| tail -1` chain went on after a failed check (no merge followed); every merged PR was verified green; checks are now read by their exit code |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-2 and FND-02 in fix loops |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-03; next stop gate L-G2 |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-06 running |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)` | `claude-fable-5-1` | LIB-04 running |
 
-| Game agent | Unit | Model asked / ran | Profile | State |
+| Game agent | Unit | Model asked | Profile | Started |
 |---|---|---|---|---|
-| SPK-2 cost spike | `grimworld-SPK-2-180513` (resumed) | `claude-opus-5-5` / `claude-opus-5-5` | implement | Cost fix loop 1 |
-| FND-02 continuous integration | `grimworld-FND-02-175911` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
+| FND-06 gas tooling | `grimworld-FND-06-202925` | `claude-sonnet-5-5` | implement | 20:29 UTC |
 
-Budget (OPERATIONS §3, d9b2c3c): 3 Grim World agents at a time, audits included, across the
-game, the map library and quiver: **1 slot of the game's own, 1 shared**. The game holds 2 now
-(SPK-2, SPK-11); the first slot freed goes once to quiver's ARC-01, then the shared slot is the
-game's first. Before each launch: count every running `grimworld-*`, `hexmap-*`, `quiver-*` unit
-and codex audit. Machine at 18:05 UTC: load 5.5, 13 GB available.
-
-## Decided by the owner, gate L-G2
-
-| | |
-|---|---|
-| D-126 | The porting plan of `hexx` is accepted; package named `hexx`; the tick is measured first; nothing published without a go ([file](docs/decisions/2026-09-28-L-G2-porting-plan.md)) |
-| D-127 | The flood of the tick stops at 15 layers; a goblin beyond holds its position (design/02, design/04, ADR-0006) |
+Budget (OPERATIONS §3): 3 Grim World agents at a time, audits included, across the game, the
+map library and quiver: 1 slot of the game's own, 1 shared. At 20:29 UTC: LIB-04, a quiver
+audit, FND-06. Load 3.9, 22 GB available.
 
 ## Waiting for the owner
 
@@ -55,9 +46,10 @@ Open without urgency: Q-12, the lore premise.
 
 ## Next
 
-1. SPK-2: re-audit by `[GPT-6-Astra]`, merge; then its decision-grade native figures to the
-   project manager for the owner (R-2, C-1 below).
-2. FND-02: re-audit, merge. Then SPK-11, SPK-7, FND-05 (with `[GPT-6-Astra]`), SPK-4; FND-06.
+1. FND-06: audit, merge.
+2. SPK-7 (Opus 5.5, flood at 10/15/20 layers and unlimited, D-127), FND-05 (with
+   `[GPT-6-Astra]`), SPK-4; one at a time within the budget.
+3. SPK-1 when the owner provides the Sepolia credentials.
 
 ## For the project manager
 
