@@ -46,11 +46,16 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 | D-119 | `hexx` ported in full in `bal7hazar/hexx-cairo`; `origami_hexmap` decommissioned at the end ([file](docs/decisions/2026-09-28-L-G1-hexx-port.md)) |
 | D-120 | The window follows the adventurer, 15 × 16, not stored; fallback sight 5 on 13 × 14 ([file](docs/decisions/2026-09-28-window-follows.md)); ADR-0006, design/02, design/18, CONTEXT, PLAN v0.16 and docs/needs/hexmap.md corrected |
 
+## Incident closed
+
+| | |
+|---|---|
+| asdf shims broke `node`, `pnpm`, `codex` machine-wide (15:05 UTC) | **Fixed on 2026-09-28 by the project manager, on the owner's order**: `nodejs system` and `pnpm system` added to the global `~/.tool-versions` (backup `~/.tool-versions.bak`). Verified from `/tmp`: `node` v24.21.0, `pnpm` 12.5.1, `codex-cli` 0.155.1, exit 0; the SPK-5 worktree keeps its pins. Residual: `npm`, `npx` and `corepack` work but print one asdf warning on stderr ("No version is set for nodejs"). [Report](docs/reports/INC-2026-09-28-asdf-node-shims.md) |
+
 ## Waiting for the owner
 
 | What | Where | Recommendation |
 |---|---|---|
-| **Incident**: restore `node`, `pnpm`, `codex` on the machine (two lines in the global `~/.tool-versions`) | [docs/reports/INC-2026-09-28-asdf-node-shims.md](docs/reports/INC-2026-09-28-asdf-node-shims.md) | Apply |
 | G-1: protect `main` on both repositories | [docs/decisions/PENDING-G-1.md](docs/decisions/PENDING-G-1.md) | Yes, two steps |
 
 ## Next
