@@ -82,7 +82,12 @@ pub mod Market {
         let (rest, open) = DivRem::div_rem(packed, 2_u128.try_into().unwrap());
         let (rest, item) = DivRem::div_rem(rest, 0x100000000_u128.try_into().unwrap());
         let (price, quantity) = DivRem::div_rem(rest, 0x10000_u128.try_into().unwrap());
-        (item.try_into().unwrap(), quantity.try_into().unwrap(), price.try_into().unwrap(), open == 1)
+        (
+            item.try_into().unwrap(),
+            quantity.try_into().unwrap(),
+            price.try_into().unwrap(),
+            open == 1,
+        )
     }
 
     #[generate_trait]

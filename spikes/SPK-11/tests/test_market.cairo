@@ -1,4 +1,6 @@
-use snforge_std::{ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events};
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events,
+};
 use spk11::market::{IMarketDispatcher, IMarketDispatcherTrait, Market};
 
 fn deploy() -> IMarketDispatcher {
