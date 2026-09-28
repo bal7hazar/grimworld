@@ -168,10 +168,15 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
   average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
   check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
-  both thresholds and the budget of 3 (running `grimworld-*`, `hexmap-*`, `quiver-*` units
-  plus codex audits counted per working directory under the three repositories), fixed in the
-  script, on every launch and resume (exit 4, before any worktree is created); it cannot tell
-  a track's own slot from the shared one, so each orchestrator still applies the split; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  both thresholds and the budget of 3 (active `grimworld-*`, `hexmap-*`, `quiver-*` units,
+  plus detached agents counted per working directory under the three repositories: live pids
+  of the launchers' `logs/*.pid` and codex `exec` processes), fixed in the script, on every
+  launch and resume (exit 4, before any worktree is created). A count that cannot be made
+  refuses the launch. The count and the start run under the shared lock
+  `~/orchestrator/agent-launch.lock`, so two launchers cannot both take the last slot: **the
+  launchers of the map library and of `quiver` take the same lock** (`flock` on that file around
+  their count and start). It cannot tell a track's own slot from the shared one, so each
+  orchestrator still applies the split; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
   The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
   `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
   still start one.
@@ -390,8 +395,11 @@ What was reviewed, what was not, and why.
   `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS` and
   `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
   2026-09-28; checked by name). The claude CLI would give them to every agent it starts;
-  `scripts/agent.sh` empties them unless the task's brief grants the account and it is
-  launched with `--with-sepolia`. A task that sends transactions to Sepolia uses them **by
+  `scripts/agent.sh` empties them unless the task is launched with `--with-sepolia`, which it
+  refuses unless the committed brief `docs/briefs/<task>-*.md` names that option. The grant is
+  recorded (`logs/<task>.sepolia`); a resume keeps the account only when passed the option
+  again, and the launcher says so when it is not. The same-user settings file stays readable by
+  code an agent runs (§4, residual accepted by the owner, 2026-09-28). A task that sends transactions to Sepolia uses them **by
   name**, never prints, logs or writes a value, sets a usual `User-Agent` header, measures
   instead of looping and reports how many transactions it sent and their cost, and every script that
   sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.

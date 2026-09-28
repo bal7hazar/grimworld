@@ -36,6 +36,7 @@
 #   logs/<task>.unit       the systemd unit (or <task>.pid when detached with setsid)
 #   logs/<task>.profile    the profile of the launch, reused by `resume`
 #   logs/<task>.cli        the CLI and the model id asked for, checked against the one that ran
+#   logs/<task>.sepolia    present while the last launch had --with-sepolia (the brief grants it)
 #   logs/<task>.last.md    codex only: its last message, i.e. the audit report
 set -euo pipefail
 
@@ -142,17 +143,35 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
     echo "agent.sh: $((mem_kb / 1048576)) GB of memory available, under $MIN_MEM_GB: wait and check again" >&2
     return 1
   fi
-  # The concurrency budget of OPERATIONS §3: Grim World agents of the three tracks, claude units
-  # and codex audits (one per working directory), whoever launched them.
-  local units codex agents
-  units=$(systemctl --user list-units --type=service --state=running --no-legend \
-    'grimworld-*' 'hexmap-*' 'quiver-*' 2> /dev/null | grep -c . || true)
-  codex=$(pgrep -f '^/usr/bin/node .*codex' 2> /dev/null | while read -r p; do
-    readlink "/proc/$p/cwd" 2> /dev/null; done |
-    grep -E '/projects/(grimworld|hexx-cairo|quiver)(/|$)' | sort -u | grep -c . || true)
-  agents=$((units + codex))
+  # The concurrency budget of OPERATIONS §3: Grim World agents of the three tracks, whoever
+  # launched them. A count that cannot be made refuses the launch (fails closed).
+  local units ulist plist dirs detached agents
+  if ! ulist=$(systemctl --user list-units --type=service --no-legend --plain \
+      --state=active,activating,deactivating,reloading 'grimworld-*' 'hexmap-*' 'quiver-*' 2>&1); then
+    echo "agent.sh: cannot list the systemd user units, so the agents cannot be counted: wait and check again" >&2
+    return 1
+  fi
+  units=$(grep -c . <<< "$ulist" || true)
+  # Detached agents (codex audits, and claude where there is no systemd user manager), one per
+  # working directory under the three repositories (a codex audit runs several processes): the
+  # live pids recorded by the launchers, and codex `exec` processes started by another way.
+  local rc=0
+  plist=$(pgrep -f '^/usr/bin/node .*codex[^ ]* exec( |$)') || rc=$?
+  if [ "$rc" -gt 1 ]; then   # 1: no process matched
+    echo "agent.sh: pgrep failed, so the agents cannot be counted: wait and check again" >&2
+    return 1
+  fi
+  for f in "$HOME"/projects/{grimworld,hexx-cairo,quiver}/.claude/worktrees/logs/*.pid; do
+    [ -f "$f" ] || continue
+    local pid; pid=$(cat "$f" 2> /dev/null || true)
+    [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null && plist+=$'\n'"$pid"
+  done
+  dirs=$(while read -r p; do [ -n "$p" ] && readlink "/proc/$p/cwd" 2> /dev/null; done <<< "$plist" |
+    grep -E '/projects/(grimworld|hexx-cairo|quiver)(/|$)' | sort -u || true)
+  detached=$(grep -c . <<< "$dirs" || true)
+  agents=$((units + detached))
   if [ "$agents" -ge "$MAX_AGENTS" ]; then
-    echo "agent.sh: $agents Grim World agents running ($units units, $codex codex audits), the budget is $MAX_AGENTS: wait and check again" >&2
+    echo "agent.sh: $agents Grim World agents running ($units units, $detached detached), the budget is $MAX_AGENTS: wait and check again" >&2
     return 1
   fi
   echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available, $agents of $MAX_AGENTS agents: a launch may proceed"
@@ -266,6 +285,16 @@ case "$cli:$mode" in
   *) die "cli must be claude or codex" ;;
 esac
 [ "$sepolia" = 0 ] || [ "$cli" = claude ] || die "--with-sepolia is for claude agents only"
+# The Sepolia account goes only to a task whose committed brief grants it (OPERATIONS §7): the
+# brief docs/briefs/<task>-*.md names the option. The grant is recorded; a resume without the
+# option says it runs without the account.
+if [ "$sepolia" = 1 ]; then
+  compgen -G "$root/docs/briefs/$task-*.md" > /dev/null &&
+    grep -qF -- '--with-sepolia' "$root"/docs/briefs/"$task"-*.md ||
+    die "--with-sepolia: no brief docs/briefs/$task-*.md grants the Sepolia account"
+elif [ "$mode" = resume ] && [ -f "$L/$task.sepolia" ]; then
+  echo "agent.sh: note: $task was launched with --with-sepolia; this resume runs without the Sepolia account" >&2
+fi
 if [ "$cli" = claude ]; then
   # Secrets out of agents: the machine's user-level Claude settings define the Scarb registry
   # token for every claude process; --settings takes precedence over them, so every agent runs
@@ -310,6 +339,12 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
+# One launch at a time across the orchestrators (OPERATIONS §3): the count and the start happen
+# under a shared lock, so two launchers cannot both take the last slot. The agent does not inherit
+# the lock (9>&- below).
+mkdir -p "$HOME/orchestrator"
+exec 9>> "$HOME/orchestrator/agent-launch.lock"
+flock -w 600 9 || die "the launch lock $HOME/orchestrator/agent-launch.lock is held: try again"
 thresholds_ok || exit 4
 if [ ! -d "$wt" ]; then
   [ -n "$branch" ] || die "no worktree $wt (create it, or pass --branch <type>/<task-id>-<slug>)"
@@ -336,8 +371,9 @@ echo "$cli $model_id" > "$L/$task.cli"
 stat -c %s "$L/$task.log" 2> /dev/null > "$L/$task.start" || echo 0 > "$L/$task.start"
 echo "--- $(date -u +%FT%TZ) $desc $cli $model_id $([ "$use_unit" = 1 ] && echo "unit=$unit" || echo setsid)" >> "$L/$task.log"
 rm -f "$L/$task.unit" "$L/$task.pid"
+if [ "$sepolia" = 1 ]; then date -u +%FT%TZ > "$L/$task.sepolia"; else rm -f "$L/$task.sepolia"; fi
 if [ "$use_unit" = 1 ]; then
-  "${run[@]}" bash -c "$inner" "$L/$task.log" "${cmd[@]}"
+  "${run[@]}" bash -c "$inner" "$L/$task.log" "${cmd[@]}" 9>&-
   echo "$unit" > "$L/$task.unit"
   echo "$task: started [$label] as systemd user unit $unit, log $L/$task.log"
 else
@@ -348,7 +384,7 @@ else
     LANG="${LANG:-C.UTF-8}" PATH="$path" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
     DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
     BASH_DEFAULT_TIMEOUT_MS=1800000 BASH_MAX_TIMEOUT_MS=3600000 \
-    GW_AGENT_SH="$root/scripts/agent.sh" GW_TASK="$task" nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
+    GW_AGENT_SH="$root/scripts/agent.sh" GW_TASK="$task" nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 9>&- &
   echo "$!" > "$L/$task.pid"
   echo "$task: started [$label] detached with setsid, pid $!, log $L/$task.log"
 fi
