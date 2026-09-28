@@ -25,13 +25,14 @@ WebAssembly. The answer decides how CLI-02 and every mirrored task are built.
   `scarb execute`, and memory as the limit on long runs.
 - design/04 (*Damage formula* with the `2^(x/40)` lookup table, *Goblin AI* determinism and
   ties), design/02 (*The tick*), docs/CAIRO.md, COMMON §4 (determinism; game results are API).
-- The toolchain: the game is on **Cairo 2.13** (SPK-5). Build the Cairo side as a **pure
-  library** (state in, state out, no Dojo, no storage) so that it runs with `scarb execute` and
-  in a VM. If the VM in WebAssembly requires another Cairo version, say which and why, and
-  measure on it in a package of its own under `spikes/SPK-4/` (as D-122 allows for spikes),
-  without changing the game's toolchain.
-- Depends on: SPK-5 (merged), FND-01 (merged: `client/sim` is the future home of the
-  simulation core; do not write into it here).
+- The toolchain: the game is on **Cairo 2.19** (ADR-0007, SPK-5b), the same as the physics
+  game's measurement. Build the Cairo side as a **pure library** (state in, state out, no
+  storage: ADR-0007 *Pure logic*) so that it runs with `scarb execute` and in a VM.
+- Rust: building cairo-vm to WebAssembly needs `cargo` and `rustup`; the `implement` profile
+  allows builds, `cargo install --root` inside your worktree and adding toolchains or targets,
+  never the shared `~/.cargo/bin` nor changing the default toolchain.
+- Depends on: SPK-5b, FND-01b (merged: `client/sim` is the future home of the simulation core;
+  do not write into it here).
 
 ## Scope
 - In, in `spikes/SPK-4/`:
