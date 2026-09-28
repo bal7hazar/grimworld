@@ -232,7 +232,7 @@ reachable from this machine without the owner's go.
 |---|---|---|
 | `research` | Read, search, the web, read-only shell and `gh pr view`; writes in the worktree | Spikes that only read and report |
 | `audit` | `research`, plus builds and tests through `scripts/lock.sh` | Auditors that reproduce a finding or a gas figure |
-| `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `sozo`, `katana`, `torii`, `pnpm`, `asdf install`), the project's `scripts/` and `tools/`, file commands, `git`, pushing as `git push -u origin HEAD` or `git push` only, and `gh pr create`. Denied as commands: rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree | Implementation tasks |
+| `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `sozo`, `katana`, `torii`, `pnpm`, `asdf install`), the project's `scripts/`, `tools/` and `spikes/`, Rust builds (`cargo build/test/run`, `cargo install --root` inside the worktree, `rustup` adding toolchains and targets only), file commands, `git`, pushing as `git push -u origin HEAD` or `git push` only, and `gh pr create`. Denied as commands: rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree | Implementation tasks |
 
 Codex runs only with `audit`, in its `read-only` sandbox; its last message, the audit
 report, is saved in `.claude/worktrees/logs/<task>.last.md`.

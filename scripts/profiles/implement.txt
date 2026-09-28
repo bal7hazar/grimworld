@@ -28,12 +28,32 @@ Bash(curl *)
 Bash(tar *)
 Bash(unzip *)
 
+# Rust, for spikes that build a tool (cairo-vm to WebAssembly, SPK-4). Toolchains and targets
+# are added, never made default; binaries are installed only under --root (inside the
+# worktree), never into the shared ~/.cargo/bin.
+Bash(cargo build*)
+Bash(cargo run*)
+Bash(cargo test*)
+Bash(cargo fetch*)
+Bash(cargo metadata*)
+Bash(cargo tree*)
+Bash(cargo --version)
+Bash(cargo install --root *)
+Bash(rustup --version)
+Bash(rustup show*)
+Bash(rustup target add *)
+Bash(rustup toolchain install *)
+Bash(rustc --version)
+Bash(firefox --headless *)
+
 # Project scripts and tools (tools/<name>/.venv/bin/… included).
 Bash(scripts/*)
 Bash(./scripts/*)
 Bash(bash scripts/*)
 Bash(tools/*)
 Bash(./tools/*)
+Bash(spikes/*)
+Bash(./spikes/*)
 
 # Files: no rule for mkdir, touch, cp, mv, rm. `acceptEdits` approves them inside the worktree
 # and refuses them outside it, resolving quotes, $HOME and `..` (tested 2026-09-28); a prefix
@@ -114,3 +134,13 @@ Bash(gh pr comment*)
 !Bash(systemctl*)
 !Bash(claude *)
 !Bash(codex *)
+
+# Never: change the machine's Rust defaults or install into the shared ~/.cargo/bin.
+!Bash(rustup default*)
+!Bash(rustup self*)
+!Bash(rustup uninstall*)
+!Bash(rustup toolchain uninstall*)
+!Bash(rustup override*)
+!Bash(* ~/.cargo/bin*)
+!Bash(* $HOME/.cargo/bin*)
+!Bash(* /home/claude/.cargo/bin*)
