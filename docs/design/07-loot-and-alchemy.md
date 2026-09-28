@@ -17,9 +17,8 @@ unpredictable randomness source ([ADR-0002](../architecture/ADR-0002-randomness.
 | **Trophies** | Bosses (guaranteed) | Proof for nest-clearing quests, rare recipes |
 | **Equipment** | Goblins, bosses | See [15-equipment](15-equipment.md) |
 
-In the MVP, weapons and armor come from merchants, smiths, armorers and collectors; looted
-equipment with rarity and identification comes in the release after
-([15-equipment](15-equipment.md#scope)).
+Weapons and armor come from merchants, smiths, armorers and collectors, and from **loot**
+with rarity and identification, in the MVP (D-44; [15-equipment](15-equipment.md#scope)).
 
 ### When it is rolled
 

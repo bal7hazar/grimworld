@@ -7,7 +7,7 @@
 | Axis | Measures | Cap | Earned by | Unlocks |
 |---|---|---|---|---|
 | **Level** | Raw power (health, attribute points) | 20, reached early | XP from kills and quests | Attribute points |
-| **Guild rank** | Reputation and trust | Platinum, long-term | Quest merit + promotion trial | Quests, zones, elite zones, trainers, secondary profession |
+| **Guild rank** | Reputation and trust | Onyx, long-term | Quest merit + promotion trial | Quests, zones, elite zones, trainers, secondary profession |
 
 Level is the tutorial; rank is the career (pillar 2).
 
@@ -39,7 +39,10 @@ dungeon with fixed parameters and designed to check one competence (e.g. Tin tri
 a nest led by a shaman; Silver trial: defeat a champion).
 
 - Trials can be retried without limit; failure costs only the expedition.
-- Trials use a fixed seed per rank so that they are a fair, comparable test.
+- A trial is generated like any dungeon, so its layout is not known in advance. What is
+  fixed per rank is what makes it a fair test: its **size, band and quotas** (which
+  castes, how many, which Heart). A fixed layout, for strict comparison between adventurers,
+  was considered and not kept (D-115).
 
 ## Quests
 

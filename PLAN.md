@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.12, 2026-09-28** (v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.13, 2026-09-28** (v0.13: reconciled after the project manager's first report; proposed decisions accepted; spikes moved to burner accounts; v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -39,7 +39,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | IDE-02b | Revise documents after round 1 (v0.2) | Orchestrator | done |
 | IDE-03 | Owner's second review: client, machine, licence, merges | Owner | done |
 | IDE-07 | Owner rules on what remains open in `docs/decisions/2026-09-28-owner-review-2.md` (not blocking Phase 0) | Owner | todo |
-| IDE-08 | Commit and push the documents to `main` | Orchestrator, on the owner's request | todo |
+| IDE-08 | Commit and push the documents to `main` | Orchestrator, on the owner's request | done |
 | IDE-04 | Realign OPERATIONS, PLAN, STATUS and decisions on the owner's examples | Orchestrator | done |
 | IDE-06 | Write the VPS bootstrap prompt | Orchestrator | done |
 | IDE-05 | Remove `example/` | Owner | todo (the folder is in the main checkout, untracked) |
@@ -48,17 +48,17 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| FND-00 | **Bootstrap the project-manager session on the VPS** from `docs/briefs/PM-vps-bootstrap.md`: checks accounts, toolchain, repository, credentials presence; reports to the owner | IDE-03 | Owner starts it | — | todo |
-| SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js, Controller); reproducible build | — | Sonnet 5 | Q | todo |
+| FND-00 | **Bootstrap the project-manager session on the VPS** from `docs/briefs/PM-vps-bootstrap.md`: checks accounts, toolchain, repository, credentials presence; reports to the owner | IDE-03 | Owner starts it | — | done |
+| SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js); reproducible build. Controller is pinned by SPK-9, not here | — | Sonnet 5 | Q | todo |
 | FND-01 | Repository scaffold: `contracts/`, `client/`, `docs/`, scripts, layering of CONTEXT §4 | SPK-5 | Sonnet 5 | Q | todo |
 | FND-06 | Gas tooling: budgets on tests, `docs/BUDGETS.md` generated from a test run, CI failing on a budget exceeded, gas table template for `REPORT.md` | FND-02 | Sonnet 5 | Q | todo |
 | FND-02 | CI: build, format, lint, tests for contracts and client | FND-01 | Sonnet 5 | S Q | todo |
-| FND-03 | Agent tooling: `scripts/agent.sh` launcher ported from the owner's other repositories (profiles research / implement / audit, detached units, logs, resume), `docs/briefs/COMMON.md`, build lock, concurrency budget measured | FND-00 | Orchestrator | S | todo |
-| SPK-1 | Latency spike: submission → pre-confirmed → accepted, via Controller session | SPK-5 | Opus 5.5 | — | todo |
+| FND-03 | Agent tooling: `scripts/agent.sh` launcher ported from the owner's other repositories (profiles research / implement / audit, detached units, logs, resume), `docs/briefs/COMMON.md`, build lock, concurrency budget measured. **Adapted, not copied**: the reference launcher runs with `--dangerously-skip-permissions`, which OPERATIONS §4 forbids; ours grants an allowlist per profile. It initialises the `assets` submodule only in the worktrees of tasks that need the art | FND-00 | Orchestrator | S | todo |
+| SPK-1 | Latency spike: submission → pre-confirmed → accepted, **from a burner account** | SPK-5 | Opus 5.5 | — | todo |
 | SPK-2 | Cost spike: worst-case tick and 10-move queue on a throwaway contract; **cost of an active player per day** (10 Rifts, quests, hub actions), fully sponsored | SPK-5 | Opus 5.5 | C | todo |
 | SPK-3 | Verifiable randomness spike: overhead, latency, provider-down behaviour. **Not needed for the MVP** (D-110); before version 1 | SPK-5 | Opus 5.5 | S | todo (V1) |
 | SPK-4 | Parity spike, two options measured: (a) TypeScript mirror checked by Cairo-generated vectors; (b) **the Cairo code itself run in the client** through a Cairo VM in WebAssembly, as in the owner's physics game. Needs the game logic as a pure library (state in, state out) | SPK-5 | Opus 5.5 | P | todo |
-| SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, Controller session, vRNG (ADR-0003 thresholds); room size for portrait | SPK-5 | Opus 5.5 | — | todo |
+| SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, transactions from a burner account (ADR-0003 thresholds, without its Controller and vRNG rows, which move to SPK-9); tile size and zoom for sight of radius 6 | SPK-5 | Opus 5.5 | — | todo |
 | FND-05 | Provider interfaces: `fate(domain)` with the transaction-hash implementation and a deployment check refusing it on mainnet; account provider with the burner implementation | FND-01 | Opus 5.5 | S Q | todo |
 | SPK-9 | **Before version 1.** Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
@@ -80,7 +80,9 @@ library **by published version**, never by git revision.
 
 | | |
 |---|---|
-| Subject | `origami_hexmap` (today in `dojoengine/origami`, `crates/hexmap`; may move to a dedicated repository) and the Rust crate [`hexx`](https://github.com/ManevilleF/hexx), whose names the library already follows |
+| Repository | `bal7hazar/hexx-cairo` (created, empty). Whether the work ends there, in `origami`, or elsewhere is a **finding of the track**, reported at gate L-G1, not a question for the owner beforehand |
+| Meanwhile | The game consumes `origami_hexmap` 1.8.0 |
+| Subject | `origami_hexmap` (today in `dojoengine/origami`, `crates/hexmap`) and the Rust crate [`hexx`](https://github.com/ManevilleF/hexx), whose names the library already follows |
 | Orchestrator | Opus 5.5 or Fable 5.1, chosen by the project manager. Algorithms under a gas budget are hard problems: Fable is a legitimate choice here |
 | Rules | `docs/CAIRO.md` in full: test-driven, gas budget on every test, execution cost first, arithmetic then bitwise then loops, `u252`, oracles |
 | Convention | The owner's, from the other programmes: mirror the Rust crate, same names, same API where it makes sense on-chain, deviations documented; a generated parity table checked in CI; numeric results are API |
@@ -134,7 +136,7 @@ the game's test vectors.
 | ENG-03 | Registries: region, location, gate + seed data for a test region | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006) | ENG-02, SPK-7, LIB-05 | Opus 5.5 | D S P C Q + GPT-6-Astra | todo |
-| ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; instance seed (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
+| ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; entry draw (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
 | ENG-07 | Movement, facing, simulation window and its re-centring, action queue with stop conditions, instance clock | ENG-05, ENG-06 | Opus 5.5 | D S P C Q | todo |
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |

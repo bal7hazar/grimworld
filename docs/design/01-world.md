@@ -53,11 +53,14 @@ World
 
 ### Geography: fixed vs shifting (D-10)
 
+> D-10 is superseded by D-64 and D-106: every location is generated at reveal. The
+> heading is kept so that links hold.
+
 | Location | Layout | Populations |
 |---|---|---|
 | Explorable zone | **Generated at reveal**, within the zone's biome, level band and set pieces | Generated; levels within the zone's band, never scaled to the adventurer |
-| Dungeon | **Shifting**: derived from the instance seed. Different each run | Vary per instance seed |
-| Elite zone | Fixed layout, hand-tuned parameters | Hand-tuned packs, varies lightly |
+| Dungeon | Generated at reveal; its outline emerges. Different each run | Generated |
+| Elite zone | Generated at reveal, with a higher share of authored chunks | Generated, within hand-tuned bands and quotas |
 
 Every location is generated chunk by chunk when revealed
 ([ADR-0006](../architecture/ADR-0006-chunked-maps.md)). A zone keeps a character of its

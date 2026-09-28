@@ -43,7 +43,7 @@ SPK-5, not here.
 | Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
 | Fees | Always paid by the game |
 | Randomness | Behind an interface. **MVP: transaction hash**, known to be steerable. Version 1: a verifiable source ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
-| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 (pointy-top hexes, one felt per room) |
+| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 for now (in `crates/hexmap`; `crates/map` is the older square-grid library). Successor decided by track LIB |
 | Client | TypeScript, dojo.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
 | Art | Pixel art, 64 × 64 tiles, *Tiny Swords* pack by Pixel Frog as prototype ([design/10](docs/design/10-art-direction.md)) |
 
@@ -121,21 +121,21 @@ owner, with the date), Superseded.
 | ID | Decision | Where | Status |
 |---|---|---|---|
 | D-01 | The world advances only through adventurer actions; unit is the tick, no sub-tick | design/02 | Accepted 2026-09-28 (owner's requirement) |
-| D-02 | One clock per instance; durations stored as deadlines; instances keyed by instance id | design/02 | Proposed (revised) |
+| D-02 | One clock per instance; durations stored as deadlines; instances keyed by instance id | design/02 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-03 | Hubs have no on-chain geometry; presence is off-chain and cosmetic | design/02 | Accepted 2026-09-28 |
-| D-04 | Defeat costs the instance only: experience, loot and quest progress are kept | design/02 | Proposed (revised after the owner found loot loss too harsh) |
+| D-04 | Defeat costs the instance only: experience, loot and quest progress are kept | design/02 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-05 | Instances are not saved: leaving closes the instance, re-entering creates a new one | design/02 | Accepted 2026-09-28 |
 | D-10 | ~~Zones fixed, dungeons shifting~~ | — | Superseded by D-64: everything is generated |
 | D-11 | Hexagonal maps, pointy-top, on `origami_hexmap` | design/02 | Accepted 2026-09-28 |
 | D-20 | Ten ranks: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Onyx; promotion needs merit and a trial quest in a dungeon | design/06 | Accepted 2026-09-28 |
 | D-100 | **The chain is invisible**: the player never pays a fee, never sees a wallet, a signature, a transaction or a token. The business model covers network costs | design/00 | Accepted 2026-09-28 |
-| D-30 | Six professions; Vanguard, Warden, Arcanist in the MVP | design/03 | Proposed |
-| D-31 | GW1 numbers as baseline, 1 second = 1 tick | design/03 | Proposed |
+| D-30 | Six professions; Vanguard, Warden, Arcanist in the MVP | design/03 | Accepted 2026-09-28 (owner adopts the recommendation) |
+| D-31 | GW1 numbers as baseline, 1 second = 1 tick | design/03 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-40 | Combat is fully deterministic | design/04 | Accepted 2026-09-28 |
-| D-41 | Six facings, four arcs; critical from the back, flank from rear-sides | design/04 | Proposed (revised for hexes) |
-| D-50 | Loot is rolled when remains are looted, not at death | design/07 | Proposed |
+| D-41 | Six facings, four arcs; critical from the back, flank from rear-sides | design/04 | Accepted 2026-09-28 (owner adopts the recommendation) |
+| D-50 | Loot is rolled when remains are looted, not at death | design/07 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-51 | Alchemy discovery is per adventurer and per regional book | design/07 | Accepted 2026-09-28 |
-| D-52 | Recipes have a rarity signature, identical for every adventurer | design/07 | Proposed; kept only if its step cost is negligible (SPK-2) |
+| D-52 | Recipes have a rarity signature, identical for every adventurer | design/07 | Accepted 2026-09-28 (owner adopts the recommendation); kept only if its cost is negligible (SPK-2) |
 | D-60 | Execute on Starknet mainnet; persistent and ephemeral domains split in code | ADR-0001 | Accepted 2026-09-28, subject to spikes |
 | D-61 | Randomness behind an interface; transaction hash in the MVP, verifiable in version 1; reveal by entry draw plus player entropy | ADR-0002, ADR-0006 | Accepted 2026-09-28 |
 | D-62 | Client: TypeScript, PixiJS on demand, Capacitor; mobile first | ADR-0003 | Accepted 2026-09-28, subject to SPK-6 |
@@ -146,9 +146,13 @@ owner, with the date), Superseded.
 | D-114 | Cairo engineering rules | docs/CAIRO.md | Accepted 2026-09-28 |
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
-| D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Proposed |
+| D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-64 | Large maps cut in chunks, **generated at reveal from a fresh random word**, simulated in a window centred on the adventurer. Constraints as bands, quotas and anchors. Rule of sight provisional | ADR-0006 | Accepted 2026-09-28, costs subject to SPK-7 |
-| D-80 | Co-op direction: every action of any member ticks the world | design/08 | Proposed (owner's idea, to design later) |
+| D-115 | Promotion trials are generated like any dungeon; size, band and quotas are fixed per rank | design/06 | Accepted 2026-09-28 (owner adopts the recommendation) |
+| D-116 | Every mainnet deployment and every mainnet registry write needs an explicit go from the owner | OPERATIONS §7 | Accepted 2026-09-28 (owner adopts the recommendation) |
+| D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28 |
+| D-118 | Concurrency: 3 Grim World agents at a time on the VPS, beside the other programmes | OPERATIONS §3 | Accepted 2026-09-28 (owner adopts the recommendation) |
+| D-80 | Co-op direction: every action of any member ticks the world | design/08 | Accepted 2026-09-28 (owner adopts the recommendation) |
 
 ## 7. Open questions
 
@@ -164,8 +168,6 @@ owner, with the date), Superseded.
 | Q-11 | Names: world, regions, professions, skills | `LORE` track | Working names stand until then |
 | Q-12 | The asset pack has no caster sprite. Keep the Arcanist in the MVP (needs one commissioned sprite) or replace it by the Cleric (Monk sprite exists)? | Phase 2 | Keep the Arcanist if a sprite can be commissioned; else Cleric |
 | Q-22 | Extract the Arcade packages into dedicated, published repositories | Programme level | Yes, `quest` first |
-| Q-17 | Do mainnet deployments and mainnet registry writes need an explicit go from the owner each time? | Before Phase 7 | Yes |
-| Q-14 | Default room size for portrait phones | SPK-6 | 13 × 19 if readable, else 15 × 15 with a following camera |
 
 ## 8. Constraints that are easy to forget
 

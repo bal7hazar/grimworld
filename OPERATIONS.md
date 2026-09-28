@@ -146,8 +146,9 @@ programmes. The rules:
 - **Local checks are package-scoped; the pull-request CI is the full gate.** Agents run
   the tests of what they touched, push early and fix from CI. They never run the whole
   workspace locally.
-- **Concurrency budget**: set by FND-03 from the machine's memory and CPU. Until measured:
-  2 agents at a time.
+- **Concurrency budget**: **3 Grim World agents at a time**, beside the agents of the
+  owner's other programmes on the same machine (about 6 machine-wide). Before launching:
+  running units, memory, load. FND-03 measures and adjusts.
 - **Heavy builds are serialised** through a lock, following the per-project model of the
   owner's other programmes (one fast build per project, one heavy build shared).
 
@@ -298,7 +299,8 @@ What was reviewed, what was not, and why.
 
 - Merge only on **green CI** plus the orchestrator's review of `REPORT.md` and the
   required audits without open `blocker` or `major`. Squash merge, by the orchestrator.
-- Conventional commits; trailer `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
+- Conventional commits; trailer `Co-Authored-By: Claude <Model> <noreply@anthropic.com>`,
+  with the model's display name, for example `Claude Fable 5.1` or `Claude Opus 5.5`.
 - Branch name `<type>/<task-id>-<slug>`. One pull request per task. A pull request that
   cannot be reviewed in one sitting is split at the brief stage.
 - **Game results are API.** A change that alters the outcome of any action for the same
@@ -307,8 +309,8 @@ What was reviewed, what was not, and why.
 - **Deployments**: the orchestrator deploys to **Sepolia autonomously**, with the
   credentials found in the session's settings environment; they are never printed, copied
   into a file or passed to a sub-agent's brief. Every release goes to Sepolia first.
-  Mainnet deployments and mainnet registry writes: an explicit go from the owner each time
-  is recommended and awaits confirmation (Q-17).
+  **Mainnet deployments and mainnet registry writes need an explicit go from the owner,
+  each time** (D-116).
 - CI stays under ~10 minutes: split test packages before they grow.
 - Never: force-push on shared branches; commit secrets or keys; skip hooks; commit
   any asset file, or anything derived from one, **in this repository** (D-73). Assets

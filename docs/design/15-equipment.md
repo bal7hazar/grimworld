@@ -31,8 +31,9 @@
 ### Collectors
 
 Collectors are characters met **in the wilds**, not in towns: a hermit, a deserter, a
-pedlar who will not come near the walls. Zones have a fixed layout, so a collector is
-always at the same place, and finding them is part of exploring.
+pedlar who will not come near the walls. Each zone has its collectors, placed by quota in
+authored camps ([ADR-0006](../architecture/ADR-0006-chunked-maps.md)): they are always
+somewhere in the zone, never at the same place, and finding them is part of exploring.
 
 | | |
 |---|---|

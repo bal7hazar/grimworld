@@ -132,7 +132,7 @@ Rifts take over most of what repeatable contracts were for. Contracts stay for z
 
 | Point | Design |
 |---|---|
-| Board | Persistent domain, **per account and per day**: five seeds derived from one Fate draw made by the first board action of the day, and a bitmap of cleared Rifts |
+| Board | Persistent domain, **per account and per day**: five Rift identities (grade, biome, target size) derived from one Fate draw made by the first board action of the day, and a bitmap of cleared Rifts. **An identity is not a layout**: the content of a Rift is decided at reveal, inside the instance |
 | Opening | Derived: Rift 4 is enterable when one bit is set, Rift 5 when two are. No transaction opens a Rift |
 | Daily cap | Falls out of the five seeds: there is nothing more to enter |
 | Time | Real time is used **outside** instances only. Inside, the tick rule is untouched |

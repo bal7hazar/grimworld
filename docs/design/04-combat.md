@@ -177,13 +177,13 @@ Determinism rules:
 
 - Ties (equidistant tiles, equal-health allies) are broken by lowest entity id, then by
   lowest tile index, as the map library does. Never by a random draw.
-- Pathfinding is one breadth-first flood from the adventurer per tick, shared by all awake
-  goblins ([02-core-loop](02-core-loop.md#simulation-budget)). Each goblin steps to its
+- Pathfinding is one breadth-first flood from the adventurer per tick, on the window,
+  shared by all awake goblins ([02-core-loop](02-core-loop.md#simulation-budget)). Each goblin steps to its
   free neighbour closest to the target; profiles that want distance (`kite`, `support`)
   step to the farthest.
 
 ## Death and defeat
 
 See [02-core-loop](02-core-loop.md#ending-an-expedition-d-04). In short: an adventurer at 0
-health is **defeated**, the expedition ends, and unsecured gains are lost. Death is not
+health is **defeated**: the instance is lost, and nothing else (D-04). Death is not
 permanent in the default mode.

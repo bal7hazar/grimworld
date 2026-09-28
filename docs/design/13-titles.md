@@ -30,7 +30,7 @@ done. One title is displayed at a time, chosen by the player among those earned.
 
 | Title (working name) | Counts | Tiers |
 |---|---|---|
-| **Pathfinder** of *region* | Rooms discovered in the fixed zones of a region | 60 / 80 / 95 / 100 % |
+| **Pathfinder** of *region* | Zones of the region **entirely revealed within one instance** (every chunk of the outline) | 1 zone / half / all |
 | **Warden** of *region* | Distinct quests of the region completed | 50 / 80 / 100 % |
 | **Nestbreaker** | Distinct dungeons cleared | 1 / 3 / 6 / all |
 | **Bane of** *caste* | Distinct packs compositions defeated that include the caste, plus its boss | 3 tiers per caste |
