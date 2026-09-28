@@ -1,0 +1,16 @@
+{
+  "name": "spk5-read-model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPK-5 throwaway: reads back from Torii the model written by the spk5 world.",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.5.1",
+  "dependencies": {
+    "@dojoengine/grpc": "2.0.0",
+    "@dojoengine/sdk": "2.0.0",
+    "starknet": "10.0.2"
+  }
+}

@@ -1,0 +1,5 @@
+# pnpm 12 refuses to install when a dependency has an unreviewed build script. Both are optional
+# accelerators (native msgpack, protobufjs' postinstall notice): not run.
+allowBuilds:
+  msgpackr-extract: false
+  protobufjs: false
