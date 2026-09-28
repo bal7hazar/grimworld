@@ -166,7 +166,7 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   for f in "$HOME"/projects/{grimworld,hexx-cairo,quiver}/.claude/worktrees/logs/*.pid; do
     [ -f "$f" ] || continue
     local pid; pid=$(cat "$f" 2> /dev/null || true)
-    [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null || continue
+    if ! [[ $pid =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2> /dev/null; then continue; fi
     tr '\0' '\n' < "/proc/$pid/cmdline" 2> /dev/null | grep -qxF -- "${f%.pid}.log" || continue
     plist+=$'\n'"$pid"
   done
@@ -295,6 +295,7 @@ esac
 # (OPERATIONS §7): exactly one brief docs/briefs/<task>-*.md, holding the grant line below and the
 # profile of the launch. The grant is recorded; a resume without the option says it runs without
 # the account.
+# shellcheck disable=SC2016 # the backquotes are literal text of the brief
 GRANT='> Sepolia account: granted (launch with `--with-sepolia`).'
 ref=${GW_BRIEF_REF:-origin/main}   # CI checks a pull request's own briefs with GW_BRIEF_REF=HEAD
 if [ "$sepolia" = 1 ]; then
