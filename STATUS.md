@@ -20,13 +20,32 @@ and machine checked, report given to the owner, three rounds of decisions record
 
 ## Orchestrators and agents
 
-| Orchestrator | Session | First task | State |
+| Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | FND-03 agent tooling, then SPK-5 ∥ ART-00 | Being created by the project manager |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | LIB-02 analysis of `hexx`, stop at gate L-G1 | Being created by the project manager |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-03 in review: pull request #8 open, audit by `[GPT-6-Sol]` running. Next: SPK-5 ∥ ART-00 |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-01 and LIB-02 merged. **Stopped at gate L-G1** |
 
-Sub-agents running: none yet. Budget: 3 Grim World agents at a time (D-118): 2 for the game,
-1 for the library in wave 1.
+Budget: 3 Grim World agents at a time (D-118): 2 for the game, 1 for the library in wave 1.
+
+Models that actually ran, read from the CLIs' own session records (2026-09-28): LIB-02 on
+`claude-opus-5-5`; both audits on `gpt-6-sol`, effort high, read-only; launcher smoke tests
+on `claude-sonnet-5`. One in-session research agent of the game orchestrator was titled
+`[Opus 5.5]` and ran on `claude-haiku-4-5`: corrected, the launcher will record the model
+the CLI reports.
+
+## Waiting for the owner
+
+| What | Where | Recommendation |
+|---|---|---|
+| Gate L-G1: port `hexx` partly, in `origami_hexmap` extended in place | [docs/decisions/PENDING-L-G1.md](docs/decisions/PENDING-L-G1.md) §1, §2 | Partly; option B |
+| Sight and the window: the window follows the adventurer | Same, §3 | Yes, cost measured by SPK-7 |
+
+## Known limits of the machine
+
+The `codex` read-only sandbox cannot start inside a systemd user unit on the VPS (the kernel
+refuses unprivileged user namespaces to units). The game's launcher detaches codex with
+`setsid` instead, where the sandbox works; an audit then does not survive a restart of the
+app and is resumed. No system setting was changed.
 
 ## Machine (VPS, 2026-09-28 13:40 UTC)
 
