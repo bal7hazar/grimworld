@@ -7,7 +7,7 @@
 // module is imported: a sending script first runs its repeat-run guard (`guardOutput`), then
 // `configure()`, which validates the variables with errors that never contain a value, and only
 // then installs the redaction (`safe`, on every console output and every error) and the provider.
-import { closeSync, existsSync, openSync, renameSync, writeSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { Account, RpcProvider, shortString } from "starknet";
 
@@ -79,6 +79,12 @@ function forms(value) {
   // A felt as hex with or without leading zeros, and in decimal (validated by `configure`)
   const n = BigInt(value);
   return [`0x0*${n.toString(16)}`, n.toString(10)];
+}
+
+/** SPK-1b: redacts one more secret felt (a burner's private key) from every later output. */
+export function redactAlso(value, placeholder) {
+  if (!FELT.test(value)) refuse(`${placeholder}: not a 0x-prefixed hex felt (value not shown)`);
+  PATTERNS.push(...forms(value).map((f) => [new RegExp(f, "gi"), placeholder]));
 }
 
 export function safe(value) {
@@ -220,13 +226,14 @@ function sleep(ms) {
  * (not timed), signs and submits (the clock starts just before the submission), then polls the
  * receipt every POLL_MS until ACCEPTED_ON_L2, and returns the record. Any revert stops the run.
  */
-export async function makeSender(acc, maxTx) {
+export async function makeSender(acc, maxTx, budget = null) {
   let nonce = BigInt(await acc.getNonce("latest"));
   const tip = (await provider.getEstimateTip("latest", { maxBlocks: 20 })).recommendedTip;
   let sent = 0;
   async function send(label, calls, { measured = false, trace = false } = {}) {
     if (sent >= maxTx) throw new Error(`transaction cap reached (${maxTx}): stopping before ${label}`);
     const estimate = await acc.estimateInvokeFee(calls, { nonce, tip });
+    if (budget) budget.check(label, maxFee(estimate.resourceBounds, tip));
     const submittedAt = now();
     const t0 = performance.now();
     const { transaction_hash: tx } = await acc.execute(calls, {
@@ -244,6 +251,7 @@ export async function makeSender(acc, maxTx) {
     record.submitted_at = submittedAt;
     record.latency_ms = { submit_ack: Math.round(acked), ...timing };
     record.estimate = { overall_fee: estimate.overall_fee, resource_bounds: estimate.resourceBounds };
+    if (budget) budget.spend(record);
     emit(record);
     if (record.status !== "SUCCEEDED") throw new Error(`${label} reverted: stopping`);
     return record;
@@ -261,7 +269,7 @@ export async function makeSender(acc, maxTx) {
  * status became true after the last negative request's START and before the first positive
  * response's ARRIVAL.
  */
-async function poll(tx, t0) {
+export async function poll(tx, t0) {
   const out = { poll_ms: POLL_MS, polls: [] };
   for (let k = 1; ; k += 1) {
     const wait = t0 + k * POLL_MS - performance.now();
@@ -284,6 +292,56 @@ async function poll(tx, t0) {
 
 function l2(invocation) {
   return invocation?.execution_resources?.l2_gas ?? null;
+}
+
+/** SPK-1b: the most a transaction may cost under its resource bounds (every bound at its max price, plus the tip on L2 gas). */
+export function maxFee(bounds, tip = 0n) {
+  const b = (k) => bounds[k] ?? bounds[k.toUpperCase()];
+  let total = 0n;
+  for (const k of ["l1_gas", "l2_gas", "l1_data_gas"]) {
+    const r = b(k);
+    if (!r) continue;
+    const price = BigInt(r.max_price_per_unit) + (k === "l2_gas" ? BigInt(tip) : 0n);
+    total += BigInt(r.max_amount) * price;
+  }
+  return total;
+}
+
+/**
+ * SPK-1b: the brief's caps over every sending script: at most `maxTx` transactions and `maxFri`
+ * of fees in total. Every sent transaction is appended to the ledger (committed; hashes, labels and
+ * fees only). `check` refuses a send when the count is reached or when the transaction's maximum
+ * fee would take the total past the cap, whatever the script.
+ */
+export function makeBudget(path, { maxTx, maxFri }) {
+  const rows = existsSync(path) ? readFileSync(path, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+  let count = rows.length;
+  let fees = rows.reduce((s, r) => s + BigInt(r.fee), 0n);
+  return {
+    check(label, bound) {
+      if (count >= maxTx) throw new Error(`budget: ${count} transactions sent of ${maxTx}: stopping before ${label}`);
+      if (fees + bound > maxFri) {
+        throw new Error(`budget: ${strk(fees)} STRK spent, ${strk(bound)} more at most would pass ${strk(maxFri)}: stopping before ${label}`);
+      }
+    },
+    spend(record) {
+      count += 1;
+      fees += BigInt(record.fee);
+      appendFileSync(path, `${safe(JSON.stringify({ tx: record.tx, label: record.label, type: record.type, fee: record.fee.toString(), at: now() }))}\n`);
+    },
+    totals: () => ({ transactions: count, fee_fri: fees, fee_strk: strk(fees) }),
+  };
+}
+
+/** SPK-1b: every invocation of a trace, recursively: contract, selector, L2 gas, and the calls it made. */
+function tree(invocation) {
+  if (!invocation) return null;
+  return {
+    to: invocation.contract_address,
+    selector: invocation.entry_point_selector,
+    l2_gas: l2(invocation),
+    calls: (invocation.calls ?? []).map(tree),
+  };
 }
 
 /** The receipt, the transaction as signed, its block's prices, and optionally the trace. */
@@ -327,6 +385,9 @@ export async function describe(tx, { trace = false } = {}) {
         inner: (c.calls ?? []).map((i) => ({ to: i.contract_address, selector: i.entry_point_selector, l2_gas: l2(i) })),
       })),
       fee_transfer: l2(t.fee_transfer_invocation),
+      constructor: l2(t.constructor_invocation),
+      tree: { validate: tree(t.validate_invocation), execute: tree(t.execute_invocation),
+        constructor: tree(t.constructor_invocation), fee_transfer: tree(t.fee_transfer_invocation) },
       trace_resources: t.execution_resources,
       raw_execute: execute.execution_resources,
       raw_validate: t.validate_invocation?.execution_resources,
