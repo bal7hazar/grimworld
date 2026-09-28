@@ -32,7 +32,9 @@ const BYTE: [felt252; 8] = [
 /// * `free` - Walkable interior tiles of the window, minus the occupancy at the start of the tick,
 ///   minus the adventurer's tile
 /// * `start` - The adventurer's local tile
-/// * `goblins` - The awake goblins' local tiles, in ascending id order, at most 8
+/// * `goblins` - The awake goblins' local tiles, in ascending id order, at most 8. The flood stops
+///   as soon as none is left to reach, checked before each layer: with none, it returns layer 0
+///   only (the same rule as `model.py`, shared vectors in `vectors.py`)
 /// * `limit` - The most layers computed (`FLOOD_LAYERS` in the tick, `UNLIMITED` for the oracle)
 /// # Returns
 /// * The layers (layer `k` holds the tiles at distance `k`, layer 0 the start) and the distance of
@@ -66,8 +68,11 @@ pub fn shared_flood(
     let mut free_high = free.high;
     let mut distances: felt252 = 0;
     let mut distance: u8 = 0;
-    // [Compute] At most `limit` layers, and at most 182 (the interior): the frontier runs out first
-    while felt != 0 && distance != limit {
+    // [Compute] While a goblin is still to reach (none: no layer, the flood only serves the
+    // goblins'
+    // steps), at most `limit` layers (D-127: a ceiling, not a quota), and at most 182 (the
+    // interior): the frontier runs out first
+    while (pending_low != 0 || pending_high != 0) && felt != 0 && distance != limit {
         distance += 1;
         let (near_low, near_high) = step.dilate(low, high, felt);
         let (next_low, _, _) = Bits::bitwise(near_low, free_low);
@@ -112,9 +117,6 @@ pub fn shared_flood(
             }
             pending_low -= hit_low;
             pending_high -= hit_high;
-            if pending_low == 0 && pending_high == 0 {
-                break;
-            }
         }
     }
     (layers.span(), distances)

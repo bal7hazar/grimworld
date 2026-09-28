@@ -11,4 +11,5 @@ pub mod flood;
 pub mod sight;
 pub mod tables;
 pub mod tick;
+pub mod vectors;
 pub mod window;

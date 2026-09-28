@@ -10,6 +10,7 @@ use spk7::boards::{
 };
 use spk7::flood::{FLOOD_LAYERS, UNLIMITED, distance_of, shared_flood, step};
 use spk7::tables::WINDOW_INTERIOR;
+use spk7::vectors::vectors;
 use super::helpers::{W, has, neighbours, random_bits};
 
 /// Scalar BFS from `start` over `free` (start excluded from it): distance + 1, 0 if not reached.
@@ -140,7 +141,7 @@ fn random_board(seed: felt252, keep: Span<u8>) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 62822348)] // ceil(1.05 × 59830807 measured)
+#[available_gas(l2_gas: 62856326)] // ceil(1.05 × 59863167 measured)
 fn test_flood_capped_worst_case_matches_python() {
     // boards.py's capped worst case: 15 layers, 8 goblins reached, every one stepping
     let (depth, steps) = check(CAPPED_TERRAIN, 112, CAPPED_GOBLINS.span(), FLOOD_LAYERS);
@@ -166,7 +167,7 @@ fn test_flood_capped_worst_case_matches_python() {
 }
 
 #[test]
-#[available_gas(l2_gas: 578341824)] // ceil(1.05 × 550801737 measured)
+#[available_gas(l2_gas: 358553002)] // ceil(1.05 × 341479049 measured)
 fn test_flood_deep_boards_every_limit() {
     // The deepest boards found: every limit agrees with the reference; unlimited runs to the end
     for limit in array![10_u8, 15, 20] {
@@ -175,12 +176,15 @@ fn test_flood_deep_boards_every_limit() {
     }
     let (depth, _) = check(DEEP_TERRAIN, 112, DEEP_GOBLINS.span(), UNLIMITED);
     assert!(depth <= DEEP_LAYERS);
-    let (depth, _) = check(DEEP_EVEN_TERRAIN, 127, array![].span(), UNLIMITED);
-    assert!(depth == DEEP_EVEN_LAYERS + 1, "{}", depth);
+    // An unreachable target (tile 0) runs the flood to the end of the frontier
+    let (layers, _) = shared_flood(
+        DEEP_EVEN_TERRAIN - Bits::pow(127), 127, array![0].span(), UNLIMITED,
+    );
+    assert!(layers.len() == DEEP_EVEN_LAYERS + 1, "{}", layers.len());
 }
 
 #[test]
-#[available_gas(l2_gas: 601634994)] // ceil(1.05 × 572985708 measured)
+#[available_gas(l2_gas: 601794279)] // ceil(1.05 × 573137408 measured)
 fn test_flood_random_boards_both_parities() {
     let mut seed: felt252 = 1;
     while seed != 7 {
@@ -197,5 +201,29 @@ fn test_flood_random_boards_both_parities() {
         check(board, start, goblins.span(), UNLIMITED);
         check(board, start, goblins.span(), FLOOD_LAYERS);
         seed += 1;
+    }
+}
+
+#[test]
+#[available_gas(l2_gas: 9723779)] // ceil(1.05 × 9260741 measured)
+fn test_flood_shared_vectors() {
+    // Fix loop 1: the vectors of vectors.py, the same inputs and results as the Python model
+    for (terrain, start, targets, limit, expected, distances, reached) in vectors() {
+        let mut occupied: felt252 = 0;
+        for target in targets {
+            if has(terrain, *target) {
+                occupied += Bits::pow(*target);
+            }
+        }
+        let (layers, packed) = shared_flood(
+            terrain - occupied - Bits::pow(start), start, targets, limit,
+        );
+        assert!(layers.len() == expected, "layers {} expected {}", layers.len(), expected);
+        assert!(packed == distances);
+        let mut union: felt252 = 0;
+        for layer in layers {
+            union += Bits::to_felt(*layer);
+        }
+        assert!(union == reached);
     }
 }

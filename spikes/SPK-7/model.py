@@ -74,7 +74,9 @@ def shared_flood(terrain, occupied, start, goblins, limit):
     pending = set(goblins)
     dist = {}
     d = 0
-    while layers[-1] and (limit is None or d < limit):
+    # Stops when no target is pending (checked before each layer: no target, no layer), when the
+    # frontier runs out, or at the limit (D-127) - the same order as flood.cairo
+    while pending and layers[-1] and (limit is None or d < limit):
         d += 1
         around = set()
         for t in layers[-1]:
@@ -86,8 +88,6 @@ def shared_flood(terrain, occupied, start, goblins, limit):
         for g in hits:
             dist[g] = d
         pending -= hits
-        if not pending:
-            break
     moves = []
     current = set(occupied)
     for g in goblins:
