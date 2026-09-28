@@ -49,7 +49,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
 | FND-00 | **Bootstrap the project-manager session on the VPS** from `docs/briefs/PM-vps-bootstrap.md`: checks accounts, toolchain, repository, credentials presence; reports to the owner | IDE-03 | Owner starts it | — | done |
-| SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js); reproducible build. Controller is pinned by SPK-9, not here | — | Sonnet 5 | Q | doing ([brief](docs/briefs/SPK-5-toolchain.md)) |
+| SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js); reproducible build. Controller is pinned by SPK-9, not here | — | Sonnet 5 | Q | done (2026-09-28, [#14](https://github.com/bal7hazar/grimworld/pull/14); [report](docs/reports/SPK-5-toolchain.md)) |
 | FND-01 | Repository scaffold: `contracts/`, `client/`, `docs/`, scripts, layering of CONTEXT §4 | SPK-5 | Sonnet 5 | Q | todo |
 | FND-06 | Gas tooling: budgets on tests, `docs/BUDGETS.md` generated from a test run, CI failing on a budget exceeded, gas table template for `REPORT.md` | FND-02 | Sonnet 5 | Q | todo |
 | FND-02 | CI: build, format, lint, tests for contracts and client | FND-01 | Sonnet 5 | S Q | todo |
