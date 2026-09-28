@@ -187,8 +187,10 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   refuses the launch. The count and the start run under the shared lock
   `~/orchestrator/agent-launch.lock`, so two launchers cannot both take the last slot: **the
   launchers of the map library and of `quiver` take the same lock** (`flock` on that file around
-  their count and start). It cannot tell a track's own slot from the shared one, so each
-  orchestrator still applies the split; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  their count and start). Each
+  launcher also enforces the caps per track (its own `TRACK`: game 2, map library 1, quiver 1)
+  and, on the other tracks, the game's waiting marker (`~/orchestrator/waiting/game`, less than
+  30 minutes old); an agent whose directory cannot be read counts against every track; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
   The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
   `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
   still start one.
