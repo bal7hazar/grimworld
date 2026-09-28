@@ -10,8 +10,11 @@ has validated it. It runs before any setup step and fails the workflow on anythi
   discovery, it is never skipped silently. A workspace with `exclude` is refused (not supported
   here, so it cannot hide a manifest).
 - The toolchain of a job is, per tool, the nearest .tool-versions going up from its folder (asdf
-  semantics). Every version that reaches a setup step (Scarb, snforge, Node, pnpm) is an exact
+  semantics); a workspace member cannot pin another toolchain than its workspace root's (it would
+  be ignored), so that fails. Every version that reaches a setup step (Scarb, snforge, Node, pnpm) is an exact
   release number: `latest`, `nightly`, ranges and paths are refused.
+- package.json `devEngines.packageManager`, which pnpm/action-setup would let override the pinned
+  pnpm (ranges accepted), is refused unless it is exactly pnpm at the validated version.
 - Job folders are repository-relative paths made of safe characters, without `..`.
 
 Outputs (GITHUB_OUTPUT, else stdout): packages (JSON list of {dir, scarb, snforge}), node, pnpm.
@@ -39,8 +42,8 @@ def safe_dir(path):
     return bool(SAFE_PATH.match(path)) and ".." not in path.split("/")
 
 
-def tool_version(folder, tool):
-    """Version of `tool` in the nearest .tool-versions from `folder` up to the root, or None."""
+def tool_pin(folder, tool):
+    """(version, file) of `tool` in the nearest .tool-versions from `folder` up to the root."""
     folder = os.path.normpath(folder)
     while True:
         path = os.path.join(folder, ".tool-versions")
@@ -49,10 +52,14 @@ def tool_version(folder, tool):
                 for line in f:
                     fields = line.split("#", 1)[0].split()
                     if len(fields) >= 2 and fields[0] == tool:
-                        return fields[1]
+                        return fields[1], path
         if folder == ".":
-            return None
+            return None, None
         folder = os.path.dirname(folder) or "."
+
+
+def tool_version(folder, tool):
+    return tool_pin(folder, tool)[0]
 
 
 def exact_version(folder, tool):
@@ -131,16 +138,37 @@ for root in roots:
 if not packages:
     fail("no Cairo package found")
 
+# A workspace is one job on its root's toolchain: a member cannot pin another one, that pin would be
+# silently ignored. (A package that needs another toolchain lives outside the workspace.)
+for member, root in sorted(member_root.items()):
+    for tool in ("scarb", "starknet-foundry"):
+        (own, own_file), (job, _) = tool_pin(member, tool), tool_pin(root, tool)
+        if own != job:
+            fail(
+                f"{own_file}: {tool} {own} differs from the workspace {root} ({job}); a workspace is "
+                "one job on its root's toolchain, so a member's own pin is ignored: remove it, or "
+                "move the package out of the workspace"
+            )
+
 node = exact_version(".", "nodejs")
 pnpm = exact_version(".", "pnpm")
 try:
     with open("package.json", encoding="utf-8") as f:
-        package_manager = json.load(f).get("packageManager")
+        package_json = json.load(f)
 except (OSError, ValueError) as e:
-    package_manager = None
+    package_json = {}
     fail(f"package.json: {e}")
+package_manager = package_json.get("packageManager")
 if package_manager != f"pnpm@{pnpm}":
     fail(f"package.json packageManager {package_manager!r} is not 'pnpm@{pnpm}' (.tool-versions)")
+
+# pnpm/action-setup lets devEngines.packageManager (ranges accepted) override `packageManager`;
+# the workflow passes the validated version explicitly, and a field that says otherwise is refused.
+dev_engines = (package_json.get("devEngines") or {}).get("packageManager")
+if dev_engines is not None:
+    for entry in dev_engines if isinstance(dev_engines, list) else [dev_engines]:
+        if not (isinstance(entry, dict) and entry.get("name") == "pnpm" and entry.get("version") == pnpm):
+            fail(f"package.json devEngines.packageManager {entry!r} is not exactly pnpm {pnpm} (.tool-versions)")
 
 if errors:
     for message in errors:
