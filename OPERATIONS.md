@@ -338,7 +338,10 @@ that needs them.
 A finding needs **evidence**: a failing scenario, a test, or a quoted rule. The
 orchestrator verifies a finding before sending it to a fix; auditors can be wrong. The fix
 is done by **resuming the implementer**, not by a new agent. After three fix loops on the
-same lot, escalate to the owner.
+same lot, the orchestrator stops and escalates **to the project manager**, who decides (a
+last loop limited to named findings, a merge with the findings carried as open points, or
+a restructured task) and reports to the owner. The owner is asked only when the cause is a
+question of design or scope.
 
 ### Audit report template
 

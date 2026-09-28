@@ -34,9 +34,16 @@ native re-measure, FND-02's resume.
 Budget: 3 Grim World agents at a time (D-118): 2 for the game (1 in use: the next launches all
 depend on SPK-5b), 1 for the library. Machine at 17:10 UTC: load 6.3, 21 GB available.
 
+## Decided by the project manager
+
+| | |
+|---|---|
+| LIB-03, three fix loops used | Option A: a fourth loop limited to the six findings left (3 major), then one audit pass on them; merge, or merge with the rest carried as open points. The audit of `[GPT-6-Astra]` went 20, 17, 17, 6 findings. The plan now estimates the tick at **1.34M to 1.67M gas** (not measured); it reaches the owner at gate L-G2 |
+| `bal7hazar/quiver` | Created (public, MIT) on the owner's choice of name; mandate of its orchestrator in [docs/briefs/ORCH-quiver.md](docs/briefs/ORCH-quiver.md) |
+
 ## Waiting for the owner
 
-Nothing blocks the game today. **ARC-00**: the name of the single repository of track ARC (D-125: one repository of separate Scarb packages, CI by affected package; in time the home of the other `*-cairo` libraries). Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
+Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
 
 ## Next
 
