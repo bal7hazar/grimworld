@@ -1,10 +1,10 @@
-# PENDING — Gate L-G1 of track LIB, and one point of ADR-0006
+# Gate L-G1 of track LIB — decided 2026-09-28
 
 | | |
 |---|---|
 | Prepared by | `[Fable 5.1]` project manager, 2026-09-28 |
 | Decides | The owner |
-| Source | `bal7hazar/hexx-cairo`: `docs/decisions/PENDING-L-G1.md`, `docs/research/LIB-02-hexx-analysis.md` (`[Opus 5.5]`, audited twice by `[GPT-6-Sol]`, findings fixed) |
+| Source | `bal7hazar/hexx-cairo`: `docs/decisions/L-G1-hexx-port.md`, `docs/research/LIB-02-hexx-analysis.md` (`[Opus 5.5]`, audited twice by `[GPT-6-Sol]`, findings fixed) |
 | Blocks | LIB-03, and through it L-M1, the pre-release SPK-7 waits for, and ENG-05 |
 | Does not block | Phase 0 of the game: FND-03, SPK-5, ART-00, FND-01/02/06, SPK-2, SPK-4, SPK-8. SPK-7 can start on `origami_hexmap` 1.8.0 (R-18) |
 
@@ -56,4 +56,18 @@ vectors).
 
 ## Answer
 
-*To be filled with the owner's decision and its date.*
+Given by the owner on 2026-09-28, in the library orchestrator's session; recorded in
+`bal7hazar/hexx-cairo`, `docs/decisions/L-G1-hexx-port.md`. **It differs from the
+recommendations of §1 and §2 above**, which are kept as they were put.
+
+| # | Decision (D-119) |
+|---|---|
+| 1 | **Port `hexx` in full**: feature parity wherever it makes sense on-chain. The scope is extended with what Cairo and the network require (boards in one felt, generation, floods, assembly) |
+| 2 | The library lives in **`bal7hazar/hexx-cairo`**, published under its own name and cadence. The bitmap engine of `origami_hexmap` 1.8.0 is taken over there; results for the same input stay identical, so that the game migrates without moving its test vectors |
+| 2b | **`origami_hexmap` is decommissioned** once the port is complete and the game has migrated. Until then the game consumes `origami_hexmap` 1.8.0 |
+| §3 | Sight and the window: **still open**, moved to [PENDING-window-follows](PENDING-window-follows.md) |
+
+Consequences for the game: milestone L-M1 is unchanged (N-1 to N-8 first); the game's
+dependency moves to `hexx-cairo` at a published version, in its own task; `docs/CAIRO.md` §4
+follows when `u252` and `hexx-cairo` are published. The risk named in §2 (release cadence in
+another organisation) no longer exists.

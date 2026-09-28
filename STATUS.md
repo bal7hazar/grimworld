@@ -23,7 +23,7 @@
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
 | Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-03 done. SPK-5 and ART-00 running |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-01 and LIB-02 merged. **Stopped at gate L-G1** |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | Gate L-G1 decided by the owner (D-119: `hexx` in full, in `hexx-cairo`). LIB-03 porting plan running on Fable 5.1; next stop: gate L-G2 |
 
 | Game agent | Unit | Model asked / ran | Profile | Started |
 |---|---|---|---|---|
@@ -44,8 +44,9 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 
 | What | Where | Recommendation |
 |---|---|---|
-| Gate L-G1: port `hexx` partly, in `origami_hexmap` extended in place | [docs/decisions/PENDING-L-G1.md](docs/decisions/PENDING-L-G1.md) §1, §2 | Partly; option B |
-| Sight and the window: the window follows the adventurer | Same, §3 | Yes, cost measured by SPK-7 |
+| **Incident**: restore `node`, `pnpm`, `codex` on the machine (two lines in the global `~/.tool-versions`) | [docs/reports/INC-2026-09-28-asdf-node-shims.md](docs/reports/INC-2026-09-28-asdf-node-shims.md) | Apply |
+| G-1: protect `main` on both repositories | [docs/decisions/PENDING-G-1.md](docs/decisions/PENDING-G-1.md) | Yes, two steps |
+| Sight and the window: the window follows the adventurer | [docs/decisions/PENDING-window-follows.md](docs/decisions/PENDING-window-follows.md) | Yes, cost measured by SPK-7 |
 
 ## Next
 
