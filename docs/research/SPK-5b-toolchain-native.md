@@ -101,10 +101,13 @@ a no-op check (`Finished release profile in 0 seconds` on a second run).
 
 **Scarb 2.19 moved `--manifest-path`** to a global option before the subcommand (`scarb
 --manifest-path <path> build`; `scarb build --manifest-path` is `unexpected argument`), which
-`scripts/lock.sh` refuses (the subcommand must come first). The brief's verification line
-`scripts/lock.sh scarb build --manifest-path spikes/SPK-5b/Scarb.toml` therefore fails. Worked
-around by `spikes/SPK-5b/locked.sh <tool> <subcommand…>`, which goes to the package's folder and
-calls `scripts/lock.sh` from there; the fix belongs in `scripts/lock.sh` (§5).
+`scripts/lock.sh` used to refuse (the subcommand must come first). The brief's verification line
+`scripts/lock.sh scarb build --manifest-path spikes/SPK-5b/Scarb.toml` therefore fails on 2.19.
+Fixed in fix loop 1: `scripts/lock.sh scarb --manifest-path <path> <build|test|…>` is accepted
+(that one option, with its value, between `scarb` and the subcommand; everything else is still
+refused). `snforge` has no such option: it selects the package by the working directory, so the
+tests run as `cd spikes/SPK-5b && snforge test` (the machine's `snforge` shim takes the heavy lock
+by itself).
 
 ## 4. starknet.js and typed bindings
 
@@ -135,12 +138,14 @@ largest process), on a quiet lock, Scarb 2.19.4 and snforge 0.61.0:
 
 | Command | Wall | Peak RSS (largest process) |
 |---|---|---|
-| `spikes/SPK-5b/locked.sh scarb build` (`target/` removed first) | 8.4 s | 626 MB |
-| `spikes/SPK-5b/locked.sh snforge test` (2 tests, build cache warm) | 7.5 s | 712 MB |
+| `scripts/lock.sh scarb --manifest-path spikes/SPK-5b/Scarb.toml build` (`target/` removed first) | 3.2 s (8.4 s in the first measurement) | 636 MB (626 MB) |
+| `snforge test` from `spikes/SPK-5b` (2 tests, build cache warm) | 6.5 s (7.5 s) | 718 MB (712 MB) |
 | `scripts/with-node.sh spikes/SPK-5b/flow.sh` (node start, sncast × 5, reader) | 14.7 s | 612 MB |
 
-The very first runs, with cold caches (dependencies, `snforge_std`), took 21 s and 52 s; that
-figure includes any wait on the shared locks, which cannot be separated. Test gas (l2 gas, measured;
+The figures in parentheses are the first measurement, taken while the machine was busier (the
+spread is the machine's, not the code's). The very first runs, with cold caches (dependencies,
+`snforge_std`), took 21 s and 52 s; that figure includes any wait on the shared locks, which cannot
+be separated. Test gas (l2 gas, measured;
 `l1_data_gas` ~192 in both), budgets `ceil(1.05 × measured)`: `test_mark_writes_the_value` 1 007 250
 to 1 007 350 between runs (budget 1 057 718), `test_mark_emits_marked` 975 100 (budget 1 023 855).
 Both include declare and deploy of the class inside the test, so they are not the cost of `mark`
@@ -149,15 +154,13 @@ itself.
 ## 6. Open questions
 
 For **FND-01b** (the game's scaffold):
-- `scripts/lock.sh` cannot wrap `scarb --manifest-path … <subcommand>` (§3). The scaffold's root
-  `Scarb.toml` (a workspace) is built from the root, where `--manifest-path` is not needed, but a
-  single package selected by path is. Either `lock.sh` accepts the global option before the
-  subcommand, or agents work from the package folder as `locked.sh` does.
+- `scripts/lock.sh` now wraps `scarb --manifest-path <path> <subcommand>` (§3), but `snforge` still
+  selects the package by the working directory (`-p <package>` from a workspace root works).
 - `sncast declare` compiles the package itself in the `release` profile; the scaffold must decide
   whether the deployment script builds first (as `flow.sh` does) and whether the `release` profile
   carries the same `[cairo]` settings as `dev` (`sierra-replace-ids`, inlining).
-- `.gitignore` at the root still lists `.with-katana/` and not `.with-node/` (the log and the
-  accounts file of `with-node.sh` go to `./.with-node/`).
+- The log (its banner holds the pre-funded accounts' private keys) and the accounts file of
+  `with-node.sh` / `flow.sh` go to `./.with-node/`, ignored by the root `.gitignore` since fix loop 1.
 - `sncast` accounts are imported by private key from the node's banner: the deployment script of
   the game needs a policy for accounts on a node other than the local one (out of scope, ADR-0007
   says deployments to Sepolia are the orchestrator's).
@@ -174,8 +177,6 @@ For **SPK-11** (the indexer):
 
 For the owner / orchestrator:
 - `spikes/SPK-2/.tool-versions` and its README line are missing until SPK-2 is merged.
-- `spikes/SPK-5/run.sh` and `docs/briefs/SPK-2-cost.md` call `scripts/with-katana.sh`, which no
-  longer exists; the Dojo baseline is reproducible with its own pins (`spikes/SPK-5/.tool-versions`)
-  but its run script needs a copy of the removed script or the old commit's.
-- `scripts/profiles/research.txt` still lists `sozo --version`, `katana --version` and
-  `torii --version`, and lacks `sncast --version` and `starknet-devnet --version`.
+- `docs/briefs/SPK-2-cost.md` (and a running SPK-2) call `scripts/with-katana.sh`, which no longer
+  exists. `spikes/SPK-5/` has its own copy since fix loop 1 (`spikes/SPK-5/with-katana.sh`);
+  SPK-2 can do the same.

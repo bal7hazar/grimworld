@@ -3,7 +3,7 @@
 # node, read the event from the receipt, then decode it from TypeScript with starknet.js. Meant to
 # run under the node of scripts/with-node.sh, from the repository root:
 #   scripts/with-node.sh spikes/SPK-5b/flow.sh
-# Needs the artifacts of `spikes/SPK-5b/locked.sh scarb build` and `pnpm install` in spikes/SPK-5b.
+# Needs the artifacts of `scripts/lock.sh scarb --manifest-path spikes/SPK-5b/Scarb.toml build` and `pnpm install` in spikes/SPK-5b.
 # The environment comes from with-node.sh: NODE_URL, NODE_ACCOUNT_ADDRESS, NODE_ACCOUNT_PRIVATE_KEY.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."

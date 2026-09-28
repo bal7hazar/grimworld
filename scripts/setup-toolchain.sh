@@ -16,14 +16,21 @@
 # plugin, which puts `universal-sierra-compiler` in ~/.local/bin (already there on this machine,
 # dated before this task, unchanged).
 #
-# NODE AND PNPM come first from the system. Adding the asdf plugins nodejs and pnpm creates
-# shims that hide the system node and pnpm everywhere (docs/reports/INC-2026-09-28-asdf-node-shims.md).
-# So, per tool: if the system binary (found on the PATH outside asdf's shims directory) already
-# has exactly the pinned version, it is used and the plugin is NOT added. Otherwise the plugin is
-# added only if the global ~/.tool-versions (read-only check) already has `<tool> system` AND a
-# system executable of the tool exists outside asdf's shims; if not, the script stops with the
-# remedy of the incident file. An existing plugin is never removed. The repository's .tool-versions keeps nodejs and pnpm either way: where the plugins are
-# already added (this machine), that local pin is what makes node work in the worktrees.
+# EVERY PINNED TOOL comes first from the system. Adding an asdf plugin creates shims that hide the
+# system binary of that tool everywhere (docs/reports/INC-2026-09-28-asdf-node-shims.md). So, per
+# tool (nodejs, pnpm, scarb, starknet-foundry, starknet-devnet), in this order:
+#   1. the plugin is already added: the pinned version is installed (the repository's pin selects
+#      it through the shim, so it must exist), nothing is added;
+#   2. else the binaries (found on the PATH outside asdf's shims directory) already have exactly
+#      the pinned version (and, where a sha256 is pinned below, that hash): they are used and the
+#      plugin is NOT added;
+#   3. else, if the system has the tool at another version, the plugin is added only if the global
+#      ~/.tool-versions (read-only check) already has `<tool> system`; if not, the script stops
+#      with the remedy of the incident file;
+#   4. else (no such binary anywhere) the plugin is added: it hides nothing.
+# An existing plugin is never removed. The repository's .tool-versions keeps every pin either
+# way: where the plugins are already added (this machine), that local pin is what makes the tools
+# work in the worktrees.
 #
 # INTEGRITY, tool by tool (sources read on 2026-09-28, see the research file §1):
 #   starknet-devnet      asdf-starknet-devnet (ptisserand/asdf-starknet-devnet, a plugin
@@ -108,32 +115,53 @@ cd "$root"
 [ -f .tool-versions ] || die "no .tool-versions at $root"
 pinned() { awk -v n="$1" '$1 == n { print $2 }' .tool-versions; }
 
-# --- node and pnpm: the system first ---------------------------------------------------------
-system_served=' '   # asdf names served by the system binary, e.g. ' nodejs pnpm '
+# --- every pinned tool: the system first -----------------------------------------------------
+sha256_of() { sha256sum "$1" | awk '{ print $1 }'; }
+
+system_served=' '   # asdf names served by the system binaries, e.g. ' nodejs pnpm '
+declare -A system_path   # asdf name -> the system binary named like the tool, for the hash check
 plugins=$(asdf plugin list 2> /dev/null || true)
-for pair in nodejs:node pnpm:pnpm; do
-  name=${pair%%:*} binary=${pair##*:}
+# <asdf name>:<binaries the tool brings, comma separated>
+for pair in nodejs:node pnpm:pnpm scarb:scarb starknet-foundry:snforge,sncast starknet-devnet:starknet-devnet; do
+  name=${pair%%:*} binaries=${pair##*:}
   want=$(pinned "$name")
   [ -n "$want" ] || continue
-  sys=$(system_binary "$binary")
-  got=''
-  [ -z "$sys" ] || got=$(version_of "$sys" --version || true)
-  if [ -n "$sys" ] && [ "$got" = "$want" ]; then
-    log "$name $want: using the system $sys (exactly the pinned version); asdf plugin not needed"
+  if grep -qx "$name" <<< "$plugins"; then
+    log "$name $want: the asdf plugin is already added, installing the pin"
+    continue
+  fi
+  # Do the system binaries have exactly the pinned version (and pinned hash, when there is one)?
+  match=1 seen='' hash_want=$(binary_sha256 "$name" "$want" "$arch")
+  for binary in ${binaries//,/ }; do
+    sys=$(system_binary "$binary")
+    if [ -z "$sys" ]; then
+      match=0
+      continue
+    fi
+    got=''
+    # The hash is checked before the binary is run at all.
+    if [ "$binary" = "$name" ] && [ -n "$hash_want" ] && [ "$(sha256_of "$sys")" != "$hash_want" ]; then
+      got='another build'
+    else
+      got=$(version_of "$sys" --version || true)
+    fi
+    seen="$seen $binary:${got:-unknown}"
+    [ "$got" = "$want" ] || match=0
+    [ "$binary" != "$name" ] || system_path[$name]=$sys
+  done
+  if [ "$match" = 1 ]; then
+    log "$name $want: using the system binaries (exactly the pinned version); asdf plugin not needed"
     system_served="$system_served$name "
-  elif grep -qx "$name" <<< "$plugins"; then
-    log "$name $want: system ${got:-none} differs; the asdf plugin is already added, installing the pin"
-  elif [ -n "$sys" ] && global_system_fallback "$name"; then
-    log "$name $want: system ${got:-none} differs; ~/.tool-versions has '$name system', adding the plugin is safe"
+  elif [ -z "$seen" ]; then
+    log "$name $want: no system binary outside asdf's shims; adding the plugin hides nothing"
+  elif global_system_fallback "$name"; then
+    log "$name $want: system has$seen; ~/.tool-versions has '$name system', adding the plugin is safe"
   else
     {
-      echo "setup-toolchain: $name $want is pinned but the system has ${got:-no $binary}."
-      if [ -z "$sys" ] && global_system_fallback "$name"; then
-        echo "setup-toolchain: ~/.tool-versions has '$name system', but no system $binary exists outside asdf's shims: that fallback would fail."
-      fi
-      echo "setup-toolchain: adding the asdf plugin '$name' would hide the system $binary everywhere"
+      echo "setup-toolchain: $name $want is pinned but the system has$seen."
+      echo "setup-toolchain: adding the asdf plugin '$name' would hide the system binaries everywhere"
       echo "setup-toolchain: (docs/reports/INC-2026-09-28-asdf-node-shims.md). Refusing. Remedy of that incident,"
-      echo "setup-toolchain: an owner decision: add the lines 'nodejs system' and 'pnpm system' to ~/.tool-versions"
+      echo "setup-toolchain: an owner decision: add the line '$name system' to ~/.tool-versions"
       echo "setup-toolchain: (backup first), then run this script again. This script does not edit that file."
     } >&2
     exit 1
@@ -177,16 +205,20 @@ check_version() { # <label> <expected version> <command…>
   fi
 }
 
-check_hash() { # <tool> <version>
-  local tool=$1 version=$2 want dir got
+check_hash() { # <tool> <version>: the system binary when it serves the tool, else asdf's
+  local tool=$1 version=$2 want file got
   want=$(binary_sha256 "$tool" "$version" "$arch")
   [ -n "$want" ] || { fail "$tool $version: no sha256 pinned for this version on $arch (update binary_sha256)"; return 1; }
-  dir=$(asdf where "$tool" "$version" 2> /dev/null) || { fail "$tool $version: not installed"; return 1; }
-  got=$(sha256sum "$dir/bin/$tool" | awk '{ print $1 }')
+  file=${system_path[$tool]:-}
+  if [ -z "$file" ]; then
+    file=$(asdf where "$tool" "$version" 2> /dev/null) || { fail "$tool $version: not installed"; return 1; }
+    file=$file/bin/$tool
+  fi
+  got=$(sha256_of "$file")
   if [ "$got" = "$want" ]; then
     printf '%-18s sha256 %s\n' "$tool" "$got"
   else
-    fail "$tool $version: sha256 of $dir/bin/$tool is $got, expected $want"
+    fail "$tool $version: sha256 of $file is $got, expected $want"
     return 1
   fi
 }
