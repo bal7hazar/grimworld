@@ -24,9 +24,9 @@ moves when the player acts. Full vision: [docs/design/00-vision.md](docs/design/
 
 | | |
 |---|---|
-| Phase | Ideation consolidated and reviewed once by the owner (2026-09-28); implementation not started |
-| Repository | Documents only |
-| Next | Owner rules on the remaining proposed decisions (§6) and questions (§7), then Phase 0 of [PLAN.md](PLAN.md) |
+| Phase | **0 — Foundations**, started 2026-09-28: ideation reviewed three times by the owner, decisions of §6 accepted, project-manager session running on the VPS (FND-00) |
+| Repository | Documents only; first code arrives with FND-03 (agent tooling) and SPK-5 (toolchain) |
+| Next | Orchestrators created by the project manager ([docs/briefs/ORCH-game.md](docs/briefs/ORCH-game.md), [docs/briefs/ORCH-hexmap.md](docs/briefs/ORCH-hexmap.md)); live state in [STATUS.md](STATUS.md) |
 
 ## 4. Technical context
 

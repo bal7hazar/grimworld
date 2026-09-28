@@ -59,7 +59,9 @@ with a stated concern.
 ## Decision
 
 **Option A — Starknet mainnet**, with Dojo, Cartridge Controller sessions, the Cartridge
-paymaster and Cartridge vRNG.
+paymaster and Cartridge vRNG. *(Superseded in part by [ADR-0005](ADR-0005-accounts.md) and
+D-110: the MVP runs on burner accounts and transaction-hash randomness behind interfaces;
+Controller, paymaster and vRNG are version-1 candidates, evaluated by SPK-9 and SPK-3.)*
 
 The owner's concern about A is real, and it is addressed **by game design rather than
 by infrastructure**:
@@ -129,7 +131,7 @@ The decision becomes **Accepted** when all pass; otherwise option B is re-examin
 
 | Spike | Question | Pass threshold (proposed) |
 |---|---|---|
-| SPK-1 Latency | Time from submission to pre-confirmed and to accepted-on-L2, through a Controller session, on Sepolia then mainnet | p50 ≤ 1 s and p95 ≤ 3 s to pre-confirmed |
+| SPK-1 Latency | Time from submission to pre-confirmed and to accepted-on-L2, from a burner account (ADR-0005 stage A), on Sepolia then mainnet | p50 ≤ 1 s and p95 ≤ 3 s to pre-confirmed |
 | SPK-2 Cost | L2 gas of a worst-case tick (8 awake goblins) and of a queue of 10 moves | Expedition of 300 actions ≤ $0.50 sponsored |
 | SPK-3 vRNG | Gas overhead and added latency of a vRNG request; behaviour when the provider is down | Overhead measured; failure is detectable and retryable |
 | SPK-4 Parity | Can one source of truth feed both sides (Cairo test vectors replayed by the client simulation)? | 10 000 generated vectors, 0 divergence |

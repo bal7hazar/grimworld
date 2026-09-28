@@ -1,41 +1,56 @@
 # Status
 
-**2026-09-28** — written by the orchestrator session `[Fable 5.1]`.
+**2026-09-28** — written by the project-manager session `[Fable 5.1] Chef de projet Grim World`.
 
 ## Where we are
 
-Phase −1 (ideation). The repository holds documents only. No code, no agent launched
-through the CLI yet.
+**Phase 0 — Foundations**, opened today. The repository still holds documents only. FND-00
+(bootstrap of the project-manager session on the VPS) is done: accounts, toolchain, repository
+and machine checked, report given to the owner, three rounds of decisions recorded.
 
-## What moved
+## What moved today
 
 | | |
 |---|---|
-| Design documents 00–10 | Written, revised once after the owner's first review (v0.2) |
-| ADR-0001 execution layer | Accepted by the owner: Starknet mainnet, subject to spikes |
-| ADR-0002 randomness | Proposed |
-| ADR-0003 client | Accepted by the owner, subject to the phone spike: TypeScript, PixiJS on demand, Capacitor |
-| Owner review, round 2 | Answered: [docs/decisions/2026-09-28-owner-review-2.md](docs/decisions/2026-09-28-owner-review-2.md) |
-| VPS bootstrap prompt | Written: [docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) |
-| OPERATIONS | Realigned on the owner's conventions from the other programmes |
-| Research (in-session, read-only) | Grimscape and Athanor; Starknet stack; `origami_hexmap`; mobile client options |
+| Owner review, round 3 and follow-up | All proposed decisions accepted (D-02, D-04, D-30, D-31, D-41, D-50, D-52 conditional on SPK-2, D-63, D-80); D-115 trials generated, D-116 mainnet go, D-117 library repository, D-118 concurrency: [docs/decisions/2026-09-28-owner-review-3.md](docs/decisions/2026-09-28-owner-review-3.md) |
+| Design reconciled with ADR-0006 and the accepted decisions | PR #5: design/01, 02, 04, 06, 07, 09, 13, 15, 17, 18; ADR-0005 status |
+| Spikes moved to burner accounts | PLAN v0.13; ADR-0001 and ADR-0003 validation tables (this PR) |
+| Orchestrator mandates | [docs/briefs/ORCH-game.md](docs/briefs/ORCH-game.md), [docs/briefs/ORCH-hexmap.md](docs/briefs/ORCH-hexmap.md) |
+| Milestone M0 | Reached |
 
-## Running agents
+## Orchestrators and agents
 
-None.
+| Orchestrator | Session | First task | State |
+|---|---|---|---|
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | FND-03 agent tooling, then SPK-5 ∥ ART-00 | Being created by the project manager |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | LIB-02 analysis of `hexx`, stop at gate L-G1 | Being created by the project manager |
+
+Sub-agents running: none yet. Budget: 3 Grim World agents at a time (D-118): 2 for the game,
+1 for the library in wave 1.
+
+## Machine (VPS, 2026-09-28 13:40 UTC)
+
+| | |
+|---|---|
+| Accounts | `claude` CLI on claude-b7r ✓; `gh` on bal7hazar, ADMIN on grimworld and tiny-swords ✓; codex 0.155.1 with gpt-6-astra / sol / luna ✓ |
+| Toolchain | scarb 2.19.4, snforge 0.61.0, node 24.21, pnpm 12.5 present; **sozo, katana, torii absent** (SPK-5 installs and pins them) |
+| Load | 8 cores, load ≈ 5–9 with 3 agents of the owner's other programmes (nalgebra, rapier); 31 GB RAM, ~19 GB available |
+| Sepolia credentials | Not in the environment; not needed before Phase 1 (owner) |
+| `assets` submodule | Not initialised in the main checkout; an independent clone of `tiny-swords` at the same commit exists in `~/projects/assets`. Initialised only in worktrees that need the art |
 
 ## Blocked
 
 | What | By |
 |---|---|
-| Phase 0 launch | The owner starting the project-manager session on the VPS (FND-00); documents must be committed and pushed first |
-| Mainnet, later | Q-17 |
+| Any sub-agent launch | FND-03 (the launcher), first task of the game orchestrator |
+| SPK-1, deployments | Sepolia credentials, Phase 1 |
+| SPK-6 | Real phones: the owner runs the protocol the orchestrator writes |
+| Mainnet | An explicit go from the owner, each time (D-116) |
 
-## Since the pull request was opened
+## Open on the owner's side (not blocking)
 
-Owner's third review (2026-09-28): adventurer slots and vault, estate, titles, quests of
-Region 1, equipment with loot and boss sets, trade and auction house; companions designed
-then withdrawn; ADR-0004 on the Arcade packages. The MVP has grown: see risk R-13.
+Q-12 Arcanist sprite or Cleric (Phase 2); reaction to the lore premise (DES-14); Q-08
+registry writers and Q-03 defeat severity (Phase 1).
 
 ## MVP and version 1
 
@@ -45,10 +60,9 @@ behind their interfaces and goes through the hardening phase.
 
 ## Design coverage
 
-Written: 19 design documents, the lore premise, 5 ADRs. The three documents due before
-Phase 1 (interface, perception, rooms) exist as drafts. Still to write before the phases
-that need them: effect catalogue, remaining skills, caste sheets, curves, content lists.
-See the design backlog in [PLAN.md](PLAN.md#design-backlog).
+Written: 19 design documents, the lore premise, 6 ADRs. Still to write before the phases that
+need them: effect catalogue, remaining skills, caste sheets, curves, content lists
+([PLAN.md](PLAN.md#design-backlog)).
 
 ## Not verified
 
