@@ -1,45 +1,38 @@
 # Status
 
-**2026-09-28 17:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 18:06 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations, native Starknet (ADR-0007, D-123).** Merged: FND-03, SPK-5, FND-01,
-ART-00, the launcher thresholds (#11), the profile for Rust and native tools (#20). Running:
-**SPK-5b** (toolchain without Dojo, audit fix loop 1). Waiting for SPK-5b: FND-01b, SPK-2's
-native re-measure, FND-02's resume.
+**Phase 0 — Foundations, native Starknet (ADR-0007).** Merged since the last check-in:
+SPK-5b (toolchain without Dojo; local node starknet-devnet 0.10.0) and FND-01b (native
+scaffold; `origami_hexmap` 1.8.0 now builds in the game). Running: **SPK-2** (cost fix loop 1)
+and **FND-02** (CI fix loop 1). Next: SPK-11 (indexer), then SPK-7, FND-05, SPK-4.
 
 ## What moved
 
 | | |
 |---|---|
-| **SPK-2, Dojo baseline** | [#25](https://github.com/bal7hazar/grimworld/pull/25), `[Opus 5.5]`, open until its native follow-up. **On Dojo 1.8, ADR-0001's threshold fails at today's prices**: a 300-action expedition costs **$1.73 to $2.69** (3.5× to 5.4× the $0.50 threshold), **$0.97 to $1.08** with the goblins packed by hand. Storage through the Dojo world is **72 %** of the worst-case tick (the world tick in memory: 1.25M of 13.2M L2 gas). Budget per action at today's prices: 1.9M L2 gas; break-even L2 gas price 5.2 to 11.0 Gfri (17.8 to 30.4 over two weeks). **D-52 kept** (+1.6 %). Detail: `docs/research/SPK-2-cost.md` in the PR |
-| **SPK-5b** | [#24](https://github.com/bal7hazar/grimworld/pull/24), `[Sonnet 5]`: Scarb 2.19.4, snforge/sncast 0.61.0, **starknet-devnet 0.10.0** as the local node (**NS-1: Katana 1.7.1 and 1.8.0-rc.9 both refuse a Cairo 2.19 class**, Sierra 1.9.3 against their 1.7.0 compiler), starknet.js 10.8.0; declare, deploy, invoke, call, event proven. Audit `[GPT-6-Sol]` FAIL (5 majors verified: key file unignored, Dojo baseline not runnable, plugin rule partial, setup edge case, research profile); fix loop 1 running |
-| PR #20 merged | `implement` allows Rust builds confined to the worktree, `sncast` against a local node only, `starknet-devnet`. Audit PASS WITH FINDINGS after three fix loops. **Process slip**: merged while its last CI run was pending (it passed, on the merged head); every merge now waits for the checks to complete |
-| FND-02 | [#21](https://github.com/bal7hazar/grimworld/pull/21) green: CI per Cairo package with the toolchain of its nearest `.tool-versions`, no Dojo tool; audit and merge after SPK-5b |
-| Briefs | ADR-0007 applied: [SPK-5b](docs/briefs/SPK-5b-toolchain-native.md), [FND-01b](docs/briefs/FND-01b-scaffold-native.md) new; FND-05, SPK-4, SPK-7 rewritten; SPK-8 dropped (D-124) |
+| **SPK-2, native measure — provisional** | [#25](https://github.com/bal7hazar/grimworld/pull/25). The agent's first native figures: a 300-action expedition **$0.72 to $2.08** natively against $1.15 to $2.86 on Dojo (same prices). **Not decision-grade yet**: the `[GPT-6-Astra]` cost audit found the headline comparison unfair (the native per-goblin layout used 11 storage slots against Dojo's 1; with equal packing the native tick is about **0.28×** Dojo's, not 0.70×), the devnet account metering misread (an old account class meters the whole transaction in VM resources), and the flood's "worst case" a property of the fixture (12 layers; a valid board needs 45). Fix loop 1 running; the figures go to the owner after it |
+| SPK-5b merged | [#24](https://github.com/bal7hazar/grimworld/pull/24): Cairo 2.19, snforge and sncast 0.61.0, **starknet-devnet 0.10.0** (Katana refuses Cairo 2.19 classes), starknet.js 10.8.0; `scripts/with-node.sh`; the Dojo spikes keep their own pins, wrapper and locks. Audit `[GPT-6-Sol]` PASS WITH FINDINGS after two fix loops |
+| FND-01b merged | [#27](https://github.com/bal7hazar/grimworld/pull/27): `contracts/` workspace (`grimworld_logic` pure with `origami_hexmap` 1.8.0, `Persistent`, `Ephemeral`), client on starknet.js. Audit PASS WITH FINDINGS; checks reproduced by the orchestrator |
+| FND-02 | [#21](https://github.com/bal7hazar/grimworld/pull/21) resumed on the native layout, green (6 checks, about 2.5 min); audit `[GPT-6-Sol]` FAIL (4 majors verified: workspace members, versions validated before download, a transitively unpinned action, the failing-test demonstration); fix loop 1 running |
+| Briefs | [SPK-11](docs/briefs/SPK-11-indexer.md) (indexer; devnet can abort blocks to simulate a reorg); SPK-2 part 2; COMMON follows the native toolchain |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-5b fix loop 1 |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-03 porting plan; next stop: gate L-G2 |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-2 and FND-02 in fix loops |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-03; next stop gate L-G2 |
 
 | Game agent | Unit | Model asked / ran | Profile | State |
 |---|---|---|---|---|
-| SPK-5b toolchain without Dojo | `grimworld-SPK-5b-171026` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
-| SPK-2 cost spike | — | `claude-opus-5-5` / `claude-opus-5-5` | implement | Baseline done; resumed for the native measure after SPK-5b |
+| SPK-2 cost spike | `grimworld-SPK-2-180513` (resumed) | `claude-opus-5-5` / `claude-opus-5-5` | implement | Cost fix loop 1 |
+| FND-02 continuous integration | `grimworld-FND-02-175911` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
 
-Budget: 3 Grim World agents at a time (D-118): 2 for the game (1 in use: the next launches all
-depend on SPK-5b), 1 for the library. Machine at 17:10 UTC: load 6.3, 21 GB available.
-
-## Decided by the project manager
-
-| | |
-|---|---|
-| LIB-03, three fix loops used | Option A: a fourth loop limited to the six findings left (3 major), then one audit pass on them; merge, or merge with the rest carried as open points. The audit of `[GPT-6-Astra]` went 20, 17, 17, 6 findings. The plan now estimates the tick at **1.34M to 1.67M gas** (not measured); it reaches the owner at gate L-G2 |
-| `bal7hazar/quiver` | Created (public, MIT) on the owner's choice of name; mandate of its orchestrator in [docs/briefs/ORCH-quiver.md](docs/briefs/ORCH-quiver.md) |
+Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
+library. Machine at 18:05 UTC: load 5.5, 13 GB available.
 
 ## Waiting for the owner
 
@@ -47,16 +40,15 @@ Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2),
 
 ## Next
 
-1. SPK-5b: re-audit, merge; then the follow-ups it escalated (COMMON: `with-node.sh`).
-2. In parallel: **FND-01b** (Sonnet 5) and **SPK-2 resumed for the native measure** (Opus 5.5,
-   the priority: the figure the owner's decision rests on); FND-02 resumed on the new toolchain.
-3. Then SPK-11 (indexer), SPK-7, FND-05 (with `[GPT-6-Astra]`), SPK-4; FND-06 after FND-02.
+1. SPK-2: re-audit by `[GPT-6-Astra]`, merge; then its decision-grade native figures to the
+   project manager for the owner (R-2, C-1 below).
+2. FND-02: re-audit, merge. Then SPK-11, SPK-7, FND-05 (with `[GPT-6-Astra]`), SPK-4; FND-06.
 
 ## For the project manager (from SPK-2, not blocking)
 
 | # | Point | Recommendation |
 |---|---|---|
-| C-1 | **R-2 materialises on Dojo**: ADR-0001's threshold (300 actions ≤ $0.50) fails 1.9× to 5.4× at today's prices. The owner's call on option B or on restating the threshold should wait for SPK-2's **native** figures, which come next | Decide on the native figures |
+| C-1 | **R-2**: ADR-0001's threshold (300 actions ≤ $0.50) fails on Dojo (1.9× to 5.4×) and, provisionally, natively too (1.4× to 4.2×). The owner's call (a cheaper tick, a cheaper transaction, a lower gas price, option B, or a restated threshold) should wait for SPK-2's audited native figures | Decide on the audited native figures |
 | C-2 | PLAN's SPK-2 row says "10 Rifts"; D-101 says 5 a day per account (5 was used) | Correct the row |
 | C-3 | Flood rule (a) (docs/needs/hexmap.md point 5): on the occupancy frozen at the start of the tick, a goblin can be walled off behind its own pack; observed: it detours and leaves the window within 7 ticks. A design question for design/04 *Goblin AI* | To the owner or the design backlog |
 
