@@ -1,0 +1,3 @@
+# Own workspace root, so that pnpm does not join the repository's (client/*) when run here.
+# pnpm 12 refuses to install when a dependency has an unreviewed build script; none is needed.
+packages: []
