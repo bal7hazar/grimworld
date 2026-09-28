@@ -14,7 +14,7 @@ owner (bal7hazar)
        └─ orchestrator session(s) (Claude App, Opus or Fable, by the project manager's judgement)
             │                                               own briefs, worktrees, reviews, merges
             ├─ sub-agents: claude CLI (Opus 5.5 / Sonnet 5 / Fable 5.1, by difficulty)   execution
-            └─ auditors:   codex CLI (gpt-5.6-sol, astra, …, by kind of task)            audits, when needed
+            └─ auditors:   codex CLI (gpt-6-astra, gpt-6-sol, gpt-6-luna, by kind of task)   audits, when needed
 ```
 
 - The **owner** decides on vision, scope, design decisions (`D-xx`), releases and
