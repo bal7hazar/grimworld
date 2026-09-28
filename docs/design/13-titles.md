@@ -7,7 +7,8 @@
 ## What a title is
 
 A title is a line of text shown under an adventurer's name in hubs. It records something
-done. One title is displayed at a time, chosen by the player among those earned.
+done. One title is displayed at a time, chosen by the player among those earned. The
+choice is **emitted as an event, not stored**: no rule reads it (T-1), the indexer keeps it.
 
 | | Character title | Account title |
 |---|---|---|
