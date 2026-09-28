@@ -779,7 +779,7 @@ measurement changed.
   | S5 | 120 | 5,156,800 | 2,589,914 | 0.420 |
 
   The auditor's figures for S1 and S4 (about 295,792 and 340,592) are reproduced exactly. The
-  auditor's $0.632 and $0.629 at 1,833,096 differ from these by $0.003; not investigated.
+  auditor's $0.632 and $0.629 were computed at 1,800,000 L2 gas per fight, these at 1,833,096: both are correct, and the $0.003 between them is that difference ([GPT-6-Astra] re-audit, C-7).
 - **Correlated case.** A queued move near goblins carries a tick. The tick's part of a transaction
   is taken as the slope of the checked queues with 8 goblins over 1, 5 and 10 moves:
   **1,659,874 L2 gas per tick**, the same for both layouts. That part is scaled by r in every
