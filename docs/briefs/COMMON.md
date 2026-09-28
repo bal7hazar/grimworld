@@ -13,15 +13,16 @@ disagree, the brief wins for its task, and says so.
 3. The design documents and ADRs the brief names.
 4. **Every Cairo task: [docs/CAIRO.md](../CAIRO.md), in full.** Test-driven, a gas budget on
    every test, execution cost first, arithmetic then bitwise then loops, no `u256` without a
-   written reason, `u252` from `origami_hexmap`.
+   written reason, `u252` from `origami_hexmap`. The game is native Starknet on Cairo 2.19
+   ([ADR-0007](../architecture/ADR-0007-native-starknet.md)): no Dojo.
 
 ## 2. How you work
 
 - **Foreground only.** Never run a command in the background (`&`, `run_in_background`,
   `nohup`) and never end your turn waiting for one: in headless mode that ends the session. A
   command may run for up to one hour in the foreground. A process that must live during a
-  test (a local Katana) is started and stopped **inside one foreground command**, by
-  `scripts/with-katana.sh <command>` (written by SPK-5). Your turn ends when `REPORT.md` is
+  test (the local Starknet node) is started and stopped **inside one foreground command**, by
+  `scripts/with-node.sh <command>` (SPK-5b). Your turn ends when `REPORT.md` is
   written.
 - **Work autonomously, do not ask questions, do not widen the scope.** Nobody answers
   during your run. What the brief does not ask for is out of scope, however tempting.
@@ -48,8 +49,9 @@ disagree, the brief wins for its task, and says so.
 The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with other agents.
 
 - **Every heavy command goes through the build lock**:
-  `scripts/lock.sh scarb build`, `scripts/lock.sh snforge test -p <package> <filter>`,
-  `scripts/lock.sh sozo build`, `scripts/lock.sh pnpm build`. It waits silently, sometimes for
+  `scripts/lock.sh scarb --manifest-path <package>/Scarb.toml build` (Scarb 2.19: the option
+  comes before the subcommand), `cd <package> && snforge test <filter>` (the machine's
+  `snforge` shim takes the heavy lock), `scripts/lock.sh pnpm build`. It waits silently, sometimes for
   minutes, while another build runs: that is normal. A workspace-wide run adds `--heavy`.
   `scarb` and `snforge` on your PATH are also the machine's shims, which take the shared
   heavy lock by themselves.
@@ -60,6 +62,13 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
   minute and run it again.
 - Do not install or upgrade anything the brief does not ask for. Never change the machine's
   toolchain globally (`asdf set -u`, `asdf uninstall`): other programmes use it.
+- **An asdf plugin changes the whole machine**: adding one creates shims in `~/.asdf/shims`,
+  ahead of the system binaries on every PATH, for every programme. Never add a plugin for a
+  tool the system already provides at the pinned version; after adding any plugin, check that
+  the same command still works from a directory without `.tool-versions` (`cd /tmp`), and stop
+  and escalate if it does not (docs/reports/INC-2026-09-28-asdf-node-shims.md).
+- `npm`, `npx` and `corepack` print `No version is set for nodejs; please run asdf set …` on
+  stderr on this machine: a harmless warning, not a failure.
 
 ## 4. Rules of the game's code
 

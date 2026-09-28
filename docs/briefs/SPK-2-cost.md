@@ -96,3 +96,51 @@ scripts/with-katana.sh <the command that migrates and sends the measured transac
 ## Report
 `REPORT.md` as in `docs/briefs/COMMON.md` §7, with the cost table of every measured action
 (snforge gas, Katana gas and fee, budget) and the money table.
+
+---
+
+## Part 2 — the same worst cases as native contracts (ADR-0007, D-123)
+
+Added on 2026-09-28 after the owner's decision to drop Dojo. **Resumed in the same worktree,
+same agent**: your Dojo figures of part 1 are the baseline.
+
+### Goal
+The same worst cases measured on **native Starknet contracts on Cairo 2.19** (no Dojo world),
+and **the difference per action** against the Dojo baseline. This is the figure the owner's
+decision rests on, and the input of ADR-0001's threshold question (R-2).
+
+### Context
+- ADR-0007 in full (contracts and components, storage packed explicitly, two contracts at least,
+  events as an interface, pure logic as a library). docs/CAIRO.md §4, §5.
+- The native toolchain (SPK-5b, merged): root `.tool-versions` (Scarb 2.19.4, snforge 0.61.0,
+  sncast 0.61.0, starknet-devnet 0.10.0), `scripts/with-node.sh`, `spikes/SPK-5b/` (a native
+  contract, its tests, and the declare-deploy-invoke flow with `sncast`).
+  `scripts/with-katana.sh` no longer exists; the Dojo spike `spikes/SPK-5/` carries its own copy
+  (`spikes/SPK-5/with-katana.sh`) and its own `.tool-versions`.
+
+### Scope
+- First, `git fetch origin` and `git merge origin/main` (no rebase).
+- **Keep part 1 runnable**: `spikes/SPK-2/.tool-versions` with the Dojo pins (scarb 2.13.1,
+  starknet-foundry 0.51.2, sozo 1.8.7, katana 1.7.1, torii 1.8.16), a copy of the wrapper as
+  `spikes/SPK-2/with-katana.sh` (as `spikes/SPK-5/` does), `spikes/SPK-2/run.sh` using it, and a
+  README line saying part 1 is the Dojo baseline.
+- **Part 2** in `spikes/SPK-2/native/`, a Scarb package on the root toolchain: the same worst-case
+  tick (15 × 16 window, 8 awake goblins, shared flood, damage table, conditions), the same queues
+  (10, 5, 1 moves, and without goblin), the brewing step with and without signature, the same hub
+  actions; state in contract storage, packed as ADR-0007 and docs/CAIRO.md say (one variant
+  "one storage struct per goblin" and one "goblins packed per instance", mirroring part 1); the
+  pure logic reused from part 1 where it has no Dojo dependency.
+- Measured the same three ways: snforge tests with budgets, per-call trace, and real transactions
+  on starknet-devnet through `scripts/with-node.sh` and `sncast` (receipts).
+- The money table again, with the same method and fresh prices, and **a side-by-side table per
+  action: Dojo, native, difference and ratio**; the verdict against the $0.50 threshold for the
+  native contracts.
+- `docs/research/SPK-2-cost.md`: a part 2 section; part 1 kept as it is.
+- Out, allowlist and report rules: as part 1 (`spikes/SPK-2/**`, `docs/research/SPK-2-cost.md`).
+
+### Acceptance criteria (part 2)
+- [ ] AC-6 Part 1 still runs with its own pins and wrapper (shown once).
+- [ ] AC-7 Every action of part 1 measured natively, snforge and devnet receipts, budgets on
+      every test.
+- [ ] AC-8 The side-by-side table per action, Dojo against native, and the native verdict on
+      the $0.50 threshold, with the prices' time and source.

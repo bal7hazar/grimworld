@@ -37,14 +37,14 @@ SPK-5, not here.
 
 | Layer | Choice |
 |---|---|
-| Chain | Starknet mainnet (Sepolia for testing, Katana locally) |
-| Contracts | Cairo, Dojo |
-| Indexer | Torii |
+| Chain | Starknet mainnet (Sepolia for testing, a local node chosen by SPK-5b) |
+| Contracts | **Native Starknet contracts** in Cairo 2.19, **without Dojo** ([ADR-0007](docs/architecture/ADR-0007-native-starknet.md)) |
+| Indexer | Probably our own, from the contracts' events; scope by SPK-11. Not on the path of a move: the client reads its instance by view calls |
 | Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
 | Fees | Always paid by the game |
 | Randomness | Behind an interface. **MVP: transaction hash**, known to be steerable. Version 1: a verifiable source ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
-| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 for now (in `crates/hexmap`; `crates/map` is the older square-grid library). Successor: `hexx-cairo` (D-119), consumed by published version when L-M1 is released |
-| Client | TypeScript, dojo.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
+| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 (in `crates/hexmap`; `crates/map` is the older square-grid library), on Cairo 2.19 like the game since ADR-0007. Successor: `hexx-cairo` (D-119), consumed by published version |
+| Client | TypeScript, starknet.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
 | Art | Pixel art, 64 × 64 tiles, *Tiny Swords* pack by Pixel Frog as prototype ([design/10](docs/design/10-art-direction.md)) |
 
 ### Prior art by the owner
@@ -52,7 +52,7 @@ SPK-5, not here.
 | Project | Reused | Not reused |
 |---|---|---|
 | [Grimscape](https://github.com/bal7hazar/grimscape) | Rooms as felt bitmaps, lazy room generation, Poseidon seed chain, queued actions in one transaction, layering (system → component → store → model → types → elements) | State keyed by adventurer; every goblin always chasing; unbounded dungeon; block timestamp as seed; square grid |
-| [Arcade packages](https://github.com/cartridge-gg/arcade/tree/main/packages) | `quest`, `achievement`; later `leaderboard`, `social` ([ADR-0004](docs/architecture/ADR-0004-arcade-packages.md)) | Platform packages (registry, provider, controller) |
+| [Arcade packages](https://github.com/cartridge-gg/arcade/tree/main/packages) | `quest`, `achievement`; later `leaderboard`, `social`: **rewritten without Dojo in repositories of their own** (D-124, PLAN track ARC) | The Dojo packages as they are; platform packages (registry, provider, controller) |
 | [origami_hexmap](https://github.com/dojoengine/origami/tree/main/crates/hexmap) | Generators, entrances, connectivity, shortest path, ranges | — (line of sight is missing and is ours to add) |
 | [Athanor](https://github.com/djizus/athanor) | Crafter: discovery by sampling without replacement, lazy recipe assignment, hints, packed balances | One word for two draws; transaction-hash fallback; single global book |
 
@@ -146,13 +146,17 @@ owner, with the date), Superseded.
 | D-114 | Cairo engineering rules | docs/CAIRO.md | Accepted 2026-09-28 |
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
-| D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Accepted 2026-09-28 (owner adopts the recommendation) |
+| D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Accepted 2026-09-28, **revised by D-124**: on the native rewrites of the packages, not on the Dojo ones |
 | D-64 | Large maps cut in chunks, **generated at reveal from a fresh random word**, simulated in a window centred on the adventurer. Constraints as bands, quotas and anchors. Rule of sight provisional | ADR-0006 | Accepted 2026-09-28, costs subject to SPK-7 |
 | D-115 | Promotion trials are generated like any dungeon; size, band and quotas are fixed per rank | design/06 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-116 | Every mainnet deployment and every mainnet registry write needs an explicit go from the owner | OPERATIONS §7 | Accepted 2026-09-28 (owner adopts the recommendation) |
-| D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28 |
+| D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28; **its first sentence proved false the same day** (N-9): the game cannot build 1.8.0 |
 | D-119 | Map library: **`hexx` is ported in full** (feature parity wherever it makes sense on-chain, extended with what Cairo and the network require) in **`bal7hazar/hexx-cairo`**, which takes over the engine of `origami_hexmap` with identical results; `origami_hexmap` is decommissioned once the port is complete and the game has migrated. `u252` becomes its own crate in `bal7hazar/types-cairo` | [decisions/2026-09-28-L-G1-hexx-port](docs/decisions/2026-09-28-L-G1-hexx-port.md) | Accepted 2026-09-28 (owner, at gate L-G1; differs from the recommendation) |
+| D-122 | N-9: the map library must build with the compiler Dojo imposes on the game (Cairo 2.13 today), `snforge_std` as a dev-dependency. LIB-03 studies the compiler floor and the alternative of a separate class; the owner decides at gate L-G2. SPK-7 runs standalone on Cairo 2.19 meanwhile | [decisions/2026-09-28-N-9-compiler-target](docs/decisions/2026-09-28-N-9-compiler-target.md) | Project manager's arbitration, 2026-09-28; compiler target left to the owner at L-G2 **Void since D-123**: the game is on Cairo 2.19 |
+| D-123 | **The game is built as native Starknet contracts, without Dojo**: less gas in the path of an action, Cairo 2.19 for the game and its libraries. Probably an indexer of our own | [ADR-0007](docs/architecture/ADR-0007-native-starknet.md) | Accepted 2026-09-28 (owner); gain in gas to be measured by SPK-2 |
+| D-124 | The Arcade packages are rewritten **each in a new repository of its own, without Dojo: pure Starknet components and pure Cairo**. The game consumes them by published version. `quest` first, then `achievement` | [ADR-0007](docs/architecture/ADR-0007-native-starknet.md) § Arcade packages; PLAN, track ARC | Accepted 2026-09-28 (owner) |
 | D-120 | **The simulation window follows the adventurer**: no margin of 3 tiles, no cut of sight at the ring. Window of **15 columns × 16 rows**, origin on an even row, **not stored**, assembled at each tick without a loop over rows. Fallback: sight 5 on 13 × 14. Chunks stay 15 × 15 | ADR-0006 §4, [decisions/2026-09-28-window-follows](docs/decisions/2026-09-28-window-follows.md) | Accepted 2026-09-28 (owner), cost subject to SPK-7 |
+| D-121 | `main` is not protected on GitHub for now, on either repository: freedom during the kick-start. The residual of finding F4 (FND-03 audit) is accepted; raised again at the gate of Phase 0 | [decisions/2026-09-28-G-1-main-protection](docs/decisions/2026-09-28-G-1-main-protection.md) | Accepted 2026-09-28 (owner; differs from the recommendation) |
 | D-118 | Concurrency: 3 Grim World agents at a time on the VPS, beside the other programmes | OPERATIONS §3 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Accepted 2026-09-28 (owner adopts the recommendation) |
 
@@ -165,11 +169,11 @@ owner, with the date), Superseded.
 | Q-05 | Equipment: merchant-only, or drops and upgrades later? | Post-MVP | Merchant-only in MVP |
 | Q-07 | Are items, potions, gold transferable or tokenised? Are adventurers NFTs? | Before Phase 4 | Adventurer as NFT; items non-transferable in MVP |
 | Q-08 | Who can write registries: admin key, multisig, governance? | Phase 1 | Multisig, with a timelock before mainnet |
-| Q-09 | Presence and chat in hubs: which transport? | Phase 5 | Torii off-chain messages if sufficient; else a small relay |
+| Q-09 | Presence and chat in hubs: which transport? | Phase 5 | A small relay beside the indexer |
 | Q-10 | Business model and who funds the paymaster | Before mainnet | — (owner) |
 | Q-11 | Names: world, regions, professions, skills | `LORE` track | Working names stand until then |
 | Q-12 | The asset pack has no caster sprite. Keep the Arcanist in the MVP (needs one commissioned sprite) or replace it by the Cleric (Monk sprite exists)? | Phase 2 | Keep the Arcanist if a sprite can be commissioned; else Cleric |
-| Q-22 | Extract the Arcade packages into dedicated, published repositories | Programme level | Yes, `quest` first |
+| ~~Q-22~~ | ~~Extract the Arcade packages into dedicated, published repositories~~ | — | **Closed by D-124**: rewritten natively, one repository each |
 
 ## 8. Constraints that are easy to forget
 

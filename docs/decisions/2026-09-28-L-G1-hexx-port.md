@@ -64,7 +64,7 @@ recommendations of §1 and §2 above**, which are kept as they were put.
 |---|---|
 | 1 | **Port `hexx` in full**: feature parity wherever it makes sense on-chain. The scope is extended with what Cairo and the network require (boards in one felt, generation, floods, assembly) |
 | 2 | The library lives in **`bal7hazar/hexx-cairo`**, published under its own name and cadence. The bitmap engine of `origami_hexmap` 1.8.0 is taken over there; results for the same input stay identical, so that the game migrates without moving its test vectors |
-| 2b | **`origami_hexmap` is decommissioned** once the port is complete and the game has migrated. Until then the game consumes `origami_hexmap` 1.8.0 |
+| 2b | **`origami_hexmap` is decommissioned** once the port is complete and the game has migrated. Until then the game consumes `origami_hexmap` 1.8.0 *(found impossible the same day: [N-9](2026-09-28-N-9-compiler-target.md))* |
 | §3 | Sight and the window: decided the same day, [window-follows](2026-09-28-window-follows.md) (D-120) |
 
 Consequences for the game: milestone L-M1 is unchanged (N-1 to N-8 first); the game's

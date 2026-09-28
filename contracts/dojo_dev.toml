@@ -1,0 +1,20 @@
+[world]
+name = "grimworld"
+description = "Grim World: persistent domain (grimworld) and ephemeral domain (grimworld_instance)."
+seed = "grimworld"
+
+# Two domains, two namespaces, never mixed (ADR-0001, Keeping the exit open):
+#   grimworld           persistent: adventurer, inventory, progress, registries
+#   grimworld_instance  ephemeral: instance state
+# Models and contracts of the ephemeral domain declare `grimworld_instance` themselves; the
+# default is the persistent namespace.
+[namespace]
+default = "grimworld"
+
+[env]
+# scripts/with-katana.sh exports STARKNET_RPC_URL (its port is free at each run), which overrides
+# this one. The key must be here anyway: sozo 1.8.7 panics on an [env] without rpc_url.
+rpc_url = "http://localhost:5050/"
+# Account 0 of `katana --dev` (seed 0), public and well known.
+account_address = "0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec"
+private_key = "0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"

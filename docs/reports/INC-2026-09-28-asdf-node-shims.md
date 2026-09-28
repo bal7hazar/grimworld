@@ -1,7 +1,7 @@
 # [Opus 5.5] Incident — asdf `node` and `pnpm` shims break Node on the whole machine
 
-Written by the game orchestrator, 2026-09-28 15:12 UTC. **Open: needs a decision on a shared
-machine setting.**
+Written by the game orchestrator, 2026-09-28 15:12 UTC. **Closed 2026-09-28**: remedy applied
+by the project manager on the owner's explicit order (see *Outcome*).
 
 ## What happened
 
@@ -54,3 +54,14 @@ act. Alternatives: remove the six shims (`asdf` recreates them on the next `asdf
   following this note).
 - Future briefs that install a tool through asdf say that it creates machine-wide shims, and
   require `<tool> system` to work before the task ends, escalating otherwise.
+
+## Outcome (closed 2026-09-28)
+
+| | |
+|---|---|
+| Applied | `nodejs system` and `pnpm system` appended to the global `~/.tool-versions` by the project manager, on the owner's explicit order; backup in `~/.tool-versions.bak` |
+| Verified by the project manager | From `/tmp`: `node` v24.21.0, `pnpm` 12.5.1, `codex-cli` 0.155.1, all exit 0; the SPK-5 worktree still resolves its pinned versions |
+| Verified by the game orchestrator, 16:08 UTC | Same from `/tmp`; `npm` 11.19.0 works |
+| Residual | `npm`, `npx` and `corepack` work but print one asdf line on stderr, `No version is set for nodejs; please run asdf set …`: **not a failure**, and no agent must treat it as one (docs/briefs/COMMON.md §3) |
+| Kept as defence | The launcher starts codex through `/usr/bin/node` (PR #11) |
+| Prevention | `scripts/setup-toolchain.sh` (SPK-5) no longer adds the `nodejs` or `pnpm` plugin when the system versions match the pins, and refuses to add one without a working system fallback. Every brief that installs a tool through asdf says that a plugin creates machine-wide shims (docs/briefs/COMMON.md §3) |

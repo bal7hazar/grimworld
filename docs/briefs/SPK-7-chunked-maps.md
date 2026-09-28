@@ -35,19 +35,21 @@ L-M1 must beat.
   ties), design/18 (biomes and walkable shares, generation order, features), docs/CAIRO.md in
   full (arithmetic, then bitwise, then loops; `u252`; tables of constants; oracles; a gas
   budget on every test).
-- **Map library** (D-119): the game uses **`origami_hexmap` 1.8.0** until `hexx-cairo` is
-  published; the functions of milestone L-M1 (generation with margins, assembly, line of
-  sight, the shared flood with extra obstacles) do not exist yet. **Build what the spike needs
-  in `spikes/SPK-7/` on top of 1.8.0's primitives**, following the library's conventions, and
-  say which parts would move to the library. If generation with margins cannot be made
-  seamless within the spike, measure the fallback of R-15 and R-18 instead
-  (**rooms and corridors** for dungeons) and say so.
-- Depends on: SPK-5 (merged), and FND-01 (merged: it proves `origami_hexmap` 1.8.0 builds on
-  Cairo 2.13). SPK-2 measures the tick on an already assembled window; you measure the rest,
-  so that the two add up.
+- **Toolchain and map library** (ADR-0007, D-123): the game is on **Cairo 2.19**, and
+  `origami_hexmap` 1.8.0 builds on it (FND-01b proved it). The spike is a package in
+  `spikes/SPK-7/` **on the repository's toolchain** (the root `.tool-versions`; no pin of its
+  own), with `origami_hexmap` 1.8.0 by published version. N-9 and D-122 are void. The milestone
+  L-M1 functions (generation with margins, assembly, line of sight, the shared flood with extra
+  obstacles) do not exist yet: build what the spike needs on top of 1.8.0's primitives,
+  following the library's conventions, and say which parts belong in the library. The fallback
+  of R-15 / R-18 (rooms and corridors) is **not** triggered: do not write it.
+- Native contracts (ADR-0007): the stored window of item 6 is contract storage, written the way
+  ADR-0007 and docs/CAIRO.md §5 say (one write per struct per transaction, explicit packing).
+- Depends on: SPK-5b and FND-01b (merged). SPK-2 measures the tick on an already assembled
+  window; you measure the rest, so that the two add up.
 
 ## Scope
-- In: a throwaway Dojo world in `spikes/SPK-7/`:
+- In: a Scarb package in `spikes/SPK-7/`, native Starknet, on the repository's toolchain:
   1. **Chunk generation with margins**, from a random word (a stand-in for `fate(domain)`
      reading the transaction hash) and the edges of the neighbours already generated: base,
      smoothing with the known margins, edges and openings, per biome's walkable share
@@ -71,14 +73,14 @@ L-M1 must beat.
      threshold allow: sight 5 on 13 × 14 (the width then differs from the chunk's: say what
      the assembly becomes).
 - Measure everything as **snforge tests with gas budgets** and, for the worst-case tick and
-  the reveal of 3 chunks, as transactions on a local Katana (`scripts/with-katana.sh`).
+  the reveal of 3 chunks, as transactions on the local node (`scripts/with-node.sh`, `sncast`).
 - `docs/research/SPK-7-chunked-maps.md`: what was built, how far from ADR-0006, every figure
   with its command and output, the comparison stored / not stored, the verdict on R-12, what
   the library should provide (with the gas each function must beat), open questions for
   ENG-05, ENG-07 and LIB-03.
 - Out: the reveal engine with bands, quotas and anchors (ENG-05); movement, facing and the
   action queue (ENG-07); combat; `contracts/`, `client/`; any change to the map library's
-  repository; any deployment outside a local Katana.
+  repository; any deployment outside the local node.
 - Allowlist: `spikes/SPK-7/**`, `docs/research/SPK-7-chunked-maps.md`. Anything else is an
   escalation. A design question (a rule ADR-0006 does not settle) stops that part and goes
   under *Escalations*.
@@ -95,7 +97,7 @@ Throwaway. Name the functions after the library's needs they prototype (`assembl
 - [ ] AC-3 Every function and the worst-case tick have a test with a gas budget
       (`ceil(1.05 × measured)`); the worst case is the one named above.
 - [ ] AC-4 The worst-case tick measured with and without a stored window, side by side, with
-      the Katana receipts for both.
+      the local node's receipts for both.
 - [ ] AC-5 The reveal of one chunk and of 3 chunks in one action measured, with the biome
       that is the most expensive.
 - [ ] AC-6 The research file gives a verdict on R-12 and the gas targets for L-M1.
@@ -103,9 +105,9 @@ Throwaway. Name the functions after the library's needs they prototype (`assembl
 ## Verification
 From the worktree root:
 ```
-scripts/lock.sh sozo build --manifest-path spikes/SPK-7/Scarb.toml
-scripts/lock.sh sozo test --manifest-path spikes/SPK-7/Scarb.toml
-scripts/with-katana.sh <the command that migrates and sends the worst-case transactions>
+scripts/lock.sh scarb --manifest-path spikes/SPK-7/Scarb.toml build
+cd spikes/SPK-7 && snforge test && cd -
+scripts/with-node.sh <the command that declares, deploys and sends the worst-case transactions>
 ```
 
 ## Audits

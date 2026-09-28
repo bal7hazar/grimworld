@@ -15,6 +15,26 @@ signatures are added here as the design settles.
 | N-6 | Range and ring as geometry | 2026-09-28 | — |
 | N-7 | Rotation, arcs relative to a facing | 2026-09-28 | — |
 | N-8 | One flood for many walkers, with extra obstacles | 2026-09-28 | — |
+| N-9 | `snforge_std` declared as a **dev-dependency**, so that the library resolves next to any test setup of its consumer. *(The rest of N-9, a release for Cairo 2.13, is void since ADR-0007: the game is on Cairo 2.19)* | 2026-09-28 (FND-01), reduced the same day | — |
+
+## N-9 in detail: the game cannot build `origami_hexmap` 1.8.0 (FND-01, 2026-09-28)
+
+**Void since ADR-0007 (D-123)**: the game dropped Dojo and is on Cairo 2.19, the library's
+compiler. What remains of N-9: `snforge_std` as a dev-dependency. Earlier arbitration: [docs/decisions/2026-09-28-N-9-compiler-target.md](../decisions/2026-09-28-N-9-compiler-target.md).
+N-9 is part of milestone L-M1; SPK-7 runs standalone on Cairo 2.19 meanwhile; the compiler
+target is studied by LIB-03 and decided by the owner at gate L-G2.
+
+Found by `[Sonnet 5]` FND-01 (repository scaffold,
+[PR #18](https://github.com/bal7hazar/grimworld/pull/18)), checked by the game orchestrator.
+
+| | |
+|---|---|
+| The game's toolchain | **Cairo 2.13** (Scarb 2.13.1, snforge 0.51.2), fixed by SPK-5: `sozo` 1.8.7 compiles with Cairo 2.13 and the Dojo test harness `dojo_snf_test` 1.8.0 depends on `snforge_std` exactly 0.51.2 ([docs/research/SPK-5-toolchain.md](../research/SPK-5-toolchain.md) §2). Dojo has published nothing newer |
+| `origami_hexmap` 1.8.0 | The only published version (scarbs.xyz index, 2026-09-28). The origami workspace at 1.8.0 targets `starknet ^2.19.4` and `snforge_std 0.61.0` |
+| Failure 1, resolution | Next to `dojo_snf_test` 1.8.0: *"origami_hexmap 1.8.0 depends on snforge_std >=0.61.0, <0.62.0 … grimworld 0.1.0 depends on snforge_std >=0.51.0, <0.52.0"*: the package declares `snforge_std` as a regular dependency, not a dev-dependency |
+| Failure 2, compilation | Alone on Scarb 2.13.1: `error: Item core::internal::bounded_int::BoundedInt is not visible in this context` at `map.cairo:10`, `helpers/bits.cairo:12`, `helpers/rng.cairo:24` |
+| Consequence | The game cannot use the library at all today: SPK-7 (planned on 1.8.0, D-119), then ENG-02 and ENG-05. SPK-2 writes its own plain flood, as its brief allows |
+| What would answer it | A release of the map library (`origami_hexmap` or `hexx-cairo`) that builds on Cairo 2.13 with `snforge_std` as a dev-dependency; or the game moving to a newer Cairo once Dojo publishes one; or the fallback of R-15 / R-18 (the game's own code, rooms and corridors for dungeons) |
 
 ## Answers to the library's questions (LIB-02, 2026-09-28)
 

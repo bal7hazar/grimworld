@@ -5,3 +5,10 @@ example/
 /REPORT.md
 # Node logs of scripts/with-katana.sh when run from the root.
 .with-katana/
+# Node log (its banner holds the pre-funded accounts' private keys) and sncast accounts file of
+# scripts/with-node.sh and spikes/SPK-5b/flow.sh, when run from the root.
+.with-node/
+# Build outputs.
+contracts/target/
+node_modules/
+client/*/dist/
