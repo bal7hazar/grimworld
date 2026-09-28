@@ -112,6 +112,8 @@ pub fn world_tick(
     };
     // [Compute] Goblins act in ascending id order, on the occupancy as it is now
     let mut current = window.occupied;
+    // Tiles goblins moved into this tick: all a step must avoid (see `flood::step`)
+    let mut arrived: felt252 = 0;
     let mut next: Array<(u8, u8)> = array![];
     let mut moves: Array<Move> = array![];
     let mut attacks: u8 = 0;
@@ -127,8 +129,10 @@ pub fn world_tick(
             if distance == 1 {
                 attacks += 1;
             } else if distance > 1 {
-                if let Some(to) = step(tile, distance, layers, current.into()) {
-                    current = current - Bits::pow(tile) + Bits::pow(to);
+                if let Some(to) = step(tile, distance, layers, arrived) {
+                    let power = Bits::pow(to);
+                    arrived += power;
+                    current = current - Bits::pow(tile) + power;
                     let (ly, lx) = DivRem::div_rem(to, WIDTH.try_into().unwrap());
                     let (to_x, to_y) = (origin_x + lx, origin_y + ly);
                     moves.append(Move { goblin: id, from_x: x, from_y: y, to_x, to_y });

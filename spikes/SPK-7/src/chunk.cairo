@@ -150,14 +150,16 @@ pub fn generate_chunk(word: felt252, biome: Biome, sides: Sides, odd: bool) -> f
 fn side(side: Side, edge: felt252, shift: felt252, step: u8, base: u8, ref bits: u128) -> felt252 {
     match side {
         Side::Open => {
-            // [Compute] 1 or 2 openings among the 13 non-corner tiles, 4 bits each
-            let (rest, first) = DivRem::div_rem(bits, 16);
+            // [Compute] 1 or 2 openings (one bit) among the 13 non-corner tiles (4 bits each); two
+            // draws on the same tile make one opening
+            let (rest, two) = DivRem::div_rem(bits, 2);
+            let (rest, first) = DivRem::div_rem(rest, 16);
             let (rest, second) = DivRem::div_rem(rest, 16);
             bits = rest;
             let first: u8 = (first % 13 + 1).try_into().unwrap();
             let second: u8 = (second % 13 + 1).try_into().unwrap();
             let one = Bits::pow(base + step * first);
-            if second == first {
+            if two == 0 || second == first {
                 one
             } else {
                 one + Bits::pow(base + step * second)
@@ -209,13 +211,15 @@ pub fn smooth(grid: u256, ring: felt252, even: u256, biome: Biome) -> u256 {
     let (drop_odd, _, _) = Bits::bitwise(odd_low, LOW30);
     let ne = ge - drop_even.into();
     let no = go - drop_odd.into();
-    // [Compute] The 6 neighbour planes: East, West, the two South, the two North
+    // [Compute] The 6 neighbour planes: East, West, the two South, the two North. The diagonal
+    // planes join two products whose row-wrapped bits (edge columns, landing on the ring) may meet:
+    // they are joined by OR, a sum would carry into the interior
     let p1: u256 = (all + all).into();
     let p2: u256 = (all * INV_2).into();
     let p3: u256 = (all * 0x8000).into();
-    let p4: u256 = (go * 0x10000 + ge * 0x4000).into();
+    let p4 = or((go * 0x10000).into(), (ge * 0x4000).into());
     let p5: u256 = ((ne + no) * Bits::inv(15)).into();
-    let p6: u256 = (no * Bits::inv(14) + ne * Bits::inv(16)).into();
+    let p6 = or((no * Bits::inv(14)).into(), (ne * Bits::inv(16)).into());
     let interior: u256 = CHUNK_INTERIOR.into();
     let low = rule(grid.low, p1.low, p2.low, p3.low, p4.low, p5.low, p6.low, interior.low, biome);
     let high = rule(

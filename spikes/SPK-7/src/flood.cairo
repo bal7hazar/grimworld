@@ -43,11 +43,15 @@ pub fn shared_flood(
     let step = Dilation {
         even_low: WINDOW_EVEN_LOW, even_high: WINDOW_EVEN_HIGH, up: UP, down: DOWN,
     };
-    // [Compute] The goblins still to reach
+    // [Compute] The goblins still to reach, and each one's bit
     let mut targets: felt252 = 0;
+    let mut powers: Array<felt252> = array![];
     for goblin in goblins {
-        targets += Bits::pow(*goblin);
+        let power = Bits::pow(*goblin);
+        powers.append(power);
+        targets += power;
     }
+    let powers = powers.span();
     let pending: u256 = targets.into();
     let mut pending_low = pending.low;
     let mut pending_high = pending.high;
@@ -78,13 +82,33 @@ pub fn shared_flood(
         let (hit_low, _, _) = Bits::bitwise(near_low, pending_low);
         let (hit_high, _, _) = Bits::bitwise(near_high, pending_high);
         if hit_low != 0 || hit_high != 0 {
-            let hits = u256 { low: hit_low, high: hit_high };
-            let mut j: usize = 0;
-            for goblin in goblins {
-                if Bits::get(hits, *goblin) {
-                    distances += distance.into() * *BYTE.span()[j];
+            // [Compute] One goblin touched (the usual case): found by comparing felts, no builtin
+            let (single, _, _) = if hit_high == 0 {
+                Bits::bitwise(hit_low, hit_low - 1)
+            } else if hit_low == 0 {
+                Bits::bitwise(hit_high, hit_high - 1)
+            } else {
+                (1, 0, 0)
+            };
+            if single == 0 {
+                let hit: felt252 = hit_low.into() + hit_high.into() * TWO_POW_128;
+                let mut j: usize = 0;
+                for power in powers {
+                    if *power == hit {
+                        distances += distance.into() * *BYTE.span()[j];
+                        break;
+                    }
+                    j += 1;
                 }
-                j += 1;
+            } else {
+                let hits = u256 { low: hit_low, high: hit_high };
+                let mut j: usize = 0;
+                for goblin in goblins {
+                    if Bits::get(hits, *goblin) {
+                        distances += distance.into() * *BYTE.span()[j];
+                    }
+                    j += 1;
+                }
             }
             pending_low -= hit_low;
             pending_high -= hit_high;
@@ -163,28 +187,36 @@ fn identify(index: u8, bit: felt252) -> u8 {
     }
 }
 
+/// The candidates of a layer that nobody occupies now.
+#[inline(always)]
+fn vacant(near: u256, layer: u256, occupied: felt252) -> u256 {
+    let tiles = Bits::and(near, layer);
+    if occupied == 0 {
+        return tiles;
+    }
+    let blocked = Bits::and(tiles, occupied.into());
+    u256 { low: tiles.low - blocked.low, high: tiles.high - blocked.high }
+}
+
 /// A goblin's step under rule (a).
 /// # Arguments
 /// * `index` - The goblin's local tile, interior, at `distance >= 2`
 /// * `distance` - Its distance to the adventurer
 /// * `layers` - The flood's layers
-/// * `occupied` - The occupancy now (goblins that moved this tick included)
+/// * `occupied` - The occupancy now. The layers hold no tile occupied at the start of the tick, so
+///   the tiles goblins moved into this tick are enough (0 before the first move: no filter)
 /// # Returns
 /// * The new local tile, `None` if it holds
-pub fn step(index: u8, distance: u8, layers: Span<u256>, occupied: u256) -> Option<u8> {
+pub fn step(index: u8, distance: u8, layers: Span<u256>, occupied: felt252) -> Option<u8> {
     let near: u256 = around(index).into();
-    let closer = Bits::and(near, *layers[(distance - 1).into()]);
-    let blocked = Bits::and(closer, occupied);
-    let candidates = u256 { low: closer.low - blocked.low, high: closer.high - blocked.high };
+    let candidates = vacant(near, *layers[(distance - 1).into()], occupied);
     if candidates.low != 0 || candidates.high != 0 {
         return Some(identify(index, lowest(candidates)));
     }
     if distance.into() >= layers.len() {
         return None;
     }
-    let same = Bits::and(near, *layers[distance.into()]);
-    let blocked = Bits::and(same, occupied);
-    let candidates = u256 { low: same.low - blocked.low, high: same.high - blocked.high };
+    let candidates = vacant(near, *layers[distance.into()], occupied);
     if candidates.low != 0 || candidates.high != 0 {
         return Some(identify(index, lowest(candidates)));
     }

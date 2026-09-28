@@ -42,7 +42,7 @@ pub trait IMap<T> {
     fn setup_adventurer(ref self: T, instance: u32, x: u8, y: u8);
     fn setup_window(ref self: T, instance: u32);
     fn setup_worst_case(ref self: T, instance: u32, moved: bool, stored: bool);
-    fn setup_reveal(ref self: T, instance: u32, biome: u8, around: bool);
+    fn setup_reveal(ref self: T, instance: u32, biome: u8, case: u8);
     // Measured
     fn reveal(ref self: T, instance: u32, chunks: Array<(u8, u8)>);
     fn act(ref self: T, instance: u32, direction: u8);
@@ -339,13 +339,21 @@ pub mod Instances {
             }
         }
 
-        fn setup_reveal(ref self: ContractState, instance: u32, biome: u8, around: bool) {
+        /// Case 0: nothing revealed around the L of `fixtures`; 1: the 7 chunks around it; 2: those
+        /// and B and C, so that A has its 4 neighbours known.
+        fn setup_reveal(ref self: ContractState, instance: u32, biome: u8, case: u8) {
             self.setup_instance(instance, biome, LOCATION, LOCATION);
-            if around {
-                let kind: Biome = biome.try_into().unwrap();
+            let kind: Biome = biome.try_into().unwrap();
+            if case >= 1 {
                 for (cx, cy) in REVEAL_AROUND.span() {
                     let terrain = neighbour_terrain(kind, *cx, *cy);
                     self.setup_chunk(instance, *cx, *cy, terrain, 0);
+                }
+            }
+            if case == 2 {
+                for (cx, cy) in array![(3_u8, 2_u8), (2, 3)] {
+                    let terrain = neighbour_terrain(kind, cx, cy);
+                    self.setup_chunk(instance, cx, cy, terrain, 0);
                 }
             }
         }
