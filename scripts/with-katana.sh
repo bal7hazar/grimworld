@@ -12,7 +12,8 @@
 #                      output), so Torii can start before the world is migrated.
 #
 # Ports are picked free at each run, so parallel agents never collide. The command gets:
-#   KATANA_URL       http://127.0.0.1:<port>          (JSON-RPC; also RPC_URL)
+#   KATANA_URL       http://127.0.0.1:<port>          (JSON-RPC; also RPC_URL and STARKNET_RPC_URL,
+#                                                      which sozo reads: no --rpc-url needed)
 #   TORII_URL        http://127.0.0.1:<port>          (HTTP, GraphQL, SQL)
 #   TORII_GRPC_URL   http://127.0.0.1:<port>          (gRPC, what dojo.js reads)
 # Katana runs in dev mode: seed 0, ten pre-funded accounts (printed in the log).
@@ -72,15 +73,16 @@ free_port() {
 }
 
 # shellcheck disable=SC2329  # called by cleanup, itself called by the trap
-stop() { # <pid>: TERM, then KILL after five seconds
-  local pid=$1
+stop() { # <pid> [group]: TERM, then KILL after five seconds; with "group", the whole process group
+  local pid=$1 target=$1
   [ -n "$pid" ] && kill -0 "$pid" 2> /dev/null || return 0
-  kill "$pid" 2> /dev/null
+  [ "${2:-}" = group ] && target=-$pid
+  kill -- "$target" 2> /dev/null
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     kill -0 "$pid" 2> /dev/null || break
     sleep 0.5
   done
-  kill -9 "$pid" 2> /dev/null
+  kill -9 -- "$target" 2> /dev/null
   wait "$pid" 2> /dev/null
   return 0
 }
@@ -88,7 +90,7 @@ stop() { # <pid>: TERM, then KILL after five seconds
 # shellcheck disable=SC2329  # called by the trap
 cleanup() {
   trap '' EXIT INT TERM HUP
-  stop "$cmd_pid"
+  stop "$cmd_pid" group
   stop "$torii_pid"
   stop "$katana_pid"
 }
@@ -122,7 +124,7 @@ probe_katana() {
     -d '{"jsonrpc":"2.0","id":1,"method":"starknet_chainId","params":[]}' "$katana_url"
 }
 wait_for katana "$katana_pid" "$log_dir/katana.log" probe_katana || exit 1
-export KATANA_URL=$katana_url RPC_URL=$katana_url
+export KATANA_URL=$katana_url RPC_URL=$katana_url STARKNET_RPC_URL=$katana_url
 
 if [ "$torii" = 1 ]; then
   torii_port=$(free_port) grpc_port=$(free_port)
@@ -140,7 +142,8 @@ if [ "$torii" = 1 ]; then
   export DOJO_WORLD_ADDRESS=$world
 fi
 
-"$@" <&0 &
+# In its own session, so that stopping it stops what it started (sozo, node…) too.
+setsid "$@" <&0 &
 cmd_pid=$!
 wait "$cmd_pid"
 status=$?

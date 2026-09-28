@@ -23,7 +23,7 @@ fn contract_defs() -> Span<ContractDef> {
 }
 
 #[test]
-#[available_gas(l2_gas: 30000000)]
+#[available_gas(l2_gas: 5105383)] // ceil(1.05 × 4862269 measured)
 fn test_mark_writes_the_model() {
     let caller = get_default_caller_address();
     let mut world = spawn_test_world([namespace_def()].span());

@@ -49,9 +49,10 @@ command -v sha256sum > /dev/null || die "sha256sum is required"
 # --- asdf tools, from the repository's .tool-versions -------------------------------------------
 cd "$root"
 [ -f .tool-versions ] || die "no .tool-versions at $root"
+plugins=$(asdf plugin list 2> /dev/null || true)
 while read -r name _; do
   case "$name" in '' | '#'*) continue ;; esac
-  if ! asdf plugin list | grep -qx "$name"; then
+  if ! grep -qx "$name" <<< "$plugins"; then
     log "asdf plugin add $name"
     asdf plugin add "$name"
   fi
@@ -99,7 +100,8 @@ status=0
 check() { # <label> <expected version> <command…>
   local label=$1 want=$2 got
   shift 2
-  got=$("$@" 2>&1 | head -n 1) || true
+  # pnpm 12 announces its first-use download on a line of its own before the version.
+  got=$("$@" 2>&1 | grep -v '^Downloading' | head -n 1) || true
   if [[ $got == *"$want"* ]]; then
     printf '%-18s %s\n' "$label" "$got"
   else
