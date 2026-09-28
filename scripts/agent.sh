@@ -289,9 +289,10 @@ esac
 # brief docs/briefs/<task>-*.md names the option. The grant is recorded; a resume without the
 # option says it runs without the account.
 if [ "$sepolia" = 1 ]; then
-  compgen -G "$root/docs/briefs/$task-*.md" > /dev/null &&
-    grep -qF -- '--with-sepolia' "$root"/docs/briefs/"$task"-*.md ||
+  if ! compgen -G "$root/docs/briefs/$task-*.md" > /dev/null ||
+    ! grep -qF -- '--with-sepolia' "$root"/docs/briefs/"$task"-*.md; then
     die "--with-sepolia: no brief docs/briefs/$task-*.md grants the Sepolia account"
+  fi
 elif [ "$mode" = resume ] && [ -f "$L/$task.sepolia" ]; then
   echo "agent.sh: note: $task was launched with --with-sepolia; this resume runs without the Sepolia account" >&2
 fi
