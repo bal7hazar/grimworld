@@ -49,7 +49,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
 | FND-00 | **Bootstrap the project-manager session on the VPS** from `docs/briefs/PM-vps-bootstrap.md`: checks accounts, toolchain, repository, credentials presence; reports to the owner | IDE-03 | Owner starts it | — | done |
-| SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js); reproducible build. Controller is pinned by SPK-9, not here | — | Sonnet 5 | Q | todo |
+| SPK-5 | Pin toolchain (Dojo, Cairo, Scarb, Katana, Torii, dojo.js); reproducible build. Controller is pinned by SPK-9, not here | — | Sonnet 5 | Q | doing ([brief](docs/briefs/SPK-5-toolchain.md)) |
 | FND-01 | Repository scaffold: `contracts/`, `client/`, `docs/`, scripts, layering of CONTEXT §4 | SPK-5 | Sonnet 5 | Q | todo |
 | FND-06 | Gas tooling: budgets on tests, `docs/BUDGETS.md` generated from a test run, CI failing on a budget exceeded, gas table template for `REPORT.md` | FND-02 | Sonnet 5 | Q | todo |
 | FND-02 | CI: build, format, lint, tests for contracts and client | FND-01 | Sonnet 5 | S Q | todo |
@@ -66,7 +66,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
 | LIB-01 | Map library work needed by the game: see **track LIB** below (milestone L-M1) | — | Hexmap orchestrator | — | todo |
 | TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-05 | Opus 5.5 | D V Q | todo |
-| ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
+| ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | doing ([brief](docs/briefs/ART-00-asset-pipeline.md)) |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
 
 **Exit criteria**: ADRs accepted or option B re-opened; budgets written in design/02;
