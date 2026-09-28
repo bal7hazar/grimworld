@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Proposed** |
+| Status | **Stage A (burners) accepted by the owner on 2026-09-28 (D-102)**; stages B and C proposed |
 | Date | 2026-09-28 |
 | Decides | How a player gets an account, who signs, who pays, without the player seeing any of it |
 | Supersedes | The assumption, in ADR-0001 and ADR-0003, that Cartridge Controller is the account layer |

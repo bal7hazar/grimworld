@@ -19,13 +19,15 @@ are all playable end to end by a stranger, on a public network.
 | Account | 3 adventurer slots, shared vault |
 | Castes | Runt, Slinger, Skirmisher, Shaman, Hobgoblin (boss) |
 | Conditions | Bleeding, Poison, Burning, Crippled, Knocked down |
-| Loot | Ingredients, gold, boss trophy |
+| Loot | Ingredients, gold, trophies, **equipment**, heartstone, stillstone |
 | Alchemy | Region 1 book: 10 ingredients, 12 recipes, belt of 4 |
 | Equipment | Merchant, smith, armorer, collectors; **looted equipment** with rarity, identification, salvage and modifiers; **boss weapons and boss armor with set bonuses** ([15-equipment](15-equipment.md)) |
 | Trade | Direct trade between players and an **auction house** ([16-trade](16-trade.md)) |
 | Hubs | Services as contract calls; presence display of other adventurers |
 | Client | iOS and Android apps first, desktop web second; optimistic rendering, action queue |
-| Account | Cartridge Controller with session policies (no signature prompt per action) |
+| Account | Burner accounts behind the account interface; no prompt, no fee (ADR-0005). Randomness from the transaction hash (ADR-0002). **Test networks only, nothing of value** |
+| Rifts | Grades Wood to Copper; three open, five a day, the Red Rift last; mining and stillstone ([17-rifts](17-rifts.md)) |
+| Maps | Chunks generated at reveal, simulation window, zone outlines (ADR-0006) |
 
 ## Out (ordered by expected priority after MVP)
 

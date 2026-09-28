@@ -1,6 +1,6 @@
 # 02 — Core loop: tick, instances, expeditions
 
-> Status: **Draft v0.2** — v0.2: hex maps, instances not saved, defeat keeps loot, single clock.
+> Status: **Draft v0.3** — v0.3: reconciled with ADR-0006 (chunks, window, sight).
 
 ## The tick (D-01)
 
@@ -59,7 +59,7 @@ hubs free to use and removes the hardest latency problem from the most social pl
         ┌────────────────────────── hub ──────────────────────────┐
         │ accept quests · set 8 skills · spend attributes · stock │
         └───────────────┬─────────────────────────────────────────┘
-                        │ enter gate            (build is locked, instance seed drawn)
+                        │ enter gate            (build is locked, entry draw made)
                         ▼
                 ┌──── instance ────┐
                 │ explore · fight  │◀──┐ next location through a gate
@@ -73,8 +73,9 @@ hubs free to use and removes the hardest latency problem from the most social pl
 ### Entering
 
 - Requires meeting the gate's requirements.
-- Draws the **instance seed** from the randomness source
-  ([ADR-0002](../architecture/ADR-0002-randomness.md)).
+- Makes the **entry draw** ([ADR-0002](../architecture/ADR-0002-randomness.md)). It is
+  not a seed from which the location could be computed: each chunk also depends on what
+  the adventurer will have done by the time it is revealed.
 - Locks skill bar and attributes.
 - An adventurer is in **at most one instance**.
 
@@ -112,62 +113,25 @@ from the first floor.
 
 ## Map
 
-> **Superseded in part by [ADR-0006](../architecture/ADR-0006-chunked-maps.md)** (2026-09-28): maps are large and cut in chunks; the unit of simulation is a window centred on the adventurer, not a room. What this document says of rooms is kept for the record until it is rewritten after spike SPK-7.
+Maps are hexagonal, large, cut in chunks and generated as they are revealed. The
+mechanism and its reasons are in
+[ADR-0006](../architecture/ADR-0006-chunked-maps.md); the rules a player meets are in
+[18-terrain-and-perception](18-rooms.md). Summary:
 
+| Notion | What | Size |
+|---|---|---|
+| **Tile** | A pointy-top hex, with global coordinates `(x, y)` in its location | — |
+| **Chunk** | Unit of storage and generation | 15 × 15 tiles, one felt per layer |
+| **Window** | The board on which a tick is computed, centred on the adventurer | 15 × 15 tiles |
+| **Sight** | Where goblins are shown | Hexagon of radius 6 around the adventurer |
 
-Maps are hexagonal and built on
-[`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) (D-11).
-
-### Structure
-
-```
-Location ─ bounded grid of rooms (registry: columns × rows of rooms)
-Room     ─ W × H hex tiles with W × H ≤ 251, stored as one felt bitmap
-Tile     ─ index = y × W + x        pointy-top hexes, odd rows shifted (odd-r)
-```
-
-| Property | Value |
+| | |
 |---|---|
-| Orientation | **Pointy-top**: every tile has an East and a West neighbour |
 | Directions | East, North-East, North-West, West, South-West, South-East |
-| Room size | Registry parameter per location. Default **9 × 17** ([18-rooms](18-rooms.md)) |
-| Border | The outer ring of a room is wall, except **entrances** |
-| Distance | Hex distance (`hex_distance`) for ranges; path distance (`distance_to`) for movement |
-
-| Layer (one bitmap per room) | Meaning |
-|---|---|
-| `grid` | Walkable tiles |
-| `entities` | Tiles occupied by an actor |
-| `features` | Tiles holding a feature (remains, trap, chest, gate); details in a keyed model |
-
-- Rooms connect through entrances opened on their edges; a path may start or end on an
-  entrance but never crosses one, which makes them natural room transitions.
-- A location's registry entry bounds the room grid and places its gates, so that, unlike
-  Grimscape, a location is finite and has exits.
-- Rooms are **generated lazily** on first entry from
-  `hash(layout seed, room x, room y)`, where the layout seed is the location's registry
-  seed for fixed locations and the instance seed for shifting ones
-  ([01-world](01-world.md#geography-fixed-vs-shifting-d-10)).
-- Generation chains library calls: a generator chosen by the location's biome
-  (`new_cave` for nests, `new_random_walk` for wilds, `new_maze` for ruins), then
-  `open_with_corridor` for each entrance, then `keep_component` so that every walkable
-  tile is reachable, then `compute_distribution` to place packs and features.
-
-### What the library gives and what we must build
-
-| Need | Status |
-|---|---|
-| Generation, entrances, connectivity | Provided |
-| Shortest path, distance, range, ring, movement field | Provided, deterministic tie-break (lowest tile index) |
-| Moving obstacles (other actors) | Not a parameter; we pass `grid & ~entities` as the grid |
-| **Line of sight** | **Not provided.** To be written (hex line between two tiles, blocked by walls) and contributed upstream if accepted |
-| Facing and arcs | Ours, see [04-combat](04-combat.md#facing-and-arcs-d-41) |
-
-### Fog
-
-The client hides unexplored rooms. Because generation is deterministic from public seeds,
-this fog is a **presentation choice, not a security property**; a modified client can
-reveal layouts. We accept this (see non-goals). Rewards do not depend on it.
+| Distance | Hex distance for ranges; path distance for movement |
+| Generation | A chunk is generated when sight touches it, from the instance's entry draw and the adventurer's irreversible actions since (D-111) |
+| Revealed | For the whole instance, and forgotten with it (D-105) |
+| Library | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) and its successor (PLAN, track LIB) |
 
 ## Simulation budget
 
@@ -175,21 +139,16 @@ On-chain execution is bounded per transaction, so the design enforces:
 
 | Rule | Value |
 |---|---|
-| Only the **current room** is simulated | Goblins in other rooms are frozen |
-| Awake goblins per room | ≤ 8 |
-| Goblins per room | ≤ 8 |
-| Pathfinding | **One search per tick, not one per goblin**: a single breadth-first flood from the adventurer gives every goblin its next step |
+| Only the **window** is simulated | Goblins outside it are frozen |
+| Awake goblins | ≤ 8: the nearest to the adventurer, ties by lowest id |
+| Pathfinding | **One flood per tick, not one per goblin**: a single breadth-first flood from the adventurer on the window gives every goblin its next step |
+| Re-centring | The window moves only when the adventurer comes within 3 tiles of its edge |
+| Chunks revealed by one action | ≤ 3 |
 | Actions per transaction | Batched up to a cap set by measurement (Phase 0) |
 
-Library figures for a 17 × 14 room (its own benchmarks, to be re-measured in SPK-2): one
-path search costs about 0.7M gas, a room generation with placement about 1.1M. Eight
-independent searches per tick would not fit the budget, hence the shared flood.
-
-Goblins do not follow across rooms in the MVP: leaving a room breaks the fight, and the
-room keeps its state for as long as the instance lives (wounded goblins regenerate
-according to elapsed world time when the room is re-entered). Entrance-camping is
-countered by design: goblins adjacent to an entrance get a free attack on an adventurer
-who leaves through it while Engaged.
+Goblins **follow** the adventurer from chunk to chunk for as long as they are in the
+window. Outrunning them is leaving it; they then walk back to where they stood, regenerate
+and return to their first state.
 
 ## Action batching and interruption
 
@@ -198,10 +157,11 @@ transaction. The contract executes them in order and **stops the queue** when so
 the player would want to react to happens:
 
 - the adventurer takes damage or gains a condition,
-- a goblin becomes Alerted or starts activating a skill,
-- a new room is entered,
+- a goblin enters sight, becomes alerted, or starts activating a skill,
+- a chunk is revealed,
+- remains are looted, a chest is opened (Fate draws),
 - an action in the queue is invalid (the remainder is dropped; the transaction does not
   revert).
 
-This gives auto-walk across explored rooms in a single transaction and keeps decisions in
-the player's hands when they matter.
+This gives auto-walk across revealed terrain in a single transaction and keeps decisions
+in the player's hands when they matter.

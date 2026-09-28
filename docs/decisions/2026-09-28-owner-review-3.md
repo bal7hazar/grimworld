@@ -61,7 +61,7 @@
 | # | Question | Input needed |
 |---|---|---|
 | Q-18 | Looted weapons: rarities, identification, gold value, drop rates | Researched; proposal in `docs/design/15-equipment.md`. Drop rates were never published for Guild Wars: ours are our own |
-| Q-19 | Should boss-tied sets extend to armor? Under D-37b it would not unbalance anything. The Mighty Quest for Epic Loot had named sets without any set bonus. Guild Wars did not: its armor comes from crafters and collectors. Recommendation: weapons, shields and foci first | Owner |
+| ~~Q-19~~ | **Closed by D-45**: boss armor sets are in the MVP. ~~Should boss-tied sets extend to armor?~~ Under D-37b it would not unbalance anything. The Mighty Quest for Epic Loot had named sets without any set bonus. Guild Wars did not: its armor comes from crafters and collectors. Recommendation: weapons, shields and foci first | Owner |
 
 ## Business model elements named so far
 

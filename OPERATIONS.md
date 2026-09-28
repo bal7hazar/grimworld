@@ -298,7 +298,8 @@ What was reviewed, what was not, and why.
 
 - Merge only on **green CI** plus the orchestrator's review of `REPORT.md` and the
   required audits without open `blocker` or `major`. Squash merge, by the orchestrator.
-- Conventional commits; trailer `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
+- Conventional commits; trailer `Co-Authored-By: Claude <Model> <noreply@anthropic.com>`,
+  with the model's display name, for example `Claude Fable 5.1` or `Claude Opus 5.5`.
 - Branch name `<type>/<task-id>-<slug>`. One pull request per task. A pull request that
   cannot be reviewed in one sitting is split at the brief stage.
 - **Game results are API.** A change that alters the outcome of any action for the same
