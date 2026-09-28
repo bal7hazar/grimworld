@@ -50,4 +50,54 @@
    Q-10.
 4. ENG-01 keeps D-129's constraint, with `enter`'s new-storage cost as an explicit item.
 
-Expected: the project manager's decision on points 1 to 3, recorded here and in CONTEXT.
+## Decision
+
+By the project manager on 2026-09-28, under D-128; reported to the owner.
+
+| # | Decision (D-133) |
+|---|---|
+| 1 | **Fights are played on the client and sent in batches.** The design task DES-21 writes the rule in design/02 before ENG-01 freezes the entrypoints |
+| 2 | **SPK-1b is added to Phase 0**: the fixed part of a transaction with the burner class of the MVP, with and without a paymaster, on Sepolia, a few tens of transactions |
+| 3 | **The threshold of $0.50 for 300 actions stays the target.** It is restated, if it must be, with the owner's business model and the cost of an active player per day |
+| 4 | ENG-01 keeps its cost budget, with the new storage of `enter` as an item of its own |
+
+### What point 1 means, and what it does not change
+
+Two things were one in design/02, and are now told apart:
+
+| | A **planned** queue | A **played** batch |
+|---|---|---|
+| What it is | Actions chosen in advance, without seeing what happens in between: a path of ten steps | Actions the player chose **one by one**, each on the result of the previous one, which the client computed |
+| Why the client can compute it | — | Tactics are deterministic (D-40): the client runs the same rules as the chain and shows the exact result at once |
+| When it is sent | At once | In the background, several actions together; the chain follows the player (ADR-0001, point 3 of its decision) |
+| Stop conditions of design/02 | **Kept**: the queue stops when the adventurer takes damage, a goblin notices, a chunk is revealed | **None but validity**: the contract executes the whole batch; an invalid action drops the rest |
+
+| Unchanged | |
+|---|---|
+| What the player decides | Every action, seeing the result of the one before. Nothing is played for the player |
+| What the chain decides | Everything: it executes the same actions and its result is the truth; on a difference the client rewinds |
+| Fate | An action that draws (loot, chest, identification, the entry draw) ends a batch and is sent alone (ADR-0002, rule 3) |
+
+| To be settled by DES-21 | First answer |
+|---|---|
+| Size of a batch | Bounded by gas, 10 actions to start with |
+| When a batch leaves | When it is full, before a Fate action, after a few seconds without input, when the app goes to the background |
+| Actions played and not yet sent when the app closes | Kept on the device and sent at the next launch; lost if the device is lost, as a burner is |
+| Can a player take back an action that is not sent yet? | No in our client (I-5). A modified client can already compute any sequence in advance, since the rules and the state are public: nothing is given away |
+| A reorg or a difference | The client rewinds further than before: up to a batch |
+
+### Why this and not a cheaper tick
+
+About 1.09M L2 gas of every transaction is the account and the protocol. The whole budget
+of a fight in the worst expedition is 0.88M. With one action per transaction no optimisation
+of the game reaches $0.50. In a queue of 10 the same move costs 1.77M instead of 4.82M: at
+that figure the worst expedition is about at the threshold, before ENG-01 has optimised
+anything.
+
+### What would reverse it
+
+SPK-1b showing a fixed part several times smaller with the MVP's account; or a playtest in
+which sending by batch makes the game feel wrong (a rewind of several actions seen by
+players). Then the queue goes back to one action per transaction in fights and the threshold
+is restated.
+

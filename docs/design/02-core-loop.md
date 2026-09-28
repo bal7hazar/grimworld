@@ -166,3 +166,15 @@ the player would want to react to happens:
 
 This gives auto-walk across revealed terrain in a single transaction and keeps decisions
 in the player's hands when they matter.
+
+### Played actions are sent in batches (D-133)
+
+The stop conditions above protect a player who **planned** several actions in advance. An
+action the player **played**, chosen on the result of the previous one as the client computed
+it, needs no such protection: the player has already seen what happened. Played actions are
+sent to the chain several at a time, in the background; the contract executes the whole
+batch and drops the rest only on an invalid action. An action that draws from Fate ends a
+batch and is sent alone. The player still decides every action; the chain still decides
+every result. Size of a batch, when it leaves and what happens to actions not yet sent are
+written by design task DES-21
+([decision](../decisions/2026-09-28-sepolia-verdict.md)).
