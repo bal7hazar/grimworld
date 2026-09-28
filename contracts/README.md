@@ -82,3 +82,7 @@ workspace: one job `cairo (contracts)` at its root, for the whole workspace (`sc
 `scarb build --workspace`, `snforge test --workspace`); the member manifests are not jobs of their own. Each
 `spikes/*/` package is a job too, on its own toolchain (`spikes/SPK-5` stays on Cairo 2.13). No `sozo`, `katana`,
 `torii` or `starknet-devnet` is installed by CI.
+Discovery (`.github/ci/discover.py`) fails if a tracked `Scarb.toml` is neither a job root nor a member of a
+workspace that is one, and refuses any tool version that is not an exact `x.y.z`. When `.tool-versions` moves to another
+snforge, add the SHA-256 of its release archive to `.github/ci/install-snforge.sh` (CI installs snforge and
+universal-sierra-compiler from their release archives, checksums verified, so that no action is pulled by a mutable tag).
