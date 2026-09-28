@@ -201,12 +201,20 @@ case "$task" in *[!A-Za-z0-9._-]* | "") die "task name '$task': letters, digits,
 case "$mode" in new | resume) ;; *) die "mode must be new or resume" ;; esac
 t=$(tag "$cli" "$model")
 model_id=${t%%|*} label=${t#*|}
-# A resumed agent keeps the model it started on until its task closes (OPERATIONS §2).
-if [ "$mode" = resume ] && [ -f "$L/$task.cli" ]; then
+wt=$W/cli-$task
+# A resumed agent keeps the model it started on until its task closes (OPERATIONS §2): a resume
+# needs the launch record and the same model. A new launch uses a current model and a fresh
+# task: while the task's worktree exists (the task is not closed), its record is kept.
+if [ "$mode" = resume ]; then
+  [ -f "$L/$task.cli" ] || die "$task has no launch record ($L/$task.cli): nothing to resume"
   recorded=$(cut -d' ' -f2 "$L/$task.cli")
   [ "$recorded" = "$model_id" ] || die "$task started on $recorded: resume it with that model, not $model_id"
+else
+  [ "$model_id" != claude-sonnet-5 ] || die "claude-sonnet-5 only resumes agents started on it; new launches use sonnet (Sonnet 5.5)"
+  if [ -f "$L/$task.cli" ] && [ -d "$wt" ]; then
+    die "$task is not closed (its worktree exists): resume it, or close it before a new launch"
+  fi
 fi
-wt=$W/cli-$task
 
 if [ -z "$profile" ]; then
   if [ "$mode" = resume ] && [ -f "$L/$task.profile" ]; then profile=$(cat "$L/$task.profile")
