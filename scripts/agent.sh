@@ -250,6 +250,11 @@ case "$cli:$mode" in
   *) die "cli must be claude or codex" ;;
 esac
 if [ "$cli" = claude ]; then
+  # Secrets out of agents: the machine's user-level Claude settings define the Scarb registry
+  # token for every claude process; --settings takes precedence over them, so every agent runs
+  # with it empty, and the profiles deny typed publishing (an interpreter an agent runs could
+  # still read the settings file: OPERATIONS §4). Codex runs in a whitelisted environment.
+  cmd+=(--settings '{"env":{"SCARB_REGISTRY_AUTH_TOKEN":""}}')
   cmd+=(--permission-mode acceptEdits --allowedTools "${allow[@]}")
   [ "${#deny[@]}" -eq 0 ] || cmd+=(--disallowedTools "${deny[@]}")
   cmd+=(--max-turns 400 --output-format text)
