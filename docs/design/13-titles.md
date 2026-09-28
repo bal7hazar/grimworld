@@ -65,8 +65,9 @@ and Scavenger for the account. The others come with the features they count.
 
 ## Implementation notes
 
-- Persistent domain. Most titles read counters that other systems already keep (quests
-  completed, rooms discovered, recipes). A title adds a tier table in a registry, not a
-  new counter, whenever possible.
+- Persistent domain. Titles are built on the package `quiver_achievement`, in event mode
+  (D-63, D-131): one achievement per tier, tiers sharing one task. The game keeps the
+  counters that are its own (quests completed, recipes, the "distinct" bitmaps) and reports
+  their progress as tasks; it adds no second mechanism for tiers.
 - Tiers are evaluated when the player opens the title or claims it, not at every action.
 - "Distinct" counters are bitmaps keyed by registry ids, which bounds their cost.

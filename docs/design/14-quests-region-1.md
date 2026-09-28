@@ -112,6 +112,7 @@ Inspired by the baseline's daily contracts, present from the start.
 |---|---|
 | Available from | Level 10 |
 | Offered | 3 per day on the board of each hub, drawn from a list; one held at a time |
+| A contract held at the end of the day | **Lost with its progress** at 00:00 UTC; the board offers the new day's (D-131) |
 | Foes | **Never scaled.** Each contract states its foes and their levels. Easy contracts stay available and can be redone |
 | Rank | A higher guild rank gives access to **new contracts**, harder and better paid |
 | In the zone | A held contract adds its targets to the zone as a quota (ADR-0006) |
