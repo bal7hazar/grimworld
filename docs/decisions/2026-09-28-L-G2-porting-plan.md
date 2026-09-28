@@ -1,4 +1,4 @@
-# PENDING — Gate L-G2 of track LIB: the porting plan of `hexx`
+# Gate L-G2 of track LIB: the porting plan of `hexx` — accepted 2026-09-28
 
 | | |
 |---|---|
@@ -60,4 +60,18 @@ In [docs/needs/hexmap.md](../needs/hexmap.md), "Answers to the questions of LIB-
 
 ## Answer
 
-*To be filled with the owner's decision and its date.*
+Given by the owner on 2026-09-28: **the project manager's recommendations are accepted**.
+
+| # | Decision |
+|---|---|
+| D-126 | **The plan is accepted** (option A) with its two conditions: LIB-05 starts with the assembly (N-3) and the flood with its selection (N-8), proved against their oracles and measured on their worst cases, and stops above the upper bound; nothing is published without the owner's go |
+| D-126 | The package is named **`hexx`**. Rule: a mirror of a Rust crate keeps the crate's name; packages of our own take the prefix of their repository (`quiver_quest`) |
+| D-126 | Boards stay `felt252` in the API of L-M1 (D-4); L-M1 carries the needs and the part of the mirror they rest on (D-5); two direction types (D-3); `line_to` carries the game's tie rule (D-6) |
+| D-127 | **The flood of the tick stops at 15 layers; a goblin it did not reach holds its position** and still acts if it can. The number is tuned by SPK-7 and the first playtest, before 0.1.0 |
+
+Still with the owner, not blocking:
+
+| | |
+|---|---|
+| Reserving the name by publishing an empty `hexx` 0.0.1 (R-4) | **Not done.** A publication cannot be undone: it waits for a go that names it. The name was free on the registry on 2026-09-28 |
+| What becomes of `origami_hexmap` on `origami` `main` at the end (D-17) | At milestone L-M4 |
