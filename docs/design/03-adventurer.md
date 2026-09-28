@@ -1,14 +1,52 @@
 # 03 — Adventurer
 
-> Status: **Draft v0.1** — numbers are initial values for balancing. Profession, attribute
+> Status: **Draft v0.2** (v0.2: creation, slots, shared vault, appearance) — numbers are initial values for balancing. Profession, attribute
 > and skill names are working names; none may reuse a Guild Wars name for a skill, and no
 > icon may be derived from Guild Wars assets.
 
 ## Identity
 
-- An account may own several adventurers. An adventurer is a persistent on-chain entity
-  with a name, a primary profession, a level, a guild rank, skills, inventory and a
-  location.
+- An adventurer is a persistent on-chain entity with a name, a primary profession, a
+  level, a guild rank, skills, inventory and a location.
+
+### Creation (D-32)
+
+Creating an adventurer asks for two things only: a **name** and a **primary profession**.
+There is no appearance editor and no colour choice for now.
+
+### Slots and vault (D-33)
+
+| | |
+|---|---|
+| Adventurers per account | **3 slots**. More slots can be bought in game (business model) |
+| Deleting an adventurer | Frees the slot; its inventory must be emptied into the vault first |
+| **Vault** | One per account, **shared by all its adventurers**, reachable in hubs only |
+| Shared through the vault | Gold, ingredients, potions, equipment |
+| Never shared | Level, guild rank, known skills, grimoire, quest log, character titles |
+
+The data model keys what is shared by **account** and what is personal by **adventurer**
+from the start; an item balance always says which of the two owns it.
+
+### Appearance (D-34)
+
+**What an adventurer looks like is what it wears.** There is no skin layer over the
+equipment: a piece of equipment carries its own look, and changing look means changing
+equipment. Two pieces with the same statistics and different looks are two different
+items; this is what smiths sell and what bosses drop.
+
+| | |
+|---|---|
+| Source of the look | The equipped weapon and armor pieces |
+| Skin applied over equipment | **Does not exist** |
+| For now | One appearance per profession is drawn, whatever is worn. Equipment shows in the inventory and the character sheet only |
+| Later | Equipment drawn on the character, as art budget allows ([10-art-direction](10-art-direction.md)) |
+
+### Cosmetics sold (D-90)
+
+What the business model sells must have **no effect on the rules**: auras, miniature pets
+and the like. They are attached to the adventurer or the account, drawn by the client, and
+never read by a game system.
+
 - Primary profession is chosen at creation and is permanent. It defines armor class, base
   energy, energy regeneration and the **primary attribute**.
 - A **secondary profession** is unlocked by a quest at Copper rank. It gives access to the
@@ -19,7 +57,7 @@
 | Stat | Formula | At level 20 |
 |---|---|---|
 | Health | `100 + 20 × (level − 1)` | 480 |
-| Attribute points | `5 × (level − 1)` until 10, then more per level, **200 total at 20** | 200 |
+| Attribute points | 5 per level up to 10, 10 from 11 to 15, 15 from 16 to 20 (170), plus 15 at Tin and 15 at Copper | 200 |
 | Energy | by profession | 20–30 |
 | Energy regeneration | by profession, in pips | 2–4 pips |
 | Armor | by profession armor class, scales with level | 60–80 |

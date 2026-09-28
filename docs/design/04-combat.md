@@ -51,8 +51,8 @@ function is not part of `origami_hexmap` and is ours to write.
 | Bow | Warden | 21 | 2 | 6 | Line of sight |
 | Staff / wand | Casters | 16 | 2 | 6 | Damage type by attribute |
 
-Damage is the fixed midpoint of the GW1 range. The weapon's attribute rank scales it:
-full damage at the item's required rank, reduced below.
+Damage is the fixed midpoint of the GW1 range, at the maximum requirement. Requirement,
+modifiers and armor pieces are defined in [15-equipment](15-equipment.md).
 
 ## Facing and arcs (D-41)
 

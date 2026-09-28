@@ -15,11 +15,11 @@ unpredictable randomness source ([ADR-0002](../architecture/ADR-0002-randomness.
 | **Ingredients** | Goblins, gathering nodes, chests | Alchemy, gathering quests |
 | **Gold** | Goblins, quests, selling | Trainers, services |
 | **Trophies** | Bosses (guaranteed) | Proof for nest-clearing quests, rare recipes |
-| **Equipment** | Post-MVP | See open question Q-05 |
+| **Equipment** | Goblins, bosses | See [15-equipment](15-equipment.md) |
 
-In the MVP, weapons and armor are **bought from hub merchants and scale with level**, as
-in early GW1. The MVP has no equipment drops: this keeps power in the build, and keeps the
-first release focused.
+In the MVP, weapons and armor come from merchants, smiths, armorers and collectors; looted
+equipment with rarity and identification comes in the release after
+([15-equipment](15-equipment.md#scope)).
 
 ### When it is rolled
 

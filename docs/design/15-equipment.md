@@ -1,0 +1,234 @@
+# 15 — Equipment
+
+> Status: **Draft v0.1** — names are working names; numbers are initial values.
+> Baseline: Guild Wars itemisation (official wiki and player analyses, read 2026-09-28).
+> What could not be found there is said so; those numbers are ours.
+
+## Principles
+
+| # | Principle | From the baseline |
+|---|---|---|
+| Q-1 | **Statistics are capped, and the cap is reached early.** Maximum weapons and armor are available around the middle of a region's content, not at its end (D-35) | Max armor and weapons arrive mid-campaign; later content adds no tier |
+| Q-2 | **Rarity sets how good the modifiers are, never the base statistics.** A common weapon can have maximum damage | Same |
+| Q-3 | **Equipment is made of parts.** Modifiers can be taken off one item and set on another | Prefix, suffix, inscription; insignia, rune |
+| Q-4 | **Strong modifiers have a condition or a cost** | "+15% while health is above 50%", "+3 attribute, −75 health" |
+| Q-5 | **The look is the item** (D-34). What is rare and wanted is a look, a convenience, a name; never a number above the cap | Prestige armor has the same statistics at 15 times the price |
+| Q-6 | **No modifier rolls dice in combat.** Combat is deterministic (D-40) | Departure: the baseline has chance-based modifiers |
+
+## Sources of equipment
+
+| Source | Gives | Randomness |
+|---|---|---|
+| **Merchant** | Basic weapons, no modifier | None |
+| **Smith** (D-37) | A small pool of weapons per hub, fixed statistics, chosen look, for gold and materials | None |
+| **Armorer** | Armor of the hub's tier, for gold and materials | None |
+| **Collector** (D-36) | One fixed piece (armor or weapon) for 3 to 5 goblin trophies | None |
+| **Loot** (D-37) | Weapons and armor remains, of any rarity | Fate |
+| **Boss** (D-37b) | Its own items: fixed look, fixed modifiers at maximum values | Fate decides whether it drops, not what it is |
+| **Quest** | Fixed items | None |
+
+Collectors make common trophies useful and guarantee that a player with bad luck is never
+under-equipped. As in the baseline, a collector gives one piece, so a full armor asks for
+five collectors across a region, and collector items cannot be changed of look.
+
+## Weapons
+
+### Base
+
+| Weapon | Profession | Hands | Tick cost | Range | Damage at requirement 0 → 9 |
+|---|---|---|---|---|---|
+| Sword | Vanguard | 1 | 1 | 1 | 9 → 18 |
+| Axe | Vanguard | 1 | 1 | 1 | 9 → 17 |
+| Maul | Vanguard | 2 | 2 | 1 | 13 → 27 |
+| Bow | Warden | 2 | 2 | 6 | 11 → 21 |
+| Staff | Casters | 2 | 2 | 6 | 9 → 16 |
+| Wand + focus | Casters | 1 + 1 | 2 | 6 | 9 → 16 |
+| Shield | Vanguard | off-hand | — | — | Armor 8 → 16 |
+
+Damage is the midpoint of the baseline's range, since we do not roll damage.
+
+### Requirement
+
+Each weapon has a **requirement**: a rank in its attribute, from 0 to 9. Damage grows with
+the requirement and stops at 9.
+
+| | |
+|---|---|
+| Attribute rank ≥ requirement | Full damage |
+| Attribute rank < requirement | Damage divided by 3; modifiers still work |
+| Anyone can hold any weapon | The requirement, not a class lock, is what ties a weapon to a build |
+
+### Modifier slots
+
+| Slot | On | Example |
+|---|---|---|
+| **Prefix** | Weapons (not wands) | Rending: bleeding you inflict lasts 33% longer |
+| **Suffix** | Weapons, shields, foci | of Fortitude: +30 health |
+| **Inscription** | Everything held | +15% damage while your health is above 50% |
+
+### Modifiers and determinism (Q-6)
+
+The baseline has modifiers that trigger "with a 10–20% chance". They are converted:
+
+| Baseline | Grim World |
+|---|---|
+| 10–20% chance of +20% armor penetration | +2 to +4% armor penetration, always |
+| 2–10% chance of double adrenaline on a hit | Every 10th to 5th hit gives double adrenaline (a counter on the adventurer) |
+| 10–20% chance of halved casting time | Every 5th spell of the attribute costs 1 tick less |
+| 10–20% chance of +1 attribute while using a skill | Dropped |
+
+Modifiers kept as they are: condition duration (+33%), damage type change, life steal with
+a health regeneration cost, energy on hit with an energy regeneration cost, health (+10 to
++30), armor (+4 to +5), armor against a damage type (+4 to +7), enchantment duration
+(+10 to +20%), conditional damage (+10 to +15%), damage with a drawback (+15% damage,
+−5 energy).
+
+## Rarity
+
+| Rarity | Colour | Modifiers | Value range of each modifier |
+|---|---|---|---|
+| Common | White | None | — |
+| Fine | Blue | 1 | Lower half |
+| Superior | Purple | 1–2 | Third quarter |
+| Rare | Gold | 2–3 | Top quarter |
+| **Boss** | Green | All slots | Maximum, fixed (D-37b) |
+
+Base statistics depend on the level of the goblin that dropped the item: about 20% of the
+maximum at level 1, the maximum from level 20. Rarity does not change them (Q-2).
+
+### Drop rates
+
+The baseline's publisher never published rates, and no rigorous player study was found.
+The only figures are anecdotal: boss items about once in 8 to 12 kills. **Our rates are
+ours**, to tune with the balance simulator:
+
+| | Initial value |
+|---|---|
+| Remains holding equipment rather than ingredients or gold | 15% |
+| Of those: common / fine / superior / rare | 60 / 28 / 10 / 2 % |
+| Boss item, per boss kill | 10% |
+| Bosses: number of items | Up to 3, plus gold |
+
+### Identification (Q-18)
+
+Looted equipment of fine rarity or better is **unidentified**: its rarity and base are
+known, its modifiers are not.
+
+| | |
+|---|---|
+| Identifying | In a hub, with an identification kit (a few gold per use) |
+| On-chain | **Identifying is the draw.** Modifiers do not exist until the item is identified; the Fate draw happens in that transaction ([ADR-0002](../architecture/ADR-0002-randomness.md)). Nothing hidden needs to be stored |
+| Needed to | Equip it, change its modifiers, salvage it cleanly |
+| Value | Unidentified value follows the goblin's level. Identified value = (unidentified + a draw up to itself) × 1 for common and fine, × 2 for superior, × 4 for rare — formula measured by players of the baseline on about 1 000 items |
+| The decision | Sell it closed for a sure small price, or pay to open it |
+
+### Salvage
+
+| Kit | Gives | Risk |
+|---|---|---|
+| Basic | Common materials | The item is consumed |
+| Expert | One modifier of the item, chosen by the player; or materials | **The item is destroyed one time in two** (Fate) |
+| Perfect (rare) | One modifier | None; no materials |
+
+Materials feed smiths and armorers. Setting a modifier on an item replaces the one in the
+slot, which is lost.
+
+## Armor
+
+### Rating
+
+| Armor class | Professions | Maximum rating | Innate |
+|---|---|---|---|
+| Heavy | Vanguard | 80 | +20 against physical damage |
+| Medium | Warden | 70 | +30 against elemental damage |
+| Light | Casters | 60 | + energy and energy regeneration |
+
+Five pieces. The baseline draws the piece that is hit at random; we do not. The rating
+used by the damage formula is the **weighted sum** of the pieces:
+
+| Piece | Chest | Legs | Head | Hands | Feet |
+|---|---|---|---|---|---|
+| Weight | 3/8 | 2/8 | 1/8 | 1/8 | 1/8 |
+
+### Tiers
+
+| Hub | Heavy / medium / light | Order of price per piece |
+|---|---|---|
+| Town A | 35 / 25 / 15 | 20 gold |
+| Outpost B | 50 / 40 / 30 | 75 gold + materials |
+| Region 2, first hub | 65 / 55 / 45 | 200 gold + materials |
+| **Region 2, second hub** | **80 / 70 / 60 (maximum)** | 1 000 gold + materials |
+| Any later hub | Maximum, other looks | Much more, for the look only |
+
+### Insignias and runes
+
+| Slot | One per piece | Examples |
+|---|---|---|
+| **Insignia** | Yes | +15/10/5 health (chest/legs/other); +10 armor while in a stance; +10 armor while enchanted |
+| **Rune** | Yes | +1 attribute; **+2 attribute, −35 health; +3 attribute, −75 health**; +30 to +50 health |
+
+Rules taken from the baseline: only the highest rune of an attribute counts, but every
+penalty counts; health runes of the same kind do not add up. Attributes reach 12 by points
+and about 16 with everything.
+
+## Boss items (D-37b)
+
+| | |
+|---|---|
+| Tied to | One named boss |
+| Look | Its own |
+| Statistics | Requirement 9, every slot filled, every modifier at its maximum, all taken from the common pool |
+| Cannot be | Modified, salvaged |
+| Why want it | The look; a finished weapon without assembling one; the name of the boss |
+| Sets | The bosses of one dungeon or elite zone form a set by their look. **Wearing several gives nothing more** |
+
+Armor (Q-19): the baseline has no boss armor; its armor comes from crafters and collectors.
+Extending boss items to armor does not unbalance anything under these rules. The cost is
+art: five pieces per profession per boss. Recommendation: **weapons, shields and foci
+first**; boss armor when equipment is drawn on the character.
+
+## Gold
+
+| Sink | |
+|---|---|
+| Skill trainers | 50 gold for the first skill bought, rising to 1 000 from the 21st, as in the baseline |
+| Kits | 1 to 20 gold per use |
+| Armor and smiths | See tiers |
+| Looks | The largest sink by far |
+
+Merchants buy at the item's value and sell at twice that value.
+
+## Storage
+
+| | Slots |
+|---|---|
+| Adventurer's pack | 20 |
+| Belt pouch, bags | +5 each, from collectors and quests |
+| Vault (account) | 25 per pane; panes are added by the estate's storehouse |
+| Materials and ingredients | Counted, not slotted |
+
+## On-chain notes
+
+- An equipment item is an entity: base, requirement, rarity, up to three modifiers with
+  their values, look, owner (adventurer or account). Packed in one or two felts.
+- Ingredients, materials, potions and gold are balances, not entities.
+- The instance reads equipment once, in the snapshot taken at entry (ADR-0001). Equipment
+  cannot change during an expedition.
+- Every draw (what the remains hold, identification, salvage) is Fate and happens in its
+  own transaction.
+
+## Scope
+
+| Release | Contains |
+|---|---|
+| **MVP** | Merchant, smith, armorer (two tiers), collectors, quest items, the boss item of the first dungeon. Requirement and the weighted armor rating |
+| Next | Looted equipment with rarity, identification, salvage, modifiers, insignias and runes |
+| Later | Boss sets, looks, equipment drawn on the character |
+
+## Open
+
+| # | Question |
+|---|---|
+| EQP-1 | Is the MVP split above acceptable, or must looted weapons be in the MVP? |
+| EQP-2 | Binding an item to an adventurer for +20% damage, which removes its trade value (baseline's "customisation"): keep? |
+| EQP-3 | Are items tradable between players (Q-07)? The whole value of rare looks depends on it |

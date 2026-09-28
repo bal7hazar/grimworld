@@ -14,7 +14,9 @@ are all playable end to end by a stranger, on a public network.
 | Skills | 12 per profession (6 starter + 6 from trainers), no elite |
 | Level | 1 → 20 |
 | Guild ranks | Wood → Copper (3 ranks, 2 promotion trials) |
-| Quests | ~20: extermination, nest clearing, gathering, scouting, trial, skill quests |
+| Quests | 25 per adventurer plus repeatable guild contracts ([14-quests-region-1](14-quests-region-1.md)) |
+| Titles | 6 character titles, 2 account titles ([13-titles](13-titles.md)) |
+| Account | 3 adventurer slots, shared vault |
 | Castes | Runt, Slinger, Skirmisher, Shaman, Hobgoblin (boss) |
 | Conditions | Bleeding, Poison, Burning, Crippled, Knocked down |
 | Loot | Ingredients, gold, boss trophy |
@@ -34,6 +36,7 @@ are all playable end to end by a stranger, on a public network.
 6. Region 2
 7. Equipment drops and upgrades
 8. Trading / tokenisation
+9. Estate (idle layer)
 9. Co-op
 10. Hardcore ruleset
 
