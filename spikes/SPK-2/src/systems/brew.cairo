@@ -28,7 +28,9 @@ pub mod brew {
     }
 
     /// Brew; returns the result as stored in `Discovery` (1 failed, 2 + r recipe r).
-    fn step(ref world: WorldStorage, adventurer_id: u32, book_id: u32, a: u8, b: u8, signed: bool) -> u8 {
+    fn step(
+        ref world: WorldStorage, adventurer_id: u32, book_id: u32, a: u8, b: u8, signed: bool,
+    ) -> u8 {
         // [Check] Owner, in a hub, a valid pair
         let adventurer: Adventurer = world.read_model(adventurer_id);
         assert(adventurer.owner == get_caller_address().into(), 'not the owner');

@@ -24,8 +24,8 @@ pub mod setup {
         REGION_1_MASKS, REGION_1_PAIRS, REGION_1_RARITIES, REGION_1_RECIPES, REGION_1_REMAINING,
     };
     use spk2::fixtures::{
-        COMB, PILLARS, QUEUE_LENGTH, SERPENTINE, START_X, START_Y, adventurer, board,
-        queue_goblins, serpent_goblins, window, worst_goblins,
+        COMB, PILLARS, QUEUE_LENGTH, SERPENTINE, START_X, START_Y, adventurer, board, queue_goblins,
+        serpent_goblins, window, worst_goblins,
     };
     use spk2::models::{
         Adventurer, Balance, Book, Counter, Goblin, Grimoire, Instance, Location, Pack, Quest,
@@ -169,7 +169,9 @@ pub mod setup {
             world.write_model(@hub_adventurer(2));
             world
                 .write_model(
-                    @Grimoire { adventurer: 1, book: BOOK, known: 0, remaining: REGION_1_REMAINING },
+                    @Grimoire {
+                        adventurer: 1, book: BOOK, known: 0, remaining: REGION_1_REMAINING,
+                    },
                 );
             world
                 .write_model(
@@ -189,19 +191,20 @@ pub mod setup {
             world
                 .write_model(
                     @Quest {
-                        id: 1, hub: HUB, level: 1, target: 10, experience: 500, gold: 20,
-                        item: 400,
+                        id: 1, hub: HUB, level: 1, target: 10, experience: 500, gold: 20, item: 400,
                     },
                 );
             world
                 .write_model(
                     @Quest {
-                        id: 2, hub: HUB, level: 1, target: 10, experience: 500, gold: 20,
-                        item: 400,
+                        id: 2, hub: HUB, level: 1, target: 10, experience: 500, gold: 20, item: 400,
                     },
                 );
             world.write_model(@QuestLog { adventurer: 3, quest: 2, status: 1, progress: 10 });
-            world.write_model(@Location { id: LOCATION, hub: HUB, level: 1, x: START_X, y: START_Y });
+            world
+                .write_model(
+                    @Location { id: LOCATION, hub: HUB, level: 1, x: START_X, y: START_Y },
+                );
             // Instances entered from the hub start after the fixtures' ids
             world.write_model(@Counter { id: 'instance', value: 100 });
         }

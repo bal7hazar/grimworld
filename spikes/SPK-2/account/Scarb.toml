@@ -9,6 +9,17 @@ starknet = "2.19"
 openzeppelin_account = "4.0.1"
 openzeppelin_introspection = "4"
 
+[dev-dependencies]
+openzeppelin_interfaces = "2.2.0"
+snforge_std = "0.61"
+assert_macros = "2.19"
+
 [[target.starknet-contract]]
 sierra = true
 casm = true
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

@@ -30,7 +30,13 @@ pub trait IInstances<T> {
     fn walk(ref self: T, instance_id: u32, moves: Array<u8>, layout: u8, checked: bool) -> u8;
     /// Called by the hub on `enter`: a new instance and the adventurer's snapshot.
     fn open(
-        ref self: T, owner: ContractAddress, adventurer: u32, location: u32, x: u8, y: u8, level: u8,
+        ref self: T,
+        owner: ContractAddress,
+        adventurer: u32,
+        location: u32,
+        x: u8,
+        y: u8,
+        level: u8,
     ) -> u32;
     /// Returned: the instance is closed, the results go to the hub in one call.
     fn leave(ref self: T, instance_id: u32);
@@ -45,18 +51,17 @@ pub trait IInstances<T> {
 #[starknet::contract]
 pub mod Instances {
     use core::num::traits::Zero;
+    use spk2n::board::{bitwise, has};
     use spk2n::fate::fate;
     use spk2n::fixtures::{
         COMB, PILLARS, QUEUE_LENGTH, SERPENTINE, START_X, START_Y, adventurer as fixture_adventurer,
         board, queue_goblins, serpent_goblins, window, worst_goblins,
     };
-    use super::{FELT, SLOTS};
     use spk2n::models::{
         Goblin, GoblinPack, GoblinSlots, Instance, InstanceAdventurer, from_slots, pack_adventurer,
         pack_goblin, pack_instance, to_slots, unpack_adventurer, unpack_goblin, unpack_instance,
     };
     use spk2n::rules::{attack, in_sight, neighbour, origin_key, window_origin, world_tick};
-    use spk2n::board::{bitwise, has};
     use spk2n::systems::hub::{IHubDispatcher, IHubDispatcherTrait};
     use spk2n::tables::WIDTH;
     use starknet::storage::{
@@ -64,6 +69,7 @@ pub mod Instances {
         StoragePointerReadAccess, StoragePointerWriteAccess,
     };
     use starknet::{ContractAddress, get_caller_address};
+    use super::{FELT, SLOTS};
 
     /// Longest queue (design/02: a cap set by measurement; 10 is the brief's worst case).
     pub const MAX_QUEUE: u32 = 10;
@@ -84,7 +90,8 @@ pub mod Instances {
         goblin_slots: Map<(u32, u32), GoblinSlots>,
         goblin_felts: Map<(u32, u32), felt252>,
         goblin_packs: Map<u32, GoblinPack>,
-        /// Stand-in for the window assembled from the chunks (SPK-7): (instance, origin) -> terrain.
+        /// Stand-in for the window assembled from the chunks (SPK-7): (instance, origin) ->
+        /// terrain.
         windows: Map<(u32, u16), felt252>,
     }
 
@@ -176,7 +183,9 @@ pub mod Instances {
             ref self: ContractState, instance: @Instance, adventurer: @InstanceAdventurer,
         ) {
             self.instances.write(*instance.id, pack_instance(instance));
-            self.adventurers.write((*instance.id, *instance.adventurer), pack_adventurer(adventurer));
+            self
+                .adventurers
+                .write((*instance.id, *instance.adventurer), pack_adventurer(adventurer));
             self.emit(Acted { instance_id: *instance.id, clock: *instance.clock });
         }
 
@@ -347,7 +356,8 @@ pub mod Instances {
             self
                 .adventurers
                 .write(
-                    (instance_id, 1), pack_adventurer(@fixture_adventurer(instance_id, 1, conditions)),
+                    (instance_id, 1),
+                    pack_adventurer(@fixture_adventurer(instance_id, 1, conditions)),
                 );
             self.write_all_layouts(instance_id, goblins);
         }
@@ -378,7 +388,9 @@ pub mod Instances {
             self.windows.write((instance_id, origin_key(x, y)), window(COMB, x, y));
         }
 
-        fn setup_queue(ref self: ContractState, instance_id: u32, goblins: u8, owner: ContractAddress) {
+        fn setup_queue(
+            ref self: ContractState, instance_id: u32, goblins: u8, owner: ContractAddress,
+        ) {
             self.only_admin();
             let mut kept: Array<Goblin> = array![];
             for goblin in queue_goblins(instance_id) {
@@ -419,7 +431,9 @@ pub mod Instances {
             }
         }
 
-        fn attack(ref self: ContractState, instance_id: u32, target: u32, layout: u8, checked: bool) {
+        fn attack(
+            ref self: ContractState, instance_id: u32, target: u32, layout: u8, checked: bool,
+        ) {
             let mut instance = self.load(instance_id, checked);
             let mut adventurer = self.read_adventurer(@instance);
             let goblins = self.read_goblins(layout, @instance);

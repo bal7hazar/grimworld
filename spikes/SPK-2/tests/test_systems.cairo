@@ -12,8 +12,8 @@ use spk2::fixtures::{
     START_Y, WEST, WORST, WORST_PACKED,
 };
 use spk2::models::{
-    Adventurer, Balance, Discovery, Goblin, Grimoire, Instance, InstanceAdventurer, Pack,
-    QuestLog, unpack_goblin,
+    Adventurer, Balance, Discovery, Goblin, Grimoire, Instance, InstanceAdventurer, Pack, QuestLog,
+    unpack_goblin,
 };
 use spk2::systems::brew::{IBrewDispatcher, IBrewDispatcherTrait};
 use spk2::systems::hub::{IHubDispatcher, IHubDispatcherTrait};
@@ -32,9 +32,9 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Model("Discovery"), TestResource::Model("Quest"),
             TestResource::Model("QuestLog"), TestResource::Model("Location"),
             TestResource::Model("Counter"), TestResource::Model("Pack"),
-            TestResource::Contract("setup"),
-            TestResource::Contract("tick_worst_case"), TestResource::Contract("queue_moves"),
-            TestResource::Contract("brew"), TestResource::Contract("hub"),
+            TestResource::Contract("setup"), TestResource::Contract("tick_worst_case"),
+            TestResource::Contract("queue_moves"), TestResource::Contract("brew"),
+            TestResource::Contract("hub"),
         ]
             .span(),
     }

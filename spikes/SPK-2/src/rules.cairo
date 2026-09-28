@@ -240,11 +240,12 @@ pub fn world_tick(
             awake += 1;
             if distance == 1 {
                 let blow = damage(goblin.damage, goblin.strength, adventurer.armor);
-                adventurer.health = if adventurer.health > blow {
-                    adventurer.health - blow
-                } else {
-                    0
-                };
+                adventurer
+                    .health = if adventurer.health > blow {
+                        adventurer.health - blow
+                    } else {
+                        0
+                    };
                 hit = true;
             } else if distance > 1 {
                 if let Option::Some((to, facing)) = step(tile, distance, layers, occupied.into()) {
@@ -256,9 +257,7 @@ pub fn world_tick(
             }
             // [Compute] Conditions and regeneration of the goblin
             let degeneration = degeneration(clock, goblin.bleeding, goblin.poison, goblin.burning);
-            goblin
-                .health =
-                    regenerate(goblin.health, 0xffff, goblin.regeneration, degeneration);
+            goblin.health = regenerate(goblin.health, 0xffff, goblin.regeneration, degeneration);
         }
         next.append(goblin);
     }

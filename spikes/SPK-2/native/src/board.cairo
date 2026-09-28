@@ -19,8 +19,7 @@ pub extern fn bitwise(lhs: u128, rhs: u128) -> (u128, u128, u128) implicits(Bitw
 pub const TWO_POW_128: felt252 = 0x100000000000000000000000000000000;
 /// 256^j, the byte of goblin `j` in a packed distance word.
 const BYTE: [u128; 8] = [
-    0x1, 0x100, 0x10000, 0x1000000, 0x100000000, 0x10000000000, 0x1000000000000,
-    0x100000000000000,
+    0x1, 0x100, 0x10000, 0x1000000, 0x100000000, 0x10000000000, 0x1000000000000, 0x100000000000000,
 ];
 
 #[inline(always)]

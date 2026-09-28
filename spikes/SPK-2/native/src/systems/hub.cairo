@@ -107,9 +107,7 @@ pub mod Hub {
 
         fn write_hero(ref self: ContractState, id: u32, level: u8, owner: ContractAddress) {
             self.owners.write(id, owner);
-            let hero = Adventurer {
-                id, level, experience: 1000, gold: 50, hub: HUB, instance: 0,
-            };
+            let hero = Adventurer { id, level, experience: 1000, gold: 50, hub: HUB, instance: 0 };
             self.heroes.write(id, pack_hero(@hero));
         }
 
@@ -134,7 +132,9 @@ pub mod Hub {
             let mut result = self.discoveries.read((adventurer_id, book_id, pair));
             if result == 0 {
                 let key = (adventurer_id, book_id);
-                let mut grimoire = unpack_grimoire(adventurer_id, book_id, self.grimoires.read(key));
+                let mut grimoire = unpack_grimoire(
+                    adventurer_id, book_id, self.grimoires.read(key),
+                );
                 let found = discover(@book, ref grimoire, a, b, fate('brew'), signed);
                 result = match found {
                     Option::Some(recipe) => 2 + recipe,
@@ -187,7 +187,9 @@ pub mod Hub {
                 .write(
                     (1, BOOK),
                     pack_grimoire(
-                        @Grimoire { adventurer: 1, book: BOOK, known: 0, remaining: REGION_1_REMAINING },
+                        @Grimoire {
+                            adventurer: 1, book: BOOK, known: 0, remaining: REGION_1_REMAINING,
+                        },
                     ),
                 );
             self
@@ -195,7 +197,9 @@ pub mod Hub {
                 .write(
                     (2, BOOK),
                     pack_grimoire(
-                        @Grimoire { adventurer: 2, book: BOOK, known: 0, remaining: REGION_1_PAIRS },
+                        @Grimoire {
+                            adventurer: 2, book: BOOK, known: 0, remaining: REGION_1_PAIRS,
+                        },
                     ),
                 );
             let mut item: u32 = 0;
@@ -219,7 +223,9 @@ pub mod Hub {
                 .locations
                 .write(
                     LOCATION,
-                    pack_location(@Location { id: LOCATION, hub: HUB, level: 1, x: START_X, y: START_Y }),
+                    pack_location(
+                        @Location { id: LOCATION, hub: HUB, level: 1, x: START_X, y: START_Y },
+                    ),
                 );
         }
 

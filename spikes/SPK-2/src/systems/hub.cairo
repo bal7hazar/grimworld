@@ -76,12 +76,7 @@ pub mod hub {
             world
                 .write_model(
                     @Instance {
-                        id,
-                        clock: 0,
-                        location,
-                        adventurer,
-                        goblins: 0,
-                        entry_draw: fate('entry'),
+                        id, clock: 0, location, adventurer, goblins: 0, entry_draw: fate('entry'),
                     },
                 );
             world

@@ -2,6 +2,7 @@
 """Generate src/tables.cairo: the constants of the window board and the damage table.
 
     python3 spikes/SPK-2/gen_tables.py > spikes/SPK-2/src/tables.cairo
+then `scarb fmt` from spikes/SPK-2 (CI checks the format), and copy the file to native/src/.
 """
 
 P = 2**251 + 17 * 2**192 + 1

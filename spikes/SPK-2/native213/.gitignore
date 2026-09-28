@@ -1,2 +1,6 @@
+# Written by build.py at each run.
 target/
 src/
+Scarb.toml
+Scarb.lock
+.tool-versions
