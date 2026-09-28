@@ -2,8 +2,8 @@
 
 > **Changed by [ADR-0006](../architecture/ADR-0006-chunked-maps.md)**: the room view becomes a camera following the adventurer on a large map, with pinch and pan; the layout zones below are unchanged.
 >
-> Status: **Draft v0.1** — sizes are initial values, to be settled by the client spike
-> (SPK-6) on real phones.
+> Status: **Draft v0.2** — sizes are initial values, to be settled by the client spike
+> (SPK-6) on real phones. v0.2: played actions sent in batches, what the player sees of them (D-133, DES-21).
 
 ## Rules
 
@@ -13,7 +13,7 @@
 | I-2 | **One tap, one action**, and the result is drawn at once. The chain catches up behind |
 | I-3 | **Nothing on screen speaks of the chain** (pillar 7) |
 | I-4 | **Everything the rules use is visible**: facing, arcs, ranges, activation in progress, recharges, who is awake |
-| I-5 | **A mistaken tap must be hard to make and cheap to notice**: an action cannot be undone once sent |
+| I-5 | **A mistaken tap must be hard to make and cheap to notice**: an action cannot be undone once played, sent or not |
 | I-6 | Touch targets are at least 40 points wide |
 | I-7 | The screen is still between two actions: no animation that is not information, idle animations apart |
 
@@ -64,8 +64,8 @@
 
 | Action | Default |
 |---|---|
-| Move, attack | Sent on the tap |
-| Skill | Sent when the target is tapped: the skill tap was the first step |
+| Move, attack | Played on the tap |
+| Skill | Played when the target is tapped: the skill tap was the first step |
 | Anything that would end in an obvious loss: walking into a trap seen, leaving a room while engaged, starting an activation that a goblin in range can interrupt | A warning mark on the preview; still one tap |
 | Leaving the instance, travelling back | Asked twice |
 
@@ -73,12 +73,16 @@ A setting turns on "tap twice to confirm" for every action.
 
 ## The queue
 
+A **planned queue** only: the steps of a path to a far tile, not yet walked. Actions already
+played are never shown as queued ([02-core-loop](02-core-loop.md#planned-queues-and-played-batches-d-133)).
+
 | | |
 |---|---|
-| What is queued | The steps of a path; several taps made faster than the chain confirms |
+| What is queued | The steps of a path the adventurer has not walked yet |
 | Shown as | Ghost markers on the room and a counter |
-| Stops by itself | When a rule says so ([02-core-loop](02-core-loop.md#action-batching-and-interruption)): the remaining steps fade out and the reason is said in one line ("a skirmisher noticed you") |
-| Cancel | Tap the counter |
+| Walked | One step at a time, drawn as it is played; each step walked is played and cannot be cancelled |
+| Stops by itself | When a rule says so ([02-core-loop](02-core-loop.md#the-planned-queue-and-its-stop-conditions)): the remaining steps fade out and the reason is said in one line ("a skirmisher noticed you") |
+| Cancel | Tap the counter: the steps not yet walked fade out |
 
 ## What the rules need to show
 
@@ -99,11 +103,19 @@ A setting turns on "tap twice to confirm" for every action.
 
 | Situation | The player sees | Never |
 |---|---|---|
-| Action sent, not yet confirmed | Nothing | A spinner per action |
-| Confirmation late by more than 3 seconds | A discreet "saving…" in the status zone | "Pending", "transaction" |
+| Actions played, not yet sent or not yet confirmed | Nothing: they are drawn as they are played | A spinner per action, a counter of actions waiting |
+| A batch sent more than 3 seconds ago and not yet confirmed | A discreet "saving…" in the status zone | "Pending", "transaction", "batch" |
+| The batch filling is full while the one sent is not confirmed ([02](02-core-loop.md#when-a-batch-leaves)) | "saving…" stays; the next tap waits until it goes | A dialog |
 | A reward being drawn (loot, identification, brewing) | The reveal animation, which lasts as long as needed | A loading bar |
-| The chain disagrees with what was drawn | The room snaps to the true state, with one line: "the world corrected itself" | An error code |
-| Network down | "Connection lost. Your expedition is safe." Play is suspended | Anything about nodes or fees |
+| The chain disagrees with what was drawn (a rewind) | The room snaps to the true state; the actions dropped fade out as ghost markers along where they went; one line: "the world corrected itself". The selection is cleared; nothing is replayed | An error code, a count of actions lost |
+| Network down (the node cannot be reached) | Play goes on until the batch filling is full; then "Connection lost. Your expedition is safe." Play is suspended until the actions are confirmed | Anything about nodes or fees |
+| Before a reward is drawn, a gate or travelling back | The action starts at once (the walk to the remains, the gate animation); the draw waits behind it for the actions before it to be confirmed | A wait before the tap is taken |
+| The app closes with actions not sent | At the next launch the instance is read, then opens where the player left it; the actions still valid are sent behind it. Until the instance is read, the room is shown still, with "saving…" | — |
+| The window is about to reach an explored part of the map not yet read (after a launch on another device) | The step waits with "saving…" until it is read. Never at the edge of the unexplored, which is revealed at once, nor at the edge of a location, which is wall | A loading bar |
+| …and the chain moved meanwhile (the adventurer played on another device) | The room shows the chain's state; the actions whose results are unchanged stay; if some were dropped, one line: "your last steps were lost" | Where they were lost, or why |
+| The same adventurer played on another device while a batch was being sent | The room shows the chain's state; the actions still valid on it stay, the others fade out; one line: "the world corrected itself" only if something was dropped | A conflict dialog |
+| Actions that could not be saved after the retries (a batch that failed down to one action) | The room snaps to the true state, with one line: "your last steps were lost" | An error code |
+| A reorg undid more than the actions being saved: a reward, a gate, the instance itself | The true state, whatever it is: an earlier moment of the instance, another instance, or the hub; a reward gone from the inventory. One line: "the world corrected itself" | An explanation of why |
 | First launch | Name of the adventurer, profession, play | Wallet, address, key, gas, sign, token, network, block, mint |
 
 ## Hubs
