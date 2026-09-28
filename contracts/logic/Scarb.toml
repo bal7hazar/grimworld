@@ -1,0 +1,15 @@
+[package]
+name = "grimworld_logic"
+version.workspace = true
+edition.workspace = true
+cairo-version.workspace = true
+
+[dependencies]
+origami_hexmap.workspace = true
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[scripts]
+test.workspace = true

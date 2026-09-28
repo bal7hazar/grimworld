@@ -1,8 +1,2 @@
 packages:
   - client/*
-
-# pnpm 12 refuses to install when a dependency has an unreviewed build script. Both are optional
-# accelerators (native msgpack, protobufjs' postinstall notice): not run (as in SPK-5).
-allowBuilds:
-  msgpackr-extract: false
-  protobufjs: false

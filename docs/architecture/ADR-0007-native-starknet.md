@@ -101,7 +101,7 @@ They cannot be used as they are.
 
 | | |
 |---|---|
-| **Decision (owner, 2026-09-28, D-124)** | **Each package is rewritten in a new repository of its own, without Dojo: pure Starknet components and pure Cairo.** The game consumes them by published version, like the map library |
+| **Decision (owner, 2026-09-28, D-124, D-125)** | **The packages are rewritten without Dojo: pure Starknet components and pure Cairo**, in **one repository** with a name of its own, as separate Scarb packages; its CI runs only the packages a change concerns. The game consumes them by published version, like the map library. In time that repository gathers the owner's other `*-cairo` libraries |
 | D-63 | Revised: quests on the native `quest` package in storage mode, titles on the native `achievement` package in event mode. The rule of ADR-0004 stands: storage when a game rule depends on the data, events when it is only shown |
 | What "pure" means | The logic (tasks with a target count, intervals, prerequisites, completion, claim) is a Cairo library without storage; a Starknet component wraps it with storage, events and hooks. No world, no model, no dependency on Dojo |
 | SPK-8 | Dropped as written. The edge cases of ADR-0004 (points 3, 4 and 5) become test cases of the new packages |

@@ -31,8 +31,6 @@ fn test_mark_emits_marked() {
     stop_cheat_caller_address(mark.contract_address);
     spy
         .assert_emitted(
-            @array![
-                (mark.contract_address, Mark::Event::Marked(Mark::Marked { owner, value: 7 })),
-            ],
+            @array![(mark.contract_address, Mark::Event::Marked(Mark::Marked { owner, value: 7 }))],
         );
 }

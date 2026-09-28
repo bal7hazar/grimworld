@@ -30,8 +30,8 @@ L-M1 must beat.
   start of the tick, current occupancy filtering each goblin's candidates in ascending id
   order; line of sight: integer line, ties to the lower tile index, symmetric) and *N-3 in
   detail: the window*.
-- design/02 (*Map*, *Simulation budget*: ≤ 8 awake goblins, one flood per tick, ≤ 3 chunks
-  revealed by one action), design/04 (*Ranges*: line of sight; *Goblin AI*: determinism,
+- design/02 (*Map*, *Simulation budget*: ≤ 8 awake goblins, one flood per tick **capped at 15
+  layers** (D-127), ≤ 3 chunks revealed by one action), design/04 (*Ranges*: line of sight; *Goblin AI*: determinism,
   ties), design/18 (biomes and walkable shares, generation order, features), docs/CAIRO.md in
   full (arithmetic, then bitwise, then loops; `u252`; tables of constants; oracles; a gas
   budget on every test).
@@ -60,13 +60,17 @@ L-M1 must beat.
      wall. Test it against a plain, obviously correct tile-by-tile assembly kept in the tests
      (oracle), on every overlap case (2 and 4 chunks, both row parities of the adventurer).
   3. **The shared flood** for 8 awake goblins on the assembled window, rule (a), with the
-     occupancy frozen at the start of the tick.
+     occupancy frozen at the start of the tick, **capped at 15 layers (D-127**, design/02
+     *Simulation budget*, design/04 *Goblin AI*: a goblin the flood did not reach holds its
+     position and still acts if it can). Measure it on a **winding board** (a corridor maze in
+     the window, 8 awake goblins) at **10, 15 and 20 layers and without a limit**, and say how
+     many layers a winding 15 × 16 board can need.
   4. **Goblins crossing chunks**: a goblin's move updating the occupied bit of the chunk left
      and of the chunk entered.
   5. **Line of sight** between two tiles, the game's rule, symmetric, tested against a plain
      version.
   6. **The worst case of the tick**: 4 chunks overlapped, two layers each, 8 awake goblins,
-     assembly + flood + goblin moves (some crossing chunks) + writes; **once with the window
+     a winding board and the flood at its cap of 15 layers (D-127), assembly + flood + goblin moves (some crossing chunks) + writes; **once with the window
      assembled at each tick (no storage), once with a stored window** re-centred on the
      adventurer and written back (the design D-120 rejected, for comparison only).
   7. **The fallback**, only if the worst case exceeds what SPK-2's figures and ADR-0001's

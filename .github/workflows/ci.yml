@@ -1,0 +1,139 @@
+# CI of the contracts and the client (FND-02), beside the `tooling` workflow. "Merge on green CI"
+# means the code works: every Cairo package is formatted, built and tested on the toolchain of its
+# own .tool-versions, and the client is installed, linted, typechecked, tested, built and formatted.
+# No secret, no pull_request_target, read-only token, every third-party action pinned by SHA.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels the superseded run; runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The list of Cairo jobs is discovered, not written down: every tracked Scarb.toml is a job root
+  # or a member of a workspace that is one, so a new spike or package is gated the day it lands
+  # and none can be forgotten (a manifest that is neither fails the discovery). A Scarb workspace
+  # (contracts/) is one job at its root. The toolchain is read the way asdf reads it locally: per
+  # tool, the nearest .tool-versions going up from the folder. A package that pins its own Cairo
+  # (D-122, spikes/SPK-5 on 2.13) gets that Scarb and that snforge; the others get the root pins.
+  # A pull request controls those files, so this job validates every version (exact x.y.z) and
+  # every path BEFORE any setup step; see .github/ci/discover.py.
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.find.outputs.packages }}
+      node: ${{ steps.find.outputs.node }}
+      pnpm: ${{ steps.find.outputs.pnpm }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: find
+        run: python3 .github/ci/discover.py
+
+  cairo:
+    needs: discover
+    name: cairo (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.discover.outputs.packages) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      # The `assets` submodule is private and never needed here: it is not checked out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Registry (packages and prebuilt plugins) and the package's target folder are cached, keyed
+      # by the package's Scarb.lock; main's own runs fill the cache that pull requests restore.
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        with:
+          scarb-version: ${{ matrix.scarb }}
+          scarb-lock: ${{ matrix.dir }}/Scarb.lock
+
+      # snforge and universal-sierra-compiler from their release archives, SHA-256 pinned and
+      # verified before extraction: foundry-rs/setup-snfoundry would call a mutable action tag.
+      - name: snforge
+        working-directory: .
+        env:
+          SNFORGE: ${{ matrix.snforge }}
+        run: bash .github/ci/install-snforge.sh
+
+      - name: toolchain is the one of the nearest .tool-versions
+        env:
+          SCARB: ${{ matrix.scarb }}
+          SNFORGE: ${{ matrix.snforge }}
+        run: |
+          set -euo pipefail
+          scarb --version
+          snforge --version
+          scarb --version | grep -q "^scarb $SCARB " || { echo "scarb is not $SCARB" >&2; exit 1; }
+          snforge --version | grep -qx "snforge $SNFORGE" || { echo "snforge is not $SNFORGE" >&2; exit 1; }
+
+      - name: format
+        run: scarb fmt --check --workspace
+
+      # Only scarb and snforge: no sozo, katana, torii or devnet is needed to build and test.
+      - name: build
+        run: scarb build --workspace
+
+      - name: test
+        run: snforge test --workspace
+
+  client:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The validated pnpm of .tool-versions is passed explicitly: the action would otherwise read
+      # package.json, where devEngines can take priority. `discover` checked that package.json says
+      # the same, exactly.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ needs.discover.outputs.pnpm }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ needs.discover.outputs.node }}
+          cache: pnpm
+
+      - name: toolchain is the one of .tool-versions
+        env:
+          node_pin: ${{ needs.discover.outputs.node }}
+          pnpm_pin: ${{ needs.discover.outputs.pnpm }}
+        run: |
+          set -euo pipefail
+          echo "node $(node --version), pnpm $(pnpm --version)"
+          [ "$(node --version)" = "v$node_pin" ] || { echo "node is not $node_pin" >&2; exit 1; }
+          [ "$(pnpm --version)" = "$pnpm_pin" ] || { echo "pnpm is not $pnpm_pin" >&2; exit 1; }
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: lint
+        run: pnpm lint
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      - name: test
+        run: pnpm test
+
+      - name: build
+        run: pnpm build
+
+      - name: prettier
+        run: pnpm exec prettier --check client
