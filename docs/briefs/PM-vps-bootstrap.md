@@ -30,7 +30,8 @@ anglais.
 2. Vérifie la machine, sans rien installer ni modifier, et rapporte ce que tu trouves :
    - `claude auth status` : le CLI doit être connecté au compte claude-b7r. Si c'est un
      autre compte, arrête-toi et dis-le moi.
-   - `codex` disponible, et son quota si tu peux le lire.
+   - `codex` disponible, la liste de ses modèles (elle doit contenir gpt-6-astra,
+     gpt-6-sol et gpt-6-luna), et son quota si tu peux le lire. Ne lis jamais auth.json.
    - `gh auth status` et les droits de push sur ce dépôt.
    - versions de scarb, snforge, sozo, katana, torii, node, pnpm ; ce qui manque.
    - charge de la machine et agents déjà en cours pour d'autres programmes
@@ -47,12 +48,12 @@ anglais.
    - tu crées chaque session orchestrateur dans l'app Claude et tu choisis son modèle,
      Opus ou Fable, selon la difficulté de ce qu'elle aura à orchestrer ;
    - un orchestrateur exécute avec des sous-agents claude CLI (Sonnet, Opus ou Fable selon
-     la difficulté de la tâche) et fait auditer par codex (gpt-5.6-sol, astra ou autre
-     selon le type de tâche) quand c'est nécessaire ; codex n'implémente jamais ;
+     la difficulté de la tâche) et fait auditer par codex (gpt-6-astra, gpt-6-sol ou gpt-6-luna
+     selon le type de tâche, voir OPERATIONS §2) quand c'est nécessaire ; codex n'implémente jamais ;
    - jamais d'implémentation par l'outil Agent de la session, sauf recherche courte en
      lecture seule ;
    - tout titre de session, de tâche de fond, de moniteur ou d'agent commence par le
-     modèle utilisé entre crochets, par exemple [Opus 5.5] ou [gpt-5.6-sol] ;
+     modèle utilisé entre crochets, par exemple [Opus 5.5] ou [GPT-6-Astra] ;
    - un brief commité, un worktree neuf, un log, un REPORT.md, une pull request ouverte par
      l'agent avec la CI verte, jamais mergée par lui ;
    - un agent interrompu se reprend, il ne se relance pas de zéro ;
@@ -71,7 +72,11 @@ anglais.
      quel modèle, avec quelles tâches, quel modèle de sous-agent pour chacune, dans quel
      ordre, combien en parallèle compte tenu de la charge.
 
-5. Après mon accord, tu crées le premier orchestrateur. Sa première tâche est FND-03 :
+5. Deux orchestrateurs sont prévus : celui du jeu, dans ce dépôt, et celui de la lib
+   hexmap, dans le dépôt de la lib (piste LIB du plan, qui commence par l'analyse du
+   crate Rust hexx). Dis-moi dans quel ordre tu proposes de les créer.
+
+   Après mon accord, tu crées le premier orchestrateur. Sa première tâche est FND-03 :
    porter le lanceur d'agents
    (scripts/agent.sh), les verrous de build et docs/briefs/COMMON.md depuis mes autres
    dépôts (glam-cairo est la référence), puis mettre à jour STATUS.md.

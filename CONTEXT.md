@@ -201,7 +201,7 @@ owner, with the date), Superseded.
 | Ideation session (this) | Claude Desktop (Code tab), account bal7hazar, model Fable 5.1, on the owner's Mac, repository `~/git/grimworld`. Documents only |
 | Project-manager session (implementation) | **A new session on the VPS**, account bal7hazar, started from [docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) |
 | Orchestrator sessions | Created in the Claude App by the project manager; Opus 5.5 or Fable 5.1 by its judgement |
-| Sub-agents | `claude` CLI logged in as **claude-b7r** (check with `claude auth status`): Sonnet 5, Opus 5.5 or Fable 5.1 by difficulty. `codex` CLI (`gpt-5.6-sol`, `astra`, … by kind of task): audits when needed, never implementation |
+| Sub-agents | `claude` CLI logged in as **claude-b7r** (check with `claude auth status`): Sonnet 5, Opus 5.5 or Fable 5.1 by difficulty. `codex` CLI (`gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna` by kind of task): audits when needed, never implementation |
 | Credentials | Sepolia deployment credentials are in the session's settings environment. Never copy them into a document, a brief or a log |
 | Assets | *Tiny Swords* by Pixel Frog, `assets/` at the root of the main checkout, ignored by git; to be copied to the VPS by the owner, outside git |
 | Libraries by the owner | `origami_hexmap` (dojoengine/origami, may move to a dedicated repository) |

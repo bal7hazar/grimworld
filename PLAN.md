@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.11, 2026-09-28** (v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.12, 2026-09-28** (v0.12: track LIB, the map library under its own orchestrator, from the analysis of `hexx` to releases on scarbs.xyz; codex models verified; v0.11: project manager and orchestrators separated; Cairo engineering rules, gas budgets on tests; v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -62,15 +62,68 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | FND-05 | Provider interfaces: `fate(domain)` with the transaction-hash implementation and a deployment check refusing it on mainnet; account provider with the burner implementation | FND-01 | Opus 5.5 | S Q | todo |
 | SPK-9 | **Before version 1.** Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
-| SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + codex | S | todo |
+| SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + GPT-6-Astra | S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
-| LIB-01 | Map library: **generation of a board given its margins** (owner, in the library), board assembly from chunks, line of sight; outside this repository | — | Owner | — | todo |
-| TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-01 | Opus 5.5 | D V Q | todo |
+| LIB-01 | Map library work needed by the game: see **track LIB** below (milestone L-M1) | — | Hexmap orchestrator | — | todo |
+| TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-05 | Opus 5.5 | D V Q | todo |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
 
 **Exit criteria**: ADRs accepted or option B re-opened; budgets written in design/02;
 `main` builds from a clean machine.
+
+## Track LIB — the map library (its own orchestrator)
+
+Runs beside the game's phases, in the library's repository, under **a second
+orchestrator** created by the project manager (OPERATIONS §1). The game consumes the
+library **by published version**, never by git revision.
+
+| | |
+|---|---|
+| Subject | `origami_hexmap` (today in `dojoengine/origami`, `crates/hexmap`; may move to a dedicated repository) and the Rust crate [`hexx`](https://github.com/ManevilleF/hexx), whose names the library already follows |
+| Orchestrator | Opus 5.5 or Fable 5.1, chosen by the project manager. Algorithms under a gas budget are hard problems: Fable is a legitimate choice here |
+| Rules | `docs/CAIRO.md` in full: test-driven, gas budget on every test, execution cost first, arithmetic then bitwise then loops, `u252`, oracles |
+| Convention | The owner's, from the other programmes: mirror the Rust crate, same names, same API where it makes sense on-chain, deviations documented; a generated parity table checked in CI; numeric results are API |
+| Interface with the game | The game writes what it needs in `docs/needs/hexmap.md`; the library's orchestrator answers by releases and a changelog |
+
+| ID | Task | Depends on | Executor | Audits | Status |
+|---|---|---|---|---|---|
+| LIB-02 | **Analysis of `hexx`** and of its intersection with `origami_hexmap`: what `hexx` offers (coordinates, directions, rotation, lines, rings, spirals, ranges, field of view, field of movement, pathfinding, layouts, chunks or wrapping, mesh and rendering helpers), what the library already covers, what differs in convention (coordinate system, orientation, storage), what has no meaning on-chain. Report in `docs/research/` of the library | — | Opus 5.5, research | GPT-6-Sol | todo |
+| **Gate L-G1** | **Is a port relevant?** Owner's decision on the report | LIB-02 | Owner | — | — |
+| LIB-03 | **Porting analysis**, if relevant: milestones, API per milestone, what is mirrored and what is adapted, gas targets per function, release plan. First milestone = **minimal coverage for Grim World** (below) | L-G1 | Opus 5.5 or Fable 5.1 | GPT-6-Astra | todo |
+| **Gate L-G2** | **Is the plan accepted?** Owner's decision | LIB-03 | Owner | — | — |
+| LIB-04 | Repository, CI, parity table, gas tooling, publication pipeline to scarbs.xyz | L-G2 | Sonnet 5 | GPT-6-Luna | todo |
+| LIB-05 | **Milestone L-M1**: implementation, test-driven, at minimal cost; **released on scarbs.xyz** | LIB-04 | Opus 5.5, Fable 5.1 for the hardest algorithms | GPT-6-Astra (determinism, cost) | todo |
+| LIB-06 | Milestones L-M2 and following, each ending with a release | LIB-05 | As above | As above | todo |
+| LIB-07 | **Final release**: parity reached or exclusions closed and documented | LIB-06 | — | GPT-6-Astra | todo |
+
+#### Milestone L-M1 — what the game needs first
+
+| Need | For | Source |
+|---|---|---|
+| Generation of a board **given its margins** | Chunks that join without seams | ADR-0006 |
+| Edges and openings between boards | Reachability of all chunks; emerging outlines | ADR-0006 |
+| **Assembly of a board from up to 4 chunks**, with row parity kept | The simulation window | ADR-0006 |
+| Cutting a board by a mask | Zone outlines | ADR-0006 |
+| **Line of sight** between two tiles | Ranged attacks, spells, goblin perception | design/04 |
+| Range and ring as **geometry**, ignoring walls | Sight of radius 6, areas of effect | design/04, ADR-0006 |
+| Directions, opposite, rotation by steps of 60°; the arc of a tile relative to a facing | Facing, flank, back | design/04 |
+| One flood giving every goblin its next step, on a board with extra obstacles | The tick | design/02 |
+| Distance, neighbours | Everywhere | — |
+
+What is already in the library (shortest path, weighted path, field of movement, range and
+ring by movement, generators, distribution) is checked against these needs by LIB-02, not
+assumed.
+
+#### Releases
+
+| Version | Content | Consumed by the game at |
+|---|---|---|
+| Intermediate, one per milestone | L-M1 first | SPK-7 uses a pre-release of L-M1; ENG-05 needs its release |
+| Final | Parity or documented exclusions | Version 1 of the game |
+
+Generator outputs are API: a change in what a seed produces is a minor version and moves
+the game's test vectors.
 
 ## Phase 1 — Walking skeleton
 
@@ -80,7 +133,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ENG-02 | Helpers: packer, seeder, fixed-point table; hex line of sight and arcs on top of `origami_hexmap` | ENG-01 | Opus 5.5 | P C Q | todo |
 | ENG-03 | Registries: region, location, gate + seed data for a test region | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q | todo |
-| ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D S P C Q + codex | todo |
+| ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006) | ENG-02, SPK-7, LIB-05 | Opus 5.5 | D S P C Q + GPT-6-Astra | todo |
 | ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; instance seed (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
 | ENG-07 | Movement, facing, simulation window and its re-centring, action queue with stop conditions, instance clock | ENG-05, ENG-06 | Opus 5.5 | D S P C Q | todo |
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
@@ -134,10 +187,10 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | RWD-04 | Potions: effects, belt, use in instance | RWD-03, CBT-05 | Opus 5.5 | D S P Q | todo |
 | RWD-05 | Merchants, smiths, armorers, collectors | RWD-01 | Opus 5.5 | D S Q | todo |
 | RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance | RWD-01 | Opus 5.5 | D S P C Q | todo |
-| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + codex | todo |
+| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | RWD-08 | Boss items and boss armor sets with 3- and 5-piece bonuses | RWD-06 | Opus 5.5 | D S P Q | todo |
-| RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + codex | todo |
-| RWD-10 | Auction house: listings in lots, fees, expiry, purchase | RWD-09 | Opus 5.5 | D S C Q + codex | todo |
+| RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + GPT-6-Astra | todo |
+| RWD-10 | Auction house: listings in lots, fees, expiry, purchase | RWD-09 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | CNT-03 | Seed data: Region 1 book, loot tables, merchant stock | RWD-02…05 | Sonnet 5 | D V | todo |
 | CLI-07 | Inventory, loot reveal, alchemy and grimoire UI | RWD-01…05 | Opus 5.5 | D Q | todo |
 
@@ -160,12 +213,12 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| HRD-01 | Cross-cutting security audit of all systems | Phase 5 | Opus 5.5 + codex | S | todo |
+| HRD-01 | Cross-cutting security audit of all systems | Phase 5 | Opus 5.5 + GPT-6-Astra | S | todo |
 | HRD-02 | Cost pass: worst cases per entrypoint against budgets | Phase 5 | Opus 5.5 | C | todo |
 | HRD-03 | Registry permissions, multisig, upgrade policy (Q-08) | Phase 5 | Opus 5.5 | S | todo |
 | HRD-04 | Balance pass with BAL-01 and playtest data | PLY-01 | Orchestrator | D | todo |
 | HRD-05 | Public playtest on Sepolia | HRD-01…04 | Orchestrator | — | todo |
-| HRD-09 | Replace the provisional providers: verifiable randomness, production accounts, sponsored fees (ADR-0002, ADR-0005) | SPK-3, SPK-9 | Opus 5.5 | S + codex | todo |
+| HRD-09 | Replace the provisional providers: verifiable randomness, production accounts, sponsored fees (ADR-0002, ADR-0005) | SPK-3, SPK-9 | Opus 5.5 | S + GPT-6-Astra | todo |
 | HRD-06 | External audit | HRD-01 | External | S | todo |
 | HRD-07 | Paymaster budget and policies for mainnet (Q-10) | HRD-02 | Owner + Orchestrator | S | todo |
 | HRD-08 | Store readiness: policy check for on-chain games on both stores, bundled assets, review submission | Phase 5 | Orchestrator | — | todo |
@@ -239,7 +292,8 @@ the owner, and **due before the phase that consumes it**.
 | R-12 | Chunked maps exceed the cost budget (window assembly, chunk generation on reveal, flood) | Medium | High | Stored window re-centred with hysteresis; one shared flood per tick; fallback window 11 × 11; SPK-7 before ENG-05 | Phase 0 |
 | R-16 | Generated zones feel the same | Medium | Medium | Biomes, bands, authored set pieces placed by quota; playtest at the fun gate | Phase 3 |
 | R-17 | The MVP's randomness can be steered by anyone (transaction hash) | Certain | Low in the MVP, **blocking for version 1** | Nothing of value in the MVP; provider interface; deployment check; the hardening gate requires the verifiable provider | Phase 6 |
-| R-15 | Seamless generation across chunks needs a capability the map library does not have | Medium | High | LIB-01; rooms-and-corridors generation as fallback for dungeons | Phase 0 |
+| R-15 | Seamless generation across chunks needs a capability the map library does not have | Medium | High | Track LIB, milestone L-M1; rooms-and-corridors generation as fallback for dungeons | Phase 0 |
 | R-13 | The MVP grows beyond what a first release can carry (equipment loot, sets, trade, auction house added) | High | High | Phase 4 split in two gates; fun gate at Phase 3 stays before any of it is built | Phase 4 |
 | R-14 | Gold and items traded for real money outside the game; bots farming | Medium | High | Fees as gold sinks, listing limits, account age; examined with Q-07 | Phase 4 |
+| R-18 | The game waits for the library | Medium | High | L-M1 is scoped to the game's needs only; SPK-7 runs on a pre-release; rooms-and-corridors generation as fallback | Phase 0–1 |
 | R-8 | Solo-only launch closes the co-op door by accident | Medium | High | M-1…M-6 checked by the design lens on every task | Every phase |
