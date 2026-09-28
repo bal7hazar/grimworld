@@ -22,25 +22,30 @@ pub fn worst_adventurer() -> (u8, u8) {
     (ox + 7, oy + 7)
 }
 
-/// Global tile of a local tile of the worst-case window.
-fn global(tile: u8) -> (u8, u8) {
-    let (ox, oy) = worst_origin();
+/// Global tile of a local tile of the window at an origin.
+fn global_at(origin_x: u8, origin_y: u8, tile: u8) -> (u8, u8) {
     let (ly, lx) = DivRem::div_rem(tile, WIDTH.try_into().unwrap());
-    (ox + lx, oy + ly)
+    (origin_x + lx, origin_y + ly)
 }
 
-/// The goblins of the worst case, in global tiles, ascending id.
-pub fn worst_goblins() -> Array<(u8, u8)> {
+/// The goblins of the worst-case board placed at an origin, in global tiles, ascending id.
+pub fn goblins_at(origin_x: u8, origin_y: u8) -> Array<(u8, u8)> {
     let mut out = array![];
     for tile in CAPPED_GOBLINS.span() {
-        out.append(global(*tile));
+        out.append(global_at(origin_x, origin_y, *tile));
     }
     out
 }
 
-/// The 4 chunks under the worst-case window, `(cx, cy, layers)`, in the window's order: the
-/// window's terrain cut into them, everything else wall; the goblins in their occupied layers.
-pub fn worst_chunks() -> Array<(u8, u8, Layers)> {
+/// The goblins of the worst case, in global tiles, ascending id.
+pub fn worst_goblins() -> Array<(u8, u8)> {
+    let (ox, oy) = worst_origin();
+    goblins_at(ox, oy)
+}
+
+/// Chunks of a world holding the worst-case board at an origin, everything else wall; the goblins
+/// in their occupied layers.
+pub fn chunks_at(origin_x: u8, origin_y: u8, chunks: Span<(u8, u8)>) -> Array<(u8, u8, Layers)> {
     let terrain: u256 = CAPPED_TERRAIN.into();
     let mut goblins: felt252 = 0;
     for tile in CAPPED_GOBLINS.span() {
@@ -48,12 +53,12 @@ pub fn worst_chunks() -> Array<(u8, u8, Layers)> {
     }
     let goblins: u256 = goblins.into();
     let mut slots: Array<(u8, u8, Layers)> = array![];
-    for (dx, dy) in array![(0_u8, 0_u8), (0, 1), (1, 0), (1, 1)] {
-        let (cx, cy) = (WORST_CX0 + dx, WORST_CY0 + dy);
+    for (cx, cy) in chunks {
+        let (cx, cy) = (*cx, *cy);
         let mut layers = Layers { terrain: 0, occupied: 0 };
         let mut tile: u8 = 0;
         while tile != 240 {
-            let (x, y) = global(tile);
+            let (x, y) = global_at(origin_x, origin_y, tile);
             let (tx, lx) = DivRem::div_rem(x, WIDTH.try_into().unwrap());
             let (ty, ly) = DivRem::div_rem(y, WIDTH.try_into().unwrap());
             if tx == cx && ty == cy {
@@ -71,6 +76,29 @@ pub fn worst_chunks() -> Array<(u8, u8, Layers)> {
     }
     slots
 }
+
+/// The 4 chunks under the worst-case window, `(cx, cy, layers)`, in the window's order: the
+/// window's terrain cut into them, everything else wall; the goblins in their occupied layers.
+pub fn worst_chunks() -> Array<(u8, u8, Layers)> {
+    let (ox, oy) = worst_origin();
+    let (x0, y0) = (WORST_CX0, WORST_CY0);
+    chunks_at(ox, oy, array![(x0, y0), (x0, y0 + 1), (x0 + 1, y0), (x0 + 1, y0 + 1)].span())
+}
+
+/// Fix loop 1: a move that changes the window's chunks. The worst-case board stands at origin
+/// (37, 60) (chunks (2, 4), (2, 5), (3, 4), (3, 5)); the adventurer starts on (44, 66), an even
+/// row, so its window's origin is (37, 58) (chunks (2, 3), (2, 4), (3, 3), (3, 4)), and steps
+/// North-West onto (44, 67): the origin moves 2 rows and the chunk row changes.
+pub const SHIFT_ORIGIN: (u8, u8) = (37, 60);
+pub const SHIFT_START: (u8, u8) = (44, 66);
+/// North-West.
+pub const SHIFT_DIRECTION: u8 = 2;
+/// The chunks of both windows.
+pub const SHIFT_CHUNKS: [(u8, u8); 6] = [(2, 3), (2, 4), (2, 5), (3, 3), (3, 4), (3, 5)];
+/// Moves pending in the stored window (B'): each of the 4 chunks under the old window marks a tile
+/// the window knows is free (a goblin that left it), `(cx, cy, bit)`; chunks (2, 4) and (3, 4) also
+/// miss the goblins that entered them. Writing the window back changes all 4.
+pub const SHIFT_GHOSTS: [(u8, u8, u8); 4] = [(2, 3, 205), (3, 3, 197), (2, 4, 7), (3, 4, 0)];
 
 /// The reveal fixture: 3 chunks in an L, A = (2, 2), B = (3, 2), C = (2, 3) (C on an odd chunk
 /// row: the parity flag), in a location of 7 x 7 chunks. What sight of radius 6 can touch at once

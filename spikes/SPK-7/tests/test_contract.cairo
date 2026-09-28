@@ -7,7 +7,7 @@ use origami_hexmap::helpers::bits::Bits;
 use snforge_std::{ContractClassTrait, DeclareResultTrait, declare};
 use spk7::boards::{CAPPED_MOVES, CAPPED_TERRAIN};
 use spk7::contract::{IMapDispatcher, IMapDispatcherTrait, STAY};
-use spk7::fixtures::{REVEAL_CHUNKS, worst_adventurer, worst_origin};
+use spk7::fixtures::{REVEAL_CHUNKS, SHIFT_DIRECTION, SHIFT_ORIGIN, worst_adventurer, worst_origin};
 use spk7::tables::{COL_EAST, COL_WEST, ROW_NORTH, ROW_SOUTH};
 use spk7::window::Layers;
 use super::helpers::has;
@@ -57,14 +57,14 @@ fn check_after(map: IMapDispatcher, instance: u32) {
 }
 
 #[test]
-#[available_gas(l2_gas: 17390922)] // ceil(1.05 × 16562782 measured)
+#[available_gas(l2_gas: 17397474)] // ceil(1.05 × 16569022 measured)
 fn test_act_setup_baseline() {
     let map = deploy();
     map.setup_worst_case(1, false, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 19202173)] // ceil(1.05 × 18287783 measured)
+#[available_gas(l2_gas: 19225714)] // ceil(1.05 × 18310203 measured)
 fn test_act_worst_case_wait() {
     let map = deploy();
     map.setup_worst_case(1, false, false);
@@ -72,7 +72,7 @@ fn test_act_worst_case_wait() {
 }
 
 #[test]
-#[available_gas(l2_gas: 19270828)] // ceil(1.05 × 18353169 measured)
+#[available_gas(l2_gas: 19294369)] // ceil(1.05 × 18375589 measured)
 fn test_act_worst_case_move() {
     let map = deploy();
     map.setup_worst_case(1, true, false);
@@ -80,14 +80,14 @@ fn test_act_worst_case_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 19112590)] // ceil(1.05 × 18202466 measured)
+#[available_gas(l2_gas: 19119142)] // ceil(1.05 × 18208706 measured)
 fn test_act_stored_setup_baseline() {
     let map = deploy();
     map.setup_worst_case(1, false, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 21170513)] // ceil(1.05 × 20162393 measured)
+#[available_gas(l2_gas: 21194054)] // ceil(1.05 × 20184813 measured)
 fn test_act_stored_worst_case_wait() {
     let map = deploy();
     map.setup_worst_case(1, false, true);
@@ -95,7 +95,7 @@ fn test_act_stored_worst_case_wait() {
 }
 
 #[test]
-#[available_gas(l2_gas: 21177506)] // ceil(1.05 × 20169053 measured)
+#[available_gas(l2_gas: 21201047)] // ceil(1.05 × 20191473 measured)
 fn test_act_stored_worst_case_move() {
     let map = deploy();
     map.setup_worst_case(1, true, true);
@@ -103,14 +103,14 @@ fn test_act_stored_worst_case_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1780412)] // ceil(1.05 × 1695630 measured)
+#[available_gas(l2_gas: 1780622)] // ceil(1.05 × 1695830 measured)
 fn test_act_standin_setup_baseline() {
     let map = deploy();
     map.setup_standin(1, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 3362360)] // ceil(1.05 × 3202247 measured)
+#[available_gas(l2_gas: 3379559)] // ceil(1.05 × 3218627 measured)
 fn test_act_standin_worst_case_wait() {
     let map = deploy();
     map.setup_standin(1, false);
@@ -118,7 +118,7 @@ fn test_act_standin_worst_case_wait() {
 }
 
 #[test]
-#[available_gas(l2_gas: 3431015)] // ceil(1.05 × 3267633 measured)
+#[available_gas(l2_gas: 3448214)] // ceil(1.05 × 3284013 measured)
 fn test_act_standin_worst_case_move() {
     let map = deploy();
     map.setup_standin(1, true);
@@ -126,7 +126,7 @@ fn test_act_standin_worst_case_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 20717480)] // ceil(1.05 × 19730933 measured)
+#[available_gas(l2_gas: 20741021)] // ceil(1.05 × 19753353 measured)
 fn test_act_deferred_worst_case_wait() {
     let map = deploy();
     map.setup_worst_case(1, false, true);
@@ -134,7 +134,7 @@ fn test_act_deferred_worst_case_wait() {
 }
 
 #[test]
-#[available_gas(l2_gas: 21241092)] // ceil(1.05 × 20229611 measured)
+#[available_gas(l2_gas: 21264633)] // ceil(1.05 × 20252031 measured)
 fn test_act_deferred_worst_case_move() {
     let map = deploy();
     map.setup_worst_case(1, true, true);
@@ -142,7 +142,7 @@ fn test_act_deferred_worst_case_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 29246665)] // ceil(1.05 × 27853966 measured)
+#[available_gas(l2_gas: 29259559)] // ceil(1.05 × 27866246 measured)
 fn test_act_deferred_pending_setup_baseline() {
     let map = deploy();
     map.setup_worst_case(1, true, true);
@@ -150,7 +150,7 @@ fn test_act_deferred_pending_setup_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 33279636)] // ceil(1.05 × 31694891 measured)
+#[available_gas(l2_gas: 33309519)] // ceil(1.05 × 31723351 measured)
 fn test_act_deferred_worst_case_move_pending() {
     // The re-centre writes the 4 chunks back
     let map = deploy();
@@ -160,7 +160,7 @@ fn test_act_deferred_worst_case_move_pending() {
 }
 
 #[test]
-#[available_gas(l2_gas: 55634687)] // ceil(1.05 × 52985416 measured)
+#[available_gas(l2_gas: 55713059)] // ceil(1.05 × 53060056 measured)
 fn test_act_deferred_writes_back_when_the_window_moves() {
     // Wait (the window keeps the moves), then step West: the window moves, its occupancy goes back
     // into the chunks, and the next tick stays in the new window. A does the same on instance 2
@@ -202,8 +202,69 @@ fn test_act_deferred_writes_back_when_the_window_moves() {
     assert!(window.occupied == found);
 }
 
+// Fix loop 1: a move that changes the window's chunks, (37, 58) to (37, 60), A and B' on the
+// same destination; B' writes back its 4 old chunks, then reads the new set from storage.
+
 #[test]
-#[available_gas(l2_gas: 173732173)] // ceil(1.05 × 165459212 measured)
+#[available_gas(l2_gas: 20595370)] // ceil(1.05 × 19614638 measured)
+fn test_act_shift_setup_baseline() {
+    let map = deploy();
+    map.setup_shift(1, false);
+}
+
+#[test]
+#[available_gas(l2_gas: 22806195)] // ceil(1.05 × 21720185 measured)
+fn test_act_worst_case_shift() {
+    let map = deploy();
+    map.setup_shift(1, false);
+    map.act(1, SHIFT_DIRECTION);
+}
+
+#[test]
+#[available_gas(l2_gas: 23400366)] // ceil(1.05 × 22286062 measured)
+fn test_act_deferred_shift_setup_baseline() {
+    let map = deploy();
+    map.setup_shift(1, true);
+}
+
+#[test]
+#[available_gas(l2_gas: 25006073)] // ceil(1.05 × 23815307 measured)
+fn test_act_deferred_worst_case_shift() {
+    let map = deploy();
+    map.setup_shift(1, true);
+    map.act_deferred(1, SHIFT_DIRECTION);
+}
+
+#[test]
+#[available_gas(l2_gas: 49429278)] // ceil(1.05 × 47075502 measured)
+fn test_act_shift_moves_the_goblins_and_writes_back() {
+    let map = deploy();
+    map.setup_shift(1, false);
+    map.setup_shift(2, true);
+    map.act(1, SHIFT_DIRECTION);
+    map.act_deferred(2, SHIFT_DIRECTION);
+    let (ox, oy) = SHIFT_ORIGIN;
+    let mut expected: Array<(u8, u8)> = array![];
+    let mut occupied: felt252 = 0;
+    for to in CAPPED_MOVES.span() {
+        expected.append((ox + *to % 15, oy + *to / 15));
+        occupied += Bits::pow(*to);
+    }
+    assert!(map.goblins(1) == expected && map.goblins(2) == expected);
+    assert!(map.adventurer(2) == (ox + 7, oy + 7));
+    // B': the old window went back into its chunks (the ghosts are gone, the goblins are there)
+    assert!(map.chunk(2, 2, 3).occupied == 0 && map.chunk(2, 3, 3).occupied == 0);
+    let (origin, window) = map.stored_window(2);
+    assert!(origin == ox.into() + oy.into() * 256);
+    assert!(window.terrain == CAPPED_TERRAIN && window.occupied == occupied);
+    // The chunks of B' hold the goblins before the tick; A's hold them after
+    let before = map.chunk(2, 2, 4).occupied + map.chunk(2, 3, 4).occupied;
+    let after = map.chunk(1, 2, 4).occupied + map.chunk(1, 3, 4).occupied;
+    assert!(before != 0 && after != 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 173907817)] // ceil(1.05 × 165626492 measured)
 fn test_act_every_variant_moves_the_goblins() {
     // A and B, waiting and moving: the same goblins, chunks and window afterwards
     let map = deploy();
@@ -253,7 +314,7 @@ fn test_act_every_variant_moves_the_goblins() {
 }
 
 #[test]
-#[available_gas(l2_gas: 18383337)] // ceil(1.05 × 17507940 measured)
+#[available_gas(l2_gas: 18389889)] // ceil(1.05 × 17514180 measured)
 #[should_panic(expected: 'move: tile blocked')]
 fn test_act_refuses_a_blocked_tile() {
     // West of the goblin on local (5, 8) of the worst window, global (42, 60): stepping East
@@ -450,7 +511,7 @@ fn test_reveal_refuses_four_chunks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 19286753)] // ceil(1.05 × 18368336 measured)
+#[available_gas(l2_gas: 19293305)] // ceil(1.05 × 18374576 measured)
 fn test_window_view_is_layers() {
     let map = deploy();
     map.setup_worst_case(1, false, true);

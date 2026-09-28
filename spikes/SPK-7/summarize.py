@@ -51,6 +51,10 @@ def main():
         print(f"| A − S, adventurer {what} (the chunked map's part of the tick) | {a - s:,} |")
         print(f"| B − A, adventurer {what} (stored, chunks kept in sync, against assembled) | {b - a:,} |")
         print(f"| B′ − A, adventurer {what} (stored, occupancy deferred, its costliest case, against assembled) | {d - a:,} |")
+    shift_a = [first[k][0] for k in first if k.endswith("moves into another chunk row")]
+    shift_b = [first[k][0] for k in first if "chunk row changes" in k]
+    if shift_a and shift_b:
+        print(f"| B′ − A, the move changes the chunk row, same destination (4 chunks written back) | {shift_b[0] - shift_a[0]:,} |")
     print("\n| Reveal | Most expensive biome | L2 gas (max over runs) |")
     print("|---|---|---:|")
     for case in ("reveal 1 chunk, no neighbour known", "reveal 1 chunk, 4 neighbours known",

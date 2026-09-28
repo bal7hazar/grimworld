@@ -51,7 +51,7 @@ fn test_move_outside_the_window_chunks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 13232818)] // ceil(1.05 × 12602683 measured)
+#[available_gas(l2_gas: 13256359)] // ceil(1.05 × 12625103 measured)
 fn test_worst_case_tick_in_memory() {
     let (origin_x, origin_y) = worst_origin();
     let mut layers: Array<Layers> = array![];

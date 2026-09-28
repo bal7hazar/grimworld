@@ -30,14 +30,14 @@ fn two_chunks() -> (u8, u8, Array<Layers>) {
 }
 
 #[test]
-#[available_gas(l2_gas: 11515928)] // ceil(1.05 × 10967550 measured)
+#[available_gas(l2_gas: 11522270)] // ceil(1.05 × 10973590 measured)
 fn bench_assemble_4_chunks_baseline() {
     let (origin_x, origin_y, chunks) = four_chunks();
     assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 4);
 }
 
 #[test]
-#[available_gas(l2_gas: 11584949)] // ceil(1.05 × 11033284 measured)
+#[available_gas(l2_gas: 11591291)] // ceil(1.05 × 11039324 measured)
 fn bench_assemble_4_chunks() {
     let (origin_x, origin_y, chunks) = four_chunks();
     assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 4);
@@ -46,19 +46,62 @@ fn bench_assemble_4_chunks() {
 }
 
 #[test]
-#[available_gas(l2_gas: 11516421)] // ceil(1.05 × 10968020 measured)
+#[available_gas(l2_gas: 11526333)] // ceil(1.05 × 10977460 measured)
 fn bench_assemble_2_chunks_baseline() {
     let (origin_x, origin_y, chunks) = two_chunks();
     assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 2);
 }
 
 #[test]
-#[available_gas(l2_gas: 11553560)] // ceil(1.05 × 11003390 measured)
+#[available_gas(l2_gas: 11595669)] // ceil(1.05 × 11043494 measured)
 fn bench_assemble_2_chunks() {
     let (origin_x, origin_y, chunks) = two_chunks();
     assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 2);
     let window = assemble_window(origin_x, origin_y, chunks.span());
     assert!(window.terrain != 0);
+}
+
+// Fix loop 1: one call against two identical calls; the difference is exactly one assembly, with
+// no baseline artefact (the baseline method gave 35,370 then 66,034 for the same 2-chunk code).
+
+#[test]
+#[available_gas(l2_gas: 11660196)] // ceil(1.05 × 11104948 measured)
+fn bench_assemble_4_chunks_twice() {
+    let (origin_x, origin_y, chunks) = four_chunks();
+    assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 4);
+    let window = assemble_window(origin_x, origin_y, chunks.span());
+    let again = assemble_window(origin_x, origin_y, chunks.span());
+    assert!(window.terrain == CAPPED_TERRAIN && again == window);
+}
+
+#[test]
+#[available_gas(l2_gas: 11591711)] // ceil(1.05 × 11039724 measured)
+fn bench_assemble_4_chunks_once() {
+    let (origin_x, origin_y, chunks) = four_chunks();
+    assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 4);
+    let window = assemble_window(origin_x, origin_y, chunks.span());
+    let again = window;
+    assert!(window.terrain == CAPPED_TERRAIN && again == window);
+}
+
+#[test]
+#[available_gas(l2_gas: 11664049)] // ceil(1.05 × 11108618 measured)
+fn bench_assemble_2_chunks_twice() {
+    let (origin_x, origin_y, chunks) = two_chunks();
+    assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 2);
+    let window = assemble_window(origin_x, origin_y, chunks.span());
+    let again = assemble_window(origin_x, origin_y, chunks.span());
+    assert!(window.terrain != 0 && again == window);
+}
+
+#[test]
+#[available_gas(l2_gas: 11595564)] // ceil(1.05 × 11043394 measured)
+fn bench_assemble_2_chunks_once() {
+    let (origin_x, origin_y, chunks) = two_chunks();
+    assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 2);
+    let window = assemble_window(origin_x, origin_y, chunks.span());
+    let again = window;
+    assert!(window.terrain != 0 && again == window);
 }
 
 // --- Shared flood (N-8) on the winding boards
@@ -80,7 +123,7 @@ fn bench_flood_deep_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 374283)] // ceil(1.05 × 356460 measured)
+#[available_gas(l2_gas: 382515)] // ceil(1.05 × 364300 measured)
 fn bench_flood_deep_10() {
     let free = free_of(DEEP_TERRAIN, DEEP_GOBLINS.span());
     assert!(free != 0);
@@ -89,7 +132,7 @@ fn bench_flood_deep_10() {
 }
 
 #[test]
-#[available_gas(l2_gas: 508746)] // ceil(1.05 × 484520 measured)
+#[available_gas(l2_gas: 521388)] // ceil(1.05 × 496560 measured)
 fn bench_flood_deep_15() {
     let free = free_of(DEEP_TERRAIN, DEEP_GOBLINS.span());
     assert!(free != 0);
@@ -98,7 +141,7 @@ fn bench_flood_deep_15() {
 }
 
 #[test]
-#[available_gas(l2_gas: 643209)] // ceil(1.05 × 612580 measured)
+#[available_gas(l2_gas: 660261)] // ceil(1.05 × 628820 measured)
 fn bench_flood_deep_20() {
     let free = free_of(DEEP_TERRAIN, DEEP_GOBLINS.span());
     assert!(free != 0);
@@ -107,7 +150,7 @@ fn bench_flood_deep_20() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2498168)] // ceil(1.05 × 2379207 measured)
+#[available_gas(l2_gas: 2570061)] // ceil(1.05 × 2447677 measured)
 fn bench_flood_deep_unlimited() {
     let free = free_of(DEEP_TERRAIN, DEEP_GOBLINS.span());
     assert!(free != 0);
@@ -124,7 +167,7 @@ fn bench_flood_capped_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 691819)] // ceil(1.05 × 658875 measured)
+#[available_gas(l2_gas: 708808)] // ceil(1.05 × 675055 measured)
 fn bench_flood_capped() {
     let free = free_of(CAPPED_TERRAIN, CAPPED_GOBLINS.span());
     assert!(free != 0);
@@ -158,7 +201,7 @@ fn tick_inputs() -> (u8, u8, Array<Layers>, Array<(u8, u8)>, ChunkOccupancy, Lay
 }
 
 #[test]
-#[available_gas(l2_gas: 11585049)] // ceil(1.05 × 11033380 measured)
+#[available_gas(l2_gas: 11591601)] // ceil(1.05 × 11039620 measured)
 fn bench_tick_baseline() {
     let (origin_x, origin_y, chunks, goblins, occupancy, window) = tick_inputs();
     assert!(origin_x != 0 && origin_y != 0 && chunks.len() == 4 && goblins.len() == 8);
@@ -166,7 +209,7 @@ fn bench_tick_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 12776334)] // ceil(1.05 × 12167937 measured)
+#[available_gas(l2_gas: 12799875)] // ceil(1.05 × 12190357 measured)
 fn bench_tick_goblins() {
     // The window already assembled: the flood and the 8 steps
     let (origin_x, origin_y, chunks, goblins, occupancy, window) = tick_inputs();
@@ -179,7 +222,7 @@ fn bench_tick_goblins() {
 }
 
 #[test]
-#[available_gas(l2_gas: 13097311)] // ceil(1.05 × 12473629 measured)
+#[available_gas(l2_gas: 13120852)] // ceil(1.05 × 12496049 measured)
 fn bench_tick_full() {
     // Assembly, flood, steps, and the chunks' occupied layers updated
     let (origin_x, origin_y, chunks, goblins, occupancy, window) = tick_inputs();
@@ -321,16 +364,18 @@ fn bench_line_of_sight() {
 }
 
 #[test]
-#[available_gas(l2_gas: 512841)] // ceil(1.05 × 488420 measured)
-fn bench_flood_capped_no_goblins() {
+#[available_gas(l2_gas: 528780)] // ceil(1.05 × 503600 measured)
+fn bench_flood_capped_unreachable_goblin() {
+    // One target on tile 0, never reached: the 15 layers without any hit (no target at all
+    // computes no layer)
     let free = free_of(CAPPED_TERRAIN, CAPPED_GOBLINS.span());
     assert!(free != 0);
-    let (layers, _) = shared_flood(free, 112, array![].span(), FLOOD_LAYERS);
+    let (layers, _) = shared_flood(free, 112, array![0].span(), FLOOD_LAYERS);
     assert!(layers.len() == 16);
 }
 
 #[test]
-#[available_gas(l2_gas: 517433)] // ceil(1.05 × 492793 measured)
+#[available_gas(l2_gas: 535682)] // ceil(1.05 × 510173 measured)
 fn bench_flood_capped_one_goblin() {
     let free = free_of(CAPPED_TERRAIN, CAPPED_GOBLINS.span());
     assert!(free != 0);

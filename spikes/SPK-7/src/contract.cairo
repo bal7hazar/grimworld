@@ -47,6 +47,7 @@ pub trait IMap<T> {
     fn setup_reveal(ref self: T, instance: u32, biome: u8, case: u8);
     fn setup_standin(ref self: T, instance: u32, moved: bool);
     fn setup_stale(ref self: T, instance: u32);
+    fn setup_shift(ref self: T, instance: u32, deferred: bool);
     // Measured
     fn reveal(ref self: T, instance: u32, chunks: Array<(u8, u8)>);
     fn act(ref self: T, instance: u32, direction: u8);
@@ -140,7 +141,8 @@ pub mod Instances {
     use crate::boards::CAPPED_TERRAIN;
     use crate::chunk::{Biome, Side, Sides, generate_chunk};
     use crate::fixtures::{
-        LOCATION, REVEAL_AROUND, neighbour_terrain, worst_adventurer, worst_chunks, worst_goblins,
+        LOCATION, REVEAL_AROUND, SHIFT_CHUNKS, SHIFT_GHOSTS, SHIFT_ORIGIN, SHIFT_START, chunks_at,
+        goblins_at, neighbour_terrain, worst_adventurer, worst_chunks, worst_goblins,
     };
     use crate::flood::FLOOD_LAYERS;
     use crate::tick::{ChunkOccupancy, apply_moves, world_tick};
@@ -364,6 +366,29 @@ pub mod Instances {
         fn setup_stale(ref self: ContractState, instance: u32) {
             for (cx, cy, _) in worst_chunks() {
                 self.chunks.entry(chunk_key(instance, cx, cy)).occupied.write(0);
+            }
+        }
+
+        /// Fix loop 1: the move that changes the window's chunks (`fixtures::SHIFT_*`). With
+        /// `deferred`, the stored window of B' sits at the old origin with moves pending in all 4
+        /// of its chunks.
+        fn setup_shift(ref self: ContractState, instance: u32, deferred: bool) {
+            let (ox, oy) = SHIFT_ORIGIN;
+            for (cx, cy, layers) in chunks_at(ox, oy, SHIFT_CHUNKS.span()) {
+                self.setup_chunk(instance, cx, cy, layers.terrain, layers.occupied);
+            }
+            self.setup_goblins(instance, goblins_at(ox, oy));
+            let (x, y) = SHIFT_START;
+            self.setup_adventurer(instance, x, y);
+            if deferred {
+                self.setup_window(instance);
+                for (cx, cy, bit) in SHIFT_GHOSTS.span() {
+                    self
+                        .chunks
+                        .entry(chunk_key(instance, *cx, *cy))
+                        .occupied
+                        .write(Bits::pow(*bit));
+                }
             }
         }
 
