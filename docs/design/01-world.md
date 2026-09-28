@@ -55,14 +55,14 @@ World
 
 | Location | Layout | Populations |
 |---|---|---|
-| Explorable zone | **Authored**: level design stored as data, any size. Same for everyone, learnable, mappable by the community | **Fixed**: positions, castes and levels are set by hand and do not scale |
+| Explorable zone | **Generated at reveal**, within the zone's biome, level band and set pieces | Generated; levels within the zone's band, never scaled to the adventurer |
 | Dungeon | **Shifting**: derived from the instance seed. Different each run | Vary per instance seed |
 | Elite zone | Fixed layout, hand-tuned parameters | Hand-tuned packs, varies lightly |
 
-Rationale: authored zones give the world a sense of place and a geography of danger
-(GW1); generated dungeons give replayability (Pixel Dungeon). Zones are generated
-off-chain at first and baked into the registry, then drawn in an editor
-([ADR-0006](../architecture/ADR-0006-chunked-maps.md)).
+Every location is generated chunk by chunk when revealed
+([ADR-0006](../architecture/ADR-0006-chunked-maps.md)). A zone keeps a character of its
+own through its biome, its level band, its anchors (where its gates are) and its authored
+set pieces.
 
 ## Horizontal scaling
 

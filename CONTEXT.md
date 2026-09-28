@@ -125,7 +125,7 @@ owner, with the date), Superseded.
 | D-03 | Hubs have no on-chain geometry; presence is off-chain and cosmetic | design/02 | Accepted 2026-09-28 |
 | D-04 | Defeat costs the instance only: experience, loot and quest progress are kept | design/02 | Proposed (revised after the owner found loot loss too harsh) |
 | D-05 | Instances are not saved: leaving closes the instance, re-entering creates a new one | design/02 | Accepted 2026-09-28 |
-| D-10 | Zones are fixed (authored), dungeons shifting (generated) | design/01, ADR-0006 | Accepted 2026-09-28 |
+| D-10 | ~~Zones fixed, dungeons shifting~~ | — | Superseded by D-64: everything is generated |
 | D-11 | Hexagonal maps, pointy-top, on `origami_hexmap` | design/02 | Accepted 2026-09-28 |
 | D-20 | Ten ranks: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Onyx; promotion needs merit and a trial quest in a dungeon | design/06 | Accepted 2026-09-28 |
 | D-100 | **The chain is invisible**: the player never pays a fee, never sees a wallet, a signature, a transaction or a token. The business model covers network costs | design/00 | Accepted 2026-09-28 |
@@ -137,7 +137,7 @@ owner, with the date), Superseded.
 | D-51 | Alchemy discovery is per adventurer and per regional book | design/07 | Accepted 2026-09-28 |
 | D-52 | Recipes have a rarity signature, identical for every adventurer | design/07 | Proposed; kept only if its step cost is negligible (SPK-2) |
 | D-60 | Execute on Starknet mainnet; persistent and ephemeral domains split in code | ADR-0001 | Accepted 2026-09-28, subject to spikes |
-| D-61 | Two randomness classes, Fate (vRNG) and Fog (seeded hash) | ADR-0002 | Proposed |
+| D-61 | Two randomness classes, Fate and Fog; **layouts are Fate** | ADR-0002 | Proposed, revised |
 | D-62 | Client: TypeScript, PixiJS on demand, Capacitor; mobile first | ADR-0003 | Accepted 2026-09-28, subject to SPK-6 |
 | D-72 | The orchestrator merges on green CI and audits, and deploys to Sepolia autonomously | OPERATIONS §7 | Accepted 2026-09-28 |
 | D-73 | `assets/` and anything derived from it is never committed; licence forbids redistribution | design/10 | Accepted 2026-09-28 |
@@ -145,7 +145,7 @@ owner, with the date), Superseded.
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
 | D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Proposed |
-| D-64 | Large maps cut in chunks, simulated in a window centred on the adventurer. Zones are authored data with fixed goblins and levels; dungeons are generated. Rule of sight provisional | ADR-0006 | Accepted 2026-09-28, costs subject to SPK-7 |
+| D-64 | Large maps cut in chunks, **generated at reveal from a fresh random word**, simulated in a window centred on the adventurer. Constraints as bands, quotas and anchors. Rule of sight provisional | ADR-0006 | Accepted 2026-09-28, costs subject to SPK-7 |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Proposed (owner's idea, to design later) |
 
 ## 7. Open questions

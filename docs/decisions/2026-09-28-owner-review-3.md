@@ -43,7 +43,10 @@
 | D-99 | Collectors are characters met in exploration zones who barter items against items. No stillstone, no gold |
 
 | D-103 | Maps are large and cut in chunks; goblins cross chunks; top-down camera (ADR-0006). Generation with margins is added to the map library by the owner |
-| D-104 | **Zones are level design**: terrain, goblins and characters at fixed places, goblin levels fixed, no scaling with the adventurer or a party. Generated off-chain at first, drawn with tooling later. Generation on-chain is kept for dungeons |
+| D-104 | ~~Zones are authored level design~~ Replaced the same day by D-106 |
+| D-106 | **Fully generative**: zones and dungeons are generated chunk by chunk at reveal, under generic constraints (level band of the zone) and contextual ones (what an active quest or contract needs). Nothing scales with the adventurer |
+| D-107 | A fog of war must resist reading the chain: what is not yet seen must not be derivable. Accepted risk for nothing |
+| D-108 | Guild contracts do not scale. Easy ones can be redone; guild rank opens harder, better-paid ones |
 | D-105 | What is revealed of a map belongs to the instance and resets with a new one |
 | — | Rule of sight (same information on every screen): adopted provisionally; the owner rules after testing |
 

@@ -112,7 +112,9 @@ Inspired by the baseline's daily contracts, present from the start.
 |---|---|
 | Available from | Level 10 |
 | Offered | 3 per day on the board of each hub, drawn from a list; one held at a time |
-| Foes | Scaled to the adventurer's level, in steps |
+| Foes | **Never scaled.** Each contract states its foes and their levels. Easy contracts stay available and can be redone |
+| Rank | A higher guild rank gives access to **new contracts**, harder and better paid |
+| In the zone | A held contract adds its targets to the zone as a quota (ADR-0006) |
 | Types | Annihilation (kill 6 pack leaders in a zone), Bounty (kill a named goblin), Search (reach a marker deep in a zone) |
 | Give | 1 000 xp, 50 gold, merit with diminishing returns ([06-guild](06-guild.md#rules)) |
 

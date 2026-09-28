@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Proposed** — depends on [ADR-0001](ADR-0001-execution-layer.md) |
+| Status | **Proposed**, revised 2026-09-28: layouts move from Fog to Fate ([ADR-0006](ADR-0006-chunked-maps.md)) |
 | Date | 2026-09-28 |
 | Decides | Which outcomes are random, and where each random value comes from |
 
@@ -19,8 +19,8 @@ Two classes of randomness, never mixed.
 
 | Class | Source | Predictable by the player | Used for |
 |---|---|---|---|
-| **Fate** | Cartridge vRNG, consumed in the transaction | No | Instance seed, loot, alchemy discovery, hints |
-| **Fog** | Poseidon hash of a stored seed and public coordinates | Yes, with a modified client | Room layout, pack placement, goblin caste and level in a pack |
+| **Fate** | Cartridge vRNG, consumed in the transaction | No | **The content of a chunk, at reveal**: terrain, packs, features, quotas; loot, identification, salvage, alchemy discovery |
+| **Fog** | Poseidon hash of a stored value and public coordinates | Yes, with a modified client | Only what derives from a word **already revealed**: details inside a chunk once it exists |
 
 And one class that does not exist: **combat has no randomness** (D-40).
 
@@ -39,16 +39,16 @@ And one class that does not exist: **combat has no randomness** (D-40).
 5. **No re-roll.** State that records a pending Fate draw (remains on a tile, an untried
    pair) is consumed in the same transaction as the draw. There is no path where a player
    sees a result and the draw is still pending.
-6. **The instance seed is Fate; what derives from it is Fog.** The seed is unpredictable
-   before entry, so an instance cannot be chosen; once inside, its content is
-   deterministic and public.
+6. **Nothing is decided before it is seen.** There is no instance seed from which a whole
+   location could be computed. Each reveal draws its own word (owner's requirement: a fog
+   of war that reading the chain cannot lift).
 
-### Accepted limitation
+### Hidden information
 
-Fog is visible to anyone who reads the chain and runs the generator. A modified client can
-show the whole layout of an instance. This does not change rewards (rule 1) and is
-accepted as a non-goal for v1. Should hidden information become a requirement, it needs
-its own ADR.
+A value stored on a public chain is known to all. The only information that can be hidden
+is information that does not exist yet. Layouts are therefore drawn at reveal. What
+remains public, and accepted: everything about chunks already revealed, and the anchors
+of a location (where its gates are).
 
 ## Trust model
 
@@ -65,7 +65,8 @@ not shipped.
 
 ## Consequences
 
-- The client can predict every tactical outcome exactly and must wait for every reward.
+- The client can predict every tactical outcome exactly and must wait for every reward
+  **and every reveal**.
 - Loot tables and alchemy can be tuned freely without touching determinism.
 - Auditors have a simple test: *any read of the random word outside the Fate entrypoints
   is a finding; any reward decided by Fog is a finding.*

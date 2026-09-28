@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.8, 2026-09-28** (v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.9, 2026-09-28** (v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -62,8 +62,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
 | LIB-01 | Map library: **generation of a board given its margins** (owner, in the library), board assembly from chunks, line of sight; outside this repository | — | Owner | — | todo |
-| TOOL-01 | Zone tool, first version: generates a zone off-chain (terrain, goblins with fixed levels, characters, features) and writes the registry data | LIB-01 | Opus 5.5 | D V Q | todo |
-| TOOL-02 | Zone editor: draw terrain and place goblins and characters by hand, import and export the same format | TOOL-01 | Opus 5.5 | D V Q | todo (after MVP start) |
+| TOOL-01 | Set-piece tool: draw an authored chunk (terrain, placements, edges) and write it to the registry | LIB-01 | Opus 5.5 | D V Q | todo (after MVP start) |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
 
@@ -78,7 +77,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ENG-02 | Helpers: packer, seeder, fixed-point table; hex line of sight and arcs on top of `origami_hexmap` | ENG-01 | Opus 5.5 | P C Q | todo |
 | ENG-03 | Registries: region, location, gate + seed data for a test region | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q | todo |
-| ENG-05 | Zones: chunks and placements read from the registry, revealed per instance. Dungeons: chunk generation on reveal (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D P C Q | todo |
+| ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D S P C Q + codex | todo |
 | ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; instance seed (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
 | ENG-07 | Movement, facing, simulation window and its re-centring, action queue with stop conditions, instance clock | ENG-05, ENG-06 | Opus 5.5 | D S P C Q | todo |
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
@@ -234,6 +233,8 @@ the owner, and **due before the phase that consumes it**.
 | R-10 | An asset or a derived sprite gets committed by an agent | Medium | Medium | `.gitignore`; rule in `COMMON.md`; CI check refusing image files outside an allowlist | Every phase |
 | R-11 | Store rejects the app (thin wrapper, on-chain content) | Medium | High | Bundle assets, behave as an app; HRD-08 early enough to react | Phase 5 |
 | R-12 | Chunked maps exceed the cost budget (window assembly, chunk generation on reveal, flood) | Medium | High | Stored window re-centred with hysteresis; one shared flood per tick; fallback window 11 × 11; SPK-7 before ENG-05 | Phase 0 |
+| R-16 | Generated zones feel the same | Medium | Medium | Biomes, bands, authored set pieces placed by quota; playtest at the fun gate | Phase 3 |
+| R-17 | Exploring depends on the random source being up | Medium | High | SPK-3 and SPK-9; fighting in revealed terrain does not depend on it | Phase 0 |
 | R-15 | Seamless generation across chunks needs a capability the map library does not have | Medium | High | LIB-01; rooms-and-corridors generation as fallback for dungeons | Phase 0 |
 | R-13 | The MVP grows beyond what a first release can carry (equipment loot, sets, trade, auction house added) | High | High | Phase 4 split in two gates; fun gate at Phase 3 stays before any of it is built | Phase 4 |
 | R-14 | Gold and items traded for real money outside the game; bots farming | Medium | High | Fees as gold sinks, listing limits, account age; examined with Q-07 | Phase 4 |
