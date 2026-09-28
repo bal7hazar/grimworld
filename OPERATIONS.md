@@ -158,6 +158,14 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
 - **Concurrency budget**: **3 Grim World agents at a time**, beside the agents of the
   owner's other programmes on the same machine (about 6 machine-wide). Before launching:
   `systemctl --user list-units --type=service --state=running`, `free -g`, `uptime`.
+  **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
+  average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
+  check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
+  both thresholds, fixed in the script, on every launch and resume (exit 4, before any
+  worktree is created); `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
+  `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
+  still start one.
 - **Heavy builds are serialised** through two locks, taken in this order by
   `scripts/lock.sh`: the project lock `/tmp/grimworld-build.lock` (one heavy Grim World
   command at a time), then the machine-wide `~/orchestrator/heavy-build.lock` shared with the

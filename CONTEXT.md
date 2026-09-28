@@ -43,7 +43,7 @@ SPK-5, not here.
 | Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
 | Fees | Always paid by the game |
 | Randomness | Behind an interface. **MVP: transaction hash**, known to be steerable. Version 1: a verifiable source ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
-| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 for now (in `crates/hexmap`; `crates/map` is the older square-grid library). Successor decided by track LIB |
+| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 is the reference engine (in `crates/hexmap`; `crates/map` is the older square-grid library) but **does not build on the game's compiler** (N-9). Successor: `hexx-cairo` (D-119), consumed by published version from the first release that builds on Dojo's Cairo |
 | Client | TypeScript, dojo.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
 | Art | Pixel art, 64 × 64 tiles, *Tiny Swords* pack by Pixel Frog as prototype ([design/10](docs/design/10-art-direction.md)) |
 
@@ -88,8 +88,8 @@ Use these words, in code and in prose, with these meanings only.
 | **Action** | One player input in an instance, with a tick cost |
 | **Queue** | Several actions submitted in one transaction |
 | **Chunk** | 15 × 15 tiles: the unit of storage and generation of a map |
-| **Window** | The 15 × 15 board centred on the adventurer on which a tick is computed |
-| **Sight** | The hexagon of radius 6 within which goblins are shown |
+| **Window** | The board of 15 columns × 16 rows on which a tick is computed. It follows the adventurer and is assembled from the chunks at each tick, never stored |
+| **Sight** | The hexagon of radius 6 within which goblins are shown; always inside the window |
 | **Facing / arc** | The direction an actor looks at; front, front-side, rear-side and back tiles around it |
 | **Gate** | A link between two locations |
 | **Caste** | A type of goblin |
@@ -150,7 +150,11 @@ owner, with the date), Superseded.
 | D-64 | Large maps cut in chunks, **generated at reveal from a fresh random word**, simulated in a window centred on the adventurer. Constraints as bands, quotas and anchors. Rule of sight provisional | ADR-0006 | Accepted 2026-09-28, costs subject to SPK-7 |
 | D-115 | Promotion trials are generated like any dungeon; size, band and quotas are fixed per rank | design/06 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-116 | Every mainnet deployment and every mainnet registry write needs an explicit go from the owner | OPERATIONS §7 | Accepted 2026-09-28 (owner adopts the recommendation) |
-| D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28 |
+| D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28; **its first sentence proved false the same day** (N-9): the game cannot build 1.8.0 |
+| D-119 | Map library: **`hexx` is ported in full** (feature parity wherever it makes sense on-chain, extended with what Cairo and the network require) in **`bal7hazar/hexx-cairo`**, which takes over the engine of `origami_hexmap` with identical results; `origami_hexmap` is decommissioned once the port is complete and the game has migrated. `u252` becomes its own crate in `bal7hazar/types-cairo` | [decisions/2026-09-28-L-G1-hexx-port](docs/decisions/2026-09-28-L-G1-hexx-port.md) | Accepted 2026-09-28 (owner, at gate L-G1; differs from the recommendation) |
+| D-122 | N-9: the map library must build with the compiler Dojo imposes on the game (Cairo 2.13 today), `snforge_std` as a dev-dependency. LIB-03 studies the compiler floor and the alternative of a separate class; the owner decides at gate L-G2. SPK-7 runs standalone on Cairo 2.19 meanwhile | [decisions/2026-09-28-N-9-compiler-target](docs/decisions/2026-09-28-N-9-compiler-target.md) | Project manager's arbitration, 2026-09-28; compiler target left to the owner at L-G2 |
+| D-120 | **The simulation window follows the adventurer**: no margin of 3 tiles, no cut of sight at the ring. Window of **15 columns × 16 rows**, origin on an even row, **not stored**, assembled at each tick without a loop over rows. Fallback: sight 5 on 13 × 14. Chunks stay 15 × 15 | ADR-0006 §4, [decisions/2026-09-28-window-follows](docs/decisions/2026-09-28-window-follows.md) | Accepted 2026-09-28 (owner), cost subject to SPK-7 |
+| D-121 | `main` is not protected on GitHub for now, on either repository: freedom during the kick-start. The residual of finding F4 (FND-03 audit) is accepted; raised again at the gate of Phase 0 | [decisions/2026-09-28-G-1-main-protection](docs/decisions/2026-09-28-G-1-main-protection.md) | Accepted 2026-09-28 (owner; differs from the recommendation) |
 | D-118 | Concurrency: 3 Grim World agents at a time on the VPS, beside the other programmes | OPERATIONS §3 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Accepted 2026-09-28 (owner adopts the recommendation) |
 

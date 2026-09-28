@@ -1,6 +1,6 @@
 # 02 — Core loop: tick, instances, expeditions
 
-> Status: **Draft v0.3** — v0.3: reconciled with ADR-0006 (chunks, window, sight).
+> Status: **Draft v0.4** — v0.4: the window follows the adventurer, 15 × 16, not stored (D-120); v0.3: reconciled with ADR-0006 (chunks, window, sight).
 
 ## The tick (D-01)
 
@@ -122,8 +122,8 @@ mechanism and its reasons are in
 |---|---|---|
 | **Tile** | A pointy-top hex, with global coordinates `(x, y)` in its location | — |
 | **Chunk** | Unit of storage and generation | 15 × 15 tiles, one felt per layer |
-| **Window** | The board on which a tick is computed, centred on the adventurer | 15 × 15 tiles |
-| **Sight** | Where goblins are shown | Hexagon of radius 6 around the adventurer |
+| **Window** | The board on which a tick is computed. It follows the adventurer and is assembled from the chunks at each tick, never stored | 15 columns × 16 rows |
+| **Sight** | Where goblins are shown | Hexagon of radius 6 around the adventurer, always inside the window |
 
 | | |
 |---|---|
@@ -142,12 +142,12 @@ On-chain execution is bounded per transaction, so the design enforces:
 | Only the **window** is simulated | Goblins outside it are frozen |
 | Awake goblins | ≤ 8: the nearest to the adventurer, ties by lowest id |
 | Pathfinding | **One flood per tick, not one per goblin**: a single breadth-first flood from the adventurer on the window gives every goblin its next step |
-| Re-centring | The window moves only when the adventurer comes within 3 tiles of its edge |
+| The window | Follows the adventurer at every move; assembled at each tick from the 2 to 4 chunks it overlaps, two layers each; no write |
 | Chunks revealed by one action | ≤ 3 |
 | Actions per transaction | Batched up to a cap set by measurement (Phase 0) |
 
 Goblins **follow** the adventurer from chunk to chunk for as long as they are in the
-window. Outrunning them is leaving it; they then walk back to where they stood, regenerate
+window, which moves with the adventurer. Outrunning them is putting them out of it; they then walk back to where they stood, regenerate
 and return to their first state.
 
 ## Action batching and interruption
