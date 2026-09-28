@@ -1,41 +1,38 @@
 # Status
 
-**2026-09-28 20:55 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 21:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-03, SPK-5, SPK-5b, FND-01,
-FND-01b, FND-02, ART-00, **SPK-2** (cost), **SPK-11** (indexer). Running: **FND-06** (gas tooling,
-Sonnet 5.5). **SPK-1 unblocked** (the owner's Sepolia account, 20:21 UTC): first at the next free
-slot, with `--with-sepolia`; the budget of 3 is full (FND-06, hexmap LIB-04, quiver ARC-02). Then
-the `[GPT-6-Sol]` audit of #43, SPK-7, FND-05, SPK-4.
+FND-01b, FND-02, ART-00, SPK-2 (cost), SPK-11 (indexer), **FND-06** (gas tooling), **SPK-1**
+(Sepolia). Running: **SPK-7** (chunked maps, Opus 5.5). **Decision requested** of the project
+manager on the cost threshold (D-129 point 4). Launcher hardening (#48) in re-audit.
 
 ## What moved
 
 | | |
 |---|---|
-| **SPK-2 merged** | [#25](https://github.com/bal7hazar/grimworld/pull/25): native worst tick under D-127 **5.16M L2 gas** (0.27× Dojo); a 300-action expedition **$0.69 to $0.93** natively ($1.21 to $2.83 on Dojo): ADR-0001's $0.50 does not hold on the local node's figures. `[GPT-6-Astra]` PASS WITH FINDINGS after three fix loops. Decided by the project manager: **D-129**, the threshold stays the target, SPK-1 on Sepolia first |
-| **SPK-11 merged** | [#31](https://github.com/bal7hazar/grimworld/pull/31): our own indexer, reorg-safe (no stale answer on restart, live or mid-read), nine events for ENG-01. `[GPT-6-Sol]` PASS after two fix loops. Decided: **D-130**, our own indexer (IDX-01, IDX-02) |
-| Sonnet 5.5 | [#33](https://github.com/bal7hazar/grimworld/pull/33): `sonnet` launches `[Sonnet 5.5]`; a resume needs its launch record and the same model; `new` needs a closed task |
-| Secrets | [#38](https://github.com/bal7hazar/grimworld/pull/38): every agent runs with the registry token emptied; reading `~/.claude`, printing it, `env`, `scarb publish` denied. Residual (an interpreter can read the same user's settings file) sent to the project manager for the owner |
-| Sepolia account | [#43](https://github.com/bal7hazar/grimworld/pull/43): the launcher empties the account's variables for every agent unless launched with `--with-sepolia` (the claude CLI would otherwise hand them to all). [SPK-1 brief](docs/briefs/SPK-1-sepolia.md): the agent deploys and measures with the account, by name only, chain id checked before sending, at most 70 measured transactions |
-| D-131 | quiver gate A-G1: an instance snapshots up to 16 task ids at entry and reports them in one aggregated call; an ENG-01 input (PLAN row) |
-| Process | A `gh pr checks … \| tail -1` chain went on after a failed check (no merge followed); every merged PR was verified green; checks are now read by their exit code |
+| **SPK-1 merged** | [#45](https://github.com/bal7hazar/grimworld/pull/45): SPK-2's native contracts deployed on Sepolia and measured from the owner's account, 105 transactions, 72.22 test STRK. Expedition **$0.874 / $0.685** at today's mainnet prices: **$0.50 does not hold**; about 1.09M L2 gas of every transaction is account and protocol, more than S1's whole fight budget. p95 to pre-confirmed 2.8 s (met), p50 not decided. `[GPT-6-Astra]` PASS WITH FINDINGS after one fix loop; the two remaining minors fixed by the orchestrator. Secret scan: 0 occurrences of the key or the address anywhere |
+| **Cost decision** | [docs/decisions/2026-09-28-sepolia-verdict.md](docs/decisions/2026-09-28-sepolia-verdict.md), sent to the project manager: recommend reopening the queue in fights (DES, before ENG-01), a narrow SPK-1b on the burner class and a paymaster, and no restated threshold yet |
+| **FND-06 merged** | [#42](https://github.com/bal7hazar/grimworld/pull/42): `scripts/gas_budgets.py` generates `docs/BUDGETS.md` and per-package `GAS.md`; CI fails on a test without budget, a loose budget, an unreasoned raise, a stale file. `[GPT-6-Sol]` PASS WITH FINDINGS after two fix loops. CAIRO §2: one budget per fuzz or parameterized test (the most expensive case); raises agreed by the orchestrator at review |
+| Sepolia account scoped | [#43](https://github.com/bal7hazar/grimworld/pull/43): agents get the account only with `--with-sepolia`; [#48](https://github.com/bal7hazar/grimworld/pull/48) binds it to the brief (in re-audit) |
+| Agent budget enforced | [#46](https://github.com/bal7hazar/grimworld/pull/46): the launcher refuses a launch at 3 agents, after I ran a fourth for one minute (FND-06, stopped and resumed). The audit found gaps (a count that failed open, races between orchestrators): #48 fails closed and serialises count and start under `~/orchestrator/agent-launch.lock`, **which the other tracks' launchers should take too** |
+| D-132 | No sub-agent publishes; COMMON §4 says so |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-06 running |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-7 running; #48 re-audit queued |
 | Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)` | `claude-fable-5-1` | LIB-04 running |
 
-| Game agent | Unit | Model asked | Profile | Started |
+| Game agent | Unit | Model (ran) | Profile | Started |
 |---|---|---|---|---|
-| FND-06 gas tooling | `grimworld-FND-06-202925` | `claude-sonnet-5-5` | implement | 20:29 UTC |
+| SPK-7 chunked maps | `grimworld-SPK-7-212404` | `claude-opus-5-5` | implement | 21:24 UTC |
 
-Budget (OPERATIONS §3): 3 Grim World agents at a time, audits included, across the game, the
-map library and quiver: 1 slot of the game's own, 1 shared. At 20:29 UTC: LIB-04, a quiver
-audit, FND-06. Load 3.9, 22 GB available.
+Budget (OPERATIONS §3): 3 Grim World agents at a time, audits included. At 21:29 UTC: SPK-7,
+hexmap LIB-04, quiver ARC-03a. Load 7.0, 18 GB available.
 
 ## Waiting for the owner
 
@@ -48,10 +45,10 @@ Open without urgency: Q-12, the lore premise.
 
 ## Next
 
-1. FND-06: audit, merge.
-2. SPK-7 (Opus 5.5, flood at 10/15/20 layers and unlimited, D-127), FND-05 (with
-   `[GPT-6-Astra]`), SPK-4; one at a time within the budget.
-3. SPK-1 when the owner provides the Sepolia credentials.
+1. #48: re-audit `[GPT-6-Sol]`, merge.
+2. SPK-7: review, audit, merge.
+3. FND-05 (with `[GPT-6-Astra]`), SPK-4; then what the project manager decides on the cost
+   threshold (a DES on the queue in fights, SPK-1b).
 
 ## For the project manager
 
@@ -72,13 +69,13 @@ input of SPK-11 and ENG-01.
 
 | What | By |
 |---|---|
-| SPK-1, deployments | Sepolia credentials, Phase 1 |
 | SPK-6 | Real phones: the owner runs the protocol the orchestrator writes |
 | Mainnet | An explicit go from the owner, each time (D-116) |
 
 ## Decisions needed
 
-None from the game orchestrator. G-1 was answered by the owner (D-121: `main` not protected
+**D-129 point 4**, the cost threshold on Sepolia's figures: sent to the project manager
+([request](docs/decisions/2026-09-28-sepolia-verdict.md)). G-1 was answered by the owner (D-121: `main` not protected
 for now; the residual of the FND-03 audit's finding F4 is accepted until the gate of Phase 0).
 
 ## Open on the owner's side (not blocking)
@@ -113,12 +110,13 @@ need them: effect catalogue, remaining skills, caste sheets, curves, content lis
   cgroup, keeping the sandbox (OPERATIONS §3); an app restart kills a running audit, which is
   then resumed. A root change (an AppArmor profile for `bwrap`) would let codex run as a unit;
   not needed today. No system setting was changed.
-- `sozo`, `katana` and `torii` are still absent (SPK-5); Sepolia credentials are not in the
-  environment and not needed before Phase 1; the `assets` submodule is not initialised in the
+- `sozo`, `katana` and `torii` are still absent (SPK-5); the Sepolia account is in the
+  machine's settings since 20:21 UTC (checked by name), given to agents only with
+  `--with-sepolia`; the `assets` submodule is not initialised in the
   main checkout (an independent clone of `tiny-swords` is in `~/projects/assets`).
 
 ## Not verified
 
-- Latency and cost on mainnet: public data only, no transaction of ours.
+- Latency and cost on mainnet: public data and Sepolia only, no mainnet transaction of ours.
 - `origami_hexmap` costs: the library's own benchmarks.
 - Phone battery and heat: no measurement exists for any candidate engine.
