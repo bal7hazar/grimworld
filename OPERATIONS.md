@@ -232,8 +232,8 @@ the agent's environment (units get the user manager's environment, the detached 
 whitelist; the session's own variables never reach an agent), the CI checks (asset files,
 the `assets` pointer), and the protection of `main` on GitHub. **Residual, accepted**: the
 agent runs as the same Unix user, so the credential files of that user (`gh`, `codex`,
-`claude`, the Scarb registry) are readable by code it runs; hence nothing of value is ever
-reachable from this machine without the owner's go. **The Scarb registry token** is defined in
+`claude`, the Scarb registry) are readable by code it runs; test networks only and nothing of
+value in the MVP keep that exposure small. **The Scarb registry token** is defined in
 the user-level Claude settings: every claude agent runs with it emptied (the launcher's
 `--settings` override), and the profiles deny the typed forms (reading `~/.claude`, printing
 the variable, listing the environment, `scarb publish`); an interpreter an agent runs (`python3`,
