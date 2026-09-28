@@ -36,7 +36,12 @@ library. Machine at 18:05 UTC: load 5.5, 13 GB available.
 
 ## Waiting for the owner
 
-Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
+| What | Where | Recommendation |
+|---|---|---|
+| **Gate L-G2**: the porting plan of `hexx` | [docs/decisions/PENDING-L-G2.md](docs/decisions/PENDING-L-G2.md) §2, §3 | Accept, with the tick measured first and nothing published without a go; package named `hexx` |
+| A rule of the game: the flood of the tick stops at 15 layers, a goblin beyond holds | Same, §4 | Yes; number tuned by SPK-7 |
+
+The tick is estimated by the library's plan at 1.34M to 1.67M gas, not measured. Open without urgency: Q-12, the lore premise.
 
 ## Next
 
