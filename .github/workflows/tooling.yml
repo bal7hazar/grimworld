@@ -67,24 +67,70 @@ jobs:
           if scripts/agent.sh --dry-run legacy claude sonnet new "x" research; then exit 1; fi
           if scripts/agent.sh --dry-run smoke claude sonnet new "x" ../profiles/implement; then exit 1; fi
           # Every claude launch empties the registry token; the profiles deny publishing and the settings file.
-          # The exact empty override, on new and resumed launches, for every profile.
+          # The exact empty override, on new and resumed launches, for every profile. These dry runs prove the
+          # arguments the launcher passes, not their effect at run time (settings precedence is Claude Code's;
+          # the same-user settings file stays readable by code an agent runs: OPERATIONS §4, accepted residual).
           settings='--settings \{\"env\":\{\"SCARB_REGISTRY_AUTH_TOKEN\":\"\"\,\"STARKNET_NETWORK\":\"\"\,\"STARKNET_RPC_URL\":\"\"\,\"STARKNET_RPC\":\"\"\,\"STARKNET_ACCOUNT_ADDRESS\":\"\"\,\"STARKNET_PRIVATE_KEY\":\"\"\}\}'
           echo "claude claude-opus-5-5" > "$logs/tokenprobe.cli"
           for profile in research audit implement; do
             grep -qF -- "$settings" <<< "$(scripts/agent.sh --dry-run tokennew claude opus new "x" "$profile")"
             grep -qF -- "$settings" <<< "$(scripts/agent.sh --dry-run tokenprobe claude opus resume "x" "$profile")"
           done
-          # The Sepolia account is emptied unless --with-sepolia, which keeps only the token emptied; codex refuses it.
+          # The Sepolia account is emptied unless --with-sepolia, which keeps only the token emptied, and only for a
+          # task whose brief grants it (SPK-1's does); codex refuses it; a resume without it says so.
           only_token='--settings \{\"env\":\{\"SCARB_REGISTRY_AUTH_TOKEN\":\"\"\}\}'
-          out=$(scripts/agent.sh --dry-run --with-sepolia sepnew claude opus new "x" implement)
+          echo "claude claude-opus-5-5" > "$logs/SPK-1.cli"
+          export GW_BRIEF_REF=HEAD   # the briefs of this commit, not of origin/main
+          out=$(scripts/agent.sh --dry-run --with-sepolia SPK-1 claude opus resume "x" implement)
           grep -qF -- "$only_token" <<< "$out"
           grep -qF -- 'with-sepolia=1' <<< "$out"
-          grep -qF -- "$only_token" <<< "$(scripts/agent.sh --dry-run --with-sepolia tokenprobe claude opus resume "x" implement)"
+          if scripts/agent.sh --dry-run --with-sepolia sepnew claude opus new "x" implement; then exit 1; fi
+          if scripts/agent.sh --dry-run --with-sepolia tokenprobe claude opus resume "x" implement; then exit 1; fi
+          # a brief that grants the account for another profile does not grant it for this one
+          if scripts/agent.sh --dry-run --with-sepolia SPK-1 claude opus resume "x" research; then exit 1; fi
+          # GW_BRIEF_REF is honoured by dry runs only (a real launch reads the grant from origin/main);
+          # no real launch is ever run here, so that line of the launcher is checked by review.
           if grep -qF -- "$only_token" <<< "$(scripts/agent.sh --dry-run sepnew claude opus new "x" implement)"; then exit 1; fi
           if scripts/agent.sh --dry-run --with-sepolia sepcodex codex gpt-6-sol new "x"; then exit 1; fi
+          date > "$logs/SPK-1.sepolia"
+          grep -q 'runs without the Sepolia account' <<< "$(scripts/agent.sh --dry-run SPK-1 claude opus resume "x" implement 2>&1)"
           out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
           grep -qF -- 'scarb\ publish' <<< "$out"
           grep -qF -- '.claude/\*\*' <<< "$out"
+          # The agent budget (OPERATIONS §3): stub systemctl and pgrep; three agents refuse, two allow, a
+          # counter that fails refuses (exit 4). The launch lock that serialises count and start is not
+          # exercised here (dry runs stop before it).
+          stubs=$(mktemp -d); fake=$(mktemp -d)   # a fake HOME: no launcher records of the machine
+          stub() { printf '#!/bin/sh\n%s\n' "$2" > "$stubs/$1"; chmod +x "$stubs/$1"; }
+          stub pgrep 'exit 1'
+          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\nquiver-c.service loaded active running c\n"'
+          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
+          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
+          HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds
+          stub systemctl 'exit 1'
+          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
+          stub systemctl 'exit 0'
+          stub pgrep 'exit 3'
+          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
+          # Detached agents from the launchers' pid files, in a fake HOME: two launches in one directory
+          # count once; a pid file whose live process is not its launch (a reused pid) does not count.
+          flogs=$fake/projects/grimworld/.claude/worktrees/logs; mkdir -p "$flogs" "$fake/projects/grimworld/wt" "$fake/projects/grimworld/wt2"
+          stub pgrep 'exit 1'
+          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
+          (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/one.log") & echo $! > "$flogs/one.pid"
+          (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/two.log") & echo $! > "$flogs/two.pid"
+          (cd "$fake/projects/grimworld/wt2" && exec sleep 120) & echo $! > "$flogs/reused.pid"   # right directory, not its launch
+          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
+          echo "$out"; [ "$s" = 4 ]; grep -qF '3 Grim World agents running (2 units, 1 detached)' <<< "$out"
+          # The launch lock: while another launcher holds it, a launch waits (killed by timeout: 124);
+          # once released, the same launch goes on to the count, which refuses (4). Nothing is launched.
+          mkdir -p "$fake/orchestrator"
+          flock "$fake/orchestrator/agent-launch.lock" sleep 6 & holder=$!; sleep 1
+          set +e
+          HOME=$fake PATH="$stubs:$PATH" timeout 3 scripts/agent.sh locktest claude opus new "x" research; s=$?
+          set -e; [ "$s" = 124 ]; wait "$holder"
+          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e; [ "$s" = 4 ]
+          kill $(cat "$flogs"/*.pid) 2> /dev/null || true
           # The build lock wraps build and test subcommands only.
           for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
             if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi

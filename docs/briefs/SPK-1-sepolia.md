@@ -1,7 +1,7 @@
 # SPK-1 — Latency and cost on Sepolia
 
 > Unblocked on 2026-09-28: the owner added the Sepolia account to the machine's settings.
-> Launched with `scripts/agent.sh --with-sepolia` (the only kind of task that receives them).
+> Sepolia account: granted (launch with `--with-sepolia`).
 
 ## Agent
 Title: `[Opus 5.5] SPK-1 latency and cost on Sepolia` · Profile: implement · Branch:
