@@ -14,8 +14,8 @@ local Katana, is indexed by Torii and is read back by a dojo.js script
 | Dojo (`sozo`) | **1.8.7** | asdf plugin `asdf-sozo`, `.tool-versions` | latest of the `sozo/v1.8.x` releases of `dojoengine/dojo` (2026-05-06) |
 | Katana | **1.7.1** | asdf plugin `asdf-katana`, `.tool-versions` | latest **stable** release of `dojoengine/katana` (2026-01-29); 1.8.0 exists only as `-rc.N` (latest `rc.9`, 2026-07-20), not pinned |
 | Torii | **1.8.16** | asdf plugin `asdf-torii`, `.tool-versions` | latest release of `dojoengine/torii` (2026-05-20) |
-| Node.js | **24.21.0** | asdf, `.tool-versions` | the version already on the machine; dojo.js declares `engines.node >=22` |
-| pnpm | **12.5.1** | asdf, `.tool-versions` | the version already on the machine (12.8.0 exists; not needed) |
+| Node.js | **24.21.0** | the system first (`/usr/bin/node`), else asdf; pinned in `.tool-versions` | the version already on the machine, from the system; dojo.js declares `engines.node >=22` |
+| pnpm | **12.5.1** | the system first (`/usr/bin/pnpm`), else asdf; pinned in `.tool-versions` | the version already on the machine, from the system (12.8.0 exists; not needed) |
 | `dojo` Cairo package | **1.8.0** (`dojo = "1.8.0"`, `dojo_cairo_macros ^1.8.0`) | scarbs.xyz, `Scarb.toml` | the newest on the registry: `1.7.0, 1.7.1, 1.7.2, 1.8.0`. Sozo 1.8.7 works with it |
 | `dojo_snf_test` (Cairo dev-dependency) | **1.8.0** | scarbs.xyz | the newest on the registry; provides `spawn_test_world` for snforge |
 | `snforge_std` (Cairo dev-dependency) | **0.51** (resolves to 0.51.2) | scarbs.xyz | forced by `dojo_snf_test 1.8.0` |
@@ -37,19 +37,72 @@ Through the **separate** asdf plugins `github.com/dojoengine/asdf-sozo`, `asdf-k
 version (§4, failure 1 and the test recorded there). They download the same release archives as
 GitHub's. The sha256 of each **extracted binary** (amd64 and arm64) is pinned in
 `scripts/setup-toolchain.sh` and verified on **every** run against
-`asdf where <tool> <version>`/bin/<tool>; a version without a pinned hash is refused. The amd64
+`asdf where <tool> <version>`/bin/<tool>, **before the binary is run at all** (a mismatch stops
+the script before `--version` is executed; tested with tampered hashes and stand-in binaries that
+record their own execution: none ran); a version without a pinned hash is refused. The amd64
 hashes were computed on the installed binaries and equal those of the release archives; the arm64
 hashes come from extracting the arm64 archives (whose own sha256 equals the digest GitHub
-publishes) and were not run on arm hardware. Nothing is written outside asdf's directory.
+publishes) and were not run on arm hardware.
 
-**Machine-wide effect.** An asdf plugin creates shims in `~/.asdf/shims` that precede the system
-binaries on the PATH (incident `docs/reports/INC-2026-09-28-asdf-node-shims.md`). For `sozo`,
-`katana` and `torii` nothing existed before, so nothing is hidden. For `nodejs` and `pnpm` the
-incident stands: `cd /tmp && node --version` fails while the global `~/.tool-versions` lacks
-`nodejs system` / `pnpm system`. `scripts/setup-toolchain.sh` checks this at its end, prints a
-warning naming that remedy, and never edits `~/.tool-versions`; the remedy is the owner's decision.
-An earlier version of this task linked release binaries into `~/.cargo/bin`; the script removes
-such a link only if it points inside `~/.grimworld/tools/` (its own), and leaves any other alone.
+### Integrity of the other tools (sources read on 2026-09-28)
+
+| Tool | Provider | What checks the download | Pinned here? |
+|---|---|---|---|
+| scarb 2.13.1 | `asdf-scarb` (`bin/download`, `lib/utils.bash`) | nothing but HTTPS: `curl` of the `github.com/software-mansion/scarb` release tarball, extract, test that `bin/scarb` is executable. No checksum, no signature | No. The install holds about nine binaries per architecture; a hash of one would leave the rest unchecked, and arm64 was not run. Documented instead |
+| snforge 0.51.2 | `asdf-starknet-foundry` (`bin/download`, `lib/utils.bash`) | the same, and `download_universal_sierra_compiler` does `curl -L …/universal-sierra-compiler/master/scripts/install.sh \| sh`: an unpinned remote script executed | No, same reason. That script installs `universal-sierra-compiler` into `~/.local/bin` (see below) |
+| node 24.21.0 | the system package (`/usr/bin/node`); else `asdf-nodejs` | system: the distribution's package signature, checked when it was installed (not by this script). asdf-nodejs delegates to `node-build`, which keeps a sha256 per release in its definitions and verifies the download (asdf-nodejs README: "checks integrity by precomputing checksums ahead of time and versioning them together with the instructions"); the definitions are refreshed from github.com at install time | No |
+| pnpm 12.5.1 | the system package (`/usr/bin/pnpm`); else `asdf-pnpm` (`bin/download`) | system: as above. asdf-pnpm: `curl` of the npm registry tarball over HTTPS, no checksum; pnpm 12 then downloads its platform binary at first use | No |
+| sozo, katana, torii | `asdf-sozo`, `-katana`, `-torii` | nothing in the plugins | **Yes**, sha256 of the extracted binary |
+
+For the four unpinned tools, HTTPS to github.com, the npm registry and nodejs.org is the whole
+guarantee, and `--version` runs the binary before anything vouches for it. They are trusted, not
+verified; the script header says so. A pin of `bin/scarb` and `bin/snforge` (and the other
+binaries of each archive, both architectures) is the natural next step if the owner wants it.
+
+### What is written outside asdf's directory
+
+Not "nothing". (1) **One-time exception of the script**: it removes the symlinks
+`~/.cargo/bin/sozo`, `~/.cargo/bin/katana`, `~/.cargo/bin/torii` (`/home/claude/.cargo/bin/…` on
+this machine) that the first version of this task created, and only when each points into
+`~/.grimworld/tools/` (`/home/claude/.grimworld/tools/<tool>/<version>/<tool>`); a link pointing
+elsewhere, or a regular file, is left alone. They were removed on this machine in fix loop 1; on
+any other machine the step does nothing. The directory `~/.grimworld/tools/` is not touched.
+(2) **Side effects of the third-party plugins**, not of the script: `asdf-nodejs` writes node-build
+logs to `/tmp/node-build.*.log`; `asdf-starknet-foundry` pipes `universal-sierra-compiler`'s
+installer to `sh`, which puts `universal-sierra-compiler` 2.10.1 in `~/.local/bin` on a machine
+that lacks it. On this machine that file is dated 2026-09-21, before this task, and its date did
+not change after this task's installs and clean-machine simulations. (3) The script reads, and
+never writes, `~/.tool-versions`.
+
+### Node and pnpm: the system first, and why `.tool-versions` still names them
+
+Adding the asdf plugins `nodejs` and `pnpm` puts shims in `~/.asdf/shims`, ahead of `/usr/bin`,
+that answer "No version is set" wherever no `.tool-versions` names them
+(`docs/reports/INC-2026-09-28-asdf-node-shims.md`). So `scripts/setup-toolchain.sh` decides per
+tool, before touching asdf:
+
+1. The first `node` / `pnpm` on the PATH outside asdf's shims directory is run with `--version`.
+   If it is **exactly** the pinned version, the system binary is used and the plugin is **not**
+   added (tested with a stand-in `asdf` that hides those plugins: no `plugin add`).
+2. If it differs and the plugin is already added, the script installs the pinned version through
+   it (the shim already exists; nothing new is hidden).
+3. If it differs and the plugin is absent, the script adds it only when the global
+   `~/.tool-versions` already contains `<tool> system` (a read-only check); otherwise it **exits 1**
+   with the remedy of the incident file and adds nothing.
+The script never edits `~/.tool-versions` and never removes a plugin.
+
+`nodejs` and `pnpm` stay in the repository's `.tool-versions`. On this machine the plugins were
+added by the first version of this task (the incident): the shims exist, and in a directory
+without that pin `node` fails. The local pin is what makes `node` and `pnpm` work in the worktrees
+until the owner applies the remedy (`nodejs system`, `pnpm system` in `~/.tool-versions`). On a
+clean machine whose system node and pnpm match, the pin is simply unused: no plugin, no shim, the
+system binaries answer everywhere (clean-machine simulation: the plugin list holds only scarb,
+starknet-foundry, sozo, katana, torii; `node --version` works from `/tmp`; no warning).
+
+**Machine-wide effect of the other plugins.** The shims of `sozo`, `katana` and `torii`
+(`~/.asdf/shims`) hide nothing: those names did not exist before. `scripts/setup-toolchain.sh`
+ends by running `node --version` and `pnpm --version` from `/tmp` and warns, naming the incident's
+pending remedy, when they fail (today, on this machine, they do); it never edits `~/.tool-versions`.
 
 ## 2. Compatibility constraints found
 
@@ -167,30 +220,31 @@ the lock needs the subcommand first): run it from the package folder, or use `so
 ### The pins, on the machine and on a clean one
 
 ```
-$ scripts/setup-toolchain.sh            # second run: nothing installed, nothing changed
-version 1.7.1 of katana is already installed
-version 24.21.0 of nodejs is already installed
-version 12.5.1 of pnpm is already installed
+$ scripts/setup-toolchain.sh            # any run after the first: nothing installed, nothing changed
+setup-toolchain: nodejs 24.21.0: using the system /usr/bin/node (exactly the pinned version); asdf plugin not needed
+setup-toolchain: pnpm 12.5.1: using the system /usr/bin/pnpm (exactly the pinned version); asdf plugin not needed
 version 2.13.1 of scarb is already installed
-version 1.8.7 of sozo is already installed
 version 0.51.2 of starknet-foundry is already installed
+version 1.8.7 of sozo is already installed
+version 1.7.1 of katana is already installed
 version 1.8.16 of torii is already installed
 scarb              scarb 2.13.1 (a76aed717 2025-10-30)
 snforge            snforge 0.51.2
 node               v24.21.0
 pnpm               12.5.1
-sozo               sozo 1.8.7
 sozo               sha256 f76a5a49b6ef6401595eae43859f936621799204d7ff52781c0be854f735ae63
-katana             katana 1.7.1 (7882660)
+sozo               sozo 1.8.7
 katana             sha256 7ccdcbacd0de309d476470ba40bda832edc650daeacab0c672bc5f09c15c6b71
-torii              torii 1.8.16 (main fe3ed0f)
+katana             katana 1.7.1 (7882660)
 torii              sha256 cbf88d6b23bd742508f9d6b74c27b78375532ce6bb57f8e5b0fbd3ed91ff14b6
+torii              torii 1.8.16 (main fe3ed0f)
 setup-toolchain: WARNING: 'node --version' fails in /tmp, outside a pinned directory. […]
 setup-toolchain: WARNING: 'pnpm --version' fails in /tmp, outside a pinned directory. […]
 ```
 
 Clean machine, simulated with an empty `ASDF_DATA_DIR` under `/tmp/spk5-clean` (no root, network
-only): the seven plugins added, the seven versions installed, the same checks, exit 0.
+only): five plugins added (node and pnpm are served by the system), five versions installed, the
+same checks, no warning, exit 0.
 
 ### Build, test
 
