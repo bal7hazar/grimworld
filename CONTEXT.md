@@ -142,6 +142,8 @@ owner, with the date), Superseded.
 | D-72 | The orchestrator merges on green CI and audits, and deploys to Sepolia autonomously | OPERATIONS §7 | Accepted 2026-09-28 |
 | D-73 | `assets/` and anything derived from it is never committed; licence forbids redistribution | design/10 | Accepted 2026-09-28 |
 | D-70 | Documents, briefs, commits and pull requests in English; chat with the owner in French | OPERATIONS §11 | Accepted (owner's convention) |
+| D-113 | Chain of command: owner, project manager, orchestrators (created by the project manager), sub-agents and auditors | OPERATIONS §1 | Accepted 2026-09-28 |
+| D-114 | Cairo engineering rules | docs/CAIRO.md | Accepted 2026-09-28 |
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
 | D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Proposed |
@@ -180,6 +182,9 @@ owner, with the date), Superseded.
   making the player pay.
 - **Provisional providers.** The MVP runs on burner accounts and transaction-hash
   randomness. Neither may reach mainnet; the MVP holds nothing of value.
+- **Cairo rules.** Test-driven with a gas budget on every test; execution cost before
+  deployment cost; arithmetic, then bitwise, then loops; no `u256`, `u252` from
+  `origami_hexmap` ([docs/CAIRO.md](docs/CAIRO.md)).
 - **Two domains.** Persistent and ephemeral state never share a model (ADR-0001).
 - **Power budget.** The client has no permanent render loop (ADR-0003).
 - **Assets.** `assets/` and anything derived from it is never committed: the licence
@@ -195,7 +200,8 @@ owner, with the date), Superseded.
 | Owner | bal7hazar (GitHub `bal7hazar`, git author `bal7hazar@proton.me`). Speaks French. Decides on vision, scope, design decisions, releases, mainnet |
 | Ideation session (this) | Claude Desktop (Code tab), account bal7hazar, model Fable 5.1, on the owner's Mac, repository `~/git/grimworld`. Documents only |
 | Project-manager session (implementation) | **A new session on the VPS**, account bal7hazar, started from [docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) |
-| Sub-agents | `claude` CLI logged in as **claude-b7r** (check with `claude auth status`): Opus 5.5 or Sonnet 5 by difficulty, Fable only marginally. `codex` CLI: audits and second opinions only |
+| Orchestrator sessions | Created in the Claude App by the project manager; Opus 5.5 or Fable 5.1 by its judgement |
+| Sub-agents | `claude` CLI logged in as **claude-b7r** (check with `claude auth status`): Sonnet 5, Opus 5.5 or Fable 5.1 by difficulty. `codex` CLI (`gpt-5.6-sol`, `astra`, … by kind of task): audits when needed, never implementation |
 | Credentials | Sepolia deployment credentials are in the session's settings environment. Never copy them into a document, a brief or a log |
 | Assets | *Tiny Swords* by Pixel Frog, `assets/` at the root of the main checkout, ignored by git; to be copied to the VPS by the owner, outside git |
 | Libraries by the owner | `origami_hexmap` (dojoengine/origami, may move to a dedicated repository) |
