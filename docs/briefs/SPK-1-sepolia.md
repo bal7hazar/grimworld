@@ -1,8 +1,7 @@
 # SPK-1 — Latency and cost on Sepolia
 
-> **Blocked** until the Sepolia credentials are in the orchestrator's environment (D-129).
-> The orchestrator checks by variable names only; no credential ever reaches this brief, a
-> log, a report or the agent.
+> Unblocked on 2026-09-28: the owner added the Sepolia account to the machine's settings.
+> Launched with `scripts/agent.sh --with-sepolia` (the only kind of task that receives them).
 
 ## Agent
 Title: `[Opus 5.5] SPK-1 latency and cost on Sepolia` · Profile: implement · Branch:
@@ -28,21 +27,29 @@ as native contracts. The owner decides the cost threshold on these figures (D-12
   accounts funded by the game), ADR-0007, D-127, docs/CAIRO.md, COMMON.
 - Depends on: SPK-2 (merged), SPK-5b, FND-01b.
 
-## How it runs (credentials never reach you)
-1. **Before your launch, the orchestrator** declares and deploys the measured native contracts
-   of `spikes/SPK-2/native/` on Sepolia with its own deployer account, and commits their public
-   addresses and class hashes to `spikes/SPK-1/sepolia.json` on `main`.
-2. **Your first run**: generate a burner key inside your worktree (an ignored file, never
-   printed, never committed), compute its account address, write that address (public) under
-   *Escalations* in `REPORT.md` as "fund this address", and **stop**.
-3. The orchestrator funds that address with test STRK from its account and resumes you.
-4. **Your second run**: deploy the burner account, then measure. Use a public Sepolia RPC
-   endpoint (say which) through starknet.js or Python scripts; `sncast` is denied against public
-   networks by your profile.
+## The Sepolia account: rules (OPERATIONS §7)
+- The account is given to you by **variable names only**: `STARKNET_NETWORK`, `STARKNET_RPC_URL`,
+  `STARKNET_ACCOUNT_ADDRESS`, `STARKNET_PRIVATE_KEY`. Use them by name in your scripts; **never
+  print, log, echo or write a value** (not in a file, a commit, the report or a command line);
+  check their presence with `env | cut -d= -f1` only if you must.
+- **Every script that sends a transaction first asks the RPC for its chain id and stops unless it is
+  `SN_SEPOLIA`.** Nothing is sent to any other network.
+- The endpoint refuses requests without a usual `User-Agent` header: set one on every request.
+- The account's balance is the owner's money on a test network: **measure, do not loop**. Plan the
+  number of transactions before sending them (the counts below are the maximum), and state in the
+  report how many were sent and what they cost in total.
+- Use starknet.js or Python scripts; `sncast` is denied against public networks by your profile.
+
+## How it runs
+1. Deploy the measured native contracts of `spikes/SPK-2/native/` on Sepolia with the account
+   (declare, deploy), and record their public addresses and class hashes in
+   `spikes/SPK-1/sepolia.json`.
+2. Measure from that account (the MVP's burner is the same kind of account: an account deployed by
+   the game with a key it holds, ADR-0005 stage A). A burner of your own is not needed.
 
 ## Scope
 - In, in `spikes/SPK-1/`:
-  1. **Latency**: at least 50 transactions of a cheap action and 20 of the worst tick; for each,
+  1. **Latency**: 50 transactions of a cheap action and 20 of the worst tick (no more); for each,
      submission time, first pre-confirmed status, accepted on L2 (and the block), by polling the
      receipt at a fixed interval (state it); p50, p95, max.
   2. **Gas**, with receipts, for the same actions and boards as SPK-2's native part: the worst
@@ -58,8 +65,7 @@ as native contracts. The owner decides the cost threshold on these figures (D-12
   says about mainnet and what it cannot say.
 - Out: mainnet (never); a paymaster or Controller (SPK-9); any change to the measured contracts;
   `contracts/`, `client/`.
-- Allowlist: `spikes/SPK-1/**` (the burner key file ignored), `docs/research/SPK-1-sepolia.md`.
-  Anything else is an escalation. Spend only the test STRK the orchestrator sent.
+- Allowlist: `spikes/SPK-1/**`, `docs/research/SPK-1-sepolia.md`. Anything else is an escalation.
 
 ## Acceptance criteria
 - [ ] AC-1 Latency p50, p95 and max to pre-confirmed and to accepted on L2, against ADR-0001's
@@ -67,8 +73,9 @@ as native contracts. The owner decides the cost threshold on these figures (D-12
 - [ ] AC-2 Receipts for every measured action, with the meter applied and its evidence.
 - [ ] AC-3 The expedition's cost on Sepolia's figures, beside the local node's, and the verdict on
       $0.50 stated plainly.
-- [ ] AC-4 No secret anywhere in the repository, the log or the report (the burner key file is
-      ignored; `git log -p` shows none).
+- [ ] AC-4 No secret anywhere in the repository, the log or the report (`git log -p` shows none);
+      every sending script checks the chain id first; the number of transactions sent and their
+      total cost are in the report.
 
 ## Report
 `REPORT.md` as in `docs/briefs/COMMON.md` §7; the cost table has every measured action on

@@ -387,11 +387,28 @@ What was reviewed, what was not, and why.
   into a file or passed to a sub-agent's brief. They are the variables
   `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS` and
   `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
-  2026-09-28; checked by name). The claude CLI gives them to every agent it starts, so a
-  task that sends transactions to Sepolia uses them **by name**, and every script that
+  2026-09-28; checked by name). The claude CLI would give them to every agent it starts;
+  `scripts/agent.sh` empties them unless the task's brief grants the account and it is
+  launched with `--with-sepolia`. A task that sends transactions to Sepolia uses them **by
+  name**, never prints, logs or writes a value, sets a usual `User-Agent` header, measures
+  instead of looping and reports how many transactions it sent and their cost, and every script that
   sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.
   **Mainnet deployments and mainnet registry writes need an explicit go from the owner,
   each time** (D-116).
+- **Publications** (owner's rule, 2026-09-28, D-132). A publication on scarbs.xyz cannot
+  be undone. **No sub-agent publishes, ever**: its profile denies it and its brief says so.
+  An orchestrator publishes only after a go of the project manager, who decides in the
+  owner's name and reports to the owner afterwards.
+
+  | Step | |
+  |---|---|
+  | The orchestrator asks | A committed file `docs/decisions/PENDING-publish-<package>-<version>.md`: package, version, commit, what changed since the last version, what the consumer must do |
+  | The project manager checks, itself | The commit is on `main` with every check of CI completed and green; the required audits are closed without blocker or major; the changelog and the version agree; the gas tables are those of that commit; `scarb package` succeeds from a clean checkout of that commit; the name and the version are free on the registry; the package declares no test dependency as a regular one; a change of numeric results is a minor version at least and is announced |
+  | The go | Written in the file, with the commit it holds for. It holds for that commit and that version only |
+  | The publication | By the orchestrator's session, not by an agent, from a clean checkout of that commit; tag and release after the registry shows the version |
+  | After | The project manager reads the registry, records the publication in `docs/decisions/` and reports to the owner |
+
+  A release candidate is a publication. A refusal says what is missing.
 - CI stays under ~10 minutes: split test packages before they grow.
 - Never: force-push on shared branches; commit secrets or keys; skip hooks; commit
   any asset file, or anything derived from one, **in this repository** (D-73). Assets
@@ -440,7 +457,7 @@ What stays the owner's act, asked before and never assumed:
 | | |
 |---|---|
 | Mainnet | Every deployment and every registry write (D-116) |
-| What cannot be undone outside the repositories | Publishing a package on a registry, a store submission, deleting a repository |
+| What cannot be undone outside the repositories | A store submission, deleting a repository. **Publishing a package on scarbs.xyz is decided by the project manager in the owner's name** (D-132, §7) |
 | Money | Any spending beyond the sponsored fees of test networks |
 | Accounts and secrets | Providing credentials, logging a CLI in or out, settings of the machine or of GitHub that touch security |
 

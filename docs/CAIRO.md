@@ -33,11 +33,12 @@ saves nothing measurable is not made.
 | Rule | |
 |---|---|
 | Every test has a gas budget | `#[available_gas(l2_gas: N)]`, with `N = ceil(1.05 × measured)`, as the map library does |
+| Fuzz and parameterized tests | One attribute covers every run or case: `N = ceil(1.05 × the most expensive)`. Cases whose costs differ widely are split into separate tests |
 | A budget exceeded is a failed test | A regression in cost fails the build like a regression in behaviour |
 | Benchmarks are tests | One per algorithm and per entrypoint, on the **worst case** stated by the design (8 awake goblins, the longest queue, a reveal of 3 chunks), not on a convenient case |
 | Figures are written down | `docs/BUDGETS.md`: per entrypoint and per algorithm, measured value, budget, date, commit. A `GAS.md` per package for the detail, as in the map library |
 | Reports carry them | `REPORT.md` has a gas table: before, after, budget, for everything the lot touched |
-| Raising a budget | Needs a reason written in the pull request and the orchestrator's agreement. Lowering one needs nothing |
+| Raising a budget | Needs a reason, written as `// gas: raised, <reason>` above the attribute (checked by `scripts/gas_budgets.py`) and in the pull request, and the orchestrator's agreement, given at review from the `raised` notes of the gas table. Lowering one needs nothing |
 | Oracles | An optimised algorithm is tested against a plain, obviously correct version kept in the tests (a scalar flood against the bit-parallel one) |
 
 ## 3. Order of preference
