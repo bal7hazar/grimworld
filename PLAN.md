@@ -69,7 +69,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | LIB-01 | Map library work needed by the game: see **track LIB** below (milestone L-M1) | — | Hexmap orchestrator | — | todo |
 | TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-05 | Opus 5.5 | D V Q | todo |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | done (2026-09-28, [#12](https://github.com/bal7hazar/grimworld/pull/12); [report](docs/reports/ART-00-asset-pipeline.md)) |
-| SPK-11 | **Indexer spike** (ADR-0007): what needs indexing at all against what the client reads by view calls; an existing generic indexer configured for our events against our own; reorg handling; hosting and cost | FND-01b | Opus 5.5 | S Q | doing ([brief](docs/briefs/SPK-11-indexer.md)) |
+| SPK-11 | **Indexer spike** (ADR-0007): what needs indexing at all against what the client reads by view calls; an existing generic indexer configured for our events against our own; reorg handling; hosting and cost | FND-01b | Opus 5.5 | S Q | done (2026-09-28, [#31](https://github.com/bal7hazar/grimworld/pull/31); [report](docs/reports/SPK-11-indexer.md); recommends our own indexer) |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
 
 **Exit criteria**: ADRs accepted or option B re-opened; budgets written in design/02;
