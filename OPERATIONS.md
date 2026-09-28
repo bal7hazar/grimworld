@@ -161,7 +161,10 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
   average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
   check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
-  both thresholds on every launch and resume (exit 4, before any worktree is created).
+  both thresholds, fixed in the script, on every launch and resume (exit 4, before any
+  worktree is created); `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  Agents cannot launch agents: the `implement` profile denies the launcher, `claude`,
+  `codex` and `systemd-run`.
 - **Heavy builds are serialised** through two locks, taken in this order by
   `scripts/lock.sh`: the project lock `/tmp/grimworld-build.lock` (one heavy Grim World
   command at a time), then the machine-wide `~/orchestrator/heavy-build.lock` shared with the
