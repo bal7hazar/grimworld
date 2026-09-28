@@ -9,10 +9,10 @@ First positive receipt response latency. Polling: every 250 ms from the submissi
 | Both measured sets (70) | 70 | 1,265 | 2,774 | 3,019 | 3,764 | 4,517 | 4,765 | 0 | 160 |
 | Setups and queues (not latency samples) | 28 | 1,267 | 2,518 | 3,521 | 3,525 | 4,514 | 4,519 | 0 | 167 |
 
-ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms. The observed figures are upper bounds; a figure within 410 ms above a threshold is not decided by this sampling
-  Worst tick under D-127 (attack): p50 1,020 ms, not decided (20 ms above, within the sampling uncertainty); p95 2,770 ms, met (the observed upper bound is within the threshold)
-  Cheap action: enter and leave, alternating: p50 1,267 ms, not decided (267 ms above, within the sampling uncertainty); p95 2,774 ms, met (the observed upper bound is within the threshold)
-  Both measured sets (70): p50 1,265 ms, not decided (265 ms above, within the sampling uncertainty); p95 2,774 ms, met (the observed upper bound is within the threshold)
+ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms. The observed figures are upper bounds with no valid lower bound; a figure above a threshold is not decided by this sampling
+  Worst tick under D-127 (attack): p50 1,020 ms, not decided (20 ms above; no lower bound was recorded); p95 2,770 ms, met (the observed upper bound is within the threshold)
+  Cheap action: enter and leave, alternating: p50 1,267 ms, not decided (267 ms above; no lower bound was recorded); p95 2,774 ms, met (the observed upper bound is within the threshold)
+  Both measured sets (70): p50 1,265 ms, not decided (265 ms above; no lower bound was recorded); p95 2,774 ms, met (the observed upper bound is within the threshold)
 
 First positive pre-confirmed response, histogram in 250 ms bins, the 70 measured transactions
     500-749   ms ##### 5

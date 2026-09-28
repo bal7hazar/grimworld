@@ -10,7 +10,7 @@ account: class Sierra 1.7.0, compiled with Cairo 2.11.2. Its address is not reco
 
 | Question | Answer |
 |---|---|
-| **Latency to pre-confirmed** (ADR-0001: p50 ≤ 1 s, p95 ≤ 3 s), measured as the **first positive receipt response** | **p95 is met; p50 is not decided by this sampling.** Over the 70 measured transactions: p50 **1,265 ms**, p95 **2,774 ms**, max 3,019 ms. The worst tick alone: p50 1,020 ms, p95 2,770 ms. These are upper bounds on when the RPC first reported the status. No valid lower bound was recorded, and both p50 figures sit within the sampling uncertainty of 1 s (one 250 ms poll interval plus a round trip of about 160 ms, §2) |
+| **Latency to pre-confirmed** (ADR-0001: p50 ≤ 1 s, p95 ≤ 3 s), measured as the **first positive receipt response** | **p95 is met; p50 is not decided by this sampling.** Over the 70 measured transactions: p50 **1,265 ms**, p95 **2,774 ms**, max 3,019 ms. The worst tick alone: p50 1,020 ms, p95 2,770 ms. These are upper bounds on when the RPC first reported the status. No valid lower bound was recorded, so a figure above a threshold is not decided by this sampling (§2) |
 | **Latency to accepted on L2** (first positive receipt response) | p50 **3,764 ms**, p95 4,517 ms, max 4,765 ms. Sepolia produced a block about every 1.7 s |
 | **Which meter** | **Sierra gas.** On Sepolia, the game's calls cost 0.79× to 0.87× devnet's VM-resource figures for the compute-heavy actions. They come within 2 % to 18 % of snforge's Sierra-gas figures. All of them are non-round figures (§3) |
 | **Were the local figures upper bounds?** | **The evidence is mixed.** Sepolia is slightly below the local node on the heavy actions: queues 0.88× to 0.93×, the worst tick 0.995×. It is above on the light ones: exploring queue 1.25×, enter 1.15×, leave 1.29×. Under Sierra gas, the non-game remainder of a transaction is heavier than on devnet (§4) |
@@ -74,14 +74,15 @@ Percentiles are nearest-rank.
 | Cheap action: enter and leave, alternating | 50 | 1,267 ms | 2,774 ms | 3,019 ms | 3,765 ms | 4,518 ms | 4,765 ms |
 | Both (70) | 70 | **1,265 ms** | **2,774 ms** | 3,019 ms | **3,764 ms** | 4,517 ms | 4,765 ms |
 
-Against ADR-0001, read as upper bounds. A figure within about 410 ms above a threshold (one poll
-interval plus the median round trip) is not decided by this sampling:
+Against ADR-0001, read as upper bounds. No valid lower bound was recorded, so a figure above a
+threshold is not decided by this sampling, however far above it is:
 - **p95 ≤ 3 s to pre-confirmed: met.** The observed 2,774 ms is an upper bound, and it is within
   3 s.
 - **p50 ≤ 1 s to pre-confirmed: not decided.** The observed p50 is 1,265 ms for the 70 and
   1,267 ms for enter and leave, 265 ms above the threshold. For the tick it is 1,020 ms, 20 ms
-  above. The true moments lie earlier by an unknown amount, up to about one poll interval plus a
-  round trip. This run can call none of these a pass or a miss.
+  above. The true moments lie earlier by an unknown amount. This run can call none of these a pass
+  or a miss; a future run must record each request's start, its response's arrival and the status
+  returned, from an RPC whose view is fresh and consistent.
 - **What a later run must record** (`lib.mjs` does so since fix loop 1): for every poll, the
   request start, the response arrival and the status reported. The status then became true after
   the last negative request's start and before the first positive response's arrival, which is a
@@ -107,7 +108,7 @@ action also has its trace.
 | Leave | 25 | **2,030,065** | 1,576,320 | 1.288 | 576 / 576 | 0.04366 | 0.00181 | 0.00141 |
 
 Resource bounds as signed: the worst tick's L2 gas bound was 7,742,926, 1.51× the gas it used, at
-up to 32.1 Gfri. The fee is charged on the gas used, at the block's price (21.40 Gfri L2, about 0.53
+up to 32.1 Gfri. The fee is charged on the gas used, at the block's price plus the signed tip (§5; 21.40 Gfri L2, about 0.53
 Tfri L1 data during the run).
 
 **The meter is Sierra gas.** The evidence:

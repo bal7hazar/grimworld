@@ -26,7 +26,6 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TICK = "capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked"
-UNCERTAINTY_MS = 250 + 160  # one poll interval + the median round trip of a submission
 
 records = [json.loads(line) for line in open(os.path.join(HERE, "measure-output.txt"))]
 start = records[0]
@@ -72,15 +71,15 @@ for name, rows in GROUPS:
           f"{rank(ack, 50):,} |")
 print()
 print(f"ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms. The observed figures are "
-      f"upper bounds; a figure within {UNCERTAINTY_MS} ms above a threshold is not decided by this sampling")
+      f"upper bounds with no valid lower bound; a figure above a threshold is not decided by this sampling")
 
 
 def verdict(value, threshold):
     if value <= threshold:
         return "met (the observed upper bound is within the threshold)"
-    if value - threshold <= UNCERTAINTY_MS:
-        return f"not decided ({value - threshold:,} ms above, within the sampling uncertainty)"
-    return "missed"
+    # The figures are upper bounds with no valid lower bound (audit of PR 45, finding 3): a
+    # figure above a threshold cannot be called a miss by this sampling.
+    return f"not decided ({value - threshold:,} ms above; no lower bound was recorded)"
 
 
 for name, rows in GROUPS[:2] + GROUPS[4:5]:
