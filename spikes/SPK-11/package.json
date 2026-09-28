@@ -1,0 +1,14 @@
+{
+  "name": "spk11-indexer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPK-11 throwaway: an indexer of our own (Node 24, node:sqlite, JSON-RPC), its TypeScript client, and the reorg scenario.",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.5.1",
+  "dependencies": {
+    "starknet": "10.8.0"
+  }
+}

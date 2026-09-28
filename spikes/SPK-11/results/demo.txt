@@ -1,0 +1,133 @@
+[demo +5.97s] Market deployed at 0x73f472c86e3c955b6de79d8280507b9a9b15a9e071ba1f28e92f63c70ce29a in block 2
+[indexer 2026-09-28T20:02:01.301Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:02:01.309Z] serving on http://127.0.0.1:42171, following http://127.0.0.1:23168/…(redacted) from block 2, tip null, status loading
+[demo +6.53s] ok   the indexer's environment is INDEXER_RPC_URL only: "environment: INDEXER_RPC_URL"
+[indexer 2026-09-28T20:02:01.380Z] status ok
+[demo +6.67s] subscription(item 7): reset-begin {"head":null,"total":0}
+[demo +6.68s] subscription(item 7): reset-end {"head":null,"total":0}
+[demo +6.81s] post(item 7, quantity 1, price 300) in block 3
+[demo +6.91s] subscription(item 7): posted {"lot":"1","item":7,"quantity":1,"price":"300","block":"3 0x272c0c44…"}
+[demo +7.07s] post(item 7, quantity 1, price 250) in block 4
+[demo +7.24s] post(item 7, quantity 2, price 400) in block 5
+[demo +7.38s] post(item 9, quantity 1, price 100) in block 6
+[demo +7.61s] locate adventurers 1, 2, 3 in hub 1, then 3 in hub 2, in block 7
+[demo +7.65s] subscription(item 7): posted {"lot":"2","item":7,"quantity":1,"price":"250","block":"4 0x37c8d868…"}
+[demo +7.65s] subscription(item 7): posted {"lot":"3","item":7,"quantity":2,"price":"400","block":"5 0x2f5122cc…"}
+[demo +7.68s] buy(lot 2) in block 8
+[demo +7.69s] subscription(item 7): closed {"lot":"2","item":7,"sold":true,"block":"8 0x7406d458…"}
+[demo +7.70s] query cheapest(item 7) = {"head":8,"behind":0,"lots":[{"lot":"1","item":7,"quantity":1,"price":"300","block":3},{"lot":"3","item":7,"quantity":2,"price":"400","block":5}]}
+[demo +7.72s] ok   cheapest open lots of item 7 = the chain's (lot 2 bought): "1:300 3:400"
+[demo +7.73s] ok   presence hub 1 / hub 2: [2,1]
+[demo +7.80s] ok   the subscription cache, through its read API, = the chain's: "1:300 3:400"
+[demo +8.27s] subscription(item 7): posted {"lot":"5","item":7,"quantity":1,"price":"111","block":"9 0x4273d128…"}
+[demo +8.29s] answer at 9 0x4273d128… with lot 5 at 111; block 9 aborted between the rule's two reads; old order says "fresh"; chain now 1:300 3:400
+[demo +8.29s] ok   old order (block, then tip) accepts the answer holding the orphaned lot 5: the defect: {"oldVerdict":"fresh","lots":"5:111 1:300 3:400"}
+[indexer 2026-09-28T20:02:03.550Z] status rewinding: block 9 0x4273d128… no longer on the chain
+[demo +8.77s] subscription(item 7): status {"status":"rewinding","reason":"block 9 0x4273d128… no longer on the chain"}
+[indexer 2026-09-28T20:02:03.553Z] rewind to 8 (tip 9 no longer on the chain); 1 lots retracted
+[demo +8.78s] subscription(item 7): rewind {"to":8,"retracted":["5"]}
+[indexer 2026-09-28T20:02:03.559Z] status ok
+[demo +8.78s] subscription(item 7): status {"status":"ok"}
+[demo +8.78s] subscription(item 7): reset-begin {"head":"8 0x7406d458…","total":2}
+[demo +8.78s] subscription(item 7): reset-end {"head":"8 0x7406d458…","total":2}
+[demo +8.79s] subscription(item 7): posted {"lot":"5","item":7,"quantity":1,"price":"112","block":"9 0x4273d128…"}
+[demo +8.80s] answer at 9 0x4273d128… with lot 5 at 112; block 9 aborted between the rule's two reads; new order says "block 9 is gone"
+[demo +8.80s] ok   new order (tip, then the answer's block last) rejects it: "block 9 is gone"
+[indexer 2026-09-28T20:02:04.073Z] status rewinding: block 9 0x4273d128… no longer on the chain
+[demo +9.30s] subscription(item 7): status {"status":"rewinding","reason":"block 9 0x4273d128… no longer on the chain"}
+[indexer 2026-09-28T20:02:04.076Z] rewind to 8 (tip 9 no longer on the chain); 1 lots retracted
+[demo +9.30s] subscription(item 7): rewind {"to":8,"retracted":["5"]}
+[indexer 2026-09-28T20:02:04.080Z] status ok
+[demo +9.30s] subscription(item 7): status {"status":"ok"}
+[demo +9.30s] subscription(item 7): reset-begin {"head":"8 0x7406d458…","total":2}
+[demo +9.30s] subscription(item 7): reset-end {"head":"8 0x7406d458…","total":2}
+[demo +9.36s] post(item 7, price 120) as lot 5 and buy(lot 1), in block 9
+[demo +9.81s] subscription(item 7): posted {"lot":"5","item":7,"quantity":1,"price":"120","block":"9 0x4273d128…"}
+[demo +9.81s] subscription(item 7): closed {"lot":"1","item":7,"sold":true,"block":"9 0x4273d128…"}
+[demo +9.83s] before the abort: chain 5:120 3:400; cache 5:120 3:400
+[demo +9.84s] devnet_abortBlocks from 9: 2 blocks aborted; the chain's answer is now 1:300 3:400 (lot 1 open again, lot 5 gone)
+[indexer 2026-09-28T20:02:05.095Z] status rewinding: block 10 0x7ec61454… no longer on the chain
+[demo +10.32s] subscription(item 7): status {"status":"rewinding","reason":"block 10 0x7ec61454… no longer on the chain"}
+[indexer 2026-09-28T20:02:05.100Z] rewind to 8 (tip 10 no longer on the chain); 2 lots retracted
+[demo +10.32s] subscription(item 7): rewind {"to":8,"retracted":["1","5"]}
+[indexer 2026-09-28T20:02:05.105Z] status ok
+[demo +10.33s] subscription(item 7): status {"status":"ok"}
+[demo +10.33s] subscription(item 7): reset-begin {"head":"8 0x7406d458…","total":2}
+[demo +10.33s] subscription(item 7): reset-end {"head":"8 0x7406d458…","total":2}
+[demo +10.34s] live reorg, sampled from the abort until consistent: {"answers":44,"loading":1,"rawOk":43,"rawWrong":42,"accepted":1,"acceptedWrong":0,"acceptedOlder":0,"cacheAccepted":1,"cacheWrong":0,"latestAcceptedMs":491}
+[demo +10.34s] ok   live: no accepted answer (query or cache) is a state the chain does not hold at its head: {"acceptedWrong":0,"cacheWrong":0}
+[demo +10.34s] ok   live: raw answers were orphaned in the window, and the rule rejected every one: {"rawWrong":42,"accepted":1}
+[demo +10.34s] ok   live: the cache reopened lot 1 (snapshot after rewind): "1:300 3:400"
+[demo +10.35s] ok   live: presence hub 1 = 2 again: 2
+[demo +10.35s] cache closed: ready=false, shows (not shown: cache disconnected)
+[demo +10.39s] post 500 in block 9 (lot 5)
+[demo +10.89s] aborted it; post 650 (lot 5 again) and withdraw(lot 3) in block 9
+[indexer 2026-09-28T20:02:06.116Z] status rewinding: block 9 0x4273d128… no longer on the chain
+[indexer 2026-09-28T20:02:06.119Z] rewind to 8 (tip 9 no longer on the chain); 1 lots retracted
+[indexer 2026-09-28T20:02:06.125Z] status ok
+[demo +11.38s] ok   reconnected cache, through its read API, = the chain's (lot 5 is 650, lot 3 withdrawn): {"cache":"1:300 5:650","chain":"1:300 5:650"}
+[demo +11.38s] ok   before the indexer stops, the cache answers
+[demo +11.41s] indexer stopped; nobody closed the cache; it says {"fresh":false,"reason":"cache disconnected"}
+[demo +11.41s] ok   unplanned close: the cache is not ready and read() refuses, by itself: {"ready":false,"status":"disconnected"}
+[demo +11.51s] aborted block 9; posted 700 (lot 5, item 7) in block 9 and 90 (item 9) in block 10; the chain's answer is 1:300 3:400 5:700
+[indexer 2026-09-28T20:02:06.530Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:02:06.531Z] serving on http://127.0.0.1:44411, following http://127.0.0.1:23168/…(redacted) from block 2, tip {"number":9,"hash":"0x4273d128f160c70321061484c1429a75b972624df63f621f07270faace77fc7","commitments":"0x1b88a61c9dc6cc8d3cb3a37fdbc45cc272fd430341cc4b71d747035e0b6f653,0x3403dc6c0cef57185276fd5be8d61288e713ea8546e9b5ca5a01c4917b0ccfe,0xa9029e4763b72aab496247b57741b3ac6544eeaefb24e483dc7de1a00efb26,0xe8941a37214cca8f0774a83855f75ac48a499d7e6421b684328f74a824da50"}, status loading
+[indexer 2026-09-28T20:02:06.652Z] status rewinding: block 9 0x4273d128… no longer on the chain
+[indexer 2026-09-28T20:02:06.761Z] rewind to 8 (tip 9 no longer on the chain); 2 lots retracted
+[indexer 2026-09-28T20:02:06.975Z] status ok
+[demo +12.65s] restart with a 50 ms node, sampled from the first answer until consistent (1137 ms from spawn): {"answers":120,"loading":92,"rawOk":28,"rawWrong":0,"accepted":28,"acceptedWrong":0,"acceptedOlder":27,"cacheAccepted":0,"cacheWrong":0,"latestAcceptedMs":898}
+[demo +12.65s] ok   restart: every answer with rows, raw or accepted, is a state the chain holds at its head (gate): {"loading":92,"rawOk":28,"rawWrong":0,"acceptedOlder":27}
+[demo +12.65s] ok   restart: the gate was observed: {"loading":92}
+[indexer 2026-09-28T20:02:07.711Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:02:07.712Z] serving on http://127.0.0.1:44359, following http://127.0.0.1:23168/…(redacted) from block 2, tip {"number":10,"hash":"0x7ec6145454366592629836a0aeca8259c96f3dcacb0105658c00b28e9698eac","commitments":"0x709b91d22e8b8c7cfe2bf6c1d8c359cc0f48753083c5007fdce1ec6d6f5cf66,0x6577fff5a63d481dca73a32a30397ec2bef9ded18afbe9fb970e7e277420e82,0x7d9d5e4365b7affa8a4117d1b30f1ef3609ca8b6af814d1b0b482f835802e8,0x48ff6170cd11798f9dc0ac29fb0a71e025d2cebadd1fee0dcc965960840ce57"}, status loading
+[indexer 2026-09-28T20:02:07.774Z] status ok
+[demo +13.01s] subscription(item 7): reset-begin {"head":"10 0x7ec61454…","total":3}
+[demo +13.01s] subscription(item 7): reset-end {"head":"10 0x7ec61454…","total":3}
+[demo +13.01s] ok   restart: cache = the chain's: "1:300 3:400 5:700"
+[demo +13.15s] u64: chain 18446744073709551615:9007199254740993 9007199254740993:18446744073709551615; indexer 18446744073709551615:9007199254740993 9007199254740993:18446744073709551615
+[demo +13.15s] ok   u64: ids and prices at 2^53+1, 2^63, 2^64-1 ingested and ordered losslessly
+[indexer 2026-09-28T20:02:08.019Z] status rewinding: block 12 0x1ddf7d90… no longer on the chain
+[demo +13.24s] subscription(item 7): status {"status":"rewinding","reason":"block 12 0x1ddf7d90… no longer on the chain"}
+[indexer 2026-09-28T20:02:08.027Z] rewind to 10 (tip 12 no longer on the chain); 3 lots retracted
+[demo +13.25s] subscription(item 7): rewind {"to":10,"retracted":["9007199254740993","9223372036854775808","18446744073709551615"]}
+[indexer 2026-09-28T20:02:08.036Z] status ok
+[demo +13.26s] subscription(item 7): status {"status":"ok"}
+[demo +13.26s] subscription(item 7): reset-begin {"head":"10 0x7ec61454…","total":3}
+[demo +13.26s] subscription(item 7): reset-end {"head":"10 0x7ec61454…","total":3}
+[demo +13.28s] ok   u64: rewound (item 77 empty, like the chain): []
+[demo +13.37s] subscription(item 7): posted {"lot":"7","item":7,"quantity":1,"price":"800","block":"11 0x6b04d598…"}
+[demo +13.38s] ok   u64: the lot counter rewound with it: the next lot id is 7, the chain's
+[indexer 2026-09-28T20:02:08.418Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:02:08.419Z] serving on http://127.0.0.1:39685, following http://127.0.0.1:23168 from block 2, tip null, status loading
+[indexer 2026-09-28T20:02:08.438Z] status ok
+[demo +13.72s] rebuild from block 2 into an empty database: 332 ms
+[demo +13.73s] indexer that lived through the reorgs: {"items":[[{"lot":"1","item":7,"quantity":1,"price":"300","block":3},{"lot":"3","item":7,"quantity":2,"price":"400","block":5},{"lot":"5","item":7,"quantity":1,"price":"700","block":9},{"lot":"7","item":7,"quantity":1,"price":"800","block":11}],[{"lot":"6","item":9,"quantity":1,"price":"90","block":10},{"lot":"4","item":9,"quantity":1,"price":"100","block":6}],[]],"hubs":[0,2,1],"head":{"number":11,"hash":"0x6b04d5985e65cf6af1b8ac57cbe6a454f79c227336c3534e3607a6c8d4bcb1a","commitments":"0x57312c2420418c18325fb4ab97a53b5ed7704a963bfaaa5c3a452359fe9111,0x6be9331c732e3d2bb3a57dce69053a3625f22e0e0f1a1a99ca611b87f7fe2e4,0x45a0b6dcfea749b10cff401b80b45c08e264e8a7ea5d67e87ed5f02d9cec3fb,0x72b1c6bf76977dbd232f8f6edf56c5ecbecc269f00bd39913f658dc9620b2bf"}}
+[demo +13.73s] indexer rebuilt from the chain:        {"items":[[{"lot":"1","item":7,"quantity":1,"price":"300","block":3},{"lot":"3","item":7,"quantity":2,"price":"400","block":5},{"lot":"5","item":7,"quantity":1,"price":"700","block":9},{"lot":"7","item":7,"quantity":1,"price":"800","block":11}],[{"lot":"6","item":9,"quantity":1,"price":"90","block":10},{"lot":"4","item":9,"quantity":1,"price":"100","block":6}],[]],"hubs":[0,2,1],"head":{"number":11,"hash":"0x6b04d5985e65cf6af1b8ac57cbe6a454f79c227336c3534e3607a6c8d4bcb1a","commitments":"0x57312c2420418c18325fb4ab97a53b5ed7704a963bfaaa5c3a452359fe9111,0x6be9331c732e3d2bb3a57dce69053a3625f22e0e0f1a1a99ca611b87f7fe2e4,0x45a0b6dcfea749b10cff401b80b45c08e264e8a7ea5d67e87ed5f02d9cec3fb,0x72b1c6bf76977dbd232f8f6edf56c5ecbecc269f00bd39913f658dc9620b2bf"}}
+[demo +13.73s] ok   rebuilt == rewound, answer for answer
+[demo +13.80s] subscription(item 7): posted {"lot":"8","item":7,"quantity":1,"price":"900","block":"12 0x1ddf7d90…"}
+[demo +13.80s] post 900 (lot 8) in block 12; served
+[demo +13.85s] aborted block 12; post_silent (lot 8, no event) in block 12; same hash as the aborted block: true
+[indexer 2026-09-28T20:02:08.681Z] status rewinding: block 12 0x1ddf7d90… no longer on the chain
+[demo +13.90s] subscription(item 7): status {"status":"rewinding","reason":"block 12 0x1ddf7d90… no longer on the chain"}
+[indexer 2026-09-28T20:02:08.684Z] rewind to 11 (tip 12 no longer on the chain); 1 lots retracted
+[demo +13.91s] subscription(item 7): rewind {"to":11,"retracted":["8"]}
+[indexer 2026-09-28T20:02:08.689Z] status ok
+[demo +13.91s] subscription(item 7): status {"status":"ok"}
+[demo +13.91s] subscription(item 7): reset-begin {"head":"11 0x6b04d598…","total":4}
+[demo +13.91s] subscription(item 7): reset-end {"head":"11 0x6b04d598…","total":4}
+[indexer 2026-09-28T20:02:08.699Z] status halted: lot_count on the chain at block 12 is 8, indexed 7: a lot was created without its event
+[demo +13.92s] subscription(item 7): status {"status":"halted","reason":"lot_count on the chain at block 12 is 8, indexed 7: a lot was created without its event"}
+[demo +13.92s] sampled 48 answers during the replacement: [["ok@12",41],["rewinding@-",3],["ok@11",3],["halted@-",1]]
+[demo +13.92s] ok   the replaced block (same height 12, same hash) is reconciled and halts the indexer: {"status":"halted","reason":"lot_count on the chain at block 12 is 8, indexed 7: a lot was created without its event"}
+[demo +13.92s] ok   the replacement block was never served (0 answers at its identity): {"servedReplacement":0}
+[demo +13.92s] ok   halted: queries answer 503 halted, no rows
+[demo +13.92s] ok   halted: the cache knows, and read() refuses: {"status":"halted","ready":false}
+[indexer 2026-09-28T20:02:08.989Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:02:08.990Z] serving on http://127.0.0.1:41375, following http://127.0.0.1:23168 from block 2, tip null, status loading
+[indexer 2026-09-28T20:02:09.005Z] status ok
+[indexer 2026-09-28T20:02:09.071Z] status halted: LotPosted 9 in block 13, expected lot 8: a lot was created without its event
+[demo +14.29s] ok   a rebuild halts on the id gap (LotPosted 9 after 7): {"status":"halted","reason":"LotPosted 9 in block 13, expected lot 8: a lot was created without its event"}
+[demo +14.32s] ok   no log line holds the provider key of the RPC URL
+[demo +14.32s] ok   no log line holds the node account's private key
+[demo +14.35s] timings: {"liveLatestAcceptedMs":491,"restartLatestAcceptedMs":898}
+[demo +14.35s] all checks passed

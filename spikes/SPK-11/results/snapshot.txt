@@ -1,0 +1,7 @@
+[snapshot] posted 10050 lots of item 5; chain tip 103
+[indexer 2026-09-28T20:02:43.452Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:02:43.453Z] serving on http://127.0.0.1:42423, following http://127.0.0.1:25980 from block 2, tip null, status loading
+[indexer 2026-09-28T20:02:43.466Z] status ok
+[snapshot] snapshot received in 82 ms: frames {"reset-begin":1,"reset-page":11,"reset-end":1}, announced total 10050
+[snapshot] cache shows 10050 lots; the chain holds 10050 open lots of item 5 (lot_count 10050); identical, lot for lot: true
+[snapshot] ok   complete snapshot beyond one page and beyond 10 000 lots
