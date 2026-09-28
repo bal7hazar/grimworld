@@ -221,6 +221,7 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | HRD-04 | Balance pass with BAL-01 and playtest data | PLY-01 | Orchestrator | D | todo |
 | HRD-05 | Public playtest on Sepolia | HRD-01…04 | Orchestrator | — | todo |
 | HRD-09 | Replace the provisional providers: verifiable randomness, production accounts, sponsored fees (ADR-0002, ADR-0005) | SPK-3, SPK-9 | Opus 5.5 | S + GPT-6-Astra | todo |
+| HRD-10 | Pin and verify the checksums of every toolchain download: scarb, snforge and pnpm through their asdf plugins, and the `universal-sierra-compiler` installer (deferred as a minor from the `[GPT-6-Sol]` audit of SPK-5, finding F3, 2026-09-28; sozo, katana and torii are already verified by `scripts/setup-toolchain.sh`) | SPK-5 | Sonnet 5 | S | todo |
 | HRD-06 | External audit | HRD-01 | External | S | todo |
 | HRD-07 | Paymaster budget and policies for mainnet (Q-10) | HRD-02 | Owner + Orchestrator | S | todo |
 | HRD-08 | Store readiness: policy check for on-chain games on both stores, bundled assets, review submission | Phase 5 | Orchestrator | — | todo |

@@ -3,3 +3,5 @@ example/
 # Agent worktrees, their logs, and the report every agent writes at its worktree root.
 .claude/worktrees/
 /REPORT.md
+# Node logs of scripts/with-katana.sh when run from the root.
+.with-katana/
