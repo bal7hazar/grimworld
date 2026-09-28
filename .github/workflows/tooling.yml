@@ -67,8 +67,14 @@ jobs:
           if scripts/agent.sh --dry-run legacy claude sonnet new "x" research; then exit 1; fi
           if scripts/agent.sh --dry-run smoke claude sonnet new "x" ../profiles/implement; then exit 1; fi
           # Every claude launch empties the registry token; the profiles deny publishing and the settings file.
+          # The exact empty override, on new and resumed launches, for every profile.
+          settings='--settings \{\"env\":\{\"SCARB_REGISTRY_AUTH_TOKEN\":\"\"\}\}'
+          echo "claude claude-opus-5-5" > "$logs/tokenprobe.cli"
+          for profile in research audit implement; do
+            grep -qF -- "$settings" <<< "$(scripts/agent.sh --dry-run tokennew claude opus new "x" "$profile")"
+            grep -qF -- "$settings" <<< "$(scripts/agent.sh --dry-run tokenprobe claude opus resume "x" "$profile")"
+          done
           out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
-          grep -qF -- 'SCARB_REGISTRY_AUTH_TOKEN' <<< "$out"
           grep -qF -- 'scarb\ publish' <<< "$out"
           grep -qF -- '.claude/\*\*' <<< "$out"
           # The build lock wraps build and test subcommands only.

@@ -84,16 +84,16 @@ Bash(asdf list*)
 !Bash(find * -fprint*)
 !Bash(find * -fls*)
 
-# Never: read the machine's Claude settings (they hold credentials), print a secret from the
-# environment, or list the environment. Agents run with the registry token emptied by the
-# launcher; these rules are the second line.
+# Never: read the machine's Claude settings (they hold credentials), print the registry token,
+# or list the environment. Agents run with the registry token emptied by the launcher; these
+# rules stop the typed forms only: code an agent runs (python3, node) can still read files of
+# the same Unix user (OPERATIONS §4, accepted residual until credentials are isolated).
 !Read(~/.claude/**)
 !Read(//home/claude/.claude/**)
 !Bash(* ~/.claude*)
 !Bash(* $HOME/.claude*)
 !Bash(* /home/claude/.claude*)
 !Bash(*SCARB_REGISTRY*)
-!Bash(*_TOKEN*)
 !Bash(env)
 !Bash(env *)
 !Bash(printenv*)
