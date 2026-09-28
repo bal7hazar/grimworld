@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.9, 2026-09-28** (v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.10, 2026-09-28** (v0.10: MVP on burner accounts and transaction-hash randomness, behind interfaces; verifiable randomness and accounts move to version 1; v0.9: fully generative maps, drawn at reveal; v0.8: large maps in chunks, ADR-0006; v0.7: lore, Rifts (three open, five a day), invisible chain, accounts behind an interface with burners first, interface and rooms designed; v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -55,10 +55,11 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | FND-03 | Agent tooling: `scripts/agent.sh` launcher ported from the owner's other repositories (profiles research / implement / audit, detached units, logs, resume), `docs/briefs/COMMON.md`, build lock, concurrency budget measured | FND-00 | Orchestrator | S | todo |
 | SPK-1 | Latency spike: submission → pre-confirmed → accepted, via Controller session | SPK-5 | Opus 5.5 | — | todo |
 | SPK-2 | Cost spike: worst-case tick and 10-move queue on a throwaway contract; **cost of an active player per day** (10 Rifts, quests, hub actions), fully sponsored | SPK-5 | Opus 5.5 | C | todo |
-| SPK-3 | vRNG spike: overhead, latency, provider-down behaviour | SPK-5 | Opus 5.5 | S | todo |
+| SPK-3 | Verifiable randomness spike: overhead, latency, provider-down behaviour. **Not needed for the MVP** (D-110); before version 1 | SPK-5 | Opus 5.5 | S | todo (V1) |
 | SPK-4 | Parity spike, two options measured: (a) TypeScript mirror checked by Cairo-generated vectors; (b) **the Cairo code itself run in the client** through a Cairo VM in WebAssembly, as in the owner's physics game. Needs the game logic as a pure library (state in, state out) | SPK-5 | Opus 5.5 | P | todo |
 | SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, Controller session, vRNG (ADR-0003 thresholds); room size for portrait | SPK-5 | Opus 5.5 | — | todo |
-| SPK-9 | Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
+| FND-05 | Provider interfaces: `fate(domain)` with the transaction-hash implementation and a deployment check refusing it on mainnet; account provider with the burner implementation | FND-01 | Opus 5.5 | S Q | todo |
+| SPK-9 | **Before version 1.** Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
 | SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + codex | S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
@@ -163,6 +164,7 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | HRD-03 | Registry permissions, multisig, upgrade policy (Q-08) | Phase 5 | Opus 5.5 | S | todo |
 | HRD-04 | Balance pass with BAL-01 and playtest data | PLY-01 | Orchestrator | D | todo |
 | HRD-05 | Public playtest on Sepolia | HRD-01…04 | Orchestrator | — | todo |
+| HRD-09 | Replace the provisional providers: verifiable randomness, production accounts, sponsored fees (ADR-0002, ADR-0005) | SPK-3, SPK-9 | Opus 5.5 | S + codex | todo |
 | HRD-06 | External audit | HRD-01 | External | S | todo |
 | HRD-07 | Paymaster budget and policies for mainnet (Q-10) | HRD-02 | Owner + Orchestrator | S | todo |
 | HRD-08 | Store readiness: policy check for on-chain games on both stores, bundled assets, review submission | Phase 5 | Orchestrator | — | todo |
@@ -235,7 +237,7 @@ the owner, and **due before the phase that consumes it**.
 | R-11 | Store rejects the app (thin wrapper, on-chain content) | Medium | High | Bundle assets, behave as an app; HRD-08 early enough to react | Phase 5 |
 | R-12 | Chunked maps exceed the cost budget (window assembly, chunk generation on reveal, flood) | Medium | High | Stored window re-centred with hysteresis; one shared flood per tick; fallback window 11 × 11; SPK-7 before ENG-05 | Phase 0 |
 | R-16 | Generated zones feel the same | Medium | Medium | Biomes, bands, authored set pieces placed by quota; playtest at the fun gate | Phase 3 |
-| R-17 | Exploring depends on the random source being up | Medium | High | SPK-3 and SPK-9; fighting in revealed terrain does not depend on it | Phase 0 |
+| R-17 | The MVP's randomness can be steered by anyone (transaction hash) | Certain | Low in the MVP, **blocking for version 1** | Nothing of value in the MVP; provider interface; deployment check; the hardening gate requires the verifiable provider | Phase 6 |
 | R-15 | Seamless generation across chunks needs a capability the map library does not have | Medium | High | LIB-01; rooms-and-corridors generation as fallback for dungeons | Phase 0 |
 | R-13 | The MVP grows beyond what a first release can carry (equipment loot, sets, trade, auction house added) | High | High | Phase 4 split in two gates; fun gate at Phase 3 stays before any of it is built | Phase 4 |
 | R-14 | Gold and items traded for real money outside the game; bots farming | Medium | High | Fees as gold sinks, listing limits, account age; examined with Q-07 | Phase 4 |

@@ -52,12 +52,15 @@
 
 | D-109 | Zones have an **outline drawn in advance** (irregular, any size), so that the world map can be drafted without knowing the content. Dungeons let their outline emerge (a free edge is a border with some probability, respecting neighbours) |
 
+| D-110 | **MVP randomness is the transaction hash.** Known to be weak; the aim is to test quickly. Improved for version 1 |
+| D-111 | Random word at reveal: one draw at entry, then a value built from the adventurer's irreversible actions. Reading one chunk ahead is accepted. An alternative in the same spirit may be looked for later |
+| D-112 | Dungeons have a target size, 6 to 12 chunks by grade; their outline emerges within it |
+
 ## To study before deciding
 
 | # | Question | Input needed |
 |---|---|---|
 | Q-18 | Looted weapons: rarities, identification, gold value, drop rates | Researched; proposal in `docs/design/15-equipment.md`. Drop rates were never published for Guild Wars: ours are our own |
-| CM-8 | Random word at reveal: verifiable function, or the owner's idea of a value built from the adventurer's irreversible actions | Orchestrator recommends a draw at entry plus player entropy inside; limits stated in ADR-0006 |
 | Q-19 | Should boss-tied sets extend to armor? Under D-37b it would not unbalance anything. The Mighty Quest for Epic Loot had named sets without any set bonus. Guild Wars did not: its armor comes from crafters and collectors. Recommendation: weapons, shields and foci first | Owner |
 
 ## Business model elements named so far

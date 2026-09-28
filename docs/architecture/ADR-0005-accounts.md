@@ -44,7 +44,7 @@ never imports a vendor's library outside that module.
 
 | Stage | Account | Fees | Randomness | For |
 |---|---|---|---|---|
-| **A — Burner** | A key generated on the device, an account deployed by the game | Local network: none. Sepolia: accounts funded by the game, or a paymaster | Local: a mock. Sepolia: see spike | Development and first playtests |
+| **A — Burner (MVP)** | A key generated on the device, an account deployed by the game | Local network: none. Sepolia: accounts funded by the game, or a paymaster | **Transaction hash** (ADR-0002, provisional) | Development, the MVP, first playtests |
 | **B — Evaluate Controller** | Controller behind the interface | Its paymaster | Its vRNG | Spike SPK-9 decides |
 | **C — Production** | Controller if it passes; otherwise **our own**: passkey-owned account, session key on the device, our paymaster | The game | The source kept by SPK-3 and SPK-9 | Public test and mainnet |
 

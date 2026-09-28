@@ -62,7 +62,7 @@ This corrects ADR-0002, which accepted that layouts could be read in advance.
 | How often | A few times per location, not at every step. It reads as discovery |
 | Dependency | The random source is on the path of plain movement. If it is down, exploring stops; fighting in known terrain goes on |
 
-#### Where the random word comes from: three options (open, CM-8)
+#### Where the random word comes from (D-111: option C)
 
 | | A. Verifiable random function | B. **Player entropy** (owner's idea) | C. Entry draw + player entropy |
 |---|---|---|---|
@@ -98,7 +98,12 @@ design: five Rifts a day per account; loot, identification and alchemy stay on
 verifiable randomness, so rewards cannot be steered; nothing is competitive. Against that:
 instant reveals, and exploration that depends on nobody.
 
-**Recommendation: C.** One verifiable draw when entering, which is a moment where waiting
+**Decision (owner, 2026-09-28): C, for now.** Reading one chunk ahead is accepted. A
+better scheme in the same spirit, a value fixed in advance but tied to gameplay, will be
+looked for as features settle. In the MVP the draw at entry uses the provisional source
+of ADR-0002.
+
+One draw when entering, which is a moment where waiting
 is natural and which prevents choosing one's instance; player entropy inside. The fog of
 war is then a fog **for honest clients and one chunk deep for the others**, stated as
 such. D-107 ("must resist reading the chain") is met for everything beyond the next chunk.
@@ -168,7 +173,7 @@ spoiler.
 |---|---|---|
 | Outline | **Drawn in advance**, in the registry: an irregular shape, any size | **Emerges** during exploration |
 | Known before entering | Yes: the map of the world can be drawn from the outlines of all zones, without knowing what any of them contains | No |
-| Stored as | The list of chunks of the zone; for each chunk on the border, a **mask** of the tiles that belong to the zone (one felt) | A target number of chunks `N`, by grade |
+| Stored as | The list of chunks of the zone; for each chunk on the border, a **mask** of the tiles that belong to the zone (one felt) | A target number of chunks `N`, by grade: **6 to 12** |
 | At reveal | The generated chunk is cut by its mask; what is outside is impassable | Each free edge of the new chunk is a border with a probability (initially 1 in 7), except where a neighbour already decided |
 | Gates | Anchors on the outline | The entrance; the exit is a quota |
 
@@ -287,7 +292,6 @@ If the window's cost is too high, the fallback is a window of 11 × 11 with sigh
 
 | # | Question |
 |---|---|
-| CM-8 | Source of the random word at reveal: A, B or C above. Recommendation: C |
-| CM-6 | If A: one random word per reveal transaction, shared by the chunks revealed together |
 | CM-7 | Format of authored chunks and outline masks, and the tool to draw them |
-| CM-9 | Target sizes `N` of dungeons by grade |
+| CM-9 | Exact `N` per grade within 6 to 12 |
+| CM-10 | A value fixed in advance and tied to gameplay, stronger than the present player entropy: to look for |

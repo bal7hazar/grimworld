@@ -37,6 +37,12 @@ Owner's third review (2026-09-28): adventurer slots and vault, estate, titles, q
 Region 1, equipment with loot and boss sets, trade and auction house; companions designed
 then withdrawn; ADR-0004 on the Arcade packages. The MVP has grown: see risk R-13.
 
+## MVP and version 1
+
+The MVP is a test version: burner accounts, randomness from the transaction hash, test
+networks only, nothing of value, progress may be wiped. Version 1 replaces both providers
+behind their interfaces and goes through the hardening phase.
+
 ## Design coverage
 
 Written: 19 design documents, the lore premise, 5 ADRs. The three documents due before

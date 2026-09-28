@@ -42,7 +42,7 @@ SPK-5, not here.
 | Indexer | Torii |
 | Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
 | Fees | Always paid by the game |
-| Randomness | Cartridge vRNG ([ADR-0002](docs/architecture/ADR-0002-randomness.md)); tied to Cartridge's paymaster, re-examined with ADR-0005 |
+| Randomness | Behind an interface. **MVP: transaction hash**, known to be steerable. Version 1: a verifiable source ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
 | Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 (pointy-top hexes, one felt per room) |
 | Client | TypeScript, dojo.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
 | Art | Pixel art, 64 × 64 tiles, *Tiny Swords* pack by Pixel Frog as prototype ([design/10](docs/design/10-art-direction.md)) |
@@ -137,7 +137,7 @@ owner, with the date), Superseded.
 | D-51 | Alchemy discovery is per adventurer and per regional book | design/07 | Accepted 2026-09-28 |
 | D-52 | Recipes have a rarity signature, identical for every adventurer | design/07 | Proposed; kept only if its step cost is negligible (SPK-2) |
 | D-60 | Execute on Starknet mainnet; persistent and ephemeral domains split in code | ADR-0001 | Accepted 2026-09-28, subject to spikes |
-| D-61 | Two randomness classes, Fate and Fog; **layouts are Fate** | ADR-0002 | Proposed, revised |
+| D-61 | Randomness behind an interface; transaction hash in the MVP, verifiable in version 1; reveal by entry draw plus player entropy | ADR-0002, ADR-0006 | Accepted 2026-09-28 |
 | D-62 | Client: TypeScript, PixiJS on demand, Capacitor; mobile first | ADR-0003 | Accepted 2026-09-28, subject to SPK-6 |
 | D-72 | The orchestrator merges on green CI and audits, and deploys to Sepolia autonomously | OPERATIONS §7 | Accepted 2026-09-28 |
 | D-73 | `assets/` and anything derived from it is never committed; licence forbids redistribution | design/10 | Accepted 2026-09-28 |
@@ -178,6 +178,8 @@ owner, with the date), Superseded.
 - **Invisible chain.** No fee is ever charged to the player and no blockchain vocabulary
   reaches the interface (D-100). Abuse is limited by game rules (daily caps), never by
   making the player pay.
+- **Provisional providers.** The MVP runs on burner accounts and transaction-hash
+  randomness. Neither may reach mainnet; the MVP holds nothing of value.
 - **Two domains.** Persistent and ephemeral state never share a model (ADR-0001).
 - **Power budget.** The client has no permanent render loop (ADR-0003).
 - **Assets.** `assets/` and anything derived from it is never committed: the licence
