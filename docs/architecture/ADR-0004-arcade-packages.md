@@ -63,7 +63,7 @@ enforced.
 
 | # | Point | Found |
 |---|---|---|
-| 1 | **Licence** | The repository's licence is a custom Cartridge licence, non-commercial, with a threshold of 1 000 monthly active users; package manifests say otherwise. The owner is the main author, but the terms are Cartridge's. **To clarify before a commercial game ships on this code** |
+| 1 | **Licence** | **MIT, stated by the owner (2026-09-28).** The `LICENSE` file read at the root of the repository on that date says otherwise (a custom non-commercial licence) and the package manifests say ISC or MIT: the repository should be made consistent with the owner's statement, so that nobody downstream reads the wrong terms |
 | 2 | **Not published** | No package is on the registry; games pin a git revision. The latest tag predates the quest package |
 | 3 | **Event mode is untested** | No test in `achievement` or `quest` uses `to_store = false` |
 | 4 | **Quest edge cases** | From reading: unlock may fire on every decrement; an inactive dependent quest may revert the whole progress call; a recurring prerequisite may underflow the lock counter of a one-off quest. To confirm by tests |
@@ -93,5 +93,4 @@ orchestrator, and must not block Phase 0.
 | + | Quests and achievements appear in Controller with no interface work |
 | + | Daily contracts and prerequisites exist already |
 | − | A dependency pinned by git revision until the packages are published |
-| − | The licence question must be answered first |
 | − | Our vocabulary collides: **"guild"** is the Adventurers' Guild in our design and a group of players in the package. The glossary now says **Guild** for the institution and **company** for a group of players |

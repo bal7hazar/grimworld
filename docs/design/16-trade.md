@@ -11,7 +11,8 @@
 | Gold | Yes |
 | Ingredients, materials, potions | Yes |
 | Equipment, identified or not | Yes |
-| Boss items | Open (EQP-3) |
+| Boss items | Yes |
+| Personalised equipment | **No**, never again |
 | Quest items, skills, titles, grimoire, rank | **No** |
 | Cosmetics sold by the game (auras, miniature pets) | Open, with the business model (DES-15) |
 
@@ -38,10 +39,11 @@ offer they want.
 
 | | |
 |---|---|
-| Where | One auction house per town, split by category: equipment, ingredients, materials, potions |
+| Where | **One market for the whole world**, reachable from the auction house of any town; split by category: equipment, ingredients, stillstone, potions |
 | Selling | Put a **lot** of 1, 10 or 100 identical items (equipment: lots of 1) at a price chosen by the seller |
 | **Listing fee** | 2% of the asked price, paid when posting, **never refunded** |
 | Duration | 7 days. Unsold lots go back to the seller's vault |
+| Who can sell | Accounts with an adventurer of rank **Tin** or above. Anyone can buy |
 | Number of lots | 10 per account, plus 1 per guild rank of its highest adventurer |
 | Buying | For each item and each lot size, the house shows the **cheapest** lot. The buyer pays, the lot goes to their vault |
 | Proceeds | Go to the seller's vault, at once, even if the seller is away |
@@ -78,10 +80,11 @@ offer they want.
 | Price manipulation on rare items | Average over many sales, not the last one |
 | Store rules | Trade in game gold between players is ordinary. Anything that turns gold or items into tokens is to be checked against store policies first ([ADR-0003](../architecture/ADR-0003-client.md)) |
 
-## Open
+## Choices made by the orchestrator (delegated by the owner, D-49)
 
-| # | Question |
+| Choice | Reason |
 |---|---|
-| TR-1 | Is there one market for the whole world, or one per town with its own lots, as a reason to travel? |
-| TR-2 | A sale tax on top of the listing fee? |
-| TR-3 | Minimum guild rank or account age to sell? |
+| **One world market**, not one per town | A young on-chain game has few players. Splitting them between towns gives empty markets where nothing sells and prices mean nothing. Separate markets become interesting only with a large population; the data model keeps a `market id` on every lot so that regional markets can be opened later without migration |
+| **Listing fee only, no sale tax** | One rule to understand. The fee is paid whether or not the lot sells, which already discourages overpricing and flooding |
+| **Tin rank to sell** | Costs a real player one hour; costs a farm of fresh accounts one hour each |
+| **Fixed lot sizes 1, 10, 100** | Makes lots comparable, so "the cheapest" means something |

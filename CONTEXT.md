@@ -157,7 +157,6 @@ owner, with the date), Superseded.
 | Q-10 | Business model and who funds the paymaster | Before mainnet | — (owner) |
 | Q-11 | Names: world, regions, professions, skills | `LORE` track | Working names stand until then |
 | Q-12 | The asset pack has no caster sprite. Keep the Arcanist in the MVP (needs one commissioned sprite) or replace it by the Cleric (Monk sprite exists)? | Phase 2 | Keep the Arcanist if a sprite can be commissioned; else Cleric |
-| Q-21 | Licence of the Arcade packages for a commercial game | Before Phase 3 | Clarify with Cartridge |
 | Q-22 | Extract the Arcade packages into dedicated, published repositories | Programme level | Yes, `quest` first |
 | Q-17 | Do mainnet deployments and mainnet registry writes need an explicit go from the owner each time? | Before Phase 7 | Yes |
 | Q-14 | Default room size for portrait phones | SPK-6 | 13 × 19 if readable, else 15 × 15 with a following camera |

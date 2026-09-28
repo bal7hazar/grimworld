@@ -25,6 +25,11 @@
 | D-46 | **Players can trade with each other**, and there is an **auction house**, modelled on the one of classic Dofus |
 | D-43 | The secondary profession is kept as a feature and deprioritised: not needed to prove technical feasibility |
 
+| D-47 | Boss items are tradable |
+| D-48 | Personalising an item gives a damage or defence bonus and binds it to the adventurer, making it unsellable, as in Guild Wars |
+| D-49 | Auction house strategy delegated to the orchestrator: one world market, listing fee only, Tin rank to sell |
+| — | Arcade packages are under MIT licence (owner's statement) |
+
 ## To study before deciding
 
 | # | Question | Input needed |

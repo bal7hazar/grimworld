@@ -180,6 +180,7 @@ and about 16 with everything.
 | Look | Its own |
 | Statistics | Requirement 9, every slot filled, every modifier at its maximum, all taken from the common pool |
 | Cannot be | Modified, salvaged |
+| Trade | **Tradable** (D-47), until personalised |
 | Why want it | The look; a finished weapon without assembling one; the name of the boss |
 | Weapon sets | The bosses of one dungeon or elite zone form a set by their look |
 
@@ -217,6 +218,23 @@ to the chance of the boss weapon.
 
 Art cost: five pieces per profession per boss. While equipment is not drawn on the
 character, a piece is an icon; the MVP needs 15 icons for the first dungeon.
+
+## Personalisation (D-48)
+
+As in the baseline, any weapon, shield, focus or armor piece can be **personalised** in a
+hub for a small fee.
+
+| | |
+|---|---|
+| Effect on a weapon | +20% base damage |
+| Effect on a shield or armor piece | +10% of its rating |
+| Bound | To the adventurer, forever. The item can no longer be traded, listed or moved to another adventurer through the vault |
+| Undo | Never |
+| Boss items | Can be personalised like any other |
+
+Since everyone can do it, the bonus is part of the expected power of a finished build, not
+an advantage. What it creates is a decision: **keep the item's market value, or make it
+yours**. It also removes items from the market for good, which supports prices.
 
 ## Gold
 
@@ -262,5 +280,4 @@ loot and modifiers, then sets, then trade. Each step is playable without the nex
 
 | # | Question |
 |---|---|
-| EQP-2 | Binding an item to an adventurer for +20% damage, which removes its trade value (baseline's "customisation"): keep? |
-| EQP-3 | Are boss items tradable, or bound to the adventurer who earned them? |
+| EQP-4 | Balance is tuned for personalised or non-personalised equipment? Recommendation: personalised |
