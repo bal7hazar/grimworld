@@ -419,8 +419,19 @@ minutes of context:
 5. Orchestrators report to the project manager through the repository; the project manager
    reports to the owner **in French**: what moved, what is blocked, what they must decide.
 
-Owner decisions are **batched**: the project manager asks in chat when a decision blocks a
-wave, and records the answer in `docs/decisions/` and in the documents concerned.
+**The project manager decides** (owner's rule, 2026-09-28, D-128): when it has a
+recommendation it follows it, writes it in `docs/decisions/` and in the documents concerned,
+and reports it to the owner afterwards, with the reason and what would reverse it. It does
+not ask first, so that nothing waits. The owner reverses what it disagrees with.
+
+What stays the owner's act, asked before and never assumed:
+
+| | |
+|---|---|
+| Mainnet | Every deployment and every registry write (D-116) |
+| What cannot be undone outside the repositories | Publishing a package on a registry, a store submission, deleting a repository |
+| Money | Any spending beyond the sponsored fees of test networks |
+| Accounts and secrets | Providing credentials, logging a CLI in or out, settings of the machine or of GitHub that touch security |
 
 ## 11. Language
 

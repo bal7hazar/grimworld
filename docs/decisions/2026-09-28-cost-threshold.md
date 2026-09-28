@@ -1,4 +1,4 @@
-# PENDING — The cost of an expedition against the threshold of ADR-0001
+# The cost of an expedition against the threshold of ADR-0001 — decided 2026-09-28 (D-129)
 
 | | |
 |---|---|
@@ -69,4 +69,21 @@ leaves $0.49.
 
 ## Answer
 
-*To be filled with the owner's decision and its date.*
+Decided by the project manager on 2026-09-28, under the owner's rule of the same day (D-128:
+the project manager goes ahead with its own recommendations). The owner agreed to a
+measurement on Sepolia.
+
+| # | Decision (D-129) |
+|---|---|
+| 1 | **The threshold of $0.50 for 300 actions stays the target.** Nothing is decided on the figures of the local node |
+| 2 | **SPK-1 is brought forward and extended**: besides latency it measures, on Sepolia, the worst tick, a queue of 10 moves, an exploring queue, enter and leave, as native contracts, from the account the MVP will use. It gives the expedition's cost on a public network |
+| 3 | **ENG-01 carries a cost constraint**: a budget for the fixed part of a transaction and for the reads and writes of a tick, set from SPK-2 and SPK-1, before the storage layout is frozen |
+| 4 | **When the Sepolia figures are in**, the project manager decides between a restated threshold and a change of the queue in fights, and reports. The cost of an active player per day is written in front of the business model (Q-10), which is the owner's |
+| 5 | Waiting for a lower gas price and an L3 are not pursued |
+
+What would reverse it: Sepolia figures at or above the local ones. Then the fixed part of a
+transaction is the problem, and the queue in fights (design/02) is reopened first.
+
+**Blocked on 2026-09-28**: the Sepolia credentials are not in the environment. The only
+variable defined in `~/.claude/settings.json` on the VPS is the registry token; no file of
+settings on the machine names a Sepolia account or key (names checked, no value read).
