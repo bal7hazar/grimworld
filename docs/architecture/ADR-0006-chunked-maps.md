@@ -62,6 +62,47 @@ This corrects ADR-0002, which accepted that layouts could be read in advance.
 | How often | A few times per location, not at every step. It reads as discovery |
 | Dependency | The random source is on the path of plain movement. If it is down, exploring stops; fighting in known terrain goes on |
 
+#### Where the random word comes from: three options (open, CM-8)
+
+| | A. Verifiable random function | B. **Player entropy** (owner's idea) | C. Entry draw + player entropy |
+|---|---|---|---|
+| Source | A random word requested at each reveal | A value accumulated from the adventurer's **irreversible** actions in the instance | One verifiable draw when entering; inside, B seeded by it |
+| Can the next chunk be read in advance? | **No** | **Yes, one chunk ahead**, by a modified client: the value is on-chain, the generator is public | Same as B |
+| Can the instance be chosen before entering? | No | Yes: the starting value is known | **No** |
+| Can the next chunk be steered? | No | Yes, at the price of playing badly | Same as B |
+| Reveal on screen | Waits for the chain | **Instant**: the client computes it | Instant |
+| External dependency while exploring | Yes | **None** | None after entry |
+| Cost of a reveal | Generation + request | Generation | Generation |
+
+**Rule of option B.** Only what cannot be undone or repeated for free feeds the value:
+
+| Feeds the value | Does not |
+|---|---|
+| A goblin killed (which one) | Moving, turning, going back and forth |
+| Health lost | Waiting |
+| A consumable used | Using a skill out of combat (energy comes back by waiting) |
+| Remains looted, a chest opened, a vein mined | The tick count, the position |
+| The chunk revealed and the side it was entered from | The order of two actions that lead to the same state |
+
+The value is a **set**, not a sequence: killing A then B gives the same value as B then
+A, so that order cannot be used as free choice.
+
+**What B cannot give.** The world waits: a program has all the time it needs to try, off
+chain, every irreversible option within reach and keep the one that leads to the best
+next chunk. The number of cheap options is small but not zero (leave this goblin asleep or
+kill it; take this hit or not; loot now or later). Steering is made **costly, not
+impossible**, and reading one chunk ahead is free.
+
+**Why it may still be the right choice.** What a better chunk is worth is bounded by the
+design: five Rifts a day per account; loot, identification and alchemy stay on
+verifiable randomness, so rewards cannot be steered; nothing is competitive. Against that:
+instant reveals, and exploration that depends on nobody.
+
+**Recommendation: C.** One verifiable draw when entering, which is a moment where waiting
+is natural and which prevents choosing one's instance; player entropy inside. The fog of
+war is then a fog **for honest clients and one chunk deep for the others**, stated as
+such. D-107 ("must resist reading the chain") is met for everything beyond the next chunk.
+
 ### 3. Constraints without a plan
 
 The fear is legitimate: generating chunk by chunk while honouring constraints on the whole
@@ -120,6 +161,26 @@ spoiler.
 | "A river crossing the whole zone" | A shape spanning chunks needs a plan |
 | "The boss at the far end of a winding path" | Same. Distance to the entrance (kind 3) is the available approximation |
 | "Exactly this pack composition across three chunks" | Quotas count; they do not arrange |
+
+#### Outlines
+
+| | Zones | Dungeons |
+|---|---|---|
+| Outline | **Drawn in advance**, in the registry: an irregular shape, any size | **Emerges** during exploration |
+| Known before entering | Yes: the map of the world can be drawn from the outlines of all zones, without knowing what any of them contains | No |
+| Stored as | The list of chunks of the zone; for each chunk on the border, a **mask** of the tiles that belong to the zone (one felt) | A target number of chunks `N`, by grade |
+| At reveal | The generated chunk is cut by its mask; what is outside is impassable | Each free edge of the new chunk is a border with a probability (initially 1 in 7), except where a neighbour already decided |
+| Gates | Anchors on the outline | The entrance; the exit is a quota |
+
+Rules that keep an emerging outline sound:
+
+| Rule | Why |
+|---|---|
+| An edge facing an existing neighbour copies that neighbour's decision: open if it is open, border if it is border | Consistency |
+| While fewer than `N` chunks are revealed, the last open edge of the frontier **cannot** be drawn as a border | The dungeon cannot close before it is complete |
+| When `N` chunks are revealed, every remaining open edge becomes a border | The dungeon ends |
+| Quotas count on `N` | "Chunks left to reveal" stays a known number, so guarantees hold |
+| State | Revealed count, open-edge count |
 
 #### Joining chunks
 
@@ -226,6 +287,7 @@ If the window's cost is too high, the fallback is a window of 11 × 11 with sigh
 
 | # | Question |
 |---|---|
-| CM-2 | Sizes, in chunks: zone 7 × 7, dungeon floor 3 × 3? |
-| CM-6 | One random word per reveal transaction, shared by the chunks revealed together: confirmed by SPK-3 |
-| CM-7 | Format of authored chunks and the tool to draw them |
+| CM-8 | Source of the random word at reveal: A, B or C above. Recommendation: C |
+| CM-6 | If A: one random word per reveal transaction, shared by the chunks revealed together |
+| CM-7 | Format of authored chunks and outline masks, and the tool to draw them |
+| CM-9 | Target sizes `N` of dungeons by grade |

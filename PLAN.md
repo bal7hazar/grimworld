@@ -60,9 +60,10 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, Controller session, vRNG (ADR-0003 thresholds); room size for portrait | SPK-5 | Opus 5.5 | — | todo |
 | SPK-9 | Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
+| SPK-10 | Player entropy study (ADR-0006, CM-8): how many cheap irreversible options exist in typical situations, what a program gains by steering, measured on the balance simulator | BAL-01 | Opus 5.5 + codex | S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
 | LIB-01 | Map library: **generation of a board given its margins** (owner, in the library), board assembly from chunks, line of sight; outside this repository | — | Owner | — | todo |
-| TOOL-01 | Set-piece tool: draw an authored chunk (terrain, placements, edges) and write it to the registry | LIB-01 | Opus 5.5 | D V Q | todo (after MVP start) |
+| TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-01 | Opus 5.5 | D V Q | todo |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
 
