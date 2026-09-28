@@ -84,6 +84,7 @@ measurement on Sepolia.
 What would reverse it: Sepolia figures at or above the local ones. Then the fixed part of a
 transaction is the problem, and the queue in fights (design/02) is reopened first.
 
-**Blocked on 2026-09-28**: the Sepolia credentials are not in the environment. The only
-variable defined in `~/.claude/settings.json` on the VPS is the registry token; no file of
-settings on the machine names a Sepolia account or key (names checked, no value read).
+**Unblocked on 2026-09-28, 20:21 UTC**: the owner added the Sepolia account to the
+settings of the machine. Checked by the project manager without reading a value: the four
+variables are set; the RPC answers chain `SN_SEPOLIA`, specification 0.10.2; the account is
+deployed on it.

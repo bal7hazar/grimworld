@@ -378,7 +378,12 @@ What was reviewed, what was not, and why.
   client simulation is updated in the same lot.
 - **Deployments**: the orchestrator deploys to **Sepolia autonomously**, with the
   credentials found in the session's settings environment; they are never printed, copied
-  into a file or passed to a sub-agent's brief. Every release goes to Sepolia first.
+  into a file or passed to a sub-agent's brief. They are the variables
+  `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS` and
+  `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
+  2026-09-28; checked by name). The claude CLI gives them to every agent it starts, so a
+  task that sends transactions to Sepolia uses them **by name**, and every script that
+  sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.
   **Mainnet deployments and mainnet registry writes need an explicit go from the owner,
   each time** (D-116).
 - CI stays under ~10 minutes: split test packages before they grow.
