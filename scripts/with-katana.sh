@@ -19,6 +19,9 @@
 # Katana runs in dev mode: seed 0, ten pre-funded accounts (printed in the log).
 # Logs: $WITH_KATANA_LOG_DIR (default ./.with-katana/) katana.log and torii.log, overwritten each run.
 # Torii's database is in memory: nothing outlives the run.
+# The functions below are called by the trap and through wait_for: shellcheck 0.9 reports them as
+# unreachable (SC2317), 0.10 and later as never invoked (SC2329).
+# shellcheck disable=SC2317,SC2329
 set -uo pipefail
 
 usage() {
@@ -72,7 +75,6 @@ free_port() {
   done
 }
 
-# shellcheck disable=SC2329  # called by cleanup, itself called by the trap
 stop() { # <pid> [group]: TERM, then KILL after five seconds; with "group", the whole process group
   local pid=$1 target=$1
   [ -n "$pid" ] && kill -0 "$pid" 2> /dev/null || return 0
@@ -87,7 +89,6 @@ stop() { # <pid> [group]: TERM, then KILL after five seconds; with "group", the 
   return 0
 }
 
-# shellcheck disable=SC2329  # called by the trap
 cleanup() {
   trap '' EXIT INT TERM HUP
   stop "$cmd_pid" group
@@ -118,7 +119,6 @@ katana_port=$(free_port)
 katana --dev --http.port "$katana_port" > "$log_dir/katana.log" 2>&1 &
 katana_pid=$!
 katana_url=http://127.0.0.1:$katana_port
-# shellcheck disable=SC2329  # called through wait_for
 probe_katana() {
   curl -sf -X POST -H 'content-type: application/json' \
     -d '{"jsonrpc":"2.0","id":1,"method":"starknet_chainId","params":[]}' "$katana_url"
@@ -135,7 +135,6 @@ if [ "$torii" = 1 ]; then
     --relay.websocket_port "$relay_ws_port" \
     > "$log_dir/torii.log" 2>&1 &
   torii_pid=$!
-  # shellcheck disable=SC2329  # called through wait_for
   probe_torii() { curl -s -o /dev/null "http://127.0.0.1:$torii_port/"; }
   wait_for torii "$torii_pid" "$log_dir/torii.log" probe_torii || exit 1
   export TORII_URL=http://127.0.0.1:$torii_port TORII_GRPC_URL=http://127.0.0.1:$grpc_port

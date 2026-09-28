@@ -130,9 +130,11 @@ the lock needs the subcommand first): run it from the package folder, or use `so
    decides on the version check.
 9. `starknet@10.0.2` is flagged deprecated on npm (`Superseded. Upgrade to starknet@10.8.0 or
    later`), but `@dojoengine/*` 2.0.0 pin it exactly; a newer starknet.js is not usable with them.
-10. `shellcheck` is not installed on the machine; the two scripts and `run.sh` were checked with
-    `shellcheck-py` 0.11.0.1 (pip, in an ignored folder of the worktree): no finding. The CI
-    installs its own.
+10. `shellcheck` is not installed on the machine; all of `scripts/*.sh` and `run.sh` were checked
+    with `shellcheck-py` 0.9.0.6 (the version of the CI's `ubuntu-latest`) and 0.11.0.1 (pip, in
+    `/tmp`): no finding. The first CI run failed on 0.9.0 with SC2317 ("unreachable") for the
+    functions called from a `trap` and through `wait_for`, which 0.11 reports as SC2329; both are
+    disabled file-wide in `with-katana.sh`.
 
 ## 5. Commands run (real output, trimmed)
 
