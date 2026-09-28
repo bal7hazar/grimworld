@@ -188,6 +188,12 @@ For B′, each of the 4 old chunks holds a move the window knows and the chunk d
 where a goblin left). Chunks (2, 4) and (3, 4) also miss the goblins that entered them. Writing
 the window back therefore changes all 4 chunks, before the new set is read from storage.
 
+**This pending occupancy is synthetic** (audit of PR 50, re-audit finding 3): the ghost tiles are
+walls, three of them on the old window's frozen ring, where no goblin can have moved during
+deferred ticks. The case covers the branch (write back, then read a new chunk set) and its storage
+traffic; it is not a history valid ticks can produce. A benchmark built from valid deferred ticks
+is left to ENG-07, if B′ is kept (orchestrator's deferral).
+
 | Variant, same destination | L2 gas | L1 data gas |
 |---|---:|---:|
 | A | 2,880,960 | 448 |

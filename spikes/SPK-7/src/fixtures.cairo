@@ -98,6 +98,8 @@ pub const SHIFT_CHUNKS: [(u8, u8); 6] = [(2, 3), (2, 4), (2, 5), (3, 3), (3, 4),
 /// Moves pending in the stored window (B'): each of the 4 chunks under the old window marks a tile
 /// the window knows is free (a goblin that left it), `(cx, cy, bit)`; chunks (2, 4) and (3, 4) also
 /// miss the goblins that entered them. Writing the window back changes all 4.
+/// Synthetic: these tiles are walls (three on the old window's frozen ring); valid ticks cannot
+/// produce them. The case covers the write-back branch only (audit of PR 50, re-audit finding 3).
 pub const SHIFT_GHOSTS: [(u8, u8, u8); 4] = [(2, 3, 205), (3, 3, 197), (2, 4, 7), (3, 4, 0)];
 
 /// The reveal fixture: 3 chunks in an L, A = (2, 2), B = (3, 2), C = (2, 3) (C on an odd chunk
