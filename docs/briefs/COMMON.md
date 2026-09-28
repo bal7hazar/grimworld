@@ -60,6 +60,13 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
   minute and run it again.
 - Do not install or upgrade anything the brief does not ask for. Never change the machine's
   toolchain globally (`asdf set -u`, `asdf uninstall`): other programmes use it.
+- **An asdf plugin changes the whole machine**: adding one creates shims in `~/.asdf/shims`,
+  ahead of the system binaries on every PATH, for every programme. Never add a plugin for a
+  tool the system already provides at the pinned version; after adding any plugin, check that
+  the same command still works from a directory without `.tool-versions` (`cd /tmp`), and stop
+  and escalate if it does not (docs/reports/INC-2026-09-28-asdf-node-shims.md).
+- `npm`, `npx` and `corepack` print `No version is set for nodejs; please run asdf set …` on
+  stderr on this machine: a harmless warning, not a failure.
 
 ## 4. Rules of the game's code
 
