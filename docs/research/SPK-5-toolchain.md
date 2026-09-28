@@ -11,9 +11,9 @@ local Katana, is indexed by Torii and is read back by a dojo.js script
 |---|---|---|---|
 | Cairo / Scarb | **2.13.1** (Cairo 2.13.1, Sierra 1.7.0) | asdf, `.tool-versions` | Dojo's own `.tool-versions` at `sozo/v1.8.7` (`scarb 2.13.1`); the only 2.13.x on asdf; constraint chain in §2 |
 | starknet-foundry (`snforge`) | **0.51.2** | asdf, `.tool-versions` | `dojo_snf_test 1.8.0` depends on `snforge_std =0.51.2` (scarbs.xyz index); Dojo's own pin is `0.51.0` |
-| Dojo (`sozo`) | **1.8.7** | release binary, `scripts/setup-toolchain.sh` | latest of the `sozo/v1.8.x` releases of `dojoengine/dojo` (2026-05-06) |
-| Katana | **1.7.1** | release binary, `scripts/setup-toolchain.sh` | latest **stable** release of `dojoengine/katana` (2026-01-29); 1.8.0 exists only as `-rc.N` (latest `rc.9`, 2026-07-20), not pinned |
-| Torii | **1.8.16** | release binary, `scripts/setup-toolchain.sh` | latest release of `dojoengine/torii` (2026-05-20) |
+| Dojo (`sozo`) | **1.8.7** | asdf plugin `asdf-sozo`, `.tool-versions` | latest of the `sozo/v1.8.x` releases of `dojoengine/dojo` (2026-05-06) |
+| Katana | **1.7.1** | asdf plugin `asdf-katana`, `.tool-versions` | latest **stable** release of `dojoengine/katana` (2026-01-29); 1.8.0 exists only as `-rc.N` (latest `rc.9`, 2026-07-20), not pinned |
+| Torii | **1.8.16** | asdf plugin `asdf-torii`, `.tool-versions` | latest release of `dojoengine/torii` (2026-05-20) |
 | Node.js | **24.21.0** | asdf, `.tool-versions` | the version already on the machine; dojo.js declares `engines.node >=22` |
 | pnpm | **12.5.1** | asdf, `.tool-versions` | the version already on the machine (12.8.0 exists; not needed) |
 | `dojo` Cairo package | **1.8.0** (`dojo = "1.8.0"`, `dojo_cairo_macros ^1.8.0`) | scarbs.xyz, `Scarb.toml` | the newest on the registry: `1.7.0, 1.7.1, 1.7.2, 1.8.0`. Sozo 1.8.7 works with it |
@@ -30,14 +30,26 @@ global versions stay in force everywhere else.
 Not pinned here, by the brief: Cartridge Controller (SPK-9). Not needed: `cairo-profiler` (Dojo
 pins 0.9.0 for its own gas work; FND-06 decides).
 
-### Where the release binaries go
+### How sozo, katana and torii are installed
 
-`sozo`, `katana` and `torii` are not installable through asdf (§4, failure 1). The script installs
-each archive after checking its sha256 (the digest GitHub publishes on the release asset; the six
-hashes are in the script) under `~/.grimworld/tools/<tool>/<version>/`, and links it into
-`~/.cargo/bin`, which is on the PATH of the machine and of the agents. It refuses to replace a
-file there that is not one of its own symlinks. `GRIMWORLD_TOOLS` and `GRIMWORLD_BIN_DIR` override
-both places.
+Through the **separate** asdf plugins `github.com/dojoengine/asdf-sozo`, `asdf-katana` and
+`asdf-torii` (added by URL, they are not in asdf's registry), each of which installs its pinned
+version (§4, failure 1 and the test recorded there). They download the same release archives as
+GitHub's. The sha256 of each **extracted binary** (amd64 and arm64) is pinned in
+`scripts/setup-toolchain.sh` and verified on **every** run against
+`asdf where <tool> <version>`/bin/<tool>; a version without a pinned hash is refused. The amd64
+hashes were computed on the installed binaries and equal those of the release archives; the arm64
+hashes come from extracting the arm64 archives (whose own sha256 equals the digest GitHub
+publishes) and were not run on arm hardware. Nothing is written outside asdf's directory.
+
+**Machine-wide effect.** An asdf plugin creates shims in `~/.asdf/shims` that precede the system
+binaries on the PATH (incident `docs/reports/INC-2026-09-28-asdf-node-shims.md`). For `sozo`,
+`katana` and `torii` nothing existed before, so nothing is hidden. For `nodejs` and `pnpm` the
+incident stands: `cd /tmp && node --version` fails while the global `~/.tool-versions` lacks
+`nodejs system` / `pnpm system`. `scripts/setup-toolchain.sh` checks this at its end, prints a
+warning naming that remedy, and never edits `~/.tool-versions`; the remedy is the owner's decision.
+An earlier version of this task linked release binaries into `~/.cargo/bin`; the script removes
+such a link only if it points inside `~/.grimworld/tools/` (its own), and leaves any other alone.
 
 ## 2. Compatibility constraints found
 
@@ -92,12 +104,26 @@ the lock needs the subcommand first): run it from the package folder, or use `so
 
 ## 4. What failed, and why
 
-1. **The asdf `dojo` plugin cannot install Dojo 1.8.** `asdf install` of `dojo 1.8.0` ran
-   `dojoup`, installed `sozo`, then: `installing torii — No compatible version found for torii
-   / Version v for torii does not exist.` (Katana and Torii release from `dojoengine/katana` and
-   `dojoengine/torii`; the `dojo` GitHub release `v1.8.0` holds a single `sozo` binary.) The plugin removes the whole
-   install on failure: nothing installed. Hence the release binaries. (The plugin stays added on
-   this machine, empty; `asdf plugin remove` is denied to agents.)
+1. **The combined asdf `dojo` plugin cannot install Dojo 1.8; the separate plugins can.**
+   `asdf install` of `dojo 1.8.0` ran `dojoup`, installed `sozo`, then: `installing torii — No
+   compatible version found for torii / Version v for torii does not exist.` (Katana and Torii
+   release from `dojoengine/katana` and `dojoengine/torii`; the `dojo` GitHub release `v1.8.0`
+   holds a single `sozo` binary.) The plugin removes the whole install on failure. My first
+   version of this file concluded from it that asdf cannot provide the three tools, and shipped
+   release-archive binaries: **that was wrong**, the audit caught it. Test of the separate plugins,
+   in an isolated `ASDF_DATA_DIR=/tmp/spk5-plugtest/asdf` so that no shim reached the machine:
+   ```
+   asdf plugin add sozo   https://github.com/dojoengine/asdf-sozo.git   -> 0; list all: … 1.8.6, 1.8.7
+   asdf install sozo 1.8.7                                              -> sozo 1.8.7 installation was successful!
+   asdf plugin add katana https://github.com/dojoengine/asdf-katana.git -> 0; list all: … 1.7.0, 1.7.1
+   asdf install katana 1.7.1                                            -> katana 1.7.1 installation was successful!
+   asdf plugin add torii  https://github.com/dojoengine/asdf-torii.git  -> 0; list all: … 1.8.15, 1.8.16
+   asdf install torii 1.8.16                                            -> torii 1.8.16 installation was successful!
+   ```
+   All three repositories are active (last push 2026-06-22). The installed binaries are
+   byte-identical to the ones extracted from the release archives (same sha256). Hence
+   `.tool-versions` pins them and the release-archive installer is gone. (The combined `dojo`
+   plugin stays added on this machine, empty; `asdf plugin remove` is denied to agents.)
 2. **snforge 0.61 (the machine's) with `snforge_std` 0.51**:
    `Reading from buffer failed, this can be caused by calling starknet::testing::cheatcode with
    invalid arguments. Probably snforge_std/sncast_std version is incompatible` and the warning
@@ -142,23 +168,29 @@ the lock needs the subcommand first): run it from the package folder, or use `so
 
 ```
 $ scripts/setup-toolchain.sh            # second run: nothing installed, nothing changed
+version 1.7.1 of katana is already installed
 version 24.21.0 of nodejs is already installed
 version 12.5.1 of pnpm is already installed
 version 2.13.1 of scarb is already installed
+version 1.8.7 of sozo is already installed
 version 0.51.2 of starknet-foundry is already installed
+version 1.8.16 of torii is already installed
 scarb              scarb 2.13.1 (a76aed717 2025-10-30)
 snforge            snforge 0.51.2
 node               v24.21.0
 pnpm               12.5.1
 sozo               sozo 1.8.7
+sozo               sha256 f76a5a49b6ef6401595eae43859f936621799204d7ff52781c0be854f735ae63
 katana             katana 1.7.1 (7882660)
+katana             sha256 7ccdcbacd0de309d476470ba40bda832edc650daeacab0c672bc5f09c15c6b71
 torii              torii 1.8.16 (main fe3ed0f)
+torii              sha256 cbf88d6b23bd742508f9d6b74c27b78375532ce6bb57f8e5b0fbd3ed91ff14b6
+setup-toolchain: WARNING: 'node --version' fails in /tmp, outside a pinned directory. […]
+setup-toolchain: WARNING: 'pnpm --version' fails in /tmp, outside a pinned directory. […]
 ```
 
-Clean machine, simulated with an empty `ASDF_DATA_DIR`, `GRIMWORLD_TOOLS` and
-`GRIMWORLD_BIN_DIR` under `/tmp/spk5-clean` (no root, network only): plugins added, Node, Scarb,
-snforge installed, then the three binaries downloaded and verified, then the same seven lines,
-exit 0. 879 MB on disk.
+Clean machine, simulated with an empty `ASDF_DATA_DIR` under `/tmp/spk5-clean` (no root, network
+only): the seven plugins added, the seven versions installed, the same checks, exit 0.
 
 ### Build, test
 
@@ -189,13 +221,26 @@ Transaction hash: 0x021f60590c16b1464f84cb810ed9060f74ffd88246f5cabbb4cf4d9cefd2
 spk5-Marker { owner: 0x0127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec, value: 42 }
 ```
 
-The world address is the same on every run (same class hashes, seed and deployer: account 0 of
-`katana --dev`), so Torii can start **before** the migration: `with-katana.sh --torii` needs the
+The world address is the same on every run **for the same artifacts of `sozo build`** (same class
+hashes, seed and deployer: account 0 of `katana --dev`); the artifacts left by `sozo test` give
+another address (`0x0081…0990`), so `run.sh` always builds first. Hence Torii can start **before**
+the migration: `with-katana.sh --torii` needs the
 address up front and it works with a world that does not exist yet. Run with the value `7`, the
 script printed `value: 7`; with a failing command (`sh -c 'exit 3'`) the wrapper exited 3; after
 `timeout 5 scripts/with-katana.sh --torii … sleep 60` (killed by SIGTERM) and after a command
 that had started a child of its own (`bash -c 'sleep 61.5 & sleep 61.6'`), `pgrep -a
 "katana|torii|sleep 61"` printed nothing.
+
+**Process group of the command (fix loop 1).** `scripts/with-katana.sh` runs the command in its own
+process group, keeps the group id for the whole run and, on every way out, stops the group even
+if its leader exited first. Test: `sh -c 'sleep <marker> & exit 0'` (a command that starts a child
+and exits). The previous version of the script left `sleep 71.11` running (`pgrep -af` showed
+it); the current one leaves nothing (`left running: nothing`). Ports are picked in the parent
+shell (never twice in a run); a node counts as started only when its own log says it serves that
+port and the port answers; a node that dies at startup (a bind failure) is restarted on new
+ports up to five times: with a stand-in `katana` that fails once with "Address already in use",
+the run printed `katana attempt 1 failed, trying other ports` and then succeeded.
+
 
 ## 6. Answer on the hosted indexer (ADR-0003, AC-6)
 
@@ -230,10 +275,10 @@ has what a self-host needs (`--db-dir`, `--http.tls_cert_path`, `--http.cors_ori
 
 ## 7. Open questions for FND-01 (and others)
 
-1. **PATH of the agents.** The three release binaries are linked in `~/.cargo/bin`. `scripts/lock.sh`
-   and every Cairo brief call `sozo`/`katana`/`torii` bare, so that directory must stay on the
-   PATH `scripts/agent.sh` gives them (it is today). If the orchestrator prefers another
-   directory, set `GRIMWORLD_BIN_DIR` for the setup script.
+1. **Shims.** `sozo`, `katana`, `torii` (and `node`, `pnpm`) now resolve through `~/.asdf/shims`,
+   so they work in a directory that pins them (every Grim World worktree) and answer "No version
+   is set" elsewhere. The owner's decision on the incident file (`nodejs system`, `pnpm system`)
+   is still pending.
 2. **The agent profiles**: `implement` allows `sozo *`, `katana *`, `torii *`, `pnpm *`, `node *`,
    but neither `bash spikes/…` nor a `run.sh` outside `scripts/`: the migrate-and-read command of a
    spike has to start with `scripts/with-katana.sh … bash spikes/SPK-5/run.sh` (it does). FND-01
@@ -256,7 +301,7 @@ has what a self-host needs (`--db-dir`, `--http.tls_cert_path`, `--http.cors_ori
    Cartridge Controller's own `starknet` requirement (SPK-9): two exact pins can conflict.
 8. **CI**: the `shellcheck` job (FND-02) should cover `scripts/*.sh` and `spikes/**/run.sh`. A CI
    that runs `scripts/setup-toolchain.sh` installs about 880 MB (measured on the clean-machine
-   simulation of §5: Node, Scarb, snforge and the three binaries).
+   simulation of §5: the seven asdf versions).
 9. `dojo_dev.toml` of the throwaway world carries account 0 of `katana --dev` (a well-known,
    public dev key). Real worlds must never commit a key; FND-01 should read the account from the
    environment (`DOJO_ACCOUNT_ADDRESS`, `DOJO_PRIVATE_KEY`).

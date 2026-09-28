@@ -9,6 +9,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 manifest=spikes/SPK-5/Scarb.toml
 value=${1:-42}
 
+# The world address depends on the artifacts in target/: always migrate what `sozo build` just made
+# (the artifacts left by `sozo test` give another world address, so Torii would index the wrong one).
+scripts/lock.sh sozo build --manifest-path "$manifest"
 scripts/lock.sh sozo migrate --manifest-path "$manifest"
 sozo execute --manifest-path "$manifest" --wait spk5-mark mark "$value"
 node spikes/SPK-5/read-model.ts "$value"
