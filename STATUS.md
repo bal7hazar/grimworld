@@ -1,12 +1,21 @@
 # Status
 
-**2026-09-28 16:22 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 16:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations.** Merged: FND-03, SPK-5, FND-01, ART-00. Running: **SPK-2** (cost
-spike, Opus 5.5) and **FND-02** (CI, Sonnet 5). SPK-7 briefed on Cairo 2.19 (D-122); FND-05,
-SPK-4, SPK-8 to brief.
+**Phase 0 — Foundations. HOLD on new launches (2026-09-28, 16:30 UTC)**: the owner has decided
+that the game drops Dojo and is built as native Starknet contracts (reasons: the gas spent in
+Dojo's layer, and the Cairo 2.13 pin Dojo's tools impose, N-9). The project manager is writing
+ADR-0007 and the corrections; the game orchestrator launches nothing new until they are merged.
+
+| | During the hold |
+|---|---|
+| SPK-2 (running) | Finishes; its figures on Dojo 1.8 become the baseline for the native contracts, measured again natively in a follow-up |
+| FND-02 (running) | Finishes its turn; its pull request is **not merged** while its CI installs `sozo`, `katana` or `torii`; resumed later with the new toolchain |
+| FND-05, SPK-4, SPK-8 | Briefed on Dojo; **waiting** for the corrected documents, to be rewritten |
+| SPK-7 | Briefed as a standalone Cairo 2.19 package (D-122); to be checked against ADR-0007 before launch |
+| PR [#20](https://github.com/bal7hazar/grimworld/pull/20) (Rust rules in the `implement` profile) | Open; its audit waits for the end of the hold |
 
 ## What moved
 
