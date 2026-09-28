@@ -35,16 +35,11 @@ Bash(bash scripts/*)
 Bash(tools/*)
 Bash(./tools/*)
 
-# Files, inside the worktree.
-Bash(mkdir *)
-Bash(cp *)
-Bash(mv *)
-Bash(rm *)
-Bash(touch *)
-Bash(chmod *)
-Bash(ln *)
-Bash(sed *)
-Bash(awk *)
+# Files: no rule for mkdir, touch, cp, mv, rm. `acceptEdits` approves them inside the worktree
+# and refuses them outside it, resolving quotes, $HOME and `..` (tested 2026-09-28); a prefix
+# rule here would override that check. Edits go through the Edit and Write tools.
+Bash(chmod +x *)
+Bash(sed -n *)
 
 # git and the pull request.
 Bash(git add *)
@@ -99,7 +94,8 @@ Bash(gh pr comment*)
 !Bash(* $HOME/orchestrator*)
 !Bash(* /home/claude/orchestrator*)
 
-# Never: delete outside the worktree (absolute paths, home, parent directories).
+# Never: delete outside the worktree. `acceptEdits` already refuses it; these rules are a
+# second line should an allow rule ever cover rm.
 !Bash(rm /*)
 !Bash(rm * /*)
 !Bash(rm ~*)

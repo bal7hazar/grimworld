@@ -99,7 +99,13 @@ reported_model() { # <task>
   local cli expected wt dir f
   read -r cli expected < "$L/$1.cli" 2> /dev/null || { echo unknown; return; }
   if [ "$cli" = codex ]; then
-    grep -E '^model: ' "$L/$1.log" 2> /dev/null | tail -1 | cut -d' ' -f2 | grep . || echo unknown
+    # The first `model:` line of the current run, read from the offset where the launcher
+    # started it (<task>.start): codex prints its header before any agent output, and agent
+    # output can contain anything, launcher headers included.
+    f=$(tail -c +$(($(cat "$L/$1.start" 2> /dev/null || echo 0) + 1)) "$L/$1.log" 2> /dev/null |
+      grep -m1 -E '^model: ' || true)   # grep -m1 closes the pipe early: tail's SIGPIPE is fine
+    f=${f#model: }
+    echo "${f:-unknown}"
     return
   fi
   wt=$W/cli-$1
@@ -120,11 +126,14 @@ case "${1:-}" in
       expected=$(cut -d' ' -f2 "$L/$t.cli" 2> /dev/null || echo -)
       ran=$(reported_model "$t")
       [ "$ran" = "$expected" ] || [ "$ran" = unknown ] || ran="$ran MISMATCH(expected $expected)"
-      printf '%-24s %-8s %-10s ran=%-18s last write %s  %s\n' "$t" \
-        "$(running "$t" && echo running || echo stopped)" \
+      # While running: the launcher's header of this run (at its recorded offset). Stopped: the
+      # last line of the log, which the unit writes after the agent's output (`exit=…`).
+      if running "$t"; then state=running
+        last=$(tail -c +$(($(cat "$L/$t.start" 2> /dev/null || echo 0) + 1)) "$f" | head -1)
+      else state=stopped last=$(tail -1 "$f"); fi
+      printf '%-24s %-8s %-10s ran=%-18s last write %s  %s\n' "$t" "$state" \
         "$(cat "$L/$t.profile" 2> /dev/null || echo -)" "$ran" \
-        "$(date -u -r "$f" +%FT%TZ)" \
-        "$(grep -E '^(--- |exit=[0-9]+ )[0-9]{4}-[0-9]{2}-[0-9]{2}T' "$f" | tail -1)"
+        "$(date -u -r "$f" +%FT%TZ)" "$last"
     done
     exit 0 ;;
   model)
@@ -247,6 +256,7 @@ if [ "$cli" = claude ] && systemctl --user list-units > /dev/null 2>&1; then use
 
 echo "$profile" > "$L/$task.profile"
 echo "$cli $model_id" > "$L/$task.cli"
+stat -c %s "$L/$task.log" 2> /dev/null > "$L/$task.start" || echo 0 > "$L/$task.start"
 echo "--- $(date -u +%FT%TZ) $desc $cli $model_id $([ "$use_unit" = 1 ] && echo "unit=$unit" || echo setsid)" >> "$L/$task.log"
 rm -f "$L/$task.unit" "$L/$task.pid"
 if [ "$use_unit" = 1 ]; then
@@ -255,7 +265,13 @@ if [ "$use_unit" = 1 ]; then
   echo "$task: started [$label] as systemd user unit $unit, log $L/$task.log"
 else
   cd "$wt"
-  PATH=$path GW_AGENT_SH="$root/scripts/agent.sh" GW_TASK="$task" nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
+  # A clean environment, as a systemd unit would get: the calling session's variables hold
+  # tokens (registry, messaging) that an agent must not inherit.
+  env -i HOME="$HOME" USER="${USER:-$(id -un)}" LOGNAME="${LOGNAME:-$(id -un)}" SHELL=/bin/bash \
+    LANG="${LANG:-C.UTF-8}" PATH="$path" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+    BASH_DEFAULT_TIMEOUT_MS=1800000 BASH_MAX_TIMEOUT_MS=3600000 \
+    GW_AGENT_SH="$root/scripts/agent.sh" GW_TASK="$task" nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
   echo "$!" > "$L/$task.pid"
   echo "$task: started [$label] detached with setsid, pid $!, log $L/$task.log"
 fi

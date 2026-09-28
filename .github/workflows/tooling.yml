@@ -69,9 +69,10 @@ jobs:
             exit 1
           fi
 
-      # The submodule pointer moves only in the orchestrator's own pull request (chore/assets-*).
+      # No pull request moves the submodule pointer: a branch name or a label would prove nothing,
+      # since agents create both. The orchestrator moves it by its own commit on main (OPERATIONS §7).
       - name: assets pointer unchanged (D-73)
-        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'chore/assets-')
+        if: github.event_name == 'pull_request'
         run: |
           git fetch -q --depth=1 origin "$GITHUB_BASE_REF"
           base=$(git ls-tree FETCH_HEAD assets | awk '{print $3}')

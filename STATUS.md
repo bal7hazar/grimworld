@@ -14,7 +14,8 @@ merge. No sub-agent of the game can be launched before it merges.
 | | |
 |---|---|
 | FND-03 | `scripts/agent.sh` launcher: transient systemd user units `grimworld-<task>-<hhmmss>` whose description carries the model tag, `status`, `wait`, `sid`, `--dry-run`, `--with-assets`, `--branch`; resume with context. Three committed profiles (`scripts/profiles/research`, `audit`, `implement`) instead of `--dangerously-skip-permissions`. Build lock `scripts/lock.sh` (project lock, then the machine-wide heavy lock). `docs/briefs/COMMON.md`. CI `tooling`: shellcheck, launcher dry-run, no asset file |
-| Launcher verified | A trivial `[Sonnet 5]` research task ran as a systemd unit, listed by `status`, log ending `exit=0`, `REPORT.md` written. An `implement` probe: `git status` and `scripts/lock.sh pnpm --version` allowed; force-push, the stash, `gh pr merge`, `ls ~/.local/bin`, `rm -rf ../…` refused; a write outside the worktree refused, not prompted |
+| Launcher verified | A trivial `[Sonnet 5]` research task ran as a systemd unit, listed by `status`, log ending `model=claude-sonnet-5` then `exit=0`, `REPORT.md` written. Six permission probes by real agents (smoke to smoke6, logs in `.claude/worktrees/logs/`): unlisted commands (`python3`, `curl`, `node`, `git commit` in `research`) refused; file commands allowed inside the worktree and refused outside it, quotes, `$HOME` and `..` included; pushing only as `git push -u origin HEAD` / `git push`; the stash, `gh pr merge`, `ls ~/.local/bin` refused. (An early probe ran `scripts/lock.sh pnpm --version`; the lock now wraps build and test subcommands only and refuses it) |
+| FND-03 audit | `[GPT-6-Sol]`, lenses S and Q: FAIL, then fixes; see the pull request |
 | Concurrency measured | Empty Dojo 1.8.0 project: `scarb build` peaks at 1.4 GB, 11 s. A `claude` agent holds about 0.3 GB. Budget kept at 3 (OPERATIONS §3) |
 
 ## Agents
@@ -47,7 +48,9 @@ for the game in wave 1.
 
 ## Decisions needed
 
-None today from the game orchestrator.
+| # | Decision | Why | Recommendation |
+|---|---|---|---|
+| G-1 | **Protect `main` on GitHub** (repository settings, the owner's or the project manager's act): no force-push, no deletion. Optionally require the `tooling` check on pull requests, with administrators allowed to bypass so that the orchestrator's bookkeeping pushes still work | The `[GPT-6-Sol]` audit of FND-03 showed that command allowlists cannot stop an agent's interpreter or test from pushing with the `gh` credentials of the machine; only the server can refuse a force-push to `main` whatever runs it | Yes, force-push and deletion blocked now; the required check when FND-02 lands |
 
 ## Open on the owner's side (not blocking)
 

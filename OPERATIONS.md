@@ -213,8 +213,12 @@ command matching a deny rule is refused; any other command not allowed (`python3
 The profiles are **guard-rails against mistakes, not a sandbox**. Denied actions are refused
 when typed as commands, but an interpreter, a test or a project script that a profile allows
 can do anything the user can. What holds whatever an agent runs is elsewhere: no secret in
-the agent's environment, the CI checks (asset files, the `assets` pointer), and the
-protection of `main` on GitHub.
+the agent's environment (units get the user manager's environment, the detached codex a
+whitelist; the session's own variables never reach an agent), the CI checks (asset files,
+the `assets` pointer), and the protection of `main` on GitHub. **Residual, accepted**: the
+agent runs as the same Unix user, so the credential files of that user (`gh`, `codex`,
+`claude`, the Scarb registry) are readable by code it runs; hence nothing of value is ever
+reachable from this machine without the owner's go.
 
 | Profile | Grants | For |
 |---|---|---|
@@ -364,7 +368,9 @@ What was reviewed, what was not, and why.
   any asset file, or anything derived from one, **in this repository** (D-73). Assets
   live in the private repository `tiny-swords`, attached here as the submodule `assets`.
   Agents never commit in the submodule and never move its pointer: changing the assets is
-  the owner's or the orchestrator's act, in its own pull request.
+  the owner's or the orchestrator's act, by a commit of its own on `main` that moves the
+  pointer and nothing else. The CI refuses any pull request that moves it, since a pull
+  request's branch or label cannot prove who made it.
 - Tasks run in parallel only if their **allowlists do not overlap**. Interfaces shared by
   parallel tasks are frozen first in a dedicated task.
 
