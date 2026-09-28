@@ -36,6 +36,8 @@ def fail(message, code=2):
 parser = argparse.ArgumentParser()
 parser.add_argument("--log", required=True, help="the agent's log (required for AC-4)")
 parser.add_argument("--report", default="REPORT.md")
+parser.add_argument("--range", default="--all", help="the history to scan: --all (default) or a range such as origin/main..HEAD")
+parser.add_argument("--by-commit", action="store_true", help="also count occurrences per commit (hashes, counts and file names only)")
 parser.add_argument("extra", nargs="*")
 args = parser.parse_args()
 
@@ -78,10 +80,20 @@ if ignored.returncode != 0:
     fail(f"{SECRETS} is not ignored by git", 1)
 
 texts, missing = {}, []
-git = subprocess.run(["git", "log", "-p", "--all"], capture_output=True, text=True, errors="replace")
+git = subprocess.run(["git", "log", "-p", args.range], capture_output=True, text=True, errors="replace")
 if git.returncode != 0:
-    fail(f"git log -p --all failed (exit {git.returncode}): {git.stderr.strip()[:300]}", 1)
-texts["git log -p --all"] = git.stdout
+    fail(f"git log -p {args.range} failed (exit {git.returncode}): {git.stderr.strip()[:300]}", 1)
+texts[f"git log -p {args.range}"] = git.stdout
+if args.by_commit:
+    every = [p for forms in patterns.values() for p in forms]
+    for chunk in re.split(r"(?m)^(?=commit [0-9a-f]{40})", git.stdout):
+        if not chunk.startswith("commit "):
+            continue
+        hits = sum(len(re.findall(p, chunk, re.I)) for p in every)
+        if hits:
+            files = [part.split(" ", 1)[0][2:] for part in re.split(r"(?m)^diff --git ", chunk)[1:]
+                     if any(re.search(p, part, re.I) for p in every)]
+            print(f"commit {chunk[7:19]}: {hits} occurrences, in {', '.join(files) or '(message)'}")
 
 required = [args.log, args.report, "docs/research/SPK-1b-fixed-part.md"]
 for path in required + args.extra:
