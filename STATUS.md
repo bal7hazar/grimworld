@@ -1,51 +1,53 @@
 # Status
 
-**2026-09-28** — written by the project-manager session `[Fable 5.1] Chef de projet Grim World`.
+**2026-09-28 14:25 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations**, opened today. The repository still holds documents only. FND-00
-(bootstrap of the project-manager session on the VPS) is done: accounts, toolchain, repository
-and machine checked, report given to the owner, three rounds of decisions recorded.
+**Phase 0 — Foundations.** The game orchestrator is running (mandate:
+[docs/briefs/ORCH-game.md](docs/briefs/ORCH-game.md)). Its first task, **FND-03 agent
+tooling**, is in its pull request, awaiting the `[GPT-6-Sol]` audit (lenses S and Q) before
+merge. No sub-agent of the game can be launched before it merges.
 
-## What moved today
-
-| | |
-|---|---|
-| Owner review, round 3 and follow-up | All proposed decisions accepted (D-02, D-04, D-30, D-31, D-41, D-50, D-52 conditional on SPK-2, D-63, D-80); D-115 trials generated, D-116 mainnet go, D-117 library repository, D-118 concurrency: [docs/decisions/2026-09-28-owner-review-3.md](docs/decisions/2026-09-28-owner-review-3.md) |
-| Design reconciled with ADR-0006 and the accepted decisions | PR #5: design/01, 02, 04, 06, 07, 09, 13, 15, 17, 18; ADR-0005 status |
-| Spikes moved to burner accounts | PLAN v0.13; ADR-0001 and ADR-0003 validation tables (this PR) |
-| Orchestrator mandates | [docs/briefs/ORCH-game.md](docs/briefs/ORCH-game.md), [docs/briefs/ORCH-hexmap.md](docs/briefs/ORCH-hexmap.md) |
-| Milestone M0 | Reached |
-
-## Orchestrators and agents
-
-| Orchestrator | Session | First task | State |
-|---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | FND-03 agent tooling, then SPK-5 ∥ ART-00 | Being created by the project manager |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | LIB-02 analysis of `hexx`, stop at gate L-G1 | Being created by the project manager |
-
-Sub-agents running: none yet. Budget: 3 Grim World agents at a time (D-118): 2 for the game,
-1 for the library in wave 1.
-
-## Machine (VPS, 2026-09-28 13:40 UTC)
+## What moved
 
 | | |
 |---|---|
-| Accounts | `claude` CLI on claude-b7r ✓; `gh` on bal7hazar, ADMIN on grimworld and tiny-swords ✓; codex 0.155.1 with gpt-6-astra / sol / luna ✓ |
-| Toolchain | scarb 2.19.4, snforge 0.61.0, node 24.21, pnpm 12.5 present; **sozo, katana, torii absent** (SPK-5 installs and pins them) |
-| Load | 8 cores, load ≈ 5–9 with 3 agents of the owner's other programmes (nalgebra, rapier); 31 GB RAM, ~19 GB available |
-| Sepolia credentials | Not in the environment; not needed before Phase 1 (owner) |
-| `assets` submodule | Not initialised in the main checkout; an independent clone of `tiny-swords` at the same commit exists in `~/projects/assets`. Initialised only in worktrees that need the art |
+| FND-03 | `scripts/agent.sh` launcher: transient systemd user units `grimworld-<task>-<hhmmss>` whose description carries the model tag, `status`, `wait`, `sid`, `--dry-run`, `--with-assets`, `--branch`; resume with context. Three committed profiles (`scripts/profiles/research`, `audit`, `implement`) instead of `--dangerously-skip-permissions`. Build lock `scripts/lock.sh` (project lock, then the machine-wide heavy lock). `docs/briefs/COMMON.md`. CI `tooling`: shellcheck, launcher dry-run, no asset file |
+| Launcher verified | A trivial `[Sonnet 5]` research task ran as a systemd unit, listed by `status`, log ending `exit=0`, `REPORT.md` written. An `implement` probe: `git status` and `scripts/lock.sh pnpm --version` allowed; force-push, the stash, `gh pr merge`, `ls ~/.local/bin`, `rm -rf ../…` refused; a write outside the worktree refused, not prompted |
+| Concurrency measured | Empty Dojo 1.8.0 project: `scarb build` peaks at 1.4 GB, 11 s. A `claude` agent holds about 0.3 GB. Budget kept at 3 (OPERATIONS §3) |
+
+## Agents
+
+| Agent | Unit | State |
+|---|---|---|
+| Game | none | FND-03 is executed by the orchestrator itself |
+| Map library | `hexmap-LIB-02-*` `[Opus 5.5] LIB-02 hexx analysis` | Running (library orchestrator's) |
+
+Machine at 14:19 UTC: load 3.5 on 8 vCPU; 26 GB of 31 available; four units of the owner's
+other programmes and one of the library. Budget: 3 Grim World agents at a time (D-118), 2
+for the game in wave 1.
+
+## Next
+
+1. `[GPT-6-Sol]` audit of FND-03, fixes, merge.
+2. Briefs of **SPK-5** (toolchain pins; also writes `scripts/with-katana.sh`) and **ART-00**
+   (asset pipeline outside git, the only wave-1 task with `--with-assets`), launched in
+   parallel on Sonnet 5.
+3. Then FND-01 → FND-02 → FND-06 on Sonnet 5; SPK-2 on Opus 5.5 as soon as SPK-5 is merged.
 
 ## Blocked
 
 | What | By |
 |---|---|
-| Any sub-agent launch | FND-03 (the launcher), first task of the game orchestrator |
+| Every game sub-agent | FND-03's merge (today) |
 | SPK-1, deployments | Sepolia credentials, Phase 1 |
 | SPK-6 | Real phones: the owner runs the protocol the orchestrator writes |
 | Mainnet | An explicit go from the owner, each time (D-116) |
+
+## Decisions needed
+
+None today from the game orchestrator.
 
 ## Open on the owner's side (not blocking)
 
@@ -64,9 +66,17 @@ Written: 19 design documents, the lore premise, 6 ADRs. Still to write before th
 need them: effect catalogue, remaining skills, caste sheets, curves, content lists
 ([PLAN.md](PLAN.md#design-backlog)).
 
+## Verified on the machine
+
+- `claude` CLI on claude-b7r (2.1.283); `codex` 0.155.1; `gh` on bal7hazar.
+- SSH access to the private `tiny-swords` repository works: `--with-assets` can initialise
+  the submodule in a task worktree.
+- scarb 2.19.4 compiles a Dojo 1.8.0 project (dependency from scarbs.xyz, prebuilt
+  `dojo_cairo_macros`); `sozo`, `katana`, `torii` are still absent (SPK-5).
+- `shellcheck` is not installed on the VPS: it runs in CI.
+
 ## Not verified
 
 - Latency and cost on mainnet: public data only, no transaction of ours.
 - `origami_hexmap` costs: the library's own benchmarks.
 - Phone battery and heat: no measurement exists for any candidate engine.
-- Nothing in this repository has been built or tested: there is nothing to build yet.

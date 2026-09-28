@@ -1,0 +1,58 @@
+# Minimal CI of the agent tooling (FND-03), so that "merge on green CI" holds from the first pull
+# request. FND-02 builds the real CI of contracts and client beside it.
+name: tooling
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The `assets` submodule is private and never needed here: it is not checked out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          shellcheck scripts/*.sh
+
+      - name: launcher dry-run
+        run: |
+          set -euo pipefail
+          out=$(scripts/agent.sh --dry-run smoke claude sonnet new "x" research)
+          echo "$out"
+          grep -q -- '^claude -p .* --permission-mode acceptEdits --allowedTools ' <<< "$out"
+          if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag in a launch" >&2; exit 1; fi
+          for profile in research audit implement; do
+            for model in sonnet opus fable; do
+              out=$(scripts/agent.sh --dry-run smoke claude "$model" new "x" "$profile")
+              if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag: $profile" >&2; exit 1; fi
+            done
+          done
+          grep -q -- '^# \[Opus 5.5\] smoke resume (implement)' \
+            <<< "$(scripts/agent.sh --dry-run smoke claude opus resume "x" implement)"
+          for model in gpt-6-astra gpt-6-sol gpt-6-luna; do
+            out=$(scripts/agent.sh --dry-run smoke codex "$model" new "x")
+            grep -q -- ' -s read-only ' <<< "$out"
+            if grep -q -- '--dangerously' <<< "$out"; then echo "dangerous flag: codex" >&2; exit 1; fi
+          done
+          grep -q -- 'sandbox_mode=' <<< "$(scripts/agent.sh --dry-run smoke codex gpt-6-sol resume "x" audit 0000)"
+          # Refusals: codex never implements; a model without a known tag is never launched.
+          if scripts/agent.sh --dry-run smoke codex gpt-6-sol new "x" implement; then exit 1; fi
+          if scripts/agent.sh --dry-run smoke claude sonnet-4 new "x"; then exit 1; fi
+
+      - name: no asset file committed (D-73)
+        run: |
+          files=$(git ls-files | grep -iE '\.(png|jpe?g|gif|webp|bmp|tga|psd|aseprite|ase|kra|wav|ogg|mp3|flac)$' || true)
+          if [ -n "$files" ]; then
+            echo "Image or audio files are not allowed in this repository (D-73):" >&2
+            echo "$files" >&2
+            exit 1
+          fi

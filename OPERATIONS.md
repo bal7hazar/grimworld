@@ -135,8 +135,8 @@ that produced it. The tag is never omitted and never guessed.
 Ideation happened on the owner's Mac. **Implementation runs on the VPS**: a new
 project-manager session (account bal7hazar) is bootstrapped with
 [docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) and creates the first
-orchestrator. Task FND-03 ports the launcher and the build locks of the owner's other
-programmes. The rules:
+orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build locks
+(`scripts/lock.sh`) of the owner's other programmes. The rules:
 
 - **Agents do not run as children of the session.** A restart of the desktop app must not
   kill them (transient systemd user units on Linux; an equivalent detached launch on
@@ -152,9 +152,25 @@ programmes. The rules:
   workspace locally.
 - **Concurrency budget**: **3 Grim World agents at a time**, beside the agents of the
   owner's other programmes on the same machine (about 6 machine-wide). Before launching:
-  running units, memory, load. FND-03 measures and adjusts.
-- **Heavy builds are serialised** through a lock, following the per-project model of the
-  owner's other programmes (one fast build per project, one heavy build shared).
+  `systemctl --user list-units --type=service --state=running`, `free -g`, `uptime`.
+- **Heavy builds are serialised** through two locks, taken in this order by
+  `scripts/lock.sh`: the project lock `/tmp/grimworld-build.lock` (one heavy Grim World
+  command at a time), then the machine-wide `~/orchestrator/heavy-build.lock` shared with the
+  owner's other programmes. `scarb` and `snforge` on PATH are the machine's shims
+  (`~/.local/bin`), which take the machine-wide lock by themselves; `lock.sh` takes it for
+  `sozo` builds and for `--heavy` runs.
+
+**Concurrency, measured (FND-03, 2026-09-28).** The VPS has 8 vCPU and 31 GB of memory with
+8 GB of swap; the user slice where every agent runs is capped at 24 GB (`MemoryMax`, 22 GB
+`MemoryHigh`) and 600 % CPU, and the launcher caps each agent unit at 20 GB. A `claude` agent
+process holds about 0.3 GB. SPK-5 has not landed, so the build measured is an empty Dojo
+project (Dojo 1.8.0, one model, one system, scarb 2.19.4): `scarb build` peaks at **1.4 GB**
+resident and compiles in 11 s. Load was 2.4 to 7 with four or five agents of the other
+programmes running. Three Grim World agents therefore cost about 1 GB plus one build at a
+time, since builds are serialised: memory does not bind. CPU and the shared heavy lock do,
+and they are shared with the other programmes, whose Cairo test builds peak at 13 to 19 GB.
+**The budget stays at 3**, to be measured again when the contracts' test build passes 6 GB
+or when a phase runs client and contract agents together.
 
 ## 4. Launching, monitoring and closing a sub-agent
 
@@ -166,20 +182,35 @@ never merged by the agent.
 | step | how |
 |---|---|
 | brief | `docs/briefs/<ID>-<slug>.md`, with `docs/briefs/COMMON.md` for the rules shared by all briefs |
-| worktree | `git worktree add .claude/worktrees/cli-<task> -b <branch> origin/main` |
-| launch | `scripts/agent.sh <task> <claude\|codex> <model> new "<one-line prompt pointing at the brief>"` |
-| status | `scripts/agent.sh status`; log `.claude/worktrees/logs/<task>.log` |
+| worktree | `git worktree add .claude/worktrees/cli-<task> -b <branch> origin/main`, or `--branch <branch>` at launch |
+| launch | `scripts/agent.sh [--with-assets] [--branch <branch>] <task> <claude\|codex> <model> new "Read docs/briefs/<ID>-<slug>.md and docs/briefs/COMMON.md, then execute the task." <profile>` |
+| status | `scripts/agent.sh status`; log `.claude/worktrees/logs/<task>.log`, each run ending with `exit=<status>` |
 | wait | `scripts/agent.sh wait <task>`, as a background command titled with the model |
-| resume | `scripts/agent.sh <task> <claude\|codex> <model> resume "<follow-up>"` |
+| resume | `scripts/agent.sh <task> claude <model> resume "<follow-up>"` (same profile as the launch); codex: `scripts/agent.sh <task> codex <model> resume "<follow-up>" audit "$(scripts/agent.sh sid <task>)"` |
 | close | read `REPORT.md` and the log; review the pull request (scope = allowlist, deviations, cost table); run the required audits (§6); `gh pr merge --squash` (no `--delete-branch`); archive the report in `docs/reports/`; `git worktree remove --force`; delete the branch; update `PLAN.md`, `STATUS.md` and the changelog on `main` |
 
-`scripts/agent.sh` does not exist yet: it is task FND-03, ported from the owner's
-`glam-cairo` launcher.
+The launcher (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher) starts each
+agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description carries
+the model tag (`[Sonnet 5] SPK-5 new (implement)`), outside the session's cgroup, with a
+`setsid nohup` fallback. It maps the model to its tag and refuses a model it has no tag for.
+It appends the foreground rule to every prompt. `--dry-run` prints the command and launches
+nothing. `--with-assets` initialises the `assets` submodule in the task's worktree; by default
+it is not initialised.
 
-A launch with `--dangerously-skip-permissions` is not used. Profiles grant an explicit
-tool allowlist (`--permission-mode acceptEdits --allowedTools …`): `research` (read,
-search, web, write a report), `implement` (plus build and test commands, git, `gh pr`),
-`audit` (read-only plus write a report).
+A launch with `--dangerously-skip-permissions` is not used. Profiles grant an explicit tool
+allowlist, committed in `scripts/profiles/<profile>.txt` and passed as
+`--permission-mode acceptEdits --allowedTools … --disallowedTools …`; `acceptEdits` approves
+file edits inside the task's worktree only, and anything not allowed is refused, not
+prompted. The profiles are guard-rails against mistakes, not a sandbox:
+
+| Profile | Grants | For |
+|---|---|---|
+| `research` | Read, search, the web, read-only shell and `gh pr view`; writes in the worktree | Spikes that only read and report |
+| `audit` | `research`, plus builds and tests through `scripts/lock.sh` | Auditors that reproduce a finding or a gas figure |
+| `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `sozo`, `katana`, `torii`, `pnpm`, `asdf install`), file commands, `git` and `gh pr create`. Denied: force-push, rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree | Implementation tasks |
+
+Codex runs only with `audit`, in its `read-only` sandbox; its last message, the audit
+report, is saved in `.claude/worktrees/logs/<task>.last.md`.
 
 ### Brief template
 

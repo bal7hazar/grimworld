@@ -1,0 +1,108 @@
+# Profile `implement`: everything `audit` grants, plus editing, the project's toolchain, git
+# except force-push, and opening the pull request. Never merging it.
+# Format: see research.txt.
+
+@audit
+
+# Toolchain.
+Bash(scripts/lock.sh *)
+Bash(scarb *)
+Bash(snforge *)
+Bash(sozo *)
+Bash(katana *)
+Bash(torii *)
+Bash(pnpm *)
+Bash(node *)
+Bash(asdf install*)
+Bash(asdf plugin add *)
+Bash(asdf plugin list*)
+Bash(asdf set *)
+Bash(asdf where *)
+Bash(asdf latest *)
+Bash(python3 *)
+Bash(curl *)
+Bash(tar *)
+Bash(unzip *)
+
+# Project scripts.
+Bash(scripts/*)
+Bash(./scripts/*)
+Bash(bash scripts/*)
+
+# Files, inside the worktree.
+Bash(mkdir *)
+Bash(cp *)
+Bash(mv *)
+Bash(rm *)
+Bash(touch *)
+Bash(chmod *)
+Bash(ln *)
+Bash(sed *)
+Bash(awk *)
+
+# git and the pull request.
+Bash(git add *)
+Bash(git commit *)
+Bash(git push*)
+Bash(git fetch*)
+Bash(git merge *)
+Bash(git checkout *)
+Bash(git switch *)
+Bash(git restore *)
+Bash(git reset *)
+Bash(git mv *)
+Bash(git rm *)
+Bash(git branch *)
+Bash(gh pr create*)
+Bash(gh pr edit*)
+Bash(gh pr comment*)
+
+# Never: force-push or delete a remote branch (a branch that needs a rebase merges origin/main
+# instead), skip hooks, merge or close the pull request, act on another repository, touch the
+# assets submodule, force-add ignored files, use the stash (shared by every worktree), change
+# git configuration.
+!Bash(git push --force*)
+!Bash(git push * --force*)
+!Bash(git push -f*)
+!Bash(git push * -f*)
+!Bash(git push *+*)
+!Bash(git push *--mirror*)
+!Bash(git push *--delete*)
+!Bash(git push * -d *)
+!Bash(git push *--no-verify*)
+!Bash(git commit *--no-verify*)
+!Bash(git commit -n*)
+!Bash(git commit * -n*)
+!Bash(git rebase*)
+!Bash(git stash*)
+!Bash(git config*)
+!Bash(git -C *)
+!Bash(git submodule*)
+!Bash(git add assets*)
+!Bash(git add -f*)
+!Bash(git add * -f*)
+!Bash(git add *--force*)
+!Bash(gh pr merge*)
+!Bash(gh pr close*)
+!Bash(gh api*)
+
+# Never: change the machine's shared toolchain (other programmes use it) or its build shims.
+!Bash(asdf set -u*)
+!Bash(asdf set --home*)
+!Bash(asdf set -p*)
+!Bash(asdf set --parent*)
+!Bash(asdf uninstall*)
+!Bash(asdf plugin remove*)
+!Bash(* ~/.local/bin*)
+!Bash(* $HOME/.local/bin*)
+!Bash(* /home/claude/.local/bin*)
+!Bash(* ~/orchestrator*)
+!Bash(* $HOME/orchestrator*)
+!Bash(* /home/claude/orchestrator*)
+
+# Never: delete outside the worktree.
+!Bash(rm * /)
+!Bash(rm * /*)
+!Bash(rm * ~*)
+!Bash(rm * $HOME*)
+!Bash(rm * ..*)

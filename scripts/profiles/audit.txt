@@ -1,0 +1,41 @@
+# Profile `audit`: everything `research` grants, plus building and running tests, so that an
+# auditor can reproduce a finding or a gas figure. No commit, no push, no pull request: the
+# audit report is REPORT.md in the task worktree (or, for codex, its last message).
+# Format: see research.txt.
+
+@research
+
+# Builds and tests, through the project build lock (scripts/lock.sh) or directly.
+Bash(scripts/lock.sh scarb build*)
+Bash(scripts/lock.sh scarb test*)
+Bash(scripts/lock.sh scarb lint*)
+Bash(scripts/lock.sh scarb fmt --check*)
+Bash(scripts/lock.sh snforge test*)
+Bash(scripts/lock.sh sozo build*)
+Bash(scripts/lock.sh sozo test*)
+# `--heavy` only takes one more lock; what it wraps is still restricted by scripts/lock.sh.
+Bash(scripts/lock.sh --heavy *)
+Bash(scripts/lock.sh pnpm install --frozen-lockfile*)
+Bash(scripts/lock.sh pnpm test*)
+Bash(scripts/lock.sh pnpm lint*)
+Bash(scripts/lock.sh pnpm build*)
+Bash(scripts/lock.sh pnpm typecheck*)
+Bash(scarb build*)
+Bash(scarb test*)
+Bash(scarb lint*)
+Bash(scarb fmt --check*)
+Bash(scarb metadata*)
+Bash(scarb execute*)
+Bash(snforge test*)
+Bash(sozo build*)
+Bash(sozo test*)
+Bash(pnpm install --frozen-lockfile*)
+Bash(pnpm test*)
+Bash(pnpm lint*)
+Bash(pnpm build*)
+Bash(pnpm typecheck*)
+Bash(shellcheck *)
+Bash(bash -n *)
+Bash(gh pr checks*)
+Bash(gh run view*)
+Bash(gh run list*)

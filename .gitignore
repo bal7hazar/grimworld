@@ -1,2 +1,5 @@
 example/
 .DS_Store
+# Agent worktrees, their logs, and the report every agent writes at its worktree root.
+.claude/worktrees/
+/REPORT.md
