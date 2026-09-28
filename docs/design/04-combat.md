@@ -181,36 +181,6 @@ Determinism rules:
   free neighbour closest to the target; profiles that want distance (`kite`, `support`)
   step to the farthest.
 
-## Companions (D-42)
-
-A **companion** is an allied character that follows the adventurer inside an instance:
-the settler to bring home in an escort quest, or a helper who heals now and then with
-skills of her own.
-
-| | |
-|---|---|
-| Where they come from | A quest. A companion joins when the quest says so and leaves when it ends |
-| Number | At most 2 at a time in the MVP |
-| Control | None. The player does not give orders; a companion runs a profile, like a goblin |
-| Statistics and skills | Same system as everyone: level, health, armor, a short skill list from the registry |
-| When they act | In the world tick, **after the adventurer and before the goblins**, in ascending entity id |
-| Simulation budget | Companions count in the cap of 8 simulated actors per room |
-| Leaving a room | Companions adjacent to the adventurer, or within 2 tiles, cross with them; the others are left behind and the quest fails |
-
-| Profile | Behaviour |
-|---|---|
-| `follow` | Stays within 2 tiles behind the adventurer; never attacks; flees melee |
-| `healer` | `follow`, and uses its first usable heal on the most wounded ally below 70% health |
-| `fighter` | Attacks the adventurer's last target; stays adjacent to the adventurer otherwise |
-
-Goblins choose their target among the adventurer **and** the companions, by their
-profile's rule (nearest, lowest armor, lowest health). A companion at 0 health is
-**downed**: the escort fails; a helper is simply out until the instance ends.
-
-Companions are deterministic, so the client predicts them like goblins. They are also the
-first use of what co-op needs: several allied actors in one instance, targeted by entity
-id ([08-multiplayer](08-multiplayer.md), constraints M-3 and M-5).
-
 ## Death and defeat
 
 See [02-core-loop](02-core-loop.md#ending-an-expedition-d-04). In short: an adventurer at 0

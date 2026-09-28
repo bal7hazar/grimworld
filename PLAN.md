@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.5, 2026-09-28** (v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.6, 2026-09-28** (v0.6: owner's third review: looted equipment, boss armor sets, trade and auction house enter the MVP; companions considered and dropped; v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -58,6 +58,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-3 | vRNG spike: overhead, latency, provider-down behaviour | SPK-5 | Opus 5.5 | S | todo |
 | SPK-4 | Parity spike, two options measured: (a) TypeScript mirror checked by Cairo-generated vectors; (b) **the Cairo code itself run in the client** through a Cairo VM in WebAssembly, as in the owner's physics game. Needs the game logic as a pure library (state in, state out) | SPK-5 | Opus 5.5 | P | todo |
 | SPK-6 | Client spike on real phones: PixiJS on demand in Capacitor; battery, heat, Controller session, vRNG (ADR-0003 thresholds); room size for portrait | SPK-5 | Opus 5.5 | — | todo |
+| SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
 | SPK-7 | Hexmap spike: room generation chain and shared flood for 8 goblins, measured; line-of-sight prototype | SPK-5 | Opus 5.5 | C P | todo |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
@@ -95,7 +96,6 @@ verified by the cross-cutting audit.
 | CBT-05 | Skill engine: costs, activation, interrupt, effects; skill registry | CBT-02 | Opus 5.5 | D S P C Q | todo |
 | CBT-06 | Goblin spawn from pack registry; state machine; shared flood pathfinding | CBT-02 | Opus 5.5 | D P C Q | todo |
 | CBT-07 | AI profiles: swarm, kite, support, brute | CBT-06 | Opus 5.5 | D P C Q | todo |
-| CBT-09 | Companions: allied actors, three profiles, goblin targeting among several allies, room crossing | CBT-07 | Opus 5.5 | D S P C Q | todo |
 | CBT-08 | Attributes, build lock, skill bar | CBT-05 | Opus 5.5 | D S Q | todo |
 | CNT-01 | Seed data: 3 professions × 6 starter skills, 5 castes, MVP packs | CBT-05, CBT-07 | Sonnet 5 | D V | todo |
 | CLI-04 | Client simulation of combat + parity vectors | CBT-03…07 | Opus 5.5 | P Q | todo |
@@ -126,7 +126,12 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | RWD-02 | Remains, loot tables, loot action (Fate) | RWD-01 | Opus 5.5 | D S C Q | todo |
 | RWD-03 | Crafter helper and books; rarity signatures, discovery, hints | RWD-01 | Opus 5.5 | D S P C Q | todo |
 | RWD-04 | Potions: effects, belt, use in instance | RWD-03, CBT-05 | Opus 5.5 | D S P Q | todo |
-| RWD-05 | Merchants: equipment, sell | RWD-01 | Opus 5.5 | D S Q | todo |
+| RWD-05 | Merchants, smiths, armorers, collectors | RWD-01 | Opus 5.5 | D S Q | todo |
+| RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance | RWD-01 | Opus 5.5 | D S P C Q | todo |
+| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + codex | todo |
+| RWD-08 | Boss items and boss armor sets with 3- and 5-piece bonuses | RWD-06 | Opus 5.5 | D S P Q | todo |
+| RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + codex | todo |
+| RWD-10 | Auction house: listings in lots, fees, expiry, purchase | RWD-09 | Opus 5.5 | D S C Q + codex | todo |
 | CNT-03 | Seed data: Region 1 book, loot tables, merchant stock | RWD-02…05 | Sonnet 5 | D V | todo |
 | CLI-07 | Inventory, loot reveal, alchemy and grimoire UI | RWD-01…05 | Opus 5.5 | D Q | todo |
 
@@ -190,6 +195,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-12 | **Hubs**: what a town and an outpost look like, services and their characters, presence display | Phase 5 (WLD-03) | todo |
 | DES-13 | **Region 1 content**: zones, dungeon floors, spawn tables | Phase 5 (CNT-04) | todo |
 | DES-14 | **Names and lore** (Q-11), **audio** direction | Phase 5 (LORE-01) | todo |
+| DES-16 | Sets of the first dungeon: fixed modifiers and the 3- and 5-piece bonuses for the three professions, within the budget rule | Phase 4 (RWD-08) | todo |
 | DES-15 | **Ownership and economy**: tokens, transfers, registry governance, who funds the paymaster (Q-07, Q-08, Q-10), checked against store rules | Before Phase 4 | todo |
 
 ## Milestones and gates
@@ -221,4 +227,6 @@ the owner, and **due before the phase that consumes it**.
 | R-10 | An asset or a derived sprite gets committed by an agent | Medium | Medium | `.gitignore`; rule in `COMMON.md`; CI check refusing image files outside an allowlist | Every phase |
 | R-11 | Store rejects the app (thin wrapper, on-chain content) | Medium | High | Bundle assets, behave as an app; HRD-08 early enough to react | Phase 5 |
 | R-12 | Eight goblins pathfinding exceeds the budget on hex rooms | Medium | High | One shared flood per tick; SPK-7 | Phase 0 |
+| R-13 | The MVP grows beyond what a first release can carry (equipment loot, sets, trade, auction house added) | High | High | Phase 4 split in two gates; fun gate at Phase 3 stays before any of it is built | Phase 4 |
+| R-14 | Gold and items traded for real money outside the game; bots farming | Medium | High | Fees as gold sinks, listing limits, account age; examined with Q-07 | Phase 4 |
 | R-8 | Solo-only launch closes the co-op door by accident | Medium | High | M-1…M-6 checked by the design lens on every task | Every phase |

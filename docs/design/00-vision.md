@@ -65,10 +65,11 @@ Career (weeks)                 rank up → new quests/zones/skills → elite zon
 
 ## Non-goals for v1
 
+- Allied characters in instances (considered and dropped).
 - Cooperative play and PvP (the door stays open, see [08-multiplayer](08-multiplayer.md)).
 - Hidden information on-chain (the chain is public; we design around it, not against it).
 - Real-time combat.
-- A token economy. Tradability and tokenization are deferred (Q-07).
+- A token economy. Players trade in game gold; tokenisation is deferred (Q-07).
 
 ## Document map
 
@@ -87,4 +88,5 @@ Career (weeks)                 rank up → new quests/zones/skills → elite zon
 | [12-estate](12-estate.md) | Idle layer: the account's estate (post-MVP) |
 | [13-titles](13-titles.md) | Character and account titles |
 | [14-quests-region-1](14-quests-region-1.md) | Quests of the first region, experience curve |
-| [15-equipment](15-equipment.md) | Weapons, armor, rarity, identification, collectors, boss items |
+| [15-equipment](15-equipment.md) | Weapons, armor, rarity, identification, collectors, boss items and sets |
+| [16-trade](16-trade.md) | Trade between players, auction house |

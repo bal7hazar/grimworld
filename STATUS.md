@@ -31,6 +31,12 @@ None.
 | Phase 0 launch | The owner starting the project-manager session on the VPS (FND-00); documents must be committed and pushed first |
 | Mainnet, later | Q-17 |
 
+## Since the pull request was opened
+
+Owner's third review (2026-09-28): adventurer slots and vault, estate, titles, quests of
+Region 1, equipment with loot and boss sets, trade and auction house; companions designed
+then withdrawn; ADR-0004 on the Arcade packages. The MVP has grown: see risk R-13.
+
 ## Design coverage
 
 Rules and direction are written; interface, content and numbers are not. See the design

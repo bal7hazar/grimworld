@@ -19,7 +19,10 @@
 | D-38 | **Titles**, some attached to the adventurer and some to the account |
 | D-39 | Quests of the first region take the pre-Searing quests as structural models, with our own names, texts and characters |
 
-| D-42 | **Companions**: allied characters follow the adventurer in instances, some using their own skills to help. Escort quests are part of the game |
+| D-42 | ~~Companions and escort quests~~ **Withdrawn the same day**: considered, designed, then dropped by the owner as bringing more complexity than benefit to the player. The design is in the git history (commit 3f61552) |
+| D-44 | **Looted equipment is in the MVP** |
+| D-45 | **Boss armor is in the MVP**, with a bonus for wearing 3 pieces of a set and a second one for wearing all 5 |
+| D-46 | **Players can trade with each other**, and there is an **auction house**, modelled on the one of classic Dofus |
 | D-43 | The secondary profession is kept as a feature and deprioritised: not needed to prove technical feasibility |
 
 ## To study before deciding

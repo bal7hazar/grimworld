@@ -1,6 +1,7 @@
 # 15 — Equipment
 
-> Status: **Draft v0.1** — names are working names; numbers are initial values.
+> Status: **Draft v0.2** — names are working names; numbers are initial values.
+> v0.2: looted equipment and boss armor sets in the MVP; trade.
 > Baseline: Guild Wars itemisation (official wiki and player analyses, read 2026-09-28).
 > What could not be found there is said so; those numbers are ours.
 
@@ -12,7 +13,7 @@
 | Q-2 | **Rarity sets how good the modifiers are, never the base statistics.** A common weapon can have maximum damage | Same |
 | Q-3 | **Equipment is made of parts.** Modifiers can be taken off one item and set on another | Prefix, suffix, inscription; insignia, rune |
 | Q-4 | **Strong modifiers have a condition or a cost** | "+15% while health is above 50%", "+3 attribute, −75 health" |
-| Q-5 | **The look is the item** (D-34). What is rare and wanted is a look, a convenience, a name; never a number above the cap | Prestige armor has the same statistics at 15 times the price |
+| Q-5 | **The look is the item** (D-34). What is rare and wanted is a look, a convenience, a name, a set; never a number above the cap | Prestige armor has the same statistics at 15 times the price |
 | Q-6 | **No modifier rolls dice in combat.** Combat is deterministic (D-40) | Departure: the baseline has chance-based modifiers |
 
 ## Sources of equipment
@@ -180,12 +181,42 @@ and about 16 with everything.
 | Statistics | Requirement 9, every slot filled, every modifier at its maximum, all taken from the common pool |
 | Cannot be | Modified, salvaged |
 | Why want it | The look; a finished weapon without assembling one; the name of the boss |
-| Sets | The bosses of one dungeon or elite zone form a set by their look. **Wearing several gives nothing more** |
+| Weapon sets | The bosses of one dungeon or elite zone form a set by their look |
 
-Armor (Q-19): the baseline has no boss armor; its armor comes from crafters and collectors.
-Extending boss items to armor does not unbalance anything under these rules. The cost is
-art: five pieces per profession per boss. Recommendation: **weapons, shields and foci
-first**; boss armor when equipment is drawn on the character.
+### Boss armor and set bonuses (D-45)
+
+Each boss also drops the pieces of **one armor set per profession**: five pieces, a look
+of their own.
+
+| Pieces of the same set worn | Effect |
+|---|---|
+| 1–2 | Nothing more than the pieces |
+| **3** | First bonus |
+| **5** | First and second bonus |
+
+How this stays under the cap (Q-1):
+
+| Rule | |
+|---|---|
+| A boss piece has the maximum rating of its class, **no insignia slot and no rune slot** | Its insignia and rune are fixed, from the common pool, as for boss weapons |
+| The set bonuses are what the player gets **in exchange** for the freedom they give up | Five free pieces hold five insignias and five runes of the player's choice; a set decides for them |
+| **Budget**: the fixed modifiers of the five pieces plus the two bonuses must be worth no more than the best five free pieces | Checked by the balance simulator for every set before it ships |
+| Bonuses are effects, not raw statistics, whenever possible, and obey Q-4 (a condition or a cost) and Q-6 (no dice) | Example below |
+| Mixing | 3 pieces of one set and 2 free pieces is a legitimate build: one bonus and two free slots |
+
+Example, first dungeon (working names), Vanguard set *Hob-breaker*:
+
+| | |
+|---|---|
+| Pieces | Heavy armor 80; fixed insignia: +10 armor while in a stance; fixed rune: +30 health on the chest, none elsewhere |
+| 3 pieces | Knock-downs you inflict last 1 tick longer |
+| 5 pieces | The first attack that would bring you under 50% health in an instance is halved |
+
+Drop: one piece at most per boss kill, of the adventurer's primary profession, in addition
+to the chance of the boss weapon.
+
+Art cost: five pieces per profession per boss. While equipment is not drawn on the
+character, a piece is an icon; the MVP needs 15 icons for the first dungeon.
 
 ## Gold
 
@@ -221,14 +252,15 @@ Merchants buy at the item's value and sell at twice that value.
 
 | Release | Contains |
 |---|---|
-| **MVP** | Merchant, smith, armorer (two tiers), collectors, quest items, the boss item of the first dungeon. Requirement and the weighted armor rating |
-| Next | Looted equipment with rarity, identification, salvage, modifiers, insignias and runes |
-| Later | Boss sets, looks, equipment drawn on the character |
+| **MVP** | Every source of equipment; rarity, identification, salvage, modifiers, insignias and runes; the boss weapon and the three armor sets of the first dungeon; trade ([16-trade](16-trade.md)) |
+| Later | More sets, looks, equipment drawn on the character |
+
+Order inside the MVP: crafted and collector equipment first (it is enough to play), then
+loot and modifiers, then sets, then trade. Each step is playable without the next.
 
 ## Open
 
 | # | Question |
 |---|---|
-| EQP-1 | Is the MVP split above acceptable, or must looted weapons be in the MVP? |
 | EQP-2 | Binding an item to an adventurer for +20% damage, which removes its trade value (baseline's "customisation"): keep? |
-| EQP-3 | Are items tradable between players (Q-07)? The whole value of rare looks depends on it |
+| EQP-3 | Are boss items tradable, or bound to the adventurer who earned them? |

@@ -51,6 +51,7 @@ SPK-5, not here.
 | Project | Reused | Not reused |
 |---|---|---|
 | [Grimscape](https://github.com/bal7hazar/grimscape) | Rooms as felt bitmaps, lazy room generation, Poseidon seed chain, queued actions in one transaction, layering (system → component → store → model → types → elements) | State keyed by adventurer; every goblin always chasing; unbounded dungeon; block timestamp as seed; square grid |
+| [Arcade packages](https://github.com/cartridge-gg/arcade/tree/main/packages) | `quest`, `achievement`; later `leaderboard`, `social` ([ADR-0004](docs/architecture/ADR-0004-arcade-packages.md)) | Platform packages (registry, provider, controller) |
 | [origami_hexmap](https://github.com/dojoengine/origami/tree/main/crates/hexmap) | Generators, entrances, connectivity, shortest path, ranges | — (line of sight is missing and is ours to add) |
 | [Athanor](https://github.com/djizus/athanor) | Crafter: discovery by sampling without replacement, lazy recipe assignment, hints, packed balances | One word for two draws; transaction-hash fallback; single global book |
 
@@ -94,6 +95,11 @@ Use these words, in code and in prose, with these meanings only.
 | **Awake** | A goblin that is simulated each tick |
 | **Build** | Attributes + 8 skills + belt, locked during an expedition |
 | **Remains** | What a dead goblin leaves; looting it rolls the drop |
+| **Guild** | The Adventurers' Guild: the institution that ranks adventurers and posts quests. Never a group of players |
+| **Company** | A group of players (what the `social` package calls a guild). Post-MVP |
+| **Contract** | A repeatable daily quest posted by the Guild |
+| **Vault** | The account's storage, shared by its adventurers |
+| **Estate** | The account's idle layer (post-MVP) |
 | **Merit** | Points toward guild rank |
 | **Trial** | The instance to pass to be promoted |
 | **Book** | A closed set of ingredients and recipes for alchemy |
@@ -131,6 +137,8 @@ owner, with the date), Superseded.
 | D-73 | `assets/` and anything derived from it is never committed; licence forbids redistribution | design/10 | Accepted 2026-09-28 |
 | D-70 | Documents, briefs, commits and pull requests in English; chat with the owner in French | OPERATIONS §11 | Accepted (owner's convention) |
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
+| D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
+| D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Proposed |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Proposed (owner's idea, to design later) |
 
 ## 7. Open questions
@@ -146,6 +154,8 @@ owner, with the date), Superseded.
 | Q-10 | Business model and who funds the paymaster | Before mainnet | — (owner) |
 | Q-11 | Names: world, regions, professions, skills | `LORE` track | Working names stand until then |
 | Q-12 | The asset pack has no caster sprite. Keep the Arcanist in the MVP (needs one commissioned sprite) or replace it by the Cleric (Monk sprite exists)? | Phase 2 | Keep the Arcanist if a sprite can be commissioned; else Cleric |
+| Q-21 | Licence of the Arcade packages for a commercial game | Before Phase 3 | Clarify with Cartridge |
+| Q-22 | Extract the Arcade packages into dedicated, published repositories | Programme level | Yes, `quest` first |
 | Q-17 | Do mainnet deployments and mainnet registry writes need an explicit go from the owner each time? | Before Phase 7 | Yes |
 | Q-14 | Default room size for portrait phones | SPK-6 | 13 × 19 if readable, else 15 × 15 with a following camera |
 

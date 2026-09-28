@@ -55,7 +55,7 @@ rank, region unlocks and prerequisites. An adventurer holds at most **3 active q
 | **Scouting** | Reach gate/landmark in location Y | On reach |
 | **Delivery** | Carry a parcel from hub A to hub B through the wilds | On hand-in |
 | **Trial** | Promotion trial | On instance success |
-| *Escort / Rescue* | Post-MVP (needs allied NPC AI) | — |
+| *Escort* | Not planned: allied characters in instances were considered and dropped | — |
 
 ### Quest definition (registry entry)
 

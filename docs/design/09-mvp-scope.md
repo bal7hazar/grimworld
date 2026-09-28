@@ -14,15 +14,15 @@ are all playable end to end by a stranger, on a public network.
 | Skills | 12 per profession (6 starter + 6 from trainers), no elite |
 | Level | 1 → 20 |
 | Guild ranks | Wood → Copper (3 ranks, 2 promotion trials) |
-| Companions | Allied characters following the adventurer in instances: escorts and helpers, 3 profiles |
-| Quests | 27 per adventurer plus repeatable guild contracts ([14-quests-region-1](14-quests-region-1.md)) |
+| Quests | 25 per adventurer plus repeatable guild contracts ([14-quests-region-1](14-quests-region-1.md)) |
 | Titles | 6 character titles, 2 account titles ([13-titles](13-titles.md)) |
 | Account | 3 adventurer slots, shared vault |
 | Castes | Runt, Slinger, Skirmisher, Shaman, Hobgoblin (boss) |
 | Conditions | Bleeding, Poison, Burning, Crippled, Knocked down |
 | Loot | Ingredients, gold, boss trophy |
 | Alchemy | Region 1 book: 10 ingredients, 12 recipes, belt of 4 |
-| Equipment | Merchant-bought, level-scaled, one weapon type per MVP profession line |
+| Equipment | Merchant, smith, armorer, collectors; **looted equipment** with rarity, identification, salvage and modifiers; **boss weapons and boss armor with set bonuses** ([15-equipment](15-equipment.md)) |
+| Trade | Direct trade between players and an **auction house** ([16-trade](16-trade.md)) |
 | Hubs | Services as contract calls; presence display of other adventurers |
 | Client | iOS and Android apps first, desktop web second; optimistic rendering, action queue |
 | Account | Cartridge Controller with session policies (no signature prompt per action) |
@@ -35,8 +35,7 @@ are all playable end to end by a stranger, on a public network.
 4. Remaining castes (Trapper, Wolf rider, Hexer, Champion, Paladin, Lord)
 5. Ranks Iron → Platinum
 6. Region 2
-7. Equipment drops and upgrades
-8. Trading / tokenisation
+7. Tokenisation (Q-07)
 9. Estate (idle layer)
 9. Co-op
 10. Hardcore ruleset
