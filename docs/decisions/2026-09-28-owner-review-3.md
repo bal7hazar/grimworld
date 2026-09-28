@@ -42,6 +42,11 @@
 | D-98 | Roles: the smith crafts, recycles and personalises and never touches a modifier; modifiers belong to the enchanter (enchanting table) |
 | D-99 | Collectors are characters met in exploration zones who barter items against items. No stillstone, no gold |
 
+| D-103 | Maps are large and cut in chunks; goblins cross chunks; top-down camera (ADR-0006). Generation with margins is added to the map library by the owner |
+| D-104 | **Zones are level design**: terrain, goblins and characters at fixed places, goblin levels fixed, no scaling with the adventurer or a party. Generated off-chain at first, drawn with tooling later. Generation on-chain is kept for dungeons |
+| D-105 | What is revealed of a map belongs to the instance and resets with a new one |
+| — | Rule of sight (same information on every screen): adopted provisionally; the owner rules after testing |
+
 ## To study before deciding
 
 | # | Question | Input needed |

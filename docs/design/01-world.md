@@ -55,13 +55,14 @@ World
 
 | Location | Layout | Populations |
 |---|---|---|
-| Explorable zone | **Fixed**: derived from the zone's registry seed. Same for everyone, learnable, mappable by the community | Vary per instance seed |
+| Explorable zone | **Authored**: level design stored as data, any size. Same for everyone, learnable, mappable by the community | **Fixed**: positions, castes and levels are set by hand and do not scale |
 | Dungeon | **Shifting**: derived from the instance seed. Different each run | Vary per instance seed |
 | Elite zone | Fixed layout, hand-tuned parameters | Hand-tuned packs, varies lightly |
 
-Rationale: fixed zones give the world a sense of place (GW1); shifting dungeons give
-replayability (Pixel Dungeon). Both use the same generator with a different seed source, so
-there is one map system to build and audit.
+Rationale: authored zones give the world a sense of place and a geography of danger
+(GW1); generated dungeons give replayability (Pixel Dungeon). Zones are generated
+off-chain at first and baked into the registry, then drawn in an editor
+([ADR-0006](../architecture/ADR-0006-chunked-maps.md)).
 
 ## Horizontal scaling
 

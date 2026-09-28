@@ -125,7 +125,7 @@ owner, with the date), Superseded.
 | D-03 | Hubs have no on-chain geometry; presence is off-chain and cosmetic | design/02 | Accepted 2026-09-28 |
 | D-04 | Defeat costs the instance only: experience, loot and quest progress are kept | design/02 | Proposed (revised after the owner found loot loss too harsh) |
 | D-05 | Instances are not saved: leaving closes the instance, re-entering creates a new one | design/02 | Accepted 2026-09-28 |
-| D-10 | Zones have fixed layouts, dungeons shifting ones, same generator | design/01 | Accepted 2026-09-28 |
+| D-10 | Zones are fixed (authored), dungeons shifting (generated) | design/01, ADR-0006 | Accepted 2026-09-28 |
 | D-11 | Hexagonal maps, pointy-top, on `origami_hexmap` | design/02 | Accepted 2026-09-28 |
 | D-20 | Ten ranks: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Onyx; promotion needs merit and a trial quest in a dungeon | design/06 | Accepted 2026-09-28 |
 | D-100 | **The chain is invisible**: the player never pays a fee, never sees a wallet, a signature, a transaction or a token. The business model covers network costs | design/00 | Accepted 2026-09-28 |
@@ -145,7 +145,7 @@ owner, with the date), Superseded.
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
 | D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Proposed |
-| D-64 | Large maps cut in chunks, simulated in a window centred on the adventurer; one rule of sight for every screen | ADR-0006 | Requirement accepted; mechanism proposed |
+| D-64 | Large maps cut in chunks, simulated in a window centred on the adventurer. Zones are authored data with fixed goblins and levels; dungeons are generated. Rule of sight provisional | ADR-0006 | Accepted 2026-09-28, costs subject to SPK-7 |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Proposed (owner's idea, to design later) |
 
 ## 7. Open questions

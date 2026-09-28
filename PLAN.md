@@ -61,7 +61,9 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | SPK-9 | Accounts spike (ADR-0005): does Controller work on Sepolia from the app shell with sessions, sponsored fees and vRNG; what a burner can use instead | SPK-5 | Opus 5.5 | S | todo |
 | SPK-8 | Arcade packages spike: `quest` in storage mode and `achievement` in event mode on a throwaway world; progress keyed by adventurer id; what Controller displays; tests for the edge cases listed in ADR-0004 | SPK-5 | Opus 5.5 | D S | todo |
 | SPK-7 | **Chunked map spike** (ADR-0006): chunk generation with margins, window assembled from up to 4 chunks, re-centring, shared flood for 8 goblins, goblins crossing chunks, line of sight; all measured | SPK-5 | Opus 5.5 | C P | todo |
-| LIB-01 | Map library: generation of a board given its margins, board assembly from chunks, line of sight. Specified with the library's author; outside this repository | — | Owner | — | todo |
+| LIB-01 | Map library: **generation of a board given its margins** (owner, in the library), board assembly from chunks, line of sight; outside this repository | — | Owner | — | todo |
+| TOOL-01 | Zone tool, first version: generates a zone off-chain (terrain, goblins with fixed levels, characters, features) and writes the registry data | LIB-01 | Opus 5.5 | D V Q | todo |
+| TOOL-02 | Zone editor: draw terrain and place goblins and characters by hand, import and export the same format | TOOL-01 | Opus 5.5 | D V Q | todo (after MVP start) |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | todo |
 | FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
 
@@ -76,7 +78,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | ENG-02 | Helpers: packer, seeder, fixed-point table; hex line of sight and arcs on top of `origami_hexmap` | ENG-01 | Opus 5.5 | P C Q | todo |
 | ENG-03 | Registries: region, location, gate + seed data for a test region | ENG-01 | Opus 5.5 | D S Q | todo |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q | todo |
-| ENG-05 | Chunk generation on reveal, shared terrain for fixed zones, per-instance terrain for shifting locations (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D P C Q | todo |
+| ENG-05 | Zones: chunks and placements read from the registry, revealed per instance. Dungeons: chunk generation on reveal (ADR-0006) | ENG-02, SPK-7, LIB-01 | Opus 5.5 | D P C Q | todo |
 | ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; instance seed (Fate) | ENG-03, ENG-04 | Opus 5.5 | D S C Q | todo |
 | ENG-07 | Movement, facing, simulation window and its re-centring, action queue with stop conditions, instance clock | ENG-05, ENG-06 | Opus 5.5 | D S P C Q | todo |
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, Torii subscription | FND-01, SPK-6 | Opus 5.5 | S Q | todo |
@@ -197,7 +199,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-10 | **Equipment**: weapons and armor by level, merchant stock | Phase 4 (RWD-05) | todo |
 | DES-11 | **Alchemy content**: the 10 ingredients, the 12 potions with exact effects, loot tables | Phase 4 (CNT-03) | todo |
 | DES-12 | **Hubs**: what a town and an outpost look like, services and their characters, presence display | Phase 5 (WLD-03) | todo |
-| DES-13 | **Region 1 content**: zones, dungeon floors, spawn tables | Phase 5 (CNT-04) | todo |
+| DES-13 | **Region 1 content**: level design of the zones (terrain, goblins by place and level, collectors), dungeon floors, spawn tables | Phase 5 (CNT-04) | todo |
 | DES-14 | **Lore**: premise written (`docs/lore/00-premise.md`), awaiting the owner's reaction; then names (Q-11), Region 1's story, **audio** direction | Phase 5 (LORE-01) | doing |
 | DES-17 | **Rifts** (`docs/design/17-rifts.md`): owner's ruling, then spawn rules and prices | Phase 5 (WLD-02) | doing |
 | DES-16 | Sets of the first dungeon: fixed modifiers and the 3- and 5-piece bonuses for the three professions, within the budget rule | Phase 4 (RWD-08) | todo |
