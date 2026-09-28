@@ -35,6 +35,9 @@
 | D-97 | English only for the first version, multilingual afterwards. Names short and international |
 | D-20 (revised) | Ten grades. Ladder proposed by the orchestrator, awaiting the owner: Wood, Tin, Copper, Iron, Steel, Bronze, Silver, Gold, Platinum, Still |
 
+| D-98 | Roles: the smith crafts, recycles and personalises and never touches a modifier; modifiers belong to the enchanter (enchanting table) |
+| D-99 | Collectors are characters met in exploration zones who barter items against items. No stillstone, no gold |
+
 ## To study before deciding
 
 | # | Question | Input needed |

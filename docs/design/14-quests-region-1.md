@@ -91,7 +91,7 @@ are sold by trainers.
 | Quest | Giver | Asks | Structure | Gives |
 |---|---|---|---|---|
 | The stolen strongbox | Merchant, Town A | Take the strongbox back from raiders in Z0 and return it | collect + deliver | 250 xp, 50 gold |
-| Ears for the clerk | Guild clerk | Bring 10 goblin ears | gather | 250 xp; introduces collectors |
+| The hermit by the ford | Guild clerk | Find the collector in Z0 and barter with him once | reach + barter | 250 xp; introduces collectors |
 | The miller's bees | Miller, Z0 | Lure 3 packs over the bridge without fighting them | lure | 500 xp; teaches aggro |
 | The long message | Steward, Town A | Carry a letter to the far end of Z2 | deliver, long | 750 xp, a weapon |
 | Three witnesses | Outpost captain | Speak to 3 settlers scattered in Z1 | talk to N | 500 xp |

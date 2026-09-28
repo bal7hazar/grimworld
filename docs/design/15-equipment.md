@@ -1,6 +1,7 @@
 # 15 — Equipment
 
-> Status: **Draft v0.2** — names are working names; numbers are initial values.
+> Status: **Draft v0.3** (v0.3: who does what; collectors are in the wilds)
+> Previous: **Draft v0.2** — names are working names; numbers are initial values.
 > v0.2: looted equipment and boss armor sets in the MVP; trade.
 > Baseline: Guild Wars itemisation (official wiki and player analyses, read 2026-09-28).
 > What could not be found there is said so; those numbers are ours.
@@ -16,14 +17,49 @@
 | Q-5 | **The look is the item** (D-34). What is rare and wanted is a look, a convenience, a name, a set; never a number above the cap | Prestige armor has the same statistics at 15 times the price |
 | Q-6 | **No modifier rolls dice in combat.** Combat is deterministic (D-40) | Departure: the baseline has chance-based modifiers |
 
+## Who does what
+
+| Character | Where | Does | Never |
+|---|---|---|---|
+| **Merchant** | Hubs | Sells basic goods and kits, buys anything | — |
+| **Smith** | Hubs | **Crafts** weapons, **recycles** equipment into materials, **personalises** | Touches a modifier |
+| **Armorer** | Hubs | Crafts armor | Touches a modifier |
+| **Enchanter** (enchanting table) | Hubs | Everything about **modifiers**: identify, lift off, set, on weapons and armor | Crafts |
+| **Collector** | **Exploration zones**, at fixed places | **Barter**: goblin trophies and ingredients against a fixed item | Takes gold or stillstone |
+| **Alchemist** | Hubs | Brewing, hints | — |
+
+### Collectors
+
+Collectors are characters met **in the wilds**, not in towns: a hermit, a deserter, a
+pedlar who will not come near the walls. Zones have a fixed layout, so a collector is
+always at the same place, and finding them is part of exploring.
+
+| | |
+|---|---|
+| Interaction | Walk next to them and trade: one action, which ends the queue. They are a room feature, not an actor: they do not move, fight or get attacked |
+| Offer | Fixed per collector: *5 runt ears → leather gloves*. No gold involved |
+| Goods come from | The adventurer's pack, as carried in the instance |
+| One piece each | A full armor asks for five collectors across a region |
+
+Kinds of barter to explore, beyond trophies against equipment:
+
+| Gives | Against |
+|---|---|
+| Armor piece, weapon | Goblin trophies |
+| A bag or a belt pouch | Trophies |
+| Potions | Ingredients the collector cannot find himself |
+| An alchemy hint | A rare ingredient |
+| A rare ingredient of another region | Ingredients of this one |
+| A rumour: the place of a chest, a vein, a Red Rift | Trophies of a high caste |
+
 ## Sources of equipment
 
 | Source | Gives | Randomness |
 |---|---|---|
 | **Merchant** | Basic weapons, no modifier | None |
-| **Smith** (D-37) | A small pool of weapons per hub, fixed statistics, chosen look, for gold and materials | None |
+| **Smith** (D-37) | A small pool of weapons per hub, fixed statistics, no modifier, chosen look, for gold and materials | None |
 | **Armorer** | Armor of the hub's tier, for gold and materials | None |
-| **Collector** (D-36) | One fixed piece (armor or weapon) for 3 to 5 goblin trophies | None |
+| **Collector** (D-36) | In the wilds: one fixed piece (armor or weapon) for 3 to 5 goblin trophies | None |
 | **Loot** (D-37) | Weapons and armor remains, of any rarity | Fate |
 | **Boss** (D-37b) | Its own items: fixed look, fixed modifiers at maximum values | Fate decides whether it drops, not what it is |
 | **Quest** | Fixed items | None |
@@ -117,22 +153,25 @@ known, its modifiers are not.
 
 | | |
 |---|---|
-| Identifying | In a hub, with an identification kit (a few gold per use) |
+| Identifying | At the enchanter's, for a few gold |
 | On-chain | **Identifying is the draw.** Modifiers do not exist until the item is identified; the Fate draw happens in that transaction ([ADR-0002](../architecture/ADR-0002-randomness.md)). Nothing hidden needs to be stored |
 | Needed to | Equip it, change its modifiers, salvage it cleanly |
 | Value | Unidentified value follows the goblin's level. Identified value = (unidentified + a draw up to itself) × 1 for common and fine, × 2 for superior, × 4 for rare — formula measured by players of the baseline on about 1 000 items |
 | The decision | Sell it closed for a sure small price, or pay to open it |
 
-### Salvage
+### Recycling (smith)
 
-| Kit | Gives | Risk |
+Recycling an item gives **materials** (iron, hide, wood, cloth, bone), more for a more
+valuable item. The item and its modifiers are consumed.
+
+### Modifiers (enchanter)
+
+| Operation | Result | Risk |
 |---|---|---|
-| Basic | Common materials | The item is consumed |
-| Expert | One modifier of the item, chosen by the player; or materials | **The item is destroyed one time in two** (Fate) |
-| Expert + 1 stillstone | One modifier | **None** ([17-rifts](17-rifts.md#what-it-is-for)) |
-
-Materials feed smiths and armorers. Setting a modifier on an item replaces the one in the
-slot, which is lost.
+| Lift a modifier off an item | The modifier, as a component | **The item is destroyed one time in two** (Fate) |
+| Same, with 1 stillstone | The modifier | None |
+| Set a component on an item | The item carries it | The modifier it replaces is lost |
+| Same, with 1 stillstone | The item carries it | None: the replaced modifier comes back as a component |
 
 ## Armor
 
@@ -221,8 +260,8 @@ character, a piece is an icon; the MVP needs 15 icons for the first dungeon.
 
 ## Personalisation (D-48)
 
-As in the baseline, any weapon, shield, focus or armor piece can be **personalised** in a
-hub for a small fee.
+As in the baseline, any weapon, shield, focus or armor piece can be **personalised** by a
+smith for a small fee in gold.
 
 | | |
 |---|---|
