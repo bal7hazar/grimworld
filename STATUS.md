@@ -44,6 +44,7 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 | | |
 |---|---|
 | D-119 | `hexx` ported in full in `bal7hazar/hexx-cairo`; `origami_hexmap` decommissioned at the end ([file](docs/decisions/2026-09-28-L-G1-hexx-port.md)) |
+| D-121 | `main` is **not** protected for now: the owner keeps full freedom during the kick-start ([file](docs/decisions/2026-09-28-G-1-main-protection.md)); raised again at the gate of Phase 0 |
 | D-120 | The window follows the adventurer, 15 × 16, not stored; fallback sight 5 on 13 × 14 ([file](docs/decisions/2026-09-28-window-follows.md)); ADR-0006, design/02, design/18, CONTEXT, PLAN v0.16 and docs/needs/hexmap.md corrected |
 
 ## Incident closed
@@ -54,9 +55,7 @@ CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 
 ## Waiting for the owner
 
-| What | Where | Recommendation |
-|---|---|---|
-| G-1: protect `main` on both repositories | [docs/decisions/PENDING-G-1.md](docs/decisions/PENDING-G-1.md) | Yes, two steps |
+Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
 
 ## Next
 
