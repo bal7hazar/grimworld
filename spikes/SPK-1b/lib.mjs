@@ -166,6 +166,16 @@ export async function rpc(method, params = []) {
 }
 
 /** Stops the process unless the endpoint is Sepolia. Every sending script calls it first. */
+// SPK-1b is closed (orchestrator, 2026-09-28): its measurements are done and audited; its
+// crash-recovery path is not (audit of PR 51, re-audit findings 1 and 7). Sending is retired so
+// that these scripts can never send again (measure.mjs and measure-d.mjs, the only callers of
+// makeSender, refuse as their first statement); future Sepolia sending uses audited tooling.
+export const RETIRED = "SPK-1b is closed: sending is retired (audit of PR 51, findings 1 and 7); nothing is sent";
+export function refuseRetired() {
+  console.error(RETIRED);
+  process.exit(5);
+}
+
 export async function requireSepolia() {
   const chain = await rpc("starknet_chainId");
   const name = shortString.decodeShortString(chain);

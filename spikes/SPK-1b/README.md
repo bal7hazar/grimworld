@@ -1,3 +1,7 @@
+> **Closed (2026-09-28): sending is retired.** The measurements are done and audited; the
+> sending scripts refuse as their first statement (audit of PR 51, findings 1 and 7, on their
+> crash-recovery path). Read-only scripts (`analyse.py`, the probes) still run.
+
 # SPK-1b — the fixed part of a transaction, with the MVP's kind of account
 
 The same cheap action as SPK-1 (`enter` then `leave`) on SPK-1's deployed contracts, sent four

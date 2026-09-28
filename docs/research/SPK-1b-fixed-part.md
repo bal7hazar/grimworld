@@ -239,3 +239,12 @@ Neither changed what was sent: the run stayed far below both caps (44 of 60, 3.9
 3. **The burner's funding.** Each funding transfer costs a transaction, 0.0627 STRK here together
    with the adventurer's assignment. How often a burner is topped up, and by whom, is ADR-0005's
    question, not this spike's.
+
+## Closure
+
+The sending scripts are retired (orchestrator, 2026-09-28): the re-audit of PR 51 found their
+crash-recovery path unsafe (a lost submission response could be voided on an unchanged nonce;
+recovery did not restore the measurement's progress). The measurements are unaffected: 44
+transactions, reconciled by the auditor. Rather than harden a one-off path, `measure.mjs` and
+`measure-d.mjs` refuse as their first statement; future Sepolia sending goes through tooling of its
+own, audited.

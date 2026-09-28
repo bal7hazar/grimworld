@@ -21,10 +21,12 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Account, PaymasterRpc, ec, encode, hash, outsideExecution } from "starknet";
-import {
+import { refuseRetired,
   account, accountAddress, configure, emit, guardOutput, makeLedger, makeSender, maxFee, now, openOutput,
   POLL_MS, provider, receiptOrNull, redactAlso, requireSepolia, rpc, STRK, strk, tracked, USER_AGENT,
 } from "./lib.mjs";
+
+refuseRetired();   // SPK-1b is closed: nothing below runs
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = guardOutput(process.env.SPK1B_OUT_DIR || HERE, "measure-output.txt");
