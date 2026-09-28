@@ -126,7 +126,10 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   local load5 mem_kb
   load5=$(cut -d' ' -f2 /proc/loadavg)
   mem_kb=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
-  case "$load5:$mem_kb" in *[!0-9.:]* | :* | *:) echo "agent.sh: cannot read load or memory" >&2; return 1 ;; esac
+  if ! [[ $load5 =~ ^[0-9]+(\.[0-9]+)?$ && $mem_kb =~ ^[0-9]+$ ]]; then
+    echo "agent.sh: cannot read load ('$load5') or memory ('$mem_kb'): wait and check again" >&2
+    return 1
+  fi
   if awk -v l="$load5" -v m="$MAX_LOAD5" 'BEGIN { exit !(l > m) }'; then
     echo "agent.sh: 5-minute load average $load5 is above $MAX_LOAD5: wait and check again" >&2
     return 1
