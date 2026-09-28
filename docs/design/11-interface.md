@@ -1,5 +1,7 @@
 # 11 — Interface
 
+> **Changed by [ADR-0006](../architecture/ADR-0006-chunked-maps.md)**: the room view becomes a camera following the adventurer on a large map, with pinch and pan; the layout zones below are unchanged.
+>
 > Status: **Draft v0.1** — sizes are initial values, to be settled by the client spike
 > (SPK-6) on real phones.
 

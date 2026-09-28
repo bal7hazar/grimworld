@@ -1,5 +1,7 @@
 # 18 — Rooms: size, generation, features, perception
 
+> **Superseded in part by [ADR-0006](../architecture/ADR-0006-chunked-maps.md)** (2026-09-28): maps are large and cut in chunks; the unit of simulation is a window centred on the adventurer, not a room. What this document says of rooms is kept for the record until it is rewritten after spike SPK-7.
+>
 > Status: **Draft v0.1** — numbers are initial values; costs are the map library's own
 > benchmarks and are re-measured in spike SPK-7.
 

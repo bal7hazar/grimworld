@@ -87,8 +87,9 @@ Use these words, in code and in prose, with these meanings only.
 | **Clock** | The time of an instance, in ticks |
 | **Action** | One player input in an instance, with a tick cost |
 | **Queue** | Several actions submitted in one transaction |
-| **Room** | A hex board of at most 251 tiles; the unit of generation and of simulation |
-| **Entrance** | An open tile on the border of a room, leading to the next room |
+| **Chunk** | 15 × 15 tiles: the unit of storage and generation of a map |
+| **Window** | The 15 × 15 board centred on the adventurer on which a tick is computed |
+| **Sight** | The hexagon of radius 6 within which goblins are shown |
 | **Facing / arc** | The direction an actor looks at; front, front-side, rear-side and back tiles around it |
 | **Gate** | A link between two locations |
 | **Caste** | A type of goblin |
@@ -144,6 +145,7 @@ owner, with the date), Superseded.
 | D-71 | Sub-agent titles start with the model used, in brackets | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-32…D-46, D-90…D-94 | Round 3: creation, slots, vault, look is equipment, collectors, smiths, looted equipment and boss armor sets in the MVP, titles, trade and auction house, estate, cosmetics; companions withdrawn | [decisions/2026-09-28-owner-review-3](docs/decisions/2026-09-28-owner-review-3.md) | Accepted 2026-09-28 |
 | D-63 | Quests on the `quest` package in storage mode, titles on `achievement` in event mode | ADR-0004 | Proposed |
+| D-64 | Large maps cut in chunks, simulated in a window centred on the adventurer; one rule of sight for every screen | ADR-0006 | Requirement accepted; mechanism proposed |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Proposed (owner's idea, to design later) |
 
 ## 7. Open questions
