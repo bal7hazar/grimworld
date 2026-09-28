@@ -1,4 +1,4 @@
-# PENDING — G-1: protect `main` of `bal7hazar/grimworld` on GitHub
+# G-1: protect `main` on GitHub — declined for now (2026-09-28)
 
 | | |
 |---|---|
@@ -35,4 +35,11 @@ Yes to both steps, on both repositories.
 
 ## Answer
 
-*To be filled with the owner's decision and its date.*
+Given by the owner on 2026-09-28: **no protection for now** (D-121). The project is being
+kick-started with a large volume of implementation, and the owner prefers to keep full
+freedom on `main` during that time. Neither step is applied, on either repository.
+
+| | |
+|---|---|
+| Accepted residual | A program run by an agent could push to `main`, force-push included, with the machine's credentials (finding F4 of the FND-03 audit). Mitigations that remain: the launcher's profiles, the rule of OPERATIONS §7 (no force-push on shared branches), reviews by the orchestrators, and the history kept by every clone and worktree on the machine |
+| To raise again | By the project manager at the gate of Phase 0, and at the latest before anything of value or any public playtest depends on the repository (Phase 6). Not before, unless an incident happens |
