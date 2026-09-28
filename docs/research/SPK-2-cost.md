@@ -4,7 +4,12 @@ Measured on 2026-09-28 on the VPS by `[Opus 5.5]`, with the SPK-5 pins (Cairo/Sc
 snforge 0.51.2, sozo 1.8.7, Katana 1.7.1, `dojo` 1.8.0). Everything below comes from the throwaway
 world in `spikes/SPK-2/`; the raw outputs are committed next to it and quoted here.
 
-## Verdict
+Sections 1 to 6 are **part 1, the Dojo baseline**, kept as they were. **Part 2** (§7, the same
+worst cases as native Starknet contracts on Cairo 2.19, ADR-0007) is at the end. Part 1's
+commands now run with its own pins: `spikes/SPK-2/test.sh` and
+`spikes/SPK-2/with-katana.sh bash run.sh` (see `spikes/SPK-2/README.md`).
+
+## Verdict (part 1, Dojo)
 
 | Question | Answer |
 |---|---|
@@ -299,3 +304,135 @@ For the design (not cost):
    its own pack: in the first queue fixture, a goblin behind the front rank took detours and
    fell out of the window within 7 ticks. The fixture was changed so that all 8 stay awake. Is
    that the behaviour wanted?
+
+## 7. Part 2 — the same worst cases as native contracts (ADR-0007, D-123)
+
+Measured on 2026-09-28 by `[Opus 5.5]` on the root toolchain: Scarb 2.19.4, snforge 0.61.0,
+sncast 0.61.0, starknet-devnet 0.10.0. Code and raw outputs: `spikes/SPK-2/native/`.
+
+### 7.1 Verdict
+
+| Question | Answer |
+|---|---|
+| **Native against Dojo, per action** | **Every action is cheaper natively.** As full transactions, native costs **0.33 to 0.81×** the Dojo figure: the worst-case tick 0.70× (one storage struct per goblin) and 0.62× (goblins packed), queues 0.74 to 0.76× with 8 goblins and 0.33× without, brewing 0.41 to 0.52×, hub actions 0.40 to 0.81×. On the contract's own execution (snforge, Sierra gas, same meter on both sides) the gap is wider: 0.42 to 0.59× on the tick, 0.13 to 0.20× on hub and brewing actions, where the Dojo world's calls were most of the cost |
+| **ADR-0001 threshold, native** | **Still not met at today's prices.** A 300-action expedition costs **$0.72 to $2.08** natively (1.4× to 4.2× the $0.50), against $1.15 to $2.86 on Dojo at the same prices. The best measured case (goblins packed per instance, two thirds of the moves exploring) needs an L2 gas price of **15.7 Gfri** to pass, against 22.6 Gfri today (17.9 to 30.5 over two weeks) |
+| What dominates now | **No longer storage: the tick's own computation and the transaction around it.** A 10-move queue with 8 goblins is 20.5M of execution, of which ≈ 12.5M is ten world ticks in memory. A packed fight is 4.9M as a transaction: 2.8M of execution (the world tick alone is 1.25M) and ≈ 2.1M around it on devnet (account, fee transfer, storage syscalls) |
+| D-52 | Unchanged: +73,820 L2 gas at call level (755,698 against 681,878), +40,000 on devnet; the logic is the same code. Keep it |
+
+### 7.2 What was built
+
+| | Part 1 (Dojo) | Part 2 (native) |
+|---|---|---|
+| Contracts | A world, 5 systems, 14 models | **Two contracts** (ADR-0007): `Hub` (persistent: adventurers, balances, alchemy, quests, gates) and `Instances` (ephemeral: instances, snapshot, goblins, window stand-in). `enter` calls `Instances.open`; `leave` sends the results back in one call to `Hub.apply_results`, which accepts only the registered `Instances` |
+| Pure logic | `board`, `rules`, `alchemy`, `tables`, `fixtures`, `fate` | **The same files, copied unchanged** (`native/check.sh` compares them byte for byte); the models are plain structs with the same fields, packed by hand into felts (`native/src/models.cairo`) |
+| Goblin storage | One model per goblin (11 fields); variant: 8 hand-packed felts in one model | `attack`, `walk`: **one storage struct per goblin**, default layout, one slot per field (11 slots); `attack_felt`: one felt per goblin; `attack_packed`, `walk_packed`: **8 felts under one instance key** |
+| Other state | Dojo-packed models | Adventurer snapshot in 1 felt, instance in 1 slot, hero in 1 felt, book in 2 slots, grimoire, quest log, location in 1 slot each |
+| Access control | The world's writers only; no owner check on instance actions | **Ours**: the caller must own the instance or the adventurer; setups by the admin; `apply_results` only from `Instances`; `open` only from `Hub` (tested: `test_tick_refuses_a_stranger`, `test_results_only_from_the_instances`) |
+| Events | One per model write (the world's) | One small event per action (`Acted`, `Opened`, `Closed`); the client reads its own instance by view calls (ADR-0007, *Events are an interface*) |
+| Tests | 27, budgets | **31**, budgets `ceil(1.05 × measured)`: the same oracle, rules and in-memory benchmarks, the same system scenarios, plus the three layouts compared, the packed queues and the two access checks |
+
+Everything part 1 left out (§1) is still left out; the window is still the one-read stand-in.
+
+### 7.3 Measurements
+
+```
+spikes/SPK-2/native/check.sh                                       # same: src/{alchemy,board,fate,fixtures,rules,tables}.cairo
+cd spikes/SPK-2/native && snforge test > snforge-test-output.txt   # Tests: 31 passed, 0 failed
+cd spikes/SPK-2/native && snforge test test_systems --trace-components contract-name gas > snforge-trace.txt
+scripts/with-node.sh python3 spikes/SPK-2/native/devnet.py > spikes/SPK-2/native/devnet-output.txt
+python3 spikes/SPK-2/prices.py > spikes/SPK-2/native/prices-output.txt
+python3 spikes/SPK-2/native/money.py > spikes/SPK-2/native/money-output.txt
+```
+
+Two runs of the devnet script gave the same figures. Every transaction `SUCCEEDED`.
+
+**What each figure includes.** snforge's per-call trace figure is the contract's Sierra gas
+**without the cost of its syscalls**. On `test_tick_worst_case_layouts`, `--detailed-resources`
+reports 43,802,612 of Sierra gas for 139,153,412 L2 gas in total, with 439 storage writes and 285
+storage reads. The devnet receipt is the whole transaction:
+- the account's validation and execution;
+- the storage syscalls;
+- the fee transfer;
+- events and calldata.
+
+The gap between the two grows with storage accesses. It is +1.04M on the queue without goblin and
++4.76M on the tick with a storage struct per goblin (160 more slot accesses than one felt per
+goblin, ≈ 17k each). Two consequences:
+- part 1's "Sierra estimate" (§3.2: snforge call plus Katana's overhead) is a **lower bound**, since
+  it misses those syscalls;
+- the fair side-by-side is transaction against transaction: Katana for Dojo, devnet for native.
+
+The two nodes do not meter the same way. Katana 1.7.1 metered in Cairo steps (§2.2), while
+devnet 0.10.0 does not: its overhead over snforge's steps-mode figure is 5.0M on the tick, where
+Katana's was a constant 0.28M. Treat the transaction ratios as indicative. The call-level ratios
+use one meter, but leave syscalls out on both sides.
+
+### 7.4 Side by side, per action
+
+At the prices of §7.5; dollars include data availability (Katana's calldata `l1_gas / 16`,
+devnet's `l1_data_gas` as reported).
+
+| Action | Dojo tx L2 gas (Katana) | Native tx L2 gas (devnet) | Difference | Native / Dojo | $ Dojo | $ native | Dojo call (Sierra) | Native call (Sierra) | Native / Dojo (call) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Worst-case tick, a model / storage struct per goblin | 17,940,800 | 12,594,560 | −5,346,240 | 0.70 | 0.01677 | 0.01180 | 13,203,148 | 7,838,454 | 0.59 |
+| Worst-case tick, goblins packed per instance | 7,927,680 | 4,906,560 | −3,021,120 | 0.62 | 0.00743 | 0.00461 | 6,619,410 | 2,812,014 | 0.42 |
+| Worst-case tick, one felt per goblin (native only) | — | 4,986,560 | — | — | — | 0.00468 | — | 3,000,054 | — |
+| Queue of 10 moves | 33,832,000 | 25,173,760 | −8,658,240 | 0.74 | 0.03160 | 0.02354 | 28,046,442 | 20,546,918 | 0.73 |
+| Queue of 5 moves | 24,846,400 | 18,788,160 | −6,058,240 | 0.76 | 0.02321 | 0.01758 | 19,705,588 | 13,272,684 | 0.67 |
+| Queue of 1 move | 18,025,920 | 13,685,680 | −4,340,240 | 0.76 | 0.01685 | 0.01282 | 13,503,304 | 7,923,696 | 0.59 |
+| Queue of 10 moves, no goblin | 7,331,840 | 2,397,760 | −4,934,080 | 0.33 | 0.00685 | 0.00225 | 7,052,124 | 1,357,970 | 0.19 |
+| Queue of 10 moves, goblins packed (native only) | — | 20,037,760 | — | — | — | 0.01873 | — | 15,520,378 | — |
+| Queue of 5 moves, goblins packed (native only) | — | 11,572,160 | — | — | — | 0.01083 | — | 8,246,144 | — |
+| Queue of 1 move, goblins packed (native only) | — | 5,111,680 | — | — | — | 0.00480 | — | 2,897,156 | — |
+| Brew, signature, new pair | 5,143,040 | 2,685,920 | −2,457,120 | 0.52 | 0.00482 | 0.00252 | 4,646,384 | 755,698 | 0.16 |
+| Brew, no signature, new pair | 5,143,040 | 2,645,920 | −2,497,120 | 0.51 | 0.00482 | 0.00249 | 4,572,564 | 681,878 | 0.15 |
+| Brew, known pair | 3,860,160 | 1,601,920 | −2,258,240 | 0.41 | 0.00361 | 0.00151 | 3,312,392 | 493,050 | 0.15 |
+| Accept quest | 2,262,400 | 1,673,680 | −588,720 | 0.74 | 0.00212 | 0.00157 | 1,710,148 | 248,930 | 0.15 |
+| Claim quest | 3,595,520 | 1,913,680 | −1,681,840 | 0.53 | 0.00337 | 0.00180 | 3,082,129 | 403,150 | 0.13 |
+| Enter | 4,448,640 | 3,625,280 | −823,360 | 0.81 | 0.00417 | 0.00340 | 3,986,642 | 801,212 | 0.20 |
+| Leave | 4,414,080 | 1,776,320 | −2,637,760 | 0.40 | 0.00413 | 0.00168 | 3,928,888 | 577,000 | 0.15 |
+
+The native `enter` and `leave` include the call to the other contract (448,122 and 140,300 at
+call level). The native tick checks the owner, which part 1's did not.
+
+### 7.5 Money, native
+
+| | Value | Source, time |
+|---|---|---|
+| Mainnet L2 gas price | **22,573,370,546 fri** | `https://api.cartridge.gg/x/starknet/mainnet`, block 15,587,811, 2026-09-28T17:51:30Z |
+| Mainnet L1 data gas price | 813,320,714,552 fri | same block |
+| Past blocks | 21.48, 21.79, 21.27, 21.33, 22.44, **17.89**, **30.50** Gfri | 1k to 800k blocks back (to 2026-09-13T02:03Z) |
+| STRK | **$0.04133903** | CoinGecko `simple/price`, 2026-09-28T17:51:39Z |
+| ⇒ | 1M L2 gas = **$0.000933** | |
+
+Same expedition model as §3.3 (180 moves in queues, 100 fight actions of one transaction each,
+20 others, enter and leave) and the same day (5 Rifts, 3 quests, 5 brews):
+
+| Scenario | $ Dojo (Katana) | $ native (devnet) | Native / Dojo | Native × $0.50 | L2 gas price for native to pass | $ per day, native |
+|---|---:|---:|---:|---:|---:|---:|
+| S1 worst case everywhere, a model / struct per goblin | 2.858 | 2.075 | 0.73 | 4.15 | 5.4 Gfri | 10.40 |
+| S2 mixed (2/3 of the moves exploring), a model / struct per goblin | 2.383 | 1.680 | 0.70 | 3.36 | 6.7 Gfri | 8.42 |
+| S3 mixed, goblins packed per instance | 1.150 | 0.719 | 0.63 | 1.44 | 15.7 Gfri | 3.62 |
+| S4 worst case everywhere, goblins packed per instance | 1.400 | 0.951 | 0.68 | 1.90 | 11.9 Gfri | 4.78 |
+
+Dojo's S3 and S4 use part 1's estimated packed queues; on native every figure is measured.
+Dojo's figures differ from §3.3 only by the fresher prices.
+
+### 7.6 What would change the native numbers
+
+| Change | Effect |
+|---|---|
+| Fights | 100 packed fights are $0.46 alone: at today's prices the threshold cannot be met with one transaction per fight at 4.9M. A fight costs ≈ 2.8M of execution (world tick 1.25M, the flood 0.69M of it) and ≈ 2.1M around it |
+| The flood | Ours costs 58k per layer against the library's 19k (§2.1); with the map library on Cairo 2.19 (now possible, ADR-0007), ≈ −0.45M per tick |
+| Transaction overhead | 1.0M to 2.1M per transaction on devnet with its predeployed account and packed storage (up to 4.8M with a storage struct per goblin, the syscalls); the real one (Controller session, paymaster) is SPK-9 and SPK-1's to measure on Sepolia |
+| Layout | Packing goblins per instance cuts the fight by 61 % (12.59M to 4.91M) and the queues by 20 % (10 moves) to 63 % (1 move); per instance against one felt per goblin changes little (4.91M against 4.99M) |
+| Assembly of the window (SPK-7) | Natively, chunk reads are plain storage reads (≈ 17k each, §7.3) plus masks: much cheaper than the 0.5M per tick estimated through the Dojo world (§5) |
+
+### 7.7 Open questions, part 2
+
+1. **FND-04:** with storage no longer dominant, is the per-action budget written against the
+   transaction (devnet) or the execution (snforge)? The two differ by 1 to 5M.
+2. **The real account's overhead** on Sepolia (SPK-1, SPK-9): it sets a floor under every action
+   and decides whether one transaction per fight can ever fit 1.9M.
+3. **Threshold (R-2):** native narrows the gap (1.4× to 4.2× instead of 2.3× to 5.7× at the same
+   prices) but does not close it; the owner's call stands (escalated in part 1).
