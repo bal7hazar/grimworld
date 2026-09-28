@@ -131,7 +131,7 @@ for pair in nodejs:node pnpm:pnpm scarb:scarb starknet-foundry:snforge,sncast st
     continue
   fi
   # Do the system binaries have exactly the pinned version (and pinned hash, when there is one)?
-  match=1 seen='' hash_want=$(binary_sha256 "$name" "$want" "$arch")
+  match=1 seen='' candidate='' hash_want=$(binary_sha256 "$name" "$want" "$arch")
   for binary in ${binaries//,/ }; do
     sys=$(system_binary "$binary")
     if [ -z "$sys" ]; then
@@ -147,11 +147,14 @@ for pair in nodejs:node pnpm:pnpm scarb:scarb starknet-foundry:snforge,sncast st
     fi
     seen="$seen $binary:${got:-unknown}"
     [ "$got" = "$want" ] || match=0
-    [ "$binary" != "$name" ] || system_path[$name]=$sys
+    [ "$binary" != "$name" ] || candidate=$sys
   done
   if [ "$match" = 1 ]; then
     log "$name $want: using the system binaries (exactly the pinned version); asdf plugin not needed"
     system_served="$system_served$name "
+    # Recorded only now that the system binary is the one selected: check_hash reads this path,
+    # and a tool installed by asdf must be hashed where asdf put it.
+    [ -z "$candidate" ] || system_path[$name]=$candidate
   elif [ -z "$seen" ]; then
     log "$name $want: no system binary outside asdf's shims; adding the plugin hides nothing"
   elif global_system_fallback "$name"; then
