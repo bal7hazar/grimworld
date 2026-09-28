@@ -18,7 +18,7 @@
 | Most quests give 100–500 experience, the longest 750 | Same scale |
 | Almost no gold from quests; item rewards are fixed weapons with one modifier | Small gold; fixed items |
 | Repeatable daily contracts from level 10, with foes scaled to the player, were added six years later so that the area stays worth playing | Planned from the start: **guild contracts** |
-| Many quests are escorts | Deferred: needs allied characters in instances (post-MVP). Replaced by rescue-as-reach |
+| Many quests are escorts, and some characters help the player with their own skills | Kept: **companions** ([04-combat](04-combat.md#companions-d-42)) |
 | Seven creature families | **Goblins only** (pillar 3). Variety comes from castes, packs and places |
 
 ## Experience
@@ -99,8 +99,10 @@ are sold by trainers.
 | Candles for the dead | Priest, Outpost B | Light 4 braziers in D1, floor 1 | activate N | 250 xp |
 | The shaman's totem | Outpost captain | Kill a shaman and bring its totem | kill + collect | 500 xp; teaches "kill the shaman first" |
 | Wolf tracks | Hunter, Z1 | Kill 2 wolf riders | kill N | 500 xp |
-| The missing scout | Outpost captain | Find the scout in Z2 (reach the marker) | reach | 250 xp; unlocks the next quest |
+| The missing scout | Outpost captain | Find the wounded scout in Z2 and bring him back to Outpost B alive | **escort** (`follow`) | 500 xp |
 | What the scout saw | Scout | Reach the overlook in Z2 and return | scout | 500 xp |
+| The herbalist's round | Herbalist, Town A | Walk the herbalist to 3 plants in Z0 while she gathers; she heals you on the way | **escort** (`healer`) | 250 xp, ingredients; introduces companions |
+| The sergeant's patrol | Sergeant, Outpost B | Clear 3 packs in Z1 alongside the sergeant | kill with an ally (`fighter`) | 500 xp, a weapon |
 | The hob of the first nest | Guild board, Outpost B | Kill the boss of D1 | nest clearing | 1 000 xp, boss trophy |
 | A second calling | Guild master, at Copper | Complete any trainer's skill quest outside your profession | meta | Secondary profession |
 
@@ -113,7 +115,7 @@ Inspired by the baseline's daily contracts, present from the start.
 | Available from | Level 10 |
 | Offered | 3 per day on the board of each hub, drawn from a list; one held at a time |
 | Foes | Scaled to the adventurer's level, in steps |
-| Types | Annihilation (kill 6 pack leaders in a zone), Bounty (kill a named goblin), Search (reach a marker deep in a zone) |
+| Types | Annihilation (kill 6 pack leaders in a zone), Bounty (kill a named goblin), Rescue (find a settler deep in a zone and escort them out) |
 | Give | 1 000 xp, 50 gold, merit with diminishing returns ([06-guild](06-guild.md#rules)) |
 
 The daily draw is the only place where quests use the date. It is read in the hub, in the
@@ -121,12 +123,14 @@ persistent domain, never inside an instance.
 
 ## Count
 
-6 main (the test counted once) · 6 skill quests · 13 side quests: **25 quests** for one
+6 main (the test counted once) · 6 skill quests · 15 side quests: **27 quests** for one
 adventurer, plus contracts.
 
 ## Open
 
 | # | Question |
 |---|---|
-| QQ-1 | Escorts are a third of the baseline's quests. Allied characters in instances would unlock them: worth a design of its own after the MVP? |
-| QQ-2 | Does the secondary profession come at Copper (06-guild) or, as in the baseline, within the first hour? |
+| QQ-1 | Should a companion be able to follow across a gate into the next instance (dungeon floors)? |
+
+Closed: escorts are in (D-42). The secondary profession is kept as a feature and
+deprioritised: it is not needed to prove technical feasibility (D-43).

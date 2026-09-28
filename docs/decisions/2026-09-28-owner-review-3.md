@@ -19,6 +19,9 @@
 | D-38 | **Titles**, some attached to the adventurer and some to the account |
 | D-39 | Quests of the first region take the pre-Searing quests as structural models, with our own names, texts and characters |
 
+| D-42 | **Companions**: allied characters follow the adventurer in instances, some using their own skills to help. Escort quests are part of the game |
+| D-43 | The secondary profession is kept as a feature and deprioritised: not needed to prove technical feasibility |
+
 ## To study before deciding
 
 | # | Question | Input needed |
