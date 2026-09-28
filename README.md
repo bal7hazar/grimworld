@@ -47,7 +47,8 @@ in English.
 ## Credits
 
 Prototype art: *Tiny Swords* by [Pixel Frog](https://pixelfrog-assets.itch.io/tiny-swords).
-The assets are not part of this repository: their licence forbids redistribution.
+The assets are not part of this repository: their licence forbids redistribution. The
+`assets` submodule points to a private repository; the game's code builds without it.
 
 ## License
 

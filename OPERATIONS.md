@@ -311,7 +311,10 @@ What was reviewed, what was not, and why.
   is recommended and awaits confirmation (Q-17).
 - CI stays under ~10 minutes: split test packages before they grow.
 - Never: force-push on shared branches; commit secrets or keys; skip hooks; commit
-  anything from `assets/` or derived from it (D-73).
+  any asset file, or anything derived from one, **in this repository** (D-73). Assets
+  live in the private repository `tiny-swords`, attached here as the submodule `assets`.
+  Agents never commit in the submodule and never move its pointer: changing the assets is
+  the owner's or the orchestrator's act, in its own pull request.
 - Tasks run in parallel only if their **allowlists do not overlap**. Interfaces shared by
   parallel tasks are frozen first in a dedicated task.
 

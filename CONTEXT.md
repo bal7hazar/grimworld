@@ -140,7 +140,7 @@ owner, with the date), Superseded.
 | D-61 | Randomness behind an interface; transaction hash in the MVP, verifiable in version 1; reveal by entry draw plus player entropy | ADR-0002, ADR-0006 | Accepted 2026-09-28 |
 | D-62 | Client: TypeScript, PixiJS on demand, Capacitor; mobile first | ADR-0003 | Accepted 2026-09-28, subject to SPK-6 |
 | D-72 | The orchestrator merges on green CI and audits, and deploys to Sepolia autonomously | OPERATIONS §7 | Accepted 2026-09-28 |
-| D-73 | `assets/` and anything derived from it is never committed; licence forbids redistribution | design/10 | Accepted 2026-09-28 |
+| D-73 | No asset file, nor anything derived from one, is committed in this repository: the licence forbids redistribution. Assets live in the **private** repository `tiny-swords`, attached as the submodule `assets` | design/10 | Accepted 2026-09-28 |
 | D-70 | Documents, briefs, commits and pull requests in English; chat with the owner in French | OPERATIONS §11 | Accepted (owner's convention) |
 | D-113 | Chain of command: owner, project manager, orchestrators (created by the project manager), sub-agents and auditors | OPERATIONS §1 | Accepted 2026-09-28 |
 | D-114 | Cairo engineering rules | docs/CAIRO.md | Accepted 2026-09-28 |
@@ -187,7 +187,9 @@ owner, with the date), Superseded.
   `origami_hexmap` ([docs/CAIRO.md](docs/CAIRO.md)).
 - **Two domains.** Persistent and ephemeral state never share a model (ADR-0001).
 - **Power budget.** The client has no permanent render loop (ADR-0003).
-- **Assets.** `assets/` and anything derived from it is never committed: the licence
+- **Assets.** They live in the private repository `tiny-swords`, attached as the
+  submodule `assets`; this repository holds a pointer, never a file. That repository must
+  stay private. No asset and nothing derived from one is committed here: the licence
   forbids redistribution, even modified (D-73). Asset names referring to the manga must
   not reach the game or the repository.
 - **Reorgs.** Starknet had two multi-hour outages with reorgs in 13 months. The client
@@ -203,7 +205,7 @@ owner, with the date), Superseded.
 | Orchestrator sessions | Created in the Claude App by the project manager; Opus 5.5 or Fable 5.1 by its judgement |
 | Sub-agents | `claude` CLI logged in as **claude-b7r** (check with `claude auth status`): Sonnet 5, Opus 5.5 or Fable 5.1 by difficulty. `codex` CLI (`gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna` by kind of task): audits when needed, never implementation |
 | Credentials | Sepolia deployment credentials are in the session's settings environment. Never copy them into a document, a brief or a log |
-| Assets | *Tiny Swords* by Pixel Frog, `assets/` at the root of the main checkout, ignored by git; to be copied to the VPS by the owner, outside git |
+| Assets | *Tiny Swords* by Pixel Frog and derived sprites, in the private repository `bal7hazar/tiny-swords`, submodule `assets`. After cloning: `git submodule update --init` |
 | Libraries by the owner | `origami_hexmap` (dojoengine/origami, may move to a dedicated repository) |
 
 ## 10. Known gaps in these documents

@@ -8,7 +8,7 @@
 |---|---|
 | Style | Pixel art, rich: 64 × 64 base tile, characters drawn in 192 × 192 frames |
 | View | Top-down three-quarter, characters seen from the side |
-| Reference pack | *Tiny Swords* by Pixel Frog (free public pack), in `assets/` |
+| Reference pack | *Tiny Swords* by Pixel Frog (free public pack), in the submodule `assets` (private repository) |
 | Plan | Prototype with the free pack; commission original assets from the same artist once the game proves itself |
 | Priority platform | **Mobile**, portrait |
 
@@ -104,8 +104,11 @@ Pack: *Tiny Swords* by Pixel Frog, https://pixelfrog-assets.itch.io/tiny-swords.
 
 Rules:
 
-- Contributors and agents receive the pack from the owner, outside git. A brief that needs
-  sprites says where they are on the machine; it never attaches them.
+- The pack lives in the private repository `tiny-swords`, attached to this one as the
+  submodule `assets`. This repository holds a pointer to a commit, not the files, so
+  nothing is redistributed. Whoever has no access to the private repository can still
+  clone and build everything except the art.
+- `tiny-swords` must stay private.
 - The client ships sprites **packed into atlases** inside the app bundle, not as the
   pack's original files and folders.
 - The generated goblin sheets are derived from the pack's Troll: same rule. They are also

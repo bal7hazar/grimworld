@@ -39,9 +39,10 @@ anglais.
    - présence des identifiants Sepolia dans l'environnement de la session : vérifie
      uniquement que les variables existent, n'affiche jamais leur valeur et ne les écris
      dans aucun fichier.
-   - présence du dossier assets/ à la racine du dépôt. Il n'est pas dans git et ne doit
-     jamais y entrer (licence : pas de redistribution, même modifié). S'il est absent,
-     demande-le moi.
+   - le sous-module assets (dépôt privé tiny-swords) : `git submodule status`. S'il
+     n'est pas initialisé, dis-le moi avant de lancer `git submodule update --init`.
+     Aucun fichier d'asset ne doit entrer dans le dépôt du jeu, qui est public
+     (licence : pas de redistribution, même modifié).
 
 3. Respecte les règles d'OPERATIONS.md, en particulier :
    - la chaîne : moi, toi (chef de projet), les orchestrateurs, leurs sous-agents ;
