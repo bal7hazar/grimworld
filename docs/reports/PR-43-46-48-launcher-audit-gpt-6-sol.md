@@ -40,3 +40,13 @@ that a push to main could let through) was fixed after this report by removing t
 (commit "ci(tooling): no non-dry launch of a real task in CI"); CI green. Past three fix loops, the
 merge is escalated to the project manager (OPERATIONS §7). B3 needs the map library's and quiver's
 launchers to take the same lock, `~/orchestrator/agent-launch.lock`, around their count and start.
+
+## Merge exception (`[Opus 5.5]`, 2026-09-28 22:50 UTC)
+
+**Merged after three fix loops, with one commit unaudited at merge time**, on the project
+manager's decision (D-128): head `b4fd24c`, its ten checks completed and successful; the unaudited
+commit changes five lines of `.github/workflows/tooling.yml` and only removes the real launch from
+CI (finding N5), replacing it with a comment. Squash commit `e3a2e75` on main. Conditions: the
+re-audit by `[GPT-6-Sol]` covers the merged state and says so; a blocker or a major it finds is
+fixed before any other tooling change. The lock request (B3) was passed to the map library's and
+quiver's orchestrators by the project manager.
