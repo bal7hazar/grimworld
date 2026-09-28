@@ -83,3 +83,18 @@ Bash(asdf list*)
 !Bash(find * -ok*)
 !Bash(find * -fprint*)
 !Bash(find * -fls*)
+
+# Never: read the machine's Claude settings (they hold credentials), print a secret from the
+# environment, or list the environment. Agents run with the registry token emptied by the
+# launcher; these rules are the second line.
+!Read(~/.claude/**)
+!Read(//home/claude/.claude/**)
+!Bash(* ~/.claude*)
+!Bash(* $HOME/.claude*)
+!Bash(* /home/claude/.claude*)
+!Bash(*SCARB_REGISTRY*)
+!Bash(*_TOKEN*)
+!Bash(env)
+!Bash(env *)
+!Bash(printenv*)
+!Bash(set)

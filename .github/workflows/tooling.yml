@@ -50,6 +50,11 @@ jobs:
           if scripts/agent.sh --dry-run smoke codex gpt-6-sol new "x" implement; then exit 1; fi
           if scripts/agent.sh --dry-run smoke claude sonnet-4 new "x"; then exit 1; fi
           if scripts/agent.sh --dry-run smoke claude sonnet new "x" ../profiles/implement; then exit 1; fi
+          # Every claude launch empties the registry token; the profiles deny publishing and the settings file.
+          out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
+          grep -qF -- 'SCARB_REGISTRY_AUTH_TOKEN' <<< "$out"
+          grep -qF -- 'scarb\ publish' <<< "$out"
+          grep -qF -- '.claude/\*\*' <<< "$out"
           # The build lock wraps build and test subcommands only.
           for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
             if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi

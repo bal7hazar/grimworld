@@ -184,3 +184,8 @@ Bash(gh pr comment*)
 !Bash(./tools/*..*)
 !Bash(spikes/*..*)
 !Bash(./spikes/*..*)
+
+# Never: publish a package (the registry is the owner's act; agents run without its token).
+!Bash(scarb publish*)
+!Bash(scarb * publish*)
+!Bash(scripts/lock.sh scarb publish*)
