@@ -177,7 +177,9 @@ run=(systemd-run --user --unit="$unit" --description="$desc" --collect --quiet
   --working-directory="$wt" -p OOMPolicy=continue -p Nice=10 -p OOMScoreAdjust=500
   -p MemoryMax=20G --setenv=HOME="$HOME" --setenv=PATH="$path"
   --setenv=BASH_DEFAULT_TIMEOUT_MS=1800000 --setenv=BASH_MAX_TIMEOUT_MS=3600000)
-# $0 of the inner shell is the log file, "$@" the agent command line.
+# $0 of the inner shell is the log file, "$@" the agent command line. Single quotes on purpose:
+# the inner shell of the unit expands them, not this one.
+# shellcheck disable=SC2016
 inner='"$@" < /dev/null >> "$0" 2>&1; echo "exit=$? $(date -u +%FT%TZ)" >> "$0"'
 
 if [ "$dry" = 1 ]; then
