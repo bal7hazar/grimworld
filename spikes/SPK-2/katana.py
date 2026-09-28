@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Send the measured actions as transactions to the local Katana of scripts/with-katana.sh and
 print, for each, the resources and the fee of its receipt. Run by run.sh, after the migration,
-from the repository root.
+from this folder.
 """
 import json
 import os
@@ -9,7 +9,7 @@ import re
 import subprocess
 import urllib.request
 
-MANIFEST = "spikes/SPK-2/Scarb.toml"
+MANIFEST = "Scarb.toml"
 RPC = os.environ["KATANA_URL"]
 def west(n):
     return "arr:" + ",".join(["3"] * n)
