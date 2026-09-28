@@ -196,7 +196,8 @@ Rules that keep an emerging outline sound:
 |---|---|
 | Edges | A new chunk **copies the edge** of each neighbour already generated, and draws its other edges |
 | Openings | Every edge shared by two chunks inside the location has **at least one opening**. The first of the two to be generated decides where. All chunks are therefore reachable |
-| Border of the location | Closed, except gates |
+| Border of the location | Closed, except gates. Beyond it lies a **margin of void chunks**: wall everywhere, never revealed, never stored (D-134) |
+| Corners | **The four corner tiles of a chunk are always wall** (D-134): chunks connect through their edges only, so a reveal never depends on a diagonal neighbour |
 | Smoothing | Cellular passes on the chunk with its known margins |
 
 **Generation of a board given its margins is added to the map library by its author**
@@ -230,6 +231,7 @@ it becomes a library of pieces that the generator lays out.
 | Crossing chunks (R-5) | Free: a goblin has global coordinates. Moving writes the occupied bit of the chunk left and of the chunk entered |
 | Follow | **The window follows the adventurer at every move.** There is no margin and no re-centring rule. What is simulated, shown and targetable depends on the adventurer's position only, never on a state the player cannot know |
 | Storage | **None.** The window is recomputed at each tick from the chunks: reads instead of one write per move |
+| At the edge of a location | The window stays centred: the chunks it overlaps beyond the edge, or outside the outline of a zone, are void and enter the assembly as a constant, without a read (D-134) |
 | Row parity | The window's origin stays on an even global row, so that the hex neighbourhood of the library holds: the library derives every neighbour from the parity of the **local** row. The origin therefore moves vertically by two rows at a time; the sixteenth row absorbs the difference |
 
 In the lore, this is the Hush: **things move near the living, and only there**.

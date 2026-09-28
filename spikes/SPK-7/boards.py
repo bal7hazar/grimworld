@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""SPK-7: design the winding boards of the flood benchmarks and the worst-case tick, on the Python
+model (model.py), and write src/fixtures.cairo. Deterministic (fixed seeds).
+
+    python3 spikes/SPK-7/boards.py            # search, print, write src/fixtures.cairo
+
+1. DEEP: how many layers a winding 15 x 16 board can need. A hill climb from a spiral maximises
+   the eccentricity of the adventurer's tile (local (7, 7)) over the walkable interior; the same
+   for local (7, 8). 8 goblins stand on walled-in tiles: the flood never reaches them and runs
+   until its cap or until the frontier is exhausted (the costliest way for a flood to run).
+2. CAPPED: the worst case of the tick under D-127. A winding board (unlimited depth >= 20) with 8
+   goblins all reached within 15 steps at distinct distances, the 15th layer computed, every goblin
+   stepping (rule (a)), and as many steps as possible crossing a chunk boundary for the window's
+   offsets (dx, dy) in its chunks.
+"""
+import os
+import random
+
+from model import W, WINDOW_H, bfs, interior, neighbours, shared_flood
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+INNER = sorted(interior(W, WINDOW_H))
+START_ODD = (7, 7)  # local tile of an adventurer on an odd global row
+START_EVEN = (7, 8)
+
+
+def index(t):
+    return t[1] * W + t[0]
+
+
+def bits(tiles):
+    return sum(1 << index(t) for t in tiles)
+
+
+def depth(terrain, start):
+    return max(bfs(terrain, start, W, WINDOW_H).values())
+
+
+def spiral():
+    """A rectangular spiral of one-tile corridors around (7, 7): walls every other ring."""
+    terrain = set()
+    for x, y in INNER:
+        ring = max(abs(x - 7), abs(y - 7))
+        if ring % 2 == 0:
+            terrain.add((x, y))
+    # doors between consecutive corridor rings, alternating sides
+    for ring in range(1, 8):
+        side = ring % 4
+        door = {0: (7 + ring, 7), 1: (7, 7 + ring), 2: (7 - ring, 7), 3: (7, 7 - ring)}[side]
+        if door in interior(W, WINDOW_H):
+            terrain.add(door)
+    return terrain
+
+
+def climb(start, seed, rounds):
+    rng = random.Random(seed)
+    best = spiral() | {start}
+    score = depth(best, start)
+    for _ in range(rounds):
+        t = rng.choice(INNER)
+        if t == start:
+            continue
+        cand = best ^ {t}
+        s = depth(cand, start)
+        if s >= score:
+            best, score = cand, s
+    return best, score
+
+
+def isolated_goblins(terrain, start, count):
+    """Wall tiles whose 6 neighbours are all wall or ring: opened alone, they are unreachable."""
+    out = []
+    for t in INNER:
+        if t in terrain or t == start:
+            continue
+        if all(n not in terrain and n not in out for n in neighbours(*t, W, WINDOW_H)):
+            out.append(t)
+            if len(out) == count:
+                break
+    return out
+
+
+def crossings(moves, goblins, dx, dy):
+    """Steps whose tile and destination lie in different chunks for window offsets (dx, dy)."""
+    count = 0
+    for g, m in zip(goblins, moves):
+        if m is None:
+            continue
+        a = ((g[0] + dx) // 15, (g[1] + dy) // 15)
+        b = ((m[0] + dx) // 15, (m[1] + dy) // 15)
+        count += a != b
+    return count
+
+
+def evaluate(terrain, goblins, start, dx, dy):
+    layers, dist, moves, _ = shared_flood(terrain, set(goblins), start, goblins, 15)
+    reached = sum(1 for d in dist if d >= 2)
+    stepped = sum(1 for m in moves if m is not None)
+    full = len(layers) == 16 and max(dist) == 15
+    distinct = len(set(dist))
+    return (reached == 8 and stepped == 8 and full, crossings(moves, goblins, dx, dy), distinct, stepped)
+
+
+def capped(seed, rounds):
+    rng = random.Random(seed)
+    start = START_ODD
+    best = None
+    for dx, dy in [(7, 7), (6, 8), (8, 6), (7, 8), (8, 7)]:
+        terrain, _ = climb(start, seed + dx * 10 + dy, 3000)
+        # open a few tiles so that goblins can stand off the single corridor
+        reach = bfs(terrain, start, W, WINDOW_H)
+        for _ in range(rounds):
+            near = [t for t, d in reach.items() if 2 <= d <= 15]
+            if len(near) < 8:
+                break
+            goblins = rng.sample(near, 8)
+            goblins.sort(key=index)
+            score = evaluate(terrain, goblins, start, dx, dy)
+            if best is None or score > best[0]:
+                best = (score, terrain, goblins, dx, dy)
+            # terrain mutation: widen the board near the corridor to unblock goblins
+            t = rng.choice(INNER)
+            if t != start and t not in goblins:
+                cand = terrain | {t}
+                if depth(cand, start) >= 20:
+                    s2 = evaluate(cand, goblins, start, dx, dy)
+                    if s2 >= score:
+                        terrain = cand
+                        reach = bfs(terrain, start, W, WINDOW_H)
+    return best
+
+
+def cairo_tiles(tiles):
+    return "[" + ", ".join(str(index(t)) for t in tiles) + "]"
+
+
+def main():
+    out = ["//! Generated by boards.py from model.py: do not edit by hand.\n"]
+    # --- 1. how deep a winding board can be ----------------------------------------------------------
+    deep_odd, d_odd = climb(START_ODD, 1, 300000)
+    deep_even, d_even = climb(START_EVEN, 2, 300000)
+    print(f"deepest board found, adventurer on local (7, 7): {d_odd} steps; on (7, 8): {d_even} steps")
+    walkable = len(deep_odd)
+    print(f"  walkable interior tiles of the (7, 7) board: {walkable} of {len(INNER)}")
+    # The board is too dense for walled-in tiles: the goblins stand on the 8 farthest tiles, at the
+    # end of the corridor; the nearest of them closes it for the others (rule (a))
+    reach = bfs(deep_odd, START_ODD, W, WINDOW_H)
+    goblins = sorted(reach, key=lambda t: (-reach[t], index(t)))[:8]
+    terrain = deep_odd
+    for limit in (10, 15, 20, None):
+        layers, dist, moves, _ = shared_flood(terrain, set(goblins), START_ODD, sorted(goblins, key=index), limit)
+        print(f"  flood with limit {limit}: {len(layers)} layers (start included), distances {dist}")
+    out.append(f"/// Deepest winding board found from local (7, 7): eccentricity {d_odd}, {walkable} walkable tiles.")
+    out.append(f"pub const DEEP_TERRAIN: felt252 = {hex(bits(terrain))};")
+    out.append(f"/// Its 8 goblins, on the 8 farthest tiles: the nearest closes the corridor for the others.")
+    out.append(f"pub const DEEP_GOBLINS: [u8; 8] = {cairo_tiles(sorted(goblins, key=index))};")
+    out.append(f"/// Layers of the unlimited flood on it, start included.")
+    out.append(f"pub const DEEP_LAYERS: u32 = {d_odd + 1};")
+    out.append(f"/// Deepest winding board found from local (7, 8): eccentricity {d_even}.")
+    out.append(f"pub const DEEP_EVEN_TERRAIN: felt252 = {hex(bits(deep_even))};")
+    out.append(f"pub const DEEP_EVEN_LAYERS: u32 = {d_even + 1};\n")
+    # --- 2. the worst case of the capped tick ---------------------------------------------------------
+    score, terrain, goblins, dx, dy = capped(11, 8000)
+    layers, dist, moves, _ = shared_flood(terrain, set(goblins), START_ODD, goblins, 15)
+    print(f"capped worst case: valid {score[0]}, crossings {score[1]}, distinct distances {score[2]}, steps {score[3]}")
+    print(f"  dx {dx} dy {dy}, unlimited depth {depth(terrain, START_ODD)}, distances {dist}")
+    print(f"  goblins {[index(g) for g in goblins]}, moves {[index(m) if m else None for m in moves]}")
+    # the tile East of the adventurer is free: the adventurer of the move variant comes from there
+    pre = (8, 7)
+    assert pre in terrain and pre not in goblins, pre
+    out.append(f"/// Worst case of the tick under D-127 (D-127, ADR-0006 §4): winding (unlimited depth {depth(terrain, START_ODD)}),")
+    out.append(f"/// 8 goblins reached at distances {dist}, all stepping, {score[1]} steps crossing a chunk")
+    out.append(f"/// boundary when the window's offsets in its chunks are dx = {dx}, dy = {dy}.")
+    out.append(f"pub const CAPPED_TERRAIN: felt252 = {hex(bits(terrain))};")
+    out.append(f"pub const CAPPED_GOBLINS: [u8; 8] = {cairo_tiles(goblins)};")
+    out.append(f"pub const CAPPED_DISTANCES: [u8; 8] = [{', '.join(str(d) for d in dist)}];")
+    out.append(f"pub const CAPPED_MOVES: [u8; 8] = {cairo_tiles(moves)};")
+    out.append(f"pub const CAPPED_DX: u8 = {dx};")
+    out.append(f"pub const CAPPED_DY: u8 = {dy};")
+    out.append(f"pub const CAPPED_CROSSINGS: u8 = {score[1]};")
+    path = os.path.join(HERE, "src", "boards.cairo")
+    with open(path, "w") as f:
+        f.write("\n".join(out) + "\n")
+    print(f"wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

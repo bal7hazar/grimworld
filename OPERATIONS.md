@@ -19,7 +19,9 @@ owner (bal7hazar)
 
 - The **owner** decides on vision, scope, design decisions (`D-xx`), releases and
   mainnet. Speaks French.
-- The **project manager** owns `PLAN.md`, `STATUS.md`, `CONTEXT.md` and the decision log.
+- The **project manager** owns `PLAN.md`, `PROGRAMME.md`, `CONTEXT.md` and the decision log.
+  `STATUS.md` is the live state of the game track and is rewritten by the game
+  orchestrator; nobody else writes it.
   It **creates the orchestrator sessions** in the Claude App and chooses their model
   (Opus or Fable) according to the difficulty of what they will orchestrate. It gives
   them their objectives, answers their questions, arbitrates, prepares the owner's
@@ -158,20 +160,35 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
 - **Concurrency budget**: **3 Grim World agents at a time**, beside the agents of the
   owner's other programmes on the same machine (about 6 machine-wide). Before launching:
   `systemctl --user list-units --type=service --state=running`, `free -g`, `uptime`.
-  **Split between the three tracks** (project manager, 2026-09-28): the total of 3 holds
-  whatever the track. The game and the map library each have **one slot of their own**;
-  the third is **shared**: a track launches on it only while fewer than 3 Grim World agents
-  run. On a freed shared slot the priority is: a task that stands between the project and
-  a gate of the owner (an analysis whose report opens a gate) first; then the game; then
-  the library; then `quiver`. `quiver` has no slot of its own before Phase 2: its packages
-  are needed at Phase 3. An audit by codex counts as an agent while it runs.
+  **Split between the three tracks** (project manager, 2026-09-28, revised the same day
+  after the game was left without an agent): the total of 3 holds whatever the track, audits
+  by codex included.
+
+  | Track | Cap | |
+  |---|---|---|
+  | Game | 2 | It is on the path to every gate of the plan |
+  | Map library | 1 | |
+  | `quiver` | 1 | |
+
+  The caps add up to 4 and the total is 3: **the game comes first**. When the game has
+  launches ready and fewer than 2 agents running, its orchestrator keeps the file
+  `~/orchestrator/waiting/game` present (touched again at each check-in, removed when it has
+  2 agents running or nothing ready). The library and `quiver` launch nothing new while that
+  file exists and is less than 30 minutes old. An agent that runs is never stopped to free
+  a slot. A launcher enforces its track's cap and the marker from the reference that follows
+  this rule; until then the orchestrators apply them by hand before each launch.
   **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
   average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
   check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
-  both thresholds and the budget of 3 (running `grimworld-*`, `hexmap-*`, `quiver-*` units
-  plus codex audits counted per working directory under the three repositories), fixed in the
-  script, on every launch and resume (exit 4, before any worktree is created); it cannot tell
-  a track's own slot from the shared one, so each orchestrator still applies the split; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  both thresholds and the budget of 3 (active `grimworld-*`, `hexmap-*`, `quiver-*` units,
+  plus detached agents counted per working directory under the three repositories: live pids
+  of the launchers' `logs/*.pid` and codex `exec` processes), fixed in the script, on every
+  launch and resume (exit 4, before any worktree is created). A count that cannot be made
+  refuses the launch. The count and the start run under the shared lock
+  `~/orchestrator/agent-launch.lock`, so two launchers cannot both take the last slot: **the
+  launchers of the map library and of `quiver` take the same lock** (`flock` on that file around
+  their count and start). It cannot tell a track's own slot from the shared one, so each
+  orchestrator still applies the split; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
   The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
   `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
   still start one.
@@ -214,7 +231,7 @@ never merged by the agent.
 The launcher (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher) starts each
 `claude` agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description
 carries the model tag (`[Sonnet 5] SPK-5 new (implement)`), outside the session's cgroup, with
-a `setsid nohup` fallback; `codex` is always detached with `setsid` (§3). It maps the model to its tag and refuses a model it has no tag for.
+no fallback: without a systemd user manager the agents cannot be counted and nothing is launched; `codex` is always detached with `setsid` (§3). It maps the model to its tag and refuses a model it has no tag for.
 It appends the foreground rule to every prompt. `--dry-run` prints the command and launches
 nothing. `--with-assets` initialises the `assets` submodule in the task's worktree; by default
 it is not initialised.
@@ -300,7 +317,8 @@ rules of [docs/CAIRO.md](docs/CAIRO.md).
 | Technical decisions | `docs/architecture/ADR-*` | Same |
 | Decisions and their history | `docs/decisions/` (one file per decision; `PENDING-*.md` for the owner's open questions), indexed in `CONTEXT.md` | — |
 | Scope, order | `PLAN.md` | — |
-| Live state | `STATUS.md`, dated, rewritten at every check-in | — |
+| Live state of a track | The track's `STATUS.md`, dated, rewritten by its orchestrator at every check-in | — |
+| State of the programme | `PROGRAMME.md`, by the project manager: tracks, decisions, what waits for the owner | — |
 | Research | `docs/research/` | — |
 | Numbers (balance) | Registries' seed data | Design docs give initial values; seed data wins once it exists |
 | Cairo engineering rules | [docs/CAIRO.md](docs/CAIRO.md) | The code is wrong |
@@ -390,8 +408,13 @@ What was reviewed, what was not, and why.
   `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS` and
   `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
   2026-09-28; checked by name). The claude CLI would give them to every agent it starts;
-  `scripts/agent.sh` empties them unless the task's brief grants the account and it is
-  launched with `--with-sepolia`. A task that sends transactions to Sepolia uses them **by
+  `scripts/agent.sh` empties them unless the task is launched with `--with-sepolia`, which it
+  refuses unless the brief `docs/briefs/<task>-*.md`, as committed on `origin/main`, holds the
+  line `> Sepolia account: granted (launch with `--with-sepolia`).` and names the profile of the launch. The grant is
+  recorded (`logs/<task>.sepolia`); a resume keeps the account only when passed the option
+  again, and the launcher says so when it is not. The same-user settings file stays readable by
+  code an agent runs, and by a typed command that spells its path another way: the typed denies
+  of the profiles are tripwires, not a boundary (§4, residual accepted by the owner, 2026-09-28). A task that sends transactions to Sepolia uses them **by
   name**, never prints, logs or writes a value, sets a usual `User-Agent` header, measures
   instead of looping and reports how many transactions it sent and their cost, and every script that
   sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.

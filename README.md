@@ -26,7 +26,8 @@ you do** — and every goblin in it is waiting for your next step.
 | [CONTEXT.md](CONTEXT.md) | Start here: pillars, stack, glossary, decisions, open questions |
 | [docs/CAIRO.md](docs/CAIRO.md) | Cairo engineering rules: test-driven, gas budgets, order of preference, types |
 | [OPERATIONS.md](OPERATIONS.md) | Roles, model policy, how to launch / resume / close agents, audits, merge rules |
-| [STATUS.md](STATUS.md) | Live dashboard, rewritten at every check-in (dated) |
+| [PROGRAMME.md](PROGRAMME.md) | Where the programme is across its three tracks, what was decided, what waits for the owner |
+| [STATUS.md](STATUS.md) | Live state of the game track, rewritten at every check-in (dated) |
 | [PLAN.md](PLAN.md) | Phases, tasks, milestones, gates, risks |
 | [docs/decisions/](docs/decisions/) | One file per decision; `PENDING-*.md` for the owner's open questions |
 | `docs/briefs/`, `docs/reports/`, `docs/research/` | Task briefs, archived agent reports, research (from Phase 0) |

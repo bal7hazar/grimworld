@@ -1,6 +1,6 @@
 # SPK-1b — The fixed part of a transaction, with the MVP's kind of account
 
-> Launched with `scripts/agent.sh --with-sepolia` (this brief grants the Sepolia account).
+> Sepolia account: granted (launch with `--with-sepolia`).
 
 ## Agent
 Title: `[Opus 5.5] SPK-1b fixed part of a transaction` · Profile: implement · Branch:
