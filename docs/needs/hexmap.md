@@ -67,3 +67,19 @@ an accepted ADR and was decided by the owner
 | Called | **At each tick**: the window is not stored. Worst case to budget: 4 chunks, two layers each |
 | Fallback sizes | Sight 5: 13 × 14. The width then differs from the chunk's 15: the shift is no longer one-dimensional, to be designed if SPK-7 asks for the fallback |
 | Parity flag (point 2) | Still needed for generation and seams of chunks on odd rows; not used by the window |
+
+## Answers to the questions of LIB-03 (gate L-G2, 2026-09-28)
+
+Asked in `bal7hazar/hexx-cairo`, `docs/decisions/PENDING-L-G2.md`, "Questions for the game".
+Answered by the project manager. They do not change what a player meets, except Q-5, which is
+a rule of the game and is with the owner ([PENDING-L-G2](../decisions/PENDING-L-G2.md) §4).
+
+| # | Question | Answer | Why |
+|---|---|---|---|
+| Q-5 / D-25 | Does the tick truncate the flood; what does a goblin beyond do? | **With the owner.** Recommended: 15 layers; a goblin not reached holds its position | A rule of the game |
+| D-24 | Does a wall tile at the end of a line block sight? | **No**: only the tiles strictly between the two ends are tested | The end of a line is an actor or a tile the player may target; whether it can be targeted is the game's check, not the line's |
+| D-22 | Ring tiles of a chunk that face no generated neighbour | **Drawn at generation and frozen**, as the plan says | ADR-0006 § Joining chunks: a new chunk copies the edge of each neighbour already generated and draws its other edges; the first of two chunks decides where the opening is |
+| D-23 | `cut` clears the ring as well as what is outside the mask | **No, for the game: `cut` keeps the ring tiles that are inside the mask.** The game needs `grid & mask` | The ring of a chunk is a seam: it holds the openings to the neighbouring chunks, and design/18 opens edges **before** cutting by the outline. A cut that clears the ring would close every passage of a border chunk towards the inside of its zone. The window's ring is imposed by the assembly, not by `cut`. If the library keeps a variant that clears the ring, it has another name |
+| D-32 | A goblin next to an adventurer on an open edge tile may step onto it | **The plan**, as a contract of the library | It does not occur in the game: the window follows the adventurer, who is never on its ring (D-120); and the game filters every step by occupancy |
+| Q-1 | Earshot (radius 8) reaches beyond the window | **A distance test on global coordinates, without a board.** A pack alerted outside the window changes state and stays frozen until the window reaches it | design/04: earshot is a range, not a path |
+| Q-4 | Does SPK-7 consume the release candidates? | **No**: SPK-7 runs on `origami_hexmap` 1.8.0. Its figures are measured again on the first release candidate that carries N-3 and N-8. ENG-02 and ENG-05 consume 0.1.0 | The spike must not wait; results of the engine are identical by the plan's own rule |
