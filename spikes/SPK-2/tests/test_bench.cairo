@@ -58,7 +58,7 @@ fn bench_world_tick_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2690966)] // ceil(1.05 × 2562824 measured)
+#[available_gas(l2_gas: 2691806)] // ceil(1.05 × 2563624 measured)
 fn bench_world_tick_worst_case() {
     let mut hero = adventurer(WORST, 1, true);
     let goblins = worst_goblins(WORST);

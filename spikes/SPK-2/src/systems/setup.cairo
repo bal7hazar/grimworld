@@ -4,8 +4,9 @@
 pub trait ISetup<T> {
     /// The worst-case tick on an instance: goblin models and their packed copy.
     fn worst_case(ref self: T, instance_id: u32);
-    /// The queue on an instance, and the windows along its 10 moves.
-    fn queue(ref self: T, instance_id: u32);
+    /// The queue on an instance with its first `goblins` goblins (8: the worst case, 0: plain
+    /// exploration), and the windows along its 10 moves.
+    fn queue(ref self: T, instance_id: u32, goblins: u8);
     /// Adventurers 1 (signed) and 2 (unsigned) in hub 1, the Region 1 book, ingredients.
     fn alchemy(ref self: T);
     /// Adventurer 3 in hub 1, quests 1 (to accept) and 2 (done, to claim), location 10.
@@ -82,19 +83,21 @@ pub mod setup {
                 );
         }
 
-        fn queue(ref self: ContractState, instance_id: u32) {
+        fn queue(ref self: ContractState, instance_id: u32, goblins: u8) {
             let mut world = self.world(@"spk2");
             world
                 .write_model(
                     @Instance {
-                        id: instance_id, clock: 0, location: LOCATION, adventurer: 1, goblins: 8,
+                        id: instance_id, clock: 0, location: LOCATION, adventurer: 1, goblins,
                         entry_draw: 0,
                     },
                 );
             world.write_model(@adventurer(instance_id, 1, false));
-            let goblins = queue_goblins(instance_id);
-            for goblin in goblins.span() {
-                world.write_model(goblin);
+            let all = queue_goblins(instance_id);
+            for goblin in all.span() {
+                if *goblin.id <= goblins.into() {
+                    world.write_model(goblin);
+                }
             }
             let (x, y, _) = window_origin(START_X, START_Y);
             let mut step: u8 = 0;

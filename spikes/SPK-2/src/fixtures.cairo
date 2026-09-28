@@ -12,6 +12,8 @@ pub const WORST_PACKED: u32 = 5;
 pub const QUEUE: u32 = 2;
 pub const QUEUE_5: u32 = 3;
 pub const QUEUE_1: u32 = 4;
+/// A queue of 10 moves with no goblin: plain exploration.
+pub const QUEUE_EMPTY: u32 = 6;
 /// Terrains: walls in rows `y ≡ 2 (mod 4)` with a gap every 6 columns (a comb that forces
 /// detours), or pillars at `x ≡ 0 (mod 4)` on those rows.
 pub const COMB: u8 = 0;

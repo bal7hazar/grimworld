@@ -1,1331 +1,10 @@
    Compiling test(spk2_unittest) spk2 v0.1.0 (/home/claude/projects/grimworld/.claude/worktrees/cli-SPK-2/spikes/SPK-2/Scarb.toml)
    Compiling test(spk2_integrationtest) spk2_integrationtest v0.1.0 (/home/claude/projects/grimworld/.claude/worktrees/cli-SPK-2/spikes/SPK-2/Scarb.toml)
-    Finished `dev` profile target(s) in 18 seconds
+    Finished `dev` profile target(s) in 27 seconds
 
 
-Collected 11 test(s) from spk2 package
-Running 0 test(s) from src/
-Running 11 test(s) from tests/
-[PASS] spk2_integrationtest::test_systems::test_brew_signed_discovers (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~41640579)
-[test name] spk2_integrationtest::test_systems::test_brew_signed_discovers
-├─ [selector] constructor
-│  ├─ [contract name] world
-│  └─ [L2 gas] 382357
-├─ [selector] register_namespace
-│  ├─ [contract name] world
-│  └─ [L2 gas] 327873
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Instance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 985867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_InstanceAdventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Goblin
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Window
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 855767
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Adventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Balance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Book
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Grimoire
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 839617
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Discovery
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 775017
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Quest
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 824367
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_QuestLog
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Location
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Counter
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Pack
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 777437
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] setup
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 946617
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] tick_worst_case
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 878177
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] queue_moves
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 761287
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] brew
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 745137
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] hub
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 5410
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 29110
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] alchemy
-│  ├─ [contract name] setup
-│  ├─ [L2 gas] 11884857
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 528035
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 489339
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 489339
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 330696
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 330696
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] brew
-│  ├─ [contract name] brew
-│  ├─ [L2 gas] 4646384
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 254368
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 283364
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 123624
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 330696
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 299290
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 123624
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 94628
-└─ [selector] entity
-   ├─ [contract name] world
-   └─ [L2 gas] 94628
-
-[PASS] spk2_integrationtest::test_systems::test_brew_unsigned_discovers (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~41064291)
-[test name] spk2_integrationtest::test_systems::test_brew_unsigned_discovers
-├─ [selector] constructor
-│  ├─ [contract name] world
-│  └─ [L2 gas] 382357
-├─ [selector] register_namespace
-│  ├─ [contract name] world
-│  └─ [L2 gas] 327873
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Instance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 985867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_InstanceAdventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Goblin
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Window
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 855767
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Adventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Balance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Book
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Grimoire
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 839617
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Discovery
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 775017
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Quest
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 824367
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_QuestLog
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Location
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Counter
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Pack
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 777437
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] setup
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 946617
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] tick_worst_case
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 878177
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] queue_moves
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 761287
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] brew
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 745137
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] hub
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 5410
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 29110
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] alchemy
-│  ├─ [contract name] setup
-│  ├─ [L2 gas] 11884857
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 528035
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 489339
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 489339
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 330696
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 330696
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] brew_unsigned
-│  ├─ [contract name] brew
-│  ├─ [L2 gas] 4572564
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 254368
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 283364
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 123624
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 330696
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 299290
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-└─ [selector] entity
-   ├─ [contract name] world
-   └─ [L2 gas] 123624
-
-[PASS] spk2_integrationtest::test_systems::test_queue_moves_5 (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~72859881)
-[test name] spk2_integrationtest::test_systems::test_queue_moves_5
-├─ [selector] constructor
-│  ├─ [contract name] world
-│  └─ [L2 gas] 382357
-├─ [selector] register_namespace
-│  ├─ [contract name] world
-│  └─ [L2 gas] 327873
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Instance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 985867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_InstanceAdventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Goblin
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Window
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 855767
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Adventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Balance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Book
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Grimoire
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 839617
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Discovery
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 775017
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Quest
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 824367
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_QuestLog
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Location
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Counter
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Pack
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 777437
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] setup
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 946617
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] tick_worst_case
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 878177
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] queue_moves
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 761287
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] brew
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 745137
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] hub
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 5410
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 29110
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] queue
-│  ├─ [contract name] setup
-│  ├─ [L2 gas] 28829553
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-└─ [selector] walk
-   ├─ [contract name] queue_moves
-   ├─ [L2 gas] 19701588
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 225372
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 500572
-   ├─ [selector] entities
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 2899194
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] set_entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 450643
-   ├─ [selector] set_entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 833744
-   └─ [selector] set_entities
-      ├─ [contract name] world
-      └─ [L2 gas] 4520830
-
-[FAIL] spk2_integrationtest::test_systems::test_queue_moves
-
-Failure data:
-	Test cost exceeded the available gas. Consumed l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~87543992
-[test name] spk2_integrationtest::test_systems::test_queue_moves
-├─ [selector] constructor
-│  ├─ [contract name] world
-│  └─ [L2 gas] 382357
-├─ [selector] register_namespace
-│  ├─ [contract name] world
-│  └─ [L2 gas] 327873
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Instance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 985867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_InstanceAdventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Goblin
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Window
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 855767
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Adventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Balance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Book
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Grimoire
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 839617
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Discovery
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 775017
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Quest
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 824367
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_QuestLog
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Location
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Counter
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Pack
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 777437
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] setup
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 946617
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] tick_worst_case
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 878177
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] queue_moves
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 761287
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] brew
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 745137
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] hub
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 5410
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 29110
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] queue
-│  ├─ [contract name] setup
-│  ├─ [L2 gas] 28829553
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] walk
-│  ├─ [contract name] queue_moves
-│  ├─ [L2 gas] 28038442
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 225372
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 500572
-│  ├─ [selector] entities
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 2899194
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
-│  └─ [selector] set_entities
-│     ├─ [contract name] world
-│     └─ [L2 gas] 4520830
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 500572
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 225372
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-└─ [selector] entity
-   ├─ [contract name] world
-   └─ [L2 gas] 384588
-
+Collected 12 test(s) from spk2 package
+Running 12 test(s) from tests/
 [PASS] spk2_integrationtest::test_systems::test_brew_known_pair (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~44676827)
 [test name] spk2_integrationtest::test_systems::test_brew_known_pair
 ├─ [selector] constructor
@@ -1683,304 +362,7 @@ Failure data:
    ├─ [contract name] world
    └─ [L2 gas] 123624
 
-[PASS] spk2_integrationtest::test_systems::test_queue_moves_1 (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~66653717)
-[test name] spk2_integrationtest::test_systems::test_queue_moves_1
-├─ [selector] constructor
-│  ├─ [contract name] world
-│  └─ [L2 gas] 382357
-├─ [selector] register_namespace
-│  ├─ [contract name] world
-│  └─ [L2 gas] 327873
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Instance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 985867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_InstanceAdventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Goblin
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 791167
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Window
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 855767
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Adventurer
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Balance
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Book
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Grimoire
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 839617
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Discovery
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 775017
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Quest
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 824367
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_QuestLog
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 823467
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Location
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 807317
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Counter
-│     └─ [L2 gas] 5410
-├─ [selector] register_model
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 758867
-│  └─ [selector] dojo_name
-│     ├─ [contract name] m_Pack
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 777437
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] setup
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 946617
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] tick_worst_case
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 878177
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] queue_moves
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 761287
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] brew
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 5410
-├─ [selector] register_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 745137
-│  ├─ [selector] constructor
-│  │  ├─ [contract name] hub
-│  │  └─ [L2 gas] 26680
-│  └─ [selector] dojo_name
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 5410
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] grant_writer
-│  ├─ [contract name] world
-│  └─ [L2 gas] 175011
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] setup
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] tick_worst_case
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] queue_moves
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] brew
-│     └─ [L2 gas] 29110
-├─ [selector] init_contract
-│  ├─ [contract name] world
-│  ├─ [L2 gas] 290230
-│  └─ [selector] dojo_init
-│     ├─ [contract name] hub
-│     └─ [L2 gas] 29110
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] queue
-│  ├─ [contract name] setup
-│  ├─ [L2 gas] 28829553
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 292000
-│  └─ [selector] set_entity
-│     ├─ [contract name] world
-│     └─ [L2 gas] 292000
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-└─ [selector] walk
-   ├─ [contract name] queue_moves
-   ├─ [L2 gas] 13502504
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 225372
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 500572
-   ├─ [selector] entities
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 2899194
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 94628
-   ├─ [selector] set_entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 450643
-   ├─ [selector] set_entity
-   │  ├─ [contract name] world
-   │  └─ [L2 gas] 833744
-   └─ [selector] set_entities
-      ├─ [contract name] world
-      └─ [L2 gas] 4520830
-
-[PASS] spk2_integrationtest::test_systems::test_queue_drops_an_invalid_move (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~65528030)
+[PASS] spk2_integrationtest::test_systems::test_queue_drops_an_invalid_move (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~65549230)
 [test name] spk2_integrationtest::test_systems::test_queue_drops_an_invalid_move
 ├─ [selector] constructor
 │  ├─ [contract name] world
@@ -2182,7 +564,7 @@ Failure data:
 │  └─ [L2 gas] 49010
 ├─ [selector] queue
 │  ├─ [contract name] setup
-│  ├─ [L2 gas] 28829553
+│  ├─ [L2 gas] 28850553
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 450643
@@ -2277,7 +659,376 @@ Failure data:
    ├─ [contract name] world
    └─ [L2 gas] 225372
 
-[PASS] spk2_integrationtest::test_systems::test_queue_stops_when_hit (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~67335352)
+[PASS] spk2_integrationtest::test_systems::test_tick_worst_case_packed (l1_gas: ~0, l1_data_gas: ~17568, l2_gas: ~76468315)
+[test name] spk2_integrationtest::test_systems::test_tick_worst_case_packed
+├─ [selector] constructor
+│  ├─ [contract name] world
+│  └─ [L2 gas] 382357
+├─ [selector] register_namespace
+│  ├─ [contract name] world
+│  └─ [L2 gas] 327873
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Instance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 985867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_InstanceAdventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Goblin
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Window
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 855767
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Adventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Balance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Book
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Grimoire
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 839617
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Discovery
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 775017
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Quest
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 824367
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_QuestLog
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Location
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Counter
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Pack
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 777437
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] setup
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 946617
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] tick_worst_case
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 878177
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] queue_moves
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 761287
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] brew
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 745137
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] hub
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 5410
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 29110
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] worst_case
+│  ├─ [contract name] setup
+│  ├─ [L2 gas] 12104608
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 651811
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] worst_case
+│  ├─ [contract name] setup
+│  ├─ [L2 gas] 12104608
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 651811
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] attack
+│  ├─ [contract name] tick_worst_case
+│  ├─ [L2 gas] 13203148
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 225372
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 500572
+│  ├─ [selector] entities
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 2899194
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  └─ [selector] set_entities
+│     ├─ [contract name] world
+│     └─ [L2 gas] 4520830
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] attack_packed
+│  ├─ [contract name] tick_worst_case
+│  ├─ [L2 gas] 6619410
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 225372
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 500572
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 400920
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 651811
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 400920
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 500572
+└─ [selector] entity
+   ├─ [contract name] world
+   └─ [L2 gas] 500572
+
+[PASS] spk2_integrationtest::test_systems::test_queue_stops_when_hit (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~67357352)
 [test name] spk2_integrationtest::test_systems::test_queue_stops_when_hit
 ├─ [selector] constructor
 │  ├─ [contract name] world
@@ -2479,7 +1230,7 @@ Failure data:
 │  └─ [L2 gas] 49010
 ├─ [selector] queue
 │  ├─ [contract name] setup
-│  ├─ [L2 gas] 28829553
+│  ├─ [L2 gas] 28850553
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 450643
@@ -2548,7 +1299,7 @@ Failure data:
 │  └─ [L2 gas] 49010
 ├─ [selector] walk
 │  ├─ [contract name] queue_moves
-│  ├─ [L2 gas] 13390471
+│  ├─ [L2 gas] 13391271
 │  ├─ [selector] entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 225372
@@ -2576,6 +1327,1011 @@ Failure data:
 └─ [selector] entity
    ├─ [contract name] world
    └─ [L2 gas] 500572
+
+[PASS] spk2_integrationtest::test_systems::test_tick_worst_case (l1_gas: ~0, l1_data_gas: ~15744, l2_gas: ~61099135)
+[test name] spk2_integrationtest::test_systems::test_tick_worst_case
+├─ [selector] constructor
+│  ├─ [contract name] world
+│  └─ [L2 gas] 382357
+├─ [selector] register_namespace
+│  ├─ [contract name] world
+│  └─ [L2 gas] 327873
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Instance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 985867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_InstanceAdventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Goblin
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Window
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 855767
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Adventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Balance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Book
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Grimoire
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 839617
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Discovery
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 775017
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Quest
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 824367
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_QuestLog
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Location
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Counter
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Pack
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 777437
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] setup
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 946617
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] tick_worst_case
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 878177
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] queue_moves
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 761287
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] brew
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 745137
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] hub
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 5410
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 29110
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] worst_case
+│  ├─ [contract name] setup
+│  ├─ [L2 gas] 12104608
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 651811
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] attack
+│  ├─ [contract name] tick_worst_case
+│  ├─ [L2 gas] 13203148
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 225372
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 500572
+│  ├─ [selector] entities
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 2899194
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  └─ [selector] set_entities
+│     ├─ [contract name] world
+│     └─ [L2 gas] 4520830
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 500572
+└─ [selector] entity
+   ├─ [contract name] world
+   └─ [L2 gas] 225372
+
+[PASS] spk2_integrationtest::test_systems::test_brew_signed_discovers (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~41640579)
+[test name] spk2_integrationtest::test_systems::test_brew_signed_discovers
+├─ [selector] constructor
+│  ├─ [contract name] world
+│  └─ [L2 gas] 382357
+├─ [selector] register_namespace
+│  ├─ [contract name] world
+│  └─ [L2 gas] 327873
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Instance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 985867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_InstanceAdventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Goblin
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Window
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 855767
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Adventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Balance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Book
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Grimoire
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 839617
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Discovery
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 775017
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Quest
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 824367
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_QuestLog
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Location
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Counter
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Pack
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 777437
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] setup
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 946617
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] tick_worst_case
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 878177
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] queue_moves
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 761287
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] brew
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 745137
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] hub
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 5410
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 29110
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] alchemy
+│  ├─ [contract name] setup
+│  ├─ [L2 gas] 11884857
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 528035
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 489339
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 489339
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 330696
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 330696
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] brew
+│  ├─ [contract name] brew
+│  ├─ [L2 gas] 4646384
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 254368
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 283364
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 123624
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 330696
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 299290
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 123624
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 94628
+└─ [selector] entity
+   ├─ [contract name] world
+   └─ [L2 gas] 94628
+
+[PASS] spk2_integrationtest::test_systems::test_queue_moves (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~87573192)
+[test name] spk2_integrationtest::test_systems::test_queue_moves
+├─ [selector] constructor
+│  ├─ [contract name] world
+│  └─ [L2 gas] 382357
+├─ [selector] register_namespace
+│  ├─ [contract name] world
+│  └─ [L2 gas] 327873
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Instance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 985867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_InstanceAdventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Goblin
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Window
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 855767
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Adventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Balance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Book
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Grimoire
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 839617
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Discovery
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 775017
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Quest
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 824367
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_QuestLog
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Location
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Counter
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Pack
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 777437
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] setup
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 946617
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] tick_worst_case
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 878177
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] queue_moves
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 761287
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] brew
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 745137
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] hub
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 5410
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 29110
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] queue
+│  ├─ [contract name] setup
+│  ├─ [L2 gas] 28850553
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 678960
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] walk
+│  ├─ [contract name] queue_moves
+│  ├─ [L2 gas] 28046442
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 225372
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 500572
+│  ├─ [selector] entities
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 2899194
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  └─ [selector] set_entities
+│     ├─ [contract name] world
+│     └─ [L2 gas] 4520830
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 500572
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 225372
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+├─ [selector] entity
+│  ├─ [contract name] world
+│  └─ [L2 gas] 384588
+└─ [selector] entity
+   ├─ [contract name] world
+   └─ [L2 gas] 384588
 
 [PASS] spk2_integrationtest::test_systems::test_hub_day (l1_gas: ~0, l1_data_gas: ~14784, l2_gas: ~43155402)
 [test name] spk2_integrationtest::test_systems::test_hub_day
@@ -2904,8 +2660,8 @@ Failure data:
    ├─ [contract name] world
    └─ [L2 gas] 225372
 
-[PASS] spk2_integrationtest::test_systems::test_tick_worst_case (l1_gas: ~0, l1_data_gas: ~15744, l2_gas: ~61098335)
-[test name] spk2_integrationtest::test_systems::test_tick_worst_case
+[PASS] spk2_integrationtest::test_systems::test_queue_moves_1 (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~66675717)
+[test name] spk2_integrationtest::test_systems::test_queue_moves_1
 ├─ [selector] constructor
 │  ├─ [contract name] world
 │  └─ [L2 gas] 382357
@@ -3104,9 +2860,9 @@ Failure data:
 ├─ [selector] resource
 │  ├─ [contract name] world
 │  └─ [L2 gas] 49010
-├─ [selector] worst_case
+├─ [selector] queue
 │  ├─ [contract name] setup
-│  ├─ [L2 gas] 12104608
+│  ├─ [L2 gas] 28850553
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 450643
@@ -3139,94 +2895,70 @@ Failure data:
 │  │  └─ [L2 gas] 678960
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 651811
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
 │  └─ [selector] set_entity
 │     ├─ [contract name] world
 │     └─ [L2 gas] 292000
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
 ├─ [selector] resource
 │  ├─ [contract name] world
 │  └─ [L2 gas] 49010
-├─ [selector] attack
-│  ├─ [contract name] tick_worst_case
-│  ├─ [L2 gas] 13202348
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 225372
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 500572
-│  ├─ [selector] entities
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 2899194
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 94628
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
-│  └─ [selector] set_entities
-│     ├─ [contract name] world
-│     └─ [L2 gas] 4520830
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 500572
-└─ [selector] entity
-   ├─ [contract name] world
-   └─ [L2 gas] 225372
+└─ [selector] walk
+   ├─ [contract name] queue_moves
+   ├─ [L2 gas] 13503304
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 225372
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 500572
+   ├─ [selector] entities
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 2899194
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] set_entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 450643
+   ├─ [selector] set_entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 833744
+   └─ [selector] set_entities
+      ├─ [contract name] world
+      └─ [L2 gas] 4520830
 
-[PASS] spk2_integrationtest::test_systems::test_tick_worst_case_packed (l1_gas: ~0, l1_data_gas: ~17568, l2_gas: ~76466715)
-[test name] spk2_integrationtest::test_systems::test_tick_worst_case_packed
+[PASS] spk2_integrationtest::test_systems::test_queue_moves_5 (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~72885081)
+[test name] spk2_integrationtest::test_systems::test_queue_moves_5
 ├─ [selector] constructor
 │  ├─ [contract name] world
 │  └─ [L2 gas] 382357
@@ -3425,9 +3157,9 @@ Failure data:
 ├─ [selector] resource
 │  ├─ [contract name] world
 │  └─ [L2 gas] 49010
-├─ [selector] worst_case
+├─ [selector] queue
 │  ├─ [contract name] setup
-│  ├─ [L2 gas] 12104608
+│  ├─ [L2 gas] 28850553
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 450643
@@ -3460,141 +3192,704 @@ Failure data:
 │  │  └─ [L2 gas] 678960
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 651811
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
 │  └─ [selector] set_entity
 │     ├─ [contract name] world
 │     └─ [L2 gas] 292000
 ├─ [selector] resource
 │  ├─ [contract name] world
 │  └─ [L2 gas] 49010
-├─ [selector] worst_case
+└─ [selector] walk
+   ├─ [contract name] queue_moves
+   ├─ [L2 gas] 19705588
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 225372
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 500572
+   ├─ [selector] entities
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 2899194
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] set_entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 450643
+   ├─ [selector] set_entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 833744
+   └─ [selector] set_entities
+      ├─ [contract name] world
+      └─ [L2 gas] 4520830
+
+[PASS] spk2_integrationtest::test_systems::test_brew_unsigned_discovers (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~41064291)
+[test name] spk2_integrationtest::test_systems::test_brew_unsigned_discovers
+├─ [selector] constructor
+│  ├─ [contract name] world
+│  └─ [L2 gas] 382357
+├─ [selector] register_namespace
+│  ├─ [contract name] world
+│  └─ [L2 gas] 327873
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Instance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 985867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_InstanceAdventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Goblin
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Window
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 855767
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Adventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Balance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Book
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Grimoire
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 839617
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Discovery
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 775017
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Quest
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 824367
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_QuestLog
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Location
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Counter
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Pack
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 777437
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] setup
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 946617
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] tick_worst_case
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 878177
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] queue_moves
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 761287
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] brew
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 745137
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] hub
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 5410
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 29110
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] alchemy
 │  ├─ [contract name] setup
-│  ├─ [L2 gas] 12104608
+│  ├─ [L2 gas] 11884857
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
+│  │  └─ [L2 gas] 528035
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
+│  │  └─ [L2 gas] 489339
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 489339
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 330696
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 330696
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 292000
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 292000
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 292000
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 292000
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 678960
+│  │  └─ [L2 gas] 292000
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 651811
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
 │  └─ [selector] set_entity
 │     ├─ [contract name] world
 │     └─ [L2 gas] 292000
 ├─ [selector] resource
 │  ├─ [contract name] world
 │  └─ [L2 gas] 49010
-├─ [selector] attack
-│  ├─ [contract name] tick_worst_case
-│  ├─ [L2 gas] 13202348
+├─ [selector] brew_unsigned
+│  ├─ [contract name] brew
+│  ├─ [L2 gas] 4572564
 │  ├─ [selector] entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 225372
+│  │  └─ [L2 gas] 254368
 │  ├─ [selector] entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 500572
-│  ├─ [selector] entities
+│  │  └─ [L2 gas] 283364
+│  ├─ [selector] entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 2899194
+│  │  └─ [L2 gas] 94628
+│  ├─ [selector] entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 123624
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 330696
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 299290
 │  ├─ [selector] entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 94628
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
-│  └─ [selector] set_entities
-│     ├─ [contract name] world
-│     └─ [L2 gas] 4520830
-├─ [selector] resource
-│  ├─ [contract name] world
-│  └─ [L2 gas] 49010
-├─ [selector] attack_packed
-│  ├─ [contract name] tick_worst_case
-│  ├─ [L2 gas] 6618610
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 225372
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 500572
-│  ├─ [selector] entity
-│  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 400920
+│  │  └─ [L2 gas] 292000
 │  ├─ [selector] entity
 │  │  ├─ [contract name] world
 │  │  └─ [L2 gas] 94628
 │  ├─ [selector] set_entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 450643
-│  ├─ [selector] set_entity
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] entity
 │  │  ├─ [contract name] world
-│  │  └─ [L2 gas] 833744
+│  │  └─ [L2 gas] 94628
 │  └─ [selector] set_entity
 │     ├─ [contract name] world
-│     └─ [L2 gas] 651811
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 400920
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 384588
-├─ [selector] entity
-│  ├─ [contract name] world
-│  └─ [L2 gas] 500572
+│     └─ [L2 gas] 292000
 └─ [selector] entity
    ├─ [contract name] world
-   └─ [L2 gas] 500572
+   └─ [L2 gas] 123624
 
-Tests: 10 passed, 1 failed, 0 ignored, 15 filtered out
+[PASS] spk2_integrationtest::test_systems::test_queue_moves_no_goblin (l1_gas: ~0, l1_data_gas: ~15168, l2_gas: ~52843155)
+[test name] spk2_integrationtest::test_systems::test_queue_moves_no_goblin
+├─ [selector] constructor
+│  ├─ [contract name] world
+│  └─ [L2 gas] 382357
+├─ [selector] register_namespace
+│  ├─ [contract name] world
+│  └─ [L2 gas] 327873
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Instance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 985867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_InstanceAdventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Goblin
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 791167
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Window
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 855767
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Adventurer
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Balance
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Book
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Grimoire
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 839617
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Discovery
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 775017
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Quest
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 824367
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_QuestLog
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 823467
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Location
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 807317
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Counter
+│     └─ [L2 gas] 5410
+├─ [selector] register_model
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 758867
+│  └─ [selector] dojo_name
+│     ├─ [contract name] m_Pack
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 777437
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] setup
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 946617
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] tick_worst_case
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 878177
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] queue_moves
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 761287
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] brew
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 5410
+├─ [selector] register_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 745137
+│  ├─ [selector] constructor
+│  │  ├─ [contract name] hub
+│  │  └─ [L2 gas] 26680
+│  └─ [selector] dojo_name
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 5410
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] grant_writer
+│  ├─ [contract name] world
+│  └─ [L2 gas] 175011
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] setup
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] tick_worst_case
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] queue_moves
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] brew
+│     └─ [L2 gas] 29110
+├─ [selector] init_contract
+│  ├─ [contract name] world
+│  ├─ [L2 gas] 290230
+│  └─ [selector] dojo_init
+│     ├─ [contract name] hub
+│     └─ [L2 gas] 29110
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+├─ [selector] queue
+│  ├─ [contract name] setup
+│  ├─ [L2 gas] 21453241
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 450643
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 833744
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  ├─ [selector] set_entity
+│  │  ├─ [contract name] world
+│  │  └─ [L2 gas] 292000
+│  └─ [selector] set_entity
+│     ├─ [contract name] world
+│     └─ [L2 gas] 292000
+├─ [selector] resource
+│  ├─ [contract name] world
+│  └─ [L2 gas] 49010
+└─ [selector] walk
+   ├─ [contract name] queue_moves
+   ├─ [L2 gas] 7052124
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 225372
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 500572
+   ├─ [selector] entities
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 42570
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 94628
+   ├─ [selector] set_entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 450643
+   ├─ [selector] set_entity
+   │  ├─ [contract name] world
+   │  └─ [L2 gas] 833744
+   └─ [selector] set_entities
+      ├─ [contract name] world
+      └─ [L2 gas] 150990
 
-Failures:
-    spk2_integrationtest::test_systems::test_queue_moves
+Running 0 test(s) from src/
+Tests: 12 passed, 0 failed, 0 ignored, 15 filtered out
+

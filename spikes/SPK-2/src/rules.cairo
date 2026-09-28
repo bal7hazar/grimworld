@@ -223,9 +223,12 @@ pub fn world_tick(
         }
     }
     let tiles = tiles.span();
-    // [Compute] One flood from the adventurer, shared by all goblins
-    let free = terrain - occupied - pow(centre);
-    let (layers, distances) = flood(free, centre, tiles);
+    // [Compute] One flood from the adventurer, shared by all goblins; none without a goblin awake
+    let (layers, distances) = if tiles.len() == 0 {
+        (array![].span(), 0)
+    } else {
+        flood(terrain - occupied - pow(centre), centre, tiles)
+    };
     // [Compute] Goblins act, in ascending id order
     let mut hit = false;
     let mut next: Array<Goblin> = array![];

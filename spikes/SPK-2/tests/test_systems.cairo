@@ -8,7 +8,8 @@ use dojo_snf_test::{
     get_default_caller_address, set_caller_address, spawn_test_world,
 };
 use spk2::fixtures::{
-    QUEUE, QUEUE_1, QUEUE_5, QUEUE_LENGTH, START_X, START_Y, WEST, WORST, WORST_PACKED,
+    QUEUE, QUEUE_1, QUEUE_5, QUEUE_EMPTY, QUEUE_LENGTH, START_X, START_Y, WEST, WORST,
+    WORST_PACKED,
 };
 use spk2::models::{
     Adventurer, Balance, Discovery, Goblin, Grimoire, Instance, InstanceAdventurer, Pack,
@@ -89,7 +90,7 @@ fn queue(world: @WorldStorage) -> IQueueMovesDispatcher {
 }
 
 #[test]
-#[available_gas(l2_gas: 64153252)] // ceil(1.05 × 61098335 measured)
+#[available_gas(l2_gas: 64154092)] // ceil(1.05 × 61099135 measured)
 fn test_tick_worst_case() {
     let world = world();
     setup(@world).worst_case(WORST);
@@ -114,7 +115,7 @@ fn test_tick_worst_case() {
 }
 
 #[test]
-#[available_gas(l2_gas: 80290051)] // ceil(1.05 × 76466715 measured)
+#[available_gas(l2_gas: 80291731)] // ceil(1.05 × 76468315 measured)
 fn test_tick_worst_case_packed() {
     // The same action with the goblins in one model: the same outcome
     let world = world();
@@ -138,10 +139,10 @@ fn test_tick_worst_case_packed() {
 // Queues of 10, 5 and 1 moves
 
 #[test]
-#[available_gas(l2_gas: 91921192)] // ceil(1.05 × 87543992 measured)
+#[available_gas(l2_gas: 91951852)] // ceil(1.05 × 87573192 measured)
 fn test_queue_moves() {
     let world = world();
-    setup(@world).queue(QUEUE);
+    setup(@world).queue(QUEUE, 8);
     let moves = array![WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST];
     let done = queue(@world).walk(QUEUE, moves);
     assert!(done == QUEUE_LENGTH, "stopped after {}", done);
@@ -156,28 +157,38 @@ fn test_queue_moves() {
 }
 
 #[test]
-#[available_gas(l2_gas: 76502876)] // ceil(1.05 × 72859881 measured)
+#[available_gas(l2_gas: 76529336)] // ceil(1.05 × 72885081 measured)
 fn test_queue_moves_5() {
     let world = world();
-    setup(@world).queue(QUEUE_5);
+    setup(@world).queue(QUEUE_5, 8);
     let done = queue(@world).walk(QUEUE_5, array![WEST, WEST, WEST, WEST, WEST]);
     assert!(done == 5);
 }
 
 #[test]
-#[available_gas(l2_gas: 69986403)] // ceil(1.05 × 66653717 measured)
+#[available_gas(l2_gas: 55485313)] // ceil(1.05 × 52843155 measured)
+fn test_queue_moves_no_goblin() {
+    let world = world();
+    setup(@world).queue(QUEUE_EMPTY, 0);
+    let moves = array![WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST, WEST];
+    let done = queue(@world).walk(QUEUE_EMPTY, moves);
+    assert!(done == QUEUE_LENGTH);
+}
+
+#[test]
+#[available_gas(l2_gas: 70009503)] // ceil(1.05 × 66675717 measured)
 fn test_queue_moves_1() {
     let world = world();
-    setup(@world).queue(QUEUE_1);
+    setup(@world).queue(QUEUE_1, 8);
     let done = queue(@world).walk(QUEUE_1, array![WEST]);
     assert!(done == 1);
 }
 
 #[test]
-#[available_gas(l2_gas: 68804432)] // ceil(1.05 × 65528030 measured)
+#[available_gas(l2_gas: 68826692)] // ceil(1.05 × 65549230 measured)
 fn test_queue_drops_an_invalid_move() {
     let world = world();
-    setup(@world).queue(QUEUE);
+    setup(@world).queue(QUEUE, 8);
     // North-East of (20, 21) is a pillar (20, 22): the queue is dropped, nothing reverts
     let done = queue(@world).walk(QUEUE, array![1, WEST, WEST]);
     assert!(done == 0);
@@ -186,10 +197,10 @@ fn test_queue_drops_an_invalid_move() {
 }
 
 #[test]
-#[available_gas(l2_gas: 70702120)] // ceil(1.05 × 67335352 measured)
+#[available_gas(l2_gas: 70725220)] // ceil(1.05 × 67357352 measured)
 fn test_queue_stops_when_hit() {
     let world = world();
-    setup(@world).queue(QUEUE);
+    setup(@world).queue(QUEUE, 8);
     // East, next to goblin 1 (18, 21): it hits during the tick, the queue stops
     let done = queue(@world).walk(QUEUE, array![0, WEST, WEST]);
     assert!(done == 1);
