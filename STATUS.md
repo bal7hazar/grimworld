@@ -82,9 +82,8 @@ Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2),
 
 ## Decisions needed
 
-| # | Decision | Why | Recommendation |
-|---|---|---|---|
-| G-1 | **Protect `main` on GitHub** (repository settings, the owner's or the project manager's act): no force-push, no deletion. Optionally require the `tooling` check on pull requests, with administrators allowed to bypass so that the orchestrator's bookkeeping pushes still work | The `[GPT-6-Sol]` audit of FND-03 showed that command allowlists cannot stop an agent's interpreter or test from pushing with the `gh` credentials of the machine; only the server can refuse a force-push to `main` whatever runs it | Yes, force-push and deletion blocked now; the required check when FND-02 lands |
+None from the game orchestrator. G-1 was answered by the owner (D-121: `main` not protected
+for now; the residual of the FND-03 audit's finding F4 is accepted until the gate of Phase 0).
 
 ## Open on the owner's side (not blocking)
 
