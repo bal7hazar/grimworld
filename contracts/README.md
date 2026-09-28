@@ -11,7 +11,7 @@ A Scarb workspace of three packages. A workspace rather than one package because
 not mix (neither contract package depends on the other, so neither can import the other's models),
 because each
 contract class is built and sized on its own (ADR-0007, *Class size*), and because the pure logic
-is where the rules of a tick will live, so that tests need no deployment and the client can mirror or run them (ADR-0007) without a contract.
+is where the rules of a tick will live, so that tests need no deployment and the client can mirror or run them (ADR-0007).
 
 ```
 Scarb.toml            workspace: members, shared versions and dependencies
