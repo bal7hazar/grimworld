@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day: every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it |
+| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it |
 | Date | 2026-09-28 |
 | Decides | How a location larger than one felt is stored, generated, simulated and shown |
 | Supersedes | The room model of `docs/design/02-core-loop.md` (Map) and `docs/design/18-rooms.md` (size, entering a room, perception by room) |
@@ -21,16 +21,19 @@
 
 ## Decision (proposed)
 
-### 1. Three notions, one size
+### 1. Three notions
 
 | Notion | What | Size |
 |---|---|---|
 | **Chunk** | Unit of **storage and generation** | 15 × 15 tiles = 225 bits, one felt per layer |
-| **Window** | Unit of **simulation**: the board on which one tick is computed, centred on the adventurer | 15 × 15 tiles = one felt: what the map library handles |
-| **Sight** | Unit of **information**: what the adventurer sees of the living world | A hexagon of **radius 6** around the adventurer, which fits in the window |
+| **Window** | Unit of **simulation**: the board on which one tick is computed. It **follows the adventurer** and is **never stored**: it is assembled from the chunks at each tick (D-120) | **15 columns × 16 rows** = 240 tiles, one felt (the library's limit is 251) |
+| **Sight** | Unit of **information**: what the adventurer sees of the living world | A hexagon of **radius 6** around the adventurer, **always inside the ring of the window**, wherever the adventurer stands |
 
 Coordinates are global: a tile is `(x, y)` in the location; its chunk is
 `(x / 15, y / 15)`. A location of 105 × 105 tiles is 7 × 7 chunks.
+
+The window does not have the size of a chunk, and need not: it shares the chunk's **width**,
+which is what makes assembly a one-dimensional shift (§4).
 
 ### 2. Everything is generated, at reveal (D-106)
 
@@ -219,22 +222,52 @@ it becomes a library of pieces that the generator lays out.
 
 | | |
 |---|---|
-| Built from | The 1 to 4 chunks it overlaps: terrain and occupied tiles are cut and assembled into one board by shifts and masks |
-| Edge | The outer ring of the window is treated as wall for the computation, as the library requires. Goblins there are 7 tiles from the adventurer |
+| Built from | The 2 to 4 chunks it overlaps (16 rows always span two rows of chunks): terrain and occupied tiles are cut and assembled into one board. **No loop over rows** (docs/CAIRO.md): for each chunk overlapped and each layer, one mask taken from a table of constants, then one shift by multiplication or division by a power of two; window and chunk share the width 15, so moving a chunk by `(dx, dy)` is a shift by `15·dy + dx`; the pieces are disjoint and are added |
+| Position | **Columns**: the adventurer is on the centre column (7 of 0…14), 7 columns from the ring on each side. **Rows**: the origin of the window must be on an even global row (below), so the adventurer is on local row **7 when its global row is odd, 8 when it is even**. Rows 1 to 14 are inside the ring: sight (13 rows, 13 columns) always fits |
+| Edge | The outer ring of the window is treated as wall for the computation, as the library requires. A tile of the ring is 7 tiles or more from the adventurer: **never in sight** |
 | Pathfinding | One flood from the adventurer on that board, shared by all goblins (as before) |
 | Awake | Goblins inside the window, at most 8: the nearest, ties by id. Others are frozen |
 | Crossing chunks (R-5) | Free: a goblin has global coordinates. Moving writes the occupied bit of the chunk left and of the chunk entered |
-| Re-centring | The window is stored and moves **only when the adventurer comes within 3 tiles of its edge**, so that it is not rebuilt at every step |
-| Row parity | The window's origin stays on an even row, so that the hex neighbourhood of the library holds |
+| Follow | **The window follows the adventurer at every move.** There is no margin and no re-centring rule. What is simulated, shown and targetable depends on the adventurer's position only, never on a state the player cannot know |
+| Storage | **None.** The window is recomputed at each tick from the chunks: reads instead of one write per move |
+| Row parity | The window's origin stays on an even global row, so that the hex neighbourhood of the library holds: the library derives every neighbour from the parity of the **local** row. The origin therefore moves vertically by two rows at a time; the sixteenth row absorbs the difference |
 
 In the lore, this is the Hush: **things move near the living, and only there**.
+
+#### Why 15 × 16, and what was dropped (D-120, 2026-09-28)
+
+The first version of this section stored a 15 × 15 window and moved it only when the
+adventurer came within 3 tiles of its edge. Two defects, found by the analysis of the map
+library (LIB-02):
+
+| Defect | |
+|---|---|
+| Sight left the window | An adventurer 3 tiles from the edge saw, and could shoot, 3 tiles beyond the window, where goblins are frozen and no board is assembled |
+| Even centred, 15 rows are one too few | The origin must be on an even row. For half of the adventurer's positions a 15-row window puts it on local row 6 or 8, 6 rows from the ring: sight of radius 6 reaches the ring, where a goblin would be shown and not simulated |
+
+| Option | Verdict |
+|---|---|
+| **The window follows the adventurer, 15 × 16** | **Kept** |
+| Keep the margin of 3 and cut sight at the ring | Rejected by the owner: what the player sees would depend on where the window happens to be |
+| 15 × 15 with an odd origin allowed by a parity flag in the layout | Not kept. Same cost per flood layer, but the library accepts no odd origin today: the flag would go through the layout, the neighbours, the backtracking of both finders and the distance, each with a second set of results to freeze and test. 15 × 16 is a board the library already accepts, so the finders are taken over unchanged. The flag stays needed for the **generation and seams** of chunks that start on an odd row, where it does not reach the tick |
+
+Checked in the library's code by its orchestrator: `bal7hazar/hexx-cairo`,
+`docs/research/window-parity-check.md` (`[Fable 5.1]`, read-only; nothing measured).
+
+Consequences to keep in mind:
+
+| | |
+|---|---|
+| The adventurer is not at a fixed local tile | Local `(7, 7)` or `(7, 8)`. Anything indexed "from the centre" (sight and range masks, line-of-sight tables) takes the local position, or the parity of the adventurer's row, as input |
+| Assembly refuses an odd origin | Rather than return a board that is a different hex grid from the map |
+| Limb path | 240 tiles are on the two-limb path, as 225 were: the cost of a flood layer does not change |
 
 Consequences for rules written earlier:
 
 | Before (rooms) | Now |
 |---|---|
 | Only the current room is simulated | Only the window is |
-| Goblins do not follow out of a room | They follow while the adventurer stays in their window; outrunning them is leaving it |
+| Goblins do not follow out of a room | They follow while they are in the window, which moves with the adventurer; outrunning them is putting them out of it |
 | The queue stops when entering a room | It stops when a new chunk is revealed, or when a goblin enters sight |
 | Goblins at an entrance get a free attack on a fleeing adventurer | Dropped; fleeing is a matter of speed and terrain |
 | The adventurer sees the whole room | The adventurer sees **terrain** of every revealed chunk, and **goblins within sight** (radius 6, line of sight not required) |
@@ -271,11 +304,17 @@ No forced zoom is needed to equalise the two: the rule of sight already does it.
 | Operation | When | To measure in SPK-7 |
 |---|---|---|
 | Reveal: random request + generation with margins + quotas + placement | A few times per location; up to 3 chunks in one move | The heaviest transaction of the game |
-| Assemble the window | When it re-centres | 4 to 8 reads, shifts and masks |
-| Tick | Each action | One flood on a 15 × 15 board, 8 goblins, two chunk writes per crossing |
+| Assemble the window | **At each tick** | Worst case: 4 chunks overlapped, two layers each (terrain, occupied): 8 reads, 8 masks and shifts. The figure of about 40k is an estimate. SPK-7 measures it, and compares **with and without a stored window** |
+| Tick | Each action | One flood on a 15 × 16 board, 8 awake goblins, two chunk writes per crossing |
 | Storage | Per instance, for every location | Terrain, occupied, features per revealed chunk; discarded with the instance |
 
-If the window's cost is too high, the fallback is a window of 11 × 11 with sight 5.
+If the window's cost is too high, the fallback keeps the same rule (the window follows,
+is not stored) with a **sight of radius 5 on a window of 13 × 14**. A sight of radius `r`
+needs `2r + 3` columns and `2r + 4` rows to stay inside the ring; a window of 11 × 12 holds
+a sight of radius 4. Both are still on the library's two-limb path (more than 128 tiles):
+a smaller window saves flood layers, not the cost of a layer. The single-limb path is
+reached only by 11 × 11 with an odd origin allowed, which is the one case where the parity
+flag in the tick would be worth its price; SPK-7 says whether it is ever needed.
 
 ## What this changes elsewhere
 
@@ -286,7 +325,7 @@ If the window's cost is too high, the fallback is a window of 11 × 11 with sigh
 | `design/11-interface.md` | The room view becomes a camera on the map; layout zones are unchanged |
 | `design/04-combat.md` | Ranges are unchanged. Ranged range 6 equals sight |
 | `design/01-world.md` | Locations are measured in chunks |
-| Map library | Generation with margins; a helper to assemble a board from chunks; line of sight |
+| Map library | Generation with margins; a helper to assemble a board of 15 × 16 from chunks of 15 × 15, the parity of the origin being an explicit constraint; line of sight |
 
 ## Open
 

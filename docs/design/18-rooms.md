@@ -1,6 +1,6 @@
 # 18 — Terrain, features and perception
 
-> Status: **Draft v0.2** — rewritten for [ADR-0006](../architecture/ADR-0006-chunked-maps.md).
+> Status: **Draft v0.3** — v0.3: the window follows the adventurer (D-120); v0.2: rewritten for [ADR-0006](../architecture/ADR-0006-chunked-maps.md).
 > Numbers are initial values; costs are measured in spike SPK-7. The file keeps its name
 > so that links hold.
 
@@ -50,7 +50,7 @@ Placed at generation, at least 2 tiles away from an opening to a neighbouring ch
 | | |
 |---|---|
 | Terrain | Of every chunk revealed in this instance |
-| Goblins, remains, features that can change | Within **sight**: hexagon of radius 6, line of sight **not** required |
+| Goblins, remains, features that can change | Within **sight**: hexagon of radius 6, line of sight **not** required. Sight depends on the adventurer's position only: everything in sight is inside the simulation window, which follows the adventurer |
 | Beyond sight | Terrain, dimmed, as it was last seen; no goblins |
 | Hidden | Traps, until adjacent |
 | A chunk is revealed | When sight touches one of its tiles |
@@ -67,13 +67,13 @@ Line of sight matters for **acting**, not for seeing: ranged attacks and spells 
 | Asleep | Within 2 tiles, or hit, or its pack is alerted |
 | On watch | Within 5 tiles **and** in line of sight **and** in its front or front-side arcs; or within 2 tiles in any arc |
 | Alerted | Knows the last tile where the adventurer was seen; walks there |
-| Engaged | Always knows where the adventurer is, while both are in the window |
+| Engaged | Always knows where the adventurer is, while it is in the window (15 × 16 around the adventurer) |
 
 | Event | Effect |
 |---|---|
 | A goblin notices | Its whole pack becomes engaged |
 | A shout, or a fight, within 8 tiles | Other packs within that distance become alerted |
-| The adventurer leaves a goblin's window | It returns to its place, regenerates, and goes back to its first state |
+| The goblin falls out of the window (the adventurer got more than 7 tiles away) | It returns to its place, regenerates, and goes back to its first state |
 
 Approach is part of the game: a pack on watch has a back, an asleep pack can be struck
 first, and the side one arrives from decides both.
