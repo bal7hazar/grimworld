@@ -7,10 +7,10 @@
 
 | Feature | v1 |
 |---|---|
-| Seeing other adventurers in hubs | Yes (presence, off-chain, cosmetic) |
+| Seeing other adventurers in hubs | Yes: who is in the hub comes from the indexer; live movement is cosmetic and needs a relay (Q-09) |
 | Chat in hubs | Client feature, off-chain (Q-09) |
 | Inspecting another adventurer (rank, level, build) | Yes, read from chain |
-| Leaderboards (rank, trials, elite clears) | Yes, read from chain |
+| Leaderboards (rank, trials, elite clears) | Yes, from the indexer; **not in the MVP** (design/09). Their events are emitted from the MVP on |
 | Trading | Open (Q-07) |
 | Parties in dedicated instances | **No** |
 | PvP | No |
