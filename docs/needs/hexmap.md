@@ -19,6 +19,10 @@ signatures are added here as the design settles.
 
 ## N-9 in detail: the game cannot build `origami_hexmap` 1.8.0 (FND-01, 2026-09-28)
 
+**Arbitrated by the project manager**: [docs/decisions/2026-09-28-N-9-compiler-target.md](../decisions/2026-09-28-N-9-compiler-target.md).
+N-9 is part of milestone L-M1; SPK-7 runs standalone on Cairo 2.19 meanwhile; the compiler
+target is studied by LIB-03 and decided by the owner at gate L-G2.
+
 Found by `[Sonnet 5]` FND-01 (repository scaffold,
 [PR #18](https://github.com/bal7hazar/grimworld/pull/18)), checked by the game orchestrator.
 
