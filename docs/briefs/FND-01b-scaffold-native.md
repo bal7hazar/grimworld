@@ -69,7 +69,7 @@ client talks to the chain through starknet.js. Still no rule of the game.
 From the worktree root:
 ```
 scripts/setup-toolchain.sh
-scripts/lock.sh scarb build --manifest-path contracts/Scarb.toml
+scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build
 cd contracts && snforge test && cd -
 scripts/lock.sh pnpm install --frozen-lockfile
 pnpm -r test && pnpm -r lint && pnpm -r typecheck && scripts/lock.sh pnpm build

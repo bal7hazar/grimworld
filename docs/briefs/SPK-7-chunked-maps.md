@@ -105,7 +105,7 @@ Throwaway. Name the functions after the library's needs they prototype (`assembl
 ## Verification
 From the worktree root:
 ```
-scripts/lock.sh scarb build --manifest-path spikes/SPK-7/Scarb.toml
+scripts/lock.sh scarb --manifest-path spikes/SPK-7/Scarb.toml build
 cd spikes/SPK-7 && snforge test && cd -
 scripts/with-node.sh <the command that declares, deploys and sends the worst-case transactions>
 ```

@@ -103,7 +103,7 @@ are always audited by codex (OPERATIONS §2).
 ## Verification
 From the worktree root:
 ```
-scripts/lock.sh scarb build --manifest-path contracts/Scarb.toml
+scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build
 cd contracts && snforge test && cd -
 pnpm -r test && pnpm -r lint && pnpm -r typecheck
 scripts/with-node.sh <the command that runs the account integration test>
