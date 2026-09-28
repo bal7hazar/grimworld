@@ -215,6 +215,9 @@ desc="[$label] $task $mode ($profile)"
 # Unit environment: the machine-wide scarb/snforge shims (~/.local/bin) come first on PATH, so
 # every Cairo build takes the shared heavy-build lock; long builds may run in the foreground.
 path="$HOME/.local/bin:$HOME/.asdf/shims:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+# codex is a Node script: it must find the system `node`, not an asdf shim that has no version
+# outside a pinned directory (docs/reports/INC-2026-09-28-asdf-node-shims.md).
+[ "$cli" = claude ] || path="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.asdf/shims:$HOME/.cargo/bin"
 run=(systemd-run --user --unit="$unit" --description="$desc" --collect --quiet
   --working-directory="$wt" -p OOMPolicy=continue -p Nice=10 -p OOMScoreAdjust=500
   -p MemoryMax=20G --setenv=HOME="$HOME" --setenv=PATH="$path"
