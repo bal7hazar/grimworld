@@ -34,14 +34,16 @@ and **FND-02** (CI fix loop 1). Next: SPK-11 (indexer), then SPK-7, FND-05, SPK-
 Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
 library. Machine at 18:05 UTC: load 5.5, 13 GB available.
 
+## Decided by the owner, gate L-G2
+
+| | |
+|---|---|
+| D-126 | The porting plan of `hexx` is accepted; package named `hexx`; the tick is measured first; nothing published without a go ([file](docs/decisions/2026-09-28-L-G2-porting-plan.md)) |
+| D-127 | The flood of the tick stops at 15 layers; a goblin beyond holds its position (design/02, design/04, ADR-0006) |
+
 ## Waiting for the owner
 
-| What | Where | Recommendation |
-|---|---|---|
-| **Gate L-G2**: the porting plan of `hexx` | [docs/decisions/PENDING-L-G2.md](docs/decisions/PENDING-L-G2.md) §2, §3 | Accept, with the tick measured first and nothing published without a go; package named `hexx` |
-| A rule of the game: the flood of the tick stops at 15 layers, a goblin beyond holds | Same, §4 | Yes; number tuned by SPK-7 |
-
-The tick is estimated by the library's plan at 1.34M to 1.67M gas, not measured. Open without urgency: Q-12, the lore premise.
+Nothing blocks. One go that must be explicit because it cannot be undone: publishing an empty `hexx` 0.0.1 to reserve the name. Open without urgency: Q-12, the lore premise.
 
 ## Next
 

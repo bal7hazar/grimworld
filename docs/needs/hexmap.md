@@ -72,11 +72,11 @@ an accepted ADR and was decided by the owner
 
 Asked in `bal7hazar/hexx-cairo`, `docs/decisions/PENDING-L-G2.md`, "Questions for the game".
 Answered by the project manager. They do not change what a player meets, except Q-5, which is
-a rule of the game and is with the owner ([PENDING-L-G2](../decisions/PENDING-L-G2.md) §4).
+a rule of the game, decided by the owner ([L-G2](../decisions/2026-09-28-L-G2-porting-plan.md) §4, D-127).
 
 | # | Question | Answer | Why |
 |---|---|---|---|
-| Q-5 / D-25 | Does the tick truncate the flood; what does a goblin beyond do? | **With the owner.** Recommended: 15 layers; a goblin not reached holds its position | A rule of the game |
+| Q-5 / D-25 | Does the tick truncate the flood; what does a goblin beyond do? | **Yes: 15 layers; a goblin not reached holds its position** (owner, D-127). `depth` stays a parameter of the library | A rule of the game; the number is tuned by SPK-7 and playtest before 0.1.0 |
 | D-24 | Does a wall tile at the end of a line block sight? | **No**: only the tiles strictly between the two ends are tested | The end of a line is an actor or a tile the player may target; whether it can be targeted is the game's check, not the line's |
 | D-22 | Ring tiles of a chunk that face no generated neighbour | **Drawn at generation and frozen**, as the plan says | ADR-0006 § Joining chunks: a new chunk copies the edge of each neighbour already generated and draws its other edges; the first of two chunks decides where the opening is |
 | D-23 | `cut` clears the ring as well as what is outside the mask | **No, for the game: `cut` keeps the ring tiles that are inside the mask.** The game needs `grid & mask` | The ring of a chunk is a seam: it holds the openings to the neighbouring chunks, and design/18 opens edges **before** cutting by the outline. A cut that clears the ring would close every passage of a border chunk towards the inside of its zone. The window's ring is imposed by the assembly, not by `cut`. If the library keeps a variant that clears the ring, it has another name |
