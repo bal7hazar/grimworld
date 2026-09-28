@@ -1,78 +1,38 @@
 # Status
 
-**2026-09-28 16:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-28 17:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 
 ## Where we are
 
-**Phase 0 — Foundations. HOLD on new launches (2026-09-28, 16:30 UTC)**: the owner has decided
-that the game drops Dojo and is built as native Starknet contracts (reasons: the gas spent in
-Dojo's layer, and the Cairo 2.13 pin Dojo's tools impose, N-9). The project manager is writing
-ADR-0007 and the corrections; the game orchestrator launches nothing new until they are merged.
-
-| | During the hold |
-|---|---|
-| SPK-2 (running) | Finishes; its figures on Dojo 1.8 become the baseline for the native contracts, measured again natively in a follow-up |
-| FND-02 (running) | Finishes its turn; its pull request is **not merged** while its CI installs `sozo`, `katana` or `torii`; resumed later with the new toolchain |
-| FND-05, SPK-4, SPK-8 | Briefed on Dojo; **waiting** for the corrected documents, to be rewritten |
-| SPK-7 | Briefed as a standalone Cairo 2.19 package (D-122); to be checked against ADR-0007 before launch |
-| PR [#20](https://github.com/bal7hazar/grimworld/pull/20) (Rust rules in the `implement` profile) | Open; its audit waits for the end of the hold |
+**Phase 0 — Foundations, native Starknet (ADR-0007, D-123).** Merged: FND-03, SPK-5, FND-01,
+ART-00, the launcher thresholds (#11), the profile for Rust and native tools (#20). Running:
+**SPK-5b** (toolchain without Dojo, audit fix loop 1). Waiting for SPK-5b: FND-01b, SPK-2's
+native re-measure, FND-02's resume.
 
 ## What moved
 
 | | |
 |---|---|
-| FND-01 merged | [#18](https://github.com/bal7hazar/grimworld/pull/18): `contracts/` (two namespaces, layering), `client/` (`sim` apart from `app`, PixiJS on demand). Audit `[GPT-6-Sol]` PASS WITH FINDINGS. **Found N-9**: `origami_hexmap` 1.8.0 cannot build on Cairo 2.13; arbitrated by the project manager (D-122) |
-| ART-00 merged | [#12](https://github.com/bal7hazar/grimworld/pull/12): 8 sprites cleaned and packed outside git; PixiJS 8 parses every animation; [IP check](docs/reports/ART-00-ip-check.md) PASS |
-| SPK-5 merged | [#14](https://github.com/bal7hazar/grimworld/pull/14): Cairo 2.13, Dojo 1.8, Node 24.21, pnpm 12.5.1; Torii self-hosted |
-| Incident closed | [INC-2026-09-28](docs/reports/INC-2026-09-28-asdf-node-shims.md): remedy applied on the owner's order; rule added to COMMON |
-| Briefs | [FND-02](docs/briefs/FND-02-ci.md) (per-package toolchains), [SPK-7](docs/briefs/SPK-7-chunked-maps.md) (standalone on Cairo 2.19, D-122) |
+| **SPK-2, Dojo baseline** | [#25](https://github.com/bal7hazar/grimworld/pull/25), `[Opus 5.5]`, open until its native follow-up. **On Dojo 1.8, ADR-0001's threshold fails at today's prices**: a 300-action expedition costs **$1.73 to $2.69** (3.5× to 5.4× the $0.50 threshold), **$0.97 to $1.08** with the goblins packed by hand. Storage through the Dojo world is **72 %** of the worst-case tick (the world tick in memory: 1.25M of 13.2M L2 gas). Budget per action at today's prices: 1.9M L2 gas; break-even L2 gas price 5.2 to 11.0 Gfri (17.8 to 30.4 over two weeks). **D-52 kept** (+1.6 %). Detail: `docs/research/SPK-2-cost.md` in the PR |
+| **SPK-5b** | [#24](https://github.com/bal7hazar/grimworld/pull/24), `[Sonnet 5]`: Scarb 2.19.4, snforge/sncast 0.61.0, **starknet-devnet 0.10.0** as the local node (**NS-1: Katana 1.7.1 and 1.8.0-rc.9 both refuse a Cairo 2.19 class**, Sierra 1.9.3 against their 1.7.0 compiler), starknet.js 10.8.0; declare, deploy, invoke, call, event proven. Audit `[GPT-6-Sol]` FAIL (5 majors verified: key file unignored, Dojo baseline not runnable, plugin rule partial, setup edge case, research profile); fix loop 1 running |
+| PR #20 merged | `implement` allows Rust builds confined to the worktree, `sncast` against a local node only, `starknet-devnet`. Audit PASS WITH FINDINGS after three fix loops. **Process slip**: merged while its last CI run was pending (it passed, on the merged head); every merge now waits for the checks to complete |
+| FND-02 | [#21](https://github.com/bal7hazar/grimworld/pull/21) green: CI per Cairo package with the toolchain of its nearest `.tool-versions`, no Dojo tool; audit and merge after SPK-5b |
+| Briefs | ADR-0007 applied: [SPK-5b](docs/briefs/SPK-5b-toolchain-native.md), [FND-01b](docs/briefs/FND-01b-scaffold-native.md) new; FND-05, SPK-4, SPK-7 rewritten; SPK-8 dropped (D-124) |
 
 ## Orchestrators and agents
 
 | Orchestrator | Session | Model (verified) | State |
 |---|---|---|---|
-| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-2 and FND-02 running |
-| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-03 porting plan, now also the compiler target (D-122); next stop: gate L-G2 |
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | SPK-5b fix loop 1 |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-03 porting plan; next stop: gate L-G2 |
 
-| Game agent | Unit | Model asked / ran | Profile | Started |
+| Game agent | Unit | Model asked / ran | Profile | State |
 |---|---|---|---|---|
-| SPK-2 cost spike | `grimworld-SPK-2-160353` | `claude-opus-5-5` / `claude-opus-5-5` | implement | 16:03 UTC |
-| FND-02 continuous integration | `grimworld-FND-02-162135` | `claude-sonnet-5` / at close | implement | 16:21 UTC |
+| SPK-5b toolchain without Dojo | `grimworld-SPK-5b-171026` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
+| SPK-2 cost spike | — | `claude-opus-5-5` / `claude-opus-5-5` | implement | Baseline done; resumed for the native measure after SPK-5b |
 
-Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
-library. Machine at 16:21 UTC: load 7.5, 20 GB available.
-
-Models that actually ran, read from the CLIs' own records (2026-09-28): LIB-02 on
-`claude-opus-5-5`; the FND-03 audits on `gpt-6-sol`, effort high, read-only; launcher smoke
-tests on `claude-sonnet-5`. One in-session research agent of the game orchestrator was titled
-`[Opus 5.5]` and ran on `claude-haiku-4-5`: corrected. The launcher now records the model each
-CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
-
-## Decided today by the owner
-
-| | |
-|---|---|
-| D-119 | `hexx` ported in full in `bal7hazar/hexx-cairo`; `origami_hexmap` decommissioned at the end ([file](docs/decisions/2026-09-28-L-G1-hexx-port.md)) |
-| D-121 | `main` is **not** protected for now: the owner keeps full freedom during the kick-start ([file](docs/decisions/2026-09-28-G-1-main-protection.md)); raised again at the gate of Phase 0 |
-| D-120 | The window follows the adventurer, 15 × 16, not stored; fallback sight 5 on 13 × 14 ([file](docs/decisions/2026-09-28-window-follows.md)); ADR-0006, design/02, design/18, CONTEXT, PLAN v0.16 and docs/needs/hexmap.md corrected |
-
-## Incident closed
-
-| | |
-|---|---|
-| asdf shims broke `node`, `pnpm`, `codex` machine-wide (15:05 UTC) | **Fixed on 2026-09-28 by the project manager, on the owner's order**: `nodejs system` and `pnpm system` added to the global `~/.tool-versions` (backup `~/.tool-versions.bak`). Verified from `/tmp`: `node` v24.21.0, `pnpm` 12.5.1, `codex-cli` 0.155.1, exit 0; the SPK-5 worktree keeps its pins. Residual: `npm`, `npx` and `corepack` work but print one asdf warning on stderr ("No version is set for nodejs"). [Report](docs/reports/INC-2026-09-28-asdf-node-shims.md) |
-
-## Change of stack
-
-| | |
-|---|---|
-| D-123 | **Native Starknet contracts, without Dojo** (owner, 2026-09-28; [ADR-0007](docs/architecture/ADR-0007-native-starknet.md)). Cairo 2.19 for the game; probably an indexer of our own (SPK-11); quests and titles written in the game. N-9 and D-122 are void. Work built on Dojo today: the pins of SPK-5 and the scaffold of FND-01 are reworked by SPK-5b and FND-01b; SPK-2 keeps its Dojo figures as the baseline |
-
-## Decided today by the owner (continued)
-
-| | |
-|---|---|
-| D-124 | The Arcade packages are rewritten natively, one new repository each, pure Starknet components and pure Cairo. PLAN track ARC; needs in [docs/needs/arcade.md](docs/needs/arcade.md) |
+Budget: 3 Grim World agents at a time (D-118): 2 for the game (1 in use: the next launches all
+depend on SPK-5b), 1 for the library. Machine at 17:10 UTC: load 6.3, 21 GB available.
 
 ## Waiting for the owner
 
@@ -80,9 +40,18 @@ Nothing blocks the game today. **ARC-00**: names and visibility of the repositor
 
 ## Next
 
-1. Close SPK-2 (audit C) and FND-02 (audits S Q).
-2. Briefs of FND-05 (provider interfaces, `[GPT-6-Astra]` audit), SPK-4 (parity), SPK-8 (Arcade
-   packages) on Opus 5.5; then SPK-7; FND-06 after FND-02.
+1. SPK-5b: re-audit, merge; then the follow-ups it escalated (COMMON: `with-node.sh`).
+2. In parallel: **FND-01b** (Sonnet 5) and **SPK-2 resumed for the native measure** (Opus 5.5,
+   the priority: the figure the owner's decision rests on); FND-02 resumed on the new toolchain.
+3. Then SPK-11 (indexer), SPK-7, FND-05 (with `[GPT-6-Astra]`), SPK-4; FND-06 after FND-02.
+
+## For the project manager (from SPK-2, not blocking)
+
+| # | Point | Recommendation |
+|---|---|---|
+| C-1 | **R-2 materialises on Dojo**: ADR-0001's threshold (300 actions ≤ $0.50) fails 1.9× to 5.4× at today's prices. The owner's call on option B or on restating the threshold should wait for SPK-2's **native** figures, which come next | Decide on the native figures |
+| C-2 | PLAN's SPK-2 row says "10 Rifts"; D-101 says 5 a day per account (5 was used) | Correct the row |
+| C-3 | Flood rule (a) (docs/needs/hexmap.md point 5): on the occupancy frozen at the start of the tick, a goblin can be walled off behind its own pack; observed: it detours and leaves the window within 7 ticks. A design question for design/04 *Goblin AI* | To the owner or the design backlog |
 
 ## Open questions from wave 1 (not blocking)
 
