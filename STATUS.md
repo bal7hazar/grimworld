@@ -46,6 +46,13 @@ SPK-7, AUD-49, quiver ARC-03b. Load 5.6, 20 GB available.
 | 1 | Merge launcher PR #48 now and re-audit after, or hold it for a fourth re-audit ([report](docs/reports/PR-43-46-48-launcher-audit-gpt-6-sol.md)) | 2026-09-28 22:40 |
 | 2 | The other tracks' launchers take `~/orchestrator/agent-launch.lock` around count and start | same message |
 
+## Launcher: for its next change (not before a finding or a task needs one)
+
+| # | What | Source |
+|---|---|---|
+| L-1 | Enforce the caps per track (game 2, library 1, quiver 1) and the waiting marker `~/orchestrator/waiting/game` | Project manager, OPERATIONS §3 at 377576a |
+| L-2 | The `/proc` scan prints "No such file or directory" when a process exits mid-scan (`< "$d/cmdline" 2> /dev/null`: the input redirection fails before stderr is redirected); the count is right, the line is noise | Orchestrator, 2026-09-28 23:33 |
+
 ## Blocked
 
 | What | By |
