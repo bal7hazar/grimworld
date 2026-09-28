@@ -18,12 +18,12 @@ signatures are added here as the design settles.
 
 ## Answers to the library's questions (LIB-02, 2026-09-28)
 
-Asked in `bal7hazar/hexx-cairo`, `docs/decisions/PENDING-L-G1.md`, "Points for the game".
+Asked in `bal7hazar/hexx-cairo`, `docs/decisions/L-G1-hexx-port.md`, "Points for the game".
 Answered by the project manager on 2026-09-28. These are conventions of implementation: they
 do not change what a player meets. Each stands unless a measurement of LIB-03 or SPK-7 shows
 it wrong, in which case the library's orchestrator says so with the figure. Point 4 changes
 an accepted ADR and is with the owner
-([PENDING-L-G1](../decisions/PENDING-L-G1.md)).
+([PENDING-window-follows](../decisions/PENDING-window-follows.md)).
 
 | # | Point | Answer | Why |
 |---|---|---|---|

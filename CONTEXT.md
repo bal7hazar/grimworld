@@ -43,7 +43,7 @@ SPK-5, not here.
 | Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
 | Fees | Always paid by the game |
 | Randomness | Behind an interface. **MVP: transaction hash**, known to be steerable. Version 1: a verifiable source ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
-| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 for now (in `crates/hexmap`; `crates/map` is the older square-grid library). Successor decided by track LIB |
+| Maps | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) 1.8.0 for now (in `crates/hexmap`; `crates/map` is the older square-grid library). Successor: `hexx-cairo` (D-119), consumed by published version when L-M1 is released |
 | Client | TypeScript, dojo.js, PixiJS rendered on demand, Capacitor for iOS and Android. **Mobile first** |
 | Art | Pixel art, 64 × 64 tiles, *Tiny Swords* pack by Pixel Frog as prototype ([design/10](docs/design/10-art-direction.md)) |
 
@@ -151,6 +151,7 @@ owner, with the date), Superseded.
 | D-115 | Promotion trials are generated like any dungeon; size, band and quotas are fixed per rank | design/06 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-116 | Every mainnet deployment and every mainnet registry write needs an explicit go from the owner | OPERATIONS §7 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28 |
+| D-119 | Map library: **`hexx` is ported in full** (feature parity wherever it makes sense on-chain, extended with what Cairo and the network require) in **`bal7hazar/hexx-cairo`**, which takes over the engine of `origami_hexmap` with identical results; `origami_hexmap` is decommissioned once the port is complete and the game has migrated. `u252` becomes its own crate in `bal7hazar/types-cairo` | [decisions/2026-09-28-L-G1-hexx-port](docs/decisions/2026-09-28-L-G1-hexx-port.md) | Accepted 2026-09-28 (owner, at gate L-G1; differs from the recommendation) |
 | D-118 | Concurrency: 3 Grim World agents at a time on the VPS, beside the other programmes | OPERATIONS §3 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Accepted 2026-09-28 (owner adopts the recommendation) |
 
