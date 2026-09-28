@@ -1,0 +1,41 @@
+   Compiling test(spk2n_unittest) spk2n v0.1.0 (/home/claude/projects/grimworld/.claude/worktrees/cli-SPK-2/spikes/SPK-2/native/Scarb.toml)
+   Compiling test(spk2n_integrationtest) spk2n_integrationtest v0.1.0 (/home/claude/projects/grimworld/.claude/worktrees/cli-SPK-2/spikes/SPK-2/native/Scarb.toml)
+    Finished `dev` profile target(s) in 4 seconds
+
+
+Collected 31 test(s) from spk2n package
+Running 0 test(s) from src/
+Running 31 test(s) from tests/
+[PASS] spk2n_integrationtest::test_bench::bench_discover_signed_failed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~54936)
+[PASS] spk2n_integrationtest::test_bench::bench_discover_unsigned_failed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~27646)
+[PASS] spk2n_integrationtest::test_bench::bench_discover_signed_found (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~73916)
+[PASS] spk2n_integrationtest::test_bench::bench_flood_worst_case (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1906342)
+[PASS] spk2n_integrationtest::test_bench::bench_world_tick_baseline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1208360)
+[PASS] spk2n_integrationtest::test_bench::bench_discover_baseline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~13720)
+[PASS] spk2n_integrationtest::test_bench::bench_world_tick_worst_case (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2465134)
+[PASS] spk2n_integrationtest::test_flood::test_flood_goblin_walled_in_is_unreachable (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1557912)
+[PASS] spk2n_integrationtest::test_systems::test_results_only_from_the_instances (l1_gas: ~0, l1_data_gas: ~672, l2_gas: ~3432310)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_no_goblin (l1_gas: ~0, l1_data_gas: ~2016, l2_gas: ~25257780)
+[PASS] spk2n_integrationtest::test_systems::test_queue_stops_when_hit (l1_gas: ~0, l1_data_gas: ~8640, l2_gas: ~65212113)
+[PASS] spk2n_integrationtest::test_systems::test_tick_refuses_a_stranger (l1_gas: ~0, l1_data_gas: ~7968, l2_gas: ~41579970)
+[PASS] spk2n_integrationtest::test_systems::test_tick_worst_case (l1_gas: ~0, l1_data_gas: ~8352, l2_gas: ~56632034)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_packed_short (l1_gas: ~0, l1_data_gas: ~15648, l2_gas: ~118110510)
+[PASS] spk2n_integrationtest::test_rules::test_damage_table (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~33720)
+[PASS] spk2n_integrationtest::test_rules::test_hex_distance (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~13720)
+[PASS] spk2n_integrationtest::test_bench::bench_flood_baseline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1212320)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_packed (l1_gas: ~0, l1_data_gas: ~16416, l2_gas: ~151491916)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves (l1_gas: ~0, l1_data_gas: ~8928, l2_gas: ~82113488)
+[PASS] spk2n_integrationtest::test_systems::test_tick_worst_case_layouts (l1_gas: ~0, l1_data_gas: ~22944, l2_gas: ~139153412)
+[PASS] spk2n_integrationtest::test_systems::test_queue_drops_an_invalid_move (l1_gas: ~0, l1_data_gas: ~8160, l2_gas: ~61906416)
+[PASS] spk2n_integrationtest::test_systems::test_brew_signed_discovers (l1_gas: ~0, l1_data_gas: ~3552, l2_gas: ~18470438)
+[PASS] spk2n_integrationtest::test_bench::bench_discover_unsigned_found (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~34786)
+[PASS] spk2n_integrationtest::test_systems::test_brew_unsigned_discovers (l1_gas: ~0, l1_data_gas: ~3552, l2_gas: ~18133988)
+[PASS] spk2n_integrationtest::test_rules::test_queue_scenario_in_memory (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~26025138)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_1 (l1_gas: ~0, l1_data_gas: ~8832, l2_gas: ~65909996)
+[PASS] spk2n_integrationtest::test_systems::test_brew_known_pair (l1_gas: ~0, l1_data_gas: ~3552, l2_gas: ~18744748)
+[PASS] spk2n_integrationtest::test_systems::test_hub_day (l1_gas: ~0, l1_data_gas: ~1440, l2_gas: ~10544362)
+[PASS] spk2n_integrationtest::test_systems::test_queue_moves_5 (l1_gas: ~0, l1_data_gas: ~8928, l2_gas: ~71673944)
+[PASS] spk2n_integrationtest::test_flood::test_flood_matches_reference_on_the_fixtures (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~118863018)
+[PASS] spk2n_integrationtest::test_flood::test_flood_matches_reference_on_random_boards (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~378960721)
+Tests: 31 passed, 0 failed, 0 ignored, 0 filtered out
+

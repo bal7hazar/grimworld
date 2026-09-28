@@ -1,0 +1,35 @@
+Prices
+  mainnet L2 gas 22,573,370,546 fri, L1 data gas 813,320,714,552 fri (https://api.cartridge.gg/x/starknet/mainnet, block 15587811, 2026-09-28T17:51:30Z, read 2026-09-28T17:51:36Z)
+  STRK $0.04133903 (https://api.coingecko.com/api/v3/simple/price?ids=starknet&vs_currencies=usd, read 2026-09-28T17:51:39Z)
+  => 1M L2 gas = $0.000933
+
+Full transactions: Dojo on Katana 1.7.1 (Cairo-steps metering), native on starknet-devnet 0.10.0; and the call alone in snforge (Sierra gas, syscalls excluded)
+| Action | Dojo tx L2 gas | Native tx L2 gas | Difference | Native / Dojo | $ Dojo | $ native | Dojo call | Native call | Native / Dojo (call) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Worst-case tick, a model / storage struct per goblin | 17,940,800 | 12,594,560 | -5,346,240 | 0.70 | 0.01677 | 0.01180 | 13,203,148 | 7,838,454 | 0.59 |
+| Worst-case tick, goblins packed per instance | 7,927,680 | 4,906,560 | -3,021,120 | 0.62 | 0.00743 | 0.00461 | 6,619,410 | 2,812,014 | 0.42 |
+| Worst-case tick, one felt per goblin (native only) | — | 4,986,560 | — | — | — | 0.00468 | — | 3,000,054 | — |
+| Queue of 10 moves | 33,832,000 | 25,173,760 | -8,658,240 | 0.74 | 0.03160 | 0.02354 | 28,046,442 | 20,546,918 | 0.73 |
+| Queue of 5 moves | 24,846,400 | 18,788,160 | -6,058,240 | 0.76 | 0.02321 | 0.01758 | 19,705,588 | 13,272,684 | 0.67 |
+| Queue of 1 move | 18,025,920 | 13,685,680 | -4,340,240 | 0.76 | 0.01685 | 0.01282 | 13,503,304 | 7,923,696 | 0.59 |
+| Queue of 10 moves, no goblin | 7,331,840 | 2,397,760 | -4,934,080 | 0.33 | 0.00685 | 0.00225 | 7,052,124 | 1,357,970 | 0.19 |
+| Queue of 10 moves, goblins packed (native only) | — | 20,037,760 | — | — | — | 0.01873 | — | 15,520,378 | — |
+| Queue of 5 moves, goblins packed (native only) | — | 11,572,160 | — | — | — | 0.01083 | — | 8,246,144 | — |
+| Queue of 1 move, goblins packed (native only) | — | 5,111,680 | — | — | — | 0.00480 | — | 2,897,156 | — |
+| Brew, signature, new pair | 5,143,040 | 2,685,920 | -2,457,120 | 0.52 | 0.00482 | 0.00252 | 4,646,384 | 755,698 | 0.16 |
+| Brew, no signature, new pair | 5,143,040 | 2,645,920 | -2,497,120 | 0.51 | 0.00482 | 0.00249 | 4,572,564 | 681,878 | 0.15 |
+| Brew, known pair | 3,860,160 | 1,601,920 | -2,258,240 | 0.41 | 0.00361 | 0.00151 | 3,312,392 | 493,050 | 0.15 |
+| Accept quest | 2,262,400 | 1,673,680 | -588,720 | 0.74 | 0.00212 | 0.00157 | 1,710,148 | 248,930 | 0.15 |
+| Claim quest | 3,595,520 | 1,913,680 | -1,681,840 | 0.53 | 0.00337 | 0.00180 | 3,082,129 | 403,150 | 0.13 |
+| Enter | 4,448,640 | 3,625,280 | -823,360 | 0.81 | 0.00417 | 0.00340 | 3,986,642 | 801,212 | 0.20 |
+| Leave | 4,414,080 | 1,776,320 | -2,637,760 | 0.40 | 0.00413 | 0.00168 | 3,928,888 | 577,000 | 0.15 |
+
+Expedition: 180 moves + 100 fight actions + 20 others, plus enter and leave. Day: 5 Rifts, 3 quests, 5 brews
+| Scenario | $ Dojo (Katana) | $ native (devnet) | Native / Dojo | Native × $0.50 | L2 gas price for native to pass | $ per day, native |
+|---|---:|---:|---:|---:|---:|---:|
+| S1 worst case everywhere, a model / struct per goblin | 2.858 | 2.075 | 0.73 | 4.15 | 5.4 Gfri | 10.40 |
+| S2 mixed (2/3 of the moves exploring), a model / struct per goblin | 2.383 | 1.680 | 0.70 | 3.36 | 6.7 Gfri | 8.42 |
+| S3 mixed, goblins packed per instance | 1.150 | 0.719 | 0.63 | 1.44 | 15.7 Gfri | 3.62 |
+| S4 worst case everywhere, goblins packed per instance | 1.400 | 0.951 | 0.68 | 1.90 | 11.9 Gfri | 4.78 |
+
+S3 and S4 on Dojo use part 1's estimated packed queues; on native every figure is measured.
