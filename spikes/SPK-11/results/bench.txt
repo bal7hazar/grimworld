@@ -1,0 +1,30 @@
+[bench] gas: Market at 0x6922e83be71a46f95f825b52bfb39f3d58b8d2e056832f99418f2563c5cc50e, block 2
+┌──────────────────────────────────────────┬─────────┬───────────┬────────┐
+│ (index)                                  │ l2Gas   │ l1DataGas │ events │
+├──────────────────────────────────────────┼─────────┼───────────┼────────┤
+│ post, first (writes lot_count from zero) │ 2085920 │ 320       │ 1      │
+│ post_silent (no event)                   │ 1648080 │ 320       │ 0      │
+│ post (LotPosted)                         │ 1683920 │ 320       │ 1      │
+│ post, fourth lot                         │ 1683920 │ 320       │ 1      │
+│ withdraw_silent lot 1 (no event)         │ 1115840 │ 256       │ 0      │
+│ withdraw lot 3 (LotClosed)               │ 1181440 │ 256       │ 1      │
+│ buy lot 4 (LotClosed)                    │ 1181440 │ 256       │ 1      │
+│ locate_silent (no event)                 │ 1000960 │ 128       │ 0      │
+│ locate (AdventurerLocated)               │ 1026560 │ 128       │ 1      │
+└──────────────────────────────────────────┴─────────┴───────────┴────────┘
+[bench] event gas (receipt deltas, like for like): {"LotPosted":{"l2Gas":35840,"l1DataGas":0},"LotClosed":{"l2Gas":65600,"l1DataGas":0},"AdventurerLocated":{"l2Gas":25600,"l1DataGas":0}}
+[bench] throughput: Market at 0x465fe34151495649c9ca2ae066c86c4885d1756e8e92d2aaa8c7465c78a4287, block 12
+[bench] sent 100 transactions × 100 calls in 19.0 s; chain tip 112
+[indexer 2026-09-28T20:03:34.731Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:03:34.732Z] serving on http://127.0.0.1:37033, following http://127.0.0.1:31222 from block 12, tip null, status loading
+[indexer 2026-09-28T20:03:34.749Z] status ok
+[bench] catch-up from an empty database: {"status":"ok","head":{"number":112,"hash":"0x7c78a9f9ba6238ac14fb2bf02e69d9134597d65001b50edbb0a84dc63b08fbf","commitments":"0x5d34f422e4e485cab0e76ac9325883b15af8eeb53fe20040cf0c8644ed00ed0,0x67d1eafea86d575b3ff91a1eef6c7899e76ef12248b6279962ee8d5b743ed62,0x1b7d0039ed269484acaae1f1b7de6de4efd3711efa5e2a85de0bb8109122cc0,0x7accc78f9b85fc9a5f75e772e0d55b6e5008416d0d069c613b2345b04eb7585"},"stored":{"number":112,"hash":"0x7c78a9f9ba6238ac14fb2bf02e69d9134597d65001b50edbb0a84dc63b08fbf","commitments":"0x5d34f422e4e485cab0e76ac9325883b15af8eeb53fe20040cf0c8644ed00ed0,0x67d1eafea86d575b3ff91a1eef6c7899e76ef12248b6279962ee8d5b743ed62,0x1b7d0039ed269484acaae1f1b7de6de4efd3711efa5e2a85de0bb8109122cc0,0x7accc78f9b85fc9a5f75e772e0d55b6e5008416d0d069c613b2345b04eb7585"},"blocksApplied":101,"eventsApplied":10000,"rows":10000,"rpcCalls":{"starknet_blockHashAndNumber":3,"starknet_getBlockWithTxHashes":105,"starknet_getEvents":101,"starknet_call":2},"rssMB":114,"maxRssMB":119,"uptimeMs":885}
+[bench] 10000 events over 101 blocks in 1.13 s (8817 events/s, process start included); database 1.30 MB after stop = 137 bytes per event; peak RSS 119 MB
+[indexer 2026-09-28T20:03:42.218Z] environment: INDEXER_RPC_URL
+[indexer 2026-09-28T20:03:42.219Z] serving on http://127.0.0.1:43257, following http://127.0.0.1:31222 from block 12, tip {"number":112,"hash":"0x7c78a9f9ba6238ac14fb2bf02e69d9134597d65001b50edbb0a84dc63b08fbf","commitments":"0x5d34f422e4e485cab0e76ac9325883b15af8eeb53fe20040cf0c8644ed00ed0,0x67d1eafea86d575b3ff91a1eef6c7899e76ef12248b6279962ee8d5b743ed62,0x1b7d0039ed269484acaae1f1b7de6de4efd3711efa5e2a85de0bb8109122cc0,0x7accc78f9b85fc9a5f75e772e0d55b6e5008416d0d069c613b2345b04eb7585"}, status loading
+[indexer 2026-09-28T20:03:42.250Z] status ok
+[bench] 1000 blocks without our events: 2.51 s (2.51 ms per block); RPC calls {"starknet_blockHashAndNumber":11,"starknet_getBlockWithTxHashes":1022,"starknet_call":11,"starknet_getEvents":1000} = 2.04 per block
+[bench] idle, 5 s at a 100 ms poll: RPC calls {"starknet_blockHashAndNumber":48,"starknet_getBlockWithTxHashes":48} = 19.2 per second
+[bench] receipt → subscription, 20 posts, poll 100 ms: median 62 ms, min 24, max 68
+[bench] RPC calls during those 20 blocks (idle polls included): {"starknet_blockHashAndNumber":40,"starknet_getBlockWithTxHashes":80,"starknet_call":20,"starknet_getEvents":20}
+[bench] database after the last stop (write-ahead log checkpointed): 1.53 MB

@@ -39,7 +39,7 @@ SPK-5, not here.
 |---|---|
 | Chain | Starknet mainnet (Sepolia for testing, a local node chosen by SPK-5b) |
 | Contracts | **Native Starknet contracts** in Cairo 2.19, **without Dojo** ([ADR-0007](docs/architecture/ADR-0007-native-starknet.md)) |
-| Indexer | Probably our own, from the contracts' events; scope by SPK-11. Not on the path of a move: the client reads its instance by view calls |
+| Indexer | **Our own** (D-130), from the contracts' events. Not on the path of a move: the client reads its instance by view calls |
 | Account | Behind an interface: **burner accounts first**, Cartridge Controller under evaluation, our own solution if needed ([ADR-0005](docs/architecture/ADR-0005-accounts.md)) |
 | Fees | Always paid by the game |
 | Randomness | Behind an interface. **MVP: transaction hash**, known to be steerable. Version 1: a verifiable source ([ADR-0002](docs/architecture/ADR-0002-randomness.md)) |
@@ -160,6 +160,8 @@ owner, with the date), Superseded.
 | D-127 | The flood of the tick stops at 15 layers; a goblin it did not reach holds its position and still acts if it can | design/02, design/04, ADR-0006 §4 | Accepted 2026-09-28 (owner); number tuned by SPK-7 and playtest |
 | D-128 | **The project manager goes ahead with its own recommendations** and reports afterwards. Stay the owner's act: mainnet, what cannot be undone outside the repositories (publishing, store submission), money, accounts and secrets | OPERATIONS §10 | Accepted 2026-09-28 (owner) |
 | D-129 | The threshold of $0.50 for 300 actions stays the target; the cost is measured on Sepolia before anything is decided (SPK-1 brought forward); ENG-01 carries a cost budget. Native contracts measured at 0.26× to 0.58× the cost of Dojo | [decisions/2026-09-28-cost-threshold](docs/decisions/2026-09-28-cost-threshold.md) | Project manager, 2026-09-28, under D-128 |
+| D-130 | **The indexer is our own**: one process over JSON-RPC, tables versioned by block, rewind on reorg, queries and subscriptions. Built after ENG-01 (IDX-01) | [decisions/2026-09-28-indexer](docs/decisions/2026-09-28-indexer.md), ADR-0007 | Project manager, 2026-09-28, under D-128 |
+| D-131 | The API of `quiver_quest` and `quiver_achievement` is accepted (gate A-G1). For the game: a held contract is lost at the end of its day; an instance reports at most 16 distinct tasks, snapshotted at entry; titles are built on `quiver_achievement` in event mode | [decisions/2026-09-28-A-G1-quiver-api](docs/decisions/2026-09-28-A-G1-quiver-api.md) | Project manager, 2026-09-28, under D-128 |
 | D-120 | **The simulation window follows the adventurer**: no margin of 3 tiles, no cut of sight at the ring. Window of **15 columns × 16 rows**, origin on an even row, **not stored**, assembled at each tick without a loop over rows. Fallback: sight 5 on 13 × 14. Chunks stay 15 × 15 | ADR-0006 §4, [decisions/2026-09-28-window-follows](docs/decisions/2026-09-28-window-follows.md) | Accepted 2026-09-28 (owner), cost subject to SPK-7 |
 | D-121 | `main` is not protected on GitHub for now, on either repository: freedom during the kick-start. The residual of finding F4 (FND-03 audit) is accepted; raised again at the gate of Phase 0 | [decisions/2026-09-28-G-1-main-protection](docs/decisions/2026-09-28-G-1-main-protection.md) | Accepted 2026-09-28 (owner; differs from the recommendation) |
 | D-118 | Concurrency: 3 Grim World agents at a time on the VPS, beside the other programmes | OPERATIONS §3 | Accepted 2026-09-28 (owner adopts the recommendation) |
