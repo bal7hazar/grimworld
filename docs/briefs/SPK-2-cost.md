@@ -13,14 +13,16 @@ keep.
 
 ## Context
 - ADR-0001 (*Validation — Phase 0 spikes*, SPK-2 row; option B is the fallback); design/02
-  (*The tick*: world tick order; *Simulation budget*: window 15 × 15, at most 8 awake goblins,
-  **one flood per tick shared by all goblins**, re-centring; *Action batching*: the queue and
+  (*The tick*: world tick order; *Simulation budget*: the window follows the adventurer,
+  at most 8 awake goblins, **one flood per tick shared by all goblins**; *Action batching*: the queue and
   its stop conditions); design/04 (*Actions*, *Damage formula* with its lookup table, *Goblin
   AI* determinism rules); design/07 (*Discovery algorithm*, *Rarity signatures*: "the step
   budget of brewing is measured in SPK-2 and the feature is kept only if its overhead is
   negligible"); design/17 (*Supply*: **5 Rifts a day per account**, D-101); docs/CAIRO.md in
   full; docs/needs/hexmap.md (answers of 2026-09-28: one flood on the occupancy frozen at the
   start of the tick).
+- The window and sight: ADR-0006 §1 and §4 and docs/decisions/2026-09-28-window-follows.md
+  (D-120, 2026-09-28): the window follows the adventurer, 15 × 16, never stored.
 - Depends on: SPK-5 (merged): Cairo 2.13, Scarb 2.13.1, snforge 0.51.2, `dojo` 1.8.0,
   `scripts/with-katana.sh`; `spikes/SPK-5/` is the working reference for manifests.
 - Runs in parallel with FND-01: do not touch `contracts/` or `client/`.
@@ -30,7 +32,10 @@ keep.
 ## Scope
 - In: a throwaway Dojo world in `spikes/SPK-2/`, as close to the design as a spike needs to
   be to give honest numbers, **not** production code:
-  1. **Worst-case tick**: a 15 × 15 window with walls, the adventurer, **8 awake goblins**;
+  1. **Worst-case tick**: the **15 columns × 16 rows** window of D-120 (ADR-0006 §4, origin on
+     an even row, the adventurer on local `(7, 7)` or `(7, 8)`), given already assembled —
+     **its assembly from chunks is SPK-7's measurement, not yours** — with walls, the
+     adventurer, **8 awake goblins**;
      one breadth-first flood from the adventurer on the window shared by all goblins
      (`origami_hexmap` 1.8.0's flood if it builds on Cairo 2.13, otherwise a plain bitboard
      flood of your own, stated as such); each goblin, in ascending id order, steps to its
@@ -55,8 +60,9 @@ keep.
   actions; state the assumptions); compare with the $0.50 threshold.
 - `docs/research/SPK-2-cost.md`: what was built and how far it is from the design; every
   figure with its command and raw output; the money computation with its inputs; the verdict
-  on ADR-0001's threshold and on D-52; what would change the numbers (window 11 × 11 fallback,
-  fewer awake goblins, queue length); open questions for FND-04 and SPK-7.
+  on ADR-0001's threshold and on D-52; what would change the numbers (the fallback of D-120,
+  sight 5 on a 13 × 14 window; fewer awake goblins; queue length; the assembly cost SPK-7
+  measures, to be added per tick); open questions for FND-04 and SPK-7.
 - Out: chunk reveal and window assembly (SPK-7); verifiable randomness (SPK-3); latency
   (SPK-1); any deployment outside a local Katana; any transaction on Sepolia or mainnet;
   `contracts/`, `client/`.
