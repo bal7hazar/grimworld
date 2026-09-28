@@ -58,4 +58,10 @@ out.append("pub const DAMAGE: [u32; 241] = [")
 for x in range(-160, 81):
     out.append(f"    {round(2 ** (x / 40) * 65536)},")
 out.append("];")
+out.append("")
+out.append("/// Number of set bits of a byte.")
+out.append("pub const POPCOUNT: [u8; 256] = [")
+for i in range(0, 256, 16):
+    out.append("    " + ", ".join(str(bin(v).count("1")) for v in range(i, i + 16)) + ",")
+out.append("];")
 print("\n".join(out))

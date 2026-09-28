@@ -170,9 +170,9 @@ fn local(goblin: @Goblin, origin_x: u8, origin_y: u8) -> Option<u8> {
 }
 
 /// Bit `j` set when goblin `j` (in list order) is alive and in sight.
-pub fn in_sight(adventurer: @InstanceAdventurer, goblins: Span<Goblin>) -> u8 {
-    let mut seen: u8 = 0;
-    let mut bit: u8 = 1;
+pub fn in_sight(adventurer: @InstanceAdventurer, goblins: Span<Goblin>) -> u16 {
+    let mut seen: u16 = 0;
+    let mut bit: u16 = 1;
     for goblin in goblins {
         if *goblin.health != 0
             && hex_distance(*adventurer.x, *adventurer.y, *goblin.x, *goblin.y) <= SIGHT {

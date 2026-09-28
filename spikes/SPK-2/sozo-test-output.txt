@@ -1,0 +1,37 @@
+     Running test spk2 (snforge test)
+   Compiling test(spk2_unittest) spk2 v0.1.0 (/home/claude/projects/grimworld/.claude/worktrees/cli-SPK-2/spikes/SPK-2/Scarb.toml)
+   Compiling test(spk2_integrationtest) spk2_integrationtest v0.1.0 (/home/claude/projects/grimworld/.claude/worktrees/cli-SPK-2/spikes/SPK-2/Scarb.toml)
+    Finished `dev` profile target(s) in 41 seconds
+
+
+Collected 26 test(s) from spk2 package
+Running 26 test(s) from tests/
+[PASS] spk2_integrationtest::test_bench::bench_discover_baseline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~14020)
+[PASS] spk2_integrationtest::test_bench::bench_flood_worst_case (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2013172)
+[PASS] spk2_integrationtest::test_rules::test_damage_table (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~33720)
+[PASS] spk2_integrationtest::test_bench::bench_discover_signed_failed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~54936)
+[PASS] spk2_integrationtest::test_bench::bench_discover_signed_found (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~73916)
+[PASS] spk2_integrationtest::test_bench::bench_world_tick_baseline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1313290)
+[PASS] spk2_integrationtest::test_bench::bench_world_tick_worst_case (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~2562824)
+[PASS] spk2_integrationtest::test_flood::test_flood_goblin_walled_in_is_unreachable (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1681052)
+[PASS] spk2_integrationtest::test_flood::test_flood_matches_reference_on_the_fixtures (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~119119558)
+[PASS] spk2_integrationtest::test_systems::test_queue_moves_1 (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~66653717)
+[PASS] spk2_integrationtest::test_systems::test_queue_moves_5 (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~72859881)
+[PASS] spk2_integrationtest::test_systems::test_hub_day (l1_gas: ~0, l1_data_gas: ~14784, l2_gas: ~43155402)
+[PASS] spk2_integrationtest::test_rules::test_hex_distance (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~14020)
+[PASS] spk2_integrationtest::test_bench::bench_discover_unsigned_found (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~34986)
+[PASS] spk2_integrationtest::test_systems::test_queue_stops_when_hit (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~67335352)
+[PASS] spk2_integrationtest::test_systems::test_queue_drops_an_invalid_move (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~65528030)
+[PASS] spk2_integrationtest::test_systems::test_tick_worst_case (l1_gas: ~0, l1_data_gas: ~15744, l2_gas: ~61098335)
+[PASS] spk2_integrationtest::test_bench::bench_flood_baseline (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~1318950)
+[PASS] spk2_integrationtest::test_systems::test_tick_worst_case_packed (l1_gas: ~0, l1_data_gas: ~17568, l2_gas: ~76466715)
+[PASS] spk2_integrationtest::test_flood::test_flood_matches_reference_on_random_boards (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~379143191)
+[PASS] spk2_integrationtest::test_bench::bench_discover_unsigned_failed (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~27846)
+[PASS] spk2_integrationtest::test_rules::test_queue_scenario_in_memory (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~26667598)
+[PASS] spk2_integrationtest::test_systems::test_brew_known_pair (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~44676827)
+[PASS] spk2_integrationtest::test_systems::test_brew_unsigned_discovers (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~41064291)
+[PASS] spk2_integrationtest::test_systems::test_queue_moves (l1_gas: ~0, l1_data_gas: ~15936, l2_gas: ~87543992)
+[PASS] spk2_integrationtest::test_systems::test_brew_signed_discovers (l1_gas: ~0, l1_data_gas: ~16800, l2_gas: ~41640579)
+Running 0 test(s) from src/
+Tests: 26 passed, 0 failed, 0 ignored, 0 filtered out
+

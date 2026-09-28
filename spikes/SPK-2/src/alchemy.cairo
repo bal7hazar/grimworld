@@ -3,6 +3,7 @@
 
 use crate::board::{bitwise, pow};
 use crate::models::{Book, Grimoire};
+use crate::tables::POPCOUNT;
 
 /// Signature of a pair of rarities (0 C, 1 U, 2 R), both orders: C+C, C+U, U+U, C+R, U+R, R+R.
 const SIGNATURE: [u8; 9] = [0, 1, 3, 1, 2, 4, 3, 4, 5];
@@ -19,15 +20,12 @@ pub const REGION_1_REMAINING: u64 = 0x01_06_0a_03_0f_0a;
 /// Every pair of the book.
 pub const REGION_1_PAIRS: u64 = 45;
 
-/// Number of set bits, at most the 16 recipes of a book: one iteration per set bit.
-fn count(mut set: u16) -> u16 {
-    let mut n = 0;
-    while set != 0 {
-        let (rest, _, _) = bitwise(set.into(), (set - 1).into());
-        set = rest.try_into().unwrap();
-        n += 1;
-    }
-    n
+/// Number of set bits of a recipe mask: two lookups in a byte table.
+#[inline(always)]
+fn count(set: u16) -> u16 {
+    let low = *POPCOUNT.span()[(set % 0x100).into()];
+    let high = *POPCOUNT.span()[(set / 0x100).into()];
+    (low + high).into()
 }
 
 /// Index of the `k`-th set bit (from the lowest), at most 16 iterations.

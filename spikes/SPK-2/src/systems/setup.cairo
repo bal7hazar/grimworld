@@ -2,10 +2,10 @@
 
 #[starknet::interface]
 pub trait ISetup<T> {
-    /// Instance 1: the worst-case tick.
-    fn worst_case(ref self: T);
-    /// Instance 2: the queue of 10 moves, and the windows along it.
-    fn queue(ref self: T);
+    /// The worst-case tick on an instance: goblin models and their packed copy.
+    fn worst_case(ref self: T, instance_id: u32);
+    /// The queue on an instance, and the windows along its 10 moves.
+    fn queue(ref self: T, instance_id: u32);
     /// Adventurers 1 (signed) and 2 (unsigned) in hub 1, the Region 1 book, ingredients.
     fn alchemy(ref self: T);
     /// Adventurer 3 in hub 1, quests 1 (to accept) and 2 (done, to claim), location 10.
@@ -19,11 +19,12 @@ pub mod setup {
         REGION_1_MASKS, REGION_1_PAIRS, REGION_1_RARITIES, REGION_1_RECIPES, REGION_1_REMAINING,
     };
     use spk2::fixtures::{
-        COMB, PILLARS, QUEUE, QUEUE_LENGTH, START_X, START_Y, WORST, adventurer, queue_goblins,
-        window, worst_goblins,
+        COMB, PILLARS, QUEUE_LENGTH, START_X, START_Y, adventurer, queue_goblins, window,
+        worst_goblins,
     };
     use spk2::models::{
-        Adventurer, Balance, Book, Counter, Grimoire, Instance, Location, Quest, QuestLog, Window,
+        Adventurer, Balance, Book, Counter, Grimoire, Instance, Location, Pack, Quest, QuestLog,
+        Window, pack_goblin,
     };
     use spk2::rules::{origin_key, window_origin};
     use starknet::get_caller_address;
@@ -50,40 +51,48 @@ pub mod setup {
 
     #[abi(embed_v0)]
     impl SetupImpl of ISetup<ContractState> {
-        fn worst_case(ref self: ContractState) {
+        fn worst_case(ref self: ContractState, instance_id: u32) {
             let mut world = self.world(@"spk2");
             world
                 .write_model(
                     @Instance {
-                        id: WORST, clock: 0, location: LOCATION, adventurer: 1, goblins: 8,
+                        id: instance_id, clock: 0, location: LOCATION, adventurer: 1, goblins: 8,
                         entry_draw: 0,
                     },
                 );
-            world.write_model(@adventurer(WORST, 1, true));
-            let goblins = worst_goblins();
+            world.write_model(@adventurer(instance_id, 1, true));
+            let goblins = worst_goblins(instance_id);
+            let mut packed: Array<felt252> = array![];
             for goblin in goblins.span() {
                 world.write_model(goblin);
+                packed.append(pack_goblin(goblin));
             }
+            let p = packed.span();
+            world
+                .write_model(
+                    @Pack {
+                        instance_id,
+                        goblins: [*p[0], *p[1], *p[2], *p[3], *p[4], *p[5], *p[6], *p[7]],
+                    },
+                );
             let (x, y, _) = window_origin(START_X, START_Y);
             world
                 .write_model(
-                    @Window {
-                        instance_id: WORST, origin: origin_key(x, y), terrain: window(COMB, x, y),
-                    },
+                    @Window { instance_id, origin: origin_key(x, y), terrain: window(COMB, x, y) },
                 );
         }
 
-        fn queue(ref self: ContractState) {
+        fn queue(ref self: ContractState, instance_id: u32) {
             let mut world = self.world(@"spk2");
             world
                 .write_model(
                     @Instance {
-                        id: QUEUE, clock: 0, location: LOCATION, adventurer: 1, goblins: 8,
+                        id: instance_id, clock: 0, location: LOCATION, adventurer: 1, goblins: 8,
                         entry_draw: 0,
                     },
                 );
-            world.write_model(@adventurer(QUEUE, 1, false));
-            let goblins = queue_goblins();
+            world.write_model(@adventurer(instance_id, 1, false));
+            let goblins = queue_goblins(instance_id);
             for goblin in goblins.span() {
                 world.write_model(goblin);
             }
@@ -93,7 +102,7 @@ pub mod setup {
                 world
                     .write_model(
                         @Window {
-                            instance_id: QUEUE,
+                            instance_id,
                             origin: origin_key(x + step, y),
                             terrain: window(PILLARS, x + step, y),
                         },

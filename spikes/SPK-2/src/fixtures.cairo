@@ -5,9 +5,13 @@ use crate::board::pow;
 use crate::models::{Goblin, InstanceAdventurer};
 use crate::tables::WIDTH;
 
-/// Instance of the worst-case tick, and of the queue.
+/// Instances of the worst-case tick (goblin models, and the packed variant) and of the queues of
+/// 10, 5 and 1 moves: each measured transaction starts from a fresh copy of its fixture.
 pub const WORST: u32 = 1;
+pub const WORST_PACKED: u32 = 5;
 pub const QUEUE: u32 = 2;
+pub const QUEUE_5: u32 = 3;
+pub const QUEUE_1: u32 = 4;
 /// Terrains: walls in rows `y ≡ 2 (mod 4)` with a gap every 6 columns (a comb that forces
 /// detours), or pillars at `x ≡ 0 (mod 4)` on those rows.
 pub const COMB: u8 = 0;
@@ -98,8 +102,7 @@ fn goblin(instance_id: u32, id: u32, x: u8, y: u8, burning: u32) -> Goblin {
 
 /// Worst-case tick: 2 goblins adjacent (they attack), 6 at the far corners and sides of the
 /// window, behind the comb's walls (the flood runs to its deepest layer); all burning.
-pub fn worst_goblins() -> Array<Goblin> {
-    let i = WORST;
+pub fn worst_goblins(i: u32) -> Array<Goblin> {
     array![
         goblin(i, 1, 19, 21, 20), // East of the adventurer
         goblin(i, 2, 20, 20, 20), // South-East
@@ -112,12 +115,14 @@ pub fn worst_goblins() -> Array<Goblin> {
     ]
 }
 
-/// Queue: 8 goblins in sight, 2 to 5 tiles behind an adventurer walking West, none adjacent.
-pub fn queue_goblins() -> Array<Goblin> {
-    let i = QUEUE;
+/// Queue: 8 goblins in sight behind an adventurer walking West, none adjacent: 7 in an arc 2
+/// tiles away, the 8th 6 tiles away on the flank. A goblin behind the arc is walled off by it
+/// under rule (a) and falls out of the window; this start keeps all 8 awake for the 10 ticks
+/// (found by a search over start tiles in memory).
+pub fn queue_goblins(i: u32) -> Array<Goblin> {
     array![
-        goblin(i, 1, 18, 21, 0), goblin(i, 2, 17, 21, 0), goblin(i, 3, 18, 20, 0),
-        goblin(i, 4, 18, 22, 0), goblin(i, 5, 16, 21, 0), goblin(i, 6, 17, 19, 0),
-        goblin(i, 7, 17, 23, 0), goblin(i, 8, 15, 21, 0),
+        goblin(i, 1, 18, 21, 0), goblin(i, 2, 19, 22, 0), goblin(i, 3, 19, 20, 0),
+        goblin(i, 4, 19, 23, 0), goblin(i, 5, 19, 19, 0), goblin(i, 6, 18, 23, 0),
+        goblin(i, 7, 18, 19, 0), goblin(i, 8, 17, 16, 0),
     ]
 }

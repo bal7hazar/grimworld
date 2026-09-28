@@ -76,6 +76,69 @@ pub struct Goblin {
     pub burning: u32,
 }
 
+/// Storage variant measured against one model per goblin: the 8 goblins of an instance in one
+/// model, one felt each, packed by hand (docs/CAIRO.md §4). The world's generic packing costs
+/// per field; this model has 8 fields where 8 goblin models have 88. A lever for FND-04, not a
+/// design decision.
+///
+/// Layout of a goblin felt, low limb: x 0-7, y 8-15, facing 16-23, health 24-39, armor 40-47,
+/// strength 48-55, damage 56-63, regeneration 64-71, bleeding 72-103; high limb: poison 0-31,
+/// burning 32-63.
+#[derive(Copy, Drop, Serde, IntrospectPacked, Debug)]
+#[dojo::model]
+pub struct Pack {
+    #[key]
+    pub instance_id: u32,
+    pub goblins: [felt252; 8],
+}
+
+const TWO_POW_128: felt252 = 0x100000000000000000000000000000000;
+const B8: NonZero<u128> = 0x100;
+const B16: NonZero<u128> = 0x10000;
+const B32: NonZero<u128> = 0x100000000;
+
+pub fn pack_goblin(goblin: @Goblin) -> felt252 {
+    let low: u128 = (*goblin.x).into()
+        + (*goblin.y).into() * 0x100
+        + (*goblin.facing).into() * 0x10000
+        + (*goblin.health).into() * 0x1000000
+        + (*goblin.armor).into() * 0x10000000000
+        + (*goblin.strength).into() * 0x1000000000000
+        + (*goblin.damage).into() * 0x100000000000000
+        + (*goblin.regeneration).into() * 0x10000000000000000
+        + (*goblin.bleeding).into() * 0x1000000000000000000;
+    let high: u128 = (*goblin.poison).into() + (*goblin.burning).into() * 0x100000000;
+    low.into() + high.into() * TWO_POW_128
+}
+
+pub fn unpack_goblin(instance_id: u32, id: u32, packed: felt252) -> Goblin {
+    let wide: u256 = packed.into();
+    let (rest, x) = DivRem::div_rem(wide.low, B8);
+    let (rest, y) = DivRem::div_rem(rest, B8);
+    let (rest, facing) = DivRem::div_rem(rest, B8);
+    let (rest, health) = DivRem::div_rem(rest, B16);
+    let (rest, armor) = DivRem::div_rem(rest, B8);
+    let (rest, strength) = DivRem::div_rem(rest, B8);
+    let (rest, damage) = DivRem::div_rem(rest, B8);
+    let (bleeding, regeneration) = DivRem::div_rem(rest, B8);
+    let (burning, poison) = DivRem::div_rem(wide.high, B32);
+    Goblin {
+        instance_id,
+        id,
+        x: x.try_into().unwrap(),
+        y: y.try_into().unwrap(),
+        facing: facing.try_into().unwrap(),
+        health: health.try_into().unwrap(),
+        armor: armor.try_into().unwrap(),
+        strength: strength.try_into().unwrap(),
+        damage: damage.try_into().unwrap(),
+        regeneration: regeneration.try_into().unwrap(),
+        bleeding: bleeding.try_into().unwrap(),
+        poison: poison.try_into().unwrap(),
+        burning: burning.try_into().unwrap(),
+    }
+}
+
 /// Stand-in for the window assembled from the chunks (SPK-7 measures the assembly): the
 /// terrain of the 15 × 16 board at an origin, already assembled, read once per tick. The real
 /// window is never stored (D-120). `origin = 256 × x + y`, `y` even.
