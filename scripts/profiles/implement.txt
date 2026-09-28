@@ -17,7 +17,9 @@ Bash(katana *)
 Bash(torii *)
 # Native Starknet (ADR-0007): the deployment tool, against a local node only (an explicit
 # --url http://127.0.0.1:<port> or http://localhost:<port>, followed by further arguments, on
-# every call; no '@' anywhere), and a candidate local node (SPK-5b, NS-1).
+# every call; no '@' anywhere), and a candidate local node (SPK-5b, NS-1). Accepted residual: a
+# second --url or a configuration file can change the endpoint; no funded key for a public
+# network is in the agent's environment.
 Bash(sncast *--url http://127.0.0.1:* *)
 Bash(sncast *--url http://localhost:* *)
 Bash(sncast --version)
@@ -160,6 +162,8 @@ Bash(gh pr comment*)
 !Bash(cargo *..*)
 !Bash(cargo * /*)
 !Bash(cargo *=/*)
+!Bash(cargo *'/*)
+!Bash(cargo *"/*)
 !Bash(cargo *~*)
 !Bash(cargo *$HOME*)
 !Bash(cargo *--target-dir*)
