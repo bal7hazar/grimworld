@@ -85,7 +85,7 @@ As in GW1, an instance lives only while the adventurer is inside it.
 
 | Situation | Result |
 |---|---|
-| Stop playing, come back later, on any device | Same instance, same tick: its state is on-chain and the world waited. On another device, the last seconds played and not yet sent are lost ([batches](#actions-played-and-not-yet-sent)) |
+| Stop playing, come back later, on any device | Same instance, same tick: its state is on-chain and the world waited. On another device, the actions played and not yet sent, at most two batches, are lost ([batches](#actions-played-and-not-yet-sent)) |
 | Leave through a gate, or travel back to a hub | The instance is **closed**. Its state can be discarded |
 | Enter the same location again | A **new instance** with a new seed: goblins are back |
 | Be defeated | The instance is closed |
@@ -145,7 +145,7 @@ On-chain execution is bounded per transaction, so the design enforces:
 | Depth of the flood | **15 layers** (D-127). A goblin the flood did not reach **holds its position** this tick; it still acts if it can (a ranged attack with line of sight, a skill). Initial value, tuned by SPK-7 and playtest |
 | The window | Follows the adventurer at every move; assembled at each tick from the 2 to 4 chunks it overlaps, two layers each; no write |
 | Chunks revealed by one action | ≤ 3 |
-| Actions per transaction | A batch of weight 10 at most, bounded at 40M L2 gas ([below](#size-10-bounded-by-gas)) |
+| Actions per transaction | A batch of weight 10 at most per invocation, targeting 40M L2 gas, to be proven by ENG-01 ([below](#size-10-bounded-by-gas)) |
 
 Goblins **follow** the adventurer from chunk to chunk for as long as they are in the
 window, which moves with the adventurer. Outrunning them is putting them out of it; they then walk back to where they stood, regenerate
@@ -202,7 +202,7 @@ inside a batch**, as the played steps it produced, and may straddle two batches.
 | A batch ends when | Why |
 |---|---|
 | Its weight reaches 10 (below) | Bounded by gas |
-| The next action is a Fate action, a gate or travelling back | Those are sent alone, on a state the chain has confirmed |
+| The next action is a Fate action, a gate or travelling back | Our client sends those alone, on a state the chain has confirmed (a multicall can compose them: *Security*) |
 | The adventurer is defeated | The instance closes; nothing can follow |
 | It leaves for one of the reasons of *When a batch leaves* | — |
 
@@ -213,70 +213,102 @@ action has a **weight**:
 
 ```
 weight(action) = max(1, world ticks it runs) + 2 × chunks it reveals
-weight(batch)  = Σ weight(action)  ≤ 10
+weight(batch)  = Σ weight(action)  ≤ 10          per invocation of play
 ```
 
-| Figure | L2 gas | Source |
+**The gas bound is a target, not yet a proven bound.** 40M L2 gas per batch is an estimate
+from the figures below; ENG-01 proves it, or replaces the figure and the weights, before the
+weights are frozen.
+
+| Figure | L2 gas | Source, and what it leaves out |
 |---|---:|---|
-| Worst world tick under D-127, the game's call | 3,564,913 | SPK-1 §4 (Sepolia); 3,303,993 natively on devnet, SPK-2 §9.2 |
-| Largest non-game remainder of a queue | 1,617,995 | SPK-1 §4, queue of 10 moves |
-| A batch of weight 10, every tick the worst | 10 × 3.57M + 1.62M = **37.3M** | — |
-| **Bound of a batch** | **40,000,000** | The client signs no more; 2.7M of margin for decoding the actions and the sequence check, unmeasured |
+| Worst world tick under D-127, the game's call | 3,564,913 | SPK-1 §4 (Sepolia); 3,303,993 natively on devnet, SPK-2 §9.2. SPK-2's prototype (§1) leaves out the window's assembly from chunks, more goblins in the window than the 8 awake, chunk writes, the full AI and skills |
+| Non-game remainder of a queue of 10 | 1,617,995 | SPK-1 §4. **Observed** for one account class, not a maximum |
+| A batch of weight 10, every tick as the worst measured | 10 × 3.57M + 1.62M = 37.3M | — |
+| **Target bound of a batch** | **40,000,000** | 2.7M of margin, unproven |
+| A revealed chunk | weight 2, **unmeasured** | Generation and new storage (`enter`'s new storage cost 1.9M, SPK-1 §4) |
 
 - **Why weight and not actions.** A maul blow, a bow shot or a 3-tick skill runs 2 or 3
-  world ticks, and each tick can be the worst one. Ten actions of 3 ticks would be 30 ticks,
-  about 108M. Counting ticks keeps every valid batch under the bound whatever happens in it.
+  world ticks, and each tick can be the worst one. Ten actions of 3 ticks would be 30 ticks.
+  Counting ticks bounds every valid batch whatever happens in it.
 - A zero-tick action (turn, instant skill) weighs 1: it still costs its own execution, and
   it keeps a batch at 10 actions at most.
-- **A revealed chunk weighs 2**, a provisional figure: generating a chunk and writing its new
-  storage has not been measured (`enter`'s new storage cost 1.9M, SPK-1 §4). ENG-01 measures
-  it and the figure is replaced.
 - **When the next action would pass 10**, the current batch leaves first and the action opens
   the next one. The player sees nothing. If the contract counts a weight above 10 anyway (a
   modified client), the action that passes is invalid and the batch stops there.
+- **If a batch runs out of resources anyway** (the bound was wrong), the transaction is
+  included and reverted: see *The chain's answer*. The client resubmits the same actions in
+  smaller batches; a single action that runs out is a bug, reported, not retried.
 - **Why 10**: D-133's first answer, kept. A move in a queue of 10 costs 1.77M against 4.82M
   alone (SPK-1 §5): at 10 the fixed part of a transaction, about 1.09M, is 0.11M per action;
-  at 20 it would save another 0.05M per action and double what a rewind can undo. SPK-1b and
-  ENG-01's figures may move it; the rule does not change, only the number.
+  at 20 it would save another 0.05M per action and double what the client plays ahead of the
+  chain. SPK-1b and ENG-01's figures may move it; the rule does not change, only the numbers.
 
 ### When a batch leaves
+
+The triggers are **our client's**. A modified client may send what it likes; the contract
+only guarantees the rules of *The chain's answer*.
 
 | Trigger | Why |
 |---|---|
 | **Full**: the next action would pass weight 10 | The bound |
-| **Before a Fate action, a gate, travelling back** | Those are sent alone, and only after the batch before them is confirmed: a draw must be made on the state the player saw |
-| **5 seconds without a new action** | Long enough that a player thinking between two blows in a fight does not split a batch (each split pays the fixed part again); short enough that another device, the indexer and a lost phone lose little. Initial value, tuned by playtest from the mean batch size |
+| **Before a Fate action, a gate, travelling back** | Those are sent alone, and only after the batch before them is confirmed: a draw is made on the state the chain has |
+| **5 seconds without a new action** | Long enough that a player thinking between two blows in a fight does not split a batch (each split pays the fixed part again); short enough that another device and the indexer see the play soon. Initial value, tuned by playtest from the mean batch size |
 | **The app goes to the background** | A closed app may never come back; the batch is also kept on the device (below) |
 | **The end of a fight**: no goblin is awake any more | The next action is usually looting (Fate, sent alone): sending now hides the wait for the confirmation behind the moment the player walks to the remains |
 | **Defeat** | The instance closes; the hub needs the confirmed result |
 | **Leaving the instance** | Covered by the second line: the batch leaves, then the gate or the travel alone |
 
-**One batch in flight.** A batch is sent when the previous one is confirmed; meanwhile the
-next one fills. If it is full and the one in flight is still not confirmed, play waits
-(design/11: "saving…"). So at most **two batches, 20 actions**, are ahead of the chain. One in
-flight keeps the account's nonce simple and means the client knows the result of a batch
-before it sends the next one.
+**One batch in flight, one filling.** A batch is sent when the previous one is confirmed;
+meanwhile the next one fills. **When the batch filling is full** (its next action would pass
+weight 10) and the one in flight is not confirmed yet, play waits (design/11: "saving…"). So
+our client **plays at most two batches, weight 20, ahead of the chain**. That bounds
+speculation, not rollback: a reorg can undo any depth (*The chain's answer*). One in flight
+keeps the account's nonce simple and means the client knows the result of a batch before it
+sends the next one.
 
 ### Actions played and not yet sent
 
 | | |
 |---|---|
 | Kept | On the device, **written before the action is drawn**: instance id, adventurer id, expected sequence, the actions |
-| The app closes or crashes | Sent at the next launch, before any new action, if the chain's instance is still at the expected sequence |
+| The app closes or crashes | Sent at the next launch, before any new action, if the chain's instance still exists at the expected sequence |
 | The chain moved meanwhile (another device played this adventurer, a reorg) | The kept actions are dropped; the chain's state is shown (design/11) |
-| The device is lost | Lost with it, as the burner is (ADR-0005): a few seconds of play at most |
+| The device is lost | Lost with it, as the burner is (ADR-0005) |
+| How much can be lost | **At most two batches, weight 20**: the one filling and the one in flight not yet included. The bound is in actions, not seconds |
 | Taken back | Never, in our client (I-5). A modified client can already compute any sequence before sending it: nothing is given away (*Security*) |
 
+**No maximum age of a batch.** A batch that is not full leaves after 5 seconds without input;
+a batch filled without pause is full within weight 10. A maximum age would only split batches
+that are being filled, paying the fixed part again, without lowering the bound in actions,
+which is what the player can lose.
+
 This amends D-05: an instance resumed **on another device** resumes at the last action the
-chain has; the last seconds played on the first device, not sent, are lost.
+chain has; the actions played on the first device and not sent, at most two batches, are lost.
 
 ### The chain's answer
 
-The contract executes the batch in order. Before the first action it checks the **sequence**:
-`Instance.sequence` counts the actions the instance has executed, and the batch carries the
-sequence it was played from. A mismatch drops the whole batch. Then each action is checked
-against the state it meets; the first invalid one stops the batch, and the rest is dropped.
-**The transaction does not revert**: the account's nonce moves, and an event says what ran.
+**The sequence.** `Instance.sequence` counts the actions the instance has executed.
+
+| | |
+|---|---|
+| `enter` | Creates the instance with **sequence 0**. It takes no sequence (there is no instance yet); a second `enter` is refused because the adventurer is already in an instance |
+| `play` | Carries the sequence its batch was played from; +1 per action that runs |
+| Loot, open a chest, mine | Carry the sequence; +1 when the action runs |
+| Leave through a gate, travel back | Carry the sequence of the instance they close. A gate to another location closes this instance and **enters the next one in the same invocation** (its entry draw is Fate): a new instance id, at sequence 0, given by the entry event |
+
+**What a matching sequence proves.** That the **count** of actions matches, not the history:
+after a reorg, or with the same adventurer on two devices, the chain can hold the same count
+reached by other actions. In the MVP (solo) this is accepted as an optimistic divergence: the
+client finds it by reconciling (below) and rewinds. A check bound to the history (a hash chain
+of the actions executed: one Poseidon hash per action and one felt written per invocation) or
+to the state (a hash of the instance state: far more hashing, on every batch) costs gas on
+every batch, unmeasured; it is left to co-op or version 1.
+
+**Executing a batch.** The contract checks the sequence; a mismatch runs nothing. Then each
+action is checked against the state it meets; the first invalid one stops the batch, and the
+rest is dropped. **For invalidity in the game, with enough resources, the invocation does not
+revert**: the account's nonce moves, the fee is paid, and `BatchPlayed` says what ran.
 
 | Invalid when | |
 |---|---|
@@ -285,24 +317,46 @@ against the state it meets; the first invalid one stops the batch, and the rest 
 | The weight passes 10 | Above |
 | The adventurer is defeated, the instance closed | By an earlier action of the batch |
 
-The client reads the event from the **receipt** (pre-confirmed, ADR-0001), not from the
-indexer, then compares its own state after those actions with the chain's.
+**Fate and gate actions** check the sequence and **every precondition before drawing**
+(the adventurer is in the instance, on or next to the remains, the chest or the vein; the
+object is still there; the gate is reachable). A failed check draws nothing, changes nothing
+and emits `Refused`. The draw and the consumption of what was drawn from (the remains, the
+chest) happen in the same invocation (ADR-0002, rule 5).
 
-| The chain's answer | The client |
-|---|---|
-| Every action ran, same state | Nothing to do: the usual case |
-| Fewer ran, or the state differs | **Rewinds**: takes the chain's state, drops every action played after the difference, including the batch being filled |
-| The transaction never landed (network, fee, rejected before execution) | Sends the same batch again. The sequence makes it safe: if the first one landed after all, the retry runs nothing |
-| A reorg removes a confirmed batch (the indexer says so, D-130) | Rewinds to the chain's state |
+**The receipt.** The client reads the status of the transaction that carried the batch.
 
-**How far and how often.** A rewind drops at most the actions ahead of the chain: **20** (one
-batch in flight, one being filled). D-133's first answer was "up to a batch"; it becomes two,
-because the batch being filled is played on top of the one in flight. The alternative, waiting
-for each batch before playing on, would stop play at every batch. In solo, on a deterministic
-action, **a difference is a bug** (S-3 asks for 0); the other causes are a reorg (two in 13
-months), the same adventurer on two devices, and co-op. Every rewind is reported by the
-client with both states. Rewinds seen by players in a playtest are D-133's reversal
-condition.
+| Status | What it means | The client |
+|---|---|---|
+| **Succeeded** | Executed; `BatchPlayed` (or `Refused`) is in the receipt | Reconciles (below) |
+| **Reverted** | Included, **nonce consumed, fee charged, no event, no state change**: the batch ran out of resources, or the contract panicked (a bug) | Resubmits the same actions, same sequence, **with a fresh nonce, in batches half the size**. A single action that reverts is not retried: the client rewinds to the chain's state, reports it, and the player is told their last steps were lost |
+| **Not found** (not received, rejected before execution, dropped) | Nothing ran; the nonce did not move | Sends the same transaction again, **same nonce**, so that at most one of the two can run: up to 5 times over about 60 seconds. Then play is suspended ("connection lost"), the actions stay on the device, and sending resumes when the network does |
+
+**Reconciling.** The chain's state is the truth; the client checks its prediction against it
+after every succeeded batch.
+
+1. Read `BatchPlayed` from the receipt: `from`, `played`, `stop`, `sequence` after.
+2. Take its own state after the first `played` actions of the batch.
+3. Read the instance through the **views** at the receipt's block (the RPC reads state at a
+   block id; a pre-confirmed receipt without a block yet is read at the pre-confirmed block):
+   the instance, the adventurer in it, the goblins of the window, and the chunks the batch
+   revealed or changed.
+4. Compare field by field. Equal, and `played` is the whole batch: the batch is confirmed.
+5. Otherwise **rewind**: take the chain's state, drop every action played after the
+   difference, including the batch filling, and report both states.
+
+No state commitment is stored or emitted on chain: hashing the state costs gas on every batch.
+
+**Reorgs.** A reorg can undo **any depth**: batches, and also Fate draws and gates that were
+confirmed, and the instance itself (an `enter` that is gone). The two batches of speculation
+are no ceiling on it. When the indexer reports a reorg (D-130), or a confirmed transaction is
+no longer found, the client drops every prediction and every kept action, reads the canonical
+state and shows it: the same instance at an earlier sequence, another instance, or the hub,
+with a reward gone from the inventory if its draw is gone. Nothing is replayed for the player.
+
+**How often.** In solo, on a deterministic action, **a difference is a bug** (S-3 asks for 0);
+the other causes are a reorg (two in 13 months), the same adventurer on two devices, and co-op.
+Every rewind is reported by the client with both states. Rewinds seen by players in a
+playtest are D-133's reversal condition.
 
 ### Two adventurers in one instance (design/08, not in the MVP)
 
@@ -311,36 +365,46 @@ the order of their transactions.
 
 | | |
 |---|---|
-| Validity | The sequence is **the instance's**: a member's batch runs only on the state its player saw. When the other member acted in between, the batch runs nothing |
+| Validity | The sequence is **the instance's**: a member's batch runs only if no action ran since its player's count. When the other member acted in between, the batch runs nothing |
 | The rewind | The other member's actions appear, the dropped ones fade out, and the player decides again on the new state |
-| Its cost | Frequent when both act at once. The co-op design chooses between this strict check and a lenient one (the sequence of the member's own actions, each action still checked against the state it meets, as design/08 says), and sizes batches for parties (smaller, and sent when another member's action arrives) |
+| Its cost | Frequent when both act at once. The co-op design chooses between this strict check and a lenient one (the sequence of the member's own actions, each action still checked against the state it meets, as design/08 says), whether the check binds the history (above), and sizes batches for parties (smaller, and sent when another member's action arrives) |
 | What the MVP does to keep it open | The entrypoint takes the adventurer's entity id, the sequence is a field of the instance (M-1, M-2), targets are entity ids (M-5), the permission check is "the caller controls this adventurer, and it is in this instance", never "the caller created the instance" (M-6) |
 
 ### Security and fairness
 
-The rules and the state of an instance are public, and tactics are deterministic (D-40). A
-batch is executed **exactly as its actions would be, one per transaction, in the same order**
-(ENG-01 tests it). So a batch can reach no state that single actions could not.
+The rules and the state of an instance are public, and tactics are deterministic (D-40). An
+invocation of `play` executes its actions **exactly as they would run one per invocation, in
+the same order** (ENG-01 tests it). So a batch reaches no state that single actions could not.
+
+**One transaction is not one invocation.** Our client puts one call in a transaction (with
+version 1's `request_random` before a Fate call). An account's multicall can put several:
+`play` twice, `play` then `loot`, `play` then a gate. Composing calls in one transaction gives
+nothing that the same calls in consecutive transactions would not: each call checks its own
+sequence and preconditions against the state it meets, and no rule inside an instance reads
+anything of the transaction (ADR-0001), Fate apart (below).
 
 | A player tries to | Gains | Why |
 |---|---|---|
 | Play ahead, look, then not send (take back) | Nothing | A modified client can already simulate any sequence before sending it, batch or not. Our client never takes an action back (I-5) |
 | Compute a batch off-chain, reorder or optimise it | Nothing | It is the same as playing those actions one by one with a solver at hand, which single transactions already allow. The world waits (D-01): there is no time to save |
 | Hold actions back and send them later | Nothing | No rule inside an instance reads the block, the time or the transaction hash; an instance is private in the MVP. A late batch meets the same state |
-| Replay a batch, or send it twice | Nothing | The sequence has moved: it runs nothing |
+| Replay a batch, or send it twice | Nothing | The count has moved: it runs nothing |
+| Compose several `play` calls, or `play` with a gate, in one multicall | Nothing | The same as consecutive transactions: same state, same rules, each call checked on its own |
 | Ignore the stop conditions of a planned queue | Nothing | They protect the player from a walk they did not watch; the contract never needed them |
 | Steer the next chunk by the order of actions (D-111) | Nothing more | The player entropy is a set, not a sequence; trying irreversible options off-chain is possible without batches (ADR-0006) |
-| Put a Fate action in a batch | Impossible | `play` cannot encode one; Fate actions have their own entrypoints and go alone |
-| Burn gas with heavy batches | Less than today | Weight 10 bounds a transaction; a batch of invalid actions stops at the first. Limits on abuse stay silent rate limits per account (ADR-0001) |
+| Put a Fate call in the same transaction as a batch | Nothing new in the MVP; closed in version 1 by the rule below | `play` cannot encode a Fate action, but a multicall can carry a Fate call after it |
+| Burn gas with heavy batches or long multicalls | Nothing new | Weight 10 bounds one invocation, not a transaction; a transaction is bounded by the resources it signs. A sponsor's limit (ADR-0001's silent rate limits) must count **gas**, not transactions |
 
-**Fate and the transaction-hash provider (ADR-0002, MVP).** Batching changes nothing. Every
-Fate draw of the MVP can already be steered by varying the transaction (the tip, the resource
-bounds); a Fate action alone gives no more and no fewer ways to do so. If a Fate action could
-ride in a batch, the actions before it would be one more thing to vary, still no worse than
-today, but the result could not be computed, so nothing could be played after it anyway, and
-version 1's `request_random` must be first in its multicall (rule 3). So Fate stays alone. A
-Fate action is sent only after the batch before it is confirmed, with the expected sequence:
-the draw is made on the state the player saw.
+**Fate (ADR-0002).**
+- **MVP, transaction-hash provider.** Every Fate draw can already be steered by varying the
+  transaction (the tip, the resource bounds, any call beside it). A multicall that carries a
+  batch and then a Fate call adds one more thing to vary, not a new weakness: this is the
+  accepted, pre-existing weakness of ADR-0002, with or without batches. Our client sends a
+  Fate action alone, after the batch before it is confirmed, with the expected sequence.
+- **Version 1.** The provider **must not draw from anything the same transaction can steer**:
+  neither the transaction's hash or calldata, nor state that an earlier call of the same
+  transaction wrote. With that rule a Fate call behind a batch in one multicall draws what it
+  would draw alone. `request_random` stays first in its multicall (rule 3).
 
 ### Entrypoints (for ENG-01 to freeze)
 
@@ -359,43 +423,66 @@ play(instance_id, adventurer_id, sequence, actions)
         from,          the sequence the batch was played from
         played,        0–10, actions that ran
         stop,          None | Sequence | Invalid | Weight | Defeated | Closed
-        sequence,      after the batch
+        sequence,      after the batch (on a mismatch: the instance's current one)
         clock,         after the batch
     }
+
+loot, open, mine(instance_id, adventurer_id, sequence, target)
+leave(instance_id, adventurer_id, sequence, gate)    closes; enters the next location if the gate leads to one
+travel_back(instance_id, adventurer_id, sequence)
+    on a mismatch or a failed precondition, before any draw:
+        emits Refused { instance_id, adventurer_id, from, sequence (current), reason }
+        and changes nothing
+
+enter(adventurer_id, gate)    creates the instance at sequence 0; its event gives the id
 ```
 
 | | |
 |---|---|
-| Bounds | 1 to 10 actions; weight ≤ 10; each action's ticks are bounded by its tick cost ([04](04-combat.md#actions)); each tick by the simulation budget above |
-| Fate actions and gates | Keep their own entrypoints (loot, open a chest, mine, enter, leave, travel back), one action each, and **gain the `sequence` argument**, with the same rule: a mismatch runs nothing, and says so |
+| Bounds | 1 to 10 actions per invocation; weight ≤ 10; each action's ticks bounded by its tick cost ([04](04-combat.md#actions)); each tick by the simulation budget above |
 | Other events | Each action emits what it emits alone (a goblin killed, a chunk revealed, defeat); `BatchPlayed` is the batch's summary |
+| Views | Readable at any block: the instance (clock, sequence, entropy, status); the adventurer in it (position, facing, health, energy, adrenaline, conditions, effects, deadlines, activation, belt); every goblin of the window (the same, plus AI state and memory); a chunk by its coordinates (terrain, objects, remains). Everything an action depends on |
 | Never read | Block number, timestamp, transaction hash (ADR-0001) |
 
 ### What ENG-01 must do
 
-1. `Instance.sequence`, incremented by every executed action, in `play` and in every Fate or
-   gate entrypoint of the instance.
+1. `Instance.sequence`: 0 at `enter`; +1 per executed action in `play`, loot, open, mine; the
+   gate and travel-back semantics above.
 2. `play` as above: sequence check, weight counted as the actions run, stop at the first
-   invalid action, no revert, `BatchPlayed`.
-3. The `sequence` argument on loot, open, mine, leave, travel back.
+   invalid action, no revert for invalidity in the game, `BatchPlayed`.
+3. Loot, open, mine, leave, travel back: the `sequence` argument; every precondition checked
+   before `fate(domain)`; `Refused` without a draw; the draw and the consumption in one
+   invocation.
 4. No stop conditions in the contract: the planned queue is the client's.
-5. A test that a batch and the same actions one per transaction give the same state and
-   events, over the shared vectors (SPK-4).
-6. Measure: `play` with 1, 5 and 10 actions; the worst batch of weight 10, to confirm it is
-   under 40M; a revealed chunk, to replace its weight of 2.
-7. Permission: the caller controls `adventurer_id`, and that adventurer is in `instance_id` (M-6).
+5. Tests that a batch, the same actions one per invocation, and several invocations in one
+   multicall give the same state and events, over the shared vectors (SPK-4).
+6. **Prove the gas bound before the weights are frozen**: the worst batch of weight 10 with
+   the full action execution (window assembly, every goblin of the window, full AI, skills),
+   worst ticks, reveals and their new storage, events, validation and the account's overhead,
+   and the cost of rejecting at the first invalid action. Keep 40M and the weights, or replace
+   them. Measure a revealed chunk.
+7. The views above, readable at a block.
+8. Permission: the caller controls `adventurer_id`, and that adventurer is in `instance_id` (M-6).
 
 ### What CLI-03 must do
 
 1. Draw each action at once from the shared rules; write it to the device before drawing it.
 2. Fill batches by weight; send on the triggers above (5 s idle, background, fight end,
-   defeat, before a Fate action or a gate); one batch in flight; wait at 20 actions ahead.
+   defeat, before a Fate action or a gate); one batch in flight; **wait when the batch filling
+   is full** while the other is in flight.
 3. Walk planned queues step by step, evaluating the stop conditions; each step is a played
    action.
-4. Read `BatchPlayed` from the receipt; compare states; rewind on any difference; retry a
-   batch that never landed as it was.
-5. At launch, send the kept batch if the sequence matches, else drop it and show the chain's
-   state.
-6. Send a Fate action or a gate alone, after the batch before it is confirmed.
-7. Report every rewind with both states.
-8. Never take a played action back.
+4. One call per transaction; sign resources for the batch's proven bound.
+5. Handle the three receipt statuses as above: succeeded (reconcile), reverted (fresh nonce,
+   half-size batches, never a single action twice), not found (same nonce, 5 times over about
+   60 s, then suspend).
+6. Reconcile after every succeeded batch through the views at the receipt's block; rewind on
+   any difference.
+7. Recover from a reorg of any depth: drop predictions and kept actions, show the canonical
+   state, including an instance that no longer exists and a draw or a gate that is gone.
+8. At launch, send the kept batch if the instance exists at the expected sequence, else drop
+   it and show the chain's state.
+9. Send a Fate action or a gate alone, after the batch before it is confirmed; take the new
+   instance id from the entry event.
+10. Report every rewind and every reverted batch with both states.
+11. Never take a played action back.
