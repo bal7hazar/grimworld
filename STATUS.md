@@ -46,7 +46,11 @@ and codex audit. Machine at 18:05 UTC: load 5.5, 13 GB available.
 
 ## Waiting for the owner
 
-Nothing blocks. The name `hexx` is not reserved by an empty release (owner, 2026-09-28). Open without urgency: Q-12, the lore premise.
+| What | Where | Recommendation |
+|---|---|---|
+| **The cost of an expedition**: $0.69 to $0.93 natively on the local node against a threshold of $0.50; native is 0.26× to 0.58× Dojo | [docs/decisions/PENDING-cost-threshold.md](docs/decisions/PENDING-cost-threshold.md) | Measure on Sepolia before deciding (needs the Sepolia credentials now); a cost constraint on ENG-01 |
+
+Open without urgency: Q-12, the lore premise.
 
 ## Next
 
