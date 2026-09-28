@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Grim World launcher: start or resume a sub-agent in its task worktree. claude agents run as
 # transient systemd user units, outside the process tree and the cgroup of the calling session
-# (a restart of the desktop app must not kill them), or detached with `setsid nohup` where there
-# is no systemd user manager; codex auditors are always detached with setsid (see the note at
+# (a restart of the desktop app must not kill them); codex auditors are always detached with setsid (see the note at
 # the launch below). Ported from the owner's glam-cairo launcher, with one deliberate
 # difference: agents never run with --dangerously-skip-permissions. Each launch uses a committed profile
 # (scripts/profiles/<profile>.txt) that becomes
@@ -152,9 +151,12 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
     return 1
   fi
   units=$(grep -c . <<< "$ulist" || true)
-  # Detached agents (codex audits, and claude where there is no systemd user manager), one per
-  # working directory under the three repositories (a codex audit runs several processes): the
-  # live pids recorded by the launchers, and codex `exec` processes started by another way.
+  # Detached agents (codex audits), one per working directory under the three repositories (a
+  # codex audit runs several processes): the live pids recorded by the launchers, checked to be
+  # the launch they record (their command line holds the task's log, so a reused pid is not
+  # counted), and codex `exec` processes started another way. A pid whose directory cannot be read
+  # counts as an agent. The unit prefixes are reserved to the launchers. Without a systemd user
+  # manager the agents cannot be counted and no launch happens.
   local rc=0
   plist=$(pgrep -f '^/usr/bin/node .*codex[^ ]* exec( |$)') || rc=$?
   if [ "$rc" -gt 1 ]; then   # 1: no process matched
@@ -164,10 +166,14 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   for f in "$HOME"/projects/{grimworld,hexx-cairo,quiver}/.claude/worktrees/logs/*.pid; do
     [ -f "$f" ] || continue
     local pid; pid=$(cat "$f" 2> /dev/null || true)
-    [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null && plist+=$'\n'"$pid"
+    [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null || continue
+    tr '\0' '\n' < "/proc/$pid/cmdline" 2> /dev/null | grep -qxF -- "${f%.pid}.log" || continue
+    plist+=$'\n'"$pid"
   done
-  dirs=$(while read -r p; do [ -n "$p" ] && readlink "/proc/$p/cwd" 2> /dev/null; done <<< "$plist" |
-    grep -E '/projects/(grimworld|hexx-cairo|quiver)(/|$)' | sort -u || true)
+  dirs=$(while read -r p; do
+      [ -n "$p" ] || continue
+      readlink "/proc/$p/cwd" 2> /dev/null || echo "/projects/grimworld/unreadable-$p"
+    done <<< "$plist" | grep -E '/projects/(grimworld|hexx-cairo|quiver)(/|$)' | sort -u || true)
   detached=$(grep -c . <<< "$dirs" || true)
   agents=$((units + detached))
   if [ "$agents" -ge "$MAX_AGENTS" ]; then
@@ -285,14 +291,21 @@ case "$cli:$mode" in
   *) die "cli must be claude or codex" ;;
 esac
 [ "$sepolia" = 0 ] || [ "$cli" = claude ] || die "--with-sepolia is for claude agents only"
-# The Sepolia account goes only to a task whose committed brief grants it (OPERATIONS §7): the
-# brief docs/briefs/<task>-*.md names the option. The grant is recorded; a resume without the
-# option says it runs without the account.
+# The Sepolia account goes only to a task whose brief, as committed on origin/main, grants it
+# (OPERATIONS §7): exactly one brief docs/briefs/<task>-*.md, holding the grant line below and the
+# profile of the launch. The grant is recorded; a resume without the option says it runs without
+# the account.
+GRANT='> Sepolia account: granted (launch with `--with-sepolia`).'
+ref=${GW_BRIEF_REF:-origin/main}   # CI checks a pull request's own briefs with GW_BRIEF_REF=HEAD
 if [ "$sepolia" = 1 ]; then
-  if ! compgen -G "$root/docs/briefs/$task-*.md" > /dev/null ||
-    ! grep -qF -- '--with-sepolia' "$root"/docs/briefs/"$task"-*.md; then
-    die "--with-sepolia: no brief docs/briefs/$task-*.md grants the Sepolia account"
-  fi
+  briefs=()
+  while read -r b; do
+    [[ $b == "docs/briefs/$task-"*.md ]] && briefs+=("$b")
+  done < <(git -C "$main" ls-tree --name-only "$ref" docs/briefs/ 2> /dev/null)
+  [ "${#briefs[@]}" = 1 ] || die "--with-sepolia: no single brief docs/briefs/$task-*.md on $ref"
+  body=$(git -C "$main" show "$ref:${briefs[0]}") || die "--with-sepolia: cannot read ${briefs[0]} on $ref"
+  grep -qxF -- "$GRANT" <<< "$body" || die "--with-sepolia: ${briefs[0]} on $ref does not grant the Sepolia account"
+  grep -qE -- "Profile: $profile( |$)" <<< "$body" || die "--with-sepolia: ${briefs[0]} does not name the profile $profile"
 elif [ "$mode" = resume ] && [ -f "$L/$task.sepolia" ]; then
   echo "agent.sh: note: $task was launched with --with-sepolia; this resume runs without the Sepolia account" >&2
 fi

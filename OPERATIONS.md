@@ -219,7 +219,7 @@ never merged by the agent.
 The launcher (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher) starts each
 `claude` agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description
 carries the model tag (`[Sonnet 5] SPK-5 new (implement)`), outside the session's cgroup, with
-a `setsid nohup` fallback; `codex` is always detached with `setsid` (§3). It maps the model to its tag and refuses a model it has no tag for.
+no fallback: without a systemd user manager the agents cannot be counted and nothing is launched; `codex` is always detached with `setsid` (§3). It maps the model to its tag and refuses a model it has no tag for.
 It appends the foreground rule to every prompt. `--dry-run` prints the command and launches
 nothing. `--with-assets` initialises the `assets` submodule in the task's worktree; by default
 it is not initialised.
@@ -396,10 +396,12 @@ What was reviewed, what was not, and why.
   `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
   2026-09-28; checked by name). The claude CLI would give them to every agent it starts;
   `scripts/agent.sh` empties them unless the task is launched with `--with-sepolia`, which it
-  refuses unless the committed brief `docs/briefs/<task>-*.md` names that option. The grant is
+  refuses unless the brief `docs/briefs/<task>-*.md`, as committed on `origin/main`, holds the
+  line `> Sepolia account: granted (launch with `--with-sepolia`).` and names the profile of the launch. The grant is
   recorded (`logs/<task>.sepolia`); a resume keeps the account only when passed the option
   again, and the launcher says so when it is not. The same-user settings file stays readable by
-  code an agent runs (§4, residual accepted by the owner, 2026-09-28). A task that sends transactions to Sepolia uses them **by
+  code an agent runs, and by a typed command that spells its path another way: the typed denies
+  of the profiles are tripwires, not a boundary (§4, residual accepted by the owner, 2026-09-28). A task that sends transactions to Sepolia uses them **by
   name**, never prints, logs or writes a value, sets a usual `User-Agent` header, measures
   instead of looping and reports how many transactions it sent and their cost, and every script that
   sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.
