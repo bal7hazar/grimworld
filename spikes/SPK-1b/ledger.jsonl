@@ -33,3 +33,4 @@
 {"tx":"0x5619083c69ea3a044c1a57f81966e785b7f192941678bfe8720f400604429aa","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157907469576453344","at":"2026-09-28T22:26:13.058Z"}
 {"tx":"0x68eadf1d339a7c373139f96363ef3c6a38441ba8ba952540de1fd07ae4d96c9","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115739327125854496","at":"2026-09-28T22:26:18.745Z"}
 {"tx":"0x51a3f957f3dab258563477a76f20a892ae61d9b4745f150b824c2a62967b04a","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157907846042216864","at":"2026-09-28T22:26:24.917Z"}
+{"tx":"0x34ee11cbc602578f41c0a55382fac002a847efaa91946472d3c7d46d9716db4","label":"D burner via AVNU: leave","type":"INVOKE","fee":"110399946264680512","at":"2026-09-28T22:27:27.013Z"}

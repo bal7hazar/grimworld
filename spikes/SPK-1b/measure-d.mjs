@@ -2,11 +2,11 @@
 // sending the second `leave` through AVNU: `paymaster_buildTransaction` simulated it as "not the
 // owner", on a state that did not yet hold the `enter` accepted in the block before (the instance
 // is opened by that enter). Nothing was sent for it. This script sends that `leave`, then the 3
-// remaining pairs, then gives adventurer 3 back to the owner and returns the burner's STRK: at most
-// 9 transactions (44 in total with measure.mjs's 35, as planned). A failed build sends nothing and is
+// remaining pairs, then gives adventurer 3 back to the owner and returns the burner's STRK: 44
+// transactions in total with measure.mjs's 35, as planned. It resumes from what the outputs record. A failed build sends nothing and is
 // retried after 3 s, at most 10 times; a revert stops the run.
 //   node spikes/SPK-1b/measure-d.mjs        (writes measure-d-output.txt itself; no redirection)
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Account, PaymasterRpc, hash } from "starknet";
@@ -22,17 +22,23 @@ const BURNER_KEY = JSON.parse(readFileSync(join(HERE, "burners.secret.json"), "u
 redactAlso(BURNER_KEY, "<BURNER_KEY>");
 openOutput(OUTPUT);
 
-const MAX_TX = 9;
-const PAIRS_LEFT = 3;
 const chain = await requireSepolia();
 const budget = makeBudget(join(HERE, "ledger.jsonl"), { maxTx: 60, maxFri: 40n * 10n ** 18n });
+// The plan: 44 transactions in total, whatever earlier runs sent
+const MAX_TX = 44 - budget.totals().transactions;
 const { contracts } = JSON.parse(readFileSync(join(HERE, "..", "SPK-1", "sepolia.json"), "utf8"));
 const HUB = contracts.Hub.address;
 const INST = contracts.Instances.address;
 const OWNER = accountAddress();
-const first = readFileSync(join(HERE, "measure-output.txt"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+// What case D has sent so far: every receipt recorded by measure.mjs and by earlier runs of this
+// script (their outputs are kept, renamed, by --recover-incomplete)
+const records = (name) => readFileSync(join(HERE, name), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const first = records("measure-output.txt");
+const earlier = readdirSync(HERE).filter((f) => f.startsWith("measure-d-output.txt.incomplete-")).sort();
+const done = [first, ...earlier.map(records)].flat().filter((r) => r.label?.startsWith("D burner via AVNU") && r.event_list);
 const { burner: BURNER } = first.find((r) => r.step === "start");
-const lastEnter = first.filter((r) => r.label === "D burner via AVNU: enter").at(-1);
+const lastEnter = done.at(-1).label.endsWith("enter") ? done.at(-1) : null;
+const PAIRS_LEFT = 5 - done.filter((r) => r.label.endsWith("enter")).length;
 
 const paymaster = new PaymasterRpc({ nodeUrl: "https://sepolia.paymaster.avnu.fi", headers: { "User-Agent": USER_AGENT } });
 const burner = new Account({ provider, address: BURNER, signer: BURNER_KEY, paymaster });
@@ -72,7 +78,9 @@ async function viaAvnu(label, calls) {
       await sleep(3000);
     }
   }
-  const bound = BigInt(fee.suggested_max_fee_in_gas_token);
+  // The paymaster quotes again inside executePaymasterTransaction; its second quote may be higher
+  // than the first (the run of 2026-09-28 refused one, client-side, before signing: nothing sent)
+  const bound = (BigInt(fee.suggested_max_fee_in_gas_token) * 3n) / 2n;
   budget.check(label, bound);
   const before = await balanceOf(BURNER);
   const submittedAt = now();
@@ -92,7 +100,8 @@ async function viaAvnu(label, calls) {
   return r;
 }
 
-await viaAvnu("D burner via AVNU: leave", call(INST, "leave", [opened(lastEnter)]));
+emit({ step: "case D so far", receipts: done.length, pending_leave: lastEnter?.tx ?? null, pairs_left: PAIRS_LEFT });
+if (lastEnter) await viaAvnu("D burner via AVNU: leave", call(INST, "leave", [opened(lastEnter)]));
 for (let i = 0; i < PAIRS_LEFT; i += 1) {
   const entered = await viaAvnu("D burner via AVNU: enter", call(HUB, "enter", ["3", "10"]));
   await viaAvnu("D burner via AVNU: leave", call(INST, "leave", [opened(entered)]));
