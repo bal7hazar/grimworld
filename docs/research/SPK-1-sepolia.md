@@ -10,13 +10,13 @@ account: class Sierra 1.7.0, compiled with Cairo 2.11.2. Its address is not reco
 
 | Question | Answer |
 |---|---|
-| **Latency to pre-confirmed** (ADR-0001: p50 ≤ 1 s, p95 ≤ 3 s) | **p95 is met, p50 is not.** Over the 70 measured transactions: p50 **1,265 ms** (between 1,017 and 1,265 at the polling resolution), p95 **2,774 ms**, max 3,019 ms. The worst tick alone: p50 1,020 ms (between 778 and 1,020), p95 2,770 ms |
-| **Latency to accepted on L2** | p50 **3,764 ms**, p95 4,517 ms, max 4,765 ms. Sepolia produced a block about every 1.7 s |
+| **Latency to pre-confirmed** (ADR-0001: p50 ≤ 1 s, p95 ≤ 3 s), measured as the **first positive receipt response** | **p95 is met; p50 is not decided by this sampling.** Over the 70 measured transactions: p50 **1,265 ms**, p95 **2,774 ms**, max 3,019 ms. The worst tick alone: p50 1,020 ms, p95 2,770 ms. These are upper bounds on when the RPC first reported the status. No valid lower bound was recorded, and both p50 figures sit within the sampling uncertainty of 1 s (one 250 ms poll interval plus a round trip of about 160 ms, §2) |
+| **Latency to accepted on L2** (first positive receipt response) | p50 **3,764 ms**, p95 4,517 ms, max 4,765 ms. Sepolia produced a block about every 1.7 s |
 | **Which meter** | **Sierra gas.** On Sepolia, the game's calls cost 0.79× to 0.87× devnet's VM-resource figures for the compute-heavy actions. They come within 2 % to 18 % of snforge's Sierra-gas figures. All of them are non-round figures (§3) |
-| **Were the local figures upper bounds?** | **Only for computation.** Queues cost 0.88× to 0.93× devnet's figure and the worst tick 0.995×. The light actions cost more: exploring queue 1.25×, enter 1.15×, leave 1.29×. Under Sierra gas the fixed part of a transaction is heavier than on devnet (§4) |
-| **The expedition, on Sepolia's receipts, at today's mainnet prices** | **$0.874** (S1, worst case everywhere) and **$0.685** (S2, mixed), against $0.925 and $0.702 on devnet's receipts at the same prices: **0.95× and 0.98×** |
-| **Verdict on $0.50** | **The threshold of $0.50 for 300 actions does not hold on a public network: the expedition costs 1.37× to 1.75× the threshold.** Sepolia's figures are within 5 % of the local ones, so D-129's reversal condition ("Sepolia figures at or above the local ones") is met in substance: the local node was not an upper bound |
-| **Fixed part of a transaction** | Everything but the game's call costs **1.34M to 1.62M L2 gas** per transaction (3.00M for `enter`), or 0.72× to 0.87× the equal-allocation reference of 1.85M per action. That is 26 % to 32 % of a worst tick |
+| **Were the local figures upper bounds?** | **The evidence is mixed.** Sepolia is slightly below the local node on the heavy actions: queues 0.88× to 0.93×, the worst tick 0.995×. It is above on the light ones: exploring queue 1.25×, enter 1.15×, leave 1.29×. Under Sierra gas, the non-game remainder of a transaction is heavier than on devnet (§4) |
+| **The expedition, on Sepolia's receipts, at today's mainnet prices, zero tip** | **$0.874** (S1, worst case everywhere) and **$0.685** (S2, mixed), against $0.925 and $0.702 on devnet's receipts at the same prices: **0.945× and 0.976×**. The tip this run paid (0.1 Gfri) would add $0.0041 and $0.0032 (§5) |
+| **Verdict on $0.50** | **The threshold of $0.50 for 300 actions does not hold on a public network: the expedition costs 1.37× to 1.75× the threshold.** On D-129's reversal condition ("Sepolia figures at or above the local ones"): the condition is **not met**. The expeditions (0.945×, 0.976×) and the worst tick (0.995×) are slightly below the local figures; enter, leave and the exploring queue are above. That mixed evidence is for the project manager to weigh (§5) |
+| **Non-game remainder of a transaction** | For these actions and this account, the receipt minus the game's call was **1.34M to 1.62M L2 gas** (3.00M for `enter`). That is 0.72× to 0.87× the equal-allocation reference of 1.85M per action, and 26 % to 32 % of a worst tick. It is an observed remainder, not a universal floor (§4) |
 | Transactions sent, total cost | **105 transactions, 72.22 test STRK** (the balance went from 305.13 to 232.91). The two declares account for 55.68 STRK of it |
 
 Prices, for all dollar figures: mainnet L2 gas **21,345,234,918 fri**, L1 data gas 980,202,556,584
@@ -53,8 +53,10 @@ fri (`api.cartridge.gg`, block 15,594,144, 2026-09-28T20:49:58Z); STRK **$0.0412
   starknet.js client would send it.
 - **The clock** starts just before `starknet_addInvokeTransaction`.
 - **Polling.** The receipt is polled **every 250 ms on a fixed schedule** from submission. A status
-  is timed when the first answer showing it arrives. That time is an upper bound; the arrival of the
-  answer before it is the lower bound.
+  is timed when the first receipt response showing it arrives: the **first positive receipt
+  response** latency. That is an upper bound on when the RPC first reported the status. The run
+  recorded no valid lower bound. It kept the arrival of the previous, negative response, but the
+  RPC evaluated that response at an unknown moment inside its own request (fix loop 1).
 - **Where from.** Everything ran from the VPS. The endpoint answered a submission in 160 ms at the
   median, and that round trip is inside every latency figure.
 
@@ -63,18 +65,27 @@ All 98 transactions of the measured run succeeded. The 20 ticks gave identical r
 
 ## 2. Latency (AC-1)
 
-`spikes/SPK-1/latency-output.txt`. Percentiles are nearest-rank.
+`spikes/SPK-1/latency-output.txt`. First positive receipt response latency, from the submission.
+Percentiles are nearest-rank.
 
-| Set | n | Pre-confirmed p50 | p95 | max | p50 lower bound | Accepted on L2 p50 | p95 | max |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Worst tick under D-127 | 20 | 1,020 ms | 2,770 ms | 2,781 ms | 778 ms | 3,529 ms | 4,267 ms | 4,514 ms |
-| Cheap action: enter and leave, alternating | 50 | 1,267 ms | 2,774 ms | 3,019 ms | 1,017 ms | 3,765 ms | 4,518 ms | 4,765 ms |
-| Both (70) | 70 | **1,265 ms** | **2,774 ms** | 3,019 ms | 1,017 ms | **3,764 ms** | 4,517 ms | 4,765 ms |
+| Set | n | Pre-confirmed p50 | p95 | max | Accepted on L2 p50 | p95 | max |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Worst tick under D-127 | 20 | 1,020 ms | 2,770 ms | 2,781 ms | 3,529 ms | 4,267 ms | 4,514 ms |
+| Cheap action: enter and leave, alternating | 50 | 1,267 ms | 2,774 ms | 3,019 ms | 3,765 ms | 4,518 ms | 4,765 ms |
+| Both (70) | 70 | **1,265 ms** | **2,774 ms** | 3,019 ms | **3,764 ms** | 4,517 ms | 4,765 ms |
 
-Against ADR-0001:
-- **p95 ≤ 3 s to pre-confirmed: met** (2,774 ms; its lower bound is 2,519 ms).
-- **p50 ≤ 1 s to pre-confirmed: missed** for the 70 (1,017 to 1,265 ms). For the tick alone it is
-  at the threshold (778 to 1,020 ms) and cannot be decided at this polling resolution.
+Against ADR-0001, read as upper bounds. A figure within about 410 ms above a threshold (one poll
+interval plus the median round trip) is not decided by this sampling:
+- **p95 ≤ 3 s to pre-confirmed: met.** The observed 2,774 ms is an upper bound, and it is within
+  3 s.
+- **p50 ≤ 1 s to pre-confirmed: not decided.** The observed p50 is 1,265 ms for the 70 and
+  1,267 ms for enter and leave, 265 ms above the threshold. For the tick it is 1,020 ms, 20 ms
+  above. The true moments lie earlier by an unknown amount, up to about one poll interval plus a
+  round trip. This run can call none of these a pass or a miss.
+- **What a later run must record** (`lib.mjs` does so since fix loop 1): for every poll, the
+  request start, the response arrival and the status reported. The status then became true after
+  the last negative request's start and before the first positive response's arrival, which is a
+  valid interval. A finer poll interval, or a pre-confirmation subscription, narrows it.
 - The distribution is wide: 24 of 70 transactions were pre-confirmed within 1 s, 7 took longer than
   2.75 s. The spread follows Sepolia's block rhythm (about 1.7 s), not the action: the worst tick
   is not slower than `leave`.
@@ -122,14 +133,18 @@ Tfri L1 data during the run).
    1.7.0. Starknet documents Sierra-gas metering for classes from Sierra 1.7.0 on. That is the
    documentation's rule, not something measured here; points 1 and 2 are the measurement.
 
-## 4. The fixed part of a transaction
+## 4. The non-game remainder of a transaction
 
-Under Sierra gas the receipt is additive. It is the sum of:
-- the invocations: validate, the account's `__execute__`, the game's call, the fee transfer;
-- the protocol's part: the trace's total minus the invocations, not attributed further here;
-- calldata, signature and events: the receipt minus the trace's total.
+Under Sierra gas the receipt is additive. The trace attributes the invocations: validate, the
+account's `__execute__`, the game's call and the fee transfer. Two residuals are **unattributed**:
+- the trace's total minus the invocations;
+- the receipt minus the trace's total. Calldata, signature and events are the expected content;
+  that is not verified.
 
-| Action | Receipt | Validate | Account `__execute__` (without the game call) | Game call | Fee transfer | Protocol part | Calldata, signature, events | **Everything but the game call** |
+The last column, the receipt minus the game's call, is the **observed non-game remainder for these
+actions and this account** (class Sierra 1.7.0, Cairo 2.11.2). It is not a universal floor.
+
+| Action | Receipt | Validate | Account `__execute__` (without the game call) | Game call | Fee transfer | Unattributed residual: trace total minus invocations | Unattributed residual: receipt minus trace total | **Non-game remainder** |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Worst tick | 5,129,938 | 392,815 | 206,810 | 3,564,913 | 455,360 | 475,840 | 34,200 | **1,565,025** |
 | Queue of 10 moves | 17,676,853 | 392,815 | 208,580 | 16,058,858 | 455,360 | 527,040 | 34,200 | 1,617,995 |
@@ -139,19 +154,22 @@ Under Sierra gas the receipt is additive. It is the sum of:
 | Enter | 3,927,367 | 392,815 | 208,580 | 927,212 | 455,360 | 1,913,600 | 29,800 | 3,000,155 |
 | Leave | 2,030,065 | 392,815 | 206,810 | 682,000 | 455,360 | 260,480 | 32,600 | 1,348,065 |
 
-- **Fixed in every transaction: about 1.09M L2 gas.** Validation (392,815), the account's own
-  execution (about 207,000), the fee transfer (455,360) and calldata (about 34,000) are the same
-  in every transaction. They come from the account and the protocol, not from the game. On devnet
-  the same three invocations were 320,000, 40,000 and 400,000.
-- **The protocol's part grows with the state a transaction touches**: 247,040 for the exploring
-  queue (320 L1 data gas) and 527,040 for the queue of 10 (832). `enter` is the only action that
-  writes new storage keys (a new instance), and there it reaches 1,913,600. That it is a charge on
-  new storage keys is an inference from this one case, not a measurement.
-- **For ENG-01's cost constraint (D-129 #3):** a transaction costs **at least 1.34M L2 gas**
-  before the game's call, about $0.0012 at today's prices. That is **0.72× the equal-allocation
-  reference** ($0.50 / 300 = 1,854,492 L2 gas per action). So one transaction per action cannot
-  reach the threshold unless the game's part of an average transaction stays under about 0.5M.
-  The worst tick's game call is 3.56M.
+- **The same in every transaction measured here: about 1.09M L2 gas.** Validation (392,815), the
+  account's own execution (about 207,000), the fee transfer (455,360) and the second residual
+  (29,800 to 34,200) barely moved between these actions. The first three depend on the account
+  class and the fee token, not on the game. On devnet the same three invocations were 320,000,
+  40,000 and 400,000.
+- **The first unattributed residual grows with the state a transaction touches**: 247,040 for the
+  exploring queue (320 L1 data gas) and 527,040 for the queue of 10 (832). `enter` is the only
+  action that writes new storage keys (a new instance), and there it reaches 1,913,600. That it is
+  a charge on new storage keys is an inference from this one case, not a measurement.
+- **For ENG-01's cost constraint (D-129 #3):** the smallest observed non-game remainder is
+  **1,337,995 L2 gas**, about $0.0012 at today's prices. It is 0.72× the equal-allocation
+  reference ($0.50 / 300 = 1,854,492 L2 gas per action). If every transaction carried at least that
+  remainder, the game's own call could average at most about **0.52M** under equal allocation. The
+  worst tick's game call is 3.56M. That derived budget holds for this account class and
+  transactions like these only; a burner class, a paymaster, other calldata or another state diff
+  change the remainder.
 
 ## 5. Money (AC-3)
 
@@ -171,13 +189,26 @@ The same prices are applied to both sides.
 | S2 mixed (2/3 of the moves exploring) | 146 | **0.685** | 0.702 | 0.976 | **1.37** | 15.54 Gfri | 772,898,140 | 3,026,827 |
 
 **Verdict: on Sepolia's receipts, a 300-action expedition costs $0.69 to $0.87 at today's mainnet
-prices, 1.37× to 1.75× the $0.50 threshold. The threshold does not hold.** The public network
-confirms the local node's figures (0.95× to 0.98×); it does not lower them.
+prices with zero tip, 1.37× to 1.75× the $0.50 threshold. The threshold does not hold.**
+
+**Against D-129's reversal condition** ("Sepolia figures at or above the local ones"): **not met.**
+The evidence is mixed, and weighing it is for the project manager:
+- **Below the local figures:** the expeditions, slightly (S1 0.945×, S2 0.976×), the worst tick
+  (0.995×) and the queues near goblins (0.88× to 0.93×).
+- **Above them:** the light actions, exploring queue 1.25×, enter 1.15×, leave 1.29×. Their
+  non-game remainder is heavier under Sierra gas.
+- **So** the local node overstated computation and understated the transaction's non-game
+  remainder. On these expeditions the two nearly cancel.
+
+**The tip.** The fee charged is L2 gas × (block L2 gas price + tip) + L1 data gas × block data
+price + L1 gas × block L1 price. This formula reproduces the fee to the fri on all 103 invoke
+receipts. The dollar projections above assume a **zero tip**. At the tip this run paid (0.1 Gfri,
+starknet.js's recommendation), S1 costs **+$0.0041** ($0.878) and S2 **+$0.0032** ($0.688).
 - **The routes that remain:**
   - an L2 gas price at or below 12.2 to 15.5 Gfri (today 21.3; 19.6 to 30.8 over the last two
     weeks, `prices-output.txt`);
-  - a fight at or below 0.88M L2 gas for S1. That is below the 1.57M a transaction costs besides
-    its game call, so S1 cannot pass by cheaper fights alone;
+  - a fight at or below 0.88M L2 gas for S1. That is below the tick's observed non-game remainder
+    (1.57M), so S1 cannot pass by cheaper fights alone with this account;
   - a fight at or below 3.03M for S2, 0.59× today's.
 - **Not measured on Sepolia**, because they are outside the brief's list:
   - goblins packed per instance (SPK-2's S3, S4);
@@ -210,7 +241,7 @@ confirms the local node's figures (0.95× to 0.98×); it does not lower them.
 - **The MVP's burner.** ADR-0005 stage A's burner is an account deployed by the game with a key on
   the device. This spike used the owner's account (Sierra 1.7.0, Cairo 2.11.2). Validation (0.39M)
   and the account's own execution (0.21M) depend on the account class, so a different burner
-  class changes the fixed part.
+  class changes the non-game remainder.
 - **A paymaster.** Out of scope (SPK-9); it adds its own calls.
 - **The real game.** Line of sight, skills, conditions and the real storage layout are not in
   SPK-2's contracts.
@@ -231,20 +262,31 @@ confirms the local node's figures (0.95× to 0.98×); it does not lower them.
   run found that declare on chain and counted it. It sent nothing twice.
 - **Every sending script asked the RPC for its chain id first** (`requireSepolia()`, `lib.mjs`), and
   every request carried a usual `User-Agent`.
-- **No value of the four variables** is in the branch's history, the spike folder, this file or the
-  report: `python3 spikes/SPK-1/check_secrets.py` reports 0 occurrences. It checks the account
-  address, the key and the endpoint, without printing any of them. One line of
-  `prices-output.txt` named the endpoint (SPK-2's `prices.py` reads public endpoints) and was
-  redacted.
+- **The secret scan.** At the time of measurement, `check_secrets.py` found 0 occurrences of
+  the three values in `git log -p origin/main..HEAD`, the spike folder, this file and the report.
+  One line of `prices-output.txt` had named the endpoint (SPK-2's `prices.py` polls public
+  endpoints) and was redacted by hand before it was committed.
+- **Fix loop 1** (run without the account: nothing was sent and the scan could not be re-run with
+  the real values):
+  - the configuration is validated with value-free errors before anything can echo it;
+  - price collection goes through `redacted.py`, which redacts before writing;
+  - the scan now covers `git log -p --all`, fails on a git error, and requires the agent's log and
+    the report. It prints its coverage and does not scan binary file contents.
+  - `test_redaction.py` shows all of this with synthetic values.
+- **Expected when the scan is re-run.** Over `--all`, it should report the endpoint's value in
+  SPK-2's files on `main`, where it is one of the public endpoints listed there. It is not in any
+  SPK-1 commit.
 
 ## 8. Open questions
 
-1. **p50 to pre-confirmed.** It is 1.02 to 1.27 s from the VPS. Decide whether ADR-0001's 1 s
-   target is measured at the RPC or at the player, and whether Sepolia's block rhythm stands for
-   mainnet's. The next step would be finer polling, or a pre-confirmation subscription (WebSocket),
-   to narrow the bound.
-2. **The fixed part.** It is 1.34M L2 gas per transaction with this account class. SPK-9 (paymaster,
+1. **p50 to pre-confirmed.** The first positive receipt response came at 1.02 to 1.27 s at the
+   median from the VPS, which does not decide the 1 s target at this sampling. A later run should
+   record [request start, response arrival, status] per poll (now in `lib.mjs`) and poll more
+   finely, or subscribe to pre-confirmations. Also to decide: is ADR-0001's target measured at the
+   RPC or at the player, and does Sepolia's block rhythm stand for mainnet's?
+2. **The non-game remainder.** The smallest observed is 1.34M L2 gas per transaction with this
+   account class. SPK-9 (paymaster,
    burner class) should measure it for the MVP's account: 0.6M of it is validation and
    `__execute__`.
-3. **New storage keys.** `enter`'s protocol part is 1.91M against 0.25M to 0.53M elsewhere. If new
+3. **New storage keys.** `enter`'s first unattributed residual is 1.91M against 0.25M to 0.53M elsewhere. If new
    keys are charged, ENG-01's layout should reuse keys (instance slots) rather than allocate them.
