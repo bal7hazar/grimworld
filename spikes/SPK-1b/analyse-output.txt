@@ -1,0 +1,61 @@
+# SPK-1b: the non-game remainder of a transaction per case (L2 gas, Sepolia, 2026-09-28)
+
+Receipts read: 44 (the 44 transactions of ledger.jsonl), from 4 output files
+
+| Case | Action | n | Receipt | Validate | Account execution (without the game call) | Game call | Fee transfer | Unattributed: trace total minus invocations | Unattributed: receipt minus trace total | **Non-game remainder** | Account's fixed part | L1 data gas | Fee (STRK) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| A owner | enter | 5 | 3,927,367 | 392,815 | 208,580 | 927,212 | 455,360 | 1,913,600 | 29,800 | **3,000,155** | 1,086,555 | 768 | 0.0879 |
+| A owner | leave | 5 | 2,030,065 | 392,815 | 206,810 | 682,000 | 455,360 | 260,480 | 32,600 | **1,348,065** | 1,087,585 | 576 | 0.0456 |
+| B burner direct | enter | 5 | 3,555,447 | 87,805 | 141,670 | 927,212 | 455,360 | 1,913,600 | 29,800 | **2,628,235** | 714,635 | 768 | 0.0796 |
+| B burner direct | leave | 5 | 1,659,915 | 87,805 | 141,670 | 682,000 | 455,360 | 260,480 | 32,600 | **977,915** | 717,435 | 576 | 0.0373 |
+| C burner via relayer | enter | 5 | 4,971,188 | 392,815 | 720,081 | 927,212 | 455,360 | 2,451,920 | 23,800 | **4,043,976** | 1,592,056 | 928 | 0.1112 |
+| C burner via relayer | leave | 5 | 3,068,685 | 392,815 | 713,110 | 682,000 | 455,360 | 798,800 | 26,600 | **2,386,685** | 1,587,885 | 736 | 0.0688 |
+| D burner via AVNU | enter | 5 | 7,063,760 | 400,000 | 2,798,720 | 896,320 | 455,360 | 2,473,360 | 40,000 | **6,167,440** | 3,694,080 | 1,056 | 0.1579 |
+| D burner via AVNU | leave | 5 | 5,174,800 | 400,000 | 2,798,720 | 660,480 | 455,360 | 860,240 | 0 | **4,514,320** | 3,654,080 | 864 | 0.1147 |
+|  ↳ variant 0x34ee11cbc6… | leave | 1 | 4,934,800 | 320,000 | 2,798,720 | 660,480 | 455,360 | 700,240 | 0 | 4,274,320 | 3,574,080 | 864 | 0.1104 |
+
+The account's execution, split (first repeat of each case):
+
+- C burner via relayer, enter: validate 392,815; fee transfer 455,360; account __execute__ (own) 212,120; burner execute_from_outside_v2: is_valid_signature 67,765; burner execute_from_outside_v2 (own: nonce, checks) 440,196
+- C burner via relayer, leave: validate 392,815; fee transfer 455,360; account __execute__ (own) 210,350; burner execute_from_outside_v2: is_valid_signature 67,765; burner execute_from_outside_v2 (own: nonce, checks) 434,995
+- D burner via AVNU, enter: validate 400,000; fee transfer 455,360; account __execute__ (own) 355,840; AVNU forwarder (own) 480,000; AVNU forwarder: STRK transfers and balanceOf 961,920; burner execute_from_outside_v2: is_valid_signature 320,000; burner execute_from_outside_v2: STRK transfer to AVNU 440,960; burner execute_from_outside_v2 (own: nonce, checks) 240,000
+- D burner via AVNU, leave: validate 400,000; fee transfer 455,360; account __execute__ (own) 355,840; AVNU forwarder (own) 480,000; AVNU forwarder: STRK transfers and balanceOf 961,920; burner execute_from_outside_v2: is_valid_signature 320,000; burner execute_from_outside_v2: STRK transfer to AVNU 440,960; burner execute_from_outside_v2 (own: nonce, checks) 240,000
+
+Against SPK-1 and against the reference measured today (A):
+
+- enter: SPK-1 receipt 3,927,367, game call 927,212, remainder 3,000,155; today A: receipt 3,927,367, game 927,212, remainder 3,000,155 (identical)
+  - A owner: remainder 3,000,155 = 1.00× A's; account's fixed part 1,086,555 = 1.00× A's (1,086,555); difference from SPK-1's 1.09M: -3,445
+  - B burner direct: remainder 2,628,235 = 0.88× A's; account's fixed part 714,635 = 0.66× A's (1,086,555); difference from SPK-1's 1.09M: -375,365
+  - C burner via relayer: remainder 4,043,976 = 1.35× A's; account's fixed part 1,592,056 = 1.47× A's (1,086,555); difference from SPK-1's 1.09M: +502,056
+  - D burner via AVNU: remainder 6,167,440 = 2.06× A's; account's fixed part 3,694,080 = 3.40× A's (1,086,555); difference from SPK-1's 1.09M: +2,604,080
+- leave: SPK-1 receipt 2,030,065, game call 682,000, remainder 1,348,065; today A: receipt 2,030,065, game 682,000, remainder 1,348,065 (identical)
+  - A owner: remainder 1,348,065 = 1.00× A's; account's fixed part 1,087,585 = 1.00× A's (1,087,585); difference from SPK-1's 1.09M: -2,415
+  - B burner direct: remainder 977,915 = 0.73× A's; account's fixed part 717,435 = 0.66× A's (1,087,585); difference from SPK-1's 1.09M: -372,565
+  - C burner via relayer: remainder 2,386,685 = 1.77× A's; account's fixed part 1,587,885 = 1.46× A's (1,087,585); difference from SPK-1's 1.09M: +497,885
+  - D burner via AVNU: remainder 4,514,320 = 3.35× A's; account's fixed part 3,654,080 = 3.36× A's (1,087,585); difference from SPK-1's 1.09M: +2,564,080
+
+The floor no account removes (leave, B): fee transfer + second residual = 487,960; with a zero-cost account (no validation, no execution) the account's fixed part could not go below it, 2.23× smaller than A's at best.
+
+Money per action (average fee in STRK at the blocks' prices; D also what the burner paid AVNU):
+
+- A owner, enter: receipt fee 0.0879 STRK
+- A owner, leave: receipt fee 0.0456 STRK
+- B burner direct, enter: receipt fee 0.0796 STRK
+- B burner direct, leave: receipt fee 0.0373 STRK
+- C burner via relayer, enter: receipt fee 0.1112 STRK
+- C burner via relayer, leave: receipt fee 0.0688 STRK
+- D burner via AVNU, enter: receipt fee 0.1579 STRK (paid by AVNU's relayer); the burner paid AVNU 0.1886 STRK (1.19× the receipt fee)
+- D burner via AVNU, leave: receipt fee 0.1147 STRK (paid by AVNU's relayer); the burner paid AVNU 0.1383 STRK (1.21× the receipt fee)
+
+Block prices over the run: L2 gas 22,157,874,858 to 22,157,874,858 fri; L1 data gas 640,580,651,204 to 654,597,984,882 fri
+
+Ledger: 44 transactions, receipt fees 3.6938 STRK
+- A owner: 10, 0.6673 STRK
+- fund the burner, give it adventurer 3: 1, 0.0627 STRK
+- deploy the burner: 1, 0.0485 STRK
+- B burner direct: 10, 0.5847 STRK
+- C burner via relayer: 10, 0.9001 STRK
+- D burner via AVNU: 10, 1.3629 STRK
+- give adventurer 3 back to the owner: 1, 0.0386 STRK
+- return the burner's STRK: 1, 0.0287 STRK
+Of which paid by AVNU's relayers (case D receipts): 1.3629 STRK; paid to AVNU by the burner instead: 1.6346 STRK. The owner's money spent (the other receipts + what the burner paid AVNU): 3.9654 STRK, plus what stays in the burner

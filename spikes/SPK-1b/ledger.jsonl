@@ -34,3 +34,11 @@
 {"tx":"0x68eadf1d339a7c373139f96363ef3c6a38441ba8ba952540de1fd07ae4d96c9","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115739327125854496","at":"2026-09-28T22:26:18.745Z"}
 {"tx":"0x51a3f957f3dab258563477a76f20a892ae61d9b4745f150b824c2a62967b04a","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157907846042216864","at":"2026-09-28T22:26:24.917Z"}
 {"tx":"0x34ee11cbc602578f41c0a55382fac002a847efaa91946472d3c7d46d9716db4","label":"D burner via AVNU: leave","type":"INVOKE","fee":"110399946264680512","at":"2026-09-28T22:27:27.013Z"}
+{"tx":"0x28936390f4a3f8e500d7b929b997455ef07d96d748d6dddb1a18e4ff047ba1c","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157913703982987040","at":"2026-09-28T22:28:08.356Z"}
+{"tx":"0x196a5ce15e948e98d29147686cb123ab0136f034c4f21337a7237a38ea24777","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115744119986484640","at":"2026-09-28T22:28:14.638Z"}
+{"tx":"0x26974d81a2a7d86ab1cb43c1d2a0160536001fc67b478cd56bc81e56f877228","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157914481056038432","at":"2026-09-28T22:28:21.150Z"}
+{"tx":"0x12f57e43ad44d2e84cf2263be4845eae0c79f697767e9620e31567680b73a3","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115745210770247488","at":"2026-09-28T22:28:30.415Z"}
+{"tx":"0x620d7da2674719f9ce7a70075f151ac3b3e9886a975df207fa66082feaddaa0","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157915037163141632","at":"2026-09-28T22:28:37.297Z"}
+{"tx":"0x293905197ebadbbb59622ee1baf7fd6609553f69afb1caafcc76d6980eaf169","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115745623474116448","at":"2026-09-28T22:28:41.755Z"}
+{"tx":"0x692113ec74871043c30eb4c0434e252544535cac5cdf03f4e57ba7b1ef53202","label":"give adventurer 3 back to the owner","type":"INVOKE","fee":"38646879849265902","at":"2026-09-28T22:28:45.549Z"}
+{"tx":"0x1bab32c75bba2e87ea7114aab3e04f1f4962f36d5025bade210e1d81a856a99","label":"return the burner's STRK","type":"INVOKE","fee":"28729611661236014","at":"2026-09-28T22:28:49.194Z"}
