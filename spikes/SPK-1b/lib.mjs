@@ -1,5 +1,6 @@
 // SPK-1b: copied from spikes/SPK-1/lib.mjs, its safety unchanged. Added: the redaction of the
-// burner keys (`redactAlso`), the global budget (`budget`), the deploy-account sender and the full
+// burner keys (`redactAlso`), the ledger of the brief's caps (`makeLedger`, `tracked`; reserved
+// before submission since fix loop 1), redact-then-cut (`excerpt`), and the full
 // invocation tree in the trace.
 // SPK-1: what every script shares. The Sepolia account comes as four variables, used by name
 // only (OPERATIONS §7): STARKNET_NETWORK, STARKNET_RPC_URL, STARKNET_ACCOUNT_ADDRESS,
@@ -87,6 +88,14 @@ export function redactAlso(value, placeholder) {
   PATTERNS.push(...forms(value).map((f) => [new RegExp(f, "gi"), placeholder]));
 }
 
+/**
+ * Fix loop 1: at most `n` characters of a text, redacted WHOLE before it is cut. Cutting first
+ * would leave the prefix of a value that crosses the cut, which no pattern then matches.
+ */
+export function excerpt(value, n) {
+  return safe(value).slice(0, n);
+}
+
 export function safe(value) {
   let text = typeof value === "string" ? value : value instanceof Error ? `${value.stack}` : JSON.stringify(value);
   for (const [pattern, placeholder] of PATTERNS) text = text.replace(pattern, placeholder);
@@ -146,7 +155,7 @@ export async function rpcRaw(method, params = []) {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(safe(`${method}: HTTP ${response.status} ${text.slice(0, 300)}`));
+    throw new Error(excerpt(`${method}: HTTP ${response.status} ${text}`, 400));
   }
 }
 
@@ -226,34 +235,25 @@ function sleep(ms) {
  * (not timed), signs and submits (the clock starts just before the submission), then polls the
  * receipt every POLL_MS until ACCEPTED_ON_L2, and returns the record. Any revert stops the run.
  */
-export async function makeSender(acc, maxTx, budget = null) {
+export async function makeSender(acc, maxTx, ledger, { payer, tip: givenTip = null } = {}) {
+  if (!ledger || !payer) throw new Error("makeSender: a ledger and the payer's role are required (fix loop 1)");
   let nonce = BigInt(await acc.getNonce("latest"));
-  const tip = (await provider.getEstimateTip("latest", { maxBlocks: 20 })).recommendedTip;
+  const tip = givenTip ?? (await provider.getEstimateTip("latest", { maxBlocks: 20 })).recommendedTip;
   let sent = 0;
   async function send(label, calls, { measured = false, trace = false } = {}) {
     if (sent >= maxTx) throw new Error(`transaction cap reached (${maxTx}): stopping before ${label}`);
     const estimate = await acc.estimateInvokeFee(calls, { nonce, tip });
-    if (budget) budget.check(label, maxFee(estimate.resourceBounds, tip));
-    const submittedAt = now();
-    const t0 = performance.now();
-    const { transaction_hash: tx } = await acc.execute(calls, {
-      nonce,
-      tip,
-      resourceBounds: estimate.resourceBounds,
-    });
-    const acked = performance.now() - t0;
+    // Counted before the submission: a failure after it cannot leave a sent transaction uncounted
     sent += 1;
-    nonce += 1n;
-    const timing = await poll(tx, t0);
-    const record = await describe(tx, { trace });
-    record.label = label;
-    record.measured = measured;
-    record.submitted_at = submittedAt;
-    record.latency_ms = { submit_ack: Math.round(acked), ...timing };
-    record.estimate = { overall_fee: estimate.overall_fee, resource_bounds: estimate.resourceBounds };
-    if (budget) budget.spend(record);
-    emit(record);
-    if (record.status !== "SUCCEEDED") throw new Error(`${label} reverted: stopping`);
+    const record = await tracked(ledger, {
+      label, payer, maxFee: maxFee(estimate.resourceBounds, tip), nonce, trace, measured,
+      extra: { estimate: { overall_fee: estimate.overall_fee, resource_bounds: estimate.resourceBounds } },
+      submit: async () => {
+        const { transaction_hash: tx } = await acc.execute(calls, { nonce, tip, resourceBounds: estimate.resourceBounds });
+        nonce += 1n;
+        return tx;
+      },
+    });
     return record;
   }
   return { send, count: () => sent, tip };
@@ -308,29 +308,190 @@ export function maxFee(bounds, tip = 0n) {
 }
 
 /**
- * SPK-1b: the brief's caps over every sending script: at most `maxTx` transactions and `maxFri`
- * of fees in total. Every sent transaction is appended to the ledger (committed; hashes, labels and
- * fees only). `check` refuses a send when the count is reached or when the transaction's maximum
- * fee would take the total past the cap, whatever the script.
+ * SPK-1b fix loop 1: the brief's caps over every sending script, kept in a ledger written BEFORE
+ * the network sees a transaction (committed; labels, roles, hashes and amounts only). JSON lines,
+ * folded by `id`:
+ * - `reserve` {label, payer, max_fee, paymaster, nonce}: written before submission. It counts one
+ *   transaction and its maximum cost at once.
+ * - `sent` {tx}: written as soon as the hash is known.
+ * - `settle` {fee, spent, how}: after the receipt. `fee` is the receipt's fee, whoever paid it.
+ *   `spent` is what the owner's money paid: the receipt fee when we pay; through a paymaster, the
+ *   payer's net STRK transfers in the receipt (what it sent minus what it got back). When those
+ *   cannot be read, the reservation is kept as the spending.
+ * - `void` {why}: a reservation proven never broadcast (the payer's nonce did not move).
+ * - `kept` {why}: a reservation that cannot be reconciled; it stays counted at its maximum.
+ * An entry reserved and neither settled, voided nor kept is UNRESOLVED. It counts at its maximum,
+ * and no reservation is allowed while one exists: `reconcile` must run first. The caps: at most
+ * `maxTx` transactions and `maxSpentFri` of the owner's money (reservations at their maximum).
  */
-export function makeBudget(path, { maxTx, maxFri }) {
-  const rows = existsSync(path) ? readFileSync(path, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
-  let count = rows.length;
-  let fees = rows.reduce((s, r) => s + BigInt(r.fee), 0n);
-  return {
-    check(label, bound) {
-      if (count >= maxTx) throw new Error(`budget: ${count} transactions sent of ${maxTx}: stopping before ${label}`);
-      if (fees + bound > maxFri) {
-        throw new Error(`budget: ${strk(fees)} STRK spent, ${strk(bound)} more at most would pass ${strk(maxFri)}: stopping before ${label}`);
+export function makeLedger(path, { maxTx, maxSpentFri }) {
+  const entries = new Map();
+  function apply(e) {
+    if (e.kind === "reserve") {
+      entries.set(e.id, { ...e, status: "reserved", max_fee: BigInt(e.max_fee) });
+      return;
+    }
+    const entry = entries.get(e.id);
+    if (!entry) throw new Error(`ledger: ${e.kind} for an unknown reservation ${e.id}`);
+    if (e.kind === "sent") Object.assign(entry, { tx: e.tx, status: "sent" });
+    else if (e.kind === "settle") Object.assign(entry, { tx: e.tx, fee: BigInt(e.fee), spent: BigInt(e.spent), how: e.how, status: "settled" });
+    else if (e.kind === "void" || e.kind === "kept") Object.assign(entry, { status: e.kind, why: e.why });
+    else throw new Error(`ledger: unknown entry kind ${e.kind}`);
+  }
+  if (existsSync(path)) {
+    for (const line of readFileSync(path, "utf8").split("\n").filter(Boolean)) {
+      const e = JSON.parse(line);
+      if (!e.kind) throw new Error("ledger: an entry without a kind (the format before fix loop 1): run migrate_ledger.py");
+      apply(e);
+    }
+  }
+  function write(e) {
+    appendFileSync(path, `${safe(JSON.stringify({ ...e, at: now() }, (_, v) => (typeof v === "bigint" ? v.toString() : v)))}\n`);
+    apply(e);
+  }
+  function totals() {
+    let transactions = 0;
+    let fee = 0n;
+    let spent = 0n;
+    const unresolved = [];
+    for (const e of entries.values()) {
+      if (e.status === "void") continue;
+      transactions += 1;
+      if (e.status === "settled") {
+        fee += e.fee;
+        spent += e.spent;
+      } else {
+        spent += e.max_fee;
+        if (e.status !== "kept") unresolved.push(e);
       }
+    }
+    return { transactions, fee_fri: fee, fee_strk: strk(fee), spent_fri: spent, spent_strk: strk(spent), unresolved };
+  }
+  function settle(id, record) {
+    const entry = entries.get(id);
+    const fee = BigInt(record.fee);
+    let spent = fee;
+    let how = "receipt fee";
+    if (entry.paymaster) {
+      const paid = netTransfer(record, entry.payer_address);
+      if (paid === null) {
+        spent = entry.max_fee;
+        how = "reservation kept: no STRK transfer from the payer in the receipt";
+      } else {
+        spent = paid;
+        how = "the payer's net STRK transfers in the receipt";
+      }
+    }
+    write({ kind: "settle", id, tx: record.tx, fee, spent, how });
+  }
+  return {
+    /** Refuses unless nothing is unresolved and the caps allow one more transaction at `maxFee`; then writes it. */
+    reserve({ label, payer, payerAddress = null, maxFee: bound, paymaster = false, nonce = null }) {
+      const t = totals();
+      if (t.unresolved.length) {
+        throw new Error(`ledger: ${t.unresolved.length} unresolved transaction(s) (${t.unresolved.map((e) => e.label).join(", ")}): reconcile before sending ${label}`);
+      }
+      if (t.transactions >= maxTx) throw new Error(`ledger: ${t.transactions} transactions of ${maxTx}: stopping before ${label}`);
+      if (t.spent_fri + BigInt(bound) > maxSpentFri) {
+        throw new Error(`ledger: ${t.spent_strk} STRK spent, ${strk(bound)} more at most would pass ${strk(maxSpentFri)}: stopping before ${label}`);
+      }
+      const id = `${now()}#${entries.size + 1}`;
+      write({ kind: "reserve", id, label, payer, payer_address: payerAddress, max_fee: BigInt(bound), paymaster,
+        nonce: nonce === null ? null : nonce.toString() });
+      return id;
     },
-    spend(record) {
-      count += 1;
-      fees += BigInt(record.fee);
-      appendFileSync(path, `${safe(JSON.stringify({ tx: record.tx, label: record.label, type: record.type, fee: record.fee.toString(), at: now() }))}\n`);
+    sent(id, tx) {
+      write({ kind: "sent", id, tx });
     },
-    totals: () => ({ transactions: count, fee_fri: fees, fee_strk: strk(fees) }),
+    settle,
+    /**
+     * Resolves what an interrupted run left. With a hash: the receipt (`receiptOf(tx)`, the record of
+     * `describe`, or null while not found) settles it; otherwise it stays unresolved. Without a hash:
+     * if the payer's nonce (`nonceOf(payer)`) has not moved past the reserved one, it was never
+     * broadcast (void); otherwise, or through a paymaster (its relayer's nonce is not ours), it is
+     * kept at its maximum. Returns the entries still unresolved.
+     */
+    async reconcile({ receiptOf, nonceOf }) {
+      for (const e of totals().unresolved) {
+        if (e.tx) {
+          let record = null;
+          try {
+            record = await receiptOf(e.tx);
+          } catch {
+            record = null;
+          }
+          if (record) settle(e.id, { ...record, tx: e.tx });
+        } else if (!e.paymaster && e.nonce !== null && nonceOf) {
+          let current = null;
+          try {
+            current = BigInt(await nonceOf(e.payer));
+          } catch {
+            current = null; // e.g. an account not deployed yet: nothing proves the reservation void
+          }
+          if (current === null) write({ kind: "kept", id: e.id, why: "the payer's nonce cannot be read: counted at its maximum" });
+          else if (current <= BigInt(e.nonce)) write({ kind: "void", id: e.id, why: `the payer's nonce did not move past ${e.nonce}: never broadcast` });
+          else write({ kind: "kept", id: e.id, why: "the payer's nonce moved and the hash is unknown: counted at its maximum" });
+        } else {
+          write({ kind: "kept", id: e.id, why: "no hash, and no nonce of ours to tell: counted at its maximum" });
+        }
+      }
+      return totals().unresolved;
+    },
+    totals,
+    entries: () => [...entries.values()],
   };
+}
+
+/** For `reconcile`: the described receipt with its trace once the transaction is known, null before. */
+export async function receiptOrNull(tx) {
+  const answer = await rpcRaw("starknet_getTransactionReceipt", { transaction_hash: tx });
+  if (!answer.result) return null;
+  return describe(tx, { trace: true });
+}
+
+const TRANSFER = "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9"; // sn_keccak("Transfer")
+
+/**
+ * The payer's net STRK transfers in a receipt: what it sent minus what it got back (AVNU takes its
+ * quote and refunds the rest). Null when the receipt holds no STRK transfer from the payer.
+ */
+export function netTransfer(record, payer) {
+  if (!payer) return null;
+  let out = 0n;
+  let back = 0n;
+  let seen = false;
+  for (const e of record.event_list ?? []) {
+    if (BigInt(e.from) !== BigInt(STRK) || e.keys.length !== 3 || BigInt(e.keys[0]) !== BigInt(TRANSFER)) continue;
+    const amount = BigInt(e.data[0]) + (BigInt(e.data[1]) << 128n);
+    if (BigInt(e.keys[1]) === BigInt(payer)) {
+      out += amount;
+      seen = true;
+    }
+    if (BigInt(e.keys[2]) === BigInt(payer)) back += amount;
+  }
+  return seen ? out - back : null;
+}
+
+/**
+ * One tracked transaction: reserved in the ledger before `submit()` (which broadcasts and returns
+ * the hash), the hash recorded as soon as it is known, then timed, described and settled. A failure
+ * anywhere after the reservation leaves it unresolved, counted at its maximum until `reconcile`.
+ */
+export async function tracked(ledger, { label, payer, payerAddress = null, maxFee: bound, paymaster = false, nonce = null,
+  submit, trace = true, measured = true, extra = {} }) {
+  const id = ledger.reserve({ label, payer, payerAddress, maxFee: bound, paymaster, nonce });
+  const submittedAt = now();
+  const t0 = performance.now();
+  const tx = await submit();
+  const acked = performance.now() - t0;
+  ledger.sent(id, tx);
+  const timing = await poll(tx, t0);
+  const record = await describe(tx, { trace });
+  Object.assign(record, { label, measured, submitted_at: submittedAt, latency_ms: { submit_ack: Math.round(acked), ...timing }, ...extra });
+  ledger.settle(id, record);
+  emit(record);
+  if (record.status !== "SUCCEEDED") throw new Error(`${label} reverted: stopping`);
+  return record;
 }
 
 /** SPK-1b: every invocation of a trace, recursively: contract, selector, L2 gas, and the calls it made. */

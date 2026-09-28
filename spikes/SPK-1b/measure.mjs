@@ -12,8 +12,8 @@
 //      mode: the burner pays the paymaster in STRK inside its outside execution)            10
 //   -  the owner takes adventurer 3 back; the burner returns what is left of its STRK        2
 // Every trace is recorded. Every transaction is sent after the previous one is accepted on L2.
-// The brief's caps hold over every script: ledger.jsonl counts the transactions and fees sent;
-// `makeBudget` refuses past 60 transactions or 40 STRK.
+// The brief's caps hold over every script: ledger.jsonl reserves every transaction before it is
+// submitted (fix loop 1); `makeLedger` refuses past 60 transactions or 40 STRK of the owner's money.
 //   node spikes/SPK-1b/measure.mjs          (writes measure-output.txt itself; no redirection)
 // The burner's private key is generated here into burners.secret.json (ignored by git, mode 0600),
 // never printed: the redaction covers it from the moment it exists.
@@ -22,8 +22,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Account, PaymasterRpc, ec, encode, hash, outsideExecution } from "starknet";
 import {
-  account, accountAddress, configure, describe, emit, guardOutput, makeBudget, makeSender, maxFee, now,
-  openOutput, poll, POLL_MS, provider, redactAlso, requireSepolia, rpc, STRK, strk, USER_AGENT,
+  account, accountAddress, configure, emit, guardOutput, makeLedger, makeSender, maxFee, now, openOutput,
+  POLL_MS, provider, receiptOrNull, redactAlso, requireSepolia, rpc, STRK, strk, tracked, USER_AGENT,
 } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -49,7 +49,7 @@ const FUNDING = 3n * 10n ** 18n; // 3 STRK: 21 burner transactions and the AVNU 
 const OZ_ACCOUNT = "0x01d1777db36cdd06dd62cfde77b1b6ae06412af95d57a13dc40ac77b8a702381";
 
 const chain = await requireSepolia();
-const budget = makeBudget(join(HERE, "ledger.jsonl"), { maxTx: 60, maxFri: 40n * 10n ** 18n });
+const ledger = makeLedger(join(HERE, "ledger.jsonl"), { maxTx: 60, maxSpentFri: 40n * 10n ** 18n });
 const { contracts } = JSON.parse(readFileSync(join(HERE, "..", "SPK-1", "sepolia.json"), "utf8"));
 const HUB = contracts.Hub.address;
 const INST = contracts.Instances.address;
@@ -61,6 +61,13 @@ const paymaster = new PaymasterRpc({ nodeUrl: "https://sepolia.paymaster.avnu.fi
 const burner = new Account({ provider, address: BURNER, signer: BURNER_KEY, paymaster });
 const owner = account();
 
+// Fix loop 1: what an interrupted run left is reconciled before anything is sent
+const unresolved = await ledger.reconcile({
+  receiptOf: receiptOrNull,
+  nonceOf: (payer) => (payer === "owner" ? owner : burner).getNonce("latest"),
+});
+if (unresolved.length) throw new Error(`ledger: ${unresolved.length} transaction(s) still unresolved: nothing is sent`);
+
 async function balanceOf(address) {
   const [low, high] = await rpc("starknet_call", {
     request: { contract_address: STRK, entry_point_selector: hash.getSelectorFromName("balanceOf"), calldata: [address] },
@@ -71,10 +78,10 @@ async function balanceOf(address) {
 
 const ownerBefore = await balanceOf(OWNER);
 emit({ step: "start", at: now(), chain, poll_ms: POLL_MS, strk_balance: strk(ownerBefore), max_tx: MAX_TX,
-  ledger_before: budget.totals(), burner: BURNER, burner_class: OZ_ACCOUNT });
+  ledger_before: ledger.totals(), burner: BURNER, burner_class: OZ_ACCOUNT });
 
 let sent = 0;
-const ownerSender = await makeSender(owner, MAX_TX, budget);
+const ownerSender = await makeSender(owner, MAX_TX, ledger, { payer: "owner" });
 const call = (contractAddress, entrypoint, calldata) => [{ contractAddress, entrypoint, calldata }];
 const ENTER = call(HUB, "enter", ["3", "10"]);
 const LEAVE = (instance) => call(INST, "leave", [instance]);
@@ -93,21 +100,11 @@ async function run(name, send) {
   }
 }
 
-/** Sends a transaction whose hash we get from elsewhere (deploy, AVNU), then times and records it as `makeSender` does. */
-async function record(label, submit, extra = {}) {
+/** A transaction whose hash comes from elsewhere (deploy, AVNU): reserved, sent and settled as `makeSender` does. */
+async function record(label, submit, options) {
   if (ownerSender.count() + sent >= MAX_TX) throw new Error(`transaction cap reached (${MAX_TX}): stopping before ${label}`);
-  const submittedAt = now();
-  const t0 = performance.now();
-  const tx = await submit();
-  const acked = performance.now() - t0;
   sent += 1;
-  const timing = await poll(tx, t0);
-  const r = await describe(tx, { trace: true });
-  Object.assign(r, { label, measured: true, submitted_at: submittedAt, latency_ms: { submit_ack: Math.round(acked), ...timing }, ...extra });
-  budget.spend(r);
-  emit(r);
-  if (r.status !== "SUCCEEDED") throw new Error(`${label} reverted: stopping`);
-  return r;
+  return tracked(ledger, { label, submit, ...options });
 }
 
 // A. The reference: the owner's account, as in SPK-1
@@ -123,13 +120,13 @@ await ownerSender.send("fund the burner, give it adventurer 3", [
 {
   const payload = { classHash: OZ_ACCOUNT, constructorCalldata: [publicKey], addressSalt: publicKey, contractAddress: BURNER };
   const estimate = await burner.estimateAccountDeployFee(payload);
-  budget.check("deploy the burner", maxFee(estimate.resourceBounds));
   await record("deploy the burner", async () =>
-    (await burner.deployAccount(payload, { resourceBounds: estimate.resourceBounds })).transaction_hash);
+    (await burner.deployAccount(payload, { resourceBounds: estimate.resourceBounds })).transaction_hash,
+  { payer: "burner", maxFee: maxFee(estimate.resourceBounds), nonce: 0n });
 }
 
 // B. The burner, direct
-const burnerSender = await makeSender(burner, MAX_TX, budget);
+const burnerSender = await makeSender(burner, MAX_TX, ledger, { payer: "burner" });
 await run("B burner direct", (label, calls) => {
   if (ownerSender.count() + burnerSender.count() + sent >= MAX_TX) throw new Error(`transaction cap reached before ${label}`);
   return burnerSender.send(label, calls, { measured: true, trace: true });
@@ -153,11 +150,11 @@ await run("C burner via relayer", async (label, calls) => {
     if (ownerSender.count() + burnerSender.count() + sent >= MAX_TX) throw new Error(`transaction cap reached before ${label}`);
     const fee = await burner.estimatePaymasterTransactionFee(calls, details);
     const bound = BigInt(fee.suggested_max_fee_in_gas_token);
-    budget.check(label, bound);
     const before = await balanceOf(BURNER);
     const r = await record(label, async () =>
       (await burner.executePaymasterTransaction(calls, details, bound)).transaction_hash,
-    { paymaster: { estimate: fee, max_fee_in_gas_token: bound } });
+    { payer: "burner via AVNU", payerAddress: BURNER, maxFee: bound, paymaster: true,
+      extra: { paymaster: { estimate: fee, max_fee_in_gas_token: bound } } });
     r.paymaster.paid_by_burner_fri = before - (await balanceOf(BURNER));
     emit({ step: "paid to AVNU", label, tx: r.tx, paid_by_burner_fri: r.paymaster.paid_by_burner_fri, receipt_fee_fri: r.fee });
     return r;
@@ -178,4 +175,4 @@ await ownerSender.send("give adventurer 3 back to the owner", call(HUB, "setup_h
 const ownerAfter = await balanceOf(OWNER);
 emit({ step: "done", at: now(), transactions: ownerSender.count() + burnerSender.count() + sent,
   owner_balance_delta_strk: strk(ownerBefore - ownerAfter), burner_left_strk: strk(await balanceOf(BURNER)),
-  ledger_after: budget.totals() });
+  ledger_after: ledger.totals() });

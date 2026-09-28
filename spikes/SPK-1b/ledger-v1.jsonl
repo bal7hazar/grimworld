@@ -1,0 +1,44 @@
+{"tx":"0xed254e17a0b70f04a8df9c9bccafeff42fa15200796b94380eb340477287ac","label":"A owner: enter","type":"INVOKE","fee":"87906809147563558","at":"2026-09-28T22:24:02.668Z"}
+{"tx":"0x3f2a98af9d808f0cbc142f465380a161e11d8643229f62f0d3fc8c147b18f2e","label":"A owner: leave","type":"INVOKE","fee":"45554184057449674","at":"2026-09-28T22:24:06.310Z"}
+{"tx":"0x1f8eb61d6372e0c230fcc7517d0e1fa5a4e4ad2657f8dd09338ecfe9cd2cc9f","label":"A owner: enter","type":"INVOKE","fee":"87907178319230758","at":"2026-09-28T22:24:10.681Z"}
+{"tx":"0x1dee6640a716d4d1c642aae98347e8c715e7a90d687c2d5e70939eca61d3c62","label":"A owner: leave","type":"INVOKE","fee":"45554184057449674","at":"2026-09-28T22:24:14.290Z"}
+{"tx":"0x4b6accf9049ff0b8124b302fc18b72de23f55cc730714f3e5784be3c7a8ba14","label":"A owner: enter","type":"INVOKE","fee":"87907561123758118","at":"2026-09-28T22:24:18.192Z"}
+{"tx":"0xc1e271bca8152ff16966528c2c34a8d6ddd508f97f93dacf67b4b0895702be","label":"A owner: leave","type":"INVOKE","fee":"45554471160845194","at":"2026-09-28T22:24:21.837Z"}
+{"tx":"0x7d88afdf228e717e146bc316d7ee5f04ab15d1171e6152a57ff01db72dc4e9f","label":"A owner: enter","type":"INVOKE","fee":"87907561123758118","at":"2026-09-28T22:24:26.461Z"}
+{"tx":"0x6cf73c0a4b7c17c7184328c9cfb88e73fe54790ba057ad9d872d430533287a2","label":"A owner: leave","type":"INVOKE","fee":"45554745328515082","at":"2026-09-28T22:24:30.332Z"}
+{"tx":"0x10a8c63314bbc8ca172d53939ce4889258e788e5bfee7d9251218d34660fac0","label":"A owner: enter","type":"INVOKE","fee":"87907926680651302","at":"2026-09-28T22:24:34.668Z"}
+{"tx":"0x10d0865bd93b29ba9e48d2dbc27775cacd9b14c6dd8876a8a1081395281e076","label":"A owner: leave","type":"INVOKE","fee":"45554745328515082","at":"2026-09-28T22:24:38.272Z"}
+{"tx":"0x721794ed5fcc6310edf2bb2dc59478b7cbaac70f7d6b08e58afb3f3fc9be230","label":"fund the burner, give it adventurer 3","type":"INVOKE","fee":"62720428721734502","at":"2026-09-28T22:24:42.147Z"}
+{"tx":"0x3b229e4a4252a32e5ab17b5db951bd8e42201cd094034ba73066e17cff9f7e1","label":"deploy the burner","type":"DEPLOY_ACCOUNT","fee":"48545541657053598","at":"2026-09-28T22:24:46.630Z"}
+{"tx":"0xd147d7178866f9ffa0a318653ad278bda6b3875c1e1a699dab37a485735946","label":"B burner direct: enter","type":"INVOKE","fee":"79630253206195974","at":"2026-09-28T22:24:50.305Z"}
+{"tx":"0x4f508f5d1ab053aab3bf731ddba6ed2ccb261308177a0434f97b083dbb35e3d","label":"B burner direct: leave","type":"INVOKE","fee":"37316712857814414","at":"2026-09-28T22:24:54.043Z"}
+{"tx":"0x6bd9ed16d755d0c329788b8f8e0fa281fcdbe6a5cd528baf423a25e4172a381","label":"B burner direct: enter","type":"INVOKE","fee":"79630737740781318","at":"2026-09-28T22:24:57.648Z"}
+{"tx":"0x6a06b96143084393dff53eed08b4a3e489138d31952ad17ba2bc06d4e2c19ab","label":"B burner direct: leave","type":"INVOKE","fee":"37316712857814414","at":"2026-09-28T22:25:02.341Z"}
+{"tx":"0x651b81941ca1fb17d61e89f79789166c42282566601ba46fc9648e62122fb2b","label":"B burner direct: enter","type":"INVOKE","fee":"79631222636843526","at":"2026-09-28T22:25:05.978Z"}
+{"tx":"0x66334a222080bb76a3c59f4808ad7671e572c5189813c54c22a6c4eaf3132de","label":"B burner direct: leave","type":"INVOKE","fee":"37317076529861070","at":"2026-09-28T22:25:10.590Z"}
+{"tx":"0x65b9b57b80fdb3cf4583aa03b592b9a03331ef5f3ce46d0ae0bb7b5b9da025e","label":"B burner direct: enter","type":"INVOKE","fee":"79631222636843526","at":"2026-09-28T22:25:14.216Z"}
+{"tx":"0x7050193bd5106632ea80cdcb01f311d4b9d14b0222edbad713837399d469a30","label":"B burner direct: leave","type":"INVOKE","fee":"37317440240637966","at":"2026-09-28T22:25:18.117Z"}
+{"tx":"0x6f6cf6338114b58dc267136f90a90c0cfef6747e6ad7f1a246969c514b99fc1","label":"B burner direct: enter","type":"INVOKE","fee":"79631707584546054","at":"2026-09-28T22:25:22.566Z"}
+{"tx":"0x7583d0287f0a6f978398e53972f8ac464988294af2ba6c4c73b58945156d7a1","label":"B burner direct: leave","type":"INVOKE","fee":"37317440240637966","at":"2026-09-28T22:25:26.163Z"}
+{"tx":"0x52d0ca7bc704f1da3be3c7d7d9e7167e21c2cc1b62260136f9f501904875526","label":"C burner via relayer: enter","type":"INVOKE","fee":"111246626180130344","at":"2026-09-28T22:25:29.862Z"}
+{"tx":"0x20a71b55a5e6ffda98c0ca789d6d4594e680631bbcd9d06abf159fe8e2d6410","label":"C burner via relayer: leave","type":"INVOKE","fee":"68777115431118210","at":"2026-09-28T22:25:34.531Z"}
+{"tx":"0x4386f66f6fc892d8c3744d003484f8e4f5b05e17d8e925fa75c5a9b7aacc70","label":"C burner via relayer: enter","type":"INVOKE","fee":"111246626180130344","at":"2026-09-28T22:25:38.213Z"}
+{"tx":"0x3d65dcbd9f254e76f374ca476ac0ffbaf056abfa6fa98c6ab63bf20070ba47a","label":"C burner via relayer: leave","type":"INVOKE","fee":"68777595414961506","at":"2026-09-28T22:25:42.867Z"}
+{"tx":"0x67dea2b8e0873eacb8494b6c2886907c5d396ceaaa29d59a0791bed0b67c275","label":"C burner via relayer: enter","type":"INVOKE","fee":"111247231377150152","at":"2026-09-28T22:25:46.506Z"}
+{"tx":"0x75247a3ff45b294f433f73499c747e170f7decab4897c39f1ef6420c87bcd98","label":"C burner via relayer: leave","type":"INVOKE","fee":"68777595414961506","at":"2026-09-28T22:25:50.186Z"}
+{"tx":"0x709b887571f13cf57e05babf79d5be0ff5c3db696024d676ff2c29347c94f24","label":"C burner via relayer: enter","type":"INVOKE","fee":"111247829460812392","at":"2026-09-28T22:25:54.623Z"}
+{"tx":"0x628df4f0d4f0fb01c434a6cdcae1256fe3a74d6d4325ef9ce9891a61bba4997","label":"C burner via relayer: leave","type":"INVOKE","fee":"68778069757176386","at":"2026-09-28T22:25:58.253Z"}
+{"tx":"0x49788b5ceb8bf057a8f6c33bfa32603cdc75f82c069ccb2e8b25a9c75077f90","label":"C burner via relayer: enter","type":"INVOKE","fee":"111247829460812392","at":"2026-09-28T22:26:02.242Z"}
+{"tx":"0x60cdc2602283332f55cfd853fab250b11f62a93340434a522247446506afe40","label":"C burner via relayer: leave","type":"INVOKE","fee":"68778564884338914","at":"2026-09-28T22:26:06.674Z"}
+{"tx":"0x5619083c69ea3a044c1a57f81966e785b7f192941678bfe8720f400604429aa","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157907469576453344","at":"2026-09-28T22:26:13.058Z"}
+{"tx":"0x68eadf1d339a7c373139f96363ef3c6a38441ba8ba952540de1fd07ae4d96c9","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115739327125854496","at":"2026-09-28T22:26:18.745Z"}
+{"tx":"0x51a3f957f3dab258563477a76f20a892ae61d9b4745f150b824c2a62967b04a","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157907846042216864","at":"2026-09-28T22:26:24.917Z"}
+{"tx":"0x34ee11cbc602578f41c0a55382fac002a847efaa91946472d3c7d46d9716db4","label":"D burner via AVNU: leave","type":"INVOKE","fee":"110399946264680512","at":"2026-09-28T22:27:27.013Z"}
+{"tx":"0x28936390f4a3f8e500d7b929b997455ef07d96d748d6dddb1a18e4ff047ba1c","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157913703982987040","at":"2026-09-28T22:28:08.356Z"}
+{"tx":"0x196a5ce15e948e98d29147686cb123ab0136f034c4f21337a7237a38ea24777","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115744119986484640","at":"2026-09-28T22:28:14.638Z"}
+{"tx":"0x26974d81a2a7d86ab1cb43c1d2a0160536001fc67b478cd56bc81e56f877228","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157914481056038432","at":"2026-09-28T22:28:21.150Z"}
+{"tx":"0x12f57e43ad44d2e84cf2263be4845eae0c79f697767e9620e31567680b73a3","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115745210770247488","at":"2026-09-28T22:28:30.415Z"}
+{"tx":"0x620d7da2674719f9ce7a70075f151ac3b3e9886a975df207fa66082feaddaa0","label":"D burner via AVNU: enter","type":"INVOKE","fee":"157915037163141632","at":"2026-09-28T22:28:37.297Z"}
+{"tx":"0x293905197ebadbbb59622ee1baf7fd6609553f69afb1caafcc76d6980eaf169","label":"D burner via AVNU: leave","type":"INVOKE","fee":"115745623474116448","at":"2026-09-28T22:28:41.755Z"}
+{"tx":"0x692113ec74871043c30eb4c0434e252544535cac5cdf03f4e57ba7b1ef53202","label":"give adventurer 3 back to the owner","type":"INVOKE","fee":"38646879849265902","at":"2026-09-28T22:28:45.549Z"}
+{"tx":"0x1bab32c75bba2e87ea7114aab3e04f1f4962f36d5025bade210e1d81a856a99","label":"return the burner's STRK","type":"INVOKE","fee":"28729611661236014","at":"2026-09-28T22:28:49.194Z"}
