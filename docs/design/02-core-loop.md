@@ -519,6 +519,13 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
 | View | **`instance_region(instance_id, chunk range)`**, readable at a block hash: for each chunk of the range, its kind (revealed, not yet revealed, void); for each revealed one, its terrain, occupancy, objects and remains, and every goblin standing in it, frozen or not, with its full state. Paged: a range is bounded so that one call fits a node's limits. With `instance_state` at the same block, the whole instance |
 | Never read | Block number, timestamp, transaction hash (ADR-0001) |
 
+### Open points (carried into ENG-01's brief)
+
+| # | Open point | Source | What ENG-01 settles |
+|---|---|---|---|
+| OP-1 | **The kind of an unrevealed chunk in a dungeon.** The three kinds of chunk above are settled for zones, whose outline is registry content. A dungeon's outline emerges while it is explored (ADR-0006: a target chunk count, generated borders, the frontier), so "outside the outline" has no registry answer there | Final audit of PR 49 (F-14, major, open), merged by the project manager's exception after four fix loops | Classify chunks separately for zones (registry outline) and dungeons (generated boundaries, frontier and chunk-count rules), expose what the classification needs through the views, make the contract and the client agree on it, speculative reveals included; tests for frontier growth, the last opening kept before the target count, and closure at the target |
+| OP-2 | **Storage slots, not only gas.** A changed storage slot costs about 402,000 L2 gas per transaction beyond its computation (quiver's measurement, [decision](../decisions/2026-09-28-quest-cost-cap.md)); a batch that changes the same slots pays them once | Project manager, 2026-09-28 | Count the slots each entrypoint changes per transaction, first item of the cost budget; the 40M target of *Size* is checked in slots as well as gas |
+
 ### What ENG-01 must do
 
 1. `Instance.sequence`: 0 at `enter`; +1 per executed action in `play`, loot, open, mine; the
