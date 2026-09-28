@@ -83,3 +83,12 @@ a rule of the game, decided by the owner ([L-G2](../decisions/2026-09-28-L-G2-po
 | D-32 | A goblin next to an adventurer on an open edge tile may step onto it | **The plan**, as a contract of the library | It does not occur in the game: the window follows the adventurer, who is never on its ring (D-120); and the game filters every step by occupancy |
 | Q-1 | Earshot (radius 8) reaches beyond the window | **A distance test on global coordinates, without a board.** A pack alerted outside the window changes state and stays frozen until the window reaches it | design/04: earshot is a range, not a path |
 | Q-4 | Does SPK-7 consume the release candidates? | **No**: SPK-7 runs on `origami_hexmap` 1.8.0. Its figures are measured again on the first release candidate that carries N-3 and N-8. ENG-02 and ENG-05 consume 0.1.0 | The spike must not wait; results of the engine are identical by the plan's own rule |
+
+## Chunk borders (D-134, 2026-09-28)
+
+Decided on the findings of the game's spike SPK-7; inputs of N-1 and N-3.
+
+| | |
+|---|---|
+| N-1, generation | The four corner tiles of a chunk are always wall; openings are on the edges, never on a corner |
+| N-3, assembly | A chunk the window overlaps may be **void** (beyond the edge of the location, or outside the outline of a zone): the function takes a flag or an absent chunk for it and assembles wall, without a read. The window is never clamped |
