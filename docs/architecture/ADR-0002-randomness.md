@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Proposed**, revised 2026-09-28: layouts move from Fog to Fate ([ADR-0006](ADR-0006-chunked-maps.md)) |
+| Status | **Accepted for the MVP with a provisional source** (owner, 2026-09-28): the transaction hash. The verifiable source described here is the target of version 1 |
 | Date | 2026-09-28 |
 | Decides | Which outcomes are random, and where each random value comes from |
 
@@ -13,7 +13,26 @@ predict can be exploited; a value it cannot predict cannot be rendered before
 confirmation. Grimscape used only seeds derived from public data; Athanor uses Cartridge
 vRNG for crafting and a public hash for exploration.
 
-## Decision (proposed)
+## MVP: a provisional source (D-110)
+
+| | |
+|---|---|
+| Source of every Fate draw in the MVP | **The hash of the transaction** |
+| Why | To test the game quickly, without depending on any service, and with burner accounts (ADR-0005) |
+| Known weakness | A player chooses what they send: by varying their transaction they can try hashes off-chain and submit the one that gives the draw they want. **Every Fate draw can be steered.** The owner accepts this for a test version |
+| Therefore | **The MVP must not hold anything of value**: test networks only, no real asset, progress may be wiped |
+| Replaced | For version 1, by a verifiable source, without touching game code |
+
+How the replacement stays cheap:
+
+- Game code never reads the transaction hash. It calls one function, `fate(domain)`,
+  of a **randomness provider** behind an interface.
+- The provider's implementation is configuration. MVP: transaction hash. Version 1:
+  verifiable function, from Cartridge or of our own.
+- Rules 1 to 3, 5 and 6 below apply from the MVP. Rule 4 applies from version 1.
+- A deployment check refuses the provisional provider on mainnet.
+
+## Decision for version 1 (proposed)
 
 Two classes of randomness, never mixed.
 
@@ -33,9 +52,8 @@ And one class that does not exist: **combat has no randomness** (D-40).
    distinct domain constant per use. Never reuse a value for two decisions.
 3. **Fate actions end an action queue** and are submitted alone with their
    `request_random` call first in the multicall.
-4. **No fallback to public data.** If the vRNG provider address is not configured, Fate
-   entrypoints revert. A transaction-hash fallback, as in Athanor, is allowed in test
-   builds only and must be impossible to enable on a public network.
+4. **No public data as a source** (from version 1). The transaction-hash provider of the
+   MVP must be impossible to enable on mainnet.
 5. **No re-roll.** State that records a pending Fate draw (remains on a tile, an untried
    pair) is consumed in the same transaction as the draw. There is no path where a player
    sees a result and the draw is still pending.
