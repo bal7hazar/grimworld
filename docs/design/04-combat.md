@@ -181,6 +181,10 @@ Determinism rules:
   shared by all awake goblins ([02-core-loop](02-core-loop.md#simulation-budget)). Each goblin steps to its
   free neighbour closest to the target; profiles that want distance (`kite`, `support`)
   step to the farthest.
+- The flood stops at **15 layers** (D-127). A goblin with no way to the adventurer within
+  15 steps **holds its position**: it does not move this tick, and still uses a ranged
+  attack or a skill if it can. Terrain is defence: a wall that forces a long way round
+  keeps melee goblins where they are.
 
 ## Death and defeat
 
