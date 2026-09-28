@@ -13,7 +13,7 @@ owner (bal7hazar)
   └─ project-manager session (Claude App, Fable/Opus)       owns the plan, status, decisions, arbitration
        └─ orchestrator session(s) (Claude App, Opus or Fable, by the project manager's judgement)
             │                                               own briefs, worktrees, reviews, merges
-            ├─ sub-agents: claude CLI (Opus 5.5 / Sonnet 5 / Fable 5.1, by difficulty)   execution
+            ├─ sub-agents: claude CLI (Opus 5.5 / Sonnet 5.5 / Fable 5.1, by difficulty) execution
             └─ auditors:   codex CLI (gpt-6-astra, gpt-6-sol, gpt-6-luna, by kind of task)   audits, when needed
 ```
 
@@ -64,7 +64,7 @@ published versions). Needs flow through the project manager, never sideways.
 |---|---|---|
 | project manager | Claude App session | Fable 5.1 or Opus 5.5 |
 | orchestrator | Claude App session, created by the project manager | **Opus 5.5 or Fable 5.1**, chosen by the project manager |
-| sub-agents (execution) | `claude -p …` launched by an orchestrator through the launcher (§4) | **Sonnet 5** for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Opus 5.5** for design, game logic, algorithms, debugging; **Fable 5.1** for the hardest problems. The brief states the model and, for Fable, why |
+| sub-agents (execution) | `claude -p …` launched by an orchestrator through the launcher (§4) | **Sonnet 5.5** (`claude-sonnet-5-5`, title `[Sonnet 5.5]`; it replaces Sonnet 5 for every new launch since 2026-09-28, verified on the VPS from the CLI itself; an agent already running or resumed keeps the model it started on until its task closes) for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Opus 5.5** for design, game logic, algorithms, debugging; **Fable 5.1** for the hardest problems. The brief states the model and, for Fable, why |
 | audits and second opinions | `codex exec …`, **when needed** | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, chosen **by the kind of task** (table below); **never for implementation** |
 
 ### Models, as verified

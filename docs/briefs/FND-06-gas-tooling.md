@@ -1,7 +1,7 @@
 # FND-06 — Gas tooling
 
 ## Agent
-Title: `[Sonnet 5] FND-06 gas tooling` · Profile: implement · Branch: `chore/fnd-06-gas-tooling`
+Title: `[Sonnet 5.5] FND-06 gas tooling` · Profile: implement · Branch: `chore/fnd-06-gas-tooling`
 
 ## Goal
 After this task the rule of docs/CAIRO.md §2 is enforced by tools, not by memory: every test of
