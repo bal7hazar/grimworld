@@ -51,14 +51,12 @@ Nothing blocks. The name `hexx` is not reserved by an empty release (owner, 2026
    project manager for the owner (R-2, C-1 below).
 2. FND-02: re-audit, merge. Then SPK-11, SPK-7, FND-05 (with `[GPT-6-Astra]`), SPK-4; FND-06.
 
-## For the project manager (from SPK-2, not blocking)
+## For the project manager
 
-| # | Point | Recommendation |
-|---|---|---|
-| C-1 | **R-2**: ADR-0001's threshold (300 actions ≤ $0.50) fails on Dojo (1.9× to 5.4×) and, provisionally, natively too (1.4× to 4.2×). The owner's call (a cheaper tick, a cheaper transaction, a lower gas price, option B, or a restated threshold) should wait for SPK-2's audited native figures | Decide on the audited native figures |
-| C-2 | PLAN's SPK-2 row says "10 Rifts"; D-101 says 5 a day per account (5 was used) | Correct the row |
-| C-3 | Flood rule (a) (docs/needs/hexmap.md point 5): on the occupancy frozen at the start of the tick, a goblin can be walled off behind its own pack; observed: it detours and leaves the window within 7 ticks. A design question for design/04 *Goblin AI* | To the owner or the design backlog |
-| C-4 | **Indexer scope (SPK-11)**, six points the design documents leave open: are leaderboards in the MVP? Is hub presence carried by an off-chain relay or by the indexer (Q-09)? Is the displayed title stored in the contract or only emitted? How does a player learn of an incoming direct-trade request? What is "one item" on the market for equipment (design/16)? Over which window is the average price computed? | Detail in SPK-11's research file ([#31](https://github.com/bal7hazar/grimworld/pull/31), `docs/research/SPK-11-indexer.md`); needed before ENG-01 freezes the events |
+C-1 to C-4 answered on 2026-09-28 (#34): C-1 the owner decides on SPK-2's audited native
+figures (they follow); C-2 PLAN corrected; C-3 DES-20 (before CBT-06); C-4
+[docs/decisions/2026-09-28-indexer-scope.md](docs/decisions/2026-09-28-indexer-scope.md), an
+input of SPK-11 and ENG-01.
 
 ## Open questions from wave 1 (not blocking)
 
