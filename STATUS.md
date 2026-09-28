@@ -31,6 +31,12 @@ None.
 | Phase 0 launch | The owner starting the project-manager session on the VPS (FND-00); documents must be committed and pushed first |
 | Mainnet, later | Q-17 |
 
+## Design coverage
+
+Rules and direction are written; interface, content and numbers are not. See the design
+backlog in [PLAN.md](PLAN.md#design-backlog): 15 items, two of them (interface, vision)
+due before Phase 1.
+
 ## Not verified
 
 - Latency and cost on mainnet: public data only, no transaction of ours.

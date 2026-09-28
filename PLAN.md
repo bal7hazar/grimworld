@@ -1,6 +1,6 @@
 # Plan
 
-Status: **v0.4, 2026-09-28** (v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
+Status: **v0.5, 2026-09-28** (v0.5: mobile first with responsive desktop; design backlog added; v0.4: owner's second review: PixiJS accepted, implementation on the VPS, asset licence forbids redistribution, Sepolia autonomous; v0.1: first plan; v0.2: owner's first review: mainnet accepted, hex maps, mobile first, defeat softened, instances not saved; v0.3: aligned on the owner's operating conventions: CLI sub-agents, codex audits, launcher, status file).
 
 Process rules are in [OPERATIONS.md](OPERATIONS.md); live state in [STATUS.md](STATUS.md).
 The orchestrator keeps this file current: the header is bumped whenever a phase, a budget
@@ -166,6 +166,30 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | LCH-03 | Incident runbook: reorg, vRNG outage, registry rollback | LCH-01 | todo |
 
 ---
+
+## Design backlog
+
+The design documents fix the rules and the direction. They do not yet define everything
+an implementer needs. Each gap below is a design task, written by the orchestrator with
+the owner, and **due before the phase that consumes it**.
+
+| ID | Missing | Due before | Status |
+|---|---|---|---|
+| DES-01 | **Interface** (`docs/design/11-interface.md`): portrait screen layout, HUD, how to move / target / use a skill by touch, action queue display, facing and arc display, desktop responsive layout | Phase 1 (CLI-03) | todo |
+| DES-02 | **Vision**: what the adventurer sees inside a room (whole room or a radius), what goblins perceive, how line of sight and sleep interact | Phase 1 (ENG-07) | todo |
+| DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | todo |
+| DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | todo |
+| DES-05 | **Skill lists**: the 6 trainer skills per MVP profession (only the 6 starters exist) | Phase 2 (CNT-01) | todo |
+| DES-06 | **Caste sheets**: health and armor per caste, skill list, priority list, boss phases | Phase 2 (CNT-01) | todo |
+| DES-07 | **Curves**: experience per level, merit per quest, gold income and prices, attribute points per level | Phase 3 (GLD-01) | todo |
+| DES-08 | **Onboarding**: adventurer creation, first ten minutes, skill quests one by one | Phase 3 (CNT-02) | todo |
+| DES-09 | **Quest list** of Region 1 and the two promotion trials | Phase 3 (CNT-02) | todo |
+| DES-10 | **Equipment**: weapons and armor by level, merchant stock | Phase 4 (RWD-05) | todo |
+| DES-11 | **Alchemy content**: the 10 ingredients, the 12 potions with exact effects, loot tables | Phase 4 (CNT-03) | todo |
+| DES-12 | **Hubs**: what a town and an outpost look like, services and their characters, presence display | Phase 5 (WLD-03) | todo |
+| DES-13 | **Region 1 content**: zones, dungeon floors, spawn tables | Phase 5 (CNT-04) | todo |
+| DES-14 | **Names and lore** (Q-11), **audio** direction | Phase 5 (LORE-01) | todo |
+| DES-15 | **Ownership and economy**: tokens, transfers, registry governance, who funds the paymaster (Q-07, Q-08, Q-10), checked against store rules | Before Phase 4 | todo |
 
 ## Milestones and gates
 

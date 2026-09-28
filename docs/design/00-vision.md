@@ -58,8 +58,8 @@ Career (weeks)                 rank up → new quests/zones/skills → elite zon
 
 - **Session length**: an expedition is completable in 5–20 minutes; can be paused at any
   time for free since the world waits.
-- **Platform**: **mobile first** (iOS and Android, portrait), desktop web second. Input is
-  one tap per action.
+- **Platform**: **mobile first** (iOS and Android, portrait). The desktop version is the
+  same web client made responsive. Input is one tap per action.
 - **Audience**: on-chain gamers first; the game must nevertheless be understandable by
   someone who has played any roguelike or GW1.
 

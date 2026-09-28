@@ -133,6 +133,16 @@ example of client-side Cairo execution for prediction was found elsewhere.
    language and packaging. The renderer is isolated so that switching costs the rendering
    layer only.
 
+### Mobile first, desktop responsive (owner's rule, 2026-09-28)
+
+| | |
+|---|---|
+| Design target | A phone held in portrait. Every screen is designed for it first |
+| Desktop | The same build, responsive: the layout adapts to a wide window; no separate desktop client |
+| Input | Touch is the reference. Mouse maps to touch; keyboard shortcuts are additions, never the only way to do something |
+| Day-to-day testing | Mostly on the desktop version, in a phone-sized viewport |
+| What desktop testing cannot replace | Battery, heat, touch ergonomics, the Controller session flow inside the app shell. These are checked on real phones at SPK-6 and at every phase gate |
+
 ### Power budget rules (binding on the client)
 
 | Rule | |
