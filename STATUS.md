@@ -49,7 +49,7 @@ and codex audit. Machine at 18:05 UTC: load 5.5, 13 GB available.
 | What | Why only the owner |
 |---|---|
 | **The registry token reaches every sub-agent.** `SCARB_REGISTRY_AUTH_TOKEN` is in the user-level settings of the machine; the claude CLI injects it into every agent's shell, whatever the launcher does (measured by the library's orchestrator, names only). Profiles deny `scarb publish` as a typed command but cannot stop a program an agent runs. Remedy: take the token out of `~/.claude/settings.json` and keep it where a publication happens (a secret of a GitHub environment with a required reviewer, or a file the owner's own shell reads at release time) | A secret of the owner, used by the owner's other programmes too (D-128). Until then every implement agent is treated as able to publish: small tasks, audited |
-| **The Sepolia credentials in the environment of the sessions**: they are not in `~/.claude/settings.json` of the VPS, which defines the registry token only | Secrets are provided by the owner (D-128). Blocks SPK-1 and, through it, the decision on the cost of an expedition (D-129) |
+| **Secrets reach every sub-agent of every programme on the machine**: since 20:21 UTC the user-level settings hold the Sepolia account's private key beside the registry token and another programme's API key, and the file is readable by every user of the machine (mode 664). Asked of the owner: confirm the key controls nothing on mainnet; restrict the file to its owner | Secrets and settings of the machine are the owner's (D-128). Nothing is blocked: SPK-1 is unblocked |
 
 Open without urgency: Q-12, the lore premise.
 
