@@ -23,7 +23,11 @@ owner (bal7hazar)
   It **creates the orchestrator sessions** in the Claude App and chooses their model
   (Opus or Fable) according to the difficulty of what they will orchestrate. It gives
   them their objectives, answers their questions, arbitrates, prepares the owner's
-  decisions and records the answers. It never implements and never merges.
+  decisions and records the answers. It never implements. It **merges its own
+  pull requests** (documents it owns: plan, status, context, decisions, orchestrator
+  mandates) without asking the owner (owner's rule, 2026-09-28); it never merges a
+  task's pull request, which is the orchestrator's act. Orchestrator sessions are
+  created as session suggestions that the owner starts with one click.
 - An **orchestrator** answers to the project manager. It turns objectives into briefs,
   launches and resumes sub-agents, reviews their reports and pull requests, orders audits,
   merges. It **never implements anything large itself**.
