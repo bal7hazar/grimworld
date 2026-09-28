@@ -3,140 +3,187 @@
 Measured on 2026-09-28, on the VPS (8 vCPU, 31 GB, Linux x86_64), by `[Opus 5.5]`, against
 starknet-devnet 0.10.0 (JSON-RPC 0.10.2), Node 24.21.0, starknet.js 10.8.0, Cairo 2.19. Answers
 NS-2 of [ADR-0007](../architecture/ADR-0007-native-starknet.md). The prototype is in
-[`spikes/SPK-11/`](../../spikes/SPK-11/).
+[`spikes/SPK-11/`](../../spikes/SPK-11/); the real output of its scenario and benchmark is committed
+in [`spikes/SPK-11/results/`](../../spikes/SPK-11/results/) (`demo.txt`, `bench.txt`). Revised in
+fix loop 1 after the `[GPT-6-Sol]` audit (§8).
 
 ## 0. Recommendation
 
 **Write our own indexer: one TypeScript process (Node 24) that follows a Starknet node over
 JSON-RPC 0.10, decodes our events, keeps versioned tables in SQLite, and serves queries over HTTP
-and subscriptions over server-sent events.** It is what the prototype is, and it passed every check
-of §4: the live reorg was consistent 114 ms after the blocks were aborted, the offline reorg
-352 ms after a restart, and a rebuild from the chain matched the rewound indexer answer for answer.
+and subscriptions over server-sent events, under the correctness rules of §4.** The prototype
+passes every check of `demo.ts` (22 checks, `results/demo.txt`):
+- no answer the client accepts is ever a state the chain does not hold at that answer's block.
+  This covers the live reorg, the restart on a replaced tip, and a subscription cache kept through
+  a disconnection;
+- lossless u64 values;
+- a halt on a missing event;
+- no secret in the indexer's environment or logs.
 
 | Reason | |
 |---|---|
-| Small job | The game needs **5 events and 7 query shapes** (§1). A framework buys little for that; the rewind logic is ~40 lines (`indexer.ts`: `rewind`, `forkPoint`, `step`) |
-| No generic indexer fits without cost | Torii indexes Dojo worlds and token standards only; SubQuery has no reorg handling on Starknet; Substreams and Apibara's DNA are multi-service stacks; Checkpoint is the one close fit, and it needs Postgres and serves no subscriptions (§2) |
-| Reorgs are proven in, not assumed | The scheme (hash-anchored blocks, versioned rows, rewind in one transaction) is the one Checkpoint and Apibara use, and it is tested here against devnet's aborted blocks |
+| Small job | The game needs **5 events and 7 query shapes** (§1). The correctness logic (hash-and-commitment tip check, versioned rows, rewind, serving states, reconciliation) is a few hundred lines in `indexer.ts` |
+| No generic indexer fits without cost | Torii indexes Dojo worlds and token standards only. SubQuery has no reorg handling on Starknet. Substreams and a self-hosted Apibara are multi-service stacks. Checkpoint is the one close fit, and it needs Postgres and serves no subscriptions (§2) |
+| Reorgs proven, not assumed | The scheme (versioned rows, rewind in one transaction) is the one Checkpoint and Apibara use. The serving rules of §4 are tested against devnet's aborted blocks, answer by answer |
 | Operations | One process and one file. No Docker, no Postgres, no etcd, no object store. Rebuilt by deleting the file (§5) |
-| Lock-in | None beyond the Starknet JSON-RPC specification, which every node (pathfinder, juno, devnet) implements |
+| Lock-in | None beyond the Starknet JSON-RPC specification |
 
-**Runner-up: [Checkpoint](https://github.com/snapshot-labs/checkpoint)** (MIT, snapshot-labs). It
-has the same reorg design (parent-hash check, rows with a block range deleted above the last good
-block) and a GraphQL API. It is still beta (`v0.1.0-beta.80`), needs PostgreSQL, and documents no
-subscriptions. It was **not prototyped**: the machine has no PostgreSQL server and no Docker, and
-installing one is outside the brief. The reference design for a production indexer of our own is
-[Ekubo's indexer](https://github.com/EkuboProtocol/indexer) (MIT). In September 2026 it moved from
-Apibara's DNA stream to plain JSON-RPC 0.10 into Postgres, with header hash checks and a reorg
-window.
+**Runner-up: [Checkpoint](https://github.com/snapshot-labs/checkpoint)** (MIT). It detects reorgs by
+parent hash and deletes rows above the last good block, and it serves GraphQL. It is still beta,
+needs PostgreSQL, and documents no subscriptions. It was **not prototyped**: the machine has no
+PostgreSQL server and no Docker, and installing one is outside the brief. **Reference design for
+production:** [Ekubo's indexer](https://github.com/EkuboProtocol/indexer) (MIT), plain JSON-RPC 0.10
+into Postgres with header hash checks.
 
 ## 1. What needs indexing (AC-1)
 
-From docs/design (read in full for 02, 03, 06, 08, 09, 11–18) and ADR-0007 *Events are an
-interface*. 44 reads were classified; the table keeps the ones the indexer serves, and a count of
-the others.
+Source: docs/design (00–18) and ADR-0007 *Events are an interface*. **Every read the client needs
+to show something**, classified as exactly one of: **V** view call (own or point state, from
+storage), **S** client simulation (derived from what was read), **I** indexer (spans players,
+history or a search the contract cannot do in bounded execution). "MVP" follows design/09.
 
-| Class | Reads | Examples |
-|---|---|---|
-| **View call** (own state, from storage) | 19 | instance state (design/11, 02), character sheet, pack and vault, quest progress (D-63 storage mode), contracts of the day (14), Rift board (17), my lots (16: bounded to 10 + rank, stored for the limit anyway), direct trade record, inspect one adventurer by id (08, 11), registries |
-| **Client simulation** (derived from what was read) | 17 | window, sight, awake goblins (02), health and deadlines, previews, queue ghosts and "the world corrected itself" (11), promotion eligibility, guild board filter, trainer prices, lot expiry, estate yield |
-| **Indexer** | 8 in the MVP (+2 later) | below |
+| # | Read | Source | Class | Why | MVP |
+|---|---|---|---|---|---|
+| 1 | Instance state (clock, adventurer, goblins, revealed chunks, features) | design/11 *Screen in an instance*; design/02 *Instances* | V | Own instance, keyed by instance id (design/08 M-1) | yes |
+| 2 | Window, sight, awake goblins | design/02 *Map*, *Simulation budget*; design/18 *What the adventurer sees* | S | Built from chunks each tick, never stored | yes |
+| 3 | Health, energy, adrenaline, conditions with ticks left | design/11 status zone | S | Stored as deadlines on the instance clock (design/02 D-02) | yes |
+| 4 | Target panel, activation ring, goblin state marks, facing, arcs | design/11 *What the rules need to show* | S | From #1 | yes |
+| 5 | Previews: path and cost, range and line of sight, recharge, energy in red, interruptible | design/11 *Acting*, *What the rules need* | S | From #1 and the skill registry | yes |
+| 6 | Queue ghosts, why a queue stopped, "the world corrected itself" | design/11 *The queue*, *The chain, unseen* | S | Prediction compared with #1 | yes |
+| 7 | "saving…" (confirmation late) | design/11 *The chain, unseen* | V | Transaction status over RPC | yes |
+| 8 | Draw outcomes (loot, identification, brewing, chest) | design/11 reveal; design/15 *Identification* | V | Own state after the randomness transaction | yes |
+| 9 | Registry content (skills, castes, loot tables, quests, locations, gates, recipes, trainer and smith stock, collector offers) | CONTEXT §5 *Registry*; design/06; design/15 *Sources* | V | Static on-chain data, cacheable | yes |
+| 10 | Glow on remains from a caste's best drop | design/11 *What the rules need* | S | Registry loot table | yes |
+| 11 | The account's adventurers (3 slots) | design/03 D-33; design/11 first launch | V | Own account, bounded | yes |
+| 12 | Character sheet: level, rank, merit, attributes, known skills, build | design/03 *Identity*; design/11 *Desktop* | V | Own state | yes |
+| 13 | Promotion eligibility | design/06 *Promotion* | S | Merit against the registry threshold | yes |
+| 14 | Pack, vault, gold in the hub header | design/11 *Hubs*; design/15 *Storage* | V | Own balances and entities | yes |
+| 15 | Guild board: quests available to this adventurer | design/06 *Quest board*; design/11 Guild | S | Quest log (V) filtered by rank and prerequisites | yes |
+| 16 | Quest progress, active quests (max 3) | design/06 *Rules* | V | `quest` package in storage mode (D-63) | yes |
+| 17 | Contracts of the day (3 per hub) | design/14 *Guild contracts* | V | "Read in the hub, in the persistent domain" | yes |
+| 18 | Rift board: 5 identities and the cleared bitmap | design/17 *On-chain* | V | Stored per account per day | yes |
+| 19 | Which Rift is open (4th, Red) | design/17 *On-chain* | S | From the bitmap | yes |
+| 20 | **Hub: list and count of present adventurers** | design/11 (hub); design/09 Hubs; ADR-0007 | **I** | Spans players (E-2) | yes |
+| 21 | Their positions, walking by | design/02 D-03 | — (off-chain relay, Q-09) | Cosmetic, not chain state | yes |
+| 22 | Inspect another adventurer (rank, level, build) | design/08; design/11 | V | Point lookup by id, the id from #20 | yes |
+| 23 | **Title under another adventurer's name** | design/13 *What a title is*; ADR-0007 | **I** | Listed by ADR-0007 (E-3) | yes |
+| 24 | Own titles: progress and tier | design/13 *Implementation notes* | S | On-chain counters (V) and the tier table | yes |
+| 25 | **Own displayed title** | design/13; D-63 | **I** if event mode, else V | E-3 | yes |
+| 26 | Trainer: skills to buy, rising prices | design/11 Trainer; design/15 *Gold* | S | Registry and the count of known skills | yes |
+| 27 | Build editor warnings | design/11 | S | From the chosen bar | yes |
+| 28 | Smith, armorer, enchanter, alchemist screens; grimoire; hints | design/11; design/07 *Hints* | V | Own items and grimoire, registry | yes |
+| 29 | Item value estimates | design/15 *Identification*, *Gold* | S | Formulas | yes |
+| 30 | **Market search by category** | design/11 (auction house); design/16 | **I** | World-wide scan across sellers | yes |
+| 31 | **Cheapest lot per item and lot size, and the next after a lost race** | design/16 | **I** | "Not computed on-chain" | yes |
+| 32 | **Average price over the last sales** | design/16 | **I** | History | yes |
+| 33 | My lots | design/11 | V | Bounded (10 + rank per account), stored for the limit anyway | yes |
+| 34 | Lot slots left, right to sell (Tin) | design/16 | S | Lot count and the highest rank | yes |
+| 35 | Is a lot expired or returnable | design/16 | S | Expiry against now | yes |
+| 36 | Direct trade: both sides, confirmations | design/16 *Direct trade* | V | Stored trade record, by id | yes |
+| 37 | **Direct trade: incoming request** | design/16 *Direct trade* | **I** (subscription), or the relay | Addressed from another player (E-3) | yes |
+| 38 | Gate and map: unlocked hubs, requirements, zone outlines | design/11 Gate; design/18 TP-2 | V | Own unlocks and registry | yes |
+| 39 | **Leaderboards: rank, trials** | design/08 | **I** | Ranking across players | ambiguous (E-1) |
+| 40 | Leaderboard: elite clears | design/08 | I | Same | later |
+| 41 | Estate buildings and yield | design/12 *Implementation notes* | S | `min(cap, rate × elapsed)` from stored fields | later |
+| 42 | Visiting another player's estate | design/12 EQ-2 | V | Point lookup by account | later |
+| 43 | Trophy hall | design/12 *Buildings* | as #24/#25 | Own titles | later |
+| 44 | Co-op: other members' actions | design/08 | I (stream) | "Reconcile on the indexer stream" | later |
 
-| # | Indexer read | Source | Query shape | Subscription |
-|---|---|---|---|---|
-| 1 | Cheapest lot per item and lot size, and the next ones after a lost race | design/16 (not computed on-chain) | Q1: open, unexpired lots of `(item, lot size)` by price then lot id, first *k* | yes, while the market is open |
-| 2 | Market search by category | design/11 (auction house), 16 | Q2: items of a category with an open lot, cheapest per size | no |
-| 3 | Average price over the last sales | design/16 | Q3: mean per unit over the last *N* sales of an item | no |
-| 4 | Hub presence: count and list | design/11 (hub), 09, ADR-0007 | Q4: adventurers whose current hub is H | yes, while in the hub |
-| 5 | Title shown under another adventurer's name | design/13, ADR-0007 | Q5: current title of a set of adventurer ids (from Q4) | no |
-| 6 | Own displayed title, if titles are in event mode | design/13, D-63 | as Q5 | no |
-| 7 | Incoming direct-trade request, if not on the relay | design/16 *Direct trade* | Q7: requests to adventurer id | yes |
-| 8 | Leaderboards (rank, trials) | design/08 (v1 "read from chain") | Q6: top *K*, paginated, and "my position" | no |
-| later | Elite-clear leaderboard (08), co-op stream (08) | | | |
+Totals: 19 V, 17 S, 8 I in the MVP (#20, #23, #25, #30, #31, #32, #37, #39), 2 I later, and 1
+off-chain relay (#21).
+
+| Query | Serves | Shape | Subscription |
+|---|---|---|---|
+| Q1 | #31 | open, unexpired lots of `(item, lot size)` by price then lot id, first *k* | yes, while the market is open |
+| Q2 | #30 | items of a category with an open lot, cheapest per size | no |
+| Q3 | #32 | mean per unit over the last *N* sales of an item | no |
+| Q4 | #20 | adventurers whose current hub is H: count and list | yes, while in the hub |
+| Q5 | #23, #25 | current title of a set of adventurer ids | no |
+| Q6 | #39 | top *K*, paginated, and "my position" | no |
+| Q7 | #37 | requests to an adventurer id | yes |
 
 Events the indexer needs: **five**, each as small as the reads allow.
 
 | Event | Keys (after the selector) | Data | Emitted by | Serves |
 |---|---|---|---|---|
-| `LotPosted` | `item`, `lot_size` | `lot`, `price`, `expiry` (+ the equipment id for equipment) | posting a lot | 1, 2, 3 |
-| `LotClosed` | `lot` | `sold: bool` | buy, withdraw, return of an expired lot | 1, 2, 3 (price and item joined from `LotPosted`; the sale time is the block's) |
-| `AdventurerLocated` | `hub` (0: in no hub) | `adventurer` | travel, return, defeat, gate entry | 4 |
-| `TitleDisplayed` | `adventurer` | `title`, `tier` | title claim or selection | 5, 6 |
-| `RankPromoted` (only if 8 is in the MVP) | `adventurer` | `rank`, `first_attempt` | a successful trial | 8 |
+| `LotPosted` | `item`, `lot_size` | `lot`, `price`, `expiry` (+ the equipment id for equipment) | posting a lot | Q1–Q3 |
+| `LotClosed` | `lot` | `sold: bool` | buy, withdraw, return of an expired lot | Q1–Q3 |
+| `AdventurerLocated` | `hub` (0: in no hub) | `adventurer` | travel, return, defeat, gate entry | Q4 |
+| `TitleDisplayed` | `adventurer` | `title`, `tier` | claiming or choosing a title | Q5 |
+| `RankPromoted` (only if #39 is in the MVP) | `adventurer` | `rank`, `first_attempt` | a successful trial | Q6 |
 
-What is deliberately not emitted: the seller of a lot (my lots is a view call), the buyer (no read
-uses it), an expiry event (expiry is lazy, design/16: the indexer compares `expiry` with block
-time), names (batched view calls). `TradeRequested` exists only if direct trade does not go through
-the relay (escalation E-3). The prototype's events (`LotPosted`, `LotClosed`, `AdventurerLocated`)
-are this list without `lot_size` as a key and without `expiry`.
+Not emitted, on purpose:
+- the seller (my lots is a view call);
+- the buyer (no read uses it);
+- an expiry event (expiry is lazy: the indexer compares `expiry` with block time);
+- names (batched view calls).
+
+`TradeRequested` exists only if direct trade does not go through the relay (E-3). The prototype's
+events are `LotPosted`, `LotClosed` and `AdventurerLocated`, without `lot_size` and `expiry`. It
+adds `LotCountSet`, used only to reach the u64 boundaries.
 
 ## 2. Candidates (AC-2)
 
-Web research done on 2026-09-28. Each claim links the page it was read from; "unverified" marks
-what could not be confirmed.
+Web research on 2026-09-28. Each claim links the page it was read from. **Unknown** marks what the
+pages consulted do not state.
 
 | Candidate | What | Licence | Last release | Self-hosted without a paid service | Fit |
 |---|---|---|---|---|---|
-| [Apibara](https://github.com/apibara/dna) (DNA v2 + `@apibara/indexer`) | A Rust stream server over a node, and a TS SDK | Apache-2.0 | `dna-starknet/v2.1.4`, 2026-05-18 ([releases](https://github.com/apibara/dna/releases)) | Only if the DNA server is run too. Software Mansion's fork [Starkstream DNA](https://github.com/software-mansion-labs/starkstream-dna) needs JSON-RPC + WebSocket providers, **etcd** and an **object store** (S3/MinIO). The hosted Starknet stream is "provided by a partner" ([docs](https://www.apibara.com/docs/networks/starknet)). Upstream's own requirements are unverified | Custom events: yes. Upstream's future is unclear: Ekubo left it ([README](https://raw.githubusercontent.com/EkuboProtocol/indexer/main/README.md)) |
-| [Checkpoint](https://github.com/snapshot-labs/checkpoint) | A TS library, writers per event, GraphQL | MIT | `v0.1.0-beta.80`, 2026-08-19 ([releases](https://github.com/snapshot-labs/checkpoint/releases)) | Yes. Needs RPC + **PostgreSQL** ([quickstart](https://github.com/snapshot-labs/checkpoint-docs/blob/master/guides/quickstart.md)); Docker only to start Postgres | Custom events: yes |
-| [Torii](https://github.com/dojoengine/torii) | Dojo's indexer, SQLite, GraphQL + subscriptions, gRPC, SQL | Apache-2.0 | v1.8.16, 2026-05-20 | Yes | **No**: contract types WORLD, ERC20, ERC721, ERC1155; raw events are "dev only" ([configuration](https://book.dojoengine.org/toolchain/torii/configuration)). ADR-0007 dropped it |
-| [SubQuery](https://github.com/subquery/subql-starknet) | Node + GraphQL query service + Postgres | GPL-3.0 | node-starknet 6.1.0, 2025-07-23; last push 2025-10-30 | Yes | Stale; `--unfinalized-blocks` (reorg rollback) is for Substrate and Ethereum only ([reference](https://subquery.network/doc/indexer/run_publish/references.html)) |
-| [Firehose / Substreams](https://github.com/streamingfast/firehose-starknet) | StreamingFast's block stream; The Graph serves Starknet only through Substreams ([docs](https://thegraph.com/docs/en/supported-networks/starknet-mainnet/)) | Apache-2.0 | v1.1.2, 2026-01-05 | In principle; needs a Starknet RPC **and an Ethereum L1 RPC**, plus substreams and a sink | Heavy multi-service stack |
-| Goldsky | Hosted pipelines ([chain page](https://goldsky.com/chains/starknet)) | proprietary | — | **No**: hosted, usage-priced after a $100 credit ([pricing](https://docs.goldsky.com/pricing/summary)) | Recorded, not tried (paid service) |
+| **Apibara, upstream** ([apibara/dna](https://github.com/apibara/dna), `@apibara/indexer`) | A Rust stream server (DNA) that ingests from a node, and a TS SDK | Apache-2.0 | `dna-starknet/v2.1.4`, 2026-05-18 ([releases](https://github.com/apibara/dna/releases)) | Possible by running DNA. **Its dependencies (etcd, object store) are unknown for upstream**: the README consulted does not list them | Custom events: yes. Upstream's future is unclear: Ekubo left the DNA stream ([README](https://raw.githubusercontent.com/EkuboProtocol/indexer/main/README.md)) |
+| **Apibara, Starkstream fork** ([software-mansion-labs/starkstream-dna](https://github.com/software-mansion-labs/starkstream-dna)) | Software Mansion's fork of DNA | Apache-2.0 | unknown | Yes, with Starknet JSON-RPC + WebSocket providers, **etcd** and an **object store** (S3/MinIO), per its README; a Dockerfile is provided | Same SDK |
+| **Apibara, hosted streams** (`mainnet.starkstream.io`, `testnet.starkstream.io`) | Streams "provided by a partner" ([docs](https://www.apibara.com/docs/networks/starknet)) | — | — | Not self-hosted. **Whether an API key or payment is needed is unknown** | Would put a third party in the path |
+| [Checkpoint](https://github.com/snapshot-labs/checkpoint) | TS library, writers per event, GraphQL | MIT | `v0.1.0-beta.80`, 2026-08-19 ([releases](https://github.com/snapshot-labs/checkpoint/releases)) | Yes. RPC + **PostgreSQL** ([quickstart](https://github.com/snapshot-labs/checkpoint-docs/blob/master/guides/quickstart.md)) | Custom events: yes |
+| [Torii](https://github.com/dojoengine/torii) | Dojo's indexer, SQLite, GraphQL + subscriptions, gRPC, SQL | Apache-2.0 | v1.8.16, 2026-05-20 | Yes | **No**: contract types WORLD, ERC20, ERC721, ERC1155. Raw events are "dev only" ([configuration](https://book.dojoengine.org/toolchain/torii/configuration)) |
+| [SubQuery](https://github.com/subquery/subql-starknet) | Node + GraphQL query service + Postgres | GPL-3.0 | node-starknet 6.1.0, 2025-07-23; last push 2025-10-30 | Yes | Stale. `--unfinalized-blocks` is for Substrate and Ethereum only ([reference](https://subquery.network/doc/indexer/run_publish/references.html)) |
+| [Firehose / Substreams](https://github.com/streamingfast/firehose-starknet) | StreamingFast's block stream. The Graph serves Starknet only through it ([docs](https://thegraph.com/docs/en/supported-networks/starknet-mainnet/)) | Apache-2.0 | v1.1.2, 2026-01-05 | In principle, with a Starknet RPC **and an Ethereum L1 RPC**, plus substreams and a sink | A heavy multi-service stack |
+| Goldsky | Hosted pipelines ([chain page](https://goldsky.com/chains/starknet)) | proprietary | — | **No**: usage-priced after a $100 credit ([pricing](https://docs.goldsky.com/pricing/summary)) | Recorded, not tried (paid service) |
 | Envio, Ponder, rindexer | | | | | EVM (and Fuel) only ([Envio](https://docs.envio.dev/docs/HyperIndex/supported-networks), [Ponder](https://ponder.sh/docs/getting-started/new-project), [rindexer](https://github.com/joshstevens19/rindexer)) |
-| **Our own** | Node 24 + JSON-RPC 0.10 + SQLite (`spikes/SPK-11/indexer.ts`) | ours | — | Yes: a node (or an RPC endpoint) and one process | Custom events by construction |
+| **Our own** | Node 24 + JSON-RPC 0.10 + SQLite (`spikes/SPK-11/indexer.ts`) | ours | — | Yes: a node or RPC endpoint and one process | Custom events by construction |
 
 | | Apibara (self-hosted) | Checkpoint | **Our own** |
 |---|---|---|---|
-| Reorg detection | Server-side canonical chain; the SDK receives `invalidate` ([docs](https://www.apibara.com/docs/getting-started/indexers)) | Compares `parent_hash` with the stored hash, throws `ReorgDetectedError` ([provider.ts](https://raw.githubusercontent.com/snapshot-labs/checkpoint/master/src/providers/starknet/provider.ts)) | Parent hash **and** stored-tip check each step, by hash and commitments (§4); events fetched by block hash |
-| Rollback | Triggers write an audit table; rows past the new head reverted in reverse order ([internals](https://www.apibara.com/docs/storage/drizzle-pg/internals)) | Walks back to the last matching hash; deletes rows with `lower(block_range) > lastGoodBlock` ([container.ts](https://raw.githubusercontent.com/snapshot-labs/checkpoint/master/src/container.ts)) | Rows valid over `[_from, _to)`; `DELETE _from > F`, `UPDATE _to = NULL WHERE _to > F`, one transaction |
-| Pre-confirmed blocks (Starknet 0.14) | Ingestion enabled in DNA starknet v2.1.2 | Reads `pre_confirmed` | Not indexed (§3) |
-| Query interface | None (you own the database) | GraphQL; no subscriptions documented | HTTP JSON; each answer carries the head it was read at |
-| Subscription | — | — | Server-sent events: `posted`, `closed`, `rewind`, `head` |
-| Processes | Node + DNA + etcd + object store + indexer + Postgres | RPC + indexer + Postgres | RPC + indexer (SQLite file) |
-| Lock-in | DNA protocol, uncertain upstream | Beta API | None |
+| Reorg detection | Server-side canonical chain; the SDK receives `invalidate` ([docs](https://www.apibara.com/docs/getting-started/indexers)) | Compares `parent_hash` with the stored hash ([provider.ts](https://raw.githubusercontent.com/snapshot-labs/checkpoint/master/src/providers/starknet/provider.ts)) | The stored tip is checked by hash **and** commitments at every step; events are fetched by block hash (§4) |
+| Rollback | Rows past the new head reverted from an audit table ([internals](https://www.apibara.com/docs/storage/drizzle-pg/internals)) | Deletes rows with `lower(block_range) > lastGoodBlock` ([container.ts](https://raw.githubusercontent.com/snapshot-labs/checkpoint/master/src/container.ts)) | Rows valid over `[_from, _to)`, rewound in one transaction |
+| Serving during divergence | unknown | unknown | 503 `loading`/`rewinding`; every answer carries its block; a client freshness rule (§4) |
+| Pre-confirmed (0.14) | DNA starknet v2.1.2 enables ingestion | Reads `pre_confirmed` | Not indexed (§3) |
+| Query / subscription | None built in / — | GraphQL / none documented | HTTP JSON / SSE with snapshot and block identity |
+| Processes | Node + DNA (+ etcd + object store for the fork) + indexer + Postgres | RPC + indexer + Postgres | RPC + indexer (SQLite file) |
 
-Starknet's reorgs are deep. **2025-09-02**: two reorgs of `ACCEPTED_ON_L2` blocks, about one hour
-and about 20 minutes of activity reverted, after v0.14.0
-([incident report](https://www.starknet.io/blog/starknet-incident-report-september-2-2025/)).
-**2026-01-05**: 18 minutes reverted
-([incident report](https://www.starknet.io/blog/starknet-incident-report-january-5-2026/)). In both,
-only L1-accepted blocks were safe. The rewind therefore cannot assume a few blocks: the prototype
-walks back as far as the hashes disagree, and a production indexer keeps its versioned history
-at least down to the last L1-accepted block.
+Starknet's reorgs are deep:
+- **2025-09-02**: two reorgs of `ACCEPTED_ON_L2` blocks, about 1 h and 20 min reverted
+  ([incident report](https://www.starknet.io/blog/starknet-incident-report-september-2-2025/)).
+- **2026-01-05**: 18 min reverted
+  ([incident report](https://www.starknet.io/blog/starknet-incident-report-january-5-2026/)).
+
+In both, only L1-accepted blocks were safe. The rewind walks back as far as the chain disagrees,
+and a production indexer keeps versioned history at least down to the last L1-accepted block.
 
 ## 3. The prototype (AC-3)
 
 | File | What |
 |---|---|
-| `src/market.cairo`, `tests/test_market.cairo` | A contract with the game's event shapes: `post` → `LotPosted { #[key] item, lot, quantity, price }`, `buy`/`withdraw` → `LotClosed { #[key] lot, sold }`, `locate` → `AdventurerLocated { #[key] hub, adventurer }`; `post_silent` (the same write, no event) for measuring the event's gas. A lot packed in one felt. 8 tests with budgets |
-| `indexer.ts` | The indexer: follow, decode, versioned SQLite tables, rewind, HTTP + SSE |
-| `client.ts` | The TypeScript client: `cheapest(item, k)`, `presence(hub)`, `subscribe(onEvent)` |
-| `chain.ts`, `run-indexer.ts` | Test plumbing: the node's account, deploy, send; start and stop the indexer process |
-| `demo.ts` | The scenario of §4 |
-| `bench.ts` | The figures of §5 |
-| `with-archive.sh` | `scripts/with-node.sh` with `STATE_ARCHIVE_CAPACITY=full` in the environment, which `devnet_abortBlocks` needs. Devnet reads the option from its environment, so `with-node.sh` is unchanged |
-| `probe.ts`, `probe-hash.ts` | What devnet does on an abort (§4) |
+| `src/market.cairo`, `tests/test_market.cairo` | The contract (details below the table). 12 tests with budgets |
+| `indexer.ts` | The indexer |
+| `client.ts` | The client: `cheapest`, `presence`, the freshness rule (`check`, `verify`), `subscribe`, `LotCache` |
+| `run-indexer.ts` | Starts the indexer with an explicit one-variable environment |
+| `chain.ts` | The node's account, deploy, send, abort |
+| `demo.ts`, `results/demo.txt` | The scenario of §4 and its output |
+| `bench.ts`, `results/bench.txt` | The figures of §5 and its output |
+| `with-archive.sh` | `scripts/with-node.sh` with `STATE_ARCHIVE_CAPACITY=full` in the environment, which `devnet_abortBlocks` needs (devnet reads the option from its environment; `with-node.sh` is unchanged) |
+| `probe.ts`, `probe-hash.ts` | What devnet does on an abort |
 
-How it follows the chain (`indexer.ts`, `step`):
+The contract:
+- `post` emits `LotPosted { #[key] item, lot, quantity, price }`.
+- `buy` and `withdraw` emit `LotClosed { #[key] lot, sold }`.
+- `locate` emits `AdventurerLocated { #[key] hub, adventurer }`.
+- `skip_lots` emits `LotCountSet { count }` (test only).
+- `lot` and `lot_count` are views.
+- `post_silent`, `withdraw_silent` and `locate_silent` exist only to measure event gas. `post_silent`
+  also tests completeness (§6).
 
-1. Each step reads the chain's head, then re-reads the stored tip's header. If that block is gone,
-   or has another hash or other commitments, the indexer walks down its stored blocks until one
-   matches the chain (`forkPoint`) and rewinds to it.
-2. It takes the next blocks in batches of at most 100. For each one, the header's parent must be
-   the stored block below, and the events are fetched **by the block's hash**
-   (`starknet_getEvents` with `from_block = to_block = {block_hash}`, the contract's address, and
-   the three selectors as keys). Every event must carry that hash.
-3. It applies a block's events and records the block in **one SQLite transaction**, then publishes
-   to subscribers. A subscriber never hears of a row that a query could not return.
-4. If an event contradicts the tables (a `LotClosed` for a lot never posted), it **stops
-   advancing** and keeps serving the last consistent head (§4, *fail-stop*).
-
-**Pre-confirmed blocks are not indexed.** The indexer serves only `ACCEPTED_ON_L2` blocks. The
-player's own pending action is the client's to show ("saving…", design/11), from its transaction
-status. Other players' pre-confirmed actions (a lot posted a second ago) would appear about one
-block later. Indexing `pre_confirmed` as a provisional overlay is possible (`starknet_getEvents`
-accepts it; devnet answered `{"events":[]}` in `probe.ts`), but was not tried.
+**Pre-confirmed blocks are not indexed.** The indexer serves `ACCEPTED_ON_L2` blocks only. The
+player's own pending action is shown by the client from its own transaction status ("saving…",
+design/11). Indexing `pre_confirmed` as a provisional overlay is possible, but was not tried.
 
 Commands (from the repository root):
 
@@ -147,149 +194,181 @@ spikes/SPK-11/with-archive.sh node spikes/SPK-11/demo.ts
 spikes/SPK-11/with-archive.sh node spikes/SPK-11/bench.ts 100 100
 ```
 
-Output of `demo.ts` (trimmed; the lines of the reorgs are in §4):
-
-```
-[demo +11.55s] Market deployed at 0x2a40…245 in block 2
-[indexer …] serving on http://127.0.0.1:35323, following http://127.0.0.1:27286 from block 2, tip null
-[demo +11.87s] subscription: posted {"lot":1,"item":7,"quantity":1,"price":"300","block":3}
-…
-[demo +12.15s] buy(lot 2) in block 8
-[demo +12.22s] subscription: closed {"lot":2,"item":7,"sold":true,"block":8}
-[demo +12.23s] query cheapest(item 7, 3) = {"head":{"number":8,"hash":"0x7406…512"},"lots":[{"lot":1,…,"price":"300","block":3},{"lot":3,…,"price":"400","block":5}]}
-[demo +12.23s] ok   cheapest open lots of item 7 after lot 2 was bought: [300,400]
-[demo +12.23s] ok   presence hub 1 / hub 2: [2,1]
-```
-
-## 4. Reorgs (AC-4)
+## 4. Reorgs, and what the client may be shown (AC-4)
 
 ### What devnet simulates, and how faithfully
 
 `devnet_abortBlocks {starting_block_id}` (needs `--state-archive-capacity full`) removes the blocks
-from the given one to the tip. The head goes back, the aborted blocks answer `Block not found` by
-hash, their transactions are gone, and the state is back to the parent's. The nonce and the lot
-counter are rolled back, so **the same lot id is given again**: lot 5 was 120, then 500, then 600
-in the scenario. WebSocket subscribers receive `starknet_subscriptionReorg` with
-`starting_block_hash/number` and `ending_block_hash/number` (`probe.ts`), as in the specification
-([ws API](https://raw.githubusercontent.com/starkware-libs/starknet-specs/master/api/starknet_ws_api.json)).
+from the given one to the tip:
+- the head goes back;
+- the aborted blocks answer `Block not found`;
+- their transactions are gone, and the state is the parent's;
+- the lot counter goes back too, so **the same lot id is handed out again**;
+- WebSocket subscribers receive `starknet_subscriptionReorg` (`probe.ts`), as in the
+  [specification](https://raw.githubusercontent.com/starkware-libs/starknet-specs/master/api/starknet_ws_api.json).
 
-| Faithful | Not faithful |
-|---|---|
-| The chain is shorter, then grows again on another branch; the state is the fork point's | **A replacement block gets the same hash as the block it replaces** when it has the same number and parent, although its transaction, event, receipt and state-diff commitments differ (`probe-hash.ts`: both `0x272c…c5c`). On Starknet the block hash commits to those, so a replaced block has another hash. An indexer that trusts hashes alone misses a reorg on devnet. **The first run of `demo.ts` did miss one**: the offline case served the aborted 500 lot instead of the chain's 600. The indexer now keys a block by hash **and** commitments: that is equivalent on Starknet and correct on devnet |
-| The reorg notification of the WebSocket API | Aborted transactions are dropped. On Starknet the transactions of an orphaned branch may be included again, in another order |
-| | Everything is instantaneous and local. A real reorg comes with an outage, a node that may lag or sit on the minority branch, and hours rather than milliseconds (§2) |
+**Not faithful:**
+- **A replacement block gets the hash of the block it replaces** (same number and parent), although
+  its commitments differ (`probe-hash.ts`). On Starknet the hash commits to those. The indexer and
+  the client therefore compare hash **and** commitments. This is equivalent on Starknet and
+  necessary on devnet: in fix loop 1, a demo check that compared hashes only reported a stale
+  cache as current.
+- Aborted transactions are dropped. On Starknet they may be included again.
+- Everything is local and instantaneous.
 
-### The three cases (`demo.ts`, all passed)
+### The rules
 
-```
-[demo +12.34s] ok   before the reorg the query shows the 120 lot: {"head":{"number":10,…},"lots":[{"lot":5,…,"price":"120","block":9},…]}
-[demo +12.35s] devnet_abortBlocks from 9: 2 blocks aborted, chain head now {"number":8,"hash":"0x7406…512"}
-[indexer …] rewind to 8 (tip 10 0x7ec61454… no longer on the chain); 1 lots retracted
-[demo +12.45s] subscription: rewind {"to":8,"head":{"number":8,"hash":"0x7406…512"},"retracted":[5]}
-[demo +12.46s] reorg 1 (live): query consistent 114 ms after the abort was sent (abort call itself 2 ms); subscription rewind heard at 108 ms
-[demo +12.48s] ok   after reorg 1 the query is the chain's: {"indexer":[300,400],"chain":[300,400]}
-[demo +12.48s] ok   after reorg 1 presence hub 1 = 2 again
-[demo +12.57s] ok   replaced block indexed: lots 300, 400, 500: [300,400,500]
-[demo +12.70s] aborted block 9; posted 600 (item 7) in block 9 and 90 (item 9) in block 10: the chain is now one block past the indexer's tip, whose hash is gone
-[indexer …] rewind to 8 (tip 9 0x4273d128… no longer on the chain); 1 lots retracted
-[demo +13.05s] reorg 3 (offline): restart to consistent query in 352 ms (process start included)
-[demo +13.08s] ok   after reorg 3 the query is the chain's: {"indexer":[300,400,600],"chain":[300,400,600]}
-[demo +13.43s] ok   rebuilt == rewound, answer for answer
-[demo +13.48s] timings: {"liveQueryMs":114,"liveSubscriptionMs":108,"offlineRestartMs":352}
-[demo +13.48s] all checks passed
-```
-
-"The chain's" answer is computed by **view calls** on the contract (`lot(i)` for every lot), not by
-the indexer. Time to consistency is measured from the moment the abort is sent until the client's
-query returns the rewound state. It is the poll interval (100 ms) plus two or three local RPC
-calls. With a WebSocket `newHeads` subscription to wake the loop, the poll would go.
-
-### Can the client be served a state the chain does not hold? (for the audit)
-
-| Window | Bound | Why it is safe |
+| # | Rule | Where |
 |---|---|---|
-| Between a reorg on the node and the indexer's next step | poll interval + RPC time (114 ms measured locally) | Every answer carries `head {number, hash}`. The client can compare it with the head it sees, and the contract is authoritative for anything that matters: `buy` on a lot the reorg removed **reverts** (`'lot not open'`), and the client moves to the next cheapest lot, the "lost race" path of design/16 |
-| The node itself lags or is on the minority branch | the node's | The indexer is only as right as its node. Production runs against a node we operate or one trusted endpoint, and never mixes endpoints within a step (a header from one and events from another) |
-| A block replaced between its header and its events | none | Events are fetched by block hash and must carry it. On devnet, where the hash does not change, the next step's commitment check rewinds it |
-| A lot id reused after a reorg | — | The subscription's `rewind` lists the retracted lot ids. The client drops what it holds for them and queries again; it never keeps a lot across a rewind by id alone |
-| An event that contradicts the tables | — | The indexer stops advancing (fail-stop) and serves the last consistent head: stale, never wrong. It needs an alert (found by `bench.ts` when a lot was posted by `post_silent`, with no event) |
+| R1 | **Serving states.** `loading` from start until the stored tip has been checked against the chain. `rewinding` from the moment a divergence is seen until the rewind is committed. `halted` when an invariant fails (§6). In these states every query answers **503 with the state and no rows**. `ok` otherwise | `indexer.ts`, `setStatus`, HTTP handler |
+| R2 | **Block identity on every answer.** `head {number, hash, commitments}`: the block the answer is consistent with, read with the rows in one synchronous read | HTTP handler |
+| R3 | **Client freshness rule.** An answer is accepted only if (1) the indexer says `ok`, (2) the client's own node still has the head block with the same hash and commitments, read **after** the answer, and (3) that block is at most `maxLag` (5) blocks below the node's tip. Otherwise the screen says "loading" and the client asks again. This covers the window no indexer can close: a reorg on the node before the indexer's next step. An accepted answer may be up to `maxLag` blocks old, a past state of the canonical chain | `client.ts`, `check`/`verify` |
+| R4 | **Subscriptions resync, never patch across a gap.** A connection starts with a `reset` snapshot of the item's open lots, and every rewind is followed by a new `reset`. `posted`/`closed`/`head` events carry block identity. The `LotCache` is rebuilt from each `reset`, is not `ready` after a disconnection or a `rewind` until the next `reset`, and is shown only if its head passes R3 | `indexer.ts`, `reset`; `client.ts`, `LotCache` |
+| R5 | **The contract stays authoritative.** Acting on an accepted lot that a later reorg removed reverts (`buy`: `'lot not open'`), and the client falls back to the next lot, the "lost race" path of design/16 | contract |
 
-The indexer holds **no secret**. It reads a public chain. The only configuration is the RPC URL,
-which may carry a provider's API key; that key goes in the process's environment, never in the
-database. It holds **nothing that cannot be rebuilt**: every row is derived from events (the rebuild
-check above).
+### Evidence (`results/demo.txt`, all 22 checks passed)
+
+The criterion: an answer with rows is **wrong** if it differs from the chain's state at the
+answer's own head block, computed by view calls (`lot(i)`) at that block. An orphaned block counts
+as wrong.
+
+| Case | What happened | Result |
+|---|---|---|
+| Live reorg (poll 500 ms to widen the window): a purchase of lot 1 and a new lot 5 aborted | Sampled from the abort until an answer at the chain's tip was accepted: 40 answers. **37 raw answers were orphaned**, and the rule rejected all of them. The cache was rebuilt by the `reset` after the rewind, **reopening lot 1**; a rewind event alone could not have done that | `acceptedWrong 0`, `cacheWrong 0`; latest state accepted **526 ms** after the abort (bounded by the poll) |
+| Cache through a disconnection, a reorg and a reused id | Disconnected; lot 5 posted at 500, aborted, lot 5 posted again at 650, lot 3 withdrawn; reconnected | The accepted cache equals the chain: `1:300 5:650` |
+| Restart on a replaced tip, node slowed to 50 ms per call | The database held orphaned block 9. The indexer served from its first answer: **37 answers `loading`**, then 15 with rows, all states the chain held at their head (14 of them its state two blocks back, within `maxLag`) | `rawWrong 0`; latest state accepted 609 ms after the first answer |
+| u64 boundaries | Lots `2^53+1`, `2^63`, `2^64-1` at prices `2^64-1`, `2^63`, `2^53+1`; lot `2^63` bought | The query equals the chain's view calls, ordered losslessly. The abort rewound them all, and the next lot id was the chain's (7) |
+| Rebuild | An empty database from the deployment block | Answer for answer equal to the indexer that lived through the reorgs |
+
+What the table does not cover:
+- The indexer is only as right as its node. It must run against one node we trust, never mixing
+  endpoints within a step.
+- The client's node is the arbiter of R3. If both follow a minority branch, both agree on it until
+  the network settles. That is the chain's own limit, and R5 still holds.
 
 ## 5. Hosting and cost (AC-5)
 
-### Measured (`bench.ts 100 100`, devnet on the same machine)
+### Measured (`results/bench.txt`, devnet on the same machine)
 
 | Figure | Value |
 |---|---|
-| Catch-up from an empty database | 10 008 events over 108 blocks in **0.99 s** (≈10 100 events/s, process start included), 221 RPC calls |
-| Peak memory of the indexer | **119 MB** RSS (Node 24 baseline included) |
-| Disk | 0.57 MB for 10 008 events: **≈ 59 bytes per event → ≈ 57 MB per million events** (versioned rows and indexes, write-ahead log checkpointed). Block records: 0.80 MB after 1 128 blocks and 10 028 events, so **≈ 230 bytes per stored block** |
-| Blocks without our events | 1 000 empty blocks in 3.04 s: **3.0 ms and 2.02 RPC calls per block** (header + `getEvents`) |
-| Live latency | Receipt in starknet.js to `posted` on the subscription, 20 posts, 100 ms poll: **median 58 ms**, min 51, max 64 |
-| Idle cost of following | 2 RPC calls per poll (head + tip header): 1.7 M calls a day at 100 ms, 173 k at 1 s, ~0 with a WebSocket `newHeads` wake-up |
+| Catch-up from an empty database | 10 000 events over 101 blocks in **1.08 s** (9 230 events/s, process start included) |
+| RPC calls for that catch-up | `getBlockWithTxHashes` 103, `getEvents` 101, `blockHashAndNumber` 3, `call` 2 |
+| Peak memory of the indexer | **127 MB** RSS (Node 24 baseline included) |
+| Disk | 1.21 MB for 10 000 events: **127 bytes per event**. It rose from 59 in the first version, because u64 values are stored as 16-digit text (lossless, §4) and each lot also writes a counter row |
+| Disk per stored block | 1.43 MB after 1 121 blocks and 10 020 events |
+| 1 000 blocks without our events | 2.57 s (**2.57 ms per block**). RPC calls: `getBlockWithTxHashes` 1 011, `getEvents` 1 000, `blockHashAndNumber` 11, `call` 11 = **2.03 per block** |
+| Idle following, 100 ms poll | 48 `blockHashAndNumber` + 48 `getBlockWithTxHashes` in 5 s = **19.2 calls per second** (2 per poll) |
+| 20 live blocks with one event each, idle polls included | `getBlockWithTxHashes` 60, `blockHashAndNumber` 40, `getEvents` 20, `call` 20 |
+| Live latency (receipt → `posted` on the subscription, 100 ms poll) | median **54 ms**, min 14, max 72 |
+| Time to consistency after a reorg | live: 526 ms at a 500 ms poll; restart: 609 ms with a 50 ms node (§4) |
 
-Devnet is local and instantaneous. On a public network the per-block time is the RPC round trip,
-so catch-up from the deployment block is bounded by the RPC, not by the indexer.
+### Projections (not measured; each assumption named)
 
-### Sepolia, then mainnet
+Cost per call from Alchemy's table ([CU costs](https://www.alchemy.com/docs/reference/compute-unit-costs)):
+`starknet_blockHashAndNumber` 10 CU; `starknet_getBlockWithTxHashes`, `starknet_getEvents`,
+`starknet_call` 20 CU each.
+
+| Item | Formula | At a 1 s poll and **an assumed block every 6 s** (unverified) |
+|---|---|---|
+| Idle polls | 1 × `blockHashAndNumber` + 1 × `getBlockWithTxHashes` per poll = 30 CU | 86 400 polls/day → 2.6 M CU/day |
+| New blocks | 1 × `getBlockWithTxHashes` + 1 × `getEvents` + 1 × `call` (reconciliation, when the tip changes) ≈ 60 CU | 14 400 blocks/day → 0.86 M CU/day |
+| Month | | ≈ 104 M CU. Above the free 30 M; ≈ 74 M × $0.525/M ([pricing](https://www.alchemy.com/pricing)) ≈ **$39/month** |
+| With a WebSocket `newHeads` wake-up instead of polling | idle polls → 0 | ≈ 26 M CU/month, inside the free tier |
+
+Alchemy lists Starknet RPC v0_6–v0_9 only ([FAQ](https://www.alchemy.com/docs/reference/starknet-api-faq)).
+The indexer needs 0.10 for `getEvents` by block hash with `EMITTED_EVENT` positions: check before
+choosing it. **Disk, projected linearly** from 127 bytes per event: ≈ 121 MB per million events,
+plus the stored blocks (prunable below the last L1-accepted block).
 
 | | Sepolia | Mainnet |
 |---|---|---|
-| Process | One Node 24 process (≈120 MB), managed by systemd on the VPS or any small host | Same; a second instance on another host for failover, each with its own database (both rebuildable) |
-| Database | SQLite file: tens of MB per million events | SQLite while one writer is enough. Postgres only if several indexer processes must share tables; the versioned schema is the same |
-| RPC it needs | JSON-RPC **0.10** (`EMITTED_EVENT` positions, `getEvents` by block hash), HTTP, optionally WebSocket | Same |
-| Endpoint | A public endpoint is enough to start: Nethermind's open `free-rpc.nethermind.io/sepolia-juno/` ([docs](https://docs.data.voyager.online/)), rate limits unverified. **Alchemy lists RPC v0_6–v0_9 only** ([FAQ](https://www.alchemy.com/docs/reference/starknet-api-faq)): check 0.10 before choosing it | **Our own Juno node**: 4 cores, 8 GB+ RAM, NVMe ([hardware](https://juno.nethermind.io/hardware-requirements)); **85.6 GB pruned** or 453.9 GB full as of 2026-07-31 ([snapshots](https://juno.nethermind.io/snapshots)); serves RPC 0.10.1 and WebSocket with reorg notifications. Pathfinder: 4 cores, 16 GB, 1 TB SSD recommended |
-| RPC cost if hosted | At 1 s polling and 2 calls per block: ≈ 175 k calls/day ≈ 5.2 M/month. At Alchemy's 20 CU per `getEvents` ([CU costs](https://www.alchemy.com/docs/reference/compute-unit-costs)) that is ≈ 105 M CU/month, above the free 30 M, ≈ **$40/month** pay-as-you-go at $0.525 per M CU ([pricing](https://www.alchemy.com/pricing)). The per-call CU of `blockHashAndNumber` and `getBlockWithTxHashes` is taken as 20: upper bound, unverified | A node of our own has no per-call cost. A hosted one costs the same order as Sepolia, plus the rebuild's burst |
+| Process | One Node 24 process (≈130 MB) under systemd | Same; a second instance on another host for failover, each with its own database |
+| Database | SQLite | SQLite while one writer is enough; Postgres if several processes must share tables (same versioned schema) |
+| RPC | JSON-RPC **0.10**, HTTP, optionally WebSocket. A public endpoint to start, e.g. Nethermind's open `free-rpc.nethermind.io/sepolia-juno/` ([docs](https://docs.data.voyager.online/)); its rate limits are unknown | **Our own Juno node**: 4 cores, 8 GB+ RAM, NVMe ([hardware](https://juno.nethermind.io/hardware-requirements)); **85.6 GB pruned**, 453.9 GB full as of 2026-07-31 ([snapshots](https://juno.nethermind.io/snapshots)); serves RPC 0.10.1 and WebSocket. Or a hosted RPC at the projection above |
 
 ### Rebuild from the chain
 
 1. Stop the indexer. Delete its database file (with `-wal` and `-shm`).
-2. Start it with `--from <the contract's deployment block>`: it applies every block from there, and
-   serves queries whose `head` says how far it has got.
-3. The client treats answers whose `head` is far behind the chain as "the market is loading".
+2. Start it with `--from <the contract's deployment block>`. It answers `loading` until its first
+   step, then serves states whose `head` says how far it has got. Clients reject answers more than
+   `maxLag` blocks behind (R3) and show "loading".
 
-Measured on devnet: 321 ms for the scenario's chain, and the rebuilt answers were identical to
-those of the indexer that lived through three reorgs. On mainnet, with 2 calls per block from the
-deployment block, a rebuild months after launch is millions of calls. The production indexer must
-therefore catch up **below the last L1-accepted block** with `starknet_getEvents` over block
-*ranges* (1 000 events per page, by the contract's address). That is about one call per thousand
-events, and those blocks cannot reorg. It follows block by block only above that block. **Not
-prototyped.**
+Measured: `demo.ts` rebuilt the scenario's chain, and its answers equalled the lived-through
+indexer's. On mainnet, a rebuild at 2 calls per block from the deployment block is millions of
+calls. The production indexer must catch up **below the last L1-accepted block** with `getEvents`
+over block ranges, about one call per thousand events. **Not prototyped.**
 
 ## 6. What ENG-01 must freeze (events as an API)
 
-1. **Names and layouts.** The first key is the selector of the event's *name*: renaming an event,
-   or reordering, retyping, or moving a field between keys and data, breaks the indexer and every
-   rebuild of the history. A change is a **new event name**; the indexer decodes both forever.
-2. **Completeness.** Every path that changes an indexed thing emits its event: posting, buying,
-   withdrawing, and returning an expired lot all emit. A lot that appears or closes without its
-   event stops the indexer (fail-stop, §4). The prototype's `post_silent` showed it.
-3. **Identifiers.** The ids in events are the storage ids (lot, adventurer, hub, item). Ids handed
-   out by a counter are **reused after a reorg**: clients and the indexer never trust an id alone
-   across a rewind.
-4. **Integer widths.** Whatever reaches a price or a sum must fit what the indexer computes in.
-   SQLite `INTEGER` is 64-bit signed; JSON numbers are exact below 2^53. The prototype sends prices
-   as strings. ENG-01 states the width of gold amounts, and the production indexer keeps them exact.
-5. **Keys** are what a third party filters by (`item` and `lot_size` for lots, `hub` for presence,
-   `adventurer` for titles). They cost the same as data.
-6. **Stable addresses.** The indexer filters by contract address; upgrades by class replacement
-   (ADR-0007, NS-4) keep it. A new contract address is a new source in the indexer's configuration,
-   with its deployment block.
-7. **Size.** Measured on devnet: `LotPosted` (5 felts including the selector) costs **35 840 L2 gas**
-   on a `post` of ~1.68 M L2 gas, about 2 %; no L1 data gas. Linear by felt, that is ≈ 7 200 L2 gas
-   per felt: an estimate, not a measure of the other events.
+1. **Names and layouts.** The first key is the selector of the event's name. Renaming, reordering,
+   retyping, or moving a field between keys and data breaks every rebuild of the history. A change
+   is a **new event name**; the indexer decodes both forever.
+2. **Completeness is a contract invariant.** Every path that changes an indexed thing emits its
+   event exactly once: posting, buying, withdrawing and returning an expired lot; every change of
+   hub. **What the indexer can detect, and what it cannot:**
+   - *Lots: detectable.* Lot ids come from a counter, and the counter never changes unannounced
+     (in the prototype, `LotCountSet` for the test-only skip). The indexer halts on a `LotPosted`
+     whose id is not the next one. At every new tip it also compares the chain's `lot_count` (a
+     view call at that block) with its own. `demo.ts` shows both: `post_silent` halted the running
+     indexer by reconciliation, and a rebuild by the id gap. After a halt, queries answer 503
+     `halted`: stale, never wrong.
+   - *Closing a lot without `LotClosed`: not detected.* It would need a count of open lots on the
+     chain, compared the same way. ENG-01 should expose it (a view `open_lot_count`, or a counter
+     in `LotClosed`).
+   - *Presence, titles: not detectable* without a similar counter or a periodic sample of view
+     calls. There the invariant rests on the contract's tests. The claim of the first version
+     ("fail-stop on a missing event") was too broad and is withdrawn in this form.
+3. **Identifiers.** The ids in events are the storage ids. Ids handed out by a counter are
+   **reused after a reorg** (lot 5 was 120, 500, 650 then 700 in `demo.ts`). Clients never keep
+   anything by id across a `reset`.
+4. **Integer widths.** Gold amounts and lot ids are u64 or narrower. The indexer stores them
+   losslessly (16-digit hex text, ordered like the numbers) and sends decimal strings, never JSON
+   numbers (exact only below 2^53). A wider type needs the same treatment.
+5. **Keys** are what a third party filters by (`item` and `lot_size`, `hub`, `adventurer`). They
+   cost the same as data.
+6. **Stable addresses.** The indexer filters by contract address. Upgrades by class replacement keep
+   it (ADR-0007, NS-4). A new address is a new source, with its deployment block.
+7. **Size, measured** (receipt deltas against the same write without the event, `results/bench.txt`):
+
+   | Event | Felts | L2 gas | Of the transaction |
+   |---|---|---|---|
+   | `LotPosted` | 5 (selector, item, lot, quantity, price) | **35 840** | 2.1 % of `post` (1 683 920) |
+   | `LotClosed` | 3 | **65 600** | 5.6 % of `withdraw` (1 181 440) |
+   | `AdventurerLocated` | 3 | **25 600** | 2.5 % of `locate` (1 026 560) |
+
+   None adds L1 data gas. The costs are not proportional to size: `LotClosed` costs more than the
+   larger `LotPosted`. The delta measures the entrypoint with its event against the entrypoint
+   without it, so it includes any difference in the compiled code around the emission. ENG-01
+   measures its own events the same way; no per-felt rate is assumed.
 
 ## 7. Open questions
 
 | # | Question | For |
 |---|---|---|
-| E-1 | Leaderboards in the MVP? design/08 says v1 has them "read from chain"; design/09, ADR-0004 and ADR-0007 put `leaderboard` after the MVP. Decides `RankPromoted` | owner |
-| E-2 | Hub presence: the relay (design/02 D-03, Q-09) or `AdventurerLocated` through the indexer (ADR-0007)? One transport | owner / design |
-| E-3 | Titles: is the displayed title written to storage (view call) or only emitted (D-63 event mode, then even the player's own title needs the indexer)? Direct trade: how does the other player learn of a request? | design/13, design/16 |
-| E-4 | What is "one item" on the market for equipment (base, rarity, identified or not)? Decides `LotPosted.item` | design/16 |
-| E-5 | Average price: over how many sales, mean or median? | design/16 |
-| — | Pre-confirmed overlay, WebSocket wake-up, range catch-up below L1 acceptance, alerting on fail-stop | the indexer track |
+| E-1 | Are leaderboards in the MVP? design/08 says v1 has them "read from chain"; design/09, ADR-0004 and ADR-0007 put `leaderboard` after the MVP. Decides `RankPromoted` | owner |
+| E-2 | Hub presence: the relay (design/02 D-03, Q-09) or `AdventurerLocated` through the indexer (ADR-0007)? | owner / design |
+| E-3 | Is the displayed title stored or only emitted (D-63)? How does a player learn of a trade request? | design/13, design/16 |
+| E-4 | What is "one item" on the market for equipment? The average-price window (N, mean or median)? | design/16 |
+| — | Pre-confirmed overlay, WebSocket wake-up, range catch-up below L1 acceptance, alerting on `halted`, an `open_lot_count` reconciliation | the indexer track |
+
+## 8. Fix loop 1
+
+Changes after the `[GPT-6-Sol]` audit (lenses S, Q), all shown by `results/demo.txt` and
+`results/bench.txt`:
+- serving is gated (R1);
+- a client freshness rule (R3);
+- resync on reconnect and after a rewind (R4);
+- completeness checks and a narrowed completeness claim (§6);
+- lossless u64 storage (§4);
+- the indexer launched with a one-variable environment and a redacted RPC URL (§5, and below);
+- committed benchmark output, with gas for all three events and RPC use per method (§5, §6);
+- the 44 reads listed (§1);
+- Apibara split into upstream, fork and hosted (§2).
+
+**Secrets.** The indexer holds **no signing key**. `run-indexer.ts` starts it with exactly one
+variable, `INDEXER_RPC_URL`. The URL may carry a provider's key: it lives in the process's
+environment, never in argv, the database or a log. Logs show the URL as
+`http://host:port/…(redacted)`. `demo.ts` checks the environment line, and checks that no log holds
+the fake key it put in the URL or the node account's private key. The database holds nothing that
+cannot be rebuilt from the chain (the rebuild check).

@@ -1,10 +1,13 @@
-// SPK-11 cost figures (AC-5 and the report's cost table):
-//   1. gas of each entrypoint and of the LotPosted event, from devnet receipts;
-//   2. indexing from scratch: N transactions of K events, then an empty database following them:
-//      time, events per second, RPC calls, peak memory, disk per event;
-//   3. blocks without our events (most of mainnet's): the cost per block of following them;
-//   4. live latency: from a transaction's receipt to the subscription's `posted`.
-//   spikes/SPK-11/with-archive.sh node spikes/SPK-11/bench.ts [transactions] [events per transaction]
+// SPK-11 cost figures (AC-5 and the report's cost table). Every figure printed here is measured on
+// devnet; projections are in docs/research/SPK-11-indexer.md §5, apart.
+//   1. gas of each event: each entrypoint against the same write without the event, from devnet
+//      receipts, on a contract of its own (the silent variants break the completeness invariant);
+//   2. indexing from scratch: N transactions of K calls, then an empty database following them:
+//      time, events per second, RPC calls per method, peak memory, disk per event;
+//   3. blocks without our events (most of mainnet's): cost per block, RPC calls per method;
+//   4. idle following: RPC calls per method per second at a 100 ms poll;
+//   5. live latency: from a transaction's receipt to the subscription's `posted`.
+//   spikes/SPK-11/with-archive.sh node spikes/SPK-11/bench.ts [transactions] [calls per transaction]
 import { mkdirSync, rmSync, statSync } from "node:fs";
 import { deployMarket, rpc, send } from "./chain.ts";
 import type { LotEvent } from "./client.ts";
@@ -20,38 +23,47 @@ const fresh = (name: string) => {
 };
 const size = (path: string) => ["", "-wal", "-shm"].reduce((sum, suffix) => sum + (statSync(`${path}${suffix}`, { throwIfNoEntry: false })?.size ?? 0), 0);
 const say = (message: string) => console.log(`[bench] ${message}`);
-async function waitHead(client: { head: () => Promise<{ number: number } | null> }, number: number) {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function waitHead(client: { head: () => Promise<any> }, number: number) {
   const deadline = performance.now() + 600_000;
-  while ((await client.head())?.number !== number) {
+  while ((await client.head()).head?.number !== number) {
     if (performance.now() > deadline) throw new Error(`indexer not at block ${number} after 600 s`);
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await sleep(5);
   }
 }
-
-const market = await deployMarket();
-say(`Market at ${market.address}, block ${market.block}`);
+const diff = (after: Record<string, number>, before: Record<string, number>) =>
+  Object.fromEntries(Object.entries(after).map(([method, count]) => [method, count - (before[method] ?? 0)]).filter(([, count]) => count !== 0));
 
 // --- 1. gas ------------------------------------------------------------------------------------------
-const gas: Record<string, unknown> = {};
+const gasMarket = await deployMarket();
+say(`gas: Market at ${gasMarket.address}, block ${gasMarket.block}`);
+const gas: Record<string, { l2Gas: number; l1DataGas: number; events: number }> = {};
 for (const [label, calls] of [
-  ["post (LotPosted)", [["post", 7, 1, 300]]],
+  ["post, first (writes lot_count from zero)", [["post", 7, 1, 300]]],
   ["post_silent (no event)", [["post_silent", 7, 1, 300]]],
-  // The first post writes lot_count from zero; this one is the like-for-like of post_silent.
-  ["post again (LotPosted)", [["post", 7, 1, 300]]],
-  ["buy (LotClosed)", [["buy", 1]]],
-  ["post ×2 in one transaction", [["post", 7, 1, 300], ["post", 7, 1, 301]]],
-  // Lot 2 was posted without an event: the indexer would stop on its LotClosed (unknown lot).
-  ["withdraw (LotClosed)", [["withdraw", 3]]],
+  ["post (LotPosted)", [["post", 7, 1, 300]]],
+  ["post, fourth lot", [["post", 7, 1, 300]]],
+  ["withdraw_silent lot 1 (no event)", [["withdraw_silent", 1]]],
+  ["withdraw lot 3 (LotClosed)", [["withdraw", 3]]],
+  ["buy lot 4 (LotClosed)", [["buy", 4]]],
+  ["locate_silent (no event)", [["locate_silent", 1, 1]]],
   ["locate (AdventurerLocated)", [["locate", 1, 1]]],
-  ["locate ×2 in one transaction", [["locate", 1, 1], ["locate", 2, 1]]],
 ] as const) {
-  const sent = await send(market.address, calls as any);
+  const sent = await send(gasMarket.address, calls as any);
   gas[label] = { l2Gas: sent.l2Gas, l1DataGas: sent.l1DataGas, events: sent.events };
 }
 console.table(gas);
+const delta = (a: string, b: string) => ({ l2Gas: gas[a].l2Gas - gas[b].l2Gas, l1DataGas: gas[a].l1DataGas - gas[b].l1DataGas });
+say(`event gas (receipt deltas, like for like): ${JSON.stringify({
+  LotPosted: delta("post (LotPosted)", "post_silent (no event)"),
+  LotClosed: delta("withdraw lot 3 (LotClosed)", "withdraw_silent lot 1 (no event)"),
+  AdventurerLocated: delta("locate (AdventurerLocated)", "locate_silent (no event)"),
+})}`);
 
 // --- 2. indexing from scratch ------------------------------------------------------------------------
-let lot = 5; // the last lot posted above
+const market = await deployMarket();
+say(`throughput: Market at ${market.address}, block ${market.block}`);
+let lot = 0; // the last lot posted
 let started = performance.now();
 for (let t = 0; t < transactions; t++) {
   const calls: [string, ...number[]][] = [];
@@ -82,8 +94,7 @@ say(`catch-up from an empty database: ${JSON.stringify(stats)}`);
 say(
   `${stats.eventsApplied} events over ${stats.blocksApplied} blocks in ${(catchUpMs / 1000).toFixed(2)} s ` +
     `(${Math.round(stats.eventsApplied / (catchUpMs / 1000))} events/s, process start included); ` +
-    `database ${(bytes / 2 ** 20).toFixed(2)} MB = ${Math.round(bytes / stats.eventsApplied)} bytes per event ` +
-    `→ ${((bytes / stats.eventsApplied) * 1e6 / 2 ** 30).toFixed(2)} GB per million events; peak RSS ${stats.maxRssMB} MB`,
+    `database ${(bytes / 2 ** 20).toFixed(2)} MB after stop = ${Math.round(bytes / stats.eventsApplied)} bytes per event; peak RSS ${stats.maxRssMB} MB`,
 );
 
 // --- 3. blocks without our events --------------------------------------------------------------------
@@ -95,35 +106,41 @@ indexer = await startIndexer({ address: market.address, db: dbFile, from: market
 await waitHead(indexer.client, emptyTip);
 const emptyMs = performance.now() - started;
 const emptyStats = await indexer.client.stats();
+const emptyCalls = Object.values(emptyStats.rpcCalls as Record<string, number>).reduce((a, b) => a + b, 0);
 say(
-  `${empty} blocks without our events: ${(emptyMs / 1000).toFixed(2)} s (${(emptyMs / empty).toFixed(2)} ms per block), ` +
-    `${emptyStats.rpcCalls} RPC calls (${(emptyStats.rpcCalls / empty).toFixed(2)} per block); database now ${(size(dbFile) / 2 ** 20).toFixed(2)} MB`,
+  `${empty} blocks without our events: ${(emptyMs / 1000).toFixed(2)} s (${(emptyMs / empty).toFixed(2)} ms per block); ` +
+    `RPC calls ${JSON.stringify(emptyStats.rpcCalls)} = ${(emptyCalls / empty).toFixed(2)} per block`,
 );
 
-// --- 4. live latency ---------------------------------------------------------------------------------
-const heard = new Map<number, number>();
+// --- 4. idle following -------------------------------------------------------------------------------
+const before = (await indexer.client.stats()).rpcCalls;
+await sleep(5000);
+const idle = diff((await indexer.client.stats()).rpcCalls, before);
+say(`idle, 5 s at a 100 ms poll: RPC calls ${JSON.stringify(idle)} = ${(Object.values(idle).reduce((a, b) => a + b, 0) / 5).toFixed(1)} per second`);
+
+// --- 5. live latency ---------------------------------------------------------------------------------
+const heard = new Map<string, number>();
 const subscription = new AbortController();
-const listening = indexer.client.subscribe((event: LotEvent) => {
+const listening = indexer.client.subscribe(999, (event: LotEvent) => {
   if (event.type === "posted") heard.set(event.data.lot, performance.now());
 }, subscription.signal);
-await new Promise((resolve) => setTimeout(resolve, 100));
+await sleep(100);
 const latencies: number[] = [];
+const perPost = (await indexer.client.stats()).rpcCalls;
 for (let i = 0; i < 20; i++) {
   lot++;
   await send(market.address, [["post", 999, 1, 1]]);
   const receiptAt = performance.now();
-  const deadline = performance.now() + 10_000;
-  while (!heard.has(lot)) {
+  const deadline = receiptAt + 10_000;
+  while (!heard.has(String(lot))) {
     if (performance.now() > deadline) throw new Error(`lot ${lot} not heard after 10 s`);
-    await new Promise((resolve) => setTimeout(resolve, 1));
+    await sleep(1);
   }
-  latencies.push(heard.get(lot)! - receiptAt);
+  latencies.push(heard.get(String(lot))! - receiptAt);
 }
 latencies.sort((a, b) => a - b);
-say(
-  `receipt → subscription, 20 posts, poll 100 ms: median ${latencies[10].toFixed(0)} ms, ` +
-    `min ${latencies[0].toFixed(0)}, max ${latencies[19].toFixed(0)} (negative: the indexer saw the block before starknet.js had the receipt)`,
-);
+say(`receipt → subscription, 20 posts, poll 100 ms: median ${latencies[10].toFixed(0)} ms, min ${latencies[0].toFixed(0)}, max ${latencies[19].toFixed(0)}`);
+say(`RPC calls during those 20 blocks (idle polls included): ${JSON.stringify(diff((await indexer.client.stats()).rpcCalls, perPost))}`);
 subscription.abort();
 await listening;
 await indexer.stop();

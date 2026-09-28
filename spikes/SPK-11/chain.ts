@@ -40,9 +40,10 @@ export async function deployMarket(): Promise<{ address: string; block: number }
   const target = new URL("./target/dev/", import.meta.url);
   const contract = JSON.parse(readFileSync(new URL("spk11_Market.contract_class.json", target), "utf8"));
   const casm = JSON.parse(readFileSync(new URL("spk11_Market.compiled_contract_class.json", target), "utf8"));
-  const result = await account.declareAndDeploy({ contract, casm }, { tip: 0n });
-  const receipt: any = await provider.waitForTransaction(result.deploy.transaction_hash, { retryInterval: 20 });
-  return { address: result.deploy.contract_address, block: receipt.block_number };
+  const { class_hash } = await account.declareIfNot({ contract, casm }, { tip: 0n });
+  const deployed = await account.deployContract({ classHash: class_hash }, { tip: 0n });
+  const receipt: any = await provider.waitForTransaction(deployed.transaction_hash, { retryInterval: 20 });
+  return { address: deployed.contract_address, block: receipt.block_number };
 }
 
 export type Sent = { tx: string; block: number; l2Gas: number; l1DataGas: number; events: number };
