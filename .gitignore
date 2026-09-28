@@ -5,3 +5,7 @@ example/
 /REPORT.md
 # Node logs of scripts/with-katana.sh when run from the root.
 .with-katana/
+# Build outputs.
+contracts/target/
+node_modules/
+client/*/dist/
