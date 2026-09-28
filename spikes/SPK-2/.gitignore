@@ -1,0 +1,4 @@
+target/
+.with-katana/
+.snfoundry_cache/
+manifest_*.json

@@ -142,6 +142,7 @@ On-chain execution is bounded per transaction, so the design enforces:
 | Only the **window** is simulated | Goblins outside it are frozen |
 | Awake goblins | ≤ 8: the nearest to the adventurer, ties by lowest id |
 | Pathfinding | **One flood per tick, not one per goblin**: a single breadth-first flood from the adventurer on the window gives every goblin its next step |
+| Depth of the flood | **15 layers** (D-127). A goblin the flood did not reach **holds its position** this tick; it still acts if it can (a ranged attack with line of sight, a skill). Initial value, tuned by SPK-7 and playtest |
 | The window | Follows the adventurer at every move; assembled at each tick from the 2 to 4 chunks it overlaps, two layers each; no write |
 | Chunks revealed by one action | ≤ 3 |
 | Actions per transaction | Batched up to a cap set by measurement (Phase 0) |

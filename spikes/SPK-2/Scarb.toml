@@ -1,0 +1,26 @@
+[package]
+name = "spk2"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.13"
+
+[cairo]
+sierra-replace-ids = true
+
+[dependencies]
+starknet = "2.13"
+dojo = "1.8.0"
+
+[dev-dependencies]
+snforge_std = "0.51"
+assert_macros = "2.13"
+dojo_snf_test = "1.8.0"
+
+[[target.starknet-contract]]
+build-external-contracts = ["dojo::world::world_contract::world"]
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["dojo_cairo_macros", "snforge_std"]

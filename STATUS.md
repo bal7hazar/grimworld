@@ -31,12 +31,26 @@ and **FND-02** (CI fix loop 1). Next: SPK-11 (indexer), then SPK-7, FND-05, SPK-
 | SPK-2 cost spike | `grimworld-SPK-2-180513` (resumed) | `claude-opus-5-5` / `claude-opus-5-5` | implement | Cost fix loop 1 |
 | FND-02 continuous integration | `grimworld-FND-02-175911` (resumed) | `claude-sonnet-5` / `claude-sonnet-5` | implement | Fix loop 1 |
 
-Budget: 3 Grim World agents at a time (D-118): 2 for the game (both in use), 1 for the
-library. Machine at 18:05 UTC: load 5.5, 13 GB available.
+Budget (OPERATIONS §3, d9b2c3c): 3 Grim World agents at a time, audits included, across the
+game, the map library and quiver: **1 slot of the game's own, 1 shared**. The game holds 2 now
+(SPK-2, SPK-11); the first slot freed goes once to quiver's ARC-01, then the shared slot is the
+game's first. Before each launch: count every running `grimworld-*`, `hexmap-*`, `quiver-*` unit
+and codex audit. Machine at 18:05 UTC: load 5.5, 13 GB available.
+
+## Decided by the owner, gate L-G2
+
+| | |
+|---|---|
+| D-126 | The porting plan of `hexx` is accepted; package named `hexx`; the tick is measured first; nothing published without a go ([file](docs/decisions/2026-09-28-L-G2-porting-plan.md)) |
+| D-127 | The flood of the tick stops at 15 layers; a goblin beyond holds its position (design/02, design/04, ADR-0006) |
 
 ## Waiting for the owner
 
-Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2), the owner's reaction to the lore premise.
+| What | Where | Recommendation |
+|---|---|---|
+| **The cost of an expedition**: $0.69 to $0.93 natively on the local node against a threshold of $0.50; native is 0.26× to 0.58× Dojo | [docs/decisions/PENDING-cost-threshold.md](docs/decisions/PENDING-cost-threshold.md) | Measure on Sepolia before deciding (needs the Sepolia credentials now); a cost constraint on ENG-01 |
+
+Open without urgency: Q-12, the lore premise.
 
 ## Next
 
@@ -44,13 +58,12 @@ Nothing blocks. Open without urgency: Q-12 (Arcanist sprite or Cleric, Phase 2),
    project manager for the owner (R-2, C-1 below).
 2. FND-02: re-audit, merge. Then SPK-11, SPK-7, FND-05 (with `[GPT-6-Astra]`), SPK-4; FND-06.
 
-## For the project manager (from SPK-2, not blocking)
+## For the project manager
 
-| # | Point | Recommendation |
-|---|---|---|
-| C-1 | **R-2**: ADR-0001's threshold (300 actions ≤ $0.50) fails on Dojo (1.9× to 5.4×) and, provisionally, natively too (1.4× to 4.2×). The owner's call (a cheaper tick, a cheaper transaction, a lower gas price, option B, or a restated threshold) should wait for SPK-2's audited native figures | Decide on the audited native figures |
-| C-2 | PLAN's SPK-2 row says "10 Rifts"; D-101 says 5 a day per account (5 was used) | Correct the row |
-| C-3 | Flood rule (a) (docs/needs/hexmap.md point 5): on the occupancy frozen at the start of the tick, a goblin can be walled off behind its own pack; observed: it detours and leaves the window within 7 ticks. A design question for design/04 *Goblin AI* | To the owner or the design backlog |
+C-1 to C-4 answered on 2026-09-28 (#34): C-1 the owner decides on SPK-2's audited native
+figures (they follow); C-2 PLAN corrected; C-3 DES-20 (before CBT-06); C-4
+[docs/decisions/2026-09-28-indexer-scope.md](docs/decisions/2026-09-28-indexer-scope.md), an
+input of SPK-11 and ENG-01.
 
 ## Open questions from wave 1 (not blocking)
 

@@ -1,0 +1,20 @@
+## sierra-gas
+| Test | Call | L2 gas | of which world calls | world calls | rest |
+|---|---|---:|---:|---:|---:|
+| test_tick_worst_case | tick_worst_case.attack | 13,203,148 | 9,524,983 | 7 | 3,678,165 |
+| test_tick_worst_case_packed | tick_worst_case.attack | 13,203,148 | 9,524,983 | 7 | 3,678,165 |
+| test_tick_worst_case_packed | tick_worst_case.attack_packed | 6,619,410 | 3,157,690 | 7 | 3,461,720 |
+| test_tick_adversarial_boards | tick_worst_case.attack | 13,562,705 | 9,524,983 | 7 | 4,037,722 |
+| test_tick_adversarial_boards | tick_worst_case.attack | 13,126,455 | 9,524,983 | 7 | 3,601,472 |
+| test_tick_adversarial_boards | tick_worst_case.attack | 15,223,049 | 9,524,983 | 7 | 5,698,066 |
+
+## cairo-steps
+| Test | Call | L2 gas | of which world calls | world calls | rest |
+|---|---|---:|---:|---:|---:|
+| test_tick_adversarial_boards | tick_worst_case.attack | 17,499,840 | 14,619,840 | 7 | 2,880,000 |
+| test_tick_adversarial_boards | tick_worst_case.attack | 17,579,840 | 14,619,840 | 7 | 2,960,000 |
+| test_tick_adversarial_boards | tick_worst_case.attack | 18,939,840 | 14,619,840 | 7 | 4,320,000 |
+| test_tick_worst_case | tick_worst_case.attack | 17,659,840 | 14,619,840 | 7 | 3,040,000 |
+| test_tick_worst_case_packed | tick_worst_case.attack | 17,659,840 | 14,619,840 | 7 | 3,040,000 |
+| test_tick_worst_case_packed | tick_worst_case.attack_packed | 7,606,720 | 3,886,720 | 7 | 3,720,000 |
+

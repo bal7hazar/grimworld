@@ -29,6 +29,8 @@ confirms; the exchange is one transaction, all or nothing.
 | Both sides are shown in full before confirming, and any change resets both confirmations | The classic swap scam |
 | One transaction swaps everything | No half-executed trade |
 | No fee | Friends and guild mates help each other freely |
+| The invitation is an event naming the invited account | The contract stores the trade; the client learns of it through the indexer, filtered on its account |
+| A trade expires after 10 minutes and can be declined | Hubs run in real time; an open trade locks nothing, items move only at the swap |
 
 ## Auction house
 
@@ -47,7 +49,8 @@ offer they want.
 | Number of lots | 10 per account, plus 1 per guild rank of its highest adventurer |
 | Buying | For each item and each lot size, the house shows the **cheapest** lot. The buyer pays, the lot goes to their vault |
 | Proceeds | Go to the seller's vault, at once, even if the seller is away |
-| Shown | The average price of the item over the last sales |
+| What "an item" is | Balances: the item id. **Equipment: a key made of base, requirement, rarity, identified or not**; under a key every lot is listed with its modifiers, cheapest first. A boss item is its own key |
+| Shown | The average price per key and lot size over the sales of **the last 7 days**; not shown under 5 sales |
 | Changing a price | Withdraw and post again: the fee is paid again |
 
 ### What this does for the economy

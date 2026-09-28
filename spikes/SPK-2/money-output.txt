@@ -1,0 +1,38 @@
+Prices
+  mainnet L2 gas     21,498,730,231 fri  (https://api.cartridge.gg/x/starknet/mainnet, block 15585149, 2026-09-28T16:35:53Z, read 2026-09-28T16:35:59Z)
+  mainnet L1 data gas 910,973,468,582 fri
+  sepolia L2 gas     21,677,546,495 fri  (https://api.cartridge.gg/x/starknet/sepolia, block 15776697, 2026-09-28T16:35:57Z)
+  STRK               $0.04084113  (https://api.coingecko.com/api/v3/simple/price?ids=starknet&vs_currencies=usd, read 2026-09-28T16:36:04Z)
+  => 1M L2 gas = 0.021499 STRK = $0.000878
+
+| Action | snforge call, Sierra gas | snforge call, Cairo steps | Katana tx L2 gas | Katana tx overhead | Katana L1 gas (DA) | Sierra estimate of the tx | $ (Katana) | $ (Sierra estimate) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| worst-case tick | 13,203,148 | 17,659,840 | 17,940,800 | 280,960 | 13,462 | 13,484,108 | 0.01578 | 0.01187 |
+| worst-case tick, packed goblins | 6,619,410 | 7,606,720 | 7,927,680 | 320,960 | 13,462 | 6,940,370 | 0.00699 | 0.00613 |
+| queue of 10 moves | 28,046,442 | 33,539,840 | 33,832,000 | 292,160 | 13,462 | 28,338,602 | 0.02974 | 0.02491 |
+| queue of 5 moves | 19,705,588 | 24,579,840 | 24,846,400 | 266,560 | 13,462 | 19,972,148 | 0.02185 | 0.01757 |
+| queue of 1 move | 13,503,304 | 17,739,840 | 18,025,920 | 286,080 | 12,360 | 13,789,384 | 0.01586 | 0.01214 |
+| queue of 10 moves, no goblin | 7,052,124 | 6,519,680 | 7,331,840 | 812,160 | 4,646 | 7,864,284 | 0.00645 | 0.00692 |
+| brew, signature, new pair | 4,646,384 | 4,251,840 | 5,143,040 | 891,200 | 9,054 | 5,537,584 | 0.00454 | 0.00488 |
+| brew, no signature, new pair | 4,572,564 | 4,211,840 | 5,143,040 | 931,200 | 9,054 | 5,503,764 | 0.00454 | 0.00485 |
+| brew, known pair | 3,312,392 | 3,048,960 | 3,860,160 | 811,200 | 5,748 | 4,123,592 | 0.00340 | 0.00363 |
+| accept quest | 1,710,148 | 1,581,440 | 2,262,400 | 680,960 | 4,095 | 2,391,108 | 0.00200 | 0.00211 |
+| claim quest | 3,082,129 | 2,834,560 | 3,595,520 | 760,960 | 6,299 | 3,843,089 | 0.00317 | 0.00339 |
+| enter | 3,986,642 | 3,727,680 | 4,448,640 | 720,960 | 9,605 | 4,707,602 | 0.00393 | 0.00416 |
+| leave | 3,928,888 | 4,098,240 | 4,414,080 | 315,840 | 6,850 | 4,244,728 | 0.00389 | 0.00374 |
+
+Expedition: 300 actions = 180 moves + 100 fight actions + 20 others, plus enter and leave
+| Scenario | Transactions | L2 gas (Katana) | $ (Katana) | L2 gas (Sierra estimate) | $ (Sierra estimate) | x threshold | L2 gas price to pass (Sierra est.) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| S1 worst case everywhere | 158 | 3,057,931,520 | 2.690 | 2,352,148,138 | 2.070 | 4.1 | 5.15 Gfri |
+| S2 mixed: 2/3 of the moves exploring | 146 | 2,549,600,000 | 2.243 | 1,967,187,994 | 1.732 | 3.5 | 6.17 Gfri |
+| S3 = S2 with the goblins packed in one model | 146 | 1,227,868,160 | 1.082 | 1,103,414,578 | 0.973 | 1.9 | 11.00 Gfri |
+
+Active player per day: 5 Rifts (one expedition each), 3 quests accepted and claimed, 5 brews of a new pair
+| Scenario | $ per day (Katana) | $ per day (Sierra estimate) | $ per 30 days (Sierra est.) |
+|---|---:|---:|---:|
+| S1 worst case everywhere | 13.49 | 10.39 | 311.7 |
+| S2 mixed: 2/3 of the moves exploring | 11.25 | 8.70 | 261.0 |
+| S3 = S2 with the goblins packed in one model | 5.45 | 4.91 | 147.2 |
+
+D-52 at system level (snforge, Sierra gas): 4,646,384 - 4,572,564 = 73,820 L2 gas = 1.6 % = $0.000065 per first brew of a pair
