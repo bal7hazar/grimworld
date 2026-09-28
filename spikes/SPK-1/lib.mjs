@@ -1,19 +1,69 @@
 // SPK-1: what every script shares. The Sepolia account comes as four variables, used by name
 // only (OPERATIONS §7): STARKNET_NETWORK, STARKNET_RPC_URL, STARKNET_ACCOUNT_ADDRESS,
-// STARKNET_PRIVATE_KEY. No value is ever printed: every console output and every error goes
-// through `safe`, which replaces the endpoint, the account address and the key by placeholders.
+// STARKNET_PRIVATE_KEY. No value is ever printed. Nothing is read from the environment when this
+// module is imported: a sending script first runs its repeat-run guard (`guardOutput`), then
+// `configure()`, which validates the variables with errors that never contain a value, and only
+// then installs the redaction (`safe`, on every console output and every error) and the provider.
+import { closeSync, existsSync, openSync, renameSync, writeSync } from "node:fs";
+import { join } from "node:path";
 import { Account, RpcProvider, shortString } from "starknet";
 
 const NAMES = ["STARKNET_NETWORK", "STARKNET_RPC_URL", "STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY"];
-for (const name of NAMES) {
-  if (!process.env[name]) {
-    console.error(`${name} is not set: launch with --with-sepolia`);
-    process.exit(2);
-  }
+const FELT = /^0x[0-9a-fA-F]{1,64}$/;
+export const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) grimworld-spk1/0.1";
+let URL = null;
+let ADDRESS = null;
+let KEY = null;
+let PATTERNS = [];
+export let provider = null;
+
+/** Stops with a message naming the variable and the rule, never its value. */
+function refuse(message, code = 2) {
+  process.stderr.write(`${message}\n`);
+  process.exit(code);
 }
-const URL = process.env.STARKNET_RPC_URL;
-const ADDRESS = process.env.STARKNET_ACCOUNT_ADDRESS;
-const KEY = process.env.STARKNET_PRIVATE_KEY;
+
+/** Validates the four variables without echoing any of them, then installs the redaction. */
+export function configure() {
+  for (const name of NAMES) {
+    if (!process.env[name]) refuse(`${name} is not set: launch with --with-sepolia; nothing is sent`);
+  }
+  for (const name of ["STARKNET_ACCOUNT_ADDRESS", "STARKNET_PRIVATE_KEY"]) {
+    if (!FELT.test(process.env[name])) {
+      refuse(`${name} is not a 0x-prefixed hex felt (value not shown); nothing is sent`);
+    }
+  }
+  let host = null;
+  try {
+    const parsed = new globalThis.URL(process.env.STARKNET_RPC_URL);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") host = parsed.host;
+  } catch {
+    host = null;
+  }
+  if (!host) refuse("STARKNET_RPC_URL is not an http(s) URL (value not shown); nothing is sent");
+  URL = process.env.STARKNET_RPC_URL;
+  ADDRESS = process.env.STARKNET_ACCOUNT_ADDRESS;
+  KEY = process.env.STARKNET_PRIVATE_KEY;
+  PATTERNS = [
+    [new RegExp(escape(URL), "g"), "<STARKNET_RPC_URL>"],
+    [new RegExp(escape(host), "gi"), "<RPC_HOST>"],
+    ...forms(ADDRESS).map((f) => [new RegExp(f, "gi"), "<ACCOUNT>"]),
+    ...forms(KEY).map((f) => [new RegExp(f, "gi"), "<KEY>"]),
+  ];
+  for (const level of ["log", "info", "warn", "error", "debug"]) {
+    const original = console[level].bind(console);
+    console[level] = (...args) => original(...args.map((a) => safe(a)));
+  }
+  process.on("uncaughtException", (error) => {
+    process.stderr.write(`${safe(error)}\n`);
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (error) => {
+    process.stderr.write(`${safe(error)}\n`);
+    process.exit(1);
+  });
+  provider = new RpcProvider({ nodeUrl: URL, headers: { "User-Agent": USER_AGENT } });
+}
 
 // ---------------------------------------------------------------------------------------------
 // Redaction
@@ -23,17 +73,10 @@ function escape(text) {
 }
 
 function forms(value) {
-  // A felt as hex with or without leading zeros, and in decimal
+  // A felt as hex with or without leading zeros, and in decimal (validated by `configure`)
   const n = BigInt(value);
   return [`0x0*${n.toString(16)}`, n.toString(10)];
 }
-
-const PATTERNS = [
-  [new RegExp(escape(URL), "g"), "<STARKNET_RPC_URL>"],
-  [new RegExp(escape(new globalThis.URL(URL).host), "gi"), "<RPC_HOST>"],
-  ...forms(ADDRESS).map((f) => [new RegExp(f, "gi"), "<ACCOUNT>"]),
-  ...forms(KEY).map((f) => [new RegExp(f, "gi"), "<KEY>"]),
-];
 
 export function safe(value) {
   let text = typeof value === "string" ? value : value instanceof Error ? `${value.stack}` : JSON.stringify(value);
@@ -41,29 +84,46 @@ export function safe(value) {
   return text;
 }
 
-for (const level of ["log", "info", "warn", "error", "debug"]) {
-  const original = console[level].bind(console);
-  console[level] = (...args) => original(...args.map((a) => (typeof a === "string" ? safe(a) : safe(a))));
-}
-process.on("uncaughtException", (error) => {
-  process.stderr.write(`${safe(error)}\n`);
-  process.exit(1);
-});
-process.on("unhandledRejection", (error) => {
-  process.stderr.write(`${safe(error)}\n`);
-  process.exit(1);
-});
+// ---------------------------------------------------------------------------------------------
+// Output: each sending script writes its own output file, created exclusively
 
-/** One JSON line on stdout, redacted. */
+let OUT = null;
+
+/**
+ * The repeat-run guard, run before `configure()` and before any network call. A script's output
+ * file exists as soon as a run has started, complete or not; then the script refuses. With
+ * `--recover-incomplete`, the existing file is kept as evidence (renamed with a timestamp) and a
+ * new run may start. Returns the path, which `openOutput` creates exclusively.
+ */
+export function guardOutput(dir, name) {
+  const path = join(dir, name);
+  if (existsSync(path)) {
+    if (!process.argv.includes("--recover-incomplete")) {
+      refuse(`${name} exists: a run has already started (complete or not); nothing is sent. ` +
+        "After an incomplete run, pass --recover-incomplete to keep the file (renamed) and start again", 4);
+    }
+    const kept = `${path}.incomplete-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+    renameSync(path, kept);
+    process.stderr.write(`--recover-incomplete: ${name} kept as ${kept}\n`);
+  }
+  return path;
+}
+
+/** Creates the output file exclusively: fails if another run created it meanwhile. */
+export function openOutput(path) {
+  OUT = openSync(path, "wx");
+  process.on("exit", () => closeSync(OUT));
+}
+
+/** One JSON line, redacted: to the output file when one is open, to stdout otherwise. */
 export function emit(record) {
-  process.stdout.write(`${safe(JSON.stringify(record, (_, v) => (typeof v === "bigint" ? v.toString() : v)))}\n`);
+  const line = `${safe(JSON.stringify(record, (_, v) => (typeof v === "bigint" ? v.toString() : v)))}\n`;
+  if (OUT !== null) writeSync(OUT, line);
+  else process.stdout.write(line);
 }
 
 // ---------------------------------------------------------------------------------------------
 // The endpoint: a usual User-Agent on every request (the endpoint refuses requests without one)
-
-export const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) grimworld-spk1/0.1";
-export const provider = new RpcProvider({ nodeUrl: URL, headers: { "User-Agent": USER_AGENT } });
 
 let id = 0;
 /** A raw JSON-RPC call; returns { result } or { error }. */

@@ -1,7 +1,10 @@
 // SPK-1, read only (no transaction): the network, the account's class and balance, the prices.
 //   node spikes/SPK-1/probe.mjs > spikes/SPK-1/probe-output.txt
-import { accountAddress, emit, now, provider, requireSepolia, rpc, strk, strkBalance, versions } from "./lib.mjs";
+import {
+  accountAddress, configure, emit, now, provider, requireSepolia, rpc, strk, strkBalance, versions,
+} from "./lib.mjs";
 
+configure();
 const chain = await requireSepolia();
 const spec = await rpc("starknet_specVersion");
 const classHash = await rpc("starknet_getClassHashAt", { block_id: "latest", contract_address: accountAddress() });

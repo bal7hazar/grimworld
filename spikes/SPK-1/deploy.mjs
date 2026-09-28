@@ -2,23 +2,30 @@
 // built by `scarb build`) on Sepolia, link them, and write their classes and addresses to
 // sepolia.json. 7 transactions: 2 declares, 2 deploys, 2 links, setup_hub.
 //   scripts/lock.sh scarb --manifest-path spikes/SPK-2/native/Scarb.toml build
-//   node spikes/SPK-1/deploy.mjs > spikes/SPK-1/deploy-output.txt
+//   node spikes/SPK-1/deploy.mjs          (writes deploy-output.txt and sepolia.json itself)
+// It refuses before reading the variables or calling the network if sepolia.json or
+// deploy-output.txt exists (a run has started); --recover-incomplete keeps an incomplete
+// deploy-output.txt (renamed) and starts again. SPK1_OUT_DIR moves both files (local tests).
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hash } from "starknet";
 import {
-  account, accountAddress, describe, emit, makeSender, now, provider, requireSepolia, rpc, strk, strkBalance,
-  versions,
+  account, accountAddress, configure, describe, emit, guardOutput, makeSender, now, openOutput, provider,
+  requireSepolia, rpc, strk, strkBalance, versions,
 } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const DIR = process.env.SPK1_OUT_DIR || HERE;
 const TARGET = join(HERE, "..", "SPK-2", "native", "target", "dev");
-const OUT = join(HERE, "sepolia.json");
+const OUT = join(DIR, "sepolia.json");
 if (existsSync(OUT)) {
-  console.error("sepolia.json exists: the contracts are deployed; nothing is sent");
+  process.stderr.write("sepolia.json exists: the contracts are deployed; nothing is sent\n");
   process.exit(4);
 }
+const OUTPUT = guardOutput(DIR, "deploy-output.txt");
+configure();
+openOutput(OUTPUT);
 
 /** A class declared by an earlier, interrupted run of this script: its declare transaction, from
  * the recent blocks (read only), so that its fee is counted. */

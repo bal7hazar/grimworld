@@ -6,21 +6,23 @@
 //   25 × (enter + leave), the cheap action for latency                                50
 // Every transaction is sent after the previous one is accepted on L2; each receipt is polled
 // every POLL_MS from its submission.
-//   node spikes/SPK-1/measure.mjs > spikes/SPK-1/measure-output.txt
-import { readFileSync, statSync } from "node:fs";
+//   node spikes/SPK-1/measure.mjs          (writes measure-output.txt itself; no redirection)
+// The repeat-run guard runs first, before the variables are read or the network called: if
+// measure-output.txt exists (a run has started, complete or not), the script refuses. After an
+// incomplete run, --recover-incomplete keeps the file (renamed with a timestamp) and starts again.
+// The file is then created exclusively. SPK1_OUT_DIR moves the output (local tests of the guard).
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { account, accountAddress, emit, makeSender, now, POLL_MS, requireSepolia, strk, strkBalance } from "./lib.mjs";
+import {
+  account, accountAddress, configure, emit, guardOutput, makeSender, now, openOutput, POLL_MS, requireSepolia,
+  strk, strkBalance,
+} from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-try {
-  if (statSync(join(HERE, "measure-output.txt")).size > 0) {
-    console.error("measure-output.txt is not empty: the measurement ran; nothing is sent");
-    process.exit(4);
-  }
-} catch {
-  // no output yet
-}
+const OUTPUT = guardOutput(process.env.SPK1_OUT_DIR || HERE, "measure-output.txt");
+configure();
+openOutput(OUTPUT);
 
 const MAX_TX = 98;
 const TICKS = 20;
