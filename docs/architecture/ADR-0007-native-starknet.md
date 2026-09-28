@@ -88,7 +88,7 @@ This keeps the indexer out of the path of a move, and bounds what it must do.
 
 | | |
 |---|---|
-| Why probably our own | Torii indexes Dojo worlds. A generic indexer must be told our events anyway |
+| **Our own** (D-130) | Torii indexes Dojo worlds; no generic indexer fits without several services or without reorg handling (SPK-11). One process, tables versioned by block |
 | What it is | A service that follows the chain, decodes our events, keeps tables, serves queries and subscriptions to the client, and **rewinds on a reorg** (CONTEXT §8) |
 | Consequence | One more thing to build, host and watch. ADR-0001 counted "no infrastructure to operate beyond Torii": it is now "beyond our indexer" |
 | Spike | SPK-11: scope (what needs indexing at all), candidates (existing generic indexers against our own), reorg handling, hosting, cost |
@@ -143,6 +143,6 @@ They cannot be used as they are.
 | # | Question |
 |---|---|
 | NS-1 | Local node: which one accepts the classes of Cairo 2.19 today (SPK-5b) |
-| NS-2 | Indexer: existing generic one configured for our events, or our own (SPK-11) |
+| ~~NS-2~~ | **Closed (D-130)**: our own indexer, one process, versioned tables, rewind on reorg ([decision](../decisions/2026-09-28-indexer.md)) |
 | NS-3 | Number and boundaries of contracts, against the class size limit (ENG-01) |
 | NS-4 | Upgrade policy and who holds the administrator role (Q-08) |
