@@ -9,7 +9,8 @@
 #                    plugin cannot install Dojo 1.8, see docs/research/SPK-5-toolchain.md)
 #
 # WHAT IS WRITTEN OUTSIDE asdf's data directory (~/.asdf, or $ASDF_DATA_DIR):
-#   1. Exception of this script, one-time: it removes the symlinks ~/.cargo/bin/sozo,
+#   1. Exception of this script, one-time, and only at the very end of a run in which every tool
+#      was installed and verified: it removes the symlinks ~/.cargo/bin/sozo,
 #      ~/.cargo/bin/katana and ~/.cargo/bin/torii that a first version of this task created, and
 #      only if each points into ~/.grimworld/tools/ (else it is left alone). On a machine where
 #      they are gone, nothing happens. (~/.cargo/bin is $GRIMWORLD_BIN_DIR, ~/.grimworld/tools is
@@ -23,9 +24,9 @@
 # shims that hide the system node and pnpm everywhere (docs/reports/INC-2026-09-28-asdf-node-shims.md).
 # So, per tool: if the system binary (found on the PATH outside asdf's shims directory) already
 # has exactly the pinned version, it is used and the plugin is NOT added. Otherwise the plugin is
-# added only if the global ~/.tool-versions (read-only check) already has `<tool> system`; if it
-# has not, the script stops with the remedy of the incident file. An existing plugin is never
-# removed. The repository's .tool-versions keeps nodejs and pnpm either way: where the plugins are
+# added only if the global ~/.tool-versions (read-only check) already has `<tool> system` AND a
+# system executable of the tool exists outside asdf's shims; if not, the script stops with the
+# remedy of the incident file. An existing plugin is never removed. The repository's .tool-versions keeps nodejs and pnpm either way: where the plugins are
 # already added (this machine), that local pin is what makes node work in the worktrees.
 #
 # INTEGRITY, tool by tool (sources read on 2026-09-28, see the research file §1):
@@ -122,20 +123,6 @@ cd "$root"
 [ -f .tool-versions ] || die "no .tool-versions at $root"
 pinned() { awk -v n="$1" '$1 == n { print $2 }' .tool-versions; }
 
-# --- an earlier version of this script linked the binaries into ~/.cargo/bin -----------------
-# The asdf shims replace them. Remove a link only if it points inside our own tools directory.
-for tool in sozo katana torii; do
-  link=$legacy_bin_dir/$tool
-  [ -L "$link" ] || continue
-  case "$(readlink "$link")" in
-    "$legacy_tools"/*)
-      log "removing $link (linked by an earlier version of this script)"
-      rm -f "$link"
-      ;;
-    *) log "$link points elsewhere ($(readlink "$link")): not ours, left alone" ;;
-  esac
-done
-
 # --- node and pnpm: the system first ---------------------------------------------------------
 system_served=' '   # asdf names served by the system binary, e.g. ' nodejs pnpm '
 plugins=$(asdf plugin list 2> /dev/null || true)
@@ -151,11 +138,14 @@ for pair in nodejs:node pnpm:pnpm; do
     system_served="$system_served$name "
   elif grep -qx "$name" <<< "$plugins"; then
     log "$name $want: system ${got:-none} differs; the asdf plugin is already added, installing the pin"
-  elif global_system_fallback "$name"; then
+  elif [ -n "$sys" ] && global_system_fallback "$name"; then
     log "$name $want: system ${got:-none} differs; ~/.tool-versions has '$name system', adding the plugin is safe"
   else
     {
       echo "setup-toolchain: $name $want is pinned but the system has ${got:-no $binary}."
+      if [ -z "$sys" ] && global_system_fallback "$name"; then
+        echo "setup-toolchain: ~/.tool-versions has '$name system', but no system $binary exists outside asdf's shims: that fallback would fail."
+      fi
       echo "setup-toolchain: adding the asdf plugin '$name' would hide the system $binary everywhere"
       echo "setup-toolchain: (docs/reports/INC-2026-09-28-asdf-node-shims.md). Refusing. Remedy of that incident,"
       echo "setup-toolchain: an owner decision: add the lines 'nodejs system' and 'pnpm system' to ~/.tool-versions"
@@ -242,5 +232,23 @@ for tool in node pnpm; do
     echo "setup-toolchain: 'pnpm system' to ~/.tool-versions. This script does not edit that file." >&2
   fi
 done
+
+# --- an earlier version of this task linked the binaries into ~/.cargo/bin -------------------
+# The asdf shims replace them. Only now, when every tool above is installed and verified (a setup
+# that fails or stops earlier leaves the links in place), and only a link pointing inside our own
+# tools directory is removed.
+if [ "$status" = 0 ]; then
+  for tool in sozo katana torii; do
+    link=$legacy_bin_dir/$tool
+    [ -L "$link" ] || continue
+    case "$(readlink "$link")" in
+      "$legacy_tools"/*)
+        log "removing $link (linked by an earlier version of this task)"
+        rm -f "$link"
+        ;;
+      *) log "$link points elsewhere ($(readlink "$link")): not ours, left alone" ;;
+    esac
+  done
+fi
 
 exit "$status"

@@ -64,7 +64,7 @@ binaries of each archive, both architectures) is the natural next step if the ow
 Not "nothing". (1) **One-time exception of the script**: it removes the symlinks
 `~/.cargo/bin/sozo`, `~/.cargo/bin/katana`, `~/.cargo/bin/torii` (`/home/claude/.cargo/bin/…` on
 this machine) that the first version of this task created, and only when each points into
-`~/.grimworld/tools/` (`/home/claude/.grimworld/tools/<tool>/<version>/<tool>`); a link pointing
+`~/.grimworld/tools/`, and only at the very end of a run in which every tool was installed and verified (a run that stops or fails earlier leaves the links where they are) (`/home/claude/.grimworld/tools/<tool>/<version>/<tool>`); a link pointing
 elsewhere, or a regular file, is left alone. They were removed on this machine in fix loop 1; on
 any other machine the step does nothing. The directory `~/.grimworld/tools/` is not touched.
 (2) **Side effects of the third-party plugins**, not of the script: `asdf-nodejs` writes node-build
@@ -87,7 +87,9 @@ tool, before touching asdf:
 2. If it differs and the plugin is already added, the script installs the pinned version through
    it (the shim already exists; nothing new is hidden).
 3. If it differs and the plugin is absent, the script adds it only when the global
-   `~/.tool-versions` already contains `<tool> system` (a read-only check); otherwise it **exits 1**
+   `~/.tool-versions` already contains `<tool> system` (a read-only check) **and** a system
+   executable of that tool exists outside asdf's shims directory (a `system` line with nothing
+   behind it would fail); otherwise it **exits 1**
    with the remedy of the incident file and adds nothing.
 The script never edits `~/.tool-versions` and never removes a plugin.
 
