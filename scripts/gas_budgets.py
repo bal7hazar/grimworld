@@ -212,7 +212,7 @@ def render(rows, previous, ws, packages):
     ]
     for r in rows:
         budgets.append(
-            f"| {r['package']} | `{r['test']}` | {r['measured']} | {r['budget']} "
+            f"| {r['package']} | `{r['test']}` | {r['measured']} | {r['budget'] or '—'} "
             f"| {r['date']} | {r['commit']} |"
         )
     out = {"BUDGETS": "\n".join(budgets) + "\n"}
@@ -230,9 +230,11 @@ def render(rows, previous, ws, packages):
             "|---|---:|---:|---:|---:|---:|---|---|",
         ]
         for r in mine:
-            head_room = f"{(r['budget'] - r['measured']) * 100 / r['measured']:.2f} %"
+            head_room = "—"
+            if r["budget"] is not None:
+                head_room = f"{(r['budget'] - r['measured']) * 100 / r['measured']:.2f} %"
             gas.append(
-                f"| `{r['test']}` | {r['measured']} | {r['budget']} | {head_room} | {r['l1']} "
+                f"| `{r['test']}` | {r['measured']} | {r['budget'] or '—'} | {head_room} | {r['l1']} "
                 f"| {r['l1d']} | {r['date']} | {r['commit']} |"
             )
         out[os.path.join(path, "GAS.md")] = "\n".join(gas) + "\n"
@@ -255,7 +257,7 @@ def report(rows, base):
         else:
             b, note = str(old[0]), f"{(r['measured'] - old[0]) * 100 / old[0]:+.1f} %"
         lines.append(
-            f"| {r['package']}::{r['test']} | {b} | {r['measured']} | {r['budget']} | {note} |"
+            f"| {r['package']}::{r['test']} | {b} | {r['measured']} | {r['budget'] or '—'} | {note} |"
         )
     for (package, test), old in sorted(before.items()):
         lines.append(f"| {package}::{test} | {old[0]} | — | — | removed |")
