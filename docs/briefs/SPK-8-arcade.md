@@ -1,8 +1,9 @@
 # SPK-8 — Arcade packages spike
 
 > **Dropped on 2026-09-28** (ADR-0007, D-123): the Arcade packages are Dojo packages and the
-> game no longer uses Dojo. Quests and titles are written in the game, modelled on the
-> packages; the edge cases below become test cases of GLD-02. Kept for its list of cases.
+> game no longer uses Dojo. **D-124**: each package is rewritten without Dojo in a repository of
+> its own (track ARC), and the game consumes it by published version; GLD-02 writes only the
+> reward hook. The edge cases below are for that track, through docs/needs/arcade.md.
 
 ## Agent
 Title: `[Opus 5.5] SPK-8 arcade packages spike` · Profile: implement · Branch:
