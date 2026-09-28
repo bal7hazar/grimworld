@@ -15,6 +15,7 @@
 #   scripts/agent.sh status              one line per known task
 #   scripts/agent.sh wait <task>         block until the agent of <task> has exited
 #   scripts/agent.sh sid <task>          codex session id of <task> (for `resume`)
+#   scripts/agent.sh model <task>        the model that actually ran, as the CLI recorded it
 # options:
 #   --dry-run            print what would be launched, launch nothing, need no worktree
 #   --with-assets        initialise the `assets` submodule in the task worktree before launching
@@ -30,6 +31,7 @@
 #   logs/<task>.log        the agent's output; each run ends with a line `exit=<status> <date>`
 #   logs/<task>.unit       the systemd unit (or <task>.pid when detached with setsid)
 #   logs/<task>.profile    the profile of the launch, reused by `resume`
+#   logs/<task>.cli        the CLI and the model id asked for, checked against the one that ran
 #   logs/<task>.last.md    codex only: its last message, i.e. the audit report
 set -euo pipefail
 
@@ -89,23 +91,49 @@ load_profile() { # <profile> -> fills the arrays allow and deny
   [ "${#allow[@]}" -gt 0 ] || die "profile $1 grants nothing"
 }
 
+# The model that actually ran, as the CLI itself recorded it (never the one that was asked for):
+# claude writes it on every assistant message of its session transcript, codex prints `model:`
+# at the start of each run.
+reported_model() { # <task>
+  local cli expected wt dir f
+  read -r cli expected < "$L/$1.cli" 2> /dev/null || { echo unknown; return; }
+  if [ "$cli" = codex ]; then
+    grep -E '^model: ' "$L/$1.log" 2> /dev/null | tail -1 | cut -d' ' -f2 | grep . || echo unknown
+    return
+  fi
+  wt=$W/cli-$1
+  dir=$HOME/.claude/projects/$(printf '%s' "$wt" | sed 's#[/.]#-#g')
+  f=$(ls -t "$dir"/*.jsonl 2> /dev/null | head -1)
+  [ -n "$f" ] || { echo unknown; return; }
+  grep -ho '"model":"[^"]*"' "$f" | cut -d'"' -f4 | grep -v '^<synthetic>$' | sort -u |
+    paste -sd, - | grep . || echo unknown
+}
+
 case "${1:-}" in
   status)
     mkdir -p "$L"
     shopt -s nullglob
     for f in "$L"/*.log; do
       t=$(basename "$f" .log)
-      printf '%-24s %-8s %-11s last write %s  %s\n' "$t" \
+      expected=$(cut -d' ' -f2 "$L/$t.cli" 2> /dev/null || echo -)
+      ran=$(reported_model "$t")
+      [ "$ran" = "$expected" ] || [ "$ran" = unknown ] || ran="$ran MISMATCH(expected $expected)"
+      printf '%-24s %-8s %-10s ran=%-18s last write %s  %s\n' "$t" \
         "$(running "$t" && echo running || echo stopped)" \
-        "$(cat "$L/$t.profile" 2> /dev/null || echo -)" \
+        "$(cat "$L/$t.profile" 2> /dev/null || echo -)" "$ran" \
         "$(date -u -r "$f" +%FT%TZ)" \
-        "$(grep -E '^(--- |exit=)' "$f" | tail -1)"
+        "$(grep -E '^(--- |exit=[0-9]+ )[0-9]{4}-[0-9]{2}-[0-9]{2}T' "$f" | tail -1)"
     done
+    exit 0 ;;
+  model)
+    [ -n "${2:-}" ] || die "usage: agent.sh model <task>"
+    reported_model "$2"
     exit 0 ;;
   wait)
     [ -n "${2:-}" ] || die "usage: agent.sh wait <task>"
     while running "$2"; do sleep 20; done
-    grep -E '^exit=' "$L/$2.log" 2> /dev/null | tail -1 || true
+    grep -E '^exit=[0-9]+ [0-9]{4}-[0-9]{2}-[0-9]{2}T' "$L/$2.log" 2> /dev/null | tail -1 || true
+    echo "model=$(reported_model "$2")"
     exit 0 ;;
   sid)
     [ -n "${2:-}" ] || die "usage: agent.sh sid <task>"
@@ -177,11 +205,15 @@ path="$HOME/.local/bin:$HOME/.asdf/shims:$HOME/.cargo/bin:/usr/local/bin:/usr/bi
 run=(systemd-run --user --unit="$unit" --description="$desc" --collect --quiet
   --working-directory="$wt" -p OOMPolicy=continue -p Nice=10 -p OOMScoreAdjust=500
   -p MemoryMax=20G --setenv=HOME="$HOME" --setenv=PATH="$path"
-  --setenv=BASH_DEFAULT_TIMEOUT_MS=1800000 --setenv=BASH_MAX_TIMEOUT_MS=3600000)
-# $0 of the inner shell is the log file, "$@" the agent command line. Single quotes on purpose:
-# the inner shell of the unit expands them, not this one.
+  --setenv=BASH_DEFAULT_TIMEOUT_MS=1800000 --setenv=BASH_MAX_TIMEOUT_MS=3600000
+  --setenv=GW_AGENT_SH="$root/scripts/agent.sh" --setenv=GW_TASK="$task")
+# $0 of the inner shell is the log file, "$@" the agent command line. After the agent, it
+# records the model that actually ran (`model=`), then the exit status. Single quotes on
+# purpose: the inner shell of the unit expands them, not this one.
 # shellcheck disable=SC2016
-inner='"$@" < /dev/null >> "$0" 2>&1; echo "exit=$? $(date -u +%FT%TZ)" >> "$0"'
+inner='"$@" < /dev/null >> "$0" 2>&1; s=$?
+echo "model=$("$GW_AGENT_SH" model "$GW_TASK" 2> /dev/null)" >> "$0"
+echo "exit=$s $(date -u +%FT%TZ)" >> "$0"'
 
 if [ "$dry" = 1 ]; then
   echo "# $desc"
@@ -212,6 +244,7 @@ use_unit=0
 if [ "$cli" = claude ] && systemctl --user list-units > /dev/null 2>&1; then use_unit=1; fi
 
 echo "$profile" > "$L/$task.profile"
+echo "$cli $model_id" > "$L/$task.cli"
 echo "--- $(date -u +%FT%TZ) $desc $cli $model_id $([ "$use_unit" = 1 ] && echo "unit=$unit" || echo setsid)" >> "$L/$task.log"
 rm -f "$L/$task.unit" "$L/$task.pid"
 if [ "$use_unit" = 1 ]; then
@@ -220,7 +253,7 @@ if [ "$use_unit" = 1 ]; then
   echo "$task: started [$label] as systemd user unit $unit, log $L/$task.log"
 else
   cd "$wt"
-  PATH=$path nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
+  PATH=$path GW_AGENT_SH="$root/scripts/agent.sh" GW_TASK="$task" nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 &
   echo "$!" > "$L/$task.pid"
   echo "$task: started [$label] detached with setsid, pid $!, log $L/$task.log"
 fi

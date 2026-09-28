@@ -44,6 +44,8 @@ Bash(uname *)
 Bash(nproc)
 Bash(free *)
 Bash(uptime)
+Bash(pgrep *)
+Bash(ps *)
 
 # Repository history and pull requests, read-only.
 Bash(git status*)

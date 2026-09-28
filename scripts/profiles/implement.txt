@@ -24,10 +24,12 @@ Bash(curl *)
 Bash(tar *)
 Bash(unzip *)
 
-# Project scripts.
+# Project scripts and tools (tools/<name>/.venv/bin/… included).
 Bash(scripts/*)
 Bash(./scripts/*)
 Bash(bash scripts/*)
+Bash(tools/*)
+Bash(./tools/*)
 
 # Files, inside the worktree.
 Bash(mkdir *)

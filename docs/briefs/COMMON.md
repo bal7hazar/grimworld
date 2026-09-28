@@ -36,8 +36,10 @@ disagree, the brief wins for its task, and says so.
   workspace manifests, unless the brief lists one of them.
 - **Your permissions** come from the profile of your launch (`scripts/profiles/`):
   `research`, `audit` or `implement`. A refused command is not an obstacle to work around:
-  use an allowed command, or report what you needed. Delete files with relative paths inside
-  your worktree.
+  use an allowed command, or report what you needed. Run commands from the worktree root
+  and call the project's scripts as `scripts/…` (`scripts/lock.sh`, not
+  `../../scripts/lock.sh`), with `--manifest-path` for a package in a subfolder: rules match
+  the start of a command. Delete files with relative paths inside your worktree.
 - **Commit early.** Coherent intermediate states in small commits, so that an interruption
   loses nothing; you may be resumed with `claude --continue`.
 
@@ -124,6 +126,11 @@ modified.
 
 Written at the root of your worktree, **not committed** (it is ignored by git). The
 orchestrator reads it and the log, never your transcript.
+
+The header's `[<Model>]` is **the model you read from your own session** (the model your
+system prompt says you are running as), not the one the brief names; if they differ, say so
+in the summary. The launcher also records the model the CLI actually ran (`model=` in the
+log, `scripts/agent.sh status`), and the orchestrator checks the two agree.
 
 ```markdown
 # [<Model>] <TASK-ID> — <title>
