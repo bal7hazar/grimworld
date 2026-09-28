@@ -91,6 +91,21 @@ jobs:
       - name: test
         run: snforge test --workspace
 
+      # docs/CAIRO.md §2 enforced by a tool (FND-06): every test has a budget of ceil(1.05 x
+      # measured) or lower, and docs/BUDGETS.md and the GAS.md files match the run. The tests
+      # run a second time (compiled already, seconds), for the figures.
+      - name: gas budgets
+        if: matrix.dir == 'contracts'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          # origin/main is the baseline of the raise check and the history holds the commits of
+          # BUDGETS.md: the checkout is shallow and has no origin/main, so fetch both.
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --no-tags --unshallow origin; fi
+          python3 scripts/gas_budgets.py --self-test
+          python3 scripts/gas_budgets.py --check --no-lock
+
   client:
     needs: discover
     runs-on: ubuntu-latest
