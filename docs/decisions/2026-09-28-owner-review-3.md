@@ -56,6 +56,12 @@
 | D-111 | Random word at reveal: one draw at entry, then a value built from the adventurer's irreversible actions. Reading one chunk ahead is accepted. An alternative in the same spirit may be looked for later |
 | D-112 | Dungeons have a target size, 6 to 12 chunks by grade; their outline emerges within it |
 
+| D-115 | Promotion trials are generated like any dungeon; size, band and quotas fixed per rank |
+| D-116 | Explicit go from the owner for every mainnet deployment and registry write |
+| D-117 | The game consumes `origami_hexmap` 1.8.0 for now; the long-term choice depends on the findings of the library's orchestrator. Launching that orchestrator is the project manager's mission, not a question to the owner |
+| D-118 | 3 Grim World agents at a time on the VPS |
+| — | Decisions still proposed after round 2 (D-02, D-04, D-30, D-31, D-41, D-50, D-52, D-63, D-80) are accepted as recommended; D-52 stays conditional on its measured cost |
+
 ## To study before deciding
 
 | # | Question | Input needed |

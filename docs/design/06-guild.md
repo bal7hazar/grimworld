@@ -41,8 +41,8 @@ a nest led by a shaman; Silver trial: defeat a champion).
 - Trials can be retried without limit; failure costs only the expedition.
 - A trial is generated like any dungeon, so its layout is not known in advance. What is
   fixed per rank is what makes it a fair test: its **size, band and quotas** (which
-  castes, how many, which Heart). Whether trials should instead use a fixed layout, for
-  strict comparison between adventurers, is open (Q-23).
+  castes, how many, which Heart). A fixed layout, for strict comparison between adventurers,
+  was considered and not kept (D-115).
 
 ## Quests
 
