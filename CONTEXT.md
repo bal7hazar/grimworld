@@ -88,8 +88,8 @@ Use these words, in code and in prose, with these meanings only.
 | **Action** | One player input in an instance, with a tick cost |
 | **Queue** | Several actions submitted in one transaction |
 | **Chunk** | 15 × 15 tiles: the unit of storage and generation of a map |
-| **Window** | The 15 × 15 board centred on the adventurer on which a tick is computed |
-| **Sight** | The hexagon of radius 6 within which goblins are shown |
+| **Window** | The board of 15 columns × 16 rows on which a tick is computed. It follows the adventurer and is assembled from the chunks at each tick, never stored |
+| **Sight** | The hexagon of radius 6 within which goblins are shown; always inside the window |
 | **Facing / arc** | The direction an actor looks at; front, front-side, rear-side and back tiles around it |
 | **Gate** | A link between two locations |
 | **Caste** | A type of goblin |
@@ -152,6 +152,7 @@ owner, with the date), Superseded.
 | D-116 | Every mainnet deployment and every mainnet registry write needs an explicit go from the owner | OPERATIONS §7 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-117 | Map library: the game consumes `origami_hexmap` 1.8.0 for now. What it consumes in the end depends on the findings of the library's orchestrator (PLAN, track LIB) | PLAN | Accepted 2026-09-28 |
 | D-119 | Map library: **`hexx` is ported in full** (feature parity wherever it makes sense on-chain, extended with what Cairo and the network require) in **`bal7hazar/hexx-cairo`**, which takes over the engine of `origami_hexmap` with identical results; `origami_hexmap` is decommissioned once the port is complete and the game has migrated. `u252` becomes its own crate in `bal7hazar/types-cairo` | [decisions/2026-09-28-L-G1-hexx-port](docs/decisions/2026-09-28-L-G1-hexx-port.md) | Accepted 2026-09-28 (owner, at gate L-G1; differs from the recommendation) |
+| D-120 | **The simulation window follows the adventurer**: no margin of 3 tiles, no cut of sight at the ring. Window of **15 columns × 16 rows**, origin on an even row, **not stored**, assembled at each tick without a loop over rows. Fallback: sight 5 on 13 × 14. Chunks stay 15 × 15 | ADR-0006 §4, [decisions/2026-09-28-window-follows](docs/decisions/2026-09-28-window-follows.md) | Accepted 2026-09-28 (owner), cost subject to SPK-7 |
 | D-118 | Concurrency: 3 Grim World agents at a time on the VPS, beside the other programmes | OPERATIONS §3 | Accepted 2026-09-28 (owner adopts the recommendation) |
 | D-80 | Co-op direction: every action of any member ticks the world | design/08 | Accepted 2026-09-28 (owner adopts the recommendation) |
 

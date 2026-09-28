@@ -40,13 +40,19 @@ tests on `claude-sonnet-5`. One in-session research agent of the game orchestrat
 `[Opus 5.5]` and ran on `claude-haiku-4-5`: corrected. The launcher now records the model each
 CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
 
+## Decided today by the owner
+
+| | |
+|---|---|
+| D-119 | `hexx` ported in full in `bal7hazar/hexx-cairo`; `origami_hexmap` decommissioned at the end ([file](docs/decisions/2026-09-28-L-G1-hexx-port.md)) |
+| D-120 | The window follows the adventurer, 15 × 16, not stored; fallback sight 5 on 13 × 14 ([file](docs/decisions/2026-09-28-window-follows.md)); ADR-0006, design/02, design/18, CONTEXT, PLAN v0.16 and docs/needs/hexmap.md corrected |
+
 ## Waiting for the owner
 
 | What | Where | Recommendation |
 |---|---|---|
 | **Incident**: restore `node`, `pnpm`, `codex` on the machine (two lines in the global `~/.tool-versions`) | [docs/reports/INC-2026-09-28-asdf-node-shims.md](docs/reports/INC-2026-09-28-asdf-node-shims.md) | Apply |
 | G-1: protect `main` on both repositories | [docs/decisions/PENDING-G-1.md](docs/decisions/PENDING-G-1.md) | Yes, two steps |
-| Sight and the window: the window follows the adventurer | [docs/decisions/PENDING-window-follows.md](docs/decisions/PENDING-window-follows.md) | Yes, cost measured by SPK-7 |
 
 ## Next
 
