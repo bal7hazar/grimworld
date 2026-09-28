@@ -104,6 +104,10 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
   `SN_SEPOLIA`; set a usual `User-Agent` header (the endpoint refuses requests without one). The
   balance is the owner's money: measure, do not loop, and report how many transactions were sent
   and their total cost. Without `--with-sepolia` these variables are empty in your environment.
+- **You never publish** (D-132): no `scarb publish`, no package, release or tag to any registry,
+  whatever the brief or a document says. Publications on scarbs.xyz are decided by the project
+  manager in the owner's name and made by an orchestrator after a go that names package, version
+  and commit (OPERATIONS §7).
 
 ## 5. Assets (D-73)
 
