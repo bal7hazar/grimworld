@@ -1,22 +1,26 @@
-// SPK-11 scenario (AC-3, AC-4, and fix loop 1): deploys the Market contract, starts the indexer,
+// SPK-11 scenario (AC-3, AC-4, fix loops 1 and 2): deploys the Market contract, starts the indexer,
 // and checks, against the chain's own answer (view calls), that no answer the client ACCEPTS is a
 // state the chain does not hold:
 //   A. secrets: the indexer's environment is one variable; a key in the RPC URL never reaches a log;
 //   B. queries and the subscription cache;
+//   V. the freshness rule's read order: a reorg between the rule's two node reads, with the old
+//      order (block, then tip) and the new one (tip, then block last);
 //   C. live reorg (an aborted purchase and an aborted lot): raw answers sampled every few ms from
-//      the abort on, each passed through the client's freshness rule; the cache likewise;
+//      the abort on, each passed through the freshness rule; the cache likewise;
 //   D. a cache through a disconnection, a reorg and a lot id given twice;
-//   E. restart on a database whose tip the chain replaced, with a slow node: every answer from the
-//      first one on is either 503 `loading` or the chain's;
+//   E. an unplanned close of the stream (the indexer stops): the cache stops answering by itself;
+//      then a restart on a database whose tip the chain replaced, with a slow node;
 //   F. u64 boundaries (ids 2^53+1, 2^63, 2^64-1; prices 2^53+1, 2^63, 2^64-1) through ingestion,
 //      query, purchase and rewind;
 //   G. rebuild from the chain, answer for answer;
-//   H. completeness: a lot created without its event halts the indexer, by reconciliation (the
-//      running indexer) and by the id gap (a rebuild).
+//   H. completeness: a served block replaced at the same height (devnet keeps its hash) by one
+//      holding a lot without its event: reconciliation keyed by block identity halts the indexer,
+//      and the replacement is never served; then a rebuild halts on the id gap.
+// The large-snapshot case (more than one page, more than 10 000 lots) is snapshot.ts.
 //   spikes/SPK-11/with-archive.sh node spikes/SPK-11/demo.ts
 import { mkdirSync, rmSync } from "node:fs";
-import { abortBlocks, deployMarket, head, provider, send } from "./chain.ts";
-import { LotCache, type Lot, type LotEvent } from "./client.ts";
+import { abortBlocks, deployMarket, head, provider, rpc, send } from "./chain.ts";
+import { LotCache, type Head, type LotEvent } from "./client.ts";
 import { startIndexer, type RunningIndexer } from "./run-indexer.ts";
 
 const tmp = new URL("./.tmp/", import.meta.url).pathname;
@@ -43,6 +47,7 @@ async function until<T>(read: () => Promise<T>, ok: (value: T) => boolean, timeo
   }
 }
 const show = (lots: { lot: string; price: string }[]) => lots.map((lot) => `${lot.lot}:${lot.price}`).join(" ");
+const short = (block: { number: number; hash: string } | null | undefined) => (block ? `${block.number} ${block.hash.slice(0, 10)}…` : null);
 // Caught up = at the chain's tip, by the freshness rule (hash AND commitments: devnet re-uses hashes).
 const caughtUp = async (indexer: RunningIndexer) => {
   const chain = await head();
@@ -70,27 +75,24 @@ async function truth(address: string, item: number, ids?: bigint[], blockHash?: 
   return open.map((lot) => `${lot.lot}:${lot.price}`).join(" ");
 }
 
-// A cache fed by the subscription of one item, on a connection that can be dropped and reopened.
-function subscription(indexer: RunningIndexer, item: number, cache: LotCache) {
-  const controller = new AbortController();
-  const done = indexer.client
-    .subscribe(item, (event: LotEvent) => {
-      cache.apply(event);
-      const short = (block: { number: number; hash: string } | null) => (block ? `${block.number} ${block.hash.slice(0, 10)}…` : null);
-      const data =
-        event.type === "reset" ? { head: short(event.data.head), lots: show(event.data.lots) }
-        : event.type === "posted" || event.type === "closed" ? { ...event.data, block: short(event.data.block) }
-        : event.type === "rewind" ? { ...event.data, head: short(event.data.head) }
-        : event.data;
-      if (event.type !== "head") say(`subscription(item ${item}): ${event.type} ${JSON.stringify(data)}`);
-    }, controller.signal)
-    .catch(() => undefined);
-  return async () => {
-    controller.abort();
-    await done;
-    cache.disconnected();
+// A cache of item ITEM on the indexer's stream; the cache owns the stream (connect/close).
+function listen(indexer: RunningIndexer) {
+  const cache = new LotCache(indexer.client, ITEM);
+  const log = (event: LotEvent) => {
+    if (event.type === "head" || event.type === "reset-page") return;
+    const data =
+      event.type === "reset-begin" || event.type === "reset-end" ? { head: short(event.data.head), total: event.data.total }
+      : event.type === "posted" || event.type === "closed" ? { ...event.data, block: short(event.data.block) }
+      : event.data;
+    say(`subscription(item ${ITEM}): ${event.type} ${JSON.stringify(data)}`);
   };
+  return { cache, close: cache.connect(log) };
 }
+// What the cache shows through its read API: the lots, or why not.
+const shown = async (cache: LotCache) => {
+  const read = await cache.read();
+  return read.fresh ? show(read.answer.lots) : `(not shown: ${read.reason})`;
+};
 
 // Samples raw answers (and the cache) from now until an answer is accepted and equals `latest`
 // (the chain's state at its tip; the cache too). Each answer with rows is compared with the chain's
@@ -125,11 +127,12 @@ async function sample(indexer: RunningIndexer, item: number, latest: string, cac
       }
     }
     if (cache) {
-      done &&= cache.ready && show(cache.sorted()) === latest;
-      if (cache.ready && cache.head && (await indexer.client.verify(cache.head)) === "fresh") {
+      const read = await cache.read();
+      if (read.fresh) {
         counts.cacheAccepted++;
-        if (!(await heldAt(cache.sorted(), cache.head))) counts.cacheWrong++;
+        if (!(await heldAt(read.answer.lots, read.answer.head!))) counts.cacheWrong++;
       }
+      done &&= read.fresh && show(read.answer.lots) === latest;
     }
     if (done) break;
     if (performance.now() - started > 20000) throw new Error(`not consistent after 20 s: ${JSON.stringify(counts)}`);
@@ -139,6 +142,7 @@ async function sample(indexer: RunningIndexer, item: number, latest: string, cac
 }
 
 // --- A. deploy, start, secrets ---------------------------------------------------------------------
+const ITEM = 7;
 const market = await deployMarket();
 say(`Market deployed at ${market.address} in block ${market.block}`);
 const demoDb = dbPath("demo.db");
@@ -147,9 +151,8 @@ const keyedUrl = `${process.env.NODE_URL}/?key=${FAKE_KEY}`;
 let indexer = await startIndexer({ address: market.address, db: demoDb, from: market.block, rpcUrl: keyedUrl, poll: 500 });
 const environmentLine = indexer.logs.find((line) => line.includes("environment:")) ?? "";
 check("the indexer's environment is INDEXER_RPC_URL only", environmentLine.endsWith("environment: INDEXER_RPC_URL"), environmentLine.split("] ")[1]);
-const ITEM = 7;
-const cache = new LotCache();
-let unsubscribe = subscription(indexer, ITEM, cache);
+let { cache, close } = listen(indexer);
+const logs: string[][] = [];
 
 // --- B. queries --------------------------------------------------------------------------------------
 for (const [item, quantity, price] of [[ITEM, 1, 300], [ITEM, 1, 250], [ITEM, 2, 400], [9, 1, 100]]) {
@@ -167,19 +170,41 @@ check("cheapest open lots of item 7 = the chain's (lot 2 bought)", answer.fresh 
 const presence = [await indexer.client.presence(1), await indexer.client.presence(2)].map((p) => (p.fresh ? p.answer.count : -1));
 check("presence hub 1 / hub 2", presence[0] === 2 && presence[1] === 1, presence);
 const chainB = await truth(market.address, ITEM);
-await until(async () => show(cache.sorted()), (lots) => lots === chainB, 5000).catch(() => undefined);
-check("the subscription cache = the chain's", show(cache.sorted()) === chainB, show(cache.sorted()));
+await until(() => shown(cache), (lots) => lots === chainB, 5000).catch(() => undefined);
+check("the subscription cache, through its read API, = the chain's", (await shown(cache)) === chainB, await shown(cache));
+
+// --- V. the freshness rule's read order ---------------------------------------------------------------
+// The old order read the answer's block, then the tip: a reorg between the two passes an orphan.
+async function verifyBlockThenTip(headOfAnswer: NonNullable<Head>, between: () => Promise<void>) {
+  const block = await indexer.client.blockIs(headOfAnswer);
+  if (block !== "fresh") return block;
+  await between();
+  const tip = await rpc("starknet_blockHashAndNumber");
+  return tip.block_number - headOfAnswer.number > indexer.client.maxLag ? "behind" : "fresh";
+}
+sent = await send(market.address, [["post", ITEM, 1, 111]]);
+await caughtUp(indexer);
+let raw = await indexer.client.cheapestRaw(ITEM, 50);
+const oldVerdict = await verifyBlockThenTip(raw.head, async () => void (await abortBlocks(sent.block)));
+say(`answer at ${short(raw.head)} with lot 5 at 111; block ${sent.block} aborted between the rule's two reads; old order says "${oldVerdict}"; chain now ${await truth(market.address, ITEM)}`);
+check("old order (block, then tip) accepts the answer holding the orphaned lot 5: the defect", oldVerdict === "fresh" && show(raw.lots).includes("5:111"), { oldVerdict, lots: show(raw.lots) });
+sent = await send(market.address, [["post", ITEM, 1, 112]]);
+await caughtUp(indexer);
+raw = await indexer.client.cheapestRaw(ITEM, 50);
+const newVerdict = await indexer.client.verify(raw.head, async () => void (await abortBlocks(sent.block)));
+say(`answer at ${short(raw.head)} with lot 5 at 112; block ${sent.block} aborted between the rule's two reads; new order says "${newVerdict}"`);
+check("new order (tip, then the answer's block last) rejects it", newVerdict !== "fresh", newVerdict);
+await caughtUp(indexer);
 
 // --- C. live reorg -----------------------------------------------------------------------------------
-const fork = (await head()).number;
 sent = await send(market.address, [["post", ITEM, 1, 120], ["buy", 1]]);
 const reorgBlock = sent.block;
 say(`post(item ${ITEM}, price 120) as lot 5 and buy(lot 1), in block ${reorgBlock}`);
 sent = await send(market.address, [["locate", 1, 2]]);
 await caughtUp(indexer);
 const beforeLive = await truth(market.address, ITEM);
-await until(async () => show(cache.sorted()), (lots) => lots === beforeLive);
-say(`before the abort: chain ${beforeLive}; cache ${show(cache.sorted())}`);
+await until(() => shown(cache), (lots) => lots === beforeLive);
+say(`before the abort: chain ${beforeLive}; cache ${await shown(cache)}`);
 const aborted = await abortBlocks(reorgBlock);
 const afterLive = await truth(market.address, ITEM);
 say(`devnet_abortBlocks from ${reorgBlock}: ${aborted.length} blocks aborted; the chain's answer is now ${afterLive} (lot 1 open again, lot 5 gone)`);
@@ -187,13 +212,13 @@ const live = await sample(indexer, ITEM, afterLive, cache);
 say(`live reorg, sampled from the abort until consistent: ${JSON.stringify(live)}`);
 check("live: no accepted answer (query or cache) is a state the chain does not hold at its head", live.acceptedWrong === 0 && live.cacheWrong === 0, { acceptedWrong: live.acceptedWrong, cacheWrong: live.cacheWrong });
 check("live: raw answers were orphaned in the window, and the rule rejected every one", live.rawWrong > 0, { rawWrong: live.rawWrong, accepted: live.accepted });
-check("live: the cache reopened lot 1 (reset after rewind)", show(cache.sorted()) === afterLive, show(cache.sorted()));
+check("live: the cache reopened lot 1 (snapshot after rewind)", (await shown(cache)) === afterLive, await shown(cache));
 const presenceAfter = await indexer.client.presence(1);
 check("live: presence hub 1 = 2 again", presenceAfter.fresh && presenceAfter.answer.count === 2, presenceAfter.fresh ? presenceAfter.answer.count : presenceAfter.reason);
 
 // --- D. a cache through a disconnection, a reorg and a reused lot id ---------------------------------
-await unsubscribe();
-say(`cache disconnected: ready=${cache.ready}, holds ${show(cache.sorted())}`);
+await close();
+say(`cache closed: ready=${cache.ready}, shows ${await shown(cache)}`);
 sent = await send(market.address, [["post", ITEM, 1, 500]]);
 say(`post 500 in block ${sent.block} (lot 5)`);
 await caughtUp(indexer);
@@ -201,15 +226,19 @@ await abortBlocks(sent.block);
 sent = await send(market.address, [["post", ITEM, 1, 650], ["withdraw", 3]]);
 say(`aborted it; post 650 (lot 5 again) and withdraw(lot 3) in block ${sent.block}`);
 await caughtUp(indexer);
-unsubscribe = subscription(indexer, ITEM, cache);
-await until(async () => cache.ready && !!cache.head && (await indexer.client.verify(cache.head)) === "fresh", (ok) => ok);
+close = cache.connect();
+await until(async () => (await cache.read()).fresh, (fresh) => fresh);
 const afterReconnect = await truth(market.address, ITEM);
-check("reconnected cache, accepted by the freshness rule, = the chain's (lot 5 is 650, lot 3 withdrawn)", show(cache.sorted()) === afterReconnect, { cache: show(cache.sorted()), chain: afterReconnect });
+check("reconnected cache, through its read API, = the chain's (lot 5 is 650, lot 3 withdrawn)", (await shown(cache)) === afterReconnect, { cache: await shown(cache), chain: afterReconnect });
 
-// --- E. restart on a replaced tip, with a slow node --------------------------------------------------
-await unsubscribe();
-await indexer.stop();
-say("indexer stopped");
+// --- E. unplanned close, then restart on a replaced tip with a slow node ------------------------------
+check("before the indexer stops, the cache answers", (await cache.read()).fresh);
+logs.push(indexer.logs);
+await indexer.stop(); // the stream is closed by the server, not by the cache's owner
+await until(async () => cache.ready, (ready) => !ready, 5000).catch(() => undefined);
+const afterClose = await cache.read();
+say(`indexer stopped; nobody closed the cache; it says ${JSON.stringify(afterClose)}`);
+check("unplanned close: the cache is not ready and read() refuses, by itself", !cache.ready && !afterClose.fresh && cache.status === "disconnected", { ready: cache.ready, status: cache.status });
 const replaced = sent.block;
 await abortBlocks(replaced);
 const a = await send(market.address, [["post", ITEM, 1, 700]]);
@@ -222,12 +251,13 @@ const restart = await sample(indexer, ITEM, afterOffline, null);
 say(`restart with a 50 ms node, sampled from the first answer until consistent (${(performance.now() - started).toFixed(0)} ms from spawn): ${JSON.stringify(restart)}`);
 check("restart: every answer with rows, raw or accepted, is a state the chain holds at its head (gate)", restart.rawWrong === 0 && restart.acceptedWrong === 0, { loading: restart.loading, rawOk: restart.rawOk, rawWrong: restart.rawWrong, acceptedOlder: restart.acceptedOlder });
 check("restart: the gate was observed", restart.loading > 0, { loading: restart.loading });
+logs.push(indexer.logs);
 await indexer.stop();
 indexer = await startIndexer({ address: market.address, db: demoDb, from: market.block, rpcUrl: keyedUrl, poll: 100 });
 await caughtUp(indexer);
-unsubscribe = subscription(indexer, ITEM, cache);
-await until(async () => cache.ready, (ready) => ready);
-check("restart: cache = the chain's", show(cache.sorted()) === afterOffline, show(cache.sorted()));
+({ cache, close } = listen(indexer));
+await until(async () => (await cache.read()).fresh, (fresh) => fresh);
+check("restart: cache = the chain's", (await shown(cache)) === afterOffline, await shown(cache));
 
 // --- F. u64 boundaries ------------------------------------------------------------------------------
 const BIG = 77;
@@ -249,7 +279,8 @@ answer = await indexer.client.cheapest(BIG, 10);
 check("u64: rewound (item 77 empty, like the chain)", answer.fresh && answer.answer.lots.length === 0 && (await truth(market.address, BIG, [i53, i63, i64])) === "", answer.fresh ? answer.answer.lots : answer.reason);
 sent = await send(market.address, [["post", ITEM, 1, 800]]);
 await caughtUp(indexer);
-check("u64: the lot counter rewound with it: the next lot id is 7, the chain's", (await indexer.client.cheapest(ITEM, 50)).fresh && show(((await indexer.client.cheapest(ITEM, 50)) as any).answer.lots).includes("7:800"));
+answer = await indexer.client.cheapest(ITEM, 50);
+check("u64: the lot counter rewound with it: the next lot id is 7, the chain's", answer.fresh && show(answer.answer.lots).includes("7:800"));
 
 // --- G. rebuild from the chain ----------------------------------------------------------------------
 started = performance.now();
@@ -260,7 +291,7 @@ const answers = async (indexer: RunningIndexer) => {
   const items = [];
   for (const item of [ITEM, 9, BIG]) items.push(((await indexer.client.cheapestRaw(item, 50)) as any).lots);
   const hubs = [];
-  for (const hub of [0, 1, 2]) hubs.push((await indexer.client.presence(hub) as any).answer.count);
+  for (const hub of [0, 1, 2]) hubs.push(((await indexer.client.presence(hub)) as any).answer.count);
   return JSON.stringify({ items, hubs, head: (await indexer.client.head()).head });
 };
 const kept = await answers(indexer);
@@ -268,25 +299,50 @@ const fresh = await answers(rebuilt);
 say(`indexer that lived through the reorgs: ${kept}`);
 say(`indexer rebuilt from the chain:        ${fresh}`);
 check("rebuilt == rewound, answer for answer", kept === fresh);
+logs.push(rebuilt.logs);
 await rebuilt.stop();
 
-// --- H. completeness ---------------------------------------------------------------------------------
-sent = await send(market.address, [["post_silent", ITEM, 1, 50]]);
-say(`post_silent (a lot without its event) in block ${sent.block}`);
-const halted = await until(() => indexer.client.head(), (value) => value.status === "halted", 5000);
-check("reconciliation halts the running indexer (view call lot_count at its tip)", /lot_count on the chain/.test(halted.reason), halted);
+// --- H. completeness: a served block replaced at the same height by a silent lot ----------------------
+sent = await send(market.address, [["post", ITEM, 1, 900]]);
+const served = sent.block;
+await caughtUp(indexer);
+say(`post 900 (lot 8) in block ${served}; served`);
+const seen: { status: string; head?: string; commitments?: string }[] = [];
+let sampling = true;
+const sampler = (async () => {
+  while (sampling) {
+    const answer = await indexer.client.cheapestRaw(ITEM, 50);
+    seen.push({ status: answer.status, head: answer.head ? `${answer.head.number}` : undefined, commitments: answer.head?.commitments });
+    if (answer.status === "halted") break;
+    await sleep(1);
+  }
+})();
+const hashBefore = (await rpc("starknet_getBlockWithTxHashes", { block_id: { block_number: served } })).block_hash;
+await abortBlocks(served);
+sent = await send(market.address, [["post_silent", ITEM, 1, 900]]);
+const replacement = await rpc("starknet_getBlockWithTxHashes", { block_id: { block_number: sent.block } });
+const replacementCommitments = [replacement.transaction_commitment, replacement.event_commitment, replacement.receipt_commitment, replacement.state_diff_commitment].join(",");
+say(`aborted block ${served}; post_silent (lot 8, no event) in block ${sent.block}; same hash as the aborted block: ${replacement.block_hash === hashBefore}`);
+const halted = await until(() => indexer.client.head(), (value) => value.status === "halted", 10000);
+sampling = false;
+await sampler;
+const servedReplacement = seen.filter((answer) => answer.head === `${sent.block}` && answer.commitments === replacementCommitments).length;
+say(`sampled ${seen.length} answers during the replacement: ${JSON.stringify(Object.entries(seen.reduce((counts: Record<string, number>, answer) => ((counts[`${answer.status}@${answer.head ?? "-"}`] = (counts[`${answer.status}@${answer.head ?? "-"}`] ?? 0) + 1), counts), {})))}`);
+check(`the replaced block (same height ${served}, same hash) is reconciled and halts the indexer`, new RegExp(`at block ${served} is 8, indexed 7`).test(halted.reason), halted);
+check("the replacement block was never served (0 answers at its identity)", servedReplacement === 0, { servedReplacement });
 check("halted: queries answer 503 halted, no rows", (await indexer.client.cheapestRaw(ITEM, 10)).status === "halted");
-check("halted: the cache knows", cache.status === "halted" && !cache.ready, { status: cache.status, ready: cache.ready });
+check("halted: the cache knows, and read() refuses", cache.status === "halted" && !cache.ready && !(await cache.read()).fresh, { status: cache.status, ready: cache.ready });
 await send(market.address, [["post", ITEM, 1, 60]]);
 const gap = await startIndexer({ address: market.address, db: dbPath("gap.db"), from: market.block, quiet: true });
 const gapHalt = await until(() => gap.client.head(), (value) => value.status === "halted", 10000);
 check("a rebuild halts on the id gap (LotPosted 9 after 7)", /expected lot 8/.test(gapHalt.reason), gapHalt);
+logs.push(gap.logs);
 await gap.stop();
 
-const allLogs = [...indexer.logs, ...rebuilt.logs, ...gap.logs].join("\n");
+const allLogs = [...logs.flat(), ...indexer.logs].join("\n");
 check("no log line holds the provider key of the RPC URL", !allLogs.includes(FAKE_KEY) && allLogs.includes("/…(redacted)"));
 check("no log line holds the node account's private key", !allLogs.includes(process.env.NODE_ACCOUNT_PRIVATE_KEY!));
-await unsubscribe();
+await close();
 await indexer.stop();
 say(`timings: ${JSON.stringify({ liveLatestAcceptedMs: live.latestAcceptedMs, restartLatestAcceptedMs: restart.latestAcceptedMs })}`);
 say(failures === 0 ? "all checks passed" : `${failures} checks FAILED`);
