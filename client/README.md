@@ -4,10 +4,15 @@ A pnpm workspace (root `package.json` and `pnpm-workspace.yaml`; Node and pnpm a
 `.tool-versions`, run `scripts/setup-toolchain.sh` if one is missing). Two packages
 ([ADR-0003](../docs/architecture/ADR-0003-client.md)):
 
-| Package                         | Role                                                                                          | May depend on                                                    |
-| ------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `@grimworld/sim` (`client/sim`) | Simulation core: pure TypeScript, deterministic                                               | nothing but itself: **no** PixiJS, React, dojo.js or starknet.js |
-| `@grimworld/app` (`client/app`) | Vite, React, PixiJS 8 rendered **on demand** (no render loop), dojo.js 2.0.0 for chain access | `@grimworld/sim`                                                 |
+| Package                         | Role                                                                                               | May depend on                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `@grimworld/sim` (`client/sim`) | Simulation core: pure TypeScript, deterministic                                                    | nothing but itself: **no** PixiJS, React or starknet.js |
+| `@grimworld/app` (`client/app`) | Vite, React, PixiJS 8 rendered **on demand** (no render loop), starknet.js 10.8.0 for chain access | `@grimworld/sim`                                        |
+
+The game has no Dojo world ([ADR-0007](../docs/architecture/ADR-0007-native-starknet.md)), so the
+client has no generated bindings: it talks to the contracts through starknet.js
+(`client/app/src/chain.ts` builds the provider; nothing calls it yet) and, later, the indexer's
+interface. Tests never use the network.
 
 Versions are exact and `pnpm-lock.yaml` is committed. Test runner: Vitest. Lint: ESLint with
 `typescript-eslint` (`client/eslint.config.js`). Format: Prettier (`client/.prettierrc.json`).

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Client shell: React, PixiJS rendered on demand, dojo.js declared for the chain (ADR-0003).",
+  "description": "Client shell: React, PixiJS rendered on demand, starknet.js for the chain (ADR-0003, ADR-0007).",
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
@@ -12,12 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@dojoengine/grpc": "2.0.0",
-    "@dojoengine/sdk": "2.0.0",
     "pixi.js": "8.21.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "starknet": "10.0.2"
+    "starknet": "10.8.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

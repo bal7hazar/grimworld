@@ -1,0 +1,14 @@
+{
+  "name": "spk5b-read",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPK-5b throwaway: calls the view of the Mark contract and decodes its event, with starknet.js.",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.5.1",
+  "dependencies": {
+    "starknet": "10.8.0"
+  }
+}

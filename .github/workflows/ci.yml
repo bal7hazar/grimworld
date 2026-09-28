@@ -18,11 +18,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The list of Cairo packages is discovered, not written down: every tracked Scarb.toml is a
-  # package, so a new spike or package is gated the day it lands, and none can be forgotten. Its
+  # The list of Cairo jobs is discovered, not written down: every tracked Scarb.toml is a package
+  # or a workspace, so a new spike or package is gated the day it lands, and none can be forgotten.
+  # A Scarb workspace (contracts/) is one job at its root; its member manifests are not jobs. The
   # toolchain is read the way asdf reads it locally: per tool, the nearest .tool-versions going up
-  # from the package folder to the root. A package that pins its own Cairo (D-122) gets that Scarb
-  # and that snforge; the others get the root pins (Cairo 2.13, the game's).
+  # from the folder to the root. A package that pins its own Cairo (D-122, spikes/SPK-5 on 2.13)
+  # gets that Scarb and that snforge; the others get the root pins (Cairo 2.19, the game's).
   discover:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -46,9 +47,20 @@ jobs:
               dir=$(dirname "$dir")
             done
           }
+          # is_member <folder>: true when a Scarb.toml above the folder declares a [workspace]; a
+          # workspace is one job run at its root, its members are not jobs of their own.
+          is_member() {
+            local dir=$1
+            while [ "$dir" != "." ]; do
+              dir=$(dirname "$dir")
+              if [ -f "$dir/Scarb.toml" ] && grep -q '^\[workspace\]' "$dir/Scarb.toml"; then return 0; fi
+            done
+            return 1
+          }
           packages='[]'
           while IFS= read -r manifest; do
             dir=$(dirname "$manifest")
+            if is_member "$dir"; then continue; fi
             scarb=$(nearest_version "$dir" scarb)
             snforge=$(nearest_version "$dir" starknet-foundry)
             packages=$(jq -c --arg dir "$dir" --arg scarb "$scarb" --arg snforge "$snforge" \
@@ -97,15 +109,14 @@ jobs:
           snforge --version | grep -qx "snforge $SNFORGE" || { echo "snforge is not $SNFORGE" >&2; exit 1; }
 
       - name: format
-        run: scarb fmt --check
+        run: scarb fmt --check --workspace
 
-      # The Dojo packages build with scarb and test with snforge (what `sozo build` and `sozo test`
-      # run underneath), so that sozo does not have to be installed.
+      # Only scarb and snforge: no sozo, katana, torii or devnet is needed to build and test.
       - name: build
-        run: scarb build
+        run: scarb build --workspace
 
       - name: test
-        run: snforge test
+        run: snforge test --workspace
 
   client:
     runs-on: ubuntu-latest

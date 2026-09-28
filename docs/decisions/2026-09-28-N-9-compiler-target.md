@@ -1,5 +1,9 @@
 # N-9: the game cannot build the map library — arbitration
 
+> **Void since D-123** (ADR-0007, the same day): the owner dropped Dojo; the game is on
+> Cairo 2.19 and builds the library. Decisions 2, 3 and 4 below are cancelled. Kept for the
+> record. What stays: `snforge_std` must be a dev-dependency of the library.
+
 | | |
 |---|---|
 | Raised by | `[Opus 5.5]` game orchestrator, 2026-09-28, from `[Sonnet 5]` FND-01 (pull request #18); detail in [docs/needs/hexmap.md](../needs/hexmap.md), "N-9 in detail" |
