@@ -18,16 +18,29 @@ merge. No sub-agent of the game can be launched before it merges.
 | FND-03 audit | `[GPT-6-Sol]`, lenses S and Q: FAIL, then fixes; see the pull request |
 | Concurrency measured | Empty Dojo 1.8.0 project: `scarb build` peaks at 1.4 GB, 11 s. A `claude` agent holds about 0.3 GB. Budget kept at 3 (OPERATIONS §3) |
 
-## Agents
+## Orchestrators and agents
 
-| Agent | Unit | State |
+| Orchestrator | Session | Model (verified) | State |
+|---|---|---|---|
+| Game | `[Opus 5.5] Orchestrateur Grim World (jeu)` | `claude-opus-5-5` | FND-03 in review: pull request #8, `[GPT-6-Sol]` audit in its second fix loop. Next: SPK-5 ∥ ART-00 |
+| Map library (track LIB) | `[Fable 5.1] Orchestrateur hexmap (lib)`, repository `bal7hazar/hexx-cairo` | `claude-fable-5-1` | LIB-01 and LIB-02 merged. **Stopped at gate L-G1** |
+
+Game sub-agents running: none (FND-03 is executed by the orchestrator itself). Budget: 3
+Grim World agents at a time (D-118): 2 for the game, 1 for the library in wave 1. Machine at
+14:49 UTC: load about 4 on 8 vCPU, 26 GB of 31 available.
+
+Models that actually ran, read from the CLIs' own session records (2026-09-28): LIB-02 on
+`claude-opus-5-5`; the audits on `gpt-6-sol`, effort high, read-only; launcher smoke tests
+on `claude-sonnet-5`. One in-session research agent of the game orchestrator was titled
+`[Opus 5.5]` and ran on `claude-haiku-4-5`: corrected. From FND-03 on, the launcher records
+the model each CLI reports (`model=` in the log, `ran=` in `scripts/agent.sh status`).
+
+## Waiting for the owner
+
+| What | Where | Recommendation |
 |---|---|---|
-| Game | none | FND-03 is executed by the orchestrator itself |
-| Map library | `hexmap-LIB-02-*` `[Opus 5.5] LIB-02 hexx analysis` | Running (library orchestrator's) |
-
-Machine at 14:19 UTC: load 3.5 on 8 vCPU; 26 GB of 31 available; four units of the owner's
-other programmes and one of the library. Budget: 3 Grim World agents at a time (D-118), 2
-for the game in wave 1.
+| Gate L-G1: port `hexx` partly, in `origami_hexmap` extended in place | [docs/decisions/PENDING-L-G1.md](docs/decisions/PENDING-L-G1.md) §1, §2 | Partly; option B |
+| Sight and the window: the window follows the adventurer | Same, §3 | Yes, cost measured by SPK-7 |
 
 ## Next
 
@@ -83,7 +96,10 @@ need them: effect catalogue, remaining skills, caste sheets, curves, content lis
   profile allows them. The launcher therefore detaches codex with `setsid` inside the app's
   cgroup, keeping the sandbox (OPERATIONS §3); an app restart kills a running audit, which is
   then resumed. A root change (an AppArmor profile for `bwrap`) would let codex run as a unit;
-  not needed today.
+  not needed today. No system setting was changed.
+- `sozo`, `katana` and `torii` are still absent (SPK-5); Sepolia credentials are not in the
+  environment and not needed before Phase 1; the `assets` submodule is not initialised in the
+  main checkout (an independent clone of `tiny-swords` is in `~/projects/assets`).
 
 ## Not verified
 
