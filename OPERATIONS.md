@@ -387,8 +387,11 @@ What was reviewed, what was not, and why.
   into a file or passed to a sub-agent's brief. They are the variables
   `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS` and
   `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
-  2026-09-28; checked by name). The claude CLI gives them to every agent it starts, so a
-  task that sends transactions to Sepolia uses them **by name**, and every script that
+  2026-09-28; checked by name). The claude CLI would give them to every agent it starts;
+  `scripts/agent.sh` empties them unless the task's brief grants the account and it is
+  launched with `--with-sepolia`. A task that sends transactions to Sepolia uses them **by
+  name**, never prints, logs or writes a value, sets a usual `User-Agent` header, measures
+  instead of looping and reports how many transactions it sent and their cost, and every script that
   sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.
   **Mainnet deployments and mainnet registry writes need an explicit go from the owner,
   each time** (D-116).

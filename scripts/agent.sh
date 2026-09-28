@@ -20,6 +20,8 @@
 # options:
 #   --dry-run            print what would be launched, launch nothing, need no worktree
 #   --with-assets        initialise the `assets` submodule in the task worktree before launching
+#   --with-sepolia       leave the Sepolia account variables to the agent (claude only; the brief
+#                        must grant it). Without it they are emptied, like the registry token
 #   --branch <name>      create the worktree from origin/main on branch <name> if it is missing
 # arguments:
 #   model     claude: sonnet (Sonnet 5.5) | opus | fable or their full ids (claude-sonnet-5 only to
@@ -185,17 +187,18 @@ case "${1:-}" in
     exit 0 ;;
 esac
 
-dry=0 assets=0 branch=""
+dry=0 assets=0 sepolia=0 branch=""
 while [ "${1:-}" != "${1#--}" ]; do
   case "$1" in
     --dry-run) dry=1 ;;
     --with-assets) assets=1 ;;
+    --with-sepolia) sepolia=1 ;;
     --branch) branch=${2:-}; [ -n "$branch" ] || die "--branch needs a name"; shift ;;
     *) die "unknown option $1" ;;
   esac
   shift
 done
-[ $# -ge 5 ] || die "usage: agent.sh [--dry-run] [--with-assets] [--branch <b>] <task> <claude|codex> <model> <new|resume> \"<prompt>\" [profile] [sid] [effort]"
+[ $# -ge 5 ] || die "usage: agent.sh [--dry-run] [--with-assets] [--with-sepolia] [--branch <b>] <task> <claude|codex> <model> <new|resume> \"<prompt>\" [profile] [sid] [effort]"
 task=$1 cli=$2 model=$3 mode=$4 prompt=$5 profile=${6:-} sid=${7:-} effort=${8:-}
 case "$task" in *[!A-Za-z0-9._-]* | "") die "task name '$task': letters, digits, . _ - only" ;; esac
 case "$mode" in new | resume) ;; *) die "mode must be new or resume" ;; esac
@@ -249,12 +252,19 @@ case "$cli:$mode" in
       -c 'sandbox_mode="read-only"' -o "$L/$task.last.md" "$prompt") ;;
   *) die "cli must be claude or codex" ;;
 esac
+[ "$sepolia" = 0 ] || [ "$cli" = claude ] || die "--with-sepolia is for claude agents only"
 if [ "$cli" = claude ]; then
   # Secrets out of agents: the machine's user-level Claude settings define the Scarb registry
   # token for every claude process; --settings takes precedence over them, so every agent runs
   # with it empty, and the profiles deny typed publishing (an interpreter an agent runs could
   # still read the settings file: OPERATIONS §4). Codex runs in a whitelisted environment.
-  cmd+=(--settings '{"env":{"SCARB_REGISTRY_AUTH_TOKEN":""}}')
+  # The same settings hold the Sepolia account (OPERATIONS §7): emptied too, unless the task's
+  # brief grants it and it is launched with --with-sepolia.
+  if [ "$sepolia" = 1 ]; then
+    cmd+=(--settings '{"env":{"SCARB_REGISTRY_AUTH_TOKEN":""}}')
+  else
+    cmd+=(--settings '{"env":{"SCARB_REGISTRY_AUTH_TOKEN":"","STARKNET_NETWORK":"","STARKNET_RPC_URL":"","STARKNET_RPC":"","STARKNET_ACCOUNT_ADDRESS":"","STARKNET_PRIVATE_KEY":""}}')
+  fi
   cmd+=(--permission-mode acceptEdits --allowedTools "${allow[@]}")
   [ "${#deny[@]}" -eq 0 ] || cmd+=(--disallowedTools "${deny[@]}")
   cmd+=(--max-turns 400 --output-format text)
@@ -281,7 +291,7 @@ echo "exit=$s $(date -u +%FT%TZ)" >> "$0"'
 
 if [ "$dry" = 1 ]; then
   echo "# $desc"
-  echo "# worktree $wt  log $L/$task.log  $([ "$cli" = claude ] && echo "unit $unit" || echo "setsid")  with-assets=$assets"
+  echo "# worktree $wt  log $L/$task.log  $([ "$cli" = claude ] && echo "unit $unit" || echo "setsid")  with-assets=$assets with-sepolia=$sepolia"
   printf '%q ' "${cmd[@]}"
   echo
   exit 0
