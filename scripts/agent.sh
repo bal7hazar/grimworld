@@ -125,7 +125,7 @@ reported_model() { # <task>
 # Machine thresholds (OPERATIONS §3): no agent starts or resumes while the 5-minute load
 # average is above 12 or less than 8 GB of memory is available. Fixed here on purpose: no
 # variable can relax them. Running agents are never stopped for load.
-MAX_LOAD5=12 MIN_MEM_GB=8
+MAX_LOAD5=12 MIN_MEM_GB=8 MAX_AGENTS=3
 thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   local load5 mem_kb
   load5=$(cut -d' ' -f2 /proc/loadavg)
@@ -142,7 +142,20 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
     echo "agent.sh: $((mem_kb / 1048576)) GB of memory available, under $MIN_MEM_GB: wait and check again" >&2
     return 1
   fi
-  echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available: a launch may proceed"
+  # The concurrency budget of OPERATIONS §3: Grim World agents of the three tracks, claude units
+  # and codex audits (one per working directory), whoever launched them.
+  local units codex agents
+  units=$(systemctl --user list-units --type=service --state=running --no-legend \
+    'grimworld-*' 'hexmap-*' 'quiver-*' 2> /dev/null | grep -c . || true)
+  codex=$(pgrep -f '^/usr/bin/node .*codex' 2> /dev/null | while read -r p; do
+    readlink "/proc/$p/cwd" 2> /dev/null; done |
+    grep -E '/projects/(grimworld|hexx-cairo|quiver)(/|$)' | sort -u | grep -c . || true)
+  agents=$((units + codex))
+  if [ "$agents" -ge "$MAX_AGENTS" ]; then
+    echo "agent.sh: $agents Grim World agents running ($units units, $codex codex audits), the budget is $MAX_AGENTS: wait and check again" >&2
+    return 1
+  fi
+  echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available, $agents of $MAX_AGENTS agents: a launch may proceed"
 }
 
 case "${1:-}" in

@@ -168,8 +168,10 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
   average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
   check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
-  both thresholds, fixed in the script, on every launch and resume (exit 4, before any
-  worktree is created); `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  both thresholds and the budget of 3 (running `grimworld-*`, `hexmap-*`, `quiver-*` units
+  plus codex audits counted per working directory under the three repositories), fixed in the
+  script, on every launch and resume (exit 4, before any worktree is created); it cannot tell
+  a track's own slot from the shared one, so each orchestrator still applies the split; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
   The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
   `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
   still start one.
