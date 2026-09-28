@@ -138,6 +138,15 @@ jobs:
           set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
           echo "$out"; [ "$s" = 4 ]; grep -qF 'holds no pid' <<< "$out"
           rm -f "$flogs/bad.pid"
+          # A dangling link as a launch record refuses, and so does a records directory that cannot be listed.
+          ln -s "$fake/nowhere" "$flogs/dangling.pid"
+          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
+          echo "$out"; [ "$s" = 4 ]; grep -qF 'not a regular file' <<< "$out"
+          rm -f "$flogs/dangling.pid"
+          chmod 000 "$flogs"
+          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
+          chmod 755 "$flogs"
+          echo "$out"; [ "$s" = 4 ]; grep -qF 'cannot be listed' <<< "$out"
           # The build lock wraps build and test subcommands only.
           for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
             if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi
