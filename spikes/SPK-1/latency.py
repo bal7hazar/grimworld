@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""SPK-1: latency from submission to pre-confirmed and to accepted on L2, from measure-output.txt.
+"""SPK-1: latency of the first positive receipt response, from measure-output.txt.
 
 Each receipt was polled every `poll_ms` on a fixed schedule from the submission (the clock starts
-just before `starknet_addInvokeTransaction`). A status is timed at the arrival of the first answer
-that showed it: an upper bound; the previous answer's arrival is the lower bound. Percentiles are
-nearest-rank.
+just before `starknet_addInvokeTransaction`). A status is timed at the ARRIVAL of the first receipt
+response that showed it: the "first positive receipt response" latency, as the client saw it.
+Percentiles are nearest-rank.
+
+What this can and cannot say (fix loop 1):
+- It is an upper bound on when the RPC first reported the status: the RPC evaluated it at some
+  moment inside that request, before the response arrived.
+- There is no valid lower bound in this run. The run recorded the arrival of the previous,
+  negative response, but the RPC evaluated that response at an unknown moment inside its own
+  request, not at its arrival. The fields `*_after` of the 2026-09-28 run are not used.
+- A figure within about one poll interval plus a round trip of a threshold (250 ms + about
+  160 ms here) cannot be called a pass or a miss of that threshold.
+- A later run must record every poll as [request start, response arrival, status] (lib.mjs does
+  so since fix loop 1). The status became true after the last negative request's start and before
+  the first positive response's arrival.
 
     python3 spikes/SPK-1/latency.py > spikes/SPK-1/latency-output.txt
 """
@@ -14,6 +26,7 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TICK = "capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked"
+UNCERTAINTY_MS = 250 + 160  # one poll interval + the median round trip of a submission
 
 records = [json.loads(line) for line in open(os.path.join(HERE, "measure-output.txt"))]
 start = records[0]
@@ -38,45 +51,51 @@ GROUPS = [
     ("Setups and queues (not latency samples)", [r for r in txs if r["label"] not in (TICK, "enter", "leave")]),
 ]
 
-print(f"Polling: every {start['poll_ms']} ms from the submission; tip {int(start['tip']) / 1e9} Gfri "
-      f"(starknet.js recommended tip); one transaction at a time, each sent after the previous one "
-      f"was accepted on L2. {len(txs)} transactions, {txs[0]['submitted_at']} to {txs[-1]['submitted_at']}.")
+print(f"First positive receipt response latency. Polling: every {start['poll_ms']} ms from the submission; "
+      f"tip {int(start['tip']) / 1e9} Gfri (starknet.js recommended tip); one transaction at a time, each sent "
+      f"after the previous one was accepted on L2. {len(txs)} transactions, {txs[0]['submitted_at']} to "
+      f"{txs[-1]['submitted_at']}. Upper bounds on when the RPC first reported each status; no lower bound "
+      f"was recorded.")
 print()
-print("| Set | n | Pre-confirmed p50 | p95 | max | Pre-confirmed p50, lower bound | Accepted on L2 p50 | p95 | max "
-      "| Missed pre-confirmed | Submission answered, p50 |")
-print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+print("| Set | n | Pre-confirmed p50 | p95 | max | Accepted on L2 p50 | p95 | max | Pre-confirmed never seen "
+      "| Submission answered, p50 |")
+print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
 for name, rows in GROUPS:
     if not rows:
         continue
     pre = [r["latency_ms"]["pre_confirmed"] for r in rows if "pre_confirmed" in r["latency_ms"]]
-    low = [r["latency_ms"]["pre_confirmed_after"] for r in rows if "pre_confirmed" in r["latency_ms"]]
     acc = [r["latency_ms"]["accepted"] for r in rows]
     ack = [r["latency_ms"]["submit_ack"] for r in rows]
     missed = sum(1 for r in rows if r["latency_ms"].get("pre_confirmed_missed"))
-    p = stats(pre)
-    a = stats(acc)
-    print(f"| {name} | {len(rows)} | {p[0]:,} | {p[1]:,} | {p[2]:,} | {rank(low, 50):,} | {a[0]:,} | {a[1]:,} | "
-          f"{a[2]:,} | {missed} | {rank(ack, 50):,} |")
+    p, a = stats(pre), stats(acc)
+    print(f"| {name} | {len(rows)} | {p[0]:,} | {p[1]:,} | {p[2]:,} | {a[0]:,} | {a[1]:,} | {a[2]:,} | {missed} | "
+          f"{rank(ack, 50):,} |")
 print()
-print("ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms")
+print(f"ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms. The observed figures are "
+      f"upper bounds; a figure within {UNCERTAINTY_MS} ms above a threshold is not decided by this sampling")
+
+
+def verdict(value, threshold):
+    if value <= threshold:
+        return "met (the observed upper bound is within the threshold)"
+    if value - threshold <= UNCERTAINTY_MS:
+        return f"not decided ({value - threshold:,} ms above, within the sampling uncertainty)"
+    return "missed"
+
+
 for name, rows in GROUPS[:2] + GROUPS[4:5]:
     pre = [r["latency_ms"]["pre_confirmed"] for r in rows]
-    low = [r["latency_ms"]["pre_confirmed_after"] for r in rows]
     p50, p95, _ = stats(pre)
-    print(f"  {name}: p50 {p50:,} ms ({'meets' if p50 <= 1000 else 'misses'}; lower bound {rank(low, 50):,}), "
-          f"p95 {p95:,} ms ({'meets' if p95 <= 3000 else 'misses'}; lower bound {rank(low, 95):,})")
+    print(f"  {name}: p50 {p50:,} ms, {verdict(p50, 1000)}; p95 {p95:,} ms, {verdict(p95, 3000)}")
 print()
 
-# Distribution, to show the polling grid
-print("Pre-confirmed, histogram in 250 ms bins (upper bounds), the 70 measured transactions")
-measured = GROUPS[4][1]
+print("First positive pre-confirmed response, histogram in 250 ms bins, the 70 measured transactions")
 bins = {}
-for r in measured:
+for r in GROUPS[4][1]:
     b = r["latency_ms"]["pre_confirmed"] // 250 * 250
     bins[b] = bins.get(b, 0) + 1
 for b in sorted(bins):
     print(f"  {b:>5}-{b + 249:<5} ms {'#' * bins[b]} {bins[b]}")
 print()
 blocks = sorted({r["block_number"] for r in txs})
-span = (blocks[-1] - blocks[0])
-print(f"Blocks: {blocks[0]} to {blocks[-1]} ({span} blocks for {len(txs)} sequential transactions)")
+print(f"Blocks: {blocks[0]} to {blocks[-1]} ({blocks[-1] - blocks[0]} blocks for {len(txs)} sequential transactions)")

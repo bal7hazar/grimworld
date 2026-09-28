@@ -34,8 +34,8 @@ The meter: the game's call as metered on Sepolia, on devnet (VM resources) and b
 | Enter | 927,212 | 800,000 | 801,212 | 1.159 | 1.157 |
 | Leave | 682,000 | 640,000 | 577,000 | 1.066 | 1.182 |
 
-What a transaction costs besides the game's call (Sepolia traces; L2 gas). The receipt is additive under Sierra gas: validate + execute + fee transfer + the protocol's part (trace total minus the invocations, not attributed further) + calldata, signature and events (receipt minus trace total)
-| Action | Receipt | Validate | Account __execute__ (without the game call) | Game call | Fee transfer | Protocol part | Calldata, signature, events | Receipt minus game call |
+The non-game remainder of a transaction (Sepolia traces; L2 gas): the receipt minus the game's call, for these actions and this account (class Sierra 1.7.0, Cairo 2.11.2). The receipt is split into the invocations the trace attributes (validate, the account's __execute__ without the game call, the game call, the fee transfer) and two UNATTRIBUTED residuals: trace total minus the invocations, and receipt minus trace total (expected to be calldata, signature and events: not verified). An observed remainder, not a universal floor: another account class, calldata or state diff gives another one
+| Action | Receipt | Validate | Account __execute__ (without the game call) | Game call | Fee transfer | Unattributed residual: trace total minus invocations | Unattributed residual: receipt minus trace total | Non-game remainder (receipt minus game call) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Worst tick under D-127 (capped winding board, owner checked) | 5,129,938 | 392,815 | 206,810 | 3,564,913 | 455,360 | 475,840 | 34,200 | 1,565,025 |
 | Queue of 10 moves, 8 goblins following | 17,676,853 | 392,815 | 208,580 | 16,058,858 | 455,360 | 527,040 | 34,200 | 1,617,995 |
@@ -54,4 +54,11 @@ Expedition: 180 moves + 100 fight actions + 20 others, plus enter and leave (SPK
 
 Not measured on Sepolia (out of the brief's list): goblins packed per instance (SPK-2's S3, S4) and the serpentine queue (S5); hub actions (quests, brewing), so no cost per day.
 
-Equal-allocation reference: $0.50 / 300 = $0.001667 per action = 1,854,492 L2 gas with 832 L1 data gas. Smallest transaction measured (everything but the game's call, over the actions): 1,337,995 to 3,000,155 L2 gas, i.e. 0.72× to 1.62× that reference before the game computes anything.
+Fee formula with the tip: actual fee = L2 gas × (block L2 price + tip) + L1 data gas × data price + L1 gas × L1 price. It reproduces the fee to the fri on 103 of 103 invoke receipts. The tip was 0.1 Gfri per L2 gas (starknet.js recommended); it cost 0.0766 STRK of the run's fees.
+The dollar projections above assume a ZERO tip at mainnet prices. At the tip this run paid (0.1 Gfri):
+| Scenario | L2 gas per expedition | $ without tip | Tip's effect | $ with tip |
+|---|---:|---:|---:|---:|
+| S1 worst case everywhere | 986,667,736 | 0.874 | +0.0041 | 0.878 |
+| S2 mixed (2/3 of the moves exploring) | 772,898,140 | 0.685 | +0.0032 | 0.688 |
+
+Equal-allocation reference: $0.50 / 300 = $0.001667 per action = 1,854,492 L2 gas with 832 L1 data gas (zero tip). Observed non-game remainder, for these actions and this account only: 1,337,995 to 3,000,155 L2 gas (0.72× to 1.62× the reference). If every transaction carried at least the smallest observed remainder, the game's own call could average at most 516,497 L2 gas under equal allocation. That derived budget holds only for this account class and transactions like these, not as a protocol floor.

@@ -151,12 +151,15 @@ print()
 # ---------------------------------------------------------------------------------------------
 # The fixed part of a transaction
 
-print("What a transaction costs besides the game's call (Sepolia traces; L2 gas). The receipt is "
-      "additive under Sierra gas: validate + execute + fee transfer + the protocol's part (trace total "
-      "minus the invocations, not attributed further) + calldata, signature and events (receipt minus "
-      "trace total)")
+print("The non-game remainder of a transaction (Sepolia traces; L2 gas): the receipt minus the game's call, "
+      "for these actions and this account (class Sierra 1.7.0, Cairo 2.11.2). The receipt is split into "
+      "the invocations the trace attributes (validate, the account's __execute__ without the game call, the "
+      "game call, the fee transfer) and two UNATTRIBUTED residuals: trace total minus the invocations, and "
+      "receipt minus trace total (expected to be calldata, signature and events: not verified). An observed "
+      "remainder, not a universal floor: another account class, calldata or state diff gives another one")
 print("| Action | Receipt | Validate | Account __execute__ (without the game call) | Game call | Fee transfer | "
-      "Protocol part | Calldata, signature, events | Receipt minus game call |")
+      "Unattributed residual: trace total minus invocations | Unattributed residual: receipt minus trace total | "
+      "Non-game remainder (receipt minus game call) |")
 print("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
 fixed = []
 for name, label in ROWS:
@@ -233,10 +236,39 @@ print("Not measured on Sepolia (out of the brief's list): goblins packed per ins
       "the serpentine queue (S5); hub actions (quests, brewing), so no cost per day.")
 print()
 
+# ---------------------------------------------------------------------------------------------
+# The tip (fix loop 1, finding 7). The fee charged is
+#   L2 gas × (block L2 gas price + tip) + L1 data gas × block data price + L1 gas × block L1 price.
+# Checked on every Sepolia receipt, then the projection's zero-tip assumption and the tip's effect.
+
+matches, total_tip_fri = 0, 0
+for r in sepolia_txs + [r for r in deploy_txs if r.get("type") == "INVOKE"]:
+    tip = int(r["tip"], 16)
+    expected = (r["l2_gas"] * (int(r["block_l2_gas_fri"]) + tip) + r["l1_data_gas"] * int(r["block_l1_data_gas_fri"])
+                + r["l1_gas"] * int(r["block_l1_gas_fri"]))
+    matches += expected == int(r["fee"])
+    total_tip_fri += r["l2_gas"] * tip
+checked = len(sepolia_txs) + len([r for r in deploy_txs if r.get("type") == "INVOKE"])
+TIP = int(one(TICK)["tip"], 16)
+print(f"Fee formula with the tip: actual fee = L2 gas × (block L2 price + tip) + L1 data gas × data price + "
+      f"L1 gas × L1 price. It reproduces the fee to the fri on {matches} of {checked} invoke receipts. The tip was "
+      f"{TIP / 1e9} Gfri per L2 gas (starknet.js recommended); it cost {total_tip_fri / 1e18:.4f} STRK of the run's fees.")
+print(f"The dollar projections above assume a ZERO tip at mainnet prices. At the tip this run paid "
+      f"({TIP / 1e9} Gfri):")
+print("| Scenario | L2 gas per expedition | $ without tip | Tip's effect | $ with tip |")
+print("|---|---:|---:|---:|---:|")
+for name, sc in SCENARIOS:
+    st = expedition("sepolia", *sc)
+    tip_usd = st[0] * TIP * FRI * STRK_USD
+    print(f"| {name} | {st[0]:,} | {usd(*st):.3f} | +{tip_usd:.4f} | {usd(*st) + tip_usd:.3f} |")
+print()
+
 ACTIONS = 300
 DA_REF = one(TICK)["l1_data_gas"]
 BUDGET_L2 = (THRESHOLD / ACTIONS - DA_REF * P_DA * FRI * STRK_USD) / (P_L2 * STRK_USD * FRI)
 print(f"Equal-allocation reference: $0.50 / 300 = ${THRESHOLD / ACTIONS:.6f} per action = {BUDGET_L2:,.0f} L2 gas "
-      f"with {DA_REF} L1 data gas. Smallest transaction measured (everything but the game's call, over the "
-      f"actions): {min(fixed):,} to {max(fixed):,} L2 gas, i.e. {min(fixed) / BUDGET_L2:.2f}× to "
-      f"{max(fixed) / BUDGET_L2:.2f}× that reference before the game computes anything.")
+      f"with {DA_REF} L1 data gas (zero tip). Observed non-game remainder, for these actions and this account "
+      f"only: {min(fixed):,} to {max(fixed):,} L2 gas ({min(fixed) / BUDGET_L2:.2f}× to {max(fixed) / BUDGET_L2:.2f}× "
+      f"the reference). If every transaction carried at least the smallest observed remainder, the game's own "
+      f"call could average at most {BUDGET_L2 - min(fixed):,.0f} L2 gas under equal allocation. That derived budget "
+      f"holds only for this account class and transactions like these, not as a protocol floor.")

@@ -1,20 +1,20 @@
-Polling: every 250 ms from the submission; tip 0.1 Gfri (starknet.js recommended tip); one transaction at a time, each sent after the previous one was accepted on L2. 98 transactions, 2026-09-28T20:43:01.722Z to 2026-09-28T20:49:05.491Z.
+First positive receipt response latency. Polling: every 250 ms from the submission; tip 0.1 Gfri (starknet.js recommended tip); one transaction at a time, each sent after the previous one was accepted on L2. 98 transactions, 2026-09-28T20:43:01.722Z to 2026-09-28T20:49:05.491Z. Upper bounds on when the RPC first reported each status; no lower bound was recorded.
 
-| Set | n | Pre-confirmed p50 | p95 | max | Pre-confirmed p50, lower bound | Accepted on L2 p50 | p95 | max | Missed pre-confirmed | Submission answered, p50 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Worst tick under D-127 (attack) | 20 | 1,020 | 2,770 | 2,781 | 778 | 3,529 | 4,267 | 4,514 | 0 | 164 |
-| Cheap action: enter and leave, alternating | 50 | 1,267 | 2,774 | 3,019 | 1,017 | 3,765 | 4,518 | 4,765 | 0 | 159 |
-|   of which enter | 25 | 1,268 | 2,774 | 3,015 | 1,033 | 3,764 | 4,517 | 4,765 | 0 | 160 |
-|   of which leave | 25 | 1,265 | 2,766 | 3,019 | 1,017 | 3,769 | 4,518 | 4,519 | 0 | 158 |
-| Both measured sets (70) | 70 | 1,265 | 2,774 | 3,019 | 1,017 | 3,764 | 4,517 | 4,765 | 0 | 160 |
-| Setups and queues (not latency samples) | 28 | 1,267 | 2,518 | 3,521 | 1,015 | 3,525 | 4,514 | 4,519 | 0 | 167 |
+| Set | n | Pre-confirmed p50 | p95 | max | Accepted on L2 p50 | p95 | max | Pre-confirmed never seen | Submission answered, p50 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Worst tick under D-127 (attack) | 20 | 1,020 | 2,770 | 2,781 | 3,529 | 4,267 | 4,514 | 0 | 164 |
+| Cheap action: enter and leave, alternating | 50 | 1,267 | 2,774 | 3,019 | 3,765 | 4,518 | 4,765 | 0 | 159 |
+|   of which enter | 25 | 1,268 | 2,774 | 3,015 | 3,764 | 4,517 | 4,765 | 0 | 160 |
+|   of which leave | 25 | 1,265 | 2,766 | 3,019 | 3,769 | 4,518 | 4,519 | 0 | 158 |
+| Both measured sets (70) | 70 | 1,265 | 2,774 | 3,019 | 3,764 | 4,517 | 4,765 | 0 | 160 |
+| Setups and queues (not latency samples) | 28 | 1,267 | 2,518 | 3,521 | 3,525 | 4,514 | 4,519 | 0 | 167 |
 
-ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms
-  Worst tick under D-127 (attack): p50 1,020 ms (misses; lower bound 778), p95 2,770 ms (meets; lower bound 2,514)
-  Cheap action: enter and leave, alternating: p50 1,267 ms (misses; lower bound 1,017), p95 2,774 ms (meets; lower bound 2,519)
-  Both measured sets (70): p50 1,265 ms (misses; lower bound 1,017), p95 2,774 ms (meets; lower bound 2,519)
+ADR-0001's thresholds, to pre-confirmed: p50 <= 1,000 ms, p95 <= 3,000 ms. The observed figures are upper bounds; a figure within 410 ms above a threshold is not decided by this sampling
+  Worst tick under D-127 (attack): p50 1,020 ms, not decided (20 ms above, within the sampling uncertainty); p95 2,770 ms, met (the observed upper bound is within the threshold)
+  Cheap action: enter and leave, alternating: p50 1,267 ms, not decided (267 ms above, within the sampling uncertainty); p95 2,774 ms, met (the observed upper bound is within the threshold)
+  Both measured sets (70): p50 1,265 ms, not decided (265 ms above, within the sampling uncertainty); p95 2,774 ms, met (the observed upper bound is within the threshold)
 
-Pre-confirmed, histogram in 250 ms bins (upper bounds), the 70 measured transactions
+First positive pre-confirmed response, histogram in 250 ms bins, the 70 measured transactions
     500-749   ms ##### 5
     750-999   ms ################### 19
    1000-1249  ms ######## 8

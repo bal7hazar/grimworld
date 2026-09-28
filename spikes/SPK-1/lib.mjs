@@ -248,34 +248,34 @@ export async function makeSender(acc, maxTx) {
   return { send, count: () => sent, tip };
 }
 
-/** Polls the receipt on a fixed schedule from t0; times (ms from t0) of the first answer that
- * showed PRE_CONFIRMED and ACCEPTED_ON_L2, with the previous poll as the lower bound. */
+/**
+ * Polls the receipt on a fixed schedule from t0. `pre_confirmed` and `accepted` are the arrival
+ * times (ms from t0) of the first receipt response that showed each status: the latency of the
+ * first positive receipt response, as the client sees it. Fix loop 1: the run of 2026-09-28 also
+ * recorded `*_after`, the arrival of the previous (negative) response. That is NOT a lower bound,
+ * because the RPC evaluated the status at some unknown moment inside that request. So every poll
+ * is now recorded as [request start, response arrival, status], to bound later runs properly: the
+ * status became true after the last negative request's START and before the first positive
+ * response's ARRIVAL.
+ */
 async function poll(tx, t0) {
-  const out = { poll_ms: POLL_MS, polls: 0 };
-  let previous = 0;
+  const out = { poll_ms: POLL_MS, polls: [] };
   for (let k = 1; ; k += 1) {
     const wait = t0 + k * POLL_MS - performance.now();
     if (wait > 0) await sleep(wait);
+    const start = performance.now() - t0;
     const answer = await rpcRaw("starknet_getTransactionReceipt", { transaction_hash: tx });
     const at = performance.now() - t0;
-    out.polls += 1;
     if (answer.error && answer.error.code !== 29) throw new Error(safe(JSON.stringify(answer.error)));
-    const status = answer.result?.finality_status;
-    if (status === "PRE_CONFIRMED" && out.pre_confirmed === undefined) {
-      out.pre_confirmed = Math.round(at);
-      out.pre_confirmed_after = Math.round(previous);
-    }
+    const status = answer.result?.finality_status ?? "NOT_FOUND";
+    out.polls.push([Math.round(start), Math.round(at), status]);
+    if (status === "PRE_CONFIRMED" && out.pre_confirmed === undefined) out.pre_confirmed = Math.round(at);
     if (status === "ACCEPTED_ON_L2") {
-      if (out.pre_confirmed === undefined) {
-        // Not seen pre-confirmed between two polls: it happened within this interval
-        out.pre_confirmed_missed = true;
-      }
+      if (out.pre_confirmed === undefined) out.pre_confirmed_missed = true;
       out.accepted = Math.round(at);
-      out.accepted_after = Math.round(previous);
       return out;
     }
     if (at > TIMEOUT_MS) throw new Error(`${tx}: not accepted after ${TIMEOUT_MS} ms`);
-    previous = at;
   }
 }
 
