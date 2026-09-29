@@ -23,4 +23,20 @@ means a bug.
 | 4 | Damage outside u16, or a negative total | panic | saturate; widen the type | **Saturate** to [0, 65,535] (and 0 floor): a legal action never reverts a batch |
 | 5 | A goblin whose own tile is not marked occupied | the layer wraps modulo P | assert; repair | **Assert** in the contracts (a breach is a bug, not a play), and test the invariant |
 
-Expected: the project manager's decision on the five, written into design/04.
+## Decision
+
+By the project manager on 2026-09-29, under D-128 (D-140): **the five recommendations are
+accepted**, and the principle with them: a rule never panics on a legal action. Written in
+design/04, *Edges*.
+
+| # | Note |
+|---|---|
+| 3 | Summing is a rule of the game, not only a convenience: it applies to every percent modifier of damage, those of equipment included (design/15). Modifiers that add up grow more slowly than modifiers that multiply: four bonuses of +15 %, +20 %, +25 % and +40 % give 200 % summed and 241 % multiplied. It keeps the power of a build under the cap that design/15 sets (principle Q-1). It departs from the baseline, where modifiers multiply; the numbers of the baseline are tuned again by the balance simulator (BAL-01) |
+| 5 | The only panic of the five. If it fires in production it blocks the instance's batch: the instance is then closed by the rule of defeat or by leaving, never repaired by hand |
+
+SPK-4's other result is recorded with it: **the client's simulation is a TypeScript mirror
+checked by vectors generated from the Cairo code** (option (a) of SPK-4; 10,000 vectors
+without a divergence; about 190 times faster and 150 times smaller than the Cairo code run
+in the client). The full tick in TypeScript and Poseidon were not measured by the spike:
+CLI-02 measures them.
+
