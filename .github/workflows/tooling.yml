@@ -284,7 +284,7 @@ jobs:
           printf '#!/bin/sh\nexec %s -e '"'"'use POSIX (); setpgrp(0, 0); exec { $ARGV[0] } @ARGV'"'"' -- %s "$@"\n' "$realperl" "$realperl" > "$work/leader/perl"
           chmod +x "$work/leader/perl"; rm -f "$work/ran"
           set +e; PATH=$work/leader:$nosetsid scripts/with-node.sh touch "$work/ran" 2> "$work/err"; rc=$?; set -e
-          cat "$work/err"; [ "$rc" = 127 ]; grep -q 'setsid: ' "$work/err"; [ ! -e "$work/ran" ]
+          echo "leader case: rc=$rc"; ls "$work"; cat "$work/err"; [ "$rc" = 127 ]; grep -q 'setsid: ' "$work/err"; [ ! -e "$work/ran" ]
           # neither setsid nor perl: refused before any node is started
           mkdir -p "$work/bare"; ln -sf "$(command -v bash)" "$work/bare/bash"; ln -sf "$(command -v starknet-devnet)" "$work/bare/starknet-devnet"
           set +e; PATH=$work/bare "$work/bare/bash" scripts/with-node.sh true 2> "$work/err"; rc=$?; set -e
