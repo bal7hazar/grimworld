@@ -186,8 +186,7 @@ pub mod Hub {
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerCoreTrait, AdventurerPlaceTrait, BELT_WORD,
         BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, CORE_WORD, EMPTY_LANES,
-        EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE,
-        PLACE_WORD,
+        EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE, PLACE_WORD,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{Gold, Grimoire, Item, ItemBase, ItemBaseAssert, RiftBoard};

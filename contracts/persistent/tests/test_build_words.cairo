@@ -7,7 +7,7 @@ use grimworld_persistent::models::adventurer::{BuildTrait, KnownSkillsTrait};
 use starknet::storage_access::StorePacking;
 
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 4165581)] // ceil(1.05 × 3967220 measured)
 fn test_pow2_and_bits() {
     let mut expected: u128 = 1;
     for n in 0..128_u8 {
@@ -23,7 +23,7 @@ fn test_pow2_and_bits() {
 
 // Bit `skill % 250` of page `skill / 250`, in both limbs.
 #[test]
-#[available_gas(l2_gas: 2000000)]
+#[available_gas(l2_gas: 172305)] // ceil(1.05 × 164100 measured)
 fn test_known_skills_bits() {
     assert(KnownSkillsTrait::at(0) == (0, 0), '0');
     assert(KnownSkillsTrait::at(249) == (0, 249), '249');
@@ -45,7 +45,7 @@ fn test_known_skills_bits() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'build: skill not known')]
 fn test_known_skills_past_page_255() {
     KnownSkillsTrait::at(64000);
@@ -54,19 +54,18 @@ fn test_known_skills_past_page_255() {
 // design/03's points against its rule as a loop: 5 a level up to 10, 10 from 11 to 15, 15 from 16
 // to 20, 15 at Tin and 15 at Copper.
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 313205)] // ceil(1.05 × 298290 measured)
 fn test_attribute_points() {
     let mut expected: u16 = 0;
     for level in 1..21_u8 {
         if level >= 2 {
-            expected +=
-                if level <= 10 {
-                    5
-                } else if level <= 15 {
-                    10
-                } else {
-                    15
-                };
+            expected += if level <= 10 {
+                5
+            } else if level <= 15 {
+                10
+            } else {
+                15
+            };
         }
         assert(BuildTrait::points(level, 0) == expected, 'wood');
         assert(BuildTrait::points(level, 1) == expected + 15, 'tin');
@@ -78,7 +77,7 @@ fn test_attribute_points() {
 
 // D-157 A: 0-4 the primary's attributes, 5-8 the secondary's without its primary attribute.
 #[test]
-#[available_gas(l2_gas: 5000000)]
+#[available_gas(l2_gas: 101903)] // ceil(1.05 × 97050 measured)
 fn test_attribute_indices() {
     for index in 0..9_u8 {
         // A Vanguard (5) with a Warden secondary (4, so 3 at 5-7).

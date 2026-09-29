@@ -60,8 +60,6 @@ pub impl BaseRecord of Record<Base> {
         let (low, _) = split(*parts[0]);
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let (low, slot) = DivRem::div_rem(low, s8);
-        Base {
-            slot: slot.try_into().unwrap(), hands: low_field(low, s8).try_into().unwrap(),
-        }
+        Base { slot: slot.try_into().unwrap(), hands: low_field(low, s8).try_into().unwrap() }
     }
 }

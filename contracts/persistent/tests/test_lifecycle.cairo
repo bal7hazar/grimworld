@@ -7,8 +7,6 @@
 // a test watches (`load` before and after).
 use core::testing::get_available_gas;
 use grimworld_logic::content::{GATE, ITEM, LOCATION, REGION, SKILL};
-use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
-use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::interface::{
     IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher,
     IResultsSafeDispatcherTrait, Results, facts,
@@ -16,8 +14,10 @@ use grimworld_logic::interface::{
 use grimworld_logic::models::gate::{
     GateRecord, GateTrait, errors as gate_errors, kind as gate_kind,
 };
+use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait};
 use grimworld_logic::types::{Outcome, instance_id};
@@ -566,7 +566,7 @@ fn test_enter_refusals() {
 // CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 44422224)] // ceil(1.05 × 42306880 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -579,7 +579,9 @@ fn test_enter_after_set_build() {
             item_class::INGREDIENT
         };
         admin
-            .set_record(ITEM, item, ItemTrait::new(class, 1, 0, 1, 0, Default::default(), 0, 0).pack());
+            .set_record(
+                ITEM, item, ItemTrait::new(class, 1, 0, 1, 0, Default::default(), 0, 0).pack(),
+            );
     }
     admin
         .set_record(

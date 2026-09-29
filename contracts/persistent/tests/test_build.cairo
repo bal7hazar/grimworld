@@ -1,8 +1,9 @@
-// CBT-08a: `Hub.set_build` (design/03 *Attributes*, *The skill bar*; design/15; ENG-01 §4.3, §9.3,
-// §10; D-150, D-157 A). One call stores the bar, the attributes, the belt and the equipment; every
-// rule is a refusal tested at its boundary. `Registry` is the real one, written with the records
-// the rules read (`SKILL`, `ITEM`, `BASE`); what no entrypoint can yet produce (known skills, pack
-// balances, equipment entities, a level, a rank, a secondary profession) is set with `store`.
+// CBT-08a: `Hub.set_build` (design/03 *Attributes*, *The skill bar*; design/15; ENG-01 §4.3,
+// §9.3, §10; D-150, D-157 A). One call stores the bar, the attributes, the belt and the
+// equipment; every rule is a refusal tested at its boundary. `Registry` is the real one, written
+// with the records the rules read (`SKILL`, `ITEM`, `BASE`); what no entrypoint can yet produce
+// (known skills, pack balances, equipment entities, a level, a rank, a secondary profession) is set
+// with `store`.
 use core::testing::get_available_gas;
 use grimworld_logic::content::{BASE, ITEM, LOCATION, REGION, SKILL};
 use grimworld_logic::models::base::{BaseRecord, BaseTrait};
@@ -93,7 +94,21 @@ fn setup() -> World {
             LOCATION,
             1,
             LocationTrait::new(
-                location_kind::TOWN, 1, 1, 1, 3, 0, 0, 0, 0, 0, 0, 0, false, 0, 0,
+                location_kind::TOWN,
+                1,
+                1,
+                1,
+                3,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+                0,
+                0,
                 Lanes16 { lanes: [0; 15] },
             )
                 .pack(),
@@ -286,13 +301,14 @@ fn try_set(
     result
 }
 
-// ---- the worst case, stored as sent --------------------------------------------------------------
+// ---- the worst case, stored as sent
+// --------------------------------------------------------------
 
-// The worst case of ENG-01 §9.3 and §10: 8 skills (an elite in slot 3), every attribute point of a
-// level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
+// The worst case of ENG-01 §9.3 and §10: 8 skills (an elite in slot 3), every attribute point of
+// a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
 // pieces worn. Writes: `build`, `belt`, `equipped`, overwritten, each the word sent plus `LIVE`.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 80606591)] // ceil(1.05 × 76768181 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -331,7 +347,7 @@ fn test_set_build_worst_case() {
 
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 83610882)] // ceil(1.05 × 79629411 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -353,7 +369,7 @@ fn test_set_build_parts() {
 
 // An empty build: no registry call, the words of a new adventurer back.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 81398007)] // ceil(1.05 × 77521911 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -374,10 +390,11 @@ fn test_set_build_empty() {
     assert(read(world.hub, adventurer_word(id, 4)) == LIVE, 'equipped');
 }
 
-// ---- who, where, and the layouts -----------------------------------------------------------------
+// ---- who, where, and the layouts
+// -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 79750440)] // ceil(1.05 × 75952800 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -392,14 +409,16 @@ fn test_set_build_ownership_refusals() {
     accepted(try_set(world, id, empty(), 0, 0));
     // Deleted.
     let core = core_of(world, id);
-    write(world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { status: 1, ..core }));
+    write(
+        world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { status: 1, ..core }),
+    );
     refused(try_set(world, id, empty(), 0, 0), ADVENTURER_DELETED);
 }
 
 // A bit outside the fields: 164-167 and 176 up in `build`, 160 up in `belt`, 224 up in
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 82336086)] // ceil(1.05 × 78415320 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -426,10 +445,11 @@ fn test_set_build_layout_refusals() {
     refused(try_set(world, id, empty(), 0, bit250), EQUIPPED_LAYOUT);
 }
 
-// ---- the bar -------------------------------------------------------------------------------------
+// ---- the bar
+// -------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 79693982)] // ceil(1.05 × 75899030 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -440,7 +460,7 @@ fn test_bar_duplicate_refused() {
 
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 83074520)] // ceil(1.05 × 79118590 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -458,7 +478,7 @@ fn test_bar_known_and_registered() {
 
 // Of the primary or the secondary profession (design/03).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 80468136)] // ceil(1.05 × 76636320 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -473,15 +493,14 @@ fn test_bar_profession() {
 
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 83460710)] // ceil(1.05 × 79486390 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
     accepted(try_set(world, id, build([1, 0, 0, 0, 0, 0, 0, ELITE], [0; 9], 7), 0, 0));
     refused(try_set(world, id, build([1, 0, 0, 0, 0, 0, 0, ELITE], [0; 9], 6), 0, 0), ELITE_SLOT);
     refused(
-        try_set(world, id, build([1, 0, 0, 0, 0, 0, 0, ELITE], [0; 9], NO_ELITE), 0, 0),
-        ELITE_SLOT,
+        try_set(world, id, build([1, 0, 0, 0, 0, 0, 0, ELITE], [0; 9], NO_ELITE), 0, 0), ELITE_SLOT,
     );
     refused(try_set(world, id, build([1, 0, 0, 0, 0, 0, 0, 0], [0; 9], 0), 0, 0), ELITE_SLOT);
     refused(try_set(world, id, build([0; 8], [0; 9], 0), 0, 0), ELITE_SLOT);
@@ -491,11 +510,12 @@ fn test_bar_elite() {
     );
 }
 
-// ---- the attributes ------------------------------------------------------------------------------
+// ---- the attributes
+// ------------------------------------------------------------------------------
 
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 81586166)] // ceil(1.05 × 77701110 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -513,7 +533,7 @@ fn test_attributes_rank_and_points() {
 
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 89070293)] // ceil(1.05 × 84828850 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -543,7 +563,7 @@ fn test_attributes_points_by_level() {
 // The build-local indices (D-157 A): 0-4 the primary's, 5-8 the secondary's without its primary
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 86018972)] // ceil(1.05 × 81922830 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -564,17 +584,22 @@ fn test_attributes_indices() {
     refused(try_set(world, other, ranks([0, 0, 0, 0, 0, 0, 0, 0, 1]), 0, 0), NO_ATTRIBUTE);
 }
 
-// ---- the belt ------------------------------------------------------------------------------------
+// ---- the belt
+// ------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 81550056)] // ceil(1.05 × 77666720 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
     refused(try_set(world, id, empty(), belt([0, 0, 0, 0], [0, 1, 0, 0]), 0), COUNT_WITHOUT_ITEM);
     // An ingredient held in the pack is not a potion; nor is an item with no record.
-    refused(try_set(world, id, empty(), belt([INGREDIENT, 0, 0, 0], [1, 0, 0, 0]), 0), NOT_A_POTION);
-    refused(try_set(world, id, empty(), belt([INGREDIENT, 0, 0, 0], [0, 0, 0, 0]), 0), NOT_A_POTION);
+    refused(
+        try_set(world, id, empty(), belt([INGREDIENT, 0, 0, 0], [1, 0, 0, 0]), 0), NOT_A_POTION,
+    );
+    refused(
+        try_set(world, id, empty(), belt([INGREDIENT, 0, 0, 0], [0, 0, 0, 0]), 0), NOT_A_POTION,
+    );
     refused(try_set(world, id, empty(), belt([40, 0, 0, 0], [0, 0, 0, 0]), 0), NOT_A_POTION);
     // A potion named without a count carries none, and is accepted.
     accepted(try_set(world, id, empty(), belt([0, 8, 0, 0], [0, 0, 0, 0]), 0));
@@ -582,7 +607,7 @@ fn test_belt_items() {
 
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 82053384)] // ceil(1.05 × 78146080 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -595,10 +620,11 @@ fn test_belt_counts_within_the_pack() {
     refused(try_set(world, id, empty(), belt([29, 0, 0, 0], [1, 0, 0, 0]), 0), BELT_NOT_IN_PACK);
 }
 
-// ---- the equipment -------------------------------------------------------------------------------
+// ---- the equipment
+// -------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 85614380)] // ceil(1.05 × 81537504 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -610,14 +636,12 @@ fn test_equipment_owned_and_wearable() {
     refused(try_set(world, id, empty(), 0, chest(FINE_CLOSED)), UNIDENTIFIED);
     accepted(try_set(world, id, empty(), 0, chest(FINE_OPEN)));
     refused(try_set(world, id, empty(), 0, chest(UNKNOWN_BASE)), NO_BASE);
-    refused(
-        try_set(world, id, empty(), 0, equipped([0, 0, 103, 0, 0, 0, 103])), DUPLICATE_ITEM,
-    );
+    refused(try_set(world, id, empty(), 0, equipped([0, 0, 103, 0, 0, 0, 103])), DUPLICATE_ITEM);
 }
 
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 85506432)] // ceil(1.05 × 81434697 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
