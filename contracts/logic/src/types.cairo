@@ -8,6 +8,8 @@ pub mod combat;
 pub mod effect;
 /// Passive effects (design/19 §4, CBT-01).
 pub mod passive;
+/// The state and content a world tick reads and writes (CBT-02).
+pub mod tick;
 
 /// An instance id: `slot × 2^32 + generation`. The slot is a reusable key of the ephemeral
 /// contract's storage (M-1: instance state is keyed by it, never by an adventurer id); the

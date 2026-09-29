@@ -280,9 +280,15 @@ pub impl EntryImpl of EntryTrait {
     /// `v0 + (v12 − v0) × rank / 12` in `i32`, truncated toward zero (§2.2); `rank` 0–15
     /// (FX-0b). `|v12 − v0| ≤ 65,535` and `rank ≤ 15`: the product fits `i32`.
     fn value(self: @Entry, rank: u8) -> i32 {
+        Self::line(*self.v0, *self.v12, rank)
+    }
+
+    /// The line of §2.2 through `(0, v0)` and `(12, v12)` at `rank`, for a value kept apart from
+    /// its entry (the tick's content, `types::tick::SkillSheet`).
+    fn line(v0: i16, v12: i16, rank: u8) -> i32 {
         assert(rank <= MAX_RANK, errors::RANK);
-        let v0: i32 = (*self.v0).into();
-        let v12: i32 = (*self.v12).into();
+        let v0: i32 = v0.into();
+        let v12: i32 = v12.into();
         v0 + (v12 - v0) * rank.into() / 12
     }
 

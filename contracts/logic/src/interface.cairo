@@ -3,6 +3,7 @@
 
 use starknet::ContractAddress;
 use crate::snapshot::{Snapshot, TaskEntry};
+use crate::types::tick::{Content, World};
 use crate::types::{InstanceId, Outcome};
 
 /// The results interface (ADR-0001, *Keeping the exit open*): what an instance hands to the
@@ -105,4 +106,13 @@ pub trait IFate<T> {
     /// The random word of `domain` for this transaction. One word per domain; a transaction that
     /// needs several values derives them as `poseidon(word, domain, index)` (ADR-0002, rule 2).
     fn fate(ref self: T, domain: felt252) -> felt252;
+}
+
+/// The world tick's library class (ENG-01 §1.3, CBT-02): `Instances` calls it through
+/// `ITickLibraryLibraryDispatcher`, the class hash being its configuration.
+#[starknet::interface]
+pub trait ITickLibrary<T> {
+    /// Runs `ticks` world ticks over `world` with the batch's `content`, stopping after a tick
+    /// that defeated the adventurer; returns the world.
+    fn run(self: @T, world: World, content: Content, ticks: u8) -> World;
 }

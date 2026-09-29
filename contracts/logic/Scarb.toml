@@ -12,5 +12,13 @@ starknet.workspace = true
 snforge_std.workspace = true
 assert_macros.workspace = true
 
+# The shared package, and its library classes (ENG-01 §1.3): `TickLibrary` (CBT-02). A contract
+# target replaces the default library target, so both are declared.
+[lib]
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
 [scripts]
 test.workspace = true
