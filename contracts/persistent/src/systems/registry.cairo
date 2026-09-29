@@ -255,7 +255,7 @@ mod layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 58296)] // ceil(1.05 × 55520 measured)
+    #[available_gas(l2_gas: 57981)] // ceil(1.05 × 55220 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
         assert(

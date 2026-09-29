@@ -460,6 +460,65 @@ changed record (`set_record`; no admin setter; ENG-03 writes and tests the atomi
 returns it first, in the call every invocation already makes: no further call. `play` compares it
 with the version its batch was computed under (§4.1).
 
+**The writer's checks** (ENG-03, `systems/registry.cairo`). `set_record` refuses, in this order: a
+caller other than `admin` (`'not admin'`); an unknown kind; a record of other than `parts(kind)`
+felts; id 0; a part 0 without `LIVE` or with a bit above it; for a sequential kind, an id that is
+neither existing (≤ `last_id`) nor `last_id + 1`; for `OUTLINE`, a chunk that is neither below 225
+nor 255, or a location that does not exist; for `SHOP`, a hub (`id / 16`, a location) that does not
+exist. `TASK` and `QUEST` take any non-zero id: quiver's records are not in this contract. **A change
+is told part by part**: each part is compared with the stored felt, only the parts that differ are
+written, and the version is raised once if any did; a rewrite of the same values writes nothing. A
+new sequential id reads nothing (its keys were never written) and always raises. **A record never
+written reads as `parts(kind)` zeros** (`record`, `records`, `bundle`): part 0 is 0, so it does not
+exist. `records` and `bundle` refuse more than 32 records (`MAX_READ`).
+
+A part's address is the map's, `h(h(h(selector("records"), kind), id), part)` (Pedersen): the first
+two links are computed once a record, each part adds one (tested against the map,
+`test_part_address_is_the_maps`); `bundle` of 32 three-part records: 4,045,220 → 3,477,020 (M).
+
+**Layouts of the world's records** (ENG-03, `grimworld_logic::world`, round-trip and bit tests in
+`logic/tests/test_world.cairo`). Every content id is a `u16`, as every registry id the frozen
+layouts hold (`Header.location`, the bar, a pack's template); a quest is quiver's `u32`; levels,
+ranks and counts are `u8`; a location is at most 15 × 15 chunks (§3.2), so a chunk index `15 cy +
+cx` and a tile index `15 row + column` are below 225 and a width or height is 1–15 (4 bits checked
+in an 8-bit field). Every packer refuses a wider value; no field straddles bit 128; `LIVE` in part 0.
+
+| Kind | Part | Bits |
+|---|---|---|
+| `REGION` | 0 | town 0–15 · book 16–31 (0 none) · first location 32–47 · name 128–247 (a short string, ≤ 15 characters) |
+| `LOCATION` | 0 | type 0–7 (1 town, 2 outpost, 3 zone, 4 dungeon, 5 elite, 6 Rift, 7 trial) · region 8–23 · biome 24–31 (1 meadow, 2 forest, 3 cave, 4 ruin: design/18) · level min 32–39 · level max 40–47 · rank required 48–55 · width 56–63 · height 64–71 (chunks) · `N` 72–79 (6–12; 0 in a zone) · floors 80–87 · next floor 88–103 (0 on the last) · spawn table 104–119 · sealed 120–127 (0 or 1) · entry chunk 128–135 · entry tile 136–143 |
+| `LOCATION` | 1 | the set pieces its quotas may place: up to 15 `SET_PIECE` ids (`Lanes16`, 0 none) |
+| `GATE` | 0 | source 0–15 · destination 16–31 · source anchor chunk 32–39, tile 40–47 (0, 0 in a hub) · destination entry chunk 48–55, tile 56–63 (0, 0 into a hub) · kind 64–71 (1 hub, 2 link, 3 floor, 4 Rift) · rank required 72–79 · quest required 80–111 (0 none) |
+| `OUTLINE` | 0 | id `location × 256 + 255`: the zone's chunk set, bit `15 cy + cx`; id `location × 256 + chunk`: that chunk's tile mask, bit `15 row + column` (1 in the zone). Bits 0–224 |
+
+**The content version's cost, measured apart** (ENG-03, snforge L2 gas, M; for ENG-06 and ENG-07):
+
+| What | L2 gas | Source |
+|---|---:|---|
+| `bundle`'s read of the version | **20,010** (execution) | `bundle` of one record 140,800 against `records` of the same record 120,790 (`--gas-report`); 21,550 between the two whole tests; the read alone 20,930 (`test_version_cost_read` less its baseline) |
+| `set_record`'s raise, the first in the registry's life (a new slot) | 469,200 | `test_version_cost_raise` less `test_version_cost_baseline` |
+| `set_record`'s raise, every later one (read, add, overwrite) | **67,200** | `test_version_cost_raise_again` less `test_version_cost_stored_baseline` |
+| The compare in `play`, `open`, `mine`, `barter` | not measured apart | two `u32` compared once an invocation; the version's calldata felt is 5,120 (FND-04) |
+
+Several records changed in one transaction overwrite the version's slot once in the state diff.
+
+**`set_record` and `bundle` against §10** (M: snforge; D: with §10's prices, F = 816,939, 5,120 a
+calldata felt, N = 453,524, O = 32,072):
+
+| Call | Execution (M, `--gas-report`) | Whole call in snforge (M, test less its baseline) | As a transaction (D) | §10 |
+|---|---:|---:|---:|---:|
+| `set_record`, a new 3-part record (5 new slots) | 373,620 | 2,486,280 | 3,488,899 | 3,165,279 |
+| `set_record`, the 3 parts changed (4 overwritten: the parts and the version; `last_id` is not written) | 382,010 | 482,850 | 1,357,957 | 1,058,019 |
+| `set_record`, the same values (3 reads, nothing written) | 179,090 | 279,930 | 1,026,749 | — |
+| `bundle`, 1 three-part record | 140,800 | — | — | — |
+| `bundle`, 10 | 1,109,380 | — | — | — |
+| `bundle`, 32 (the bound: 96 slots and the version, 97 reads) | 3,477,020 | — | — | — |
+
+§10 priced `set_record`'s computation at 0: the measured execution (0.37–0.38 M) is the difference.
+A `bundle` read costs about **36,000 a slot** in execution (107,620 a three-part record between 1
+and 32 records), which §9.3–§10 do not count beyond the call's C: ENG-06 and ENG-07 add it to the
+invocations that read content.
+
 ---
 
 ## 4. Entrypoints and views
