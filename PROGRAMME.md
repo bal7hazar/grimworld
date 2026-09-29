@@ -1,6 +1,6 @@
 # Programme
 
-**2026-09-29, 02:00 UTC** — written by the project manager `[Fable 5.1] Chef de projet Grim World`.
+**2026-09-29, 09:40 UTC** — written by the project manager `[Opus 5.5] Chef de projet Grim World`, before handing over to a fresh session ([handoff](docs/briefs/PM-handoff-2026-09-29.md)).
 Rewritten at each of its check-ins. The live state of each track is in the track's own
 `STATUS.md`; this file says where the programme is, what was decided and what waits for the
 owner.
