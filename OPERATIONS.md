@@ -194,6 +194,14 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
   `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
   still start one.
+- **The machine is shared** with the owner's other programmes. A session or an agent
+  **deletes and kills only what it created, named exactly**: a path it made itself
+  (`mktemp -d` under its own scratchpad or worktree, never directly under `/tmp`), a process
+  whose pid it recorded, a unit it started. Never a wildcard outside its own directory
+  (`rm -rf /tmp/tmp.*`), never a kill by pattern (`pkill -f`, `killall`), never a
+  `git clean` or a `git worktree prune` in another track's checkout. Incident of 2026-09-29,
+  00:02 UTC: a test cleanup of the game orchestrator ran `rm -rf /tmp/tmp.*`; no damage was
+  found in the agents running then, and none can be excluded for the other programmes.
 - **Heavy builds are serialised** through two locks, taken in this order by
   `scripts/lock.sh`: the project lock `/tmp/grimworld-build.lock` (one heavy Grim World
   command at a time), then the machine-wide `~/orchestrator/heavy-build.lock` shared with the
