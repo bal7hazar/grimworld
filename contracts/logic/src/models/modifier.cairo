@@ -3,7 +3,7 @@
 
 use crate::content::{MODIFIER, Record};
 use crate::packing::{P8, join, low_field, split};
-use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, id};
+use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source, id};
 pub use super::index::Modifier;
 
 /// Slot types, in the order of `ItemMods`' five slots (ENG-01 §3.3, design/15).
@@ -20,6 +20,7 @@ pub mod errors {
     // The content pipeline's checks (`assert_legal`).
     pub const SLOT: felt252 = 'modifier: slot';
     pub const NO_BENEFIT: felt252 = 'modifier: no benefit';
+    pub const TWICE: felt252 = 'modifier: counted twice';
 }
 
 #[generate_trait]
@@ -33,18 +34,37 @@ pub impl ModifierImpl of ModifierTrait {
     fn has_cost(self: @Modifier) -> bool {
         *self.cost.id != id::NONE
     }
+
+    /// Where its passives are held: its slot type (`slot::PREFIX` … `RUNE`).
+    fn source(self: @Modifier) -> Source {
+        match *self.slot {
+            0 => core::panic_with_felt252(errors::SLOT),
+            1 => Source::Prefix,
+            2 => Source::Suffix,
+            3 => Source::Inscription,
+            4 => Source::Insignia,
+            5 => Source::Rune,
+            _ => core::panic_with_felt252(errors::SLOT),
+        }
+    }
 }
 
 #[generate_trait]
 pub impl ModifierAssert of ModifierAssertTrait {
-    /// The content pipeline's checks: a known slot type, a legal benefit, a legal fixed cost or
-    /// none.
+    /// The content pipeline's checks: a known slot type; a benefit, and a fixed cost or none,
+    /// each legal and allowed on that slot type (`PassiveTrait::allows`, design/19 §7.2), the
+    /// cost included; a statistic whose sources the snapshot counts is held once, not as both
+    /// benefit and cost.
     fn assert_legal(self: @Modifier) {
-        assert(*self.slot >= slot::PREFIX && *self.slot <= slot::LAST, errors::SLOT);
+        let source = self.source();
         assert(*self.benefit.id != id::NONE, errors::NO_BENEFIT);
-        self.benefit.assert_legal();
-        self.cost.assert_legal();
+        self.benefit.assert_source(source);
+        self.cost.assert_source(source);
         self.cost.assert_fixed();
+        let twice = self.benefit.is_counted()
+            && self.cost.is_counted()
+            && *self.benefit.id == *self.cost.id;
+        assert(!twice, errors::TWICE);
     }
 }
 

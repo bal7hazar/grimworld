@@ -41,12 +41,9 @@ pub impl WeaponImpl of WeaponTrait {
         Weapon { class, damage, damage_type, ticks, range }
     }
 
-    /// Its 32 bits; refuses a class, type, ticks or range above 15 (4 bits each).
+    /// Its 32 bits (`WeaponAssert::assert_valid`).
     fn pack(self: @Weapon) -> u128 {
-        assert(
-            *self.class < 16 && *self.damage_type < 16 && *self.ticks < 16 && *self.range < 16,
-            errors::WEAPON,
-        );
+        self.assert_valid();
         (*self.class).into()
             + (*self.damage).into() * 0x10
             + (*self.damage_type).into() * P20
@@ -66,6 +63,18 @@ pub impl WeaponImpl of WeaponTrait {
             ticks: ticks.try_into().unwrap(),
             range: range.try_into().unwrap(),
         }
+    }
+}
+
+#[generate_trait]
+pub impl WeaponAssert of WeaponAssertTrait {
+    /// Class, damage type, ticks and range fit 4 bits each.
+    #[inline(always)]
+    fn assert_valid(self: @Weapon) {
+        assert(
+            *self.class < 16 && *self.damage_type < 16 && *self.ticks < 16 && *self.range < 16,
+            errors::WEAPON,
+        );
     }
 }
 

@@ -60,7 +60,9 @@ pub impl ItemAssert of ItemAssertTrait {
             assert(!self.entry.is_empty(), errors::NO_ENTRY);
             EntryAssert::assert_carrier(array![*self.entry].span(), Carrier::Potion);
         } else {
+            // The empty entry, every field 0 (design/19 §2.1), not only its kind.
             assert(self.entry.is_empty(), errors::NOT_POTION);
+            self.entry.assert_legal();
         }
     }
 }

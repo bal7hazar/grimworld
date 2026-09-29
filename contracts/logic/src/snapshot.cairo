@@ -13,7 +13,7 @@
 use crate::helpers::signed::SignedTrait;
 use crate::packing::{
     P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
-    P96, fits, join, low_field, split,
+    P96, join, low_field, split,
 };
 use crate::professions::ProfessionTrait;
 
@@ -35,6 +35,52 @@ pub mod errors {
     pub const CONDITION: felt252 = 'snapshot: condition';
     pub const PERCENT: felt252 = 'snapshot: percent above 63';
     pub const KNOCKDOWN: felt252 = 'snapshot: knock-down above 3';
+}
+
+/// Every field of the three snapshot words fits its layout (docs/CAIRO.md §7: checks in
+/// `Assert` impls); the packers call them.
+#[generate_trait]
+pub impl MemberStatsAssert of MemberStatsAssertTrait {
+    /// Each `ARMOR_VS` fits 6 bits.
+    #[inline(always)]
+    fn assert_valid(self: @MemberStats) {
+        let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = *self.armor_vs;
+        assert(
+            v1 < 64
+                && v2 < 64
+                && v3 < 64
+                && v4 < 64
+                && v5 < 64
+                && v6 < 64
+                && v7 < 64
+                && v8 < 64
+                && v9 < 64,
+            errors::ARMOR_VS,
+        );
+    }
+}
+
+#[generate_trait]
+pub impl MemberBarAssert of MemberBarAssertTrait {
+    /// The unguarded armor within ±`MAX_UNGUARDED_ARMOR` (F-21); the quick-cast pairs
+    /// (`QuickCastAssert`, checked as they pack).
+    #[inline(always)]
+    fn assert_valid(self: @MemberBar) {
+        let armor = *self.armor;
+        assert(armor >= -MAX_UNGUARDED_ARMOR && armor <= MAX_UNGUARDED_ARMOR, errors::ARMOR);
+    }
+}
+
+#[generate_trait]
+pub impl MemberKitAssert of MemberKitAssertTrait {
+    /// Condition 4 bits, the two percents 6 bits, knock-down 2 bits.
+    #[inline(always)]
+    fn assert_valid(self: @MemberKit) {
+        assert(*self.condition < 0x10, errors::CONDITION);
+        assert(*self.condition_duration < 0x40, errors::PERCENT);
+        assert(*self.enchantment_duration < 0x40, errors::PERCENT);
+        assert(*self.knockdown < 4, errors::KNOCKDOWN);
+    }
 }
 
 /// What the build and the equipment give, fixed for the instance (design/03, design/15).
@@ -67,19 +113,8 @@ pub struct MemberStats {
 }
 
 pub fn pack_stats(s: MemberStats) -> felt252 {
+    s.assert_valid();
     let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = s.armor_vs;
-    assert(
-        v1 < 64
-            && v2 < 64
-            && v3 < 64
-            && v4 < 64
-            && v5 < 64
-            && v6 < 64
-            && v7 < 64
-            && v8 < 64
-            && v9 < 64,
-        errors::ARMOR_VS,
-    );
     let low: u128 = s.max_health.into()
         + s.max_energy.into() * P16
         + s.energy_regen.into() * P24
@@ -202,14 +237,28 @@ pub struct MemberBar {
     pub armor: i16,
 }
 
-fn pack_quick_cast(q: QuickCast) -> u128 {
-    fits(q.attribute.into(), 0x10, errors::QUICK_CAST);
-    q.attribute.into() + q.every.into() * 0x10
+#[generate_trait]
+pub impl QuickCastImpl of QuickCastTrait {
+    /// Its 12 bits: attribute 0–3 · N 4–11 (`QuickCastAssert::assert_valid`).
+    fn pack(self: @QuickCast) -> u128 {
+        self.assert_valid();
+        (*self.attribute).into() + (*self.every).into() * 0x10
+    }
+
+    /// The pair of 12 bits.
+    fn unpack(bits: u128) -> QuickCast {
+        let (every, attribute) = DivRem::div_rem(bits, 0x10);
+        QuickCast { attribute: attribute.try_into().unwrap(), every: every.try_into().unwrap() }
+    }
 }
 
-fn unpack_quick_cast(bits: u128) -> QuickCast {
-    let (every, attribute) = DivRem::div_rem(bits, 0x10);
-    QuickCast { attribute: attribute.try_into().unwrap(), every: every.try_into().unwrap() }
+#[generate_trait]
+pub impl QuickCastAssert of QuickCastAssertTrait {
+    /// The attribute fits 4 bits.
+    #[inline(always)]
+    fn assert_valid(self: @QuickCast) {
+        assert(*self.attribute < 0x10, errors::QUICK_CAST);
+    }
 }
 
 pub fn pack_bar(b: MemberBar) -> felt252 {
@@ -217,7 +266,7 @@ pub fn pack_bar(b: MemberBar) -> felt252 {
     let [d0, d1, d2, d3, d4, d5] = b.damage;
     let [p0, p1, p2] = b.penetration;
     let [q0, q1] = b.quick_cast;
-    assert(b.armor >= -MAX_UNGUARDED_ARMOR && b.armor <= MAX_UNGUARDED_ARMOR, errors::ARMOR);
+    b.assert_valid();
     let low: u128 = s0.into()
         + s1.into() * P16
         + s2.into() * P32
@@ -236,8 +285,8 @@ pub fn pack_bar(b: MemberBar) -> felt252 {
         + p0.into() * P56
         + p1.into() * P64
         + p2.into() * P72
-        + pack_quick_cast(q0) * P80
-        + pack_quick_cast(q1) * P92
+        + q0.pack() * P80
+        + q1.pack() * P92
         + SignedTrait::bits16(b.armor) * P104;
     join(low, high)
 }
@@ -279,7 +328,7 @@ pub fn unpack_bar(word: felt252) -> MemberBar {
             SignedTrait::from8(d3), SignedTrait::from8(d4), SignedTrait::from8(d5),
         ],
         penetration: [p0.try_into().unwrap(), p1.try_into().unwrap(), p2.try_into().unwrap()],
-        quick_cast: [unpack_quick_cast(q0), unpack_quick_cast(q1)],
+        quick_cast: [QuickCastTrait::unpack(q0), QuickCastTrait::unpack(q1)],
         armor: SignedTrait::from16(armor),
     }
 }
@@ -326,10 +375,7 @@ pub struct MemberKit {
 }
 
 pub fn pack_kit(k: MemberKit) -> felt252 {
-    fits(k.condition.into(), 0x10, errors::CONDITION);
-    fits(k.condition_duration.into(), 0x40, errors::PERCENT);
-    fits(k.enchantment_duration.into(), 0x40, errors::PERCENT);
-    fits(k.knockdown.into(), 4, errors::KNOCKDOWN);
+    k.assert_valid();
     let [b0, b1, b2, b3] = k.belt;
     let low: u128 = b0.into() + b1.into() * P32 + b2.into() * P64 + b3.into() * P96;
     let high: u128 = k.life_steal.into()

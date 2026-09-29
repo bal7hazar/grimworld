@@ -233,6 +233,17 @@ pub struct Effect {
     pub rank: u8,
 }
 
+#[generate_trait]
+pub impl EffectAssert of EffectAssertTrait {
+    /// Charges fit 6 bits, the rank 4; with the potion tag, the skill field is a belt slot 0-3.
+    #[inline(always)]
+    fn assert_valid(self: @Effect) {
+        assert(*self.charges < 0x40, 'packing: charges above 63');
+        assert(*self.rank < 0x10, 'packing: rank above 15');
+        assert(!*self.potion || *self.skill < 4, 'packing: belt slot above 3');
+    }
+}
+
 /// Up to four effects, 56 bits each, at bits 0, 56, 128, 184.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct MemberEffects {
@@ -241,9 +252,7 @@ pub struct MemberEffects {
 
 fn pack_effect(e: Effect) -> u128 {
     assert(e.deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
-    fits(e.charges.into(), 0x40, 'packing: charges above 63');
-    fits(e.rank.into(), 0x10, 'packing: rank above 15');
-    assert(!e.potion || e.skill < 4, 'packing: belt slot above 3');
+    e.assert_valid();
     let tag: u128 = if e.potion {
         0x800000
     } else {

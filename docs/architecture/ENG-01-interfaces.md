@@ -539,6 +539,13 @@ param 8–15 · guard 16–18 · scope 19–20 · min 21–36 · max 37–52 (`i
 wider than its layout and a duration, recharge or activation above `MAX_BASE_DURATION`; the content
 pipeline's checks (a kind's "reads", its bounds at ranks 0 and 15, the legal carriers of §5.14,
 FX-21's and FX-35's shapes, a potion unscaled) are `assert_legal` on each model, mirrored by OPS-01.
+A passive's `param` lies in the enumeration its id names, its value in the field the snapshot sums
+it into, and it is held only where §7.2 allows (`PassiveTrait::allows`, `Source`: `DAMAGE_PERCENT`
+and `PENETRATION` on the held items' slot types and set bonuses, guarded `ARMOR` on insignias and
+set bonuses, `QUICK_CAST_EVERY_N` on the inscription, `CONDITION_DURATION` on the prefix,
+`DAMAGE_TYPE` on a weapon's slot type, `KNOCKDOWN_FLAT` on set bonuses (≤ 3 ticks a set),
+personalisation's percents on no record), so that no accepted content overflows `MemberBar` or
+`MemberKit` (CBT-01 fix loop 1).
 Tests: `logic/tests/test_combat.cairo`.
 
 **The content version's cost, measured apart** (ENG-03, snforge L2 gas, M; for ENG-06 and ENG-07):

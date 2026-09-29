@@ -9,6 +9,7 @@
 
 use crate::helpers::signed::SignedTrait;
 use crate::packing::{P16, P8};
+use super::combat::{condition, damage};
 use super::effect::{guard, scope};
 
 /// Passive ids 40–65 (§4), numbered after the effect kinds.
@@ -65,21 +66,50 @@ pub const MAX_GUARDED_ARMOR: i16 = 18;
 pub const MAX_PENETRATION: i16 = 36;
 /// An unguarded `ARMOR` passive is bounded to −255…+255 (§7.2).
 pub const MAX_ARMOR: i16 = 255;
-/// `KNOCKDOWN_FLAT` is at most 3 ticks (2 bits in `MemberKit`).
+/// `KNOCKDOWN_FLAT` is at most 3 ticks (2 bits in `MemberKit`), a set's two bonuses together.
 pub const MAX_KNOCKDOWN_FLAT: i16 = 3;
-/// `CONDITION_DURATION` and `ENCHANT_DURATION` percents fit 6 bits in `MemberKit`.
-pub const MAX_DURATION_PERCENT: i16 = 63;
+/// `CONDITION_DURATION` and `ENCHANT_DURATION` percents fit 6 bits in `MemberKit`; an `ARMOR_VS`
+/// fits 6 bits in `MemberStats` (FX-23).
+pub const MAX_SIX_BITS: i16 = 63;
+/// `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` fit a `u8` of `MemberKit`.
+pub const MAX_ON_HIT: i16 = 255;
+/// Personalisation's rating bonus, +10 % (design/15 D-48): F-21's armor bound assumes it.
+pub const MAX_RATING_PERCENT: i16 = 10;
+/// A quick-cast or `ATTRIBUTE` passive's attribute fits 4 bits (`MemberBar`'s quick-cast pair).
+pub const ATTRIBUTE_BOUND: u8 = 16;
+/// Professions: design/03's six, ids 1–6 (`ENERGY_COST`'s `param`).
+pub const LAST_PROFESSION: u8 = 6;
 
 pub mod errors {
     pub const GUARD: felt252 = 'passive: guard';
     pub const SCOPE: felt252 = 'passive: scope';
-    // The content pipeline's checks (`assert_legal`).
+    // The content pipeline's checks (`assert_legal`, `assert_source`).
     pub const ID: felt252 = 'passive: id';
     pub const NOT_MVP: felt252 = 'passive: id after the MVP';
     pub const EMPTY: felt252 = 'passive: none with a field';
     pub const RANGE: felt252 = 'passive: min above max';
     pub const VALUE: felt252 = 'passive: value out of bounds';
+    pub const PARAM: felt252 = 'passive: param';
     pub const FIXED: felt252 = 'passive: cost not fixed';
+    pub const SOURCE: felt252 = 'passive: not on this source';
+}
+
+/// Where a passive is held (design/15, design/19 §4, §7.2): one of an item's five modifier slot
+/// types (`models::modifier::slot`, same order), or an armor set's bonus.
+#[derive(Copy, Drop, Serde, PartialEq, Debug)]
+pub enum Source {
+    /// Weapons (not wands).
+    Prefix,
+    /// Weapons, shields, foci.
+    Suffix,
+    /// Everything held: the weapon and the off-hand.
+    Inscription,
+    /// One per armor piece.
+    Insignia,
+    /// One per armor piece.
+    Rune,
+    /// One of the two bonuses of the one set that can reach 3 pieces of 5.
+    SetBonus,
 }
 
 /// One passive effect (§4).
@@ -112,10 +142,9 @@ pub impl PassiveImpl of PassiveTrait {
         Passive { id, param, guard, scope, min, max }
     }
 
-    /// Its 53 bits; refuses a guard wider than 3 bits or a scope wider than 2.
+    /// Its 53 bits (`PassiveAssert::assert_valid`).
     fn pack(self: @Passive) -> u128 {
-        assert(*self.guard < 8, errors::GUARD);
-        assert(*self.scope < 4, errors::SCOPE);
+        self.assert_valid();
         (*self.id).into()
             + (*self.param).into() * P8
             + (*self.guard).into() * P16
@@ -153,14 +182,77 @@ pub impl PassiveImpl of PassiveTrait {
         let (second, first) = DivRem::div_rem(bits, P53.try_into().unwrap());
         (Self::unpack(first), Self::unpack(second))
     }
+
+    /// Whether the snapshot's capacity counts its sources (§7.2): `DAMAGE_PERCENT`,
+    /// `PENETRATION` and guarded `ARMOR` (7 sources at most), `QUICK_CAST_EVERY_N` (2 at most),
+    /// `CONDITION_DURATION` (one prefix), `KNOCKDOWN_FLAT` (3 ticks in 2 bits), `DAMAGE_TYPE`
+    /// (never summed). Each source holds such a passive at most once.
+    fn is_counted(self: @Passive) -> bool {
+        let id = *self.id;
+        id == id::DAMAGE_PERCENT
+            || id == id::PENETRATION
+            || (id == id::ARMOR && *self.guard != guard::ALWAYS)
+            || id == id::QUICK_CAST_EVERY_N
+            || id == id::CONDITION_DURATION
+            || id == id::KNOCKDOWN_FLAT
+            || id == id::DAMAGE_TYPE
+    }
+
+    /// Whether `source` may hold it (§7.2, design/15), so that no held set of passives breaks
+    /// the snapshot's sums:
+    /// - `DAMAGE_PERCENT`, `PENETRATION`: "only the held items' slot types and set bonuses"
+    ///   (prefix, suffix, inscription; 7 sources at most);
+    /// - guarded `ARMOR`: "only in an insignia slot … or a set bonus";
+    /// - `QUICK_CAST_EVERY_N`: "held only on the weapon and the off-hand (… one slot type)": the
+    ///   inscription, the one slot type both carry exactly once (the document names none:
+    ///   escalated);
+    /// - `CONDITION_DURATION`: "one prefix, on the weapon only";
+    /// - `DAMAGE_TYPE`: "a `DAMAGE_TYPE` modifier on the weapon": a weapon's slot type, never an
+    ///   armor slot or a set bonus (which of the three: escalated);
+    /// - `KNOCKDOWN_FLAT`: a set bonus only (*Hob-breaker*; the 2-bit field holds one set's);
+    /// - `BASE_DAMAGE_PERCENT`, `RATING_PERCENT`: personalisation only (the item's flag, D-48),
+    ///   never a modifier or a set bonus (F-21's bound assumes +10 %);
+    /// - every other passive: any source.
+    fn allows(self: @Passive, source: Source) -> bool {
+        let id = *self.id;
+        let held_slot = source == Source::Prefix
+            || source == Source::Suffix
+            || source == Source::Inscription;
+        if id == id::DAMAGE_PERCENT || id == id::PENETRATION {
+            held_slot || source == Source::SetBonus
+        } else if id == id::ARMOR && *self.guard != guard::ALWAYS {
+            source == Source::Insignia || source == Source::SetBonus
+        } else if id == id::QUICK_CAST_EVERY_N {
+            source == Source::Inscription
+        } else if id == id::CONDITION_DURATION {
+            source == Source::Prefix
+        } else if id == id::DAMAGE_TYPE {
+            held_slot
+        } else if id == id::KNOCKDOWN_FLAT {
+            source == Source::SetBonus
+        } else if id == id::BASE_DAMAGE_PERCENT || id == id::RATING_PERCENT {
+            false
+        } else {
+            true
+        }
+    }
 }
 
 #[generate_trait]
 pub impl PassiveAssert of PassiveAssertTrait {
+    /// Every field fits its layout: guard 3 bits, scope 2.
+    #[inline(always)]
+    fn assert_valid(self: @Passive) {
+        assert(*self.guard < 8, errors::GUARD);
+        assert(*self.scope < 4, errors::SCOPE);
+    }
+
     /// The content pipeline's checks of one passive (§4, §7.2): id 0 has every field 0;
-    /// otherwise the id is one of the MVP's, `min ≤ max`, a guard only on `ARMOR` (3 or 4) and
-    /// `DAMAGE_PERCENT` (1), a scope only on `DAMAGE_PERCENT` and `PENETRATION`, and the bounds
-    /// §7.2 states for the sums the snapshot stores.
+    /// otherwise the id is one of the MVP's; its `param` is in the enumeration its id names (a
+    /// damage type 1–9, a condition 1–9, an attribute that fits 4 bits, a profession 1–6),
+    /// else 0; a guard only on `ARMOR` (3, 4) and `DAMAGE_PERCENT` (1); a scope 0–3 only on
+    /// `DAMAGE_PERCENT` and `PENETRATION`; `min ≤ max`, within the id's range (the bounds §7.2
+    /// states for the snapshot's sums, the fields' widths, 0 for a passive without a value).
     fn assert_legal(self: @Passive) {
         let id = *self.id;
         if id == id::NONE {
@@ -169,20 +261,34 @@ pub impl PassiveAssert of PassiveAssertTrait {
         }
         assert(id >= id::FIRST && id <= id::LAST, errors::ID);
         assert(id <= id::LAST_MVP, errors::NOT_MVP);
-        assert(*self.min <= *self.max, errors::RANGE);
-        let g = *self.guard;
-        if id == id::ARMOR {
-            assert(
-                g == guard::ALWAYS || g == guard::IN_STANCE || g == guard::ENCHANTED, errors::GUARD,
-            );
-        } else if id == id::DAMAGE_PERCENT {
-            assert(g == guard::ALWAYS || g == guard::ABOVE_HALF, errors::GUARD);
+        let p = *self.param;
+        let param_ok = if id == id::ARMOR_VS || id == id::DAMAGE_TYPE {
+            p >= damage::SLASHING && p <= damage::LAST
+        } else if id == id::CONDITION_DURATION {
+            p >= condition::BLEEDING && p <= condition::LAST
+        } else if id == id::QUICK_CAST_EVERY_N || id == id::ATTRIBUTE {
+            p < ATTRIBUTE_BOUND
+        } else if id == id::ENERGY_COST {
+            p >= 1 && p <= LAST_PROFESSION
         } else {
-            assert(g == guard::ALWAYS, errors::GUARD);
-        }
-        if id != id::DAMAGE_PERCENT && id != id::PENETRATION {
+            p == 0
+        };
+        assert(param_ok, errors::PARAM);
+        let g = *self.guard;
+        let guard_ok = if id == id::ARMOR {
+            g == guard::ALWAYS || g == guard::IN_STANCE || g == guard::ENCHANTED
+        } else if id == id::DAMAGE_PERCENT {
+            g == guard::ALWAYS || g == guard::ABOVE_HALF
+        } else {
+            g == guard::ALWAYS
+        };
+        assert(guard_ok, errors::GUARD);
+        if id == id::DAMAGE_PERCENT || id == id::PENETRATION {
+            assert(*self.scope <= scope::ALL, errors::SCOPE);
+        } else {
             assert(*self.scope == scope::WEAPON, errors::SCOPE);
         }
+        assert(*self.min <= *self.max, errors::RANGE);
         let (low, high) = if id == id::DAMAGE_PERCENT {
             (-MAX_DAMAGE_PERCENT, MAX_DAMAGE_PERCENT)
         } else if id == id::ARMOR && g != guard::ALWAYS {
@@ -193,14 +299,26 @@ pub impl PassiveAssert of PassiveAssertTrait {
             (0, MAX_PENETRATION)
         } else if id == id::KNOCKDOWN_FLAT {
             (0, MAX_KNOCKDOWN_FLAT)
-        } else if id == id::CONDITION_DURATION || id == id::ENCHANT_DURATION {
-            (0, MAX_DURATION_PERCENT)
+        } else if id == id::ARMOR_VS || id == id::CONDITION_DURATION || id == id::ENCHANT_DURATION {
+            (0, MAX_SIX_BITS)
+        } else if id == id::LIFE_STEAL_ON_HIT || id == id::ENERGY_ON_HIT {
+            (0, MAX_ON_HIT)
         } else if id == id::ADRENALINE_EVERY_N || id == id::QUICK_CAST_EVERY_N {
             (1, 255)
+        } else if id == id::RATING_PERCENT {
+            (0, MAX_RATING_PERCENT)
+        } else if id == id::DAMAGE_TYPE || id == id::HALVE_FIRST_HEAVY_HIT {
+            (0, 0)
         } else {
             (-32768, 32767)
         };
         assert(*self.min >= low && *self.max <= high, errors::VALUE);
+    }
+
+    /// Legal, and held by a source that may hold it (`PassiveTrait::allows`); id 0 by any.
+    fn assert_source(self: @Passive, source: Source) {
+        self.assert_legal();
+        assert(*self.id == id::NONE || self.allows(source), errors::SOURCE);
     }
 
     /// A cost is fixed: `min = max` (design/15, Q-4).

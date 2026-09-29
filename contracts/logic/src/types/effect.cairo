@@ -421,7 +421,10 @@ pub impl EntryAssert of EntryAssertTrait {
         if charges_read == 0 {
             assert(*self.charges == 0, errors::READS);
         } else {
-            assert(*self.charges != 0 || *self.d0 != 0 || *self.d12 != 0, errors::NO_TIME);
+            // §3.4: a duration or charges. Without charges, the duration is positive at every
+            // rank: at ranks 0 and 15, the line's ends (§2.2; FX-0b).
+            let timed = self.duration(0) > 0 && self.duration(MAX_RANK) > 0;
+            assert(*self.charges != 0 || timed, errors::NO_TIME);
         }
         if scope_read == 0 {
             assert(*self.scope == 0, errors::READS);
@@ -487,6 +490,12 @@ pub impl EntryAssert of EntryAssertTrait {
                     assert(carrier == Carrier::Attack, errors::ATTACK_BONUS);
                 }
                 if entry.is_hit_modifier() {
+                    // An attack's implicit hit is on the attacked foe: its modifiers take it
+                    // (`FOE`, `SINGLE`, checked above, and `FOES`).
+                    assert(
+                        carrier != Carrier::Attack || *entry.filter == filter::FOES,
+                        errors::MODIFIER_SET,
+                    );
                     modifier = true;
                 }
             }

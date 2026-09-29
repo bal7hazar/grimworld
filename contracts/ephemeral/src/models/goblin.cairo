@@ -136,8 +136,7 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
             + value.bleeding.into() * P52
             + value.poison.into() * P80
             + value.effect_skill.into() * P108;
-        fits(value.effect_charges.into(), 0x40, 'packing: charges above 63');
-        fits(value.effect_rank.into(), 0x10, 'packing: rank above 15');
+        value.assert_valid();
         let high = pack_four28(value.burning, value.crippled, value.knocked, value.effect_deadline)
             + value.effect_charges.into() * P112
             + value.effect_rank.into() * P118;
@@ -162,6 +161,16 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
             effect_charges: effect_charges.try_into().unwrap(),
             effect_rank: effect_rank.try_into().unwrap(),
         }
+    }
+}
+
+#[generate_trait]
+pub impl GoblinTimersAssert of GoblinTimersAssertTrait {
+    /// The effect's charges fit 6 bits, its rank 4 (design/19 §7.2).
+    #[inline(always)]
+    fn assert_valid(self: @GoblinTimers) {
+        assert(*self.effect_charges < 0x40, 'packing: charges above 63');
+        assert(*self.effect_rank < 0x10, 'packing: rank above 15');
     }
 }
 
