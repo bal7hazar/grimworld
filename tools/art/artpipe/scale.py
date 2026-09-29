@@ -1,24 +1,24 @@
-"""Scale (ART-02): every sprite at the height of its build, measured by one rule, resampled exactly.
+"""Scale (ART-02, D-146 as corrected by the owner): the pack's hand-drawn units keep their native
+height; only the generated sheets are resampled, to a height the manifest names.
 
 **Visible height.** Of one pose: from the line under the feet (the baseline of `clean.register`) up
 to the highest solid pixel (alpha >= 64) inside a band of columns centred on the feet, of half-width
-max(4, 10% of the pose's width). The band keeps the body and the head (headwear included) and leaves
-out what a hand holds beside or above it: the hobgoblin's club, the shaman's staff, the
-skirmisher's spear, the slinger's torch. A sprite's height is the median over its idle frames.
+max(4, 10% of the pose's width, rounded). The band keeps the body and the head (headwear included)
+and leaves out what a hand holds beside or above it: the hobgoblin's club, the shaman's staff, the
+skirmisher's spear, the slinger's torch. A sprite's height is the median (lower middle) over its
+idle frames.
 
 **Resampling.** By the rational factor p/q (p = target height, q = the sprite's measured height),
 on a grid anchored at the feet (the anchor column and the baseline of the placed cell land on pixel
-boundaries), in integer arithmetic only, so that the result is the same on every machine:
+boundaries), in integer arithmetic only (int64 sums are exact in any order):
 - `nearest`: each output pixel takes the source pixel under its centre.
 - `area`: each output pixel looks at the source pixels it covers, weighted by overlap. It is
   visible when visible source pixels cover at least half of it (else transparent: an edge does not
   grow a translucent ring); its alpha is the visible part's average alpha, snapped to the nearest
-  value the sprite's source uses (the pack's units use only 0, about 80, and 255); its colour is
-  the covered pixels' average in premultiplied alpha. No new transparency level appears, so edges
-  stay as hard as the source's. Where source pixels meet, colours blend; so when the sprite's
-  source has a small palette (at most `palette_max` colours: the pack's units have 10 to 16), each
-  colour is then snapped to the nearest colour of that palette, and no new colour appears either.
-  The generated sheets (tens of thousands of colours) keep the averaged colours.
+  value the sprite's source uses; its colour is the covered pixels' average in premultiplied alpha.
+  When the sprite's source has a small palette (at most `palette_max` colours), each colour is then
+  snapped to the nearest colour of that palette (`snap`), so no new colour appears. The generated
+  sheets (tens of thousands of colours) keep the averaged colours.
 """
 
 import numpy as np
@@ -26,13 +26,14 @@ import numpy as np
 from .clean import register
 
 SOLID = 64
+NATIVE = "native"
 
 
 def visible_height(rgba):
     """Visible height of one pose (RGBA, any padding), by the rule above."""
     p = register(rgba)
     solid = p.rgba[..., 3] >= SOLID
-    band = max(4, int(round(0.10 * solid.shape[1])))
+    band = max(4, (solid.shape[1] + 5) // 10)                   # 10 % of the width, in integers
     x0, x1 = max(0, p.feet_x - band), min(solid.shape[1], p.feet_x + band + 1)
     rows = np.flatnonzero(solid[:, x0:x1].any(axis=1))
     return p.baseline - int(rows.min()) if len(rows) else 0
@@ -44,26 +45,28 @@ def sprite_height(idle_cells):
     return hs[(len(hs) - 1) // 2], hs
 
 
-def axis_weights(size, anchor, p, q):
-    """Integer overlap weights (out x size) of a 1-D resampling by p/q that keeps `anchor` (a pixel
-    boundary of the source) on a pixel boundary of the output. In units of 1/q of an output pixel,
-    source pixel j spans [(j - anchor) p + A q, (j + 1 - anchor) p + A q) and output pixel i spans
-    [i q, (i + 1) q), with A the output anchor. Returns (weights, A, out size)."""
+def grid(size, anchor, p, q):
+    """The output grid of a 1-D resampling by p/q that keeps `anchor` (a pixel boundary of the
+    source) on a pixel boundary of the output: (output anchor A, output size). In units of 1/q of
+    an output pixel, source pixel j spans [(j - anchor) p + A q, (j + 1 - anchor) p + A q) and
+    output pixel i spans [i q, (i + 1) q)."""
     a_out = -(-anchor * p // q)                                  # ceil: nothing maps below 0
-    out = -(-((size - anchor) * p + a_out * q) // q)
-    j = np.arange(size, dtype=np.int64)
-    s0 = (j - anchor) * p + a_out * q
-    i = np.arange(out, dtype=np.int64)
-    o0 = i * q
+    return a_out, -(-((size - anchor) * p + a_out * q) // q)
+
+
+def axis_weights(size, anchor, p, q):
+    """Integer overlap weights (out x size) on `grid`'s grid. Returns (weights, A, out size)."""
+    a_out, out = grid(size, anchor, p, q)
+    s0 = (np.arange(size, dtype=np.int64) - anchor) * p + a_out * q
+    o0 = np.arange(out, dtype=np.int64) * q
     lo = np.maximum(o0[:, None], s0[None, :])
     hi = np.minimum(o0[:, None] + q, s0[None, :] + p)
     return np.maximum(hi - lo, 0), a_out, out
 
 
 def axis_nearest(size, anchor, p, q):
-    """Index of the source pixel under each output pixel's centre (-1 outside), same grid."""
-    a_out = -(-anchor * p // q)
-    out = -(-((size - anchor) * p + a_out * q) // q)
+    """Index of the source pixel under each output pixel's centre (-1 outside), on `grid`'s grid."""
+    a_out, out = grid(size, anchor, p, q)
     i = np.arange(out, dtype=np.int64)
     # centre (i + 1/2) q  ->  source coordinate ((i + 1/2) q - A q) / p + anchor
     j = ((2 * i + 1) * q - 2 * a_out * q) // (2 * p) + anchor
@@ -94,7 +97,9 @@ def snap(cell, colours):
 
 
 def resample(cell, anchor_x, anchor_y, p, q, method, levels=range(256)):
-    """Resample an RGBA cell by p/q around (anchor_x, anchor_y). Returns (cell, ax, ay)."""
+    """Resample an RGBA cell by p/q around (anchor_x, anchor_y). Returns (cell, ax, ay), the new
+    anchor. The caller registers the feet again (`clean.register`, `clean.place`): the anchor is
+    kept on the grid, but the feet row is re-read from the result, as for any pose."""
     h, w = cell.shape[:2]
     if method == "nearest":
         jy, ay, oh = axis_nearest(h, anchor_y, p, q)
@@ -125,28 +130,51 @@ def resample(cell, anchor_x, anchor_y, p, q, method, levels=range(256)):
     return out, ax, ay
 
 
-def target_height(sprite, builds):
-    """The height a sprite must stand at: its own `height`, else its build's."""
-    if "height" in sprite:
-        return int(sprite["height"])
-    if sprite.get("build") not in builds:
-        raise SystemExit(f'{sprite["name"]}: build {sprite.get("build")!r} is not one of '
-                         f'{", ".join(builds)} ([build] in manifest.toml)')
-    return int(builds[sprite["build"]])
+def height_spec(name, heights):
+    """A sprite's line of `[height]` in the manifest: "native" or a height in px (int)."""
+    if name not in heights:
+        raise SystemExit(f"{name}: no line in [height] of manifest.toml "
+                         f'("native" or a height in px)')
+    spec = heights[name]
+    if spec == NATIVE:
+        return NATIVE
+    if isinstance(spec, bool) or not isinstance(spec, int) or spec <= 0:
+        raise SystemExit(f'{name}: [height] must be "native" or a positive height in px, '
+                         f"not {spec!r}")
+    return spec
 
 
-def check_order(heights, basic, tallest, role):
-    """AC-2: no basic goblin taller than the shortest profession; `tallest` the tallest sprite.
-    `heights` maps a sprite to its measured idle height, `role` to caste or profession. Returns the
-    list of problems (empty when the order holds)."""
+def validate_order(order, role):
+    """`[order]` of the manifest against the sprites (`role` maps each to caste or profession).
+    Returns the list of problems."""
     problems = []
+    basic, tallest = order.get("basic", []), order.get("tallest")
+    for n in [*basic, tallest]:
+        if n is None:
+            problems.append("[order] names no `tallest`")
+        elif n not in role:
+            problems.append(f"[order] names {n!r}, which is not a sprite of the manifest")
+    if not any(r == "profession" for r in role.values()):
+        problems.append("[order] cannot compare: the manifest has no profession")
+    return problems
+
+
+def check_order(heights, order, role, kind):
+    """AC-2. The rule: a basic goblin (`order.basic`) drawn from a generated sheet is never taller
+    than the shortest profession; the pack's own hand-drawn goblins keep the pack's proportions
+    (its Spear Goblin, 70 px, is taller than its Monk, 67 px) and are not compared. `order.tallest`
+    is taller than every other sprite. `heights` maps a sprite to its measured idle height, `role`
+    to caste or profession, `kind` to generated or strip. Returns the list of problems."""
+    problems = validate_order(order, role)
+    if problems:
+        return problems
     heroes = [n for n in heights if role[n] == "profession"]
-    if heroes:
-        short = min(heroes, key=lambda n: (heights[n], n))
-        for n in basic:
-            if heights[n] > heights[short]:
-                problems.append(f"{n} ({heights[n]} px) is taller than the shortest profession, "
-                                f"{short} ({heights[short]} px)")
+    short = min(heroes, key=lambda n: (heights[n], n))
+    for n in order["basic"]:
+        if kind[n] == "generated" and heights[n] > heights[short]:
+            problems.append(f"{n} ({heights[n]} px) is taller than the shortest profession, "
+                            f"{short} ({heights[short]} px)")
+    tallest = order["tallest"]
     for n in heights:
         if n != tallest and heights[n] >= heights[tallest]:
             problems.append(f"{tallest} ({heights[tallest]} px) is not taller than {n} "

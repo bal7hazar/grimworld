@@ -1,31 +1,43 @@
 """Fingerprints of `out/` (ART-02, determinism across machines).
 
-- **files**: SHA-256 over every file of `out/` (name, then bytes), in name order: equal when the
-  outputs are byte-identical.
+Both hash only what the build writes (`atlas-N.png`, `atlas-N.json`, `sprites.json`,
+`report.json`, `preview.html`), in name order; anything else in `out/` (a `.DS_Store`, a file
+added by hand) is left out.
+
+- **files**: SHA-256 over every output file (name, then bytes): equal when the outputs are
+  byte-identical.
 - **pixels and metadata**: SHA-256 over every PNG decoded to RGBA (name, size, pixels) and every
-  JSON parsed and re-serialised canonically (sorted keys, no spaces, ASCII), in name order. Equal
-  when the atlases hold the same pixels and the same data, whatever compressed them. `preview.html`
-  is a viewer built from the same JSON, and is left out.
+  JSON parsed and re-serialised canonically (sorted keys, no spaces, ASCII). Equal when the atlases
+  hold the same pixels and the same data, whatever compressed them. `preview.html` is a viewer
+  built from the same JSON, and is left out.
 """
 
 import hashlib
 import json
+import re
 import zlib
 
 import numpy as np
 from PIL import Image, features
 
+OUTPUT = re.compile(r"(atlas-\d+\.(png|json)|sprites\.json|report\.json|preview\.html)")
+
+
+def outputs(out):
+    """The files of `out/` the build writes, in name order."""
+    return sorted(f for f in out.iterdir() if f.is_file() and OUTPUT.fullmatch(f.name))
+
 
 def files(out):
     digest = hashlib.sha256()
-    for f in sorted(out.iterdir()):
+    for f in outputs(out):
         digest.update(f.name.encode() + f.read_bytes())
     return digest.hexdigest()
 
 
 def content(out):
     digest = hashlib.sha256()
-    for f in sorted(out.iterdir()):
+    for f in outputs(out):
         if f.suffix == ".png":
             px = np.ascontiguousarray(np.array(Image.open(f).convert("RGBA")))
             digest.update(f.name.encode() + b"%dx%d" % (px.shape[1], px.shape[0]) + px.tobytes())
