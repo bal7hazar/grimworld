@@ -34,4 +34,12 @@ tables' calldata, the tests).
 
 ## Decision
 
-Pending.
+By the project manager on 2026-09-29, a refinement of D-141 (source: the project manager's message
+to the game orchestrator of that day; CONTEXT's D-141 row covers it, no new row): **option (a)**.
+`open`, `mine` and `barter` carry the content version, one felt and one compared value each; a
+mismatch is refused before any tick, like a failed precondition. `loot`, `leave` and `travel_back`
+do not carry it. Put in ENG-01b's fix loop.
+
+**The rule, written in design/02 so that the next entrypoint is classified without asking:** an
+entrypoint carries the content version if and only if it executes something the client computed
+from the content (world ticks, a price, a path).
