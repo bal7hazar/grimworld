@@ -1,44 +1,42 @@
 # Status — game track
 
-**2026-09-29 05:45 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 06:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 ## Where we are
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03,
-**FND-04**, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, **SPK-4**, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21,
-DOC-01. **ENG-01** waits for the project manager's decision on its merge, after three fix loops.
-Next: FND-05 (after ENG-01 merges: both touch the randomness seam in `contracts/`).
+FND-04, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, SPK-4, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21, DOC-01,
+**ENG-01**. Running: **FND-05** (providers, on ENG-01's `IFate`) and **ENG-01b** (the accounting's
+three open findings and the content version). Next: ENG-02 to ENG-04 on ENG-01's interfaces.
 
 ## What moved
 
 | | |
 |---|---|
-| **ENG-01** | [#81](https://github.com/bal7hazar/grimworld/pull/81), CI green at `4a1ba2b`: five contracts frozen as compiling code (`Instances`, `Hub`, `Market`, `Registry`, `TxHashFate`), layouts, events, the batch codec, every entrypoint priced from the union of its storage keys. Instance slots are reused and records never zeroed (zero-then-rewrite costs as new, measured). The final `[GPT-6-Astra]` re-audit resolves F-1 and F-5 to F-14 and finds no security finding; **two majors remain in the cost accounting only** (F-3, F-4). Estimated S1: **$0.556**, against the $0.50 target; the answer turns on ENG-07's measure of a tick inside a batch |
-| **SPK-4** | [#82](https://github.com/bal7hazar/grimworld/pull/82): the client's simulation is a TypeScript mirror checked by vectors; the damage edges decided (D-140) |
-| **FND-04** | [#71](https://github.com/bal7hazar/grimworld/pull/71): the cost budget, a new slot about 453,500 L2 gas, an overwrite 32,000 |
+| **ENG-01** | [#81](https://github.com/bal7hazar/grimworld/pull/81) merged: five contracts frozen as compiling code, layouts, events, batch codec, per-branch budgets. Instance slots reused, records never zeroed. Merged by the project manager's decision (D-141) with three accounting findings carried to ENG-01b; no security finding. S1 estimated at **$0.556** against $0.50, pending ENG-07's measure of a tick inside a batch |
+| **D-141** | ENG-01's escalations decided and written in design/02, 07, 17, 18 and cost-budget.md: 16 goblins an invocation, a goblin's first record weighs 1, an unsplittable action runs, a content version, the belt back on defeat, nothing carried through a gate (reversible by the owner), the full roster keeps goblins in their chunk, `mine` alone |
+| **SPK-4** | [#82](https://github.com/bal7hazar/grimworld/pull/82): the client's simulation is a TypeScript mirror checked by vectors; damage edges decided (D-140) |
 | **Launcher** | Reference `5d14d89`, **frozen** until the gate of Phase 0 (FND-07 holds M1, N1–N4, L-3) |
 
 ## Orchestrators and agents
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| — | | none running |
+| FND-05 providers | `claude-opus-5-5` | launching |
+| ENG-01b accounting | `claude-sonnet-5-5` | launching |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-1. ENG-01: merge on the project manager's decision; a follow-up ENG-01b if option (a) is taken.
-2. FND-05 (Opus 5.5, `[GPT-6-Astra]`), after ENG-01 merges.
-3. ENG-02 to ENG-04 once ENG-01 is on main.
+1. FND-05 and ENG-01b: review, `[GPT-6-Astra]` audits, merge.
+2. ENG-02 (helpers, D-140's table), ENG-03 (registries, the content version measured), ENG-04.
 
 ## Decisions needed
 
-| Decision | File |
-|---|---|
-| ENG-01's merge with two accounting majors open (recommended: merge, close them in ENG-01b), and its design escalations (E-1, E-2, E-5, E-7/E-8, E-15, E-16, E-18, E-20, E-21) | [docs/decisions/2026-09-29-eng-01-escalations.md](docs/decisions/2026-09-29-eng-01-escalations.md) |
+None open. Answered: D-141 (ENG-01's merge and escalations).
 
 ## Launcher: for its next change (not before a finding or a task needs one)
 

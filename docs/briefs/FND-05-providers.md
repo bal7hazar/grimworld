@@ -11,6 +11,13 @@ version 1 can replace them without touching game code: a **randomness provider**
 contracts, and an **account provider** (four operations, implemented with **burner
 accounts**) in the client. Nothing of the game uses them yet; they are ready and tested.
 
+> **Amended after ENG-01 (#81, D-141).** ENG-01 froze `IFate` (`grimworld_logic::interface`, the
+> name replaces `IRandomness` below) and implemented `TxHashFate` (`contracts/persistent/src/systems/fate.cairo`)
+> with its mainnet refusal at deployment and at every call, tested (`test_fate_*`). `Hub` and
+> `Instances` store the provider's address, set by `set_contracts`, which with `set_admin` is
+> still a stub. This task builds on that and does not change a frozen signature. ENG-01b runs at
+> the same time and edits `play`, `BatchPlayed`, `bundle` and the accounting: do not touch them.
+
 ## Context
 - **ADR-0002 in full**: *MVP: a provisional source* (game code never reads the transaction
   hash, it calls `fate(domain)` of a provider behind an interface; the implementation is
@@ -27,26 +34,29 @@ accounts**) in the client. Nothing of the game uses them yet; they are ready and
   blockchain word reaches the player), CONTEXT §8, docs/CAIRO.md in full, COMMON §4.
 - **ADR-0007** (native Starknet contracts on Cairo 2.19, no Dojo; *Access control*: registries
   and configuration written by an administrator role, contract-to-contract calls restricted).
-- Depends on: SPK-5b and FND-01b (merged): `contracts/` with the `persistent` and `ephemeral`
-  contracts on Cairo 2.19, snforge tests that deploy them; `client/` on starknet.js;
-  `scripts/with-node.sh` (the local node of NS-1); `spikes/SPK-5b/` as the reference.
+- Depends on: ENG-01 (merged): `contracts/` holds the packages `grimworld_logic`,
+  `grimworld_persistent` (`Hub`, `Market`, `Registry`, `TxHashFate`) and `grimworld_ephemeral`
+  (`Instances`), and `docs/architecture/ENG-01-interfaces.md` (§1.2 access control, §4 the Fate
+  entrypoints and where each draws); `client/` on starknet.js; `scripts/with-node.sh` (the local
+  node of NS-1).
 
 ## Scope
 - In, contracts:
-  - An interface `IRandomness` with `fate(domain: felt252) -> felt252`, and a helper that
-    derives further values `derive(word, domain, index)` by Poseidon (ADR-0002 rule 2).
-  - The **transaction-hash provider**: a contract implementing `IRandomness`, deployed
-    separately, whose address the game reads from configuration in the **persistent
-    contract's storage**, set by the administrator role (ADR-0007 *Access control*: say who may
-    set it and test that nobody else can), never hard-coded (pillar 6, ADR-0001).
-  - The **mainnet refusal**: the provider cannot be deployed or initialised when the chain id
-    is Starknet mainnet's, and `fate` reverts on mainnet even if the provider was deployed
-    another way. Say where the check lives and why that place cannot be skipped.
-  - Tests (snforge, deploying the contracts) with gas budgets:
-    determinism for the same transaction and domain; distinct values for distinct domains and
-    indices; the refusal on the mainnet chain id (use the test framework's chain-id cheat);
-    that no other contract can reach the transaction hash through the provider for a purpose
-    it was not called for (document what the interface allows and forbids).
+  - The helper `derive(word, domain, index)` by Poseidon (ADR-0002 rule 2) in `grimworld_logic`,
+    and **one domain constant per use of Fate** (every draw ENG-01 §4 lists: the entry draw, loot,
+    a chest, identify, lift a modifier, brew a new pair, buy a hint, and any other), distinct and
+    tested as distinct.
+  - **The provider's address as configuration**: implement `set_contracts` and `set_admin` in
+    `Hub` and `Instances` (the administrator role, ADR-0007 *Access control*): only the admin may
+    call them, `set_admin` hands the role over; tested for the admin and for anyone else. The
+    address is never hard-coded (pillar 6, ADR-0001). `upgrade` stays a stub.
+  - `TxHashFate` as ENG-01 left it, unless a finding needs a change: say where the mainnet check
+    lives and why that place cannot be skipped (the report, from the existing tests).
+  - Tests (snforge, deploying the contracts) with gas budgets: determinism for the same
+    transaction and domain; distinct values for distinct domains and indices through `derive`;
+    what the interface allows and forbids (anyone may call `fate`, and gets only
+    `poseidon(tx hash, domain)` for the domain it passes: document why that reaches nothing a
+    game contract draws for another purpose).
 - In, client (`client/`, TypeScript, a module of its own, for example
   `client/app/src/account/`):
   - An `AccountProvider` interface: `createOrRestore()`, `execute(calls)`, `status(tx)`,
@@ -64,9 +74,10 @@ accounts**) in the client. Nothing of the game uses them yet; they are ready and
   burner implementation **sends directly** (the game funds it; no paymaster before version 1); the
   `AccountProvider` interface keeps room for a paymaster without the game knowing (a provider may
   route `execute` through one later; nothing outside the provider depends on who pays).
-- Allowlist: `contracts/src/` (a new module for providers, the configuration storage and its
-  administrator check, plus the one-line `mod` declarations they need), `contracts/tests/`,
-  `contracts/Scarb.toml` only if a dependency must be declared,
+- Allowlist: `contracts/logic/src/` (a new module for `derive` and the domains, and its `mod`
+  line), `set_contracts` and `set_admin` in `contracts/persistent/src/systems/hub.cairo` and
+  `contracts/ephemeral/src/systems/instances.cairo`, `contracts/persistent/src/systems/fate.cairo`
+  only for a finding, the packages' `tests/`, `GAS.md` and `docs/BUDGETS.md` as generated,
   `client/app/src/account/**`, `client/app/package.json` and the root `pnpm-lock.yaml` only
   for dependencies this module needs. Anything else is an escalation.
 
@@ -93,7 +104,7 @@ Names and exact types may be refined; say why in the report.
       per domain and index; tests with gas budgets.
 - [ ] AC-2 The provider is refused on the mainnet chain id, at deployment or initialisation
       **and** at call time; tests show both.
-- [ ] AC-3 The provider's address is read from configuration that only the administrator role can set (tested); nothing in `contracts/src`
+- [ ] AC-3 The provider's address is read from configuration that only the administrator role can set (tested); nothing in `contracts/`
       outside the provider reads the transaction hash (`grep` shown in the report).
 - [ ] AC-4 The account provider's four operations work against the real local node (the
       integration test), and no vendor type is exported outside the module.
@@ -108,7 +119,8 @@ are always audited by codex (OPERATIONS §2).
 From the worktree root:
 ```
 scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build
-cd contracts && snforge test && cd -
+for p in logic persistent ephemeral; do (cd contracts/$p && snforge test); done
+python3 scripts/gas_budgets.py --check
 pnpm -r test && pnpm -r lint && pnpm -r typecheck
 scripts/with-node.sh <the command that runs the account integration test>
 ```
