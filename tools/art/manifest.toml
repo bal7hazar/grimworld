@@ -152,6 +152,16 @@ origin = "original Troll strips (the owner's mapping, 2026-09-29)"
   fps = 12
   loop = true
   [[sprite.anim]]
+  name = "windup"
+  file = "Troll_Windup.png"
+  fps = 12
+  loop = false
+  [[sprite.anim]]
+  name = "recover"
+  file = "Troll_Recovery.png"
+  fps = 15
+  loop = false
+  [[sprite.anim]]
   name = "attack"
   file = "Troll_Attack.png"
   fps = 15
