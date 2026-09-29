@@ -7,9 +7,9 @@ A group is one label; `identical` says whether all its transactions have the sam
 | Source | Label | n | identical | Receipt | Validate | Execute (with game) | Game call | Fee transfer | res1 | res2 | Felts | Slots new/over/zero | Per contract | Nonces |
 |---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|
 | SPK-1 | declare Hub | 1 | yes | 777,647,155 | 171,435 | 0 | 0 | 455,360 | 776,981,760 | 38,600 | 2 | 0/2/0 | STRK 2over | <ACCOUNT> |
-| SPK-1 | deploy Hub | 1 | yes | 1,970,205 | 392,815 | 524,870 | 316,290 | 455,360 | 562,960 | 34,200 | 11 | 1/2/0 | Hub 1new; STRK 2over | <ACCOUNT> |
+| SPK-1 | deploy Hub | 1 | yes | 1,970,205 | 392,815 | 524,870 | 63,850 | 455,360 | 562,960 | 34,200 | 11 | 1/2/0 | Hub 1new; STRK 2over | <ACCOUNT> |
 | SPK-1 | declare Instances | 1 | yes | 1,820,714,035 | 171,435 | 0 | 0 | 455,360 | 1,820,048,640 | 38,600 | 2 | 0/2/0 | STRK 2over | <ACCOUNT> |
-| SPK-1 | deploy Instances | 1 | yes | 2,473,375 | 392,815 | 586,040 | 377,460 | 455,360 | 1,004,960 | 34,200 | 11 | 2/2/0 | Instances 2new; STRK 2over | <ACCOUNT> |
+| SPK-1 | deploy Instances | 1 | yes | 2,473,375 | 392,815 | 586,040 | 125,020 | 455,360 | 1,004,960 | 34,200 | 11 | 2/2/0 | Instances 2new; STRK 2over | <ACCOUNT> |
 | SPK-1 | link hub | 1 | yes | 1,736,655 | 392,815 | 311,800 | 104,990 | 455,360 | 542,480 | 34,200 | 7 | 1/2/0 | Hub 1new; STRK 2over | <ACCOUNT> |
 | SPK-1 | link instances | 1 | yes | 1,736,655 | 392,815 | 311,800 | 104,990 | 455,360 | 542,480 | 34,200 | 7 | 1/2/0 | Instances 1new; STRK 2over | <ACCOUNT> |
 | SPK-1 | setup hub | 1 | yes | 4,260,795 | 392,815 | 705,940 | 499,130 | 455,360 | 2,672,480 | 34,200 | 7 | 6/2/0 | Hub 6new; STRK 2over | <ACCOUNT> |
@@ -46,47 +46,54 @@ A group is one label; `identical` says whether all its transactions have the sam
 | SPK-1 | leave | 25 | yes | 2,030,065 | 392,815 | 888,810 | 682,000 | 455,360 | 260,480 | 32,600 | 7 | 0/3/4 | Hub 1over; Instances 4zero; STRK 2over | <ACCOUNT> |
 | SPK-1b | A owner: enter | 5 | yes | 3,927,367 | 392,815 | 1,135,792 | 927,212 | 455,360 | 1,913,600 | 29,800 | 8 | 4/4/0 | Hub 1over; Instances 4new/1over; STRK 2over | <ACCOUNT> |
 | SPK-1b | A owner: leave | 5 | yes | 2,030,065 | 392,815 | 888,810 | 682,000 | 455,360 | 260,480 | 32,600 | 7 | 0/3/4 | Hub 1over; Instances 4zero; STRK 2over | <ACCOUNT> |
-| SPK-1b | fund the burner, give it adventurer 3 | 1 | yes | 2,807,735 | 419,235 | 1,290,140 | 954,490 | 455,360 | 613,200 | 29,800 | 13 | 1/3/0 | Hub 1over; STRK 1new/2over | <ACCOUNT> |
+| SPK-1b | fund the burner, give it adventurer 3 | 1 | yes | 2,807,735 | 419,235 | 1,290,140 | 499,130 | 455,360 | 613,200 | 29,800 | 13 | 1/3/0 | Hub 1over; STRK 1new/2over | <ACCOUNT> |
 | SPK-1b | deploy the burner | 1 | yes | 2,168,115 | 75,905 | 232,250 | 0 | 455,360 | 1,366,000 | 38,600 | 3 | 3/2/0 | STRK 2over; burner 3new | burner |
 | SPK-1b | B burner direct: enter | 5 | yes | 3,555,447 | 87,805 | 1,068,882 | 927,212 | 455,360 | 1,913,600 | 29,800 | 8 | 4/4/0 | Hub 1over; Instances 4new/1over; STRK 2over | burner |
 | SPK-1b | B burner direct: leave | 5 | yes | 1,659,915 | 87,805 | 823,670 | 682,000 | 455,360 | 260,480 | 32,600 | 7 | 0/3/4 | Hub 1over; Instances 4zero; STRK 2over | burner |
-| SPK-1b | C burner via relayer: enter | 5 | yes | 4,971,188 | 392,815 | 1,647,293 | 1,435,173 | 455,360 | 2,451,920 | 23,800 | 19 | 5/4/0 | Hub 1over; Instances 4new/1over; STRK 2over; burner 1new | <ACCOUNT> |
-| SPK-1b | C burner via relayer: leave | 5 | yes | 3,068,685 | 392,815 | 1,395,110 | 1,184,760 | 455,360 | 798,800 | 26,600 | 18 | 1/3/4 | Hub 1over; Instances 4zero; STRK 2over; burner 1new | <ACCOUNT> |
-| SPK-1b | D burner via AVNU: enter | 5 | yes | 7,063,760 | 400,000 | 3,695,040 | 3,339,200 | 455,360 | 2,473,360 | 40,000 | 31 | 5/6/0 | Hub 1over; Instances 4new/1over; STRK 4over; burner 1new | 0x6b736fd574a59a6d7f0a1f935fc71c7df5f3a7e3d6f4dfbaecec4c70ca26578 |
-| SPK-1b | D burner via AVNU: leave | 5 | NO | 5,174,800 | 400,000 | 3,459,200 | 3,103,360 | 455,360 | 860,240 | 0 | 30 | 1/5/4 | Hub 1over; Instances 4zero; STRK 4over; burner 1new | 0x7ae2c9e63c7ee60372bacb2e86db4f958b2709cd8e0637788933389a315ee45 |
-|  | differs: 0x34ee11cbc602578f41c0a55382fac002a847efaa91946472d3c7d46d9716db4 |  |  | 4,934,800 | 320,000 | 3,459,200 | 3,103,360 | 455,360 | 700,240 | 0 | 30 | 1/5/4 | Hub 1over; Instances 4zero; STRK 4over; burner 1new | |
+| SPK-1b | C burner via relayer: enter | 5 | yes | 4,971,188 | 392,815 | 1,647,293 | 927,212 | 455,360 | 2,451,920 | 23,800 | 19 | 5/4/0 | Hub 1over; Instances 4new/1over; STRK 2over; burner 1new | <ACCOUNT> |
+| SPK-1b | C burner via relayer: leave | 5 | yes | 3,068,685 | 392,815 | 1,395,110 | 682,000 | 455,360 | 798,800 | 26,600 | 18 | 1/3/4 | Hub 1over; Instances 4zero; STRK 2over; burner 1new | <ACCOUNT> |
+| SPK-1b | D burner via AVNU: enter | 5 | yes | 7,063,760 | 400,000 | 3,695,040 | 896,320 | 455,360 | 2,473,360 | 40,000 | 31 | 5/6/0 | Hub 1over; Instances 4new/1over; STRK 4over; burner 1new | 0x6b736fd574a59a6d7f0a1f935fc71c7df5f3a7e3d6f4dfbaecec4c70ca26578 |
+| SPK-1b | D burner via AVNU: leave | 5 | NO | 5,174,800 | 400,000 | 3,459,200 | 660,480 | 455,360 | 860,240 | 0 | 30 | 1/5/4 | Hub 1over; Instances 4zero; STRK 4over; burner 1new | 0x7ae2c9e63c7ee60372bacb2e86db4f958b2709cd8e0637788933389a315ee45 |
+|  | differs: 0x34ee11cbc602578f41c0a55382fac002a847efaa91946472d3c7d46d9716db4 |  |  | 4,934,800 | 320,000 | 3,459,200 | 660,480 | 455,360 | 700,240 | 0 | 30 | 1/5/4 | Hub 1over; Instances 4zero; STRK 4over; burner 1new | |
 | SPK-1b | give adventurer 3 back to the owner | 1 | yes | 1,728,795 | 392,815 | 705,940 | 499,130 | 455,360 | 140,480 | 34,200 | 7 | 0/3/0 | Hub 1over; STRK 2over | <ACCOUNT> |
-| SPK-1b | return the burner's STRK | 1 | yes | 1,285,115 | 87,805 | 597,030 | 455,360 | 455,360 | 110,720 | 34,200 | 9 | 0/3/0 | STRK 3over | burner |
+| SPK-1b | return the burner's STRK | 1 | yes | 1,285,115 | 87,805 | 597,030 | 0 | 455,360 | 110,720 | 34,200 | 9 | 0/3/0 | STRK 3over | burner |
 
-## 2. res1 = BASE + PER_FELT × felts + the state part
+## 2. res1 = BASE + PER_FELT × felts + the state part (an accounting identity, not a model)
 
-BASE = 4,640, PER_FELT = 5,120. The *state part* is res1 − BASE − PER_FELT × felts. Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):
+BASE = 4,640, PER_FELT = 5,120. The *state part* is res1 − BASE − PER_FELT × felts, felts counting calldata and the signature. **The split between BASE and the signature is an assumed normalisation**: every transaction carries 2 signature felts, so only BASE + 2 × (the signature felt's price) is identified, here 14,880. Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):
 
-| Label | Felts | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 20,000 |
+| Label | Felts (calldata + signature) | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 2,000 |
 |---|---:|---:|---:|---:|---|---:|---:|
-| deploy Hub | 11 | 13 | 562,960 | 502,000 | 1/2/0 | 2 | 2000 |
-| deploy Instances | 11 | 13 | 1,004,960 | 944,000 | 2/2/0 | 2 | 4000 |
-| link hub | 7 | 5 | 542,480 | 502,000 | 1/2/0 | 2 | 2000 |
-| setup hub | 7 | 5 | 2,672,480 | 2,632,000 | 6/2/0 | 2 | 12000 |
-| setup queue 18 | 9 | 5 | 35,506,720 | 35,456,000 | 78/2/0 | 2 | 16000 |
-| setup queue 21 | 9 | 5 | 6,298,720 | 6,248,000 | 14/2/0 | 2 | 8000 |
+| deploy Hub | 11 | 13 | 562,960 | 502,000 | 1/2/0 | 2 | 0 |
+| deploy Instances | 11 | 13 | 1,004,960 | 944,000 | 2/2/0 | 2 | 0 |
+| link hub | 7 | 5 | 542,480 | 502,000 | 1/2/0 | 2 | 0 |
+| setup hub | 7 | 5 | 2,672,480 | 2,632,000 | 6/2/0 | 2 | 0 |
+| setup queue 18 | 9 | 5 | 35,506,720 | 35,456,000 | 78/2/0 | 2 | 0 |
+| setup queue 21 | 9 | 5 | 6,298,720 | 6,248,000 | 14/2/0 | 2 | 0 |
 | queue of 10 moves, checked | 20 | 8 | 527,040 | 420,000 | 0/12/0 | 2 | 0 |
 | queue of 5 moves, checked | 15 | 8 | 501,440 | 420,000 | 0/12/0 | 2 | 0 |
 | queue of 1 move, checked | 11 | 8 | 400,960 | 340,000 | 0/11/0 | 2 | 0 |
 | queue of 10 moves, no goblin, checked | 20 | 8 | 247,040 | 140,000 | 0/4/0 | 2 | 0 |
-| setup board 31 | 8 | 5 | 34,617,600 | 34,572,000 | 76/2/0 | 2 | 12000 |
+| setup board 31 | 8 | 5 | 34,617,600 | 34,572,000 | 76/2/0 | 2 | 0 |
 | capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 10 | 8 | 475,840 | 420,000 | 0/12/0 | 2 | 0 |
 | setup board 31 | 8 | 5 | 465,600 | 420,000 | 0/12/0 | 2 | 0 |
-| enter | 8 | 12 | 1,913,600 | 1,868,000 | 4/4/0 | 3 | 8000 |
+| enter | 8 | 12 | 1,913,600 | 1,868,000 | 4/4/0 | 3 | 0 |
 | leave | 7 | 7 | 260,480 | 220,000 | 0/3/4 | 3 | 0 |
-| fund the burner, give it adventurer 3 | 13 | 10 | 613,200 | 542,000 | 1/3/0 | 2 | 2000 |
-| deploy the burner | 3 | 7 | 1,366,000 | 1,346,000 | 3/2/0 | 2 | 6000 |
-| B burner direct: enter | 8 | 12 | 1,913,600 | 1,868,000 | 4/4/0 | 3 | 8000 |
+| fund the burner, give it adventurer 3 | 13 | 10 | 613,200 | 542,000 | 1/3/0 | 2 | 0 |
+| deploy the burner | 3 | 7 | 1,366,000 | 1,346,000 | 3/2/0 | 2 | 0 |
+| B burner direct: enter | 8 | 12 | 1,913,600 | 1,868,000 | 4/4/0 | 3 | 0 |
 | B burner direct: leave | 7 | 7 | 260,480 | 220,000 | 0/3/4 | 3 | 0 |
-| C burner via relayer: enter | 19 | 12 | 2,451,920 | 2,350,000 | 5/4/0 | 4 | 10000 |
-| C burner via relayer: leave | 18 | 7 | 798,800 | 702,000 | 1/3/4 | 4 | 2000 |
+| C burner via relayer: enter | 19 | 12 | 2,451,920 | 2,350,000 | 5/4/0 | 4 | 0 |
+| C burner via relayer: leave | 18 | 7 | 798,800 | 702,000 | 1/3/4 | 4 | 0 |
 | give adventurer 3 back to the owner | 7 | 5 | 140,480 | 100,000 | 0/3/0 | 2 | 0 |
 | return the burner's STRK | 9 | 10 | 110,720 | 60,000 | 0/3/0 | 1 | 0 |
+
+Observed divisibility, not predictive accuracy: the normalisations below all leave every state part a multiple of 2,000 (a property of these receipts); how well slots *predict* the state part is §4.
+
+| Signature felt priced at | Constants in 0..20,000 that keep every state part a multiple of 2,000 |
+|---:|---|
+| 0 | 880, 2,880, 4,880, 6,880, 8,880, 10,880, 12,880, 14,880, 16,880, 18,880 |
+| 5,120 | 640, 2,640, 4,640, 6,640, 8,640, 10,640, 12,640, 14,640, 16,640, 18,640 |
 
 ## 3. Controlled pairs: one thing differs
 
@@ -143,8 +150,8 @@ Largest error: 165,481 L2 gas.
 
 | Kind of slot | From the controlled pairs: min / median / max | Least squares | quiver (D-135) |
 |---|---:|---:|---:|
-| New (its value was 0) | 426,000 / 456,375 / 482,000 | 453,524 | 402,000 |
-| Overwritten or zeroed | 20,000 / 33,333 / 80,000 | 32,072 | — |
+| New (its value was 0) | 426,000 / 449,187.5 / 482,000 | 453,524 | 402,000 |
+| Overwritten or zeroed | 20,000 / 33,333.3 / 80,000 | 32,072 | — |
 
 ## 6. SPK-1 §4's non-game remainder, rebuilt
 
@@ -161,7 +168,7 @@ Non-game remainder = receipt − game call = validate + account execution + fee 
 | leave | 1,348,065 | 1,054,985 | 32,600 | 40,480 | 0 × ≈ 453,524 | 7 × ≈ 32,072 |
 | B burner direct: enter | 2,628,235 | 684,835 | 29,800 | 45,600 | 4 × ≈ 453,524 | 4 × ≈ 32,072 |
 | B burner direct: leave | 977,915 | 684,835 | 32,600 | 40,480 | 0 × ≈ 453,524 | 7 × ≈ 32,072 |
-| C burner via relayer: leave | 1,883,925 | 1,058,525 | 26,600 | 96,800 | 1 × ≈ 453,524 | 7 × ≈ 32,072 |
+| C burner via relayer: leave | 2,386,685 | 1,561,285 | 26,600 | 96,800 | 1 × ≈ 453,524 | 7 × ≈ 32,072 |
 
 ## 7. SPK-2's native entrypoints on the local node (devnet_trace.py)
 

@@ -15,11 +15,27 @@ Terms (SPK-1 §4's method):
 """
 import json
 import os
+import statistics
 from collections import OrderedDict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PER_FELT = 5_120  # found below: calldata and signature, per felt, inside res1
-BASE = 4_640      # found below: what remains of res1 with no felt and no slot
+PER_FELT = 5_120  # found below: per felt of calldata, inside res1 (controlled pairs)
+# An assumed normalisation, not an identified term: every transaction here carries a signature of
+# 2 felts, so the signature's price cannot be separated from the constant. BASE is the constant
+# *if* a signature felt costs what a calldata felt costs (base 14,880 with a free signature fits
+# the same data).
+SIG_FELTS = 2
+BASE = 4_640
+GAME_CONTRACTS = {"Hub", "Instances"}
+
+
+def game_calls(node):
+    """The inclusive L2 gas of the topmost invocations of the game's contracts, each counted once."""
+    if not node:
+        return 0
+    if node["to"] in GAME_CONTRACTS:
+        return node["l2_gas"]
+    return sum(game_calls(c) for c in node.get("calls", []))
 
 
 def load():
@@ -29,7 +45,7 @@ def load():
         sd = d["state_diff"]
         ent = [(c["contract"], e) for c in sd["storage"] for e in c["entries"]]
         inv = sum(x["l2_gas"] for x in (d["validate"], d["execute"], d["fee_transfer"]) if x)
-        game = sum(c["l2_gas"] for c in (d["execute"] or {}).get("calls", [])) if d["type"] == "INVOKE" else 0
+        game = game_calls(d["execute"]) if d["type"] == "INVOKE" else 0
         new = sum(e["prev_zero"] for _, e in ent)
         zeroed = sum((not e["prev_zero"]) and e["value_zero"] for _, e in ent)
         over = len(ent) - new - zeroed
@@ -113,14 +129,27 @@ def main():
         distinct.setdefault(signature(r), r)
     shapes = list(distinct.values())
 
-    print("\n## 2. res1 = BASE + PER_FELT × felts + the state part\n")
-    print(f"BASE = {fmt(BASE)}, PER_FELT = {fmt(PER_FELT)}. The *state part* is res1 − BASE − PER_FELT × felts. "
+    print("\n## 2. res1 = BASE + PER_FELT × felts + the state part (an accounting identity, not a model)\n")
+    print(f"BASE = {fmt(BASE)}, PER_FELT = {fmt(PER_FELT)}. The *state part* is res1 − BASE − PER_FELT × felts, "
+          "felts counting calldata and the signature. **The split between BASE and the signature is an assumed "
+          f"normalisation**: every transaction carries {SIG_FELTS} signature felts, so only BASE + "
+          f"{SIG_FELTS} × (the signature felt's price) is identified, here {fmt(BASE + SIG_FELTS * PER_FELT)}. "
           "Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):\n")
-    print("| Label | Felts | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 20,000 |")
+    print("| Label | Felts (calldata + signature) | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 2,000 |")
     print("|---|---:|---:|---:|---:|---|---:|---:|")
     for r in shapes:
         print(f"| {r['label']} | {r['felts']} | {r['event_felts']} | {fmt(r['res1'])} | {fmt(r['state'])} "
-              f"| {r['new']}/{r['over']}/{r['zeroed']} | {len(r['per_contract'])} | {r['state'] % 20000} |")
+              f"| {r['new']}/{r['over']}/{r['zeroed']} | {len(r['per_contract'])} | {r['state'] % 2000} |")
+    # Which constants keep every state part a multiple of 2,000, for a signature felt priced 0 or like calldata?
+    print("\nObserved divisibility, not predictive accuracy: the normalisations below all leave every state part "
+          "a multiple of 2,000 (a property of these receipts); how well slots *predict* the state part is §4.\n")
+    print("| Signature felt priced at | Constants in 0..20,000 that keep every state part a multiple of 2,000 |")
+    print("|---:|---|")
+    for sig_price in (0, PER_FELT):
+        ok = [b for b in range(0, 20_001, 40)
+              if all((r["res1"] - PER_FELT * (r["felts"] - SIG_FELTS) - sig_price * SIG_FELTS - b) % 2000 == 0
+                     for r in shapes)]
+        print(f"| {fmt(sig_price)} | {', '.join(fmt(b) for b in ok)} |")
 
     by_label = {r["label"]: r for r in shapes}
 
@@ -200,11 +229,11 @@ def main():
     print("\n## 5. The figure per slot our data supports\n")
     print("| Kind of slot | From the controlled pairs: min / median / max | Least squares | quiver (D-135) |")
     print("|---|---:|---:|---:|")
-    med = lambda v: sorted(v)[len(v) // 2]
-    print(f"| New (its value was 0) | {fmt(round(min(news)))} / {fmt(round(med(news)))} / {fmt(round(max(news)))} "
+    med = statistics.median  # the conventional median: the mean of the two middle values when even
+    print(f"| New (its value was 0) | {fmt(round(min(news)))} / {med(news):,.1f} / {fmt(round(max(news)))} "
           f"| {fmt(round(a))} | 402,000 |")
     others = overs + [ret["state"] / 3, give["state"] / 3]
-    print(f"| Overwritten or zeroed | {fmt(round(min(others)))} / {fmt(round(med(others)))} / {fmt(round(max(others)))} "
+    print(f"| Overwritten or zeroed | {fmt(round(min(others)))} / {med(others):,.1f} / {fmt(round(max(others)))} "
           f"| {fmt(round(b))} | — |")
 
     print("\n## 6. SPK-1 §4's non-game remainder, rebuilt\n")
