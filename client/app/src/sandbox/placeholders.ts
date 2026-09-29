@@ -1,4 +1,4 @@
-import type { Facing, Tile, ViewActor, ViewArcs } from "../render/view";
+import type { Facing, Tile, ViewActor, ViewArcs, ViewGoblin } from "../render/view";
 import { CHUNK, type Terrain, inBounds, kindAt, sameTile } from "./world";
 
 /**
@@ -138,6 +138,17 @@ export function inWindow(centre: Tile, tile: Tile): boolean {
   return Math.abs(tile.x - centre.x) <= half && tile.y >= top && tile.y < top + WINDOW.rows;
 }
 
+/**
+ * PLACEHOLDER until CLI-02. Whether a tile lies inside the window's outer ring: the window less its
+ * first and last columns and rows. The ring is wall for the chain's tick (D-120; SPK-7 §4: the
+ * flood never enters it, goblins there are frozen), so a path neither ends nor passes there.
+ */
+export function insideRing(centre: Tile, tile: Tile): boolean {
+  const half = (WINDOW.columns - 1) / 2 - 1;
+  const top = centre.y - 8 + (centre.y & 1);
+  return Math.abs(tile.x - centre.x) <= half && tile.y > top && tile.y < top + WINDOW.rows - 1;
+}
+
 /** Ticks a step of a path costs: one (a placeholder, until the rules' move cost reaches here). */
 export const TICKS_PER_STEP = 1;
 
@@ -145,9 +156,12 @@ export const TICKS_PER_STEP = 1;
  * PLACEHOLDER until CLI-02 (design/02 *The planned queue*, the map library's finder, the flood of
  * the tick). The shortest path of the mover from `from` to `to`, first step first, `from`
  * excluded: over floor tiles no actor holds (walls and unrevealed tiles are not floor), inside
- * the window around `from` (D-120). Among shortest paths, each step takes the neighbour of lowest
- * tile index (`y`, then `x`: design/04 and the determinism rules). Null when there is none, or when
- * `to` is `from`. A breadth-first flood from `to`, bounded by the window's 240 tiles.
+ * the window around `from` and off its outer ring (D-120, `insideRing`). Null when there is none,
+ * or when `to` is `from`. A breadth-first flood from `to`, bounded by the window's 240 tiles.
+ *
+ * The tie rule is **a reading** of "lowest tile index" (design/04, the determinism rules): among
+ * shortest paths, each step takes the neighbour of lowest index (`y`, then `x`). The map library's
+ * finder may break ties otherwise; CLI-02 replaces this function by it, and its paths are the rule.
  */
 export function findPath(
   terrain: Terrain,
@@ -156,7 +170,7 @@ export function findPath(
   to: Tile,
 ): Tile[] | null {
   const free = (tile: Tile) =>
-    inWindow(from, tile) &&
+    insideRing(from, tile) &&
     kindAt(terrain, tile) === "floor" &&
     !actors.some((a) => sameTile(a.tile, tile));
   if (sameTile(from, to) || !free(to)) return null;
@@ -234,4 +248,36 @@ export function revealInSight(terrain: Terrain, centre: Tile): Terrain {
     return touched && kind === "unrevealed" ? (terrain.hidden[index] ?? "wall") : kind;
   });
   return { ...terrain, kinds };
+}
+
+/** A location's state before or after a step: what the stop conditions read. */
+export interface StepState {
+  readonly terrain: Terrain;
+  readonly actors: readonly ViewActor[];
+}
+
+/** The stop conditions a step met; nothing met is `{ entered: [], revealed: false }`. */
+export interface StepStops {
+  /** Goblins in sight after the step and not before, lowest entity id first. */
+  readonly entered: readonly ViewGoblin[];
+  /** A chunk was revealed by the step: a tile unrevealed before is not after. */
+  readonly revealed: boolean;
+}
+
+/**
+ * PLACEHOLDER until CLI-02. The stop conditions of a planned queue that the sandbox can evaluate
+ * after a step (design/02 *The planned queue and its stop conditions*): a goblin enters sight (the
+ * goblins of `visibleActors` after the step that were not before), a chunk is revealed. The others
+ * (damage, a condition, a goblin alerted or activating a skill, a Fate action) have no placeholder;
+ * the next step being invalid is `stepToward`'s answer.
+ */
+export function stopsAfterStep(before: StepState, after: StepState): StepStops {
+  const seen = new Set(visibleActors(before.terrain, before.actors).map((a) => a.id));
+  const entered = visibleActors(after.terrain, after.actors)
+    .filter((a): a is ViewGoblin => a.side === "goblin" && !seen.has(a.id))
+    .sort((a, b) => a.id - b.id);
+  const revealed = before.terrain.kinds.some(
+    (kind, i) => kind === "unrevealed" && after.terrain.kinds[i] !== "unrevealed",
+  );
+  return { entered, revealed };
 }

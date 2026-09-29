@@ -17,10 +17,13 @@ export interface ViewSink {
   setView(view: ViewState): void;
 }
 
-/** Timers of the host (the renderer's `FrameHost` is one). */
+/** Timers and visibility of the host (the renderer's `FrameHost` is one). */
 export interface WalkTimers {
   setTimer(callback: () => void, ms: number): number;
   clearTimer(handle: number): void;
+  hidden(): boolean;
+  /** Calls back on every change of visibility; returns the unsubscription. */
+  onVisibilityChange(callback: () => void): () => void;
 }
 
 /** The minimal counter of the planned queue (design/11 *The queue*; the real HUD is CLI-05). */
@@ -46,11 +49,19 @@ export interface SessionOptions extends TapOptions {
  * The sandbox's state over time: intents through the wiring, and a planned queue walked one step
  * at a time on the host's timers (design/02 *The planned queue*). The first step is played on the
  * tap that starts the walk, each next one `stepMs` later; nothing is scheduled once the walk ends.
+ *
+ * No step is played unseen: while the page is hidden the walk pauses (its timer is cleared, the
+ * plan kept), and when the page shows again it resumes, the next step `stepMs` later. Resumed, not
+ * stopped: nothing happened while hidden (no step was played, and goblins act only on the
+ * adventurer's actions, D-40), and each resumed step evaluates the stop conditions as before.
+ *
+ * An inspect never touches the walk: no step played, no timer restarted.
  */
 export class SandboxSession {
   private current: SandboxState;
   private timer: number | null = null;
   private options: SessionOptions;
+  private readonly unsubscribe: () => void;
 
   constructor(
     world: SandboxWorld,
@@ -61,6 +72,7 @@ export class SandboxSession {
     this.options = options;
     this.current = initialState(world);
     this.sink.setView(toView(this.current));
+    this.unsubscribe = timers.onVisibilityChange(() => this.visibilityChanged());
   }
 
   get state(): SandboxState {
@@ -68,6 +80,11 @@ export class SandboxSession {
   }
 
   apply(intent: Intent): void {
+    if (intent.kind === "inspect") {
+      this.current = applyIntent(this.current, intent, this.options);
+      this.show();
+      return;
+    }
     this.stopTimer();
     this.current = applyIntent(this.current, intent, this.options);
     this.show();
@@ -104,12 +121,28 @@ export class SandboxSession {
     };
   }
 
+  /** Whether a step of the walk is scheduled. */
+  stepScheduled(): boolean {
+    return this.timer !== null;
+  }
+
   destroy(): void {
     this.stopTimer();
+    this.unsubscribe();
+  }
+
+  private visibilityChanged(): void {
+    if (this.timers.hidden()) {
+      this.stopTimer();
+    } else if (this.current.walking && this.timer === null) {
+      this.timer = this.timers.setTimer(() => this.walkOn(), this.options.stepMs);
+    }
   }
 
   private walkOn(): void {
     this.timer = null;
+    // Hidden: paused; the step is played once the page shows again.
+    if (this.timers.hidden()) return;
     this.current = walkStep(this.current);
     this.show();
     if (this.current.walking) {

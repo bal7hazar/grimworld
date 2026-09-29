@@ -7,6 +7,7 @@ import {
   findPath,
   revealInSight,
   stepToward,
+  stopsAfterStep,
   tilesInSight,
   visibleActors,
 } from "./placeholders";
@@ -33,6 +34,9 @@ export interface SandboxState {
   /** One line on what the last intent did, for the debug panel. */
   readonly said: string;
 }
+
+/** The one line of a walk ended by a tap: on the counter, or on the map. */
+export const CANCELLED = "walk cancelled";
 
 /** How a tap on a floor tile plays (design/11 *Confirmation*, I-5). */
 export interface TapOptions {
@@ -91,7 +95,7 @@ function drop(state: SandboxState, reason: string, said: string): SandboxState {
 /** A tap on the counter: the steps not yet walked fade out (design/11 *The queue*). */
 export function cancelWalk(state: SandboxState): SandboxState {
   if (state.path.length === 0) return state;
-  return drop(state, "", state.walking ? "walk cancelled" : "preview cancelled");
+  return state.walking ? drop(state, CANCELLED, CANCELLED) : drop(state, "", "preview cancelled");
 }
 
 /**
@@ -128,8 +132,12 @@ export function applyIntent(
       said: `tap ${where}: walk ${state.path.length} steps`,
     };
   }
+  // A tap ends the planned queue first; a walk it ends says so in its one line (a new walk
+  // started by the same tap replaces the line).
   const before: SandboxState =
-    state.path.length > 0 ? drop(state, "", "") : { ...state, dropped: [], stopped: "" };
+    state.path.length > 0
+      ? drop(state, state.walking ? CANCELLED : "", "")
+      : { ...state, dropped: [], stopped: "" };
   if (kind === null || kind === "unrevealed") {
     return cleared(before, `tap ${where}: outside, clear`);
   }
@@ -160,6 +168,7 @@ export function applyIntent(
     selectedTile: tile,
     path,
     walking: options.playOnTap,
+    stopped: options.playOnTap ? "" : before.stopped,
     said: `tap ${where}: ${how} ${path.length} steps, ${path.length * TICKS_PER_STEP} ticks`,
   };
 }
@@ -198,7 +207,6 @@ export function walkStep(state: SandboxState): SandboxState {
     const why = holder ? `${article(nameOf(holder))} stands in the way` : "the way is blocked";
     return drop(state, why, `${walk}: planned ${at(next)} invalid, stop: ${why}`);
   }
-  const seenBefore = new Set(visibleActors(terrain, world.actors).map((a) => a.id));
   const actors = world.actors.map((a) =>
     a.id === adventurer.id ? { ...a, tile: step.tile, facing: step.facing } : a,
   );
@@ -209,12 +217,11 @@ export function walkStep(state: SandboxState): SandboxState {
     path: state.path.slice(1),
     said: `${walk}: planned ${at(next)}, stepped to ${at(step.tile)}, facing ${step.facing}`,
   };
-  const entered = visibleActors(revealed, actors).filter(
-    (a) => a.side === "goblin" && !seenBefore.has(a.id),
-  );
+  const stops = stopsAfterStep({ terrain, actors: world.actors }, { terrain: revealed, actors });
+  const { entered } = stops;
   const reasons: string[] = [];
   if (entered.length > 0) reasons.push(`${listed(entered.map(nameOf))} came into sight`);
-  if (revealed !== terrain) reasons.push("a chunk was revealed");
+  if (stops.revealed) reasons.push("a chunk was revealed");
   if (reasons.length > 0) {
     const who = entered.map((a) => `#${a.id} ${nameOf(a)} at ${at(a.tile)}`).join(", ");
     const why = reasons.join("; ");

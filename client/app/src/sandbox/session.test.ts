@@ -90,7 +90,12 @@ describe("the walk of a planned path (design/02, design/11)", () => {
     expect(adventurer().tile).toEqual({ x: start.x - 2, y: start.y });
     renderer.scheduler.input();
     session.cancel();
-    expect(session.walk()).toEqual({ steps: 0, cost: 0, walking: false, stopped: "" });
+    expect(session.walk()).toEqual({
+      steps: 0,
+      cost: 0,
+      walking: false,
+      stopped: "walk cancelled",
+    });
     expect(session.state.dropped).toHaveLength(4);
     const fading = (surface.stage.children[0] as Container).children[2] as Container;
     expect(fading.alpha).toBe(1);
@@ -100,6 +105,105 @@ describe("the walk of a planned path (design/02, design/11)", () => {
     host.run(10_000);
     expect(adventurer().tile).toEqual({ x: start.x - 2, y: start.y });
     expect(host.quiet()).toBe(true);
+  });
+
+  it("a tap on the map that ends a walk says so; one that starts another walk does not", () => {
+    const { host, session, adventurer, tap } = setup("meadow");
+    const start = adventurer().tile;
+    tap({ x: start.x - 6, y: start.y });
+    host.run(STEP_MS);
+    tap({ x: 0, y: 0 }); // the border: a wall
+    expect(session.walk()).toMatchObject({ steps: 0, walking: false, stopped: "walk cancelled" });
+    tap({ x: start.x - 6, y: start.y });
+    host.run(STEP_MS / 2);
+    tap({ x: start.x - 6, y: start.y - 1 }); // another floor tile: the new walk replaces the old
+    expect(session.walk()).toMatchObject({ walking: true, stopped: "" });
+    expect(session.walk().steps).toBeGreaterThan(0);
+    host.run(5000);
+    expect(host.quiet()).toBe(true);
+  });
+
+  it("an inspect during a walk plays no step and keeps the walk's pace (F-1)", () => {
+    const { host, session, adventurer } = setup("meadow");
+    const start = adventurer().tile;
+    session.apply({ kind: "tile", tile: { x: start.x - 6, y: start.y } });
+    // Steps due at 0, 180, 360, … ms; inspects every 50 ms, on the adventurer and elsewhere.
+    const seen: { at: number; x: number }[] = [];
+    let last = adventurer().tile.x;
+    for (let t = 0; t < STEP_MS * 6; t += 10) {
+      if (t % 50 === 0) {
+        const tile = t % 100 === 0 ? adventurer().tile : { x: start.x, y: start.y + 3 };
+        session.apply({ kind: "inspect", tile });
+        expect(session.state.said).toContain("inspect");
+      }
+      host.run(10);
+      if (adventurer().tile.x !== last) {
+        last = adventurer().tile.x;
+        seen.push({ at: host.time, x: last });
+      }
+    }
+    expect(seen.map((s) => s.at)).toEqual([180, 360, 540, 720, 900]);
+    expect(seen.map((s) => s.x)).toEqual([2, 3, 4, 5, 6].map((k) => start.x - k));
+    expect(session.walk().walking).toBe(false);
+  });
+
+  it("no step is played while the page is hidden; the walk resumes when it shows", () => {
+    const { host, session, adventurer, surface } = setup("meadow");
+    const start = adventurer().tile;
+    session.apply({ kind: "tile", tile: { x: start.x - 6, y: start.y } });
+    host.run(STEP_MS * 1.5); // two steps played
+    expect(adventurer().tile).toEqual({ x: start.x - 2, y: start.y });
+    host.setHidden(true);
+    const renders = surface.renders;
+    host.run(60_000);
+    expect(adventurer().tile).toEqual({ x: start.x - 2, y: start.y });
+    expect(session.stepScheduled()).toBe(false);
+    expect(host.quiet()).toBe(true);
+    expect(surface.renders).toBe(renders);
+    expect(session.walk()).toMatchObject({ steps: 4, walking: true, stopped: "" });
+    // Shown: the next step one step's duration later, then the rest at the same pace.
+    host.setHidden(false);
+    host.run(STEP_MS - 1);
+    expect(adventurer().tile).toEqual({ x: start.x - 2, y: start.y });
+    host.run(1);
+    expect(adventurer().tile).toEqual({ x: start.x - 3, y: start.y });
+    host.run(STEP_MS * 3);
+    expect(adventurer().tile).toEqual({ x: start.x - 6, y: start.y });
+    host.run(5000);
+    expect(session.walk().walking).toBe(false);
+    expect(host.quiet()).toBe(true);
+  });
+
+  it("with idle animations on (D-151): after a walk and its fade, only the idle cadence remains", () => {
+    const host = new FakeHost(1000 / 120);
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, host, { idle: true });
+    renderer.resize({ width: 375, height: 812 });
+    const session = new SandboxSession(fixtureNamed("edge"), renderer, host, {
+      playOnTap: true,
+      stepMs: STEP_MS,
+    });
+    host.run(1000);
+    const cadence = () => {
+      const renders = surface.renders;
+      const wakeups = host.frames + host.timersRun;
+      host.run(10_000);
+      return {
+        renders: surface.renders - renders,
+        wakeups: host.frames + host.timersRun - wakeups,
+      };
+    };
+    const before = cadence();
+    const start = session.state.world.actors[0]!.tile;
+    session.apply({ kind: "tile", tile: { x: start.x + 4, y: start.y } }); // stops: a reveal
+    expect(session.state.stopped).toBe("a chunk was revealed");
+    host.run(STEP_MS + FADE_MS + 1000);
+    expect(session.stepScheduled()).toBe(false);
+    const after = cadence();
+    // The same idle frames as before the walk (12 a second here), and the same wake-ups.
+    expect(after.renders).toBe(before.renders);
+    expect(after.wakeups).toBe(before.wakeups);
+    expect(after.renders / 10).toBeLessThanOrEqual(15);
   });
 
   it("stops when a goblin enters sight, the rest fading, with the reason in one line", () => {

@@ -69,6 +69,48 @@ describe("placeholders.ts", () => {
     expect(finders).toEqual([]);
   });
 
+  it("the hex rules are imported by the wiring only, and copied nowhere (F-6)", () => {
+    const code = Object.entries(sources).filter(
+      ([path]) => !/\.test\.tsx?$/.test(path) && path !== "./placeholders.ts",
+    );
+    const RULES = [
+      "neighbour",
+      "distance",
+      "findPath",
+      "stepToward",
+      "stopsAfterStep",
+      "insideRing",
+      "inWindow",
+      "tilesInSight",
+      "visibleActors",
+      "revealInSight",
+      "arcsOf",
+      "facingToward",
+    ];
+    // An import that binds one of them, from any module.
+    const importers = code
+      .filter(([, text]) =>
+        [...text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from/g)].some((m) =>
+          (m[1] ?? "").split(",").some((name) => RULES.includes(name.trim().split(/\s+as\s+/)[0]!)),
+        ),
+      )
+      .map(([path]) => path);
+    expect(importers).toEqual(["./wiring.ts"]);
+    // No other module exports one of them (a second copy of a rule).
+    const exporters = code
+      .filter(([, text]) =>
+        RULES.some((name) => new RegExp(`export\\s+(function|const)\\s+${name}\\b`).test(text)),
+      )
+      .map(([path]) => path);
+    expect(exporters).toEqual([]);
+    // The wiring imports none of the grid's geometry: it has no use for it.
+    const wiring = sources["./wiring.ts"] ?? "";
+    expect(wiring).not.toMatch(/\b(neighbour|distance|inWindow|insideRing)\b/);
+    // The stop conditions are the placeholder's: the wiring does not diff sight itself.
+    expect(wiring).toContain("stopsAfterStep(");
+    expect(wiring).not.toMatch(/\.has\(a\.id\)|=== "unrevealed" &&/);
+  });
+
   it("uses no randomness and no clock", () => {
     const text = sources["./placeholders.ts"] ?? "";
     expect(text).not.toMatch(/Math\.random|Date\.|performance\.now|crypto\./);

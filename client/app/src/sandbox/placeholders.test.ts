@@ -8,9 +8,11 @@ import {
   facingToward,
   findPath,
   inWindow,
+  insideRing,
   neighbour,
   revealInSight,
   stepToward,
+  stopsAfterStep,
   tilesInSight,
   visibleActors,
 } from "./placeholders";
@@ -252,13 +254,13 @@ describe("findPath (PLACEHOLDER until CLI-02)", () => {
     }
   });
 
-  it("bounded by the window of 15 × 16 around the adventurer (D-120)", () => {
+  it("bounded by the window of 15 × 16 around the adventurer, less its ring (D-120)", () => {
     const terrain = open(40, 40);
-    // Columns: 7 each side.
-    expect(findPath(terrain, [me], me.tile, { x: 17, y: 10 })).toHaveLength(7);
-    expect(findPath(terrain, [me], me.tile, { x: 18, y: 10 })).toBeNull();
-    expect(findPath(terrain, [me], me.tile, { x: 3, y: 10 })).toHaveLength(7);
-    expect(findPath(terrain, [me], me.tile, { x: 2, y: 10 })).toBeNull();
+    // Columns: 7 each side, the seventh the ring's: 6 each side.
+    expect(findPath(terrain, [me], me.tile, { x: 16, y: 10 })).toHaveLength(6);
+    expect(findPath(terrain, [me], me.tile, { x: 17, y: 10 })).toBeNull();
+    expect(findPath(terrain, [me], me.tile, { x: 4, y: 10 })).toHaveLength(6);
+    expect(findPath(terrain, [me], me.tile, { x: 3, y: 10 })).toBeNull();
     // Rows on an even row: 10 - 8 = 2 to 17; on an odd row: 11 - 7 = 4 to 19.
     const window = (centre: { x: number; y: number }) => {
       const rows = new Set<number>();
@@ -267,10 +269,36 @@ describe("findPath (PLACEHOLDER until CLI-02)", () => {
     };
     expect(window({ x: 10, y: 10 })).toEqual([2, 17, 16]);
     expect(window({ x: 10, y: 11 })).toEqual([4, 19, 16]);
-    expect(findPath(terrain, [me], me.tile, { x: 10, y: 2 })).not.toBeNull();
-    expect(findPath(terrain, [me], me.tile, { x: 10, y: 1 })).toBeNull();
-    expect(findPath(terrain, [me], me.tile, { x: 10, y: 17 })).not.toBeNull();
-    expect(findPath(terrain, [me], me.tile, { x: 10, y: 18 })).toBeNull();
+    // Inside the ring: rows 3 to 16 of the even row's window; 2 and 17 are the ring.
+    expect(findPath(terrain, [me], me.tile, { x: 10, y: 3 })).not.toBeNull();
+    expect(findPath(terrain, [me], me.tile, { x: 10, y: 2 })).toBeNull();
+    expect(findPath(terrain, [me], me.tile, { x: 10, y: 16 })).not.toBeNull();
+    expect(findPath(terrain, [me], me.tile, { x: 10, y: 17 })).toBeNull();
+    const ring = (centre: { x: number; y: number }) => {
+      const tiles: { x: number; y: number }[] = [];
+      for (let y = 0; y < 40; y++) {
+        for (let x = 0; x < 40; x++) {
+          const t = { x, y };
+          if (inWindow(centre, t) && !insideRing(centre, t)) tiles.push(t);
+        }
+      }
+      return tiles;
+    };
+    // The ring: 2 × 15 + 2 × 14 tiles, on both row parities.
+    expect(ring({ x: 10, y: 10 })).toHaveLength(58);
+    expect(ring({ x: 10, y: 11 })).toHaveLength(58);
+    const odd = hero(10, 11);
+    expect(findPath(terrain, [odd], odd.tile, { x: 10, y: 5 })).not.toBeNull();
+    expect(findPath(terrain, [odd], odd.tile, { x: 10, y: 4 })).toBeNull();
+    expect(findPath(terrain, [odd], odd.tile, { x: 10, y: 18 })).not.toBeNull();
+    expect(findPath(terrain, [odd], odd.tile, { x: 10, y: 19 })).toBeNull();
+    // A way that exists only through the ring is no way: a wall whose one gap is on the ring.
+    const gapOnRing = walled(
+      40,
+      40,
+      Array.from({ length: 30 }, (_, y) => ({ x: 13, y })).filter((t) => t.y !== 17),
+    );
+    expect(findPath(gapOnRing, [me], me.tile, { x: 15, y: 10 })).toBeNull();
     // A way that exists only outside the window is no way: a wall across the window's rows.
     const wall = walled(
       40,
@@ -284,7 +312,46 @@ describe("findPath (PLACEHOLDER until CLI-02)", () => {
       Array.from({ length: 30 }, (_, y) => ({ x: 13, y })).filter((t) => t.y !== 16),
     );
     const path = findPath(open20, [me], me.tile, { x: 15, y: 10 })!;
-    expect(path.every((t) => inWindow(me.tile, t))).toBe(true);
+    expect(path.every((t) => insideRing(me.tile, t))).toBe(true);
     expect(path.some((t) => sameTile(t, { x: 13, y: 16 }))).toBe(true);
+  });
+});
+
+describe("stopsAfterStep (PLACEHOLDER until CLI-02, design/02)", () => {
+  const terrain = open(30, 30);
+
+  it("names the goblins in sight after the step and not before, lowest id first", () => {
+    const before = hero(10, 10);
+    const after = { ...before, tile: { x: 11, y: 10 } };
+    // 7 West of (10, 10): out of sight; one step West brings them to 6.
+    const far = [goblin(17, 10, 0, 5), goblin(17, 10, 0, 3)].map((g, i) =>
+      i === 0 ? { ...g, tile: { x: 17, y: 10 } } : { ...g, tile: { x: 16, y: 11 } },
+    );
+    const near = goblin(12, 10, 0, 2); // in sight before and after: not named
+    const stops = stopsAfterStep(
+      { terrain, actors: [before, near, ...far] },
+      { terrain, actors: [after, near, ...far] },
+    );
+    expect(stops.entered.map((g) => g.id)).toEqual([3, 5]);
+    expect(stops.revealed).toBe(false);
+    // The step back: nobody enters (leaving sight is no stop).
+    const back = stopsAfterStep(
+      { terrain, actors: [after, near, ...far] },
+      { terrain, actors: [before, near, ...far] },
+    );
+    expect(back).toEqual({ entered: [], revealed: false });
+  });
+
+  it("a chunk revealed: a tile unrevealed before is not after", () => {
+    const kinds = terrain.kinds.map((k, i) => (i % 30 >= 2 * CHUNK - 1 ? "unrevealed" : k));
+    const hidden: Terrain = { ...terrain, kinds };
+    const me = hero(22, 7);
+    const shown = revealInSight(hidden, { x: 23, y: 7 });
+    expect(
+      stopsAfterStep({ terrain: hidden, actors: [me] }, { terrain: shown, actors: [me] }),
+    ).toMatchObject({ revealed: true });
+    expect(
+      stopsAfterStep({ terrain: hidden, actors: [me] }, { terrain: hidden, actors: [me] }).revealed,
+    ).toBe(false);
   });
 });
