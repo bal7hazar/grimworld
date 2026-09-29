@@ -42,4 +42,29 @@ cannot hold once CBT-03 to CBT-05 and ENG-07 add their parts, unless levers are 
 
 ## Decision
 
-Pending.
+**D-161**, `[Opus 5.5]` project manager, 2026-09-29, under D-128.
+
+1. **The orchestrator's plan is accepted**: (a) no copies of the goblin struct and (b) a cheaper limb
+   split now, as **CBT-02b**, re-measured, no interface change; (c) compact tick sheets and (d) packed
+   content calldata decided with ENG-07 on its whole-batch measure; (e) the design's levers and R-2
+   after ENG-07's measure; **CBT-02 merges with its cost escalated** once its audit passes.
+2. **The worst tick is above its target with the map included.** The map library measured its part
+   of a worst tick at 1.06M to 1.11M (window, flood at 15 layers, 8 walkers; `hexx-cairo`,
+   LIB-05-M1-T9b), which this tick's 1.01M to 1.39M does not count. A worst tick is therefore about
+   **2.1M to 2.5M before writes and the executor**, against 1.47M. The mixed expedition may still
+   hold (shared reads, ticks without goblins awake); S1 does not without a lever. R-2 is
+   **likely**, no longer a watch.
+3. **SPK-12, client-side proving, is run now**, lent to track CV on the Mac (D-149): the one lever
+   that changes the order of magnitude, since ADR-0001 option D priced a proof at about 75M L2 gas
+   (not measured by us), against about 660M for S1. It compares, on our figures: L2 batches as
+   designed; proving the deterministic segments on the client (SNIP-36) and settling one proof per
+   segment, with randomness (entry, reveal, loot) staying as L2 transactions; its proving time on
+   the Mac and an estimate for a phone, the proof's size and verification cost, what it does to
+   co-op (D-80), to the fresh word of each reveal (D-64), to the client (the Cairo code run in the
+   client, SPK-4 option b) and to cheating. It reads the owner's `slingfall` programme, which proves
+   with SNIP-36 (`docs/proving.md`). **Reopening ADR-0001 is the owner's decision**, on SPK-12's
+   report.
+
+**What would reverse it**: ENG-07 measuring a tick inside a batch near its target (then SPK-12
+stays a study for version 1).
+
