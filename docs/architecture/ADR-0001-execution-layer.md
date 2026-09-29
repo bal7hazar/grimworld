@@ -141,3 +141,20 @@ The decision becomes **Accepted** when all pass; otherwise option B is re-examin
 | SPK-3 vRNG | Gas overhead and added latency of a vRNG request; behaviour when the provider is down | Overhead measured; failure is detectable and retryable |
 | SPK-4 Parity | Can one source of truth feed both sides (Cairo test vectors replayed by the client simulation)? | 10 000 generated vectors, 0 divergence |
 | SPK-5 Toolchain | Pin Dojo / Cairo / Scarb / Katana / Torii / dojo.js versions that work together | Reproducible build from a clean machine |
+
+## Measured (Phase 0, gathered by FND-04 on 2026-09-29)
+
+Figures and their sources only; the decisions they led to are D-129, D-133 and D-137.
+
+| Question | Measured | Source |
+|---|---|---|
+| **Latency to pre-confirmed**, first positive receipt response, Sepolia, from the VPS | p50 **1,265 ms**, p95 **2,774 ms**, max 3,019 ms over 70 transactions; the worst tick alone p50 1,020 ms. **p95 ≤ 3 s is met; p50 ≤ 1 s is not decided** by this sampling (upper bounds, 250 ms polling) | SPK-1 §2 |
+| Latency to accepted on L2 | p50 3,764 ms, p95 4,517 ms; a block about every 1.7 s | SPK-1 §2 |
+| The meter | **Sierra gas** for the game's classes (Sierra 1.9.3) on Sepolia (Starknet 0.14.4); the local node meters VM resources | SPK-1 §3 |
+| The worst tick under D-127, one action per transaction | 5,129,938 L2 gas with the owner's account, 4,759,788 with the burner (D); the game's call 3,564,913 | SPK-1 §3, §4; FND-04 |
+| **The fixed part of a transaction** | **717,435** L2 gas with the MVP's burner sending directly; 1,087,585 with the owner's account | SPK-1b §1 |
+| **A changed storage slot** | **453,524** L2 gas when its value was 0 before (new), **32,072** when it held one (fitted under a chosen normalisation of the per-transaction constant; 426,000 to 482,000 and 20,000 to 80,000 over the pairs). A felt of calldata: 5,120 (M) | FND-04 §3, §4 |
+| **The threshold** ($0.50 for 300 actions, SPK-2's row above) | **Not met with one action per transaction**: $0.874 (S1, worst) and $0.685 (S2, mixed), a projection of Sepolia's measured receipts at mainnet prices of 2026-09-28 (1.75× and 1.37×; derived, D) | SPK-1 §5 |
+| **With batches** (D-133) and the burner (D-137) | Estimates (E): each batch is assumed to keep one tick's state remainder and DA footprint. Fights in batches of 10, each tick as measured: **$0.726 and $0.541** with the batch's 27 argument felts ($0.725 and $0.540 without, D-137's estimate). If a batch reads and writes the instance once, as a queue does: $0.579 and **$0.394**. S1 meets $0.50 with a tick of 1.47M inside a batch | [cost-budget.md](cost-budget.md) §3 |
+| **Batches** | A move costs 1,467,187 L2 gas inside a queue of 8 goblins against 3,326,336 alone (game calls, Sepolia; D). A batch pays the floor of a transaction (816,939 with the burner; D, under the chosen normalisation, 806,297 to 862,551 under every admissible one) once, and each slot it changes once per transaction | SPK-1 §3; FND-04 |
+| The cost of an active player per day | Not measured on Sepolia: the hub's actions are ENG-01's | cost-budget.md §4 |
