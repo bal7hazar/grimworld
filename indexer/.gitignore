@@ -1,6 +1,7 @@
 # Build outputs.
 dist/
 emitter/target/
+emitter/.snfoundry_cache/
 # Node log of scripts/with-node.sh (its banner holds the pre-funded accounts' keys), when
 # `pnpm test:node` runs it from this folder.
 .with-node/
