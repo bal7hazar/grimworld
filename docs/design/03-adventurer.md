@@ -1,6 +1,6 @@
 # 03 — Adventurer
 
-> Status: **Draft v0.3** (v0.3: at most 7 adventurers per account, D-144; v0.2: creation, slots, shared vault, appearance) — numbers are initial values for balancing. Profession, attribute
+> Status: **Draft v0.2** (v0.2: creation, slots, shared vault, appearance) — numbers are initial values for balancing. Profession, attribute
 > and skill names are working names; none may reuse a Guild Wars name for a skill, and no
 > icon may be derived from Guild Wars assets.
 
@@ -18,7 +18,7 @@ There is no appearance editor and no colour choice for now.
 
 | | |
 |---|---|
-| Adventurers per account | **3 slots**. More slots can be bought in game (business model), **up to 7 in all** (D-144): a bound of execution (one page of the account's list, ENG-01 §4.5), enforced where slots are granted. The number is the owner's to change with the business model; past 7 a second page must be measured first |
+| Adventurers per account | **3 slots**. More slots can be bought in game (business model) |
 | Deleting an adventurer | Frees the slot; its inventory must be emptied into the vault first |
 | **Vault** | One per account, **shared by all its adventurers**, reachable in hubs only |
 | Shared through the vault | Gold, ingredients, potions, equipment |
