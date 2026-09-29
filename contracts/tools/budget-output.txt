@@ -7,9 +7,9 @@
 | `leave`, `travel_back` to a hub | returned | 1 | 4 | 92,672 | 0 / 9 → **1,954,739** | 0 / 9 → **1,954,739** |
 | `leave` through a gate to a location | moved | 3 | 4 | 105,547 | 0 / 13 → **3,667,902** | 2 / 11 → **4,510,806** |
 | `loot` | a boss's 3 items | 3 | 4 | 0 | 3 / 18 → **3,683,287** | 10 / 11 → **6,633,451** |
-| `open` (a chest: 1 tick, then a draw) | completion, goblins near, with the objective | 3 | 4 | 965,408 | 1 / 56 → **9,245,296** | 37 / 17 → **24,321,352** |
-| `mine` (up to 3 ticks, no draw), its own union | defeat, goblins near, with the objective / completion, goblins near, with the objective | 2 | 4 | 2,803,552 | 0 / 111 → **20,666,710** | 89 / 16 → **57,844,498** |
-| `barter` (1 tick, then the hub's exchange) | completion, goblins near, with the objective | 3 | 4 | 965,408 | 1 / 53 → **9,049,080** | 32 / 19 → **22,017,876** |
+| `open` (a chest: 1 tick, then a draw) | completion, goblins near, with the objective | 3 | 5 | 965,408 | 1 / 56 → **9,250,416** | 37 / 17 → **24,326,472** |
+| `mine` (up to 3 ticks, no draw), its own union | defeat, goblins near, with the objective / completion, goblins near, with the objective | 2 | 5 | 2,803,552 | 0 / 111 → **20,671,830** | 89 / 16 → **57,849,618** |
+| `barter` (1 tick, then the hub's exchange) | completion, goblins near, with the objective | 3 | 5 | 965,408 | 1 / 53 → **9,054,200** | 32 / 19 → **22,022,996** |
 | `play`, weight 10, the cap of 16 goblins (E-16), first records weighed (E-1), ticks as alone | objective and defeat | 2 | 5 | 1,320,673 | 0 / 64 → **47,336,950** | 3 / 59 → **48,537,162** |
 | `play`, one 3-tick action alone, 42 goblins (E-21) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 111 → **20,556,791** | 88 / 22 → **57,612,495** |
 | `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 68 → **19,177,695** | 46 / 22 → **38,564,487** |
@@ -94,7 +94,7 @@ E-1, first records weighed: the worst branch of a batch of 16 goblins, n of them
   n = 8: objective and defeat: keys 64, cold (19, 43) → 21,001,090
   n = 9: objective and defeat: keys 64, cold (21, 41) → 17,559,081
 
-E-21, the unsplittable class (3-tick action among 42 goblins, `mine`): cold maximum 57,844,498 against 58,000,000 → holds
+E-21, the unsplittable class (3-tick action among 42 goblins, `mine`): cold maximum 57,849,618 against 58,000,000 → holds
 
 the audit's one-word figure under fix loop 2's model: 37,715,298 (61 keys: 45 new, 16 other)
   one word per goblin, open: keys 60; cold (45, 15) → 37,701,115

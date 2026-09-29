@@ -14,8 +14,8 @@ fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
 }
 
 #[test]
-// gas: raised, pins Stop::Version and the seven Stop ordinals (F-15)
-#[available_gas(l2_gas: 154025)] // ceil(1.05 × 146690 measured)
+// gas: raised, pins Stop::Version, Refusal::Version and their ordinals (F-15)
+#[available_gas(l2_gas: 215292)] // ceil(1.05 × 205040 measured)
 fn test_instances_event_keys_and_data() {
     let id = instance_id(5, 2);
     let (keys, data) = split(
@@ -83,6 +83,27 @@ fn test_instances_event_keys_and_data() {
     assert(keys == array![selector!("Refused"), id.into()], 'refused keys');
     // Refusal::Gone is variant 4.
     assert(data == array![9, 40, 41, 4], 'refused data');
+
+    // An `open`, `mine` or `barter` computed under another content version (D-141):
+    // Refusal::Version is variant 8, appended after Price (7).
+    let (_, data) = split(
+        Event::Refused(
+            Refused {
+                instance_id: id, adventurer_id: 9, from: 40, sequence: 40, reason: Refusal::Version,
+            },
+        ),
+    );
+    assert(data == array![9, 40, 40, 8], 'version refusal data');
+
+    // The ordinals 0 to 7 are unchanged; Version was appended.
+    let mut reasons = array![];
+    for reason in array![
+        Refusal::Sequence, Refusal::Closed, Refusal::Absent, Refusal::Reach, Refusal::Gone,
+        Refusal::Gate, Refusal::Sealed, Refusal::Price, Refusal::Version,
+    ] {
+        Serde::serialize(@reason, ref reasons);
+    }
+    assert(reasons == array![0, 1, 2, 3, 4, 5, 6, 7, 8], 'refusal ordinals');
 
     let (keys, data) = split(
         Event::InstanceClosed(InstanceClosed { instance_id: id, outcome: Outcome::Defeated }),

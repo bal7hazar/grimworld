@@ -113,6 +113,9 @@ pub enum Refusal {
     Sealed,
     /// The collector's price is not in the pack.
     Price,
+    /// The content version differs from the one the action was computed under: refused before any
+    /// tick, nothing changes; the client reloads the content (D-141, E-5).
+    Version,
 }
 
 /// How an instance ended, or that it goes on (`InstanceClosed.outcome`, results interface).

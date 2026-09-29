@@ -79,12 +79,35 @@ pub trait IInstances<T> {
     );
     /// Fate: loot a goblin's remains (target: its entity id). Every precondition before the draw.
     fn loot(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, target: u16);
-    /// Fate: open the chest on `tile`.
-    fn open(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
+    /// Fate: open the chest on `tile`. `open`, `mine` and `barter` carry the content version their
+    /// tick(s) or price were computed under (D-141, design/02 *Which entrypoints carry it*): a
+    /// different one is refused before any tick (`Refusal::Version`), changing nothing.
+    fn open(
+        ref self: T,
+        instance_id: InstanceId,
+        adventurer_id: u32,
+        sequence: u32,
+        version: u32,
+        tile: u16,
+    );
     /// Mine the vein on `tile` (design/17: 3 ticks, sent alone).
-    fn mine(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
+    fn mine(
+        ref self: T,
+        instance_id: InstanceId,
+        adventurer_id: u32,
+        sequence: u32,
+        version: u32,
+        tile: u16,
+    );
     /// Barter with the collector on `tile` (design/15): its price comes from the pack.
-    fn barter(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
+    fn barter(
+        ref self: T,
+        instance_id: InstanceId,
+        adventurer_id: u32,
+        sequence: u32,
+        version: u32,
+        tile: u16,
+    );
     /// Leave through `gate`: closes the instance; a gate to another location enters it in the
     /// same invocation (entry draw) and returns the new id, in the same slot; 0 to a hub. The new
     /// generation initialises every transient member word for its clock 0 (state from the
@@ -226,6 +249,7 @@ pub mod Instances {
             instance_id: InstanceId,
             adventurer_id: u32,
             sequence: u32,
+            version: u32,
             tile: u16,
         ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -236,6 +260,7 @@ pub mod Instances {
             instance_id: InstanceId,
             adventurer_id: u32,
             sequence: u32,
+            version: u32,
             tile: u16,
         ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -246,6 +271,7 @@ pub mod Instances {
             instance_id: InstanceId,
             adventurer_id: u32,
             sequence: u32,
+            version: u32,
             tile: u16,
         ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)

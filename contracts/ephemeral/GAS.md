@@ -7,7 +7,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
 | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
-| `test_events::test_instances_event_keys_and_data` | 146690 | 154025 | 5.00 % | 0 | 0 | 2026-09-29 | 566db5f |
+| `test_events::test_instances_event_keys_and_data` | 205040 | 215292 | 5.00 % | 0 | 0 | 2026-09-29 | a767e84 |
 | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 4.99 % | 0 | 576 | 2026-09-29 | e246ac5 |
 | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |

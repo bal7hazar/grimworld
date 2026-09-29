@@ -35,6 +35,7 @@ import math
 import sys
 
 F, N, O, C, FELT = 816_939, 453_524, 32_072, 136_000, 5_120
+TICK_ACTION_CALLDATA = 5  # instance, adventurer, sequence, content version (D-141), tile
 PLAY_CALLDATA = 5  # instance, adventurer, sequence, content version (D-141, E-5), actions
 TICK_ALONE, TICK_SHARED = 3_564_913, 1_705_764
 CLASS_BOUND = 58_000_000  # the cold bound of an unsplittable action (E-21)
@@ -308,9 +309,13 @@ def tick_branches(action, extra_inst, completion_report, completion_calls, ticks
     ]
     out = []
     for name, compute, calls, events, keys, basis in plain:
-        out.append(Branch(name, compute, calls, 4, events, keys, basis))
-        out.append(Branch(name + ", with the objective", compute, calls, 4, {**events, "DungeonCleared": 1},
+        out.append(Branch(name, compute, calls, TICK_ACTION_CALLDATA, events, keys, basis))
+        out.append(Branch(name + ", with the objective", compute, calls, TICK_ACTION_CALLDATA, {**events, "DungeonCleared": 1},
                           Keys().union(keys).union(report_objective()), "and the objective the ticks completed"))
+    # A different content version is refused before any tick, like a failed precondition (D-141): the
+    # `bundle` call that returns the version, `Refused`, nothing written.
+    out.append(Branch("refused, content version differs", 150_000, ["registry"], TICK_ACTION_CALLDATA,
+                      ev(Refused=1), Keys(), "before any tick: changes nothing"))
     return out
 
 
