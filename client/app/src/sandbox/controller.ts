@@ -10,7 +10,7 @@ import type { FrameStats } from "../render/scheduler";
 import { browserHost } from "../render/scheduler";
 import type { SpriteLibrary } from "../render/sprites";
 import { fixtureNamed } from "./fixtures";
-import { type SandboxState, applyIntent, initialState, toView } from "./wiring";
+import { SandboxSession, type WalkInfo } from "./session";
 
 /** What the debug panel shows. */
 export interface SandboxInfo {
@@ -25,6 +25,10 @@ export interface SandboxInfo {
   readonly sprites: readonly { readonly name: string; readonly scale: number }[];
   readonly said: string;
   readonly tickersRunning: boolean;
+  /** The feet below the tile's centre, a fraction of the inner radius. */
+  readonly feet: number;
+  /** Move is played on the tap (design/11's default); off, tap twice. */
+  readonly playOnTap: boolean;
 }
 
 export interface SandboxOptions {
@@ -32,6 +36,9 @@ export interface SandboxOptions {
   readonly idle: boolean;
   readonly scale: ScaleMode;
   readonly zoom: ZoomSettings;
+  readonly feet: number;
+  readonly playOnTap: boolean;
+  readonly stepMs: number;
 }
 
 /**
@@ -39,13 +46,14 @@ export interface SandboxOptions {
  * wiring that turns an intent into the next view. Imperative, mounted by `Sandbox.tsx`.
  */
 export class SandboxController {
-  private state: SandboxState;
+  private readonly session: SandboxSession;
   private atlas: SandboxInfo["atlas"] = "loading";
   private library: SpriteLibrary | null = null;
   private idle: boolean;
   private zoom: ZoomSettings;
   private readonly cleanups: (() => void)[] = [];
   private listener: ((info: SandboxInfo) => void) | null = null;
+  private walkListener: ((walk: WalkInfo) => void) | null = null;
 
   private constructor(
     private readonly app: Application,
@@ -53,7 +61,14 @@ export class SandboxController {
     private readonly renderer: Renderer,
     options: SandboxOptions,
   ) {
-    this.state = initialState(fixtureNamed(options.fixture));
+    this.session = new SandboxSession(fixtureNamed(options.fixture), renderer, browserHost(), {
+      playOnTap: options.playOnTap,
+      stepMs: options.stepMs,
+      onChange: () => {
+        this.walkListener?.(this.session.walk());
+        this.notify();
+      },
+    });
     this.idle = options.idle;
     this.zoom = options.zoom;
   }
@@ -65,6 +80,8 @@ export class SandboxController {
       idle: options.idle,
       mode: options.scale,
       zoom: options.zoom,
+      feet: options.feet,
+      stepMs: options.stepMs,
       onDraw: () => controller?.notify(),
     });
     controller = new SandboxController(app, surface, renderer, options);
@@ -83,7 +100,6 @@ export class SandboxController {
     const observer = new ResizeObserver(resize);
     observer.observe(host);
     this.cleanups.push(() => observer.disconnect());
-    this.renderer.setView(toView(this.state));
     this.listenToGestures(this.app.canvas);
     loadAtlas()
       .then((library) => {
@@ -164,19 +180,38 @@ export class SandboxController {
 
   /** The sandbox's wiring applies the intent; the renderer draws the next view. */
   apply(intent: Intent): void {
-    this.state = applyIntent(this.state, intent);
-    console.debug("[sandbox]", intent, "→", this.state.said);
-    this.renderer.setView(toView(this.state));
-    this.notify();
+    this.session.apply(intent);
+    console.debug("[sandbox]", intent, "→", this.session.state.said);
+  }
+
+  /** A tap on the counter: the planned queue's steps not walked fade out. */
+  cancelWalk(): void {
+    this.renderer.scheduler.input();
+    this.session.cancel();
   }
 
   setFixture(name: string): void {
-    this.state = initialState(fixtureNamed(name));
-    this.renderer.setView(toView(this.state));
-    const url = new URL(window.location.href);
-    url.searchParams.set("fixture", this.state.world.name);
-    window.history.replaceState(null, "", url);
+    this.session.setWorld(fixtureNamed(name));
+    this.setParam("fixture", this.session.state.world.name);
+  }
+
+  setFeet(fraction: number): void {
+    this.renderer.setFeet(fraction);
+    this.setParam("feet", String(fraction));
     this.notify();
+  }
+
+  setPlayOnTap(on: boolean): void {
+    this.session.setPlayOnTap(on);
+    this.setParam("confirm", on ? null : "1");
+    this.notify();
+  }
+
+  private setParam(name: string, value: string | null): void {
+    const url = new URL(window.location.href);
+    if (value === null) url.searchParams.delete(name);
+    else url.searchParams.set(name, value);
+    window.history.replaceState(null, "", url);
   }
 
   setIdle(on: boolean): void {
@@ -191,9 +226,7 @@ export class SandboxController {
     this.surface.setResolution(canvasResolution(mode, window.devicePixelRatio));
     this.renderer.scheduler.input();
     this.renderer.setMode(mode);
-    const url = new URL(window.location.href);
-    url.searchParams.set("scale", mode);
-    window.history.replaceState(null, "", url);
+    this.setParam("scale", mode);
     this.notify();
   }
 
@@ -218,6 +251,12 @@ export class SandboxController {
     this.notify();
   }
 
+  /** The counter of the planned queue listens always: it changes only on a tap or a step. */
+  listenToWalk(listener: ((walk: WalkInfo) => void) | null): void {
+    this.walkListener = listener;
+    listener?.(this.session.walk());
+  }
+
   /** The panel listens only while it is open, so that a closed panel costs nothing. */
   listen(listener: ((info: SandboxInfo) => void) | null): void {
     this.listener = listener;
@@ -226,27 +265,32 @@ export class SandboxController {
 
   info(): SandboxInfo {
     const names = new Set<string>();
-    for (const actor of this.state.world.actors) {
+    const state = this.session.state;
+    for (const actor of state.world.actors) {
       names.add(actor.side === "adventurer" ? actor.profession : actor.caste);
     }
     const all = this.library ? [...this.library.keys()] : [...names];
     return {
-      fixture: this.state.world.name,
-      description: this.state.world.description,
+      fixture: state.world.name,
+      description: state.world.description,
       stats: this.renderer.scheduler.stats(),
       zoomInfo: this.renderer.zoomInfo(),
       zoom: this.zoom,
       idle: this.idle,
       atlas: this.atlas,
       sprites: all.map((name) => ({ name, scale: this.renderer.spriteScale(name) })),
-      said: this.state.said,
+      said: state.said,
       tickersRunning: pixiTickersRunning(this.app),
+      feet: this.renderer.feetFraction(),
+      playOnTap: this.session.playOnTap(),
     };
   }
 
   destroy(): void {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.listener = null;
+    this.walkListener = null;
+    this.session.destroy();
     this.renderer.destroy();
     this.app.destroy(true);
   }

@@ -124,6 +124,84 @@ export function stepToward(
   return best;
 }
 
+/** The simulation window (D-120): 15 columns × 16 rows around the adventurer. */
+export const WINDOW = { columns: 15, rows: 16 } as const;
+
+/**
+ * PLACEHOLDER until CLI-02. Whether a tile lies in the window around `centre` (D-120): the
+ * columns centred exactly (7 on each side), the 16 rows starting on the even row among
+ * `centre.y - 8` and `centre.y - 7` (the sixteenth row absorbs the parity of the origin).
+ */
+export function inWindow(centre: Tile, tile: Tile): boolean {
+  const half = (WINDOW.columns - 1) / 2;
+  const top = centre.y - 8 + (centre.y & 1);
+  return Math.abs(tile.x - centre.x) <= half && tile.y >= top && tile.y < top + WINDOW.rows;
+}
+
+/** Ticks a step of a path costs: one (a placeholder, until the rules' move cost reaches here). */
+export const TICKS_PER_STEP = 1;
+
+/**
+ * PLACEHOLDER until CLI-02 (design/02 *The planned queue*, the map library's finder, the flood of
+ * the tick). The shortest path of the mover from `from` to `to`, first step first, `from`
+ * excluded: over floor tiles no actor holds (walls and unrevealed tiles are not floor), inside
+ * the window around `from` (D-120). Among shortest paths, each step takes the neighbour of lowest
+ * tile index (`y`, then `x`: design/04 and the determinism rules). Null when there is none, or when
+ * `to` is `from`. A breadth-first flood from `to`, bounded by the window's 240 tiles.
+ */
+export function findPath(
+  terrain: Terrain,
+  actors: readonly ViewActor[],
+  from: Tile,
+  to: Tile,
+): Tile[] | null {
+  const free = (tile: Tile) =>
+    inWindow(from, tile) &&
+    kindAt(terrain, tile) === "floor" &&
+    !actors.some((a) => sameTile(a.tile, tile));
+  if (sameTile(from, to) || !free(to)) return null;
+  const key = (tile: Tile) => `${tile.x},${tile.y}`;
+  const left = new Map<string, number>([[key(to), 0]]);
+  let layer: Tile[] = [to];
+  let reached = false;
+  while (layer.length > 0 && !reached) {
+    const next: Tile[] = [];
+    for (const tile of layer) {
+      const depth = left.get(key(tile)) ?? 0;
+      for (const d of FACINGS) {
+        const around = neighbour(tile, d);
+        if (sameTile(around, from)) reached = true;
+        if (left.has(key(around)) || !free(around)) continue;
+        left.set(key(around), depth + 1);
+        next.push(around);
+      }
+    }
+    layer = next;
+  }
+  if (!reached) return null;
+  const path: Tile[] = [];
+  let at = from;
+  while (!sameTile(at, to)) {
+    let best: Tile | null = null;
+    let bestLeft = Infinity;
+    for (const d of FACINGS) {
+      const around = neighbour(at, d);
+      const n = left.get(key(around));
+      if (n === undefined) continue;
+      const lower =
+        best !== null && (around.y < best.y || (around.y === best.y && around.x < best.x));
+      if (n < bestLeft || (n === bestLeft && lower)) {
+        best = around;
+        bestLeft = n;
+      }
+    }
+    if (!best) return null;
+    path.push(best);
+    at = best;
+  }
+  return path;
+}
+
 /**
  * PLACEHOLDER until CLI-02. The actors the adventurer sees: design/18 *What the adventurer sees*,
  * the adventurer and the goblins within sight (radius 6, line of sight not required).

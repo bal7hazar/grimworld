@@ -2,13 +2,14 @@ import { type Container, Graphics, type Sprite } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
-import { applyIntent, initialState, toView } from "../sandbox/wiring";
+import { SandboxSession } from "../sandbox/session";
+import { initialState, toView } from "../sandbox/wiring";
 import { FakeHost } from "../test/fakeHost";
 import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
-import { IDLE_MAX_FPS, Renderer } from "./renderer";
+import { IDLE_MAX_FPS, Renderer, STEP_MS } from "./renderer";
 import { drawOverlay, overlayPlan } from "./shapes";
 import { type SpriteLibrary, libraryFrom } from "./sprites";
 import type { Facing, ViewState } from "./view";
@@ -18,16 +19,17 @@ function setup(options: { idle: boolean; library?: SpriteLibrary | null; fixture
   const surface = new FakeSurface();
   const renderer = new Renderer(surface, host, { idle: options.idle, library: options.library });
   renderer.resize({ width: 375, height: 812 });
-  let state = initialState(fixtureNamed(options.fixture ?? "cave"));
-  renderer.setView(toView(state));
+  const session = new SandboxSession(fixtureNamed(options.fixture ?? "cave"), renderer, host, {
+    playOnTap: true,
+    stepMs: STEP_MS,
+  });
   const tap = (dx: number, dy: number) => {
-    const adventurer = state.world.actors[0]!;
+    const adventurer = session.state.world.actors[0]!;
     const tile = { x: adventurer.tile.x + dx, y: adventurer.tile.y + dy };
-    state = applyIntent(state, { kind: "tile", tile });
     renderer.scheduler.input();
-    renderer.setView(toView(state));
+    session.apply({ kind: "tile", tile });
   };
-  return { host, surface, renderer, tap };
+  return { host, surface, renderer, session, tap };
 }
 
 async function syntheticLibrary(): Promise<SpriteLibrary> {
@@ -147,6 +149,7 @@ function oneGoblin(x: number, y: number, facing: Facing): ViewState {
     sight: [],
     arcs: null,
     path: [],
+    dropped: [],
     selectedTile: null,
   };
 }
@@ -164,7 +167,7 @@ describe("the six facings (AC-4), against the library's Direction numbering", ()
           const tile = { x: 10, y };
           renderer.setView(oneGoblin(10, y, facing));
           const world = surface.stage.children[0] as Container;
-          const actors = world.children[2] as Container;
+          const actors = world.children[3] as Container;
           const node = actors.children.find(
             (c) => c.position.x === tileToPixel(tile).x && c.position.y === tileToPixel(tile).y,
           ) as Container;
@@ -376,7 +379,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(surface.passes).toHaveLength(0);
     expect(surface.renders).toBe(1);
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(3); // the world itself is on the stage
+    expect(world.children).toHaveLength(4); // the world itself is on the stage
     expect(renderer.zoomInfo()).toMatchObject({
       mode: "sharp",
       sharpFallback: true,
@@ -401,7 +404,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     host.run(1000);
     expect(surface.renders).toBe(renders); // no frame was needed for it
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(3); // ground, overlay, actors
+    expect(world.children).toHaveLength(4); // ground, overlay, dropped steps, actors
   });
 });
 
@@ -411,7 +414,7 @@ describe("drawing order during a step", () => {
     host.run(100);
     tap(0, 1);
     host.run(60);
-    const actors = (surface.stage.children[0] as Container).children[2] as Container;
+    const actors = (surface.stage.children[0] as Container).children[3] as Container;
     for (const node of actors.children) expect(node.zIndex).toBe(node.position.y);
   });
 });

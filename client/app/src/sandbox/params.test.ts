@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ZOOM } from "../render/renderer";
-import { readAcross, readParams } from "./params";
+import { DEFAULT_FEET, DEFAULT_ZOOM, STEP_MS } from "../render/renderer";
+import { readAcross, readFeet, readParams } from "./params";
 
 describe("URL parameters", () => {
   it("reads the fixture, idle, panel and scale", () => {
@@ -10,6 +10,9 @@ describe("URL parameters", () => {
       panel: true,
       scale: "sharp",
       zoom: DEFAULT_ZOOM,
+      feet: DEFAULT_FEET,
+      playOnTap: true,
+      stepMs: STEP_MS,
     });
     expect(readParams("?scale=snap").scale).toBe("snap");
     expect(readParams("?scale=pixel").scale).toBe("continuous");
@@ -29,5 +32,20 @@ describe("URL parameters", () => {
     expect(readAcross(3)).toBe(3);
     expect(readAcross(31)).toBe(31);
     expect(readAcross(Infinity)).toBeNull();
+  });
+
+  it("reads the feet, the confirmation setting and the step duration within bounds", () => {
+    expect(readParams("?feet=0.8&confirm=1&step=300")).toMatchObject({
+      feet: 0.8,
+      playOnTap: false,
+      stepMs: 300,
+    });
+    for (const feet of ["-0.1", "1.5", "NaN", "x", ""]) {
+      expect(readParams(`?feet=${feet}`).feet, feet).toBe(DEFAULT_FEET);
+    }
+    expect(readFeet(0)).toBe(0);
+    expect(readFeet(1)).toBe(1);
+    expect(readParams("?step=10").stepMs).toBe(STEP_MS);
+    expect(readParams("?confirm=0").playOnTap).toBe(true);
   });
 });

@@ -79,5 +79,7 @@ export interface ViewState {
   readonly arcs: ViewArcs | null;
   /** The planned path, as tiles, first step first. */
   readonly path: readonly Tile[];
+  /** Steps of a planned path that a stop or a cancel dropped: they fade out (design/11). */
+  readonly dropped: readonly Tile[];
   readonly selectedTile: Tile | null;
 }
