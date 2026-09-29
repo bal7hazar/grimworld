@@ -1,47 +1,44 @@
 # Status — game track
 
-**2026-09-29 00:35 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 05:45 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 ## Where we are
 
-**Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03, FND-06,
-ART-00, SPK-1, **SPK-1b**, SPK-2, SPK-5, SPK-5b, **SPK-7**, SPK-11, **DES-21**, **DOC-01**. Running:
-**FND-04** (the cost budget ENG-01 designs to; slots read from the Sepolia traces). Next: **ENG-01**
-(brief written), FND-05, SPK-4.
+**Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03,
+**FND-04**, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, **SPK-4**, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21,
+DOC-01. **ENG-01** waits for the project manager's decision on its merge, after three fix loops.
+Next: FND-05 (after ENG-01 merges: both touch the randomness seam in `contracts/`).
 
 ## What moved
 
 | | |
 |---|---|
-| **D-133 and batches** | DES-21 ([#49](https://github.com/bal7hazar/grimworld/pull/49)): fights played on the client and sent in batches; merged after four fix loops with OP-1 open, then answered by D-136 (an unrevealed chunk is wall in the window; the client never waits for a chunk). DOC-01 ([#63](https://github.com/bal7hazar/grimworld/pull/63)) wrote the accepted ADR, glossary and design amendments |
-| **SPK-1b** | [#51](https://github.com/bal7hazar/grimworld/pull/51): the burner's fixed part 717,435 L2 gas (1.52× smaller than the owner's account); paymasters cost more; D-133 stands. Expedition under batches of 10, estimated: **$0.73 (S1), $0.54 (S2)**. 76.19 test STRK spent by SPK-1 and SPK-1b. Its sending code is retired. Merged after four fix loops (exception) |
-| **SPK-7** | [#50](https://github.com/bal7hazar/grimworld/pull/50): the chunked map adds 720,000 L2 gas per tick with goblins; D-134 (void chunks around locations, corners always wall) |
-| **Launcher** | The budget is now **slot locks** ([#60](https://github.com/bal7hazar/grimworld/pull/60), [#66](https://github.com/bal7hazar/grimworld/pull/66)): `~/orchestrator/slots`, kernel locks held while an agent lives, caps per track (game 2, library 1, quiver 1), read-only slot directory. The library and quiver use the same launcher. Re-audit of 033043a running; the CHANGELOG reference follows its pass |
-| **Shared machine** | Profiles deny `rm` under `/tmp`, `pkill`, `killall`, `git worktree prune` ([#62](https://github.com/bal7hazar/grimworld/pull/62)); COMMON: sending lives in one module and ends with the task ([#64](https://github.com/bal7hazar/grimworld/pull/64)) |
-| Process | My errors tonight, reported: a merge on pending CI (#49, then green); a squash that reverted the project manager's D-136 files (#60, restored by [#65](https://github.com/bal7hazar/grimworld/pull/65)); a `rm -rf /tmp/tmp.*` on the shared machine (no damage found); a sending script run from a session holding the key (nothing sent). Each is a rule in memory and, where it applies, in OPERATIONS or COMMON |
+| **ENG-01** | [#81](https://github.com/bal7hazar/grimworld/pull/81), CI green at `4a1ba2b`: five contracts frozen as compiling code (`Instances`, `Hub`, `Market`, `Registry`, `TxHashFate`), layouts, events, the batch codec, every entrypoint priced from the union of its storage keys. Instance slots are reused and records never zeroed (zero-then-rewrite costs as new, measured). The final `[GPT-6-Astra]` re-audit resolves F-1 and F-5 to F-14 and finds no security finding; **two majors remain in the cost accounting only** (F-3, F-4). Estimated S1: **$0.556**, against the $0.50 target; the answer turns on ENG-07's measure of a tick inside a batch |
+| **SPK-4** | [#82](https://github.com/bal7hazar/grimworld/pull/82): the client's simulation is a TypeScript mirror checked by vectors; the damage edges decided (D-140) |
+| **FND-04** | [#71](https://github.com/bal7hazar/grimworld/pull/71): the cost budget, a new slot about 453,500 L2 gas, an overwrite 32,000 |
+| **Launcher** | Reference `5d14d89`, **frozen** until the gate of Phase 0 (FND-07 holds M1, N1–N4, L-3) |
 
 ## Orchestrators and agents
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| AUD-60, re-audit of the launcher at 033043a | `gpt-6-sol` | running |
-| FND-04 budgets | `claude-opus-5-5` | queued, launches in the game's second slot |
+| — | | none running |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-1. FND-04: review, `[GPT-6-Astra]` audit, merge.
-2. ENG-01 on FND-04's budgets ([brief](docs/briefs/ENG-01-core-interfaces.md)).
-3. The launcher's CHANGELOG reference after the re-audit passes.
-4. FND-05 (with `[GPT-6-Astra]`), SPK-4.
+1. ENG-01: merge on the project manager's decision; a follow-up ENG-01b if option (a) is taken.
+2. FND-05 (Opus 5.5, `[GPT-6-Astra]`), after ENG-01 merges.
+3. ENG-02 to ENG-04 once ENG-01 is on main.
 
 ## Decisions needed
 
-None open. Answered tonight: D-133 (batches), D-134 (chunk borders), D-135 (quests), D-136 (unrevealed
-chunks), the slot locks and their transition, the exceptions for PR 48, DES-21 and SPK-1b.
+| Decision | File |
+|---|---|
+| ENG-01's merge with two accounting majors open (recommended: merge, close them in ENG-01b), and its design escalations (E-1, E-2, E-5, E-7/E-8, E-15, E-16, E-18, E-20, E-21) | [docs/decisions/2026-09-29-eng-01-escalations.md](docs/decisions/2026-09-29-eng-01-escalations.md) |
 
 ## Launcher: for its next change (not before a finding or a task needs one)
 
