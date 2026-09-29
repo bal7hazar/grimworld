@@ -134,6 +134,13 @@ that produced it. The tag is never omitted and never guessed.
 
 ## 3. The machine: what every launch must respect
 
+> **Scope of the launcher** (project manager, 2026-09-29): `scripts/agent.sh` protects against
+> **accidental** over-launch (two orchestrators racing, a miscount, a stale record, a crash) and fails
+> closed when it cannot tell. It does **not** protect against a process of the same Unix user that
+> acts on purpose (such a process can already start work outside any launcher). A finding that needs
+> a deliberate act by that user is a **note**, not a blocker or a major. Every audit of the launcher
+> is briefed with this scope.
+
 Ideation happened on the owner's Mac. **Implementation runs on the VPS**: a new
 project-manager session (account bal7hazar) is bootstrapped with
 [docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) and creates the first
@@ -191,7 +198,12 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   not counted (COMMON forbids leaving processes). The slot directory is read-only (mode 555) and a
   slot file is never created by a probe: a slot cannot be removed or replaced by a new file while it
   is held (a lock protects a file, not its name); `scripts/agent.sh slots-init` creates missing slot
-  files only. A slot that cannot be read refuses the launch. The
+  files only, under the launch lock and only while every slot is free, and is needed once on a new
+  machine (a missing slot directory refuses). Any slot of a list that cannot be read or locked
+  refuses the launch, even if another is free. **Residual**: the directory and its files belong to
+  the Unix user the agents run as, so a deliberate `chmod` by that user can still expose the names;
+  only another owner (root) would close it, which is the owner's (same class as §4's accepted
+  residual). The
   launcher waits until the agent holds its slots before it returns, under the shared launch lock
   `~/orchestrator/agent-launch.lock`, so two launchers cannot take the same slot; **the launchers
   of the map library and of `quiver` are copies of this one** (their own `TRACK`, the same slots

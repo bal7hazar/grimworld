@@ -16,9 +16,15 @@ events, storage structs) with no game logic, and a document that says why each i
 ## Context (read in this order)
 1. **The cost constraint** (D-129, D-133, `docs/decisions/2026-09-28-sepolia-verdict.md`): $0.50 per
    300 actions is the target; fights are played on the client and sent in batches.
-   - **Storage slots first** (`docs/decisions/2026-09-28-quest-cost-cap.md`): about 402,000 L2 gas per
-     slot a transaction changes, beyond the write's computation; a batch that changes the same slot
-     pays it once.
+   - **Storage slots first**, measured on our receipts by FND-04 (`docs/research/FND-04-slots.md`):
+     about **453,500 L2 gas per new slot** (zero before) and **32,000 per overwritten or zeroed slot**,
+     per transaction, beyond the write's computation; a batch that changes the same slot pays it
+     once. New keys are what cost: `enter`'s 1.9M is its 4 new slots; a slot zeroed by `leave` is new
+     again at the next `enter`. Quiver's 402,000 (`docs/decisions/2026-09-28-quest-cost-cap.md`) is of
+     the size of a new slot.
+   - **design/02's 40M batch bound leaves out the window assembled from chunks** (SPK-7): a batch of
+     10 worst ticks with the window at each tick is about 44.2M (FND-04, an estimate). Settle the
+     bound in slots and gas with that included (design/02's OP-2 is answered by FND-04's prices).
    - The non-game part of a transaction: about 1.09M L2 gas from the owner's account, 717k from the
      MVP's OpenZeppelin burner (SPK-1 §4, SPK-1b); the fee transfer (455k) is paid by any account.
    - The worst tick: 5.13M on Sepolia (SPK-1), plus 720,000 for the chunked map (SPK-7).
@@ -49,6 +55,15 @@ events, storage structs) with no game logic, and a document that says why each i
    adventurer id, for instance state: M-1), its packing into felts, and **the slots each entrypoint
    changes**. A table: entrypoint × {slots read, slots changed, of which new}, worst case, with the
    reason for each.
+   - **Design rule (project manager, 2026-09-29, from FND-04): an instance's slots are reused**, from
+     one instance of an adventurer to the next, instead of being zeroed at `leave` and created again
+     at `enter` (4 new slots, about 1.9M today), **as long as nothing of the old instance can be read
+     by the new one.** State how the new instance makes the old content unreachable (a generation
+     counter in the record, checked on every read; a generation in the *key* would create new slots
+     and defeat the rule) and how this keeps M-1 (instance state keyed by instance id: for example
+     instance ids recycled from a pool the adventurer or the contract holds, with a generation per
+     id). The security lens of the audit checks that no field of an old instance is reachable, in the
+     contract or through the views.
 3. **Entrypoints and views**, with their Cairo signatures: `play` and the standalone Fate and gate
    entrypoints of design/02, entry and leaving, the hub and persistent actions the MVP needs, the
    registry writers, `instance_state`, `instance_region`, and the views of the indexer. Bounds on

@@ -11,7 +11,7 @@
 | | L2 gas |
 |---|---|
 | A quest that completes | 1.17M, of which about 0.92M are its two changed storage slots |
-| **A storage slot changed by a transaction** | **About 402 000 beyond the computation of the write, once per slot and per transaction** |
+| **A storage slot changed by a transaction** | **About 402 000 beyond the computation of the write, once per slot and per transaction**, as measured by `quiver` on slots that were new. *Corrected on 2026-09-29*: about 453,500 L2 gas per transaction for a **new** slot (zero before) and about 32,000 for a slot overwritten or set back to zero (FND-04, from the state diffs of the 149 Sepolia transactions of SPK-1 and SPK-1b; in audit) |
 | 16 tasks per call, one quest per task, no prerequisite | 20.6M: no cap on quests per task fits 16 tasks under 20M |
 | The game's own use (16 tasks, 3 quests and one contract completing) | 10.1M |
 
@@ -43,4 +43,12 @@ cutting the tasks per call would have kept a worst case that content can reach.
 | Every quest of the game is accepted before it progresses | True of the board, of the contracts and of the main chain (design/14) |
 | H = 4 | 3 active quests and one held contract. A change of that rule of the game changes H |
 | Titles | Not counted: `quiver_achievement` in event mode |
-| **ENG-01** | **A changed storage slot costs about 0.4M L2 gas per transaction.** The number of slots a tick changes matters more than its computation: it is the first item of ENG-01's cost budget (D-129) |
+| **ENG-01** | **A new storage slot costs about 0.45M L2 gas; an overwritten one about 0.03M** (corrected on 2026-09-29 from FND-04). What matters is the number of **new** slots a transaction creates: the game's measured ticks and queues create none; `enter` creates 4 (its 1.9M) and `leave` zeroes them, so that the next `enter` pays them again. Slots that are kept and reused cost fourteen times less. It is the first item of ENG-01's cost budget (D-129) |
+
+## Correction of 2026-09-29
+
+The note of this decision on the price of a slot was too general, and the project manager
+passed it on as such. What `quiver` measured was the price of a **new** slot. For `quiver`:
+a quest that completes writes slots that may already exist for the player (its progress,
+its record); the worst call of ARC-03c is measured on both cases, and its caps are set on
+the measured one. The decision itself (the package bounds what a player holds) is unchanged.

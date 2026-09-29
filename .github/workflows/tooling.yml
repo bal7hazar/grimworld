@@ -100,6 +100,8 @@ jobs:
           # The budget as slots (OPERATIONS §3): ~/orchestrator/slots, in a fake HOME. A slot is held by a
           # kernel lock for as long as its holder lives; nothing is counted by reading processes.
           fake=$(mktemp -d); slots=$fake/orchestrator/slots
+          set +e; out=$(HOME=$fake scripts/agent.sh thresholds 2>&1); s=$?; set -e; [ "$s" = 4 ]; grep -qF 'slots-init' <<< "$out"   # none yet
+          HOME=$fake scripts/agent.sh slots-init
           HOME=$fake scripts/agent.sh thresholds                      # all free
           # The slot names are protected: the directory is read-only, a held slot cannot be removed or
           # replaced; a missing slot file refuses (never recreated by a probe) until slots-init; an
@@ -109,9 +111,11 @@ jobs:
           chmod 755 "$slots"; rm "$slots/total-2"; chmod 555 "$slots"
           set +e; out=$(HOME=$fake scripts/agent.sh thresholds 2>&1); s=$?; set -e; echo "$out"; [ "$s" = 4 ]; grep -qF 'is missing' <<< "$out"
           HOME=$fake scripts/agent.sh slots-init; [ -f "$slots/total-2" ]; [ "$(stat -c %a "$slots")" = 555 ]
-          chmod 000 "$slots/total-1"   # the first slot a launch would look at
-          set +e; out=$(HOME=$fake scripts/agent.sh thresholds 2>&1); s=$?; set -e; echo "$out"; [ "$s" = 4 ]; grep -qF 'unreadable' <<< "$out"
-          chmod 644 "$slots/total-1"
+          for x in total-1 total-3; do   # the first slot a launch would look at, and a later one
+            chmod 000 "$slots/$x"
+            set +e; out=$(HOME=$fake scripts/agent.sh thresholds 2>&1); s=$?; set -e; echo "$out"; [ "$s" = 4 ]; grep -qF 'unreadable' <<< "$out"
+            chmod 644 "$slots/$x"
+          done
           # Each holder runs in its own session (setsid does not fork here), so its pid is its process group.
           declare -A pid
           run() { HOME=$fake setsid scripts/agent.sh run-in-slots "$1" "$2" "$fake/$3.log" sleep 120 & pid[$3]=$!; sleep 0.5; }
@@ -120,6 +124,9 @@ jobs:
           run total-1 game-1 a; run total-2 game-2 b
           HOME=$fake scripts/agent.sh slots
           held=$(HOME=$fake scripts/agent.sh slots); grep -q '^total-1 *held' <<< "$held"; grep -q '^total-2 *held' <<< "$held"
+          # slots-init never opens the directory while a slot is held.
+          set +e; out=$(HOME=$fake scripts/agent.sh slots-init 2>&1); s=$?; set -e; echo "$out"; [ "$s" != 0 ]; grep -qF 'every slot is free' <<< "$out"
+          [ "$(stat -c %a "$slots")" = 555 ]
           # The game at its cap is refused while a total slot is free.
           refuses 'the grimworld track is at its cap'
           # A slot already held cannot be taken: the inner shell refuses and runs nothing (75).

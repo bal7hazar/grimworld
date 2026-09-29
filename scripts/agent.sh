@@ -134,9 +134,11 @@ MAX_LOAD5=12 MIN_MEM_GB=8
 # The budget (D-118, OPERATIONS §3) is a set of slots, and a slot is a file an agent holds by a
 # kernel lock for as long as it lives: ~/orchestrator/slots/total-1..3 for the budget of 3, and per
 # track game-1, game-2 (the game's cap of 2), lib-1, quiver-1. A launch takes one free total slot
-# and one free slot of its track, or refuses; the agent's process takes the two locks itself
-# (`flock -n`) and its children inherit them, so the kernel frees them when the agent's last process
-# ends, however it ends. Nothing is counted by reading processes. TRACK is this launcher's own track:
+# and one free slot of its track, or refuses; the agent's inner shell takes the two locks itself
+# (`flock -n`) on descriptors its children inherit, so the kernel frees them when that shell and the
+# CLI it waits for have ended (and any process keeping the descriptors), however they end. Nothing is
+# counted by reading processes. The slot names are protected by a read-only directory against
+# anything but a deliberate chmod by the same Unix user (OPERATIONS §3, accepted residual). TRACK is this launcher's own track:
 # the copies of the map library and quiver set theirs (hexmap, quiver) and match this file
 # otherwise. While the game waits (the marker ~/orchestrator/waiting/game, less than 30 minutes
 # old), the other tracks launch nothing new.
@@ -159,26 +161,30 @@ slot_state() { # <slot> -> free | held | missing | unreadable
   local f=$SLOTS/$1 fd
   if [ ! -f "$f" ]; then echo missing; return; fi
   if ! exec {fd}< "$f"; then echo unreadable; return; fi
-  if flock -n "$fd"; then echo free; else echo held; fi
+  local rc=0
+  flock -n "$fd" || rc=$?
   exec {fd}<&-
+  case $rc in 0) echo free ;; 1) echo held ;; *) echo "unlockable (flock exit $rc)" ;; esac
 }
 slot_free() { [ "$(slot_state "$1" 2> /dev/null)" = free ]; }
-# The first free slot of a list; any slot of the list in error stops the search (fails closed).
+# The first free slot of a list. Every slot of the list is inspected first: one in error (missing,
+# unreadable, not lockable) refuses, even if another is free (fails closed).
 first_free() {
-  local x st
+  local x st first=""
   for x in "$@"; do
     st=$(slot_state "$x" 2> /dev/null)
     case $st in
-      free) echo "$x"; return 0 ;;
+      free) [ -n "$first" ] || first=$x ;;
       held) ;;
-      *) echo "error: slot $x is $st" ; return 2 ;;
+      *) echo "error: slot $x is $st"; return 2 ;;
     esac
   done
-  return 1
+  [ -n "$first" ] || return 1
+  echo "$first"
 }
 slots_ready() { # the slot directory exists, is read-only, and holds every slot file
   command -v flock > /dev/null || { echo "agent.sh: flock is missing, so the slots cannot be read: wait and check again" >&2; return 1; }
-  if [ ! -d "$SLOTS" ]; then init_slots || return 1; fi
+  if [ ! -d "$SLOTS" ]; then echo "agent.sh: no slot directory $SLOTS: run scripts/agent.sh slots-init once" >&2; return 1; fi
   if [ -w "$SLOTS" ]; then chmod 555 "$SLOTS" 2> /dev/null || { echo "agent.sh: $SLOTS cannot be made read-only: check it" >&2; return 1; }; fi
   local x
   for x in "${ALL_SLOTS[@]}"; do
@@ -186,9 +192,22 @@ slots_ready() { # the slot directory exists, is read-only, and holds every slot 
   done
 }
 init_slots() { # creates the missing slot files only (never replaces one), then makes the directory read-only
+  # The directory is writable only in here, under the launch lock and with no slot held, so no held
+  # slot can be removed or replaced while it is open (audit of PR 60, A1).
+  mkdir -p "$HOME/orchestrator" || return 1
+  exec 9>> "$HOME/orchestrator/agent-launch.lock"
+  flock -w 600 9 || { echo "agent.sh: the launch lock is held: try again" >&2; return 1; }
+  if [ -d "$SLOTS" ]; then
+    local y st
+    for y in "${ALL_SLOTS[@]}"; do
+      [ -e "$SLOTS/$y" ] || continue
+      st=$(slot_state "$y" 2> /dev/null)
+      [ "$st" = free ] || { echo "agent.sh: slot $y is $st: slots-init runs only while every slot is free" >&2; return 1; }
+    done
+  fi
   mkdir -p "$SLOTS" && chmod 755 "$SLOTS" || return 1
   local x
-  for x in "${ALL_SLOTS[@]}"; do [ -e "$SLOTS/$x" ] || : > "$SLOTS/$x" || return 1; done
+  for x in "${ALL_SLOTS[@]}"; do [ -e "$SLOTS/$x" ] || : > "$SLOTS/$x" || { chmod 555 "$SLOTS"; return 1; }; done
   chmod 555 "$SLOTS"
 }
 # $0 of the inner shell is the log file, "$@" the agent command line. The inner shell first takes
