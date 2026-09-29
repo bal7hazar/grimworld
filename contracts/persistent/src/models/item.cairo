@@ -34,7 +34,7 @@ pub struct ItemBase {
     pub set: u16,
     /// bits 80-87: `PACK`, `VAULT` or `ESCROW` (models::account)
     pub owner_kind: u8,
-    /// bits 88-119: the adventurer, account or lot holding it
+    /// bits 88-119: the adventurer or account holding it; 0 in escrow (the lot names the entity)
     pub owner: u32,
 }
 

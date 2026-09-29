@@ -15,11 +15,16 @@ is where the rules of a tick will live, so that tests need no deployment and the
 
 ```
 Scarb.toml            workspace: members, shared versions and dependencies
-logic/                grimworld_logic: the rules, pure, no storage (state in, state out)
-  src/tick.cairo        the rules of a tick will live here
-  tests/                origami_hexmap 1.8.0 runs on Cairo 2.19
-persistent/           grimworld_persistent: contract Persistent (adventurer, inventory, progress, registries)
-ephemeral/            grimworld_ephemeral: contract Ephemeral (instance state)
+logic/                grimworld_logic: the rules, pure, no storage; and what both domains share
+  src/types.cairo       ids, bounds, enums (Stop, Refusal, Outcome, ChunkKind, Target)
+  src/actions.cairo     a played batch in one felt
+  src/snapshot.cairo    the snapshot taken at entry, the task pages
+  src/packing.cairo     two limbs, LIVE at bit 250, lanes, bitmaps
+  src/content.cairo     kinds of registry records
+  src/interface.cairo   calls between contracts: results, entry, registry, randomness
+persistent/           grimworld_persistent: Hub, Market, Registry, TxHashFate
+ephemeral/            grimworld_ephemeral: Instances (and two measurement probes)
+tools/                class_sizes.py, set_budgets.py, reuse_probe.py and its output
 ```
 
 Both contract packages have the same layering ([ADR-0007](../docs/architecture/ADR-0007-native-starknet.md),
@@ -28,7 +33,7 @@ Both contract packages have the same layering ([ADR-0007](../docs/architecture/A
 ```
 src/
   systems.cairo     contracts: entrypoints, access control, nothing else
-    systems/persistent.cairo (or ephemeral.cairo): the placeholder contract
+    systems/hub.cairo, market.cairo, registry.cairo, fate.cairo (or instances.cairo)
   components.cairo  Starknet components: game logic reusable across contracts
   store.cairo       single access point to storage
   models.cairo      storage structs: layout, packing, invariants
@@ -42,9 +47,10 @@ tests/              snforge tests that declare and deploy the contract, each wit
 Cairo has no `mod.cairo`: a module is a file, and its submodules sit in the folder of the same
 name, which appears with the first file that goes in it (`models/adventurer.cairo`).
 
-Each contract has one placeholder view, `version() -> felt252`, no storage and no access control:
-access control, the results interface and the storage layouts are ENG-01's, frozen with the
-security lens.
+ENG-01 froze the interfaces, storage layouts, packing and events
+([docs/architecture/ENG-01-interfaces.md](../docs/architecture/ENG-01-interfaces.md)): every game
+entrypoint reverts with `'not implemented'` until its lot writes it. Class sizes:
+`python3 contracts/tools/class_sizes.py` after a build.
 
 ## The two-contract rule
 
@@ -53,10 +59,10 @@ Two contracts, never mixed ([ADR-0007](../docs/architecture/ADR-0007-native-star
 
 | Domain | Package and contract | Holds |
 |---|---|---|
-| Persistent | `grimworld_persistent`, `Persistent` | adventurer, inventory, progress, registries |
-| Ephemeral | `grimworld_ephemeral`, `Ephemeral` | instance state |
+| Persistent | `grimworld_persistent`: `Hub`, `Market`, `Registry` | adventurer, inventory, progress, market, registries |
+| Ephemeral | `grimworld_ephemeral`: `Instances` | instance state |
 
-**No storage struct mixes fields of both domains** (there are none yet). The ephemeral contract
+**No storage struct mixes fields of both domains.** The ephemeral contract
 reads a snapshot of the adventurer taken at entry and writes to the persistent one only through
 one dispatcher call carrying the list of results.
 

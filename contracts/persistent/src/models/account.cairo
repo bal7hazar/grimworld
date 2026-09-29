@@ -51,7 +51,8 @@ pub struct Account {
     pub record: AccountRecord,
 }
 
-/// The owner key of balances and gold: `kind × 2^32 + id`.
+/// The owner key of balances and gold: `kind × 2^32 + id`. `ESCROW` has one owner, id 0 (the
+/// market): what each lot holds is in the lot, so posting never creates an escrow page per lot.
 pub const PACK: u8 = 1;
 pub const VAULT: u8 = 2;
 pub const ESCROW: u8 = 3;

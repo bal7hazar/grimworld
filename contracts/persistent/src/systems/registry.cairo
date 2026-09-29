@@ -49,6 +49,9 @@ pub mod Registry {
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> Span<felt252> {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
     }
 
     #[abi(embed_v0)]

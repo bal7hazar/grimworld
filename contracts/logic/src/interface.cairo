@@ -69,6 +69,9 @@ pub trait IInstanceEntry<T> {
 pub trait IRegistryRead<T> {
     fn record(self: @T, kind: u8, id: u32) -> Span<felt252>;
     fn records(self: @T, kind: u8, ids: Span<u32>) -> Span<felt252>;
+    /// Records of several kinds in one call, in the order asked: what a `play` needs (castes,
+    /// skills, pack templates, the location) costs one call per invocation, not one per kind.
+    fn bundle(self: @T, requests: Span<(u8, u32)>) -> Span<felt252>;
 }
 
 /// The randomness provider (ADR-0002): game code calls only this. The MVP's provider is
