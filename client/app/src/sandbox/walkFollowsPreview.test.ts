@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { type Point, fitScale, screenToTile, tileToPixel, worldToScreen } from "../input/coords";
+import {
+  type Point,
+  type Viewport,
+  fitScale,
+  screenToTile,
+  tileToPixel,
+  worldToScreen,
+} from "../input/coords";
 import { DEFAULT_ZOOM, Renderer, STEP_MS } from "../render/renderer";
 import type { Facing, Tile, ViewActor } from "../render/view";
 import { FakeHost } from "../test/fakeHost";
@@ -69,7 +76,7 @@ function tapTile(renderer: Renderer, session: SandboxSession, tile: Tile): void 
  * adventurer stands on the preview's next tile, that it is drawn going there, and that the camera
  * goes there too.
  */
-function walkThePreview(world: SandboxWorld, target: Tile, viewport = VIEWPORTS[0]) {
+function walkThePreview(world: SandboxWorld, target: Tile, viewport: Viewport = VIEWPORTS[0]) {
   const host = new FakeHost();
   const renderer = new Renderer(new FakeSurface(2, 2), host, { idle: false });
   renderer.resize(viewport);
@@ -217,7 +224,9 @@ describe("a stop for sight names goblins drawn after the step (Resume 1, bug 2)"
             }
             // Every caste named is one of those that entered.
             const named = state.stopped.match(/\b(runt|skirmisher|slinger|shaman|hobgoblin)\b/g);
-            const castes = new Set(entered.map((a) => (a.side === "goblin" ? a.caste : "")));
+            const castes = new Set<string>(
+              entered.map((a) => (a.side === "goblin" ? a.caste : "")),
+            );
             for (const caste of named ?? []) expect(castes.has(caste), what).toBe(true);
           }
         }
