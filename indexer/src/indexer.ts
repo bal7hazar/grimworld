@@ -2,17 +2,22 @@
 // 1. reads the node's tip, then checks the stored tip against the node's block at that height, by
 //    hash AND commitments. If they differ, the state is `rewinding`: the fork point is the highest
 //    stored block the node still has, and every table goes back to it in one transaction;
-// 2. checks, the same way, every block applied since the last check (a block is served only once
-//    it has been seen again, unchanged, after it was applied; on devnet a replacement block keeps
-//    the replaced block's hash, so the parent hash of the next block does not prove its parent);
-//    the highest checked block is the served one, and the state is `ok`;
+// 2. checks, the same way, every stored block not checked since it was applied, and, every
+//    `recheck.everyMs`, the last `recheck.depth` blocks below the tip again (on devnet a replaced
+//    ancestor can hide under a tip of the same hash and commitments, as empty blocks have); the
+//    highest checked block is the served one, and the state is `ok`; then forgets the history
+//    below the kept depth (never above the checked blocks);
 // 3. applies the next blocks, up to a batch, each with the events of both contracts in block order,
-//    each in one transaction; a block whose parent is not the stored tip waits for the next step;
-// 4. once blocks are checked, forgets the history below the kept depth (never above them).
+//    each in one transaction. Before applying block N+1 it reads the stored tip N again, AFTER N+1's
+//    header and events were read: N+1 is applied only if N is still the node's (hash AND
+//    commitments). On devnet a replacement keeps the replaced block's hash, so N+1's parent hash
+//    does not prove N; without this, N+1 could land on a stale N. That read is also N's check.
 // It halts (state `halted`, for good; the reason in the log and in every answer) on an event of
 // the two contracts it cannot decode, a gap in the lot or trade ids (store.ts), a close of a lot or
-// trade that is not open, or a node that went back below the kept history. Pre-confirmed blocks are
-// never read: the node's tip is its latest accepted block.
+// trade that is not open, or a node that went back below the kept history. A halt found while
+// applying is made permanent only if the block and its parent are still the node's when read again;
+// otherwise the step ends and the next one rewinds. Pre-confirmed blocks are never read: the
+// node's tip is its latest accepted block.
 import { Chain, sameBlock, type Header } from "./chain.ts";
 import { DecodeError, decode } from "./events.ts";
 import { Halt, Store, type Applied, type Config } from "./store.ts";
@@ -27,12 +32,20 @@ export type Options = {
   store: Store;
   config: Config;
   depth: Depth;
-  /** Blocks applied in one step before the tip is checked again. */
+  /** Blocks applied in one step before the tip is checked again (at least 1). */
   batch?: number;
+  /**
+   * The ancestors checked again: the last `depth` blocks below the tip, at most once every
+   * `everyMs` (default 10 blocks every 10 s: `depth` header reads each time).
+   */
+  recheck?: { depth: number; everyMs: number };
   log?: (message: string) => void;
 };
 
 export type Rewind = { from: number; to: number; ms: number };
+
+/** The rewinds kept in memory for /stats: the count, and the last ones. */
+export const REWINDS_KEPT = 20;
 
 const short = (hash: string) => `${hash.slice(0, 10)}…`;
 
@@ -44,12 +57,16 @@ export class Indexer {
   chainTip = -1;
   blocksApplied = 0;
   eventsApplied = 0;
+  rewindCount = 0;
+  /** The last REWINDS_KEPT rewinds, oldest first. */
   readonly rewinds: Rewind[] = [];
   readonly chain: Chain;
   readonly store: Store;
   private readonly config: Config;
   private readonly depth: Depth;
   private readonly batch: number;
+  private readonly recheck: { depth: number; everyMs: number };
+  private lastRecheck = -Infinity;
   private readonly log: (message: string) => void;
 
   constructor(options: Options) {
@@ -57,7 +74,8 @@ export class Indexer {
     this.store = options.store;
     this.config = options.config;
     this.depth = options.depth;
-    this.batch = options.batch ?? 100;
+    this.batch = Math.max(1, options.batch ?? 100);
+    this.recheck = options.recheck ?? { depth: 10, everyMs: 10_000 };
     this.log = options.log ?? (() => {});
     this.store.open(this.config);
   }
@@ -98,8 +116,16 @@ export class Indexer {
     const started = performance.now();
     this.store.rewind(fork);
     const ms = performance.now() - started;
+    this.rewindCount++;
     this.rewinds.push({ from: tip, to: fork, ms });
+    if (this.rewinds.length > REWINDS_KEPT) this.rewinds.shift();
     this.log(`rewind from ${tip} to ${fork} (${why}) in ${ms.toFixed(1)} ms`);
+  }
+
+  /** True when the node still has `block` (hash and commitments). */
+  private async still(block: Header): Promise<boolean> {
+    const now = await this.chain.header(block.number);
+    return now !== null && sameBlock(now, block);
   }
 
   /** One step; true when there is more to do right away. */
@@ -109,8 +135,7 @@ export class Indexer {
     this.chainTip = chainTip.number;
     const stored = this.store.tip();
     if (stored) {
-      const onChain = await this.chain.header(stored.number);
-      if (!onChain || !sameBlock(onChain, stored)) {
+      if (!(await this.still(stored))) {
         await this.rewind(
           stored,
           `block ${stored.number} ${short(stored.hash)} is no longer the node's`,
@@ -118,15 +143,23 @@ export class Indexer {
         return true;
       }
       const lowest = this.store.lowest()?.number ?? stored.number;
-      const first = Math.max(lowest, this.store.checked() + 1);
-      for (let number = first; number < stored.number; number++) {
+      let first = this.store.checked() + 1;
+      const now = performance.now();
+      if (now - this.lastRecheck >= this.recheck.everyMs) {
+        first = Math.min(first, stored.number - this.recheck.depth);
+        this.lastRecheck = now;
+      }
+      for (
+        let number = Math.max(lowest, first);
+        number < stored.number;
+        number++
+      ) {
         const block = this.store.block(number);
         if (!block) continue;
-        const now = await this.chain.header(number);
-        if (!now || !sameBlock(now, block)) {
+        if (!(await this.still(block))) {
           await this.rewind(
             block,
-            `block ${number} ${short(block.hash)} changed after it was applied`,
+            `block ${number} ${short(block.hash)} is no longer the node's`,
           );
           return true;
         }
@@ -148,19 +181,38 @@ export class Indexer {
       if (!block) break;
       const below = this.store.tip();
       if (below && block.parent !== below.hash) break; // the next step's checks rewind
-      const events = (await this.chain.events(block)).map((raw): Applied => {
-        try {
-          return { raw, event: decode(raw.source, raw.keys, raw.data) };
-        } catch (error) {
-          if (!(error instanceof DecodeError)) throw error;
-          throw new Halt(
-            `undecodable event of ${raw.source} in block ${block.number} (transaction ${raw.transactionIndex}, event ${raw.eventIndex}): ${error.message}`,
-          );
-        }
-      });
-      this.store.apply(block, events);
-      this.blocksApplied++;
-      this.eventsApplied += events.length;
+      const raws = await this.chain.events(block);
+      // Read after the block and its events: the parent is still the stored one (see 3. above).
+      if (below) {
+        if (!(await this.still(below))) break;
+        if (this.store.checked() < below.number)
+          this.store.setChecked(below.number);
+      }
+      try {
+        const events = raws.map((raw): Applied => {
+          try {
+            return { raw, event: decode(raw.source, raw.keys, raw.data) };
+          } catch (error) {
+            if (!(error instanceof DecodeError)) throw error;
+            throw new Halt(
+              `undecodable event of ${raw.source} in block ${block.number} (transaction ${raw.transactionIndex}, event ${raw.eventIndex}): ${error.message}`,
+            );
+          }
+        });
+        this.store.apply(block, events);
+        this.blocksApplied++;
+        this.eventsApplied += events.length;
+      } catch (error) {
+        if (!(error instanceof Halt)) throw error;
+        // Permanent only if the block and its parent are still the node's now.
+        const consistent =
+          (await this.still(block)) && (!below || (await this.still(below)));
+        if (consistent) throw error;
+        this.log(
+          `block ${block.number} changed while it was applied (${error.message}); checking again`,
+        );
+        break;
+      }
     }
     return true;
   }
@@ -178,8 +230,9 @@ export class Indexer {
     if (floor > lowest.number) this.store.prune(floor);
   }
 
-  /** Steps until halted or `signal` aborts; waits `pollMs` when idle or after a failed step. */
+  /** Steps until halted or `signal` aborts; waits `pollMs` (at least 1) when idle or after a failed step. */
   async run(pollMs: number, signal: AbortSignal) {
+    const wait = Math.max(1, pollMs);
     while (!signal.aborted && this.status !== "halted") {
       let more = false;
       try {
@@ -191,7 +244,7 @@ export class Indexer {
         }
         this.log(`step failed: ${(error as Error).message}`);
       }
-      if (!more) await sleep(pollMs, signal);
+      if (!more) await sleep(wait, signal);
     }
   }
 }

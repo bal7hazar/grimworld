@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { Chain } from "./chain.ts";
-import { Indexer, type Depth } from "./indexer.ts";
+import { BadAnswer, Chain } from "./chain.ts";
+import { Indexer, REWINDS_KEPT, type Depth } from "./indexer.ts";
 import { answer } from "./server.ts";
 import { Halt, Store } from "./store.ts";
 import {
@@ -16,9 +16,16 @@ import {
 
 function indexer(
   node: FakeNode,
-  options: { db?: string; depth?: Depth; batch?: number; from?: number } = {},
+  options: {
+    db?: string;
+    depth?: Depth;
+    batch?: number;
+    from?: number;
+    recheck?: { depth: number; everyMs: number };
+  } = {},
 ) {
   return new Indexer({
+    recheck: options.recheck,
     chain: new Chain(node.rpc, { hub: HUB, market: MARKET }),
     store: new Store(options.db ?? ":memory:"),
     config: {
@@ -344,5 +351,213 @@ describe("restart and rebuild", () => {
     const again = indexer(node, { db });
     await settle(again);
     expect(again.store.dump()).toEqual(before);
+  });
+});
+
+describe("fix loop 1", () => {
+  /**
+   * Blocks 1..5 indexed and served, block 6 empty on the node. While the step reads block 6, block
+   * 5 and 6 are replaced (devnet: same hashes): 5' posts lot 6, 6' closes it. On the stale 5, 6'
+   * would halt for good with "no such lot".
+   */
+  function raced() {
+    const node = new FakeNode();
+    history(node, 5);
+    const subject = indexer(node);
+    return { node, subject };
+  }
+  const replace = (node: FakeNode) =>
+    node.reorg(
+      2,
+      [[[ev.posted(5, { price: 55n }), ev.posted(6)]], [[ev.closed(6, true)]]],
+      true,
+    );
+  const asks = (params: unknown, number: number) =>
+    (params as { block_id?: { block_number?: number } }).block_id
+      ?.block_number === number;
+
+  it("applies a block only if its parent is still the stored one, read after the block (Opus 2)", async () => {
+    const { node, subject } = raced();
+    await settle(subject);
+    node.mine();
+    let replaced = false;
+    node.beforeCall = (method, params) => {
+      if (
+        !replaced &&
+        method === "starknet_getBlockWithTxHashes" &&
+        asks(params, 6)
+      ) {
+        replaced = true;
+        replace(node);
+      }
+    };
+    await settle(subject);
+    expect(replaced).toBe(true);
+    expect(subject.status).toBe("ok");
+    expect(subject.rewindCount).toBe(1);
+    expect(subject.store.dump()).toEqual(await rebuilt(node));
+  });
+
+  it("does not make a halt permanent when the block or its parent changed meanwhile (Opus 2)", async () => {
+    const { node, subject } = raced();
+    await settle(subject);
+    node.mine();
+    const stale = node.blocks[5]!;
+    const staleAnswer = {
+      status: "ACCEPTED_ON_L2",
+      block_hash: stale.hash,
+      parent_hash: stale.parent,
+      block_number: 5,
+      transaction_commitment: stale.commitment,
+      event_commitment: stale.commitment,
+      receipt_commitment: stale.commitment,
+      state_diff_commitment: stale.commitment,
+    };
+    let phase = 0;
+    node.beforeCall = (method, params) => {
+      if (
+        phase === 0 &&
+        method === "starknet_getBlockWithTxHashes" &&
+        asks(params, 6)
+      ) {
+        phase = 1;
+        replace(node);
+      }
+    };
+    // The re-read of block 5 answers the stale block once: the parent check passes, the apply halts.
+    node.tamper = (method, params, result) => {
+      if (
+        phase === 1 &&
+        method === "starknet_getBlockWithTxHashes" &&
+        asks(params, 5)
+      ) {
+        phase = 2;
+        return staleAnswer;
+      }
+      return result;
+    };
+    const logs: string[] = [];
+    const logged = new Indexer({
+      chain: new Chain(node.rpc, { hub: HUB, market: MARKET }),
+      store: subject.store,
+      config: {
+        hub: HUB,
+        market: MARKET,
+        from: 1,
+        lotCount: 0n,
+        tradeCount: 0n,
+      },
+      depth: 1000,
+      log: (message) => logs.push(message),
+    });
+    await settle(logged);
+    expect(phase).toBe(2);
+    expect(
+      logs.some((line) =>
+        /changed while it was applied \(LotClosed of lot 6 .*no such lot\)/.test(
+          line,
+        ),
+      ),
+    ).toBe(true);
+    expect(logged.status).toBe("ok");
+    expect(logged.store.dump()).toEqual(await rebuilt(node));
+  });
+
+  it("still halts for good when the block and its parent are the node's (Opus 2)", async () => {
+    const node = new FakeNode();
+    node.mine([ev.posted(1)]);
+    node.mine([ev.closed(7, true)]);
+    const subject = indexer(node);
+    await settle(subject);
+    expect(subject.status).toBe("halted");
+    expect(subject.reason).toMatch(/LotClosed of lot 7 .*no such lot/);
+  });
+
+  it("checks a window of ancestors again: a replaced ancestor under a tip of the same hash and commitments (Opus 4)", async () => {
+    for (const depth of [0, 10]) {
+      const node = new FakeNode();
+      history(node, 4);
+      node.mine();
+      node.mine();
+      const subject = indexer(node, { recheck: { depth, everyMs: 0 } });
+      await settle(subject);
+      expect(subject.store.checked()).toBe(6);
+      const old = node.blocks.slice(4, 7).map((block) => block.commitment);
+      node.reorg(3, [[[ev.posted(4, { price: 44n })]], [], []], true);
+      // The empty replacements keep the aborted commitments too: only block 4 differs.
+      node.blocks[5]!.commitment = old[1]!;
+      node.blocks[6]!.commitment = old[2]!;
+      await settle(subject);
+      if (depth === 0) {
+        expect(subject.rewindCount).toBe(0); // unseen without the window
+        expect(subject.store.dump()).not.toEqual(await rebuilt(node));
+      } else {
+        expect(subject.rewinds).toMatchObject([{ from: 6, to: 3 }]);
+        expect(subject.store.dump()).toEqual(await rebuilt(node));
+      }
+    }
+  });
+
+  it("retries, never applies, a block of another height or without commitments (GPT 2, 3)", async () => {
+    for (const bad of ["height", "commitments"]) {
+      const node = new FakeNode();
+      node.mine([ev.posted(1)]);
+      const subject = indexer(node);
+      node.tamper = (method, params, result) => {
+        if (method !== "starknet_getBlockWithTxHashes" || !asks(params, 1))
+          return result;
+        const block = { ...(result as Record<string, unknown>) };
+        if (bad === "height") block.block_number = 2;
+        else delete block.event_commitment;
+        return block;
+      };
+      await expect(subject.step()).rejects.toThrow(BadAnswer);
+      expect(subject.status).toBe("loading");
+      expect(subject.store.tip()).toBe(undefined);
+      node.tamper = null;
+      await settle(subject);
+      expect(subject.served?.number).toBe(1);
+    }
+  });
+
+  it("never indexes a pre-confirmed or hash-less block", async () => {
+    const node = new FakeNode();
+    node.mine([ev.posted(1)]);
+    const subject = indexer(node);
+    node.tamper = (method, params, result) =>
+      method === "starknet_getBlockWithTxHashes" && asks(params, 1)
+        ? { status: "PRE_CONFIRMED", block_number: 1, transactions: [] }
+        : result;
+    expect(await subject.step()).toBe(true);
+    expect(subject.store.tip()).toBe(undefined);
+    expect(subject.chain.calls.starknet_getEvents).toBe(undefined);
+  });
+
+  it("keeps a count of rewinds and only the last ones (Opus 9)", async () => {
+    const node = new FakeNode();
+    history(node, 2);
+    const subject = indexer(node);
+    await settle(subject);
+    for (let i = 0; i < REWINDS_KEPT + 5; i++) {
+      node.reorg(1, [[[ev.located(i, 1)]]]);
+      await settle(subject);
+    }
+    expect(subject.rewindCount).toBe(REWINDS_KEPT + 5);
+    expect(subject.rewinds).toHaveLength(REWINDS_KEPT);
+  });
+
+  it("runs at least one block per step and waits at least 1 ms (Opus 5)", async () => {
+    const node = new FakeNode();
+    history(node, 3);
+    const subject = indexer(node, { batch: 0 });
+    await settle(subject);
+    expect(subject.served?.number).toBe(3);
+    const abort = new AbortController();
+    const run = subject.run(0, abort.signal);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    abort.abort();
+    await run;
+    // At least 1 ms between idle polls: far fewer than a spin would make in 20 ms.
+    expect(subject.chain.calls.starknet_blockHashAndNumber).toBeLessThan(60);
   });
 });

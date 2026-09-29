@@ -83,7 +83,7 @@ export class FakeNode {
   l1Accepted: number | null = null;
   readonly calls: string[] = [];
   /** Called before each answer: a test injects a reorg between two calls of a step. */
-  beforeCall: ((method: string) => void) | null = null;
+  beforeCall: ((method: string, params: unknown) => void) | null = null;
   private salt = 0;
 
   constructor(emptyBlocks = 1) {
@@ -147,9 +147,19 @@ export class FakeNode {
     };
   }
 
+  /** Rewrites an answer: a test makes the node answer wrongly. */
+  tamper:
+    ((method: string, params: unknown, result: unknown) => unknown) | null =
+    null;
+
   readonly rpc: Rpc = async (method, params) => {
+    const result = await this.answer(method, params);
+    return this.tamper ? this.tamper(method, params, result) : result;
+  };
+
+  private async answer(method: string, params: unknown): Promise<unknown> {
     this.calls.push(method);
-    this.beforeCall?.(method);
+    this.beforeCall?.(method, params);
     const p = params as Record<string, unknown>;
     switch (method) {
       case "starknet_blockHashAndNumber": {
@@ -221,5 +231,5 @@ export class FakeNode {
           message: "Method not found",
         });
     }
-  };
+  }
 }

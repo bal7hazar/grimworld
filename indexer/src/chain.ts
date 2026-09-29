@@ -1,24 +1,42 @@
 // The indexer's view of the node: JSON-RPC 0.10 read methods only, counted by method. The node
 // is one node we trust, never several mixed within a step (SPK-11 §4). The indexer holds no key and
 // sends nothing: this module knows only the read methods below.
+//
+// Nothing a node or a transport says is logged as it is: an RPC error is its method and code, a
+// transport error its method and error code (a provider's text, or undici's, may hold the URL and
+// its key).
 import { canonical, type Source } from "./events.ts";
 
 /** A JSON-RPC transport: the method's result, or an RpcError. */
 export type Rpc = (method: string, params: unknown) => Promise<unknown>;
 
+/** A JSON-RPC error answer: the method and the code, never the provider's text. */
 export class RpcError extends Error {
   readonly code: number;
   constructor(method: string, error: { code: number; message?: string }) {
-    super(`${method}: ${error.code} ${error.message ?? ""}`.trim());
+    super(`${method}: JSON-RPC error ${error.code}`);
     this.code = error.code;
   }
 }
 
+/** An answer the indexer does not accept (another height, no commitments): the step is retried. */
+export class BadAnswer extends Error {}
+
 export const BLOCK_NOT_FOUND = 24;
 
-/** The URL without credentials, path or query: what may appear in a log. */
-export function redact(url: string): string {
+/** The URL if it is an http(s) URL, else null. Never prints it. */
+export function parseRpcUrl(url: string): URL | null {
+  if (!URL.canParse(url)) return null;
   const parsed = new URL(url);
+  return parsed.protocol === "http:" || parsed.protocol === "https:"
+    ? parsed
+    : null;
+}
+
+/** The URL without credentials, path or query: what may appear in a log. Never throws. */
+export function redact(url: string): string {
+  const parsed = parseRpcUrl(url);
+  if (!parsed) return "(not an http(s) URL; not shown)";
   const hidden =
     parsed.username ||
     parsed.password ||
@@ -32,16 +50,28 @@ export function redact(url: string): string {
 export function httpRpc(url: string): Rpc {
   let id = 0;
   return async (method, params) => {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+      });
+    } catch (error) {
+      const cause = (error as { cause?: { code?: unknown } }).cause;
+      const code =
+        typeof cause?.code === "string" ? cause.code : (error as Error).name;
+      // The cause is dropped on purpose: undici's error and its cause may hold the URL and its key.
+      // eslint-disable-next-line preserve-caught-error
+      throw new Error(`${method}: transport error ${code}`);
+    }
     if (!response.ok) throw new Error(`${method}: HTTP ${response.status}`);
-    const body = (await response.json()) as {
-      result?: unknown;
-      error?: { code: number; message?: string };
-    };
+    let body: { result?: unknown; error?: { code: number } };
+    try {
+      body = (await response.json()) as typeof body;
+    } catch {
+      throw new Error(`${method}: an answer that is not JSON`);
+    }
     if (body.error) throw new RpcError(method, body.error);
     return body.result;
   };
@@ -71,20 +101,21 @@ export type RawEvent = {
   eventIndex: number;
 };
 
-type BlockResult = {
+export type BlockResult = {
   status?: string;
   block_hash?: string;
-  parent_hash: string;
+  parent_hash?: string;
   block_number?: number;
-  transaction_commitment?: string;
-  event_commitment?: string;
-  receipt_commitment?: string;
-  state_diff_commitment?: string;
+  transaction_commitment?: string | null;
+  event_commitment?: string | null;
+  receipt_commitment?: string | null;
+  state_diff_commitment?: string | null;
 };
 
 type EventsPage = {
   events: {
     block_hash?: string;
+    block_number?: number;
     transaction_hash: string;
     transaction_index?: number;
     event_index?: number;
@@ -121,42 +152,56 @@ export class Chain {
       block_number: number;
       block_hash: string;
     };
+    if (!Number.isInteger(result?.block_number) || !result.block_hash) {
+      throw new BadAnswer("the node's tip has no number or hash");
+    }
     return { number: result.block_number, hash: canonical(result.block_hash) };
   }
 
-  private static header(block: BlockResult): Header | null {
-    // A pre-confirmed block has no hash: it is never indexed.
-    if (!block.block_hash || block.block_number === undefined) return null;
-    if (block.status === "PRE_CONFIRMED") return null;
+  /**
+   * The header of an accepted block asked at `number`; null for a pre-confirmed or hash-less
+   * block, which is never indexed. A block of another height, or an accepted block without its
+   * parent or its four commitments, is a BadAnswer: its identity is unknown.
+   */
+  static header(block: BlockResult, number: number): Header | null {
+    if (block.status === "PRE_CONFIRMED" || !block.block_hash) return null;
+    if (block.block_number !== number) {
+      throw new BadAnswer(
+        `the node answered block ${block.block_number} for block ${number}`,
+      );
+    }
     const commitments = [
       block.transaction_commitment,
       block.event_commitment,
       block.receipt_commitment,
       block.state_diff_commitment,
-    ]
-      .map((value) => (value === undefined ? "-" : canonical(value)))
-      .join(",");
+    ];
+    if (!block.parent_hash || commitments.some((value) => !value)) {
+      throw new BadAnswer(
+        `block ${number} has no parent or no commitments: its identity is unknown`,
+      );
+    }
     return {
-      number: block.block_number,
+      number,
       hash: canonical(block.block_hash),
       parent: canonical(block.parent_hash),
-      commitments,
+      commitments: commitments.map((value) => canonical(value!)).join(","),
     };
   }
 
-  /** The block at `number`, or null when the node has none there. */
+  /** The block at `number`, or null when the node has none there (or only a pre-confirmed one). */
   async header(number: number): Promise<Header | null> {
+    let block: BlockResult;
     try {
-      return Chain.header(
-        (await this.call("starknet_getBlockWithTxHashes", {
-          block_id: { block_number: number },
-        })) as BlockResult,
-      );
+      block = (await this.call("starknet_getBlockWithTxHashes", {
+        block_id: { block_number: number },
+      })) as BlockResult;
     } catch (error) {
       if (error instanceof RpcError && error.code === BLOCK_NOT_FOUND)
         return null;
       throw error;
     }
+    return Chain.header(block, number);
   }
 
   /** The number of the last block accepted on L1, or null when there is none yet. */
@@ -165,7 +210,7 @@ export class Chain {
       const block = (await this.call("starknet_getBlockWithTxHashes", {
         block_id: "l1_accepted",
       })) as BlockResult;
-      return block.block_number ?? null;
+      return Number.isInteger(block.block_number) ? block.block_number! : null;
     } catch (error) {
       if (error instanceof RpcError && error.code === BLOCK_NOT_FOUND)
         return null;
@@ -176,7 +221,7 @@ export class Chain {
   /**
    * The events of both contracts in `block`, fetched by the block's hash, in block order
    * (transaction index, then event index within the transaction). An event reported for another
-   * block, or without its position, is an Error (the step is tried again).
+   * block (hash or number), of another contract, or without its position, is a BadAnswer.
    */
   async events(block: Header): Promise<RawEvent[]> {
     const events: RawEvent[] = [];
@@ -193,21 +238,25 @@ export class Chain {
           },
         })) as EventsPage;
         for (const event of page.events) {
-          if (!event.block_hash || canonical(event.block_hash) !== block.hash) {
-            throw new Error(
-              `an event of block ${event.block_hash} in the answer for ${block.hash}`,
+          if (
+            !event.block_hash ||
+            canonical(event.block_hash) !== block.hash ||
+            event.block_number !== block.number
+          ) {
+            throw new BadAnswer(
+              `an event of block ${event.block_number} in the answer for block ${block.number}`,
             );
           }
           if (canonical(event.from_address) !== this.addresses[source]) {
-            throw new Error(
-              `an event of ${event.from_address} in the answer for ${source}`,
+            throw new BadAnswer(
+              `an event of another contract in the answer for ${source}`,
             );
           }
           if (
             event.transaction_index === undefined ||
             event.event_index === undefined
           ) {
-            throw new Error(
+            throw new BadAnswer(
               "an event without its position (JSON-RPC 0.10 is needed)",
             );
           }

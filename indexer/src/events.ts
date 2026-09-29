@@ -114,6 +114,12 @@ const TWO_16 = 1n << 16n;
 /**
  * ENG-01 §3.4: a balance is its item id (u32); equipment `2^40 + base × 2^16 + requirement × 2^8
  * + rarity × 2 + identified`; a boss item `2^41 + base`. Any other felt is a DecodeError.
+ *
+ * ASSUMPTION: rarity < 128. `rarity × 2` has bits 1 to 7 only; a rarity of 128 or more would
+ * carry into `requirement` (requirement 0 with rarity 128 is the same key as requirement 1 with
+ * rarity 0), so the encoding is not decodable there. The decoder reads 7 bits of rarity. ENG-01's
+ * encoding lives in contracts/ (`models::market::market_key`); the ambiguity is escalated to the
+ * project manager (IDX-01a, fix loop 1) and nothing here guards it.
  */
 export function decodeMarketKey(key: bigint): MarketKey {
   if (key < TWO_32) return { kind: "balance", item: Number(key) };
@@ -125,7 +131,7 @@ export function decodeMarketKey(key: bigint): MarketKey {
       kind: "equipment",
       base: Number(base),
       requirement: Number((rest >> 8n) & 0xffn),
-      rarity: Number((rest >> 1n) & 0x7fn),
+      rarity: Number((rest >> 1n) & 0x7fn), // 7 bits: rarity < 128 (above)
       identified: (rest & 1n) === 1n,
     };
   }
