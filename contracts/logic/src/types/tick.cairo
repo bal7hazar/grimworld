@@ -38,6 +38,8 @@ pub const HEALTH_PER_PIP: i32 = 2;
 pub const ENERGY_THIRDS: u16 = 3;
 /// Stored health regeneration is its pips + 10 (`MemberStats.health_regen`, `Caste.health_regen`).
 pub const REGEN_OFFSET: i32 = 10;
+/// A goblin's adrenaline field holds at most 63 strikes, in quarters (design/19 §5.12).
+pub const MAX_GOBLIN_ADRENALINE: u8 = 252;
 /// No member activation (`MemberTimers.act_slot`, ENG-01).
 pub const NO_SLOT: u8 = 255;
 
@@ -158,6 +160,9 @@ pub struct Member {
     pub health_regen: i8,
     /// Pips: thirds a tick.
     pub energy_regen: u8,
+    /// Its adrenaline gains' cap in quarters: the highest adrenaline cost on its bar (design/19
+    /// §5.12, FX-12), derived once.
+    pub adrenaline_cap: u16,
     pub words: MemberWords,
 }
 
@@ -191,8 +196,23 @@ pub struct Goblin {
     /// In thirds.
     pub max_energy: u8,
     pub energy_regen: u8,
+    /// Its adrenaline gains' cap in quarters: its caste skills' highest cost, at most the field's
+    /// 252 (design/19 §5.12), derived once.
+    pub adrenaline_cap: u8,
     pub state: felt252,
     pub timers: felt252,
+}
+
+/// A held effect as its word stores it (design/19 §5.7, §7.2): its carrier (a skill id, or with
+/// `potion` a belt slot 0–3), its charges (0–63), its deadline (`MAX_CLOCK` for a charge-only
+/// effect) and the source's rank at application (0–15).
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
+pub struct Held {
+    pub carrier: u16,
+    pub potion: bool,
+    pub charges: u8,
+    pub deadline: u32,
+    pub rank: u8,
 }
 
 /// What the ticks run over, inside the call.
@@ -218,6 +238,8 @@ pub enum Actor {
 pub struct SkillSheet {
     pub id: u16,
     pub kind: u8,
+    /// Its adrenaline cost, in strikes (the caps of §5.12).
+    pub adrenaline: u8,
     pub activation: u16,
     pub recharge: u16,
     pub regen0: i16,
@@ -268,28 +290,6 @@ fn delta(old: u128, new: u128, shift: felt252) -> felt252 {
     (new.into() - old.into()) * shift
 }
 
-/// The hot fields of a member's words, in `Member`'s order (status … knocked).
-fn member_hot(
-    words: @MemberWords,
-) -> (u8, u16, u16, u16, u8, u8, u16, u8, u32, u32, u32, u32, u32) {
-    let (low, high) = split(*words.state);
-    let (tlow, thigh) = split(*words.timers);
-    (
-        field(low, P56, P8).try_into().unwrap(),
-        field(low, P64, P16).try_into().unwrap(),
-        field(low, P80, P16).try_into().unwrap(),
-        field(low, P96, P16).try_into().unwrap(),
-        field(high, P32, P8).try_into().unwrap(),
-        low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
-        field(tlow, P8, P16).try_into().unwrap(),
-        field(tlow, P24, P8).try_into().unwrap(),
-        field(tlow, P32, P32).try_into().unwrap(),
-        field(tlow, P64, P32).try_into().unwrap(),
-        field(tlow, P96, P32).try_into().unwrap(),
-        low_field(thigh, P32.try_into().unwrap()).try_into().unwrap(),
-        field(thigh, P64, P32).try_into().unwrap(),
-    )
-}
 
 /// The `(limb is high, shift)` of a member's recharge slot 0–7 and its felt shift.
 #[inline(always)]
@@ -315,6 +315,27 @@ fn member_recharge_at(slot: u8) -> (bool, u128, felt252) {
 
 #[generate_trait]
 pub impl MemberImpl of MemberTrait {
+    /// The hot fields of a member's words, in `Member`'s order (status … knocked).
+    fn hot(words: @MemberWords) -> (u8, u16, u16, u16, u8, u8, u16, u8, u32, u32, u32, u32, u32) {
+        let (low, high) = split(*words.state);
+        let (tlow, thigh) = split(*words.timers);
+        (
+            field(low, P56, P8).try_into().unwrap(),
+            field(low, P64, P16).try_into().unwrap(),
+            field(low, P80, P16).try_into().unwrap(),
+            field(low, P96, P16).try_into().unwrap(),
+            field(high, P32, P8).try_into().unwrap(),
+            low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
+            field(tlow, P8, P16).try_into().unwrap(),
+            field(tlow, P24, P8).try_into().unwrap(),
+            field(tlow, P32, P32).try_into().unwrap(),
+            field(tlow, P64, P32).try_into().unwrap(),
+            field(tlow, P96, P32).try_into().unwrap(),
+            low_field(thigh, P32.try_into().unwrap()).try_into().unwrap(),
+            field(thigh, P64, P32).try_into().unwrap(),
+        )
+    }
+
     /// A member from its words, with what it derives once: the maxima and regeneration of
     /// `MemberStats`, each held effect's deadline and `REGENERATION` pips (a skill's at the slot's
     /// rank, a potion's through the belt of `MemberKit`).
@@ -334,7 +355,7 @@ pub impl MemberImpl of MemberTrait {
             burning,
             knocked,
         ) =
-            member_hot(
+            Self::hot(
             @words,
         );
         let (low, _) = split(words.stats);
@@ -346,16 +367,31 @@ pub impl MemberImpl of MemberTrait {
         for (limb, shift) in array![(elow, 1), (elow, P56), (ehigh, 1), (ehigh, P56)] {
             let carrier: u16 = field(limb, shift, P16).try_into().unwrap();
             deadlines.append(field(limb, shift * P24, P28).try_into().unwrap());
-            let pips: i32 = if carrier == 0 {
-                0
-            } else if field(limb, shift * 0x800000, 2) == 1 {
-                // The potion tag: the carrier is a belt slot.
+            // The potion tag first: with it, the carrier is a belt slot 0–3, slot 0 included
+            // (ENG-01 §3.2; AUD-182-1). Without it, skill 0 is an empty slot.
+            let pips: i32 = if field(limb, shift * 0x800000, 2) == 1 {
                 let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
                 (*content.potion(id.try_into().unwrap()).regen).into()
+            } else if carrier == 0 {
+                0
             } else {
                 content.skill(carrier).regen(field(limb, shift * P52, 0x10).try_into().unwrap())
             };
             regen.append(pips.try_into().expect(errors::REGEN));
+        }
+        // The bar's highest adrenaline cost, in quarters (§5.12).
+        let (bar, _) = split(words.bar);
+        let mut cap: u16 = 0;
+        let mut rest = bar;
+        for _ in 0..8_u8 {
+            let (next, skill) = DivRem::div_rem(rest, P16.try_into().unwrap());
+            rest = next;
+            if skill != 0 {
+                let cost: u16 = (*content.skill(skill.try_into().unwrap()).adrenaline).into() * 4;
+                if cost > cap {
+                    cap = cost;
+                }
+            }
         }
         Member {
             status,
@@ -377,6 +413,7 @@ pub impl MemberImpl of MemberTrait {
             max_energy: field(low, P16, P8).try_into().unwrap() * ENERGY_THIRDS,
             health_regen: (health_regen - REGEN_OFFSET).try_into().unwrap(),
             energy_regen: field(low, P24, P8).try_into().unwrap(),
+            adrenaline_cap: cap,
             words,
         }
     }
@@ -398,7 +435,7 @@ pub impl MemberImpl of MemberTrait {
             burning,
             knocked,
         ) =
-            member_hot(
+            Self::hot(
             self.words,
         );
         let words = *self.words;
@@ -447,35 +484,36 @@ pub impl MemberImpl of MemberTrait {
     }
 }
 
-/// The hot fields of a goblin's words, in `Goblin`'s order (ai … effect deadline), and its level
-/// and effect `(skill, rank)`.
-fn goblin_hot(
-    state: felt252, timers: felt252,
-) -> (u8, u16, u8, u8, u16, u8, u16, u32, u32, u32, u32, u32, u32, u8, u16, u8) {
-    let (low, _) = split(state);
-    let (tlow, thigh) = split(timers);
-    (
-        field(low, P24, P8).try_into().unwrap(),
-        field(low, P32, P16).try_into().unwrap(),
-        field(low, 0x1000000000000, P8).try_into().unwrap(),
-        field(low, P56, P8).try_into().unwrap(),
-        field(low, P64, P16).try_into().unwrap(),
-        low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
-        field(tlow, P8, P16).try_into().unwrap(),
-        field(tlow, P24, P28).try_into().unwrap(),
-        field(tlow, P52, P28).try_into().unwrap(),
-        field(tlow, P80, P28).try_into().unwrap(),
-        low_field(thigh, P28.try_into().unwrap()).try_into().unwrap(),
-        field(thigh, P56, P28).try_into().unwrap(),
-        field(thigh, P84, P28).try_into().unwrap(),
-        field(low, P80, P8).try_into().unwrap(),
-        field(tlow, P108, P16).try_into().unwrap(),
-        field(thigh, P118, 0x10).try_into().unwrap(),
-    )
-}
 
 #[generate_trait]
 pub impl GoblinImpl of GoblinTrait {
+    /// The hot fields of a goblin's words, in `Goblin`'s order (ai … effect deadline), and its
+    /// level and effect `(skill, rank)`.
+    fn hot(
+        state: felt252, timers: felt252,
+    ) -> (u8, u16, u8, u8, u16, u8, u16, u32, u32, u32, u32, u32, u32, u8, u16, u8) {
+        let (low, _) = split(state);
+        let (tlow, thigh) = split(timers);
+        (
+            field(low, P24, P8).try_into().unwrap(),
+            field(low, P32, P16).try_into().unwrap(),
+            field(low, 0x1000000000000, P8).try_into().unwrap(),
+            field(low, P56, P8).try_into().unwrap(),
+            field(low, P64, P16).try_into().unwrap(),
+            low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
+            field(tlow, P8, P16).try_into().unwrap(),
+            field(tlow, P24, P28).try_into().unwrap(),
+            field(tlow, P52, P28).try_into().unwrap(),
+            field(tlow, P80, P28).try_into().unwrap(),
+            low_field(thigh, P28.try_into().unwrap()).try_into().unwrap(),
+            field(thigh, P56, P28).try_into().unwrap(),
+            field(thigh, P84, P28).try_into().unwrap(),
+            field(low, P80, P8).try_into().unwrap(),
+            field(tlow, P108, P16).try_into().unwrap(),
+            field(thigh, P118, 0x10).try_into().unwrap(),
+        )
+    }
+
     /// A goblin from its words, with what it derives once from its caste (`content`) and level:
     /// its maxima, regeneration and its effect's `REGENERATION` pips.
     fn load(words: GoblinWords, content: @Content) -> Goblin {
@@ -497,7 +535,7 @@ pub impl GoblinImpl of GoblinTrait {
             effect,
             rank,
         ) =
-            goblin_hot(
+            Self::hot(
             words.state, words.timers,
         );
         let sheet = content.caste(caste);
@@ -507,6 +545,20 @@ pub impl GoblinImpl of GoblinTrait {
         } else {
             content.skill(effect).regen(rank)
         };
+        // Its caste skills' highest adrenaline cost, in quarters, at most 252 (§5.12; DS-18
+        // bounds a caste skill at 63 strikes).
+        let mut cap: u16 = 0;
+        for skill in sheet.skills.span() {
+            if *skill != 0 {
+                let cost: u16 = (*content.skill(*skill).adrenaline).into() * 4;
+                if cost > cap {
+                    cap = cost;
+                }
+            }
+        }
+        if cap > MAX_GOBLIN_ADRENALINE.into() {
+            cap = MAX_GOBLIN_ADRENALINE.into();
+        }
         Goblin {
             entity: words.entity,
             awake: words.awake,
@@ -528,6 +580,7 @@ pub impl GoblinImpl of GoblinTrait {
             health_regen: (regen - REGEN_OFFSET).try_into().unwrap(),
             max_energy: *sheet.energy * 3,
             energy_regen: *sheet.energy_regen,
+            adrenaline_cap: cap.try_into().unwrap(),
             state: words.state,
             timers: words.timers,
         }
@@ -554,7 +607,7 @@ pub impl GoblinImpl of GoblinTrait {
             _,
             _,
         ) =
-            goblin_hot(
+            Self::hot(
             *self.state, *self.timers,
         );
         let state = *self.state
@@ -641,6 +694,7 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         SkillSheet {
             id,
             kind: *skill.kind,
+            adrenaline: *skill.adrenaline,
             activation: *skill.activation,
             recharge: *skill.recharge,
             regen0,
@@ -670,6 +724,7 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         SkillSheet {
             id,
             kind: field(header, P16, P8).try_into().unwrap(),
+            adrenaline: field(header, P32, P8).try_into().unwrap(),
             activation: field(header, P40, P16).try_into().unwrap(),
             recharge: field(header, P56, P16).try_into().unwrap(),
             regen0,
@@ -781,5 +836,154 @@ pub impl ContentImpl of ContentTrait {
             }
         }
         core::panic_with_felt252(errors::NO_CASTE)
+    }
+}
+
+// Felt shifts of the cold fields the lifecycle rules write in the words.
+const F108: felt252 = 0x1000000000000000000000000000;
+const F112: felt252 = 0x10000000000000000000000000000;
+const F240: felt252 = 0x1000000000000000000000000000000000000000000000000000000000000;
+const F246: felt252 = 0x40000000000000000000000000000000000000000000000000000000000000;
+
+/// The `(limb is high, shift, felt shift)` of a member's effect slot 0–3 (bits 0, 56, 128, 184).
+/// A free function: a table.
+#[inline(always)]
+fn member_effect_at(slot: u8) -> (bool, u128, felt252) {
+    if slot == 0 {
+        (false, 1, 1)
+    } else if slot == 1 {
+        (false, P56, F56)
+    } else if slot == 2 {
+        (true, 1, F128)
+    } else {
+        (true, P56, F184)
+    }
+}
+
+#[inline(always)]
+fn tag(potion: bool) -> u128 {
+    if potion {
+        1
+    } else {
+        0
+    }
+}
+
+/// The fields of a member's words that are not hot: written only by the lifecycle rules
+/// (`tick::MemberTickTrait`), in the words directly, as the recharges are.
+#[generate_trait]
+pub impl MemberWordsImpl of MemberWordsTrait {
+    /// Crippled's deadline (`MemberTimers` bits 160–191).
+    fn crippled(self: @Member) -> u32 {
+        let (_, high) = split(*self.words.timers);
+        field(high, P32, P32).try_into().unwrap()
+    }
+
+    fn set_crippled(ref self: Member, deadline: u32) {
+        let old = self.crippled();
+        self.words.timers += delta(old.into(), deadline.into(), F160);
+    }
+
+    /// The `hits` counter (`MemberState` bits 112–119, design/19 §5.12).
+    fn hits(self: @Member) -> u8 {
+        let (low, _) = split(*self.words.state);
+        field(low, P112, P8).try_into().unwrap()
+    }
+
+    fn set_hits(ref self: Member, hits: u8) {
+        let old = self.hits();
+        self.words.state += delta(old.into(), hits.into(), F112);
+    }
+
+    /// `ADRENALINE_EVERY_N`'s lowest N (`MemberKit` bits 160–167); 0 for none.
+    fn double_every(self: @Member) -> u8 {
+        let (_, high) = split(*self.words.kit);
+        field(high, P32, P8).try_into().unwrap()
+    }
+
+    /// The potion item of belt slot 0–3 (`MemberKit` bits `32 slot`).
+    fn belt_item(self: @Member, slot: u16) -> u32 {
+        let (low, _) = split(*self.words.kit);
+        field(low, *[1, P32, P64, P96].span()[slot.into()], P32).try_into().unwrap()
+    }
+
+    /// The held effect of slot 0–3, as the word stores it.
+    fn effect_of(self: @Member, slot: u8) -> Held {
+        let (low, high) = split(*self.words.effects);
+        let (upper, shift, _) = member_effect_at(slot);
+        let limb = if upper {
+            high
+        } else {
+            low
+        };
+        Held {
+            carrier: field(limb, shift, P16).try_into().unwrap(),
+            charges: field(limb, shift * P16, 0x40).try_into().unwrap(),
+            potion: field(limb, shift * 0x800000, 2) == 1,
+            deadline: field(limb, shift * P24, P28).try_into().unwrap(),
+            rank: field(limb, shift * P52, 0x10).try_into().unwrap(),
+        }
+    }
+
+    /// Writes `held` in slot 0–3, with its `REGENERATION` pips (the hot fields follow).
+    fn set_effect(ref self: Member, slot: u8, held: Held, pips: i8) {
+        let old = self.effect_of(slot);
+        let (_, _, base) = member_effect_at(slot);
+        self.words.effects += delta(old.carrier.into(), held.carrier.into(), base)
+            + delta(old.charges.into(), held.charges.into(), base * 0x10000)
+            + delta(tag(old.potion), tag(held.potion), base * 0x800000)
+            + delta(old.deadline.into(), held.deadline.into(), base * 0x1000000)
+            + delta(old.rank.into(), held.rank.into(), base * 0x10000000000000);
+        let [d0, d1, d2, d3] = self.effect_deadlines;
+        let [r0, r1, r2, r3] = self.effect_regen;
+        let d = held.deadline;
+        let (deadlines, regen) = if slot == 0 {
+            ([d, d1, d2, d3], [pips, r1, r2, r3])
+        } else if slot == 1 {
+            ([d0, d, d2, d3], [r0, pips, r2, r3])
+        } else if slot == 2 {
+            ([d0, d1, d, d3], [r0, r1, pips, r3])
+        } else {
+            ([d0, d1, d2, d], [r0, r1, r2, pips])
+        };
+        self.effect_deadlines = deadlines;
+        self.effect_regen = regen;
+    }
+}
+
+/// The fields of a goblin's words that are not hot, written by the lifecycle rules.
+#[generate_trait]
+pub impl GoblinWordsImpl of GoblinWordsTrait {
+    /// Crippled's deadline (`GoblinTimers` bits 156–183).
+    fn crippled(self: @Goblin) -> u32 {
+        let (_, high) = split(*self.timers);
+        field(high, P28, P28).try_into().unwrap()
+    }
+
+    fn set_crippled(ref self: Goblin, deadline: u32) {
+        let old = self.crippled();
+        self.timers += delta(old.into(), deadline.into(), F156);
+    }
+
+    /// Its one held effect (a skill; a goblin holds no potion); its deadline is the hot field.
+    fn effect_of(self: @Goblin) -> Held {
+        let (low, high) = split(*self.timers);
+        Held {
+            carrier: field(low, P108, P16).try_into().unwrap(),
+            potion: false,
+            charges: field(high, P112, 0x40).try_into().unwrap(),
+            deadline: *self.effect_deadline,
+            rank: field(high, P118, 0x10).try_into().unwrap(),
+        }
+    }
+
+    /// Writes its one effect, with its `REGENERATION` pips.
+    fn set_effect(ref self: Goblin, held: Held, pips: i8) {
+        let old = self.effect_of();
+        self.timers += delta(old.carrier.into(), held.carrier.into(), F108)
+            + delta(old.charges.into(), held.charges.into(), F240)
+            + delta(old.rank.into(), held.rank.into(), F246);
+        self.effect_deadline = held.deadline;
+        self.effect_regen = pips;
     }
 }

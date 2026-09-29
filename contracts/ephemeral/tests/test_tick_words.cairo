@@ -9,20 +9,33 @@ use grimworld_ephemeral::models::member::{
     DOWN, Effect, GONE, INSIDE, MemberEffects, MemberState, MemberTimers, NO_SLOT, Recharges, flag,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
+use grimworld_logic::tick::{Idle, TickTrait};
 use grimworld_logic::types::combat::activation;
 use grimworld_logic::types::tick::{
     CasteSheet, Content, GoblinTrait, GoblinWords, MemberTrait, MemberWords, PotionSheet,
-    SkillSheet, ai, flag as tick_flag, status,
+    SkillSheet, World, ai, flag as tick_flag, status,
 };
 use starknet::storage_access::StorePacking;
 
+/// The member's bar is 301, 300, 7–12: `load` reads each skill's adrenaline cost (its cap).
+fn bar_skills() -> Array<SkillSheet> {
+    let mut skills = array![
+        SkillSheet {
+            id: 300, kind: 4, adrenaline: 0, activation: 1, recharge: 9, regen0: 1, regen12: 5,
+        },
+        SkillSheet {
+            id: 301, kind: 1, adrenaline: 5, activation: 0, recharge: 4, regen0: 0, regen12: 0,
+        },
+    ];
+    for id in 7..13_u16 {
+        skills.append(SkillSheet { id, kind: 2, ..Default::default() });
+    }
+    skills
+}
+
 fn content() -> Content {
     Content {
-        skills: array![
-            SkillSheet { id: 300, kind: 4, activation: 1, recharge: 9, regen0: 1, regen12: 5 },
-            SkillSheet { id: 301, kind: 1, activation: 0, recharge: 4, regen0: 0, regen12: 0 },
-        ]
-            .span(),
+        skills: bar_skills().span(),
         potions: array![PotionSheet { id: 4000, regen: -2 }].span(),
         castes: array![
             CasteSheet {
@@ -116,7 +129,7 @@ fn test_tick_constants() {
 // regeneration, the effects' deadlines and pips; `store` writes the changed fields where the
 // unpackers read them, and every other field of the four words is kept.
 #[test]
-#[available_gas(l2_gas: 1258971)] // ceil(1.05 × 1199020 measured)
+#[available_gas(l2_gas: 1441104)] // ceil(1.05 × 1372480 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
     let content = content();
@@ -182,9 +195,56 @@ fn test_tick_words_member() {
     assert(effects_after == effects, 'effects kept');
 }
 
+// AUD-182-1: a potion's effect regenerates from each of the four belt slots, slot 0 included (its
+// skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
+#[test]
+#[available_gas(l2_gas: 3342321)] // ceil(1.05 × 3183162 measured)
+fn test_potion_regeneration_every_belt_slot() {
+    let potions = array![
+        PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
+        PotionSheet { id: 4002, regen: 3 }, PotionSheet { id: 4003, regen: 4 },
+    ];
+    let content = Content {
+        skills: bar_skills().span(), potions: potions.span(), castes: array![].span(),
+    };
+    let (state, _, _, recharges, words) = member_words();
+    let timers = MemberTimers { act_slot: NO_SLOT, ..Default::default() };
+    let kit = MemberKit { belt: [4000, 4001, 4002, 4003], ..Default::default() };
+    for slot in 0..4_u16 {
+        let effects = MemberEffects {
+            effects: [
+                Effect { skill: slot, charges: 0, potion: true, deadline: 90, rank: 0 },
+                Default::default(), Default::default(), Default::default(),
+            ],
+        };
+        let words = MemberWords {
+            timers: StorePacking::pack(timers),
+            effects: StorePacking::pack(effects),
+            recharges: StorePacking::pack(recharges),
+            kit: StorePacking::pack(kit),
+            ..words,
+        };
+        let member = MemberTrait::load(words, @content);
+        let pips: i8 = (slot + 1).try_into().unwrap();
+        assert(member.effect_regen == [pips, 0, 0, 0], 'belt slot pips');
+        let mut world = World {
+            clock: 10,
+            members: array![member],
+            goblins: array![],
+            killed: array![],
+            defeated: false,
+        };
+        let mut rules = Idle {};
+        TickTrait::run(ref world, @content, 1, ref rules);
+        // Health regeneration +2 pips (stored 12) and the potion's.
+        let expected: u16 = state.health + 2 * (2 + slot + 1);
+        assert(*world.members.at(0).health == expected, 'belt slot regenerates');
+    }
+}
+
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
-#[available_gas(l2_gas: 579548)] // ceil(1.05 × 551950 measured)
+#[available_gas(l2_gas: 632436)] // ceil(1.05 × 602320 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {
         x: 200,

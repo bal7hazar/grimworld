@@ -265,10 +265,21 @@ pub impl PassiveImpl of PassiveTrait {
     /// Whether the passives one source holds stay within design/20 §1.3's per-source bounds
     /// (`source_bound`): for each bounded passive present, the range its source adds to its
     /// statistic (same id, same param) lies within the row's `[lo, hi]`.
+    ///
+    /// Each passive alone lies within `[lo, hi]` too (AUD-182-2, -3): the flattening counts a
+    /// health rune's benefit once per modifier id and takes the highest attribute rune, so a
+    /// benefit and a cost that cancel within the bound must not be able to escape it separately.
+    /// With both, any selection of one benefit and every cost of `n` sources lies within
+    /// `n × [lo, hi]`, the envelope design/20 §1.3 sums (`test_build::test_capacity_proof`).
     fn fits_source(passives: Span<Passive>, source: Source) -> bool {
         for passive in passives {
             let id = *passive.id;
             if let Option::Some((lo, hi)) = source_bound(id, source) {
+                let min: i32 = (*passive.min).into();
+                let max: i32 = (*passive.max).into();
+                if min < lo || max > hi {
+                    return false;
+                }
                 let mut low: i32 = 0;
                 let mut high: i32 = 0;
                 for other in passives {
@@ -303,15 +314,12 @@ pub impl PassiveImpl of PassiveTrait {
     /// - `DAMAGE_PERCENT`, `PENETRATION`: "only the held items' slot types and set bonuses"
     ///   (prefix, suffix, inscription; the 7 × 18 and 7 × 36 bounds);
     /// - guarded `ARMOR`: "only in an insignia slot … or a set bonus";
-    /// - `QUICK_CAST_EVERY_N`: "held only on the weapon and the off-hand": their slot types
-    ///   (prefix, suffix, inscription). "The pipeline gives it one slot type": which one the
-    ///   document does not say, so every quick-cast modifier of the content shares one
-    ///   (`ModifierAssert::assert_catalogue`), whichever it is (escalated);
+    /// - `QUICK_CAST_EVERY_N`: the inscription (design/20 §1.8, D-157 B, D-160): "everything
+    ///   held", the weapon and the off-hand, so at most the field's 2 pairs;
     /// - `CONDITION_DURATION`: "one prefix, on the weapon only";
-    /// - `DAMAGE_TYPE`: "a `DAMAGE_TYPE` modifier on the weapon, the only slot type the pipeline
-    ///   gives it": a weapon's slot type (prefix, suffix, inscription), one for the whole content
-    ///   (`assert_catalogue`); which one, and the weapon-only rule for a suffix or an
-    ///   inscription, which the off-hand also has, are escalated;
+    /// - `DAMAGE_TYPE`: the prefix (design/20 §1.8, D-157 C, D-160): the only slot type that
+    /// exists
+    ///   only on weapons, so no item-context check is needed;
     /// - `RATING_PERCENT`: personalisation only, never a record: §7.2's armor bound counts it
     ///   apart from the 37 `ARMOR` passives (F-21);
     /// - design/20 §1.3 (D-160): `ENERGY_COST` and `BASE_DAMAGE_PERCENT` on no record (DS-4:
@@ -337,9 +345,9 @@ pub impl PassiveImpl of PassiveTrait {
             held_slot || source == Source::SetBonus
         } else if id == id::ARMOR && *self.guard != guard::ALWAYS {
             source == Source::Insignia || source == Source::SetBonus
-        } else if id == id::QUICK_CAST_EVERY_N || id == id::DAMAGE_TYPE {
-            held_slot
-        } else if id == id::CONDITION_DURATION {
+        } else if id == id::QUICK_CAST_EVERY_N {
+            source == Source::Inscription
+        } else if id == id::DAMAGE_TYPE || id == id::CONDITION_DURATION {
             source == Source::Prefix
         } else if id == id::RATING_PERCENT {
             false

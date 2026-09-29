@@ -495,6 +495,10 @@ pub const STRENGTH_PER_RANK: u16 = 5;
 pub const PERSONALISED_DAMAGE_PERCENT: u32 = 120;
 /// The weighted rating of the pieces and the shield, personalised (F-21: 255 + 25 + 255 + 25).
 pub const MAX_RATING: u16 = 560;
+/// Attribute points give a rank of at most 12 (design/03; design/20 §1.2's build B).
+pub const MAX_POINTS_RANK: u8 = 12;
+/// A weapon's base damage at its requirement, at most the maul's 27 (design/15; design/20 row 9).
+pub const MAX_WEAPON_BASE_DAMAGE: u8 = 27;
 /// DS-7 (D-160) bounds *Wellspring* at 3 energy a rank and light armor at +20 energy and +1 pip.
 /// BAL-01 sets the values; until then the bounds are used, as `ADRENALINE_DECAY` is (escalated).
 pub const WELLSPRING_ENERGY_PER_RANK: i32 = 3;
@@ -513,7 +517,8 @@ pub mod build_errors {
     pub const MAX_HEALTH: felt252 = 'build: max health below 1';
     pub const MAX_ENERGY: felt252 = 'build: max energy below 0';
     pub const ENERGY_REGEN: felt252 = 'build: energy regen below 0';
-    pub const RANK: felt252 = 'build: rank above 15';
+    pub const POINTS: felt252 = 'build: points above 12';
+    pub const WEAPON_DAMAGE: felt252 = 'build: weapon damage above 27';
     pub const RATING: felt252 = 'build: rating above 560';
     pub const QUICK_CAST: felt252 = 'build: quick-cast attribute';
     pub const DAMAGE_TYPE: felt252 = 'build: two damage types';
@@ -569,7 +574,7 @@ pub struct Loadout {
 
 /// The most instances of each source an adventurer holds (design/20 §1.2): a prefix, 2 suffixes,
 /// 2 inscriptions, 5 insignias, 5 runes, 2 set bonuses. A free function: a table.
-fn max_instances(source: Source) -> u8 {
+pub fn max_instances(source: Source) -> u8 {
     match source {
         Source::Prefix => 1,
         Source::Suffix => 2,
@@ -582,6 +587,16 @@ fn max_instances(source: Source) -> u8 {
 
 #[generate_trait]
 pub impl BuildAssert of BuildAssertTrait {
+    /// The build's own bounds design/20 §1 sums from (B, row 9, F-21): each attribute's points
+    /// give a rank of at most 12, the weapon's base damage at most 27, the rating at most 560.
+    fn assert_loadout(loadout: @Loadout) {
+        for (_, points) in *loadout.points {
+            assert(*points <= MAX_POINTS_RANK, build_errors::POINTS);
+        }
+        assert(*loadout.weapon_damage <= MAX_WEAPON_BASE_DAMAGE, build_errors::WEAPON_DAMAGE);
+        assert(*loadout.rating <= MAX_RATING, build_errors::RATING);
+    }
+
     /// The flattening's checks of the whole build (DS-1, D-160): each passive legal on its
     /// source; each instance one source of one kind, of at most 2 passives (a set bonus 1),
     /// within the contributions and per-source bounds and naming nothing twice; at most §1.2's
@@ -728,17 +743,27 @@ impl HeldSums of HeldSumsTrait {
                 rank = *p;
             }
         }
-        let mut rune: i16 = 0;
+        // Each rune's contribution to the attribute is the sum of its `ATTRIBUTE` passives for
+        // it (DS-1 bounds that sum to 1…3); the highest rune counts (AUD-182-3).
+        let mut rune: i32 = 0;
         for h in held {
-            if *h.passive.id == id::ATTRIBUTE
-                && *h.passive.param == attribute
-                && *h.passive.max > rune {
-                rune = *h.passive.max;
+            if *h.passive.id == id::ATTRIBUTE && *h.passive.param == attribute {
+                let mut contribution: i32 = 0;
+                for other in held {
+                    if *other.instance == *h.instance
+                        && *other.passive.id == id::ATTRIBUTE
+                        && *other.passive.param == attribute {
+                        contribution += (*other.passive.max).into();
+                    }
+                }
+                if contribution > rune {
+                    rune = contribution;
+                }
             }
         }
-        let rank: u16 = rank.into() + rune.try_into().unwrap();
-        assert(rank <= MAX_RANK.into(), build_errors::RANK);
-        rank.try_into().unwrap()
+        // Points ≤ 12 (`BuildAssert`) and a rune ≤ 3: at most 15 (DS-8).
+        let rank: i32 = rank.into() + rune;
+        fit(rank)
     }
 }
 
@@ -766,6 +791,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     /// - The rest as design/19 §7.2 flattens it: damage and penetration sums per guard and class,
     ///   guarded and unguarded armor, quick-cast pairs, the lowest N, life steal, energy on hit.
     fn build(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
+        BuildAssert::assert_loadout(loadout);
         BuildAssert::assert_sources(held);
         let level: i32 = (*loadout.level).into();
         let profession = *loadout.profession;
@@ -901,7 +927,6 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
             conditions.append(*h.passive);
         }
         let (condition, condition_duration) = MemberKitTrait::condition_duration(conditions.span());
-        assert(*loadout.rating <= MAX_RATING, build_errors::RATING);
         let rating: i32 = (*loadout.rating).into();
         let d = |guard: u8, class: u8| -> i8 {
             fit(HeldSums::total_scoped(held, id::DAMAGE_PERCENT, guard, class))

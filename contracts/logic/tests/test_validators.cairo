@@ -274,7 +274,8 @@ fn test_cost_on_a_forbidden_source_refused() {
 // A counted statistic held twice by one modifier would count one source twice.
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 45224)] // ceil(1.05 × 43070 measured)
+// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
+#[available_gas(l2_gas: 51030)] // ceil(1.05 × 48600 measured)
 fn test_damage_percent_as_benefit_and_cost_refused() {
     let drawback = Fixture::passive(id::DAMAGE_PERCENT, 0, 18);
     ModifierTrait::new(slot::INSCRIPTION, Fixture::damage(), drawback).assert_legal();

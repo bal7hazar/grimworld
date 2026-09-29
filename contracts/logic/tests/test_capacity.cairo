@@ -19,7 +19,7 @@ use grimworld_logic::snapshot::{
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::{guard, scope};
 use grimworld_logic::types::passive::{
-    HIT_ATTACK_SKILL, HIT_SPELL, HIT_WEAPON, Passive, PassiveAssert, PassiveTrait, id,
+    HIT_ATTACK_SKILL, HIT_SPELL, HIT_WEAPON, Passive, PassiveAssert, PassiveTrait, Source, id,
 };
 
 /// The weighted rating of the pieces and the shield, each personalised (F-21): 255 + 25 + 255 +
@@ -301,8 +301,8 @@ fn test_flatten_saturated_extremes() {
         Fixture::modifier(
             slot::PREFIX, Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33), vs,
         ),
-        Fixture::modifier(slot::SUFFIX, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 255), knock),
-        Fixture::modifier(slot::INSCRIPTION, enchant, vs),
+        Fixture::modifier(slot::SUFFIX, enchant, knock),
+        Fixture::modifier(slot::INSCRIPTION, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 255), vs),
         Fixture::modifier(slot::INSIGNIA, knock, enchant),
         Fixture::modifier(slot::RUNE, vs, knock),
         ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, vs]),
@@ -350,7 +350,8 @@ fn test_separate_sums_accepted() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 44384)] // ceil(1.05 × 42270 measured)
+// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
+#[available_gas(l2_gas: 50190)] // ceil(1.05 × 47800 measured)
 fn test_damage_all_and_weapon_same_guard_refused() {
     // 10 + 10 on a plain weapon hit (and on an attack skill's): 20 > 18.
     let all = Fixture::damage(guard::ALWAYS, scope::ALL, 10);
@@ -485,61 +486,68 @@ fn test_two_conditions_builder_refused() {
 #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 fn test_two_quick_casts_on_one_slot_refused() {
     let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
-    Fixture::modifier(slot::SUFFIX, quick, Fixture::passive(id::QUICK_CAST_EVERY_N, 4, 5))
+    Fixture::modifier(slot::INSCRIPTION, quick, Fixture::passive(id::QUICK_CAST_EVERY_N, 4, 5))
         .assert_legal();
 }
 
-// CBT-7: quick-cast and `DAMAGE_TYPE` on any slot type of the weapon and the off-hand, one slot
-// type for the whole content, whichever (the document names none: escalated, not chosen).
+// AUD-182-4 (design/20 §1.8, D-157 B and C, D-160): quick cast is held on inscriptions, the damage
+// type on prefixes; there, a catalogue of several is accepted.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 2155913)] // ceil(1.05 × 2053250 measured)
-fn test_one_slot_type_accepted() {
+#[available_gas(l2_gas: 723986)] // ceil(1.05 × 689510 measured)
+fn test_decided_slot_types_accepted() {
+    let none: Passive = Default::default();
+    ModifierAssert::assert_catalogue(
+        array![
+            Fixture::modifier(
+                slot::INSCRIPTION, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5), none,
+            ),
+            Fixture::modifier(
+                slot::INSCRIPTION, Fixture::passive(id::QUICK_CAST_EVERY_N, 7, 4), none,
+            ),
+            Fixture::modifier(slot::PREFIX, Fixture::passive(id::DAMAGE_TYPE, 4, 0), none),
+            Fixture::modifier(slot::PREFIX, Fixture::passive(id::DAMAGE_TYPE, 5, 0), none),
+        ]
+            .span(),
+    );
+}
+
+// AUD-182-4: quick cast on a prefix or a suffix, the damage type on a suffix or an inscription,
+// are refused, even in a catalogue that uses only that slot type.
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_undecided_slot_types_refused() {
     let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
     let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
-    let cold = Fixture::passive(id::DAMAGE_TYPE, 5, 0);
-    let none: Passive = Default::default();
-    for held_slot in array![slot::PREFIX, slot::SUFFIX, slot::INSCRIPTION] {
-        ModifierAssert::assert_catalogue(
-            array![
-                Fixture::modifier(held_slot, quick, none),
-                Fixture::modifier(held_slot, Fixture::passive(id::QUICK_CAST_EVERY_N, 7, 4), none),
-                Fixture::modifier(held_slot, fire, none), Fixture::modifier(held_slot, cold, none),
-            ]
-                .span(),
-        );
-    }
+    assert(!quick.allows(Source::Prefix) && !quick.allows(Source::Suffix), 'quick cast');
+    assert(quick.allows(Source::Inscription), 'quick cast on inscription');
+    assert(!fire.allows(Source::Suffix) && !fire.allows(Source::Inscription), 'damage type');
+    assert(fire.allows(Source::Prefix), 'damage type on prefix');
 }
 
 #[test]
-#[should_panic(expected: 'modifier: quick-cast slots')]
-#[available_gas(l2_gas: 333638)] // ceil(1.05 × 317750 measured)
-fn test_quick_cast_on_two_slot_types_refused() {
-    let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
+#[should_panic(expected: 'passive: not on this source')]
+#[available_gas(l2_gas: 98322)] // ceil(1.05 × 93640 measured)
+fn test_damage_type_suffix_catalogue_refused() {
+    let none: Passive = Default::default();
+    ModifierAssert::assert_catalogue(
+        array![Fixture::modifier(slot::SUFFIX, Fixture::passive(id::DAMAGE_TYPE, 5, 0), none)]
+            .span(),
+    );
+}
+
+#[test]
+#[should_panic(expected: 'passive: not on this source')]
+#[available_gas(l2_gas: 98322)] // ceil(1.05 × 93640 measured)
+fn test_quick_cast_on_a_suffix_refused() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(
         array![
-            Fixture::modifier(slot::SUFFIX, quick, none),
-            Fixture::modifier(slot::INSCRIPTION, quick, none),
+            Fixture::modifier(slot::SUFFIX, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5), none),
         ]
             .span(),
     );
 }
 
-// The audit's case: a fire prefix and a cold suffix.
-#[test]
-#[should_panic(expected: 'modifier: damage type slots')]
-#[available_gas(l2_gas: 332105)] // ceil(1.05 × 316290 measured)
-fn test_damage_type_on_two_slot_types_refused() {
-    let none: Passive = Default::default();
-    ModifierAssert::assert_catalogue(
-        array![
-            Fixture::modifier(slot::PREFIX, Fixture::passive(id::DAMAGE_TYPE, 4, 0), none),
-            Fixture::modifier(slot::SUFFIX, Fixture::passive(id::DAMAGE_TYPE, 5, 0), none),
-        ]
-            .span(),
-    );
-}
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
@@ -722,7 +730,8 @@ fn test_flatten_worst_scope_overlap() {
 // modifier: 72 on an attack skill's hit, refused in both orderings.
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 94259)] // ceil(1.05 × 89770 measured)
+// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
+#[available_gas(l2_gas: 100065)] // ceil(1.05 × 95300 measured)
 fn test_penetration_weapon_and_attack_skill_refused() {
     Fixture::modifier(
         slot::PREFIX,
@@ -734,7 +743,8 @@ fn test_penetration_weapon_and_attack_skill_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 95918)] // ceil(1.05 × 91350 measured)
+// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
+#[available_gas(l2_gas: 101724)] // ceil(1.05 × 96880 measured)
 fn test_penetration_attack_skill_and_weapon_refused() {
     Fixture::modifier(
         slot::SUFFIX,
@@ -746,7 +756,8 @@ fn test_penetration_attack_skill_and_weapon_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 77343)] // ceil(1.05 × 73660 measured)
+// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
+#[available_gas(l2_gas: 83150)] // ceil(1.05 × 79190 measured)
 fn test_damage_weapon_and_attack_skill_over_18_refused() {
     Fixture::modifier(
         slot::INSCRIPTION,

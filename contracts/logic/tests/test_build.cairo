@@ -9,10 +9,12 @@ use grimworld_logic::models::caste::{CasteAssert, CasteRecord, CasteTrait, Weapo
 use grimworld_logic::models::index::{Caste, Skill};
 use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::models::skill::SkillTrait;
-use grimworld_logic::snapshot::{HeldPassive, Loadout, MemberStats, SnapshotBuildTrait, pack_stats};
+use grimworld_logic::snapshot::{
+    HeldPassive, Loadout, MemberStats, SnapshotBuildTrait, max_instances, pack_stats,
+};
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{Carrier, EntryAssert, EntryTrait, filter, kind, shape, target};
-use grimworld_logic::types::passive::{Passive, PassiveTrait, Source, id};
+use grimworld_logic::types::passive::{Passive, PassiveTrait, Source, id, source_bound};
 use grimworld_logic::types::tick::CasteSheetTrait;
 
 /// Attribute ids of the fixtures (content's global ids, D-157 A): the primary first.
@@ -100,7 +102,7 @@ fn fits(p: Passive, source: Source) -> bool {
 // refused, a source that may not hold the passive is refused, and a modifier's benefit and cost are
 // summed.
 #[test]
-#[available_gas(l2_gas: 1897833)] // ceil(1.05 × 1807460 measured)
+#[available_gas(l2_gas: 1724478)] // ceil(1.05 × 1642360 measured)
 fn test_per_source_bounds() {
     // (id, param, source, lo, hi)
     let rows = array![
@@ -148,10 +150,177 @@ fn test_per_source_bounds() {
     assert(PassiveTrait::fits_source(pair.span(), Source::Rune), 'per type');
 }
 
+/// What `n` sources of each kind that may hold `p`'s statistic add at most (`hi`) and at least
+/// (`lo`): `Σ max_instances(kind) × bound(kind)` over the kinds `allows` admits.
+fn envelope(i: u8, param: u8) -> (i32, i32) {
+    let mut lo: i32 = 0;
+    let mut hi: i32 = 0;
+    for source in array![
+        Source::Prefix, Source::Suffix, Source::Inscription, Source::Insignia, Source::Rune,
+        Source::SetBonus,
+    ] {
+        if passive(i, param, 0).allows(source) {
+            let (l, h) = source_bound(i, source).unwrap();
+            let n: i32 = max_instances(source).into();
+            lo += n * l;
+            hi += n * h;
+        }
+    }
+    (lo, hi)
+}
+
+// AUD-182-2, the capacity proof, computed from the tables the validators enforce
+// (`source_bound`, `allows`, `max_instances`): every accepted build fits each field. Each passive
+// alone and each source's sum lie in the source's `[lo, hi]` (`fits_source`), so whatever the
+// flattening selects (a rune's benefit once per id, the highest attribute rune) with every cost
+// stays within the `n × [lo, hi]` computed here. The lower ends of max health, max energy and
+// energy regeneration go below their floors and are refused (DS-2); every other field is shown.
+#[test]
+#[available_gas(l2_gas: 264873)] // ceil(1.05 × 252260 measured)
+fn test_capacity_proof() {
+    // Max health: `100 + 20 (L − 1)` at level 255, the `u8`'s widest, + equipment ≤ 65,535.
+    let (_, hi) = envelope(id::MAX_HEALTH, 0);
+    assert(hi == 575, 'health envelope');
+    assert(100 + 20 * 254 + hi <= 65535, 'max health u16');
+    // Max energy: 30 + Wellspring 3 × 15 + light armor 20 + equipment ≤ 255.
+    let (_, hi) = envelope(id::MAX_ENERGY, 0);
+    assert(30 + 3 * 15 + 20 + hi == 130, 'max energy 130 <= u8');
+    // Energy regeneration: 4 + 1 + equipment ≤ 255.
+    let (_, hi) = envelope(id::ENERGY_REGEN, 0);
+    assert(4 + 1 + hi == 7, 'energy regen 7');
+    // Health regeneration, stored + 10: within 0…20 at both ends (DS-29).
+    let (lo, hi) = envelope(id::HEALTH_REGEN, 0);
+    assert(10 + lo == 3 && 10 + hi == 12, 'health regen 3..12');
+    // Life steal and energy on hit, `u8`.
+    let (_, hi) = envelope(id::LIFE_STEAL_ON_HIT, 0);
+    assert(hi == 25, 'life steal 25');
+    let (_, hi) = envelope(id::ENERGY_ON_HIT, 0);
+    assert(hi == 5, 'energy on hit 5');
+    // A rank: 12 points and the highest rune's ≤ 3: 15, the 4 bits' widest (DS-8).
+    let (_, rune) = source_bound(id::ATTRIBUTE, Source::Rune).unwrap();
+    assert(12 + rune == 15, 'rank 15');
+    // Weapon damage 27 personalised, and strength 5 × 15, `u8`.
+    let damage: u32 = 27 * 120 / 100;
+    assert(damage == 32 && 5 * 15 <= 255_u32, 'weapon');
+    // Armor against a type, the durations, the knock-down: saturated whatever their sums.
+    let (_, hi) = envelope(id::ARMOR_VS, damage::FIRE);
+    assert(30 + hi == 149, 'armor vs 149, saturated');
+    // Damage and guarded armor: 7 sources at ±18 (`assert_contributions`) in an `i8`;
+    // penetration 7 × 36 in a `u8`; unguarded armor 560 + 32 × 255 within ±9,995.
+    assert(7 * 18 <= 127_u32 && 7 * 36 <= 255_u32 && 560 + 32 * 255 <= 9995_u32, 'contributions');
+}
+
+// AUD-182-2, the extremal builds at the envelope: every source that may hold a statistic at its
+// per-source maximum (and, where no floor refuses it, its minimum) flattens without overflow, to
+// exactly the envelope.
+#[test]
+#[available_gas(l2_gas: 16101036)] // ceil(1.05 × 15334320 measured)
+fn test_envelope_builds() {
+    // Held slots at 30, insignias at 15, runes and set bonuses at 50.
+    let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
+    for h in everywhere(passive(id::MAX_HEALTH, 0, 15), array![Source::Insignia].span()) {
+        all.append(h);
+    }
+    for h in everywhere(
+        passive(id::MAX_HEALTH, 0, 50), array![Source::Rune, Source::SetBonus].span(),
+    ) {
+        all.append(h);
+    }
+    let top = SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+    assert(top.stats.max_health == 480 + 575, 'max health 1,055');
+    let low = SnapshotBuildTrait::build(
+        @loadout(3, 20),
+        everywhere(
+            passive(id::HEALTH_REGEN, 0, -1),
+            array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
+        )
+            .span(),
+    );
+    assert(low.stats.health_regen == 3, 'health regen 3');
+    let high = SnapshotBuildTrait::build(
+        @loadout(3, 20),
+        everywhere(passive(id::HEALTH_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
+    );
+    assert(high.stats.health_regen == 12, 'health regen 12');
+    let steal = SnapshotBuildTrait::build(
+        @loadout(3, 20), everywhere(passive(id::LIFE_STEAL_ON_HIT, 0, 5), held_slots()).span(),
+    );
+    assert(steal.kit.life_steal == 25, 'life steal 25');
+    let hit = SnapshotBuildTrait::build(
+        @loadout(3, 20), everywhere(passive(id::ENERGY_ON_HIT, 0, 1), held_slots()).span(),
+    );
+    assert(hit.kit.energy_on_hit == 5, 'energy on hit 5');
+    let regen = SnapshotBuildTrait::build(
+        @loadout(3, 20),
+        everywhere(passive(id::ENERGY_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
+    );
+    assert(regen.stats.energy_regen == 7, 'energy regen 7');
+}
+
+// AUD-182-2: the audit's rune, a fixed −32,717 health benefit and a +32,767 cost (their sum +50
+// within the source's bound), is refused: each passive lies within −75…+50.
+#[test]
+#[should_panic(expected: 'passive: per-source bound')]
+#[available_gas(l2_gas: 134295)] // ceil(1.05 × 127900 measured)
+fn test_cancelling_rune_refused() {
+    ModifierTrait::new(
+        slot::RUNE, passive(id::MAX_HEALTH, 0, -32717), passive(id::MAX_HEALTH, 0, 32767),
+    )
+        .assert_legal();
+}
+
+// AUD-182-2: three runes of one modifier id (+50 health, −75 health): the benefit counts once,
+// every cost counts (FX-43): 480 + 50 − 225.
+#[test]
+#[available_gas(l2_gas: 2108379)] // ceil(1.05 × 2007980 measured)
+fn test_repeated_rune_id() {
+    let rune = ModifierTrait::new(
+        slot::RUNE, passive(id::MAX_HEALTH, 0, 50), passive(id::MAX_HEALTH, 0, -75),
+    );
+    rune.assert_legal();
+    let mut all = array![];
+    let mut i: u8 = 10;
+    while i < 13 {
+        all.append(held(rune.benefit, Source::Rune, i, 9));
+        all.append(cost(rune.cost, Source::Rune, i, 9));
+        i += 1;
+    }
+    let snapshot = SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+    assert(snapshot.stats.max_health == 480 + 50 - 225, 'benefit once, costs all');
+}
+
+// AUD-182-3: a rune's contribution to an attribute is its passives' sum: +1 and +2 on one rune
+// give 3, so 12 points reach 15.
+#[test]
+#[available_gas(l2_gas: 1374881)] // ceil(1.05 × 1309410 measured)
+fn test_rune_attribute_contribution() {
+    let rune = ModifierTrait::new(
+        slot::RUNE, passive(id::ATTRIBUTE, PRIMARY, 1), passive(id::ATTRIBUTE, PRIMARY, 2),
+    );
+    rune.assert_legal();
+    let all = array![
+        held(rune.benefit, Source::Rune, 10, 7), cost(rune.cost, Source::Rune, 10, 7),
+        held(passive(id::ATTRIBUTE, PRIMARY, 2), Source::Rune, 11, 8),
+    ];
+    let snapshot = SnapshotBuildTrait::build(@loadout(3, 20), all.span());
+    assert(snapshot.stats.primary_rank == 15, '12 + (1 + 2)');
+}
+
+// AUD-182-3: a cancelling pair on one rune (+32,767 and −32,764: sum +3) is refused.
+#[test]
+#[should_panic(expected: 'passive: per-source bound')]
+#[available_gas(l2_gas: 134789)] // ceil(1.05 × 128370 measured)
+fn test_cancelling_attribute_rune_refused() {
+    ModifierTrait::new(
+        slot::RUNE, passive(id::ATTRIBUTE, PRIMARY, 32767), passive(id::ATTRIBUTE, PRIMARY, -32764),
+    )
+        .assert_legal();
+}
+
 // §6 test 1, through the validators: a modifier a unit beyond its bound is refused.
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 144470)] // ceil(1.05 × 137590 measured)
+#[available_gas(l2_gas: 134789)] // ceil(1.05 × 128370 measured)
 fn test_modifier_beyond_bound_refused() {
     ModifierTrait::new(slot::PREFIX, passive(id::MAX_HEALTH, 0, 31), Default::default())
         .assert_legal();
@@ -159,7 +328,7 @@ fn test_modifier_beyond_bound_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 35249)] // ceil(1.05 × 33570 measured)
+#[available_gas(l2_gas: 29012)] // ceil(1.05 × 27630 measured)
 fn test_set_bonus_beyond_bound_refused() {
     let knock = passive(id::KNOCKDOWN_FLAT, 0, 2);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]).assert_legal();

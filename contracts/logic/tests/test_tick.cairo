@@ -10,14 +10,18 @@ use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::index::{Caste, Item, Skill};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::tick::{GoblinTickTrait, Idle, MemberTickTrait, Rules, TickTrait, WorldTrait};
+use grimworld_logic::tick::{
+    GoblinLifecycleTrait, GoblinTickTrait, Idle, MemberLifecycleTrait, MemberTickTrait, Rules,
+    TickTrait, WorldTrait,
+};
 use grimworld_logic::types::MAX_CLOCK;
-use grimworld_logic::types::combat::{activation, skill_kind, weapon};
+use grimworld_logic::types::combat::{activation, condition, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::tick::{
-    Actor, CasteSheet, CasteSheetTrait, Content, Goblin, GoblinTrait, GoblinWords, Member,
-    MemberTrait, MemberWords, NO_SLOT, PotionSheet, PotionSheetTrait, SkillSheet, SkillSheetTrait,
-    Words, WordsTrait, World, WorldStoreTrait, ai, flag, status,
+    Actor, CasteSheet, CasteSheetTrait, Content, Goblin, GoblinTrait, GoblinWords, GoblinWordsTrait,
+    Held, Member, MemberTrait, MemberWords, MemberWordsTrait, NO_SLOT, PotionSheet,
+    PotionSheetTrait, SkillSheet, SkillSheetTrait, Words, WordsTrait, World, WorldStoreTrait, ai,
+    flag, status,
 };
 use snforge_std::{DeclareResultTrait, declare};
 
@@ -141,6 +145,7 @@ impl FixtureImpl of Fixture {
             max_energy: 60,
             health_regen: spec.health_regen,
             energy_regen: spec.energy_regen,
+            adrenaline_cap: 0,
             words: Self::member_words(spec),
         }
     }
@@ -169,6 +174,7 @@ impl FixtureImpl of Fixture {
             health_regen: 0,
             max_energy: 30,
             energy_regen: 1,
+            adrenaline_cap: 0,
             state: LIVE
                 + ai::ENGAGED.into() * two(24)
                 + 100 * two(32)
@@ -179,7 +185,7 @@ impl FixtureImpl of Fixture {
     }
 
     fn skill(id: u16, kind: u8, activation: u16, recharge: u16) -> SkillSheet {
-        SkillSheet { id, kind, activation, recharge, regen0: 0, regen12: 0 }
+        SkillSheet { id, kind, adrenaline: 0, activation, recharge, regen0: 0, regen12: 0 }
     }
 
     /// A caste of multiplier 100 %, no regeneration, 10 energy regenerating 1 pip, weapon cost
@@ -450,13 +456,24 @@ fn test_example_member_activation() {
 #[test]
 #[available_gas(l2_gas: 10426415)] // ceil(1.05 × 9929919 measured)
 fn test_regeneration() {
+    // Skill 1 regenerates 2…6 pips; the bar's other skills (2–8) are read for its adrenaline
+    // cap.
+    let mut skills = array![
+        SkillSheet {
+            id: 1,
+            kind: skill_kind::SPELL,
+            adrenaline: 0,
+            activation: 0,
+            recharge: 0,
+            regen0: 2,
+            regen12: 6,
+        },
+    ];
+    for id in 2..9_u16 {
+        skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
+    }
     let content = Content {
-        skills: array![
-            SkillSheet {
-                id: 1, kind: skill_kind::SPELL, activation: 0, recharge: 0, regen0: 2, regen12: 6,
-            },
-        ]
-            .span(),
+        skills: skills.span(),
         potions: array![PotionSheet { id: 101, regen: 3 }].span(),
         castes: array![].span(),
     };
@@ -492,7 +509,7 @@ fn test_regeneration() {
 // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
 // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
 #[test]
-#[available_gas(l2_gas: 10889414)] // ceil(1.05 × 10370870 measured)
+#[available_gas(l2_gas: 11567441)] // ceil(1.05 × 11016610 measured)
 fn test_load_store() {
     let mut spec = Fixture::spec();
     spec.conditions = [11, 12, 13, 14];
@@ -570,6 +587,7 @@ fn test_goblin_load() {
             SkillSheet {
                 id: SMASH,
                 kind: skill_kind::SPELL,
+                adrenaline: 0,
                 activation: 0,
                 recharge: 0,
                 regen0: 1,
@@ -743,19 +761,81 @@ fn test_awake_set() {
 // ---------------------------------------------------------------------------------------------
 // Determinism and cost.
 
-/// The worst state of a tick (design/02: 8 awake goblins; the member; conditions and activations
-/// running): the member holds 4 `REGENERATION` effects (2 potions), the 3 degenerating conditions
-/// and an activation due; each of the 8 goblins, from 5 castes (the MVP's widest, design/19 §7.2),
-/// has the 3 degenerating conditions and a `REGENERATION` effect; 4 resolve an activation (2 into
-/// a recovery), 2 lapse, 2 finish a recovery; the content holds the 8 bar skills and the castes'
-/// 20, the goblins' last (the longest lookups), and 4 potions.
-fn worst() -> (World, Content) {
+/// Rules that keep every actor busy (AUD-182-7): step 0 restarts the member's activation to resolve
+/// in step 1 of every tick (an action phase starting one before each tick); every goblin free to
+/// act starts a 1-tick activation, which resolves in step 1 of the next tick. With a weapon cost of
+/// 1 there is no recovery, so each awake goblin alternately resolves and acts, and every tick
+/// rewrites each of them: the most work the pipeline's own steps can do, tick after tick.
+#[derive(Drop, Default)]
+struct Busy {}
+
+impl BusyRules of Rules<Busy> {
+    fn perceive(ref self: Busy, ref world: World) {
+        let mut member = *world.members.at(0);
+        member.act_slot = 7;
+        member.act_target = 8;
+        member.act_deadline = world.clock;
+        world.set_member(0, member);
+    }
+    fn resolve(
+        ref self: Busy, ref world: World, content: @Content, actor: Actor, slot: u8, target: u16,
+    ) {}
+    fn act(ref self: Busy, ref world: World, content: @Content, index: u32) {
+        let mut goblin = *world.goblins.at(index);
+        goblin.start(0, 0, 1, world.clock);
+        world.set_goblin(index, goblin);
+    }
+    fn objectives(ref self: Busy, ref world: World) {}
+}
+
+/// The words of a goblin of caste 5 at level 10 (ENG-01 §3.2 offsets): Alerted (not Engaged),
+/// `health`, activating slot 0 due at `due` (0: none), the three degenerating conditions to
+/// `until`, its effect skill 43 to `until` at rank 4.
+fn goblin_words(entity: u16, awake: bool, health: u16, due: u32, until: u32) -> GoblinWords {
+    let state = LIVE + ai::ALERTED.into() * B24 + health.into() * B32 + 5 * B64 + 10 * B80;
+    let act: felt252 = if due == 0 {
+        activation::NONE.into()
+    } else {
+        due.into() * B24
+    };
+    let effect: felt252 = if until == 0 {
+        0
+    } else {
+        43 * B108 + 4 * B246
+    };
+    let timers = LIVE + act + until.into() * (B52 + B80 + B128 + B212) + effect;
+    GoblinWords { entity, awake, state, timers }
+}
+
+// Powers of two for the fixtures above (cheap to build: the benchmarks subtract their fixtures).
+const B24: felt252 = 0x1000000;
+const B32: felt252 = 0x100000000;
+const B52: felt252 = 0x10000000000000;
+const B64: felt252 = 0x10000000000000000;
+const B80: felt252 = 0x100000000000000000000;
+const B108: felt252 = 0x1000000000000000000000000000;
+const B128: felt252 = 0x100000000000000000000000000000000;
+const B212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
+const B246: felt252 = 0x40000000000000000000000000000000000000000000000000000000000000;
+
+/// The content at the MVP's widest (design/19 §7.2: `C = 5`, `T = 10`): the bar's 8 skills (7 and
+/// 8 regenerating 3 pips), 10 terrain traps' skills, the 5 castes' 20; 4 potions. The goblins'
+/// caste, 5, and its skills (40–43) come last in their lists, so every lookup scans the whole
+/// list.
+/// The castes' weapons cost `k` ticks.
+fn worst_content(k: u8) -> Content {
     let mut skills = array![];
     for id in 1..9_u16 {
         let mut sheet = Fixture::skill(id, skill_kind::SPELL, 2, 10);
-        sheet.regen0 = 3;
-        sheet.regen12 = 3;
+        sheet.adrenaline = 2;
+        if id >= 7 {
+            sheet.regen0 = 3;
+            sheet.regen12 = 3;
+        }
         skills.append(sheet);
+    }
+    for id in 60..70_u16 {
+        skills.append(Fixture::skill(id, skill_kind::TRAP, 0, 0));
     }
     let mut castes = array![];
     for caste in 1..6_u16 {
@@ -767,49 +847,70 @@ fn worst() -> (World, Content) {
         last.regen0 = 2;
         last.regen12 = 2;
         skills.append(last);
-        castes.append(Fixture::caste(caste, 3));
+        castes.append(Fixture::caste(caste, k));
     }
     let potions = array![
         PotionSheet { id: 100, regen: 1 }, PotionSheet { id: 101, regen: 2 },
         PotionSheet { id: 102, regen: 1 }, PotionSheet { id: 103, regen: 2 },
     ];
+    Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
+}
+
+/// The worst state of a tick, by construction (AUD-182-7), every actor loaded from its words so
+/// that the derived fields agree with the stored ones:
+/// - the goblin array at its bound, `MAX_GOBLINS` = 100 (every pass is linear in it), 8 of them
+///   awake (design/02), the 92 others frozen;
+/// - each awake goblin takes step 1's costliest branch, its activation concluding (a recovery with
+///   `k = 3 ≥ n + 2`: the conclusion's every write) at the end of the content's lists, the array
+///   rebuilt;
+/// - step 3 with every term: the 3 degenerating conditions and a regenerating effect on each awake
+///   goblin; on the member, its 3 conditions, 4 regenerating effects (2 potions) and its own
+///   activation concluding; no goblin Engaged, so the Engaged scan runs the whole array and every
+///   actor takes the decay branch;
+/// - with `dying`, every awake goblin dies in step 3 (8 kills recorded) and the member too (step
+///   5's defeat rewrites the members).
+/// With `dying` false and `k = 1`, the state `Busy` keeps busy over a batch (no death, no
+/// recovery).
+fn worst_state(dying: bool, k: u8) -> (World, Content) {
+    worst_of(dying, k, 100)
+}
+
+/// `worst_state` with `count` goblins in the array, the last 8 awake.
+fn worst_of(dying: bool, k: u8, count: u16) -> (World, Content) {
+    let content = worst_content(k);
     let mut spec = Fixture::spec();
+    spec.health = if dying {
+        7
+    } else {
+        400
+    };
     spec.conditions = [99, 99, 99, 0];
     spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
-    spec.effect_regen = [3, 3, 1, 2];
-    let mut member = Fixture::member(spec);
+    let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
     member.start(7, 8, 1, 49);
+    let health: u16 = if dying {
+        1
+    } else {
+        280
+    };
     let mut goblins = array![];
-    let mut k: u16 = 0;
-    while k < 8 {
-        let caste = 1 + k % 5;
-        let mut goblin = Fixture::goblin(8 + 16 * k, caste);
-        goblin.health = 400;
-        goblin.max_health = 400;
-        goblin.bleeding = 99;
-        goblin.poison = 99;
-        goblin.burning = 99;
-        goblin.effect_deadline = 99;
-        goblin.effect_regen = 2;
-        goblin.timers += (20 + 4 * caste + 3).into() * two(108) + 4 * two(246);
-        if k < 4 {
-            // Resolves at 50: slot 0 (activation 1, k = 3 ≥ n + 2) recovers, slot 2 does not.
-            goblin.start((k % 2).try_into().unwrap() * 2, 0, 1, 49);
-        } else if k < 6 {
-            goblin.start(1, 0, 2, 40);
+    let mut i: u16 = 0;
+    while i < count {
+        let awake = i + 8 >= count;
+        let words = if awake {
+            goblin_words(8 + i, true, health, 50, 99)
         } else {
-            goblin.recover(3, 47);
-        }
-        goblins.append(goblin);
-        k += 1;
+            goblin_words(8 + i, false, 280, 0, 0)
+        };
+        goblins.append(GoblinTrait::load(words, @content));
+        i += 1;
     }
-    let content = Content { skills: skills.span(), potions: potions.span(), castes: castes.span() };
     (Fixture::world(49, array![member], goblins), content)
 }
 
-/// The worst state as the words `Instances` would pass.
+/// The worst single tick's state as the words `Instances` would pass.
 fn worst_words() -> (Words, Content) {
-    let (world, content) = worst();
+    let (world, content) = worst_state(true, 3);
     (world.store(), content)
 }
 
@@ -829,13 +930,13 @@ fn representative() -> (World, Content) {
     (Fixture::world(49, array![member], goblins), Fixture::content())
 }
 
-// Determinism (AC-2): the same state gives the same world, over 10 ticks of the worst state.
+// Determinism (AC-2): the same state gives the same world, over 10 busy ticks.
 #[test]
-#[available_gas(l2_gas: 38337974)] // ceil(1.05 × 36512356 measured)
+#[available_gas(l2_gas: 356621832)] // ceil(1.05 × 339639840 measured)
 fn test_deterministic() {
-    let (mut a, content) = worst();
-    let (mut b, _) = worst();
-    let mut rules = Idle {};
+    let (mut a, content) = worst_state(false, 1);
+    let (mut b, _) = worst_state(false, 1);
+    let mut rules: Busy = Default::default();
     TickTrait::run(ref a, @content, 10, ref rules);
     TickTrait::run(ref b, @content, 10, ref rules);
     assert(a == b, 'same state, same world');
@@ -844,21 +945,28 @@ fn test_deterministic() {
 
 // The fixtures' own cost, subtracted from the benchmarks below.
 #[test]
-#[available_gas(l2_gas: 11211879)] // ceil(1.05 × 10677980 measured)
+#[available_gas(l2_gas: 51988220)] // ceil(1.05 × 49512590 measured)
 fn test_cost_fixture_worst() {
-    let (world, content) = worst();
-    assert(world.goblins.len() == 8 && content.skills.len() == 28, 'worst');
+    let (world, content) = worst_state(true, 3);
+    assert(world.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 11837322)] // ceil(1.05 × 11273640 measured)
+#[available_gas(l2_gas: 51988839)] // ceil(1.05 × 49513180 measured)
+fn test_cost_fixture_worst_batch() {
+    let (world, content) = worst_state(false, 1);
+    assert(world.goblins.len() == 100 && content.skills.len() == 38, 'worst');
+}
+
+#[test]
+#[available_gas(l2_gas: 59007617)] // ceil(1.05 × 56197730 measured)
 fn test_cost_fixture_worst_words() {
     let (words, content) = worst_words();
-    assert(words.goblins.len() == 8 && content.skills.len() == 28, 'worst');
+    assert(words.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 7259522)] // ceil(1.05 × 6913830 measured)
+#[available_gas(l2_gas: 7264877)] // ceil(1.05 × 6918930 measured)
 fn test_cost_fixture_representative() {
     let (world, content) = representative();
     assert(world.goblins.len() == 8 && content.castes.len() == 2, 'representative');
@@ -866,7 +974,7 @@ fn test_cost_fixture_representative() {
 
 // Cost: one representative tick, the pipeline alone (Idle rules).
 #[test]
-#[available_gas(l2_gas: 7908282)] // ceil(1.05 × 7531697 measured)
+#[available_gas(l2_gas: 7925765)] // ceil(1.05 × 7548347 measured)
 fn test_cost_tick_representative() {
     let (mut world, content) = representative();
     let mut rules = Idle {};
@@ -874,9 +982,9 @@ fn test_cost_tick_representative() {
     assert(world.clock == 50, 'one tick');
 }
 
-// Cost: a batch's 10 representative ticks, the pipeline alone.
+// Cost: a batch's 10 representative ticks, the pipeline alone: a trace, not a bound.
 #[test]
-#[available_gas(l2_gas: 13793399)] // ceil(1.05 × 13136570 measured)
+#[available_gas(l2_gas: 13920029)] // ceil(1.05 × 13257170 measured)
 fn test_cost_batch_representative() {
     let (mut world, content) = representative();
     let mut rules = Idle {};
@@ -885,7 +993,7 @@ fn test_cost_batch_representative() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7882781)] // ceil(1.05 × 7507410 measured)
+#[available_gas(l2_gas: 7888136)] // ceil(1.05 × 7512510 measured)
 fn test_cost_fixture_representative_words() {
     let (world, content) = representative();
     let words = world.store();
@@ -894,7 +1002,7 @@ fn test_cost_fixture_representative_words() {
 
 // A batch's 10 representative ticks through one library call: load, ticks, store, the call.
 #[test]
-#[available_gas(l2_gas: 16536692)] // ceil(1.05 × 15749230 measured)
+#[available_gas(l2_gas: 17987057)] // ceil(1.05 × 17130530 measured)
 fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -904,7 +1012,7 @@ fn test_cost_library_call_batch_representative() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7893816)] // ceil(1.05 × 7517920 measured)
+#[available_gas(l2_gas: 7899171)] // ceil(1.05 × 7523020 measured)
 fn test_cost_library_baseline_representative() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (world, _content) = representative();
@@ -912,43 +1020,63 @@ fn test_cost_library_baseline_representative() {
     assert(words.clock == 49, 'declared');
 }
 
-// Cost: one worst tick, the pipeline alone (Idle rules).
+// Cost: the worst single tick, by construction (`worst_state`), the pipeline alone.
 #[test]
-#[available_gas(l2_gas: 13093659)] // ceil(1.05 × 12470151 measured)
+#[available_gas(l2_gas: 65022808)] // ceil(1.05 × 61926483 measured)
 fn test_cost_tick_worst() {
-    let (mut world, content) = worst();
+    let (mut world, content) = worst_state(true, 3);
     let mut rules = Idle {};
     TickTrait::tick(ref world, @content, ref rules);
-    assert(*world.goblins.at(0).act_slot == activation::RECOVERING, 'slot 0 recovers');
-    assert(world.goblins.at(4).recharge(1) == 49, 'lapsed at 42');
+    let goblin = world.goblins.at(92);
+    assert(*goblin.act_slot == activation::RECOVERING && goblin.recharge(0) == 59, 'concluded');
+    assert(world.killed.len() == 8 && world.defeated, 'every death');
     assert(*world.members.at(0).act_slot == NO_SLOT, 'member resolved');
 }
 
-// Cost: a batch's 10 worst ticks (weight 10), the pipeline alone.
+// The same construction with only the 8 awake goblins in the array (no frozen candidate): what
+// the array's bound adds is the difference with `test_cost_tick_worst`.
 #[test]
-#[available_gas(l2_gas: 19103184)] // ceil(1.05 × 18193508 measured)
-fn test_cost_batch_worst() {
-    let (mut world, content) = worst();
-    let mut rules = Idle {};
-    TickTrait::run(ref world, @content, 10, ref rules);
-    assert(world.clock == 59, 'ten ticks');
+#[available_gas(l2_gas: 9890381)] // ceil(1.05 × 9419410 measured)
+fn test_cost_fixture_worst_8() {
+    let (world, _) = worst_of(true, 3, 8);
+    assert(world.goblins.len() == 8, 'eight');
 }
 
-// Cost, once per call: loading the worst state's actors from their words and storing them back.
 #[test]
-#[available_gas(l2_gas: 13838685)] // ceil(1.05 × 13179700 measured)
+#[available_gas(l2_gas: 12340685)] // ceil(1.05 × 11753033 measured)
+fn test_cost_tick_worst_8() {
+    let (mut world, content) = worst_of(true, 3, 8);
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @content, ref rules);
+    assert(world.killed.len() == 8 && world.defeated, 'every death');
+}
+
+// Cost: the worst 10-tick batch (weight 10) the pipeline's steps allow, `Busy` keeping every awake
+// goblin and the member resolving or acting at every tick.
+#[test]
+#[available_gas(l2_gas: 177589073)] // ceil(1.05 × 169132450 measured)
+fn test_cost_batch_worst() {
+    let (mut world, content) = worst_state(false, 1);
+    let mut rules: Busy = Default::default();
+    TickTrait::run(ref world, @content, 10, ref rules);
+    assert(world.clock == 59 && !world.defeated, 'ten ticks');
+}
+
+// Cost, once per call: loading the worst state's 101 actors from their words and storing them back.
+#[test]
+#[available_gas(l2_gas: 112692500)] // ceil(1.05 × 107326190 measured)
 fn test_cost_load_store_worst() {
     let (words, content) = worst_words();
     let world = words.load(@content);
     let words = world.store();
-    assert(words.goblins.len() == 8, 'stored');
+    assert(words.goblins.len() == 100, 'stored');
 }
 
 // Cost of the library call (AC-3): the baseline declares the class and runs the call's body (load,
-// one worst tick, store) in the test's own code; the next test runs it through `library_call`.
+// the worst tick, store) in the test's own code; the next test runs it through `library_call`.
 // The difference is the call: its syscall and the words and content through calldata and back.
 #[test]
-#[available_gas(l2_gas: 15721032)] // ceil(1.05 × 14972411 measured)
+#[available_gas(l2_gas: 125724820)] // ceil(1.05 × 119737923 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (words, content) = worst_words();
@@ -960,7 +1088,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16560822)] // ceil(1.05 × 15772211 measured)
+#[available_gas(l2_gas: 128431741)] // ceil(1.05 × 122315943 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -969,20 +1097,31 @@ fn test_cost_library_call() {
     assert(words.clock == 50, 'one tick');
 }
 
-// The batch's 10 worst ticks through one library call (one call per invocation, ENG-01 §1.3).
+// Ten ticks through one library call over the busy state: the class runs its own rules (`Idle`
+// until CBT-05 and ENG-07), so after the opening tick the goblins fall quiet. A trace of the call
+// at the array's bound, not a worst case (that is `test_cost_batch_worst`).
 #[test]
-#[available_gas(l2_gas: 22585257)] // ceil(1.05 × 21509768 measured)
+#[available_gas(l2_gas: 166494101)] // ceil(1.05 × 158565810 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (words, content) = worst_words();
-    let words = library.run(words, content, 10);
+    let (world, content) = worst_state(false, 1);
+    let words = library.run(world.store(), content, 10);
     assert(words.clock == 59, 'ten ticks');
+}
+
+#[test]
+#[available_gas(l2_gas: 59016678)] // ceil(1.05 × 56206360 measured)
+fn test_cost_library_baseline_batch() {
+    let _class = declare("TickLibrary").unwrap().contract_class();
+    let (world, _content) = worst_state(false, 1);
+    let words = world.store();
+    assert(words.clock == 49, 'declared');
 }
 
 // The library call runs the pipeline: the same words as a direct run.
 #[test]
-#[available_gas(l2_gas: 35207191)] // ceil(1.05 × 33530658 measured)
+#[available_gas(l2_gas: 254550856)] // ceil(1.05 × 242429386 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1099,4 +1238,224 @@ fn records() -> (Span<felt252>, Span<felt252>) {
         false,
     );
     (Record::<Skill>::pack(@skill), Record::<Caste>::pack(@caste))
+}
+
+// AUD-182-5 (design/19 §5.11, §5.13, FX-8): a member already at 0 when the tick begins (a trap on
+// its move, in the action phase) stops it at once: the clock does not advance, no goblin acts,
+// nothing regenerates, and step 5's defeat and objectives run.
+#[test]
+#[available_gas(l2_gas: 5277521)] // ceil(1.05 × 5026210 measured)
+fn test_member_down_before_the_tick() {
+    let mut spec = Fixture::spec();
+    spec.health = 0;
+    let mut goblin = Fixture::goblin(8, HOB);
+    goblin.bleeding = 99;
+    let mut world = Fixture::world(49, array![Fixture::member(spec)], array![goblin]);
+    let mut rules: Script = Default::default();
+    TickTrait::run(ref world, @Fixture::content(), 3, ref rules);
+    assert(rules.acts.len() == 0, 'no goblin acts');
+    assert(world.clock == 49, 'the clock stays');
+    assert(*world.goblins.at(0).health == 100, 'no step 3');
+    assert(world.defeated && *world.members.at(0).status == status::DOWN, 'defeat ran');
+}
+
+// AUD-182-6, conditions (§5.7, FX-6, FX-31; design/19 §10.3): Bleeding to 77, inflicted again at
+// 74 for 8 ticks, refreshes to 81; for 2 ticks, keeps 77 (`max`, not a replacement); Knocked down
+// likewise; Crippled lives in the words; a cure at 76 gives 75; an absent condition is untouched;
+// a dead goblin takes nothing.
+#[test]
+#[available_gas(l2_gas: 6009192)] // ceil(1.05 × 5723040 measured)
+fn test_conditions_refresh_and_cure() {
+    let mut member = Fixture::member(Fixture::spec());
+    member.inflict(condition::BLEEDING, 70, 8);
+    assert(member.bleeding == 77, 'D = 70 + 8 - 1');
+    member.inflict(condition::BLEEDING, 74, 2);
+    assert(member.bleeding == 77, 'max keeps 77');
+    member.inflict(condition::BLEEDING, 74, 8);
+    assert(member.bleeding == 81, 'refreshed to 81');
+    member.inflict(condition::KNOCKED_DOWN, 52, 2);
+    member.inflict(condition::KNOCKED_DOWN, 52, 1);
+    assert(member.knocked == 53, 'knock-down refreshed');
+    member.inflict(condition::CRIPPLED, 60, 3);
+    assert(member.crippled() == 62, 'crippled in the words');
+    let words = member.store();
+    let again = MemberTrait::load(words, @Fixture::content());
+    assert(again.crippled() == 62 && again.bleeding == 81, 'stored');
+    member.cure(condition::BLEEDING, 76);
+    assert(member.bleeding == 75, 'cured: D = 75');
+    member.cure(condition::POISON, 76);
+    assert(member.poison == 0, 'absent: nothing');
+    let mut dead = Fixture::goblin(8, HOB);
+    dead.ai = ai::DEAD;
+    dead.inflict(condition::POISON, 10, 5);
+    assert(dead.poison == 0, 'a dead goblin takes nothing');
+    let mut goblin = Fixture::goblin(9, HOB);
+    goblin.inflict(condition::CRIPPLED, 10, 5);
+    goblin.inflict(condition::POISON, 10, 5);
+    assert(goblin.crippled() == 14 && goblin.poison == 14, 'goblin conditions');
+}
+
+/// Skills of design/19 §10.4: Stone Skin 11 (an enchantment), Warcry 12 (a shout), Venom Coat 13
+/// (a preparation), Sidestep 14 and Brace 15 (stances), and the bar's 1–8.
+fn hold_content() -> Content {
+    let mut skills = array![];
+    for id in 1..9_u16 {
+        skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
+    }
+    skills.append(Fixture::skill(11, skill_kind::ENCHANTMENT, 1, 10));
+    skills.append(Fixture::skill(12, skill_kind::SHOUT, 0, 10));
+    skills.append(Fixture::skill(13, skill_kind::PREPARATION, 0, 10));
+    skills.append(Fixture::skill(14, skill_kind::STANCE, 0, 10));
+    let mut brace = Fixture::skill(15, skill_kind::STANCE, 0, 10);
+    brace.regen0 = 1;
+    brace.regen12 = 1;
+    skills.append(brace);
+    Content {
+        skills: skills.span(),
+        potions: array![
+            PotionSheet { id: 100, regen: 1 }, PotionSheet { id: 101, regen: 2 },
+            PotionSheet { id: 102, regen: 3 }, PotionSheet { id: 103, regen: 4 },
+        ]
+            .span(),
+        castes: array![].span(),
+    }
+}
+
+fn held(carrier: u16, potion: bool, deadline: u32, rank: u8) -> Held {
+    Held { carrier, potion, charges: 0, deadline, rank }
+}
+
+// AUD-182-6, held effects (§5.7; design/19 §10.4): four effects held and no stance; Sidestep at
+// clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot: Warcry in
+// slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
+#[test]
+#[available_gas(l2_gas: 7772394)] // ceil(1.05 × 7402280 measured)
+fn test_hold_eviction_and_stance() {
+    let content = hold_content();
+    let mut spec = Fixture::spec();
+    spec
+        .effects =
+            [(11, false, 90, 12), (12, false, 85, 12), (13, false, 85, 12), (3, true, 100, 0)];
+    let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
+    let slot = member.hold(held(14, false, 86, 12), true, 81, @content);
+    assert(slot == 1 && member.effect_of(1) == held(14, false, 86, 12), 'Warcry evicted');
+    let slot = member.hold(held(15, false, 90, 12), true, 83, @content);
+    assert(slot == 1 && member.effect_of(1).carrier == 15, 'stance replaces stance');
+    assert(member.effect_regen == [0, 1, 0, 4], 'pips follow');
+    assert(member.effect_deadlines == [90, 90, 85, 100], 'deadlines follow');
+    // A free slot (a deadline passed) is taken before any eviction, the lowest first.
+    let slot = member.hold(held(12, false, 95, 12), false, 86, @content);
+    assert(slot == 2, 'lowest free slot');
+    // The words round-trip what was held.
+    let again = MemberTrait::load(member.store(), @content);
+    assert(again.effect_of(2) == held(12, false, 95, 12), 'stored');
+}
+
+// AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new one
+// on a tie; two belt slots holding the same potion item are one carrier.
+#[test]
+#[available_gas(l2_gas: 7633878)] // ceil(1.05 × 7270360 measured)
+fn test_hold_refresh() {
+    let content = hold_content();
+    let mut spec = Fixture::spec();
+    spec.effects = [(11, false, 90, 4), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+    let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
+    member.hold(held(11, false, 88, 12), false, 81, @content);
+    assert(member.effect_of(0) == held(11, false, 90, 4), 'earlier: kept');
+    member.hold(held(11, false, 90, 12), false, 81, @content);
+    assert(member.effect_of(0) == held(11, false, 90, 12), 'tie: the new one');
+    member.hold(held(11, false, 95, 7), false, 81, @content);
+    assert(member.effect_of(0) == held(11, false, 95, 7), 'later: replaced whole');
+    // Belt slots 0 and 2 hold one item: one carrier.
+    let mut words = member.store();
+    words.kit = LIVE + 100 + 101 * two(32) + 100 * two(64) + 103 * two(96);
+    let mut member = MemberTrait::load(words, @content);
+    let first = member.hold(held(0, true, 99, 0), false, 81, @content);
+    let second = member.hold(held(2, true, 120, 0), false, 81, @content);
+    assert(first == 1 && second == 1, 'same potion, same slot');
+    assert(member.effect_of(1) == held(2, true, 120, 0), 'later potion kept');
+    // A goblin's one slot: refreshed by its carrier, replaced by another.
+    let mut goblin = Fixture::goblin(8, HOB);
+    goblin.hold(held(11, false, 50, 3), 40, @content);
+    goblin.hold(held(11, false, 45, 3), 40, @content);
+    assert(goblin.effect_of().deadline == 50, 'goblin keeps the later');
+    goblin.hold(held(15, false, 44, 12), 40, @content);
+    assert(goblin.effect_of() == held(15, false, 44, 12) && goblin.effect_regen == 1, 'replaced');
+}
+
+// AUD-182-6, adrenaline gain (§5.12, FX-12): 4 quarters a weapon hit landed, 8 on every N-th hit
+// (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline cost (6
+// strikes: 24 quarters); a goblin's at its caste's, at most 252.
+#[test]
+#[available_gas(l2_gas: 6291138)] // ceil(1.05 × 5991560 measured)
+fn test_adrenaline_gain() {
+    let mut skills = array![];
+    for id in 1..9_u16 {
+        let mut sheet = Fixture::skill(id, skill_kind::ATTACK, 0, 0);
+        sheet.adrenaline = if id == 2 {
+            6
+        } else {
+            0
+        };
+        skills.append(sheet);
+    }
+    skills.append(Fixture::skill(24, skill_kind::ATTACK, 1, 10));
+    let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);
+    heavy.adrenaline = 63;
+    skills.append(heavy);
+    skills.append(Fixture::skill(26, skill_kind::SPELL, 1, 10));
+    skills.append(Fixture::skill(27, skill_kind::SHOUT, 0, 10));
+    let content = Content {
+        skills: skills.span(),
+        potions: array![].span(),
+        castes: array![Fixture::caste(HOB, 1)].span(),
+    };
+    let mut words = Fixture::member_words(Fixture::spec());
+    // `ADRENALINE_EVERY_N` = 3 in the kit (bits 160–167).
+    words.kit += 3 * two(160);
+    let mut member = MemberTrait::load(words, @content);
+    assert(member.adrenaline_cap == 24, 'cap: 6 strikes');
+    member.land_weapon_hit();
+    member.land_weapon_hit();
+    assert(member.adrenaline == 8 && member.hits() == 2, 'two hits: 8');
+    member.land_weapon_hit();
+    assert(member.adrenaline == 16 && member.hits() == 0, 'third doubled, reset');
+    member.take_hit();
+    assert(member.adrenaline == 17, 'a hit taken: 1');
+    member.land_weapon_hit();
+    member.land_weapon_hit();
+    assert(member.adrenaline == 24, 'capped at 24');
+    // A goblin of caste 1, whose skill 25 costs 63 strikes: its cap is the field's 252.
+    let goblin_words = GoblinWords {
+        entity: 8, awake: true, state: Fixture::goblin(8, HOB).state, timers: LIVE + 255,
+    };
+    let mut goblin = GoblinTrait::load(goblin_words, @content);
+    assert(goblin.adrenaline_cap == 252, 'goblin cap 252');
+    goblin.adrenaline = 250;
+    goblin.land_weapon_hit();
+    assert(goblin.adrenaline == 252, 'goblin capped');
+    goblin.ai = ai::DEAD;
+    goblin.adrenaline = 0;
+    goblin.take_hit();
+    assert(goblin.adrenaline == 0, 'dead: nothing');
+}
+
+// AUD-182-9: the words' decoders are the entities' own (`MemberTrait::hot`, `GoblinTrait::hot`).
+#[test]
+#[available_gas(l2_gas: 5279222)] // ceil(1.05 × 5027830 measured)
+fn test_hot_decoders() {
+    let mut spec = Fixture::spec();
+    spec.conditions = [11, 12, 13, 14];
+    let words = Fixture::member_words(spec);
+    let (status, health, _, _, _, slot, _, _, _, bleeding, _, _, knocked) = MemberTrait::hot(
+        @words,
+    );
+    assert(status == status::INSIDE && health == 400 && slot == NO_SLOT, 'member');
+    assert(bleeding == 11 && knocked == 14, 'member timers');
+    let goblin = Fixture::goblin(8, RUNT);
+    let (state_ai, health, _, _, caste, slot, _, _, _, _, _, _, _, level, _, _) = GoblinTrait::hot(
+        goblin.state, goblin.timers,
+    );
+    assert(state_ai == ai::ENGAGED && health == 100 && caste == RUNT, 'goblin');
+    assert(slot == activation::NONE && level == 10, 'goblin timers');
 }

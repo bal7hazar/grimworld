@@ -21,10 +21,11 @@
 //! The rules that act on one actor (starting, concluding, interrupting an activation, a goblin's
 //! recovery) are methods of `MemberTickTrait` and `GoblinTickTrait`, for the executor and the AI.
 
-use crate::types::combat::{activation, skill_kind};
+use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::tick::{
-    ADRENALINE_DECAY, Actor, CasteSheet, Content, ContentTrait, Goblin, GoblinTrait, HEALTH_PER_PIP,
-    MAX_PIPS, Member, MemberTrait, NO_SLOT, World, ai, flag, status,
+    ADRENALINE_DECAY, Actor, CasteSheet, Content, ContentTrait, Goblin, GoblinTrait,
+    GoblinWordsTrait, HEALTH_PER_PIP, Held, MAX_PIPS, Member, MemberTrait, MemberWordsTrait,
+    NO_SLOT, SkillSheetTrait, World, ai, flag, status,
 };
 
 /// The goblins one tick may hold: the window's (at most 4 chunks × 2 packs × 5) and the roster's
@@ -36,6 +37,8 @@ pub const MAX_AWAKE: u32 = 8;
 pub mod errors {
     pub const GOBLINS: felt252 = 'tick: too many goblins';
     pub const DISTANCES: felt252 = 'tick: one distance a goblin';
+    pub const CONDITION: felt252 = 'tick: condition not stored';
+    pub const DURATION: felt252 = 'tick: duration below 1';
 }
 
 /// What the pipeline leaves to the lots after it: each hook is called at its point of the order.
@@ -83,6 +86,15 @@ pub impl TickImpl of TickTrait {
     /// One world tick, steps 0 to 5 (design/19 §5.1).
     fn tick<R, +Rules<R>, +Drop<R>>(ref world: World, content: @Content, ref rules: R) {
         assert(world.goblins.len() <= MAX_GOBLINS, errors::GOBLINS);
+        // The adventurer at 0 before the tick (in the action phase: a trap on its move, §5.11):
+        // the tick stops at once, before the clock advances or any actor runs; step 5's defeat
+        // and objectives run (FX-8, §5.13; AUD-182-5). The caller applies the action and then
+        // calls the pipeline, which owns this check.
+        if world.is_down() {
+            Self::check(ref world);
+            rules.objectives(ref world);
+            return;
+        }
         // Step 0.
         world.clock += 1;
         Self::clear_flags(ref world);
@@ -539,8 +551,287 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     }
 }
 
+/// The lifecycle rules of design/19 §5.7 and §5.12 on a member (AUD-182-6): conditions inflicted
+/// and cured, held effects held, refreshed and replaced, adrenaline gained. The executor (CBT-05)
+/// calls them; the durations it passes are after `durations::effective_duration`.
+#[generate_trait]
+pub impl MemberLifecycleImpl of MemberLifecycleTrait {
+    /// Condition `condition` (1–5, the MVP's: FX-22) inflicted at `t0` for `d ≥ 1` ticks: `D =
+    /// t0 + d − 1`; held already, it refreshes to `max(D_old, D)` (FX-6; Knocked down too,
+    /// FX-31).
+    fn inflict(ref self: Member, condition: u8, t0: u32, d: u32) {
+        let old = self.condition(condition);
+        self.set_condition(condition, refreshed(old, t0, d));
+    }
+
+    /// `CURE` at `t0` (§3.2): a duration of 0, `D = t0 − 1`; an absent condition, nothing.
+    fn cure(ref self: Member, condition: u8, t0: u32) {
+        let old = self.condition(condition);
+        self.set_condition(condition, cured(old, t0));
+    }
+
+    /// The deadline of condition 1–5.
+    fn condition(self: @Member, condition: u8) -> u32 {
+        assert(
+            condition >= condition::BLEEDING && condition <= condition::LAST_MVP, errors::CONDITION,
+        );
+        if condition == condition::BLEEDING {
+            *self.bleeding
+        } else if condition == condition::POISON {
+            *self.poison
+        } else if condition == condition::BURNING {
+            *self.burning
+        } else if condition == condition::CRIPPLED {
+            self.crippled()
+        } else {
+            *self.knocked
+        }
+    }
+
+    fn set_condition(ref self: Member, condition: u8, deadline: u32) {
+        if condition == condition::BLEEDING {
+            self.bleeding = deadline;
+        } else if condition == condition::POISON {
+            self.poison = deadline;
+        } else if condition == condition::BURNING {
+            self.burning = deadline;
+        } else if condition == condition::CRIPPLED {
+            self.set_crippled(deadline);
+        } else {
+            self.knocked = deadline;
+        }
+    }
+
+    /// A holding effect applied at tick or clock `t` (§5.7), `stance` if its carrier is a stance;
+    /// returns its slot. In order:
+    /// 1. its carrier held (FX-42: the skill id, or a potion's item id through its belt slot):
+    ///    the application with the later deadline is kept whole, the new one on a tie (FX-30);
+    /// 2. else a stance while one is held: it takes that slot;
+    /// 3. else the lowest free slot (never held, or its deadline passed);
+    /// 4. else eviction: the earliest deadline, ties the lowest slot (FX-13).
+    /// An effect ends by its deadline: one whose charges reach 0 is ended by the executor with a
+    /// deadline of `t − 1`.
+    fn hold(ref self: Member, held: Held, stance: bool, t: u32, content: @Content) -> u8 {
+        let item = if held.potion {
+            self.belt_item(held.carrier)
+        } else {
+            0
+        };
+        // 1. The same carrier.
+        let mut slot: u8 = 0;
+        while slot < 4 {
+            let old = self.effect_of(slot);
+            if old.deadline >= t && old.potion == held.potion {
+                let same = if held.potion {
+                    self.belt_item(old.carrier) == item
+                } else {
+                    old.carrier == held.carrier
+                };
+                if same {
+                    if held.deadline >= old.deadline {
+                        self.put(slot, held, item, content);
+                    }
+                    return slot;
+                }
+            }
+            slot += 1;
+        }
+        // 2. A stance replaces the stance held.
+        if stance {
+            let mut slot: u8 = 0;
+            while slot < 4 {
+                let old = self.effect_of(slot);
+                if old.deadline >= t
+                    && !old.potion
+                    && old.carrier != 0
+                    && *content.skill(old.carrier).kind == skill_kind::STANCE {
+                    self.put(slot, held, item, content);
+                    return slot;
+                }
+                slot += 1;
+            }
+        }
+        // 3. The lowest free slot; 4. else the earliest deadline, ties the lowest slot.
+        let mut earliest: u8 = 0;
+        let mut earliest_deadline: u32 = 0xFFFFFFFF;
+        let mut slot: u8 = 0;
+        while slot < 4 {
+            let deadline = self.effect_of(slot).deadline;
+            if deadline < t {
+                self.put(slot, held, item, content);
+                return slot;
+            }
+            if deadline < earliest_deadline {
+                earliest = slot;
+                earliest_deadline = deadline;
+            }
+            slot += 1;
+        }
+        self.put(earliest, held, item, content);
+        earliest
+    }
+
+    /// Writes `held` in `slot` with its pips: a potion's through its item, a skill's at its rank.
+    fn put(ref self: Member, slot: u8, held: Held, item: u32, content: @Content) {
+        let pips: i32 = if held.potion {
+            (*content.potion(item).regen).into()
+        } else {
+            content.skill(held.carrier).regen(held.rank)
+        };
+        self.set_effect(slot, held, pips.try_into().unwrap());
+    }
+
+    /// Adrenaline gained, in quarters (§5.12): capped at the member's cap (its bar's highest
+    /// cost, FX-12); one already at or above it keeps what it has.
+    fn gain_adrenaline(ref self: Member, quarters: u16) {
+        if self.adrenaline < self.adrenaline_cap {
+            let gained = self.adrenaline + quarters;
+            self.adrenaline = min16(gained, self.adrenaline_cap);
+        }
+    }
+
+    /// A weapon hit landed (§5.5 step 8, §5.12): 4 quarters, 8 on every `N`-th hit of
+    /// `ADRENALINE_EVERY_N` (the `hits` counter resets at N; N = 0: it stays 0).
+    fn land_weapon_hit(ref self: Member) {
+        let every = self.double_every();
+        let mut quarters: u16 = 4;
+        if every > 0 {
+            let hits = self.hits() + 1;
+            if hits == every {
+                quarters = 8;
+                self.set_hits(0);
+            } else {
+                self.set_hits(hits);
+            }
+        }
+        self.gain_adrenaline(quarters);
+    }
+
+    /// A hit taken while alive (§5.12): 1 quarter.
+    fn take_hit(ref self: Member) {
+        if self.health > 0 {
+            self.gain_adrenaline(1);
+        }
+    }
+}
+
+/// The same lifecycle rules on a goblin (§5.7, §5.12): a dead goblin takes nothing; its one slot
+/// is refreshed by its carrier or replaced (FX-13); its gains capped at its caste's cap.
+#[generate_trait]
+pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
+    fn inflict(ref self: Goblin, condition: u8, t0: u32, d: u32) {
+        if !self.is_alive() {
+            return;
+        }
+        let old = self.condition(condition);
+        self.set_condition(condition, refreshed(old, t0, d));
+    }
+
+    fn cure(ref self: Goblin, condition: u8, t0: u32) {
+        let old = self.condition(condition);
+        self.set_condition(condition, cured(old, t0));
+    }
+
+    fn condition(self: @Goblin, condition: u8) -> u32 {
+        assert(
+            condition >= condition::BLEEDING && condition <= condition::LAST_MVP, errors::CONDITION,
+        );
+        if condition == condition::BLEEDING {
+            *self.bleeding
+        } else if condition == condition::POISON {
+            *self.poison
+        } else if condition == condition::BURNING {
+            *self.burning
+        } else if condition == condition::CRIPPLED {
+            self.crippled()
+        } else {
+            *self.knocked
+        }
+    }
+
+    fn set_condition(ref self: Goblin, condition: u8, deadline: u32) {
+        if condition == condition::BLEEDING {
+            self.bleeding = deadline;
+        } else if condition == condition::POISON {
+            self.poison = deadline;
+        } else if condition == condition::BURNING {
+            self.burning = deadline;
+        } else if condition == condition::CRIPPLED {
+            self.set_crippled(deadline);
+        } else {
+            self.knocked = deadline;
+        }
+    }
+
+    /// A holding effect on its one slot at `t` (§5.7): the same carrier held keeps the later
+    /// deadline, the new one on a tie (FX-30); anything else replaces it (FX-13).
+    fn hold(ref self: Goblin, held: Held, t: u32, content: @Content) {
+        if !self.is_alive() {
+            return;
+        }
+        let old = self.effect_of();
+        if old.deadline >= t && old.carrier == held.carrier && held.deadline < old.deadline {
+            return;
+        }
+        let pips: i32 = content.skill(held.carrier).regen(held.rank);
+        self.set_effect(held, pips.try_into().unwrap());
+    }
+
+    /// Adrenaline gained, in quarters (§5.12), capped at its caste's cap (at most 252).
+    fn gain_adrenaline(ref self: Goblin, quarters: u8) {
+        if self.adrenaline < self.adrenaline_cap {
+            let gained: u16 = self.adrenaline.into() + quarters.into();
+            let cap: u16 = self.adrenaline_cap.into();
+            self.adrenaline = min16(gained, cap).try_into().unwrap();
+        }
+    }
+
+    /// A weapon hit landed: 4 quarters (no `hits` counter: a member's modifier).
+    fn land_weapon_hit(ref self: Goblin) {
+        self.gain_adrenaline(4);
+    }
+
+    /// A hit taken while alive: 1 quarter.
+    fn take_hit(ref self: Goblin) {
+        if self.is_alive() && self.health > 0 {
+            self.gain_adrenaline(1);
+        }
+    }
+}
+
 // Free functions below: the arithmetic of one quantity, shared by members and goblins; no type
 // owns it (docs/CAIRO.md §7).
+
+/// A condition inflicted at `t0` for `d ≥ 1` ticks over `old`: `max(old, t0 + d − 1)` (FX-6).
+#[inline(always)]
+fn refreshed(old: u32, t0: u32, d: u32) -> u32 {
+    assert(d >= 1, errors::DURATION);
+    let deadline = t0 + d - 1;
+    if deadline > old {
+        deadline
+    } else {
+        old
+    }
+}
+
+/// A cure at `t0` over `old`: `t0 − 1` if the condition is held at `t0`, else unchanged.
+#[inline(always)]
+fn cured(old: u32, t0: u32) -> u32 {
+    if old >= t0 {
+        t0 - 1
+    } else {
+        old
+    }
+}
+
+#[inline(always)]
+fn min16(a: u16, b: u16) -> u16 {
+    if a < b {
+        a
+    } else {
+        b
+    }
+}
 
 /// The pips of the degenerating conditions active at `t` (§5.8 step 1): −3 Bleeding, −4
 /// Poison, −7 Burning (`types::combat::condition`).

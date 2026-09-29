@@ -88,9 +88,9 @@ pub impl ModifierAssert of ModifierAssertTrait {
 
     /// The content pipeline's checks across every `MODIFIER` of the content, each legal: "the
     /// pipeline gives [`QUICK_CAST_EVERY_N`, `DAMAGE_TYPE`] one slot type" (design/19 §4,
-    /// §7.2), so all the modifiers holding one of them share a slot type. Which one is not
-    /// settled (escalated); with any, at most 2 quick-cast pairs and one damage type per held
-    /// item are held.
+    /// §7.2), so all the modifiers holding one of them share a slot type. design/20 §1.8 (D-160)
+    /// names them: the inscription for quick cast, the prefix for the damage type, which
+    /// `PassiveTrait::allows` enforces on each modifier; the shared-slot check stays as a guard.
     fn assert_catalogue(modifiers: Span<Modifier>) {
         let mut quick_cast: u8 = 0;
         let mut damage_type: u8 = 0;
