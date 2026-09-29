@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURES, fixtureNamed } from "./fixtures";
-import { applyIntent, initialState, toView } from "./wiring";
+import { applyIntent, initialState, toView, walkStep } from "./wiring";
 import { CHUNK } from "./world";
 
 describe("fixtures", () => {
@@ -41,7 +41,7 @@ describe("fixtures", () => {
   it("edge: one step West brings sight onto the unrevealed, and the move reveals it (ADR-0006)", () => {
     let state = initialState(fixtureNamed("edge"));
     const start = state.world.actors[0]!.tile;
-    state = applyIntent(state, { kind: "tile", tile: { x: start.x + 1, y: start.y } });
+    state = walkStep(applyIntent(state, { kind: "tile", tile: { x: start.x + 1, y: start.y } }));
     expect(state.world.actors[0]!.tile).toEqual({ x: start.x + 1, y: start.y });
     const view = toView(state);
     const kinds = new Map(view.tiles.map((t) => [`${t.x},${t.y}`, t.kind]));
@@ -61,11 +61,15 @@ describe("fixtures", () => {
 });
 
 describe("wiring", () => {
-  it("a tap on a floor tile takes one step and faces the direction moved", () => {
+  it("a tap on a floor tile plans the path; its first step faces the direction moved", () => {
     const state = initialState(fixtureNamed("meadow"));
     const adventurer = state.world.actors[0]!;
     const target = { x: adventurer.tile.x - 3, y: adventurer.tile.y };
-    const next = applyIntent(state, { kind: "tile", tile: target });
+    const planned = applyIntent(state, { kind: "tile", tile: target });
+    expect(planned.walking).toBe(true);
+    expect(planned.path).toHaveLength(3);
+    expect(planned.world).toBe(state.world);
+    const next = walkStep(planned);
     const moved = next.world.actors[0]!;
     expect(moved.tile).toEqual({ x: adventurer.tile.x - 1, y: adventurer.tile.y });
     expect(moved.facing).toBe(0);

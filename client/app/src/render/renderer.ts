@@ -21,6 +21,7 @@ import {
   SHAPE_HEIGHT,
   SHAPE_IDLE,
   drawBody,
+  drawGhosts,
   drawMark,
   drawOverlay,
   drawTerrain,
@@ -125,6 +126,22 @@ export interface ZoomInfo {
 export const STEP_MS = 180;
 export const TURN_MS = 120;
 export const CAMERA_MS = 260;
+/** How long the steps a stop or a cancel dropped take to fade out (design/11 *The queue*). */
+export const FADE_MS = 400;
+
+/**
+ * Where an actor's feet stand in its tile: below the tile's centre, by a fraction of the hex's inner
+ * radius (half a tile's width), the same for every sprite and shape, so that a body taller than
+ * its tile reads as standing **in** it. The wedge, the arcs, the marks' tile and the selection stay
+ * on the tile's centre. Not decided here: the owner sets it by eye (debug panel, `?feet=`).
+ */
+export const DEFAULT_FEET = 0.5;
+export const FEET_RANGE = { min: 0, max: 1 } as const;
+
+/** The feet's distance below the tile's centre, in art pixels, for a fraction of the inner radius. */
+export function feetOffset(fraction: number): number {
+  return (fraction * TILE_WIDTH) / 2;
+}
 /** Idle animations never draw more often than this (ADR-0003: 12–15 fps). */
 export const IDLE_MAX_FPS = 15;
 
@@ -176,6 +193,10 @@ export interface RendererOptions {
   readonly idle?: boolean;
   /** How the world's scale meets the screen's pixels (`continuous` by default). */
   readonly mode?: ScaleMode;
+  /** The feet below the tile's centre, as a fraction of the inner radius (`DEFAULT_FEET`). */
+  readonly feet?: number;
+  /** A step's animation, in ms (`STEP_MS`); the sandbox walks a path at the same pace. */
+  readonly stepMs?: number;
   readonly onDraw?: (stats: FrameStats) => void;
 }
 
@@ -223,6 +244,10 @@ export class Renderer implements FrameClient {
   private readonly world = new Container();
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
+  /** The dropped steps of a planned path, fading out. */
+  private readonly fading = new Graphics();
+  private fade: Tween | null = null;
+  private droppedKey = "";
   private readonly actorsLayer = new Container({ sortableChildren: true });
   private readonly nodes = new Map<number, ActorNode>();
   private readonly chunks = new Map<string, ChunkBake>();
@@ -249,6 +274,8 @@ export class Renderer implements FrameClient {
   private lastIdle = -Infinity;
   private library: SpriteLibrary | null;
   private readonly scales = new Map<string, number>();
+  private feet: number;
+  private readonly stepMs: number;
 
   constructor(
     private readonly surface: Surface,
@@ -259,8 +286,10 @@ export class Renderer implements FrameClient {
     this.zoom = options.zoom ?? DEFAULT_ZOOM;
     this.idleOn = options.idle ?? true;
     this.mode = options.mode ?? "continuous";
+    this.feet = options.feet ?? DEFAULT_FEET;
+    this.stepMs = options.stepMs ?? STEP_MS;
     this.scheduler = new FrameScheduler(host, this, options.onDraw);
-    this.world.addChild(this.ground, this.overlay, this.actorsLayer);
+    this.world.addChild(this.ground, this.overlay, this.fading, this.actorsLayer);
     this.passRoot.addChild(this.backdrop);
     this.mountStage();
   }
@@ -273,6 +302,7 @@ export class Renderer implements FrameClient {
     const now = this.host.now();
     this.syncChunks(view.tiles);
     drawOverlay(this.overlay, view);
+    this.syncDropped(view, now);
     this.syncActors(view, now);
     const adventurer = view.actors.find((a) => a.id === view.adventurerId);
     const before = previous?.actors.find((a) => a.id === previous.adventurerId);
@@ -383,6 +413,17 @@ export class Renderer implements FrameClient {
     return this.scales.get(name) ?? this.library?.get(name)?.scale ?? 1;
   }
 
+  /** Where the feet stand below the tile's centre, as a fraction of the inner radius. */
+  setFeet(fraction: number): void {
+    this.feet = fraction;
+    for (const node of this.nodes.values()) this.placeBody(node);
+    this.scheduler.invalidate();
+  }
+
+  feetFraction(): number {
+    return this.feet;
+  }
+
   cameraState(): { camera: Camera; viewport: Viewport } {
     return { camera: this.camera, viewport: this.viewport };
   }
@@ -460,6 +501,14 @@ export class Renderer implements FrameClient {
         else moving = true;
         changed = true;
       }
+    }
+    if (this.fade) {
+      this.fading.alpha = at(this.fade, progress(this.fade, now))[0] ?? 0;
+      if (now >= this.fade.start + this.fade.duration) {
+        this.fade = null;
+        this.fading.clear();
+      } else moving = true;
+      changed = true;
     }
     if (this.cameraTween) {
       const [x = 0, y = 0] = at(this.cameraTween, progress(this.cameraTween, now));
@@ -725,7 +774,7 @@ export class Renderer implements FrameClient {
         const from = node.container.position;
         const adjacent = Math.hypot(target.x - from.x, target.y - from.y) < TILE_WIDTH * 1.01;
         node.move = adjacent
-          ? { from: [from.x, from.y], to: [target.x, target.y], start: now, duration: STEP_MS }
+          ? { from: [from.x, from.y], to: [target.x, target.y], start: now, duration: this.stepMs }
           : null;
         if (!adjacent) node.container.position.set(target.x, target.y);
       }
@@ -746,6 +795,19 @@ export class Renderer implements FrameClient {
         this.nodes.delete(id);
       }
     }
+  }
+
+  /** A new set of dropped steps fades out from the ghosts' alpha to nothing. */
+  private syncDropped(view: ViewState, now: number): void {
+    const key = view.dropped.map((t) => `${t.x},${t.y}`).join(" ");
+    if (key === this.droppedKey) return;
+    this.droppedKey = key;
+    this.fading.clear();
+    this.fading.alpha = 1;
+    this.fade = null;
+    if (view.dropped.length === 0) return;
+    drawGhosts(this.fading, view.dropped);
+    this.fade = { from: [1], to: [0], start: now, duration: FADE_MS };
   }
 
   private createNode(actor: ViewActor): ActorNode {
@@ -795,13 +857,15 @@ export class Renderer implements FrameClient {
     node.container.destroy({ children: true });
   }
 
-  /** Scale and mirror of the body, and the mark's height over it. */
+  /** Feet, scale and mirror of the body, and the mark's height over it. */
   private placeBody(node: ActorNode): void {
     const name = spriteName(node.actor);
     const scale = this.spriteScale(name);
+    const feet = feetOffset(this.feet);
+    node.body.position.set(0, feet);
     node.body.scale.set(isMirrored(node.actor.facing) ? -scale : scale, scale);
     const height = node.art ? node.art.baseline : SHAPE_HEIGHT[name];
-    if (node.mark) node.mark.position.set(0, -height * scale - 14);
+    if (node.mark) node.mark.position.set(0, feet - height * scale - 14);
   }
 
   private setMark(node: ActorNode): void {

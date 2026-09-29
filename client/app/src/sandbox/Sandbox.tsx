@@ -3,7 +3,9 @@ import type { ZoomSettings } from "../render/renderer";
 import { SCALE_MODES, readScaleMode } from "../render/scaling";
 import { SandboxController, type SandboxInfo } from "./controller";
 import { FIXTURES } from "./fixtures";
-import { ACROSS_RANGE, readAcross, readParams } from "./params";
+import { FEET_RANGE } from "../render/renderer";
+import { ACROSS_RANGE, readAcross, readFeet, readParams } from "./params";
+import type { WalkInfo } from "./session";
 
 /**
  * The rendering sandbox (CLI-03a): the map on the whole viewport, a button back to the adventurer,
@@ -14,6 +16,7 @@ export function Sandbox() {
   const [controller, setController] = useState<SandboxController | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => readParams(window.location.search).panel);
   const [info, setInfo] = useState<SandboxInfo | null>(null);
+  const [walk, setWalk] = useState<WalkInfo | null>(null);
 
   useEffect(() => {
     const element = host.current;
@@ -39,9 +42,16 @@ export function Sandbox() {
     return () => controller.listen(null);
   }, [controller, panelOpen]);
 
+  useEffect(() => {
+    if (!controller) return;
+    controller.listenToWalk(setWalk);
+    return () => controller.listenToWalk(null);
+  }, [controller]);
+
   return (
     <div style={styles.root}>
       <div ref={host} style={styles.canvas} />
+      {controller && walk && <WalkCounter controller={controller} walk={walk} />}
       <button
         style={styles.centre}
         onClick={() => controller?.recentre()}
@@ -53,6 +63,32 @@ export function Sandbox() {
         {panelOpen ? "× debug" : "debug"}
       </button>
       {panelOpen && controller && info && <DebugPanel controller={controller} info={info} />}
+    </div>
+  );
+}
+
+/**
+ * The planned queue's counter (design/11 *The queue*), minimal until the HUD (CLI-05, CLI-08): the
+ * steps left and their cost in ticks; a tap cancels. Under it, why the last walk stopped.
+ */
+function WalkCounter({ controller, walk }: { controller: SandboxController; walk: WalkInfo }) {
+  if (walk.steps === 0 && !walk.stopped) return null;
+  return (
+    <div style={styles.walk}>
+      {walk.steps > 0 && (
+        <button
+          style={styles.counter}
+          onClick={() => controller.cancelWalk()}
+          aria-label="Cancel the planned path"
+        >
+          {walk.walking ? "▶" : "◌"} {walk.steps} {walk.steps === 1 ? "step" : "steps"} ·{" "}
+          {walk.cost} {walk.cost === 1 ? "tick" : "ticks"} ✕
+        </button>
+      )}
+      {walk.steps > 0 && !walk.walking && (
+        <div style={styles.stopped}>tap the tile again to walk</div>
+      )}
+      {walk.stopped && <div style={styles.stopped}>{walk.stopped}</div>}
     </div>
   );
 }
@@ -147,9 +183,37 @@ function DebugPanel({ controller, info }: { controller: SandboxController; info:
       <div style={styles.row}>
         PixiJS tickers running: <b>{info.tickersRunning ? "YES (a loop!)" : "none"}</b>
       </div>
+      <label style={styles.row}>
+        <input
+          type="checkbox"
+          checked={info.playOnTap}
+          onChange={(e) => controller.setPlayOnTap(e.target.checked)}
+        />{" "}
+        move played on the tap (off: tap twice)
+      </label>
+      <div style={styles.row}>
+        adventurer at{" "}
+        <b>{info.adventurerTile ? `(${info.adventurerTile.x}, ${info.adventurerTile.y})` : "—"}</b>,
+        camera on ({info.cameraTile.x}, {info.cameraTile.y})
+      </div>
       <div style={styles.row}>
         atlas: <b>{info.atlas}</b>
       </div>
+      <label style={styles.row}>
+        feet below the centre (× inner radius){" "}
+        <input
+          type="number"
+          min={FEET_RANGE.min}
+          max={FEET_RANGE.max}
+          step={0.05}
+          value={info.feet}
+          onChange={(e) => {
+            const feet = readFeet(e.target.value);
+            if (feet !== null) controller.setFeet(feet);
+          }}
+          style={styles.number}
+        />
+      </label>
       {info.sprites.map((sprite) => (
         <label key={sprite.name} style={styles.row}>
           {sprite.name}{" "}
@@ -210,6 +274,33 @@ const styles: Record<string, CSSProperties> = {
     font: "12px system-ui",
     color: "#eee",
     background: "rgba(0,0,0,0.78)",
+  },
+  walk: {
+    position: "absolute",
+    left: "50%",
+    bottom: 16,
+    transform: "translateX(-50%)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 4,
+    font: "14px system-ui",
+    pointerEvents: "none",
+  },
+  counter: {
+    pointerEvents: "auto",
+    minHeight: 44,
+    padding: "0 14px",
+    borderRadius: 22,
+    border: "none",
+    font: "14px system-ui",
+    background: "rgba(255,255,255,0.88)",
+  },
+  stopped: {
+    padding: "2px 8px",
+    borderRadius: 4,
+    color: "#eee",
+    background: "rgba(0,0,0,0.6)",
   },
   row: { display: "block", margin: "4px 0" },
   note: { margin: "4px 0", color: "#aaa" },

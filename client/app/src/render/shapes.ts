@@ -110,16 +110,22 @@ export function drawOverlay(g: Graphics, view: ViewState): void {
     g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: 0.45 });
   }
   drawArcs(g, plan);
-  for (const tile of plan.path) {
-    const c = tileToPixel(tile);
-    g.circle(c.x, c.y, 5).fill({ color: COLOURS.path, alpha: 0.75 });
-  }
+  drawGhosts(g, plan.path);
   if (plan.selected) {
     g.poly(hexCorners(tileToPixel(plan.selected), -2)).stroke({
       width: 3,
       color: COLOURS.selected,
     });
   }
+}
+
+/** The ghost markers of a planned path (design/11 *The queue*); the renderer fades dropped ones. */
+export function drawGhosts(g: Graphics, path: readonly Tile[]): Graphics {
+  for (const tile of path) {
+    const c = tileToPixel(tile);
+    g.circle(c.x, c.y, 5).fill({ color: COLOURS.path, alpha: 0.75 });
+  }
+  return g;
 }
 
 function drawArcs(g: Graphics, plan: OverlayPlan): void {
