@@ -25,9 +25,12 @@ INDEXER_RPC_URL=<url> node src/main.ts rebuild --hub <address> --market <address
 | `--depth <blocks>` or `l1`                   | `l1`                         | History kept below the tip (`l1`: down to the last block accepted on L1). A reorg below it halts                                                                                       |
 | `--recheck <blocks>`, `--recheck-every <ms>` | 10, 10000                    | The last blocks below the tip read again, at most that often: `recheck` header reads each time (1 call per second on average at the defaults)                                          |
 | `--lot-count`, `--trade-count`               | 0                            | The contracts' counters at the block before `--from`: 0 at deployment, which is the only supported start (below)                                                                       |
-| `--max-subscriptions <n>`                    | 1000                         | Subscriptions open at once in the process; one more is refused with 429                                                                                                                |
+| `--max-subscriptions <n>`                    | 512                          | Subscriptions open at once in the process; one more is refused with 429                                                                                                                |
 | `--max-subscriptions-per-client <n>`         | 16                           | Subscriptions open at once from one remote address (an HTTP/1.1 connection carries one stream: the cap per connection is kept per address). Behind a proxy, every client is the proxy  |
-| `--max-buffered <bytes>`                     | 16777216 (16 MB)             | A subscriber with more than this still unsent when the next block is published has stopped reading: its stream is destroyed                                                            |
+| `--max-buffered <bytes>`                     | 524288 (512 KiB)             | Unsent bytes one stream may hold; past it, the stream is destroyed at once. With `--max-subscriptions`, the bound on the streams' memory: 512 × 512 KiB = 256 MiB by default           |
+| `--stall <ms>`                               | 30000                        | A stream whose socket accepted no write for this long (its reader stopped) is destroyed                                                                                                |
+| `--keep-alive <ms>`                          | 15000                        | A comment frame (`: keep-alive`) on a stream idle this long                                                                                                                            |
+| `--allow-origin <origin>`                    | none (the same origin only)  | Repeatable. A request from this origin is answered with `access-control-allow-origin`, JSON and event streams alike                                                                    |
 | `--rpc <url>`                                | `INDEXER_RPC_URL`            | Prefer the environment: argv is visible to every user of the machine                                                                                                                   |
 
 The RPC URL may carry a provider's key, in its host as well as its path or query: no part of it is
@@ -41,6 +44,8 @@ and transport errors are logged by method and code only.
 fork point is served again; `halted` for good on an undecodable event of the two contracts, a gap in
 the lot or trade ids, a close of a lot or trade that is not open, or a node that went back below the
 kept history. In those states every query is 503 with the state (and the reason) and no rows.
+Only a 200 holds rows: a 4xx or a 500 has `status: "error"`, the `error`, and the serving state in
+`state` (its `status` is never `ok`).
 Every answer, errors included, carries `head {number, hash, commitments, timestamp}`, the served
 block (null while none is). The served block is the highest block checked after it was applied;
 rows are read as of it, never as of a block still waiting for its check (R6).
@@ -61,19 +66,21 @@ is 400, an unknown route 404, each with the state and the head. u64 values (lot 
 prices, expiries) are decimal strings; market keys and modifiers 0x hex. `limit` is 1 to 100
 (default 20). An answer of state `ok` has `status`, `head`, `behind` (blocks between the served
 block and the node's tip) and the rows below. An answer is kept for its served block (by hash and
-commitments) and forgotten when another block is served or at a rewind (R6).
+commitments) and forgotten when another block is served or at a rewind (R6); the answers kept take
+at most 32 MiB of JSON, the oldest forgotten first, and one larger than 1 MiB is not kept.
 
-| Route            | Parameters                                                                                                                          | Answer                                                                                                                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/lots`          | Q1. `key` (a market key, 0x hex, one of ENG-01's encodings), `size` (1–255), `limit`, `after` (`<price>:<lot>`, from `next`)        | `total`, `lots` (open, cheapest first, ties by lot id: `lot, key, size, price, expiry, equipment, modifiers, posted`), `next` (null on the last page)                                    |
-| `/market`        | Q2. `kind` (`balance`, `equipment`, `boss`), `items` (balances only: up to 100 item ids, comma-separated), `limit`, `after` (a key) | `keys`: per market key with an open lot, `key`, `decoded` (the key's fields), `sizes` (per lot size, the `cheapest` lot); `next`                                                         |
-| `/prices`        | Q3. `key`, `size`                                                                                                                   | `sales` in the window `(T − 7 days, T]` (T the served block's time), `window {after, until}`, and `mean` (the floor of the mean lot price) only from 5 sales: absent under 5, never zero |
-| `/hubs/presence` | Q4. `hub` (1–65535), `limit`, `after` (an adventurer id)                                                                            | `hub`, `count`, `adventurers` (by id), `next`                                                                                                                                            |
-| `/titles`        | Q5. `adventurers` (1 to 100 u32 ids, comma-separated, no repeat)                                                                    | `titles`: per adventurer asked, in order, `{adventurer, title, tier}` or `{adventurer, title: null}`                                                                                     |
-| `/invitations`   | Q7. `account` (u32, the invited account of `TradeOpened`), `limit`, `after` (a trade id)                                            | `total`, `invitations` (open trades inviting the account with `T − openedTime < 600`: `trade, invited, inviter, opened, openedTime, expiresAt`), `next`                                  |
+| Route            | Parameters                                                                                                                          | Answer                                                                                                                                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/lots`          | Q1. `key` (a market key, 0x hex, one of ENG-01's encodings), `size` (1–255), `limit`, `after` (`<price>:<lot>`, from `next`)        | `total`, `lots` (open, cheapest first, ties by lot id: `lot, key, size, price, expiry, equipment, modifiers, posted`), `next` (null on the last page)                                                                               |
+| `/market`        | Q2. `kind` (`balance`, `equipment`, `boss`), `items` (balances only: up to 100 item ids, comma-separated), `limit`, `after` (a key) | `keys`: per market key with an open lot, `key`, `decoded` (the key's fields), `sizes` (per lot size, the `cheapest` lot; at most 8 sizes, then `truncated`); `next`                                                                 |
+| `/prices`        | Q3. `key`, `size`                                                                                                                   | `sales` in the window `(T − 7 days, T]` (T the served block's time), `window {after, until}`, and `mean` (the floor of the mean lot price) only from 5 sales: absent under 5, never zero. Summed in SQL from the index `lots_sales` |
+| `/hubs/presence` | Q4. `hub` (1–65535), `limit`, `after` (an adventurer id)                                                                            | `hub`, `count`, `adventurers` (by id), `next`                                                                                                                                                                                       |
+| `/titles`        | Q5. `adventurers` (1 to 100 u32 ids, comma-separated, no repeat)                                                                    | `titles`: per adventurer asked, in order, `{adventurer, title, tier}` or `{adventurer, title: null}`                                                                                                                                |
+| `/invitations`   | Q7. `account` (u32, the invited account of `TradeOpened`), `limit`, `after` (a trade id)                                            | `total`, `invitations` (open trades inviting the account with `T − openedTime < 600`: `trade, invited, inviter, opened, openedTime, expiresAt`), `next`                                                                             |
 
 `/head` and `/stats` are IDX-01a's; `/stats` also counts the open subscriptions, the subscribers
-dropped, and the answers kept (`answerCache`).
+dropped (`subscribersDroppedBy`: `buffered`, `stalled`, `failed`), and the answers kept
+(`answerCache`: hits, misses, bytes).
 
 ## Subscriptions (server-sent events)
 
@@ -90,11 +97,20 @@ dropped, and the answers kept (`answerCache`).
 | `add` / `remove` | `{row}` / `{id}`    | A row that appeared or went away in a block (lots by `lot`, presence by the adventurer as text, invitations by `trade`) |
 | `head`           | `{head}`            | The end of a block's changes: they apply together, and the copy is now as of that block                                 |
 | `rewind`         | `{to}`              | The tables went back to block `to`: a new snapshot follows                                                              |
+| (comment)        | `: keep-alive`      | On a stream idle for `--keep-alive`                                                                                     |
 
-A snapshot is read and written in one synchronous run: nothing falls between its pages. It is sent
-at the start of a stream and at the first served block after a rewind or a state other than `ok`.
-Then come every newly served block's changes, block by block, in block order; nothing from a block
-not yet served. Invitations also go away by block time alone, 10 minutes after their block.
+A snapshot is sent at the start of a stream and at the first served block after a rewind or a state
+other than `ok`. Its pages are all read as of its block (the rows are versioned), and nothing else is
+sent to that stream between them; a rewind or a state other than `ok` abandons it. Then come the
+changes of every block after the stream's own head, block by block, in block order, up to the
+served block and never past it. Invitations also go away by block time alone, 10 minutes after
+their block.
+
+The work is done in steps (a page, or a block's changes), in turns across the streams, at most 10 ms
+of it per turn of the event loop; a snapshot's pages and a range's changes are read and serialised
+once per topic. A stream is written only while its socket accepts (backpressure): one that holds
+more than `--max-buffered` unsent is destroyed at once, one whose socket accepted nothing for
+`--stall` too, and one whose step throws ends alone.
 
 ## The client library (`@grimworld/indexer/client`)
 
@@ -112,7 +128,11 @@ points at `dist/client/` (`pnpm build`).
 - `LotCache(client, key, size)`, `PresenceCache(client, hub)`, `InvitationCache(client, account)`
   (R4): `connect(onFrame?, onEnd?)` opens the stream and returns `close()`; `ready` only after a
   complete snapshot, false again at a `status`, a `rewind` or any end of the stream; a block's
-  changes apply with its `head`; `read()`, the only access to the rows, passes the head through R3.
+  changes apply with its `head`; `read()`, the only access to the rows, passes the head through R3,
+  and is "not fresh" if the copy was voided while the node was read. One connection at a time:
+  `connect()` ends the one before.
+- Step 1 of R3 accepts a 200 only: any other code is "loading" (a 400 or 404 throws: a bug of the
+  caller).
 
 ## Assumptions and limits
 

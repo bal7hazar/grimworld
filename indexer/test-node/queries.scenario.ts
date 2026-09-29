@@ -517,9 +517,11 @@ export function describeQueries(
         // Snapshots of 10 000 lots, to the client library's cache.
         const snapshots: number[] = [];
         const rssBefore = (await stats()).rssMB as number;
+        const big: StreamCache<Lot>[] = [];
         for (let i = 0; i < 10; i++) {
           const started = performance.now();
           const { cache } = watch(new LotCache(client, M, 1));
+          big.push(cache);
           await until(() => cache.ready, "a snapshot of 10 000 lots");
           snapshots.push(performance.now() - started);
           expect(cache.size()).toBe(10_000);
@@ -547,6 +549,43 @@ export function describeQueries(
         for (const cache of small) expect(cache.ready).toBe(true);
         out(
           `IDX-01b AC-7 RPC calls per served block (1 lot and 1 move a block, poll 50 ms, idle polls included): ${without.toFixed(2)} without subscriptions, ${withSubscriptions.toFixed(2)} with ${String(opened.subscriptions)} open; RPC ${JSON.stringify((await stats()).rpcCalls)}`,
+        );
+
+        // Fix loop 1: a rewind with every subscription open. Each one resnapshots; the work is
+        // spread over turns of the event loop and the 10 000-lot pages are read once per block,
+        // so the process keeps answering meanwhile.
+        const last = await node.blockNumber();
+        await node.abortBlocks(last); // its lot and move (perBlock's last block)
+        lots -= 1;
+        const rewindAt = performance.now();
+        const replacement = await node.send([located(44, 1)]);
+        expect(replacement).toBe(last);
+        const onChain = await chain.header(replacement);
+        const caches: StreamCache<unknown>[] = [
+          ...(big as unknown as StreamCache<unknown>[]),
+          ...(small as unknown as StreamCache<unknown>[]),
+        ];
+        const again = () =>
+          caches.every(
+            (cache) =>
+              cache.ready &&
+              cache.head?.number === replacement &&
+              cache.head.commitments === onChain!.commitments,
+          );
+        const headLatency: number[] = [];
+        while (!again()) {
+          if (performance.now() - rewindAt > 120_000)
+            throw new Error("the caches did not resnapshot");
+          const started = performance.now();
+          await get(indexer.url, "/head");
+          headLatency.push(performance.now() - started);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        const resnapshotMs = performance.now() - rewindAt;
+        const afterRewind = await stats();
+        expect(afterRewind.subscribersDropped).toBe(0);
+        out(
+          `IDX-01b fix loop 1: a rewind with ${caches.length} subscriptions open (10 of 10 000 lots, 200 small): all ready again at the replacement ${resnapshotMs.toFixed(0)} ms after the abort; GET /head meanwhile ${percentiles(headLatency)}, max ${Math.max(...headLatency).toFixed(2)} ms; none dropped`,
         );
       });
     },
