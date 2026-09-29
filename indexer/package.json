@@ -1,0 +1,27 @@
+{
+  "name": "@grimworld/indexer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The indexer (D-130, IDX-01): one Node process that follows a Starknet node over JSON-RPC, decodes the nine frozen events of Hub and Market, keeps them in SQLite tables versioned by block, rewinds on a reorg.",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "grimworld-indexer": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:node": "STATE_ARCHIVE_CAPACITY=full PATH=\"$PWD/test-node/bin:$PATH\" ../scripts/with-node.sh vitest run --config vitest.node.config.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "starknet": "10.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "vitest": "5.0.2"
+  }
+}

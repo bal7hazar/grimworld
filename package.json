@@ -13,7 +13,7 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "format": "prettier --write client"
+    "format": "prettier --write client indexer"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

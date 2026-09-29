@@ -1,0 +1,29 @@
+# IDX-01a: the test emitter of the indexer. Two contracts that emit the nine frozen events of
+# ENG-01 on demand, for the indexer's local-node scenario (indexer/test-node/). The events are
+# those of contracts/persistent, through a path dependency: never a copy.
+[package]
+name = "grimworld_indexer_emitter"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.19"
+
+[cairo]
+sierra-replace-ids = true
+
+[dependencies]
+starknet = "2.19"
+grimworld_persistent = { path = "../../contracts/persistent" }
+
+[dev-dependencies]
+snforge_std = "0.61"
+assert_macros = "2.19"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
