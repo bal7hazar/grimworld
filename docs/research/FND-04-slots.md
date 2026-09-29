@@ -23,7 +23,7 @@ transaction. Scripts and raw outputs: `spikes/FND-04/` (its `README.md`).
 - **The reader.** `spikes/FND-04/trace.py` reads each transaction's trace
   (`starknet_traceTransaction`), receipt and body. It also reads the value of every changed slot
   at the block before (`starknet_getStorageAt`), to tell a new slot from an overwritten one.
-  `rpc.py` refuses every method outside an explicit list of seven read methods.
+  `rpc.py` refuses every method outside an explicit list of nine read methods.
 - **The endpoint.** Of the four public Sepolia endpoints listed in `spikes/SPK-2/prices.py`, only
   `starknet-sepolia-rpc.publicnode.com` returns a trace's state diff (RPC 0.10.2):
   - Cartridge's (RPC 0.9.0) returns none;
