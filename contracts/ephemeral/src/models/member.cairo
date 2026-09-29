@@ -1,0 +1,252 @@
+//! An adventurer inside an instance: eight felts under `(slot, member)` (M-1, M-3). The first four
+//! change during play; the last four are the snapshot taken at entry (ADR-0001) and the account
+//! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
+
+use grimworld_logic::packing::{
+    P112, P120, P16, P24, P28, P32, P56, P64, P8, P80, P84, P96, byte_at, fits, join, low_field,
+    split, u16_at, u32_at,
+};
+use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
+use grimworld_logic::types::MAX_CLOCK;
+use starknet::ContractAddress;
+
+/// Member status (`MemberState.status`).
+pub const INSIDE: u8 = 0;
+pub const DOWN: u8 = 1;
+pub const GONE: u8 = 2;
+
+/// What changes at every tick.
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
+pub struct MemberState {
+    /// bits 0-31
+    pub adventurer: u32,
+    /// bits 32-39, 40-47: global tile
+    pub x: u8,
+    pub y: u8,
+    /// bits 48-55: 0 to 5
+    pub facing: u8,
+    /// bits 56-63: `INSIDE`, `DOWN` (defeated), `GONE` (left)
+    pub status: u8,
+    /// bits 64-79
+    pub health: u16,
+    /// bits 80-95: in thirds of energy (design/03, pips)
+    pub energy: u16,
+    /// bits 96-111: in quarters of a strike (design/04)
+    pub adrenaline: u16,
+    /// bits 112-119: hits landed, for "every Nth hit" modifiers (design/15)
+    pub hits: u8,
+    /// bits 120-127: spells cast, for "every Nth spell" modifiers
+    pub casts: u8,
+    /// bits 128-159: potions left in each belt slot, 8 bits each
+    pub belt: [u8; 4],
+    /// bits 160-167: bit 0 turned since the last tick, bit 1 an instant skill used since it
+    pub flags: u8,
+}
+
+pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<MemberState, felt252> {
+    fn pack(value: MemberState) -> felt252 {
+        let [b0, b1, b2, b3] = value.belt;
+        let low: u128 = value.adventurer.into()
+            + value.x.into() * P32
+            + value.y.into() * 0x10000000000
+            + value.facing.into() * 0x1000000000000
+            + value.status.into() * P56
+            + value.health.into() * P64
+            + value.energy.into() * P80
+            + value.adrenaline.into() * P96
+            + value.hits.into() * P112
+            + value.casts.into() * P120;
+        let high: u128 = b0.into()
+            + b1.into() * P8
+            + b2.into() * P16
+            + b3.into() * P24
+            + value.flags.into() * P32;
+        join(low, high)
+    }
+    fn unpack(value: felt252) -> MemberState {
+        let (low, high) = split(value);
+        MemberState {
+            adventurer: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+            x: byte_at(low, P32),
+            y: byte_at(low, 0x10000000000),
+            facing: byte_at(low, 0x1000000000000),
+            status: byte_at(low, P56),
+            health: u16_at(low, P64),
+            energy: u16_at(low, P80),
+            adrenaline: u16_at(low, P96),
+            hits: byte_at(low, P112),
+            casts: byte_at(low, P120),
+            belt: [
+                low_field(high, P8.try_into().unwrap()).try_into().unwrap(), byte_at(high, P8),
+                byte_at(high, P16), byte_at(high, P24),
+            ],
+            flags: byte_at(high, P32),
+        }
+    }
+}
+
+/// No activation (`act_slot`).
+pub const NO_SLOT: u8 = 255;
+
+/// Activation and conditions, as deadlines on the instance clock (D-02, M-2); 0 is none.
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
+pub struct MemberTimers {
+    /// bits 0-7: the bar slot being activated, `NO_SLOT` for none
+    pub act_slot: u8,
+    /// bits 8-23: its target, an entity id or a tile (M-5)
+    pub act_target: u16,
+    /// bits 24-31: 1 when the target is a tile
+    pub act_tile: u8,
+    /// bits 32-63: the tick it resolves at
+    pub act_deadline: u32,
+    /// bits 64-95, 96-127, 128-159, 160-191, 192-223: the MVP's five conditions (design/09)
+    pub bleeding: u32,
+    pub poison: u32,
+    pub burning: u32,
+    pub crippled: u32,
+    pub knocked: u32,
+}
+
+pub impl MemberTimersStorePacking of starknet::storage_access::StorePacking<MemberTimers, felt252> {
+    fn pack(value: MemberTimers) -> felt252 {
+        for deadline in array![
+            value.act_deadline, value.bleeding, value.poison, value.burning, value.crippled,
+            value.knocked,
+        ] {
+            assert(deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
+        }
+        let low: u128 = value.act_slot.into()
+            + value.act_target.into() * P8
+            + value.act_tile.into() * P24
+            + value.act_deadline.into() * P32
+            + value.bleeding.into() * P64
+            + value.poison.into() * P96;
+        let high: u128 = value.burning.into()
+            + value.crippled.into() * P32
+            + value.knocked.into() * P64;
+        join(low, high)
+    }
+    fn unpack(value: felt252) -> MemberTimers {
+        let (low, high) = split(value);
+        MemberTimers {
+            act_slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
+            act_target: u16_at(low, P8),
+            act_tile: byte_at(low, P24),
+            act_deadline: u32_at(low, P32),
+            bleeding: u32_at(low, P64),
+            poison: u32_at(low, P96),
+            burning: low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
+            crippled: u32_at(high, P32),
+            knocked: u32_at(high, P64),
+        }
+    }
+}
+
+/// A timed effect on a member: a stance, an enchantment, a preparation, a glyph, a hex.
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
+pub struct Effect {
+    /// The skill (registry id) that set it; 0 for none.
+    pub skill: u16,
+    /// Charges left (blocks of Brace, the glyph's one spell).
+    pub charges: u8,
+    /// The tick it ends at.
+    pub deadline: u32,
+}
+
+/// Up to four effects, 56 bits each, at bits 0, 56, 128, 184.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct MemberEffects {
+    pub effects: [Effect; 4],
+}
+
+fn pack_effect(e: Effect) -> u128 {
+    assert(e.deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
+    e.skill.into() + e.charges.into() * P16 + e.deadline.into() * P24
+}
+
+fn unpack_effect(bits: u128) -> Effect {
+    Effect {
+        skill: low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
+        charges: byte_at(bits, P16),
+        deadline: u32_at(bits, P24),
+    }
+}
+
+pub impl MemberEffectsStorePacking of starknet::storage_access::StorePacking<
+    MemberEffects, felt252,
+> {
+    fn pack(value: MemberEffects) -> felt252 {
+        let [a, b, c, d] = value.effects;
+        join(pack_effect(a) + pack_effect(b) * P56, pack_effect(c) + pack_effect(d) * P56)
+    }
+    fn unpack(value: felt252) -> MemberEffects {
+        let (low, high) = split(value);
+        let s56: NonZero<u128> = P56.try_into().unwrap();
+        let (b, a) = DivRem::div_rem(low, s56);
+        let (d, c) = DivRem::div_rem(high, s56);
+        MemberEffects {
+            effects: [unpack_effect(a), unpack_effect(b), unpack_effect(c), unpack_effect(d)],
+        }
+    }
+}
+
+/// The recharge deadline of each bar slot, 28 bits each (the clock never passes `MAX_CLOCK`):
+/// slots 0-3 at bits 0, 28, 56, 84; slots 4-7 at bits 128, 156, 184, 212.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Recharges {
+    pub deadlines: [u32; 8],
+}
+
+/// Four 28-bit deadlines in one limb; a value of 2^28 or more is refused (it would corrupt the
+/// next lane).
+pub fn pack_four28(a: u32, b: u32, c: u32, d: u32) -> u128 {
+    fits(a.into(), P28, 'packing: deadline above 2^28');
+    fits(b.into(), P28, 'packing: deadline above 2^28');
+    fits(c.into(), P28, 'packing: deadline above 2^28');
+    fits(d.into(), P28, 'packing: deadline above 2^28');
+    a.into() + b.into() * P28 + c.into() * P56 + d.into() * P84
+}
+
+pub fn unpack_four28(bits: u128) -> (u32, u32, u32, u32) {
+    let s28: NonZero<u128> = P28.try_into().unwrap();
+    let (rest, a) = DivRem::div_rem(bits, s28);
+    let (rest, b) = DivRem::div_rem(rest, s28);
+    let (rest, c) = DivRem::div_rem(rest, s28);
+    let (_, d) = DivRem::div_rem(rest, s28);
+    (a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(), d.try_into().unwrap())
+}
+
+pub impl RechargesStorePacking of starknet::storage_access::StorePacking<Recharges, felt252> {
+    fn pack(value: Recharges) -> felt252 {
+        let [a, b, c, d, e, f, g, h] = value.deadlines;
+        join(pack_four28(a, b, c, d), pack_four28(e, f, g, h))
+    }
+    fn unpack(value: felt252) -> Recharges {
+        let (low, high) = split(value);
+        let (a, b, c, d) = unpack_four28(low);
+        let (e, f, g, h) = unpack_four28(high);
+        Recharges { deadlines: [a, b, c, d, e, f, g, h] }
+    }
+}
+
+/// The eight consecutive slots of a member (`Store` layout: field `i` at offset `i`).
+#[derive(Copy, Drop, Serde, starknet::Store)]
+pub struct Member {
+    pub state: MemberState,
+    pub timers: MemberTimers,
+    pub effects: MemberEffects,
+    pub recharges: Recharges,
+    pub stats: MemberStats,
+    pub bar: MemberBar,
+    pub kit: MemberKit,
+    /// The account allowed to play this member (M-6: "the caller controls this adventurer"),
+    /// from the persistent domain at entry, updated by `set_controller`.
+    pub controller: ContractAddress,
+}
+
+/// The timers of a member entering a new generation (fix loop 3, F-14): no activation
+/// (`act_slot` = `NO_SLOT`, target 0, not a tile, deadline 0) and no condition (every deadline 0).
+/// Stored, it is `LIVE + 255`, not `LIVE` alone: `act_slot` 0 would name bar slot 0.
+pub fn empty_member_timers() -> MemberTimers {
+    MemberTimers { act_slot: NO_SLOT, ..Default::default() }
+}

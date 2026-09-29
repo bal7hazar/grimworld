@@ -7,6 +7,8 @@
 pub mod components;
 /// One file per content behaviour (a skill effect, a caste profile).
 pub mod elements;
+/// The nine events of the indexer, frozen like an API.
+pub mod events;
 /// Pure functions: bitmap, packer, seeder, math.
 pub mod helpers;
 /// Storage structs: layout, packing, invariants (asserts).

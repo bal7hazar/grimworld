@@ -6,4 +6,19 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
-| `test_persistent::test_persistent_deploys_and_answers_version` | 277140 | 290997 | 5.00 % | 0 | 96 | 2026-09-28 | 5267868 |
+| `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `systems::registry::layout_tests::test_registry_storage_addresses` | 55220 | 57981 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_fate_refuses_mainnet_calls` | 388601 | 408032 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_fate_refuses_mainnet_deployment` | 272510 | 286136 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_fate_word` | 397644 | 417527 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_hub_deploys_and_stubs_revert` | 4000630 | 4200662 | 5.00 % | 0 | 864 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_market_and_registry_deploy` | 3706010 | 3891311 | 5.00 % | 0 | 864 | 2026-09-29 | d65eb86 |
+| `test_events::test_hub_events` | 81630 | 85712 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_events::test_market_events` | 78760 | 82698 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_account_and_adventurer_layout` | 319110 | 335066 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_layout::test_attributes_above_36_bits_refused` | 41350 | 43418 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_layout::test_item_grimoire_rift_layout` | 325140 | 341397 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_layout::test_market_layout` | 197570 | 207449 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_layout::test_pairs_overflow_refused` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_layout::test_record_sizes` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |

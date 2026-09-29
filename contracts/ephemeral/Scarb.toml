@@ -6,6 +6,7 @@ cairo-version.workspace = true
 
 [dependencies]
 starknet.workspace = true
+grimworld_logic = { path = "../logic" }
 
 [dev-dependencies]
 snforge_std.workspace = true

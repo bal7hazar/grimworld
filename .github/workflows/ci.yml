@@ -106,6 +106,13 @@ jobs:
           python3 scripts/gas_budgets.py --self-test
           python3 scripts/gas_budgets.py --check --no-lock
 
+      # ENG-01 (E-10): every contract class under Starknet's size limits (ADR-0007), from the
+      # build above; it fails at a limit or at half of one (split before a class grows past it).
+      - name: class sizes
+        if: matrix.dir == 'contracts'
+        working-directory: .
+        run: python3 contracts/tools/class_sizes.py
+
   client:
     needs: discover
     runs-on: ubuntu-latest

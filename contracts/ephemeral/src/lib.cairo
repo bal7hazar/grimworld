@@ -7,10 +7,14 @@
 pub mod components;
 /// One file per content behaviour (a skill effect, a caste profile).
 pub mod elements;
+/// Events of `Instances`, frozen like an API.
+pub mod events;
 /// Pure functions: bitmap, packer, seeder, math.
 pub mod helpers;
 /// Storage structs: layout, packing, invariants (asserts).
 pub mod models;
+/// Measurement probes of ENG-01 (reuse of a key, a call between contracts); never deployed.
+pub mod probes;
 /// Content as data, in storage: regions, locations, castes, skills, quests, loot, books.
 pub mod registries;
 /// Single access point to storage.
