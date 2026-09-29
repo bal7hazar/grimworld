@@ -1,6 +1,6 @@
 # 04 — Combat
 
-> Status: **Draft v0.2** — numbers are initial values for balancing.
+> Status: **Draft v0.3** — numbers are initial values for balancing. v0.3: the edges of the damage rules (D-140), the flood stopped at 15 layers (D-127).
 > v0.2: hex grid, six facings and arcs.
 
 Combat happens only in dedicated instances and is resolved tick by tick
@@ -114,6 +114,20 @@ armor                    = target armor + bonuses − penetration
 Implementation constraint: `2^(x/40)` is read from a **lookup table** in fixed point for
 `x ∈ [−160, +80]`; out-of-range values clamp. No floating point, no runtime
 exponentiation, no `u256` ([CAIRO](../CAIRO.md)).
+
+### Edges (D-140)
+
+**A rule never panics on a legal action.** A played batch holds several actions and a
+panic reverts all of them (design/02): whatever a player can reach has a defined result. A
+panic is kept for an invariant whose breach is a bug.
+
+| Edge | Rule |
+|---|---|
+| The table of `2^(x/40)` | 16 fractional bits, each entry rounded to nearest; generated once, for the contracts and for the client |
+| Armor after bonuses and penetration | Never below 0: penetration removes armor, it does not add damage |
+| Percent modifiers of damage (critical +40 %, weakness −33 %, flank and arc bonuses, modifiers of equipment) | **Summed, then applied once**, the result truncated. A critical strike by a weakened attacker deals 107 %, in whatever order the two were gained. The sum is never below −100 % |
+| Damage of one hit | Between 0 and 65,535: a result outside is brought back to the nearest bound |
+| A goblin whose own tile is not marked occupied | Cannot happen by the rules: the contracts assert it, and a test holds the invariant |
 
 Damage types: slashing, piercing, blunt, fire, cold, lightning, earth, shadow, holy. Armor
 can carry a bonus against a type. Life steal and degeneration ignore armor.
