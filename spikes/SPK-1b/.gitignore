@@ -1,0 +1,5 @@
+node_modules/
+# The burner keys: secrets, never committed (SPK-1b brief)
+burners.secret.json
+*.secret.json
+__pycache__/
