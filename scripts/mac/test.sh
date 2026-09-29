@@ -64,31 +64,50 @@ nothing_runs_for() { ! pgrep -f -- "$1" > /dev/null; }  # a read: no process nam
 pid_gone() { ! kill -0 "$1" 2> /dev/null; }
 
 # Launchers started in the background (the race, the drain test): their exact pids, so that a
-# cleanup can stop them before it scans the labels.
+# cleanup can stop them before it scans the labels. A pid is in `inflight` only while it is an
+# unreaped child of this runner: reap_bg removes it the moment it is waited for, so no signal can
+# ever reach a pid the system has reused.
 inflight=()
-agent_bg() { # <output file> <launcher arguments…>: the launcher itself is the background process
-  local out=$1; shift
-  (exec env HOME="$run" STARKNET_PRIVATE_KEY=decoy ANTHROPIC_BASE_URL=decoy CLAUDE_CODE_OAUTH_TOKEN=decoy \
-    ATLANTIC_API_KEY=decoy GH_TOKEN=decoy "$A" "$@" > "$out" 2>&1) &
+track_bg() { # <command…>: run it in the background as the tracked process itself
+  (exec "$@") &
   inflight+=("$!")
 }
+agent_bg() { # <output file> <launcher arguments…>: the launcher itself is the background process
+  local out=$1; shift
+  track_bg env HOME="$run" STARKNET_PRIVATE_KEY=decoy ANTHROPIC_BASE_URL=decoy CLAUDE_CODE_OAUTH_TOKEN=decoy \
+    ATLANTIC_API_KEY=decoy GH_TOKEN=decoy "$A" "$@" > "$out" 2>&1
+}
+reap_bg() { # <pid>: wait for one tracked process, remove it from `inflight` at once; returns its status
+  local rc=0 q keep=()
+  wait "$1" 2> /dev/null || rc=$?
+  for q in "${inflight[@]}"; do [ "$q" = "$1" ] || keep+=("$q"); done
+  inflight=("${keep[@]}")
+  return "$rc"
+}
+in_inflight() { local q; for q in "${inflight[@]}"; do [ "$q" = "$1" ] && return 0; done; return 1; }
 # Stop the in-flight launchers by their exact pids: each is frozen (SIGSTOP, so that it cannot start
 # a new command), its direct children are listed by parent pid (pgrep -P, never a name pattern),
-# then it gets TERM and CONT. The launchers are waited for, and so are the children they had (a
-# `launchctl bootstrap` under way ends before the labels are scanned, so no job can be loaded after
-# the scan). Children are waited for, not signalled.
+# then it gets TERM and CONT. Each launcher is reaped (and leaves `inflight`), then every child it
+# had must exit within KID_BOUND seconds: a `launchctl bootstrap` under way must end before the labels
+# are scanned. Children are waited for, not signalled. A child still alive past the bound stays in
+# `kids_pending` (a later drain waits for it again) and makes this fail: the labels are not scanned.
+KID_BOUND=30
+kids_pending=()
 INFLIGHT_RC=""   # the exit statuses of the launchers stopped last (143: stopped by the TERM)
 stop_inflight() {
-  local p c rc kids=()
+  local p c rc alive=()
   for p in "${inflight[@]}"; do
     kill -STOP "$p" 2> /dev/null || continue
-    while read -r c; do [ -n "$c" ] && kids+=("$c"); done < <(pgrep -P "$p" 2> /dev/null)
+    while read -r c; do [ -n "$c" ] && kids_pending+=("$c"); done < <(pgrep -P "$p" 2> /dev/null)
     kill -TERM "$p" 2> /dev/null; kill -CONT "$p" 2> /dev/null
   done
   INFLIGHT_RC=""
-  for p in "${inflight[@]}"; do rc=0; wait "$p" 2> /dev/null || rc=$?; INFLIGHT_RC="$INFLIGHT_RC $rc"; done
-  for c in "${kids[@]}"; do wait_for 30 pid_gone "$c"; done
-  inflight=()
+  while [ "${#inflight[@]}" -gt 0 ]; do
+    p=${inflight[0]}; rc=0; reap_bg "$p" || rc=$?; INFLIGHT_RC="$INFLIGHT_RC $rc"
+  done
+  for c in "${kids_pending[@]}"; do wait_for "$KID_BOUND" pid_gone "$c" || alive+=("$c"); done
+  kids_pending=("${alive[@]}")
+  [ "${#kids_pending[@]}" = 0 ]
 }
 
 # Every exact label this run may have created, recovered from its own files: the label files
@@ -126,7 +145,11 @@ stop_label() { # <label>
 DRAIN_LEFT=""
 drain() {
   local t l
-  stop_inflight
+  DRAIN_LEFT=""
+  if ! stop_inflight; then
+    DRAIN_LEFT=" children of stopped launchers still alive after ${KID_BOUND} s: ${kids_pending[*]} (labels not scanned)"
+    return 1
+  fi
   rm -f "$run"/hold.* "$run/test-hang"
   for t in "${tasks[@]}"; do agent stop "$t" > /dev/null 2>&1; done
   for l in $(run_labels); do
@@ -378,9 +401,13 @@ touch "$run/hold.$r1" "$run/hold.$r2"
 record "$r1"; record "$r2"
 agent_bg "$run/out.$r1" --branch "cv/$r1" "$r1" claude opus new "race 1" implement
 agent_bg "$run/out.$r2" --branch "cv/$r2" "$r2" claude opus new "race 2" implement
-wait "${inflight[0]}"; x1=$?
-wait "${inflight[1]}"; x2=$?
-inflight=()
+p1=${inflight[0]} p2=${inflight[1]}
+reap_bg "$p1"; x1=$?
+# shellcheck disable=SC2034 # read by checkx
+after1=$(in_inflight "$p1" && echo kept || echo removed)
+reap_bg "$p2"; x2=$?
+checkx "A2(3) race: each launcher leaves inflight as soon as it is reaped (first: $after1, then ${#inflight[@]} left)" \
+  'test "$after1" = removed && test "${#inflight[@]}" = 0'
 if [ "$x1" = 0 ]; then win=$r1 lose=$r2; else win=$r2 lose=$r1; fi
 check "AC-5 race: exactly one launcher took the free slot (exit 0), the other refused (exit 4) [$x1, $x2]" \
   test "$(printf '%s\n' "$x1" "$x2" | sort | tr '\n' ' ')" = "0 4 "
@@ -455,6 +482,8 @@ for delay in 0.1 0.3 0.6 1.0 1.5 2.0 2.5 3.5; do
   record "$i1"; record "$i2"
   agent_bg "$run/out.$i1" --branch "cv/$i1" "$i1" claude opus new "in flight 1" implement
   agent_bg "$run/out.$i2" --branch "cv/$i2" "$i2" claude opus new "in flight 2" implement
+  # shellcheck disable=SC2034 # read by checkx
+  ip1=${inflight[0]} ip2=${inflight[1]}
   sleep "$delay"
   # shellcheck disable=SC2034 # read by checkx
   inflight_before=${#inflight[@]}
@@ -462,9 +491,35 @@ for delay in 0.1 0.3 0.6 1.0 1.5 2.0 2.5 3.5; do
   phase="launchers exit${INFLIGHT_RC}; labels written: $(cat "$L/$i1.label" "$L/$i2.label" 2> /dev/null | wc -l | tr -d ' ')"
   checkx "A1(2) drain $delay s after starting two launchers ($phase): they are stopped first, nothing of the run is loaded" \
     'test "$inflight_before" = 2 && test "$rc" = 0 && test "${#inflight[@]}" = 0'
+  checkx "A2(3) after that drain, inflight holds no reaped pid" '! in_inflight "$ip1" && ! in_inflight "$ip2"'
   checkx "A1(2) after that drain: no stub of $i1 or $i2 runs, both slots are free" \
     'wait_for 5 nothing_runs_for "$i1" && wait_for 5 nothing_runs_for "$i2" && test "$(agent slots | grep -c " free")" = 2'
 done
+
+# --- Audit 3, A1: a child of a stopped launcher that outlives the bound. A stand-in launcher (a
+# shell whose child sleeps 6 s) is tracked like a launcher; with the bound shortened to 1 s (a
+# variable of this test script only), the drain must fail, name the child, and scan no label; the
+# cleanup, run in a subshell, must keep the test home and say so. Once the child has exited, a drain
+# passes again.
+KID_BOUND=1
+track_bg /opt/homebrew/bin/bash -c 'sleep 6 & wait'
+fake=${inflight[${#inflight[@]} - 1]}
+has_child() { pgrep -P "$1" > /dev/null; }
+wait_for 5 has_child "$fake"
+# shellcheck disable=SC2034 # read by checkx
+nlabels=${#labels[@]}
+drain; rc=$?
+kid=${kids_pending[0]:-}
+checkx "A1(3) a child alive past the bound: the drain fails and names it, scans no label, the stand-in is reaped [$DRAIN_LEFT]" \
+  'test "$rc" = 1 && test -n "$kid" && grep -qw "$kid" <<< "$DRAIN_LEFT" && test "${#labels[@]}" = "$nlabels" && ! in_inflight "$fake" && ! pid_gone "$kid"'
+(cleanup) 2> "$run/cleanup.err"; rc=$?
+checkx "A1(3) the cleanup then keeps the test home and says so" \
+  'test "$rc" = 1 && test -d "$run" && grep -qF "the test home $run is kept" "$run/cleanup.err" && grep -qw "$kid" "$run/cleanup.err"'
+wait_for 10 pid_gone "$kid"
+KID_BOUND=30
+drain; rc=$?
+checkx "A1(3) once the child has exited, a drain passes again and nothing is pending" \
+  'test "$rc" = 0 && test "${#kids_pending[@]}" = 0'
 
 # --- AC-10: syntax and shellcheck.
 check "AC-10 bash -n" /opt/homebrew/bin/bash -n "$here/agent.sh" "$here/test.sh"
