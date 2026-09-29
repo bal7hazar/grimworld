@@ -211,7 +211,9 @@ init_slots() { # creates the missing slot files only (never replaces one), then 
   chmod 555 "$SLOTS"
 }
 # $0 of the inner shell is the log file, "$@" the agent command line. The inner shell first takes
-# its two slots (GW_SLOT_TOTAL, GW_SLOT_TRACK) without waiting, on file descriptors 7 and 8 opened
+# its two slots (GW_SLOT_TOTAL, GW_SLOT_TRACK), waiting at most 5 s for each (a probe of the slots
+# takes a lock for an instant: without the wait, a probe at the wrong moment made the agent refuse),
+# on file descriptors 7 and 8 opened
 # read-only (a missing slot file is never created): the slots are held while the inner shell lives,
 # that is while the agent's CLI runs, and by any process of the agent that keeps those descriptors.
 # A process the CLI leaves behind after it exits and that closed them is not counted (COMMON forbids
@@ -219,7 +221,7 @@ init_slots() { # creates the missing slot files only (never replaces one), then 
 # (`model=`), then the exit status. Single quotes on purpose: the inner shell expands them.
 # shellcheck disable=SC2016
 inner='exec 7< "$GW_SLOT_TOTAL" 8< "$GW_SLOT_TRACK" || exit 75
-if ! flock -n 7 || ! flock -n 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
+if ! flock -w 5 7 || ! flock -w 5 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
 printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TOTAL"; printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TRACK"
 "$@" < /dev/null >> "$0" 2>&1; s=$?
 echo "model=$("$GW_AGENT_SH" model "$GW_TASK" 2> /dev/null)" >> "$0"
