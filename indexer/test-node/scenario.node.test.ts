@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import type { Call } from "starknet";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Chain, httpRpc, sameBlock, type Header } from "../src/chain.ts";
-import { Store } from "../src/store.ts";
+import { Store, TABLES } from "../src/store.ts";
 import { localNode, type LocalNode } from "./node.ts";
 import { get, startIndexer, type RunningIndexer } from "./run-indexer.ts";
 
@@ -113,6 +113,7 @@ describe.skipIf(!nodeUrl)("the indexer on the local node", () => {
     command: "run" | "rebuild",
     db: string,
     fromBlock = from,
+    depth?: number,
   ) {
     const indexer = await startIndexer({
       command,
@@ -121,6 +122,7 @@ describe.skipIf(!nodeUrl)("the indexer on the local node", () => {
       market,
       from: fromBlock,
       db,
+      depth,
     });
     running.add(indexer);
     return indexer;
@@ -563,5 +565,46 @@ describe.skipIf(!nodeUrl)("the indexer on the local node", () => {
         .slice(0, 12)
         .join("\n      ")}`,
     );
+  });
+
+  it("fix loop 1: pruning on the local node keeps what the kept blocks read, and a reorg inside the kept history is rewound", async () => {
+    const DEPTH = 20;
+    const db = join(dir, "pruned.sqlite");
+    const pruned = await start("run", db, from, DEPTH);
+    let tip = await node.blockNumber();
+    await served(pruned, tip, 300_000);
+    // One more block, so that the step that checks the tip also prunes up to it.
+    tip = await node.send([nextLot(1n), h.located(2, 7)]);
+    await served(pruned, tip);
+    await served(lived, tip);
+    const stats = (await get(pruned.url, "/stats")).body;
+    expect(stats.lowest).toBe(tip - DEPTH);
+    // A reorg of depth 3, inside the kept history.
+    const first = tip - 2;
+    await node.abortBlocks(first);
+    lots -= 1; // the last block posted one lot
+    for (let i = 0; i < 3; i++) await node.send([h.title(7, i, 2)]);
+    tip = await node.send([nextLot(3n)]);
+    await served(pruned, tip);
+    await served(lived, tip);
+    const after = (await get(pruned.url, "/stats")).body;
+    expect(after.rewindCount).toBeGreaterThanOrEqual(1);
+    // Every table read as of the tip equals the unpruned indexer's.
+    const a = new Store(db, { readOnly: true });
+    const b = new Store(join(dir, "lived.sqlite"), { readOnly: true });
+    try {
+      for (const table of TABLES)
+        expect(a.at(table, tip)).toEqual(b.at(table, tip));
+      const versions = a.rows();
+      const all = b.rows();
+      out(
+        `fix loop 1, pruning: --depth ${DEPTH}: lowest kept block ${after.lowest} at tip ${tip}; ${versions} row versions kept of ${all} in the unpruned database; ` +
+          `abort of blocks ${first}.. rewound (${after.rewindCount} rewind); tables as of the tip equal the unpruned indexer's: true`,
+      );
+    } finally {
+      a.close();
+      b.close();
+    }
+    expect(await stop(pruned)).toBe(0);
   });
 });

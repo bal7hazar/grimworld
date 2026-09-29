@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Chain } from "./chain.ts";
 import { Indexer } from "./indexer.ts";
-import { answer, serve } from "./server.ts";
+import { connect } from "node:net";
+import { answer, respond, serve } from "./server.ts";
 import { Store } from "./store.ts";
 import { FakeNode, HUB, MARKET, ev } from "./testing/fake-node.ts";
 
@@ -123,6 +124,78 @@ describe("R1 and R2: /head and /stats", () => {
         (await fetch(`http://127.0.0.1:${port}/head`, { method: "POST" }))
           .status,
       ).toBe(405);
+    } finally {
+      server.close();
+    }
+  });
+});
+
+describe("fix loop 1: nothing a client sends stops the process", () => {
+  async function served() {
+    const node = new FakeNode();
+    node.mine([ev.posted(1)]);
+    const subject = indexer(node);
+    await subject.step();
+    await subject.step();
+    return subject;
+  }
+
+  it("answers 400 to a target that is not a path, 405 to another method, 404 elsewhere, each with the head (Opus 1, 8)", async () => {
+    const subject = await served();
+    const head = { number: 1 };
+    for (const target of ["//[", "http://indexer/head", "*", "//"]) {
+      expect(respond(subject, "GET", target)).toMatchObject({
+        code: 400,
+        body: { error: "bad request", status: "ok", head },
+      });
+    }
+    expect(respond(subject, "POST", "/head")).toMatchObject({
+      code: 405,
+      body: { head },
+    });
+    expect(respond(subject, "GET", "/lots")).toMatchObject({
+      code: 404,
+      body: { head },
+    });
+    expect(respond(subject, "GET", "/head?x=1")).toMatchObject({ code: 200 });
+  });
+
+  it("answers 500, with no detail, when answering throws (Opus 1)", async () => {
+    const subject = await served();
+    subject.store.countsAt = () => {
+      throw new Error("disk says no");
+    };
+    const { code, body } = respond(subject, "GET", "/stats");
+    expect(code).toBe(500);
+    expect(body).toEqual({
+      error: "internal error",
+      status: "ok",
+      head: expect.objectContaining({ number: 1 }),
+    });
+  });
+
+  it("keeps serving after `GET //[` on the socket (Opus 1)", async () => {
+    const subject = await served();
+    const server = serve(subject);
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const { port } = server.address() as { port: number };
+    try {
+      const raw = await new Promise<string>((resolve, reject) => {
+        const socket = connect(port, "127.0.0.1", () =>
+          socket.write(
+            "GET //[ HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n",
+          ),
+        );
+        let text = "";
+        socket.on("data", (chunk) => (text += String(chunk)));
+        socket.on("end", () => resolve(text));
+        socket.on("error", reject);
+      });
+      expect(raw).toMatch(/^HTTP\/1\.1 400/);
+      const head = await fetch(`http://127.0.0.1:${port}/head`);
+      expect(head.status).toBe(200);
     } finally {
       server.close();
     }

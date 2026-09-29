@@ -391,11 +391,30 @@ describe("fix loop 1", () => {
         replace(node);
       }
     };
-    await settle(subject);
+    const logs: string[] = [];
+    const logged = new Indexer({
+      chain: new Chain(node.rpc, { hub: HUB, market: MARKET }),
+      store: subject.store,
+      config: {
+        hub: HUB,
+        market: MARKET,
+        from: 1,
+        lotCount: 0n,
+        tradeCount: 0n,
+      },
+      depth: 1000,
+      log: (message) => logs.push(message),
+    });
+    await settle(logged);
     expect(replaced).toBe(true);
-    expect(subject.status).toBe("ok");
-    expect(subject.rewindCount).toBe(1);
-    expect(subject.store.dump()).toEqual(await rebuilt(node));
+    expect(logged.status).toBe("ok");
+    expect(logged.rewindCount).toBe(1);
+    // Block 6' never reached the tables on the stale block 5: the parent's re-read stopped it
+    // before the apply (the halt's re-check, the second guard, was not needed).
+    expect(logs.some((line) => /changed while it was applied/.test(line))).toBe(
+      false,
+    );
+    expect(logged.store.dump()).toEqual(await rebuilt(node));
   });
 
   it("does not make a halt permanent when the block or its parent changed meanwhile (Opus 2)", async () => {
