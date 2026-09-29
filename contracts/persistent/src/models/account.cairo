@@ -2,6 +2,7 @@
 //! follow an address. What is shared (the vault, gold, Rifts) is keyed by account id; what is
 //! personal by adventurer id (design/03, D-33).
 
+use core::num::traits::Zero;
 use grimworld_logic::packing::{Lanes32, P16, P24, P32, P8, byte_at, join, low_field, split};
 use starknet::ContractAddress;
 
@@ -78,53 +79,117 @@ pub const NEW_RECORD: felt252 = 0x4000000000000000000000000000000000000000000000
 /// One more adventurer, added to a stored `AccountRecord` (its field at bit 8).
 pub const ONE_ADVENTURER: felt252 = 0x100;
 
-/// `(slots, adventurers)` of a stored `AccountRecord`, without unpacking the other fields.
-pub fn slots_and_count(record: felt252) -> (u8, u8) {
-    let (low, _) = split(record);
-    (low_field(low, P8.try_into().unwrap()).try_into().unwrap(), byte_at(low, P8))
+/// The refusals of accounts (ENG-04).
+pub mod errors {
+    /// `register` by an address that already owns an account.
+    pub const HAS_ACCOUNT: felt252 = 'account exists';
+    /// `create_adventurer` by an address that owns no account.
+    pub const NO_ACCOUNT: felt252 = 'no account';
+    /// Every slot of the account holds an adventurer (design/03, D-33).
+    pub const NO_FREE_SLOT: felt252 = 'no free slot';
+    /// `set_account_owner` by anyone but the account's owner (A-7).
+    pub const NOT_ACCOUNT_OWNER: felt252 = 'not account owner';
+    /// `set_account_owner` to an address that already owns an account (one account per address).
+    pub const OWNER_HAS_ACCOUNT: felt252 = 'owner has an account';
+    /// `set_account_owner` to the zero address would leave the account to nobody.
+    pub const ZERO_OWNER: felt252 = 'owner is zero';
 }
 
-/// What one unit of lane `lane` (0 to 6) adds to a stored `Lanes32`: a table (docs/CAIRO.md §3).
-pub fn lane_unit(lane: u8) -> felt252 {
-    match lane {
-        0 => 0x1,
-        1 => 0x100000000,
-        2 => 0x10000000000000000,
-        3 => 0x1000000000000000000000000,
-        4 => 0x100000000000000000000000000000000,
-        5 => 0x10000000000000000000000000000000000000000,
-        6 => 0x1000000000000000000000000000000000000000000000000,
-        _ => core::panic_with_felt252('lane above 6'),
+/// A stored `AccountRecord` changed by arithmetic, without the packer: each function is pinned
+/// against the packer by `test_stored_words` (the packer is the oracle, docs/CAIRO.md §2). They
+/// take and return the stored word, since unpacking and packing the record is what they save.
+#[generate_trait]
+pub impl AccountRecordImpl of AccountRecordTrait {
+    /// `(slots, adventurers)` of a stored record, without unpacking the other fields.
+    fn counts(record: felt252) -> (u8, u8) {
+        let (low, _) = split(record);
+        (low_field(low, P8.try_into().unwrap()).try_into().unwrap(), byte_at(low, P8))
+    }
+
+    /// The stored record with one adventurer more (its field at bit 8; below `slots` ≤ 255).
+    fn with_adventurer(record: felt252) -> felt252 {
+        record + ONE_ADVENTURER
+    }
+
+    /// The stored record with one adventurer less (it has at least one).
+    fn without_adventurer(record: felt252) -> felt252 {
+        record - ONE_ADVENTURER
     }
 }
 
-/// Lane `lane` (0 to 6) of a page.
-pub fn lane_at(page: Lanes32, lane: u8) -> u32 {
-    let [a, b, c, d, e, f, g] = page.lanes;
-    match lane {
-        0 => a,
-        1 => b,
-        2 => c,
-        3 => d,
-        4 => e,
-        5 => f,
-        6 => g,
-        _ => core::panic_with_felt252('lane above 6'),
+#[generate_trait]
+pub impl AccountAssert of AccountAssertTrait {
+    /// `register`: the caller's `account_of` is 0.
+    fn assert_no_account(account_id: u32) {
+        assert(account_id == 0, errors::HAS_ACCOUNT);
+    }
+
+    /// The caller's `account_of` names an account.
+    fn assert_has_account(account_id: u32) {
+        assert(account_id != 0, errors::NO_ACCOUNT);
+    }
+
+    /// A slot is free: fewer adventurers than slots.
+    fn assert_free_slot(slots: u8, count: u8) {
+        assert(count < slots, errors::NO_FREE_SLOT);
+    }
+
+    /// `set_account_owner`: the caller is the current owner (A-7), the new owner is not zero and
+    /// holds no account.
+    fn assert_transfer(
+        owner: ContractAddress, caller: ContractAddress, to: ContractAddress, to_account: u32,
+    ) {
+        assert(owner == caller, errors::NOT_ACCOUNT_OWNER);
+        assert(to.is_non_zero(), errors::ZERO_OWNER);
+        assert(to_account == 0, errors::OWNER_HAS_ACCOUNT);
     }
 }
 
-/// The page with lane `lane` (0 to 6) set to `value`.
-pub fn with_lane(page: Lanes32, lane: u8, value: u32) -> Lanes32 {
-    let [a, b, c, d, e, f, g] = page.lanes;
-    let lanes = match lane {
-        0 => [value, b, c, d, e, f, g],
-        1 => [a, value, c, d, e, f, g],
-        2 => [a, b, value, d, e, f, g],
-        3 => [a, b, c, value, e, f, g],
-        4 => [a, b, c, d, value, f, g],
-        5 => [a, b, c, d, e, value, g],
-        6 => [a, b, c, d, e, f, value],
-        _ => core::panic_with_felt252('lane above 6'),
-    };
-    Lanes32 { lanes }
+/// A page of `account_adventurers` (a `Lanes32` of adventurer ids).
+#[generate_trait]
+pub impl AdventurerListImpl of AdventurerListTrait {
+    /// What one unit of lane `lane` (0 to 6) adds to a stored page: a table (docs/CAIRO.md §3).
+    fn unit(lane: u8) -> felt252 {
+        match lane {
+            0 => 0x1,
+            1 => 0x100000000,
+            2 => 0x10000000000000000,
+            3 => 0x1000000000000000000000000,
+            4 => 0x100000000000000000000000000000000,
+            5 => 0x10000000000000000000000000000000000000000,
+            6 => 0x1000000000000000000000000000000000000000000000000,
+            _ => core::panic_with_felt252('lane above 6'),
+        }
+    }
+
+    /// Lane `lane` (0 to 6).
+    fn get(self: @Lanes32, lane: u8) -> u32 {
+        let [a, b, c, d, e, f, g] = *self.lanes;
+        match lane {
+            0 => a,
+            1 => b,
+            2 => c,
+            3 => d,
+            4 => e,
+            5 => f,
+            6 => g,
+            _ => core::panic_with_felt252('lane above 6'),
+        }
+    }
+
+    /// The page with lane `lane` (0 to 6) set to `value`.
+    fn set(self: @Lanes32, lane: u8, value: u32) -> Lanes32 {
+        let [a, b, c, d, e, f, g] = *self.lanes;
+        let lanes = match lane {
+            0 => [value, b, c, d, e, f, g],
+            1 => [a, value, c, d, e, f, g],
+            2 => [a, b, value, d, e, f, g],
+            3 => [a, b, c, value, e, f, g],
+            4 => [a, b, c, d, value, f, g],
+            5 => [a, b, c, d, e, value, g],
+            6 => [a, b, c, d, e, f, value],
+            _ => core::panic_with_felt252('lane above 6'),
+        };
+        Lanes32 { lanes }
+    }
 }

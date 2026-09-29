@@ -6,23 +6,28 @@
 use core::num::traits::Pow;
 use core::testing::get_available_gas;
 use grimworld_logic::packing::Lanes32;
-use grimworld_logic::professions::{ARCANIST, VANGUARD, WARDEN, is_playable};
+use grimworld_logic::professions::errors::BAD_PROFESSION;
+use grimworld_logic::professions::{Profession, ProfessionTrait};
+use grimworld_persistent::models::account::errors::{
+    HAS_ACCOUNT, NOT_ACCOUNT_OWNER, NO_ACCOUNT, NO_FREE_SLOT, OWNER_HAS_ACCOUNT, ZERO_OWNER,
+};
 use grimworld_persistent::models::account::{
-    AccountRecord, NEW_RECORD, ONE_ADVENTURER, PACK, START_SLOTS, lane_at, lane_unit, owner_key,
-    slots_and_count, with_lane,
+    AccountRecord, AccountRecordTrait, AdventurerListTrait, NEW_RECORD, PACK, START_SLOTS,
+    owner_key,
+};
+use grimworld_persistent::models::adventurer::errors::{
+    ADVENTURER_DELETED, EMPTY_NAME, NOT_IN_HUB, NOT_OWNER, NO_ADVENTURER, PACK_HOLDS_EQUIPMENT,
+    PACK_HOLDS_GOLD, PACK_HOLDS_ITEMS, WEARS_EQUIPMENT,
 };
 use grimworld_persistent::models::adventurer::{
-    ACTIVE, AdventurerCore, AdventurerPlace, Build, DELETED, DELETED_MARK, EMPTY_LANES, NEW_BUILD,
-    NO_ELITE, core_fields, is_inside, new_core,
+    ACTIVE, AdventurerCore, AdventurerCoreTrait, AdventurerPlace, AdventurerPlaceTrait, Build,
+    DELETED, EMPTY_LANES, NEW_BUILD, NO_ELITE,
 };
 use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::systems::hub::{
-    ADVENTURER_DELETED, BAD_PROFESSION, EMPTY_NAME, HAS_ACCOUNT, IHubAdminDispatcher,
-    IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait, IHubSafeDispatcher,
-    IHubSafeDispatcherTrait, IHubViewsDispatcher, IHubViewsDispatcherTrait, NEW_PLACE,
-    NOT_ACCOUNT_OWNER, NOT_IN_HUB, NOT_OWNER, NO_ACCOUNT, NO_ADVENTURER, NO_FREE_SLOT,
-    OWNER_HAS_ACCOUNT, PACK_HOLDS_EQUIPMENT, PACK_HOLDS_GOLD, PACK_HOLDS_ITEMS, START_HUB,
-    START_UNLOCKED, WEARS_EQUIPMENT, ZERO_OWNER,
+    IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
+    IHubSafeDispatcher, IHubSafeDispatcherTrait, IHubViewsDispatcher, IHubViewsDispatcherTrait,
+    NEW_PLACE, START_HUB, START_UNLOCKED,
 };
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, load, map_entry_address,
@@ -118,6 +123,10 @@ mod RefusingInstances {
     }
 }
 
+// The profession ids the tests pass (pinned against `Profession` in `test_playable_professions`).
+const VANGUARD: u8 = 1;
+const WARDEN: u8 = 2;
+const ARCANIST: u8 = 3;
 const ADMIN: felt252 = 0xad;
 const ALICE: felt252 = 0xa11ce;
 const BOB: felt252 = 0xb0b;
@@ -276,14 +285,18 @@ fn test_stored_words() {
     assert(NEW_RECORD == StorePacking::pack(record), 'new record');
     let more = AccountRecord { slots: 9, adventurers: 5, highest_rank: 4, vault_panes: 2, lots: 7 };
     let word: felt252 = StorePacking::pack(more);
-    assert(slots_and_count(word) == (9, 5), 'slots and count');
+    assert(AccountRecordTrait::counts(word) == (9, 5), 'slots and count');
     let one_more = AccountRecord { adventurers: 6, ..more };
-    assert(word + ONE_ADVENTURER == StorePacking::pack(one_more), 'one adventurer');
+    assert(AccountRecordTrait::with_adventurer(word) == StorePacking::pack(one_more), 'one more');
+    let one_less = AccountRecord { adventurers: 4, ..more };
+    assert(
+        AccountRecordTrait::without_adventurer(word) == StorePacking::pack(one_less), 'one less',
+    );
 
     let core = AdventurerCore {
         account: 0xFFFFFFFF, level: 1, profession: ARCANIST, status: ACTIVE, ..Default::default(),
     };
-    assert(new_core(0xFFFFFFFF, ARCANIST) == StorePacking::pack(core), 'new core');
+    assert(AdventurerCoreTrait::new(0xFFFFFFFF, ARCANIST) == StorePacking::pack(core), 'new core');
     let full = AdventurerCore {
         account: 0x12345678,
         experience: 0xFFFFFFFF,
@@ -299,20 +312,20 @@ fn test_stored_words() {
         pack_lanes: 0xFFFF,
     };
     let word: felt252 = StorePacking::pack(full);
-    assert(core_fields(word) == (0x12345678, ACTIVE, 0xFFFF), 'core fields');
+    assert(AdventurerCoreTrait::fields(word) == (0x12345678, ACTIVE, 0xFFFF), 'core fields');
     let deleted: felt252 = StorePacking::pack(AdventurerCore { status: DELETED, ..full });
-    assert(word + DELETED_MARK == deleted, 'deleted mark');
-    assert(core_fields(deleted) == (0x12345678, DELETED, 0xFFFF), 'deleted fields');
+    assert(AdventurerCoreTrait::deleted(word) == deleted, 'deleted mark');
+    assert(AdventurerCoreTrait::fields(deleted) == (0x12345678, DELETED, 0xFFFF), 'deleted fields');
 
     let place = AdventurerPlace {
         instance: 0, hub: START_HUB, last_hub: START_HUB, inside: 0, unlocked: START_UNLOCKED,
     };
     assert(NEW_PLACE == StorePacking::pack(place), 'new place');
-    assert(!is_inside(NEW_PLACE), 'new: in a hub');
+    assert(!AdventurerPlaceTrait::is_inside(NEW_PLACE), 'new: in a hub');
     let inside: felt252 = StorePacking::pack(
         AdventurerPlace { instance: 0xFFFFFFFFFFFFFFFF, hub: 0, inside: 1, ..place },
     );
-    assert(is_inside(inside), 'inside');
+    assert(AdventurerPlaceTrait::is_inside(inside), 'inside');
     let build = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
     assert(NEW_BUILD == StorePacking::pack(build), 'new build');
     assert(EMPTY_LANES == StorePacking::pack(Lanes32 { lanes: [0; 7] }), 'empty lanes');
@@ -320,8 +333,8 @@ fn test_stored_words() {
     let page = Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] };
     let word: felt252 = StorePacking::pack(page);
     for lane in 0..7_u8 {
-        let expected = Lanes32 { lanes: with_lane(page, lane, 0xFFFFFFFF).lanes };
-        let changed = word + (0xFFFFFFFF - lane_at(page, lane)).into() * lane_unit(lane);
+        let expected = Lanes32 { lanes: page.set(lane, 0xFFFFFFFF).lanes };
+        let changed = word + (0xFFFFFFFF - page.get(lane)).into() * AdventurerListTrait::unit(lane);
         assert(changed == StorePacking::pack(expected), 'lane unit');
     }
 }
@@ -422,10 +435,20 @@ fn test_create_adventurer() {
 #[test]
 #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_playable_professions() {
-    assert(!is_playable(0), 'none');
-    assert(is_playable(VANGUARD) && is_playable(WARDEN) && is_playable(ARCANIST), 'the MVP three');
-    assert(VANGUARD == 1 && WARDEN == 2 && ARCANIST == 3, 'design/03 order');
-    assert(!is_playable(4) && !is_playable(255), 'not in the MVP');
+    assert(!ProfessionTrait::is_playable(0), 'none');
+    assert(
+        ProfessionTrait::is_playable(VANGUARD)
+            && ProfessionTrait::is_playable(WARDEN)
+            && ProfessionTrait::is_playable(ARCANIST),
+        'the MVP three',
+    );
+    let ids: (u8, u8, u8) = (
+        Profession::Vanguard.into(), Profession::Warden.into(), Profession::Arcanist.into(),
+    );
+    assert(ids == (VANGUARD, WARDEN, ARCANIST), 'design/03 order');
+    assert(
+        !ProfessionTrait::is_playable(4) && !ProfessionTrait::is_playable(255), 'not in the MVP',
+    );
 }
 
 #[test]
