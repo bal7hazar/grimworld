@@ -18,6 +18,7 @@
 #   scripts/agent.sh thresholds          may an agent start now? (load, memory, a free total slot and
 #                                        a free slot of this track, the waiting marker; exit 4 if not)
 #   scripts/agent.sh slots               who holds each slot (~/orchestrator/slots)
+#   scripts/agent.sh slots-init          create missing slot files (never replaces one); directory read-only
 #   scripts/agent.sh run-in-slots …      the inner shell of a launch, for the tests
 # options:
 #   --dry-run            print what would be launched, launch nothing, need no worktree
@@ -149,17 +150,56 @@ case $TRACK in
   *) TRACK_SLOTS=() ;;
 esac
 ALL_SLOTS=(total-1 total-2 total-3 game-1 game-2 lib-1 quiver-1)
-# A slot is free when a non-blocking lock on it can be taken (and released at once); any failure
-# (held, or the file cannot be opened) counts as not free.
-slot_free() { flock -n "$SLOTS/$1" true 2> /dev/null; }
-first_free() { local x; for x in "$@"; do if slot_free "$x"; then echo "$x"; return 0; fi; done; return 1; }
+# The slot files are never created by a probe or an agent: they are opened read-only (a missing one
+# is an error, not a new slot), and their directory is read-only (mode 555) so that no slot can be
+# removed, renamed or replaced by a new inode while it is held (flock protects an inode, not a name).
+# `slots-init` creates missing ones, and only those. The state of a slot: free (a non-blocking lock can
+# be taken, and is released at once), held, or an error (missing, unreadable, no flock), which refuses.
+slot_state() { # <slot> -> free | held | missing | unreadable
+  local f=$SLOTS/$1 fd
+  if [ ! -f "$f" ]; then echo missing; return; fi
+  if ! exec {fd}< "$f"; then echo unreadable; return; fi
+  if flock -n "$fd"; then echo free; else echo held; fi
+  exec {fd}<&-
+}
+slot_free() { [ "$(slot_state "$1" 2> /dev/null)" = free ]; }
+# The first free slot of a list; any slot of the list in error stops the search (fails closed).
+first_free() {
+  local x st
+  for x in "$@"; do
+    st=$(slot_state "$x" 2> /dev/null)
+    case $st in
+      free) echo "$x"; return 0 ;;
+      held) ;;
+      *) echo "error: slot $x is $st" ; return 2 ;;
+    esac
+  done
+  return 1
+}
+slots_ready() { # the slot directory exists, is read-only, and holds every slot file
+  command -v flock > /dev/null || { echo "agent.sh: flock is missing, so the slots cannot be read: wait and check again" >&2; return 1; }
+  if [ ! -d "$SLOTS" ]; then init_slots || return 1; fi
+  if [ -w "$SLOTS" ]; then chmod 555 "$SLOTS" 2> /dev/null || { echo "agent.sh: $SLOTS cannot be made read-only: check it" >&2; return 1; }; fi
+  local x
+  for x in "${ALL_SLOTS[@]}"; do
+    [ -f "$SLOTS/$x" ] || { echo "agent.sh: the slot file $SLOTS/$x is missing: run scripts/agent.sh slots-init" >&2; return 1; }
+  done
+}
+init_slots() { # creates the missing slot files only (never replaces one), then makes the directory read-only
+  mkdir -p "$SLOTS" && chmod 755 "$SLOTS" || return 1
+  local x
+  for x in "${ALL_SLOTS[@]}"; do [ -e "$SLOTS/$x" ] || : > "$SLOTS/$x" || return 1; done
+  chmod 555 "$SLOTS"
+}
 # $0 of the inner shell is the log file, "$@" the agent command line. The inner shell first takes
-# its two slots (GW_SLOT_TOTAL, GW_SLOT_TRACK) without waiting, on file descriptors 7 and 8 that the
-# agent inherits: the slots stay held while any process of the agent lives. If either is taken it
-# writes `slot-refused` and stops. After the agent, it records the model that actually ran
+# its two slots (GW_SLOT_TOTAL, GW_SLOT_TRACK) without waiting, on file descriptors 7 and 8 opened
+# read-only (a missing slot file is never created): the slots are held while the inner shell lives,
+# that is while the agent's CLI runs, and by any process of the agent that keeps those descriptors.
+# A process the CLI leaves behind after it exits and that closed them is not counted (COMMON forbids
+# leaving processes). If either slot is taken it writes `slot-refused` and stops. After the agent, it records the model that actually ran
 # (`model=`), then the exit status. Single quotes on purpose: the inner shell expands them.
 # shellcheck disable=SC2016
-inner='exec 7>> "$GW_SLOT_TOTAL" 8>> "$GW_SLOT_TRACK" || exit 75
+inner='exec 7< "$GW_SLOT_TOTAL" 8< "$GW_SLOT_TRACK" || exit 75
 if ! flock -n 7 || ! flock -n 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
 printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TOTAL"; printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TRACK"
 "$@" < /dev/null >> "$0" 2>&1; s=$?
@@ -185,16 +225,20 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
     echo "agent.sh: the game is waiting for a slot (~/orchestrator/waiting/game): wait and check again" >&2
     return 1
   fi
-  if ! mkdir -p "$SLOTS" 2> /dev/null; then
-    echo "agent.sh: the slot directory $SLOTS cannot be created: wait and check again" >&2
-    return 1
-  fi
-  if ! FREE_TOTAL=$(first_free "${TOTAL_SLOTS[@]}"); then
+  slots_ready || return 1
+  local rc=0
+  FREE_TOTAL=$(first_free "${TOTAL_SLOTS[@]}") || rc=$?
+  if [ "$rc" = 2 ]; then echo "agent.sh: $FREE_TOTAL: the slots cannot be read, check them" >&2; return 1; fi
+  if [ "$rc" != 0 ]; then
     echo "agent.sh: the budget of 3 agents is in use (${TOTAL_SLOTS[*]} held): wait and check again" >&2
     return 1
   fi
-  if [ "${#TRACK_SLOTS[@]}" = 0 ] || ! FREE_TRACK=$(first_free "${TRACK_SLOTS[@]}"); then
-    echo "agent.sh: the $TRACK track is at its cap (${TRACK_SLOTS[*]:-no slot} held): wait and check again" >&2
+  [ "${#TRACK_SLOTS[@]}" -gt 0 ] || { echo "agent.sh: the track $TRACK has no slot: check TRACK" >&2; return 1; }
+  rc=0
+  FREE_TRACK=$(first_free "${TRACK_SLOTS[@]}") || rc=$?
+  if [ "$rc" = 2 ]; then echo "agent.sh: $FREE_TRACK: the slots cannot be read, check them" >&2; return 1; fi
+  if [ "$rc" != 0 ]; then
+    echo "agent.sh: the $TRACK track is at its cap (${TRACK_SLOTS[*]} held): wait and check again" >&2
     return 1
   fi
   echo "agent.sh: load $load5, $((mem_kb / 1048576)) GB available, slots $FREE_TOTAL and $FREE_TRACK free: a launch may proceed"
@@ -205,15 +249,20 @@ case "${1:-}" in
     thresholds_ok || exit 4
     exit 0 ;;
   slots)   # who holds each slot: the lock decides; the name written inside is for display only
-    mkdir -p "$SLOTS"
     for x in "${ALL_SLOTS[@]}"; do
-      if slot_free "$x"; then printf '%-9s free\n' "$x"
-      else printf '%-9s held  %s\n' "$x" "$(head -1 "$SLOTS/$x" 2> /dev/null)"; fi
+      st=$(slot_state "$x" 2> /dev/null)
+      case $st in
+        held) printf '%-9s held  %s\n' "$x" "$(head -1 "$SLOTS/$x" 2> /dev/null)" ;;
+        *) printf '%-9s %s\n' "$x" "$st" ;;
+      esac
     done
+    exit 0 ;;
+  slots-init)   # create the missing slot files (never replace one), and make their directory read-only
+    init_slots || die "cannot create the slots in $SLOTS"
     exit 0 ;;
   run-in-slots)   # run-in-slots <total slot> <track slot> <log> <command…>: the inner shell of a launch (tests)
     [ $# -ge 5 ] || die "usage: agent.sh run-in-slots <total slot> <track slot> <log> <command…>"
-    mkdir -p "$SLOTS"
+    slots_ready || exit 4
     GW_SLOT_TOTAL=$SLOTS/$2 GW_SLOT_TRACK=$SLOTS/$3 GW_SLOT_NAME="run-in-slots $$" GW_AGENT_SH=$0 GW_TASK=none \
       exec bash -c "$inner" "$4" "${@:5}" ;;
   status)
@@ -236,10 +285,9 @@ case "${1:-}" in
         "$(date -u -r "$f" +%FT%TZ)" "$last"
     done
     # The slots: held or free by their locks; the name inside is for display only.
-    mkdir -p "$SLOTS"
     for x in "${ALL_SLOTS[@]}"; do
-      if slot_free "$x"; then echo "slot $x free"
-      else echo "slot $x held $(head -1 "$SLOTS/$x" 2> /dev/null)"; fi
+      st=$(slot_state "$x" 2> /dev/null)
+      if [ "$st" = held ]; then echo "slot $x held $(head -1 "$SLOTS/$x" 2> /dev/null)"; else echo "slot $x $st"; fi
     done
     exit 0 ;;
   model)

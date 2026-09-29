@@ -184,9 +184,14 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   `~/orchestrator/slots/`, `total-1`…`total-3` for the budget of 3 and `game-1`, `game-2`,
   `lib-1`, `quiver-1` for the caps per track (game 2, map library 1, quiver 1). A launch or resume
   takes one free total slot and one free slot of its own track (`TRACK` in the launcher), or
-  refuses (exit 4, before any worktree is created). The agent's process takes the two locks itself
-  (`flock -n`) and its children inherit them, so the kernel frees them when the agent's last
-  process ends, however it ends: nothing is counted by reading processes, pid files or units. The
+  refuses (exit 4, before any worktree is created). The agent's inner shell takes the two locks itself
+  (`flock -n`, on descriptors its children inherit), so the kernel frees them when that shell and
+  the CLI it waits for have ended, however they end: nothing is counted by reading processes, pid
+  files or units. A process a CLI leaves behind after it exits, having closed those descriptors, is
+  not counted (COMMON forbids leaving processes). The slot directory is read-only (mode 555) and a
+  slot file is never created by a probe: a slot cannot be removed or replaced by a new file while it
+  is held (a lock protects a file, not its name); `scripts/agent.sh slots-init` creates missing slot
+  files only. A slot that cannot be read refuses the launch. The
   launcher waits until the agent holds its slots before it returns, under the shared launch lock
   `~/orchestrator/agent-launch.lock`, so two launchers cannot take the same slot; **the launchers
   of the map library and of `quiver` are copies of this one** (their own `TRACK`, the same slots
