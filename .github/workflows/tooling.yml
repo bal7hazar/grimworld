@@ -278,13 +278,13 @@ jobs:
           # a command that does not exist stops with 127 on the fallback path too
           set +e; PATH=$nosetsid scripts/with-node.sh no-such-command-fnd09 2> "$work/err"; rc=$?; set -e
           [ "$rc" = 127 ]; grep -q 'no-such-command-fnd09' "$work/err"
-          # setsid(2) itself failing (EPERM: a perl that is a group leader, forced by a wrapper) stops with 127 and
-          # the command does not run
+          # setsid(2) itself failing stops with 127 and the command does not run. Linux refuses setsid(2) (EPERM) to
+          # a group leader that has another member in its group: a wrapper makes perl one, with a short-lived child.
           mkdir -p "$work/leader"; realperl=$(command -v perl)
-          printf '#!/bin/sh\nexec %s -e '"'"'use POSIX (); setpgrp(0, 0); exec { $ARGV[0] } @ARGV'"'"' -- %s "$@"\n' "$realperl" "$realperl" > "$work/leader/perl"
+          printf '#!/bin/sh\nexec %s -e '"'"'use POSIX (); setpgrp(0, 0); fork() or exec "sleep", "5"; exec { $ARGV[0] } @ARGV'"'"' -- %s "$@"\n' "$realperl" "$realperl" > "$work/leader/perl"
           chmod +x "$work/leader/perl"; rm -f "$work/ran"
           set +e; PATH=$work/leader:$nosetsid scripts/with-node.sh touch "$work/ran" 2> "$work/err"; rc=$?; set -e
-          echo "leader case: rc=$rc"; ls "$work"; cat "$work/err"; [ "$rc" = 127 ]; grep -q 'setsid: ' "$work/err"; [ ! -e "$work/ran" ]
+          cat "$work/err"; [ "$rc" = 127 ]; grep -q 'setsid: ' "$work/err"; [ ! -e "$work/ran" ]
           # neither setsid nor perl: refused before any node is started
           mkdir -p "$work/bare"; ln -sf "$(command -v bash)" "$work/bare/bash"; ln -sf "$(command -v starknet-devnet)" "$work/bare/starknet-devnet"
           set +e; PATH=$work/bare "$work/bare/bash" scripts/with-node.sh true 2> "$work/err"; rc=$?; set -e
