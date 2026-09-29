@@ -40,7 +40,8 @@ Notes:
 - Goblins use the **same skill system as adventurers** (as GW1 monsters do). A caste's skill
   list is a registry entry pointing to skill ids. This gives us enemy variety for free as
   the skill pool grows, and is what makes elite skill capture possible. What a skill can do is
-  [19-effects](19-effects.md); the shape of a caste's sheet is its §7.3.
+  [19-effects](19-effects.md); the shape of a caste's sheet is its §7.3, and every caste's sheet,
+  with its initial values, skills and priority list, is [20-castes](20-castes.md).
 - Castes 5–6 only appear as dungeon bosses, in elite zones, or in rank trials.
 
 ## Level ranges and scaling
