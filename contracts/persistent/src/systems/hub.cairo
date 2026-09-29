@@ -195,7 +195,7 @@ pub mod Hub {
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
-    use starknet::storage_access::{Store, StorageBaseAddress, StorePacking};
+    use starknet::storage_access::{StorageBaseAddress, Store, StorePacking};
     use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
@@ -331,7 +331,11 @@ pub mod Hub {
                     ids = self.account_adventurers.entry((account_id, page)).read();
                 }
                 let adventurer_id = lane_at(ids, lane);
-                let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+                let base = self
+                    .adventurers
+                    .entry(adventurer_id)
+                    .as_ptr()
+                    .__storage_pointer_address__;
                 if is_inside(word(base, PLACE_WORD)) {
                     instances.set_controller(adventurer_id, owner);
                 }
@@ -367,7 +371,11 @@ pub mod Hub {
             // The list is compact: the lanes from its length on are 0, so the new id is added to
             // its lane, and a page's first lane is written without reading the page.
             let (page, lane) = DivRem::div_rem(count, IDS_PER_PAGE.try_into().unwrap());
-            let list = self.account_adventurers.entry((account_id, page)).as_ptr().__storage_pointer_address__;
+            let list = self
+                .account_adventurers
+                .entry((account_id, page))
+                .as_ptr()
+                .__storage_pointer_address__;
             let ids = if lane == 0 {
                 EMPTY_LANES
             } else {
@@ -392,11 +400,19 @@ pub mod Hub {
             // Three words compared as stored: each is empty exactly when all its fields are 0,
             // i.e. it holds 0 (never written) or `LIVE` alone. The pack's list is compact: it is
             // empty exactly when its page 0 is.
-            let pack_page = self.packs.entry((adventurer_id, 0)).as_ptr().__storage_pointer_address__;
+            let pack_page = self
+                .packs
+                .entry((adventurer_id, 0))
+                .as_ptr()
+                .__storage_pointer_address__;
             assert(is_empty(word(pack_page, 0)), PACK_HOLDS_EQUIPMENT);
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             assert(is_empty(word(base, EQUIPPED_WORD)), WEARS_EQUIPMENT);
-            let gold = self.gold.entry(owner_key(PACK, adventurer_id)).as_ptr().__storage_pointer_address__;
+            let gold = self
+                .gold
+                .entry(owner_key(PACK, adventurer_id))
+                .as_ptr()
+                .__storage_pointer_address__;
             assert(is_empty(word(gold, 0)), PACK_HOLDS_GOLD);
 
             // The swap removal: the last id moves into the hole, the last lane is cleared. Bound:
@@ -407,7 +423,11 @@ pub mod Hub {
             let last = count - 1;
             let per_page: NonZero<u8> = IDS_PER_PAGE.try_into().unwrap();
             let (last_page, last_lane) = DivRem::div_rem(last, per_page);
-            let last_list = self.account_adventurers.entry((account_id, last_page)).as_ptr().__storage_pointer_address__;
+            let last_list = self
+                .account_adventurers
+                .entry((account_id, last_page))
+                .as_ptr()
+                .__storage_pointer_address__;
             let last_word = word(last_list, 0);
             let last_ids = unpack_lanes32(last_word);
             let last_id = lane_at(last_ids, last_lane);
@@ -422,7 +442,11 @@ pub mod Hub {
                     assert(i != last, 'not in the account list');
                     let (page, lane) = DivRem::div_rem(i, per_page);
                     if lane == 0 && page != last_page {
-                        list = self.account_adventurers.entry((account_id, page)).as_ptr().__storage_pointer_address__;
+                        list = self
+                            .account_adventurers
+                            .entry((account_id, page))
+                            .as_ptr()
+                            .__storage_pointer_address__;
                         list_word = word(list, 0);
                         ids = unpack_lanes32(list_word);
                     } else if lane == 0 {
@@ -706,9 +730,7 @@ pub mod Hub {
             let core = word(base, CORE_WORD);
             let (account_id, status, _) = core_fields(core);
             assert(account_id != 0, NO_ADVENTURER);
-            assert(
-                self.accounts.entry(account_id).owner.read() == get_caller_address(), NOT_OWNER,
-            );
+            assert(self.accounts.entry(account_id).owner.read() == get_caller_address(), NOT_OWNER);
             assert(status != DELETED, ADVENTURER_DELETED);
             let place = word(base, PLACE_WORD);
             assert(!is_inside(place), NOT_IN_HUB);

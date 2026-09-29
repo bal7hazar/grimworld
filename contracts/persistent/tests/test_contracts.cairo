@@ -20,7 +20,8 @@ use snforge_std::{
 };
 
 #[test]
-#[available_gas(l2_gas: 4200662)] // ceil(1.05 × 4000630 measured)
+// gas: raised, it calls the stub `set_build` now that `register` is implemented (ENG-04)
+#[available_gas(l2_gas: 4201817)] // ceil(1.05 × 4001730 measured)
 fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
     let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();

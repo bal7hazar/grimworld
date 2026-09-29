@@ -2,8 +2,8 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    LIVE, Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits, join,
-    low_field, split, u16_at, u32_at,
+    LIVE, Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits,
+    join, low_field, split, u16_at, u32_at,
 };
 
 /// `AdventurerCore.status`: an adventurer is never zeroed; deletion marks it (design/03, D-33).
@@ -45,7 +45,11 @@ pub const EMPTY_LANES: felt252 = LIVE;
 /// `(account, status, pack_lanes)` of a stored `AdventurerCore`, without unpacking the others.
 pub fn core_fields(core: felt252) -> (u32, u8, u16) {
     let (low, high) = split(core);
-    (low_field(low, P32.try_into().unwrap()).try_into().unwrap(), byte_at(high, P48), u16_at(high, P56))
+    (
+        low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+        byte_at(high, P48),
+        u16_at(high, P56),
+    )
 }
 
 /// Who it is and how far it went.

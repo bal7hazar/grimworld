@@ -71,7 +71,9 @@ mod InstancesDouble {
         ) -> InstanceId {
             core::panic_with_felt252('double: no create')
         }
-        fn set_controller(ref self: ContractState, adventurer_id: u32, controller: ContractAddress) {
+        fn set_controller(
+            ref self: ContractState, adventurer_id: u32, controller: ContractAddress,
+        ) {
             assert(get_caller_address() == self.hub.read(), 'double: not the hub');
             self.controllers.entry(adventurer_id).write(controller);
         }
@@ -237,7 +239,7 @@ fn changes(before: Span<felt252>, after: Span<felt252>) -> (u32, u32, u32) {
 // ---- the stored words written by arithmetic, against the packers (the oracle, CAIRO §2) --------
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 580514)] // ceil(1.05 × 552870 measured)
 fn test_stored_words() {
     let record = AccountRecord { slots: START_SLOTS, ..Default::default() };
     assert(NEW_RECORD == StorePacking::pack(record), 'new record');
@@ -248,7 +250,7 @@ fn test_stored_words() {
     assert(word + ONE_ADVENTURER == StorePacking::pack(one_more), 'one adventurer');
 
     let core = AdventurerCore {
-        account: 0xFFFFFFFF, level: 1, profession: ARCANIST, status: ACTIVE, ..Default::default()
+        account: 0xFFFFFFFF, level: 1, profession: ARCANIST, status: ACTIVE, ..Default::default(),
     };
     assert(new_core(0xFFFFFFFF, ARCANIST) == StorePacking::pack(core), 'new core');
     let full = AdventurerCore {
@@ -296,7 +298,7 @@ fn test_stored_words() {
 // ---- register ----------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 13222125)] // ceil(1.05 × 12592500 measured)
 fn test_register() {
     let (hub, _) = setup();
     let keys = watched();
@@ -321,7 +323,7 @@ fn test_register() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 7085642)] // ceil(1.05 × 6748230 measured)
 fn test_register_twice_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -332,7 +334,7 @@ fn test_register_twice_refused() {
 // ---- create_adventurer -------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 22204854)] // ceil(1.05 × 21147480 measured)
 fn test_create_adventurer() {
     let (hub, _) = setup();
     let hub_ = act(hub, ALICE);
@@ -358,7 +360,7 @@ fn test_create_adventurer() {
 
     assert(id == 1 && second == 2, 'ids');
     let expected = AdventurerCore {
-        account: 1, level: 1, profession: WARDEN, status: ACTIVE, ..Default::default()
+        account: 1, level: 1, profession: WARDEN, status: ACTIVE, ..Default::default(),
     };
     assert(core_of(hub, id) == expected, 'core');
     let words = views(hub).adventurer(id);
@@ -387,7 +389,7 @@ fn test_create_adventurer() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_playable_professions() {
     assert(!is_playable(0), 'none');
     assert(is_playable(VANGUARD) && is_playable(WARDEN) && is_playable(ARCANIST), 'the MVP three');
@@ -396,7 +398,7 @@ fn test_playable_professions() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 5472852)] // ceil(1.05 × 5212240 measured)
 fn test_create_without_account_refused() {
     let (hub, _) = setup();
     #[feature("safe_dispatcher")]
@@ -404,7 +406,7 @@ fn test_create_without_account_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 7194411)] // ceil(1.05 × 6851820 measured)
 fn test_create_empty_name_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -413,7 +415,7 @@ fn test_create_empty_name_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 7245084)] // ceil(1.05 × 6900080 measured)
 fn test_create_bad_profession_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -424,7 +426,7 @@ fn test_create_bad_profession_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 17268899)] // ceil(1.05 × 16446570 measured)
 fn test_create_no_free_slot_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -435,7 +437,7 @@ fn test_create_no_free_slot_refused() {
 // ---- delete_adventurer -------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 26181897)] // ceil(1.05 × 24935140 measured)
 fn test_delete_frees_the_slot_and_marks_the_record() {
     let (hub, _) = setup();
     let (_, ids) = with_adventurers(hub, ALICE, 3);
@@ -471,7 +473,7 @@ fn test_delete_frees_the_slot_and_marks_the_record() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 19209855)] // ceil(1.05 × 18295100 measured)
 fn test_delete_the_last_listed() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -487,7 +489,7 @@ fn test_delete_the_last_listed() {
 
 /// ENG-01 §9.3's worst case: the hole and the last id on two pages (an account of eight).
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 38821241)] // ceil(1.05 × 36972610 measured)
 fn test_delete_across_pages() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -511,7 +513,7 @@ fn test_delete_across_pages() {
 // The ownership helper, each case (through `delete_adventurer`).
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 11340536)] // ceil(1.05 × 10800510 measured)
 fn test_helper_no_adventurer() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -522,7 +524,7 @@ fn test_helper_no_adventurer() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 16712357)] // ceil(1.05 × 15916530 measured)
 fn test_helper_not_owner() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -534,7 +536,7 @@ fn test_helper_not_owner() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 14990010)] // ceil(1.05 × 14276200 measured)
 fn test_helper_deleted() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 2);
@@ -546,7 +548,7 @@ fn test_helper_deleted() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 10966263)] // ceil(1.05 × 10444060 measured)
 fn test_helper_not_in_a_hub() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -558,7 +560,7 @@ fn test_helper_not_in_a_hub() {
 // "Its inventory emptied" (design/03, D-33), each part.
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 11019687)] // ceil(1.05 × 10494940 measured)
 fn test_delete_pack_balances_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -568,7 +570,7 @@ fn test_delete_pack_balances_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 11366880)] // ceil(1.05 × 10825600 measured)
 fn test_delete_pack_equipment_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -579,7 +581,7 @@ fn test_delete_pack_equipment_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 10951395)] // ceil(1.05 × 10429900 measured)
 fn test_delete_equipped_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -590,7 +592,7 @@ fn test_delete_equipped_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 11359163)] // ceil(1.05 × 10818250 measured)
 fn test_delete_pack_gold_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -602,7 +604,7 @@ fn test_delete_pack_gold_refused() {
 
 /// A pack emptied again (its lanes, pages and gold kept `LIVE` at 0) does not stop deletion.
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 12005280)] // ceil(1.05 × 11433600 measured)
 fn test_delete_after_the_pack_was_emptied() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -617,7 +619,7 @@ fn test_delete_after_the_pack_was_emptied() {
 // ---- set_account_owner -------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 25734062)] // ceil(1.05 × 24508630 measured)
 fn test_set_account_owner() {
     let (hub, double) = setup();
     with_adventurers(hub, ALICE, 2);
@@ -652,7 +654,7 @@ fn test_set_account_owner() {
 
 /// ENG-01 §9.3 and §10's worst case: seven adventurers inside, each one's controller moved.
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 40951659)] // ceil(1.05 × 39001580 measured)
 fn test_set_account_owner_seven_inside() {
     let (hub, double) = setup();
     act(hub, ALICE).register();
@@ -687,7 +689,7 @@ fn test_set_account_owner_seven_inside() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 19158720)] // ceil(1.05 × 18246400 measured)
 fn test_set_account_owner_only_those_inside() {
     let (hub, double) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -701,7 +703,7 @@ fn test_set_account_owner_only_those_inside() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 11080808)] // ceil(1.05 × 10553150 measured)
 fn test_set_account_owner_wrong_caller_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -712,7 +714,7 @@ fn test_set_account_owner_wrong_caller_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 12819209)] // ceil(1.05 × 12208770 measured)
 fn test_set_account_owner_to_an_account_holder_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -724,7 +726,7 @@ fn test_set_account_owner_to_an_account_holder_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 10746740)] // ceil(1.05 × 10234990 measured)
 fn test_set_account_owner_to_zero_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
