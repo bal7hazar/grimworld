@@ -97,82 +97,68 @@ jobs:
           out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
           grep -qF -- 'scarb\ publish' <<< "$out"
           grep -qF -- '.claude/\*\*' <<< "$out"
-          # The agent budget (OPERATIONS §3): stub systemctl; three agents refuse, two allow, a counter
-          # that fails refuses (exit 4). The launch lock that serialises count and start is not
-          # exercised here (dry runs stop before it).
-          stubs=$(mktemp -d); fake=$(mktemp -d)   # a fake HOME: no launcher records of the machine
-          stub() { printf '#!/bin/sh\n%s\n' "$2" > "$stubs/$1"; chmod +x "$stubs/$1"; }
-          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\nquiver-c.service loaded active running c\n"'
-          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
-          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
-          HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds
-          stub systemctl 'exit 1'
-          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds; s=$?; set -e; [ "$s" = 4 ]
-          # Detached agents from the launchers' pid files, in a fake HOME: two launches in one directory
-          # count once; a pid file whose live process is not its launch (a reused pid) does not count.
-          flogs=$fake/projects/grimworld/.claude/worktrees/logs; mkdir -p "$flogs" "$fake/projects/grimworld/wt" "$fake/projects/grimworld/wt2"
-          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
-          (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/one.log") & echo $! > "$flogs/one.pid"
-          (cd "$fake/projects/grimworld/wt" && exec bash -c 'sleep 120; :' "$flogs/two.log") & echo $! > "$flogs/two.pid"
-          (cd "$fake/projects/grimworld/wt2" && exec sleep 120) & echo $! > "$flogs/reused.pid"   # right directory, not its launch
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          echo "$out"; [ "$s" = 4 ]; grep -qF '3 Grim World agents running (2 units, 1 detached)' <<< "$out"
-          # The launch lock: while another launcher holds it, a launch waits (killed by timeout: 124);
-          # once released, the same launch goes on to the count, which refuses (4). Nothing is launched.
-          mkdir -p "$fake/orchestrator"
-          flock "$fake/orchestrator/agent-launch.lock" sleep 6 & holder=$!; sleep 1
-          set +e
-          HOME=$fake PATH="$stubs:$PATH" timeout 3 scripts/agent.sh locktest claude opus new "x" research; s=$?
-          set -e; [ "$s" = 124 ]; wait "$holder"
-          set +e; HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e; [ "$s" = 4 ]
-          kill $(cat "$flogs"/*.pid) 2> /dev/null || true; rm -f "$flogs"/*.pid
-          # A codex audit started as the native binary, with no launch record, is found by its command line.
-          mkdir -p "$fake/projects/grimworld/wt3"
-          (cd "$fake/projects/grimworld/wt3" && exec -a codex python3 -c 'import time; time.sleep(120)' exec) & decoy=$!
-          sleep 1
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          echo "$out"; [ "$s" = 4 ]; grep -qF '3 Grim World agents running (2 units, 1 detached)' <<< "$out"
-          kill "$decoy"
-          # A launch record that holds no pid refuses the count.
-          echo "not a pid" > "$flogs/bad.pid"
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          echo "$out"; [ "$s" = 4 ]; grep -qF 'holds no pid' <<< "$out"
-          rm -f "$flogs/bad.pid"
-          # A dangling link as a launch record refuses, and so does a records directory that cannot be listed.
-          ln -s "$fake/nowhere" "$flogs/dangling.pid"
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          echo "$out"; [ "$s" = 4 ]; grep -qF 'not a regular file' <<< "$out"
-          rm -f "$flogs/dangling.pid"
-          chmod 000 "$flogs"
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          chmod 755 "$flogs"
-          echo "$out"; [ "$s" = 4 ]; grep -qF 'cannot be listed' <<< "$out"
-          # A records path whose ancestor cannot be traversed refuses too.
-          mkdir -p "$fake/projects/hexx-cairo/.claude/worktrees/logs"; chmod 000 "$fake/projects/hexx-cairo/.claude"
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          chmod 755 "$fake/projects/hexx-cairo/.claude"
-          echo "$out"; [ "$s" = 4 ]; grep -qF 'cannot be reached' <<< "$out"
-          # The caps per track (game 2, library 1, quiver 1): two game agents refuse a third though the
-          # total is 2; one game agent and one library agent allow the game.
-          stub systemctl 'printf "grimworld-a.service loaded active running a\ngrimworld-b.service loaded active running b\n"'
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds 2>&1); s=$?; set -e
-          echo "$out"; [ "$s" = 4 ]; grep -qF 'the grimworld track has 2 agents running' <<< "$out"
-          stub systemctl 'printf "grimworld-a.service loaded active running a\nhexmap-b.service loaded active running b\n"'
-          HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds
-          # A copy of this launcher on the library's track: its cap of 1, and the game's waiting marker.
+          # The budget as slots (OPERATIONS §3): ~/orchestrator/slots, in a fake HOME. A slot is held by a
+          # kernel lock for as long as its holder lives; nothing is counted by reading processes.
+          fake=$(mktemp -d); slots=$fake/orchestrator/slots
+          HOME=$fake scripts/agent.sh thresholds                      # all free
+          # Each holder runs in its own session (setsid does not fork here), so its pid is its process group.
+          declare -A pid
+          run() { HOME=$fake setsid scripts/agent.sh run-in-slots "$1" "$2" "$fake/$3.log" sleep 120 & pid[$3]=$!; sleep 0.5; }
+          refuses() { set +e; out=$(HOME=$fake scripts/agent.sh thresholds 2>&1); s=$?; set -e; echo "$out"; [ "$s" = 4 ]; grep -qF "$1" <<< "$out"; }
+          # Two agents in one working directory hold two slots each (total and track), counted apart.
+          run total-1 game-1 a; run total-2 game-2 b
+          HOME=$fake scripts/agent.sh slots
+          held=$(HOME=$fake scripts/agent.sh slots); grep -q '^total-1 *held' <<< "$held"; grep -q '^total-2 *held' <<< "$held"
+          # The game at its cap is refused while a total slot is free.
+          refuses 'the grimworld track is at its cap'
+          # A slot already held cannot be taken: the inner shell refuses and runs nothing (75).
+          set +e; HOME=$fake scripts/agent.sh run-in-slots total-3 game-1 "$fake/c.log" touch "$fake/ran"; s=$?; set -e
+          [ "$s" = 75 ]; [ ! -e "$fake/ran" ]; grep -q '^slot-refused' "$fake/c.log"
+          # A fourth launch is refused: three total slots held (the third by another track).
+          run total-3 lib-1 c
+          refuses 'the budget of 3 agents is in use'
+          # A killed agent frees its slots, whatever the way it ends (SIGKILL to its process group).
+          kill -9 -- -"${pid[a]}"
+          sleep 0.5; held=$(HOME=$fake scripts/agent.sh slots); grep -q '^total-1 *free' <<< "$held"; grep -q '^game-1 *free' <<< "$held"
+          HOME=$fake scripts/agent.sh thresholds
+          # A copy of this launcher on the library's track: its cap of 1 (lib-1 held), and the waiting marker.
           sed 's/^TRACK=grimworld$/TRACK=hexmap/' scripts/agent.sh > scripts/.agent-hexmap-ci.sh; chmod +x scripts/.agent-hexmap-ci.sh
           grep -qx 'TRACK=hexmap' scripts/.agent-hexmap-ci.sh
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
-          echo "$out"; [ "$s" = 4 ]; grep -qF 'the hexmap track has 1 agents running' <<< "$out"
-          stub systemctl 'printf "grimworld-a.service loaded active running a\n"'
-          HOME=$fake PATH="$stubs:$PATH" scripts/.agent-hexmap-ci.sh thresholds
+          set +e; out=$(HOME=$fake scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
+          echo "$out"; [ "$s" = 4 ]; grep -qF 'the hexmap track is at its cap' <<< "$out"
+          kill -9 -- -"${pid[c]}"; sleep 0.5
+          HOME=$fake scripts/.agent-hexmap-ci.sh thresholds
           mkdir -p "$fake/orchestrator/waiting"; touch "$fake/orchestrator/waiting/game"
-          set +e; out=$(HOME=$fake PATH="$stubs:$PATH" scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
+          set +e; out=$(HOME=$fake scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
           echo "$out"; [ "$s" = 4 ]; grep -qF 'the game is waiting' <<< "$out"
-          HOME=$fake PATH="$stubs:$PATH" scripts/agent.sh thresholds   # the marker never stops the game
+          HOME=$fake scripts/agent.sh thresholds   # the marker never stops the game
           touch -d '40 minutes ago' "$fake/orchestrator/waiting/game"
-          HOME=$fake PATH="$stubs:$PATH" scripts/.agent-hexmap-ci.sh thresholds   # a stale marker is ignored
+          HOME=$fake scripts/.agent-hexmap-ci.sh thresholds   # a stale marker is ignored
           rm -f scripts/.agent-hexmap-ci.sh
+          # End to end on the detached path, with a stub codex that sleeps: the launch confirms that the agent
+          # holds its two slots before it returns, status lists them, and they are free once it ends.
+          for k in b; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done; sleep 0.5
+          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a script node runs for 3 s)
+          # GitHub's runner has node elsewhere: link it where the launcher expects it (the runner allows sudo).
+          if [ ! -x /usr/bin/node ] && command -v node > /dev/null; then sudo ln -s "$(command -v node)" /usr/bin/node; fi
+          if [ -x /usr/bin/node ]; then
+            mkdir -p "$fake/bin" .claude/worktrees/cli-slottest
+            printf 'setTimeout(() => {}, 3000);\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"
+            out=$(HOME=$fake PATH="$fake/bin:$PATH" scripts/agent.sh slottest codex gpt-6-sol new "x" audit 2>&1)
+            echo "$out"; grep -qF 'slottest: holds slots total-1 and game-1' <<< "$out"
+            st=$(HOME=$fake scripts/agent.sh status); grep -q '^slot total-1 held slottest' <<< "$st"
+            sleep 5; held=$(HOME=$fake scripts/agent.sh slots); grep -q '^total-1 *free' <<< "$held"; grep -q '^game-1 *free' <<< "$held"
+          else
+            echo "end-to-end slot fixture skipped: no /usr/bin/node on this runner"
+          fi
+          # The launch lock: while another launcher holds it, a launch waits (killed by timeout: 124);
+          # once released, the same launch goes on to the slots, which refuse (4). Nothing is launched.
+          run total-1 game-1 d; run total-2 game-2 f; run total-3 lib-1 e   # the budget full again
+          flock "$fake/orchestrator/agent-launch.lock" sleep 6 & holder=$!; sleep 1
+          set +e; HOME=$fake timeout 3 scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e
+          [ "$s" = 124 ]; wait "$holder"
+          set +e; HOME=$fake scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e; [ "$s" = 4 ]
+          for k in d e f; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done
           # The build lock wraps build and test subcommands only.
           for bad in "rm -rf x" "--heavy pnpm exec sh" "pnpm dlx x" "scarb run x" "sozo execute x" "snforge"; do
             if scripts/lock.sh $bad 2> /dev/null; then echo "lock.sh accepted: $bad" >&2; exit 1; fi
