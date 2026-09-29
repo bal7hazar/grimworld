@@ -21,6 +21,8 @@ export async function startIndexer(options: {
   db: string;
   poll?: number;
   depth?: number | "l1";
+  /** More options of `run` (the subscriptions' caps). */
+  extra?: string[];
 }): Promise<RunningIndexer> {
   const child: ChildProcess = spawn(
     process.execPath,
@@ -39,6 +41,7 @@ export async function startIndexer(options: {
       String(options.poll ?? 50),
       "--depth",
       String(options.depth ?? 100_000),
+      ...(options.extra ?? []),
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
