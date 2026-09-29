@@ -1,6 +1,9 @@
 # 19 — Effects: the catalogue and the resolution order
 
-> Status: **Draft v0.3** (DES-04, D-150). v0.3: fix loop 2 after the re-audit: the entry's bits
+> Status: **Draft v0.4** (DES-04, D-150). v0.4: fix loop 3: the executor's dispatch (the implicit
+> weapon hit first, trap placement outside the actors), an activated attack's recovery, signed
+> arithmetic where a quantity is signed, the snapshot repacked in 0 new slots, the potion tag and
+> the weapon's class, the complete registry-read bound and its calls. v0.3: fix loop 2 after the re-audit: the entry's bits
 > recounted (97) and a signed range for durations carried as values; empty entries; one guard
 > snapshot per carrier; perception and the awake set; lazy cancellation of frozen activations;
 > activation and recovery in one field; a lossless state inventory with ranks 0–15; charge-only
@@ -21,7 +24,7 @@
 |---|---|---|
 | X-1 | **The catalogue is closed.** An effect kind, passive kind, skill kind, condition, shape, filter, guard, scope or hit class not listed here does not exist; nor does an entry combination §5.14 does not allow | Pillar 6, S-6 |
 | X-2 | Content refers to every enumeration by its **id**, which never changes meaning once frozen by CBT-01. One `elements/` file per kind (CONTEXT §4) | CONTEXT §4 |
-| X-3 | Every effect is an integer function of the state and its parameters: no draw, no block data, no floating point. Every division truncates **toward zero**; a subtraction that could fall below 0 saturates (`a ⊖ b = a − min(a, b)`) | D-40, ADR-0002 |
+| X-3 | Every effect is an integer function of the state and its parameters: no draw, no block data, no floating point. Every division truncates **toward zero**. **Arithmetic is signed where the quantity is signed** (a scaling difference `v12 − v0`, the damage exponent `strength − armor`, a sum of percents, a pip sum) and is then clamped only to a range this document states. **Saturating subtraction** (`a ⊖ b = a − min(a, b)`) is used only for quantities that cannot be negative: health, energy, adrenaline, charges, and a prospective health | D-40, ADR-0002, D-140 |
 | X-4 | **A rule never panics on a legal action** (D-140): every value is clamped or saturated to its field (§6); a counter never wraps (§5.12) | D-140 |
 | X-5 | Percent modifiers of one quantity are **summed, then applied once**, the result truncated | D-140 |
 | X-6 | Durations become deadlines on the instance clock (M-2), bounded by `grimworld_logic::durations` | D-02, ENG-01 §3.1 |
@@ -70,7 +73,7 @@ Every carrier that acts writes its effects as **entries**; the entry is the unit
 
 ### 2.2 Scaling
 
-`value(rank) = v0 + (v12 − v0) × rank / 12`, in `i32`, truncating toward zero; the same for
+`value(rank) = v0 + (v12 − v0) × rank / 12`, in `i32`, the difference `v12 − v0` **signed** (a value that falls with rank scales down), truncating toward zero; the same for
 durations. `|v12 − v0| ≤ 65,535` and `rank ≤ 15`, so the product (≤ 983,025) fits `i32`. The rank
 is the source's rank in the skill's attribute: a member's from its snapshot (4 bits a bar slot,
 0–15), a goblin's from its caste sheet (§7.3). Potions, modifiers and terrain traps do not scale
@@ -268,7 +271,10 @@ An `ARMOR_SET` bonus is one passive.
 60) are summed per statistic (per scope and guard for 47 and 48, per type for 42); 51 is summed per
 condition; for 54, the lowest N counts (as "only the highest rune counts", design/15); 55 keeps
 **one counter per quick-cast modifier held**, at most 2 (§7.2), each independent; 56 follows
-design/15's rune rule.
+design/15's rune rule. Two exceptions to summing, from design/15 and the auditor: **health runes
+of the same kind do not add up** (the highest of a kind counts; other `MAX_HEALTH` sources add), and
+**`DAMAGE_TYPE` is never summed**: it is the weapon's type, replaced by a `DAMAGE_TYPE` modifier on
+the weapon, the only slot type the pipeline gives it.
 
 **Weapons and arcs are rules, not entries** (design/04): the axe's +25 %, the critical +40 %, flank,
 the maul's 2 ticks, the bow's line of sight. A goblin's weapon is its caste's (§7.3).
@@ -337,12 +343,14 @@ states: **none** (slot 255), **activating** (slot 0–3, a caste skill; deadline
 | none | step 2: a weapon attack or an instant attack skill of weapon cost `k` (FX-5, FX-15) | lands now; recovering with `B = T + k − 1` if `k > 1`, else none |
 | none | step 2: a crippled move (cost 2) | recovering, `B = T + 1` |
 | none | step 2: a skill with activation `n ≥ 1` | activating, `A = T + n` |
-| activating | step 1 of `A`: resolves; its weapon cost `k` (an attack skill) exceeds `n` | recovering, `B = A + k − n`; else none |
+| activating | step 1 of `A`: resolves (the goblin does not act in step 2 of `A`) | if it is an attack skill whose weapon cost `k ≥ n + 2`: recovering, `B = A + k − n − 1`; else none |
 | activating | interrupted (§5.9), or lapsed | none (recharge from the interruption or `A`) |
 | recovering | `T > B` | none (read as such; cleared at the goblin's next write) |
 
 A pending activation is never discarded by a recovery: recovery starts only when the activation
-ends. **Busy** (activating or recovering) goblins do nothing in step 2, but take hits and
+ends. **An activated attack costs what a plain attack of the same weapon costs**, `max(k, n + 1)`
+acts from its start (FX-5, FX-15): its next act is in step 2 of `T + max(k, n + 1)` (§10.9). The
+`n + 1` counts the start tick's act and the resolution tick, in which the goblin does not act. **Busy** (activating or recovering) goblins do nothing in step 2, but take hits and
 effects. A goblin whose activation resolves in step 1 does not act in step 2 (design/04).
 
 **Members.** A member's activation lies inside its own action (FX-3). The knocked-down adventurer's
@@ -394,10 +402,11 @@ One source, one target, one hit of class `K` with the carrier's hit modifiers (�
    from, in the target's arcs.
 2. **Miss, block, evade** (§5.6), for `WEAPON`. A stopped hit ends here: nothing of it or of its
    carrier applies to this target, no charge but a block's is spent, not a hit.
-3. **Armor** = the target's armor + `ARMOR` effects + guarded `ARMOR` passives + `ARMOR_VS`; then
-   `armor − ⌊armor × p / 100⌋`, `p` the sum of the penetrations that apply to `K` (≤ 100; FX-9);
-   ≥ 0.
-4. **Damage** = `⌊base × table(strength − armor) / 2^16⌋`; the sum of the percents that apply to
+3. **Armor** = the target's armor + `ARMOR` effects + guarded `ARMOR` passives + `ARMOR_VS` (all
+   non-negative); then `armor − ⌊armor × p / 100⌋`, `p` the sum of the penetrations that apply to `K`
+   capped at 100 (FX-9): never below 0, since `p ≤ 100`.
+4. **Damage**: the exponent `x = strength − armor` is **signed** and clamped to the table's range
+   **[−160, +80]** (design/04, D-140), then `⌊base × table(x) / 2^16⌋`; the sum of the percents that apply to
    `K` (≥ −100) applied once, truncated; clamped to [0, 65,535]; then FX-19's halving if held.
 5. **Apply**: `health = health ⊖ damage`. The hit is recorded (a member's "hit this tick" flag).
 6. **Death check deferred** to step 9; the target's state after step 5 decides "alive" below.
@@ -498,7 +507,7 @@ on a foe of the trap's side (placed: the placer's foes; terrain: FX-34), once:
 1. **The source**: a member placer (its snapshot's level, the bar slot's rank); a goblin placer (its
    record's caste and level, the caste sheet's rank; a dead placer's record still holds them); a
    terrain trap: its location's values (FX-14, FX-28).
-2. **The trap's carrier** (its skill without the `TRAP` entry) runs through the executor (§5.14)
+2. **The payload** (the skill's entries without the `TRAP` entry) runs through the executor (§5.14)
    with the entering actor as its only actor, class `TRAP`.
 3. The object is marked used. The move stands; its cost and a goblin's recovery for it were fixed
    before the trap (a Crippled just applied does not change them).
@@ -529,36 +538,51 @@ Every counter is 0 in a new instance (ENG-01 §2.1) and never wraps:
 
 ### 5.14 Executing a carrier: one layer owns the entries
 
-Every skill resolution, potion, trap trigger and weapon attack goes through **one executor**; the hit
-pipeline (§5.5) resolves one hit and never iterates entries.
+Every skill resolution, potion, trap placement, trap trigger and weapon attack goes through **one
+executor**; the hit pipeline (§5.5) resolves one hit and never iterates entries.
+
+**The carrier's hit.** A carrier has at most one hit (FX-45):
+- **a weapon attack** is a carrier with no entry and an **implicit weapon hit** on the attacked
+  entity (the action's target, or a goblin's chosen target);
+- **an attack skill** has the same implicit weapon hit on the attacked entity, and its entries are
+  all `FOE`, `SINGLE` on that same entity;
+- **any other carrier** has a hit only if it holds a `DAMAGE` entry.
 
 **Legal carriers** ⟨FX-45⟩: the content pipeline refuses any other combination:
 
 | Rule | Why |
 |---|---|
-| **At most one hit** per carrier: one `DAMAGE` entry, or the weapon hit of an attack skill (which then has no `DAMAGE` entry) | two hits of one carrier would double every on-hit rule; no source has two |
-| **At most one holding entry** per carrier (kinds 5, 9–11, 13–16) | a held effect's slot is keyed by its carrier; no source has two |
-| Hit modifiers (`ATTACK_BONUS`, `HIT_PENETRATION`) only with a hit; `ATTACK_BONUS` only in an attack skill | they modify the carrier's hit |
-| An attack skill's entries are all `FOE`, `SINGLE`: its attacked target | "replaces the next weapon attack" |
-| A `TRAP` entry is entry 1; the others are `FOE`, `SINGLE`, applied to the entrant | §5.11 |
-| A potion has one entry | ENG-01 `ITEM` |
+| **At most one hit** per carrier: an implicit weapon hit (attacks) or one `DAMAGE` entry (other kinds) | two hits would double every on-hit rule; no source has two |
+| A `DAMAGE` entry comes **before every other entry but `TRAP`** | the hit is always a carrier's first operation on an actor (so Skullring's knock-down cannot make its own blow critical) |
+| **At most one holding entry** per carrier (kinds 5, 9–11, 13–16) | a held effect's slot is keyed by its carrier |
+| Hit modifiers (`ATTACK_BONUS`, `HIT_PENETRATION`) only with a hit, with **the hit's addressing, shape and filter**; `ATTACK_BONUS` only in an attack skill | they modify the carrier's hit on each actor it reaches |
+| An attack skill's entries are all `FOE`, `SINGLE` | "replaces the next weapon attack" |
+| A `TRAP` entry is entry 1, `TILE`, `SINGLE`; the others (the **payload**) are `FOE`, `SINGLE` | §5.11 |
+| A potion has one entry; `DISC_1` only in a potion's entry (FX-35) | ENG-01 `ITEM`; a bomb is a 1-tick action |
 
 **Execution**, for a carrier with its source, its address and its class:
 
-1. **Guards**: evaluate every entry's guard once (§2.4, FX-40).
-2. **Hit modifiers**: collect `ATTACK_BONUS` and `HIT_PENETRATION` for the carrier's hit.
-3. **Target sets**: for each entry, its tiles (shape around its addressing, clipped) and its actors
-   (filter); all taken **now**, before anything applies. The **actor list** is the union of the
-   entries' actors, in ascending tile index (X-7's exception).
-4. **For each actor of the list, in order**, the entries whose set holds it, in entry order:
-   - the **hit** (the weapon hit or the `DAMAGE` entry) through §5.5; **stopped** (blocked, evaded,
-     missed) → the carrier's remaining entries skip this actor;
-   - any other entry, **only if the actor is alive**: instant kinds apply; a holding entry goes
-     through §5.7 on that actor; `TRAP` places the trap (its set is the target tile, no actor).
-5. **Carrier-level effects**: a shout alerts packs within 8 tiles; a glyph consumed; `casts`
-   already moved at the start.
+1. **Guards**: every entry's guard is evaluated once, from the state now (§2.4, FX-40).
+2. **Placement** (a `TRAP` carrier): the trap is placed on the target tile (§5.11), **outside any
+   actor iteration**. The payload is **not** executed; it waits for the trigger. The executor stops
+   here: a placement has no actor.
+3. **Hit modifiers**: the `ATTACK_BONUS` and `HIT_PENETRATION` entries whose guard held are kept for
+   the carrier's hit; they are not operations of their own.
+4. **Target sets**, all taken **now**, before anything applies: the hit's (the attacked entity for an
+   implicit weapon hit; the `DAMAGE` entry's shape, clipped and filtered), then each other entry's.
+   The **actor list** is their union in ascending tile index (X-7's exception); a single attacked
+   entity is a list of one.
+5. **For each actor of the list, in order**:
+   - **the hit first**, if the actor is in the hit's set: §5.5 with the kept hit modifiers.
+     **Stopped** (blocked, evaded, missed) → nothing else of this carrier applies to this actor;
+   - then the other entries whose set holds the actor, in entry order, **only if the actor is alive**
+     and its guard held: instant kinds apply; a holding entry goes through §5.7 on that actor.
+6. **Carrier-level effects**: a shout alerts packs within 8 tiles; a glyph is consumed; the `casts`
+   counters already moved at the start.
 
-A carrier whose actor list is empty does nothing but its carrier-level effects; its costs stay paid.
+**A trap's trigger** (§5.11) runs the executor on the payload alone, with the entrant as its only
+actor (steps 1, 3, 5, class `TRAP`), whatever the payload's own addressing. A carrier whose actor
+list is empty does nothing but its carrier-level effects; its costs stay paid.
 
 ## 6. Edges (D-140)
 
@@ -571,7 +595,8 @@ A carrier whose actor list is empty does nothing but its carrier-level effects; 
 | A duration carried as a value above 32,767 | refused by the pipeline (§2.1) |
 | Effective duration | `effective_duration`'s caps, ≤ `MAX_DURATION` |
 | Heal or energy past max or below 0; health pips past ±10 | clamped |
-| Armor below 0; penetration above 100 % | 0; 100 % |
+| Armor below 0; penetration above 100 % | cannot happen (`p` capped at 100); 100 % |
+| The exponent `strength − armor` outside [−160, +80] | clamped to the table's range (design/04, D-140) |
 | Percent sum below −100; damage outside [0, 65,535] | −100; the nearest bound |
 | A 0-damage hit | a hit |
 | Life steal above the target's health | the target's health |
@@ -615,10 +640,10 @@ straddles bit 128, so a word offers a low limb of 128 bits (0–127) and a high 
 |---|---|---|---|---|
 | `MemberState` | flags 160–167: turned, instant used, since the last tick (3 of 8 used) | flags "hit this tick", `HALVE_FIRST_HEAVY_HIT` spent (2 bits); `casts_2` (8) | flags bits 3–4; `casts_2` at 168–175 | flags 3 bits; 176–249 (74) |
 | `MemberTimers` | activation (0–63), 5 conditions (64–223) | — | — | 224–249 (26) |
-| `MemberEffects` | 4 slots × 56 bits: skill 16 · charges 8 · deadline 32 (28 used) | per slot: **rank 0–15** in the 4 unused deadline bits; the **potion flag** as bit 15 of the skill field (skill ids ≤ 32,767; a potion's skill field holds its belt slot 0–3) | slots at 0, 56 (low), 128, 184 (high): 4 × 56 = 224 | 112–127, 240–249 |
+| `MemberEffects` | 4 slots × 56 bits: skill 16 · charges 8 · deadline 32 (28 used) | per slot: **rank 0–15** in the 4 unused deadline bits; the **potion tag** in bit 7 of the charges byte (charges use bits 0–5, 0–63), so the skill field keeps every `u16` id; with the tag set, the skill field holds the belt slot 0–3 | slots at 0, 56 (low), 128, 184 (high): 4 × 56 = 224 | 112–127, 240–249; bit 6 of each charges byte |
 | `Recharges` | 8 × 28 | — | — | — |
 | `GoblinState` | energy 8 bits, adrenaline 8 bits, … | units: energy **in thirds** (a caste's energy ≤ 85, since 85 × 3 = 255); adrenaline in quarters (≤ 252) | existing fields | 240–249 (10) |
-| `GoblinTimers` | activation slot 8 · target 16 · deadline 28 · 5 conditions · effect skill 16 · effect deadline 28 | the effect's **charges 6** and **rank 4** (10 bits); the activation slot's states 254 recovering / 255 none (§5.2) | 240–249: 6 + 4 = 10, full | 0 |
+| `GoblinTimers` | low: slot 8 + target 16 + deadline 28 + bleeding 28 + poison 28 + effect skill 16 = 124; high: burning 28 + crippled 28 + knocked 28 + effect deadline 28 = 112; **236** | the effect's **charges 6** and **rank 4** (10 bits); the activation slot's states 254 recovering / 255 none (§5.2) | 240–249: 6 + 4 = 10; total 236 + 10 = **246** | **124–127 (4 bits)** |
 | Chunk object | tile 8 · kind 4 · state 4 · param 16 | placed trap (kind 9): bit 15 = 0 → member 3 bits + bar slot 3 bits (6); bit 15 = 1 → goblin entity − 8 in 12 bits (≤ 8 + 16 × 224 + 9 − 8 = 3,593 < 4,096) + caste skill 2 bits (14 + 1 = 15). Terrain trap (kind 4): param = its `SKILL` id | existing | — |
 
 **Snapshot words, written at entry and at a gate, read in play.** A lossless flattening of §4
@@ -637,22 +662,35 @@ needs, besides ENG-01's fields:
 
 ENG-01's `MemberKit` high limb (122 bits) holds today: conditional damage 8, threshold 8, life steal
 8, energy on hit 8, condition duration 8, enchantment duration 8, double adrenaline N 8, quick cast N
-8, health bonus 16 = **80**, free **42**. `MemberStats` has free 200–249 = **50** (high) and, once
-vs physical / vs elemental go, 48–63 = **16** (low).
+8, health bonus 16 = **80**, free **42**. The 171 bits above do not fit **that limb** (171 > 122),
+but **other snapshot words have room** (F-17): `MemberBar` holds 8 skill ids (0–127) and the elite
+slot (128–135), leaving **136–249 = 114 bits** free; `MemberStats` has 200–249 = **50** free (high)
+and, once vs physical / vs elemental go, 48–63 = **16** (low).
 
-- **Without a new word**, the kit would hold: damage sums 48 + penetration 24 + quick cast 24 +
-  condition duration 10 + enchantment 6 + armor 16 + knock-down and halving 3 + life steal 8 +
-  energy on hit 8 + double adrenaline N 8 + health bonus 16 = **171 > 122**. Moving `ARMOR_VS` to
-  `MemberStats` fits there (2 types × 6 = 12 in the 16 low bits, 7 × 6 = 42 in the 50 high bits), but
-  the kit still overflows by 49 bits. **So a lossless snapshot needs one more member word**, or
-  content restrictions (FX-24).
-- **With one more word** (`MemberMods`, word 8), the recommendation:
-  - `MemberMods` low limb: damage sums 48 + penetration 24 = **72 ≤ 128**; high limb: quick cast 24
-    = **24 ≤ 122**. Free: 56 + 98 bits for later.
-  - `MemberKit` high limb: life steal 8 + energy on hit 8 + condition duration 10 + enchantment 6 +
-    double adrenaline N 8 + health bonus 16 + armor 16 + knock-down and halving 3 = **75 ≤ 122**
-    (the conditional damage, threshold and quick-cast fields move to `MemberMods`).
-  - `MemberStats`: `ARMOR_VS` 12 low + 42 high, as above.
+**The recommended layout, 0 new slots** (FX-24; the auditor's placement):
+
+| Word (ENG-01) | Placement | Bits | Limb check |
+|---|---|---:|---|
+| `MemberBar` | damage sums 136–183 (48), penetration sums 184–207 (24), quick-cast pairs 208–231 (24) | 96 | high limb 128–249: 8 (elite) + 96 = 104 ≤ 122; free 232–249 = **18** |
+| `MemberKit` | high limb: life steal 8 + energy on hit 8 + condition duration 10 + enchantment 6 + double adrenaline N 8 + health bonus 16 + armor in a stance / enchanted 16 + knock-down 2 + halving 1 (the conditional damage, threshold and quick-cast N fields move to `MemberBar`) | 75 | 75 ≤ 122; free **47** |
+| `MemberStats` | `ARMOR_VS`: 2 types at 48–59 (low), 7 types at 200–241 (high); ENG-01's single `penetration` (168–175) is freed | 54 | 12 ≤ 16 low; 42 ≤ 50 high |
+
+So the snapshot is written as ENG-01 froze it (8 words, the same writes at create and at a gate);
+only the meaning of free bits changes. **A separate word `MemberMods` is optional**, a layout
+choice with a cost: +1 key per member, whose **first write costs N = 453,524** instead of an
+overwrite, every later write (each create and gate) **O = 32,072**; never written in play; one more
+storage read when a tick needs it (unpriced by ENG-01, ENG-07 measures).
+
+**The weapon's identity.** The rules need both the weapon's **class** (the axe's +25 %, the maul's
+ticks, an attack skill's required weapon) and its **damage type** (armor against a type). A member
+has both in `MemberStats`: `weapon` (88–95, the weapon class, design/15's table: 1 sword, 2 axe, 3
+maul, 4 bow, 5 staff, 6 wand; CBT-01 fixes that this field is the class) and `damage type`
+(160–167, after `DAMAGE_TYPE`). A goblin's are in its caste sheet (§7.3: class 4 bits, type 4 bits).
+
+**Signed sums, both ends.** A `DAMAGE_PERCENT` passive's value is bounded by the pipeline to
+**[−18, +18]**; at most 7 are held (weapon: prefix, suffix, inscription; off-hand: suffix,
+inscription; 2 set bonuses), so each `i8` sum lies in [−126, +126] ⊂ [−128, 127]. A `PENETRATION`
+passive is bounded to [0, 36]: 7 × 36 = 252 ≤ 255 (`u8`), capped at 100 at use.
 
 **Registry records** (not yet laid out; ENG-03 laid out five kinds):
 
@@ -662,40 +700,46 @@ vs physical / vs elemental go, 48–63 = **16** (low).
 | `ITEM` | 1 | low: class 8 + region 16 + rarity 8 + value 32 + book index 8 = **72 ≤ 128**; high: the entry 97 + range 8 + bomb strength 8 = **113 ≤ 122** | FX-18, FX-28 |
 | `MODIFIER` | 1 | low: slot type 8; high: 2 × 53 = **106 ≤ 122** | §4 |
 | `ARMOR_SET` | 1 | low: 5 piece bases × 16 = **80**; high: 2 × 53 = **106 ≤ 122** | — |
-| `CASTE` | 2 | §7.3, **239 bits** over 4 limbs | §7.3 |
+| `CASTE` | 2 | §7.3, **243 bits** over 4 limbs | §7.3 |
 
-**Cost.** With the recommendation, **+1 slot per member** (words 8 → 9; the MVP has 1 member per
-instance slot):
-- **Lifetime**: 1 new key per adventurer slot, N = **453,524 L2 gas once** (ENG-01 §10's N).
-- **At every create and gate**: 1 more overwritten word, O = **32,072** (ENG-01 §2.1 writes every
-  snapshot word at a generation change).
-- **In play**: written never. Read by the ticks that resolve a hit or a spell start: one storage
-  read, which ENG-01 does not price (ENG-07 measures it).
+**Cost.** With the recommendation, **0 new slots**: every addition of this document fits the
+frozen words (tables above). After the MVP: the four conditions (FX-22, +1 word per member and per
+goblin), summons (FX-20), revive's state (FX-18).
 
-Everything else fits in the frozen words: **0 slots**. After the MVP: the four conditions (FX-22,
-+1 word per member and per goblin), summons (FX-20), revive's state (FX-18).
+**Registry reads: the complete bound of one `play` invocation** (F-16). `bundle` refuses more than
+32 records (`MAX_READ`, asserted), so the reads go in **calls of at most 32 records**; the first call
+is the one every invocation already makes (E-5). The union, deduplicated, by kind, with the bound of
+each from the frozen records and the rules:
 
-**Registry reads, the true union of one invocation** (F-16). `bundle` refuses more than 32 records
-(`MAX_READ`, asserted). What the rules of this document read, deduplicated, at worst in the MVP (5
-castes):
+| Records | Bound | Parts each | Slots | Why |
+|---|---:|---:|---:|---|
+| `LOCATION` | 1 | 2 | 2 | generation; a terrain trap's level (FX-28) |
+| `OUTLINE` | 1 + 4 | 1 | 5 | the zone's chunk set, and a border chunk's mask per revealed chunk (≤ 4 reveals a batch, design/02) |
+| `QUOTAS` | 1 | 1 | 1 | generation |
+| `SPAWN_TABLE` | 1 | 1 | 1 | the location's one table |
+| `PACK` | 7 | 1 | 7 | a spawn table holds up to 7 templates (ENG-01) |
+| `SET_PIECE` | 4 | 2 | 8 | at most one authored chunk per revealed chunk |
+| `LANDMARK` | 4 | 1 | 4 | at most one per revealed chunk, if generation reads it |
+| `RIFT_GRADE` | 1 | 1 | 1 | a Rift floor's Heart |
+| The bar's `SKILL`s | 8 | 2 | 16 | used, or held as effects |
+| The belt's potions (`ITEM`) | 4 | 1 | 4 | drunk, or held as effects |
+| `CASTE`s of the goblins read | `C` | 2 | 2 `C` | stats and weapon inline (§7.3), no `BASE` read |
+| Their `SKILL`s | 4 `C` | 2 | 8 `C` | a goblin's held effect is one of them or a bar skill |
+| Terrain traps' `SKILL`s | `T` | 2 | 2 `T` | triggered by the member's moves only (FX-34): `T ≤ 10`, the moves of a batch of weight 10 |
+| **Total** | **36 + 5 C + T** | | **49 + 10 C + 2 T** | 1 + 5 + 1 + 1 + 7 + 4 + 4 + 1 + 8 + 4 = 36; 2 + 5 + 1 + 1 + 7 + 8 + 4 + 1 + 16 + 4 = 49 |
 
-| Records | Count | Parts (slots) | Why |
-|---|---:|---:|---|
-| The bar's `SKILL`s | 8 | 16 | used, or held as effects |
-| The belt's potions (`ITEM`) | 4 | 4 | drunk, or held as effects |
-| The castes (`CASTE`) of the goblins read in the invocation | 5 | 10 | every awake goblin's stats and weapon (inline, §7.3: no `BASE` read) |
-| Those castes' `SKILL`s | 20 | 40 | 4 each; a goblin's held effect is one of them or a bar skill |
-| `LOCATION` | 1 | 2 | a terrain trap's level (FX-28) |
-| Terrain traps' `SKILL`s | `T` | 2 `T` | one per distinct terrain-trap skill triggered |
-| **Total** | **38 + T** | **72 + 2 T** | 8 + 4 + 5 + 20 + 1 = 38 |
-
-- **38 + T > 32** already at `T = 0`.
-- The price at ~36,000 a slot: 72 × 36,000 = **2,592,000 L2 gas**, + 72,000 a terrain-trap skill,
-  + one more `bundle` call (C ≈ 0.12–0.14 M).
-- **ENG-05's generation reads** (spawn tables, packs, quotas, outlines, set pieces, for up to 4
-  reveals) come on top.
-- FX-29's lazy cleanup reads nothing more: the goblin's caste is already in the union.
-- The bound and its price are FX-46.
+- **`C`**, the distinct castes an invocation can read, is bounded by the location's content: the
+  castes of its spawn table's packs (≤ 7 × 5) and its Heart. **In the MVP, `C ≤ 5`** (design/09).
+- **The MVP's worst case** (`C = 5`, `T = 10`): **71 records**, so **⌈71 / 32⌉ = 3 calls**, and **119
+  slots**.
+- **Its price**: 119 × 36,000 = **4,284,000 L2 gas** of reads, + 2 calls beyond the first (C ≈
+  0.12–0.14 M each, ≈ 0.26 M).
+- **Without terrain traps triggered** (`T = 0`): 61 records, 2 calls, 99 slots, 3,564,000.
+- **The general rule** is `⌈(36 + 5 C + T) / 32⌉` calls.
+- **Assumptions.** The generation rows are the record kinds of ENG-01 §3.5 that a reveal can need,
+  with their per-invocation bounds; ENG-05 confirms which it reads. Standalone actions (`mine`,
+  `open`, `barter`) have `T = 0` and no reveal. FX-29's lazy cleanup reads nothing more.
+- The call count and its price are **FX-46**.
 
 ### 7.3 The caste sheet's shape (DES-06 fills the values)
 
@@ -707,7 +751,7 @@ castes):
 | **health regeneration** | 8 | signed pips −10…+10, stored +10 (§5.8) |
 | armor | 8 | — |
 | armor per damage type | 54 | 9 × 6 (FX-23) |
-| weapon, inline | 28 | damage 16 · type 4 · ticks 4 · range 4 (no `BASE` read) |
+| weapon, inline | 32 | **class 4** (design/15's table: the axe's bonus, the attack skills it allows) · damage 16 · **damage type 4** · ticks 4 · range 4 (no `BASE` read) |
 | energy (≤ 85), energy regeneration | 8 + 8 | stored in thirds in `GoblinState` |
 | 4 skills in priority order | 64 | 4 × 16 |
 | rank of its skills | 4 | 0–15 (§2.2) |
@@ -715,7 +759,7 @@ castes):
 | loot table | 16 | — |
 | boss flag | 1 | — |
 | movement, boss phases | — | **P** (FX-20) |
-| **Total** | **239** | 8 + 8 + 16 + 8 + 8 + 54 + 28 + 16 + 64 + 4 + 8 + 16 + 1. Laid over 2 parts (4 limbs of 128, 122, 128, 122), no field straddling a limb |
+| **Total** | **243** | 8 + 8 + 16 + 8 + 8 + 54 + 32 + 16 + 64 + 4 + 8 + 16 + 1. Laid over 2 parts (4 limbs of 128, 122, 128, 122), no field straddling a limb |
 
 The adrenaline cap is derived (its skills' highest cost).
 
@@ -785,7 +829,7 @@ report.
 | FX-4 ★ | Interrupted adrenaline | spent |
 | FX-5 ★ | Attack skills' tick cost and landing | max(weapon, activation); at once without activation, at resolution with one |
 | FX-8 ★ | The adventurer at 0 mid-tick | §5.13 |
-| FX-15 ★ | A goblin's act of cost `k > 1` | recovery of `k − 1` ticks in the activation field (§5.2) |
+| FX-15 ★ | A goblin's act of cost `k > 1` | recovery in the activation field (§5.2): `B = T + k − 1` after a plain attack, `B = A + k − n − 1` after an activated one (`k ≥ n + 2`) |
 | FX-29 ★ | A goblin's activation while frozen at `A` | lapses at `A`, applied lazily |
 | FX-41 ★ | **New.** Perception and the awake set within a tick | perception at step 0 before the selection; the set fixed for the tick, not refilled |
 
@@ -812,7 +856,7 @@ report.
 | FX-31 ★ | Knocked down reapplied while held | **changed**: refreshed like any condition |
 | FX-40 ★ | **New.** When a carrier's guards are evaluated | once per carrier's execution, before anything applies |
 | FX-42 ★ | **New.** The identity of a held effect | its carrier (a skill id, a potion's item id), not the caster, not the belt slot |
-| FX-45 ★ | **New.** Legal carriers | §5.14: one hit, one holding entry, and the rest |
+| FX-45 ★ | Legal carriers | §5.14: one hit (implicit for attacks), the hit first, one holding entry, hit modifiers on the hit's set, `TRAP` first with its payload deferred |
 
 **D. Adrenaline, counters, passives**
 
@@ -820,7 +864,7 @@ report.
 |---|---|---|
 | FX-12 ★ | Adrenaline's cap, out of combat, decay | as §5.8, §5.12; a code constant `ADRENALINE_DECAY` until BAL-01 |
 | FX-39 ★ | Which spell takes the quick-cast bonus | **now ★**: the `N`-th spell with activation ≥ 1, counted at its start; spent if interrupted |
-| FX-43 ★ | **New.** Passives held twice | summed per statistic, scope, guard and type; the lowest N for double adrenaline; one counter per quick-cast modifier (≤ 2), bonuses added, activation ≥ 1 |
+| FX-43 ★ | Passives held twice | summed per statistic, scope, guard and type; health runes of one kind not added; `DAMAGE_TYPE` never summed; the lowest N for double adrenaline; one counter per quick-cast modifier (≤ 2), bonuses added, activation ≥ 1 |
 
 **E. Areas, bombs, traps**
 
@@ -829,7 +873,7 @@ report.
 | FX-14 ★ | Terrain traps' content, lifetime, trigger, full chunk | a `SKILL` id; until triggered; once; invalid when full |
 | FX-33 ★ | design/04's 18 and 36 tiles | discs with their centre (19, 37) |
 | FX-34 ★ | Whom a terrain trap hits | members only |
-| FX-35 ★ | `DISC_1` hits 7, ENG-01 budgets 6 | raise to 7 |
+| FX-35 ★ | `DISC_1` hits 7, ENG-01 budgets 6 | raise to 7 for a tick that runs a bomb, `DISC_1` only in potions (1-tick): the unsplittable action's bound stays 3 × 14 = 42 goblins |
 | FX-21 | Radius 2 and 3 | none in MVP content until measured |
 
 **F. Content shape**
@@ -849,8 +893,8 @@ report.
 | # | Question | Recommendation |
 |---|---|---|
 | FX-22 ★ | The four post-MVP conditions | one more word per member and per goblin when they ship |
-| FX-24 ★ | The inventory of §7.2 | **changed**: one more member word (`MemberMods`), lossless |
-| FX-46 ★ | **New.** The registry reads exceed `MAX_READ` (38 + T records) | two `bundle` calls when needed (a second call only if the union passes 32), priced by ENG-07 |
+| FX-24 ★ | The inventory of §7.2 | **changed again**: the lossless snapshot repacked into `MemberBar`, `MemberKit`, `MemberStats`, **0 new slots**; `MemberMods` only as an optional layout |
+| FX-46 ★ | The registry reads exceed `MAX_READ`: `36 + 5C + T` records | calls of at most 32 records, `⌈(36 + 5C + T) / 32⌉`: **3 at the MVP's worst** (71 records, 4.28 M of reads), priced by ENG-07 |
 
 ## 10. Worked examples
 
@@ -893,7 +937,8 @@ attack skill with activation 3 and recharge 10, on a caste weapon costing 1 tick
 The adventurer is a Vanguard of level 20 with a maul and Mauls 12, holding 24 quarter strikes, with
 no set bonus.
 - **Clock 50**: the adventurer moves to the Hobgoblin's front tile (tick 51).
-- **Clock 51**: Skullring. It lands at once (FX-5) and costs the maul's 2 ticks (52, 53).
+- **Clock 51**: Skullring. It lands at once (FX-5) and costs the maul's 2 ticks (52, 53). The
+  implicit weapon hit comes first, then the knock-down (§5.14), so the blow is not critical.
   - Adrenaline 24 → 0.
   - Front arc, no block. Damage `⌊27 × 55,109 / 65,536⌋ = 22`: 400 → 378.
   - Knocked down, `t₀ = 52`, `D = 53`. This interrupts the smash: the field goes to none, and the
@@ -960,15 +1005,17 @@ with activation 3.
 
 The content is illustrative and legal under §5.14. A carrier has two entries, both `SELF`, `RING_1`,
 `FOES`:
-- entry 1: `LIFE_STEAL` 20;
-- entry 2: `DAMAGE` 50 (the carrier's one hit), guarded `BELOW_HALF`.
+- entry 1: `DAMAGE` 50 (the carrier's hit, first), guarded `BELOW_HALF`;
+- entry 2: `LIFE_STEAL` 20.
 
 The source has 230 / 480 health (460 < 480). Two foes are adjacent, A on the lower tile index and B
-on the higher, each with 100 health, and the source's strength equals their armor.
+on the higher, each with 100 health; strength equals armor, so the exponent is 0 and `table(0) =
+2^16`.
 - **Guards**, read once: `BELOW_HALF` holds.
-- **A**: entry 1 steals 20, so the source goes to 250 (500 > 480: now above half) and A to 80.
-  Entry 2 applies because the guard was read before: 80 → 30.
-- **B**: entry 1 steals 20, so the source is at 270 and B at 80. Entry 2 still applies: 80 → 30.
+- **A**: the hit takes it 100 → 50; the steal takes 20 → 30, and the source goes to 250 (500 > 480:
+  now above half).
+- **B**: the hit still applies, because its guard was read once: 100 → 50; the steal → 30, source
+  270.
 
 With a guard read per target, B would have taken no damage; FX-40 fixes the first reading.
 
@@ -980,3 +1027,35 @@ The member drank an oil: `ON_ATTACK_CONDITION` Poison 10, `charges 2`, `d = 0`, 
 - **Hit 2**: it kills the goblin. No Poison is applied (step 7: the target is dead), but charges go
   1 → 0 (step 8), and the oil ends.
 - An unused oil would have lasted until the instance closed, however long the member waited.
+
+### 10.9 An activated attack costs what a plain attack costs (§5.2)
+
+A goblin's weapon costs `k = 2`. In step 2 of tick **50** it either:
+- **plain attack**: lands at 50; recovering, `B = 50 + 2 − 1 = 51`; it skips step 2 of 51 and acts
+  again at **52**;
+- **an attack skill with activation `n = 1`**: `A = 51`. It resolves in step 1 of 51 and does not
+  act in step 2 of 51. `k = 2 < n + 2 = 3`, so there is no recovery: it acts again at **52**. (v0.3's
+  `B = A + k − n = 52` would have made it wait until 53.)
+- With `k = 3`, `n = 1`: `A = 51`, `B = 51 + 3 − 1 − 1 = 52`; it acts again at **53** = 50 + max(3, 2),
+  as a plain 3-tick attack would.
+
+### 10.10 A trap placed on an empty tile, then triggered
+
+A Warden (level 20, Trapping 12) casts Snare (10 / 2 / 20) at clock **300** on an empty walkable tile
+`t` in range. Snare's entries, by the legal-carrier rules, are:
+1. `TRAP`;
+2. `DAMAGE` 10…40 (earth, illustrative);
+3. `CONDITION` Crippled, 3 ticks (illustrative).
+
+- **Step 1 of tick 302**: the executor reads the guards, then **places** the trap. The chunk's
+  object index 0 is empty, so the object becomes kind 9, with `param` = member 0 and bar slot. There
+  is no actor at placement; the payload is not executed.
+- **Step 2 of tick 305**: goblin **44** (armor 40, 100 health, not crippled) moves onto `t`. Its move
+  was a 1-tick move, so it has no recovery; that is decided before the trap.
+- **The trap triggers**. The source is member 0: strength `3 × 20 = 60` (FX-28), rank 12.
+  - The payload runs with goblin 44 as its only actor, class `TRAP`: no arc and no block.
+  - The hit: `x = 60 − 40 = 20`, damage `⌊40 × 92,682 / 65,536⌋ = 56`, so 100 → 44. It is a hit
+    (FX-10); the goblin's +1 quarter strike is capped at its caste's cap (0 if its skills cost no
+    adrenaline).
+  - Crippled: `t₀ = 305`, `D = 307`.
+  - The object is marked used, and goblin 44's act ends with its move.
