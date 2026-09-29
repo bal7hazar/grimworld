@@ -110,3 +110,9 @@ a batch. The levers, in the order they would be pulled: `mine` inside `play` (E-
 snapshot of `enter` as calldata (E-7), the per-action events (E-17), then the target itself
 with the business model.
 
+**Added by D-145** ([ENG-03's registry](2026-09-29-eng-03-registry.md)): reading content costs about
+36,000 L2 gas a slot (`bundle`, measured by ENG-03), which §10 counted as one call. At 10 records a
+batch that is about +30M on S1, **about +$0.026**. The lever: an invocation reads only the records
+its ticks use, and, if ENG-06 and ENG-07 find the call between contracts is most of the 36,000, a
+batch reads its records in one call.
+

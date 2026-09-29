@@ -108,21 +108,6 @@ under. The batch's 40M target and weight 10 stand until ENG-07 measures a tick i
 order they would be pulled: `mine` inside `play` (E-18), `enter`'s snapshot as calldata (E-7), the
 per-action events (E-17), then the target itself.
 
-### Estimates replaced by measurements (D-144)
-
-ENG-01 §10's targets are estimates. **An implementation's measured worst case replaces an estimate
-of ENG-01 §10 when the design explains the difference** (reads, writes or calls the design requires),
-**accepted by the orchestrator up to +10 %**; beyond +10 %, or on the expedition's path (`play`, the
-actions sent alone, `enter`, `leave`, `travel_back`), it comes to the project manager. Each
-replacement is written here and after ENG-01 §10's table.
-
-| Entrypoint | §10 estimate | Accepted, measured | By |
-|---|---:|---:|---|
-| `register` | 2,409,583 | 2,650,000 | ENG-04, D-144 |
-| `create_adventurer`, cold / initialised | 4,501,991 / 4,080,539 | 4,700,000 / 4,350,000 | ENG-04, D-144 |
-| `delete_adventurer` (two list pages) | 1,150,347 | 1,750,000 | ENG-04, D-144 |
-| `set_account_owner`, 7 inside | 2,721,351 | 3,700,000, re-measured by ENG-06 | ENG-04, D-144 |
-
 The hub estimates take snforge's call × 1.157 (the median Sepolia/snforge ratio of SPK-1 §3's
 light actions), plus the floor, 3 felts of arguments and the slots the local node's traces show
 (`budget-output.txt`).
