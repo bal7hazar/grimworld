@@ -166,7 +166,6 @@ slot_state() { # <slot> -> free | held | missing | unreadable
   exec {fd}<&-
   case $rc in 0) echo free ;; 1) echo held ;; *) echo "unlockable (flock exit $rc)" ;; esac
 }
-slot_free() { [ "$(slot_state "$1" 2> /dev/null)" = free ]; }
 # The first free slot of a list. Every slot of the list is inspected first: one in error (missing,
 # unreadable, not lockable) refuses, even if another is free (fails closed).
 first_free() {
