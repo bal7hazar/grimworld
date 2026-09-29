@@ -61,7 +61,7 @@ This corrects ADR-0002, which accepted that layouts could be read in advance.
 
 | Cost of a real fog | |
 |---|---|
-| A reveal is a Fate action | It carries a randomness request, so it cannot be predicted by the client: the queue stops, and the chunk appears when the chain answers |
+| A reveal is a Fate action (option A, **not retained**) | It carries a randomness request, so it cannot be predicted by the client: the queue stops, and the chunk appears when the chain answers. Under the decided option C (D-111) a reveal is computed: the client predicts it and it can ride in a batch (D-133) |
 | How often | A few times per location, not at every step. It reads as discovery |
 | Dependency | The random source is on the path of plain movement. If it is down, exploring stops; fighting in known terrain goes on |
 
@@ -271,7 +271,7 @@ Consequences for rules written earlier:
 |---|---|
 | Only the current room is simulated | Only the window is |
 | Goblins do not follow out of a room | They follow while they are in the window, which moves with the adventurer; outrunning them is putting them out of it |
-| The queue stops when entering a room | It stops when a new chunk is revealed, or when a goblin enters sight |
+| The queue stops when entering a room | A **planned queue** stops when a new chunk is revealed, or when a goblin enters sight; the client evaluates the condition (D-133, design/02). A played batch has no stop condition but validity |
 | Goblins at an entrance get a free attack on a fleeing adventurer | Dropped; fleeing is a matter of speed and terrain |
 | The adventurer sees the whole room | The adventurer sees **terrain** of every revealed chunk, and **goblins within sight** (radius 6, line of sight not required) |
 | A chunk is revealed | When sight touches it |

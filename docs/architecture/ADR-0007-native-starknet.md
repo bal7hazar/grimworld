@@ -84,6 +84,12 @@ costs gas on every action.
 
 This keeps the indexer out of the path of a move, and bounds what it must do.
 
+**The indexer is never a source of simulation state** (D-133). The client simulates only over
+a copy of the instance read from the chain by view calls, pinned to one block; recovery after
+an unknown outcome uses only the account's nonce and a snapshot at one block, and keeps only
+the actions whose results are unchanged (design/02, *The client's copy of the instance*). The
+indexer serves display, and may serve as an optional early signal of a reorg.
+
 ### Indexer
 
 | | |

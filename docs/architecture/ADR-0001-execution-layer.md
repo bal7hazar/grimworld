@@ -76,6 +76,7 @@ by infrastructure**:
    as suspense. See [ADR-0002](ADR-0002-randomness.md).
 3. **Action queue** (`docs/design/02-core-loop.md`). Several deterministic actions travel
    in one transaction; the chain lags behind the player without blocking the next input.
+   Played actions travel in batches (D-133, design/02).
 
 ### Why not the others
 
@@ -123,8 +124,10 @@ before it is ever used as a fallback.
 | + | Composability with mainnet assets and identity from day one |
 | − | **Game logic exists twice**: Cairo (authoritative) and client (prediction). Divergence is the main technical risk. Mitigation: shared test vectors generated from Cairo, a parity audit lens, and rollback to chain state on any mismatch |
 | − | Every action costs a fee, and **the player never pays it** (pillar 7): the paymaster sponsors every game transaction, without quota visible to the player. The cost per active player per day is a figure the business model must cover; it is bounded by game rules (daily cap on Rifts), measured in Phase 0 (SPK-2) and watched in production |
-| − | A sponsored game is a target for abuse (scripts burning the paymaster). Limits are game rules and silent rate limits per account, never fees |
-| − | Reorgs happen. The client must treat chain state as authoritative and be able to rewind its optimistic state at any time |
+| − | A sponsored game is a target for abuse (scripts burning the paymaster). Limits are game rules and silent rate limits per account, never fees. The limits count **gas**, not transactions, since one transaction can carry several batches (D-133) |
+| − | Reorgs happen. The client must treat chain state as authoritative and be able to rewind its optimistic state at any time. A reorg can undo confirmed actions to any depth, including Fate draws, gates and the entry into an instance: the client drops every prediction and recovers to the canonical state. Its speculation (two batches ahead of the chain) is not a bound on rollback (design/02, *The chain's answer*, D-133) |
+| − | The optimistic client installs chain state **only from one snapshot**, read in one call pinned to a block hash or to `pre_confirmed`. A transaction that is not found is an unknown outcome, decided by the account's nonce and a snapshot (D-133, design/02) |
+| − | The client simulates only over a **copy of the instance read from the chain**, pinned to one block; the indexer is never a source of simulation state (D-133, ADR-0007). Recovery after an unknown outcome uses only the account's nonce and a snapshot at one block, and keeps only the actions whose results are unchanged |
 | − | Dependency on Cartridge services (paymaster, vRNG) for liveness |
 
 ## Validation — Phase 0 spikes

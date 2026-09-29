@@ -36,7 +36,7 @@ Placed at generation, at least 2 tiles away from an opening to a neighbouring ch
 | Feature | Frequency | Rule |
 |---|---|---|
 | **Pack** | 0 to 2 per chunk, from the location's spawn table, within its level band | Members within 2 tiles of the pack's tile; asleep or on watch |
-| **Remains** | Left by a dead goblin | Looting is a Fate draw and ends the queue |
+| **Remains** | Left by a dead goblin | Looting is a Fate draw and ends the queue and the batch |
 | **Chest** | 1 chunk in 6 | Opened once; content is a Fate draw |
 | **Vein** (Rifts only) | Quota: 1 per floor | 3 ticks to mine, interrupted by a hit; 1 stillstone |
 | **Gathering node** | 1 chunk in 4, zones only | 1 tick; 1–2 common ingredients of the region, no draw |
