@@ -11,7 +11,7 @@ Written by the game's side, answered by the track through releases.
 | A-4 | A claim hook the game implements (experience, gold, merit, skills, items) | design/06 | 2026-09-28 | `quiver_quest` 0.1.0 |
 | A-5 | Progress reported by the contract that causes it, never by the client; callable from the results interface of the ephemeral contract | design/06 § Rules, ADR-0001 | 2026-09-28 | `quiver_quest` 0.1.0 |
 | A-6 | Storage mode for what a rule reads, event mode for what is only shown, chosen per call | ADR-0004 | 2026-09-28 | `quiver_quest` 0.1.0 |
-| A-7 | Achievements with tiers sharing one task | Titles (design/13) | 2026-09-28 | `quiver_achievement` 0.1.0, to come (event mode, D-139) |
+| A-7 | Achievements with tiers sharing one task | Titles (design/13) | 2026-09-28 | `quiver_achievement` 0.1.0 (event mode, D-139) |
 | A-8 | No dependency on Dojo; builds on Cairo 2.19; `snforge_std` as a dev-dependency | ADR-0007 | 2026-09-28 | `quiver_quest` 0.1.0 |
 | A-9 | The edge cases found by reading the Dojo packages are tests: unlock firing on every decrement, an inactive dependent quest reverting the whole progress call, a recurring prerequisite underflowing a lock counter, event mode untested | ADR-0004, points 3 and 4 | 2026-09-28 | `quiver_quest` 0.1.0 |
 | A-10 | At most 16 distinct tasks reported per call; the game snapshots at entry the task ids an instance will report, 16 at most (D-131) | Bounded execution | 2026-09-28 | `quiver_quest` 0.1.0 |

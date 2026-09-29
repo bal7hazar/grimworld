@@ -44,6 +44,11 @@ In a clean clone, on 2026-09-29.
 
 ## After the publication
 
-The orchestrator reports the registry's entry; the project manager reads the registry,
-compares the checksum, consumes the version from a fresh project, records the result here
-and reports to the owner.
+Published on 2026-09-29 by the orchestrator's session. Read by the project manager:
+
+| | |
+|---|---|
+| Registry | https://scarbs.xyz/packages/quiver_achievement ; the index lists `0.1.0` with `cksum sha256:1473a07fcbe1298a9ba85ef07b1b5afc63816c1fcbe3c5c10151908ae7a4d9d9`, **the checksum of the go**; dependencies `starknet ^2.19.0` (normal) and `snforge_std ^0.61.0` (test) |
+| Tag | `quiver_achievement-v0.1.0` points at `50017e7576fd7d8228016a450f6ccdfac5044f1d`, the commit of the go |
+| Release | https://github.com/bal7hazar/quiver/releases/tag/quiver_achievement-v0.1.0 , not a draft, the archive attached |
+| Consumed | A fresh project depending on `quiver_achievement = "0.1.0"` and `quiver_quest = "0.1.0"` together builds with Scarb 2.19.4; its lock file records both from `registry+https://scarbs.xyz/` with the checksums of the two goes |
