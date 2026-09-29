@@ -14,7 +14,8 @@ fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
 }
 
 #[test]
-#[available_gas(l2_gas: 92547)] // ceil(1.05 × 88140 measured)
+// gas: raised, pins Stop::Version, Refusal::Version and their ordinals (F-15)
+#[available_gas(l2_gas: 215292)] // ceil(1.05 × 205040 measured)
 fn test_instances_event_keys_and_data() {
     let id = instance_id(5, 2);
     let (keys, data) = split(
@@ -35,12 +36,42 @@ fn test_instances_event_keys_and_data() {
                 stop: Stop::Invalid,
                 sequence: 43,
                 clock: 77,
+                version: 6,
             },
         ),
     );
     assert(keys == array![selector!("BatchPlayed"), id.into()], 'batch keys');
     // Stop::Invalid is variant 2.
-    assert(data == array![9, 40, 3, 2, 43, 77], 'batch data');
+    assert(data == array![9, 40, 3, 2, 43, 77, 6], 'batch data');
+
+    // A batch refused for its content version (D-141, E-5): nothing ran, so `played` is 0, `from`
+    // and `sequence` are the instance's, and `version` is the registry's current one (7), not the
+    // 6 the client sent. `Stop::Version` is variant 6.
+    let (_, data) = split(
+        Event::BatchPlayed(
+            BatchPlayed {
+                instance_id: id,
+                adventurer_id: 9,
+                from: 40,
+                played: 0,
+                stop: Stop::Version,
+                sequence: 40,
+                clock: 77,
+                version: 7,
+            },
+        ),
+    );
+    assert(data == array![9, 40, 0, 6, 40, 77, 7], 'version stop data');
+
+    // The ordinals 0 to 5 are unchanged; Version was appended.
+    let mut stops = array![];
+    for stop in array![
+        Stop::None, Stop::Sequence, Stop::Invalid, Stop::Weight, Stop::Defeated, Stop::Closed,
+        Stop::Version,
+    ] {
+        Serde::serialize(@stop, ref stops);
+    }
+    assert(stops == array![0, 1, 2, 3, 4, 5, 6], 'stop ordinals');
 
     let (keys, data) = split(
         Event::Refused(
@@ -52,6 +83,27 @@ fn test_instances_event_keys_and_data() {
     assert(keys == array![selector!("Refused"), id.into()], 'refused keys');
     // Refusal::Gone is variant 4.
     assert(data == array![9, 40, 41, 4], 'refused data');
+
+    // An `open`, `mine` or `barter` computed under another content version (D-141):
+    // Refusal::Version is variant 8, appended after Price (7).
+    let (_, data) = split(
+        Event::Refused(
+            Refused {
+                instance_id: id, adventurer_id: 9, from: 40, sequence: 40, reason: Refusal::Version,
+            },
+        ),
+    );
+    assert(data == array![9, 40, 40, 8], 'version refusal data');
+
+    // The ordinals 0 to 7 are unchanged; Version was appended.
+    let mut reasons = array![];
+    for reason in array![
+        Refusal::Sequence, Refusal::Closed, Refusal::Absent, Refusal::Reach, Refusal::Gone,
+        Refusal::Gate, Refusal::Sealed, Refusal::Price, Refusal::Version,
+    ] {
+        Serde::serialize(@reason, ref reasons);
+    }
+    assert(reasons == array![0, 1, 2, 3, 4, 5, 6, 7, 8], 'refusal ordinals');
 
     let (keys, data) = split(
         Event::InstanceClosed(InstanceClosed { instance_id: id, outcome: Outcome::Defeated }),

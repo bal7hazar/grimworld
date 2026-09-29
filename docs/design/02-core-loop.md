@@ -248,9 +248,10 @@ earlier, nothing else; the client counts both as the contract does.
 
 **The gas bound is a target, not yet a proven bound.** 40M L2 gas per batch is an estimate
 from the figures below. ENG-01 counted it in storage slots: with the rules above, a batch changes
-at most 64 slots (a reveal's case is settled by ENG-01b), but priced as if each tick cost what it
-costs alone, the worst batch is 40.8M to 47.3M ([ENG-01](../architecture/ENG-01-interfaces.md) §10.1). ENG-07 measures a tick inside a
-batch; until then 40M and weight 10 stand.
+at most 70 slots (ENG-01b), but priced as if each tick cost what it costs alone, the worst batch is
+40.8M to 47.3M, and 48.5M in a slot never used that far
+([ENG-01](../architecture/ENG-01-interfaces.md) §10.1). ENG-07 measures a tick inside a batch; until
+then 40M and weight 10 stand.
 
 | Figure | L2 gas | Source, and what it leaves out |
 |---|---:|---|

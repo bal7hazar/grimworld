@@ -2,16 +2,17 @@
 |---|---|---:|---:|---:|---|---|
 | `enter` (with `create`), first entry of the adventurer | entered | 4 | 2 | 105,547 | 0 / 26 → **3,760,598** | 19 / 7 → **11,768,186** |
 | `enter`, a later entry | entered | 4 | 2 | 105,547 | 0 / 25 → **3,728,526** | 6 / 19 → **6,257,238** |
-| `enter_rift`, later entry, the day's first board action | entered | 5 | 2 | 105,547 | 0 / 26 → **3,996,598** | 7 / 19 → **6,946,762** |
+| `enter_rift`, either entry: the adventurer's first (a Rift can be its first instance, F-4) or a later one | entered, first entry of the adventurer | 5 | 2 | 105,547 | 0 / 27 → **4,028,670** | 20 / 7 → **12,457,710** |
+| `enter_rift`, later entry alone, the day's first board action | entered | 5 | 2 | 105,547 | 0 / 26 → **3,996,598** | 7 / 19 → **6,946,762** |
 | `leave`, `travel_back` to a hub | returned | 1 | 4 | 92,672 | 0 / 9 → **1,954,739** | 0 / 9 → **1,954,739** |
 | `leave` through a gate to a location | moved | 3 | 4 | 105,547 | 0 / 13 → **3,667,902** | 2 / 11 → **4,510,806** |
 | `loot` | a boss's 3 items | 3 | 4 | 0 | 3 / 18 → **3,683,287** | 10 / 11 → **6,633,451** |
-| `open` (a chest: 1 tick, then a draw) | completion, goblins near | 3 | 4 | 919,072 | 1 / 54 → **9,134,816** | 36 / 16 → **23,789,420** |
-| `mine` (up to 3 ticks, no draw), its own union | defeat, goblins near / completion, goblins near | 2 | 4 | 2,757,216 | 0 / 109 → **20,556,230** | 88 / 15 → **57,312,566** |
-| `barter` (1 tick, then the hub's exchange) | completion, goblins near | 3 | 4 | 919,072 | 1 / 51 → **8,938,600** | 31 / 18 → **21,485,944** |
-| `play`, weight 10, the cap of 16 goblins (E-16), ticks as alone | objective and defeat | 2 | 4 | 1,314,235 | 0 / 64 → **47,325,392** | 35 / 27 → **62,012,068** |
-| `play`, one 3-tick action alone, 42 goblins (E-21) | objective and defeat | 2 | 4 | 3,021,083 | 0 / 111 → **20,545,233** | 88 / 22 → **57,600,937** |
-| `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b) | objective and defeat | 2 | 4 | 3,021,083 | 0 / 68 → **19,166,137** | 46 / 22 → **38,552,929** |
+| `open` (a chest: 1 tick, then a draw) | completion, goblins near, with the objective | 3 | 5 | 965,408 | 1 / 56 → **9,250,416** | 37 / 17 → **24,326,472** |
+| `mine` (up to 3 ticks, no draw), its own union | defeat, goblins near, with the objective / completion, goblins near, with the objective | 2 | 5 | 2,803,552 | 0 / 111 → **20,671,830** | 89 / 16 → **57,849,618** |
+| `barter` (1 tick, then the hub's exchange) | completion, goblins near, with the objective | 3 | 5 | 965,408 | 1 / 53 → **9,054,200** | 32 / 19 → **22,022,996** |
+| `play`, weight 10, the cap of 16 goblins (E-16), first records weighed (E-1), ticks as alone | objective and defeat | 2 | 5 | 1,320,673 | 0 / 64 → **47,336,950** | 3 / 59 → **48,537,162** |
+| `play`, one 3-tick action alone, 42 goblins (E-21) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 111 → **20,556,791** | 88 / 22 → **57,612,495** |
+| `play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted) | objective and defeat | 2 | 5 | 3,027,521 | 0 / 68 → **19,177,695** | 46 / 22 → **38,564,487** |
 | `register` | registered | 0 | 0 | 0 | 3 / 1 → **2,409,583** | 3 / 1 → **2,409,583** |
 | `set_account_owner`, 7 adventurers inside | changed | 7 | 2 | 0 | 1 / 9 → **2,721,351** | 1 / 9 → **2,721,351** |
 | `create_adventurer` | created | 1 | 2 | 0 | 6 / 3 → **4,080,539** | 7 / 2 → **4,501,991** |
@@ -43,12 +44,12 @@
 | `set_trade_side` | set | 1 | 4 | 0 | 0 / 3 → **1,269,635** | 2 / 1 → **2,112,539** |
 | `confirm_trade` | the swap (7 + 7 items, 2 + 2 balances, gold) | 2 | 3 | 46,336 | 0 / 35 → **3,073,155** | 8 / 27 → **6,444,771** |
 | `decline_trade`, `cancel_trade` | closed | 1 | 2 | 46,336 | 0 / 1 → **1,141,587** | 0 / 1 → **1,141,587** |
-| `Registry.set_record` (3 parts) | written | 0 | 6 | 0 | 0 / 4 → **1,025,947** | 4 / 0 → **2,711,755** |
+| `Registry.set_record` (3 parts) | written | 0 | 6 | 0 | 0 / 5 → **1,058,019** | 5 / 0 → **3,165,279** |
 | admin setters, `upgrade` | set | 0 | 4 | 0 | 0 / 4 → **1,065,707** | 0 / 4 → **1,065,707** |
 
 Event prices from their shapes (E):
   AdventurerLocated: 3 felts, 46,336
-  BatchPlayed: 8 felts, 78,523
+  BatchPlayed: 9 felts, 84,961
   ChunkRevealed: 3 felts, 46,336
   Defeated: 3 felts, 46,336
   DungeonCleared: 3 felts, 46,336
@@ -65,16 +66,38 @@ Event prices from their shapes (E):
   TrialPassed: 4 felts, 52,773
 
 §10.1, a batch with the cap (16 goblins), branch by branch:
-  open: keys 56; initialised (0, 56) → 46,883,472; cold (34, 20) → 61,148,696
-  objective (a Rift or a dungeon cleared): keys 58; initialised (0, 58) → 46,993,952; cold (35, 21) → 61,680,628
-  defeat: keys 62; initialised (0, 62) → 47,214,912; cold (34, 26) → 61,480,136
-  objective and defeat: keys 64; initialised (0, 64) → 47,325,392; cold (35, 27) → 62,012,068
-  4 reveals, 2 ticks: keys 66; initialised (0, 66) → 14,910,232; cold (42, 22) → 32,547,072
-  ticks shared: 22,186,142 to 28,733,902
-  ticks alone, the window at its low end: 40,777,632
+  open: keys 56; initialised (0, 56) → 46,895,030; cold (2, 52) → 47,673,790
+  objective (a Rift or a dungeon cleared): keys 58; initialised (0, 58) → 47,005,510; cold (3, 53) → 48,205,722
+  defeat: keys 62; initialised (0, 62) → 47,226,470; cold (2, 58) → 48,005,230
+  objective and defeat: keys 64; initialised (0, 64) → 47,336,950; cold (3, 59) → 48,537,162
+  open, 4 reveals, 2 ticks: keys 62; initialised (0, 62) → 14,793,502; cold (10, 50) → 18,943,878
+  objective (a Rift or a dungeon cleared), 4 reveals, 2 ticks: keys 64; initialised (0, 64) → 14,903,982; cold (11, 51) → 19,475,810
+  defeat, 4 reveals, 2 ticks: keys 68; initialised (0, 68) → 15,124,942; cold (10, 56) → 19,275,318
+  objective and defeat, 4 reveals, 2 ticks: keys 70; initialised (0, 70) → 15,235,422; cold (11, 57) → 19,807,250
+  ticks shared: 22,197,700 to 28,745,460
+  ticks alone, the window at its low end: 40,789,190
   cap 24 instead of 16: +513,152 (16 more keys overwritten)
-  the audit's one-word figure under fix loop 2's model: 37,715,298 (61 keys: 45 new, 16 other)
-  one word per goblin, open: keys 60; cold (45, 15) → 37,689,557
-  one word per goblin, objective (a Rift or a dungeon cleared): keys 62; cold (46, 16) → 38,221,489
-  one word per goblin, defeat: keys 66; cold (45, 21) → 38,020,997
-  one word per goblin, objective and defeat: keys 68; cold (46, 22) → 38,552,929
+
+Slot bound, from the key sets: at most 70 keys, in 'objective and defeat, 4 reveals, 2 ticks' (initialised 15,235,422); the gas maximum is 'objective and defeat' (64 keys, 47,336,950)
+  chunk keys of that branch: 13 = 9 features words (a revealed chunk's is one of them) + 4 terrain words
+
+E-1, first records weighed: the worst branch of a batch of 16 goblins, n of them new, 10 - n ticks:
+  no weight (before D-141): objective and defeat, cold 62,023,626
+  n = 0: objective and defeat: keys 64, cold (3, 59) → 48,537,162
+  n = 1: objective and defeat: keys 64, cold (5, 57) → 45,095,153
+  n = 2: objective and defeat: keys 64, cold (7, 55) → 41,653,144
+  n = 3: objective and defeat: keys 64, cold (9, 53) → 38,211,135
+  n = 4: objective and defeat: keys 64, cold (11, 51) → 34,769,126
+  n = 5: objective and defeat: keys 64, cold (13, 49) → 31,327,117
+  n = 6: objective and defeat: keys 64, cold (15, 47) → 27,885,108
+  n = 7: objective and defeat: keys 64, cold (17, 45) → 24,443,099
+  n = 8: objective and defeat: keys 64, cold (19, 43) → 21,001,090
+  n = 9: objective and defeat: keys 64, cold (21, 41) → 17,559,081
+
+E-21, the unsplittable class (3-tick action among 42 goblins, `mine`): cold maximum 57,849,618 against 58,000,000 → holds
+
+the audit's one-word figure under fix loop 2's model: 37,715,298 (61 keys: 45 new, 16 other)
+  one word per goblin, open: keys 60; cold (45, 15) → 37,701,115
+  one word per goblin, objective (a Rift or a dungeon cleared): keys 62; cold (46, 16) → 38,233,047
+  one word per goblin, defeat: keys 66; cold (45, 21) → 38,032,555
+  one word per goblin, objective and defeat: keys 68; cold (46, 22) → 38,564,487
