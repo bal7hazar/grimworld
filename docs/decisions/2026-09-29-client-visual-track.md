@@ -42,6 +42,12 @@ fingerprint of `out/` is stable on each machine but differs between the Mac and 
   forces that variable for every sub-agent; the default configuration stays the app's (bal7hazar).
 - The track's briefs include `CV-*`; the macOS launcher is CV-01.
 
+## Amended, 2026-09-29, the budget (owner)
+
+The Mac has 12 cores and 64 GB, load about 3: **5 agents at a time on the Mac**, audits included,
+with the load check of the VPS scaled to 12 cores (load above 18 or under 8 GB available: no new
+launch). The Mac's launcher (CV-01) enforces them. Tasks lent by the game count in the 5 (D-149).
+
 ## What would reverse it
 
 The owner preferring the game orchestrator to merge, or the art direction choosing other sizes.
