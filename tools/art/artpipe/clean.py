@@ -4,6 +4,7 @@ A pose is a `Pose`: a tight RGBA crop plus the position of its feet (anchor x, b
 the crop. Registration later places every pose of a sprite in one cell size on one baseline.
 """
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -37,34 +38,41 @@ def dilate(mask, r):
 
 
 def sheet_key(rgb):
-    """The key colour of a sheet: per-channel median of a 12 px border ring."""
+    """The key colour of a sheet: per-channel median of a 12 px border ring (the upper middle value
+    after an integer sort, so an integer: no averaging)."""
     ring = np.concatenate([rgb[:12].reshape(-1, 3), rgb[-12:].reshape(-1, 3),
                            rgb[:, :12].reshape(-1, 3), rgb[:, -12:].reshape(-1, 3)])
-    return np.median(ring, axis=0)
+    return np.sort(ring, axis=0)[len(ring) // 2].astype(np.int64)
+
+
+def div_round(num, den):
+    """Integer division rounded half up, element-wise (den > 0)."""
+    return (2 * num + den) // (2 * den)
 
 
 def key_sheet(rgb, s):
-    """Magenta -> transparency. Returns (RGBA uint8, key colour).
+    """Magenta -> transparency. Returns (RGBA uint8, key colour). Integer arithmetic only.
 
     Pixels within `key_tolerance` of the key are background. Within `fringe_radius` of the
     background, edge pixels are anti-aliased mixes p = a*fg + (1-a)*key: alpha is estimated from
-    how magenta the pixel is ((R+B)/2 - G, zero for a neutral foreground) and the key colour is
-    subtracted back out, so no pink halo is left. Elsewhere the pixel is opaque.
+    how magenta the pixel is (R + B - 2G, zero for a neutral foreground) and the key colour is
+    subtracted back out, so no pink halo is left. Elsewhere the pixel is opaque. Alpha is in
+    0..255 throughout: a = 255 (1 - m / m_key), fg = (255 p - (255 - a) key) / a, both rounded.
     """
     key = sheet_key(rgb)
-    p = rgb.astype(np.float32)
+    p = rgb.astype(np.int64)
     bg = np.abs(p - key).max(axis=2) <= s["key_tolerance"]
-    m = (p[..., 0] + p[..., 2]) / 2 - p[..., 1]
-    m_key = float((key[0] + key[2]) / 2 - key[1])
-    a_soft = np.clip(1.0 - m / m_key, 0.0, 1.0)
+    m = p[..., 0] + p[..., 2] - 2 * p[..., 1]
+    m_key = int(key[0] + key[2] - 2 * key[1])
+    a_soft = np.clip(div_round(255 * (m_key - m), m_key), 0, 255)
     near = dilate(bg, s["fringe_radius"])
-    a = np.where(bg, 0.0, np.where(near, a_soft, 1.0))
-    a[a < s["min_alpha"]] = 0.0
-    safe = np.maximum(a, 1e-3)[..., None]
-    fg = np.clip((p - (1.0 - a)[..., None] * key) / safe, 0, 255)
+    a = np.where(bg, 0, np.where(near, a_soft, 255))
+    a[a < math.ceil(255 * s["min_alpha"])] = 0
+    safe = np.maximum(a, 1)[..., None]
+    fg = np.clip(div_round(255 * p - (255 - a)[..., None] * key, safe), 0, 255)
     out = np.zeros(rgb.shape[:2] + (4,), np.uint8)
-    out[..., :3] = np.where((a > 0)[..., None], np.rint(fg), 0).astype(np.uint8)
-    out[..., 3] = np.rint(a * 255).astype(np.uint8)
+    out[..., :3] = np.where((a > 0)[..., None], fg, 0).astype(np.uint8)
+    out[..., 3] = a.astype(np.uint8)
     return out, key
 
 
@@ -103,10 +111,10 @@ def register(rgba):
     crop = rgba[y0:y1, x0:x1].copy()
     solid = crop[..., 3] >= 64
     width = crop.shape[1]
-    need = max(4, int(round(0.08 * width)))
+    need = max(4, (8 * width + 50) // 100)                  # 8 % of the width, in integers
     rows = np.flatnonzero(solid.sum(axis=1) >= need)
     last = int(rows.max()) if len(rows) else crop.shape[0] - 1
-    band_top = max(0, last - max(3, int(round(0.04 * crop.shape[0]))))
+    band_top = max(0, last - max(3, (4 * crop.shape[0] + 50) // 100))
     bx = np.flatnonzero(solid[band_top:last + 1].any(axis=0))
     feet_x = int((bx.min() + bx.max() + 1) // 2) if len(bx) else width // 2
     return Pose(crop, feet_x, last + 1)
@@ -126,8 +134,11 @@ def cut_generated(sheet_path, rows, s):
     opaque = rgba[..., 3] > 0
     area = np.bincount(lab[opaque], minlength=n + 1)
     count = np.bincount(lab.ravel(), minlength=n + 1)
-    sum_y = np.bincount(lab.ravel(), weights=ys.ravel(), minlength=n + 1)
-    sum_x = np.bincount(lab.ravel(), weights=xs.ravel(), minlength=n + 1)
+    # Centroid sums in int64 (np.add.at: exact whatever the order), not bincount's float weights.
+    sum_y = np.zeros(n + 1, np.int64)
+    sum_x = np.zeros(n + 1, np.int64)
+    np.add.at(sum_y, lab.ravel(), ys.ravel().astype(np.int64))
+    np.add.at(sum_x, lab.ravel(), xs.ravel().astype(np.int64))
     idx = np.flatnonzero(lab.ravel() > 0)
     l, y, x = lab.ravel()[idx], idx // lab.shape[1], idx % lab.shape[1]
     box = np.array([np.full(n + 1, 10 ** 6), np.full(n + 1, 10 ** 6),
@@ -143,14 +154,14 @@ def cut_generated(sheet_path, rows, s):
     # bounding-box gap, within its own row: it may cross the grid line.
     body = {}
     for c in keep:
-        cell = (int(sum_y[c] / count[c]) // GRID, int(sum_x[c] / count[c]) // GRID)
+        cell = (int(sum_y[c] // count[c]) // GRID, int(sum_x[c] // count[c]) // GRID)
         if cell not in body or area[c] > area[body[cell]]:
             body[cell] = c
     cells = {cell: [c] for cell, c in body.items()}
     for c in keep:
         if c in body.values():
             continue
-        row = int(sum_y[c] / count[c]) // GRID
+        row = int(sum_y[c] // count[c]) // GRID
 
         def gap(b):
             dx = max(box[0][b] - box[2][c], box[0][c] - box[2][b], 0)
