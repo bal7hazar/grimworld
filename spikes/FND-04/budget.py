@@ -150,8 +150,13 @@ out(f"| + the window assembled from chunks, per tick with goblins awake | +{fmt(
 out(f"| design/02's target of a batch | 40,000,000 | — | design/02 § Size |")
 out(f"| Batch as measured + window each tick | {fmt(batch_as_measured + 10 * spk7_window)} | E | above 40M |")
 out(f"| Batch sharing + window each tick | {fmt(batch_shared + 10 * spk7_window)} | E | |")
-per_tick_budget = (40_000_000 - FLOOR - 10 * OTHER_SLOT - PER_FELT * 30) / 10
-out(f"| **Per-tick budget inside 40M** (40M − floor − 10 game slots once − 30 felts) / 10 | **{fmt(per_tick_budget)}** | D | the game's computation and storage syscalls of one tick, window included |")
+per_tick_budget = (40_000_000 - FLOOR - 16 * OTHER_SLOT - PER_FELT * 30) / 10
+out(f"| **Per-tick budget inside 40M** (40M − floor − 16 game slots once − 30 felts) / 10 | **{fmt(per_tick_budget)}** | D | the game's computation and storage syscalls of one tick, window included |")
+ret = sepolia("return the burner's STRK")
+out(f"| Funding a new burner: the burner's STRK transfer measured, its recipient's balance new instead of overwritten | "
+    f"{fmt(ret['receipt'] + NEW_SLOT - OTHER_SLOT)} | E | {fmt(ret['receipt'])} (M) + {fmt(NEW_SLOT - OTHER_SLOT)} |")
+fate = FLOOR + 1_000_000 + 2 * NEW_SLOT + 4 * OTHER_SLOT
+out(f"| A Fate action: floor + a call of 1.0M + 2 new + 4 other slots | {fmt(fate)} | E | the call's 1.0M is an assumption |")
 out()
 
 # --- Expedition -------------------------------------------------------------------------------------

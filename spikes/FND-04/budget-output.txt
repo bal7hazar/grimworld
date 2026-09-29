@@ -50,7 +50,9 @@ Kinds: M measured; D derived from measurements by arithmetic only; E estimate re
 | design/02's target of a batch | 40,000,000 | — | design/02 § Size |
 | Batch as measured + window each tick | 44,182,245 | E | above 40M |
 | Batch sharing + window each tick | 27,449,902 | E | |
-| **Per-tick budget inside 40M** (40M − floor − 10 game slots once − 30 felts) / 10 | **3,870,874** | D | the game's computation and storage syscalls of one tick, window included |
+| **Per-tick budget inside 40M** (40M − floor − 16 game slots once − 30 felts) / 10 | **3,851,631** | D | the game's computation and storage syscalls of one tick, window included |
+| Funding a new burner: the burner's STRK transfer measured, its recipient's balance new instead of overwritten | 1,706,567 | E | 1,285,115 (M) + 421,452 |
+| A Fate action: floor + a call of 1.0M + 2 new + 4 other slots | 2,852,275 | E | the call's 1.0M is an assumption |
 
 ## The expedition: 300 actions (SPK-1 §5's composition), burner sending directly
 
