@@ -112,6 +112,26 @@ for later lots: **a class that passes 50 % of a limit is split before it grows f
 their size is unknown (ARC). Running `class_sizes.py` in CI is the orchestrator's step in
 `.github/` (§11, E-10).
 
+**The tick's library class (CBT-02, M).** `TickLibrary`, in `grimworld_logic`
+(`contracts/logic/src/systems/tick.cairo`; the package's manifest declares `[lib]` and
+`[[target.starknet-contract]]`, since a contract target replaces the default library target). Its
+one entrypoint, `ITickLibrary::run(words, content, ticks) -> words` (`grimworld_logic::interface`),
+takes the stored words of the members and of the goblins the ticks may touch (`types::tick::Words`:
+a member's 4 words of play and its 3 snapshot words, a goblin's 2, the clock, the kills so far),
+and the batch's content as sheets (`types::tick::Content`: the few fields of a `SKILL`, an `ITEM`
+and a `CASTE` a tick reads); it loads each actor's hot fields once, runs the ticks, and returns the
+words with the hot fields written back as deltas. `Instances` calls it through
+`ITickLibraryLibraryDispatcher { class_hash }`, once per invocation.
+
+| Measure (snforge, `contracts/logic/tests/test_tick.cairo`) | L2 gas |
+|---|---:|
+| `TickLibrary`'s class: 439,402 bytes of Sierra, **18,904 CASM felts, 23.08 %** of the nearer limit | — |
+| The call itself on the worst state (8 goblins, the member, 28 skills, 5 castes, 4 potions): its syscall and the words and content through calldata and back (`test_cost_library_call` − `test_cost_library_baseline`) | **799,800** |
+| Loading and storing the worst state's 9 actors, once per call (`test_cost_load_store_worst` − its fixture) | 1,906,060 |
+
+The call costs about 6.8 C (§2.3's C = 117,910): most of it is the content's calldata (the sheets,
+about 230 felts on the worst state), not the syscall. The tick's figures per tick are in §9.2.
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -956,6 +976,28 @@ revealed, because `Σ (1 + 2 cᵢ) ≤ 10`):
 
 Without a cap on goblins, a batch's writes are bounded only by 280 goblin words: 8.98 M at O
 initialised, 127 M at N cold. **E-16** proposes the cap, **E-1** the weight of a cold goblin key.
+
+**A tick's figures (CBT-02, M).** The tick's pipeline (`grimworld_logic::tick`, steps 0 to 5 of
+design/19 §5.1, with the executor, the AI, perception and the objectives left as hooks for CBT-05
+and ENG-07) writes **no word the rows above do not already count**: of a member, the state, the
+timers and the recharges; of a goblin in the awake set, its two words. It reads nothing from
+storage: the words come in with the library call (§1.3) and go out with it. Its cost, net of the
+tests' fixtures, against the expedition's target of **1,469,435 L2 gas a tick inside a batch**
+(cost-budget §2, D-159):
+
+| Per tick | Representative (8 awake goblins fighting, the member with a condition and an effect, 2 castes) | Worst (8 goblins of 5 castes, each with 3 degenerating conditions and an effect; 4 activations resolving, 2 lapsing, 2 recoveries ending; the member with 4 effects, 3 conditions and an activation resolving) |
+|---|---:|---:|
+| The pipeline, one tick | 617,867 | 1,792,171 |
+| The pipeline, over a batch of 10 ticks | 622,274 | 751,553 |
+| Load and store, and the library call, over the batch | 200,857 | 271,009 |
+| **Through one library call, a batch of 10 ticks, per tick** | **823,131** | **1,022,562** |
+| The content the tick reads, once per batch (D-145: 54,000 a record, 98,000 a call): 19 / 37 records, read into sheets at 40,995 a record | 190,291 | 371,082 |
+| **The tick's share, per tick** | **1,013,422** | **1,393,644** |
+
+The executor (CBT-03 to CBT-05), the goblins' AI and the flood (ENG-07), the window, the storage
+writes and the transaction's floor are not in these figures and must fit what is left: 456,013 a
+tick on the representative batch, 75,791 on the worst. The escalation and its levers are in
+CBT-02's report.
 
 **One action that cannot be split** (fix loops 2 and 3, F-2). The cap and the cold weight bound a
 batch of several actions, but a single action runs all its ticks: a 3-tick action (a 3-tick skill;
