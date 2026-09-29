@@ -13,6 +13,7 @@ Results: [docs/research/FND-04-slots.md](../../docs/research/FND-04-slots.md) an
 | `devnet_trace.py` | On the local node: walks every block from genesis and reports the slots each of SPK-2's native entrypoints changes (new, overwritten, zeroed). The transactions are those of SPK-2's unchanged `devnet_measure.py` on the throwaway node |
 | `devnet-output.txt` | Its raw output (the harness lines name the local node's throwaway accounts) |
 | `analyse.py` → `slots-output.txt` | The tables of the research note: every group of transactions, the decomposition of the first residual, the controlled pairs, the fit, SPK-1 §4 rebuilt, the local node's slots |
+| `reuse_check.py` → `reuse-check-output.txt` | Fix loop 1: whether the enters write distinct new keys, and whether any new write revisits a key zeroed earlier (none does) |
 | `budget.py` → `budget-output.txt` | The arithmetic of the cost budget, each figure marked measured, derived or estimated |
 
 From the repository root:

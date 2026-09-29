@@ -1,0 +1,2 @@
+enter transactions: 45; new game slots they wrote: 180; distinct: 180
+game keys zeroed by some transaction: 180; new writes to a key zeroed earlier: 0
