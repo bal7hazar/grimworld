@@ -187,6 +187,7 @@ cat > "$run/bin/claude" << 'EOF'
 if [ "$1 $2" = "auth status" ]; then cat "$HOME/stub-auth.json"; exit 0; fi
 t=${GW_TASK:-none}
 printf '%s\n' "$@" > "$HOME/argv.$t"
+printf '%s\n' "$0" > "$HOME/argv0.$t"
 /usr/bin/perl -e 'print "$_\n" for sort keys %ENV' > "$HOME/env.$t"
 printf 'CLAUDE_CONFIG_DIR=%s\nTMPDIR=%s\nPATH=%s\n' "$CLAUDE_CONFIG_DIR" "$TMPDIR" "$PATH" > "$HOME/vals.$t"
 dir=$HOME/.claude-b7r/projects/$(printf '%s' "$PWD" | sed 's#[/.]#-#g')
@@ -236,9 +237,17 @@ check "AC-1 no job was created for A1" bash -c "! launchctl list | grep -qF 'gri
 printf '%s\n' "$good_auth" > "$run/stub-auth.json"
 
 # --- The slots of the test home.
-agent slots-init > /dev/null 2>&1
-check "slots-init: cv-1, cv-2, directory read-only" \
-  test -f "$run/orchestrator/slots/cv-1" -a -f "$run/orchestrator/slots/cv-2" -a "$(stat -f %Lp "$run/orchestrator/slots" 2> /dev/null)" = 555
+SL=$run/orchestrator/slots
+mkdir -p "$SL" && : > "$SL/cv-1" && : > "$SL/cv-2" && chmod 555 "$SL"   # a Mac as CV-01 left it: two free slots
+# shellcheck disable=SC2034 # read by checkx
+ino1=$(stat -f %i "$SL/cv-1")
+# shellcheck disable=SC2034 # read by checkx
+ino2=$(stat -f %i "$SL/cv-2")
+agent slots-init > /dev/null 2>&1; rc=$?
+checkx "AC-1 slots-init on a directory holding cv-1 and cv-2 (free): adds cv-3, cv-4, cv-5, keeps cv-1 and cv-2 (same files), directory read-only" \
+  'test "$rc" = 0 && test -f "$SL/cv-3" -a -f "$SL/cv-4" -a -f "$SL/cv-5" && test ! -e "$SL/cv-6" &&
+   test "$(stat -f %i "$SL/cv-1")" = "$ino1" -a "$(stat -f %i "$SL/cv-2")" = "$ino2" && test "$(stat -f %Lp "$SL")" = 555'
+checkx "AC-1 slots lists the five slots, all free" 'test "$(agent slots | grep -c " free")" = 5'
 
 # --- AC-9: refusals.
 agent --with-sepolia "$id-X" claude opus new "hello" implement > /dev/null 2>&1
@@ -247,10 +256,16 @@ agent "$id-X" claude opus-4 new "hello" implement > /dev/null 2>&1
 check "AC-9 unknown model refused (exit 2)" test $? = 2
 agent "$id-X" codex gpt-5 new "hello" audit > /dev/null 2>&1
 check "AC-9 unknown codex model refused (exit 2)" test $? = 2
-echo 11.5 > "$run/test-load5"
+echo 18.01 > "$run/test-load5"
 agent thresholds > /dev/null 2>&1; rc=$?
 agent --branch "cv/$id-X" "$id-X" claude opus new "hello" implement > /dev/null 2>&1; rc2=$?
-check "AC-9 load above 10 refuses (thresholds and launch: exit 4, no worktree)" test "$rc" = 4 -a "$rc2" = 4 -a ! -e "$W/cli-$id-X"
+check "AC-3 load above 18 refuses (thresholds and launch: exit 4, no worktree)" test "$rc" = 4 -a "$rc2" = 4 -a ! -e "$W/cli-$id-X"
+echo 18 > "$run/test-load5"
+agent thresholds > /dev/null 2>&1
+check "AC-3 load of exactly 18 is accepted (exit 0)" test $? = 0
+echo 11.5 > "$run/test-load5"
+agent thresholds > /dev/null 2>&1
+check "AC-3 load of 11.5, above the former 10, is accepted (exit 0)" test $? = 0
 rm -f "$run/test-load5"; echo 7 > "$run/test-mem-gb"
 agent thresholds > /dev/null 2>&1
 check "AC-9 memory under 8 GB refuses (exit 4)" test $? = 4
@@ -284,6 +299,35 @@ check "AC-4 dry run codex: exec -s read-only, profile audit" has_all exec -s rea
 check "AC-4 dry run codex: header [GPT-6-Sol] … (audit)" bash -c 'grep -qF "# [GPT-6-Sol] $2-C4 new (audit)" <<< "$1"' _ "$out" "$id"
 agent --dry-run "$id-C4" codex gpt-6-sol new "audit" implement > /dev/null 2>&1
 check "AC-4 codex with another profile than audit is refused" test $? = 2
+
+# --- CV-02, AC-4: the CLIs by absolute path, from the table (a dry run in the user's real home
+# launches and checks nothing), and a missing or non-executable binary refuses.
+real_home=$(/usr/bin/perl -e 'print((getpwuid($<))[7])')
+out=$("$A" --dry-run "$id-D6" claude opus new "hello" implement 2>&1)
+line=$(grep -v '^#' <<< "$out" | head -1); eval "argv=($line)"
+checkx "AC-4 the real table: claude is $real_home/.asdf/installs/nodejs/22.22.2/bin/claude" \
+  'test "${argv[0]}" = "$real_home/.asdf/installs/nodejs/22.22.2/bin/claude"'
+checkx "AC-6 the dry run shows the new PATH, the shims first, no nodejs/22.22.2" \
+  'pl=$(grep "^# PATH " <<< "$out") && test "$pl" = "# PATH $real_home/.asdf/shims:$real_home/go/bin:$real_home/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" && ! grep -q "nodejs/22.22.2" <<< "$pl"'
+out=$("$A" --dry-run "$id-D6" codex gpt-6-sol new "audit" 2>&1)
+line=$(grep -v '^#' <<< "$out" | head -1); eval "argv=($line)"
+checkx "AC-4 the real table: codex is $real_home/.local/bin/codex" 'test "${argv[0]}" = "$real_home/.local/bin/codex"'
+out=$(agent --dry-run "$id-D6" claude opus new "hello" implement 2>&1)
+line=$(grep -v '^#' <<< "$out" | head -1); eval "argv=($line)"
+checkx "AC-4 test mode: the stub table stands in, claude is $run/bin/claude" 'test "${argv[0]}" = "$run/bin/claude"'
+for cli in claude codex; do
+  m=opus; [ "$cli" = claude ] || m=gpt-6-sol
+  mv "$run/bin/$cli" "$run/bin/$cli.away"
+  agent --branch "cv/$id-M4" "$id-M4" "$cli" "$m" new "hello" > "$run/out" 2>&1; rc=$?
+  checkx "AC-4 $cli binary missing: refused (exit 2) before the account check, nothing created" \
+    'test "$rc" = 2 && grep -q "missing or not executable" "$run/out" && test ! -e "$W/cli-$id-M4" -a ! -e "$L/$id-M4.log" -a ! -e "$L/$id-M4.label"'
+  mv "$run/bin/$cli.away" "$run/bin/$cli"
+  chmod -x "$run/bin/$cli"
+  agent --branch "cv/$id-M4" "$id-M4" "$cli" "$m" new "hello" > "$run/out" 2>&1; rc=$?
+  checkx "AC-4 $cli binary not executable: refused (exit 2), nothing created" \
+    'test "$rc" = 2 && grep -q "missing or not executable" "$run/out" && test ! -e "$W/cli-$id-M4" -a ! -e "$L/$id-M4.log"'
+  chmod +x "$run/bin/$cli"
+done
 
 # --- Audit 2, A3: task names starting with `test.`. Outside test mode (the user's real home, a dry
 # run: nothing is created, nothing is run) they are refused, so that no real label reads as a test
@@ -333,6 +377,11 @@ env_ok() {
 check "AC-3 the stub's environment is exactly the whitelist (decoys set in the caller)" env_ok
 check "AC-3 CLAUDE_CONFIG_DIR is the test home's .claude-b7r, TMPDIR the task's" \
   bash -c 'grep -qx "CLAUDE_CONFIG_DIR=$1/.claude-b7r" "$2" && grep -qx "TMPDIR=$3/tmp-$4/" "$2"' _ "$run" "$run/vals.$t" "$L" "$t"
+checkx "AC-4 the agent's PATH begins with \$HOME/.asdf/shims and holds no nodejs/22.22.2 (nor the stubs' folder)" \
+  'p=$(grep "^PATH=" "$run/vals.$t") && case $p in "PATH=$run/.asdf/shims:"*) ;; *) false ;; esac &&
+   ! grep -q "nodejs/22.22.2" <<< "$p" && ! grep -qF "$run/bin" <<< "$p"'
+check "AC-4 the CLI was started by its absolute path (argv[0] is $run/bin/claude)" \
+  test "$(cat "$run/argv0.$t")" = "$run/bin/claude"
 mapfile -t argv < "$run/argv.$t"
 check "AC-4 the stub's argv: profile rules, Mac deny rules, --settings, --name" has_all \
   --permission-mode acceptEdits 'Bash(git commit *)' 'Bash(git rebase*)' 'Bash(launchctl*)' \
@@ -357,6 +406,12 @@ check "AC-8 the log has the header, model= and exit=" bash -c '
 check "AC-8 the job is booted out: launchctl print $DOMAIN/$label finds nothing" test "$(job_state "$label")" = absent
 checkx "AC-8 status shows the task stopped, implement, ran=claude-opus-5-5" \
   'agent status > "$run/status" 2>&1; grep -qE "^$t +stopped +implement +ran=claude-opus-5-5 " "$run/status"'
+tn=$id-N5
+echo "--- a log without its .cli" > "$L/$tn.log"
+agent status > "$run/status.out" 2> "$run/status.err"; rc=$?
+checkx "AC-5 status of a task without .cli: exit 0, nothing on stderr, listed with ran=unknown" \
+  'test "$rc" = 0 && test ! -s "$run/status.err" && grep -qE "^$tn +stopped +- +ran=unknown " "$run/status.out"'
+rm -f "$L/$tn.log"
 
 # --- AC-7: resume.
 t7=$id-R7
@@ -376,24 +431,27 @@ checkx "AC-7 resume argv: --continue and the implement rules, no --name" \
 check "AC-7 the resumed run has its own header and exit=" \
   bash -c 'test "$(grep -c "^--- .* $2 resume (implement) " "$1")" = 1 && test "$(grep -c "^exit=0 " "$1")" = 2' _ "$L/$t.log" "$t"
 
-# --- AC-5: the budget of 2, counted by locks.
-t5a=$id-B5a t5b=$id-B5b t5c=$id-B5c
-touch "$run/hold.$t5a" "$run/hold.$t5b"
+# --- AC-2: the budget of 5, counted by locks.
+t5a=$id-B5a t5b=$id-B5b t5c=$id-B5c t5d=$id-B5d t5e=$id-B5e t5f=$id-B5f
+touch "$run/hold.$t5a" "$run/hold.$t5b" "$run/hold.$t5c" "$run/hold.$t5d" "$run/hold.$t5e"
 record "$t5a"; agent --branch "cv/$t5a" "$t5a" claude opus new "a" implement > /dev/null 2>&1; ra=$?
 record "$t5b"; agent --branch "cv/$t5b" "$t5b" codex gpt-6-sol new "b" > /dev/null 2>&1; rb=$?
-check "AC-5 two stubs run (a claude, a codex)" test "$ra" = 0 -a "$rb" = 0
-checkx "AC-5 both slots are held" 'test "$(agent slots | grep -c " held ")" = 2'
-agent --branch "cv/$t5c" "$t5c" claude opus new "c" implement > "$run/out" 2>&1; rc=$?
-check "AC-5 a third launch refuses (exit 4) before any worktree or job" \
-  bash -c 'test "$1" = 4 && test ! -e "$2" && test ! -e "$3" && ! launchctl list | grep -qF "$4"' _ "$rc" "$W/cli-$t5c" "$L/$t5c.label" "grimworld.cv.test.$t5c"
+record "$t5c"; agent --branch "cv/$t5c" "$t5c" claude opus new "c" implement > /dev/null 2>&1; rc3=$?
+record "$t5d"; agent --branch "cv/$t5d" "$t5d" claude opus new "d" implement > /dev/null 2>&1; rd=$?
+record "$t5e"; agent --branch "cv/$t5e" "$t5e" claude opus new "e" implement > /dev/null 2>&1; re=$?
+check "AC-2 five stubs run at once (four claude, a codex)" test "$ra" = 0 -a "$rb" = 0 -a "$rc3" = 0 -a "$rd" = 0 -a "$re" = 0
+checkx "AC-2 the five slots are held" 'test "$(agent slots | grep -c " held ")" = 5'
+agent --branch "cv/$t5f" "$t5f" claude opus new "f" implement > "$run/out" 2>&1; rc=$?
+check "AC-2 a sixth launch refuses (exit 4) before any worktree or job" \
+  bash -c 'test "$1" = 4 && test ! -e "$2" && test ! -e "$3" && ! launchctl list | grep -qF "$4"' _ "$rc" "$W/cli-$t5f" "$L/$t5f.label" "grimworld.cv.test.$t5f"
 rm -f "$run/hold.$t5a"
 wait_for 10 grep -q '^ended' "$L/$t5a.run"
 agent thresholds > /dev/null 2>&1
-check "AC-5 when a stub ends its slot is free again, without any cleanup step" test $? = 0
-checkx "AC-5 codex ran -s read-only and its model was read" \
+check "AC-2 when a stub ends its slot is free again, without any cleanup step" test $? = 0
+checkx "AC-2 codex ran -s read-only and its model was read" \
   'grep -qx read-only "$run/argv.$t5b" && test "$(agent model "$t5b")" = gpt-6-sol'
 
-# --- AC-5, the race: exactly one slot free (t5b holds the other), two launchers started together.
+# --- AC-2, the race: exactly one slot free out of five (t5b to t5e hold the others), two launchers started together.
 # The two launchers run concurrently inside this one foreground command, and both are waited for;
 # their pids are in `inflight` meanwhile, so that an interruption stops them before the cleanup scans.
 r1=$id-Ra r2=$id-Rb
@@ -409,13 +467,13 @@ reap_bg "$p2"; x2=$?
 checkx "A2(3) race: each launcher leaves inflight as soon as it is reaped (first: $after1, then ${#inflight[@]} left)" \
   'test "$after1" = removed && test "${#inflight[@]}" = 0'
 if [ "$x1" = 0 ]; then win=$r1 lose=$r2; else win=$r2 lose=$r1; fi
-check "AC-5 race: exactly one launcher took the free slot (exit 0), the other refused (exit 4) [$x1, $x2]" \
+check "AC-2 race: exactly one launcher took the free slot (exit 0), the other refused (exit 4) [$x1, $x2]" \
   test "$(printf '%s\n' "$x1" "$x2" | sort | tr '\n' ' ')" = "0 4 "
-check "AC-5 race: the refused launcher created no worktree, no record, no job" \
+check "AC-2 race: the refused launcher created no worktree, no record, no job" \
   bash -c 'test ! -e "$1" && test ! -e "$2" && test ! -e "$3" && ! launchctl list | grep -qF "$4"' \
   _ "$W/cli-$lose" "$L/$lose.label" "$L/$lose.log" "grimworld.cv.test.$lose."
-checkx "AC-5 race: the winner runs, both slots are held" \
-  'test "$(job_state "$(cat "$L/$win.label")")" = running && test "$(agent slots | grep -c " held ")" = 2'
+checkx "AC-2 race: the winner runs, the five slots are held" \
+  'test "$(job_state "$(cat "$L/$win.label")")" = running && test "$(agent slots | grep -c " held ")" = 5'
 
 # --- Audit A1: a label file that is not the task's is refused, never acted on. The winner's label
 # is copied into the file of t5a (ended); every command on t5a must leave the winner running.
@@ -443,8 +501,8 @@ agent stop "$t5a" > "$run/out" 2>&1; rc=$?
 check "A1 a label of the other mode's prefix is refused too (exit 2)" test "$rc" = 2
 cp "$run/label.$t5a.saved" "$L/$t5a.label"
 
-rm -f "$run/hold.$t5b" "$run/hold.$win"
-agent wait "$t5a" > /dev/null 2>&1; agent wait "$t5b" > /dev/null 2>&1; agent wait "$win" > /dev/null 2>&1
+rm -f "$run/hold.$t5b" "$run/hold.$t5c" "$run/hold.$t5d" "$run/hold.$t5e" "$run/hold.$win"
+for w in "$t5a" "$t5b" "$t5c" "$t5d" "$t5e" "$win"; do agent wait "$w" > /dev/null 2>&1; done
 
 # --- AC-6: a job that never writes slots-acquired is stopped by its label, and reported.
 t6=$id-H6
@@ -454,9 +512,9 @@ agent --branch "cv/$t6" "$t6" claude opus new "hang" implement > "$run/out" 2>&1
 rm -f "$run/test-hang" "$run/test-deadline"
 l6=$(cat "$L/$t6.label" 2> /dev/null)
 check "AC-6 a job that never reports: exit 2, stopped by its label, verified" \
-  bash -c 'test "$1" = 2 && grep -q "its job $2 is stopped and booted out, and slot cv-[12] is free (verified)" "$3"' _ "$rc" "$l6" "$run/out"
-checkx "AC-6 its label is gone from launchd and both slots are free" \
-  'test "$(job_state "$l6")" = absent && test "$(agent slots | grep -c " free")" = 2'
+  bash -c 'test "$1" = 2 && grep -q "its job $2 is stopped and booted out, and slot cv-[1-5] is free (verified)" "$3"' _ "$rc" "$l6" "$run/out"
+checkx "AC-6 its label is gone from launchd and all five slots are free" \
+  'test "$(job_state "$l6")" = absent && test "$(agent slots | grep -c " free")" = 5'
 
 # --- stop: the task's own job, by its label.
 t9=$id-S9
@@ -467,7 +525,7 @@ l9=$(cat "$L/$t9.label")
 p9=$(job_pid "$l9")
 agent stop "$t9" > "$run/out" 2>&1; rc=$?
 checkx "stop: the job is stopped, booted out, verified; its process is gone; its slot free" \
-  'test "$rc" = 0 && grep -q "(verified)" "$run/out" && test "$(job_state "$l9")" = absent && ! kill -0 "${p9:-0}" 2> /dev/null && test "$(agent slots | grep -c " free")" = 2'
+  'test "$rc" = 0 && grep -q "(verified)" "$run/out" && test "$(job_state "$l9")" = absent && ! kill -0 "${p9:-0}" 2> /dev/null && test "$(agent slots | grep -c " free")" = 5'
 rm -f "$run/hold.$t9"
 
 # --- Audit 2, A1: an interruption while two launchers are in flight. Both slots are free; two
@@ -492,8 +550,8 @@ for delay in 0.1 0.3 0.6 1.0 1.5 2.0 2.5 3.5; do
   checkx "A1(2) drain $delay s after starting two launchers ($phase): they are stopped first, nothing of the run is loaded" \
     'test "$inflight_before" = 2 && test "$rc" = 0 && test "${#inflight[@]}" = 0'
   checkx "A2(3) after that drain, inflight holds no reaped pid" '! in_inflight "$ip1" && ! in_inflight "$ip2"'
-  checkx "A1(2) after that drain: no stub of $i1 or $i2 runs, both slots are free" \
-    'wait_for 5 nothing_runs_for "$i1" && wait_for 5 nothing_runs_for "$i2" && test "$(agent slots | grep -c " free")" = 2'
+  checkx "A1(2) after that drain: no stub of $i1 or $i2 runs, all five slots are free" \
+    'wait_for 5 nothing_runs_for "$i1" && wait_for 5 nothing_runs_for "$i2" && test "$(agent slots | grep -c " free")" = 5'
 done
 
 # --- Audit 3, A1: a child of a stopped launcher that outlives the bound. A stand-in launcher (a
