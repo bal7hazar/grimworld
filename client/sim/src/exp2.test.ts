@@ -43,6 +43,13 @@ describe("exp2", () => {
     expect(exp2(65535)).toBe(262144n);
   });
 
+  it("throws on a non-integer x instead of returning undefined", () => {
+    expect(() => exp2(0.5)).toThrow(RangeError);
+    expect(() => exp2(-159.5)).toThrow(RangeError);
+    expect(() => exp2(NaN)).toThrow(RangeError);
+    expect(() => exp2(Infinity)).toThrow(RangeError);
+  });
+
   it("returns round(2^16 * 2^(x/40)) for every x in [-200, +120], the clamp included", () => {
     for (let x = -200; x <= 120; x++) {
       const inside = Math.min(Math.max(x, EXP2_LOW), EXP2_HIGH);

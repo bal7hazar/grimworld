@@ -249,8 +249,13 @@ export const EXP2_X40: readonly bigint[] = [
   262144n,
 ];
 
-/** 2^(x/40) in fixed point with 16 fractional bits; `x` outside [-160, +80] clamps (D-140). */
+/**
+ * 2^(x/40) in fixed point with 16 fractional bits; `x` outside [-160, +80] clamps (D-140).
+ * `x` is an integer, like the contracts' `i32`: a fraction or NaN throws a RangeError, so that
+ * the simulation never carries an undefined damage factor.
+ */
 export function exp2(x: number): bigint {
+  if (!Number.isInteger(x)) throw new RangeError(`exp2: x must be an integer, got ${x}`);
   const clamped = Math.min(Math.max(x, EXP2_LOW), EXP2_HIGH);
   return EXP2_X40[clamped - EXP2_LOW]!;
 }

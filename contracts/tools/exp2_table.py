@@ -85,8 +85,13 @@ def typescript(t):
     out += [
         "];",
         "",
-        "/** 2^(x/40) in fixed point with 16 fractional bits; `x` outside [-160, +80] clamps (D-140). */",
+        "/**",
+        " * 2^(x/40) in fixed point with 16 fractional bits; `x` outside [-160, +80] clamps (D-140).",
+        " * `x` is an integer, like the contracts' `i32`: a fraction or NaN throws a RangeError, so that",
+        " * the simulation never carries an undefined damage factor.",
+        " */",
         "export function exp2(x: number): bigint {",
+        "  if (!Number.isInteger(x)) throw new RangeError(`exp2: x must be an integer, got ${x}`);",
         "  const clamped = Math.min(Math.max(x, EXP2_LOW), EXP2_HIGH);",
         "  return EXP2_X40[clamped - EXP2_LOW]!;",
         "}",
@@ -97,13 +102,14 @@ def typescript(t):
 
 def main():
     t = table()
-    files = {CAIRO_PATH: cairo(t), TS_PATH: typescript(t)}
+    # Bytes, not text: read and written in binary, so that no newline translation hides a CRLF or a CR.
+    files = {CAIRO_PATH: cairo(t).encode("utf-8"), TS_PATH: typescript(t).encode("utf-8")}
     if "--check" in sys.argv[1:]:
         stale = []
-        for path, text in files.items():
+        for path, data in files.items():
             try:
-                with open(path, encoding="utf-8") as f:
-                    same = f.read() == text
+                with open(path, "rb") as f:
+                    same = f.read() == data
             except FileNotFoundError:
                 same = False
             if not same:
@@ -113,10 +119,10 @@ def main():
             sys.exit(1)
         print(f"{len(t)} entries, both files current")
         return
-    for path, text in files.items():
+    for path, data in files.items():
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
+        with open(path, "wb") as f:
+            f.write(data)
     print(f"{len(t)} entries, from {t[0]} (x = {LOW}) to {t[-1]} (x = {HIGH})")
 
 
