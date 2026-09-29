@@ -2,6 +2,13 @@
 //! (docs/architecture/ENG-01-interfaces.md). The order of every enum's variants is frozen: it is
 //! their encoding in calldata and events.
 
+/// The enumerations of combat that are not an entry's own fields (design/19, CBT-01).
+pub mod combat;
+/// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
+pub mod effect;
+/// Passive effects (design/19 §4, CBT-01).
+pub mod passive;
+
 /// An instance id: `slot × 2^32 + generation`. The slot is a reusable key of the ephemeral
 /// contract's storage (M-1: instance state is keyed by it, never by an adventurer id); the
 /// generation tells this instance from every earlier one of the same slot.
