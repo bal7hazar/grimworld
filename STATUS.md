@@ -1,51 +1,52 @@
 # Status — game track
 
-**2026-09-29 12:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 15:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 ## Where we are
 
-**Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03,
-FND-04, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, SPK-4, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21, DOC-01,
-ENG-01, FND-05, ENG-01b. Phase 1: ENG-04, ENG-03, ENG-02a, **ENG-06** done. Next: ENG-05 (chunk
-reveal) and ENG-02 (line of sight) wait for the map library's release (LIB-05); ENG-07 after ENG-05;
-ENG-R1 (D-143, D-147) after ARC-07. **IDX-01 is lent to track CV (D-149)**: any change to ENG-01's
-frozen events is announced here. `tools/art` moved to track CV (D-146). The app account's quota is
-saved until 2026-09-30 14:00 UTC: the session checks in only on completions.
+**Phase 0 done** (the gate items are FND-07's). **Phase 1**: ENG-01, ENG-01b, ENG-02a, ENG-03, ENG-04,
+ENG-06 done; ENG-05 and ENG-02 (line of sight) wait for the map library's release; ENG-07 after
+ENG-05; ENG-R1 (D-143, D-147) after ARC-07. **While the engine chain waits (D-150)**: DES-04 (the
+effect catalogue, design/19) done, **CBT-01** (the combat interfaces) running, `set_build` next;
+FND-08 (the funding service) and FND-09 (`with-node.sh` on macOS, D-153) done.
 
 ## What moved
 
 | | |
 |---|---|
-| **ENG-06** | [#120](https://github.com/bal7hazar/grimworld/pull/120) merged: enter, leave, travel back, the closing report, generation isolation tested on every word; D-148 |
-| **ENG-03** | [#106](https://github.com/bal7hazar/grimworld/pull/106) merged: the registry, the content version, a test region; D-145 |
-| **ENG-02a** | [#113](https://github.com/bal7hazar/grimworld/pull/113) merged: the `2^(x/40)` table for the contracts and the client |
-| **ENG-04** | [#100](https://github.com/bal7hazar/grimworld/pull/100) merged: accounts and adventurers on `Hub`, the ownership check; targets accepted as measured (D-144); scoped under D-143 |
-| **ENG-01b** | [#93](https://github.com/bal7hazar/grimworld/pull/93) merged: every branch accounted (at most 70 slots a batch; the capped batch 48.54M in a fresh slot, above 40M until ENG-07 measures a tick in a batch); the content version frozen on `play`, `open`, `mine`, `barter` |
-| **FND-05** | [#92](https://github.com/bal7hazar/grimworld/pull/92) merged: `derive` and one Fate domain per use, the admin setters, the client's burner account behind `AccountProvider`; its funder bound to the local node. PASS WITH FINDINGS after two fix loops |
-| **ENG-01** | [#81](https://github.com/bal7hazar/grimworld/pull/81) merged: five contracts frozen as compiling code, layouts, events, batch codec, per-branch budgets. Instance slots reused, records never zeroed. Merged by the project manager's decision (D-141) with three accounting findings carried to ENG-01b; no security finding. S1 estimated at **$0.556** against $0.50, pending ENG-07's measure of a tick inside a batch |
-| **D-141** | ENG-01's escalations decided and written in design/02, 07, 17, 18 and cost-budget.md: 16 goblins an invocation, a goblin's first record weighs 1, an unsplittable action runs, a content version, the belt back on defeat, nothing carried through a gate (reversible by the owner), the full roster keeps goblins in their chunk, `mine` alone |
-| **SPK-4** | [#82](https://github.com/bal7hazar/grimworld/pull/82): the client's simulation is a TypeScript mirror checked by vectors; damage edges decided (D-140) |
-| **Launcher** | Reference `5d14d89`, **frozen** until the gate of Phase 0 (FND-07 holds M1, N1–N4, L-3) |
+| **DES-04** | [#139](https://github.com/bal7hazar/grimworld/pull/139): design/19, the closed effect catalogue and the tick's resolution order; 43 rules decided (D-155); after three fix loops and a final pass |
+| **FND-08** | [#141](https://github.com/bal7hazar/grimworld/pull/141): the burner's funding service, tested on the local node, nothing deployed; its caps for decision ([file](docs/decisions/2026-09-29-fnd-08-caps.md)) |
+| **FND-09** | [#152](https://github.com/bal7hazar/grimworld/pull/152): `with-node.sh` without `setsid` (a `perl` fallback), `--full-archive` for the indexer |
+| **D-153** | `grimworld_persistent` has a `[lib]` target for the indexer's emitter ([#148](https://github.com/bal7hazar/grimworld/pull/148)); RWD-06 will refuse any rarity outside design/15's values |
+| **ENG-06** | [#120](https://github.com/bal7hazar/grimworld/pull/120): the instance lifecycle; D-148 |
+| **Events** | **No event of ENG-01 has changed** (D-149: the indexer, lent to track CV, reads them) |
+| **Launcher** | Reference `5d14d89`, frozen until the gate of Phase 0 (FND-07) |
 
 ## Orchestrators and agents
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| — | | none running |
+| CBT-01 combat interfaces | `claude-opus-5-5` | launching |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-1. Nothing of the engine chain can start before the map library's release (ENG-05, ENG-02) or ARC-07 (ENG-R1). Candidates meanwhile, for the project manager: the Rift board and `enter_rift`, `set_build` (the belt's worst case, D-148), loot and the Fate actions.
-2. A brief for the burner's funder on a public network (a service of the game behind the `Funder` port; FND-05's escalation), before any play on Sepolia.
-3. ENG-02 (helpers, D-140's table), ENG-03 (registries, the content version measured), ENG-04.
+1. CBT-01: audit `[GPT-6-Astra]`, merge; then `set_build` (design/03's build; the belt's worst case, D-148).
+2. ENG-05 and ENG-02 when the map library releases `hexx` (LIB-05).
 
 ## Decisions needed
 
-None open. Answered: D-141 (ENG-01's merge and escalations), and its refinement: the content version on `open`, `mine`, `barter` ([decision](docs/decisions/2026-09-29-content-version-standalone.md)).
+| Decision | File |
+|---|---|
+| FND-08's caps (2 STRK a burner, 50 a day: 125 test STRK a day at worst) and the lock's manual recovery for OPS-01 | [docs/decisions/2026-09-29-fnd-08-caps.md](docs/decisions/2026-09-29-fnd-08-caps.md) |
+
+## Build notes (D-154)
+
+Scarb 2.19.4 builds of the same sources can differ in gas (+0.2 to +1.3 %) and Sierra size: a gas
+budget that flakes in CI is recorded here with its run ids, not raised. Occurrences: none so far.
 
 ## Launcher: for its next change (not before a finding or a task needs one)
 
@@ -66,7 +67,7 @@ L-1 and L-2 of the previous status were done by #58 and #60.
 
 | # | Question | From | For |
 |---|---|---|---|
-| ART-1 | Answered provisionally (D-146): sprites at the pack's heights, task ART-02 of track CV | ART-00 | — |
+| ART-1 | **Answered by the owner** (D-146 corrected, #137): the pack's hand-drawn units keep their height; only the generated goblin sheets are reduced (runt about 67–70 px, shaman about 87, hobgoblin about 119), final sizes by eye on CLI-03a; track CV, ART-02 | ART-00 | — |
 | ART-2 | Slinger placeholder: the Torch Goblin stands in (the pack's slinger is a gnome) | ART-00 | Owner, at the first commission (ART-01) |
 | TC-1 | `CONTEXT.md` §4 and `docs/CAIRO.md` should name Cairo 2.13 / Scarb 2.13.1 / snforge 0.51.2; ADR-0001 option B and ADR-0003's indexer consequence are confirmed by SPK-5 (Slot retired) | SPK-5 | Project manager (documents it owns) |
 
