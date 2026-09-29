@@ -310,11 +310,15 @@ fn try_set(
 // ---- the worst case, stored as sent
 // --------------------------------------------------------------
 
+/// The budget of the `set_build` call alone in its worst case (D-158): ceil(1.05 × 2,960,731
+/// measured), snforge, `get_available_gas` around the dispatcher call.
+const WORST_CASE_CALL: u128 = 3108768;
+
 // The worst case of ENG-01 §9.3 and §10: 8 skills (an elite in slot 3), every attribute point of
 // a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
 // pieces worn. Writes: `build`, `belt`, `equipped`, overwritten, each the word sent plus `LIVE`.
 #[test]
-#[available_gas(l2_gas: 69351987)] // ceil(1.05 × 66049511 measured)
+#[available_gas(l2_gas: 69352586)] // ceil(1.05 × 66050081 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -336,7 +340,10 @@ fn test_set_build_worst_case() {
     let hub = act(world, ALICE);
     let gas = get_available_gas();
     hub.set_build(id, b, l, e);
-    println!("gas set_build, worst case: {}", gas - get_available_gas());
+    let call = gas - get_available_gas();
+    println!("gas set_build, worst case: {}", call);
+    // D-158: the call alone carries its own budget, beside the test's (deploy and setup included).
+    assert(call <= WORST_CASE_CALL, 'set_build over its budget');
     let after = array![
         read(world.hub, adventurer_word(id, 2)), read(world.hub, adventurer_word(id, 3)),
         read(world.hub, adventurer_word(id, 4)),

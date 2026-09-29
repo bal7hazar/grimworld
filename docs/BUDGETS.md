@@ -326,7 +326,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_build::test_set_build_layout_refusals` | 68306370 | 71721689 | 2026-09-29 | 672808d |
 | grimworld_persistent | `test_build::test_set_build_ownership_refusals` | 65852070 | 69144674 | 2026-09-29 | 672808d |
 | grimworld_persistent | `test_build::test_set_build_parts` | 68776951 | 72215799 | 2026-09-29 | 672808d |
-| grimworld_persistent | `test_build::test_set_build_worst_case` | 66049511 | 69351987 | 2026-09-29 | 672808d |
+| grimworld_persistent | `test_build::test_set_build_worst_case` | 66050081 | 69352586 | 2026-09-29 | cd979f8 |
 | grimworld_persistent | `test_build_words::test_attribute_indices` | 97050 | 101903 | 2026-09-29 | 9430ff2 |
 | grimworld_persistent | `test_build_words::test_attribute_points` | 298290 | 313205 | 2026-09-29 | 9430ff2 |
 | grimworld_persistent | `test_build_words::test_known_skills_bits` | 164100 | 172305 | 2026-09-29 | 9430ff2 |
