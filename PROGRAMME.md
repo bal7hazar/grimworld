@@ -10,8 +10,9 @@ owner.
 | Track | Repository | Orchestrator (model verified) | Where it is | Next stop |
 |---|---|---|---|---|
 | Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 18 tasks done. **ENG-01 is merged: the interfaces, storage layouts and events of the five contracts are frozen**, designed against the cost budget. SPK-4 done: the client mirrors the rules in TypeScript. Next: ENG-01b (accounting), FND-05 (providers), then the engine tasks of Phase 1 | Gate of Phase 0 |
-| Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
-| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | `quiver_quest` and `quiver_achievement` 0.1.0 published, but **not in the owner's patterns** (D-143). Next: ARC-06, the pattern on one model, shown to the owner; then ARC-07, both packages rewritten as 0.2.0 | The owner's review of the pattern |
+| Map library (LIB) | `bal7hazar/hexx-cairo` | `[Opus 5.5]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
+| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | ARC-06 merged and reviewed by the owner (D-147). Next: ARC-07, both packages rewritten as 0.2.0 without `logic/`, tracking chosen by the consumer | ARC-07's first lot shown to the owner |
+| Client visual (CV) | `bal7hazar/grimworld` (`client/app`, `tools/art`) | A local orchestrator on the owner's Mac (D-146) | Opened 2026-09-29: ART-02, CLI-03a, SPK-6a | The sandbox shown to the owner |
 
 Budget: 3 agents at a time across the three tracks, audits included (D-118); caps: game 2,
 map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
@@ -37,6 +38,8 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-147 | The owner's review of ARC-06: no `logic/` folder; tracking a model is optional, chosen by the consumer | Owner |
+| D-146 | **Track CV** on the owner's Mac: the client's visual work; ART-1 answered provisionally | Project manager |
 | D-143 | **The owner's rule on the organisation of Cairo code**: Arcade's layering, functions scoped in traits, models with their storage and their event, the store emitting on write | Owner |
 | D-142 | **Second publication**: `quiver_achievement` 0.1.0, event mode only; the registry lists it with the checksum of the go; both packages consumed together by a fresh project | Project manager, in the owner's name |
 | D-141 | ENG-01 merged; its design escalations decided (caps of a batch, belt credited back on defeat, nothing carries through a gate, content version) | Project manager |
