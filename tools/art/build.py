@@ -36,7 +36,7 @@ USAGE = """usage: tools/art/build.py [--check] [--resample=area|area-blend|neare
        tools/art/build.py --fingerprint     fingerprints of the existing out/, no build
        tools/art/build.py --pack-heights    visible heights of the pack's own units
   --check              after the build, parse the atlases with PixiJS 8 (tools/art/check)
-  --resample=FILTER    resampling filter of the generated sheets (default: the manifest's)"""
+  --resample=FILTER    filter of a resampled sprite, if a height in px is set (default: the manifest's)"""
 
 # The interpreter check, one implementation: an interpreter's version and the installed versions of
 # the named distributions. Run in a venv's interpreter by PROBE, and in this process by own_info.
@@ -229,18 +229,10 @@ class Redacted:
         self.stream = stream
 
     def write(self, text):
-        return self.stream.write(re.sub(WORD, "<generated>", text, flags=re.IGNORECASE))
+        return self.stream.write(re.sub(WORD, "<redacted>", text, flags=re.IGNORECASE))
 
     def __getattr__(self, name):
         return getattr(self.stream, name)
-
-
-def generated_dir():
-    """The folder of the generated sheets: the one subfolder of `Enemy Pack` holding Animated/Raw."""
-    found = sorted(p.parent.parent for p in (ASSETS / "Enemy Pack").glob("*/Animated/Raw"))
-    if len(found) != 1:
-        raise SystemExit(f"expected exactly one generated-sheet folder, found {len(found)}")
-    return found[0] / "Animated" / "Raw"
 
 
 def forbidden_word_check():
@@ -262,7 +254,6 @@ def forbidden_word_check():
 def main(opts):
     import tomllib
 
-    import numpy as np
     from artpipe import atlas, clean, fingerprint, preview, scale
 
     if opts["fingerprint"]:
@@ -288,23 +279,10 @@ def main(opts):
     OUT.mkdir()
 
     sprites, origins = [], {}
-    report = {"tolerance": s["key_tolerance"], "resample": method, "sprites": {}, "sheets": {}}
-    cut_cache = {}
+    report = {"resample": method, "sprites": {}}
     for sp in manifest["sprite"]:
         name = sp["name"]
-        anims = []
-        if sp["kind"] == "generated":
-            path = generated_dir() / sp["file"]
-            rows = [a["row"] for a in sp["anim"]]
-            if sp["file"] not in cut_cache:
-                cut_cache[sp["file"]] = clean.cut_generated(path, sorted(set(rows)), s)
-            by_row, stats = cut_cache[sp["file"]]
-            report["sheets"][name] = {"key": stats["key"], "dropped_specks": stats["dropped_specks"]}
-            for a in sp["anim"]:
-                anims.append((a, by_row[a["row"]]))
-        else:
-            for a in sp["anim"]:
-                anims.append((a, clean.cut_strip(ASSETS / sp["root"] / a["file"])))
+        anims = [(a, clean.cut_strip(ASSETS / sp["root"] / a["file"])) for a in sp["anim"]]
         every = [p for _, ps in anims for p in ps]
         cell_w, cell_h, baseline, cells = clean.place(every, s["cell_margin"])
         cells, cell_w, cell_h, baseline, scaled = scale_sprite(
@@ -317,30 +295,15 @@ def main(opts):
         sprites.append({"name": name, "role": sp["role"], "cell_w": cell_w, "cell_h": cell_h,
                         "baseline": baseline, "anims": out_anims})
         origins[name] = sp["origin"]
-
-        # Magenta left: any pixel with alpha > 0 within the tolerance of the key (must be zero),
-        # and a wider "pinkish" count (R and B high, G low) reported for the eye.
-        key = np.array(report["sheets"][name]["key"]) if name in report["sheets"] else \
-            np.array([250, 3, 250])
-        left = pink = 0
-        for a in out_anims:
-            for c in a["cells"]:
-                vis = c[..., 3] > 0
-                rgb = c[..., :3].astype(int)
-                left += int((vis & (np.abs(rgb - key).max(axis=2) <= s["key_tolerance"])).sum())
-                pink += int((vis & (rgb[..., 0] > 160) & (rgb[..., 2] > 160)
-                             & (rgb[..., 1] < 110)).sum())
         report["sprites"][name] = {
-            "role": sp["role"], "origin": sp["origin"], "kind": sp["kind"],
+            "role": sp["role"], "origin": sp["origin"],
             "cell": [cell_w, cell_h], "baseline": baseline,
             "animations": {a["name"]: len(a["cells"]) for a in out_anims},
-            "magenta_left": left, "pinkish": pink, "scale": scaled,
+            "scale": scaled,
         }
-        if left:
-            raise SystemExit(f"{name}: {left} key-coloured pixels left in the output")
 
     try:
-        for warning in check_scale(report["sprites"], manifest["order"]):
+        for warning in check_scale(report["sprites"], manifest["order"], specs):
             print(f"warning: {warning}")
     except SystemExit:
         print_scale(report)
@@ -400,13 +363,11 @@ def scale_sprite(name, anims, cells, cell_w, baseline, spec, method, s):
 
 def pack_heights():
     """The visible height (artpipe/scale.py) of every original unit's idle strip in the pack: the
-    blue units and the enemy pack, never the generated folder (whose name is not printed)."""
+    blue units and the enemy pack."""
     from artpipe import clean, scale
-    generated = generated_dir().parent.parent
-    strips = sorted(p for p in [*(ASSETS / "Units" / "Blue Units").glob("*/*Idle.png"),
-                                *(ASSETS / "Enemy Pack").glob("*/*_Idle.png"),
-                                *(ASSETS / "Enemy Pack" / "Extra").glob("*/*_Idle.png")]
-                    if generated not in p.parents)
+    strips = sorted([*(ASSETS / "Units" / "Blue Units").glob("*/*Idle.png"),
+                     *(ASSETS / "Enemy Pack").glob("*/*_Idle.png"),
+                     *(ASSETS / "Enemy Pack" / "Extra").glob("*/*_Idle.png")])
     print(f"{'unit (idle strip)':<48}median  range")
     for path in strips:
         _, _, _, cells = clean.place(clean.cut_strip(path), 4)
@@ -415,11 +376,12 @@ def pack_heights():
         print(f"{name:<48}{h:<8}{hs[0]}-{hs[-1]}")
 
 
-def check_scale(sprites, order):
-    """AC-1 and AC-2, on the result. Every resampled sprite's height (the median of its idle
-    frames) within 2 px of its target; a native one is its own target. The order rule of
-    `scale.check_order`. Fails the build otherwise. Returns warnings: an idle whose frames span
-    more than SPREAD px (breathing, a limb crossing the measured band)."""
+def check_scale(sprites, order, specs):
+    """AC-1 and AC-2 of ART-02, on the result. Every resampled sprite's height (the median of its
+    idle frames) within 2 px of its target; a native one is its own target. The order rule of
+    `scale.check_order`: an error when a resampled sprite is involved, a warning between native
+    ones. Fails the build on the errors. Returns the warnings: the order rule's, and an idle whose
+    frames span more than SPREAD px (breathing, a limb crossing the measured band)."""
     from artpipe import scale
     problems, warnings = [], []
     for name, r in sprites.items():
@@ -431,10 +393,11 @@ def check_scale(sprites, order):
         if hi - lo > SPREAD:
             warnings.append(f"{name}: idle frames span {hi - lo} px ({lo}-{hi}), more than "
                             f"{SPREAD}: the height is their median")
-    problems += scale.check_order({n: r["scale"]["height"] for n, r in sprites.items()}, order,
-                                  {n: r["role"] for n, r in sprites.items()},
-                                  {n: r["scale"]["spec"] for n, r in sprites.items()},
-                                  {n: r["kind"] for n, r in sprites.items()})
+    errors, native = scale.check_order({n: r["scale"]["height"] for n, r in sprites.items()},
+                                       order, {n: r["role"] for n, r in sprites.items()}, specs)
+    problems += errors
+    warnings += [f"order rule between native drawings (the owner scales them by eye): {w}"
+                 for w in native]
     if problems:
         raise SystemExit("scale check failed:\n  " + "\n  ".join(problems))
     return warnings
@@ -446,6 +409,18 @@ def pixi_check():
     pnpm = ["pnpm", "--dir", str(HERE / "check"), "--ignore-workspace"]
     subprocess.run([*pnpm, "install", "--frozen-lockfile"], check=True)
     subprocess.run([*pnpm, "run", "check"], check=True)
+
+
+def feet_row(alpha):
+    """The row under the feet of a trimmed frame, read from its alpha channel: the rule of
+    `clean.register` (the lowest row at least 8 % of the width wide, solid = alpha >= 64), and its
+    fallback, the last row, when no row is wide enough. The Hex Shaman's last explosion frame
+    (28 x 46 px, a fading spark) needs the fallback."""
+    import numpy as np
+    solid = alpha >= 64
+    need = max(4, (8 * solid.shape[1] + 50) // 100)
+    rows = np.flatnonzero(solid.sum(axis=1) >= need)
+    return (int(rows.max()) if len(rows) else solid.shape[0] - 1) + 1
 
 
 def verify(pages, index, sprites, s):
@@ -468,10 +443,8 @@ def verify(pages, index, sprites, s):
             crop = img[fr["y"]:fr["y"] + fr["h"], fr["x"]:fr["x"] + fr["w"]]
             assert crop[..., 3].any(), key
             # Same baseline, read back from the PNG: the feet row of the frame as placed in its cell.
-            solid = crop[..., 3] >= 64
-            need = max(4, (8 * fr["w"] + 50) // 100)            # as clean.register
-            feet = np.flatnonzero(solid.sum(axis=1) >= need).max() + 1
-            assert sr["y"] + feet == spec[name]["baseline"], f"{key}: baseline off"
+            assert sr["y"] + feet_row(crop[..., 3]) == spec[name]["baseline"], \
+                f"{key}: baseline off"
         for anim, keys in page["animations"].items():
             assert keys and all(k in page["frames"] for k in keys), anim
         # What PixiJS 8's Spritesheet.parse reads: frames, animations, meta.image/size/scale.
@@ -490,12 +463,11 @@ def verify(pages, index, sprites, s):
 
 def print_report(report):
     from artpipe import fingerprint
-    print(f"key tolerance: {report['tolerance']} (max channel distance)")
-    print(f"{'sprite':<11}{'role':<11}{'cell':<10}{'frames':<8}{'magenta':<8}{'pinkish':<8}page")
+    print(f"{'sprite':<11}{'role':<11}{'cell':<10}{'frames':<8}page")
     for name, r in report["sprites"].items():
         frames = sum(r["animations"].values())
         print(f"{name:<11}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{frames:<8}"
-              f"{r['magenta_left']:<8}{r['pinkish']:<8}{r['page']}")
+              f"{r['page']}")
     print_scale(report)
     fingerprint.report(OUT)
 
