@@ -463,7 +463,7 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // placement, header, entropy, revealed, quotas, the member's 8 words and ⌈16 / 4⌉ = 4 task pages
 // new (19 − 2: the entry chunk's 2 words are ENG-05's reveal), `next_slot` overwritten.
 #[test]
-#[available_gas(l2_gas: 33349504)] // ceil(1.05 × 31761432 measured)
+#[available_gas(l2_gas: 33212563)] // ceil(1.05 × 31631012 measured)
 fn test_create_first_entry() {
     let world = setup();
     let keys = watched();
@@ -558,7 +558,7 @@ fn test_create_first_entry() {
 
 // The same with no task: no task page is written (17 − 4 = 13 new).
 #[test]
-#[available_gas(l2_gas: 29287048)] // ceil(1.05 × 27892426 measured)
+#[available_gas(l2_gas: 29150107)] // ceil(1.05 × 27762006 measured)
 fn test_create_without_tasks() {
     let world = setup();
     let keys = watched();
@@ -572,7 +572,7 @@ fn test_create_without_tasks() {
 // A later entry reuses the slot: generation + 1, `next_slot` untouched, every key already written
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
-#[available_gas(l2_gas: 46576584)] // ceil(1.05 × 44358651 measured)
+#[available_gas(l2_gas: 46165761)] // ceil(1.05 × 43967391 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -594,7 +594,7 @@ fn test_create_reuses_the_slot() {
 }
 
 #[test]
-#[available_gas(l2_gas: 34975811)] // ceil(1.05 × 33310296 measured)
+#[available_gas(l2_gas: 34202518)] // ceil(1.05 × 32573826 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -618,7 +618,7 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-#[available_gas(l2_gas: 27262322)] // ceil(1.05 × 25964116 measured)
+#[available_gas(l2_gas: 27125381)] // ceil(1.05 × 25833696 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -671,7 +671,7 @@ fn fill_slot(world: World) {
 // A slot another generation used, with stale data in every word: the new instance shows nothing of
 // it, through the view and through the stored words its gates reach.
 #[test]
-#[available_gas(l2_gas: 44259553)] // ceil(1.05 × 42151955 measured)
+#[available_gas(l2_gas: 43985671)] // ceil(1.05 × 41891115 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -743,7 +743,7 @@ fn test_generation_isolation() {
 // unlocked, the belt's counts reported (ENG-01 §9.3: header, member state, placement: 0 new, 3
 // overwritten; `InstanceClosed`; one report).
 #[test]
-#[available_gas(l2_gas: 34971191)] // ceil(1.05 × 33305896 measured)
+#[available_gas(l2_gas: 34834250)] // ceil(1.05 × 33175476 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -790,7 +790,7 @@ fn test_leave_to_a_hub() {
 // entropy, revealed, quotas, the 4 transient member words, the placement: 9 written, 0 new (the
 // entry chunk's 2 words are ENG-05's).
 #[test]
-#[available_gas(l2_gas: 41619278)] // ceil(1.05 × 39637407 measured)
+#[available_gas(l2_gas: 41077499)] // ceil(1.05 × 39121427 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -889,7 +889,7 @@ fn test_leave_to_a_location() {
 
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
-#[available_gas(l2_gas: 33197660)] // ceil(1.05 × 31616819 measured)
+#[available_gas(l2_gas: 33060719)] // ceil(1.05 × 31486399 measured)
 fn test_travel_back() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -944,7 +944,7 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 }
 
 #[test]
-#[available_gas(l2_gas: 34806982)] // ceil(1.05 × 33149506 measured)
+#[available_gas(l2_gas: 34670041)] // ceil(1.05 × 33019086 measured)
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -958,7 +958,7 @@ fn test_refused_sequence() {
 
 // An id of an earlier generation, and an instance already closed.
 #[test]
-#[available_gas(l2_gas: 40232278)] // ceil(1.05 × 38316455 measured)
+#[available_gas(l2_gas: 39958396)] // ceil(1.05 × 38055615 measured)
 fn test_refused_closed() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -971,7 +971,7 @@ fn test_refused_closed() {
 
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
-#[available_gas(l2_gas: 42424381)] // ceil(1.05 × 40404172 measured)
+#[available_gas(l2_gas: 42150499)] // ceil(1.05 × 40143332 measured)
 fn test_refused_absent() {
     let world = setup();
     create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -986,7 +986,7 @@ fn test_refused_absent() {
 // Every gate that cannot be taken from where the member stands (design/02: "the gate is
 // reachable"), before any draw.
 #[test]
-#[available_gas(l2_gas: 61572143)] // ceil(1.05 × 58640136 measured)
+#[available_gas(l2_gas: 61435202)] // ceil(1.05 × 58509716 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1002,7 +1002,7 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-#[available_gas(l2_gas: 30658981)] // ceil(1.05 × 29199029 measured)
+#[available_gas(l2_gas: 30522040)] // ceil(1.05 × 29068609 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1011,7 +1011,7 @@ fn test_refused_sealed() {
 
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
-#[available_gas(l2_gas: 29694362)] // ceil(1.05 × 28280344 measured)
+#[available_gas(l2_gas: 29364672)] // ceil(1.05 × 27966354 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1027,7 +1027,7 @@ fn test_not_controller() {
 // ---- set_controller -----------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 34709874)] // ceil(1.05 × 33057022 measured)
+#[available_gas(l2_gas: 34572933)] // ceil(1.05 × 32926602 measured)
 fn test_set_controller() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
