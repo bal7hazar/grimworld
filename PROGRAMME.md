@@ -38,6 +38,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-159 | CBT-02 next with the tick's cost as its budget; DES-06 beside it. S1 at $0.585 (E) | Project manager |
 | D-158 | `set_build` reads less (item data copied at creation); the belt's worst case accepted (+$0.002 on S1) | Project manager |
 | D-157 | CBT-01's open questions decided; statistics' bounds to DES-06 | Project manager |
 | D-156 | The funder's caps for Sepolia playtests (test tokens); mainnet caps stay the owner's | Project manager |
