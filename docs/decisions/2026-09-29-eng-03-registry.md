@@ -63,4 +63,12 @@ part 1 is full (15 set pieces of 16 bits).
 
 ## Decision
 
-Pending.
+By the project manager on 2026-09-29, under D-128 (**D-145**; source: the project manager's message
+to the game orchestrator of that day): **the four recommendations are accepted.**
+
+| # | Decision |
+|---|---|
+| 1 | Quiver's `TASK` and `QUEST` ids are the administrator's; ENG-01 §3.5 amended (in ENG-03); checking that a quiver id exists is the content pipeline's (OPS-01) |
+| 2 | `bundle`'s read, about 36,000 L2 gas a slot on the expedition's path, is accepted as measured, **with two conditions for ENG-06 and ENG-07**: read only the records their ticks use; and **measure where the 36,000 goes** (the call between contracts against the read itself) before the weights are frozen: if the call is most of it, a batch reads its records in one call. The figure and its +$0.026 join the levers of [ENG-01's escalations](2026-09-29-eng-01-escalations.md) |
+| 3 | `set_record`'s overrun is accepted: the administrator pays it, not the player |
+| 4 | `QUOTAS` is keyed by its location's id (composite, parent `LOCATION`), in ENG-03's fix loop |
