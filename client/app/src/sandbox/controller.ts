@@ -1,5 +1,5 @@
 import type { Application } from "pixi.js";
-import { screenToTile } from "../input/coords";
+import { pixelToTile, screenToTile } from "../input/coords";
 import { type Gesture, GestureTracker } from "../input/gestures";
 import type { Intent } from "../input/intent";
 import { loadAtlas } from "../render/atlas";
@@ -9,6 +9,7 @@ import { Renderer, type ZoomInfo, type ZoomSettings } from "../render/renderer";
 import type { FrameStats } from "../render/scheduler";
 import { browserHost } from "../render/scheduler";
 import type { SpriteLibrary } from "../render/sprites";
+import type { Tile } from "../render/view";
 import { fixtureNamed } from "./fixtures";
 import { SandboxSession, type WalkInfo } from "./session";
 
@@ -29,6 +30,9 @@ export interface SandboxInfo {
   readonly feet: number;
   /** Move is played on the tap (design/11's default); off, tap twice. */
   readonly playOnTap: boolean;
+  /** Where the adventurer stands, and the tile at the camera's centre. */
+  readonly adventurerTile: Tile | null;
+  readonly cameraTile: Tile;
 }
 
 export interface SandboxOptions {
@@ -65,6 +69,8 @@ export class SandboxController {
       playOnTap: options.playOnTap,
       stepMs: options.stepMs,
       onChange: () => {
+        // Every change, a tap's or a walk's step on its timer: what was planned and what was done.
+        console.debug("[sandbox]", this.session.state.said);
         this.walkListener?.(this.session.walk());
         this.notify();
       },
@@ -180,8 +186,8 @@ export class SandboxController {
 
   /** The sandbox's wiring applies the intent; the renderer draws the next view. */
   apply(intent: Intent): void {
+    console.debug("[sandbox]", intent.kind, `(${intent.tile.x}, ${intent.tile.y})`);
     this.session.apply(intent);
-    console.debug("[sandbox]", intent, "→", this.session.state.said);
   }
 
   /** A tap on the counter: the planned queue's steps not walked fade out. */
@@ -283,6 +289,9 @@ export class SandboxController {
       tickersRunning: pixiTickersRunning(this.app),
       feet: this.renderer.feetFraction(),
       playOnTap: this.session.playOnTap(),
+      adventurerTile:
+        state.world.actors.find((a) => a.id === state.world.adventurerId)?.tile ?? null,
+      cameraTile: pixelToTile(this.renderer.cameraState().camera.centre),
     };
   }
 

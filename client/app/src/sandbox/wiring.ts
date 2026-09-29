@@ -164,6 +164,8 @@ export function applyIntent(
   };
 }
 
+const at = (tile: Tile) => `(${tile.x}, ${tile.y})`;
+
 const article = (name: string) => (/^[aeiou]/.test(name) ? `an ${name}` : `a ${name}`);
 
 /** "a runt", "a runt and a shaman", "a runt, a shaman and a slinger". */
@@ -187,12 +189,14 @@ export function walkStep(state: SandboxState): SandboxState {
   const { terrain } = world;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
   if (!adventurer) return state;
-  const where = `(${next.x}, ${next.y})`;
+  // The log line: the walk's target, where the adventurer stands, the planned next tile, and the
+  // tile actually stepped to, so that a step off the plan shows.
+  const walk = `walk to ${at(state.path.at(-1) ?? next)} from ${at(adventurer.tile)}`;
   const step = stepToward(terrain, world.actors, adventurer.id, next);
   if (!step || !sameTile(step.tile, next)) {
     const holder = world.actors.find((a) => sameTile(a.tile, next));
     const why = holder ? `${article(nameOf(holder))} stands in the way` : "the way is blocked";
-    return drop(state, why, `step to ${where}: invalid, stop`);
+    return drop(state, why, `${walk}: planned ${at(next)} invalid, stop: ${why}`);
   }
   const seenBefore = new Set(visibleActors(terrain, world.actors).map((a) => a.id));
   const actors = world.actors.map((a) =>
@@ -203,7 +207,7 @@ export function walkStep(state: SandboxState): SandboxState {
     ...state,
     world: { ...world, actors, terrain: revealed },
     path: state.path.slice(1),
-    said: `step to ${where}, facing ${step.facing}`,
+    said: `${walk}: planned ${at(next)}, stepped to ${at(step.tile)}, facing ${step.facing}`,
   };
   const entered = visibleActors(revealed, actors).filter(
     (a) => a.side === "goblin" && !seenBefore.has(a.id),
@@ -211,7 +215,11 @@ export function walkStep(state: SandboxState): SandboxState {
   const reasons: string[] = [];
   if (entered.length > 0) reasons.push(`${listed(entered.map(nameOf))} came into sight`);
   if (revealed !== terrain) reasons.push("a chunk was revealed");
-  if (reasons.length > 0) return drop(walked, reasons.join("; "), `${walked.said}; stop`);
+  if (reasons.length > 0) {
+    const who = entered.map((a) => `#${a.id} ${nameOf(a)} at ${at(a.tile)}`).join(", ");
+    const why = reasons.join("; ");
+    return drop(walked, why, `${walked.said}; stop: ${why}${who ? ` (${who})` : ""}`);
+  }
   if (walked.path.length === 0) {
     return { ...walked, walking: false, selectedTile: null, said: `${walked.said}; arrived` };
   }

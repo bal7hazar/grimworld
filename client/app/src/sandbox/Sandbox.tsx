@@ -192,6 +192,11 @@ function DebugPanel({ controller, info }: { controller: SandboxController; info:
         move played on the tap (off: tap twice)
       </label>
       <div style={styles.row}>
+        adventurer at{" "}
+        <b>{info.adventurerTile ? `(${info.adventurerTile.x}, ${info.adventurerTile.y})` : "—"}</b>,
+        camera on ({info.cameraTile.x}, {info.cameraTile.y})
+      </div>
+      <div style={styles.row}>
         atlas: <b>{info.atlas}</b>
       </div>
       <label style={styles.row}>
