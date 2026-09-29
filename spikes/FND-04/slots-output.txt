@@ -1,0 +1,202 @@
+# FND-04 slots — 149 Sepolia transactions (SPK-1 deploy 7, SPK-1 measure 98, SPK-1b 44)
+
+## 1. Every group of identical transactions
+
+A group is one label; `identical` says whether all its transactions have the same figures.
+
+| Source | Label | n | identical | Receipt | Validate | Execute (with game) | Game call | Fee transfer | res1 | res2 | Felts | Slots new/over/zero | Per contract | Nonces |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|
+| SPK-1 | declare Hub | 1 | yes | 777,647,155 | 171,435 | 0 | 0 | 455,360 | 776,981,760 | 38,600 | 2 | 0/2/0 | STRK 2over | <ACCOUNT> |
+| SPK-1 | deploy Hub | 1 | yes | 1,970,205 | 392,815 | 524,870 | 316,290 | 455,360 | 562,960 | 34,200 | 11 | 1/2/0 | Hub 1new; STRK 2over | <ACCOUNT> |
+| SPK-1 | declare Instances | 1 | yes | 1,820,714,035 | 171,435 | 0 | 0 | 455,360 | 1,820,048,640 | 38,600 | 2 | 0/2/0 | STRK 2over | <ACCOUNT> |
+| SPK-1 | deploy Instances | 1 | yes | 2,473,375 | 392,815 | 586,040 | 377,460 | 455,360 | 1,004,960 | 34,200 | 11 | 2/2/0 | Instances 2new; STRK 2over | <ACCOUNT> |
+| SPK-1 | link hub | 1 | yes | 1,736,655 | 392,815 | 311,800 | 104,990 | 455,360 | 542,480 | 34,200 | 7 | 1/2/0 | Hub 1new; STRK 2over | <ACCOUNT> |
+| SPK-1 | link instances | 1 | yes | 1,736,655 | 392,815 | 311,800 | 104,990 | 455,360 | 542,480 | 34,200 | 7 | 1/2/0 | Instances 1new; STRK 2over | <ACCOUNT> |
+| SPK-1 | setup hub | 1 | yes | 4,260,795 | 392,815 | 705,940 | 499,130 | 455,360 | 2,672,480 | 34,200 | 7 | 6/2/0 | Hub 6new; STRK 2over | <ACCOUNT> |
+| SPK-1 | setup queue 18 | 1 | yes | 71,879,665 | 392,815 | 35,490,570 | 35,283,760 | 455,360 | 35,506,720 | 34,200 | 9 | 78/2/0 | Instances 78new; STRK 2over | <ACCOUNT> |
+| SPK-1 | setup queue 19 | 1 | yes | 71,879,665 | 392,815 | 35,490,570 | 35,283,760 | 455,360 | 35,506,720 | 34,200 | 9 | 78/2/0 | Instances 78new; STRK 2over | <ACCOUNT> |
+| SPK-1 | setup queue 20 | 1 | yes | 71,879,665 | 392,815 | 35,490,570 | 35,283,760 | 455,360 | 35,506,720 | 34,200 | 9 | 78/2/0 | Instances 78new; STRK 2over | <ACCOUNT> |
+| SPK-1 | setup queue 21 | 1 | yes | 35,537,915 | 392,815 | 28,356,820 | 28,150,010 | 455,360 | 6,298,720 | 34,200 | 9 | 14/2/0 | Instances 14new; STRK 2over | <ACCOUNT> |
+| SPK-1 | queue of 10 moves, checked | 1 | yes | 17,676,853 | 392,815 | 16,267,438 | 16,058,858 | 455,360 | 527,040 | 34,200 | 20 | 0/12/0 | Instances 10over; STRK 2over | <ACCOUNT> |
+| SPK-1 | queue of 5 moves, checked | 1 | yes | 10,315,319 | 392,815 | 8,931,504 | 8,722,924 | 455,360 | 501,440 | 34,200 | 15 | 0/12/0 | Instances 10over; STRK 2over | <ACCOUNT> |
+| SPK-1 | queue of 1 move, checked | 1 | yes | 4,818,251 | 392,815 | 3,534,916 | 3,326,336 | 455,360 | 400,960 | 34,200 | 11 | 0/11/0 | Instances 9over; STRK 2over | <ACCOUNT> |
+| SPK-1 | queue of 10 moves, no goblin, checked | 1 | yes | 2,816,505 | 392,815 | 1,687,090 | 1,478,510 | 455,360 | 247,040 | 34,200 | 20 | 0/4/0 | Instances 2over; STRK 2over | <ACCOUNT> |
+| SPK-1 | setup board 31 | 20 | NO | 43,273,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 34,617,600 | -5,800 | 8 | 76/2/0 | Instances 76new; STRK 2over | <ACCOUNT> |
+|  | differs: 0x5e2bea2acceffa874c45308330c0262837aefa3839bbd07048bd5d82a6b66f0 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x3a251af3faf27d9a0221621707c7e9a6d8a0e81a2afab233fae2e8dafb94869 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x5b2754b8d0adf6e3d2ce3261f037b78e1f603f9d35e83d4874e933fcee7251a |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x4d872224bc23481b1d7234a3b6073f39ae4bff8369115b70d8b234c4e7c5ecc |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x7b2b3cbca30f6b07fbe8f05451eb00667373c0f5e6e73847ed300d9e067dfb4 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x3a24a2ff83bee9607e0f09eecdbf3daba7aa8ee4e58e4aefc6c6f7e99563485 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x1fb0a138bf0d69e0608e182878b072b80d4b61b97448d602f20c8b60f63052f |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x4a94bba20b6c68fe8447f8ccdc4f4ac9ce4dbe4e51702242d6f2168b4e27e24 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x7eb3e53e9aad8d68b5cdd6c7582336fa25be0911d5f754f1c1ee7e8ad8e592 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x74113411b69da1893f2df3ae64ea55b0aa2524b60c76572886089acd7b04c1d |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x56268f11c9b9f1a32ee30baea83dafc5d0c1aa52f95c5eb03e134d8e4235ede |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x119bbc099c3824b3570cc8397f7371d431cc9a4afc42c4b1bf855e668cc9750 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x2b8b719892790b3052a756a7db1894cf155db31d5c44632a6ea4c4907202d39 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x5b0d65ead3b9b938a47a16e6472757cda6abfdf9f2e459931e82f61e56b03df |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x160010a2bd1b9048f560307aa3896665dc47b560889f5ecef18eae1d6102d13 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x21eddae3711eb21019f2675a7e21ed780c0b7bbf40f12c499df00fc63bc2469 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x38d8a5a85424f2ca90d8c6b3f5d3af2347fd848adfebb70e08aeb6a2b773bde |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x43be3331559f41e608afc331932bdb19a74838b4f1895b5c6a39c0d6cb38aa6 |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+|  | differs: 0x449fd732c07eedca8d4126e5d9c8e81274bf8e714c2a9b130200d75a81c963b |  |  | 9,161,315 | 392,815 | 7,813,340 | 7,606,530 | 455,360 | 465,600 | 34,200 | 8 | 0/12/0 | Instances 10over; STRK 2over | |
+| SPK-1 | capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 20 | yes | 5,129,938 | 392,815 | 3,771,723 | 3,564,913 | 455,360 | 475,840 | 34,200 | 10 | 0/12/0 | Instances 10over; STRK 2over | <ACCOUNT> |
+| SPK-1 | enter | 25 | yes | 3,927,367 | 392,815 | 1,135,792 | 927,212 | 455,360 | 1,913,600 | 29,800 | 8 | 4/4/0 | Hub 1over; Instances 4new/1over; STRK 2over | <ACCOUNT> |
+| SPK-1 | leave | 25 | yes | 2,030,065 | 392,815 | 888,810 | 682,000 | 455,360 | 260,480 | 32,600 | 7 | 0/3/4 | Hub 1over; Instances 4zero; STRK 2over | <ACCOUNT> |
+| SPK-1b | A owner: enter | 5 | yes | 3,927,367 | 392,815 | 1,135,792 | 927,212 | 455,360 | 1,913,600 | 29,800 | 8 | 4/4/0 | Hub 1over; Instances 4new/1over; STRK 2over | <ACCOUNT> |
+| SPK-1b | A owner: leave | 5 | yes | 2,030,065 | 392,815 | 888,810 | 682,000 | 455,360 | 260,480 | 32,600 | 7 | 0/3/4 | Hub 1over; Instances 4zero; STRK 2over | <ACCOUNT> |
+| SPK-1b | fund the burner, give it adventurer 3 | 1 | yes | 2,807,735 | 419,235 | 1,290,140 | 954,490 | 455,360 | 613,200 | 29,800 | 13 | 1/3/0 | Hub 1over; STRK 1new/2over | <ACCOUNT> |
+| SPK-1b | deploy the burner | 1 | yes | 2,168,115 | 75,905 | 232,250 | 0 | 455,360 | 1,366,000 | 38,600 | 3 | 3/2/0 | STRK 2over; burner 3new | burner |
+| SPK-1b | B burner direct: enter | 5 | yes | 3,555,447 | 87,805 | 1,068,882 | 927,212 | 455,360 | 1,913,600 | 29,800 | 8 | 4/4/0 | Hub 1over; Instances 4new/1over; STRK 2over | burner |
+| SPK-1b | B burner direct: leave | 5 | yes | 1,659,915 | 87,805 | 823,670 | 682,000 | 455,360 | 260,480 | 32,600 | 7 | 0/3/4 | Hub 1over; Instances 4zero; STRK 2over | burner |
+| SPK-1b | C burner via relayer: enter | 5 | yes | 4,971,188 | 392,815 | 1,647,293 | 1,435,173 | 455,360 | 2,451,920 | 23,800 | 19 | 5/4/0 | Hub 1over; Instances 4new/1over; STRK 2over; burner 1new | <ACCOUNT> |
+| SPK-1b | C burner via relayer: leave | 5 | yes | 3,068,685 | 392,815 | 1,395,110 | 1,184,760 | 455,360 | 798,800 | 26,600 | 18 | 1/3/4 | Hub 1over; Instances 4zero; STRK 2over; burner 1new | <ACCOUNT> |
+| SPK-1b | D burner via AVNU: enter | 5 | yes | 7,063,760 | 400,000 | 3,695,040 | 3,339,200 | 455,360 | 2,473,360 | 40,000 | 31 | 5/6/0 | Hub 1over; Instances 4new/1over; STRK 4over; burner 1new | 0x6b736fd574a59a6d7f0a1f935fc71c7df5f3a7e3d6f4dfbaecec4c70ca26578 |
+| SPK-1b | D burner via AVNU: leave | 5 | NO | 5,174,800 | 400,000 | 3,459,200 | 3,103,360 | 455,360 | 860,240 | 0 | 30 | 1/5/4 | Hub 1over; Instances 4zero; STRK 4over; burner 1new | 0x7ae2c9e63c7ee60372bacb2e86db4f958b2709cd8e0637788933389a315ee45 |
+|  | differs: 0x34ee11cbc602578f41c0a55382fac002a847efaa91946472d3c7d46d9716db4 |  |  | 4,934,800 | 320,000 | 3,459,200 | 3,103,360 | 455,360 | 700,240 | 0 | 30 | 1/5/4 | Hub 1over; Instances 4zero; STRK 4over; burner 1new | |
+| SPK-1b | give adventurer 3 back to the owner | 1 | yes | 1,728,795 | 392,815 | 705,940 | 499,130 | 455,360 | 140,480 | 34,200 | 7 | 0/3/0 | Hub 1over; STRK 2over | <ACCOUNT> |
+| SPK-1b | return the burner's STRK | 1 | yes | 1,285,115 | 87,805 | 597,030 | 455,360 | 455,360 | 110,720 | 34,200 | 9 | 0/3/0 | STRK 3over | burner |
+
+## 2. res1 = BASE + PER_FELT × felts + the state part
+
+BASE = 4,640, PER_FELT = 5,120. The *state part* is res1 − BASE − PER_FELT × felts. Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):
+
+| Label | Felts | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 20,000 |
+|---|---:|---:|---:|---:|---|---:|---:|
+| deploy Hub | 11 | 13 | 562,960 | 502,000 | 1/2/0 | 2 | 2000 |
+| deploy Instances | 11 | 13 | 1,004,960 | 944,000 | 2/2/0 | 2 | 4000 |
+| link hub | 7 | 5 | 542,480 | 502,000 | 1/2/0 | 2 | 2000 |
+| setup hub | 7 | 5 | 2,672,480 | 2,632,000 | 6/2/0 | 2 | 12000 |
+| setup queue 18 | 9 | 5 | 35,506,720 | 35,456,000 | 78/2/0 | 2 | 16000 |
+| setup queue 21 | 9 | 5 | 6,298,720 | 6,248,000 | 14/2/0 | 2 | 8000 |
+| queue of 10 moves, checked | 20 | 8 | 527,040 | 420,000 | 0/12/0 | 2 | 0 |
+| queue of 5 moves, checked | 15 | 8 | 501,440 | 420,000 | 0/12/0 | 2 | 0 |
+| queue of 1 move, checked | 11 | 8 | 400,960 | 340,000 | 0/11/0 | 2 | 0 |
+| queue of 10 moves, no goblin, checked | 20 | 8 | 247,040 | 140,000 | 0/4/0 | 2 | 0 |
+| setup board 31 | 8 | 5 | 34,617,600 | 34,572,000 | 76/2/0 | 2 | 12000 |
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 10 | 8 | 475,840 | 420,000 | 0/12/0 | 2 | 0 |
+| setup board 31 | 8 | 5 | 465,600 | 420,000 | 0/12/0 | 2 | 0 |
+| enter | 8 | 12 | 1,913,600 | 1,868,000 | 4/4/0 | 3 | 8000 |
+| leave | 7 | 7 | 260,480 | 220,000 | 0/3/4 | 3 | 0 |
+| fund the burner, give it adventurer 3 | 13 | 10 | 613,200 | 542,000 | 1/3/0 | 2 | 2000 |
+| deploy the burner | 3 | 7 | 1,366,000 | 1,346,000 | 3/2/0 | 2 | 6000 |
+| B burner direct: enter | 8 | 12 | 1,913,600 | 1,868,000 | 4/4/0 | 3 | 8000 |
+| B burner direct: leave | 7 | 7 | 260,480 | 220,000 | 0/3/4 | 3 | 0 |
+| C burner via relayer: enter | 19 | 12 | 2,451,920 | 2,350,000 | 5/4/0 | 4 | 10000 |
+| C burner via relayer: leave | 18 | 7 | 798,800 | 702,000 | 1/3/4 | 4 | 2000 |
+| give adventurer 3 back to the owner | 7 | 5 | 140,480 | 100,000 | 0/3/0 | 2 | 0 |
+| return the burner's STRK | 9 | 10 | 110,720 | 60,000 | 0/3/0 | 1 | 0 |
+
+## 3. Controlled pairs: one thing differs
+
+| Pair (b − a) | What differs | Δ res1 | Δ state part | Per unit |
+|---|---|---:|---:|---:|
+| queue of 10 moves, checked − queue of 5 moves, checked | calldata (5) | 25,600 | 0 | 5,120 |
+| queue of 5 moves, checked − capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | calldata (5) | 25,600 | 0 | 5,120 |
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked − setup board 31 (again) | 2 felts of calldata, and one event more (3 event felts) | 10,240 | 0 | events: 0 in res1 |
+| deploy Instances − deploy Hub | new slot (1) | 442,000 | 442,000 | 442,000 |
+| fund the burner, give it adventurer 3 − give adventurer 3 back to the owner | new slot (the burner's STRK balance) (1) | 472,720 | 442,000 | 442,000 |
+| setup hub − link hub | new slots (5) | 2,130,000 | 2,130,000 | 426,000 |
+| setup queue 18 − setup queue 21 | new slots (64) | 29,208,000 | 29,208,000 | 456,375 |
+| C burner via relayer: leave − leave | new slot (the SNIP-9 nonce) in one contract more (1) | 538,320 | 482,000 | 482,000 |
+| C burner via relayer: enter − enter | new slot (the SNIP-9 nonce) in one contract more (1) | 538,320 | 482,000 | 482,000 |
+| queue of 10 moves, checked − queue of 1 move, checked | overwritten slot (1) | 126,080 | 80,000 | 80,000 |
+| queue of 10 moves, checked − queue of 10 moves, no goblin, checked | overwritten slots (8) | 280,000 | 280,000 | 35,000 |
+| leave − give adventurer 3 back to the owner | zeroed slots (4) | 120,000 | 120,000 | 30,000 |
+| return the burner's STRK (alone) | 3 overwritten STRK balances, one contract | — | 60,000 | 20,000 |
+| give adventurer 3 back (alone) | 2 STRK balances + 1 Hub slot, two contracts | — | 100,000 | 33,333 |
+
+## 4. One price per new slot and one per other changed slot: least squares over the shapes
+
+Fit over 23 shapes: **new slot 453,524**, **overwritten or zeroed slot 32,072** (L2 gas, beyond the write's computation, once per slot and per transaction).
+
+| Label | Slots new/other | State part | Fitted | Error | Error % |
+|---|---|---:|---:|---:|---:|
+| deploy Hub | 1/2 | 502,000 | 517,668 | -15,668 | -3.1 % |
+| deploy Instances | 2/2 | 944,000 | 971,192 | -27,192 | -2.9 % |
+| link hub | 1/2 | 502,000 | 517,668 | -15,668 | -3.1 % |
+| setup hub | 6/2 | 2,632,000 | 2,785,289 | -153,289 | -5.8 % |
+| setup queue 18 | 78/2 | 35,456,000 | 35,439,019 | 16,981 | +0.0 % |
+| setup queue 21 | 14/2 | 6,248,000 | 6,413,481 | -165,481 | -2.6 % |
+| queue of 10 moves, checked | 0/12 | 420,000 | 384,866 | 35,134 | +8.4 % |
+| queue of 5 moves, checked | 0/12 | 420,000 | 384,866 | 35,134 | +8.4 % |
+| queue of 1 move, checked | 0/11 | 340,000 | 352,794 | -12,794 | -3.8 % |
+| queue of 10 moves, no goblin, checked | 0/4 | 140,000 | 128,289 | 11,711 | +8.4 % |
+| setup board 31 | 76/2 | 34,572,000 | 34,531,971 | 40,029 | +0.1 % |
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 0/12 | 420,000 | 384,866 | 35,134 | +8.4 % |
+| setup board 31 | 0/12 | 420,000 | 384,866 | 35,134 | +8.4 % |
+| enter | 4/4 | 1,868,000 | 1,942,385 | -74,385 | -4.0 % |
+| leave | 0/7 | 220,000 | 224,505 | -4,505 | -2.0 % |
+| fund the burner, give it adventurer 3 | 1/3 | 542,000 | 549,741 | -7,741 | -1.4 % |
+| deploy the burner | 3/2 | 1,346,000 | 1,424,716 | -78,716 | -5.8 % |
+| B burner direct: enter | 4/4 | 1,868,000 | 1,942,385 | -74,385 | -4.0 % |
+| B burner direct: leave | 0/7 | 220,000 | 224,505 | -4,505 | -2.0 % |
+| C burner via relayer: enter | 5/4 | 2,350,000 | 2,395,909 | -45,909 | -2.0 % |
+| C burner via relayer: leave | 1/7 | 702,000 | 678,029 | 23,971 | +3.4 % |
+| give adventurer 3 back to the owner | 0/3 | 100,000 | 96,217 | 3,783 | +3.8 % |
+| return the burner's STRK | 0/3 | 60,000 | 96,217 | -36,217 | -60.4 % |
+
+Largest error: 165,481 L2 gas.
+
+## 5. The figure per slot our data supports
+
+| Kind of slot | From the controlled pairs: min / median / max | Least squares | quiver (D-135) |
+|---|---:|---:|---:|
+| New (its value was 0) | 426,000 / 456,375 / 482,000 | 453,524 | 402,000 |
+| Overwritten or zeroed | 20,000 / 33,333 / 80,000 | 32,072 | — |
+
+## 6. SPK-1 §4's non-game remainder, rebuilt
+
+Non-game remainder = receipt − game call = validate + account execution + fee transfer + res1 + res2.
+
+| Label | Non-game remainder | Validate + account execution + fee transfer | res2 | BASE + felts | New slots | Other slots |
+|---|---:|---:|---:|---:|---:|---:|
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 1,565,025 | 1,054,985 | 34,200 | 55,840 | 0 × ≈ 453,524 | 12 × ≈ 32,072 |
+| queue of 10 moves, checked | 1,617,995 | 1,056,755 | 34,200 | 107,040 | 0 × ≈ 453,524 | 12 × ≈ 32,072 |
+| queue of 5 moves, checked | 1,592,395 | 1,056,755 | 34,200 | 81,440 | 0 × ≈ 453,524 | 12 × ≈ 32,072 |
+| queue of 1 move, checked | 1,491,915 | 1,056,755 | 34,200 | 60,960 | 0 × ≈ 453,524 | 11 × ≈ 32,072 |
+| queue of 10 moves, no goblin, checked | 1,337,995 | 1,056,755 | 34,200 | 107,040 | 0 × ≈ 453,524 | 4 × ≈ 32,072 |
+| enter | 3,000,155 | 1,056,755 | 29,800 | 45,600 | 4 × ≈ 453,524 | 4 × ≈ 32,072 |
+| leave | 1,348,065 | 1,054,985 | 32,600 | 40,480 | 0 × ≈ 453,524 | 7 × ≈ 32,072 |
+| B burner direct: enter | 2,628,235 | 684,835 | 29,800 | 45,600 | 4 × ≈ 453,524 | 4 × ≈ 32,072 |
+| B burner direct: leave | 977,915 | 684,835 | 32,600 | 40,480 | 0 × ≈ 453,524 | 7 × ≈ 32,072 |
+| C burner via relayer: leave | 1,883,925 | 1,058,525 | 26,600 | 96,800 | 1 × ≈ 453,524 | 7 × ≈ 32,072 |
+
+## 7. SPK-2's native entrypoints on the local node (devnet_trace.py)
+
+| Entrypoint (SPK-2 label) | Game slots new/over/zero | Fee token slots | Receipt (devnet meter) |
+|---|---|---|---:|
+| worst-case tick, one felt per goblin, unchecked | 0/10/0 | 2 | 4,956,800 |
+| worst-case tick, one felt per goblin, checked | 0/10/0 | 2 | 4,996,800 |
+| worst-case tick, goblins packed, unchecked | 0/10/0 | 2 | 4,876,800 |
+| worst-case tick, goblins packed, checked | 0/10/0 | 2 | 4,876,800 |
+| worst-case tick, 11 slots per goblin, checked | 4/17/0 | 2 | 12,444,800 |
+| queue of 10 moves, unchecked | 0/10/0 | 2 | 20,128,000 |
+| queue of 5 moves, unchecked | 0/10/0 | 2 | 11,662,400 |
+| queue of 1 move, unchecked | 0/9/0 | 2 | 5,201,920 |
+| queue of 10 moves, no goblin, unchecked | 0/2/0 | 2 | 2,208,000 |
+| queue of 10 moves, checked | 0/10/0 | 2 | 20,128,000 |
+| queue of 5 moves, checked | 0/10/0 | 2 | 11,662,400 |
+| queue of 1 move, checked | 0/9/0 | 2 | 5,201,920 |
+| queue of 10 moves, no goblin, checked | 0/2/0 | 2 | 2,248,000 |
+| queue of 10 moves, goblins packed, checked | 0/10/0 | 2 | 20,048,000 |
+| queue of 5 moves, goblins packed, checked | 0/10/0 | 2 | 11,582,400 |
+| queue of 1 move, goblins packed, checked | 0/9/0 | 2 | 5,121,920 |
+| queue of 10 moves, 11 slots per goblin, checked | 8/13/0 | 2 | 25,064,000 |
+| tick, corridor maze (45 layers unlimited; capped at 15), unchecked | 0/10/0 | 2 | 4,396,800 |
+| tick, unreachable target (13 layers), unchecked | 0/10/0 | 2 | 4,876,800 |
+| tick, deepest board found (92 layers unlimited; capped at 15), unchecked | 0/10/0 | 2 | 4,476,800 |
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, unchecked | 0/10/0 | 2 | 5,156,800 |
+| capped worst-case tick (15 layers, 8 goblins reached), one felt per goblin, checked | 0/10/0 | 2 | 5,156,800 |
+| capped worst-case tick (15 layers, 8 goblins reached), goblins packed, checked | 0/10/0 | 2 | 5,036,800 |
+| capped worst-case tick (15 layers, 8 goblins reached), goblins packed, unchecked | 0/10/0 | 2 | 5,036,800 |
+| queue of 10 moves, serpentine (capped), unchecked | 0/3/0 | 2 | 13,568,000 |
+| queue of 10 moves, serpentine (capped), checked | 0/3/0 | 2 | 13,568,000 |
+| brew, signature, new pair | 2/3/0 | 2 | 2,485,920 |
+| brew, no signature, new pair | 2/3/0 | 2 | 2,445,920 |
+| brew, known pair | 0/3/0 | 2 | 1,401,920 |
+| accept quest | 1/0/0 | 2 | 1,473,680 |
+| claim quest | 1/2/0 | 2 | 1,713,680 |
+| enter | 4/2/0 | 2 | 3,425,280 |
+| leave | 0/1/4 | 2 | 1,576,320 |
