@@ -294,14 +294,22 @@ location).
 
 | Offset | Word | Layout |
 |---:|---|---|
-| 0 | `MemberState` | adventurer 0–31 · x 32–39 · y 40–47 · facing 48–55 · status 56–63 (inside, down, gone) · health 64–79 · energy (thirds) 80–95 · adrenaline (quarter strikes) 96–111 · hits 112–119 · casts 120–127 · belt counts 4 × 8 at 128–159 · flags 160–167 (turned, instant used, since the last tick) |
+| 0 | `MemberState` | adventurer 0–31 · x 32–39 · y 40–47 · facing 48–55 · status 56–63 (inside, down, gone) · health 64–79 · energy (thirds) 80–95 · adrenaline (quarter strikes) 96–111 · hits 112–119 · casts 120–127 (the first quick-cast counter) · belt counts 4 × 8 at 128–159 · flags 160–167 (bit 0 turned since the last tick, bit 1 an instant skill used since it; **CBT-01**: bit 3 hit this tick, bit 4 `HALVE_FIRST_HEAVY_HIT` spent) · **CBT-01**: `casts_2` 168–175 (the second quick-cast counter, design/19 §5.12) |
 | 1 | `MemberTimers` | activation: slot 0–7 (255 none) · target 8–23 · target is a tile 24–31 · deadline 32–63; conditions as deadlines: bleeding 64–95 · poison 96–127 · burning 128–159 · crippled 160–191 · knocked down 192–223 |
-| 2 | `MemberEffects` | four effects of 56 bits at 0, 56, 128, 184: skill `u16` · charges `u8` · deadline 32 |
+| 2 | `MemberEffects` | four held effects of 56 bits at 0, 56, 128, 184: skill `u16` 0–15 · charges 16–21 (0–63) · bit 22 free · potion tag 23 (then the skill field is the belt slot 0–3) · deadline 24–51 (28 bits; `MAX_CLOCK` for a charge-only effect) · rank 52–55 (the source's, 0–15) (**CBT-01**, design/19 §5.7, §7.2) |
 | 3 | `Recharges` | eight 28-bit deadlines: slots 0–3 at 0, 28, 56, 84; slots 4–7 at 128, 156, 184, 212 |
-| 4 | `MemberStats` (snapshot) | max health 0–15 · max energy 16–23 · energy regen 24–31 · health regen + 10 32–39 · armor 40–47 · vs physical 48–55 · vs elemental 56–63 · level 64–71 · profession 72–79 · primary rank 80–87 · weapon 88–95 · damage 96–103 · ticks 104–111 · range 112–119 · strength 120–127 · the attribute rank of each bar skill 128–159 (4 bits each) · damage type 160–167 · penetration 168–175 · requirement met 176–183 · set bonuses 184–199 |
-| 5 | `MemberBar` (snapshot) | 8 skill ids `u16` at 16 i · elite slot 128–135 |
-| 6 | `MemberKit` (snapshot) | belt: 4 potion items `u32` at 0, 32, 64, 96 · the equipment's modifiers flattened: conditional damage 128 · its threshold 136 · life steal 144 · energy on hit 152 · condition duration 160 · enchantment duration 168 · double adrenaline every N hits 176 · quicker cast every N spells 184 · health bonus 192–207 |
+| 4 | `MemberStats` (snapshot) | max health 0–15 · max energy 16–23 · energy regen 24–31 · health regen + 10 32–39 · 40–47 free · `ARMOR_VS` of damage types 1–2 at 48, 54 (6 bits each) · 60–63 free · level 64–71 · profession 72–79 · primary rank 80–87 · weapon (the class, design/15: 1 sword … 6 wand) 88–95 · damage 96–103 · ticks 104–111 · range 112–119 · strength 120–127 · the attribute rank of each bar skill 128–159 (4 bits each) · damage type 160–167 · 168–175 free · requirement met 176–183 · set bonuses 184–199 · `ARMOR_VS` of damage types 3–9 at `200 + 6 (t − 3)` (200–241, 6 bits each, saturated at 63) (**CBT-01**, FX-23, FX-24: the single armor, vs physical, vs elemental and penetration are gone) |
+| 5 | `MemberBar` (snapshot) | 8 skill ids `u16` at 16 i · elite slot 128–135 · **CBT-01** (FX-24): `DAMAGE_PERCENT` sums 136–183, six `i8` at `136 + 8 (3 g + s)` for guard `g` (0 always, 1 above half) and scope `s` (0 plain weapon, 1 attack skill, 2 spell) · `PENETRATION` sums 184–207, three `u8` by scope · two quick-cast pairs 208–231 (attribute 4 bits · N 8 bits, each) · the unguarded armor `i16` 232–247 (at most ±9,995: F-21 below) · 248–249 free |
+| 6 | `MemberKit` (snapshot) | belt: 4 potion items `u32` at 0, 32, 64, 96 · the equipment's modifiers flattened (**CBT-01**, FX-24, 75 bits): life steal 128–135 · energy on hit 136–143 · `CONDITION_DURATION`: condition 144–147, percent 148–153 · enchantment duration percent 154–159 · double adrenaline every N hits 160–167 · health bonus 168–183 · armor in a stance `i8` 184–191 · armor enchanted `i8` 192–199 · knock-down ticks 200–201 · halving held 202 · 203–249 free |
 | 7 | `controller` | the account address allowed to play this member (M-6) |
+
+**CBT-01** (design/19 §7.2, FX-24, D-155): the combat's state fits these words, **0 new slots**; the
+snapshot is written as before (the same three words, at create and at a gate). Signed fields are two's
+complement (`grimworld_logic::helpers::signed`). **F-21, settled**: the unguarded armor is the weighted
+rating of the five pieces (each `u8`, weights summing to 1: ≤ 255) and the shield's (`u8`, ≤ 255),
+each raised by personalisation's +10 % of its rating (≤ 25 each), plus at most 37 unguarded `ARMOR`
+passives of −255…+255: `255 + 25 + 255 + 25 + 37 × 255 = 9,995` (the two 255 limits are ratings
+before personalisation); `MemberBar` refuses more (`MAX_UNGUARDED_ARMOR`), an `i16` holds it.
 
 **`Chunk`** (2 consecutive felts):
 - `Terrain`: walls, bit `15 row + column` for the 225 tiles (1 = wall) · edges 225–228 (West, East,
@@ -327,7 +335,14 @@ location).
   deadlines of its four caste skills, 28 bits each at 128–239 · `LIVE`.
 - `GoblinTimers`: activation slot 0–7 · target 8–23 · deadline 24–51 · bleeding 52–79 · poison 80–107 ·
   effect skill 108–123 · burning 128–155 · crippled 156–183 · knocked 184–211 · effect deadline
-  212–239 · `LIVE`.
+  212–239 · **CBT-01**: effect charges 240–245 (0–63) · effect rank 246–249 (0–15) · `LIVE`. The
+  activation slot is the activation field of design/19 §5.2: 0–3 activating a caste skill (deadline
+  `A`), **254 recovering** (deadline `B`, FX-15), **255 none**.
+- **CBT-01** (design/19 §7.2): `GoblinState`'s energy is **in thirds** (a caste's energy ≤ 85) and its
+  adrenaline in quarter strikes (≤ 252, 63 strikes); the layout does not change.
+- **Placed traps** (design/19 §5.11, §7.2): a chunk object of kind **9** (the terrain trap is kind
+  4, its `param` a `SKILL` id); its `param` names its placer (`types::combat::Placer`): bit 15 = 0,
+  member 0–2 and bar slot 3–5; bit 15 = 1, goblin entity − 8 at 0–11 and caste skill 12–13.
 
 **Entity ids** (M-5), `u16`: members 0–7; goblins `8 + 16 × chunk + k`, `k` 0–9 in the chunk where
 the goblin spawned (at most 3,601). **Tiles**, `u16`: `x + 256 y`, global, x and y below 225.
@@ -508,6 +523,38 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `LOCATION` | 1 | the set pieces its quotas may place: up to 15 `SET_PIECE` ids (`Lanes16`, 0 none) |
 | `GATE` | 0 | source 0–15 · destination 16–31 · source anchor chunk 32–39, tile 40–47 (0, 0 in a hub) · destination entry chunk 48–55, tile 56–63 (0, 0 into a hub) · kind 64–71 (1 hub, 2 link, 3 floor, 4 Rift) · rank required 72–79 · quest required 80–111 (0 none) |
 | `OUTLINE` | 0 | id `location × 256 + 255`: the zone's chunk set, bit `15 cy + cx`; id `location × 256 + chunk`: that chunk's tile mask, bit `15 row + column` (1 in the zone). Bits 0–224 |
+| `SKILL` | 0 | header, low limb (83 bits): profession 0–7 · attribute 8–15 · skill kind 16–23 (design/19 §3.4, 1–12) · energy 24–31 · adrenaline (strikes) 32–39 · activation 40–55 · recharge 56–71 (both ≤ `MAX_BASE_DURATION`) · range 72–79 · target 80–81 (self, foe, ally, tile) · elite 82 · **entry 1** 128–224 |
+| `SKILL` | 1 | **entry 2** 0–96 · **entry 3** 128–224 |
+| `ITEM` | 0 | class 0–7 (1 ingredient, 2 material, 3 potion, 4 trophy, 5 stillstone, 6 heartstone, 7 quest, 8 failed brew) · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 · the potion's **entry** 128–224 · range 225–232 · bomb strength 233–240 (FX-18, FX-28) |
+| `MODIFIER` | 0 | slot type 0–7 (1 prefix, 2 suffix, 3 inscription, 4 insignia, 5 rune: `ItemMods`' order) · **benefit** 128–180 · **cost** 181–233 (a passive each; the cost fixed, id 0 for none) |
+| `ARMOR_SET` | 0 | 5 piece bases `u16` at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · the 3-piece bonus 128–180 · the 5-piece bonus 181–233 (a passive each) |
+| `CASTE` | 0 | tier 0–7 · AI profile 8–15 · health multiplier (percent) 16–31 · health regeneration + 10 32–39 · armor 40–47 · weapon 48–79 (class 48–51 · damage 52–67 · damage type 68–71 · ticks 72–75 · range 76–79) · energy (≤ 85) 80–87 · energy regeneration 88–95 · flee threshold 96–103 · rank of its skills 104–107 · boss 108 · armor per damage type 128–181 (type `t` at `128 + 6 (t − 1)`, ≤ 63) · loot table 182–197 |
+| `CASTE` | 1 | 4 skills `u16` at 0, 16, 32, 48, in priority order (design/19 §7.3: 243 bits over 4 limbs; the shape, DES-06 fills the values) |
+
+**The effect entry** (CBT-01, design/19 §2.1; `grimworld_logic::types::effect::Entry`), 97 bits of a
+limb: kind 0–7 (0 empty, 1–23) · param 8–15 · `v0` 16–31 · `v12` 32–47 (`i16`) · `d0` 48–63 · `d12`
+64–79 (≤ 43,688) · charges 80–85 · target 86–87 · shape 88–90 (1–5) · filter 91 · guard 92–94
+(0–4) · scope 95–96. **A passive** (§4; `types::passive::Passive`), 53 bits: id 0–7 (0 none, 40–65) ·
+param 8–15 · guard 16–18 · scope 19–20 · min 21–36 · max 37–52 (`i16`). The packers refuse a field
+wider than its layout and a duration, recharge or activation above `MAX_BASE_DURATION`; the content
+pipeline's checks (a kind's "reads", its bounds at ranks 0 and 15, the legal carriers of §5.14,
+FX-21's and FX-35's shapes, a potion unscaled) are `assert_legal` on each model, mirrored by OPS-01.
+A passive's `param` lies in the enumeration its id names and its value in the range §4 and §7.2
+state, and it is held only where §7.2 allows (`PassiveTrait::allows`, `Source`: `DAMAGE_PERCENT`
+and `PENETRATION` on the held items' slot types and set bonuses, guarded `ARMOR` on insignias and
+set bonuses, `QUICK_CAST_EVERY_N` and `DAMAGE_TYPE` on the held items' slot types with one slot
+type for the whole content (`ModifierAssert::assert_catalogue`), `CONDITION_DURATION` on the
+prefix, `RATING_PERCENT` on no record); a modifier's benefit and cost together add to each counted
+sum no more than one passive may (`PassiveAssert::assert_contributions`, per guard and hit class,
+an attack skill's sum taking `WEAPON` and `ATTACK_SKILL`, design/19 §5.4), and never name two
+quick-casts, two conditions or two damage types (`conflicts`); `ENERGY_COST` is 0 or below ("−
+energy"). With these, the sums §7.2 bounds by counting sources, and
+those it saturates or ENG-01 §3.1 caps (`ARMOR_VS`, knock-down, duration percents), fit their
+fields: `logic/tests/test_capacity.cairo` flattens the worst accepted loadouts (CBT-01 fix loops
+1–2). The sums no document bounds (life steal and energy on hit, the health bonus, energy and
+regeneration, attribute ranks, `ENERGY_COST`, `BASE_DAMAGE_PERCENT`) and the attribute id space
+are open (CBT-01 report, escalations).
+Tests: `logic/tests/test_combat.cairo`.
 
 **The content version's cost, measured apart** (ENG-03, snforge L2 gas, M; for ENG-06 and ENG-07):
 

@@ -3,8 +3,8 @@
 //! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
 
 use grimworld_logic::packing::{
-    P112, P120, P16, P24, P28, P32, P56, P64, P8, P80, P84, P96, byte_at, fits, join, low_field,
-    split, u16_at, u32_at,
+    P112, P120, P16, P24, P28, P32, P40, P52, P56, P64, P8, P80, P84, P96, byte_at, field, fits,
+    join, low_field, split, u16_at, u32_at,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::MAX_CLOCK;
@@ -25,6 +25,10 @@ pub const STATS_WORD: u8 = 4;
 pub mod errors {
     /// A gate action by anyone but the member's controller (M-6, ENG-01 §1.2).
     pub const NOT_CONTROLLER: felt252 = 'not controller';
+    /// A held effect's charges above 63, rank above 15, or belt slot above 3 (design/19 §7.2).
+    pub const CHARGES: felt252 = 'packing: charges above 63';
+    pub const RANK: felt252 = 'packing: rank above 15';
+    pub const BELT_SLOT: felt252 = 'packing: belt slot above 3';
 }
 
 #[generate_trait]
@@ -49,6 +53,7 @@ pub impl MemberStateImpl of MemberStateTrait {
             casts: 0,
             belt,
             flags: 0,
+            casts_2: 0,
         }
     }
 
@@ -90,12 +95,26 @@ pub struct MemberState {
     pub adrenaline: u16,
     /// bits 112-119: hits landed, for "every Nth hit" modifiers (design/15)
     pub hits: u8,
-    /// bits 120-127: spells cast, for "every Nth spell" modifiers
+    /// bits 120-127: spells cast, for the first quick-cast modifier (`MemberBar.quick_cast[0]`)
     pub casts: u8,
     /// bits 128-159: potions left in each belt slot, 8 bits each
     pub belt: [u8; 4],
-    /// bits 160-167: bit 0 turned since the last tick, bit 1 an instant skill used since it
+    /// bits 160-167: `flag::TURNED`, `INSTANT`, `HIT`, `HALVED` (design/19 §7.2)
     pub flags: u8,
+    /// bits 168-175: spells cast, for the second quick-cast modifier (design/19 §5.12, FX-43)
+    pub casts_2: u8,
+}
+
+/// `MemberState.flags` (ENG-01 §3.2; design/19 §7.2 adds bits 3 and 4).
+pub mod flag {
+    /// Turned since the last tick.
+    pub const TURNED: u8 = 1;
+    /// An instant skill used since the last tick.
+    pub const INSTANT: u8 = 2;
+    /// Hit this tick (§5.5 step 5; `mine` stops on it, §5.10).
+    pub const HIT: u8 = 8;
+    /// `HALVE_FIRST_HEAVY_HIT` spent (FX-19).
+    pub const HALVED: u8 = 16;
 }
 
 pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<MemberState, felt252> {
@@ -115,7 +134,8 @@ pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<Membe
             + b1.into() * P8
             + b2.into() * P16
             + b3.into() * P24
-            + value.flags.into() * P32;
+            + value.flags.into() * P32
+            + value.casts_2.into() * P40;
         join(low, high)
     }
     fn unpack(value: felt252) -> MemberState {
@@ -136,6 +156,7 @@ pub impl MemberStateStorePacking of starknet::storage_access::StorePacking<Membe
                 byte_at(high, P16), byte_at(high, P24),
             ],
             flags: byte_at(high, P32),
+            casts_2: byte_at(high, P40),
         }
     }
 }
@@ -197,15 +218,34 @@ pub impl MemberTimersStorePacking of starknet::storage_access::StorePacking<Memb
     }
 }
 
-/// A timed effect on a member: a stance, an enchantment, a preparation, a glyph, a hex.
+/// A held effect on a member: a stance, an enchantment, a preparation, a glyph, a hex, a potion's
+/// (design/19 §5.7, §7.2). 56 bits: skill 0-15 · charges 16-21 · (bit 22 free) · potion tag 23
+/// ·
+/// deadline 24-51 · rank 52-55. Its carrier is the skill id, or with the tag the belt slot 0-3
+/// whose potion item is the carrier (FX-42).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct Effect {
-    /// The skill (registry id) that set it; 0 for none.
+    /// The skill (registry id) that set it; 0 for none. With `potion`, the belt slot 0-3.
     pub skill: u16,
-    /// Charges left (blocks of Brace, the glyph's one spell).
+    /// Charges left, 0-63 (a block's, an oil's).
     pub charges: u8,
-    /// The tick it ends at.
+    /// The potion tag: `skill` is a belt slot.
+    pub potion: bool,
+    /// The tick it ends at (`MAX_CLOCK` for a charge-only effect, design/19 §3.4).
     pub deadline: u32,
+    /// The source's rank at application, 0-15 (§5.7).
+    pub rank: u8,
+}
+
+#[generate_trait]
+pub impl EffectAssert of EffectAssertTrait {
+    /// Charges fit 6 bits, the rank 4; with the potion tag, the skill field is a belt slot 0-3.
+    #[inline(always)]
+    fn assert_valid(self: @Effect) {
+        assert(*self.charges < 0x40, errors::CHARGES);
+        assert(*self.rank < 0x10, errors::RANK);
+        assert(!*self.potion || *self.skill < 4, errors::BELT_SLOT);
+    }
 }
 
 /// Up to four effects, 56 bits each, at bits 0, 56, 128, 184.
@@ -216,14 +256,22 @@ pub struct MemberEffects {
 
 fn pack_effect(e: Effect) -> u128 {
     assert(e.deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
-    e.skill.into() + e.charges.into() * P16 + e.deadline.into() * P24
+    e.assert_valid();
+    let tag: u128 = if e.potion {
+        0x800000
+    } else {
+        0
+    };
+    e.skill.into() + e.charges.into() * P16 + tag + e.deadline.into() * P24 + e.rank.into() * P52
 }
 
 fn unpack_effect(bits: u128) -> Effect {
     Effect {
         skill: low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
-        charges: byte_at(bits, P16),
-        deadline: u32_at(bits, P24),
+        charges: field(bits, P16, 0x40).try_into().unwrap(),
+        potion: field(bits, 0x800000, 2) == 1,
+        deadline: field(bits, P24, P28).try_into().unwrap(),
+        rank: field(bits, P52, 0x10).try_into().unwrap(),
     }
 }
 

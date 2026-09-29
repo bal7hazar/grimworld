@@ -2,13 +2,16 @@
 // record's size in slots and the bit offsets of every packed record, LIVE included. The variables'
 // names and keys (their addresses) are checked in `systems::instances::layout_tests`.
 use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement, Terrain};
-use grimworld_ephemeral::models::goblin::{Goblin, GoblinState, GoblinTimers, empty_goblin_timers};
+use grimworld_ephemeral::models::goblin::{
+    Goblin, GoblinState, GoblinTimers, MAX_ADRENALINE, empty_goblin_timers,
+};
 use grimworld_ephemeral::models::instance::{Header, Placement, Quotas, mask_roster_page};
 use grimworld_ephemeral::models::member::{
     Effect, Member, MemberEffects, MemberState, MemberTimers, NO_SLOT, Recharges,
-    empty_member_timers, pack_four28,
+    empty_member_timers, flag, pack_four28,
 };
 use grimworld_logic::packing::{LIVE, Lanes16};
+use grimworld_logic::types::combat::activation;
 use starknet::storage_access::StorePacking;
 
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -67,7 +70,8 @@ fn test_placement_and_header_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 506709)] // ceil(1.05 × 482580 measured)
+// gas: raised, CBT-01: design/19 section 7.2's fields in the words
+#[available_gas(l2_gas: 585680)] // ceil(1.05 × 557790 measured)
 fn test_member_layout() {
     let state = MemberState {
         adventurer: 0xFFFFFFFF,
@@ -81,7 +85,8 @@ fn test_member_layout() {
         hits: 0xFF,
         casts: 0xFF,
         belt: [1, 2, 3, 0xFF],
-        flags: 3,
+        flags: 0xFF,
+        casts_2: 0xFF,
     };
     let word = StorePacking::<MemberState, felt252>::pack(state);
     assert(StorePacking::<MemberState, felt252>::unpack(word) == state, 'state trip');
@@ -111,10 +116,10 @@ fn test_member_layout() {
         'knocked at bit 192',
     );
 
-    let full = Effect { skill: 0xFFFF, charges: 0xFF, deadline: 0xFFFFFFF };
-    let effects = MemberEffects {
-        effects: [full, Effect { skill: 1, charges: 2, deadline: 3 }, full, full],
-    };
+    // design/19 §7.2: charges 0–63, the potion tag with a belt slot 0–3, rank 0–15.
+    let full = Effect { skill: 0xFFFF, charges: 63, potion: false, deadline: 0xFFFFFFF, rank: 15 };
+    let drunk = Effect { skill: 3, charges: 1, potion: true, deadline: 3, rank: 0 };
+    let effects = MemberEffects { effects: [full, drunk, full, full] };
     let word = StorePacking::<MemberEffects, felt252>::pack(effects);
     assert(StorePacking::<MemberEffects, felt252>::unpack(word) == effects, 'effects trip');
 
@@ -158,7 +163,8 @@ fn test_chunk_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 339014)] // ceil(1.05 × 322870 measured)
+// gas: raised, CBT-01: design/19 section 7.2's fields in the words
+#[available_gas(l2_gas: 362387)] // ceil(1.05 × 345130 measured)
 fn test_goblin_layout() {
     let state = GoblinState {
         x: 224,
@@ -195,6 +201,8 @@ fn test_goblin_layout() {
         crippled: 2,
         knocked: 3,
         effect_deadline: 0xFFFFFFF,
+        effect_charges: 63,
+        effect_rank: 15,
     };
     let word = StorePacking::<GoblinTimers, felt252>::pack(timers);
     assert(StorePacking::<GoblinTimers, felt252>::unpack(word) == timers, 'timers trip');
@@ -295,7 +303,8 @@ fn test_roster_masking() {
 // Fix loop 3, F-14: empty timers are "no activation" (slot 255) and zero deadlines, not LIVE alone
 // (slot 0 would name bar slot 0). Their packed words are pinned.
 #[test]
-#[available_gas(l2_gas: 182070)] // ceil(1.05 × 173400 measured)
+// gas: raised, CBT-01: design/19 section 7.2's fields in the words
+#[available_gas(l2_gas: 220395)] // ceil(1.05 × 209900 measured)
 fn test_empty_timers_packed() {
     let member = empty_member_timers();
     assert(member.act_slot == NO_SLOT, 'member: no slot');
@@ -306,4 +315,95 @@ fn test_empty_timers_packed() {
     assert(StorePacking::<MemberEffects, felt252>::pack(effects) == LIVE, 'empty effects');
     let recharges = Recharges { deadlines: [0; 8] };
     assert(StorePacking::<Recharges, felt252>::pack(recharges) == LIVE, 'empty recharges');
+}
+
+// design/19 §7.2 (CBT-01): what the combat adds to the words ENG-06 writes. `MemberState`:
+// `casts_2` at 168, the flags "hit this tick" (bit 3) and "halving spent" (bit 4). An effect
+// slot: charges 0–63 at slot bit 16, the potion tag at 23, the rank at 52. `GoblinTimers`: the
+// effect's charges at 240 and rank at 246. The empty words keep their packed values.
+#[test]
+#[available_gas(l2_gas: 740040)] // ceil(1.05 × 704800 measured)
+fn test_combat_fields_layout() {
+    let casts = MemberState { casts_2: 1, ..Default::default() };
+    let two_168: felt252 = TWO_128 * 0x10000000000;
+    assert(StorePacking::<MemberState, felt252>::pack(casts) == two_168 + LIVE, 'casts_2 at 168');
+    let flags = MemberState { flags: flag::HIT + flag::HALVED, ..Default::default() };
+    let two_160: felt252 = TWO_128 * 0x100000000;
+    assert(
+        StorePacking::<MemberState, felt252>::pack(flags) == two_160 * 0x18 + LIVE, 'flags 3, 4',
+    );
+    assert(flag::TURNED == 1 && flag::INSTANT == 2, 'frozen flags');
+
+    let slot = |effect: Effect| -> felt252 {
+        let empty: Effect = Default::default();
+        StorePacking::<
+            MemberEffects, felt252,
+        >::pack(MemberEffects { effects: [effect, empty, empty, empty] })
+            - LIVE
+    };
+    assert(slot(Effect { charges: 1, ..Default::default() }) == 0x10000, 'charges at 16');
+    assert(slot(Effect { potion: true, ..Default::default() }) == 0x800000, 'potion at 23');
+    assert(slot(Effect { deadline: 1, ..Default::default() }) == 0x1000000, 'deadline at 24');
+    assert(slot(Effect { rank: 1, ..Default::default() }) == 0x10000000000000, 'rank at 52');
+    // The fourth slot's rank is the word's bits 236–239.
+    let last = Effect { rank: 15, deadline: 0xFFFFFFF, ..Default::default() };
+    let empty: Effect = Default::default();
+    let word = StorePacking::<
+        MemberEffects, felt252,
+    >::pack(MemberEffects { effects: [empty, empty, empty, last] });
+    let effects = StorePacking::<MemberEffects, felt252>::unpack(word);
+    assert(effects == MemberEffects { effects: [empty, empty, empty, last] }, 'last slot trip');
+
+    let charges = GoblinTimers { effect_charges: 1, ..Default::default() };
+    let two_240: felt252 = TWO_128 * 0x10000000000000000000000000000;
+    assert(
+        StorePacking::<GoblinTimers, felt252>::pack(charges) == two_240 + LIVE, 'charges at 240',
+    );
+    let rank = GoblinTimers { effect_rank: 1, ..Default::default() };
+    assert(
+        StorePacking::<GoblinTimers, felt252>::pack(rank) == two_240 * 0x40 + LIVE, 'rank at 246',
+    );
+    assert(empty_goblin_timers().act_slot == activation::NONE, 'none is 255');
+    assert(activation::NONE == 255 && activation::RECOVERING == 254, 'frozen states');
+    assert(MAX_ADRENALINE == 252, '63 strikes');
+}
+
+#[test]
+#[should_panic(expected: 'packing: charges above 63')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_effect_charges_refused() {
+    let wide = Effect { charges: 64, ..Default::default() };
+    StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+}
+
+#[test]
+#[should_panic(expected: 'packing: rank above 15')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_effect_rank_refused() {
+    let wide = Effect { rank: 16, ..Default::default() };
+    StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+}
+
+#[test]
+#[should_panic(expected: 'packing: belt slot above 3')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_effect_belt_slot_refused() {
+    let wide = Effect { skill: 4, potion: true, ..Default::default() };
+    StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+}
+
+#[test]
+#[should_panic(expected: 'packing: charges above 63')]
+#[available_gas(l2_gas: 35648)] // ceil(1.05 × 33950 measured)
+fn test_goblin_effect_charges_refused() {
+    let timers = GoblinTimers { effect_charges: 64, ..Default::default() };
+    StorePacking::<GoblinTimers, felt252>::pack(timers);
+}
+
+#[test]
+#[should_panic(expected: 'packing: rank above 15')]
+#[available_gas(l2_gas: 35648)] // ceil(1.05 × 33950 measured)
+fn test_goblin_effect_rank_refused() {
+    let timers = GoblinTimers { effect_rank: 16, ..Default::default() };
+    StorePacking::<GoblinTimers, felt252>::pack(timers);
 }
