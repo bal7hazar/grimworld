@@ -1,15 +1,16 @@
 # Status — track CV (the client's visual work, on the owner's Mac)
 
-**2026-09-29 11:05 UTC** — written by the orchestrator of track CV,
+**2026-09-29 11:15 UTC** — written by the orchestrator of track CV,
 `[Opus 5.5] Orchestrateur client visuel (Mac)`. Mandate:
 [ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146; #117, amended by #119). Rewritten at
 each check-in; the project manager reads it like a track's `STATUS.md`.
 
 ## Where we are
 
-The track opened today. The mandate and its amendment are on `main`. The Mac launcher (CV-01) is
-written and in its third audit pass by `[GPT-6-Sol]`; nothing else launches before a clean verdict
-(mandate §3). ART-02 and CLI-03a are briefed and ready.
+The track opened today. The mandate and its amendment are on `main`. **CV-01 is merged**
+([#121](https://github.com/bal7hazar/grimworld/pull/121)): the Mac launcher `scripts/mac/agent.sh`,
+audited by `[GPT-6-Sol]` (PASS at the fourth pass, after three fix loops). Its report and the four
+audit passes are archived in `docs/reports/CV-01-*`. Next: ART-02 and CLI-03a, launched with it.
 
 ## Checks of the machine (2026-09-29, 10:10 UTC)
 
@@ -28,14 +29,15 @@ written and in its third audit pass by `[GPT-6-Sol]`; nothing else launches befo
 
 | ID | Task | Model | State |
 |---|---|---|---|
-| CV-01 | The launcher of the track on the Mac, `scripts/mac/agent.sh` ([#121](https://github.com/bal7hazar/grimworld/pull/121)) | Opus 5.5 | Written (launchd jobs, environment from nothing, account check, profiles plus Mac denies, budget of 2 by kernel locks); 90 local test cases pass, run by the orchestrator too. Audit `[GPT-6-Sol]`: pass 1 FAIL (label not checked; test cleanup on interruption; a race test; one finding withdrawn: `Read(//…)` is Claude Code's absolute form), pass 2 FAIL (three findings in the test harness only), **pass 3 running**. Two fix loops so far |
-| ART-02 | ART-00's atlas corrected: scale, Python 3.12, the same output on macOS and Linux | Opus 5.5 | Briefed; launched with the Mac launcher after CV-01's audit |
-| CLI-03a | A rendering sandbox on fixed data | Opus 5.5 | Briefed; launched with ART-02 |
+| CV-01 | The launcher of the track on the Mac, `scripts/mac/agent.sh` | Opus 5.5 | **Done**: [#121](https://github.com/bal7hazar/grimworld/pull/121), 102 local test cases; [report](../reports/CV-01-mac-launcher.md), [audit](../reports/CV-01-audit-gpt-6-sol.md): pass 1 FAIL (label not checked; test cleanup on interruption; a race test; `Read(//…)` withdrawn, Claude Code's absolute form), passes 2 and 3 FAIL (the test harness only), pass 4 PASS |
+| ART-02 | ART-00's atlas corrected: scale, Python 3.12, the same output on macOS and Linux ([brief](../briefs/ART-02-atlas-scale.md)) | Opus 5.5 | Launched once this brief is on `main` |
+| CLI-03a | A rendering sandbox on fixed data ([brief](../briefs/CLI-03a-render-sandbox.md)) | Opus 5.5 | Launched with ART-02 |
 | SPK-6a | The protocol of SPK-6 on real phones | Opus 5.5, research | Brief to write; when a slot frees |
 
-Until CV-01 is merged, its agent and its audits are launched by hand by the orchestrator under the
-launcher's own rules (launchd job, `KeepAlive` false, environment from nothing, `CLAUDE_CONFIG_DIR`
-checked, profile plus Mac denies, never `--dangerously-skip-permissions`).
+CV-01's own agent and its audits were launched by hand by the orchestrator under the launcher's
+rules (launchd job, `KeepAlive` false, environment from nothing, `CLAUDE_CONFIG_DIR` checked,
+profile plus Mac denies, never `--dangerously-skip-permissions`). Every launch from now on goes
+through `scripts/mac/agent.sh`.
 
 ### Findings on ART-00's atlas, on this Mac (`python3.12 tools/art/build.py --check`)
 
@@ -50,14 +52,15 @@ Budget: 2 at a time, audits included (D-146).
 
 | Agent | Model (ran) | Since | State |
 |---|---|---|---|
-| CV-01 audit, pass 3 (launchd `grimworld.cv.CV-01-audit-sol.105937`) | GPT-6-Sol | 10:59 UTC | running |
+| — | | | none running |
 
 ## Pull requests
 
 | PR | Content | State |
 |---|---|---|
-| [#118](https://github.com/bal7hazar/grimworld/pull/118) | This file | Merged by the orchestrator once its CI is green |
-| [#121](https://github.com/bal7hazar/grimworld/pull/121) | CV-01, the Mac launcher | In audit |
+| [#118](https://github.com/bal7hazar/grimworld/pull/118) | This file | Merged |
+| [#121](https://github.com/bal7hazar/grimworld/pull/121) | CV-01, the Mac launcher | Merged |
+| This one (`cv/cv-02-briefs`) | Briefs of ART-02 and CLI-03a; CV-01's report and audit archived; this file | Merged on green CI |
 
 ## Waiting for the owner
 
@@ -73,6 +76,5 @@ are answered by #119.
 
 ## Next
 
-1. CV-01: the third audit's verdict; merge; the audit report archived in `docs/reports/`.
-2. ART-02 and CLI-03a in parallel with `scripts/mac/agent.sh` (allowlists apart: `tools/art/**`,
+1. ART-02 and CLI-03a in parallel with `scripts/mac/agent.sh` (allowlists apart: `tools/art/**`,
    `client/app/src/**`); their audits as slots free; SPK-6a after.
