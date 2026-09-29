@@ -70,6 +70,7 @@ NEW_SLOT = round((t1 * s22 - t2 * s12) / det)
 OTHER_SLOT = round((s11 * t2 - s12 * t1) / det)
 PER_FELT, BASE = analyse.PER_FELT, analyse.BASE
 SIG_FELTS, HEADER_FELTS = 2, 4  # a Stark signature; a multicall of one call: count, to, selector, length
+EXTRA_CALL_FELTS = 3            # each further call of a multicall: to, selector, length
 
 # The floor of a burner transaction before its game call and its game slots:
 FEE_SLOTS = 2  # the fee token's balances of the sender and of the sequencer (every trace)
@@ -91,11 +92,14 @@ out("| Input | Value | Kind | Source |")
 out("|---|---:|---|---|")
 out(f"| Burner's fixed part, sending directly | {fmt(BURNER_FIXED)} | M | SPK-1b §1 (validate 87,805, execution 141,670, fee transfer 455,360, res2 32,600) |")
 out(f"| Same transaction, burner against the owner's account | −{fmt(BURNER_SAVING)} | M | SPK-1b §4 (enter and leave, identical game call) |")
-out(f"| res1 base | {fmt(BASE)} | M | analyse.py §2, every Sierra-metered shape |")
-out(f"| Per felt of calldata or signature | {fmt(PER_FELT)} | M | analyse.py §3, controlled pairs |")
+out(f"| res1 constant + the 2 signature felts, together | {fmt(BASE + SIG_FELTS * PER_FELT)} | M | analyse.py §2: identified only together, every transaction has a 2-felt signature |")
+out(f"| — split as a constant {fmt(BASE)} + 2 × {fmt(PER_FELT)} | — | assumed normalisation | a free signature and a constant of 14,880 fit the same receipts |")
+out(f"| Per felt of calldata | {fmt(PER_FELT)} | M | analyse.py §3, controlled pairs |")
+out(f"| A multicall's header: the first call {HEADER_FELTS} felts (count, to, selector, length), each further call "
+    f"{EXTRA_CALL_FELTS} (to, selector, length) | {fmt(PER_FELT * HEADER_FELTS)}, then {fmt(PER_FELT * EXTRA_CALL_FELTS)} a call | D | the account's `__execute__` calldata layout × the per-felt price |")
 out(f"| A new slot (value was 0) | {fmt(NEW_SLOT)} | M (fit) | analyse.py §4; pairs 426,000 to 482,000 |")
 out(f"| An overwritten or zeroed slot | {fmt(OTHER_SLOT)} | M (fit) | analyse.py §4; pairs 20,000 to 80,000 |")
-out(f"| **Floor of a burner transaction** (fixed part + base + 6 felts + the fee token's 2 slots) | **{fmt(FLOOR)}** | D | the lines above |")
+out(f"| **Floor of a burner transaction** (fixed part + constant + 6 felts + the fee token's 2 slots) | **{fmt(FLOOR)}** | D | the lines above; the constant/signature split does not change it |")
 out(f"| Prices | L2 {P_L2:,} fri, DA {P_DA:,} fri, STRK ${STRK_USD} | M | SPK-1 §5 (mainnet, 2026-09-28) |")
 out(f"| 1M L2 gas | ${usd(1e6):.6f} | D | |")
 out(f"| The target in L2 gas: $0.50 for 300 actions, no DA | {fmt(THRESHOLD / usd(1))} per expedition, {fmt(THRESHOLD / usd(1) / ACTIONS)} per action | D | D-129 |")
@@ -146,17 +150,39 @@ tick_marginal_if_shared = tick["game"] - shared_in_walk
 batch_shared = 10 * tick_marginal_if_shared + shared_in_walk + tick_remainder_burner + PER_FELT * 27
 out(f"| Batch of 10 worst ticks, if a batch reads and writes the instance once as the queue does | {fmt(batch_shared)} | E | assumes the tick shares the same {fmt(shared_in_walk)} as the walk: not measured |")
 spk7_window = 720_000
-out(f"| + the window assembled from chunks, per tick with goblins awake | +{fmt(10 * spk7_window)} per batch | M (devnet) | SPK-7: +720,000 per tick, devnet's meter |")
+out(f"| The chunked map's net overhead on a one-tick transaction with goblins awake | +{fmt(spk7_window)} | M (local node) | SPK-7: a whole-transaction difference (A − S), storage effects included, the local node's meter |")
+out(f"| — of which the window's assembly in memory | 65,224 | M (snforge) | SPK-7 §2.1; the window follows the adventurer and is assembled at every tick (D-120) |")
+out(f"| + that overhead at each of the 10 ticks, the batch paying it as 10 transactions would | +{fmt(10 * spk7_window)} per batch | E | an upper reading: inside one transaction, cached chunk reads and slots changed once may cost less; not measured |")
 out(f"| design/02's target of a batch | 40,000,000 | — | design/02 § Size |")
-out(f"| Batch as measured + window each tick | {fmt(batch_as_measured + 10 * spk7_window)} | E | above 40M |")
-out(f"| Batch sharing + window each tick | {fmt(batch_shared + 10 * spk7_window)} | E | |")
+out(f"| Batch as measured + that overhead at each tick | {fmt(batch_as_measured + 10 * spk7_window)} | E | above 40M |")
+out(f"| Batch sharing + that overhead at each tick | {fmt(batch_shared + 10 * spk7_window)} | E | |")
+out(f"| Batch as measured + the assembly alone at each tick (reads and writes cached, no other effect) | "
+    f"{fmt(batch_as_measured + 10 * 65_224)} | E | the lower reading |")
 per_tick_budget = (40_000_000 - FLOOR - 16 * OTHER_SLOT - PER_FELT * 30) / 10
 out(f"| **Per-tick budget inside 40M** (40M − floor − 16 game slots once − 30 felts) / 10 | **{fmt(per_tick_budget)}** | D | the game's computation and storage syscalls of one tick, window included |")
 ret = sepolia("return the burner's STRK")
 out(f"| Funding a new burner: the burner's STRK transfer measured, its recipient's balance new instead of overwritten | "
     f"{fmt(ret['receipt'] + NEW_SLOT - OTHER_SLOT)} | E | {fmt(ret['receipt'])} (M) + {fmt(NEW_SLOT - OTHER_SLOT)} |")
 fate = FLOOR + 1_000_000 + 2 * NEW_SLOT + 4 * OTHER_SLOT
-out(f"| A Fate action: floor + a call of 1.0M + 2 new + 4 other slots | {fmt(fate)} | E | the call's 1.0M is an assumption |")
+out(f"| A Fate action other than the entry draw (enter has its own budget): floor + a call of 1.0M + 2 new + 4 other slots | {fmt(fate)} | E | the call's 1.0M is an assumption |")
+out()
+
+out("## Enter, the movement benchmark, reveals\n")
+out("| Figure | L2 gas | Kind | How |")
+out("|---|---:|---|---|")
+b_enter = M["b_enter"]
+out(f"| Enter, burner: 4 new instance slots under a new instance id | {fmt(b_enter['receipt'])} | M | SPK-1b; the 25 enters of SPK-1 wrote 100 distinct new keys |")
+reuse = b_enter["receipt"] - 4 * (NEW_SLOT - OTHER_SLOT)
+out(f"| Enter, if its 4 slots are **reused keys** holding a value (instance slots reused, a generation in the record) | {fmt(reuse)} | E (extrapolation) | − 4 × {fmt(NEW_SLOT - OTHER_SLOT)}; no rewrite of a used key was observed |")
+out(f"| The spike's `walk` of 10 moves, 8 goblins following, burner (movement benchmark) | {fmt(burner['q10'][0])} | D | SPK-1's receipt − 370,150 |")
+walk_args = M["q10"]["felts"] - SIG_FELTS - HEADER_FELTS
+play10 = burner["q10"][0] - PER_FELT * walk_args + PER_FELT * 30
+out(f"| A move-only `play` batch of 10 moves near goblins (design/02: planned moves join play) | {fmt(play10)} | E | the benchmark with its {walk_args} argument felts replaced by 30 (3 a move); assumes play's moves cost what walk's do |")
+for n, first_reveal in ((1, True), (1, False), (3, False)):
+    slots = n * NEW_SLOT + (NEW_SLOT if first_reveal else OTHER_SLOT)
+    out(f"| Slots of a reveal of {n} chunk{'s' if n > 1 else ''}, SPK-7's layout ({n} terrain slot{'s' if n > 1 else ''} new; the revealed bitmap "
+        f"{'new: the instance' + chr(39) + 's first reveal' if first_reveal else 'overwritten'}) | {fmt(slots)} | D | SPK-7 `reveal`: terrain per chunk, the bitmap once per transaction, no occupancy |")
+out(f"| + an occupancy slot per chunk, new, if a future layout writes one at reveal | +{fmt(NEW_SLOT)} a chunk | E (assumption) | SPK-7 writes occupancy only when goblins move |")
 out()
 
 # --- Expedition -------------------------------------------------------------------------------------
@@ -176,10 +202,15 @@ def expedition(near_q5, explore_q10, fights, fight_batch, near_q10=0):
     return l2, da
 
 
+out("Every batched row assumes a batch keeps **one** tick's state remainder and one tick's DA footprint "
+    "(832 L1 data gas): the tick's 12 slots changed once per transaction. Each batch carries the 27 argument felts "
+    f"of its 9 further actions (3 felts each, an assumption): {fmt(PER_FELT * 27)} a batch, "
+    f"{fmt(PER_FELT * 270)} per expedition.\n")
 cases = [
-    ("One action per transaction, owner's account (SPK-1 §5)", None),
+    ("One action per transaction, owner's account (SPK-1 §5: a projection of receipts)", None),
     ("One per transaction, burner", ("single", tick["receipt"] - BURNER_SAVING)),
-    ("Fights in batches of 10, each tick as measured (D-137's estimate)", ("batch", 10 * tick["game"] + tick_remainder_burner)),
+    ("Fights in batches of 10, each tick as measured, without the 27 felts (D-137's estimate)", ("batch", 10 * tick["game"] + tick_remainder_burner)),
+    ("Fights in batches of 10, each tick as measured, with the 27 felts", ("batch", batch_as_measured)),
     ("Fights in batches of 10, reads and writes shared", ("batch", batch_shared)),
     ("Also moves near goblins in 10s (priced as the queue of 10)", ("batch10", batch_shared)),
 ]
@@ -200,7 +231,7 @@ for name, c in cases:
         else:
             l2, da = expedition(near, far, 10, c[1])
         res.append((l2, da))
-    kind = "M" if c is None else ("D" if c[0] == "single" or "measured" in name else "E")
+    kind = "D" if c is None or c[0] == "single" else "E"
     (l1, d1), (l2_, d2) = res
     out(f"| {name} | {kind} | {fmt(l1)} | {usd(l1, d1):.3f} | {usd(l1, d1) / THRESHOLD:.2f} | {fmt(l2_)} | "
         f"{usd(l2_, d2):.3f} | {usd(l2_, d2) / THRESHOLD:.2f} |")

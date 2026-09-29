@@ -8,11 +8,13 @@ Kinds: M measured; D derived from measurements by arithmetic only; E estimate re
 |---|---:|---|---|
 | Burner's fixed part, sending directly | 717,435 | M | SPK-1b §1 (validate 87,805, execution 141,670, fee transfer 455,360, res2 32,600) |
 | Same transaction, burner against the owner's account | −370,150 | M | SPK-1b §4 (enter and leave, identical game call) |
-| res1 base | 4,640 | M | analyse.py §2, every Sierra-metered shape |
-| Per felt of calldata or signature | 5,120 | M | analyse.py §3, controlled pairs |
+| res1 constant + the 2 signature felts, together | 14,880 | M | analyse.py §2: identified only together, every transaction has a 2-felt signature |
+| — split as a constant 4,640 + 2 × 5,120 | — | assumed normalisation | a free signature and a constant of 14,880 fit the same receipts |
+| Per felt of calldata | 5,120 | M | analyse.py §3, controlled pairs |
+| A multicall's header: the first call 4 felts (count, to, selector, length), each further call 3 (to, selector, length) | 20,480, then 15,360 a call | D | the account's `__execute__` calldata layout × the per-felt price |
 | A new slot (value was 0) | 453,524 | M (fit) | analyse.py §4; pairs 426,000 to 482,000 |
 | An overwritten or zeroed slot | 32,072 | M (fit) | analyse.py §4; pairs 20,000 to 80,000 |
-| **Floor of a burner transaction** (fixed part + base + 6 felts + the fee token's 2 slots) | **816,939** | D | the lines above |
+| **Floor of a burner transaction** (fixed part + constant + 6 felts + the fee token's 2 slots) | **816,939** | D | the lines above; the constant/signature split does not change it |
 | Prices | L2 21,345,234,918 fri, DA 980,202,556,584 fri, STRK $0.04125403 | M | SPK-1 §5 (mainnet, 2026-09-28) |
 | 1M L2 gas | $0.000881 | D | |
 | The target in L2 gas: $0.50 for 300 actions, no DA | 567,809,541 per expedition, 1,892,698 per action | D | D-129 |
@@ -46,24 +48,43 @@ Kinds: M measured; D derived from measurements by arithmetic only; E estimate re
 | A move in a queue, 8 goblins following: marginal | 1,467,187 | D | (queue of 10 − queue of 5) / 5, game calls |
 | The part of a queue's call it pays once | 1,859,149 | D | queue of 1 − the marginal move |
 | Batch of 10 worst ticks, if a batch reads and writes the instance once as the queue does | 20,249,902 | E | assumes the tick shares the same 1,859,149 as the walk: not measured |
-| + the window assembled from chunks, per tick with goblins awake | +7,200,000 per batch | M (devnet) | SPK-7: +720,000 per tick, devnet's meter |
+| The chunked map's net overhead on a one-tick transaction with goblins awake | +720,000 | M (local node) | SPK-7: a whole-transaction difference (A − S), storage effects included, the local node's meter |
+| — of which the window's assembly in memory | 65,224 | M (snforge) | SPK-7 §2.1; the window follows the adventurer and is assembled at every tick (D-120) |
+| + that overhead at each of the 10 ticks, the batch paying it as 10 transactions would | +7,200,000 per batch | E | an upper reading: inside one transaction, cached chunk reads and slots changed once may cost less; not measured |
 | design/02's target of a batch | 40,000,000 | — | design/02 § Size |
-| Batch as measured + window each tick | 44,182,245 | E | above 40M |
-| Batch sharing + window each tick | 27,449,902 | E | |
+| Batch as measured + that overhead at each tick | 44,182,245 | E | above 40M |
+| Batch sharing + that overhead at each tick | 27,449,902 | E | |
+| Batch as measured + the assembly alone at each tick (reads and writes cached, no other effect) | 37,634,485 | E | the lower reading |
 | **Per-tick budget inside 40M** (40M − floor − 16 game slots once − 30 felts) / 10 | **3,851,631** | D | the game's computation and storage syscalls of one tick, window included |
 | Funding a new burner: the burner's STRK transfer measured, its recipient's balance new instead of overwritten | 1,706,567 | E | 1,285,115 (M) + 421,452 |
-| A Fate action: floor + a call of 1.0M + 2 new + 4 other slots | 2,852,275 | E | the call's 1.0M is an assumption |
+| A Fate action other than the entry draw (enter has its own budget): floor + a call of 1.0M + 2 new + 4 other slots | 2,852,275 | E | the call's 1.0M is an assumption |
+
+## Enter, the movement benchmark, reveals
+
+| Figure | L2 gas | Kind | How |
+|---|---:|---|---|
+| Enter, burner: 4 new instance slots under a new instance id | 3,555,447 | M | SPK-1b; the 25 enters of SPK-1 wrote 100 distinct new keys |
+| Enter, if its 4 slots are **reused keys** holding a value (instance slots reused, a generation in the record) | 1,869,639 | E (extrapolation) | − 4 × 421,452; no rewrite of a used key was observed |
+| The spike's `walk` of 10 moves, 8 goblins following, burner (movement benchmark) | 17,306,703 | D | SPK-1's receipt − 370,150 |
+| A move-only `play` batch of 10 moves near goblins (design/02: planned moves join play) | 17,388,623 | E | the benchmark with its 14 argument felts replaced by 30 (3 a move); assumes play's moves cost what walk's do |
+| Slots of a reveal of 1 chunk, SPK-7's layout (1 terrain slot new; the revealed bitmap new: the instance's first reveal) | 907,048 | D | SPK-7 `reveal`: terrain per chunk, the bitmap once per transaction, no occupancy |
+| Slots of a reveal of 1 chunk, SPK-7's layout (1 terrain slot new; the revealed bitmap overwritten) | 485,596 | D | SPK-7 `reveal`: terrain per chunk, the bitmap once per transaction, no occupancy |
+| Slots of a reveal of 3 chunks, SPK-7's layout (3 terrain slots new; the revealed bitmap overwritten) | 1,392,644 | D | SPK-7 `reveal`: terrain per chunk, the bitmap once per transaction, no occupancy |
+| + an occupancy slot per chunk, new, if a future layout writes one at reveal | +453,524 a chunk | E (assumption) | SPK-7 writes occupancy only when goblins move |
 
 ## The expedition: 300 actions (SPK-1 §5's composition), burner sending directly
 
 S1: 36 queues of 5 moves near goblins, 100 fights, 20 other actions (a move alone near goblins), enter, leave.
 S2: 12 queues of 5 near goblins, 12 exploring queues of 10, the rest as S1.
 
+Every batched row assumes a batch keeps **one** tick's state remainder and one tick's DA footprint (832 L1 data gas): the tick's 12 slots changed once per transaction. Each batch carries the 27 argument felts of its 9 further actions (3 felts each, an assumption): 138,240 a batch, 1,382,400 per expedition.
+
 | Case | Kind | S1 L2 gas | S1 $ | S1 × $0.50 | S2 L2 gas | S2 $ | S2 × $0.50 |
 |---|---|---:|---:|---:|---:|---:|---:|
-| One action per transaction, owner's account (SPK-1 §5) | M | 986,667,736 | 0.874 | 1.75 | 772,898,140 | 0.685 | 1.37 |
+| One action per transaction, owner's account (SPK-1 §5: a projection of receipts) | D | 986,667,736 | 0.874 | 1.75 | 772,898,140 | 0.685 | 1.37 |
 | One per transaction, burner | D | 928,182,266 | 0.823 | 1.65 | 718,854,470 | 0.638 | 1.28 |
-| Fights in batches of 10, each tick as measured (D-137's estimate) | D | 820,643,516 | 0.725 | 1.45 | 611,315,720 | 0.540 | 1.08 |
+| Fights in batches of 10, each tick as measured, without the 27 felts (D-137's estimate) | E | 820,643,516 | 0.725 | 1.45 | 611,315,720 | 0.540 | 1.08 |
+| Fights in batches of 10, each tick as measured, with the 27 felts | E | 822,025,916 | 0.726 | 1.45 | 612,698,120 | 0.541 | 1.08 |
 | Fights in batches of 10, reads and writes shared | E | 654,702,488 | 0.579 | 1.16 | 445,374,692 | 0.394 | 0.79 |
 | Also moves near goblins in 10s (priced as the queue of 10) | E | 608,197,058 | 0.537 | 1.07 | 429,872,882 | 0.380 | 0.76 |
 
