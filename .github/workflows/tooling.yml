@@ -96,6 +96,10 @@ jobs:
           grep -q 'runs without the Sepolia account' <<< "$(scripts/agent.sh --dry-run SPK-1 claude opus resume "x" implement 2>&1)"
           out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
           grep -qF -- 'scarb\ publish' <<< "$out"
+          # D-132: no agent publishes, whatever the flags before the subcommand (the deny patterns reach
+          # the implement profile; cargo is allowed for named subcommands only, never publish).
+          for rule in 'scarb\ publish\*' 'scarb\ \*\ publish\*'; do grep -qF -- "$rule" <<< "$out"; done
+          if grep -qF -- 'Bash\(cargo\ \*\)' <<< "$out"; then echo "cargo allowed with any subcommand" >&2; exit 1; fi
           grep -qF -- '.claude/\*\*' <<< "$out"
           # The budget as slots (OPERATIONS §3): ~/orchestrator/slots, in a fake HOME. A slot is held by a
           # kernel lock for as long as its holder lives; nothing is counted by reading processes.
@@ -162,6 +166,9 @@ jobs:
           HOME=$fake scripts/agent.sh thresholds   # the marker never stops the game
           touch -d '40 minutes ago' "$fake/orchestrator/waiting/game"
           HOME=$fake scripts/.agent-hexmap-ci.sh thresholds   # a stale marker is ignored
+          chmod 000 "$fake/orchestrator/waiting"   # a marker that cannot be read counts as present
+          set +e; out=$(HOME=$fake scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
+          chmod 755 "$fake/orchestrator/waiting"; echo "$out"; [ "$s" = 4 ]; grep -qF 'cannot be read' <<< "$out"
           rm -f scripts/.agent-hexmap-ci.sh
           # End to end on the detached path, with a stub codex that sleeps: the launch confirms that the agent
           # holds its two slots before it returns, status lists them, and they are free once it ends.

@@ -245,9 +245,22 @@ thresholds_ok() { # prints the reason and returns 1 when a launch must wait
     echo "agent.sh: $((mem_kb / 1048576)) GB of memory available, under $MIN_MEM_GB: wait and check again" >&2
     return 1
   fi
-  if [ "$TRACK" != grimworld ] && [ -n "$(find "$HOME/orchestrator/waiting/game" -mmin -30 2> /dev/null)" ]; then
-    echo "agent.sh: the game is waiting for a slot (~/orchestrator/waiting/game): wait and check again" >&2
-    return 1
+  # The game's waiting marker binds the other tracks. It is read failing closed: a marker that
+  # cannot be read (an unreadable directory) counts as present (audit of the library's copy).
+  if [ "$TRACK" != grimworld ]; then
+    local marker=$HOME/orchestrator/waiting/game mtime err
+    if mtime=$(LC_ALL=C stat -c %Y -- "$marker" 2> /dev/null); then
+      if [ $(( $(date +%s) - mtime )) -lt 1800 ]; then
+        echo "agent.sh: the game is waiting for a slot (~/orchestrator/waiting/game): wait and check again" >&2
+        return 1
+      fi
+    else
+      err=$(LC_ALL=C stat -c %Y -- "$marker" 2>&1 || true)
+      case $err in
+        *"No such file or directory"*) ;;   # no marker: the game is not waiting
+        *) echo "agent.sh: the game's waiting marker cannot be read ($marker): wait and check again" >&2; return 1 ;;
+      esac
+    fi
   fi
   slots_ready || return 1
   local rc=0
