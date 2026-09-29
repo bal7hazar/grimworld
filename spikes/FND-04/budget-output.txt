@@ -8,13 +8,13 @@ Kinds: M measured; D derived from measurements by arithmetic only; E estimate re
 |---|---:|---|---|
 | Burner's fixed part, sending directly | 717,435 | M | SPK-1b §1 (validate 87,805, execution 141,670, fee transfer 455,360, res2 32,600) |
 | Same transaction, burner against the owner's account | −370,150 | M | SPK-1b §4 (enter and leave, identical game call) |
-| res1 constant + the 2 signature felts, together | 14,880 | M | analyse.py §2: identified only together, every transaction has a 2-felt signature |
+| res1 constant + the 2 signature felts, together (the aggregate) | 14,880 | chosen normalisation, not measured | analyse.py §2, §4.1: any aggregate congruent to 880 modulo 2,000, from 880 to 74,880, keeps the observed divisibility |
 | — split as a constant 4,640 + 2 × 5,120 | — | assumed normalisation | a free signature and a constant of 14,880 fit the same receipts |
 | Per felt of calldata | 5,120 | M | analyse.py §3, controlled pairs |
 | A multicall's header: the first call 4 felts (count, to, selector, length), each further call 3 (to, selector, length) | 20,480, then 15,360 a call | D | the account's `__execute__` calldata layout × the per-felt price |
-| A new slot (value was 0) | 453,524 | M (fit) | analyse.py §4; pairs 426,000 to 482,000 |
-| An overwritten or zeroed slot | 32,072 | M (fit) | analyse.py §4; pairs 20,000 to 80,000 |
-| **Floor of a burner transaction** (fixed part + constant + 6 felts + the fee token's 2 slots) | **816,939** | D | the lines above; the constant/signature split does not change it |
+| A new slot (value was 0) | 453,524 | M (fit under the 14,880 convention) | analyse.py §4; pairs 426,000 to 482,000; 452,808 to 453,691 over the admissible aggregates (§4.1) |
+| An overwritten or zeroed slot | 32,072 | M (fit under the 14,880 convention) | analyse.py §4; pairs 20,000 to 80,000; 24,878 to 33,751 over the admissible aggregates (§4.1) |
+| **Floor of a burner transaction** (fixed part + constant + 6 felts + the fee token's 2 slots) | **816,939** | D under the 14,880 convention | the lines above; 806,297 to 862,551 over the admissible aggregates, 815,419 to 818,459 within ±2,000 (analyse.py §4.1) |
 | Prices | L2 21,345,234,918 fri, DA 980,202,556,584 fri, STRK $0.04125403 | M | SPK-1 §5 (mainnet, 2026-09-28) |
 | 1M L2 gas | $0.000881 | D | |
 | The target in L2 gas: $0.50 for 300 actions, no DA | 567,809,541 per expedition, 1,892,698 per action | D | D-129 |
@@ -64,7 +64,7 @@ Kinds: M measured; D derived from measurements by arithmetic only; E estimate re
 | Figure | L2 gas | Kind | How |
 |---|---:|---|---|
 | Enter, burner: 4 new instance slots under a new instance id | 3,555,447 | M | SPK-1b; the 25 enters of SPK-1 wrote 100 distinct new keys |
-| Enter, if its 4 slots are **reused keys** holding a value (instance slots reused, a generation in the record) | 1,869,639 | E (extrapolation) | − 4 × 421,452; no rewrite of a used key was observed |
+| Enter, if its 4 slots are **reused keys** holding a value (instance slots reused, a generation in the record) | 1,869,639 | E (extrapolation) | − 4 × 421,452; no zero-then-rewrite was observed, and no instance key was recycled between enters |
 | The spike's `walk` of 10 moves, 8 goblins following, burner (movement benchmark) | 17,306,703 | D | SPK-1's receipt − 370,150 |
 | A move-only `play` batch of 10 moves near goblins (design/02: planned moves join play) | 17,388,623 | E | the benchmark with its 14 argument felts replaced by 30 (3 a move); assumes play's moves cost what walk's do |
 | Slots of a reveal of 1 chunk, SPK-7's layout (1 terrain slot new; the revealed bitmap new: the instance's first reveal) | 907,048 | D | SPK-7 `reveal`: terrain per chunk, the bitmap once per transaction, no occupancy |
@@ -93,7 +93,7 @@ Every batched row assumes a batch keeps **one** tick's state remainder and one t
 - The target: 567,809,541 L2 gas per expedition with no DA (D).
 - S1, fights batched and shared (E): 654,702,488 L2 gas and 54,976 L1 data gas, $0.579; over the target by 89,417,521 L2 gas.
 - S2, fights batched and shared (E): 445,374,692 L2 gas and 38,848 L1 data gas, $0.394; under the target by 120,650,895 L2 gas.
-- S1's 36 queues of 5 near goblins cost 358,026,084 (D), 55 % of its total.
+- S1's 36 queues of 5 near goblins cost 358,026,084 (D): 43.554 % of S1 with fights batched, each tick as measured, with the 27 felts (E), and 54.685 % with fights batched and shared (E).
 - For S1 to meet $0.50 with its moves near goblins in tens (E): a batch of 10 fight ticks at 16,027,465 L2 gas, **1,469,435 per tick** (game call, inside the batch), against 3,564,913 measured alone and 1,705,764 if shared as the queue shares.
 - Break-even L2 gas price, S1 and S2 with fights batched and shared (E): 18.4 and 27.1 Gfri (today 21.3).
 

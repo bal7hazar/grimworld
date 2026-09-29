@@ -60,7 +60,7 @@ A group is one label; `identical` says whether all its transactions have the sam
 
 ## 2. res1 = BASE + PER_FELT × felts + the state part (an accounting identity, not a model)
 
-BASE = 4,640, PER_FELT = 5,120. The *state part* is res1 − BASE − PER_FELT × felts, felts counting calldata and the signature. **The split between BASE and the signature is an assumed normalisation**: every transaction carries 2 signature felts, so only BASE + 2 × (the signature felt's price) is identified, here 14,880. Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):
+BASE = 4,640, PER_FELT = 5,120. The *state part* is res1 − BASE − PER_FELT × felts, felts counting calldata and the signature. **Both the aggregate BASE + 2 × (the signature felt's price), here 14,880, and its split are chosen normalisations, not measurements**: every transaction carries the same signature, and the table below admits other aggregates (every value congruent to 880 modulo 2,000); §4.1 shows what they change. Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):
 
 | Label | Felts (calldata + signature) | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 2,000 |
 |---|---:|---:|---:|---:|---|---:|---:|
@@ -116,7 +116,7 @@ Observed divisibility, not predictive accuracy: the normalisations below all lea
 
 ## 4. One price per new slot and one per other changed slot: least squares over the shapes
 
-Fit over 23 shapes: **new slot 453,524**, **overwritten or zeroed slot 32,072** (L2 gas, beyond the write's computation, once per slot and per transaction).
+Fit over 23 shapes, **under the chosen aggregate 14,880**: **new slot 453,524**, **overwritten or zeroed slot 32,072** (L2 gas, beyond the write's computation, once per slot and per transaction).
 
 | Label | Slots new/other | State part | Fitted | Error | Error % |
 |---|---|---:|---:|---:|---:|
@@ -145,6 +145,20 @@ Fit over 23 shapes: **new slot 453,524**, **overwritten or zeroed slot 32,072** 
 | return the burner's STRK | 0/3 | 60,000 | 96,217 | -36,217 | -60.4 % |
 
 Largest error: 165,481 L2 gas.
+
+### 4.1 The same fit under the other admissible aggregates
+
+The aggregate (constant + the 2 signature felts) is **a chosen normalisation, not measured**: every aggregate congruent to 880 modulo 2,000 keeps every state part a multiple of 2,000 (§2), and every one up to 74,880 keeps them non-negative. The floor of a burner transaction is the burner's fixed part (717,435) + the aggregate + a call's 4 header felts (20,480) + the fee token's 2 slots at the fitted other-slot price.
+
+| Aggregate | New slot | Other slot | Floor | Floor − floor at 14,880 |
+|---:|---:|---:|---:|---:|
+| 880 | 453,691 | 33,751 | 806,297 | -10,642 |
+| 10,880 | 453,572 | 32,552 | 813,899 | -3,040 |
+| 12,880 | 453,548 | 32,312 | 815,419 | -1,520 |
+| 14,880 (the convention used) | 453,524 | 32,072 | 816,939 | +0 |
+| 16,880 | 453,500 | 31,832 | 818,459 | +1,520 |
+| 18,880 | 453,476 | 31,593 | 819,981 | +3,042 |
+| 74,880 | 452,808 | 24,878 | 862,551 | +45,612 |
 
 ## 5. The figure per slot our data supports
 

@@ -92,14 +92,14 @@ out("| Input | Value | Kind | Source |")
 out("|---|---:|---|---|")
 out(f"| Burner's fixed part, sending directly | {fmt(BURNER_FIXED)} | M | SPK-1b §1 (validate 87,805, execution 141,670, fee transfer 455,360, res2 32,600) |")
 out(f"| Same transaction, burner against the owner's account | −{fmt(BURNER_SAVING)} | M | SPK-1b §4 (enter and leave, identical game call) |")
-out(f"| res1 constant + the 2 signature felts, together | {fmt(BASE + SIG_FELTS * PER_FELT)} | M | analyse.py §2: identified only together, every transaction has a 2-felt signature |")
+out(f"| res1 constant + the 2 signature felts, together (the aggregate) | {fmt(BASE + SIG_FELTS * PER_FELT)} | chosen normalisation, not measured | analyse.py §2, §4.1: any aggregate congruent to 880 modulo 2,000, from 880 to 74,880, keeps the observed divisibility |")
 out(f"| — split as a constant {fmt(BASE)} + 2 × {fmt(PER_FELT)} | — | assumed normalisation | a free signature and a constant of 14,880 fit the same receipts |")
 out(f"| Per felt of calldata | {fmt(PER_FELT)} | M | analyse.py §3, controlled pairs |")
 out(f"| A multicall's header: the first call {HEADER_FELTS} felts (count, to, selector, length), each further call "
     f"{EXTRA_CALL_FELTS} (to, selector, length) | {fmt(PER_FELT * HEADER_FELTS)}, then {fmt(PER_FELT * EXTRA_CALL_FELTS)} a call | D | the account's `__execute__` calldata layout × the per-felt price |")
-out(f"| A new slot (value was 0) | {fmt(NEW_SLOT)} | M (fit) | analyse.py §4; pairs 426,000 to 482,000 |")
-out(f"| An overwritten or zeroed slot | {fmt(OTHER_SLOT)} | M (fit) | analyse.py §4; pairs 20,000 to 80,000 |")
-out(f"| **Floor of a burner transaction** (fixed part + constant + 6 felts + the fee token's 2 slots) | **{fmt(FLOOR)}** | D | the lines above; the constant/signature split does not change it |")
+out(f"| A new slot (value was 0) | {fmt(NEW_SLOT)} | M (fit under the 14,880 convention) | analyse.py §4; pairs 426,000 to 482,000; 452,808 to 453,691 over the admissible aggregates (§4.1) |")
+out(f"| An overwritten or zeroed slot | {fmt(OTHER_SLOT)} | M (fit under the 14,880 convention) | analyse.py §4; pairs 20,000 to 80,000; 24,878 to 33,751 over the admissible aggregates (§4.1) |")
+out(f"| **Floor of a burner transaction** (fixed part + constant + 6 felts + the fee token's 2 slots) | **{fmt(FLOOR)}** | D under the 14,880 convention | the lines above; 806,297 to 862,551 over the admissible aggregates, 815,419 to 818,459 within ±2,000 (analyse.py §4.1) |")
 out(f"| Prices | L2 {P_L2:,} fri, DA {P_DA:,} fri, STRK ${STRK_USD} | M | SPK-1 §5 (mainnet, 2026-09-28) |")
 out(f"| 1M L2 gas | ${usd(1e6):.6f} | D | |")
 out(f"| The target in L2 gas: $0.50 for 300 actions, no DA | {fmt(THRESHOLD / usd(1))} per expedition, {fmt(THRESHOLD / usd(1) / ACTIONS)} per action | D | D-129 |")
@@ -173,7 +173,7 @@ out("|---|---:|---|---|")
 b_enter = M["b_enter"]
 out(f"| Enter, burner: 4 new instance slots under a new instance id | {fmt(b_enter['receipt'])} | M | SPK-1b; the 25 enters of SPK-1 wrote 100 distinct new keys |")
 reuse = b_enter["receipt"] - 4 * (NEW_SLOT - OTHER_SLOT)
-out(f"| Enter, if its 4 slots are **reused keys** holding a value (instance slots reused, a generation in the record) | {fmt(reuse)} | E (extrapolation) | − 4 × {fmt(NEW_SLOT - OTHER_SLOT)}; no rewrite of a used key was observed |")
+out(f"| Enter, if its 4 slots are **reused keys** holding a value (instance slots reused, a generation in the record) | {fmt(reuse)} | E (extrapolation) | − 4 × {fmt(NEW_SLOT - OTHER_SLOT)}; no zero-then-rewrite was observed, and no instance key was recycled between enters |")
 out(f"| The spike's `walk` of 10 moves, 8 goblins following, burner (movement benchmark) | {fmt(burner['q10'][0])} | D | SPK-1's receipt − 370,150 |")
 walk_args = M["q10"]["felts"] - SIG_FELTS - HEADER_FELTS
 play10 = burner["q10"][0] - PER_FELT * walk_args + PER_FELT * 30
@@ -248,7 +248,10 @@ for name, (l, d) in (("S1", (l1, d1)), ("S2", (l2_, d2))):
     out(f"- {name}, fights batched and shared (E): {fmt(l)} L2 gas and {d:,} L1 data gas, ${usd(l, d):.3f}; "
         f"{'over' if over > 0 else 'under'} the target by {fmt(abs(over))} L2 gas.")
 moves_s1 = 36 * burner["q5"][0]
-out(f"- S1's 36 queues of 5 near goblins cost {fmt(moves_s1)} (D), {100 * moves_s1 / l1:.0f} % of its total.")
+l1_unshared, _ = expedition(36, 0, 10, batch_as_measured)
+out(f"- S1's 36 queues of 5 near goblins cost {fmt(moves_s1)} (D): {100 * moves_s1 / l1_unshared:.3f} % of S1 with "
+    f"fights batched, each tick as measured, with the 27 felts (E), and {100 * moves_s1 / l1:.3f} % with fights "
+    "batched and shared (E).")
 # S1 with moves near goblins in tens: what must a fight's tick cost, inside a batch, for S1 to meet $0.50?
 rest_l2, rest_da = expedition(0, 0, 0, 0, near_q10=18)
 fight_da = 10 * tick["da"]

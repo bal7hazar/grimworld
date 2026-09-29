@@ -20,13 +20,28 @@ from collections import OrderedDict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PER_FELT = 5_120  # found below: per felt of calldata, inside res1 (controlled pairs)
-# An assumed normalisation, not an identified term: every transaction here carries a signature of
+# A chosen normalisation, not an identified term: every transaction here carries a signature of
 # 2 felts, so the signature's price cannot be separated from the constant. BASE is the constant
 # *if* a signature felt costs what a calldata felt costs (base 14,880 with a free signature fits
 # the same data).
 SIG_FELTS = 2
 BASE = 4_640
+# The aggregate BASE + the signature is itself a chosen normalisation, not measured: every value
+# congruent to 880 modulo 2,000 keeps the observed divisibility (§2, §4.1).
+AGGREGATE = BASE + SIG_FELTS * PER_FELT  # 14,880
 GAME_CONTRACTS = {"Hub", "Instances"}
+
+
+def fit_prices(shapes, aggregate):
+    """Least squares of the state part on (new, other) slots, the state part taken under `aggregate`."""
+    xs = [(r["new"], r["over"] + r["zeroed"], r["state"] + AGGREGATE - aggregate) for r in shapes]
+    s11 = sum(n * n for n, _, _ in xs)
+    s12 = sum(n * o for n, o, _ in xs)
+    s22 = sum(o * o for _, o, _ in xs)
+    t1 = sum(n * y for n, _, y in xs)
+    t2 = sum(o * y for _, o, y in xs)
+    det = s11 * s22 - s12 * s12
+    return (t1 * s22 - t2 * s12) / det, (s11 * t2 - s12 * t1) / det
 
 
 def game_calls(node):
@@ -131,9 +146,10 @@ def main():
 
     print("\n## 2. res1 = BASE + PER_FELT × felts + the state part (an accounting identity, not a model)\n")
     print(f"BASE = {fmt(BASE)}, PER_FELT = {fmt(PER_FELT)}. The *state part* is res1 − BASE − PER_FELT × felts, "
-          "felts counting calldata and the signature. **The split between BASE and the signature is an assumed "
-          f"normalisation**: every transaction carries {SIG_FELTS} signature felts, so only BASE + "
-          f"{SIG_FELTS} × (the signature felt's price) is identified, here {fmt(BASE + SIG_FELTS * PER_FELT)}. "
+          "felts counting calldata and the signature. **Both the aggregate BASE + "
+          f"{SIG_FELTS} × (the signature felt's price), here {fmt(AGGREGATE)}, and its split are chosen "
+          "normalisations, not measurements**: every transaction carries the same signature, and the table below "
+          "admits other aggregates (every value congruent to 880 modulo 2,000); §4.1 shows what they change. "
           "Every distinct Sierra-metered shape (declares and AVNU's step-metered case D left out):\n")
     print("| Label | Felts (calldata + signature) | Event felts | res1 | State part | Slots new/over/zero | Contracts with storage | State part mod 2,000 |")
     print("|---|---:|---:|---:|---:|---|---:|---:|")
@@ -202,17 +218,11 @@ def main():
           f"| {fmt(give['state'] // 3)} |")
 
     print("\n## 4. One price per new slot and one per other changed slot: least squares over the shapes\n")
-    # state ≈ a·new + b·(over + zeroed), no intercept (BASE is already out).
+    # state ≈ a·new + b·(over + zeroed), no intercept (the chosen aggregate is already out).
     xs = [(r["new"], r["over"] + r["zeroed"], r["state"]) for r in shapes]
-    s11 = sum(n * n for n, _, _ in xs)
-    s12 = sum(n * o for n, o, _ in xs)
-    s22 = sum(o * o for _, o, _ in xs)
-    t1 = sum(n * y for n, _, y in xs)
-    t2 = sum(o * y for _, o, y in xs)
-    det = s11 * s22 - s12 * s12
-    a = (t1 * s22 - t2 * s12) / det
-    b = (s11 * t2 - s12 * t1) / det
-    print(f"Fit over {len(xs)} shapes: **new slot {fmt(round(a))}**, **overwritten or zeroed slot {fmt(round(b))}** "
+    a, b = fit_prices(shapes, AGGREGATE)
+    print(f"Fit over {len(xs)} shapes, **under the chosen aggregate {fmt(AGGREGATE)}**: **new slot {fmt(round(a))}**, "
+          f"**overwritten or zeroed slot {fmt(round(b))}** "
           "(L2 gas, beyond the write's computation, once per slot and per transaction).\n")
     print("| Label | Slots new/other | State part | Fitted | Error | Error % |")
     print("|---|---|---:|---:|---:|---:|")
@@ -225,6 +235,22 @@ def main():
         print(f"| {r['label']} | {r['new']}/{r['over'] + r['zeroed']} | {fmt(r['state'])} | {fmt(round(fit))} "
               f"| {fmt(round(err))} | {pct:+.1f} % |")
     print(f"\nLargest error: {fmt(round(worst))} L2 gas.")
+
+    print("\n### 4.1 The same fit under the other admissible aggregates\n")
+    print("The aggregate (constant + the 2 signature felts) is **a chosen normalisation, not measured**: every "
+          "aggregate congruent to 880 modulo 2,000 keeps every state part a multiple of 2,000 (§2), and every "
+          f"one up to {fmt(AGGREGATE + min(r['state'] for r in shapes))} keeps them non-negative. The floor of a "
+          "burner transaction is the burner's fixed part (717,435) + the aggregate + a call's 4 header felts "
+          "(20,480) + the fee token's 2 slots at the fitted other-slot price.\n")
+    print("| Aggregate | New slot | Other slot | Floor | Floor − floor at 14,880 |")
+    print("|---:|---:|---:|---:|---:|")
+    floor0 = 717_435 + AGGREGATE + 4 * PER_FELT + 2 * round(b)
+    lowest, highest = AGGREGATE % 2_000, AGGREGATE + min(r["state"] for r in shapes)
+    for agg in [lowest, *range(AGGREGATE - 4_000, AGGREGATE + 4_001, 2_000), highest]:
+        na, nb = fit_prices(shapes, agg)
+        floor = 717_435 + agg + 4 * PER_FELT + 2 * round(nb)
+        mark = " (the convention used)" if agg == AGGREGATE else ""
+        print(f"| {fmt(agg)}{mark} | {fmt(round(na))} | {fmt(round(nb))} | {fmt(floor)} | {floor - floor0:+,} |")
 
     print("\n## 5. The figure per slot our data supports\n")
     print("| Kind of slot | From the controlled pairs: min / median / max | Least squares | quiver (D-135) |")
