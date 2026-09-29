@@ -7,7 +7,8 @@ A sprite never straddles two pages, so each page is a self-contained atlas that 
 import json
 
 import numpy as np
-from PIL import Image
+
+from . import png as pngfile
 
 
 class Page:
@@ -98,7 +99,7 @@ def pack(sprites, s, out_dir):
                 animations[f'{sp["name"]}/{anim["name"]}'] = keys
                 rates[f'{sp["name"]}/{anim["name"]}'] = {"fps": anim["fps"], "loop": anim["loop"]}
         png, jsn = f"atlas-{n}.png", f"atlas-{n}.json"
-        Image.fromarray(img, "RGBA").save(out_dir / png, optimize=False, compress_level=9)
+        pngfile.write(out_dir / png, img)
         data = {
             "frames": frames,
             "animations": animations,
