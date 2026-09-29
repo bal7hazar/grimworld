@@ -1,4 +1,4 @@
-import { FeeRefused, NetworkRefused, type FundingChain } from "./chain.ts";
+import { NetworkRefused, NotSent, type FundingChain } from "./chain.ts";
 import type { Grant, Ledger } from "./ledger.ts";
 
 /**
@@ -7,12 +7,15 @@ import type { Grant, Ledger } from "./ledger.ts";
  * 1. the request names a public key on the curve, and the address it gives, if any, is that key's;
  * 2. a key is funded once: a key with a grant gets the grant's answer again, and nothing is sent;
  *    requests for the same key at the same time share one answer;
- * 3. a client funds at most `clientRate` new keys per hour;
- * 4. all clients together fund at most `dailyBudget` new keys per day (UTC);
- * 5. an account that exists already is never funded;
+ * 3. an account that exists already is never funded;
+ * 4. one funding at a time holds the funding account (fix loop 1, F-1): a funding waits until the
+ *    nonce of the one before is consumed (or known never to be), then signs with the next nonce;
+ * 5. at that moment, and only then (fix loop 1, F-2), the caps are checked and taken: a client
+ *    signs at most `clientRate` fundings per hour, and all clients together at most `dailyBudget`
+ *    per day (UTC), counted on the clock at signing; they are given back only when nothing was sent;
  * 6. the chain module checks the network and the fee cap before it signs (`chain.ts`).
- * A funding counts against both caps from the moment it is decided, before anything is sent, and
- * is given back only when nothing was signed.
+ * Checks 5 are also made, without taking anything, before a request queues, so that a request
+ * bound to be refused does not wait.
  */
 
 export type Outcome =
@@ -35,6 +38,12 @@ export interface Limits {
   /** How long a request waits for its funding to settle before answering `pending`. */
   readonly settleMs: number;
   readonly pollMs: number;
+  /**
+   * How long a nonce stays held with no sign of its execution (the node does not know it, or the
+   * send failed with no answer) before it counts as never consumed. While the execution is known
+   * to the node, the nonce stays held however long it takes.
+   */
+  readonly holdMs: number;
 }
 
 export interface ServiceOptions {
@@ -69,29 +78,101 @@ function parse(request: unknown): { publicKey: string; address?: string } | unde
   return { publicKey, address };
 }
 
+type Sent =
+  | { kind: "sent"; transaction: string }
+  | { kind: "limited" | "exhausted" | "refused" | "unavailable" };
+
 export function createFundingService(options: ServiceOptions): FundingService {
   const { chain, ledger, limits } = options;
   const now = options.now ?? Date.now;
   const sleep = options.sleep ?? ((ms) => new Promise<void>((done) => setTimeout(done, ms)));
   const event = options.onEvent ?? (() => undefined);
   const inflight = new Map<string, Promise<Outcome>>();
-  // The times of each client's fundings in the last window. An entry is made only by a funding,
-  // so the map holds at most `dailyBudget` times.
-  const rates = new Map<string, number[]>();
-  // The funder's executions go one after the other: two sent at once would race for its nonce.
+  // The funding account is used by one funding at a time, from its nonce's hold to its signature.
   let queue: Promise<unknown> = Promise.resolve();
 
-  function send(publicKey: string, address: string): Promise<string> {
-    const sent = queue.then(() => chain.fund(publicKey, address));
-    queue = sent.catch(() => undefined);
-    return sent;
+  function queued<T>(work: () => Promise<T>): Promise<T> {
+    const run = queue.then(work);
+    queue = run.catch(() => undefined);
+    return run;
   }
 
-  function recent(client: string, at: number): number[] {
-    const times = (rates.get(client) ?? []).filter((t) => t > at - limits.windowMs);
-    if (times.length > 0) rates.set(client, times);
-    else rates.delete(client);
-    return times;
+  /** What the caps say now: `undefined` when a funding fits. */
+  function capped(client: string, at: number): "limited" | "exhausted" | undefined {
+    if (ledger.times(client, at - limits.windowMs).length >= limits.clientRate) return "limited";
+    if (ledger.spent(dayOf(at)) >= limits.dailyBudget) return "exhausted";
+    return undefined;
+  }
+
+  /**
+   * Waits until the nonce held by the last funding is consumed, or known never to be; `false` when
+   * that takes longer than a request may wait (the hold stays, nothing is sent).
+   */
+  async function released(): Promise<boolean> {
+    const until = now() + limits.settleMs;
+    for (;;) {
+      const hold = ledger.hold();
+      if (!hold) return true;
+      if ((await chain.nonce()) > BigInt(hold.nonce)) {
+        ledger.setHold(undefined);
+        return true;
+      }
+      // The nonce is not consumed. It stays held while the node knows the execution; it is let go
+      // when nothing has shown for `holdMs`: the execution never reached the node. If it does
+      // after all, it and the next funding share one nonce, and only one of them can execute.
+      const known = hold.transaction ? (await chain.status(hold.transaction)) !== "unknown" : false;
+      if (!known && now() - hold.at >= limits.holdMs) {
+        event("released", { nonce: hold.nonce });
+        ledger.setHold(undefined);
+        return true;
+      }
+      if (now() >= until) return false;
+      await sleep(limits.pollMs);
+    }
+  }
+
+  /** Holds the funding account, takes the caps, signs and sends. Runs in the queue only. */
+  async function send(publicKey: string, address: string, client: string): Promise<Sent> {
+    if (!(await released())) return { kind: "unavailable" };
+    const at = now();
+    const day = dayOf(at);
+    const full = capped(client, at);
+    if (full) {
+      event(full, { address });
+      return { kind: full };
+    }
+    ledger.spend(day, 1);
+    ledger.addTime(client, at);
+    const giveBack = () => {
+      ledger.spend(day, -1);
+      ledger.removeTime(client, at);
+    };
+    let nonce: bigint;
+    try {
+      nonce = await chain.nonce();
+    } catch {
+      giveBack();
+      return { kind: "unavailable" };
+    }
+    // Held before signing: a stop from here on leaves the hold in the file.
+    ledger.setHold({ nonce: String(nonce), at });
+    try {
+      const transaction = await chain.fund(publicKey, address, nonce);
+      ledger.setHold({ nonce: String(nonce), transaction, at });
+      return { kind: "sent", transaction };
+    } catch (error) {
+      if (error instanceof NotSent) {
+        // Nothing reached the node: the caps and the nonce are free again.
+        giveBack();
+        ledger.setHold(undefined);
+        event("refused", { address, reason: error.message });
+        return { kind: error instanceof NetworkRefused ? "refused" : "unavailable" };
+      }
+      // It may have been sent: the caps stay spent and the nonce held, until it is consumed or
+      // `holdMs` shows nothing of it.
+      event("send-failed", { address, reason: error instanceof Error ? error.name : "unknown" });
+      return { kind: "unavailable" };
+    }
   }
 
   function provided(grant: Grant, repeated: boolean): Outcome {
@@ -143,63 +224,37 @@ export function createFundingService(options: ServiceOptions): FundingService {
       const answer = await again(publicKey, kept);
       if (answer) return answer;
     }
-
-    // The caps are checked and taken with no await in between: requests running at the same time
-    // cannot all pass a check that only one of them fits.
-    const at = now();
-    const day = dayOf(at);
-    const times = recent(client, at);
-    if (times.length >= limits.clientRate) {
-      event("limited", { address });
-      return { kind: "limited" };
+    // A request bound to be refused is refused before it waits; nothing is taken here.
+    const full = capped(client, now());
+    if (full) {
+      event(full, { address });
+      return { kind: full };
     }
-    if (ledger.spent(day) >= limits.dailyBudget) {
-      event("exhausted", { address });
-      return { kind: "exhausted" };
-    }
-    ledger.spend(day, 1);
-    rates.set(client, [...times, at]);
-    const giveBack = () => {
-      ledger.spend(day, -1);
-      const mine = rates.get(client) ?? [];
-      const index = mine.indexOf(at);
-      if (index >= 0) mine.splice(index, 1);
-      if (mine.length === 0) rates.delete(client);
-    };
-
-    try {
-      if (await chain.isDeployed(address)) {
-        giveBack();
-        const done: Grant = { address, status: "succeeded" };
-        ledger.setGrant(publicKey, done);
-        event("exists", { address });
-        return provided(done, true);
-      }
-    } catch (error) {
-      giveBack();
-      throw error;
+    if (await chain.isDeployed(address)) {
+      const done: Grant = { address, status: "succeeded" };
+      ledger.setGrant(publicKey, done);
+      event("exists", { address });
+      return provided(done, true);
     }
 
     ledger.setGrant(publicKey, { address, status: "sending" });
-    let transaction: string;
+    let sent: Sent;
     try {
-      transaction = await send(publicKey, address);
+      sent = await queued(() => send(publicKey, address, client));
     } catch (error) {
       ledger.setGrant(publicKey, undefined);
-      if (error instanceof NetworkRefused || error instanceof FeeRefused) {
-        // Nothing was signed for sending: the caps are given back.
-        giveBack();
-        event("refused", { address, reason: error.message });
-        return { kind: error instanceof NetworkRefused ? "refused" : "unavailable" };
-      }
-      // It may have been sent: the caps stay spent. The key may ask again; if the account was
-      // deployed after all, the chain refuses a second deployment and its transfer with it.
-      event("send-failed", { address, reason: error instanceof Error ? error.name : "unknown" });
-      return { kind: "unavailable" };
+      throw error;
+    }
+    if (sent.kind !== "sent") {
+      // Not sent, or perhaps sent and unanswered: the key may ask again. If it was deployed after
+      // all, the chain refuses a second deployment and its transfer with it.
+      ledger.setGrant(publicKey, undefined);
+      return sent;
     }
 
-    const sent: Grant = { address, transaction, status: "pending" };
-    ledger.setGrant(publicKey, sent);
+    const { transaction } = sent;
+    const pending: Grant = { address, transaction, status: "pending" };
+    ledger.setGrant(publicKey, pending);
     event("sent", { address, transaction });
     const status = await settle(transaction);
     if (status === "failed") {
@@ -207,7 +262,7 @@ export function createFundingService(options: ServiceOptions): FundingService {
       event("failed", { address, transaction });
       return { kind: "failed", address, transaction };
     }
-    const grant: Grant = { ...sent, status: status === "succeeded" ? "succeeded" : "pending" };
+    const grant: Grant = { ...pending, status: status === "succeeded" ? "succeeded" : "pending" };
     ledger.setGrant(publicKey, grant);
     if (status === "succeeded") event("funded", { address, transaction });
     return provided(grant, false);

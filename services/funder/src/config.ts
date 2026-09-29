@@ -19,6 +19,7 @@ export const ENV = {
   host: "FUNDER_HOST",
   port: "FUNDER_PORT",
   stateFile: "FUNDER_STATE_FILE",
+  ephemeral: "FUNDER_EPHEMERAL",
   trustProxy: "FUNDER_TRUST_PROXY",
   origin: "FUNDER_ORIGIN",
 } as const;
@@ -56,6 +57,11 @@ export interface Config {
   readonly clientRate: number;
   readonly host: string;
   readonly port: number;
+  /**
+   * Where the ledger is kept. Required (fix loop 1, F-3): without it a restart would forget the
+   * day's budget and the clients' rates. `undefined` only with `FUNDER_EPHEMERAL=1`, for
+   * development: a restart then forgets everything.
+   */
   readonly stateFile: string | undefined;
   readonly trustProxy: boolean;
   readonly origin: string;
@@ -133,6 +139,15 @@ export function readConfig(env: Env): Config {
   if (networks.length === 0) throw new ConfigError(`${ENV.networks} is empty`);
   const port = env[ENV.port]?.trim() ? Number(positiveOrZero(env, ENV.port)) : DEFAULTS.port;
   if (port > 65535) throw new ConfigError(`${ENV.port} is not a port`);
+  // Fails closed (fix loop 1, F-3): no state file is a choice, never a default.
+  const stateFile = env[ENV.stateFile]?.trim() || undefined;
+  const ephemeral = env[ENV.ephemeral]?.trim() === "1";
+  if (!stateFile && !ephemeral) {
+    throw new ConfigError(`${ENV.stateFile} is not set (${ENV.ephemeral}=1 for development only)`);
+  }
+  if (stateFile && ephemeral) {
+    throw new ConfigError(`${ENV.stateFile} and ${ENV.ephemeral} are both set`);
+  }
   const config: Config = {
     rpcUrl,
     funderAddress: felt(env, ENV.address),
@@ -145,7 +160,7 @@ export function readConfig(env: Env): Config {
     clientRate: count(env, ENV.clientRate, DEFAULTS.clientRate, 1_000),
     host: env[ENV.host]?.trim() || DEFAULTS.host,
     port,
-    stateFile: env[ENV.stateFile]?.trim() || undefined,
+    stateFile,
     trustProxy: env[ENV.trustProxy]?.trim() === "1",
     origin: env[ENV.origin]?.trim() || "*",
   };

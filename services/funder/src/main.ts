@@ -32,6 +32,7 @@ const service = createFundingService({
     windowMs: HOUR_MS,
     settleMs: 60_000,
     pollMs: 500,
+    holdMs: 5 * 60_000,
   },
   onEvent: log,
 });

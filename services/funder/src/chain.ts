@@ -25,8 +25,19 @@ export const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f42
 
 export type FundingStatus = "pending" | "succeeded" | "failed" | "unknown";
 
+/**
+ * The funding failed before anything was handed to the node: nothing can be executed, the nonce
+ * is not consumed (fix loop 1, F-2: the caps are given back only then).
+ */
+export class NotSent extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "NotSent";
+  }
+}
+
 /** Nothing was signed or sent: the network is not one the service may send to. */
-export class NetworkRefused extends Error {
+export class NetworkRefused extends NotSent {
   constructor(reason: string) {
     super(`network refused: ${reason}`);
     this.name = "NetworkRefused";
@@ -34,7 +45,7 @@ export class NetworkRefused extends Error {
 }
 
 /** Nothing was sent: the funding would cost more in fees than the configured cap. */
-export class FeeRefused extends Error {
+export class FeeRefused extends NotSent {
   constructor() {
     super("the funding's fee bound is above the cap");
     this.name = "FeeRefused";
@@ -45,11 +56,15 @@ export interface FundingChain {
   /** The account's address for a public key, or `undefined` when it is not a key on the curve. */
   addressOf(publicKey: string): { publicKey: string; address: string } | undefined;
   isDeployed(address: string): Promise<boolean>;
+  /** The funding account's nonce in the latest block: the executions it has had included. */
+  nonce(): Promise<bigint>;
   /**
-   * Checks the network (`NetworkRefused`), then signs and sends the account's deployment and its
-   * funding as one execution, within the fee cap (`FeeRefused`). Resolves with the execution's id.
+   * Checks the network (`NetworkRefused`), then signs, with the nonce given, and sends the
+   * account's deployment and its funding as one execution, within the fee cap (`FeeRefused`).
+   * Resolves with the execution's id. Any failure before the execution is handed to the node is a
+   * `NotSent`; any other may have been sent.
    */
-  fund(publicKey: string, address: string): Promise<string>;
+  fund(publicKey: string, address: string, nonce: bigint): Promise<string>;
   status(id: string): Promise<FundingStatus>;
 }
 
@@ -75,6 +90,12 @@ export function feeBound(bounds: ResourceBoundsBN): bigint {
 }
 
 const FELT = /^0x[0-9a-fA-F]{1,64}$/;
+
+interface Prepared {
+  funder: Account;
+  calls: Call[];
+  bounds: ResourceBoundsBN;
+}
 
 export function createFundingChain(options: ChainOptions): FundingChain {
   // Copied once: the network checked, the class deployed and the account signing stay those of
@@ -105,6 +126,50 @@ export function createFundingChain(options: ChainOptions): FundingChain {
     return BigInt(body.result);
   }
 
+  /** Everything before the execution reaches the node: the network, the calls, the fee's cap. */
+  async function prepare(publicKey: string, address: string, nonce: bigint): Promise<Prepared> {
+    const id = await chainId();
+    if (id === SN_MAIN) throw new NetworkRefused("the chain is mainnet");
+    if (!config.networks.includes(id)) throw new NetworkRefused("the chain is not configured");
+    // The signer exists only once the network is known, and signs for that chain id only: the
+    // same execution is invalid on any other network.
+    const provider = new RpcProvider({
+      nodeUrl: config.rpcUrl,
+      baseFetch: config.fetch,
+      chainId: num.toHex(id) as never,
+    });
+    const funder = new Account({
+      provider,
+      address: config.funderAddress,
+      signer: config.funderKey.reveal(),
+    });
+    const deploy = defaultDeployer.buildDeployerCall(
+      {
+        classHash: config.accountClass,
+        salt: publicKey,
+        unique: false,
+        constructorCalldata: [publicKey],
+      },
+      config.funderAddress,
+    );
+    if (num.toBigInt(deploy.addresses[0] ?? 0) !== num.toBigInt(address)) {
+      throw new NotSent("the deployer's address differs from the derived one");
+    }
+    // The deployment and the transfer are one execution: when the account exists already, the
+    // deployment fails and the transfer with it, so a key is never funded twice on the chain.
+    const calls: Call[] = [
+      ...deploy.calls,
+      {
+        contractAddress: STRK,
+        entrypoint: "transfer",
+        calldata: CallData.compile({ recipient: address, amount: cairo.uint256(config.amount) }),
+      },
+    ];
+    const estimate = await funder.estimateInvokeFee(calls, { nonce, tip: 0n });
+    if (feeBound(estimate.resourceBounds) > config.maxFee) throw new FeeRefused();
+    return { funder, calls, bounds: estimate.resourceBounds };
+  }
+
   return {
     addressOf(input) {
       if (!FELT.test(input)) return undefined;
@@ -133,48 +198,23 @@ export function createFundingChain(options: ChainOptions): FundingChain {
       }
     },
 
-    async fund(publicKey, address) {
-      const id = await chainId();
-      if (id === SN_MAIN) throw new NetworkRefused("the chain is mainnet");
-      if (!config.networks.includes(id)) throw new NetworkRefused("the chain is not configured");
-      // The signer exists only once the network is known, and signs for that chain id only: the
-      // same execution is invalid on any other network.
-      const provider = new RpcProvider({
-        nodeUrl: config.rpcUrl,
-        baseFetch: config.fetch,
-        chainId: num.toHex(id) as never,
-      });
-      const funder = new Account({
-        provider,
-        address: config.funderAddress,
-        signer: config.funderKey.reveal(),
-      });
-      const deploy = defaultDeployer.buildDeployerCall(
-        {
-          classHash: config.accountClass,
-          salt: publicKey,
-          unique: false,
-          constructorCalldata: [publicKey],
-        },
-        config.funderAddress,
-      );
-      if (num.toBigInt(deploy.addresses[0] ?? 0) !== num.toBigInt(address)) {
-        throw new Error("the deployer's address differs from the derived one");
+    async nonce() {
+      return num.toBigInt(await reader.getNonceForAddress(config.funderAddress, "latest"));
+    },
+
+    async fund(publicKey, address, nonce) {
+      let prepared: Prepared;
+      try {
+        prepared = await prepare(publicKey, address, nonce);
+      } catch (error) {
+        throw error instanceof NotSent
+          ? error
+          : new NotSent("the funding was not prepared", { cause: error });
       }
-      // The deployment and the transfer are one execution: when the account exists already, the
-      // deployment fails and the transfer with it, so a key is never funded twice on the chain.
-      const calls: Call[] = [
-        ...deploy.calls,
-        {
-          contractAddress: STRK,
-          entrypoint: "transfer",
-          calldata: CallData.compile({ recipient: address, amount: cairo.uint256(config.amount) }),
-        },
-      ];
-      const estimate = await funder.estimateInvokeFee(calls, { tip: 0n });
-      if (feeBound(estimate.resourceBounds) > config.maxFee) throw new FeeRefused();
-      const { transaction_hash } = await funder.execute(calls, {
-        resourceBounds: estimate.resourceBounds,
+      // From here the execution may reach the node, whatever the answer: not a `NotSent`.
+      const { transaction_hash } = await prepared.funder.execute(prepared.calls, {
+        nonce,
+        resourceBounds: prepared.bounds,
         tip: 0n,
       });
       return transaction_hash;

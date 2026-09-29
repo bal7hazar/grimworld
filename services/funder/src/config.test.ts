@@ -10,6 +10,7 @@ const BASE = {
   FUNDER_PRIVATE_KEY: KEY,
   FUNDER_ACCOUNT_CLASS: "0x01d1777db36cdd06dd62cfde77b1b6ae06412af95d57a13dc40ac77b8a702381",
   FUNDER_NETWORKS: "SN_SEPOLIA",
+  FUNDER_STATE_FILE: "/var/lib/funder/ledger.json",
 };
 
 function refusal(env: Record<string, string>): string {
@@ -63,6 +64,20 @@ describe("the configuration", () => {
       expect(message).not.toContain(bad.replace(/^0x/, ""));
     }
     expect(refusal({ ...BASE, FUNDER_PRIVATE_KEY: "" })).toBe("FUNDER_PRIVATE_KEY is not set");
+  });
+
+  // Fix loop 1, F-3: without a state file a restart would forget the budget and the rates.
+  it("fails closed without a state file, unless development is said explicitly", () => {
+    const { FUNDER_STATE_FILE: _, ...without } = BASE;
+    void _;
+    expect(refusal(without)).toBe(
+      "FUNDER_STATE_FILE is not set (FUNDER_EPHEMERAL=1 for development only)",
+    );
+    expect(refusal({ ...without, FUNDER_STATE_FILE: " " })).toMatch(/FUNDER_STATE_FILE is not set/);
+    expect(refusal({ ...without, FUNDER_EPHEMERAL: "true" })).toMatch(/is not set/);
+    expect(readConfig({ ...without, FUNDER_EPHEMERAL: "1" }).stateFile).toBeUndefined();
+    expect(refusal({ ...BASE, FUNDER_EPHEMERAL: "1" })).toMatch(/both set/);
+    expect(readConfig(BASE).stateFile).toBe("/var/lib/funder/ledger.json");
   });
 
   it("mainnet's chain id is SN_MAIN's", () => {

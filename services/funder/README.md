@@ -32,7 +32,8 @@ given it must be the key's):
 | `FUNDER_MAX_FEE`             |          | 0.5 STRK          | The most a funding may cost in fees, in fri                                                                  |
 | `FUNDER_DAILY_BUDGET`        |          | 50                | New burners per day (UTC), all clients                                                                       |
 | `FUNDER_CLIENT_RATE`         |          | 3                 | New burners per client (IPv4 address or IPv6 /64) per hour                                                   |
-| `FUNDER_STATE_FILE`          |          | memory            | Where the fundings and the day's spending are kept across restarts                                           |
+| `FUNDER_STATE_FILE`          | yes      |                   | The ledger: fundings, the day's spending, clients' rates, the held nonce; one service per file and account   |
+| `FUNDER_EPHEMERAL`           |          | off               | `1`, instead of a state file, for development only: a restart forgets everything                             |
 | `FUNDER_HOST`, `FUNDER_PORT` |          | `127.0.0.1`, 8787 | `0` picks a free port                                                                                        |
 | `FUNDER_TRUST_PROXY`         |          | off               | `1`: the client is the last `X-Forwarded-For` hop                                                            |
 | `FUNDER_ORIGIN`              |          | `*`               | `Access-Control-Allow-Origin`                                                                                |

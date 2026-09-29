@@ -128,14 +128,38 @@ describe.skipIf(!nodeUrl)("the funding service on the local node", () => {
     const keyOf = (storage: KeyStorage) =>
       chain.derive((JSON.parse(storage.getItem(STORAGE_KEY)!) as { key: string }).key);
 
+    // Fix loop 1, F-4: every answer the client's funder receives is recorded for the key's scan.
+    const clientAnswers: string[] = [];
+    const recording = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await fetch(input, init);
+      const text = await response.clone().text();
+      clientAnswers.push(text);
+      seen.push(text);
+      return response;
+    }) as typeof fetch;
+
     let service = await start(env);
     try {
-      // 1. The client's burner, funded through the service, executes a call.
-      const funder = createFunder({ kind: "service", url: service.url, retryMs: 100 });
+      // 1. Two players at the same time (fix loop 1, F-1: two fundings on the real node, each with
+      // its own nonce); the first's burner executes a call.
+      const funder = createFunder({
+        kind: "service",
+        url: service.url,
+        retryMs: 100,
+        fetch: recording,
+      });
       const storage = memoryStorage();
       const player = createBurnerProvider({ chain, funder, storage });
-      const { address } = await player.createOrRestore();
+      const second = createBurnerProvider({ chain, funder, storage: memoryStorage() });
+      const nonceBefore = await funderNonce();
+      const [{ address }, { address: secondAddress }] = await Promise.all([
+        player.createOrRestore(),
+        second.createOrRestore(),
+      ]);
       expect(await chain.isDeployed(address)).toBe(true);
+      expect(await chain.isDeployed(secondAddress)).toBe(true);
+      expect(BigInt(await funderNonce())).toBe(BigInt(nonceBefore) + 2n);
+      expect(clientAnswers.filter((a) => a.includes('"repeated":false'))).toHaveLength(2);
       const id = await player.execute([
         { to: STRK, entrypoint: "approve", calldata: [funderAddress, 1n, 0n] },
       ]);
@@ -150,9 +174,7 @@ describe.skipIf(!nodeUrl)("the funding service on the local node", () => {
       expect(BigInt(again.body.address!)).toBe(BigInt(address));
       expect(await funderNonce()).toBe(before);
 
-      // 3. A second new burner uses the day's budget of 2; a third is refused, and not deployed.
-      const second = createBurnerProvider({ chain, funder, storage: memoryStorage() });
-      await second.createOrRestore();
+      // 3. The two burners used the day's budget of 2; a third is refused, and not deployed.
       const third = chain.derive(chain.newKey());
       const beforeThird = await funderNonce();
       const refused = await post(service.url, third);
@@ -171,7 +193,12 @@ describe.skipIf(!nodeUrl)("the funding service on the local node", () => {
       await service.stop();
 
       // 5. A network the configuration does not name is refused, and nothing is sent.
-      service = await start({ ...env, FUNDER_NETWORKS: "SN_OTHER", FUNDER_STATE_FILE: "" });
+      service = await start({
+        ...env,
+        FUNDER_NETWORKS: "SN_OTHER",
+        FUNDER_STATE_FILE: "",
+        FUNDER_EPHEMERAL: "1",
+      });
       const elsewhere = chain.derive(chain.newKey());
       const beforeElsewhere = await funderNonce();
       expect(await post(service.url, elsewhere)).toEqual({
@@ -187,6 +214,9 @@ describe.skipIf(!nodeUrl)("the funding service on the local node", () => {
       expect(JSON.parse(state).days).toEqual({ [new Date().toISOString().slice(0, 10)]: 2 });
       const everything = [...seen, state].join("\n").toLowerCase();
       expect(seen.join("")).toContain('"event":"funded"');
+      // The client's own answers are in the scan: the two first fundings among them.
+      for (const answer of clientAnswers) expect(seen).toContain(answer);
+      expect(clientAnswers.length).toBeGreaterThanOrEqual(2);
       for (const form of new Secret(funderKey).forms()) {
         expect(everything).not.toContain(form.toLowerCase());
       }

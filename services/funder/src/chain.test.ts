@@ -1,6 +1,6 @@
 import { Account, Signer, ec, hash, num } from "starknet";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { FeeRefused, NetworkRefused, createFundingChain, feeBound } from "./chain.ts";
+import { FeeRefused, NetworkRefused, NotSent, createFundingChain, feeBound } from "./chain.ts";
 import { chainIdOf } from "./config.ts";
 import { Secret } from "./secret.ts";
 
@@ -108,7 +108,7 @@ const BOUNDS = (price: bigint) => ({
 describe("the network is checked before anything is signed", () => {
   it("refuses mainnet, even when it answers as the only network configured", async () => {
     const { chain, methods } = chainOn([SN_MAIN]);
-    const error = await refused(chain.fund(BURNER.publicKey, BURNER.address));
+    const error = await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n));
     expect(error).toBeInstanceOf(NetworkRefused);
     expect(error.message).toMatch(/mainnet/);
     expect(methods).toEqual(["starknet_chainId"]);
@@ -117,7 +117,7 @@ describe("the network is checked before anything is signed", () => {
 
   it("refuses a network the configuration does not name", async () => {
     const { chain, methods } = chainOn([SN_SEPOLIA], ["SN_INTEGRATION"]);
-    const error = await refused(chain.fund(BURNER.publicKey, BURNER.address));
+    const error = await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n));
     expect(error).toBeInstanceOf(NetworkRefused);
     expect(error.message).toMatch(/not configured/);
     expect(methods).toEqual(["starknet_chainId"]);
@@ -126,7 +126,7 @@ describe("the network is checked before anything is signed", () => {
 
   it("refuses a node that does not tell its chain id", async () => {
     const { chain } = chainOn([undefined]);
-    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address))).toBeInstanceOf(
+    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n))).toBeInstanceOf(
       NetworkRefused,
     );
     expectNothingSigned();
@@ -135,12 +135,11 @@ describe("the network is checked before anything is signed", () => {
   it("asks at every funding: a node that turns into mainnet is refused the next time", async () => {
     const { chain, methods } = chainOn([SN_SEPOLIA, SN_MAIN]);
     estimate.mockRejectedValue(new Error("stopped by the test"));
-    expect((await refused(chain.fund(BURNER.publicKey, BURNER.address))).message).toBe(
-      "stopped by the test",
-    );
+    const stopped = await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n));
+    expect((stopped.cause as Error).message).toBe("stopped by the test");
     expect(estimate).toHaveBeenCalledTimes(1);
     estimate.mockClear();
-    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address))).toBeInstanceOf(
+    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n))).toBeInstanceOf(
       NetworkRefused,
     );
     expect(methods.filter((m) => m === "starknet_chainId")).toHaveLength(2);
@@ -150,19 +149,26 @@ describe("the network is checked before anything is signed", () => {
   it("signs for the chain id it checked, with the funding key, and sends deployment and funding together", async () => {
     const { chain, methods } = chainOn([SN_SEPOLIA]);
     estimate.mockResolvedValue({ resourceBounds: BOUNDS(1n), overall_fee: 1n, unit: "FRI" });
-    const used: { chainId?: string; publicKey?: string; calls?: unknown[]; tip?: unknown } = {};
+    const used: {
+      chainId?: string;
+      publicKey?: string;
+      calls?: unknown[];
+      tip?: unknown;
+      nonce?: unknown;
+    } = {};
     execute.mockImplementation(async function (
       this: Account,
       calls: unknown,
-      details?: { tip?: unknown },
+      details?: { tip?: unknown; nonce?: unknown },
     ) {
       used.chainId = await this.provider.getChainId();
       used.publicKey = await this.signer.getPubKey();
       used.calls = calls as unknown[];
       used.tip = details?.tip;
+      used.nonce = details?.nonce;
       return { transaction_hash: "0xabc" };
     });
-    expect(await chain.fund(BURNER.publicKey, BURNER.address)).toBe("0xabc");
+    expect(await chain.fund(BURNER.publicKey, BURNER.address, 7n)).toBe("0xabc");
     expect(BigInt(used.chainId!)).toBe(BigInt(SN_SEPOLIA));
     // The signer's chain id is the one checked, not asked again of the node.
     expect(methods.filter((m) => m === "starknet_chainId")).toHaveLength(1);
@@ -170,18 +176,36 @@ describe("the network is checked before anything is signed", () => {
     expect(used.calls).toHaveLength(2);
     expect((used.calls![1] as { entrypoint: string }).entrypoint).toBe("transfer");
     expect(used.tip).toBe(0n);
+    // Fix loop 1, F-1: the nonce is the one the service holds, for the estimate and the execution.
+    expect(used.nonce).toBe(7n);
+    expect(estimate.mock.calls[0]![1]).toMatchObject({ nonce: 7n });
+  });
+
+  it("a failure before the execution is NotSent; a failure of the execution is not", async () => {
+    const { chain } = chainOn([SN_SEPOLIA]);
+    estimate.mockRejectedValueOnce(new Error("estimate failed"));
+    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n))).toBeInstanceOf(NotSent);
+    estimate.mockResolvedValue({ resourceBounds: BOUNDS(1n), overall_fee: 1n, unit: "FRI" });
+    execute.mockRejectedValue(new Error("lost"));
+    const error = await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n));
+    expect(error).not.toBeInstanceOf(NotSent);
+    expect(error.message).toBe("lost");
   });
 
   it("refuses a funding whose fee bound is above the cap, before sending", async () => {
     const { chain } = chainOn([SN_SEPOLIA], ["SN_SEPOLIA"], 1_000_000n);
     estimate.mockResolvedValue({ resourceBounds: BOUNDS(2n), overall_fee: 1n, unit: "FRI" });
-    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address))).toBeInstanceOf(FeeRefused);
+    expect(await refused(chain.fund(BURNER.publicKey, BURNER.address, 7n))).toBeInstanceOf(
+      FeeRefused,
+    );
     expect(execute).not.toHaveBeenCalled();
   });
 
   it("refuses an address that is not the key's before signing", async () => {
     const { chain } = chainOn([SN_SEPOLIA]);
-    expect((await refused(chain.fund(BURNER.publicKey, "0x1234"))).message).toMatch(/differs/);
+    const error = await refused(chain.fund(BURNER.publicKey, "0x1234", 7n));
+    expect(error).toBeInstanceOf(NotSent);
+    expect(error.message).toMatch(/differs/);
     expectNothingSigned();
   });
 });

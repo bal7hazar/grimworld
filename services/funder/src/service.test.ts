@@ -1,30 +1,61 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { FeeRefused, NetworkRefused, type FundingChain, type FundingStatus } from "./chain.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  FeeRefused,
+  NetworkRefused,
+  NotSent,
+  type FundingChain,
+  type FundingStatus,
+} from "./chain.ts";
 import { fileLedger, memoryLedger, type Ledger } from "./ledger.ts";
 import { HOUR_MS, createFundingService, type Limits } from "./service.ts";
 
-// The guards of the service, offline: a fake chain records what would be sent.
+// The guards of the service, offline. The fake chain keeps the funding account's nonce as a node
+// does: an execution must carry the next nonce, a nonce is consumed when its execution is included
+// (succeeded or reverted), and one already used by an execution the node knows is refused.
 
 const DAY_MS = 24 * HOUR_MS;
 const T0 = Date.UTC(2026, 8, 29, 10);
+const TODAY = "2026-09-29";
+
+interface Tx {
+  address: string;
+  nonce: bigint;
+  status: FundingStatus;
+}
+
+/** What the node does with the next execution. */
+type Mode = "include" | "revert" | "hold" | "drop";
 
 interface FakeChain extends FundingChain {
+  /** Addresses funded, in order of sending. */
   sent: string[];
+  /** The nonce of each execution sent. */
+  nonces: bigint[];
   deployed: Set<string>;
-  /** What `fund` does next: send (default), or throw. */
-  next: (() => never) | undefined;
-  /** The status every execution reports. */
-  answer: FundingStatus;
+  txs: Map<string, Tx>;
+  latest: bigint;
+  mode: Mode;
+  /** Thrown by `fund` before anything reaches the node. */
+  before: (() => never) | undefined;
+  /** The node received the execution, and its answer was lost. */
+  loseAnswer: boolean;
+  /** Includes every execution the node holds, in nonce order. */
+  include(): void;
 }
 
 function fakeChain(): FakeChain {
+  let count = 0;
   const chain: FakeChain = {
     sent: [],
+    nonces: [],
     deployed: new Set(),
-    next: undefined,
-    answer: "succeeded",
+    txs: new Map(),
+    latest: 0n,
+    mode: "include",
+    before: undefined,
+    loseAnswer: false,
     addressOf(publicKey) {
       if (!/^0x[0-9a-f]{1,64}$/i.test(publicKey) || BigInt(publicKey) === 0n) return undefined;
       const key = `0x${BigInt(publicKey).toString(16)}`;
@@ -33,24 +64,48 @@ function fakeChain(): FakeChain {
     async isDeployed(address) {
       return chain.deployed.has(address);
     },
-    async fund(_publicKey, address) {
-      await Promise.resolve();
-      if (chain.next) chain.next();
-      chain.sent.push(address);
-      if (chain.answer === "succeeded") chain.deployed.add(address);
-      return `0x7${chain.sent.length}`;
+    async nonce() {
+      return chain.latest;
     },
-    async status() {
-      return chain.answer;
+    async fund(_publicKey, address, nonce) {
+      await Promise.resolve();
+      if (chain.before) chain.before();
+      const taken = [...chain.txs.values()].some(
+        (tx) => tx.nonce === nonce && tx.status !== "unknown",
+      );
+      if (taken || nonce !== chain.latest) throw new Error(`invalid nonce ${nonce}`);
+      const hash = `0x7${++count}`;
+      chain.sent.push(address);
+      chain.nonces.push(nonce);
+      const tx: Tx = { address, nonce, status: "pending" };
+      chain.txs.set(hash, tx);
+      if (chain.mode === "drop") tx.status = "unknown";
+      if (chain.mode === "include" || chain.mode === "revert") {
+        tx.status = chain.mode === "include" ? "succeeded" : "failed";
+        chain.latest++;
+        if (tx.status === "succeeded") chain.deployed.add(address);
+      }
+      if (chain.loseAnswer) throw new Error("the answer was lost");
+      return hash;
+    },
+    async status(hash) {
+      return chain.txs.get(hash)?.status ?? "unknown";
+    },
+    include() {
+      for (const tx of [...chain.txs.values()].sort((a, b) => Number(a.nonce - b.nonce))) {
+        if (tx.status !== "pending") continue;
+        tx.status = "succeeded";
+        chain.latest++;
+        chain.deployed.add(tx.address);
+      }
     },
   };
   return chain;
 }
 
-function setup(limits: Partial<Limits> = {}, ledger: Ledger = memoryLedger()) {
+function setup(limits: Partial<Limits> = {}, ledger: Ledger = memoryLedger(), start = T0) {
   const chain = fakeChain();
-  let clock = T0;
-  const events: string[] = [];
+  let clock = start;
   const service = createFundingService({
     chain,
     ledger,
@@ -60,26 +115,38 @@ function setup(limits: Partial<Limits> = {}, ledger: Ledger = memoryLedger()) {
       windowMs: HOUR_MS,
       settleMs: 1_000,
       pollMs: 100,
+      holdMs: 60_000,
       ...limits,
     },
     now: () => clock,
     sleep: async (ms) => {
       clock += ms;
     },
-    onEvent: (event) => events.push(event),
   });
   return {
     chain,
     service,
     ledger,
-    events,
     advance: (ms: number) => {
       clock += ms;
     },
+    now: () => clock,
   };
 }
 
 const key = (n: number) => ({ publicKey: `0x${n.toString(16)}` });
+
+const dirs: string[] = [];
+function stateFile(): string {
+  mkdirSync(join(import.meta.dirname, "..", ".state"), { recursive: true });
+  const dir = mkdtempSync(join(import.meta.dirname, "..", ".state", "unit-"));
+  dirs.push(dir);
+  return join(dir, "ledger.json");
+}
+
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true });
+});
 
 describe("a request", () => {
   it.each([
@@ -152,36 +219,37 @@ describe("a key is funded once", () => {
     chain.deployed.add("0xa1");
     expect(await service.fund(key(1), "c")).toMatchObject({ status: "succeeded", repeated: true });
     expect(chain.sent).toEqual([]);
-    expect(ledger.spent("2026-09-29")).toBe(0);
+    expect(ledger.spent(TODAY)).toBe(0);
     expect((await service.fund(key(2), "c")).kind).toBe("provided");
   });
 
   it("a funding still pending is asked about, not sent again", async () => {
     const { service, chain } = setup();
-    chain.answer = "pending";
+    chain.mode = "hold";
     expect(await service.fund(key(1), "c")).toMatchObject({
       status: "pending",
       transaction: "0x71",
       repeated: false,
     });
     expect(await service.fund(key(1), "c")).toMatchObject({ status: "pending", repeated: true });
-    chain.answer = "succeeded";
+    chain.include();
     expect(await service.fund(key(1), "c")).toMatchObject({ status: "succeeded", repeated: true });
     expect(chain.sent).toEqual(["0xa1"]);
   });
 
   it("a funding that reverted gave nothing: the key may ask again, within the caps", async () => {
     const { service, chain, ledger } = setup();
-    chain.answer = "failed";
+    chain.mode = "revert";
     expect(await service.fund(key(1), "c")).toEqual({
       kind: "failed",
       address: "0xa1",
       transaction: "0x71",
     });
-    chain.answer = "succeeded";
+    chain.mode = "include";
     expect(await service.fund(key(1), "c")).toMatchObject({ status: "succeeded", repeated: false });
     expect(chain.sent).toEqual(["0xa1", "0xa1"]);
-    expect(ledger.spent("2026-09-29")).toBe(2);
+    expect(chain.nonces).toEqual([0n, 1n]);
+    expect(ledger.spent(TODAY)).toBe(2);
   });
 
   it("a stop while sending: the next request asks the chain whether it went through", async () => {
@@ -191,6 +259,116 @@ describe("a key is funded once", () => {
     chain.deployed.add("0xa1");
     expect(await service.fund(key(1), "c")).toMatchObject({ status: "succeeded", repeated: true });
     expect(chain.sent).toEqual([]);
+  });
+});
+
+// Fix loop 1, F-1: the funding account's nonce is held from one funding's signature until it is
+// consumed, across pending executions, lost answers and restarts.
+describe("the funding account's nonce", () => {
+  it("fundings at the same time each sign with the next nonce", async () => {
+    const { service, chain } = setup({ clientRate: 10 });
+    const answers = await Promise.all([1, 2, 3, 4].map((n) => service.fund(key(n), "c")));
+    expect(answers.every((a) => a.kind === "provided")).toBe(true);
+    expect(chain.nonces).toEqual([0n, 1n, 2n, 3n]);
+  });
+
+  it("is not reused while the funding before is pending: the next one waits, then signs after", async () => {
+    const { service, chain, ledger } = setup({ clientRate: 10 });
+    chain.mode = "hold";
+    expect(await service.fund(key(1), "c")).toMatchObject({ status: "pending" });
+    chain.mode = "include";
+    // The first is still pending past a request's wait: the second sends nothing, spends nothing.
+    expect(await service.fund(key(2), "c")).toEqual({ kind: "unavailable" });
+    expect(chain.nonces).toEqual([0n]);
+    expect(ledger.spent(TODAY)).toBe(1);
+    chain.include();
+    expect(await service.fund(key(2), "c")).toMatchObject({ status: "succeeded" });
+    expect(chain.nonces).toEqual([0n, 1n]);
+  });
+
+  it("the race of the audit: two burners, the first pending, never share nonce 0", async () => {
+    const { service, chain } = setup({ clientRate: 10, settleMs: 300 });
+    chain.mode = "hold";
+    const [first, second] = await Promise.all([
+      service.fund(key(1), "c"),
+      service.fund(key(2), "d"),
+    ]);
+    expect(first).toMatchObject({ status: "pending" });
+    expect(second).toEqual({ kind: "unavailable" });
+    expect(chain.nonces).toEqual([0n]);
+  });
+
+  it("a lost answer holds the nonce: when the execution shows up, the next signs after it", async () => {
+    const { service, chain, ledger } = setup({ clientRate: 10 });
+    chain.mode = "hold";
+    chain.loseAnswer = true;
+    expect(await service.fund(key(1), "c")).toEqual({ kind: "unavailable" });
+    // It may have been sent: the caps stay spent and the nonce held.
+    expect(ledger.spent(TODAY)).toBe(1);
+    expect(ledger.hold()).toMatchObject({ nonce: "0" });
+    chain.loseAnswer = false;
+    chain.mode = "include";
+    expect(await service.fund(key(2), "c")).toEqual({ kind: "unavailable" });
+    chain.include();
+    expect(await service.fund(key(2), "c")).toMatchObject({ status: "succeeded" });
+    expect(chain.nonces).toEqual([0n, 1n]);
+  });
+
+  it("a lost answer of an execution that never reached the node frees the nonce after holdMs", async () => {
+    const { service, chain, advance } = setup({ clientRate: 10, holdMs: 60_000 });
+    chain.before = () => {
+      throw new Error("connection reset");
+    };
+    // Not a NotSent: the service cannot know that nothing reached the node.
+    expect(await service.fund(key(1), "c")).toEqual({ kind: "unavailable" });
+    chain.before = undefined;
+    expect(await service.fund(key(2), "c")).toEqual({ kind: "unavailable" });
+    expect(chain.nonces).toEqual([]);
+    advance(60_000);
+    expect(await service.fund(key(2), "c")).toMatchObject({ status: "succeeded" });
+    expect(chain.nonces).toEqual([0n]);
+  });
+
+  it("an execution the node dropped frees the nonce after holdMs, not before", async () => {
+    const { service, chain, advance } = setup({ clientRate: 10 });
+    chain.mode = "drop";
+    expect(await service.fund(key(1), "c")).toMatchObject({ status: "pending" });
+    chain.mode = "include";
+    expect(await service.fund(key(2), "c")).toEqual({ kind: "unavailable" });
+    advance(60_000);
+    expect(await service.fund(key(2), "c")).toMatchObject({ status: "succeeded" });
+    // Dropped: nonce 0 was never consumed, and is used again.
+    expect(chain.nonces).toEqual([0n, 0n]);
+  });
+
+  it("a pending execution the node knows holds its nonce however long it takes", async () => {
+    const { service, chain, advance } = setup({ clientRate: 10 });
+    chain.mode = "hold";
+    await service.fund(key(1), "c");
+    advance(10 * HOUR_MS);
+    expect(await service.fund(key(2), "c")).toEqual({ kind: "unavailable" });
+    expect(chain.nonces).toEqual([0n]);
+  });
+
+  it("the hold survives a restart with a state file", async () => {
+    const path = stateFile();
+    const first = setup({ clientRate: 10 }, fileLedger(path));
+    first.chain.mode = "hold";
+    expect(await first.service.fund(key(1), "c")).toMatchObject({ status: "pending" });
+    // The same node, a new process with the same ledger.
+    const second = setup({ clientRate: 10 }, fileLedger(path));
+    Object.assign(second.chain, {
+      txs: first.chain.txs,
+      nonce: first.chain.nonce,
+      status: first.chain.status,
+      fund: first.chain.fund,
+    });
+    expect(await second.service.fund(key(2), "c")).toEqual({ kind: "unavailable" });
+    expect(first.chain.nonces).toEqual([0n]);
+    first.chain.mode = "include";
+    first.chain.include();
+    expect(await second.service.fund(key(2), "c")).toMatchObject({ status: "succeeded" });
+    expect(first.chain.nonces).toEqual([0n, 1n]);
   });
 });
 
@@ -213,8 +391,22 @@ describe("the client rate", () => {
     expect(answers.filter((a) => a.kind === "limited")).toHaveLength(3);
     expect(chain.sent).toHaveLength(3);
   });
+
+  // Fix loop 1, F-3: the audit's case, a restart within the hour, fresh keys, the same client.
+  it("survives a restart within the hour with a state file", async () => {
+    const path = stateFile();
+    const first = setup({ clientRate: 1 }, fileLedger(path));
+    expect((await first.service.fund(key(1), "c")).kind).toBe("provided");
+    expect(await first.service.fund(key(2), "c")).toEqual({ kind: "limited" });
+    const second = setup({ clientRate: 1 }, fileLedger(path), T0 + HOUR_MS / 2);
+    expect(await second.service.fund(key(3), "c")).toEqual({ kind: "limited" });
+    expect(second.chain.sent).toEqual([]);
+    second.advance(HOUR_MS / 2);
+    expect((await second.service.fund(key(3), "c")).kind).toBe("provided");
+  });
 });
 
+// Fix loop 1, F-2: the caps are taken at signing, on the clock of signing.
 describe("the day's budget", () => {
   it("is shared by every client, and opens again the next day (UTC)", async () => {
     const { service, chain, advance } = setup({ dailyBudget: 2, clientRate: 100 });
@@ -226,62 +418,109 @@ describe("the day's budget", () => {
     expect(chain.sent).toHaveLength(3);
   });
 
-  it("holds when the requests arrive at the same time", async () => {
-    const { service, chain } = setup({ dailyBudget: 2, clientRate: 100 });
+  it("holds at the boundary when the requests arrive at the same time", async () => {
+    const { service, chain, ledger } = setup({ dailyBudget: 3, clientRate: 100 });
+    expect((await service.fund(key(100), "z")).kind).toBe("provided");
     const answers = await Promise.all(
       Array.from({ length: 10 }, (_, n) => service.fund(key(n + 1), `c${n}`)),
     );
+    expect(answers.filter((a) => a.kind === "provided")).toHaveLength(2);
     expect(answers.filter((a) => a.kind === "exhausted")).toHaveLength(8);
+    expect(chain.sent).toHaveLength(3);
+    expect(ledger.spent(TODAY)).toBe(3);
+  });
+
+  it("the audit's midnight: requests admitted before midnight and signed after count on the new day", async () => {
+    const midnight = Date.UTC(2026, 8, 30);
+    const { service, chain, ledger, advance, now } = setup(
+      { dailyBudget: 2, clientRate: 100 },
+      memoryLedger(),
+      midnight - 100,
+    );
+    // The deployment checks of the first two are slow: they end after midnight.
+    const isDeployed = chain.isDeployed;
+    let slow = 2;
+    chain.isDeployed = async (address) => {
+      if (slow-- > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        if (now() < midnight) advance(midnight - now());
+      }
+      return isDeployed(address);
+    };
+    const late = [service.fund(key(1), "a"), service.fund(key(2), "b")];
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const fresh = [service.fund(key(3), "c"), service.fund(key(4), "d")];
+    const answers = await Promise.all([...late, ...fresh]);
+    expect(answers.filter((a) => a.kind === "provided")).toHaveLength(2);
+    expect(answers.filter((a) => a.kind === "exhausted")).toHaveLength(2);
     expect(chain.sent).toHaveLength(2);
+    expect(ledger.spent("2026-09-29")).toBe(0);
+    expect(ledger.spent("2026-09-30")).toBe(2);
+  });
+
+  it("the worst drain: 24 hours of 40 new clients an hour sign exactly the budget each day", async () => {
+    const { service, chain, ledger, advance } = setup({ dailyBudget: 50, clientRate: 3 });
+    let n = 0;
+    // From 10:00 on the 29th to 09:00 on the 30th: 960 requests, all of fresh clients and keys.
+    for (let hour = 0; hour < 24; hour++) {
+      await Promise.all(
+        Array.from({ length: 40 }, (_, c) => service.fund(key(++n), `h${hour}c${c}`)),
+      );
+      advance(HOUR_MS);
+    }
+    expect(ledger.spent("2026-09-29")).toBe(50);
+    expect(ledger.spent("2026-09-30")).toBe(50);
+    expect(chain.sent).toHaveLength(100);
   });
 
   it("is kept across a restart with a state file", async () => {
-    mkdirSync(join(import.meta.dirname, "..", ".state"), { recursive: true });
-    const dir = mkdtempSync(join(import.meta.dirname, "..", ".state", "unit-"));
-    try {
-      const path = join(dir, "ledger.json");
-      const first = setup({ dailyBudget: 1 }, fileLedger(path));
-      expect((await first.service.fund(key(1), "c")).kind).toBe("provided");
-      const second = setup({ dailyBudget: 1 }, fileLedger(path));
-      expect(await second.service.fund(key(2), "c")).toEqual({ kind: "exhausted" });
-      expect(await second.service.fund(key(1), "c")).toMatchObject({ repeated: true });
-      expect(second.chain.sent).toEqual([]);
-    } finally {
-      rmSync(dir, { recursive: true });
-    }
+    const path = stateFile();
+    const first = setup({ dailyBudget: 1 }, fileLedger(path));
+    expect((await first.service.fund(key(1), "c")).kind).toBe("provided");
+    const second = setup({ dailyBudget: 1 }, fileLedger(path));
+    expect(await second.service.fund(key(2), "c")).toEqual({ kind: "exhausted" });
+    expect(await second.service.fund(key(1), "c")).toMatchObject({ repeated: true });
+    expect(second.chain.sent).toEqual([]);
   });
 });
 
 describe("a refusal before signing gives the caps back; a failure after may not", () => {
   it("a network refused: refused, and nothing spent", async () => {
     const { service, chain, ledger } = setup({ dailyBudget: 1, clientRate: 1 });
-    chain.next = () => {
+    chain.before = () => {
       throw new NetworkRefused("the chain is mainnet");
     };
     expect(await service.fund(key(1), "c")).toEqual({ kind: "refused" });
-    expect(ledger.spent("2026-09-29")).toBe(0);
-    chain.next = undefined;
+    expect(ledger.spent(TODAY)).toBe(0);
+    expect(ledger.hold()).toBeUndefined();
+    chain.before = undefined;
     expect((await service.fund(key(1), "c")).kind).toBe("provided");
   });
 
-  it("a fee above the cap: unavailable, and nothing spent", async () => {
-    const { service, chain, ledger } = setup({ dailyBudget: 1 });
-    chain.next = () => {
-      throw new FeeRefused();
-    };
-    expect(await service.fund(key(1), "c")).toEqual({ kind: "unavailable" });
-    expect(ledger.spent("2026-09-29")).toBe(0);
-  });
+  it.each([new FeeRefused(), new NotSent("estimate failed")])(
+    "%s: unavailable, and nothing spent",
+    async (error) => {
+      const { service, chain, ledger } = setup({ dailyBudget: 1 });
+      chain.before = () => {
+        throw error;
+      };
+      expect(await service.fund(key(1), "c")).toEqual({ kind: "unavailable" });
+      expect(ledger.spent(TODAY)).toBe(0);
+      expect(ledger.times("c", 0)).toEqual([]);
+      expect(ledger.hold()).toBeUndefined();
+    },
+  );
 
   it("a failure while sending: unavailable, the budget stays spent, the key may ask again", async () => {
-    const { service, chain, ledger } = setup({ dailyBudget: 2 });
-    chain.next = () => {
+    const { service, chain, ledger, advance } = setup({ dailyBudget: 2 });
+    chain.before = () => {
       throw new Error("lost");
     };
     expect(await service.fund(key(1), "c")).toEqual({ kind: "unavailable" });
-    expect(ledger.spent("2026-09-29")).toBe(1);
+    expect(ledger.spent(TODAY)).toBe(1);
     expect(ledger.grant("0x1")).toBeUndefined();
-    chain.next = undefined;
+    chain.before = undefined;
+    advance(60_000);
     expect((await service.fund(key(1), "c")).kind).toBe("provided");
     expect(await service.fund(key(2), "c")).toEqual({ kind: "exhausted" });
   });
@@ -290,23 +529,23 @@ describe("a refusal before signing gives the caps back; a failure after may not"
     const { service, chain, ledger } = setup();
     chain.isDeployed = () => Promise.reject(new Error("down"));
     expect(await service.fund(key(1), "c")).toEqual({ kind: "unavailable" });
-    expect(ledger.spent("2026-09-29")).toBe(0);
+    expect(ledger.spent(TODAY)).toBe(0);
     expect(chain.sent).toEqual([]);
   });
 });
 
 describe("sending", () => {
-  it("one funding at a time: the funder's executions never race", async () => {
+  it("one funding at a time: the funder's executions never overlap", async () => {
     const { service, chain } = setup({ clientRate: 10 });
     let active = 0;
     let most = 0;
     const fund = chain.fund;
-    chain.fund = async (publicKey, address) => {
+    chain.fund = async (publicKey, address, nonce) => {
       active++;
       most = Math.max(most, active);
       await new Promise((resolve) => setTimeout(resolve, 5));
       active--;
-      return fund(publicKey, address);
+      return fund(publicKey, address, nonce);
     };
     await Promise.all([1, 2, 3, 4].map((n) => service.fund(key(n), "c")));
     expect(most).toBe(1);
