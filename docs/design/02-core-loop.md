@@ -415,9 +415,9 @@ revert**: the account's nonce moves, the fee is paid, and `BatchPlayed` says wha
 **Fate and gate actions** check the sequence and **every precondition before drawing**
 (the adventurer is in the instance, on or next to the remains, the chest or the vein; the
 object is still there; the gate is reachable). A failed check draws nothing, changes nothing
-and emits `Refused`.
-A gate is used by standing on its anchor tile, one rule for every gate (D-148). The draw and the consumption of what was drawn from (the remains, the
+and emits `Refused`. The draw and the consumption of what was drawn from (the remains, the
 chest) happen in the same invocation (ADR-0002, rule 5).
+A gate is used by standing on its anchor tile, one rule for every gate (D-148).
 
 **The receipt.** The client reads the status of the transaction that carried the batch.
 
