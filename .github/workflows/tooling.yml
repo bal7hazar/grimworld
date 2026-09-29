@@ -139,6 +139,8 @@ jobs:
           # holds its two slots before it returns, status lists them, and they are free once it ends.
           for k in b; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done; sleep 0.5
           # (the launcher starts codex as /usr/bin/node <codex>: the stub is a script node runs for 3 s)
+          # GitHub's runner has node elsewhere: link it where the launcher expects it (the runner allows sudo).
+          if [ ! -x /usr/bin/node ] && command -v node > /dev/null; then sudo ln -s "$(command -v node)" /usr/bin/node; fi
           if [ -x /usr/bin/node ]; then
             mkdir -p "$fake/bin" .claude/worktrees/cli-slottest
             printf 'setTimeout(() => {}, 3000);\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"
