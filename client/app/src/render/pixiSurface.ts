@@ -1,14 +1,10 @@
-import { Application, TextureStyle, Ticker } from "pixi.js";
+import { Application, type RenderTexture, TextureStyle, Ticker } from "pixi.js";
 import type { Surface } from "./renderer";
+import { type ScaleMode, canvasResolution } from "./scaling";
 
-/**
- * Device pixels per CSS pixel: an integer, rounded down, capped at 2 (ADR-0003: "an integer
- * multiple of the art resolution, capped at 2× device pixels"). A ratio of 1.5 renders at 1, 2.625
- * at 2: never more pixels than the screen has.
- */
-export function surfaceResolution(devicePixelRatio: number): number {
-  const ratio = Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1;
-  return Math.min(2, Math.max(1, Math.floor(ratio)));
+/** The surface in the browser: its canvas resolution follows the scale mode. */
+export interface PixiSurface extends Surface {
+  setResolution(resolution: number): void;
 }
 
 /** The largest texture side: WebGL's `MAX_TEXTURE_SIZE`, or WebGPU's `maxTextureDimension2D`. */
@@ -47,9 +43,10 @@ export function pixiTickersRunning(app: Application): boolean {
 /** A PixiJS application as the renderer's surface, in `host`, with pixel art scaled nearest. */
 export async function createPixiSurface(
   host: HTMLElement,
-): Promise<{ app: Application; surface: Surface }> {
+  mode: ScaleMode,
+): Promise<{ app: Application; surface: PixiSurface }> {
   TextureStyle.defaultOptions.scaleMode = "nearest";
-  const resolution = surfaceResolution(window.devicePixelRatio);
+  const resolution = canvasResolution(mode, window.devicePixelRatio);
   const app = new Application();
   await app.init({
     width: Math.max(1, host.clientWidth),
@@ -69,13 +66,22 @@ export async function createPixiSurface(
   app.canvas.style.display = "block";
   app.canvas.style.touchAction = "none";
   host.appendChild(app.canvas);
-  const surface: Surface = {
+  const surface: PixiSurface = {
     stage: app.stage,
-    resolution,
+    get resolution() {
+      return app.renderer.resolution;
+    },
+    get devicePixelRatio() {
+      return window.devicePixelRatio || 1;
+    },
     maxTextureSize: gpuMaxTextureSize(app.renderer),
     render: () => app.render(),
     bake: (target, frame, bakeResolution) =>
       app.renderer.generateTexture({ target, frame, resolution: bakeResolution, antialias: false }),
+    renderTo: (container, target: RenderTexture) =>
+      app.renderer.render({ container, target, clear: true }),
+    setResolution: (value) =>
+      app.renderer.resize(app.renderer.screen.width, app.renderer.screen.height, value),
   };
   return { app, surface };
 }

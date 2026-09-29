@@ -1,4 +1,4 @@
-import { Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
 import {
   type Camera,
   type Point,
@@ -9,6 +9,7 @@ import {
   tileToPixel,
 } from "../input/coords";
 import { facingRotation, isMirrored } from "./facing";
+import { type ScaleMode, isWhole, sharpFactor, snapScale } from "./scaling";
 import {
   type FrameClient,
   type FrameHost,
@@ -31,13 +32,17 @@ import type { ViewActor, ViewState, ViewTile } from "./view";
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
 export interface Surface {
   readonly stage: Container;
-  /** Device pixels per CSS pixel the surface renders at. */
+  /** The canvas resolution: render pixels per CSS pixel (it follows the scale mode). */
   readonly resolution: number;
+  /** The screen's pixels per CSS pixel. */
+  readonly devicePixelRatio: number;
   /** The GPU's largest texture side, read from the renderer. */
   readonly maxTextureSize: number;
   render(): void;
   /** Renders `frame` of `target` into a texture of `resolution` pixels per world pixel. */
   bake(target: Container, frame: Rectangle, resolution: number): Texture;
+  /** Renders `container` (a root: no parent) into `target`, cleared first. */
+  renderTo(container: Container, target: RenderTexture): void;
 }
 
 /**
@@ -63,25 +68,6 @@ export const DEFAULT_ZOOM: ZoomSettings = {
   maxAcross: 4,
 };
 
-/**
- * The "integer scale" option: the nearest scale at which one art pixel covers a whole number of
- * device pixels (1, 2, 3, …), or a whole fraction of one below 1 (1/2, 1/3, …), nearest in ratio.
- * ADR-0003 asks for "an integer multiple of the art resolution"; ADR-0006 §5 asks for 13 tiles
- * across a phone, about 0.45 of the art. The two are escalated; this lets the owner compare.
- */
-export function snapScale(scale: number, resolution: number): number {
-  const device = scale * resolution;
-  if (device >= 1) {
-    const low = Math.max(1, Math.floor(device));
-    const n = device / low <= (low + 1) / device ? low : low + 1;
-    return n / resolution;
-  }
-  const inverse = 1 / device;
-  const low = Math.max(1, Math.floor(inverse));
-  const n = inverse / low <= (low + 1) / inverse ? low : low + 1;
-  return 1 / (n * resolution);
-}
-
 /** The terrain is baked chunk by chunk (ADR-0006: chunks of 15 × 15). */
 export const BAKE_CHUNK = 15;
 
@@ -94,12 +80,26 @@ interface ChunkBake {
   dirty: boolean;
 }
 
-/** What the zoom gives on screen, for the panel. */
+/** What the zoom gives on screen, for the panel (see `scaling.ts` for the three numbers). */
 export interface ZoomInfo {
-  /** CSS pixels per art pixel. */
+  readonly mode: ScaleMode;
+  readonly devicePixelRatio: number;
+  /** Canvas resolution: render pixels per CSS pixel. */
+  readonly resolution: number;
+  /** World scale: CSS pixels per art pixel. */
   readonly scale: number;
-  /** Device pixels per art pixel. */
+  /** Render (canvas) pixels per art pixel. */
+  readonly canvasScale: number;
+  /** Device (screen) pixels per art pixel: what the eye sees. */
   readonly deviceScale: number;
+  /** Whether an art pixel covers a whole number of screen pixels. */
+  readonly integer: boolean;
+  /** `sharp` only: the offscreen pass, `n` canvas pixels per art pixel, its size in texels. */
+  readonly offscreen: {
+    readonly n: number;
+    readonly width: number;
+    readonly height: number;
+  } | null;
   /** Tile width, CSS px. */
   readonly tileWidth: number;
   /** Tiles across the viewport's width. */
@@ -159,9 +159,18 @@ export interface RendererOptions {
   readonly library?: SpriteLibrary | null;
   readonly zoom?: ZoomSettings;
   readonly idle?: boolean;
-  /** The "integer scale" option (off by default). */
-  readonly snap?: boolean;
+  /** How the world's scale meets the screen's pixels (`continuous` by default). */
+  readonly mode?: ScaleMode;
   readonly onDraw?: (stats: FrameStats) => void;
+}
+
+/** The `sharp` mode's offscreen texture: the world at an integer scale, drawn down linearly. */
+interface Offscreen {
+  readonly texture: RenderTexture;
+  readonly width: number;
+  readonly height: number;
+  readonly resolution: number;
+  readonly n: number;
 }
 
 /**
@@ -180,9 +189,12 @@ export class Renderer implements FrameClient {
   private view: ViewState | null = null;
   private viewport: Viewport = { width: 1, height: 1 };
   private camera: Camera = { centre: { x: 0, y: 0 }, scale: 1 };
-  /** The scale asked for (fit, pinch, wheel); `camera.scale` is it, snapped when `snap` is on. */
+  /** The scale asked for (fit, pinch, wheel); `camera.scale` is it, snapped in `snap` mode. */
   private wanted = 1;
-  private snap: boolean;
+  private mode: ScaleMode;
+  /** `sharp`: the sprite that draws the offscreen texture down to the screen, linearly. */
+  private readonly screen = new Sprite(Texture.EMPTY);
+  private offscreen: Offscreen | null = null;
   private cameraTween: Tween | null = null;
   private zoomed = false;
   private zoom: ZoomSettings;
@@ -199,10 +211,10 @@ export class Renderer implements FrameClient {
     this.library = options.library ?? null;
     this.zoom = options.zoom ?? DEFAULT_ZOOM;
     this.idleOn = options.idle ?? true;
-    this.snap = options.snap ?? false;
+    this.mode = options.mode ?? "continuous";
     this.scheduler = new FrameScheduler(host, this, options.onDraw);
     this.world.addChild(this.ground, this.overlay, this.actorsLayer);
-    surface.stage.addChild(this.world);
+    this.mountStage();
   }
 
   // --- inputs -------------------------------------------------------------------------------
@@ -233,11 +245,19 @@ export class Renderer implements FrameClient {
     this.scheduler.invalidate();
   }
 
-  /** The "integer scale" option: snaps the zoom to whole device pixels per art pixel. */
-  setSnap(on: boolean): void {
-    this.snap = on;
-    this.setScale(this.wanted);
+  /**
+   * The scale mode (`scaling.ts`). The caller sets the surface's canvas resolution for the mode
+   * first (`canvasResolution`): the snapped scale is counted in its pixels.
+   */
+  setMode(mode: ScaleMode): void {
+    this.mode = mode;
+    this.mountStage();
+    this.setScale(this.zoomed ? this.wanted : this.defaultScale());
     this.scheduler.invalidate();
+  }
+
+  scaleMode(): ScaleMode {
+    return this.mode;
   }
 
   /** Drag: moves the camera by a distance in screen pixels. */
@@ -320,18 +340,39 @@ export class Renderer implements FrameClient {
   /** What the current zoom gives on screen. */
   zoomInfo(): ZoomInfo {
     const { scale } = this.camera;
+    const { resolution, devicePixelRatio } = this.surface;
+    const deviceScale = scale * devicePixelRatio;
+    const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
     return {
+      mode: this.mode,
+      devicePixelRatio,
+      resolution,
       scale,
-      deviceScale: scale * this.surface.resolution,
+      canvasScale: scale * resolution,
+      deviceScale,
+      // Whole on the screen only when the canvas is the screen (see scaling.ts).
+      integer: resolution === devicePixelRatio && isWhole(deviceScale),
+      offscreen: plan && {
+        n: plan.n,
+        width: Math.round(plan.width * resolution),
+        height: Math.round(plan.height * resolution),
+      },
       tileWidth: TILE_WIDTH * scale,
       across: this.viewport.width / (TILE_WIDTH * scale),
     };
+  }
+
+  /** `sharp`'s offscreen texture, as last drawn (null in the other modes); for tests. */
+  offscreenTexture(): RenderTexture | null {
+    return this.offscreen?.texture ?? null;
   }
 
   destroy(): void {
     this.scheduler.destroy();
     for (const chunk of this.chunks.values()) this.dropChunk(chunk);
     this.chunks.clear();
+    this.dropOffscreen();
+    this.screen.destroy();
     this.world.destroy({ children: true });
   }
 
@@ -380,11 +421,20 @@ export class Renderer implements FrameClient {
   draw(): void {
     this.bakeTerrain();
     const { centre, scale } = this.camera;
-    this.world.scale.set(scale);
-    this.world.position.set(
-      this.viewport.width / 2 - centre.x * scale,
-      this.viewport.height / 2 - centre.y * scale,
-    );
+    if (this.mode !== "sharp") {
+      this.dropOffscreen();
+      this.placeWorld(scale, this.viewport.width, this.viewport.height, centre);
+      this.surface.render();
+      return;
+    }
+    // Sharp bilinear: the world nearest-neighbour at `n` texels per art pixel into the offscreen
+    // texture (one extra pass, only in a frame being drawn), then that texture drawn down to the
+    // target scale, linearly, by `screen`.
+    const plan = this.offscreenPlan();
+    const offscreen = this.ensureOffscreen(plan);
+    this.placeWorld(scale * plan.oversample, plan.width, plan.height, centre);
+    this.surface.renderTo(this.world, offscreen.texture);
+    this.screen.scale.set(1 / plan.oversample);
     this.surface.render();
   }
 
@@ -396,8 +446,70 @@ export class Renderer implements FrameClient {
 
   private setScale(wanted: number): void {
     this.wanted = wanted;
-    const scale = this.snap ? snapScale(wanted, this.surface.resolution) : wanted;
+    const scale = this.mode === "snap" ? snapScale(wanted, this.surface.resolution) : wanted;
     this.camera = { ...this.camera, scale };
+  }
+
+  private placeWorld(scale: number, width: number, height: number, centre: Point): void {
+    this.world.scale.set(scale);
+    this.world.position.set(width / 2 - centre.x * scale, height / 2 - centre.y * scale);
+  }
+
+  /** The world on the stage, or (`sharp`) the offscreen texture's sprite with the world as a root. */
+  private mountStage(): void {
+    this.surface.stage.removeChildren();
+    if (this.mode === "sharp") this.surface.stage.addChild(this.screen);
+    else this.surface.stage.addChild(this.world);
+  }
+
+  /**
+   * `sharp`: the offscreen texture's size (CSS px, at the canvas resolution) and oversampling,
+   * the integer `n` lowered only if the GPU's texture limit requires it.
+   */
+  private offscreenPlan(): { n: number; oversample: number; width: number; height: number } {
+    const { resolution, maxTextureSize } = this.surface;
+    const { width, height } = this.viewport;
+    const { n, oversample } = sharpFactor(this.camera.scale, resolution);
+    const limit = maxTextureSize / (Math.max(width, height) * resolution);
+    const k = Math.max(1, Math.min(oversample, limit));
+    return {
+      n: k === oversample ? n : this.camera.scale * resolution * k,
+      oversample: k,
+      width: Math.ceil(width * k),
+      height: Math.ceil(height * k),
+    };
+  }
+
+  /** Keeps the offscreen texture while its size holds; destroys and remakes it on zoom or resize. */
+  private ensureOffscreen(plan: { n: number; width: number; height: number }): Offscreen {
+    const resolution = this.surface.resolution;
+    const current = this.offscreen;
+    if (
+      current &&
+      current.width === plan.width &&
+      current.height === plan.height &&
+      current.resolution === resolution
+    ) {
+      return current;
+    }
+    this.dropOffscreen();
+    const texture = RenderTexture.create({
+      width: plan.width,
+      height: plan.height,
+      resolution,
+      scaleMode: "linear",
+      antialias: false,
+    });
+    this.offscreen = { texture, width: plan.width, height: plan.height, resolution, n: plan.n };
+    this.screen.texture = texture;
+    return this.offscreen;
+  }
+
+  private dropOffscreen(): void {
+    if (!this.offscreen) return;
+    this.screen.texture = Texture.EMPTY;
+    this.offscreen.texture.destroy(true);
+    this.offscreen = null;
   }
 
   private clampScale(scale: number): number {
@@ -421,7 +533,9 @@ export class Renderer implements FrameClient {
    * pinch rebakes a few times, not at every frame; capped by the GPU's texture size.
    */
   private bakeResolution(frame: Rectangle): number {
-    const wanted = this.camera.scale * this.surface.resolution;
+    // What the world is drawn at: the canvas, or `sharp`'s offscreen texture.
+    const oversample = this.mode === "sharp" ? this.offscreenPlan().oversample : 1;
+    const wanted = this.camera.scale * this.surface.resolution * oversample;
     const stepped = 2 ** (Math.round(2 * Math.log2(wanted)) / 2);
     const side = Math.max(frame.width, frame.height, 1);
     return Math.min(stepped, this.surface.maxTextureSize / side);

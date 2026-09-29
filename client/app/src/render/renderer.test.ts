@@ -1,31 +1,17 @@
-import { Container, Graphics, type Rectangle, Texture, TextureSource } from "pixi.js";
+import { type Container, Graphics } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
 import { applyIntent, initialState, toView } from "../sandbox/wiring";
 import { FakeHost } from "../test/fakeHost";
+import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
-import { IDLE_MAX_FPS, Renderer, type Surface, snapScale } from "./renderer";
+import { IDLE_MAX_FPS, Renderer } from "./renderer";
 import { drawOverlay, overlayPlan } from "./shapes";
 import { type SpriteLibrary, libraryFrom } from "./sprites";
 import type { Facing, ViewState } from "./view";
-
-class FakeSurface implements Surface {
-  readonly stage = new Container();
-  constructor(readonly resolution = 2) {}
-  readonly maxTextureSize: number = 4096;
-  renders = 0;
-  readonly bakes: number[] = [];
-  render(): void {
-    this.renders += 1;
-  }
-  bake(_target: Container, frame: Rectangle, resolution: number): Texture {
-    this.bakes.push(resolution);
-    return new Texture({ source: new TextureSource({ width: frame.width, height: frame.height }) });
-  }
-}
 
 function setup(options: { idle: boolean; library?: SpriteLibrary | null; fixture?: string }) {
   const host = new FakeHost(1000 / 120);
@@ -275,31 +261,72 @@ describe("the overlay", () => {
   });
 });
 
-describe("the integer scale option (ADR-0003 against ADR-0006 §5)", () => {
-  it("snaps to whole device pixels per art pixel, or whole fractions below one", () => {
-    expect(snapScale(0.4507, 2)).toBe(0.5); // 0.90 device px → 1
-    expect(snapScale(0.4507, 1)).toBe(0.5); // 0.45 → 1/2
-    expect(snapScale(0.3, 1)).toBeCloseTo(1 / 3, 12); // 0.3 → 1/3
-    expect(snapScale(1.3, 2)).toBe(1.5); // 2.6 → 3
-    expect(snapScale(1.2, 1)).toBe(1);
+describe("sharp bilinear (the offscreen pass)", () => {
+  function sharp(dpr = 2) {
+    const host = new FakeHost();
+    const surface = new FakeSurface(2, dpr);
+    const renderer = new Renderer(surface, host, { idle: false, mode: "sharp" });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.setView(toView(initialState(fixtureNamed("cave"))));
+    host.run(100);
+    return { host, surface, renderer };
+  }
+
+  it("draws the world into a linear texture at the next integer scale, then down to the target", () => {
+    const { surface, renderer } = sharp();
+    const texture = renderer.offscreenTexture();
+    expect(texture).not.toBeNull();
+    // 13 across on 375: 0.4507 CSS px per art px, 0.901 canvas px; n = 1, oversampled × 1.109.
+    const oversample = 832 / 750; // 1 / (2 × 375 / 832)
+    expect(texture!.source.scaleMode).toBe("linear");
+    expect(texture!.source.resolution).toBe(2);
+    expect(texture!.width).toBe(Math.ceil(375 * oversample));
+    expect(texture!.height).toBe(Math.ceil(812 * oversample));
+    expect(renderer.zoomInfo()).toMatchObject({
+      mode: "sharp",
+      offscreen: { n: 1, width: 2 * Math.ceil(375 * oversample) },
+      across: expect.closeTo(13, 9),
+    });
+    // The world is the pass's root; the stage holds only the sprite that draws the texture down.
+    expect(surface.stage.children).toHaveLength(1);
+    expect((surface.stage.children[0] as { texture?: unknown }).texture).toBe(texture);
+    // FakeSurface.renderTo throws unless the world is a root (no parent).
+    expect(surface.passes).toEqual([texture]);
+    // Inside the pass an art pixel is exactly n = 1 texel: world scale × oversample × resolution.
+    expect(surface.stage.children[0]!.scale.x).toBeCloseTo(1 / oversample, 9);
   });
 
-  for (const resolution of [1, 2]) {
-    it(`gives whole device pixels at every zoom on 375 × 812 (resolution ${resolution})`, () => {
-      const surface = new FakeSurface(resolution);
-      const renderer = new Renderer(surface, new FakeHost(), { idle: false, snap: true });
-      renderer.resize({ width: 375, height: 812 });
-      const whole = (d: number) => Number.isInteger(d) || Number.isInteger(1 / d);
-      // The default (13 across, 0.45 CSS px per art px) snaps to 1/2 on both: tiles of 32 px.
-      expect(renderer.zoomInfo()).toMatchObject({ deviceScale: resolution / 2, tileWidth: 32 });
-      for (const factor of [1.3, 1.7, 0.6]) {
-        renderer.zoomAt(factor, { x: 187, y: 406 });
-        expect(whole(renderer.zoomInfo().deviceScale)).toBe(true);
-      }
-      renderer.setSnap(false);
-      expect(renderer.zoomInfo().tileWidth).not.toBe(32);
-    });
-  }
+  it("one pass per frame drawn, none when nothing is drawn; a new texture on zoom and resize", () => {
+    const { host, surface, renderer } = sharp();
+    const first = renderer.offscreenTexture()!;
+    host.run(5000);
+    expect(surface.passes).toHaveLength(surface.renders);
+    renderer.pan(5, 0);
+    host.run(100);
+    expect(renderer.offscreenTexture()).toBe(first); // same size: kept
+    renderer.zoomAt(1.3, { x: 187, y: 406 });
+    host.run(100);
+    const zoomed = renderer.offscreenTexture()!;
+    expect(zoomed).not.toBe(first);
+    expect(first.destroyed).toBe(true);
+    renderer.resize({ width: 390, height: 844 });
+    host.run(100);
+    expect(renderer.offscreenTexture()).not.toBe(zoomed);
+    expect(zoomed.destroyed).toBe(true);
+    expect(surface.passes).toHaveLength(surface.renders);
+    expect(host.quiet()).toBe(true);
+  });
+
+  it("drops the texture when leaving sharp, and puts the world back on the stage", () => {
+    const { host, surface, renderer } = sharp();
+    const texture = renderer.offscreenTexture()!;
+    renderer.setMode("continuous");
+    host.run(100);
+    expect(renderer.offscreenTexture()).toBeNull();
+    expect(texture.destroyed).toBe(true);
+    const world = surface.stage.children[0] as Container;
+    expect(world.children).toHaveLength(3); // ground, overlay, actors
+  });
 });
 
 describe("drawing order during a step", () => {

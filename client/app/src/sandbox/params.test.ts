@@ -3,15 +3,22 @@ import { DEFAULT_ZOOM } from "../render/renderer";
 import { readAcross, readParams } from "./params";
 
 describe("URL parameters", () => {
-  it("reads the fixture, idle, panel and snap", () => {
-    expect(readParams("?fixture=cave&idle=0&panel=1&snap=1")).toEqual({
+  it("reads the fixture, idle, panel and scale", () => {
+    expect(readParams("?fixture=cave&idle=0&panel=1&scale=sharp")).toEqual({
       fixture: "cave",
       idle: false,
       panel: true,
-      snap: true,
+      scale: "sharp",
       zoom: DEFAULT_ZOOM,
     });
-    expect(readParams("")).toMatchObject({ fixture: null, idle: true, panel: false, snap: false });
+    expect(readParams("?scale=snap").scale).toBe("snap");
+    expect(readParams("?scale=pixel").scale).toBe("continuous");
+    expect(readParams("")).toMatchObject({
+      fixture: null,
+      idle: true,
+      panel: false,
+      scale: "continuous",
+    });
   });
 
   it("accepts a zoom only when finite and within the panel's bounds", () => {

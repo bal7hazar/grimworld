@@ -3,7 +3,8 @@ import { screenToTile } from "../input/coords";
 import { type Gesture, GestureTracker } from "../input/gestures";
 import type { Intent } from "../input/intent";
 import { loadAtlas } from "../render/atlas";
-import { createPixiSurface, pixiTickersRunning } from "../render/pixiSurface";
+import { type PixiSurface, createPixiSurface, pixiTickersRunning } from "../render/pixiSurface";
+import { type ScaleMode, canvasResolution } from "../render/scaling";
 import { Renderer, type ZoomInfo, type ZoomSettings } from "../render/renderer";
 import type { FrameStats } from "../render/scheduler";
 import { browserHost } from "../render/scheduler";
@@ -16,12 +17,10 @@ export interface SandboxInfo {
   readonly fixture: string;
   readonly description: string;
   readonly stats: FrameStats;
-  /** What the current zoom gives: CSS and device pixels per art pixel, tile width, tiles across. */
+  /** The scale mode and what it gives: DPR, canvas resolution, pixels per art pixel, tiles. */
   readonly zoomInfo: ZoomInfo;
   readonly zoom: ZoomSettings;
   readonly idle: boolean;
-  /** The "integer scale" option. */
-  readonly snap: boolean;
   readonly atlas: "loading" | "loaded" | "none" | "failed";
   readonly sprites: readonly { readonly name: string; readonly scale: number }[];
   readonly said: string;
@@ -31,7 +30,7 @@ export interface SandboxInfo {
 export interface SandboxOptions {
   readonly fixture: string | null;
   readonly idle: boolean;
-  readonly snap: boolean;
+  readonly scale: ScaleMode;
   readonly zoom: ZoomSettings;
 }
 
@@ -44,32 +43,31 @@ export class SandboxController {
   private atlas: SandboxInfo["atlas"] = "loading";
   private library: SpriteLibrary | null = null;
   private idle: boolean;
-  private snap: boolean;
   private zoom: ZoomSettings;
   private readonly cleanups: (() => void)[] = [];
   private listener: ((info: SandboxInfo) => void) | null = null;
 
   private constructor(
     private readonly app: Application,
+    private readonly surface: PixiSurface,
     private readonly renderer: Renderer,
     options: SandboxOptions,
   ) {
     this.state = initialState(fixtureNamed(options.fixture));
     this.idle = options.idle;
-    this.snap = options.snap;
     this.zoom = options.zoom;
   }
 
   static async mount(host: HTMLElement, options: SandboxOptions): Promise<SandboxController> {
-    const { app, surface } = await createPixiSurface(host);
+    const { app, surface } = await createPixiSurface(host, options.scale);
     let controller: SandboxController | null = null;
     const renderer = new Renderer(surface, browserHost(), {
       idle: options.idle,
-      snap: options.snap,
+      mode: options.scale,
       zoom: options.zoom,
       onDraw: () => controller?.notify(),
     });
-    controller = new SandboxController(app, renderer, options);
+    controller = new SandboxController(app, surface, renderer, options);
     controller.start(host);
     return controller;
   }
@@ -188,10 +186,14 @@ export class SandboxController {
     this.notify();
   }
 
-  setSnap(on: boolean): void {
-    this.snap = on;
+  /** The scale mode: the canvas resolution first (it counts `snap`'s pixels), then the renderer. */
+  setScaleMode(mode: ScaleMode): void {
+    this.surface.setResolution(canvasResolution(mode, window.devicePixelRatio));
     this.renderer.scheduler.input();
-    this.renderer.setSnap(on);
+    this.renderer.setMode(mode);
+    const url = new URL(window.location.href);
+    url.searchParams.set("scale", mode);
+    window.history.replaceState(null, "", url);
     this.notify();
   }
 
@@ -235,7 +237,6 @@ export class SandboxController {
       zoomInfo: this.renderer.zoomInfo(),
       zoom: this.zoom,
       idle: this.idle,
-      snap: this.snap,
       atlas: this.atlas,
       sprites: all.map((name) => ({ name, scale: this.renderer.spriteScale(name) })),
       said: this.state.said,

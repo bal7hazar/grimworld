@@ -1,5 +1,6 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import type { ZoomSettings } from "../render/renderer";
+import { SCALE_MODES, readScaleMode } from "../render/scaling";
 import { SandboxController, type SandboxInfo } from "./controller";
 import { FIXTURES } from "./fixtures";
 import { ACROSS_RANGE, readAcross, readParams } from "./params";
@@ -94,20 +95,34 @@ function DebugPanel({ controller, info }: { controller: SandboxController; info:
         </button>
       </div>
       <label style={styles.row}>
-        <input
-          type="checkbox"
-          checked={info.snap}
-          onChange={(e) => controller.setSnap(e.target.checked)}
-        />{" "}
-        integer scale (ADR-0003)
+        scale{" "}
+        <select
+          value={info.zoomInfo.mode}
+          onChange={(e) => controller.setScaleMode(readScaleMode(e.target.value))}
+        >
+          {SCALE_MODES.map((mode) => (
+            <option key={mode}>{mode}</option>
+          ))}
+        </select>
       </label>
       <div style={styles.row}>
-        tile width <b>{info.zoomInfo.tileWidth.toFixed(1)}</b> CSS px (I-6: 40), tiles across{" "}
-        <b>{info.zoomInfo.across.toFixed(1)}</b>
+        devicePixelRatio <b>{info.zoomInfo.devicePixelRatio}</b>, canvas resolution{" "}
+        <b>{info.zoomInfo.resolution}</b>
       </div>
       <div style={styles.row}>
-        device px per art px <b>{info.zoomInfo.deviceScale.toFixed(3)}</b> (CSS{" "}
-        {info.zoomInfo.scale.toFixed(3)})
+        device px per art px <b>{info.zoomInfo.deviceScale.toFixed(2)}</b> (
+        {info.zoomInfo.integer ? "integer" : "not an integer"}; canvas{" "}
+        {info.zoomInfo.canvasScale.toFixed(2)})
+      </div>
+      {info.zoomInfo.offscreen && (
+        <div style={styles.row}>
+          offscreen: <b>{info.zoomInfo.offscreen.n}</b> canvas px per art px,{" "}
+          {info.zoomInfo.offscreen.width} × {info.zoomInfo.offscreen.height} texels
+        </div>
+      )}
+      <div style={styles.row}>
+        tile width <b>{info.zoomInfo.tileWidth.toFixed(1)}</b> CSS pt (I-6: 40), tiles across{" "}
+        <b>{info.zoomInfo.across.toFixed(1)}</b>
       </div>
       <label style={styles.row}>
         <input
