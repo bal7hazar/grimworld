@@ -11,6 +11,7 @@ import { answer, serve } from "./server.ts";
 import {
   KEEP_ALIVE,
   Subscriptions,
+  frame,
   type Sink,
   type Topic,
 } from "./subscriptions.ts";
@@ -619,4 +620,247 @@ describe("AC-5: bounded", () => {
       server.closeAllConnections();
     }
   }, 40_000);
+});
+
+/**
+ * A reader that keeps up: a write is accepted while less than a socket's high-water mark is
+ * unsent, and everything unsent is read at the next turn of the event loop.
+ */
+class Reader extends Collect {
+  largest = 0;
+  override write(chunk: string) {
+    this.largest = Math.max(this.largest, chunk.length);
+    super.write(chunk);
+    this.unsent += chunk.length;
+    const accepted = this.unsent < 16 * 1024;
+    if (!accepted)
+      setImmediate(() => {
+        this.unsent = 0;
+        this.resume();
+      });
+    return accepted;
+  }
+}
+
+describe("fix loop 2", () => {
+  it("GPT 1: shared pages are released as their readers pass them and when a snapshot ends or its subscriber closes: topics asked one after another do not accumulate", async () => {
+    const { node, hub, catchUp } = setup({ page: 10, sliceMs: 0 });
+    node.mine(
+      Array.from({ length: 5 * 60 }, (_, i) =>
+        ev.posted(i + 1, { key: BigInt(1 + (i % 5)), price: BigInt(i) }),
+      ),
+    );
+    await catchUp();
+    for (let key = 1n; key <= 5n; key++) {
+      // One topic read whole, then one left after its first page: nothing is kept after either.
+      const whole = new Collect();
+      hub.open({ kind: "lots", key, size: 1 }, whole, "a");
+      await hub.idle();
+      expect(events(whole.take()).at(-1)).toBe("reset-end");
+      expect(hub.pagesHeld).toBe(0);
+      expect(hub.pagesBytes).toBe(0);
+      const left = new Collect();
+      const close = hub.open({ kind: "lots", key, size: 1 }, left, "a");
+      while (!events(framesOf(left.chunks.join(""))).includes("reset-page"))
+        await turn();
+      // A single reader holds the page it is at, never the ones it passed.
+      expect(hub.pagesBytes).toBeLessThanOrEqual(left.chunks.at(-1)!.length);
+      close();
+      expect(hub.pagesHeld).toBe(0);
+      expect(hub.pagesBytes).toBe(0);
+    }
+  });
+
+  it("GPT 1: past pagesMaxBytes the other topics' pages go first, then a slow reader's hold: it starts its snapshot again, complete", async () => {
+    const { node, hub, client, catchUp } = setup({
+      page: 10,
+      pagesMaxBytes: 4000,
+    });
+    node.mine(
+      Array.from({ length: 200 }, (_, i) =>
+        ev.posted(i + 1, { key: BigInt(1 + (i % 2)), price: BigInt(i) }),
+      ),
+    );
+    await catchUp();
+    let largest = 0;
+    hub.onStep = () => (largest = Math.max(largest, hub.pagesBytes));
+    // A reader that stopped at the start of topic 1 would hold all its pages for a faster one.
+    const behind = new Collect();
+    behind.pause();
+    hub.open({ kind: "lots", key: 1n, size: 1 }, behind, "a");
+    const ahead = new Collect();
+    hub.open({ kind: "lots", key: 1n, size: 1 }, ahead, "b");
+    const other = new Collect();
+    hub.open({ kind: "lots", key: 2n, size: 1 }, other, "c");
+    await hub.idle();
+    const page = Math.max(...ahead.chunks.map((chunk) => chunk.length));
+    expect(largest).toBeLessThanOrEqual(4000 + page);
+    behind.resume();
+    await hub.idle();
+    expect(largest).toBeLessThanOrEqual(4000 + page);
+    // The detached reader got a second reset-begin, then a whole snapshot: its copy is complete.
+    const frames = behind.take();
+    expect(
+      events(frames).filter((e) => e === "reset-begin").length,
+    ).toBeGreaterThanOrEqual(2);
+    for (const [sink, key] of [
+      [behind, 1n],
+      [ahead, 1n],
+      [other, 2n],
+    ] as const) {
+      const cache = new LotCache(client, key, 1);
+      for (const f of sink === behind ? frames : sink.take()) cache.receive(f);
+      expect(cache.ready).toBe(true);
+      expect(cache.size()).toBe(100);
+    }
+    expect(hub.pagesBytes).toBe(0);
+  });
+
+  it("GPT 2: a sink that throws on the rewind's write ends alone; the others get the rewind and a new snapshot", async () => {
+    const { node, subject, hub, client, catchUp } = setup();
+    node.mine([ev.posted(1)]);
+    node.mine([ev.posted(2, { price: 5n })]);
+    await catchUp();
+    const sinks = [new Collect(), new Collect(), new Collect()];
+    for (const [i, sink] of sinks.entries()) hub.open(LOTS, sink, `c${i}`);
+    await hub.idle();
+    for (const sink of sinks) sink.take();
+    sinks[0]!.failing = true; // the first in turn
+    node.reorg(1, [[[ev.posted(2, { price: 9n })]]], true);
+    await catchUp();
+    expect(sinks[0]!.destroyed).toBe(true);
+    expect(hub.drops.failed).toBe(1);
+    for (const sink of sinks.slice(1)) {
+      const frames = sink.take();
+      expect(events(frames).slice(0, 3)).toEqual([
+        "status",
+        "rewind",
+        "reset-begin",
+      ]);
+      const cache = new LotCache(client, "0x7", 1);
+      for (const frame of frames) cache.receive(frame);
+      const read = await cache.read();
+      expect(read.fresh).toBe(true);
+      if (read.fresh) expect(read.answer.rows).toEqual(lotsNow(subject));
+    }
+  });
+
+  it("GPT 2: a subscription that did not hear of a rewind resnapshots when its head's block was replaced at the same height", async () => {
+    const { node, subject, hub, client, catchUp } = setup();
+    node.mine([ev.posted(1)]);
+    node.mine([ev.posted(2, { price: 5n })]);
+    await catchUp();
+    const sink = new Collect();
+    hub.open(LOTS, sink, "a");
+    await hub.idle();
+    const cache = new LotCache(client, "0x7", 1);
+    for (const frame of sink.take()) cache.receive(frame);
+    const before = cache.head!;
+    // The hub misses the rewind and the state: only the identity of its head can tell it.
+    const deaf = hub as unknown as {
+      rewound: (to: number) => void;
+      status: (status: string, reason: string) => void;
+    };
+    deaf.rewound = () => {};
+    deaf.status = () => {};
+    node.reorg(1, [[[ev.posted(2, { price: 9n })]]], true);
+    await catchUp();
+    expect(subject.served!.number).toBe(before.number); // the same height
+    expect(subject.served!.commitments).not.toBe(before.commitments);
+    const frames = sink.take();
+    expect(events(frames)).toEqual(["reset-begin", "reset-page", "reset-end"]);
+    for (const frame of frames) cache.receive(frame);
+    const read = await cache.read();
+    expect(read.fresh).toBe(true);
+    if (read.fresh) {
+      expect(read.answer.head.commitments).toBe(subject.served!.commitments);
+      expect(read.answer.rows).toEqual(lotsNow(subject));
+    }
+  });
+
+  it("Opus N2: a block's changes go in frames of at most `page`, its head last: a reader that keeps up through 3 000 lots in one block is not dropped", async () => {
+    const { node, hub, catchUp } = setup({ maxBuffered: 300 * 1024 });
+    node.mine([ev.posted(1)]);
+    await catchUp();
+    const reader = new Reader();
+    hub.open(LOTS, reader, "a");
+    await hub.idle();
+    reader.take();
+    const writes = reader.writes;
+    node.mine(
+      Array.from({ length: 3000 }, (_, i) =>
+        ev.posted(i + 2, { price: BigInt(i) }),
+      ),
+    );
+    await catchUp();
+    // The reader drains a turn after each refused write: wait for the block's head.
+    for (
+      let i = 0;
+      i < 100 && !reader.chunks.at(-1)?.includes("event: head");
+      i++
+    ) {
+      await turn();
+      await hub.idle();
+    }
+    expect(reader.destroyed).toBe(false);
+    expect(hub.dropped).toBe(0);
+    const frames = reader.take();
+    expect(frames.filter((f) => f.event === "add")).toHaveLength(3000);
+    expect(events(frames).at(-1)).toBe("head");
+    expect(events(frames).filter((e) => e === "head")).toHaveLength(1);
+    expect(reader.writes - writes).toBe(3); // 1 000 changes a write, the head in the last
+    // Every write stayed well under the cap; the whole block's frames would not have.
+    expect(reader.largest).toBeLessThan(300 * 1024);
+    expect(
+      frames.map((f) => frame(f.event, f.data)).join("").length,
+    ).toBeGreaterThan(300 * 1024);
+  });
+
+  it("Opus N3: a block served while a snapshot is spread: the pages stay at the snapshot's block, and that block's changes come after reset-end", async () => {
+    const { node, subject, hub, client } = setup({ page: 2, sliceMs: 0 });
+    node.mine(
+      [1, 2, 3, 4, 5].map((lot) => ev.posted(lot, { price: BigInt(10 * lot) })),
+    );
+    await settle(subject);
+    const sink = new Collect();
+    hub.open(LOTS, sink, "a");
+    while (!events(framesOf(sink.chunks.join(""))).includes("reset-page"))
+      await turn();
+    // Block 2 is served with the snapshot at block 1 half sent: lot 6 is posted, lot 3 closed.
+    node.mine([ev.posted(6, { price: 1n }), ev.closed(3, true)]);
+    await settle(subject);
+    expect(subject.served!.number).toBe(2);
+    await hub.idle();
+    const frames = sink.take();
+    expect(events(frames)).toEqual([
+      "reset-begin",
+      "reset-page",
+      "reset-page",
+      "reset-page",
+      "reset-end",
+      "remove",
+      "add",
+      "head",
+    ]);
+    expect(frames[0]!.data).toMatchObject({ head: { number: 1 }, total: 5 });
+    expect(frames[4]!.data).toMatchObject({ head: { number: 1 }, total: 5 });
+    const pageLots = frames
+      .filter((f) => f.event === "reset-page")
+      .flatMap((f) => (f.data as { rows: Lot[] }).rows.map((lot) => lot.lot));
+    expect(pageLots).toEqual(["1", "2", "3", "4", "5"]); // block 1's: 3 still open, no 6
+    expect(frames[5]!.data).toEqual({ id: "3" });
+    expect(frames[7]!.data).toMatchObject({ head: { number: 2 } });
+    const cache = new LotCache(client, "0x7", 1);
+    for (const [i, f] of frames.entries()) {
+      cache.receive(f);
+      if (i < 4) expect(cache.ready).toBe(false);
+      if (i >= 4 && i < 7) expect(cache.head?.number).toBe(1); // never block 2's rows under head 1
+    }
+    const read = await cache.read();
+    expect(read.fresh).toBe(true);
+    if (read.fresh) {
+      expect(read.answer.head.number).toBe(2);
+      expect(read.answer.rows).toEqual(lotsNow(subject));
+    }
+  });
 });

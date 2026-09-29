@@ -56,8 +56,11 @@ Each block keeps its timestamp, the node's (`blocks.timestamp`; a block without 
 the step retried). A sold lot's closed version keeps the time of the block that closed it
 (`closed_time`), a trade the time of the block that opened it (`opened_time`): `blocks` is pruned
 below the kept history, the rows are not. Q3's window and Q7's expiry read them; the clock of the
-indexer's machine is never used for a rule. The schema is version 2: a database of IDX-01a is
-refused ("rebuild it").
+indexer's machine is never used for a rule. The schema is version 3 (Q3's price halves and its
+covering index). A database of another version is refused when it is opened, before anything is
+read or prepared, with `the database has schema N, this indexer 3: rebuild it from the chain`:
+`rebuild` drops every table, whatever the version (the indexer is rebuilt from the chain, never
+migrated).
 
 ## Queries (GET, JSON)
 
@@ -106,11 +109,18 @@ changes of every block after the stream's own head, block by block, in block ord
 served block and never past it. Invitations also go away by block time alone, 10 minutes after
 their block.
 
-The work is done in steps (a page, or a block's changes), in turns across the streams, at most 10 ms
-of it per turn of the event loop; a snapshot's pages and a range's changes are read and serialised
-once per topic. A stream is written only while its socket accepts (backpressure): one that holds
-more than `--max-buffered` unsent is destroyed at once, one whose socket accepted nothing for
-`--stall` too, and one whose step throws ends alone.
+A stream's position is a block's identity (hash and commitments): a copy whose block is no longer
+the stored one at its height starts a new snapshot, even if the stream missed the rewind.
+
+The work is done in steps (a snapshot page, or at most 1 000 changes of one block, the block's head
+after its last change), in turns across the streams, at most 10 ms of it per turn of the event
+loop; a snapshot's pages and a range's changes are read and serialised once per topic. A stream is
+written only while its socket accepts (backpressure): one that holds more than `--max-buffered`
+unsent is destroyed at once, one whose socket accepted nothing for `--stall` too, and one whose
+write or step throws ends alone. A reader that keeps up holds at most the socket's high-water mark
+and one step (about 250 KB), under the cap. The shared snapshot pages hold at most 64 MiB: a page
+is released once every reader has passed it, a topic's pages once no snapshot reads them; past the
+cap, other topics' pages go first, then a slow reader's hold (it starts its snapshot again).
 
 ## The client library (`@grimworld/indexer/client`)
 

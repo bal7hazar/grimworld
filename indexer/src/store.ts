@@ -22,6 +22,7 @@
 // Lot and trade ids come from the contracts' counters (ENG-01 §3.4: never reused, "the indexer
 // detects a gap"): a LotPosted or TradeOpened whose id is not the next one halts the indexer, and
 // so does a close of a lot or trade the tables do not hold open.
+import { existsSync } from "node:fs";
 import {
   DatabaseSync,
   type SQLInputValue,
@@ -29,6 +30,20 @@ import {
 } from "node:sqlite";
 import type { Header, RawEvent } from "./chain.ts";
 import { canonical, type Decoded } from "./events.ts";
+
+/** The schema version a database holds; undefined for a database without one (new). */
+function schemaOf(db: DatabaseSync): string | undefined {
+  const table = db
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'",
+    )
+    .get();
+  if (!table) return undefined;
+  const row = db
+    .prepare("SELECT value FROM meta WHERE key = 'schema'")
+    .get() as { value: string } | undefined;
+  return row?.value;
+}
 
 /** An invariant failed: the indexer stops following and answers `halted`, with this reason. */
 export class Halt extends Error {}
@@ -46,7 +61,15 @@ export type Config = {
 
 export type Applied = { raw: RawEvent; event: Decoded };
 
-const SCHEMA_VERSION = "2";
+/**
+ * The layout of the tables. A database of another version is refused when it is opened, before any
+ * statement is prepared: the indexer is rebuilt from the chain (`rebuild`), never migrated.
+ * 1: IDX-01a. 2: block time. 3: the price halves of Q3 and the covering `lots_sales`.
+ */
+export const SCHEMA_VERSION = "3";
+
+/** A database of another schema version: `rebuild` it. */
+export class SchemaMismatch extends Error {}
 
 /** The versioned tables, in the order of their creation. */
 export const TABLES = [
@@ -174,9 +197,32 @@ export class Store {
   private readonly sql: ReturnType<typeof statements>;
   private readonly prepared = new Map<string, StatementSync>();
 
-  /** `readOnly`: another process's database, read beside it (the local-node scenario). */
-  constructor(path: string, options: { readOnly?: boolean } = {}) {
+  /**
+   * `readOnly`: another process's database, read beside it (the local-node scenario). `rebuild`:
+   * every table is dropped first, whatever its schema (the `rebuild` command). Otherwise a database
+   * of another schema version is refused (SchemaMismatch), before anything is created or prepared.
+   */
+  constructor(
+    path: string,
+    options: { readOnly?: boolean; rebuild?: boolean } = {},
+  ) {
     this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false });
+    const found = schemaOf(this.db);
+    if (options.rebuild && !options.readOnly) {
+      const tables = this.db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .all() as { name: string }[];
+      this.db.exec("BEGIN");
+      for (const { name } of tables) this.db.exec(`DROP TABLE "${name}"`);
+      this.db.exec("COMMIT");
+    } else if (found !== undefined && found !== SCHEMA_VERSION) {
+      this.db.close();
+      throw new SchemaMismatch(
+        `the database has schema ${found}, this indexer ${SCHEMA_VERSION}: rebuild it from the chain (grimworld-indexer rebuild --from <the contracts' deployment block> ...)`,
+      );
+    }
     if (options.readOnly) {
       this.sql = statements(this.db);
       return;
@@ -194,6 +240,26 @@ export class Store {
 
   close() {
     this.db.close();
+  }
+
+  /**
+   * What a database file holds, read without changing it: its schema version and the
+   * configuration it was built for (`rebuild` checks `--from` against it before dropping
+   * anything). Empty for a file that does not exist or holds no schema.
+   */
+  static peek(path: string): { schema?: string; config?: Config } {
+    if (!existsSync(path)) return {};
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const schema = schemaOf(db);
+      if (schema === undefined) return {};
+      const row = db
+        .prepare("SELECT value FROM meta WHERE key = 'config'")
+        .get() as { value: string } | undefined;
+      return { schema, ...(row ? { config: parseConfig(row.value) } : {}) };
+    } finally {
+      db.close();
+    }
   }
 
   /**
@@ -233,15 +299,7 @@ export class Store {
   /** The configuration the database was built for, if any. */
   config(): Config | undefined {
     const text = this.meta("config");
-    if (text === undefined) return undefined;
-    const stored = JSON.parse(text) as Record<keyof Config, string | number>;
-    return {
-      hub: String(stored.hub),
-      market: String(stored.market),
-      from: Number(stored.from),
-      lotCount: BigInt(stored.lotCount),
-      tradeCount: BigInt(stored.tradeCount),
-    };
+    return text === undefined ? undefined : parseConfig(text);
   }
 
   /**
@@ -667,6 +725,17 @@ function compareRows(a: Row, b: Row): number {
 
 const replacer = (_: string, value: unknown) =>
   typeof value === "bigint" ? value.toString() : value;
+
+function parseConfig(text: string): Config {
+  const stored = JSON.parse(text) as Record<keyof Config, string | number>;
+  return {
+    hub: String(stored.hub),
+    market: String(stored.market),
+    from: Number(stored.from),
+    lotCount: BigInt(stored.lotCount),
+    tradeCount: BigInt(stored.tradeCount),
+  };
+}
 
 function normalize(config: Config): Config {
   return {
