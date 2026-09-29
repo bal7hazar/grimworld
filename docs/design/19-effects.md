@@ -471,6 +471,7 @@ For each member, then each awake goblin, ascending id:
 2. **Energy**: + its regeneration in thirds; clamped to [0, max] (goblins in thirds, §7.2).
 3. **Adrenaline decay** (FX-12): out of combat (a member: no goblin of the tick's awake set is
    Engaged; a goblin: not Engaged), − `ADRENALINE_DECAY` quarter strikes, floored at 0.
+   `ADRENALINE_DECAY` is **1** (a strike every 4 ticks out of combat) until BAL-01 (D-157 E).
 4. An actor at 0 dies (§5.13), after every actor of the step.
 
 ### 5.9 Activation and interrupts
@@ -790,6 +791,9 @@ each from the frozen records and the rules:
 
 The adrenaline cap is derived (its skills' highest cost).
 
+The values of every caste, and the per-source bounds of every statistic of this section and of
+§7.2, are [design/20](20-castes.md) (DES-06, D-157 G).
+
 ## 8. Coverage: every source the documents name, and its kinds
 
 | Source | Document | Kinds |
@@ -890,7 +894,7 @@ MVP. The questions, their alternatives and the auditor's views are in DES-04's r
 
 | # | Question | Decided (D-155) |
 |---|---|---|
-| FX-12 ★ | Adrenaline's cap, out of combat, decay | as §5.8, §5.12; a code constant `ADRENALINE_DECAY` until BAL-01 |
+| FX-12 ★ | Adrenaline's cap, out of combat, decay | as §5.8, §5.12; a code constant `ADRENALINE_DECAY` until BAL-01: 1 quarter a tick (D-157 E) |
 | FX-39 ★ | Which spell takes the quick-cast bonus | the `N`-th spell with activation ≥ 1, counted at its start; spent if interrupted |
 | FX-43 ★ | Passives held twice | summed per statistic, scope, guard and type; health runes of one kind not added; `DAMAGE_TYPE` never summed; the lowest N for double adrenaline; one counter per quick-cast modifier (≤ 2), bonuses added, activation ≥ 1 |
 
