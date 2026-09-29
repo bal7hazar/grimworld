@@ -195,7 +195,7 @@ and CLI-08 are candidates for this track.
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, chain access through starknet.js, subscription to the indexer | FND-01b, SPK-6, IDX-01 | Opus 5.5 | S Q | todo |
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness. SPK-4 / D-140: a TypeScript mirror checked by vectors generated from the Cairo code (option (a)); measure the full tick in TypeScript and Poseidon, which the spike did not | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
-| FND-08 | **The burner's funder on a public network**: a service of the game behind FND-05's `Funder` port, tested on the local node; before any play on Sepolia (D-150) | FND-05 | Opus 5.5 | S Q + GPT-6-Astra | todo |
+| FND-08 | **The burner's funder on a public network**: a service of the game behind FND-05's `Funder` port, tested on the local node; before any play on Sepolia (D-150) | FND-05 | Opus 5.5 | S Q + GPT-6-Astra | doing ([brief](docs/briefs/FND-08-funder-service.md)) |
 | OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer | ENG-07 | Sonnet 5 | S Q | todo |
 | IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo (lent to track CV on the Mac, D-149) |
 | IDX-02 | The indexer hosted for Sepolia, watched, rebuilt from the chain on demand | IDX-01, OPS-01 | Sonnet 5.5 | S Q | todo |
@@ -306,7 +306,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-01 | **Interface** (`docs/design/11-interface.md`) | Phase 1 (CLI-03) | done (draft v0.1) |
 | DES-02 | **Vision**: what the adventurer sees inside a room (whole room or a radius), what goblins perceive, how line of sight and sleep interact | Phase 1 (ENG-07) | done (`docs/design/18-rooms.md`) |
 | DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | done (`docs/design/18-rooms.md`) |
-| DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | todo |
+| DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | doing (D-150; Opus 5.5, `[GPT-6-Astra]`; [brief](docs/briefs/DES-04-effects.md)) |
 | DES-05 | **Skill lists**: the 6 trainer skills per MVP profession (only the 6 starters exist) | Phase 2 (CNT-01) | todo |
 | DES-06 | **Caste sheets**: health and armor per caste, skill list, priority list, boss phases | Phase 2 (CNT-01) | todo |
 | DES-07 | **Curves**: experience per level, merit per quest, gold income and prices, attribute points per level | Phase 3 (GLD-01) | todo |
