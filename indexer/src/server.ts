@@ -15,7 +15,12 @@ import {
   type ServerResponse,
 } from "node:http";
 import { headOf, sameBlock, type Header } from "./chain.ts";
-import { DecodeError, decodeMarketKey, felt, type MarketKey } from "./events.ts";
+import {
+  DecodeError,
+  decodeMarketKey,
+  felt,
+  type MarketKey,
+} from "./events.ts";
 import type { Indexer } from "./indexer.ts";
 import { Queries, type LotCursor } from "./queries.ts";
 import {
@@ -110,9 +115,7 @@ function marketKey(value: string | undefined, name = "key"): bigint {
 }
 
 const limitOf = (value: string | undefined) =>
-  value === undefined
-    ? LIMIT.default
-    : integer(value, "limit", 1, LIMIT.max);
+  value === undefined ? LIMIT.default : integer(value, "limit", 1, LIMIT.max);
 
 /** A comma-separated list of 1 to MAX_LIST u32 values, without repeats. */
 function u32List(value: string | undefined, name: string): number[] {
@@ -333,7 +336,11 @@ export function answer(
     try {
       read = route(url);
       if (!read && topicOf(url))
-        return refusal(indexer, 406, "a subscription: accept text/event-stream");
+        return refusal(
+          indexer,
+          406,
+          "a subscription: accept text/event-stream",
+        );
     } catch (error) {
       if (error instanceof BadRequest)
         return refusal(indexer, 400, error.message);

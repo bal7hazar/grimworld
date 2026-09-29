@@ -1,0 +1,11 @@
+{
+  // The client library (src/client/) as a browser compiles it: the DOM's globals, no Node types.
+  // `pnpm typecheck` runs it beside tsconfig.json, so a Node global there fails the check.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["src/client"],
+  "exclude": []
+}

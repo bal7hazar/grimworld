@@ -3,9 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The indexer (D-130, IDX-01): one Node process that follows a Starknet node over JSON-RPC, decodes the nine frozen events of Hub and Market, keeps them in SQLite tables versioned by block, rewinds on a reorg.",
+  "description": "The indexer (D-130, IDX-01): one Node process that follows a Starknet node over JSON-RPC, decodes the nine frozen events of Hub and Market, keeps them in SQLite tables versioned by block, rewinds on a reorg, answers the queries of the game and streams its subscriptions; and the client library that reads it (./client).",
   "engines": {
     "node": ">=24"
+  },
+  "exports": {
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    }
   },
   "bin": {
     "grimworld-indexer": "dist/main.js"
@@ -15,7 +21,7 @@
     "test": "vitest run",
     "test:node": "STATE_ARCHIVE_CAPACITY=full PATH=\"$PWD/test-node/bin:$PATH\" ../scripts/with-node.sh vitest run --config vitest.node.config.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json"
   },
   "dependencies": {
     "starknet": "10.8.0"

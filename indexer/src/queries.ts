@@ -183,7 +183,9 @@ export class Queries {
     }[];
     next: string | null;
   } {
-    const filter = items ? "AND market_key IN (SELECT value FROM json_each(:items))" : "";
+    const filter = items
+      ? "AND market_key IN (SELECT value FROM json_each(:items))"
+      : "";
     const params: Record<string, SQLInputValue> = {
       at,
       kind,

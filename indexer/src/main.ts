@@ -148,7 +148,12 @@ const server = serve(indexer, {
       "max-subscriptions-per-client",
       16,
     ),
-    maxBuffered: integer(values["max-buffered"], "max-buffered", 16 * 2 ** 20, 1),
+    maxBuffered: integer(
+      values["max-buffered"],
+      "max-buffered",
+      16 * 2 ** 20,
+      1,
+    ),
   },
   log,
 });

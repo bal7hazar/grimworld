@@ -196,7 +196,9 @@ export class Chain {
       );
     }
     if (!Number.isSafeInteger(block.timestamp) || block.timestamp! < 0) {
-      throw new BadAnswer(`block ${number} has no timestamp: its time is unknown`);
+      throw new BadAnswer(
+        `block ${number} has no timestamp: its time is unknown`,
+      );
     }
     return {
       number,

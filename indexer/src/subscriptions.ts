@@ -125,11 +125,15 @@ export class Subscriptions {
     };
     this.all.add(subscription);
     const served = this.indexer.served;
-    if (this.indexer.status === "ok" && served) this.snapshot(subscription, served);
+    if (this.indexer.status === "ok" && served)
+      this.snapshot(subscription, served);
     else
       this.write(
         subscription,
-        frame("status", this.statusOf(this.indexer.status, this.indexer.reason)),
+        frame(
+          "status",
+          this.statusOf(this.indexer.status, this.indexer.reason),
+        ),
       );
     return () => this.all.delete(subscription);
   }
@@ -191,7 +195,8 @@ export class Subscriptions {
     if (!this.write(subscription, frame("reset-begin", { head, total })))
       return;
     for (const page of rows.pages) {
-      if (!this.write(subscription, frame("reset-page", { rows: page }))) return;
+      if (!this.write(subscription, frame("reset-page", { rows: page })))
+        return;
     }
     if (this.write(subscription, frame("reset-end", { head, total })))
       subscription.stale = false;
