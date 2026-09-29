@@ -156,6 +156,8 @@ def record(rpc, red, source, label, measured, tx):
             "l1_data_gas": int(res["l1_data_gas"]),
             "l1_gas": int(res["l1_gas"]),
             "events": len(r.get("events", [])),
+            "event_keys": sum(len(e["keys"]) for e in r.get("events", [])),
+            "event_data": sum(len(e["data"]) for e in r.get("events", [])),
         },
         "trace_total": {k: int(v) for k, v in tr["execution_resources"].items()},
         "validate": tree(tr.get("validate_invocation"), red),
