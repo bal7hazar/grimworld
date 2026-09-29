@@ -1,50 +1,41 @@
-# Which source feeds which of our names (ART-00, design/10-art-direction.md).
+# Which source feeds which of our names (ART-00, design/10-art-direction.md; ART-03: the owner's
+# mapping of 2026-09-29).
 #
-# Two kinds of source:
-#   kind = "generated"  the machine-generated goblin sheets: RGB on a magenta key, six columns by
-#                       four rows, cut along their silhouettes. The folder is found in code (the
-#                       one subfolder of "Enemy Pack" holding Animated/Raw), never named here.
-#                       An animation names its `row` (0 Idle, 1 Walk, 2 Jump, 3 Attack).
-#   kind = "strip"      the original Tiny Swords horizontal strips, square cells (cell = strip
-#                       height), already transparent. An animation names its `file`.
+# Every sprite is made of the original Tiny Swords horizontal strips: square cells (cell = strip
+# height), already transparent, at the pack's own size. An animation names its `file`, in the
+# sprite's `root` folder of the pack.
 #
 # Frame rates stay in 12..15 (ADR-0003). Sprites face right; left is a mirror (design/10 Facing).
 
 [settings]
-key_tolerance = 48     # a pixel within this max-channel distance of the sheet's key is background
-fringe_radius = 4      # px around the keyed background where anti-aliased edge pixels are unmixed
-min_alpha = 0.06       # unmixed alpha below this is dropped (noise)
-min_component = 6      # a detached speck smaller than this many px is dropped
 cell_margin = 4        # transparent margin kept around the union of a sprite's frames
 atlas_max = 2048       # page side, at most
 atlas_padding = 2      # transparent gutter between packed frames
-resample = "area"      # "area", "area-blend" or "nearest" (artpipe/scale.py); --resample=… overrides
+resample = "area"      # for a height in px, "area", "area-blend" or "nearest" (artpipe/scale.py); --resample=… overrides
 palette_max = 64       # "area" snaps colours to the source's palette when it has at most this many
 
 # The height of every sprite, one line each (ART-02; D-146 as corrected by the owner, 2026-09-29:
-# the final sizes are the owner's eye on CLI-03a's sandbox). "native": the pack's own drawing,
-# never resampled (factor 1, pixels untouched). A number: the visible height in px (idle frames,
-# feet to top of head, what a hand holds left out: artpipe/scale.py) the sprite is resampled to.
-# Only the generated sheets are resampled, to the scale of the pack's hand-drawn units
-# (`tools/art/build.py --pack-heights` measures them).
+# the final sizes are the owner's eye on CLI-03a's sandbox, which scales per caste at display time).
+# "native": the pack's own drawing, never resampled (factor 1, pixels untouched); every sprite is
+# native since ART-03. A number stays possible: the visible height in px (idle frames, feet to top
+# of head, what a hand holds left out: artpipe/scale.py) the sprite is resampled to. The native
+# heights are measured by the build (its table) and by `tools/art/build.py --pack-heights`.
 [height]
-runt = 67              # the pack's small goblins: Torch Goblin 67, Spear Goblin 70; the Monk is 67
-skirmisher = "native"  # Spear Goblin, 70
-slinger = "native"     # Torch Goblin, 67
-shaman = 87            # the pack's heroes: Warrior 87, Archer 88
-hobgoblin = 119        # the pack's Minotaur, 119
-vanguard = "native"    # Warrior, 87
-warden = "native"      # Archer, 88
-cleric = "native"      # Monk, 67
+runt = "native"        # Thief
+skirmisher = "native"  # Spear Goblin
+slinger = "native"     # Torch Goblin
+shaman = "native"      # Hex Shaman
+hobgoblin = "native"   # Troll
+vanguard = "native"    # Warrior
+warden = "native"      # Archer
+cleric = "native"      # Monk
 
-# What the build checks on the result (AC-2): no basic goblin taller than the shortest profession,
-# except the ones listed in `exempt`, which must be native drawings of the pack, kind "strip" (the
-# pack's own drawing keeps the pack's proportions); a resampled or generated basic goblin is always
-# compared. `tallest` is taller than every
-# other sprite.
+# What the build checks on the result (AC-2 of ART-02): no basic goblin taller than the shortest
+# profession, and `tallest` taller than every other sprite. A sprite of the pack keeps the pack's
+# proportions and the owner scales it by eye in the sandbox, so a failure that involves only native
+# sprites is a warning printed by the build; one that involves a resampled sprite is an error.
 [order]
 basic = ["runt", "skirmisher", "slinger"]
-exempt = ["skirmisher"]  # native Spear Goblin, 70 px: taller than the pack's Monk (the cleric), 67
 tallest = "hobgoblin"
 
 # ---------------------------------------------------------------- goblin castes (MVP)
@@ -52,31 +43,29 @@ tallest = "hobgoblin"
 [[sprite]]
 name = "runt"
 role = "caste"
-kind = "generated"
-file = "goblin_common.png"
-origin = "generated common goblin sheet (chosen over Torch Goblin, design/10: generated when it exists)"
+root = "Enemy Pack/Thief"
+origin = "original Thief strips (the owner's mapping, 2026-09-29)"
   [[sprite.anim]]
   name = "idle"
-  row = 0
+  file = "Thief_Idle.png"
   fps = 12
   loop = true
   [[sprite.anim]]
   name = "move"
-  row = 1
+  file = "Thief_Run.png"
   fps = 12
   loop = true
   [[sprite.anim]]
   name = "attack"
-  row = 3
+  file = "Thief_Attack.png"
   fps = 15
   loop = false
 
 [[sprite]]
 name = "skirmisher"
 role = "caste"
-kind = "strip"
 root = "Enemy Pack/Spear Goblin"
-origin = "original Spear Goblin strips (the only candidate)"
+origin = "original Spear Goblin strips"
   [[sprite.anim]]
   name = "idle"
   file = "Spear Goblin_Idle.png"
@@ -94,11 +83,10 @@ origin = "original Spear Goblin strips (the only candidate)"
   loop = false
 
 # Placeholder: the pack's slinger is a gnome, not a goblin (design/10). Closest goblin sprite that
-# no other MVP caste uses: the Torch Goblin. Listed as an open question.
+# no other MVP caste uses: the Torch Goblin. Listed as an open question (ART-2).
 [[sprite]]
 name = "slinger"
 role = "caste"
-kind = "strip"
 root = "Enemy Pack/Torch Goblin"
 origin = "PLACEHOLDER: original Torch Goblin strips (no goblin slinger exists)"
   [[sprite.anim]]
@@ -120,44 +108,52 @@ origin = "PLACEHOLDER: original Torch Goblin strips (no goblin slinger exists)"
 [[sprite]]
 name = "shaman"
 role = "caste"
-kind = "generated"
-file = "goblin_shaman.png"
-origin = "generated shaman sheet (chosen over Hex Shaman, design/10: generated when it exists)"
+root = "Enemy Pack/Hex Shaman"
+origin = "original Hex Shaman strips (the owner's mapping, 2026-09-29)"
   [[sprite.anim]]
   name = "idle"
-  row = 0
+  file = "Hex Shaman_Idle.png"
   fps = 12
   loop = true
   [[sprite.anim]]
   name = "move"
-  row = 1
+  file = "Hex Shaman_Run.png"
   fps = 12
   loop = true
   [[sprite.anim]]
   name = "attack"
-  row = 3
+  file = "Hex Shaman_Attack.png"
+  fps = 15
+  loop = false
+  [[sprite.anim]]
+  name = "projectile"
+  file = "Hex Shaman_Projectile.png"
+  fps = 15
+  loop = true
+  [[sprite.anim]]
+  name = "explosion"
+  file = "Hex Shaman_Explosion.png"
   fps = 15
   loop = false
 
 [[sprite]]
 name = "hobgoblin"
 role = "caste"
-kind = "generated"
-file = "hobgoblin.png"
-origin = "generated hobgoblin sheet (chosen over Troll, design/10: generated when it exists)"
+root = "Enemy Pack/Troll"
+origin = "original Troll strips (the owner's mapping, 2026-09-29)"
   [[sprite.anim]]
   name = "idle"
-  row = 0
+  file = "Troll_Idle.png"
   fps = 12
   loop = true
   [[sprite.anim]]
   name = "move"
-  row = 1
+  file = "Troll_Walk.png"
   fps = 12
   loop = true
   [[sprite.anim]]
   name = "attack"
-  row = 3
+  file = "Troll_Attack.png"
   fps = 15
   loop = false
 
@@ -167,7 +163,6 @@ origin = "generated hobgoblin sheet (chosen over Troll, design/10: generated whe
 [[sprite]]
 name = "vanguard"
 role = "profession"
-kind = "strip"
 root = "Units/Blue Units/Warrior"
 origin = "original Warrior strips, blue"
   [[sprite.anim]]
@@ -199,7 +194,6 @@ origin = "original Warrior strips, blue"
 [[sprite]]
 name = "warden"
 role = "profession"
-kind = "strip"
 root = "Units/Blue Units/Archer"
 origin = "original Archer strips, blue"
   [[sprite.anim]]
@@ -221,7 +215,6 @@ origin = "original Archer strips, blue"
 [[sprite]]
 name = "cleric"
 role = "profession"
-kind = "strip"
 root = "Units/Blue Units/Monk"
 origin = "original Monk strips, blue"
   [[sprite.anim]]

@@ -1,10 +1,10 @@
 """Scale (ART-02, D-146 as corrected by the owner): the pack's hand-drawn units keep their native
-height; only the generated sheets are resampled, to a height the manifest names.
+height (every sprite since ART-03); a sprite is resampled only if the manifest names a height in px.
 
 **Visible height.** Of one pose: from the line under the feet (the baseline of `clean.register`) up
 to the highest solid pixel (alpha >= 64) inside a band of columns centred on the feet, of half-width
 max(4, 10% of the pose's width, rounded). The band keeps the body and the head (headwear included)
-and leaves out what a hand holds beside or above it: the hobgoblin's club, the shaman's staff, the
+and leaves out what a hand holds beside or above it: the troll's club, the shaman's staff, the
 skirmisher's spear, the slinger's torch. A sprite's height is the median (lower middle) over its
 idle frames.
 
@@ -17,8 +17,7 @@ boundaries), in integer arithmetic only (int64 sums are exact in any order):
   grow a translucent ring); its alpha is the visible part's average alpha, snapped to the nearest
   value the sprite's source uses; its colour is the covered pixels' average in premultiplied alpha.
   When the sprite's source has a small palette (at most `palette_max` colours), each colour is then
-  snapped to the nearest colour of that palette (`snap`), so no new colour appears. The generated
-  sheets (tens of thousands of colours) keep the averaged colours.
+  snapped to the nearest colour of that palette (`snap`), so no new colour appears.
 """
 
 import numpy as np
@@ -137,27 +136,15 @@ def height_problem(name, spec):
     return f'[height] {name} = {spec!r}: must be "native" or a positive height in px'
 
 
-def validate_order(order, role, spec=None, kind=None):
-    """`[order]` of the manifest against the sprites (`role` maps each to caste or profession,
-    `spec` to its `[height]` line, `kind` to generated or strip). An `exempt` name must be a
-    `basic` one, native and a strip: only the pack's own drawing, untouched, may stand taller than
-    the shortest profession. Returns the list of problems."""
+def validate_order(order, role):
+    """`[order]` of the manifest against the sprites (`role` maps each to caste or profession).
+    Returns the list of problems."""
     problems = []
-    basic, tallest = order.get("basic", []), order.get("tallest")
-    for n in [*basic, *order.get("exempt", []), tallest]:
+    for n in [*order.get("basic", []), order.get("tallest")]:
         if n is None:
             problems.append("[order] names no `tallest`")
         elif n not in role:
             problems.append(f"[order] names {n!r}, which is not a sprite of the manifest")
-    for n in order.get("exempt", []):
-        if n in role and n not in basic:
-            problems.append(f"[order] exempt {n!r} is not in basic")
-        elif n in role and spec is not None and spec.get(n) != NATIVE:
-            problems.append(f"[order] exempt {n!r} is resampled ([height] {spec.get(n)!r}): "
-                            "only a native sprite may be exempt")
-        elif n in role and kind is not None and kind.get(n) != "strip":
-            problems.append(f"[order] exempt {n!r} is a {kind.get(n)} sprite: only a drawing of "
-                            "the pack (kind strip) may be exempt")
     if not any(r == "profession" for r in role.values()):
         problems.append("[order] cannot compare: the manifest has no profession")
     return problems
@@ -168,7 +155,6 @@ def validate_manifest(manifest, methods):
     sprites, each line valid; `[order]` (validate_order); `settings.resample` one of `methods`.
     Returns the list of problems (empty when the manifest is sound)."""
     role = {sp["name"]: sp["role"] for sp in manifest.get("sprite", [])}
-    kind = {sp["name"]: sp.get("kind") for sp in manifest.get("sprite", [])}
     heights = manifest.get("height", {})
     problems = [f"[height] names {n!r}, which is not a sprite of the manifest"
                 for n in heights if n not in role]
@@ -178,33 +164,38 @@ def validate_manifest(manifest, methods):
         problem = height_problem(n, heights[n]) if n in heights else None
         if problem:
             problems.append(problem)
-    problems += validate_order(manifest.get("order", {}), role, heights, kind)
+    problems += validate_order(manifest.get("order", {}), role)
     method = manifest.get("settings", {}).get("resample")
     if method not in methods:
         problems.append(f"settings.resample = {method!r}, not one of {', '.join(methods)}")
     return problems
 
 
-def check_order(heights, order, role, spec, kind):
-    """AC-2. The rule: every basic goblin (`order.basic`) is no taller than the shortest
-    profession, except the names listed in `order.exempt`, which must be native drawings of the
-    pack (kind strip): the pack's own drawing keeps the pack's proportions (its Spear Goblin,
-    70 px, is taller than its Monk, 67 px). A resampled or generated basic goblin is always
-    compared. `order.tallest` is taller than every other sprite. `heights` maps a sprite to its
-    measured idle height, `role` to caste or profession, `spec` to its `[height]` line, `kind` to
-    generated or strip. Returns the list of problems."""
-    problems = validate_order(order, role, spec, kind)
+def check_order(heights, order, role, spec):
+    """AC-2 of ART-02, as ART-03 leaves it. The rule: every basic goblin (`order.basic`) is no
+    taller than the shortest profession, and `order.tallest` is taller than every other sprite.
+    `heights` maps a sprite to its measured idle height, `role` to caste or profession, `spec` to
+    its `[height]` line. Returns (errors, warnings). A failure that involves a resampled sprite (a
+    height in px in `spec`) is an error: the resampling chose that height. One between native
+    drawings only is a warning: the pack's own proportions are kept and the owner scales the
+    sprites by eye in the sandbox. A manifest that does not hold together is an error."""
+    problems = validate_order(order, role)
     if problems:
-        return problems
+        return problems, []
     heroes = [n for n in heights if role[n] == "profession"]
     short = min(heroes, key=lambda n: (heights[n], n))
+    found = []                                  # (the sprites involved, the failure)
     for n in order["basic"]:
-        if n not in order.get("exempt", []) and heights[n] > heights[short]:
-            problems.append(f"{n} ({heights[n]} px) is taller than the shortest profession, "
-                            f"{short} ({heights[short]} px)")
+        if heights[n] > heights[short]:
+            found.append(((n, short), f"{n} ({heights[n]} px) is taller than the shortest "
+                                      f"profession, {short} ({heights[short]} px)"))
     tallest = order["tallest"]
     for n in heights:
         if n != tallest and heights[n] >= heights[tallest]:
-            problems.append(f"{tallest} ({heights[tallest]} px) is not taller than {n} "
-                            f"({heights[n]} px)")
-    return problems
+            found.append(((n, tallest), f"{tallest} ({heights[tallest]} px) is not taller than "
+                                        f"{n} ({heights[n]} px)"))
+    errors = [m for names, m in found if any(spec[n] != NATIVE for n in names)]
+    warnings = [m for names, m in found if all(spec[n] == NATIVE for n in names)]
+    return errors, warnings
+
+

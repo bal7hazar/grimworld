@@ -1,5 +1,5 @@
 """Tests of tools/art (ART-02): command line, Python selection, the venv, scaling, the order check,
-the PNG writer, the fingerprints, keying.
+the PNG writer, the fingerprints, the order rule.
 
 Run: tools/art/.venv/bin/python -m unittest discover -s tools/art/tests
 (the command-line and Python-selection tests need only the standard library; the others need the
@@ -52,7 +52,7 @@ class CommandLine(unittest.TestCase):
 
     def test_output_never_carries_the_forbidden_name(self):
         sink = io.StringIO()
-        build.Redacted(sink).write("Enemy Pack/Goblin " + build.WORD.title() + " Pack/x.png\n")
+        build.Redacted(sink).write("Enemy Pack/" + build.WORD.title() + "/x.png\n")
         self.assertNotIn(build.WORD, sink.getvalue().lower())
         self.assertIn("<generated>", sink.getvalue())
 
@@ -346,19 +346,17 @@ class Scale(unittest.TestCase):
         self.assertEqual(kept, {(200, 30, 30), (20, 20, 160)})
 
     def manifest(self, **height):
-        sprites = [{"name": n, "role": r, "kind": k} for n, r, k in (
-            ("runt", "caste", "generated"), ("skirmisher", "caste", "strip"),
-            ("slinger", "caste", "strip"), ("hob", "caste", "generated"),
-            ("cleric", "profession", "strip"))]
-        heights = dict({"runt": 67, "skirmisher": "native", "slinger": "native", "hob": 119,
-                        "cleric": "native"}, **height)
+        sprites = [{"name": n, "role": r} for n, r in (
+            ("runt", "caste"), ("skirmisher", "caste"), ("slinger", "caste"),
+            ("hob", "caste"), ("cleric", "profession"))]
+        heights = dict({s["name"]: "native" for s in sprites}, **height)
         return {"sprite": sprites, "height": heights, "settings": {"resample": "area"},
-                "order": {"basic": ["runt", "skirmisher", "slinger"], "exempt": ["skirmisher"],
-                          "tallest": "hob"}}
+                "order": {"basic": ["runt", "skirmisher", "slinger"], "tallest": "hob"}}
 
     def test_validate_manifest(self):
         methods = build.METHODS
         self.assertEqual(scale.validate_manifest(self.manifest(), methods), [])
+        self.assertEqual(scale.validate_manifest(self.manifest(runt=67), methods), [])
         m = self.manifest(slinger="big", ghost=70)
         del m["height"]["cleric"]
         m["settings"]["resample"] = "lanczos"
@@ -370,41 +368,49 @@ class Scale(unittest.TestCase):
         self.assertEqual(scale.validate_manifest(self.manifest(runt=0), methods),
                          ["[height] runt = 0: must be \"native\" or a positive height in px"])
 
-    def test_exemption_must_be_native_basic_and_a_pack_drawing(self):
-        problems = scale.validate_manifest(self.manifest(skirmisher=75), build.METHODS)
-        self.assertEqual(problems, ["[order] exempt 'skirmisher' is resampled ([height] 75): only "
-                                    "a native sprite may be exempt"])
-        m = self.manifest()
-        m["order"]["exempt"] = ["hob"]
-        self.assertEqual(scale.validate_manifest(m, build.METHODS),
-                         ["[order] exempt 'hob' is not in basic"])
-        m = self.manifest(runt="native")                           # a generated sprite, native
-        m["order"]["exempt"] = ["skirmisher", "runt"]
-        self.assertEqual(scale.validate_manifest(m, build.METHODS),
-                         ["[order] exempt 'runt' is a generated sprite: only a drawing of the "
-                          "pack (kind strip) may be exempt"])
+    GOOD = {"runt": 67, "skirmisher": 67, "slinger": 66, "hob": 119, "cleric": 67}
 
-    def test_order_rule(self):
-        m = self.manifest()
+    def order(self, heights, **spec):
+        m = self.manifest(**spec)
         role = {sp["name"]: sp["role"] for sp in m["sprite"]}
-        kind = {sp["name"]: sp["kind"] for sp in m["sprite"]}
-        good = {"runt": 67, "skirmisher": 70, "slinger": 67, "hob": 119, "cleric": 67}
-        self.assertEqual(scale.check_order(good, m["order"], role, m["height"], kind), [])
-        problems = scale.check_order(dict(good, runt=70), m["order"], role, m["height"], kind)
-        self.assertEqual(problems, ["runt (70 px) is taller than the shortest profession, "
+        return scale.check_order(heights, m["order"], role, m["height"])
+
+    def test_order_rule_holds(self):
+        self.assertEqual(self.order(self.GOOD), ([], []))
+
+    def test_order_rule_on_native_drawings_is_a_warning(self):
+        # the pack's own Spear Goblin (70) is taller than its Monk (67), and a Thief taller still
+        errors, warnings = self.order(dict(self.GOOD, skirmisher=70, runt=73))
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, ["runt (73 px) is taller than the shortest profession, "
+                                    "cleric (67 px)",
+                                    "skirmisher (70 px) is taller than the shortest profession, "
                                     "cleric (67 px)"])
-        slinger80 = dict(m["height"], slinger=80)                  # a resampled basic goblin
-        problems = scale.check_order(dict(good, slinger=80), m["order"], role, slinger80, kind)
-        self.assertEqual(problems, ["slinger (80 px) is taller than the shortest profession, "
-                                    "cleric (67 px)"])
-        problems = scale.check_order(dict(good, hob=70), m["order"], role, m["height"], kind)
-        self.assertTrue(any("hob (70 px) is not taller than skirmisher" in p for p in problems))
-        # the audit's case: a generated runt, native and exempt, at 150 px, no longer passes
-        order = dict(m["order"], exempt=["skirmisher", "runt"])
-        problems = scale.check_order(dict(good, runt=150, hob=160), order, role,
-                                     dict(m["height"], runt="native"), kind)
-        self.assertEqual(problems, ["[order] exempt 'runt' is a generated sprite: only a drawing "
-                                    "of the pack (kind strip) may be exempt"])
+        errors, warnings = self.order(dict(self.GOOD, hob=67))        # a native boss, not the tallest
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 3)                        # runt, skirmisher, cleric
+        self.assertIn("hob (67 px) is not taller than runt (67 px)", warnings)
+
+    def test_order_rule_on_a_resampled_sprite_is_an_error(self):
+        errors, warnings = self.order(dict(self.GOOD, slinger=80), slinger=80)
+        self.assertEqual(errors, ["slinger (80 px) is taller than the shortest profession, "
+                                  "cleric (67 px)"])
+        self.assertEqual(warnings, [])
+        errors, warnings = self.order(dict(self.GOOD, hob=60), hob=60)     # a resampled boss
+        self.assertEqual(len(errors), 4)                          # not taller than any of the four
+        self.assertEqual(warnings, [])
+        # a native goblin against a resampled profession: the resampled sprite makes it an error
+        errors, warnings = self.order(dict(self.GOOD, runt=70, cleric=60), cleric=60)
+        self.assertEqual(errors, ["runt (70 px) is taller than the shortest profession, "
+                                  "cleric (60 px)", "skirmisher (67 px) is taller than the "
+                                  "shortest profession, cleric (60 px)", "slinger (66 px) is "
+                                  "taller than the shortest profession, cleric (60 px)"])
+
+    def test_order_rule_needs_a_sound_manifest(self):
+        errors, warnings = scale.check_order(self.GOOD, {"basic": ["grunt"], "tallest": "boss"},
+                                             {"runt": "caste", "hob": "caste"}, {})
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(errors), 3)                          # grunt, boss, no profession
 
     def test_order_validated(self):
         role = {"runt": "caste", "hob": "caste", "cleric": "profession"}
@@ -446,53 +452,33 @@ class Scale(unittest.TestCase):
         self.assertEqual(len(out), 4)
 
     def test_check_scale_fails_and_warns(self):
-        def entry(role, kind, target, height, idle):
-            spec = target if kind == "generated" else "native"
-            return {"role": role, "kind": kind,
+        def entry(role, spec, target, height, idle):
+            return {"role": role,
                     "scale": {"target": target, "height": height, "idle": idle, "spec": spec}}
         order = {"basic": ["runt"], "tallest": "hob"}
-        sprites = {"runt": entry("caste", "generated", 67, 67, [66, 67]),
-                   "hob": entry("caste", "generated", 119, 119, [110, 119]),
-                   "cleric": entry("profession", "strip", 67, 67, [66, 68])}
-        warnings = build.check_scale(sprites, order)
+        sprites = {"runt": entry("caste", 67, 67, 67, [66, 67]),
+                   "hob": entry("caste", 119, 119, 119, [110, 119]),
+                   "cleric": entry("profession", "native", 67, 67, [66, 68])}
+        specs = {n: r["scale"]["spec"] for n, r in sprites.items()}
+        warnings = build.check_scale(sprites, order, specs)
         self.assertEqual(len(warnings), 1)
         self.assertIn("hob: idle frames span 9 px", warnings[0])
         sprites["runt"]["scale"]["height"] = 72
         with self.assertRaises(SystemExit) as e:
-            build.check_scale(sprites, order)
+            build.check_scale(sprites, order, specs)
         self.assertIn("runt: 72 px tall", str(e.exception))
 
-
-@unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
-class Keying(unittest.TestCase):
-    def test_key_is_removed_and_neutral_kept_in_integers(self):
-        s = {"key_tolerance": 48, "fringe_radius": 2, "min_alpha": 0.06}
-        rgb = np.zeros((30, 30, 3), np.uint8)
-        rgb[:] = (250, 3, 250)
-        rgb[10:20, 10:20] = (90, 90, 90)
-        out, key = clean.key_sheet(rgb, s)
-        self.assertEqual(key.tolist(), [250, 3, 250])
-        self.assertEqual(out.dtype, np.uint8)
-        self.assertTrue((out[:5, :5, 3] == 0).all())
-        self.assertTrue((out[12:18, 12:18] == (90, 90, 90, 255)).all())
-
-    def test_exact_half_fringe_pixel(self):
-        # key (250, 4, 250): m_key = 250 + 250 - 8 = 492. A 50 % mix of grey (100, 100, 100) and
-        # the key is (175, 52, 175): m = 246 = m_key / 2, so a = 255 / 2 = 127.5, rounded half up
-        # to 128; colour (255 p - 127 key) / 128 = (100.58, 99.63, 100.58), rounded to (101, 100).
-        s = {"key_tolerance": 48, "fringe_radius": 2, "min_alpha": 0.06}
-        rgb = np.zeros((40, 40, 3), np.uint8)
-        rgb[:] = (250, 4, 250)
-        rgb[16:24, 16:24] = (100, 100, 100)
-        rgb[16:24, 15] = (175, 52, 175)
-        out, _ = clean.key_sheet(rgb, s)
-        self.assertEqual(out[20, 15].tolist(), [101, 100, 101, 128])
-        self.assertEqual(out[20, 14].tolist(), [0, 0, 0, 0])
-
-    def test_div_round_half_up_with_negative_numerators(self):
-        num = np.array([-3, -5, -1, 0, 1, 3, 5])
-        self.assertEqual(clean.div_round(num, 2).tolist(), [-1, -2, 0, 0, 1, 2, 3])
-        self.assertEqual(clean.div_round(np.array([-7, 7]), 4).tolist(), [-2, 2])   # -1.75, 1.75
+    def test_check_scale_native_order_failure_only_warns(self):
+        def entry(role, height):
+            return {"role": role, "scale": {"target": height, "height": height,
+                                            "idle": [height, height], "spec": "native"}}
+        order = {"basic": ["runt"], "tallest": "hob"}
+        sprites = {"runt": entry("caste", 73), "hob": entry("caste", 209),
+                   "cleric": entry("profession", 67)}
+        specs = dict.fromkeys(sprites, "native")
+        warnings = build.check_scale(sprites, order, specs)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("runt (73 px) is taller than the shortest profession", warnings[0])
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
