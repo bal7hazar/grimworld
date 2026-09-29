@@ -14,6 +14,37 @@ use starknet::ContractAddress;
 pub const INSIDE: u8 = 0;
 pub const DOWN: u8 = 1;
 pub const GONE: u8 = 2;
+/// Energy is stored in thirds (design/03, *Pips*).
+pub const ENERGY_THIRDS: u16 = 3;
+
+pub mod errors {
+    /// A gate action by anyone but the member's controller (M-6, ENG-01 §1.2).
+    pub const NOT_CONTROLLER: felt252 = 'not controller';
+}
+
+#[generate_trait]
+pub impl MemberStateImpl of MemberStateTrait {
+    /// The member at clock 0 of a new generation (ENG-01 §2.1, F-12): on the entrance tile,
+    /// health and energy at their maxima from the snapshot, no adrenaline, inside, the counters and
+    /// flags 0; the belt's counts are the reserve's, the only thing that carries (D-141, E-20).
+    /// Facing: 0 until ENG-05 knows the entrance's side (design/18: "away from the entrance").
+    fn entering(adventurer: u32, x: u8, y: u8, stats: @MemberStats, belt: [u8; 4]) -> MemberState {
+        MemberState {
+            adventurer,
+            x,
+            y,
+            facing: 0,
+            status: INSIDE,
+            health: *stats.max_health,
+            energy: (*stats.max_energy).into() * ENERGY_THIRDS,
+            adrenaline: 0,
+            hits: 0,
+            casts: 0,
+            belt,
+            flags: 0,
+        }
+    }
+}
 
 /// What changes at every tick.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -249,4 +280,26 @@ pub struct Member {
 /// Stored, it is `LIVE + 255`, not `LIVE` alone: `act_slot` 0 would name bar slot 0.
 pub fn empty_member_timers() -> MemberTimers {
     MemberTimers { act_slot: NO_SLOT, ..Default::default() }
+}
+
+/// The transient words of a member entering a new generation (ENG-01 §2.1, F-12, F-14).
+#[generate_trait]
+pub impl MemberImpl of MemberTrait {
+    /// No activation, no condition (`empty_member_timers`, stored `LIVE + 255`).
+    #[inline(always)]
+    fn empty_timers() -> MemberTimers {
+        empty_member_timers()
+    }
+
+    /// No effect running (stored `LIVE`).
+    #[inline(always)]
+    fn empty_effects() -> MemberEffects {
+        MemberEffects { effects: [Default::default(); 4] }
+    }
+
+    /// No recharge running (stored `LIVE`).
+    #[inline(always)]
+    fn empty_recharges() -> Recharges {
+        Recharges { deadlines: [0; 8] }
+    }
 }
