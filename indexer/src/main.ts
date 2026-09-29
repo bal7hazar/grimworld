@@ -18,7 +18,7 @@ import { serve } from "./server.ts";
 import { Store } from "./store.ts";
 
 const USAGE =
-  "usage: grimworld-indexer run|rebuild --hub <address> --market <address> --from <block> --db <file> [--port <n>] [--host <h>] [--poll <ms>] [--depth <blocks>|l1] [--batch <n>] [--recheck <blocks>] [--recheck-every <ms>] [--lot-count <n>] [--trade-count <n>] [--rpc <url>]";
+  "usage: grimworld-indexer run|rebuild --hub <address> --market <address> --from <block> --db <file> [--port <n>] [--host <h>] [--poll <ms>] [--depth <blocks>|l1] [--batch <n>] [--recheck <blocks>] [--recheck-every <ms>] [--lot-count <n>] [--trade-count <n>] [--max-subscriptions <n>] [--max-subscriptions-per-client <n>] [--max-buffered <bytes>] [--rpc <url>]";
 
 function log(message: string) {
   console.log(`[indexer ${new Date().toISOString()}] ${message}`);
@@ -73,6 +73,9 @@ const { values, positionals } = parseArgs({
     "recheck-every": { type: "string" },
     "lot-count": { type: "string" },
     "trade-count": { type: "string" },
+    "max-subscriptions": { type: "string" },
+    "max-subscriptions-per-client": { type: "string" },
+    "max-buffered": { type: "string" },
     rpc: { type: "string" },
   },
 });
@@ -137,7 +140,18 @@ try {
   process.exit(2);
 }
 
-const server = serve(indexer);
+const server = serve(indexer, {
+  limits: {
+    perProcess: integer(values["max-subscriptions"], "max-subscriptions", 1000),
+    perClient: integer(
+      values["max-subscriptions-per-client"],
+      "max-subscriptions-per-client",
+      16,
+    ),
+    maxBuffered: integer(values["max-buffered"], "max-buffered", 16 * 2 ** 20, 1),
+  },
+  log,
+});
 const abort = new AbortController();
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => abort.abort());
@@ -164,6 +178,7 @@ if (!abort.signal.aborted) {
     abort.signal.addEventListener("abort", () => resolve()),
   );
 }
+server.subscriptions.close();
 server.close();
 server.closeAllConnections();
 store.close();

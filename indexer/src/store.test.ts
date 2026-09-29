@@ -23,6 +23,7 @@ const header = (number: number): Header => ({
   hash: `0xb${number}`,
   parent: `0xb${number - 1}`,
   commitments: `0xc${number}`,
+  timestamp: 1000 + number,
 });
 
 function applied(...events: FakeEvent[]): Applied[] {

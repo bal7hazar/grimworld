@@ -13,6 +13,12 @@
 // are not decoded into columns (modifiers) are canonical 0x hex text. The market key, below 2^42 by
 // ENG-01's encoding, is an INTEGER beside its decoded columns.
 //
+// Block time (IDX-01b): each block keeps its timestamp, the node's. A sold lot's closed version
+// keeps the time of the block that closed it (`closed_time`), and a trade keeps the time of the
+// block that opened it (`opened_time`): the 7-day window of the mean price and the 10-minute life
+// of an invitation are read from them, never from the clock of the indexer's machine. They are
+// copied onto the rows because `blocks` is pruned below the kept history, the rows are not.
+//
 // Lot and trade ids come from the contracts' counters (ENG-01 §3.4: never reused, "the indexer
 // detects a gap"): a LotPosted or TradeOpened whose id is not the next one halts the indexer, and
 // so does a close of a lot or trade the tables do not hold open.
@@ -40,7 +46,7 @@ export type Config = {
 
 export type Applied = { raw: RawEvent; event: Decoded };
 
-const SCHEMA_VERSION = "1";
+const SCHEMA_VERSION = "2";
 
 /** The versioned tables, in the order of their creation. */
 export const TABLES = [
@@ -58,7 +64,8 @@ export type Table = (typeof TABLES)[number];
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS blocks (
-    number INTEGER PRIMARY KEY, hash TEXT NOT NULL, parent TEXT NOT NULL, commitments TEXT NOT NULL
+    number INTEGER PRIMARY KEY, hash TEXT NOT NULL, parent TEXT NOT NULL, commitments TEXT NOT NULL,
+    timestamp INTEGER NOT NULL
   );
   -- The raw events of both contracts, in block order, for audit.
   CREATE TABLE IF NOT EXISTS events (
@@ -72,14 +79,19 @@ const SCHEMA = `
     base INTEGER, requirement INTEGER, rarity INTEGER, identified INTEGER,
     lot_size INTEGER NOT NULL, price TEXT NOT NULL, expiry TEXT NOT NULL,
     equipment INTEGER NOT NULL, modifiers TEXT NOT NULL,
-    open INTEGER NOT NULL, sold INTEGER NOT NULL, posted INTEGER NOT NULL,
+    open INTEGER NOT NULL, sold INTEGER NOT NULL, posted INTEGER NOT NULL, closed_time INTEGER,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS lots_current ON lots (lot) WHERE _to IS NULL;
+  CREATE INDEX IF NOT EXISTS lots_lot ON lots (lot, _from);
   CREATE INDEX IF NOT EXISTS lots_key ON lots (market_key, lot_size, price, lot) WHERE open = 1;
+  CREATE INDEX IF NOT EXISTS lots_kind ON lots (kind, market_key, lot_size, price, lot) WHERE open = 1;
+  CREATE INDEX IF NOT EXISTS lots_key_from ON lots (market_key, lot_size, _from);
+  CREATE INDEX IF NOT EXISTS lots_key_to ON lots (market_key, lot_size, _to) WHERE _to IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS lots_sales ON lots (market_key, lot_size, closed_time) WHERE sold = 1;
   CREATE TABLE IF NOT EXISTS trades (
     trade TEXT NOT NULL, invited INTEGER NOT NULL, inviter INTEGER NOT NULL,
-    open INTEGER NOT NULL, outcome INTEGER, opened INTEGER NOT NULL,
+    open INTEGER NOT NULL, outcome INTEGER, opened INTEGER NOT NULL, opened_time INTEGER NOT NULL,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS trades_current ON trades (trade) WHERE _to IS NULL;
@@ -90,12 +102,16 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS presence_current ON presence (adventurer) WHERE _to IS NULL;
   CREATE INDEX IF NOT EXISTS presence_hub ON presence (hub);
+  CREATE INDEX IF NOT EXISTS presence_adventurer ON presence (adventurer, _from);
+  CREATE INDEX IF NOT EXISTS presence_hub_from ON presence (hub, _from);
+  CREATE INDEX IF NOT EXISTS presence_hub_to ON presence (hub, _to) WHERE _to IS NOT NULL;
   -- The displayed title, emitted only (scope 3): one current row per adventurer.
   CREATE TABLE IF NOT EXISTS titles (
     adventurer INTEGER NOT NULL, title INTEGER NOT NULL, tier INTEGER NOT NULL,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS titles_current ON titles (adventurer) WHERE _to IS NULL;
+  CREATE INDEX IF NOT EXISTS titles_adventurer ON titles (adventurer, _from);
   -- Facts of the rankings (version 1), one row per event.
   CREATE TABLE IF NOT EXISTS trial_passes (
     adventurer INTEGER NOT NULL, rank INTEGER NOT NULL, first_attempt INTEGER NOT NULL,
@@ -150,6 +166,7 @@ const pick = (row: Row, columns: string[]): Row =>
 export class Store {
   private readonly db: DatabaseSync;
   private readonly sql: ReturnType<typeof statements>;
+  private readonly prepared = new Map<string, StatementSync>();
 
   /** `readOnly`: another process's database, read beside it (the local-node scenario). */
   constructor(path: string, options: { readOnly?: boolean } = {}) {
@@ -171,6 +188,16 @@ export class Store {
 
   close() {
     this.db.close();
+  }
+
+  /** A read statement of the queries (queries.ts), prepared once. */
+  statement(sql: string): StatementSync {
+    let statement = this.prepared.get(sql);
+    if (!statement) {
+      statement = this.db.prepare(sql);
+      this.prepared.set(sql, statement);
+    }
+    return statement;
   }
 
   /** Runs `work` in one transaction: all of it, or nothing. */
@@ -328,6 +355,7 @@ export class Store {
               open: 1,
               sold: 0,
               posted: at,
+              closed_time: null,
               _from: at,
             });
             break;
@@ -349,6 +377,7 @@ export class Store {
               ...pick(current, LOT_COLUMNS),
               open: 0,
               sold: Number(event.sold),
+              closed_time: block.timestamp,
               _from: at,
             });
             break;
@@ -367,6 +396,7 @@ export class Store {
               open: 1,
               outcome: null,
               opened: at,
+              opened_time: block.timestamp,
               _from: at,
             });
             break;
@@ -391,6 +421,7 @@ export class Store {
               open: 0,
               outcome: event.outcome,
               opened: current.opened ?? null,
+              opened_time: current.opened_time ?? null,
               _from: at,
             });
             break;
@@ -438,6 +469,7 @@ export class Store {
         block.hash,
         block.parent,
         block.commitments,
+        block.timestamp,
       );
     });
   }
@@ -529,16 +561,16 @@ function statements(db: DatabaseSync) {
       "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
     ),
     tip: db.prepare(
-      "SELECT number, hash, parent, commitments FROM blocks ORDER BY number DESC LIMIT 1",
+      "SELECT number, hash, parent, commitments, timestamp FROM blocks ORDER BY number DESC LIMIT 1",
     ),
     lowest: db.prepare(
-      "SELECT number, hash, parent, commitments FROM blocks ORDER BY number LIMIT 1",
+      "SELECT number, hash, parent, commitments, timestamp FROM blocks ORDER BY number LIMIT 1",
     ),
     block: db.prepare(
-      "SELECT number, hash, parent, commitments FROM blocks WHERE number = ?",
+      "SELECT number, hash, parent, commitments, timestamp FROM blocks WHERE number = ?",
     ),
     insertBlock: db.prepare(
-      "INSERT INTO blocks (number, hash, parent, commitments) VALUES (?, ?, ?, ?)",
+      "INSERT INTO blocks (number, hash, parent, commitments, timestamp) VALUES (?, ?, ?, ?, ?)",
     ),
     insertEvent: db.prepare(
       "INSERT INTO events (source, name, keys, data, tx_hash, tx, idx, _from) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -547,9 +579,9 @@ function statements(db: DatabaseSync) {
     currentLot: db.prepare("SELECT * FROM lots WHERE lot = ? AND _to IS NULL"),
     insertLot: db.prepare(
       `INSERT INTO lots (lot, market_key, kind, item, base, requirement, rarity, identified,
-         lot_size, price, expiry, equipment, modifiers, open, sold, posted, _from)
+         lot_size, price, expiry, equipment, modifiers, open, sold, posted, closed_time, _from)
        VALUES (:lot, :market_key, :kind, :item, :base, :requirement, :rarity, :identified,
-         :lot_size, :price, :expiry, :equipment, :modifiers, :open, :sold, :posted, :_from)`,
+         :lot_size, :price, :expiry, :equipment, :modifiers, :open, :sold, :posted, :closed_time, :_from)`,
     ),
     closeLot: db.prepare(
       "UPDATE lots SET _to = ? WHERE lot = ? AND _to IS NULL",
@@ -559,8 +591,8 @@ function statements(db: DatabaseSync) {
       "SELECT * FROM trades WHERE trade = ? AND _to IS NULL",
     ),
     insertTrade: db.prepare(
-      `INSERT INTO trades (trade, invited, inviter, open, outcome, opened, _from)
-       VALUES (:trade, :invited, :inviter, :open, :outcome, :opened, :_from)`,
+      `INSERT INTO trades (trade, invited, inviter, open, outcome, opened, opened_time, _from)
+       VALUES (:trade, :invited, :inviter, :open, :outcome, :opened, :opened_time, :_from)`,
     ),
     closeTrade: db.prepare(
       "UPDATE trades SET _to = ? WHERE trade = ? AND _to IS NULL",

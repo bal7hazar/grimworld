@@ -19,6 +19,13 @@
 // otherwise the step ends and the next one rewinds. Pre-confirmed blocks are never read: the
 // node's tip is its latest accepted block.
 //
+// Listeners (IDX-01b, the subscriptions): `served(previous, next)` once a new block is served, with
+// the block served before it (null after a rewind or at the start); `rewound(to)` once the tables
+// went back to block `to`; `status(status, reason)` at every change of state. They run
+// synchronously inside the step, before the history below the kept depth is forgotten, so they
+// can read the tables as of any block from `previous` to `next`. A listener that throws is logged
+// and does not stop the loop.
+//
 // RESIDUAL, DEVNET ONLY: a block replaced deeper than `recheck.depth` below the tip, under
 // replacement blocks that keep the aborted blocks' hashes AND commitments (devnet's empty blocks
 // do), is not seen: the tip and the window above it look unchanged. On a real network a replaced
@@ -50,6 +57,12 @@ export type Options = {
 
 export type Rewind = { from: number; to: number; ms: number };
 
+export type Listener = {
+  served?: (previous: Header | null, next: Header) => void;
+  rewound?: (to: number) => void;
+  status?: (status: Status, reason: string) => void;
+};
+
 /** The rewinds kept in memory for /stats: the count, and the last ones. */
 export const REWINDS_KEPT = 20;
 
@@ -74,6 +87,7 @@ export class Indexer {
   private readonly recheck: { depth: number; everyMs: number };
   private lastRecheck = -Infinity;
   private readonly log: (message: string) => void;
+  private readonly listeners = new Set<Listener>();
 
   constructor(options: Options) {
     this.chain = options.chain;
@@ -86,11 +100,28 @@ export class Indexer {
     this.store.open(this.config);
   }
 
+  /** Adds a listener; returns its removal. */
+  listen(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify(call: (listener: Listener) => void) {
+    for (const listener of [...this.listeners]) {
+      try {
+        call(listener);
+      } catch (error) {
+        this.log(`a listener failed: ${(error as Error).message}`);
+      }
+    }
+  }
+
   private setStatus(next: Status, reason = "") {
     if (this.status === next && this.reason === reason) return;
     this.status = next;
     this.reason = reason;
     this.log(`status ${next}${reason ? `: ${reason}` : ""}`);
+    this.notify((listener) => listener.status?.(next, reason));
   }
 
   /** Stops following for good: every answer is `halted`, with the reason. */
@@ -126,6 +157,7 @@ export class Indexer {
     this.rewinds.push({ from: tip, to: fork, ms });
     if (this.rewinds.length > REWINDS_KEPT) this.rewinds.shift();
     this.log(`rewind from ${tip} to ${fork} (${why}) in ${ms.toFixed(1)} ms`);
+    this.notify((listener) => listener.rewound?.(fork));
   }
 
   /** True when the node still has `block` (hash and commitments). */
@@ -170,14 +202,16 @@ export class Indexer {
           return true;
         }
       }
-      if (this.store.checked() < stored.number) {
-        this.store.setChecked(stored.number);
-        await this.prune();
-      }
+      const advanced = this.store.checked() < stored.number;
+      if (advanced) this.store.setChecked(stored.number);
       if (!this.served || !sameBlock(this.served, stored)) {
+        const previous = this.served;
         this.served = stored;
         this.setStatus("ok");
+        // Before pruning: the listeners read the tables as of `previous` and after (header note).
+        this.notify((listener) => listener.served?.(previous, stored));
       }
+      if (advanced) await this.prune();
     }
     let next = stored ? stored.number + 1 : this.config.from;
     if (next > chainTip.number) return false;
