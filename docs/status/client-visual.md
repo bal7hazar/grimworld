@@ -2,21 +2,22 @@
 
 **2026-09-29 10:20 UTC** — written by the orchestrator of track CV,
 `[Opus 5.5] Orchestrateur client visuel (Mac)`. Mandate:
-[ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146; on the branch `pm/client-visual-track`,
-PR [#117](https://github.com/bal7hazar/grimworld/pull/117), until it is merged). Rewritten at each
+[ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146; [#117](https://github.com/bal7hazar/grimworld/pull/117), amended by
+[#119](https://github.com/bal7hazar/grimworld/pull/119)). Rewritten at each
 check-in; the project manager reads it like a track's `STATUS.md`.
 
 ## Where we are
 
-The track opened today. The owner lifted the wait for #117's merge (relayed by the owner's
-architecture session on the Mac): the orchestrator writes briefs and launches, but **merges nothing
-until #117 is on `main`**, since the scope check at a merge is the mandate's as merged.
+The track opened today. The mandate (#117) is merged; its amendment #119 (the account check through
+`CLAUDE_CONFIG_DIR=~/.claude-b7r`, briefs `CV-*` for the track's tooling) is in CI. The orchestrator
+writes briefs and launches, but **merges nothing until #119 is on `main`**, since the scope check at a
+merge is the mandate's as merged.
 
 ## Checks of the machine (2026-09-29, 10:10 UTC)
 
 | Check | Result |
 |---|---|
-| Account of the agents | `CLAUDE_CONFIG_DIR=~/.claude-b7r claude auth status`: logged in, **claude-b7r@proton.me**. The Mac's default `claude` configuration (`~/.claude`) is on bal7hazar: it is the desktop app's, and no agent uses it (see *Asked of the project manager*) |
+| Account of the agents | `CLAUDE_CONFIG_DIR=~/.claude-b7r claude auth status`: logged in, **claude-b7r@proton.me**. The Mac's default `claude` configuration (`~/.claude`) is on bal7hazar: it is the desktop app's, and no agent uses it (#119) |
 | `claude` CLI | 2.1.281 |
 | `codex` | 0.156.1 (`gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`) |
 | `gh` | logged in as bal7hazar (repo, workflow) |
@@ -52,12 +53,12 @@ Budget: 2 at a time, audits included (D-146).
 
 | PR | Content | State |
 |---|---|---|
-| [#118](https://github.com/bal7hazar/grimworld/pull/118) (`cv/cv-00-status`) | This file; `PENDING-cv-mandate.md` | Open; merged after #117 |
+| [#118](https://github.com/bal7hazar/grimworld/pull/118) (`cv/cv-00-status`) | This file | Open; merged after #119 |
 
 ## Asked of the project manager
 
-[PENDING-cv-mandate](../decisions/PENDING-cv-mandate.md): the account check on the Mac, and the
-prefix `CV-*` for the track's own tooling briefs.
+Nothing open. The two precisions asked on 2026-09-29 (the account check on the Mac, briefs `CV-*`)
+are answered by #119.
 
 ## Next
 
