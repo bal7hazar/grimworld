@@ -187,3 +187,8 @@ pub const POW2_FELT: [felt252; 240] = [
     0x400000000000000000000000000000000000000000000000000000000000,
     0x800000000000000000000000000000000000000000000000000000000000,
 ];
+
+/// The window's interior, columns 1 to 13 and rows 1 to 14 (ADR-0006 §4: the ring is wall),
+/// as the two limbs of its u256 view.
+pub const WINDOW_INTERIOR_LOW: u128 = 0xfe7ffcfff9fff3ffe7ffcfff9fff0000;
+pub const WINDOW_INTERIOR_HIGH: u128 = 0xfff9fff3ffe7ffcfff9fff3f;

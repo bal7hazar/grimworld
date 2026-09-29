@@ -18,7 +18,7 @@ import {
   u32,
   u8,
 } from "./cairo.ts";
-import { POW2_X40 } from "./table.ts";
+import { POW2_X40, WINDOW_INTERIOR } from "./table.ts";
 
 const X_LOW = -160n;
 const X_HIGH = 80n;
@@ -74,6 +74,9 @@ export function goblinStep(
   target: bigint,
 ): [bigint, bigint] {
   if (!(goblin < TILES && target < TILES)) throw new CairoPanic(felt("board: tile outside window"));
+  // The ring is wall for the computation (ADR-0006 §4): a goblin on it holds, none steps onto it.
+  if (!has(WINDOW_INTERIOR, goblin)) return [goblin, occupied];
+  walkable &= WINDOW_INTERIOR;
   const here = distance(goblin, target);
   if (here <= 1n) return [goblin, occupied];
   const row = goblin / WIDTH;
@@ -110,6 +113,7 @@ export function goblinStep(
 
 /** One case, `[op, args...]`, decoded as spikes/SPK-4/cairo/logic/src/exec.cairo does. */
 export function run(c: bigint[]): bigint[] {
+  if (c.length === 0) throw new CairoPanic(felt("exec: empty case"));
   const op = c[0];
   if (op === 0n) {
     if (c.length !== 7) throw new CairoPanic(felt("exec: wrong argument count"));

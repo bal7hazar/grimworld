@@ -21,27 +21,37 @@ function percentile(sorted, p) {
   return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length * p) / 100))];
 }
 
+const serialise = (c) => [c.length, ...c].map(hex).join(",");
+
 export async function bench({ init, Runner, wasmBytes, stepJson, batchJson, vectorsText, sampleText, now }) {
   const r = {};
+  // Cold start, with the boundaries of the mirror's replay (ts/replay.ts): the files are read and
+  // the first vector parsed before the clock starts; then initialise (instantiate the wasm), load
+  // the executable (parse it into a Program), serialise the first input (hex to the argument
+  // string), execute it once (the run and the decoding of its JSON outcome).
+  const lines = vectorsText.split("\n").filter((l) => l.length > 0);
+  if (lines.length === 0) throw new Error("no vector");
+  const firstVector = JSON.parse(lines[0]);
   const t0 = now();
   const wasm = await init({ module_or_path: wasmBytes });
-  const tInit = now();
+  const t1 = now();
   const step = new Runner(stepJson);
-  const tLoad = now();
-  const vectors = vectorsText
-    .split("\n")
-    .filter((l) => l.length > 0)
-    .map((l) => JSON.parse(l));
-  const args = vectors.map((v) => [v.case.length, ...v.case].map(hex).join(","));
-  const run = (i) => JSON.parse(step.run(args[i]));
-  run(0);
-  const tFirst = now();
+  const t2 = now();
+  const firstArgs = serialise(firstVector.case);
+  const t3 = now();
+  JSON.parse(step.run(firstArgs));
+  const t4 = now();
   r.wasm_bytes = wasmBytes.byteLength;
-  r.instantiate_ms = +(tInit - t0).toFixed(2);
-  r.load_step_ms = +(tLoad - tInit).toFixed(2);
-  r.first_call_ms = +(tFirst - tLoad).toFixed(2);
-  r.cold_start_ms = +(tFirst - t0).toFixed(2);
+  r.cold = {
+    init_ms: +(t1 - t0).toFixed(3),
+    load_executable_ms: +(t2 - t1).toFixed(3),
+    serialise_first_input_ms: +(t3 - t2).toFixed(3),
+    first_execution_ms: +(t4 - t3).toFixed(3),
+  };
   r.bytecode_felts = step.bytecodeLen();
+  const vectors = lines.map((l) => JSON.parse(l));
+  const args = vectors.map((v) => serialise(v.case));
+  const run = (i) => JSON.parse(step.run(args[i]));
 
   // 1. Every vector through `step`.
   let divergences = 0;
@@ -106,6 +116,7 @@ export async function bench({ init, Runner, wasmBytes, stepJson, batchJson, vect
   };
   for (const op of ["0x0", "0x1"]) {
     const idx = vectors.map((v, i) => (v.case[0] === op && v.ok ? i : -1)).filter((i) => i >= 0);
+    if (idx.length === 0) continue;
     const s = now();
     for (const i of idx) step.run(args[i]);
     r.timing.by_op_us_mean[op === "0x0" ? "damage" : "goblin_step"] = +(((now() - s) * 1000) / idx.length).toFixed(1);
@@ -116,7 +127,7 @@ export async function bench({ init, Runner, wasmBytes, stepJson, batchJson, vect
   let i = 0;
   let runs = 0;
   let batchDivergences = 0;
-  const t2 = now();
+  const tb = now();
   while (i < vectors.length) {
     const cases = vectors.slice(i, i + BATCH).map((v) => v.case);
     const flat = cases.flatMap((c) => [c.length, ...c]);
@@ -143,24 +154,54 @@ export async function bench({ init, Runner, wasmBytes, stepJson, batchJson, vect
       i += cases.length - printed.length;
     }
   }
-  r.batch = { runs, divergences: batchDivergences, ms: +(now() - t2).toFixed(1) };
+  r.batch = { runs, divergences: batchDivergences, ms: +(now() - tb).toFixed(1) };
 
-  // 3. The sample `scarb execute` ran through `step`.
+  // 3. The sample `scarb execute` ran through `step`: every sampled id must be among the vectors.
+  const byId = new Map(vectors.map((v, k) => [v.id, k]));
   if (sampleText) {
     const sample = sampleText
       .split("\n")
       .filter((l) => l.length > 0)
       .map((l) => JSON.parse(l));
     let differs = 0;
+    let missing = 0;
+    let stepsCompared = 0;
     const stepDelta = new Set();
     for (const s of sample) {
-      const o = outcomes[s.id];
+      const k = byId.get(s.id);
+      if (k === undefined) {
+        missing++;
+        continue;
+      }
+      const o = outcomes[k];
       const same = s.ok ? o.ok && sameFelts(o.ok, s.ok) : o.panic && sameFelts(o.panic, s.panic);
       if (!same) differs++;
-      if (s.steps !== undefined) stepDelta.add(s.steps - o.steps);
+      // Steps exist for successful runs only: scarb prints no resources for a panic.
+      if (s.steps !== undefined && o.ok) {
+        stepsCompared++;
+        stepDelta.add(s.steps - o.steps);
+      }
     }
-    r.scarb_sample = { cases: sample.length, differs, steps_scarb_minus_wasm: [...stepDelta] };
+    r.scarb_sample = {
+      cases: sample.length,
+      missing,
+      differs,
+      successful_runs_steps_compared: stepsCompared,
+      steps_scarb_minus_wasm: [...stepDelta],
+    };
   }
   r.wasm_memory_bytes = wasm.memory.buffer.byteLength;
+
+  // The verdict: anything short of full agreement and full verification is a failure.
+  const failures = [];
+  if (r.step.divergences) failures.push(`${r.step.divergences} divergence(s) through step`);
+  if (r.batch.divergences) failures.push(`${r.batch.divergences} divergence(s) through batch`);
+  if (!r.scarb_sample) failures.push("no scarb sample: verification incomplete");
+  else {
+    if (r.scarb_sample.differs) failures.push(`${r.scarb_sample.differs} sampled case(s) differ from scarb execute`);
+    if (r.scarb_sample.missing) failures.push(`${r.scarb_sample.missing} sampled id(s) absent from the vectors`);
+    if (r.scarb_sample.cases === 0) failures.push("empty scarb sample: verification incomplete");
+  }
+  r.failures = failures;
   return r;
 }

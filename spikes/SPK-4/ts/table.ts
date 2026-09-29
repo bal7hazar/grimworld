@@ -245,3 +245,6 @@ export const POW2_X40: readonly bigint[] = [
   257641n,
   262144n,
 ];
+
+// The window's interior, columns 1 to 13 and rows 1 to 14 (ADR-0006 §4: the ring is wall).
+export const WINDOW_INTERIOR = 0xfff9fff3ffe7ffcfff9fff3ffe7ffcfff9fff3ffe7ffcfff9fff0000n;

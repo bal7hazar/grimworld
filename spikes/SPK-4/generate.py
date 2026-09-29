@@ -143,17 +143,40 @@ def decoding_case(r):
             r.choice([256, 300, 2**16, P - 1])]
 
 
+RING = [t for t in range(240) if t % 15 in (0, 14) or t // 15 in (0, 15)]
+# Interior tiles next to the ring: where "never step onto the ring" decides the move.
+NEXT_TO_RING = [t for t in range(240) if t not in RING and (t % 15 in (1, 13) or t // 15 in (1, 14))]
+
+
+def ring_case(r):
+    """The ring of ADR-0006 §4, added after fix loop 1: a goblin on the ring (it holds), or a
+    goblin next to it whose best step, were the ring open, would be onto it."""
+    c = goblin_case(r)
+    while c[3] >= 240 or c[4] >= 240:
+        c = goblin_case(r)
+    goblin = r.choice(RING) if r.random() < 0.4 else r.choice(NEXT_TO_RING)
+    # A target on the ring's side of the goblin, often on the ring itself.
+    target = r.choice(RING) if r.random() < 0.7 else r.choice(NEXT_TO_RING)
+    occupied = (c[2] | (1 << goblin)) % P
+    walkable = c[1] | ((1 << 240) - 1) if r.random() < 0.5 else c[1]  # the ring often marked walkable
+    return [1, walkable % P, occupied, goblin, target]
+
+
 def cases(count, seed):
     r = random.Random(seed)
     out = []
     for _ in range(count):
         k = r.random()
-        if k < 0.49:
+        if k < 0.46:
             out.append(damage_case(r))
-        elif k < 0.975:
+        elif k < 0.905:
             out.append(goblin_case(r))
-        elif k < 0.99:
+        elif k < 0.965:
+            out.append(ring_case(r))
+        elif k < 0.98:
             out.append(decoding_case(r))
+        elif k < 0.982:
+            out.append([])  # the empty case (fix loop 1)
         else:
             out.append(malformed_case(r))
     return out
@@ -225,7 +248,8 @@ def main():
     panics = sum(1 for v in vectors if "panic" in v)
     by_op = {}
     for v in vectors:
-        key = ("damage" if v["case"][0] == "0x0" else "goblin" if v["case"][0] == "0x1" else "other") + (
+        op = v["case"][0] if v["case"] else None
+        key = ("damage" if op == "0x0" else "goblin" if op == "0x1" else "empty" if op is None else "other") + (
             " panic" if "panic" in v else " ok")
         by_op[key] = by_op.get(key, 0) + 1
     print(f"{len(vectors)} vectors, {panics} panics, {runs} runs of scarb execute, {time.time() - t0:.0f} s")

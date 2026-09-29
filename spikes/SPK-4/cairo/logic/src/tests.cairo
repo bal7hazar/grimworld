@@ -80,7 +80,8 @@ fn distance_on_the_window() {
 }
 
 #[test]
-#[available_gas(l2_gas: 63206)]
+// gas: raised, the ring of ADR-0006 §4 is now wall (SPK-4 fix loop 1)
+#[available_gas(l2_gas: 67531)]
 fn goblin_steps_toward_the_target() {
     // Goblin at (7, 8) = 127, target at (7, 2) = 37: its upper neighbours (6, 7) = 111 and
     // (7, 7) = 112 are both at distance 5; the lowest tile wins.
@@ -96,7 +97,8 @@ fn bit(tile: u32) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 64225)]
+// gas: raised, the ring of ADR-0006 §4 is now wall (SPK-4 fix loop 1)
+#[available_gas(l2_gas: 68550)]
 fn goblin_avoids_occupied_and_walls() {
     // 111 occupied, 112 a wall: no free neighbour is nearer; the goblin holds.
     let walkable = OPEN - bit(112);
@@ -107,7 +109,26 @@ fn goblin_avoids_occupied_and_walls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14406)]
+#[available_gas(l2_gas: 49935)]
+fn goblin_on_the_ring_holds() {
+    // (14, 0) = 14 is on the ring: not simulated, whatever the target.
+    let (tile, after) = goblin_step(OPEN, bit(14), 14, 127);
+    assert_eq!(tile, 14);
+    assert_eq!(after, bit(14));
+}
+
+#[test]
+#[available_gas(l2_gas: 66765)]
+fn goblin_never_steps_onto_the_ring() {
+    // Goblin at (2, 1) = 17, target at (1, 0) = 1: the ring tile (2, 0) = 2 and the interior tile
+    // (1, 1) = 16 are both at distance 1; the ring is wall, so 16, though 2 is the lower tile.
+    let (tile, _) = goblin_step(OPEN, bit(17), 17, 1);
+    assert_eq!(tile, 16);
+}
+
+#[test]
+// gas: raised, the ring of ADR-0006 §4 is now wall (SPK-4 fix loop 1)
+#[available_gas(l2_gas: 19103)]
 fn goblin_next_to_the_target_holds() {
     let (tile, _) = goblin_step(OPEN, 0, 127, 128);
     assert_eq!(tile, 127);
@@ -131,7 +152,8 @@ fn bench_damage() {
 
 /// Benchmark: a goblin step that weighs all six neighbours, all free, and moves.
 #[test]
-#[available_gas(l2_gas: 61453)]
+// gas: raised, the ring of ADR-0006 §4 is now wall (SPK-4 fix loop 1)
+#[available_gas(l2_gas: 65778)]
 fn bench_goblin_step() {
     let (tile, _) = goblin_step(OPEN, bit(127), 127, 37);
     assert_eq!(tile, 111);
@@ -142,6 +164,13 @@ fn bench_goblin_step() {
 fn exec_decodes_a_damage_case() {
     let r = run(array![0, 101, 60, 60, 0, 0, -33].span());
     assert_eq!(r, array![68]);
+}
+
+#[test]
+#[should_panic(expected: 'exec: empty case')]
+#[available_gas(l2_gas: 16296)]
+fn exec_rejects_an_empty_case() {
+    run(array![].span());
 }
 
 #[test]

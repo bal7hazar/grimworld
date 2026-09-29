@@ -1,7 +1,8 @@
 //! Native baseline of the runner.
 //!
 //!   spk4-run <executable.json> args <felts>        one run, its outcome as JSON
-//!   spk4-run <executable.json> vectors <file>      every vector through `step`, compared
+//!   spk4-run <executable.json> vectors <file>      every vector through `step`, compared;
+//!                                                  exits 1 on a divergence or an empty file
 
 use std::time::Instant;
 
@@ -39,7 +40,13 @@ fn main() {
                     Ok(r) => ("ok", r.iter().skip(1).map(|f| f.to_hex_string()).collect::<Vec<_>>()),
                     Err(p) => ("panic", p.iter().map(|f| f.to_hex_string()).collect()),
                 };
-                let want = if v.get("ok").is_some() { ("ok", hex(&v["ok"])) } else { ("panic", hex(&v["panic"])) };
+                let want = if v.get("ok").is_some() {
+                    ("ok", hex(&v["ok"]))
+                } else if v.get("panic").is_some() {
+                    ("panic", hex(&v["panic"]))
+                } else {
+                    ("no expectation", vec![])
+                };
                 if got != want {
                     diverge += 1;
                     if diverge <= 10 {
@@ -52,9 +59,14 @@ fn main() {
             let ms = t.elapsed().as_secs_f64() * 1e3;
             println!(
                 "{{\"vectors\":{n},\"divergences\":{diverge},\"load_ms\":{load_ms:.1},\"run_ms\":{ms:.1},\"per_call_us\":{:.1},\"mean_steps\":{:.1}}}",
-                ms * 1e3 / n as f64,
-                steps as f64 / n as f64
+                ms * 1e3 / n.max(1) as f64,
+                steps as f64 / n.max(1) as f64
             );
+            // A divergence, or nothing verified, is a failure.
+            if diverge > 0 || n == 0 {
+                eprintln!("FAIL: {diverge} divergence(s) over {n} vector(s)");
+                std::process::exit(1);
+            }
         }
         _ => {
             eprintln!("unknown mode {}", a[2]);

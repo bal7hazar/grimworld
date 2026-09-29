@@ -12,10 +12,13 @@ use crate::damage::damage;
 pub mod errors {
     pub const UNKNOWN_OP: felt252 = 'exec: unknown op';
     pub const ARGUMENTS: felt252 = 'exec: wrong argument count';
+    pub const EMPTY: felt252 = 'exec: empty case';
 }
 
 /// Runs one case.
 pub fn run(case: Span<felt252>) -> Array<felt252> {
+    // An explicit check, so that the panic data is ours and not the core's `Index out of bounds`.
+    assert(case.len() > 0, errors::EMPTY);
     let op = *case[0];
     if op == 0 {
         assert(case.len() == 7, errors::ARGUMENTS);

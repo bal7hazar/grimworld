@@ -30,6 +30,11 @@ def table():
     return out
 
 
+def window_interior():
+    """Bit 15 row + col set for every tile off the ring of the 15 x 16 window."""
+    return sum(1 << (15 * r + c) for r in range(1, 15) for c in range(1, 14))
+
+
 def main():
     t = table()
     n = len(t)
@@ -51,6 +56,16 @@ def main():
     cairo += ["];", "", "/// 2^i, i in [0, 240): tile i of a window layer.", "pub const POW2_FELT: [felt252; 240] = ["]
     cairo += [f"    {hex(2 ** i)}," for i in range(240)]
     cairo += ["];", ""]
+    # The window's interior (ADR-0006 §4): the outer ring (column 0 and 14, row 0 and 15) is wall
+    # for the computation.
+    interior = window_interior()
+    cairo += [
+        "/// The window's interior, columns 1 to 13 and rows 1 to 14 (ADR-0006 §4: the ring is wall),",
+        "/// as the two limbs of its u256 view.",
+        f"pub const WINDOW_INTERIOR_LOW: u128 = {hex(interior & (2**128 - 1))};",
+        f"pub const WINDOW_INTERIOR_HIGH: u128 = {hex(interior >> 128)};",
+        "",
+    ]
     with open(os.path.join(HERE, "cairo", "logic", "src", "table.cairo"), "w", encoding="utf-8") as f:
         f.write("\n".join(cairo))
     ts = [
@@ -62,6 +77,11 @@ def main():
     ]
     ts += [f"  {v}n," for v in t]
     ts += ["];", ""]
+    ts += [
+        "// The window's interior, columns 1 to 13 and rows 1 to 14 (ADR-0006 §4: the ring is wall).",
+        f"export const WINDOW_INTERIOR = {hex(interior)}n;",
+        "",
+    ]
     with open(os.path.join(HERE, "ts", "table.ts"), "w", encoding="utf-8") as f:
         f.write("\n".join(ts))
     print(f"{n} entries, from {t[0]} (x = {LOW}) to {t[-1]} (x = {HIGH})")

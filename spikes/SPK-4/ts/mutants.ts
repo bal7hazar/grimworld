@@ -88,6 +88,26 @@ const MUTANTS: Mutant[] = [
     to: "fromFelt(i32, c[6] > 2n ** 250n ? c[6] - (2n ** 251n + 17n * 2n ** 192n + 1n) : c[6]) & 0xffffn,",
   },
   {
+    name: "goblin on the ring simulated (ring ignored for the goblin)",
+    from: "  if (!has(WINDOW_INTERIOR, goblin)) return [goblin, occupied];\n",
+    to: "",
+  },
+  {
+    name: "ring tiles walkable (ring ignored for the step)",
+    from: "  walkable &= WINDOW_INTERIOR;\n",
+    to: "",
+  },
+  {
+    name: "ring ignored entirely (an unrestricted board)",
+    from: "  if (!has(WINDOW_INTERIOR, goblin)) return [goblin, occupied];\n  walkable &= WINDOW_INTERIOR;\n",
+    to: "",
+  },
+  {
+    name: "empty case not checked",
+    from: '  if (c.length === 0) throw new CairoPanic(felt("exec: empty case"));\n',
+    to: "",
+  },
+  {
     name: "tile outside the window not rejected",
     from: 'if (!(goblin < TILES && target < TILES)) throw new CairoPanic(felt("board: tile outside window"));',
     to: "void TILES;",

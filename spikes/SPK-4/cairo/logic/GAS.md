@@ -7,7 +7,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
 | `tests::bench_damage` | 23990 | 25190 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
-| `tests::bench_goblin_step` | 58526 | 61453 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::bench_goblin_step` | 62645 | 65778 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `tests::damage_armor_underflow_panics` | 15320 | 16086 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `tests::damage_clamps_to_the_table` | 24320 | 25536 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `tests::damage_equal_strength_and_armor_is_base` | 20730 | 21767 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
@@ -19,7 +19,10 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `tests::distance_on_the_window` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `tests::exec_decodes_a_damage_case` | 32430 | 34052 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `tests::exec_rejects_an_argument_outside_its_type` | 16920 | 17766 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
-| `tests::goblin_avoids_occupied_and_walls` | 61166 | 64225 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
-| `tests::goblin_next_to_the_target_holds` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::exec_rejects_an_empty_case` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::goblin_avoids_occupied_and_walls` | 65285 | 68550 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::goblin_never_steps_onto_the_ring` | 63585 | 66765 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::goblin_next_to_the_target_holds` | 18193 | 19103 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::goblin_on_the_ring_holds` | 47557 | 49935 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `tests::goblin_outside_the_window_panics` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
-| `tests::goblin_steps_toward_the_target` | 60196 | 63206 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `tests::goblin_steps_toward_the_target` | 64315 | 67531 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |

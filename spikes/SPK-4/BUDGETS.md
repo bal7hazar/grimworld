@@ -7,7 +7,7 @@ Source of truth for the cost budgets of `spikes/SPK-4/cairo/` (docs/CAIRO.md §2
 | Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |
 |---|---|---:|---:|---|---|
 | spk4 | `tests::bench_damage` | 23990 | 25190 | 2026-09-29 | d65eb86 |
-| spk4 | `tests::bench_goblin_step` | 58526 | 61453 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::bench_goblin_step` | 62645 | 65778 | 2026-09-29 | d65eb86 |
 | spk4 | `tests::damage_armor_underflow_panics` | 15320 | 16086 | 2026-09-29 | d65eb86 |
 | spk4 | `tests::damage_clamps_to_the_table` | 24320 | 25536 | 2026-09-29 | d65eb86 |
 | spk4 | `tests::damage_equal_strength_and_armor_is_base` | 20730 | 21767 | 2026-09-29 | d65eb86 |
@@ -19,7 +19,10 @@ Source of truth for the cost budgets of `spikes/SPK-4/cairo/` (docs/CAIRO.md §2
 | spk4 | `tests::distance_on_the_window` | 13720 | 14406 | 2026-09-29 | d65eb86 |
 | spk4 | `tests::exec_decodes_a_damage_case` | 32430 | 34052 | 2026-09-29 | d65eb86 |
 | spk4 | `tests::exec_rejects_an_argument_outside_its_type` | 16920 | 17766 | 2026-09-29 | d65eb86 |
-| spk4 | `tests::goblin_avoids_occupied_and_walls` | 61166 | 64225 | 2026-09-29 | d65eb86 |
-| spk4 | `tests::goblin_next_to_the_target_holds` | 13720 | 14406 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::exec_rejects_an_empty_case` | 15520 | 16296 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::goblin_avoids_occupied_and_walls` | 65285 | 68550 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::goblin_never_steps_onto_the_ring` | 63585 | 66765 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::goblin_next_to_the_target_holds` | 18193 | 19103 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::goblin_on_the_ring_holds` | 47557 | 49935 | 2026-09-29 | d65eb86 |
 | spk4 | `tests::goblin_outside_the_window_panics` | 15520 | 16296 | 2026-09-29 | d65eb86 |
-| spk4 | `tests::goblin_steps_toward_the_target` | 60196 | 63206 | 2026-09-29 | d65eb86 |
+| spk4 | `tests::goblin_steps_toward_the_target` | 64315 | 67531 | 2026-09-29 | d65eb86 |
