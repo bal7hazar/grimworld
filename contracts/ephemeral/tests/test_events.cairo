@@ -14,7 +14,8 @@ fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
 }
 
 #[test]
-#[available_gas(l2_gas: 92547)] // ceil(1.05 × 88140 measured)
+// gas: raised, pins Stop::Version and the seven Stop ordinals (F-15)
+#[available_gas(l2_gas: 154025)] // ceil(1.05 × 146690 measured)
 fn test_instances_event_keys_and_data() {
     let id = instance_id(5, 2);
     let (keys, data) = split(
@@ -42,6 +43,35 @@ fn test_instances_event_keys_and_data() {
     assert(keys == array![selector!("BatchPlayed"), id.into()], 'batch keys');
     // Stop::Invalid is variant 2.
     assert(data == array![9, 40, 3, 2, 43, 77, 6], 'batch data');
+
+    // A batch refused for its content version (D-141, E-5): nothing ran, so `played` is 0, `from`
+    // and `sequence` are the instance's, and `version` is the registry's current one (7), not the
+    // 6 the client sent. `Stop::Version` is variant 6.
+    let (_, data) = split(
+        Event::BatchPlayed(
+            BatchPlayed {
+                instance_id: id,
+                adventurer_id: 9,
+                from: 40,
+                played: 0,
+                stop: Stop::Version,
+                sequence: 40,
+                clock: 77,
+                version: 7,
+            },
+        ),
+    );
+    assert(data == array![9, 40, 0, 6, 40, 77, 7], 'version stop data');
+
+    // The ordinals 0 to 5 are unchanged; Version was appended.
+    let mut stops = array![];
+    for stop in array![
+        Stop::None, Stop::Sequence, Stop::Invalid, Stop::Weight, Stop::Defeated, Stop::Closed,
+        Stop::Version,
+    ] {
+        Serde::serialize(@stop, ref stops);
+    }
+    assert(stops == array![0, 1, 2, 3, 4, 5, 6], 'stop ordinals');
 
     let (keys, data) = split(
         Event::Refused(

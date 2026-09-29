@@ -91,5 +91,5 @@
 | `confirm_trade` | the swap (7 + 7 items, 2 + 2 balances, gold) | `H.core` 2 (old); `H.gold` 2 (first); `H.item` 14 (old); `H.pack_list` 8 (first/old); `H.pack_page` 8 (first/old); `M.trade` 1 (old) | 8 / 27 | 0 / 35 | 3 | TradeClosed ×1 |
 | `confirm_trade` | the first confirmation | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 3 | — |
 | `decline_trade`, `cancel_trade` | closed | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 2 | TradeClosed ×1 |
-| `Registry.set_record` (3 parts) | written | `R.last_id` 1 (first); `R.record` 3 (first) | 4 / 0 | 0 / 4 | 6 | — |
+| `Registry.set_record` (3 parts) | written | `R.content_version` 1 (first); `R.last_id` 1 (first); `R.record` 3 (first) | 5 / 0 | 0 / 5 | 6 | — |
 | admin setters, `upgrade` | set | `A.address` 4 (old) | 0 / 4 | 0 / 4 | 4 | — |

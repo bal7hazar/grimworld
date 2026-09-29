@@ -455,8 +455,8 @@ Reads: `record(kind, id)`, `records(kind, ids)`, and **`bundle(requests) -> (ver
 records)`**: every record an invocation needs in **one call** (C ≈ 0.12–0.14 M), whatever the kinds.
 
 **The content version** (ENG-01b, D-141, E-5). The registry's content carries a version, a `u32`
-in the storage variable `content_version` (one slot, 0 at deployment), raised by one by every
-`set_record` that changes a record (ENG-03 writes the rule; ENG-01b freezes the field). `bundle`
+in the storage variable `content_version` (one slot, 0 at deployment), raised by one, automatically, by every
+changed record (`set_record`; no admin setter; ENG-03 writes and tests the atomic update, ENG-01b freezes the field). `bundle`
 returns it first, in the call every invocation already makes: no further call. `play` compares it
 with the version its batch was computed under (§4.1).
 
@@ -551,7 +551,7 @@ elsewhere.
 ```
 IInstanceEntry (Instances; Hub only):  create(...) -> u64,  set_controller(adventurer_id, controller)
 IResults (Hub; Instances only):        report(results: Results),  barter(adventurer_id, collector) -> bool
-IRegistryRead (Registry):              record, records, bundle -> (version: u32, records)
+IRegistryRead (Registry):              record, records, bundle -> (version: u32, records), content_version -> u32
 IFate (provider):                      fate(domain) -> felt252
 IHubMarket (Hub; Market only):         seller, escrow, release, transfer_gold, exchange
 ```
@@ -611,7 +611,12 @@ views: lot, lot_count, open_lot_count, lots_of, trade, trade_count
 
 ## 5. Events (scope 4)
 
-The first key is the selector of the name. A change is a new event name (SPK-11 §6). Tested:
+The first key is the selector of the name. A change is a new event name (SPK-11 §6), with one recorded exception (orchestrator, ENG-01b fix
+loop 1): **until the first deployment of a build, an event's layout may change under its name; from
+then on, a change is a new name.** No build of ENG-01's contracts has been deployed (SPK-1's Sepolia
+deployment was SPK-2's spike classes, which have no `BatchPlayed`) and `play` is a stub, so no
+receipt holds the old layout of `BatchPlayed` and no consumer exists (IDX-01 has not started);
+`BatchPlayed.version` was added under this exception. Tested:
 `test_hub_events`, `test_market_events`, `test_instances_event_keys_and_data`,
 `test_per_action_event_keys_and_data`.
 
@@ -779,7 +784,7 @@ revealed, because `Σ (1 + 2 cᵢ) ≤ 10`):
 | Member words | 4 | 4 | |
 | Hub `report` | 5 | 5 | core (experience, `pack_lanes`), quiver's held quests ≤ 4 |
 | **Words** | **310** | **56** to **64** by branch without a reveal, **62** to **70** with 4 reveals (§10.1: open, objective, defeat, both) |  |
-| **Of which new, cold** | 280 + 10 roster pages + the counter | 32 goblin words (weighed by E-1: a batch writes one only by running a tick fewer, so none in the worst branch) + 2 roster pages + the counter; **3** without a reveal, **11** with 4 reveals | a swap removal only reaches pages holding entries: never new |
+| **Of which new, cold** | 280 + 10 roster pages + the counter | in the gas-maximising branch none of the 32 goblin words (E-1: a first record costs a tick) + 2 roster pages + the counter = **3**, **11** with 4 reveals. The branch with the most new keys is another: 9 first records and one tick, **21 N / 41 O**, 17.56 M (§10.1) | a swap removal only reaches pages holding entries: never new |
 | Events | ≤ 140 `GoblinKilled`, ≤ 4 `ChunkRevealed`, ≤ 1 `Defeated`, 1 `BatchPlayed` | ≤ 16, ≤ 4, ≤ 1, 1 | |
 
 Without a cap on goblins, a batch's writes are bounded only by 280 goblin words: 8.98 M at O
@@ -798,10 +803,12 @@ What happens to it is **E-21**, decided (a) by D-141:
   `mine` with the objective its ticks can complete, 57,844,498 (§10.1), 20.67 M initialised.
 - **(b) it is refused.** A player among many goblins cannot use a 2- or 3-tick action. In a cold
   slot the keys warm only by running, so a refused action can stay refused (a stall).
-- **E-1 (b) does not remove the initialised case.** One word per goblin keeps a cold invocation
-  under 40 M only in the cold columns: a goblin's second word is a cold-write cost, and the
-  initialised batch of §10.1 (47.34 M, 64 keys, all overwritten) is the same with one word or two.
-  E-1 (b) also costs the goblins' activations (E-1), and D-141 did not take it.
+- **E-1 (b) lowers the storage cost but does not reach 40 M.** One word per goblin drops a
+  goblin's second word, an overwrite when initialised and a new key when cold: for 16 goblins that
+  alone saves 16 keys at O, **513,152**, under unchanged computation assumptions. The
+  initialised batch of §10.1 (47.34 M with two words) is then about 46.8 M, still above 40 M, and
+  a cold 3-tick action falls to 38.56 M. E-1 (b) also costs the goblins' activations (E-1), and
+  D-141 did not take it.
 
 **Lifetime initialisation of one slot** (all its keys that can ever be new, then O forever):
 
@@ -973,7 +980,7 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `confirm_trade` | the swap (7 + 7 items, 2 + 2 balances, gold) | `H.core` 2 (old); `H.gold` 2 (first); `H.item` 14 (old); `H.pack_list` 8 (first/old); `H.pack_page` 8 (first/old); `M.trade` 1 (old) | 8 / 27 | 0 / 35 | 3 | TradeClosed ×1 |
 | `confirm_trade` | the first confirmation | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 3 | — |
 | `decline_trade`, `cancel_trade` | closed | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 2 | TradeClosed ×1 |
-| `Registry.set_record` (3 parts) | written | `R.last_id` 1 (first); `R.record` 3 (first) | 4 / 0 | 0 / 4 | 6 | — |
+| `Registry.set_record` (3 parts) | written | `R.content_version` 1 (first); `R.last_id` 1 (first); `R.record` 3 (first) | 5 / 0 | 0 / 5 | 6 | — |
 | admin setters, `upgrade` | set | `A.address` 4 (old) | 0 / 4 | 0 / 4 | 4 | — |
 
 **Views** (no transaction; reads bound what a node's call must allow):
@@ -989,7 +996,8 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `Hub.adventurer`, `account`, `item`, `grimoire`, `rift_board`, `gold`, `account_of`, `known_skills` | fixed | ≤ 6, ≤ 3 + 1 page, 2, 3, 1, 1, 1, ≤ 1 page (skill ids < 250 in the MVP) |
 | `Hub.quests` | ≤ 4 held | quiver's |
 | `Market.lot`, `lot_count`, `open_lot_count`, `trade_count`, `trade`, `lots_of` | `lots_of` ≤ 7 pages | 1, 1, 1, 1, 5, ≤ 7 |
-| `Registry.record`, `records`, `bundle` | `records` and `bundle` ≤ 32 records | ≤ 3 × 32 |
+| `Registry.record`, `records`, `bundle` | `records` and `bundle` ≤ 32 records | ≤ 3 × 32 = 96; `bundle` also reads `content_version`: **≤ 97** |
+| `Registry.content_version` | the content version alone | 1 |
 | `Registry.last_id` | one kind | 1 |
 | `version` (`Instances`, `Hub`, `Market`, `Registry`) | a constant of the class | 0 |
 | `TxHashFate` | no view; `fate` reads the transaction's info, no storage | 0 |
@@ -1093,7 +1101,7 @@ states' worst branches differ, both are named.
 | `set_trade_side` | set | 1 | 4 | 0 | 0 / 3 → **1,269,635** | 2 / 1 → **2,112,539** |
 | `confirm_trade` | the swap (7 + 7 items, 2 + 2 balances, gold) | 2 | 3 | 46,336 | 0 / 35 → **3,073,155** | 8 / 27 → **6,444,771** |
 | `decline_trade`, `cancel_trade` | closed | 1 | 2 | 46,336 | 0 / 1 → **1,141,587** | 0 / 1 → **1,141,587** |
-| `Registry.set_record` (3 parts) | written | 0 | 6 | 0 | 0 / 4 → **1,025,947** | 4 / 0 → **2,711,755** |
+| `Registry.set_record` (3 parts) | written | 0 | 6 | 0 | 0 / 5 → **1,058,019** | 5 / 0 → **3,165,279** |
 | admin setters, `upgrade` | set | 0 | 4 | 0 | 0 / 4 → **1,065,707** | 0 / 4 → **1,065,707** |
 
 Against cost-budget.md:
@@ -1181,10 +1189,13 @@ weighs 1, so a batch with `n` such records runs `10 − n` ticks. The worst bran
 | 3 | 7 | 38,211,135 |
 | 9 | 1 | 17,559,081 |
 
-Each first record replaces a tick (4.29 M) by 0.84 M of new storage, so the maximum is `n = 0`: the
-initialised batch of 47.34 M, plus 1.20 M for the other keys a fresh slot writes new (the roster
-pages and the counter). The cold 62.01 M of the earlier text is not reachable once the weight is
-counted.
+Each first record replaces a tick (4.29 M) by 0.84 M of new storage, so **the gas maximum is
+`n = 0`**: the initialised batch of 47.34 M, plus 1.20 M for the other keys a fresh slot writes new
+(the roster pages and the counter). The cold 62.01 M of the earlier text is not reachable once the
+weight is counted. **The branch with the most new keys is another**: E-1 does not keep goblin words
+from being new, it makes them cost ticks. The script's scan gives, cold, five ticks and five first
+records **13 N / 49 O** (31.33 M), and nine first records with one tick **21 N / 41 O** (17.56 M,
+the most new keys of the scan).
 
 **One action that cannot be split** (E-21), the same four branches over 4 chunks; the weight does
 not bind its first action, so its goblin records are `first`:
@@ -1204,11 +1215,12 @@ difference is the calldata (+25,600 with the version) and the events priced from
 **What this settles, and what it does not.**
 - **In slots: yes, with E-16, E-1 and E-21.** At most **70 keys** a batch, from the key sets (the
   reveal branch with the objective and the defeat); the branch that costs the most writes 64. None
-  is new in an initialised slot; cold, at most 11 are (a reveal's, with its `first` chunk words).
-  The first record's weight keeps the goblin words from being new.
+  is new in an initialised slot. Cold, the gas-maximising branch writes 3 new keys (11 with 4
+  reveals); the most new keys are in another branch, up to **21** (nine first records, one tick).
+  E-1 makes a new goblin word cost a tick; it does not forbid one.
 - **In gas: not proven, and above 40 M even at the window's low end** (40.79 M) if every tick costs
-  what it costs alone; and **the initialised case is 47.34 M whatever E-1 (b) does**: dropping a
-  goblin's second word removes cold-write costs (§9.2), not this case. With the ticks' shared part
+  what it costs alone; and **E-1 (b), rejected, lowers the storage cost (16 keys at O, 513,152,
+  for 16 goblins) but does not reach 40 M**: the initialised case would be about 46.8 M. With the ticks' shared part
   (CB-2) the batch is 22.2 M to 28.7 M. A measurement of the full tick in a batch decides it
   (ENG-07, CBT-*); design/02 item 6 cannot be answered by interfaces (E-13). Until then, **keep 40 M
   and weight 10**; if the ticks prove near their cost alone, weight 8 (the worst branch 38.77 M: two
@@ -1243,7 +1255,7 @@ follows the **default** named; the project manager decides.
 
 | # | Question | Options, with their cost | Default in the code |
 |---|---|---|---|
-| **E-1** (fix loop 3; decided (a), D-141; recomputed, ENG-01b) | **A goblin's first key in a slot costs N** (2 words: 0.84 M over O). Cold, the worst capped batch without a weight wrote 35 new keys (32 goblin words, 2 roster pages, the counter): **62.02 M against 47.34 M** initialised (§10.1). **With the weight (a), the worst cold batch is 48.54 M** (`n = 0` first records, 10 ticks; each first record replaces a tick), and no cold figure exceeds the initialised one by more than 1.20 M. The key is cold whenever this slot never woke that goblin index, in any generation (§9.1) | (a) **weigh it**: +1 per goblin record written for the first time in the slot (the contract reads the record as 0). (b) **one word per goblin**: drop `GoblinTimers`. That loses **the activation** (slot, target and deadline: the telegraphed skills of design/04, the hobgoblin's wind-up and its interruption), **the five conditions** and **the effect** (a shaman's enchantment, a hex). A cold 3-tick action then costs 38.56 M instead of 57.61 M (E-21); the initialised batch, 47.34 M, is the same. Keeping the activation in one word would need two of the four recharge lanes of `GoblinState` (a caste then tracks 2 skills' recharges), and the conditions would still have no room: a change of the combat design. (c) accept | **(a)**, a rule of `play` (ENG-07), decided by D-141; the tables count it (`n` first records run `10 − n` ticks). (b) only with a combat design that gives up what it loses |
+| **E-1** (fix loop 3; decided (a), D-141; recomputed, ENG-01b) | **A goblin's first key in a slot costs N** (2 words: 0.84 M over O). Cold, the worst capped batch without a weight wrote 35 new keys (32 goblin words, 2 roster pages, the counter): **62.02 M against 47.34 M** initialised (§10.1). **With the weight (a), the worst cold batch is 48.54 M** (`n = 0` first records, 10 ticks; each first record replaces a tick), which is the gas maximum; the branch with the most new keys is another (21 N / 41 O, 17.56 M, nine first records and one tick). The key is cold whenever this slot never woke that goblin index, in any generation (§9.1) | (a) **weigh it**: +1 per goblin record written for the first time in the slot (the contract reads the record as 0). (b) **one word per goblin**: drop `GoblinTimers`. That loses **the activation** (slot, target and deadline: the telegraphed skills of design/04, the hobgoblin's wind-up and its interruption), **the five conditions** and **the effect** (a shaman's enchantment, a hex). A cold 3-tick action then costs 38.56 M instead of 57.61 M (E-21); the initialised batch, 47.34 M, is the same. Keeping the activation in one word would need two of the four recharge lanes of `GoblinState` (a caste then tracks 2 skills' recharges), and the conditions would still have no room: a change of the combat design. (c) accept | **(a)**, a rule of `play` (ENG-07), decided by D-141; the tables count it (`n` first records run `10 − n` ticks). (b) only with a combat design that gives up what it loses |
 | **E-2** | **The roster holds 60 entries**: displaced goblins, alive or dead and not looted (F-6). Design/02 bounds awake goblins, not displaced ones or unlooted remains | (a) 60, four pages, only pages in use are written; (b) no roster: scan the touched records of every revealed chunk (up to 2,250 records a view, and a tick cannot find followers cheaply) | (a). **The rule for a 61st** (a goblin that would be displaced, or would die away from its spawn, with the roster full) is a game rule to decide: it stays in its first state? its remains are not left? |
 | **E-3** | At most 2 packs of 5 and 3 objects per chunk (the features word) | a third pack or a fourth object: a third chunk word (+1 slot a reveal) | 2 / 5 / 3; ENG-05 caps |
 | **E-4** (corrected, fix loops 1 and 2) | **Every deadline is at most `MAX_CLOCK` = 2^28 − 1**, not only the clock. An action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10`. `MAX_DURATION` = 65,535 is the widest **effective** duration: the registry holds bases of at most 43,688 ticks, the modifiers' percents are capped at +50 % and their flat bonuses at +3 (F-9, `durations.cairo`), so the effective maximum is exactly 65,535 (tested). The packers refuse a deadline above `MAX_CLOCK` or 2^28 (tested) | 32-bit deadlines: recharges need 2 slots a member | 2^28 − 1; an action past `LAST_TICK` is invalid (268,369,910 ticks: 8.5 years at a tick a second) |

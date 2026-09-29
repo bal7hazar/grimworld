@@ -44,7 +44,7 @@
 | `set_trade_side` | set | 1 | 4 | 0 | 0 / 3 → **1,269,635** | 2 / 1 → **2,112,539** |
 | `confirm_trade` | the swap (7 + 7 items, 2 + 2 balances, gold) | 2 | 3 | 46,336 | 0 / 35 → **3,073,155** | 8 / 27 → **6,444,771** |
 | `decline_trade`, `cancel_trade` | closed | 1 | 2 | 46,336 | 0 / 1 → **1,141,587** | 0 / 1 → **1,141,587** |
-| `Registry.set_record` (3 parts) | written | 0 | 6 | 0 | 0 / 4 → **1,025,947** | 4 / 0 → **2,711,755** |
+| `Registry.set_record` (3 parts) | written | 0 | 6 | 0 | 0 / 5 → **1,058,019** | 5 / 0 → **3,165,279** |
 | admin setters, `upgrade` | set | 0 | 4 | 0 | 0 / 4 → **1,065,707** | 0 / 4 → **1,065,707** |
 
 Event prices from their shapes (E):
@@ -83,16 +83,16 @@ Slot bound, from the key sets: at most 70 keys, in 'objective and defeat, 4 reve
 
 E-1, first records weighed: the worst branch of a batch of 16 goblins, n of them new, 10 - n ticks:
   no weight (before D-141): objective and defeat, cold 62,023,626
-  n = 0: objective and defeat: keys 64, cold → 48,537,162
-  n = 1: objective and defeat: keys 64, cold → 45,095,153
-  n = 2: objective and defeat: keys 64, cold → 41,653,144
-  n = 3: objective and defeat: keys 64, cold → 38,211,135
-  n = 4: objective and defeat: keys 64, cold → 34,769,126
-  n = 5: objective and defeat: keys 64, cold → 31,327,117
-  n = 6: objective and defeat: keys 64, cold → 27,885,108
-  n = 7: objective and defeat: keys 64, cold → 24,443,099
-  n = 8: objective and defeat: keys 64, cold → 21,001,090
-  n = 9: objective and defeat: keys 64, cold → 17,559,081
+  n = 0: objective and defeat: keys 64, cold (3, 59) → 48,537,162
+  n = 1: objective and defeat: keys 64, cold (5, 57) → 45,095,153
+  n = 2: objective and defeat: keys 64, cold (7, 55) → 41,653,144
+  n = 3: objective and defeat: keys 64, cold (9, 53) → 38,211,135
+  n = 4: objective and defeat: keys 64, cold (11, 51) → 34,769,126
+  n = 5: objective and defeat: keys 64, cold (13, 49) → 31,327,117
+  n = 6: objective and defeat: keys 64, cold (15, 47) → 27,885,108
+  n = 7: objective and defeat: keys 64, cold (17, 45) → 24,443,099
+  n = 8: objective and defeat: keys 64, cold (19, 43) → 21,001,090
+  n = 9: objective and defeat: keys 64, cold (21, 41) → 17,559,081
 
 E-21, the unsplittable class (3-tick action among 42 goblins, `mine`): cold maximum 57,844,498 against 58,000,000 → holds
 

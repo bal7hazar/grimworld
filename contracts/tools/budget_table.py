@@ -333,8 +333,8 @@ def batch(goblins, one_word=False, reveals=0, features=9, goblin_rule="first"):
     tick writes it (F-2): the batch's chunks are the `features` of the union of the windows (at most
     9), a `reveals` of them revealed by this batch (their `terrain` and `features` words start the
     transaction unwritten: `first`), the others existing (`features`: `old`). `goblin_rule` is the
-    goblins' classification at the start: `old` under E-1's weight (a batch of several actions writes
-    no goblin record for the first time beyond what its weight pays, see `first_record_scan`), `first`
+    goblins' classification at the start: `old` for the gas-maximising batch of E-1's weight (the
+    branch with n first records is scanned in `checks()`, where n new records cost n ticks), `first`
     for the single action that runs whatever it changes (E-21)."""
     if one_word:
         k = world_one_word(goblins, 0, goblins)
@@ -380,7 +380,8 @@ def play_branches(goblins, ticks=10, tick=TICK_ALONE, window=WINDOW_HIGH, one_wo
 
 
 # The weighted batch (E-16, E-1): goblin records already written (`old`); the first-record weight is
-# what keeps a batch from paying new goblin words (`first_record_scan` below).
+# what makes the gas maximum the batch with none new; the batch with the most new keys is another
+# (five ticks, five first records, scanned in `checks()`).
 PLAY_CAPPED = play_branches(16, goblin_rule="old")
 PLAY_REVEALS = play_branches(16, ticks=2, reveals=4, label=", 4 reveals, 2 ticks", goblin_rule="old")
 row("`play`, weight 10, the cap of 16 goblins (E-16), first records weighed (E-1), ticks as alone",
@@ -527,7 +528,8 @@ row("`confirm_trade`", B("the swap (7 + 7 items, 2 + 2 balances, gold)", 800_000
 row("`decline_trade`, `cancel_trade`", B("closed", 100_000, ["hub.seller"], 2, ev(TradeClosed=1),
                                          Keys().add(("M.trade", "t", "head"), "old")))
 row("`Registry.set_record` (3 parts)", B("written", 50_000, [], 6, {}, Keys()
-    .many([("R.record", p) for p in range(3)], "first").add(("R.last_id", "kind"), "first")))
+    .many([("R.record", p) for p in range(3)], "first").add(("R.last_id", "kind"), "first")
+    .add(("R.content_version",), "first"), "the content version rises by one (D-141, E-5): 0 at deployment, so its first write is new"))
 row("admin setters, `upgrade`", B("set", 100_000, [], 4, {}, Keys().many([("A.address", i) for i in range(4)], "old")))
 
 
@@ -607,7 +609,7 @@ def checks():
     for n in range(10):
         branches = [batch_branch(br, n) for br in play_branches(16, ticks=10 - n, goblin_rule="old")]
         w = max(branches, key=lambda b: b.gas(True))
-        print(f"  n = {n}: {w.name}: keys {len(w.keys.rules)}, cold → {w.gas(True):,}")
+        print(f"  n = {n}: {w.name}: keys {len(w.keys.rules)}, cold {w.keys.counts(True)} → {w.gas(True):,}")
 
     # E-21: the class of an action that cannot be split has its own bound.
     unsplittable = [b for name, brs in ROWS if name.startswith("`mine`") or "one 3-tick action alone, 42 goblins (E-21)" in name

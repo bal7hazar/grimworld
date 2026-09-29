@@ -1,6 +1,10 @@
 //! Events of `Instances`, frozen like an API (ADR-0007, *Events are an interface*). The first key
-//! is the selector of the event's name; a change is a new event name. The client reads them from
-//! its own receipts (design/02, *Reconciling*); the indexer needs none of them (SPK-11).
+//! is the selector of the event's name; a change is a new event name.
+//! One exception, recorded for this build: until the first deployment of a build, an event's layout
+//! may change under its name (no receipt holds the old one and no consumer exists); from the first
+//! deployment on, a change is a new name. `BatchPlayed.version` was added under it (ENG-01b).
+//! The client reads them from its own receipts (design/02, *Reconciling*); the indexer needs none
+//! of them (SPK-11).
 
 use grimworld_logic::types::{InstanceId, Outcome, Refusal, Stop};
 

@@ -81,8 +81,8 @@ pub trait IRegistryRead<T> {
     /// Records of several kinds in one call, in the order asked: what a `play` needs (castes,
     /// skills, pack templates, the location) costs one call per invocation, not one per kind.
     /// Returns the **content version** first (D-141, E-5), then the records: the version is a
-    /// value of the registry's storage, raised by every write of a record, that a batch is
-    /// computed under and executed under (`play`'s `version`).
+    /// value of the registry's storage, raised by every changed record (`set_record`), that a batch
+    /// is computed under and executed under (`play`'s `version`).
     fn bundle(self: @T, requests: Span<(u8, u32)>) -> (u32, Span<felt252>);
     /// The content version alone (the client's read before it computes a batch).
     fn content_version(self: @T) -> u32;
@@ -93,6 +93,6 @@ pub trait IRegistryRead<T> {
 #[starknet::interface]
 pub trait IFate<T> {
     /// The random word of `domain` for this transaction. One word per domain; a transaction that
-    /// needs several values derives them as `poseidon(word, index)` (ADR-0002, rule 2).
+    /// needs several values derives them as `poseidon(word, domain, index)` (ADR-0002, rule 2).
     fn fate(ref self: T, domain: felt252) -> felt252;
 }

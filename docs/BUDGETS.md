@@ -7,7 +7,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |
 |---|---|---:|---:|---|---|
 | grimworld_ephemeral | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 2026-09-29 | 2704c6d |
-| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 90510 | 92547 | 2026-09-29 | e246ac5 |
+| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 146690 | 154025 | 2026-09-29 | 566db5f |
 | grimworld_ephemeral | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 2026-09-29 | d65eb86 |

@@ -14,6 +14,8 @@ pub trait IRegistryAdmin<T> {
     /// Writes one record: exactly `parts(kind)` felts, part 0 with `LIVE` set. A sequential kind's
     /// new id must be `last_id + 1` (append-only, design/01 rule 2); a composite kind's id must
     /// name an existing parent (`content::is_sequential`). An existing id's values may change.
+    /// Every changed record raises the content version by one (D-141, E-5): a batch computed under
+    /// the earlier content is then refused by `play` (`Stop::Version`).
     fn set_record(ref self: T, kind: u8, id: u32, record: Span<felt252>);
     /// The highest id of a sequential kind; 0 for a composite kind.
     fn last_id(self: @T, kind: u8) -> u32;
@@ -37,7 +39,7 @@ pub mod Registry {
         /// Highest id of each sequential kind (`content::is_sequential`); 0 for composite kinds.
         pub last_ids: Map<u8, Counter>,
         /// The content version (D-141, E-5): 0 at deployment, raised by one by every
-        /// `set_record` that changes a record; returned by `bundle`. One slot, always written.
+        /// changed record (`set_record`, automatically, no admin setter); returned by `bundle`.
         pub content_version: u32,
     }
 
