@@ -23,6 +23,13 @@ project manager to choose (see *Next*).
 | CBT-01, CBT-08a (D-158) | the larger snapshot and the belt's worst case, once an expedition | +2.2 M |
 | **Now** | | **≈ 664 M ≈ $0.585** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
 
+**A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
+part of a worst tick is **1.06–1.11 M** (window, flood at 15 layers, 8 walkers; LIB-05 M1-T9b), which
+leaves about 0.4 M for the game's logic and storage; CBT-02's pipeline measures **1.01 M representative,
+1.39 M worst** (content included). A worst tick is about 2.5 M before the executor, the AI and the
+writes. S1 above does not yet count this: it rests on ENG-01's per-tick estimate. The levers are for
+decision ([file](docs/decisions/2026-09-29-cbt-02-tick-cost.md)).
+
 ## What moved
 
 | | |

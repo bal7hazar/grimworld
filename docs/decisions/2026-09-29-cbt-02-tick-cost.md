@@ -40,6 +40,19 @@ cannot hold once CBT-03 to CBT-05 and ENG-07 add their parts, unless levers are 
 4. CBT-02 merges with its cost escalated (this file), once its audit passes; its measure stays in
    ENG-01 §9.2 as the reference the follow-ups improve on.
 
+
+## Added: the map library's share of a worst tick (the project manager, 2026-09-29)
+
+The map library measured its part of a worst tick at **1,064,209 to 1,106,666 L2 gas** (the window
+assembled from 4 chunks 64,234; the flood 22,746 a layer, 364,878 at 15 layers; 8 walkers with their
+occupancy updated), storage and game logic excluded (hexx-cairo main,
+`docs/reports/LIB-05-M1-T9b-REPORT.md`). Against about 1.47 M a tick on average, **that leaves about
+0.4 M for the game's logic and storage in a worst tick**, where CBT-02's pipeline alone measures
+1.39 M (worst, content included). A worst tick is therefore about **2.5 M** before the executor, the
+AI's choices and the writes: the gap is now of the order of the tick itself, not of its margin.
+A walker beyond the flood's cap gets `None` from `Bfs::flood`; the tick treats it as holding its tile
+(D-127).
+
 ## Decision
 
 Pending.
