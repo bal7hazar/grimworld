@@ -200,7 +200,7 @@ and CLI-08 are candidates for this track.
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
 | FND-08 | **The burner's funder on a public network**: a service of the game behind FND-05's `Funder` port, tested on the local node; before any play on Sepolia (D-150) | FND-05 | Opus 5.5 | S Q + GPT-6-Astra | done (2026-09-29, [#141](https://github.com/bal7hazar/grimworld/pull/141); [report](docs/reports/FND-08-funder-service.md); caps for decision) |
 | FND-09 | `scripts/with-node.sh` on macOS (a fallback without `setsid`) and a `--full-archive` node for the indexer (D-153, item 2) | FND-02 | Sonnet 5.5 | Q + GPT-6-Sol | done (2026-09-29, [#152](https://github.com/bal7hazar/grimworld/pull/152); [report](docs/reports/FND-09-with-node-mac.md)) |
-| OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer | ENG-07 | Sonnet 5 | S Q | todo |
+| OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer. D-156: the funder's stale lock is removed by one named operator, on the one host holding its state file (FND-08, N-1) | ENG-07 | Sonnet 5 | S Q | todo |
 | IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo (lent to track CV on the Mac, D-149) |
 | IDX-02 | The indexer hosted for Sepolia, watched, rebuilt from the chain on demand | IDX-01, OPS-01 | Sonnet 5.5 | S Q | todo |
 

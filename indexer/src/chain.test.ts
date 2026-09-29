@@ -16,6 +16,7 @@ const accepted: BlockResult = {
   block_hash: "0xb1",
   parent_hash: "0xb0",
   block_number: 1,
+  timestamp: 1700000000,
   transaction_commitment: "0x1",
   event_commitment: "0x2",
   receipt_commitment: "0x3",
@@ -29,6 +30,7 @@ describe("block headers", () => {
       hash: "0xb1",
       parent: "0xb0",
       commitments: "0x1,0x2,0x3,0x4",
+      timestamp: 1700000000,
     });
   });
 
@@ -37,6 +39,17 @@ describe("block headers", () => {
       null,
     );
     expect(Chain.header({ ...accepted, block_hash: undefined }, 1)).toBe(null);
+  });
+
+  it("refuse an accepted block without its timestamp (IDX-01b: block time is the rules' clock)", () => {
+    for (const timestamp of [undefined, -1, 1.5, "7"]) {
+      expect(() =>
+        Chain.header(
+          { ...accepted, timestamp: timestamp as unknown as number },
+          1,
+        ),
+      ).toThrow(/no timestamp/);
+    }
   });
 
   it("refuse a block of another height than asked", () => {

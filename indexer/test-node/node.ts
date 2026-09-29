@@ -34,6 +34,8 @@ export type LocalNode = {
   createBlocks: (count: number) => Promise<void>;
   /** starknet_blockNumber. */
   blockNumber: () => Promise<number>;
+  /** devnet_increaseTime: moves the node's clock `seconds` ahead (block time, IDX-01b). */
+  increaseTime: (seconds: number) => Promise<void>;
 };
 
 const TARGET = new URL("../emitter/target/dev/", import.meta.url);
@@ -111,6 +113,9 @@ export function localNode(): LocalNode {
     },
     async blockNumber() {
       return (await rpc("starknet_blockNumber", [])) as number;
+    },
+    async increaseTime(seconds) {
+      await rpc("devnet_increaseTime", { time: seconds });
     },
   };
 }

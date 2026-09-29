@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -102,5 +103,19 @@ describe("the CLI refuses, and says why", () => {
     const again = new Store(db);
     expect(again.config()?.from).toBe(5);
     again.close();
+  });
+
+  it("run on a database of another schema version, and says to rebuild it (fix loop 2)", () => {
+    const db = join(dir, "e.sqlite");
+    const old = new DatabaseSync(db);
+    old.exec(
+      "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO meta VALUES ('schema', '2');",
+    );
+    old.close();
+    const { code, output } = cli(["run", ...base, "--db", db]);
+    expect(code).toBe(2);
+    expect(output).toContain(
+      "the database has schema 2, this indexer 3: rebuild it from the chain",
+    );
   });
 });

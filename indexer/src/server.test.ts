@@ -43,6 +43,7 @@ describe("R1 and R2: /head and /stats", () => {
       number: 1,
       hash: block.hash,
       commitments: [1, 2, 3, 4].map(() => block.commitment).join(","),
+      timestamp: block.timestamp,
     };
     expect(answer(subject, "/head")).toEqual({
       code: 200,
@@ -119,7 +120,9 @@ describe("R1 and R2: /head and /stats", () => {
         status: "ok",
         head: { number: 1 },
       });
-      expect((await fetch(`http://127.0.0.1:${port}/lots`)).status).toBe(404);
+      expect((await fetch(`http://127.0.0.1:${port}/nothing`)).status).toBe(
+        404,
+      );
       expect(
         (await fetch(`http://127.0.0.1:${port}/head`, { method: "POST" }))
           .status,
@@ -146,14 +149,14 @@ describe("fix loop 1: nothing a client sends stops the process", () => {
     for (const target of ["//[", "http://indexer/head", "*", "//"]) {
       expect(respond(subject, "GET", target)).toMatchObject({
         code: 400,
-        body: { error: "bad request", status: "ok", head },
+        body: { error: "bad request", status: "error", state: "ok", head },
       });
     }
     expect(respond(subject, "POST", "/head")).toMatchObject({
       code: 405,
       body: { head },
     });
-    expect(respond(subject, "GET", "/lots")).toMatchObject({
+    expect(respond(subject, "GET", "/nothing")).toMatchObject({
       code: 404,
       body: { head },
     });
@@ -167,9 +170,11 @@ describe("fix loop 1: nothing a client sends stops the process", () => {
     };
     const { code, body } = respond(subject, "GET", "/stats");
     expect(code).toBe(500);
+    // Never `status: "ok"` on an error: the serving state is in `state`.
     expect(body).toEqual({
+      status: "error",
       error: "internal error",
-      status: "ok",
+      state: "ok",
       head: expect.objectContaining({ number: 1 }),
     });
   });

@@ -454,6 +454,7 @@ describe("fix loop 1", () => {
       block_hash: stale.hash,
       parent_hash: stale.parent,
       block_number: 5,
+      timestamp: stale.timestamp,
       transaction_commitment: stale.commitment,
       event_commitment: stale.commitment,
       receipt_commitment: stale.commitment,
