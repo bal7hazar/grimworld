@@ -87,6 +87,37 @@ mod InstancesDouble {
     }
 }
 
+/// An `Instances` whose `set_controller` reverts: the whole transfer must be rolled back.
+#[starknet::contract]
+mod RefusingInstances {
+    use grimworld_logic::interface::IInstanceEntry;
+    use grimworld_logic::snapshot::{Snapshot, TaskEntry};
+    use grimworld_logic::types::InstanceId;
+    use starknet::ContractAddress;
+
+    #[storage]
+    struct Storage {}
+
+    #[abi(embed_v0)]
+    impl EntryImpl of IInstanceEntry<ContractState> {
+        fn create(
+            ref self: ContractState,
+            adventurer_id: u32,
+            controller: ContractAddress,
+            gate: u16,
+            snapshot: Snapshot,
+            tasks: Span<TaskEntry>,
+        ) -> InstanceId {
+            core::panic_with_felt252('double: no create')
+        }
+        fn set_controller(
+            ref self: ContractState, adventurer_id: u32, controller: ContractAddress,
+        ) {
+            core::panic_with_felt252('double: refused')
+        }
+    }
+}
+
 const ADMIN: felt252 = 0xad;
 const ALICE: felt252 = 0xa11ce;
 const BOB: felt252 = 0xb0b;
@@ -510,6 +541,106 @@ fn test_delete_across_pages() {
     assert(listed == array![1, 8, 3, 4, 5, 6, 7].span(), 'eighth into the hole');
 }
 
+// Worst cases of the search (audit 1, F-2): the latest entry that is not the last is found after
+// inspecting every entry before it, and still moves the last id into its hole.
+
+/// The MVP's worst deletion: 3 slots, the 2nd of 3 (two entries inspected, one page written).
+#[test]
+#[available_gas(l2_gas: 22004567)] // ceil(1.05 × 20956730 measured)
+fn test_delete_worst_three_slots() {
+    let (hub, _) = setup();
+    with_adventurers(hub, ALICE, 3);
+    let keys = watched();
+    let before = snapshot(hub, keys.span());
+    let hub_ = act(hub, ALICE);
+    let gas = get_available_gas();
+    hub_.delete_adventurer(2);
+    println!("gas delete_adventurer, worst of 3 slots: {}", gas - get_available_gas());
+    let after = snapshot(hub, keys.span());
+    assert(changes(before.span(), after.span()) == (0, 3, 0), 'worst of 3: 0 N / 3 O');
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![1, 3].span(), 'third into the hole');
+}
+
+/// ENG-01 §9.3's two-page row at its longest search: the 7th of 8 (seven entries inspected, the
+/// hole on page 0, the last id on page 1).
+#[test]
+#[available_gas(l2_gas: 38877626)] // ceil(1.05 × 37026310 measured)
+fn test_delete_worst_two_pages() {
+    let (hub, _) = setup();
+    act(hub, ALICE).register();
+    set_slots(hub, 1, 8);
+    let hub_ = act(hub, ALICE);
+    for _ in 0..8_u8 {
+        hub_.create_adventurer(NAME, VANGUARD);
+    }
+    let keys = watched();
+    let before = snapshot(hub, keys.span());
+    start_cheat_caller_address(hub, addr(ALICE));
+    let gas = get_available_gas();
+    hub_.delete_adventurer(7);
+    println!("gas delete_adventurer, worst of two pages: {}", gas - get_available_gas());
+    let after = snapshot(hub, keys.span());
+    assert(changes(before.span(), after.span()) == (0, 4, 0), 'worst two pages: 0 N / 4 O');
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![1, 2, 3, 4, 5, 6, 8].span(), 'eighth into the 7th lane');
+}
+
+/// A negative swap delta: the last id is lower than the deleted one (a reused slot put a higher id
+/// first), so the lane falls by the difference; the page stays correctly packed.
+#[test]
+#[available_gas(l2_gas: 22228196)] // ceil(1.05 × 21169710 measured)
+fn test_delete_negative_delta() {
+    let (hub, _) = setup();
+    with_adventurers(hub, ALICE, 3);
+    act(hub, ALICE).delete_adventurer(1);
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![3, 2].span(), 'three into the hole');
+    act(hub, ALICE).delete_adventurer(3);
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![2].span(), 'two moved down');
+    let page: Lanes32 = StorePacking::unpack(read(hub, list_page(1, 0)));
+    assert(page.lanes == [2, 0, 0, 0, 0, 0, 0], 'page packed');
+    assert(act(hub, ALICE).create_adventurer(NAME, WARDEN) == 4, 'a new id');
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![2, 4].span(), 'appended');
+}
+
+/// A deletion within the final page of a multi-page list: the hole and the last id on page 1, page
+/// 0 untouched; then deltas across pages, positive and negative.
+#[test]
+#[available_gas(l2_gas: 47466332)] // ceil(1.05 × 45206030 measured)
+fn test_delete_within_the_final_page() {
+    let (hub, _) = setup();
+    act(hub, ALICE).register();
+    set_slots(hub, 1, 10);
+    let hub_ = act(hub, ALICE);
+    for _ in 0..10_u8 {
+        hub_.create_adventurer(NAME, VANGUARD);
+    }
+    let page_0 = read(hub, list_page(1, 0));
+    let keys = watched();
+    let before = snapshot(hub, keys.span());
+    start_cheat_caller_address(hub, addr(ALICE));
+    hub_.delete_adventurer(9);
+    let after = snapshot(hub, keys.span());
+    assert(changes(before.span(), after.span()) == (0, 3, 0), 'final page: 0 N / 3 O');
+    assert(read(hub, list_page(1, 0)) == page_0, 'page 0 untouched');
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![1, 2, 3, 4, 5, 6, 7, 8, 10].span(), 'tenth into the 9th lane');
+    // Deleting 3: the last id, 10, moves from page 1 into page 0 (a positive delta across pages).
+    // Deleting 10: the last id, 8, lower, moves into its lane (a negative delta across pages).
+    hub_.delete_adventurer(3);
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![1, 2, 10, 4, 5, 6, 7, 8].span(), 'tenth into the 3rd lane');
+    hub_.delete_adventurer(10);
+    let (_, _, listed) = views(hub).account(1);
+    assert(listed == array![1, 2, 8, 4, 5, 6, 7].span(), 'eighth down across pages');
+    let page_1: Lanes32 = StorePacking::unpack(read(hub, list_page(1, 1)));
+    assert(page_1.lanes == [0; 7], 'page 1 emptied');
+    assert(read(hub, list_page(1, 1)) != 0, 'page 1 kept LIVE');
+}
+
 // The ownership helper, each case (through `delete_adventurer`).
 
 #[test]
@@ -654,7 +785,7 @@ fn test_set_account_owner() {
 
 /// ENG-01 §9.3 and §10's worst case: seven adventurers inside, each one's controller moved.
 #[test]
-#[available_gas(l2_gas: 40951659)] // ceil(1.05 × 39001580 measured)
+#[available_gas(l2_gas: 41022650)] // ceil(1.05 × 39069190 measured)
 fn test_set_account_owner_seven_inside() {
     let (hub, double) = setup();
     act(hub, ALICE).register();
@@ -672,6 +803,11 @@ fn test_set_account_owner_seven_inside() {
     for id in 1..8_u32 {
         controllers.append(map_entry_address(selector!("controllers"), array![id.into()].span()));
     }
+    // Each member already has a controller (the old owner, set at `enter`): the transfer
+    // overwrites it, as `Instances`' member word is overwritten (ENG-01 §9.3, `I.member` old).
+    for key in controllers.span() {
+        write(double, *key, ALICE);
+    }
     let double_before = snapshot(double, controllers.span());
     start_cheat_caller_address(hub, addr(ALICE));
     let gas = get_available_gas();
@@ -680,8 +816,7 @@ fn test_set_account_owner_seven_inside() {
     let after = snapshot(hub, keys.span());
     let double_after = snapshot(double, controllers.span());
     assert(changes(before.span(), after.span()) == (1, 1, 1), 'hub: 1 N / 1 O / 1 zeroed');
-    // The double's first write of each is new; `Instances`' member word is overwritten (§9.3).
-    assert(changes(double_before.span(), double_after.span()) == (7, 0, 0), 'seven controllers');
+    assert(changes(double_before.span(), double_after.span()) == (0, 7, 0), 'seven overwritten');
     let double_ = IDoubleViewsDispatcher { contract_address: double };
     for id in 1..8_u32 {
         assert(double_.controller(id) == addr(BOB), 'controller moved');
@@ -700,6 +835,31 @@ fn test_set_account_owner_only_those_inside() {
     assert(double_.controller(2) == addr(CAROL), 'inside: moved');
     assert(double_.controller(1) == addr(0), 'deleted: not listed');
     assert(double_.controller(3) == addr(0), 'in a hub: nothing');
+}
+
+/// `Instances.set_controller` reverts: the transfer reverts with it, and nothing of it is kept (the
+/// owner word, both `account_of` entries).
+#[test]
+#[available_gas(l2_gas: 19673619)] // ceil(1.05 × 18736780 measured)
+fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
+    let (hub, _) = setup();
+    let class = declare("RefusingInstances").unwrap().contract_class();
+    let (refusing, _) = class.deploy(@array![]).unwrap();
+    start_cheat_caller_address(hub, addr(ADMIN));
+    IHubAdminDispatcher { contract_address: hub }
+        .set_contracts(addr(2), refusing, addr(4), addr(5));
+    with_adventurers(hub, ALICE, 2);
+    put_inside(hub, 2);
+    let keys = watched();
+    let before = snapshot(hub, keys.span());
+    #[feature("safe_dispatcher")]
+    refused(try_act(hub, ALICE).set_account_owner(1, addr(BOB)), 'double: refused');
+    let after = snapshot(hub, keys.span());
+    assert(changes(before.span(), after.span()) == (0, 0, 0), 'nothing kept');
+    assert(views(hub).account_of(addr(ALICE)) == 1, 'old owner keeps it');
+    assert(views(hub).account_of(addr(BOB)) == 0, 'new owner has none');
+    let (owner, _, _) = views(hub).account(1);
+    assert(owner == addr(ALICE), 'owner unchanged');
 }
 
 #[test]

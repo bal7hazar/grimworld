@@ -56,7 +56,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_packing::test_task_page_layout` | 142250 | 149363 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 2026-09-29 | 2704c6d |
-| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 2026-09-29 | a767e84 |
+| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_create_adventurer` | 21147480 | 22204854 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_create_bad_profession_refused` | 6900080 | 7245084 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_create_empty_name_refused` | 6851820 | 7194411 | 2026-09-29 | 33e1d44 |
@@ -66,10 +66,14 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_accounts::test_delete_after_the_pack_was_emptied` | 11433600 | 12005280 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_delete_equipped_refused` | 10429900 | 10951395 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_delete_frees_the_slot_and_marks_the_record` | 24935140 | 26181897 | 2026-09-29 | 33e1d44 |
+| grimworld_persistent | `test_accounts::test_delete_negative_delta` | 21169710 | 22228196 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_delete_pack_balances_refused` | 10494940 | 11019687 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_delete_pack_equipment_refused` | 10825600 | 11366880 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_delete_pack_gold_refused` | 10818250 | 11359163 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_delete_the_last_listed` | 18295100 | 19209855 | 2026-09-29 | 33e1d44 |
+| grimworld_persistent | `test_accounts::test_delete_within_the_final_page` | 45206030 | 47466332 | 2026-09-29 | 33e1d44 |
+| grimworld_persistent | `test_accounts::test_delete_worst_three_slots` | 20956730 | 22004567 | 2026-09-29 | 33e1d44 |
+| grimworld_persistent | `test_accounts::test_delete_worst_two_pages` | 37026310 | 38877626 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_helper_deleted` | 14276200 | 14990010 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_helper_no_adventurer` | 10800510 | 11340536 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_helper_not_in_a_hub` | 10444060 | 10966263 | 2026-09-29 | 33e1d44 |
@@ -79,7 +83,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_accounts::test_register_twice_refused` | 6748230 | 7085642 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_set_account_owner` | 24508630 | 25734062 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_set_account_owner_only_those_inside` | 18246400 | 19158720 | 2026-09-29 | 33e1d44 |
-| grimworld_persistent | `test_accounts::test_set_account_owner_seven_inside` | 39001580 | 40951659 | 2026-09-29 | 33e1d44 |
+| grimworld_persistent | `test_accounts::test_set_account_owner_rolled_back_when_set_controller_reverts` | 18736780 | 19673619 | 2026-09-29 | 33e1d44 |
+| grimworld_persistent | `test_accounts::test_set_account_owner_seven_inside` | 39069190 | 41022650 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_set_account_owner_to_an_account_holder_refused` | 12208770 | 12819209 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_set_account_owner_to_zero_refused` | 10234990 | 10746740 | 2026-09-29 | 33e1d44 |
 | grimworld_persistent | `test_accounts::test_set_account_owner_wrong_caller_refused` | 10553150 | 11080808 | 2026-09-29 | 33e1d44 |
