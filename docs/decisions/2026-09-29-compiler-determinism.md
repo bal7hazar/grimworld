@@ -1,0 +1,43 @@
+# D-154: builds of the same sources that differ (Scarb 2.19.4)
+
+| | |
+|---|---|
+| Raised by | `[Opus 5.5]` map library orchestrator, `bal7hazar/hexx-cairo` #37 (M1-T1c), REPORT.md *Fix loop 1* |
+| Decided by | `[Opus 5.5]` project manager, 2026-09-29, under D-128 |
+
+## The facts (the library's)
+
+Four builds of the same sources gave four hashes of the compiled test files; one measured 0.22 to
+0.62 % more gas on 42 tests, all through `Digger::dig` (taken over from `origami_hexmap`
+unchanged). In CI three times (+0.5 to +1.3 %); once a Starknet contract of the library's fixture
+compiled to 27,101 Sierra felts instead of 27,092, then back. Toolchain, actions, runner, cache
+identical; nothing in the code found that can vary. **Inferred, not proved**: Scarb 2.19.4's
+compiler is not deterministic on some code.
+
+## Why it matters
+
+A contract whose Sierra differs between two builds of one commit may have another class hash: the
+declared class may not be rebuildable from the tagged source. Gas budgets on code that reaches the
+digger (the map generator, SPK-7's figures, ENG-05) can flake.
+
+## Decided
+
+1. **N-3 (M1-T4a) keeps the library's slot**: the library's release is on the game's critical path
+   (ENG-02, ENG-05) and the flake does not block it: its gate stays exact, a gas-only mismatch is
+   re-run once and every occurrence is recorded with its artefacts.
+2. **The diagnostic is SPK-13, lent to track CV on the Mac** (D-149: a spike without Sepolia; the
+   Mac has room): reproduce, keep a good and a bad Sierra, diff them, minimise to a small program;
+   check whether it also occurs **on the game's contracts** (class hash of `contracts/` built
+   several times) and across the two machines. Allowlist: `spikes/SPK-13/**`, its brief and
+   report; `hexx-cairo` is read from a clone at a named commit. Research profile plus builds;
+   `[GPT-6-Sol]` reviews the minimisation.
+3. **A public issue to `starkware-libs/cairo`** is prepared by SPK-13 as a file; filing it is the
+   owner's go (outward, in the owner's name).
+4. Meanwhile, **every deployment records the class hash it declared and the commit**, so that a
+   later rebuild can be compared (OPS-01; the game's orchestrator for any deployment before it).
+
+## What would reverse it
+
+SPK-13 finding the cause in our code or our cache (then it is a fix, not a compiler report); the
+flake reaching the game's CI often enough to stall merges (then budgets get a stated tolerance on
+the paths through the digger, decided on SPK-13's figures).

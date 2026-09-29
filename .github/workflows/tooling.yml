@@ -206,6 +206,110 @@ jobs:
             echo "lock.sh accepted a reversed lock order" >&2; exit 1
           fi
 
+      # with-node.sh (FND-09): the process group of the command on both paths (with setsid, and with it hidden from
+      # PATH so the perl fallback of macOS runs), and --full-archive. The node is the pinned devnet, downloaded
+      # from its release and checked against the sha256 of setup-toolchain.sh before it is run.
+      - name: with-node
+        run: |
+          set -euo pipefail
+          if ! command -v starknet-devnet > /dev/null; then
+            want=$(sed -n 's/^ *starknet-devnet:0.10.0:amd64) echo \([0-9a-f]*\) ;;$/\1/p' scripts/setup-toolchain.sh)
+            [ -n "$want" ]
+            dl=$(mktemp -d)
+            curl -sfL "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v0.10.0/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$dl"
+            bin=$(find "$dl" -type f -name starknet-devnet | head -n 1)
+            [ "$(sha256sum "$bin" | cut -d' ' -f1)" = "$want" ]
+            chmod +x "$bin"; export PATH="$(dirname "$bin"):$PATH"
+          fi
+          starknet-devnet --version
+          work=$(mktemp -d); export WITH_NODE_LOG_DIR=$work/log
+
+          # A PATH without setsid: every PATH directory that holds it is replaced by a directory of links to
+          # its other files (perl and the rest stay).
+          nosetsid=''; n=0
+          IFS=: read -ra dirs <<< "$PATH"
+          for d in "${dirs[@]}"; do
+            if [ -x "$d/setsid" ]; then
+              n=$((n + 1)); mkdir -p "$work/nosetsid$n"
+              for f in "$d"/*; do [ "${f##*/}" = setsid ] || ln -s "$f" "$work/nosetsid$n/" 2> /dev/null || true; done
+              d=$work/nosetsid$n
+            fi
+            nosetsid=$nosetsid:$d
+          done
+          nosetsid=${nosetsid#:}
+          if PATH=$nosetsid command -v setsid; then echo "setsid still visible" >&2; exit 1; fi
+
+          alive() { kill -0 "$1" 2> /dev/null; }
+          gone() { for _ in $(seq 1 60); do alive "$1" || return 0; sleep 0.2; done; echo "pid $1 still alive" >&2; return 1; }
+          port_dead() { for _ in $(seq 1 60); do curl -s -m 1 -o /dev/null "$1" || return 0; sleep 0.2; done; echo "$1 still answers" >&2; return 1; }
+          pgid_of() { ps -o pgid= -p "$1" | tr -d ' '; }
+
+          # One run of the four cases with the PATH given: group, exit, signal, timeout.
+          cases() { # <label> <PATH>
+            local label=$1 path=$2 rc wn child url pid pgid
+            # 1. its own group, apart from the script's group; the node is stopped
+            rm -f "$work/g"
+            PATH=$path scripts/with-node.sh sh -c 'echo "$$ $(ps -o pgid= -p $$ | tr -d " ") $NODE_URL" > "$1"' sh "$work/g"
+            read -r pid pgid url < "$work/g"
+            [ "$pid" = "$pgid" ]; [ "$pgid" != "$(pgid_of $$)" ]
+            port_dead "$url"
+            # 2. on exit: the command's status, and a child it left behind is stopped with the group
+            rm -f "$work/c"
+            set +e; PATH=$path scripts/with-node.sh sh -c 'sleep 300 & echo $! > "$1"; exit 3' sh "$work/c"; rc=$?; set -e
+            [ "$rc" = 3 ]; gone "$(cat "$work/c")"
+            # 3. on a signal: the command's child and the node go, the status is 143
+            rm -f "$work/s"
+            PATH=$path scripts/with-node.sh sh -c 'sleep 300 & echo "$! $NODE_URL" > "$1"; wait' sh "$work/s" &
+            wn=$!
+            for _ in $(seq 1 100); do [ -s "$work/s" ] && break; sleep 0.2; done
+            read -r child url < "$work/s"
+            kill -TERM "$wn"
+            set +e; wait "$wn"; rc=$?; set -e
+            [ "$rc" = 143 ]; gone "$child"; port_dead "$url"
+            # 4. on a timeout
+            rm -f "$work/t"
+            set +e; PATH=$path timeout 25 scripts/with-node.sh sh -c 'sleep 300 & echo "$! $NODE_URL" > "$1"; wait' sh "$work/t"; rc=$?; set -e
+            [ "$rc" = 124 ]
+            read -r child url < "$work/t"; gone "$child"; port_dead "$url"
+            echo "with-node cases ok: $label"
+          }
+          cases "setsid" "$PATH"
+          cases "no setsid (perl fallback)" "$nosetsid"
+          # a command that does not exist stops with 127 on the fallback path too
+          set +e; PATH=$nosetsid scripts/with-node.sh no-such-command-fnd09 2> "$work/err"; rc=$?; set -e
+          [ "$rc" = 127 ]; grep -q 'no-such-command-fnd09' "$work/err"
+          # setsid(2) itself failing stops with 127 and the command does not run. Linux refuses setsid(2) (EPERM) to
+          # a group leader that has another member in its group: a wrapper makes perl one, with a short-lived child.
+          mkdir -p "$work/leader"; realperl=$(command -v perl)
+          printf '#!/bin/sh\nexec %s -e '"'"'use POSIX (); defined(POSIX::setpgid(0, 0)) or die "setpgid: $!"; fork() or exec "sleep", "5"; exec { $ARGV[0] } @ARGV'"'"' -- %s "$@"\n' "$realperl" "$realperl" > "$work/leader/perl"
+          chmod +x "$work/leader/perl"; rm -f "$work/ran"
+          set +e; PATH=$work/leader:$nosetsid scripts/with-node.sh touch "$work/ran" 2> "$work/err"; rc=$?; set -e
+          cat "$work/err"; [ "$rc" = 127 ]; grep -q 'setsid: ' "$work/err"; [ ! -e "$work/ran" ]
+          # neither setsid nor perl: refused before any node is started
+          mkdir -p "$work/bare"; ln -sf "$(command -v bash)" "$work/bare/bash"; ln -sf "$(command -v starknet-devnet)" "$work/bare/starknet-devnet"
+          set +e; PATH=$work/bare "$work/bare/bash" scripts/with-node.sh true 2> "$work/err"; rc=$?; set -e
+          [ "$rc" = 127 ]; grep -q 'neither setsid nor perl' "$work/err"
+
+          # --full-archive: the flag is on the node's command line, and a balance read at block 0 answers
+          # after a mint made a later block; without the flag the same read is refused.
+          cat > "$work/archive.sh" <<'EOS'
+          set -euo pipefail
+          rpc() { curl -sf -X POST -H 'content-type: application/json' -d "$1" "$NODE_URL"; }
+          port=${NODE_URL##*:}
+          args=$(ps -eo args= -ww | grep -F -- "--port $port" | grep -v grep || true)
+          echo "node: $args"
+          if [ "$1" = full ]; then grep -qF -- '--state-archive-capacity full' <<< "$args"; else ! grep -qF -- 'state-archive' <<< "$args"; fi
+          rpc "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"devnet_mint\",\"params\":{\"address\":\"$NODE_ACCOUNT_ADDRESS\",\"amount\":1000,\"unit\":\"FRI\"}}" > /dev/null
+          strk=0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d
+          bal() { rpc "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"starknet_call\",\"params\":{\"request\":{\"contract_address\":\"$strk\",\"entry_point_selector\":\"0x2e4263afad30923c891518314c3c95dbe830a16874e8abc5777a9a20b54c76e\",\"calldata\":[\"$NODE_ACCOUNT_ADDRESS\"]},\"block_id\":$1}}" || true; }
+          old=$(bal '{"block_number":0}'); now=$(bal '"latest"')
+          echo "block 0: $old"; echo "latest: $now"
+          grep -q '"result"' <<< "$now"
+          if [ "$1" = full ]; then grep -q '"result"' <<< "$old"; [ "$old" != "$now" ]; else ! grep -q '"result"' <<< "$old"; fi
+          EOS
+          scripts/with-node.sh --full-archive bash "$work/archive.sh" full
+          scripts/with-node.sh bash "$work/archive.sh" none
+
       - name: no asset file committed (D-73)
         run: |
           set -euo pipefail

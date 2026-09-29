@@ -4,7 +4,11 @@
 # command's status. This is how an agent runs anything that needs a node without a background
 # command (docs/briefs/COMMON.md §2).
 #
-#   scripts/with-node.sh <command> [args...]
+#   scripts/with-node.sh [--full-archive] <command> [args...]
+#
+# --full-archive starts the node with `--state-archive-capacity full` (`starknet-devnet --help`, 0.10.0): it
+# keeps the state of every block, so a read at an older block answers (the indexer needs it, IDX-01).
+# Without it the node is started as before.
 #
 # The node is starknet-devnet (the Rust devnet of 0xSpaceShard, pinned in .tool-versions): the one
 # of the candidates that accepts the classes of Cairo 2.19 (docs/research/SPK-5b-toolchain-native.md, NS-1).
@@ -14,9 +18,11 @@
 # The command gets:
 #   NODE_URL         http://127.0.0.1:<port>          (JSON-RPC; also RPC_URL and STARKNET_RPC_URL)
 #   NODE_ACCOUNT_ADDRESS, NODE_ACCOUNT_PRIVATE_KEY     the first pre-funded account (seed 0)
-# The command runs in its own process group. On every way out (the command ends, fails, or this
-# script is interrupted) the whole group is stopped, so nothing the command started survives it,
-# even when the command itself exited first; then the node.
+# The command runs in its own process group (`setsid`; where there is none, macOS, a `perl` one-liner that
+# calls setsid(2) and execs the command: the same system call, the same pid, so the same group).
+# On every way out (the command ends, fails, or this script is interrupted) the whole group is
+# stopped, so nothing the command started survives it, even when the command itself exited first;
+# then the node.
 # Logs: $WITH_NODE_LOG_DIR (default ./.with-node/) node.log, overwritten each run.
 #
 # A process group id cannot be handed to another group while a member is alive, so signalling the
@@ -27,12 +33,14 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: scripts/with-node.sh <command> [args...]" >&2
+  echo "usage: scripts/with-node.sh [--full-archive] <command> [args...]" >&2
   exit 2
 }
 
+node_args=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --full-archive) node_args+=(--state-archive-capacity full) ;;
     --) shift; break ;;
     -*) echo "with-node: unknown option $1" >&2; usage ;;
     *) break ;;
@@ -41,6 +49,20 @@ while [ $# -gt 0 ]; do
 done
 [ $# -ge 1 ] || usage
 command -v starknet-devnet > /dev/null || { echo "with-node: starknet-devnet not found (scripts/setup-toolchain.sh)" >&2; exit 127; }
+
+# The command's own session. `setsid` where the system has it; else perl (on macOS by default) calls the
+# same setsid(2) and execs, so the pid stays the command's and is the group id, exactly as with setsid:
+# the group holds the command and what it starts, and nothing else. A failed setsid(2) or exec stops
+# the command (127), never runs it in this script's own group, which the cleanup would then signal.
+if command -v setsid > /dev/null; then
+  new_session=(setsid)
+elif command -v perl > /dev/null; then
+  # shellcheck disable=SC2016 # perl's variables, not this shell's
+  new_session=(perl -e 'use POSIX (); POSIX::setsid() != -1 or do { print STDERR "with-node: setsid: $!\n"; exit 127 }; exec { $ARGV[0] } @ARGV; print STDERR "with-node: $ARGV[0]: $!\n"; exit 127' --)
+else
+  echo "with-node: neither setsid nor perl found: cannot run the command in its own process group" >&2
+  exit 127
+fi
 
 log_dir=${WITH_NODE_LOG_DIR:-$PWD/.with-node}
 mkdir -p "$log_dir"
@@ -133,7 +155,7 @@ start_node() {
   for attempt in 1 2 3 4 5; do
     pick_port
     node_port=$PORT
-    starknet-devnet --seed 0 --port "$node_port" > "$log_dir/node.log" 2>&1 &
+    starknet-devnet --seed 0 ${node_args[@]+"${node_args[@]}"} --port "$node_port" > "$log_dir/node.log" 2>&1 &
     node_pid=$!
     wait_for node "$node_pid" "$log_dir/node.log" node_ready
     status=$?
@@ -155,9 +177,10 @@ NODE_ACCOUNT_ADDRESS=$(awk '/Account address/ { print $(NF); exit }' "$log_dir/n
 NODE_ACCOUNT_PRIVATE_KEY=$(awk '/Private key/ { print $(NF); exit }' "$log_dir/node.log")
 export NODE_ACCOUNT_ADDRESS NODE_ACCOUNT_PRIVATE_KEY
 
-# In its own session, hence its own process group (setsid execs: this shell's background job is
-# never a group leader), so that the group id is the pid and stays known after the leader exits.
-setsid "$@" <&0 &
+# In its own session, hence its own process group (setsid and the perl fallback exec: this shell's
+# background job is never a group leader), so that the group id is the pid and stays known after
+# the leader exits.
+"${new_session[@]}" "$@" <&0 &
 cmd_pgid=$!
 wait "$cmd_pgid"
 exit $?
