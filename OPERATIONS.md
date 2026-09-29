@@ -192,7 +192,8 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   `lib-1`, `quiver-1` for the caps per track (game 2, map library 1, quiver 1). A launch or resume
   takes one free total slot and one free slot of its own track (`TRACK` in the launcher), or
   refuses (exit 4, before any worktree is created). The agent's inner shell takes the two locks itself
-  (`flock -n`, on descriptors its children inherit), so the kernel frees them when that shell and
+  (`flock -w 5` each, on descriptors its children inherit, then `slots-acquired` in its log, which
+  the launcher waits for, stopping the agent if it never comes), so the kernel frees them when that shell and
   the CLI it waits for have ended, however they end: nothing is counted by reading processes, pid
   files or units. A process a CLI leaves behind after it exits, having closed those descriptors, is
   not counted (COMMON forbids leaving processes). The slot directory is read-only (mode 555) and a
