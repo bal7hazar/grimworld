@@ -30,6 +30,7 @@ The machine also runs the owner's other programmes: about 6 agents in all.
 | D-132 | Publications on scarbs.xyz are decided by the project manager in the owner's name | Owner |
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
+| D-137 | The MVP's burners send directly, funded by the game; no paymaster before version 1 | Project manager |
 | D-136 | An unrevealed chunk is wall in the window; the ADR amendments of DES-21 (played batches) accepted | Project manager |
 | D-134 | Void chunks around every location; chunk corners are wall. SPK-7 measured the chunked map at +720k gas per tick with goblins (+14 %) | Project manager |
 | D-131 | The API of `quiver_quest` and `quiver_achievement` accepted | Project manager |
@@ -54,7 +55,7 @@ Nothing blocks.
 
 | Risk | State |
 |---|---|
-| The cost of an expedition (R-2) | Over the target by 1.4× to 1.75× with one action per transaction; batches (D-133) and SPK-1b in progress |
+| The cost of an expedition (R-2) | Measured at $0.69 to $0.87 with one action per transaction; estimated at $0.54 to $0.73 with batches of 10 and the MVP's burner (D-133, D-137); target $0.50. Next: the count of storage slots changed per transaction (ENG-01), then FND-04's budgets. A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
 | Sessions and agents share one machine and one user with the owner's other programmes | Incident of 2026-09-29, 00:02 UTC: a wildcard deletion in `/tmp` by the game orchestrator; no damage found. Rule in OPERATIONS §3: delete and kill only what you created, by exact path and pid |
 | Secrets reach every agent of the machine | The launchers empty them in their agents; the settings file is restricted to its owner; the residual is accepted |
 | Audits that need four passes (LIB-03, LIB-04, SPK-2) | Tasks cut smaller; the rule of three loops applied by the project manager |

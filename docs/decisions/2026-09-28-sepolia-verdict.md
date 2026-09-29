@@ -101,3 +101,32 @@ which sending by batch makes the game feel wrong (a rewind of several actions se
 players). Then the queue goes back to one action per transaction in fights and the threshold
 is restated.
 
+
+## After SPK-1b (2026-09-29): what the account costs (D-137)
+
+Measured on Sepolia by SPK-1b (`docs/reports/SPK-1b-audit-gpt-6-astra.md`, `[GPT-6-Astra]`,
+passed after four fix loops).
+
+| The fixed part of a transaction | L2 gas | Against the burner sending directly |
+|---|---:|---:|
+| The burner class of the MVP, sending directly | 717,435 | 1 |
+| The owner's account (SPK-1) | 1,087,585 | 1.52 |
+| The burner through a relayer of our own | 1,587,885 | 2.2 |
+| The burner through a public paymaster, default mode | 3,654,080 | 5.1 |
+
+| An expedition of 300 actions, today's prices | One action per transaction (measured) | Batches of 10 and the burner (estimate) |
+|---|---:|---:|
+| Worst case everywhere | $0.874 | about $0.73 |
+| Mixed | $0.685 | about $0.54 |
+
+The storage slots that a batch changes once are not counted in the estimate (ENG-01). The
+two spikes spent 76.19 test STRK over 149 transactions.
+
+| # | Decision (D-137) |
+|---|---|
+| 1 | **In the MVP a burner sends directly and the game funds it**: it is the cheapest path measured, and the MVP runs on test networks where the fee token has no value |
+| 2 | **A paymaster is not used before version 1.** It multiplies the fixed part of every transaction by 2.2 to 5.1. It is what a public network needs (a burner that holds the fee token can send it elsewhere; the player must never hold it, ADR-0005 A-3), so its cost belongs to the business model and to SPK-9 |
+| 3 | D-133 stands: the burner's gain does not replace the batches. The target of $0.50 is within reach of the mixed expedition and not yet of the worst one; ENG-01's count of changed slots decides the rest |
+
+What would reverse 1: a test network whose token takes a value, or a playtest opened to
+strangers, where a funded burner can be emptied by its holder.
