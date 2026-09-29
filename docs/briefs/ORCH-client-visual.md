@@ -117,7 +117,7 @@ reviews, has it audited and merges it, under OPERATIONS.md and the game's rules 
 
 | ID | Task | Allowlist | Before the first launch |
 |---|---|---|---|
-| IDX-01 | **The indexer** (D-130, PLAN Phase 1): a TypeScript process from SPK-11's prototype; the events frozen by ENG-01 are its interface; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule. Tested against a local node, never Sepolia | `indexer/**` (a new package of the pnpm workspace), the line adding it to `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `docs/briefs/IDX-*`, its report | Node 24.21 (`.tool-versions`) on the Mac; Scarb 2.19.4, snforge 0.61 and starknet-devnet 0.10.0 as `scripts/setup-toolchain.sh` pins them, checked by a build of `contracts/` |
+| IDX-01 | **The indexer** (D-130, PLAN Phase 1): a TypeScript process from SPK-11's prototype; the events frozen by ENG-01 are its interface; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule. Tested against a local node, never Sepolia | `indexer/**` (a new package of the pnpm workspace), the line adding it to `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `docs/briefs/IDX-*`, its report; for the indexer only (D-153): the prettier step of CI, the root `format` script, `.gitignore`, a CI job with starknet-devnet filtered on `indexer/` | Node 24.21 (`.tool-versions`) on the Mac; Scarb 2.19.4, snforge 0.61 and starknet-devnet 0.10.0 as `scripts/setup-toolchain.sh` pins them, checked by a build of `contracts/` |
 
 - The game's orchestrator does not launch a lent task. A change a lent task needs in the game's
   events or contracts is a `PENDING-cv-*` request; if ENG-R1 or a later lot changes an event,

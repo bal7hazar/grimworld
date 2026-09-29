@@ -247,7 +247,7 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | RWD-03 | Crafter helper and books; rarity signatures, discovery, hints | RWD-01 | Opus 5.5 | D S P C Q | todo |
 | RWD-04 | Potions: effects, belt, use in instance | RWD-03, CBT-05 | Opus 5.5 | D S P Q | todo |
 | RWD-05 | Merchants, smiths, armorers, collectors | RWD-01 | Opus 5.5 | D S Q | todo |
-| RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance | RWD-01 | Opus 5.5 | D S P C Q | todo |
+| RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance. **D-153: the contract refuses any rarity outside design/15's values (the market key's assumption), tested with 128** | RWD-01 | Opus 5.5 | D S P C Q | todo |
 | RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | RWD-08 | Boss items and boss armor sets with 3- and 5-piece bonuses | RWD-06 | Opus 5.5 | D S P Q | todo |
 | RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + GPT-6-Astra | todo |
