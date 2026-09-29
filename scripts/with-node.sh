@@ -58,7 +58,7 @@ if command -v setsid > /dev/null; then
   new_session=(setsid)
 elif command -v perl > /dev/null; then
   # shellcheck disable=SC2016 # perl's variables, not this shell's
-  new_session=(perl -e 'use POSIX (); POSIX::setsid() != -1 or die "with-node: setsid: $!\n"; exec { $ARGV[0] } @ARGV; print STDERR "with-node: $ARGV[0]: $!\n"; exit 127' --)
+  new_session=(perl -e 'use POSIX (); defined(POSIX::setsid()) or do { print STDERR "with-node: setsid: $!\n"; exit 127 }; exec { $ARGV[0] } @ARGV; print STDERR "with-node: $ARGV[0]: $!\n"; exit 127' --)
 else
   echo "with-node: neither setsid nor perl found: cannot run the command in its own process group" >&2
   exit 127
