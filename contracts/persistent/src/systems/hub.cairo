@@ -9,6 +9,10 @@ use starknet::{ClassHash, ContractAddress};
 
 pub const VERSION: felt252 = 'grimworld-hub-1';
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
+/// The revert of an administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
+pub const NOT_ADMIN: felt252 = 'not admin';
+/// `set_admin` to the zero address would leave the role to nobody.
+pub const ZERO_ADMIN: felt252 = 'admin is zero';
 
 /// What players call, in hubs. Every entrypoint that names an adventurer checks that the caller
 /// owns the adventurer's account (ADR-0007, *Access control*), and that the adventurer is in a hub
@@ -144,11 +148,12 @@ pub trait IHubAdmin<T> {
 
 #[starknet::contract]
 pub mod Hub {
+    use core::num::traits::Zero;
     use grimworld_logic::interface::{IResults, Results};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
     use grimworld_logic::types::InstanceId;
-    use starknet::storage::{Map, StoragePointerWriteAccess};
-    use starknet::{ClassHash, ContractAddress};
+    use starknet::storage::{Map, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
@@ -425,6 +430,8 @@ pub mod Hub {
         fn version(self: @ContractState) -> felt252 {
             VERSION
         }
+        /// The registered contracts, the randomness provider among them: configuration, never a
+        /// constant of the code (ADR-0001, ADR-0002). Administrator only.
         fn set_contracts(
             ref self: ContractState,
             registry: ContractAddress,
@@ -432,10 +439,17 @@ pub mod Hub {
             market: ContractAddress,
             fate: ContractAddress,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
+            self.registry.write(registry);
+            self.instances.write(instances);
+            self.market.write(market);
+            self.fate.write(fate);
         }
+        /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
+            assert(admin.is_non_zero(), super::ZERO_ADMIN);
+            self.admin.write(admin);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
