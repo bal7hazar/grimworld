@@ -42,12 +42,36 @@ given it must be the key's):
 
 A funding is signed, kept in the state file with its nonce, and only then handed to the node. The
 next funding waits until that nonce is consumed on the chain; while the node does not know the
-kept execution, the service hands the same one again. A second service refuses a state file that
-is open (`<file>.lock`); two services on one funding account with two files must never be run.
+kept execution, the service hands the same one again.
 
 If a kept execution can never be included (the node refuses it for good), fundings stop and
 answer `unavailable`: the operator consumes that nonce by sending any transaction from the funding
 account, and the service goes on by itself.
+
+## One service per state file and per funding account
+
+At start the service creates `<state file>.lock` exclusively (`O_CREAT | O_EXCL`): of any number
+of starts at the same time, the kernel lets one succeed. A lock that exists is **never taken
+over**, even when the service that made it has stopped: the service refuses to start with
+`the state file is locked by another service, or by one that stopped without closing it`. A
+service removes its lock whenever it exits (a stop, a signal, an error); only a kill (`SIGKILL`,
+the OOM killer) or a power loss leaves one.
+
+**The operator's step after a kill:** make sure no funder service runs on the host (the lock holds
+the pid of the one that made it: `ps -p <pid>` shows nothing, and no other funder process runs),
+then remove `<state file>.lock` and start the service.
+
+**What the deployment must guarantee (OPS-01)**; the code relies on it and cannot check it:
+
+1. **One host.** The service, its state file and its lock are on one machine; no second host ever
+   runs the service for the same funding account.
+2. **The state file on a local disk** (not NFS, SMB or any storage shared between machines): the
+   exclusive creation is atomic on a local file system only, and the pid in the lock means
+   something on that host only.
+3. **One state file per funding account, and one funding account per state file.** Two services
+   with two state files on one account would each hand executions with the account's nonce.
+4. **No automatic removal of the lock** (by a supervisor, a start script or a clean-up job): a
+   supervisor may restart the service, which then refuses until the operator's step above.
 
 ## Run and test
 

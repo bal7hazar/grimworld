@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -591,13 +591,25 @@ describe("the state file", () => {
     fileLedger(path).close();
   });
 
-  it("a lock left by a process that stopped is taken over", () => {
+  // Fix loop 3, F-5: never taken over; the operator removes it (lock.test.ts for the races).
+  it("a lock left by a process that stopped is refused, and kept for the operator", () => {
     const path = stateFile();
     // Above any pid Linux hands out (pid_max is at most 2^22).
     writeFileSync(`${path}.lock`, String(2 ** 30));
-    const ledger = fileLedger(path);
-    expect(readFileSync(`${path}.lock`, "utf8")).toBe(String(process.pid));
-    ledger.close();
+    expect(() => fileLedger(path)).toThrow(/remove the lock/);
+    expect(readFileSync(`${path}.lock`, "utf8")).toBe(String(2 ** 30));
+  });
+
+  it("a close removes only the lock this ledger took", () => {
+    const path = stateFile();
+    const first = fileLedger(path);
+    // An operator removed it by mistake, and another service took the file.
+    unlinkSync(`${path}.lock`);
+    const second = fileLedger(path);
+    first.close();
+    expect(() => fileLedger(path)).toThrow(LedgerLocked);
+    second.close();
+    fileLedger(path).close();
   });
 });
 

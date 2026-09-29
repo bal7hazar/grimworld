@@ -27,10 +27,13 @@ let ledger: Ledger;
 try {
   ledger = config.stateFile ? fileLedger(config.stateFile) : memoryLedger();
 } catch (error) {
-  // Two services on one ledger could hand two executions the same nonce (fix loop 2, F-1).
+  // Two services on one ledger could hand two executions the same nonce (fix loops 2 and 3).
   process.stderr.write(`funder: ${error instanceof LedgerLocked ? error.message : "no state"}\n`);
   process.exit(1);
 }
+// Every exit Node runs handlers for (a normal end, `process.exit`, an uncaught error) removes the
+// lock; only a kill (SIGKILL, the OOM killer) or a power loss leaves it, for the operator.
+process.on("exit", () => ledger.close());
 const service = createFundingService({
   chain: createFundingChain(config),
   ledger,

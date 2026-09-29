@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 
 /**
@@ -122,47 +123,53 @@ export function memoryLedger(): Ledger {
 
 /** Another process holds the file: two services on one ledger could hand two executions one nonce. */
 export class LedgerLocked extends Error {
-  constructor() {
-    super("the state file is open in another process");
+  constructor(lockPath: string) {
+    super(
+      `the state file is locked by another service, or by one that stopped without closing it ` +
+        `(${lockPath}): if no service runs on this host, remove the lock (README)`,
+    );
     this.name = "LedgerLocked";
   }
 }
 
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-/** Takes `<path>.lock` for this process: refused while a living process holds it. */
+/**
+ * Takes `<path>.lock` by creating it exclusively (`O_CREAT | O_EXCL`, flag `wx`): on a local file
+ * system the kernel lets exactly one creator succeed, whatever the timing, so at most one process
+ * owns the ledger.
+ *
+ * A lock that exists is never taken over, even when the process named in it has stopped (fix
+ * loop 3, F-5): a takeover is a read, a check and a removal, and another starter can take over
+ * between them; there is no way to make those three one step here (Node has no `flock`). The
+ * service fails closed instead: it refuses to start, and the operator removes the lock once no
+ * service runs on the host (README). A service that exits normally, or on an error, removes it.
+ */
 function lock(path: string): () => void {
   const lockPath = `${path}.lock`;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      writeFileSync(lockPath, String(process.pid), { flag: "wx" });
-      return () => {
-        if (existsSync(lockPath) && readFileSync(lockPath, "utf8") === String(process.pid)) {
-          unlinkSync(lockPath);
-        }
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const holder = Number(readFileSync(lockPath, "utf8"));
-      if (Number.isInteger(holder) && holder > 0 && alive(holder)) throw new LedgerLocked();
-      // Left by a process that stopped: taken over.
-      unlinkSync(lockPath);
-    }
+  // The owner's mark: the process and a random token, so that a close never removes a lock this
+  // process does not own (one an operator removed and another service took since).
+  const mark = `${process.pid} ${randomUUID()}`;
+  try {
+    writeFileSync(lockPath, mark, { flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new LedgerLocked(lockPath);
+    throw error;
   }
-  throw new LedgerLocked();
+  let open = true;
+  return () => {
+    if (!open) return;
+    open = false;
+    try {
+      if (readFileSync(lockPath, "utf8") === mark) unlinkSync(lockPath);
+    } catch {
+      // Already gone.
+    }
+  };
 }
 
 /**
  * A ledger written to `path` after every change (a new file, then renamed over the old one), open
- * in one process at a time (`<path>.lock`). One ledger per funding account: two services with two
- * files on one account are not detected here, and must not be run (README).
+ * in one process at a time (`<path>.lock`). The deployment guarantees what the code cannot see
+ * (README): one host, the state file on a local disk, one state file per funding account.
  */
 export function fileLedger(path: string): Ledger {
   const unlock = lock(path);
