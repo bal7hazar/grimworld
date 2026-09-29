@@ -304,7 +304,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     // The world is the pass's root; the stage holds only the sprite that draws the texture down.
     expect(surface.stage.children).toHaveLength(1);
     // FakeSurface.renderTo throws unless the world is a root (no parent).
-    expect(surface.passes).toEqual([texture]);
+    expect(surface.passes).toEqual([view]);
     // Inside the pass an art pixel is exactly n = 1 texel: world scale × oversample × resolution.
     expect(surface.stage.children[0]!.scale.x).toBeCloseTo(1 / oversample, 9);
   });
@@ -328,6 +328,33 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(zoomed.destroyed).toBe(true);
     expect(surface.passes).toHaveLength(surface.renders);
     expect(host.quiet()).toBe(true);
+  });
+
+  it("after a zoom that reuses a larger bucket, the pass fills what the figure counts", () => {
+    const { host, surface, renderer } = sharp();
+    // Out: oversample 1.39, bucket × 1.5 (563 × 1218 CSS px). Back in: oversample 1.11, whose
+    // bucket (× 1.25) is smaller, but the × 1.5 texture is kept (within two buckets).
+    renderer.zoomAt(0.8, { x: 187.5, y: 406 });
+    host.run(100);
+    const large = renderer.offscreenTexture()!;
+    renderer.zoomAt(1.25, { x: 187.5, y: 406 });
+    host.run(100);
+    expect(renderer.offscreenTexture()).toBe(large);
+    const info = renderer.zoomInfo().offscreen!;
+    const allocated = large.source.pixelWidth * large.source.pixelHeight;
+    expect(info.allocatedWidth * info.allocatedHeight).toBe(allocated);
+    // The pass targets the view of the needed part: it fills exactly the figure's texels…
+    const target = surface.passes.at(-1)!;
+    expect(target.source).toBe(large.source);
+    expect(surface.filled.at(-1)).toBe(info.width * info.height);
+    // …which is less than the reused texture holds.
+    expect(info.width * info.height).toBeLessThan(allocated * 0.7);
+    // The cost figure is that fill against the canvas's pixels.
+    expect(info.cost).toBeCloseTo((info.width * info.height) / (750 * 1624), 9);
+    // The pass's root paints its backdrop over exactly that part, not the whole texture.
+    const root = renderer["passRoot"] as Container;
+    const backdrop = root.children[0]!.getLocalBounds();
+    expect([backdrop.width * 2, backdrop.height * 2]).toEqual([info.width, info.height]);
   });
 
   it("a pinch of 60 frames allocates a few textures, not one per frame", () => {

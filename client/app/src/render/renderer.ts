@@ -41,8 +41,11 @@ export interface Surface {
   render(): void;
   /** Renders `frame` of `target` into a texture of `resolution` pixels per world pixel. */
   bake(target: Container, frame: Rectangle, resolution: number): Texture;
-  /** Renders `container` (a root: no parent) into `target`, cleared first. */
-  renderTo(container: Container, target: RenderTexture): void;
+  /**
+   * Renders `container` (a root: no parent) into `target`'s frame only: the pass's viewport is
+   * the frame, and nothing is cleared (the container paints its own backdrop over the frame).
+   */
+  renderTo(container: Container, target: Texture): void;
 }
 
 /**
@@ -207,6 +210,9 @@ interface OffscreenPlan {
  */
 export const OFFSCREEN_BUCKET = 0.25;
 
+/** The canvas's background, and `sharp`'s backdrop over the part of the offscreen a frame uses. */
+export const BACKGROUND = 0x0b0b0e;
+
 /**
  * Draws a `ViewState` on demand. Every change (a view, the camera, the size) asks for one frame;
  * a step, a turn and the camera's pan ask for frames until they end; idle animations ask for one
@@ -229,6 +235,13 @@ export class Renderer implements FrameClient {
   /** `sharp`: the sprite that draws the offscreen texture down to the screen, linearly. */
   private readonly screen = new Sprite(Texture.EMPTY);
   private offscreen: Offscreen | null = null;
+  /**
+   * `sharp`: the root of the offscreen pass, a backdrop over exactly the part of the texture the
+   * frame needs, then the world. The pass draws into that part only (its viewport), so the GPU
+   * fills what the panel's cost counts, whatever the size of the reused texture.
+   */
+  private readonly passRoot = new Container();
+  private readonly backdrop = new Graphics();
   private cameraTween: Tween | null = null;
   private zoomed = false;
   private zoom: ZoomSettings;
@@ -248,6 +261,7 @@ export class Renderer implements FrameClient {
     this.mode = options.mode ?? "continuous";
     this.scheduler = new FrameScheduler(host, this, options.onDraw);
     this.world.addChild(this.ground, this.overlay, this.actorsLayer);
+    this.passRoot.addChild(this.backdrop);
     this.mountStage();
   }
 
@@ -379,7 +393,10 @@ export class Renderer implements FrameClient {
     const { resolution, devicePixelRatio } = this.surface;
     const deviceScale = scale * devicePixelRatio;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
-    const allocated = plan && this.allocation(plan);
+    // The texture actually held (a reused bucket may be larger than the plan's), else the bucket
+    // the next frame will allocate.
+    const held = this.offscreen?.resolution === resolution ? this.offscreen : null;
+    const allocated = plan && (held ?? this.allocation(plan));
     const canvas = this.viewport.width * this.viewport.height * resolution * resolution;
     const texels = (w: number, h: number) =>
       Math.round(w * resolution) * Math.round(h * resolution);
@@ -420,6 +437,7 @@ export class Renderer implements FrameClient {
     this.dropOffscreen();
     this.screen.destroy();
     this.world.destroy({ children: true });
+    this.passRoot.destroy({ children: true });
   }
 
   // --- frames -------------------------------------------------------------------------------
@@ -482,7 +500,9 @@ export class Renderer implements FrameClient {
     this.mountStage(true);
     const offscreen = this.ensureOffscreen(plan);
     this.placeWorld(scale * plan.oversample, plan.width, plan.height, centre);
-    this.surface.renderTo(this.world, offscreen.texture);
+    this.backdrop.clear().rect(0, 0, plan.width, plan.height).fill(BACKGROUND);
+    // Into the view (the frame's part of the reused texture), not the whole allocation.
+    this.surface.renderTo(this.passRoot, offscreen.view);
     this.screen.scale.set(1 / plan.oversample);
     this.surface.render();
   }
@@ -513,6 +533,7 @@ export class Renderer implements FrameClient {
     const stage = this.surface.stage;
     if (stage.children.length === 1 && stage.children[0] === child) return;
     stage.removeChildren();
+    if (offscreen) this.passRoot.addChild(this.world);
     stage.addChild(child);
   }
 

@@ -1,5 +1,5 @@
-import { Application, type RenderTexture, TextureStyle, Ticker } from "pixi.js";
-import type { Surface } from "./renderer";
+import { Application, TextureStyle, Ticker } from "pixi.js";
+import { BACKGROUND, type Surface } from "./renderer";
 import { type ScaleMode, canvasResolution } from "./scaling";
 
 /** The surface in the browser: its canvas resolution follows the scale mode. */
@@ -55,7 +55,7 @@ export async function createPixiSurface(
     autoDensity: true,
     antialias: false,
     roundPixels: true,
-    background: 0x0b0b0e,
+    background: BACKGROUND,
     autoStart: false,
     sharedTicker: false,
     eventMode: "none",
@@ -78,8 +78,10 @@ export async function createPixiSurface(
     render: () => app.render(),
     bake: (target, frame, bakeResolution) =>
       app.renderer.generateTexture({ target, frame, resolution: bakeResolution, antialias: false }),
-    renderTo: (container, target: RenderTexture) =>
-      app.renderer.render({ container, target, clear: true }),
+    // A Texture target's frame is the pass's viewport (PixiJS RenderTargetSystem.bind): only the
+    // frame is drawn. No clear: a WebGL clear is not limited by the viewport; the container paints
+    // its own backdrop over the frame.
+    renderTo: (container, target) => app.renderer.render({ container, target, clear: false }),
     setResolution: (value) =>
       app.renderer.resize(app.renderer.screen.width, app.renderer.screen.height, value),
   };
