@@ -29,4 +29,18 @@ BAL-01's first pass or by DES-06, whichever comes first.
 
 ## Decision
 
-Pending.
+**D-157**, `[Opus 5.5]` project manager, 2026-09-29, under D-128: the recommendations.
+
+- **A to H accepted as the table gives them**, I done. A: a global attribute id in content, mapped
+  to a build-local index by the flattening; the count is **design/03's 26**: any text that says 27
+  is corrected by the next lot that touches it.
+- **G is DES-06's**, a prerequisite of production snapshots (CBT-02, ENG-07): a per-source bound for
+  every statistic, signed where it can be negative, with acceptance tests; the validators and the
+  flattening prove them.
+- **E**: 1 quarter of adrenaline a tick until BAL-01; written in design/19 by BAL-01's first pass or
+  DES-06, whichever comes first.
+- **F** is decided with ENG-07, once `play` is measured.
+
+**What would reverse it**: DES-06 or BAL-01 finding a content that needs one of A to D the other
+way; the owner's reading of a rule.
+
