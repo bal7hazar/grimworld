@@ -136,6 +136,9 @@ Skill {
 }
 ```
 
+The effect kinds, the entry's fields and how they scale are the closed catalogue of
+[19-effects](19-effects.md) (§2, §3); a kind not listed there does not exist.
+
 Scaling between rank 0 and rank 12 is linear, as in GW1 ("12…41 damage").
 
 ### Skill kinds

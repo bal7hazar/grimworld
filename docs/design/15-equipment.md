@@ -120,6 +120,9 @@ a health regeneration cost, energy on hit with an energy regeneration cost, heal
 (+10 to +20%), conditional damage (+10 to +15%), damage with a drawback (+15% damage,
 −5 energy).
 
+Each modifier and set bonus is a passive kind of [19-effects §4](19-effects.md#4-the-catalogue-passive-effects-modifiers-attributes-set-bonuses-weapons);
+a bonus that fits none of them needs that catalogue amended first.
+
 ## Rarity
 
 | Rarity | Colour | Modifiers | Value range of each modifier |
