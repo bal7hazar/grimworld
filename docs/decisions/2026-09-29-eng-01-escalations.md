@@ -74,4 +74,39 @@ reads and writes), which ENG-07 measures. No decision is asked on it now; it is 
 
 ## Decision
 
-Pending.
+By the project manager on 2026-09-29, under D-128 (D-141).
+
+### The merge
+
+**Option (a): pull request #81 is merged now.** The two majors and the minor left by the
+audit are in the cost accounting, not in the interfaces, layouts or events, and the audit
+finds no security finding. They become task **ENG-01b** (Sonnet 5.5, the accounting script
+and §9–§10 only, audit `[GPT-6-Astra]`), run beside FND-05. ENG-07 depends on ENG-01b.
+
+### The design decisions
+
+| # | Decision | Note |
+|---|---|---|
+| E-16 | **(a)** At most 16 distinct goblin records changed by one invocation of `play`; the batch stops before the action that would pass it; the client counts as the contract | A rule of the transaction, not of the game: the player sees a batch leave earlier, nothing else |
+| E-1 | **(a)** A goblin record written for the first time in a slot weighs 1 more | |
+| E-21 | **(a)** An action that cannot be split runs, whatever it changes; its class has its own bound, 58M cold | A refusal could never be lifted: a rule never blocks a legal action (D-140) |
+| E-15 | **(a)** On defeat the belt's unused potions are credited back, as on return | D-04: defeat costs the instance, nothing else. Whether a Red Rift should cost more is a question for the balance simulator, later |
+| E-20 | **(a)** Nothing of a member carries through a gate but the belt's reserve: health, energy, conditions and recharges start anew in the next instance | It is the baseline's rule (a new area restores the character), and the belt, filled once for the expedition, is what wears down over the floors of a dungeon. **A choice of design the owner may reverse**: carrying health and energy would make a dungeon a test of endurance |
+| E-2 | **(a)** While the roster of displaced goblins is full, a goblin does not leave its spawn chunk | No loot is lost |
+| E-7, E-8 | **(a)** Budgets per branch | The overrun is the ticks an action runs among goblins, which the design requires |
+| E-18 | **(a)** `mine` is sent alone, until ENG-07 measures a tick in a batch | The lever to pull first if the worst expedition misses the target |
+| E-5 | **Not (a): a content version.** The registry carries a version number, returned by the `bundle` call that every invocation already makes. The client states the version its batch was computed under; if it differs, the batch is refused whole, without executing, and the client reloads the content and computes again. The instance goes on under the new content | The operating rule proposed with (a), "content changes only when no live instance spans the release", cannot hold: the world waits, and an instance may stay open for weeks (design/02). Content will change under live instances; what must not happen is a batch computed under one content and executed under another. ENG-03 measures the cost (one compared value, one felt of calldata) |
+
+### Section B
+
+The eleven defaults stand. E-14: `quiver_quest` 0.1.0 is published since; the quest
+component is embedded by GLD-02.
+
+### The cost
+
+The worst expedition is estimated at $0.556 with these defaults, for a target of $0.50;
+the mixed one is under it. No decision is taken on it before ENG-07 measures a tick inside
+a batch. The levers, in the order they would be pulled: `mine` inside `play` (E-18), the
+snapshot of `enter` as calldata (E-7), the per-action events (E-17), then the target itself
+with the business model.
+

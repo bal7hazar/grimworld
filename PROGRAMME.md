@@ -9,7 +9,7 @@ owner.
 
 | Track | Repository | Orchestrator (model verified) | Where it is | Next stop |
 |---|---|---|---|---|
-| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 16 tasks done, the last one FND-04: the cost budget is written ([docs/architecture/cost-budget.md](docs/architecture/cost-budget.md)), every figure marked measured, derived or estimated. Running: **ENG-01**, the core interfaces, designed against that budget. Then FND-05, SPK-4 | Gate of Phase 0 |
+| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 18 tasks done. **ENG-01 is merged: the interfaces, storage layouts and events of the five contracts are frozen**, designed against the cost budget. SPK-4 done: the client mirrors the rules in TypeScript. Next: ENG-01b (accounting), FND-05 (providers), then the engine tasks of Phase 1 | Gate of Phase 0 |
 | Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
 | Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | **`quiver_quest` 0.1.0 is published** on scarbs.xyz (2026-09-29). Next: `quiver_achievement` 0.1.0, in event mode only (D-139) | `quiver_achievement` 0.1.0: a publication, asked of the project manager |
 
@@ -37,6 +37,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-141 | ENG-01 merged; its design escalations decided (caps of a batch, belt credited back on defeat, nothing carries through a gate, content version) | Project manager |
 | D-140 | A rule never panics on a legal action; percent modifiers of damage are summed, not multiplied; the client mirrors the rules in TypeScript, checked by vectors from the Cairo code | Project manager |
 | D-139 | `quiver_achievement` 0.1.0 in event mode only: its storage mode would cost about 200M gas in the worst call | Project manager |
 | D-137 | The MVP's burners send directly, funded by the game; no paymaster before version 1 | Project manager |
@@ -64,7 +65,7 @@ Nothing blocks.
 
 | Risk | State |
 |---|---|
-| The cost of an expedition (R-2) | Target $0.50 for 300 actions, that is 1.89M L2 gas per action. Measured: $0.69 to $0.87 with one action per transaction. Derived with batches of 10 and the MVP's burner: $0.54 to $0.73. A burner transaction costs at least 0.82M before the game computes; a new storage slot 0.45M, an overwritten one 0.03M (audited). `enter` creates 4 new slots at each instance; reusing them is a design ENG-01 measures. A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
+| The cost of an expedition (R-2) | Target $0.50 for 300 actions. Measured with one action per transaction: $0.69 to $0.87. **Estimated on the frozen interfaces, with batches: $0.556 in the worst case**, under the target in the mixed one. The answer turns on ENG-07's measure of a tick inside a batch. Levers listed in [the decision](docs/decisions/2026-09-29-eng-01-escalations.md). A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
 | Sessions and agents share one machine and one user with the owner's other programmes | Incident of 2026-09-29, 00:02 UTC: a wildcard deletion in `/tmp` by the game orchestrator; no damage found. Rule in OPERATIONS §3: delete and kill only what you created, by exact path and pid |
 | Secrets reach every agent of the machine | The launchers empty them in their agents; the settings file is restricted to its owner; the residual is accepted |
 | Audits that need four passes (LIB-03, LIB-04, SPK-2) | Tasks cut smaller; the rule of three loops applied by the project manager |
