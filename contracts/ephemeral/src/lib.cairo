@@ -5,6 +5,8 @@
 
 /// Game logic, reusable across contracts (Starknet components).
 pub mod components;
+/// Events of `Instances`, frozen like an API.
+pub mod events;
 /// One file per content behaviour (a skill effect, a caste profile).
 pub mod elements;
 /// Pure functions: bitmap, packer, seeder, math.

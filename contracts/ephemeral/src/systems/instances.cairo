@@ -1,0 +1,296 @@
+//! `Instances`, the contract of the ephemeral domain (ADR-0001, ADR-0007): every instance, its
+//! chunks, goblins and members, and the entrypoints of play (design/02). ENG-01 freezes its
+//! interface, storage and events; every entrypoint reverts with `'not implemented'` until its lot
+//! (ENG-06, ENG-07, CBT-*) writes it. docs/architecture/ENG-01-interfaces.md.
+
+use grimworld_logic::types::{ChunkKind, InstanceId};
+use starknet::{ClassHash, ContractAddress};
+
+/// Version of the interface, returned by `version`.
+pub const VERSION: felt252 = 'grimworld-instances-1';
+/// The revert of every entrypoint not written yet.
+pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
+
+/// A goblin as stored, or as derived from its chunk when it has no record (`derived`).
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct GoblinView {
+    pub entity: u16,
+    pub derived: bool,
+    /// `GoblinState` and `GoblinTimers`, in their stored layout.
+    pub state: felt252,
+    pub timers: felt252,
+}
+
+/// A chunk of `instance_region`: its kind, and for a revealed one its stored words and every
+/// goblin standing in it, frozen or not (design/02).
+#[derive(Drop, Serde, Debug, PartialEq)]
+pub struct RegionChunk {
+    pub chunk: u8,
+    pub kind: ChunkKind,
+    pub terrain: felt252,
+    pub features: felt252,
+    pub goblins: Span<GoblinView>,
+}
+
+/// `instance_state`: everything a played action depends on, in one call (design/02). Words are
+/// in their stored layout (the client decodes them with the same layouts).
+#[derive(Drop, Serde, Debug, PartialEq)]
+pub struct InstanceView {
+    pub instance_id: InstanceId,
+    /// `Header`, the entropy, the revealed set, `Quotas`.
+    pub header: felt252,
+    pub entropy: felt252,
+    pub revealed: felt252,
+    pub quotas: felt252,
+    /// `TaskPage`s, as many as the header's task count needs.
+    pub tasks: Span<felt252>,
+    /// Eight words per member, in `Member`'s order (the controller last).
+    pub members: Span<felt252>,
+    /// The roster pages.
+    pub roster: Span<felt252>,
+    /// Every goblin of the members' windows.
+    pub goblins: Span<GoblinView>,
+    /// The chunks the members' windows overlap (revealed ones with their words).
+    pub chunks: Span<RegionChunk>,
+}
+
+/// The entrypoints of play. Every one takes the adventurer's entity id and the sequence the
+/// client played from; the caller must control that adventurer, and it must be in that instance
+/// (M-6, design/02 item 9).
+#[starknet::interface]
+pub trait IInstances<T> {
+    /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::actions`).
+    /// Checks the sequence, runs the actions in order, stops at the first invalid one or when the
+    /// weight would pass 10, never reverts for invalidity in the game; emits `BatchPlayed`.
+    fn play(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, actions: felt252);
+    /// Fate: loot a goblin's remains (target: its entity id). Every precondition before the draw.
+    fn loot(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, target: u16);
+    /// Fate: open the chest on `tile`.
+    fn open(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
+    /// Mine the vein on `tile` (design/17: 3 ticks, sent alone).
+    fn mine(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
+    /// Barter with the collector on `tile` (design/15): its price comes from the pack.
+    fn barter(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
+    /// Leave through `gate`: closes the instance; a gate to another location enters it in the
+    /// same invocation (entry draw) and returns the new id, in the same slot; 0 to a hub.
+    fn leave(
+        ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, gate: u16,
+    ) -> InstanceId;
+    /// Travel back to the last hub (refused in a sealed Red Rift).
+    fn travel_back(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32);
+
+    /// One call, readable at a block hash or `pre_confirmed` (design/02).
+    fn instance_state(self: @T, instance_id: InstanceId) -> InstanceView;
+    /// Chunks `first .. first + count` (index `15 cy + cx`), `count` at most `REGION_PAGE`.
+    fn instance_region(self: @T, instance_id: InstanceId, first: u8, count: u8) -> Span<RegionChunk>;
+    /// `(instance id, member index, inside)` of an adventurer; id 0 if it never entered.
+    fn placement(self: @T, adventurer_id: u32) -> (InstanceId, u8, bool);
+}
+
+/// Administration: one role (who holds it is Q-08).
+#[starknet::interface]
+pub trait IInstancesAdmin<T> {
+    fn version(self: @T) -> felt252;
+    /// The registered contracts: the hub that may create instances and receives results, the
+    /// registry, the randomness provider (configuration, ADR-0002).
+    fn set_contracts(
+        ref self: T, hub: ContractAddress, registry: ContractAddress, fate: ContractAddress,
+    );
+    fn set_admin(ref self: T, admin: ContractAddress);
+    /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
+    fn upgrade(ref self: T, class_hash: ClassHash);
+}
+
+#[starknet::contract]
+pub mod Instances {
+    use grimworld_logic::interface::IInstanceEntry;
+    use grimworld_logic::packing::{Bitmap, Lanes16};
+    use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
+    use grimworld_logic::types::InstanceId;
+    use starknet::storage::{Map, StoragePointerWriteAccess};
+    use starknet::{ClassHash, ContractAddress};
+    use crate::events::{BatchPlayed, InstanceClosed, InstanceEntered, Refused};
+    use crate::models::chunk::Chunk;
+    use crate::models::goblin::Goblin;
+    use crate::models::instance::{Header, Placement, Quotas};
+    use crate::models::member::Member;
+    use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
+
+    /// docs/architecture/ENG-01-interfaces.md, *Instances storage*. Every key starts with the
+    /// instance's slot, except `placements` (by adventurer: its reference to an instance).
+    #[storage]
+    pub struct Storage {
+        pub admin: ContractAddress,
+        pub hub: ContractAddress,
+        pub registry: ContractAddress,
+        pub fate: ContractAddress,
+        /// The next slot handed out, at an adventurer's first entry; slots are never freed.
+        pub next_slot: u32,
+        pub placements: Map<u32, Placement>,
+        pub headers: Map<u32, Header>,
+        /// The entry draw plus the player entropy, a sum of hashes (a set, ADR-0006 option C).
+        pub entropy: Map<u32, felt252>,
+        /// Bit `15 cy + cx` for each chunk revealed in the current generation.
+        pub revealed: Map<u32, Bitmap>,
+        pub quotas: Map<u32, Quotas>,
+        /// `(slot, page)`: pages 0-3, four tasks each.
+        pub tasks: Map<(u32, u8), TaskPage>,
+        /// `(slot, member)`: eight consecutive slots each.
+        pub members: Map<(u32, u8), Member>,
+        /// `(slot, page)`: pages 0-1, fifteen entity ids each; 0 is an empty lane.
+        pub roster: Map<(u32, u8), Lanes16>,
+        /// `(slot, chunk)`: two consecutive slots each.
+        pub chunks: Map<(u32, u8), Chunk>,
+        /// `(slot, entity)`: two consecutive slots each.
+        pub goblins: Map<(u32, u16), Goblin>,
+    }
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    pub enum Event {
+        InstanceEntered: InstanceEntered,
+        BatchPlayed: BatchPlayed,
+        Refused: Refused,
+        InstanceClosed: InstanceClosed,
+    }
+
+    #[constructor]
+    fn constructor(
+        ref self: ContractState,
+        admin: ContractAddress,
+        hub: ContractAddress,
+        registry: ContractAddress,
+        fate: ContractAddress,
+    ) {
+        self.admin.write(admin);
+        self.hub.write(hub);
+        self.registry.write(registry);
+        self.fate.write(fate);
+        self.next_slot.write(1);
+    }
+
+    #[abi(embed_v0)]
+    impl InstancesImpl of super::IInstances<ContractState> {
+        fn play(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            sequence: u32,
+            actions: felt252,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn loot(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            sequence: u32,
+            target: u16,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn open(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            sequence: u32,
+            tile: u16,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn mine(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            sequence: u32,
+            tile: u16,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn barter(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            sequence: u32,
+            tile: u16,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn leave(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            sequence: u32,
+            gate: u16,
+        ) -> InstanceId {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn travel_back(
+            ref self: ContractState, instance_id: InstanceId, adventurer_id: u32, sequence: u32,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn instance_region(
+            self: @ContractState, instance_id: InstanceId, first: u8, count: u8,
+        ) -> Span<RegionChunk> {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn placement(self: @ContractState, adventurer_id: u32) -> (InstanceId, u8, bool) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl InstanceEntryImpl of IInstanceEntry<ContractState> {
+        fn create(
+            ref self: ContractState,
+            adventurer_id: u32,
+            controller: ContractAddress,
+            gate: u16,
+            snapshot: Snapshot,
+            tasks: Span<TaskEntry>,
+        ) -> InstanceId {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn set_controller(ref self: ContractState, adventurer_id: u32, controller: ContractAddress) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl InstancesAdminImpl of super::IInstancesAdmin<ContractState> {
+        fn version(self: @ContractState) -> felt252 {
+            VERSION
+        }
+
+        fn set_contracts(
+            ref self: ContractState,
+            hub: ContractAddress,
+            registry: ContractAddress,
+            fate: ContractAddress,
+        ) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn set_admin(ref self: ContractState, admin: ContractAddress) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+
+        fn upgrade(ref self: ContractState, class_hash: ClassHash) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+    }
+}

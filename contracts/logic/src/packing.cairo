@@ -36,28 +36,28 @@ pub fn join(low: u128, high: u128) -> felt252 {
 
 /// The field of `limb` at bit `2^offset = shift`, of width `2^width = size`.
 #[inline(always)]
-pub fn field(limb: u128, shift: NonZero<u128>, size: NonZero<u128>) -> u128 {
-    let (above, _) = DivRem::div_rem(limb, shift);
-    let (_, value) = DivRem::div_rem(above, size);
+pub fn field(limb: u128, shift: u128, size: u128) -> u128 {
+    let (above, _) = DivRem::div_rem(limb, shift.try_into().unwrap());
+    let (_, value) = DivRem::div_rem(above, size.try_into().unwrap());
     value
 }
 
 /// The byte of `limb` at bit `2^offset = shift`.
 #[inline(always)]
 pub fn byte_at(limb: u128, shift: u128) -> u8 {
-    field(limb, shift.try_into().unwrap(), 0x100_u128.try_into().unwrap()).try_into().unwrap()
+    field(limb, shift, 0x100).try_into().unwrap()
 }
 
 /// The `u16` of `limb` at bit `2^offset = shift`.
 #[inline(always)]
 pub fn u16_at(limb: u128, shift: u128) -> u16 {
-    field(limb, shift.try_into().unwrap(), 0x10000_u128.try_into().unwrap()).try_into().unwrap()
+    field(limb, shift, 0x10000).try_into().unwrap()
 }
 
 /// The `u32` of `limb` at bit `2^offset = shift`.
 #[inline(always)]
 pub fn u32_at(limb: u128, shift: u128) -> u32 {
-    field(limb, shift.try_into().unwrap(), 0x100000000_u128.try_into().unwrap()).try_into().unwrap()
+    field(limb, shift, 0x100000000).try_into().unwrap()
 }
 
 /// The low field of `limb`, of width `2^width = size`.
