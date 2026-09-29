@@ -688,6 +688,11 @@ fn fill_slot(world: World) {
         StorePacking::pack(MemberEffects { effects: [effect; 4] }),
     );
     write(world.instances, member_word(1, 3), StorePacking::pack(Recharges { deadlines: [80; 8] }));
+    // The snapshot's words (stats, bar, kit) and the controller: the earlier expedition's.
+    write(world.instances, member_word(1, 4), junk);
+    write(world.instances, member_word(1, 5), junk);
+    write(world.instances, member_word(1, 6), junk);
+    write(world.instances, member_word(1, 7), ALICE);
     for chunk in array![0, 16, 112] {
         write(world.instances, key(selector!("chunks"), array![s, chunk]), junk);
         write(world.instances, key(selector!("chunks"), array![s, chunk]) + 1, junk);
@@ -697,7 +702,7 @@ fn fill_slot(world: World) {
 // A slot another generation used, with stale data in every word: the new instance shows nothing of
 // it, through the view and through the stored words its gates reach.
 #[test]
-#[available_gas(l2_gas: 43985671)] // ceil(1.05 × 41891115 measured)
+#[available_gas(l2_gas: 47851643)] // ceil(1.05 × 45572993 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -707,8 +712,15 @@ fn test_generation_isolation() {
     let stale = Header { roster_count: 60, revealed_count: 200, ..header_of(world, 1) };
     write(world.instances, key(selector!("headers"), array![1]), StorePacking::pack(stale));
 
-    let second = create(world, HERO, ALICE, INTO_ZONE, 1);
-    let view = play(world, ALICE).instance_state(second);
+    // The reused slot is entered with another snapshot (an Arcanist of level 5, another bar,
+    // another belt) and another controller (the account changed owner between expeditions).
+    let other = SnapshotTrait::new(
+        5, 3, [21, 22, 23, 24, 25, 26, 27, 28], 1, [51, 52, 53, 54], [4, 3, 2, 1],
+    );
+    start_cheat_caller_address(world.instances, world.hub);
+    let second = IInstanceEntryDispatcher { contract_address: world.instances }
+        .create(HERO, addr(BOB), INTO_ZONE, other, tasks(1));
+    let view = play(world, BOB).instance_state(second);
     let header = header_of(world, 1);
     assert(header.generation == 2 && header.roster_count == 0, 'roster count reset');
     assert(header.revealed_count == 0 && header.tasks == 1, 'counts reset');
@@ -727,14 +739,32 @@ fn test_generation_isolation() {
     );
     assert(view.roster.len() == 0, 'no roster page');
     assert(view.goblins.len() == 0 && view.chunks.len() == 0, 'no chunk, no goblin');
-    assert(view.members.len() == 8, 'one member');
-    let state: MemberState = StorePacking::unpack(*view.members[0]);
-    assert(
-        state.adventurer == HERO && state.health == 140 && state.status == INSIDE, 'state fresh',
-    );
-    let timers: MemberTimers = StorePacking::unpack(*view.members[1]);
-    assert(timers == empty_member_timers(), 'timers fresh');
-    assert(*view.members[2] == LIVE && *view.members[3] == LIVE, 'effects, recharges fresh');
+    // Every one of the member's eight words is the new generation's.
+    let entering = MemberState {
+        adventurer: HERO,
+        x: 0,
+        y: 7,
+        facing: 0,
+        status: INSIDE,
+        health: 180,
+        energy: 90,
+        adrenaline: 0,
+        hits: 0,
+        casts: 0,
+        belt: [4, 3, 2, 1],
+        flags: 0,
+    };
+    let expected: Array<felt252> = array![
+        StorePacking::pack(entering), StorePacking::pack(empty_member_timers()), LIVE, LIVE,
+        StorePacking::pack(other.stats), StorePacking::pack(other.bar),
+        StorePacking::pack(other.kit), BOB,
+    ];
+    assert(view.members == expected.span(), 'eight words, new generation');
+    for word in 0..8_u8 {
+        assert(
+            read(world.instances, member_word(1, word.into())) == *expected[word.into()], 'stored',
+        );
+    }
 
     // The roster through the masked read: ENG-07 appends one goblin; the view shows that entry
     // and zeros in the fourteen lanes the earlier generation left full.
@@ -771,6 +801,16 @@ fn test_generation_isolation() {
     assert(
         play(world, ALICE).instance_state(0) == InstanceView { instance_id: 0, ..empty }, 'id 0',
     );
+
+    // The earlier expedition's controller cannot act in the new generation; the new one can.
+    #[feature("safe_dispatcher")]
+    refused(try_play(world, ALICE).travel_back(second, HERO, 0), NOT_CONTROLLER);
+    #[feature("safe_dispatcher")]
+    refused(try_play(world, ALICE).leave(second, HERO, 0, ZONE_TO_TOWN), NOT_CONTROLLER);
+    play(world, BOB).travel_back(second, HERO, 0);
+    let report = reports(world);
+    assert(report.instance_id == second && report.outcome == 1, 'the new controller acts');
+    assert(report.belt == [4, 3, 2, 1], 'the new belt');
 }
 
 // ---- leave, travel back -------------------------------------------------------------------------

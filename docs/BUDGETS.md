@@ -38,7 +38,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_lifecycle::test_create_reuses_the_slot` | 43967391 | 46165761 | 2026-09-29 | 8e10cda |
 | grimworld_ephemeral | `test_lifecycle::test_create_sealed` | 25833696 | 27125381 | 2026-09-29 | 8e10cda |
 | grimworld_ephemeral | `test_lifecycle::test_create_without_tasks` | 27762006 | 29150107 | 2026-09-29 | 8e10cda |
-| grimworld_ephemeral | `test_lifecycle::test_generation_isolation` | 41891115 | 43985671 | 2026-09-29 | 8e10cda |
+| grimworld_ephemeral | `test_lifecycle::test_generation_isolation` | 45572993 | 47851643 | 2026-09-29 | 224ad21 |
 | grimworld_ephemeral | `test_lifecycle::test_leave_to_a_hub` | 33175476 | 34834250 | 2026-09-29 | 8e10cda |
 | grimworld_ephemeral | `test_lifecycle::test_leave_to_a_location` | 39121427 | 41077499 | 2026-09-29 | 8e10cda |
 | grimworld_ephemeral | `test_lifecycle::test_not_controller` | 27966354 | 29364672 | 2026-09-29 | 8e10cda |

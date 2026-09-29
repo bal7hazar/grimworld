@@ -161,7 +161,7 @@ pub mod Instances {
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
-    use grimworld_logic::snapshot::{MemberStats, Snapshot, TaskEntry, TaskPage};
+    use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
     use grimworld_logic::types::{
         InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
     };
