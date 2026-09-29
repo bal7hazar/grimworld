@@ -556,11 +556,19 @@ if [ "$use_unit" = 1 ]; then
     *) die "$task did not report its slots within 20 s and its unit $unit is '$st': stop it by hand" ;;
   esac
 fi
+# The detached child is signalled by its pid as well as its group: before `setsid` has made the group,
+# only the pid reaches it (audit of PR 78, A2). Stopped means neither the pid nor the group lives.
 pg=$(cat "$L/$task.pid")
-kill -TERM -- -"$pg" 2> /dev/null || true
-for _ in $(seq 1 50); do kill -0 -- -"$pg" 2> /dev/null || break; sleep 0.1; done
-kill -KILL -- -"$pg" 2> /dev/null || true
+kill -TERM "$pg" 2> /dev/null || true; kill -TERM -- -"$pg" 2> /dev/null || true
+for _ in $(seq 1 50); do
+  if ! kill -0 "$pg" 2> /dev/null && ! kill -0 -- -"$pg" 2> /dev/null; then break; fi
+  sleep 0.1
+done
+kill -KILL "$pg" 2> /dev/null || true; kill -KILL -- -"$pg" 2> /dev/null || true
 sleep 0.5
+if kill -0 "$pg" 2> /dev/null || kill -0 -- -"$pg" 2> /dev/null; then
+  die "$task did not report its slots within 20 s and its process $pg is still alive after KILL: stop it by hand"
+fi
 if [ "$(slot_state "$FREE_TOTAL" 2> /dev/null)" = free ] && [ "$(slot_state "$FREE_TRACK" 2> /dev/null)" = free ]; then
   die "$task did not report its slots within 20 s: stopped, and its slots are free again"
 fi
