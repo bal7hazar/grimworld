@@ -299,7 +299,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-15 | **Ownership and economy**: tokens, transfers, registry governance, who funds the paymaster (Q-07, Q-08, Q-10), checked against store rules | Before Phase 4 | todo |
 | DES-20 | **A goblin blocked by its own pack** (found by SPK-2): with one flood per tick on frozen occupancy, a goblin whose closer tiles are all taken sidesteps, and was seen leaving the window in 7 ticks. Proposed rule: it **holds its position** when no strictly closer tile is free, except the `flank` profile, which may sidestep | Phase 2 (CBT-06) | todo |
 | DES-21 | **Played actions sent in batches** (D-133): what a batch is against a planned queue, its size, when it leaves, actions not yet sent, rewind; entrypoints that follow. In design/02 and design/11 | **Phase 0, before ENG-01** | done (2026-09-28, [#49](https://github.com/bal7hazar/grimworld/pull/49); open points OP-1, OP-2 carried into ENG-01; [report](docs/reports/DES-21-played-batches.md)) |
-| DOC-01 | **The documents after DES-21** (D-133, D-136): the accepted amendments of ADR-0001, 0002, 0006, 0007, the glossary, design/07, 09, 18; OP-1 replaced by D-136's rule in design/02 | DES-21 | Sonnet 5.5 | — | todo, next ([brief](docs/briefs/DOC-01-after-des-21.md)) |
+| DOC-01 | **The documents after DES-21** (D-133, D-136): the accepted amendments of ADR-0001, 0002, 0006, 0007, the glossary, design/07, 09, 18; OP-1 replaced by D-136's rule in design/02 | DES-21 | Sonnet 5.5 | — | done (2026-09-29, [#63](https://github.com/bal7hazar/grimworld/pull/63); [report](docs/reports/DOC-01-after-des-21.md)) |
 
 ## Milestones and gates
 

@@ -3,6 +3,11 @@
 What changed in the repository, newest first, one entry per merged task. Game results are
 API (OPERATIONS §7): any change to the outcome of an action is announced here.
 
+## 2026-09-29
+
+- **DOC-01, the documents after DES-21** ([#63](https://github.com/bal7hazar/grimworld/pull/63), D-133, D-136): the accepted amendments of ADR-0001 (batches, rollback of any depth, rate limits in gas, one snapshot, the chain-read copy), ADR-0002 (Fate ends a batch, multicall rule 7, preconditions before drawing, version-1 requirements), ADR-0006, ADR-0007 (no indexer for simulation state), the glossary (batch, played/planned, rewind, sequence, weight, copy of the instance, recovery) and design/07, 09, 18; design/02's OP-1 replaced by D-136 (an unrevealed chunk is wall in the window; the client never waits for a chunk during play). No codex audit (documents).
+- **D-136's files restored** ([#65](https://github.com/bal7hazar/grimworld/pull/65)): PR 60 had reverted them by mistake (a squash made with `git reset --soft` onto a main that had moved); found by DOC-01.
+- **COMMON**: agents never publish (D-132); the machine is shared (delete and kill only what you created); sending lives in one module and ends with the task (#62, #64).
 ## 2026-09-28
 
 - **DES-21 played actions sent in batches** ([#49](https://github.com/bal7hazar/grimworld/pull/49), D-133): design/02 and design/11 now say what a batch is against a planned queue (walked by the client), its size (weight 10; 40M L2 gas a target ENG-01 proves), when it leaves, unsent actions, reverted and unknown transactions (recovery from observable facts only), reorgs of any depth, the client's copy of the instance (three kinds of chunk: revealed, not yet revealed, void), the entrypoint `play(instance_id, adventurer_id, sequence, actions[1..10])` and the views, and what ENG-01 and CLI-03 must do. `[GPT-6-Astra]` after four fix loops, merged with one major open (dungeon chunk kinds, OP-1, carried into ENG-01) by the project manager's exception.
