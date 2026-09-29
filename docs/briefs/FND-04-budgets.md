@@ -21,6 +21,11 @@ changed storage slot costs.
   storage slot a transaction changes, beyond the write's computation, once per slot and per
   transaction. The project manager asks that it be checked against SPK-2's and SPK-1's receipts.
 - design/02 § Size (the 40M target of a batch of weight 10) and its open point OP-2 (slots).
+- **D-137** (`docs/decisions/2026-09-28-sepolia-verdict.md`, section *After SPK-1b*; ADR-0005 stage A):
+  in the MVP a burner sends directly and the game funds it; no paymaster before version 1. **Write
+  every budget against the burner sending directly (717,435 L2 gas of fixed part), in batches of 10,
+  with the slots changed per transaction as the first item, and state beside each budget whether
+  its figure is measured or estimated.**
 
 ## Scope
 1. **The slot count, on our receipts** (`spikes/FND-04/`, read-only):

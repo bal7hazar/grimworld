@@ -60,6 +60,10 @@ accounts**) in the client. Nothing of the game uses them yet; they are ready and
     sign out, restore).
 - Out: verifiable randomness (SPK-3, version 1); Cartridge Controller (SPK-9); fees and a
   paymaster; any game system using `fate`; any screen; Sepolia or mainnet.
+- **D-137** (ADR-0005 stage A, `docs/decisions/2026-09-28-sepolia-verdict.md` § After SPK-1b): the
+  burner implementation **sends directly** (the game funds it; no paymaster before version 1); the
+  `AccountProvider` interface keeps room for a paymaster without the game knowing (a provider may
+  route `execute` through one later; nothing outside the provider depends on who pays).
 - Allowlist: `contracts/src/` (a new module for providers, the configuration storage and its
   administrator check, plus the one-line `mod` declarations they need), `contracts/tests/`,
   `contracts/Scarb.toml` only if a dependency must be declared,
