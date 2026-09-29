@@ -59,7 +59,7 @@ export type MarketAnswer = Answered & {
   keys: {
     key: string;
     decoded: MarketKey;
-    sizes: { size: number; open: number; cheapest: Lot }[];
+    sizes: { size: number; cheapest: Lot }[];
   }[];
   next: string | null;
 };

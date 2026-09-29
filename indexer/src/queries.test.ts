@@ -102,12 +102,10 @@ describe("Q2: the market keys of a kind, the cheapest lot per lot size", () => {
         sizes: [
           {
             size: 1,
-            open: 4,
             cheapest: expect.objectContaining({ lot: "2", price: "10" }),
           },
           {
             size: 10,
-            open: 1,
             cheapest: expect.objectContaining({ lot: "5", price: "1" }),
           },
         ],
@@ -118,7 +116,6 @@ describe("Q2: the market keys of a kind, the cheapest lot per lot size", () => {
         sizes: [
           {
             size: 1,
-            open: 1,
             cheapest: expect.objectContaining({ lot: "6" }),
           },
         ],
@@ -156,7 +153,6 @@ describe("Q2: the market keys of a kind, the cheapest lot per lot size", () => {
         sizes: [
           {
             size: 1,
-            open: 1,
             cheapest: expect.objectContaining({ lot: "7" }),
           },
         ],

@@ -346,9 +346,8 @@ describe("AC-5: bounded", () => {
 
   it("over HTTP: 400 on a bad parameter, 429 over a cap (with the head), and a socket that stops reading is dropped", async () => {
     const node = new FakeNode();
-    // 20 000 lots: a snapshot of about 3 MB, more than the sockets' buffers hold.
     node.mine(
-      Array.from({ length: 20_000 }, (_, i) =>
+      Array.from({ length: 5_000 }, (_, i) =>
         ev.posted(i + 1, { price: BigInt(i) }),
       ),
     );
@@ -384,13 +383,19 @@ describe("AC-5: bounded", () => {
         error: "too many subscriptions from this client",
         head: { number: 1 },
       });
-      // The next publication finds its output still unsent: dropped. (A few blocks at most, in case
-      // the machine's socket buffers took more of the snapshot than expected.)
-      for (let lot = 20_001; lot <= 20_010; lot++) {
-        node.mine([ev.posted(lot)]);
+      // Blocks of 2 000 lots (about 350 KB of frames each) until the sockets' buffers are full (a
+      // few MB on macOS) and a publication finds more than the cap still unsent: dropped. At most
+      // 40 blocks (about 14 MB).
+      let lot = 5_000;
+      for (let block = 0; block < 40; block++) {
+        node.mine(
+          Array.from({ length: 2_000 }, () =>
+            ev.posted(++lot, { price: BigInt(lot) }),
+          ),
+        );
         await settle(subject);
         if (server.subscriptions.dropped > 0) break;
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(server.subscriptions.dropped).toBe(1);
       expect(server.subscriptions.size).toBe(0);

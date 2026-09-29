@@ -236,12 +236,10 @@ export function describeQueries(
             sizes: [
               {
                 size: 1,
-                open: 1,
                 cheapest: expect.objectContaining({ lot: "7", price: "15" }),
               },
               {
                 size: 10,
-                open: 4,
                 cheapest: expect.objectContaining({ lot: "2", price: "20" }),
               },
             ],

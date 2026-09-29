@@ -165,9 +165,10 @@ export class Queries {
 
   /**
    * Q2: the market keys of a kind (`balance`, `equipment`, `boss`; ENG-01 §3.4) with an open lot at
-   * `at`, by key; for each, per lot size, the cheapest open lot (ties by lot id) and the count of
-   * open lots. `items`: only these balance item ids (the client's category, from the registry).
-   * `limit` keys after the key `after`.
+   * `at`, by key; for each, per lot size, the cheapest open lot (ties by lot id). `items`: only
+   * these balance item ids (the client's category, from the registry). `limit` keys after the key
+   * `after`. Every step is an index seek (the next key, the next lot size, the cheapest lot), never
+   * a scan of a key's lots: its cost follows the page, not the number of lots.
    */
   market(
     at: number,
@@ -179,60 +180,71 @@ export class Queries {
     keys: {
       key: string;
       decoded: MarketKey;
-      sizes: { size: number; open: number; cheapest: Lot }[];
+      sizes: { size: number; cheapest: Lot }[];
     }[];
     next: string | null;
   } {
-    const filter = items
-      ? "AND market_key IN (SELECT value FROM json_each(:items))"
-      : "";
-    const params: Record<string, SQLInputValue> = {
-      at,
-      kind,
-      ...(items ? { items: JSON.stringify(items) } : {}),
-    };
-    const keys = this.all(
-      `SELECT DISTINCT market_key FROM lots
-       WHERE kind = :kind AND open = 1 AND ${AS_OF} AND market_key > :after ${filter}
-       ORDER BY market_key LIMIT :limit`,
-      { ...params, after: after ?? -1n, limit: limit + 1 },
-    ).map((row) => BigInt(row.market_key as number));
-    const more = keys.length > limit;
-    const page = keys.slice(0, limit);
-    if (page.length === 0) return { keys: [], next: null };
-    const rows = this.all(
-      `SELECT ${LOT_COLUMNS}, open_lots FROM (
-         SELECT ${LOT_COLUMNS},
-           row_number() OVER (PARTITION BY market_key, lot_size ORDER BY price, lot) AS position,
-           count(*) OVER (PARTITION BY market_key, lot_size) AS open_lots
-         FROM lots
-         WHERE kind = :kind AND open = 1 AND ${AS_OF}
-           AND market_key >= :first AND market_key <= :last ${filter}
-       ) WHERE position = 1 ORDER BY market_key, lot_size`,
-      { ...params, first: page[0]!, last: page[page.length - 1]! },
-    );
-    const byKey = new Map<
-      bigint,
-      { size: number; open: number; cheapest: Lot }[]
-    >();
-    for (const row of rows) {
-      const key = BigInt(row.market_key as number);
-      const sizes = byKey.get(key) ?? [];
-      sizes.push({
-        size: Number(row.lot_size),
-        open: Number(row.open_lots),
-        cheapest: lotOut(row),
-      });
-      byKey.set(key, sizes);
+    let cursor = after ?? -1n;
+    const candidates = items
+      ?.map((item) => BigInt(item))
+      .filter((key) => key > cursor)
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const found: {
+      key: string;
+      decoded: MarketKey;
+      sizes: { size: number; cheapest: Lot }[];
+    }[] = [];
+    // One key more than the page: whether there is a next page.
+    while (found.length <= limit) {
+      let key: bigint;
+      if (candidates) {
+        const candidate = candidates.shift();
+        if (candidate === undefined) break;
+        key = candidate;
+      } else {
+        const row = this.store
+          .statement(
+            `SELECT market_key FROM lots
+             WHERE kind = :kind AND open = 1 AND ${AS_OF} AND market_key > :after
+             ORDER BY market_key LIMIT 1`,
+          )
+          .get({ at, kind, after: cursor }) as Row | undefined;
+        if (!row) break;
+        key = BigInt(row.market_key as number);
+      }
+      cursor = key;
+      const sizes = this.cheapestPerSize(at, key);
+      if (sizes.length === 0) continue;
+      found.push({ key: canonical(key), decoded: decodeMarketKey(key), sizes });
     }
+    const more = found.length > limit;
+    const keys = found.slice(0, limit);
     return {
-      keys: page.map((key) => ({
-        key: canonical(key),
-        decoded: decodeMarketKey(key),
-        sizes: byKey.get(key) ?? [],
-      })),
-      next: more ? canonical(page[page.length - 1]!) : null,
+      keys,
+      next: more ? keys[keys.length - 1]!.key : null,
     };
+  }
+
+  /** The cheapest open lot of `key` at `at`, per lot size, by lot size. */
+  private cheapestPerSize(
+    at: number,
+    key: bigint,
+  ): { size: number; cheapest: Lot }[] {
+    const sizes: { size: number; cheapest: Lot }[] = [];
+    let size = 0;
+    for (;;) {
+      const next = this.store
+        .statement(
+          `SELECT lot_size FROM lots
+           WHERE market_key = :key AND lot_size > :size AND open = 1 AND ${AS_OF}
+           ORDER BY lot_size LIMIT 1`,
+        )
+        .get({ at, key, size }) as Row | undefined;
+      if (!next) return sizes;
+      size = Number(next.lot_size);
+      const [cheapest] = this.lotPage(at, key, size, 1);
+      sizes.push({ size, cheapest: cheapest! });
+    }
   }
 
   /**
