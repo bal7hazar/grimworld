@@ -1,0 +1,24 @@
+{
+  "name": "@grimworld/funder",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The funding service (FND-08): deploys and funds a player's burner, the funding key held server-side.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "vitest run",
+    "test:node": "vitest run src/funder.node.test.ts",
+    "lint": "eslint . && prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "starknet": "10.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "vitest": "5.0.2"
+  }
+}
