@@ -5,6 +5,7 @@ version = 1
 name = "grimworld_ephemeral"
 version = "0.1.0"
 dependencies = [
+ "grimworld_logic",
  "snforge_std",
 ]
 
@@ -20,6 +21,7 @@ dependencies = [
 name = "grimworld_persistent"
 version = "0.1.0"
 dependencies = [
+ "grimworld_logic",
  "snforge_std",
 ]
 
