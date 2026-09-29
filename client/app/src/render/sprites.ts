@@ -44,18 +44,54 @@ export type SpriteLibrary = ReadonlyMap<string, SpriteArt>;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Checks the shape of `sprites.json`; null when it is not one. */
-export function readSpritesIndex(json: unknown): SpritesIndex | null {
-  if (!isRecord(json) || !Array.isArray(json.pages) || !isRecord(json.sprites)) return null;
+/**
+ * Frame rates accepted from `sprites.json`: finite, within 1..30 (ADR-0003's 12–15 inside). A
+ * rate outside would schedule frames without pause (negative) or never (0).
+ */
+export const FPS_RANGE = { min: 1, max: 30 } as const;
+
+const finite = (value: unknown, min: number, max: number): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+
+/**
+ * Checks `sprites.json`: its shape, and every number the renderer schedules or sizes with (frame
+ * rates, frame counts, cells, baseline, scale). The first problem found, or the index.
+ */
+export function readSpritesIndex(
+  json: unknown,
+): { readonly index: SpritesIndex } | { readonly problem: string } {
+  if (!isRecord(json) || !Array.isArray(json.pages) || !isRecord(json.sprites)) {
+    return { problem: "not a sprites index (pages, sprites)" };
+  }
   for (const page of json.pages) {
-    if (!isRecord(page) || typeof page.json !== "string") return null;
+    if (!isRecord(page) || typeof page.json !== "string") return { problem: "a page has no json" };
   }
-  for (const entry of Object.values(json.sprites)) {
-    if (!isRecord(entry) || typeof entry.page !== "number" || typeof entry.baseline !== "number")
-      return null;
-    if (!isRecord(entry.cell) || !isRecord(entry.animations)) return null;
+  for (const [name, entry] of Object.entries(json.sprites)) {
+    if (!isRecord(entry) || !Number.isInteger(entry.page) || !isRecord(entry.cell)) {
+      return { problem: `${name}: no page or cell` };
+    }
+    if (!finite(entry.cell.w, 1, 4096) || !finite(entry.cell.h, 1, 4096)) {
+      return { problem: `${name}: cell out of range` };
+    }
+    if (!finite(entry.baseline, 0, entry.cell.h))
+      return { problem: `${name}: baseline out of range` };
+    if (entry.scale !== undefined && !finite(entry.scale, 0.05, 10)) {
+      return { problem: `${name}: scale out of range` };
+    }
+    if (!isRecord(entry.animations)) return { problem: `${name}: no animations` };
+    for (const [anim, info] of Object.entries(entry.animations)) {
+      if (!isRecord(info)) return { problem: `${name}/${anim}: not an animation` };
+      if (!finite(info.fps, FPS_RANGE.min, FPS_RANGE.max)) {
+        return {
+          problem: `${name}/${anim}: fps ${String(info.fps)} outside ${FPS_RANGE.min}..${FPS_RANGE.max}`,
+        };
+      }
+      if (!Number.isInteger(info.frames) || !finite(info.frames, 1, 1000)) {
+        return { problem: `${name}/${anim}: frames out of range` };
+      }
+    }
   }
-  return json as unknown as SpritesIndex;
+  return { index: json as unknown as SpritesIndex };
 }
 
 /** The library from the index and each page's parsed animations (`Spritesheet.animations`). */
@@ -79,7 +115,7 @@ export function libraryFrom(
       role: entry.role,
       cell: entry.cell,
       baseline: entry.baseline,
-      scale: typeof entry.scale === "number" && entry.scale > 0 ? entry.scale : 1,
+      scale: entry.scale ?? 1,
       animations,
     });
   }

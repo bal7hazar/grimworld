@@ -36,8 +36,13 @@ export async function loadAtlas(
   } catch {
     return null;
   }
-  const index = readSpritesIndex(json);
-  if (!index) return null;
+  if (json === null || json === undefined) return null;
+  const read = readSpritesIndex(json);
+  if ("problem" in read) {
+    console.error(`[sandbox] sprites.json refused (${read.problem}); drawing shapes`);
+    return null;
+  }
+  const { index } = read;
   const sheets = await Promise.all(index.pages.map((page) => loaders.loadSheet(base + page.json)));
   for (const sheet of sheets) sheet.textureSource.scaleMode = "nearest";
   return libraryFrom(index, sheets);
