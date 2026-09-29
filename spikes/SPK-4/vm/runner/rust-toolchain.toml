@@ -1,0 +1,3 @@
+# The toolchain installed on the machine with the wasm32 target (scripts/profiles/implement.txt).
+[toolchain]
+channel = "1.89.0"

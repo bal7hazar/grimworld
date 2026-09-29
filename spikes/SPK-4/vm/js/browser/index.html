@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>SPK-4 option (b) in a browser worker</title>
+<script type="module">
+  // Runs vm/js/bench-core.mjs in a module Web Worker and posts the result to vm/browser_bench.py.
+  // The query string (`vectors`, `sample`) is handed to the worker.
+  const worker = new Worker("./worker.mjs" + location.search, { type: "module" });
+  const post = (body) => fetch("/result", { method: "POST", body: JSON.stringify(body) });
+  worker.onmessage = (e) => post(e.data);
+  worker.onerror = (e) => post({ error: String(e.message) });
+</script>
