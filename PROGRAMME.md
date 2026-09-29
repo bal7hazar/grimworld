@@ -36,6 +36,7 @@ of the same Unix user.
 | D-132 | Publications on scarbs.xyz are decided by the project manager in the owner's name | Owner |
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
+| D-138 | **Go for the first publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks | Project manager, in the owner's name |
 | D-137 | The MVP's burners send directly, funded by the game; no paymaster before version 1 | Project manager |
 | D-136 | An unrevealed chunk is wall in the window; the ADR amendments of DES-21 (played batches) accepted | Project manager |
 | D-134 | Void chunks around every location; chunk corners are wall. SPK-7 measured the chunked map at +720k gas per tick with goblins (+14 %) | Project manager |
