@@ -243,3 +243,10 @@ pub struct Member {
     /// from the persistent domain at entry, updated by `set_controller`.
     pub controller: ContractAddress,
 }
+
+/// The timers of a member entering a new generation (fix loop 3, F-14): no activation
+/// (`act_slot` = `NO_SLOT`, target 0, not a tile, deadline 0) and no condition (every deadline 0).
+/// Stored, it is `LIVE + 255`, not `LIVE` alone: `act_slot` 0 would name bar slot 0.
+pub fn empty_member_timers() -> MemberTimers {
+    MemberTimers { act_slot: NO_SLOT, ..Default::default() }
+}

@@ -149,3 +149,9 @@ pub struct Goblin {
     pub state: GoblinState,
     pub timers: GoblinTimers,
 }
+
+/// The timers of a goblin's first record (fix loop 3, F-14): no activation (`act_slot` 255, target
+/// 0, deadline 0), no condition, no effect. Stored, it is `LIVE + 255`.
+pub fn empty_goblin_timers() -> GoblinTimers {
+    GoblinTimers { act_slot: 255, ..Default::default() }
+}

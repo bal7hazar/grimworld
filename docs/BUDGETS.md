@@ -17,6 +17,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_instances::test_probe_read_through_a_call` | 5213110 | 5473766 | 2026-09-29 | 2704c6d |
 | grimworld_ephemeral | `test_layout::test_chunk_layout` | 357000 | 374850 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_layout::test_deadline_boundaries` | 321190 | 337250 | 2026-09-29 | d65eb86 |
+| grimworld_ephemeral | `test_layout::test_empty_timers_packed` | 173400 | 182070 | 2026-09-29 | 7697145 |
 | grimworld_ephemeral | `test_layout::test_goblin_deadline_above_28_bits_refused` | 15520 | 16296 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_layout::test_goblin_layout` | 322870 | 339014 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_layout::test_member_deadline_past_max_clock_refused` | 47230 | 49592 | 2026-09-29 | d65eb86 |

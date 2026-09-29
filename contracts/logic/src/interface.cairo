@@ -57,8 +57,9 @@ pub trait IResults<T> {
 pub trait IInstanceEntry<T> {
     /// Creates an instance of the gate's destination at sequence 0, with the entry draw (Fate),
     /// in the adventurer's reusable slot; returns its id. Every member word is written for the new
-    /// generation at clock 0: state from the snapshot (the belt's counts from the reserve), timers,
-    /// effects and recharges empty (`LIVE` only). Nothing of a previous instance carries (F-12).
+    /// generation at clock 0: state from the snapshot (the belt's counts from the reserve); timers
+    /// empty: `act_slot` 255 (no activation) and every deadline 0, stored `LIVE + 255`; effects and
+    /// recharges empty, stored `LIVE` (F-12, F-14). Nothing of a previous instance carries (F-12).
     fn create(
         ref self: T,
         adventurer_id: u32,

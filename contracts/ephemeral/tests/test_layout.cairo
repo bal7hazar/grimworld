@@ -2,10 +2,11 @@
 // record's size in slots and the bit offsets of every packed record, LIVE included. The variables'
 // names and keys (their addresses) are checked in `systems::instances::layout_tests`.
 use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement, Terrain};
-use grimworld_ephemeral::models::goblin::{Goblin, GoblinState, GoblinTimers};
+use grimworld_ephemeral::models::goblin::{Goblin, GoblinState, GoblinTimers, empty_goblin_timers};
 use grimworld_ephemeral::models::instance::{Header, Placement, Quotas, mask_roster_page};
 use grimworld_ephemeral::models::member::{
-    Effect, Member, MemberEffects, MemberState, MemberTimers, Recharges, pack_four28,
+    Effect, Member, MemberEffects, MemberState, MemberTimers, NO_SLOT, Recharges,
+    empty_member_timers, pack_four28,
 };
 use grimworld_logic::packing::{LIVE, Lanes16};
 use starknet::storage_access::StorePacking;
@@ -289,4 +290,20 @@ fn test_roster_masking() {
     assert(mask_roster_page(stale, 0, 60) == stale, 'full page kept');
     let page1 = mask_roster_page(stale, 1, 16);
     assert(page1 == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, 'entry 15');
+}
+
+// Fix loop 3, F-14: empty timers are "no activation" (slot 255) and zero deadlines, not LIVE alone
+// (slot 0 would name bar slot 0). Their packed words are pinned.
+#[test]
+#[available_gas(l2_gas: 182070)] // ceil(1.05 × 173400 measured)
+fn test_empty_timers_packed() {
+    let member = empty_member_timers();
+    assert(member.act_slot == NO_SLOT, 'member: no slot');
+    assert(StorePacking::<MemberTimers, felt252>::pack(member) == LIVE + 255, 'member word');
+    let goblin = empty_goblin_timers();
+    assert(StorePacking::<GoblinTimers, felt252>::pack(goblin) == LIVE + 255, 'goblin word');
+    let effects = MemberEffects { effects: [Default::default(); 4] };
+    assert(StorePacking::<MemberEffects, felt252>::pack(effects) == LIVE, 'empty effects');
+    let recharges = Recharges { deadlines: [0; 8] };
+    assert(StorePacking::<Recharges, felt252>::pack(recharges) == LIVE, 'empty recharges');
 }

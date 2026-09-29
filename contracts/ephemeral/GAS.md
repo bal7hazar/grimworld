@@ -17,6 +17,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_instances::test_probe_read_through_a_call` | 5213110 | 5473766 | 5.00 % | 0 | 960 | 2026-09-29 | 2704c6d |
 | `test_layout::test_chunk_layout` | 357000 | 374850 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_deadline_boundaries` | 321190 | 337250 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_layout::test_empty_timers_packed` | 173400 | 182070 | 5.00 % | 0 | 0 | 2026-09-29 | 7697145 |
 | `test_layout::test_goblin_deadline_above_28_bits_refused` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_goblin_layout` | 322870 | 339014 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_member_deadline_past_max_clock_refused` | 47230 | 49592 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
