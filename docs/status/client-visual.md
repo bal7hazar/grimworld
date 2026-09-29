@@ -1,6 +1,6 @@
 # Status — track CV (the client's visual work, on the owner's Mac)
 
-**2026-09-29 12:30 UTC** — written by the orchestrator of track CV,
+**2026-09-29 12:40 UTC** — written by the orchestrator of track CV,
 `[Opus 5.5] Orchestrateur client visuel (Mac)`. Mandate:
 [ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146, amended by D-149, D-151, D-152,
 D-153). Rewritten at each check-in; the project manager reads it like a track's `STATUS.md`.
@@ -21,14 +21,14 @@ sandbox waits for the owner's eye (sprite sizes; the scale mode of PENDING-cv-in
 | ART-02 | The atlas at the pack's scale (D-146 as corrected, option B: the pack's units native, runt 67, shaman 87, hobgoblin 119), Python 3.12 or 3.13 with hashed pins, integer pipeline, pixel fingerprint | Opus 5.5 | **Done**, [#134](https://github.com/bal7hazar/grimworld/pull/134), three fix loops; [report](../reports/ART-02-atlas-scale.md), audits [quality](../reports/ART-02-audit-quality.md) and [`[GPT-6-Sol]`](../reports/ART-02-audit-gpt-6-sol.md) (PASS at the fourth pass). **Open: the Linux fingerprint**, asked of the project manager on the VPS (expected pixels+metadata `87c27153…`) |
 | CLI-03a | The rendering sandbox on fixed data; three scale modes (`?scale=continuous\|snap\|sharp`) for PENDING-cv-integer-scale | Opus 5.5 | **Done**, [#135](https://github.com/bal7hazar/grimworld/pull/135), two fix loops and a last targeted fix; [report](../reports/CLI-03a-render-sandbox.md), audits [design and quality](../reports/CLI-03a-audit-design-quality.md) and [`[GPT-6-Sol]`](../reports/CLI-03a-audit-gpt-6-sol.md). The hex convention (x toward the West) checked by the orchestrator in `hexx-cairo` |
 | SPK-6a | The protocol of SPK-6, aligned on D-151 and D-152 | Opus 5.5 | **Done**, [#138](https://github.com/bal7hazar/grimworld/pull/138); [report](../reports/SPK-6a-protocol.md) |
-| IDX-01a | The indexer's core: the nine frozen events in versioned tables, rewind by hash and commitments, a test emitter on `contracts/persistent`'s types; the CI job `indexer-node` (D-153) | Opus 5.5 | [#144](https://github.com/bal7hazar/grimworld/pull/144): every CI job green; one fix loop done; **second audit passes running** (security, determinism, quality, and the CI change as tooling) |
-| IDX-01b | Queries, subscriptions, the client's freshness rule | Opus 5.5 | Brief after IDX-01a |
+| IDX-01a | The indexer's core: the nine frozen events in versioned tables, rewind by hash and commitments, a test emitter on `contracts/persistent`'s types; the CI job `indexer-node` (D-153) | Opus 5.5 | **Done**, [#144](https://github.com/bal7hazar/grimworld/pull/144), two fix loops; [report](../reports/IDX-01a-indexer-core.md), audits [security and quality](../reports/IDX-01a-audit-security-quality.md) and [`[GPT-6-Sol]`](../reports/IDX-01a-audit-gpt-6-sol.md) (PASS at the third pass). Open with the project manager: the `indexer-node` trigger paths (both audits: narrower than the job's dependencies) |
+| IDX-01b | Queries, subscriptions, the client's freshness rule ([brief](../briefs/IDX-01b-indexer-queries.md)) | Opus 5.5 | Launched once this brief is on `main` |
 | The Capacitor shell | Before SPK-6.1, moved before Phase 6 (D-151, D-152). Called CV-02 in PLAN, an ID already taken by the launcher's budget: CV-03 proposed to the project manager | Opus 5.5 | Later |
 
 ## Agents on the Mac
 
 Budget: 5 at a time, audits included, counted by the launcher's slots (every agent now goes through
-`scripts/mac/agent.sh`). At 12:30 UTC: IDX-01a's two auditors.
+`scripts/mac/agent.sh`). At 12:40 UTC: none; IDX-01b next.
 
 ## Open questions
 
@@ -47,6 +47,6 @@ the sandbox; nothing of the pack leaves the Mac.
 
 ## Next
 
-1. IDX-01a: the audits' verdict, then merge; IDX-01b's brief.
+1. IDX-01b; its audits (S P Q + `[GPT-6-Sol]`).
 2. The owner's look at the sandbox (sizes, scale mode).
 3. Candidates when lent or ready: CLI-02 (after ENG-02), the Capacitor shell before Phase 6.
