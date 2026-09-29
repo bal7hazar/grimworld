@@ -118,7 +118,17 @@ jobs:
           done
           # Each holder runs in its own session (setsid does not fork here), so its pid is its process group.
           declare -A pid
-          run() { HOME=$fake setsid scripts/agent.sh run-in-slots "$1" "$2" "$fake/$3.log" sleep 120 & pid[$3]=$!; sleep 0.5; }
+          # Wait on a slot's real state, bounded, never on a fixed delay: a start or a release can be slow.
+          wait_slot() { # <slot> <free|held> [seconds]
+            local n=$(( ${3:-20} * 5 )) st
+            for _ in $(seq 1 "$n"); do
+              st=$(HOME=$fake scripts/agent.sh slots | awk -v s="$1" '$1 == s { print $2 }')
+              [ "$st" = "$2" ] && return 0
+              sleep 0.2
+            done
+            echo "slot $1 is '$st', not $2, after ${3:-20} s" >&2; return 1
+          }
+          run() { HOME=$fake setsid scripts/agent.sh run-in-slots "$1" "$2" "$fake/$3.log" sleep 120 & pid[$3]=$!; wait_slot "$1" held; wait_slot "$2" held; }
           refuses() { set +e; out=$(HOME=$fake scripts/agent.sh thresholds 2>&1); s=$?; set -e; echo "$out"; [ "$s" = 4 ]; grep -qF "$1" <<< "$out"; }
           # Two agents in one working directory hold two slots each (total and track), counted apart.
           run total-1 game-1 a; run total-2 game-2 b
@@ -137,14 +147,14 @@ jobs:
           refuses 'the budget of 3 agents is in use'
           # A killed agent frees its slots, whatever the way it ends (SIGKILL to its process group).
           kill -9 -- -"${pid[a]}"
-          sleep 0.5; held=$(HOME=$fake scripts/agent.sh slots); grep -q '^total-1 *free' <<< "$held"; grep -q '^game-1 *free' <<< "$held"
+          wait_slot total-1 free; wait_slot game-1 free
           HOME=$fake scripts/agent.sh thresholds
           # A copy of this launcher on the library's track: its cap of 1 (lib-1 held), and the waiting marker.
           sed 's/^TRACK=grimworld$/TRACK=hexmap/' scripts/agent.sh > scripts/.agent-hexmap-ci.sh; chmod +x scripts/.agent-hexmap-ci.sh
           grep -qx 'TRACK=hexmap' scripts/.agent-hexmap-ci.sh
           set +e; out=$(HOME=$fake scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
           echo "$out"; [ "$s" = 4 ]; grep -qF 'the hexmap track is at its cap' <<< "$out"
-          kill -9 -- -"${pid[c]}"; sleep 0.5
+          kill -9 -- -"${pid[c]}"; wait_slot total-3 free; wait_slot lib-1 free
           HOME=$fake scripts/.agent-hexmap-ci.sh thresholds
           mkdir -p "$fake/orchestrator/waiting"; touch "$fake/orchestrator/waiting/game"
           set +e; out=$(HOME=$fake scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
@@ -155,24 +165,26 @@ jobs:
           rm -f scripts/.agent-hexmap-ci.sh
           # End to end on the detached path, with a stub codex that sleeps: the launch confirms that the agent
           # holds its two slots before it returns, status lists them, and they are free once it ends.
-          for k in b; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done; sleep 0.5
-          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a script node runs for 3 s)
+          for k in b; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done; wait_slot total-2 free; wait_slot game-2 free
+          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a script node runs for 15 s)
           # GitHub's runner has node elsewhere: link it where the launcher expects it (the runner allows sudo).
           if [ ! -x /usr/bin/node ] && command -v node > /dev/null; then sudo ln -s "$(command -v node)" /usr/bin/node; fi
           if [ -x /usr/bin/node ]; then
+            rm -f .claude/worktrees/logs/slottest.*   # this fixture's own record, from an earlier run
             mkdir -p "$fake/bin" .claude/worktrees/cli-slottest
-            printf 'setTimeout(() => {}, 3000);\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"
+            printf 'setTimeout(() => {}, 15000);\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"   # alive past the held check
             out=$(HOME=$fake PATH="$fake/bin:$PATH" scripts/agent.sh slottest codex gpt-6-sol new "x" audit 2>&1)
             echo "$out"; grep -qF 'slottest: holds slots total-1 and game-1' <<< "$out"
             st=$(HOME=$fake scripts/agent.sh status); grep -q '^slot total-1 held slottest' <<< "$st"
-            sleep 5; held=$(HOME=$fake scripts/agent.sh slots); grep -q '^total-1 *free' <<< "$held"; grep -q '^game-1 *free' <<< "$held"
+            wait_slot total-1 free 60; wait_slot game-1 free 60   # the stub's 15 s, node's start, the inner shell's end
           else
             echo "end-to-end slot fixture skipped: no /usr/bin/node on this runner"
           fi
           # The launch lock: while another launcher holds it, a launch waits (killed by timeout: 124);
           # once released, the same launch goes on to the slots, which refuse (4). Nothing is launched.
           run total-1 game-1 d; run total-2 game-2 f; run total-3 lib-1 e   # the budget full again
-          flock "$fake/orchestrator/agent-launch.lock" sleep 6 & holder=$!; sleep 1
+          flock "$fake/orchestrator/agent-launch.lock" sleep 6 & holder=$!
+          for _ in $(seq 1 50); do flock -n "$fake/orchestrator/agent-launch.lock" true || break; sleep 0.2; done   # held
           set +e; HOME=$fake timeout 3 scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e
           [ "$s" = 124 ]; wait "$holder"
           set +e; HOME=$fake scripts/agent.sh locktest claude opus new "x" research; s=$?; set -e; [ "$s" = 4 ]

@@ -119,7 +119,7 @@ passed after four fix loops).
 | Worst case everywhere | $0.874 | about $0.73 |
 | Mixed | $0.685 | about $0.54 |
 
-The storage slots that a batch changes once are not counted in the estimate; *corrected on 2026-09-29*: the gain is small, since the ticks measured overwrite slots (about 32,000 L2 gas each) and create none. The gain to look for is in `enter` and `leave`, which create and zero 4 slots (FND-04). The
+The storage slots that a batch changes once are not counted in the estimate; *corrected on 2026-09-29*: the gain is small, since the ticks measured overwrite slots (about 32,000 L2 gas each) and create none. The gain to look for is in `enter`, which creates 4 slots at each instance (FND-04): reusing them is a design ENG-01 measures, not an observed saving. The
 two spikes spent 76.19 test STRK over 149 transactions.
 
 | # | Decision (D-137) |

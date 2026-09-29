@@ -135,7 +135,7 @@ MAX_LOAD5=12 MIN_MEM_GB=8
 # kernel lock for as long as it lives: ~/orchestrator/slots/total-1..3 for the budget of 3, and per
 # track game-1, game-2 (the game's cap of 2), lib-1, quiver-1. A launch takes one free total slot
 # and one free slot of its track, or refuses; the agent's inner shell takes the two locks itself
-# (`flock -n`) on descriptors its children inherit, so the kernel frees them when that shell and the
+# (`flock -w 5`, then `slots-acquired` in its log) on descriptors its children inherit, so the kernel frees them when that shell and the
 # CLI it waits for have ended (and any process keeping the descriptors), however they end. Nothing is
 # counted by reading processes. The slot names are protected by a read-only directory against
 # anything but a deliberate chmod by the same Unix user (OPERATIONS §3, accepted residual). TRACK is this launcher's own track:
@@ -166,7 +166,6 @@ slot_state() { # <slot> -> free | held | missing | unreadable
   exec {fd}<&-
   case $rc in 0) echo free ;; 1) echo held ;; *) echo "unlockable (flock exit $rc)" ;; esac
 }
-slot_free() { [ "$(slot_state "$1" 2> /dev/null)" = free ]; }
 # The first free slot of a list. Every slot of the list is inspected first: one in error (missing,
 # unreadable, not lockable) refuses, even if another is free (fails closed).
 first_free() {
@@ -211,7 +210,10 @@ init_slots() { # creates the missing slot files only (never replaces one), then 
   chmod 555 "$SLOTS"
 }
 # $0 of the inner shell is the log file, "$@" the agent command line. The inner shell first takes
-# its two slots (GW_SLOT_TOTAL, GW_SLOT_TRACK) without waiting, on file descriptors 7 and 8 opened
+# its two slots (GW_SLOT_TOTAL, GW_SLOT_TRACK) with `flock -w 5`, waiting at most 5 s for each (a
+# probe of the slots takes a lock for an instant: without the wait, a probe at the wrong moment made
+# the agent refuse), then writes `slots-acquired` to its log, which the launcher waits for,
+# on file descriptors 7 and 8 opened
 # read-only (a missing slot file is never created): the slots are held while the inner shell lives,
 # that is while the agent's CLI runs, and by any process of the agent that keeps those descriptors.
 # A process the CLI leaves behind after it exits and that closed them is not counted (COMMON forbids
@@ -219,7 +221,8 @@ init_slots() { # creates the missing slot files only (never replaces one), then 
 # (`model=`), then the exit status. Single quotes on purpose: the inner shell expands them.
 # shellcheck disable=SC2016
 inner='exec 7< "$GW_SLOT_TOTAL" 8< "$GW_SLOT_TRACK" || exit 75
-if ! flock -n 7 || ! flock -n 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
+if ! flock -w 5 7 || ! flock -w 5 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
+echo "slots-acquired $(date -u +%FT%TZ)" >> "$0"
 printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TOTAL"; printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TRACK"
 "$@" < /dev/null >> "$0" 2>&1; s=$?
 echo "model=$("$GW_AGENT_SH" model "$GW_TASK" 2> /dev/null)" >> "$0"
@@ -506,15 +509,21 @@ else
   echo "$!" > "$L/$task.pid"
   echo "$task: started [$label] detached with setsid, pid $!, log $L/$task.log"
 fi
-# The launch lock is held until the agent holds its two slots, so no other launcher can take them
-# in between; an agent that could not take them wrote `slot-refused` and stopped.
-for _ in $(seq 1 100); do
-  if ! slot_free "$FREE_TOTAL" && ! slot_free "$FREE_TRACK"; then
+# The launch lock is held until this launch's inner shell reports, in its own log (from this run's
+# offset), that it holds both slots (`slots-acquired`) or could not take them (`slot-refused`). The
+# deadline covers both waits (2 × 5 s) and the start; past it the agent is stopped and the launch
+# reported as failed, so a launch never reports what it did not do (audit of PR 74, A1, A2).
+start=$(cat "$L/$task.start")
+for _ in $(seq 1 200); do
+  run_log=$(tail -c +$((start + 1)) "$L/$task.log" 2> /dev/null || true)
+  if grep -q '^slots-acquired' <<< "$run_log"; then
     echo "$task: holds slots $FREE_TOTAL and $FREE_TRACK"; exit 0
   fi
-  if tail -c +$(($(cat "$L/$task.start") + 1)) "$L/$task.log" 2> /dev/null | grep -q '^slot-refused'; then
+  if grep -q '^slot-refused' <<< "$run_log"; then
     die "$task could not take its slots ($FREE_TOTAL, $FREE_TRACK) and did not start"
   fi
   sleep 0.1
 done
-die "$task was started but does not hold its slots after 10 s: check $L/$task.log and the slots (agent.sh status)"
+if [ "$use_unit" = 1 ]; then systemctl --user stop "$unit" 2> /dev/null || true
+else kill -TERM -- -"$(cat "$L/$task.pid")" 2> /dev/null || true; fi
+die "$task did not report its slots within 20 s: stopped; check $L/$task.log and the slots (agent.sh status)"

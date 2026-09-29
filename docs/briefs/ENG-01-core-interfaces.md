@@ -64,6 +64,10 @@ events, storage structs) with no game logic, and a document that says why each i
      instance ids recycled from a pool the adventurer or the contract holds, with a generation per
      id). The security lens of the audit checks that no field of an old instance is reachable, in the
      contract or through the views.
+   - **Measure the reuse** (project manager, 2026-09-29): the price of a key written, then zeroed or
+     kept, then written again, each from its receipt on the local node (FND-04 never observed a
+     reused key: its prices are 453,524 for a new slot and 32,072 for an overwrite); the budget of
+     `enter` and `leave` rests on that measurement, not on an extrapolation.
 3. **Entrypoints and views**, with their Cairo signatures: `play` and the standalone Fate and gate
    entrypoints of design/02, entry and leaving, the hub and persistent actions the MVP needs, the
    registry writers, `instance_state`, `instance_region`, and the views of the indexer. Bounds on
