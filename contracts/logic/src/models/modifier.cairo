@@ -17,10 +17,12 @@ pub mod slot {
 }
 
 pub mod errors {
-    // The content pipeline's checks (`assert_legal`).
+    // The content pipeline's checks (`assert_legal`, `assert_catalogue`).
     pub const SLOT: felt252 = 'modifier: slot';
     pub const NO_BENEFIT: felt252 = 'modifier: no benefit';
     pub const TWICE: felt252 = 'modifier: counted twice';
+    pub const QUICK_CAST_SLOTS: felt252 = 'modifier: quick-cast slots';
+    pub const DAMAGE_TYPE_SLOTS: felt252 = 'modifier: damage type slots';
 }
 
 #[generate_trait]
@@ -35,36 +37,70 @@ pub impl ModifierImpl of ModifierTrait {
         *self.cost.id != id::NONE
     }
 
-    /// Where its passives are held: its slot type (`slot::PREFIX` … `RUNE`).
-    fn source(self: @Modifier) -> Source {
+    /// Whether its benefit or its cost is the passive `id`.
+    #[inline(always)]
+    fn holds(self: @Modifier, id: u8) -> bool {
+        *self.benefit.id == id || *self.cost.id == id
+    }
+
+    /// Where its passives are held: its slot type (`slot::PREFIX` … `RUNE`); `None` for any
+    /// other value (`ModifierAssert::assert_slot` refuses it).
+    fn source(self: @Modifier) -> Option<Source> {
         match *self.slot {
-            0 => core::panic_with_felt252(errors::SLOT),
-            1 => Source::Prefix,
-            2 => Source::Suffix,
-            3 => Source::Inscription,
-            4 => Source::Insignia,
-            5 => Source::Rune,
-            _ => core::panic_with_felt252(errors::SLOT),
+            0 => Option::None,
+            1 => Option::Some(Source::Prefix),
+            2 => Option::Some(Source::Suffix),
+            3 => Option::Some(Source::Inscription),
+            4 => Option::Some(Source::Insignia),
+            5 => Option::Some(Source::Rune),
+            _ => Option::None,
         }
     }
 }
 
 #[generate_trait]
 pub impl ModifierAssert of ModifierAssertTrait {
-    /// The content pipeline's checks: a known slot type; a benefit, and a fixed cost or none,
-    /// each legal and allowed on that slot type (`PassiveTrait::allows`, design/19 §7.2), the
-    /// cost included; a statistic whose sources the snapshot counts is held once, not as both
-    /// benefit and cost.
+    /// A known slot type, 1–5.
+    #[inline(always)]
+    fn assert_slot(self: @Modifier) {
+        assert(*self.slot >= slot::PREFIX && *self.slot <= slot::LAST, errors::SLOT);
+    }
+
+    /// The content pipeline's checks of one modifier: a known slot type; a benefit, and a fixed
+    /// cost or none, each legal and allowed on that slot type (`PassiveTrait::allows`,
+    /// design/19 §7.2), the cost included; the benefit and the cost do not add to one sum the
+    /// snapshot bounds by counting sources (`PassiveTrait::shares_sum`: by statistic, guard and
+    /// scope), since one slot is one source.
     fn assert_legal(self: @Modifier) {
-        let source = self.source();
+        self.assert_slot();
+        let source = self.source().unwrap();
         assert(*self.benefit.id != id::NONE, errors::NO_BENEFIT);
         self.benefit.assert_source(source);
         self.cost.assert_source(source);
         self.cost.assert_fixed();
-        let twice = self.benefit.is_counted()
-            && self.cost.is_counted()
-            && *self.benefit.id == *self.cost.id;
-        assert(!twice, errors::TWICE);
+        assert(!self.benefit.shares_sum(self.cost), errors::TWICE);
+    }
+
+    /// The content pipeline's checks across every `MODIFIER` of the content, each legal: "the
+    /// pipeline gives [`QUICK_CAST_EVERY_N`, `DAMAGE_TYPE`] one slot type" (design/19 §4,
+    /// §7.2), so all the modifiers holding one of them share a slot type. Which one is not
+    /// settled (escalated); with any, at most 2 quick-cast pairs and one damage type per held
+    /// item are held.
+    fn assert_catalogue(modifiers: Span<Modifier>) {
+        let mut quick_cast: u8 = 0;
+        let mut damage_type: u8 = 0;
+        for modifier in modifiers {
+            modifier.assert_legal();
+            let slot = *modifier.slot;
+            if modifier.holds(id::QUICK_CAST_EVERY_N) {
+                assert(quick_cast == 0 || quick_cast == slot, errors::QUICK_CAST_SLOTS);
+                quick_cast = slot;
+            }
+            if modifier.holds(id::DAMAGE_TYPE) {
+                assert(damage_type == 0 || damage_type == slot, errors::DAMAGE_TYPE_SLOTS);
+                damage_type = slot;
+            }
+        }
     }
 }
 

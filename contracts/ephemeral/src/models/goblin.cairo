@@ -24,6 +24,12 @@ pub const DEAD: u8 = 6;
 /// Dead, and its remains looted.
 pub const LOOTED: u8 = 7;
 
+pub mod errors {
+    /// Its effect's charges above 63, or rank above 15 (design/19 §7.2).
+    pub const CHARGES: felt252 = 'packing: charges above 63';
+    pub const RANK: felt252 = 'packing: rank above 15';
+}
+
 /// A goblin's adrenaline field holds at most 63 strikes, in quarters (design/19 §5.12).
 pub const MAX_ADRENALINE: u8 = 252;
 
@@ -169,8 +175,8 @@ pub impl GoblinTimersAssert of GoblinTimersAssertTrait {
     /// The effect's charges fit 6 bits, its rank 4 (design/19 §7.2).
     #[inline(always)]
     fn assert_valid(self: @GoblinTimers) {
-        assert(*self.effect_charges < 0x40, 'packing: charges above 63');
-        assert(*self.effect_rank < 0x10, 'packing: rank above 15');
+        assert(*self.effect_charges < 0x40, errors::CHARGES);
+        assert(*self.effect_rank < 0x10, errors::RANK);
     }
 }
 

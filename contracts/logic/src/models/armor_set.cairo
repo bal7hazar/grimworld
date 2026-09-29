@@ -4,7 +4,7 @@
 
 use crate::content::{ARMOR_SET, Record};
 use crate::packing::{P16, P32, P48, P64, join, split};
-use crate::types::passive::{MAX_KNOCKDOWN_FLAT, Passive, PassiveAssert, PassiveTrait, Source, id};
+use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source};
 pub use super::index::ArmorSet;
 
 /// Pieces worn for each bonus (design/15 D-45).
@@ -18,29 +18,16 @@ pub impl ArmorSetImpl of ArmorSetTrait {
     }
 }
 
-pub mod errors {
-    // The content pipeline's checks (`assert_legal`).
-    pub const KNOCKDOWN: felt252 = 'armor set: knock-down above 3';
-}
-
 #[generate_trait]
 pub impl ArmorSetAssert of ArmorSetAssertTrait {
     /// The content pipeline's checks: both bonuses legal and allowed on a set bonus
-    /// (`PassiveTrait::allows`, design/19 §7.2); their `KNOCKDOWN_FLAT` together at most 3 ticks,
-    /// the 2 bits `MemberKit` holds (only one set can reach 3 of the 5 pieces, so these two are
-    /// the only set bonuses held).
+    /// (`PassiveTrait::allows`, design/19 §7.2). Two bonuses of one statistic are two of the
+    /// "2 set bonuses" §7.2 counts; a `KNOCKDOWN_FLAT` sum is capped at 3 at use (ENG-01 §3.1),
+    /// so the snapshot's 2 bits hold it saturated.
     fn assert_legal(self: @ArmorSet) {
         let [first, second] = *self.bonuses;
         first.assert_source(Source::SetBonus);
         second.assert_source(Source::SetBonus);
-        let mut knockdown: i16 = 0;
-        if first.id == id::KNOCKDOWN_FLAT {
-            knockdown += first.max;
-        }
-        if second.id == id::KNOCKDOWN_FLAT {
-            knockdown += second.max;
-        }
-        assert(knockdown <= MAX_KNOCKDOWN_FLAT, errors::KNOCKDOWN);
     }
 }
 

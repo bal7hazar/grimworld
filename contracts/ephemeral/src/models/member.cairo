@@ -25,6 +25,10 @@ pub const STATS_WORD: u8 = 4;
 pub mod errors {
     /// A gate action by anyone but the member's controller (M-6, ENG-01 §1.2).
     pub const NOT_CONTROLLER: felt252 = 'not controller';
+    /// A held effect's charges above 63, rank above 15, or belt slot above 3 (design/19 §7.2).
+    pub const CHARGES: felt252 = 'packing: charges above 63';
+    pub const RANK: felt252 = 'packing: rank above 15';
+    pub const BELT_SLOT: felt252 = 'packing: belt slot above 3';
 }
 
 #[generate_trait]
@@ -238,9 +242,9 @@ pub impl EffectAssert of EffectAssertTrait {
     /// Charges fit 6 bits, the rank 4; with the potion tag, the skill field is a belt slot 0-3.
     #[inline(always)]
     fn assert_valid(self: @Effect) {
-        assert(*self.charges < 0x40, 'packing: charges above 63');
-        assert(*self.rank < 0x10, 'packing: rank above 15');
-        assert(!*self.potion || *self.skill < 4, 'packing: belt slot above 3');
+        assert(*self.charges < 0x40, errors::CHARGES);
+        assert(*self.rank < 0x10, errors::RANK);
+        assert(!*self.potion || *self.skill < 4, errors::BELT_SLOT);
     }
 }
 

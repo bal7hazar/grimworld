@@ -66,17 +66,8 @@ pub const MAX_GUARDED_ARMOR: i16 = 18;
 pub const MAX_PENETRATION: i16 = 36;
 /// An unguarded `ARMOR` passive is bounded to −255…+255 (§7.2).
 pub const MAX_ARMOR: i16 = 255;
-/// `KNOCKDOWN_FLAT` is at most 3 ticks (2 bits in `MemberKit`), a set's two bonuses together.
-pub const MAX_KNOCKDOWN_FLAT: i16 = 3;
-/// `CONDITION_DURATION` and `ENCHANT_DURATION` percents fit 6 bits in `MemberKit`; an `ARMOR_VS`
-/// fits 6 bits in `MemberStats` (FX-23).
-pub const MAX_SIX_BITS: i16 = 63;
-/// `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` fit a `u8` of `MemberKit`.
-pub const MAX_ON_HIT: i16 = 255;
-/// Personalisation's rating bonus, +10 % (design/15 D-48): F-21's armor bound assumes it.
-pub const MAX_RATING_PERCENT: i16 = 10;
-/// A quick-cast or `ATTRIBUTE` passive's attribute fits 4 bits (`MemberBar`'s quick-cast pair).
-pub const ATTRIBUTE_BOUND: u8 = 16;
+/// `ADRENALINE_EVERY_N`'s N is 1…255 (§4).
+pub const MAX_EVERY_N: i16 = 255;
 /// Professions: design/03's six, ids 1–6 (`ENERGY_COST`'s `param`).
 pub const LAST_PROFESSION: u8 = 6;
 
@@ -183,35 +174,51 @@ pub impl PassiveImpl of PassiveTrait {
         (Self::unpack(first), Self::unpack(second))
     }
 
-    /// Whether the snapshot's capacity counts its sources (§7.2): `DAMAGE_PERCENT`,
-    /// `PENETRATION` and guarded `ARMOR` (7 sources at most), `QUICK_CAST_EVERY_N` (2 at most),
-    /// `CONDITION_DURATION` (one prefix), `KNOCKDOWN_FLAT` (3 ticks in 2 bits), `DAMAGE_TYPE`
-    /// (never summed). Each source holds such a passive at most once.
-    fn is_counted(self: @Passive) -> bool {
+    /// Whether `self` and `other`, held by one source, would add to the same sum the snapshot
+    /// bounds by counting its sources (§7.2), so that the source would count twice:
+    /// - `DAMAGE_PERCENT`: the same guard and overlapping scopes (equal, or either `ALL`);
+    /// - `PENETRATION`: overlapping scopes;
+    /// - `ARMOR`: the same guard (guarded: 7 sources; unguarded: "at most 5 per item on 7
+    ///   items plus 2 set bonuses", one per slot);
+    /// - `QUICK_CAST_EVERY_N` (2 pairs), `CONDITION_DURATION` (one condition and its percent),
+    ///   `DAMAGE_TYPE` (never summed: one type): any two.
+    /// Every other statistic is saturated or not bounded by a count (`ARMOR_VS`, FX-23;
+    /// `KNOCKDOWN_FLAT` and the duration percents, capped at use by ENG-01 §3.1), so two of it
+    /// in one source break nothing the document states.
+    fn shares_sum(self: @Passive, other: @Passive) -> bool {
         let id = *self.id;
-        id == id::DAMAGE_PERCENT
-            || id == id::PENETRATION
-            || (id == id::ARMOR && *self.guard != guard::ALWAYS)
-            || id == id::QUICK_CAST_EVERY_N
-            || id == id::CONDITION_DURATION
-            || id == id::KNOCKDOWN_FLAT
-            || id == id::DAMAGE_TYPE
+        if id != *other.id || id == id::NONE {
+            return false;
+        }
+        let scopes = *self.scope == *other.scope
+            || *self.scope == scope::ALL
+            || *other.scope == scope::ALL;
+        if id == id::DAMAGE_PERCENT {
+            *self.guard == *other.guard && scopes
+        } else if id == id::PENETRATION {
+            scopes
+        } else if id == id::ARMOR {
+            *self.guard == *other.guard
+        } else {
+            id == id::QUICK_CAST_EVERY_N || id == id::CONDITION_DURATION || id == id::DAMAGE_TYPE
+        }
     }
 
-    /// Whether `source` may hold it (§7.2, design/15), so that no held set of passives breaks
-    /// the snapshot's sums:
+    /// Whether `source` may hold it: only the restrictions design/19 §7.2 states.
     /// - `DAMAGE_PERCENT`, `PENETRATION`: "only the held items' slot types and set bonuses"
-    ///   (prefix, suffix, inscription; 7 sources at most);
+    ///   (prefix, suffix, inscription; the 7 × 18 and 7 × 36 bounds);
     /// - guarded `ARMOR`: "only in an insignia slot … or a set bonus";
-    /// - `QUICK_CAST_EVERY_N`: "held only on the weapon and the off-hand (… one slot type)": the
-    ///   inscription, the one slot type both carry exactly once (the document names none:
-    ///   escalated);
+    /// - `QUICK_CAST_EVERY_N`: "held only on the weapon and the off-hand": their slot types
+    ///   (prefix, suffix, inscription). "The pipeline gives it one slot type": which one the
+    ///   document does not say, so every quick-cast modifier of the content shares one
+    ///   (`ModifierAssert::assert_catalogue`), whichever it is (escalated);
     /// - `CONDITION_DURATION`: "one prefix, on the weapon only";
-    /// - `DAMAGE_TYPE`: "a `DAMAGE_TYPE` modifier on the weapon": a weapon's slot type, never an
-    ///   armor slot or a set bonus (which of the three: escalated);
-    /// - `KNOCKDOWN_FLAT`: a set bonus only (*Hob-breaker*; the 2-bit field holds one set's);
-    /// - `BASE_DAMAGE_PERCENT`, `RATING_PERCENT`: personalisation only (the item's flag, D-48),
-    ///   never a modifier or a set bonus (F-21's bound assumes +10 %);
+    /// - `DAMAGE_TYPE`: "a `DAMAGE_TYPE` modifier on the weapon, the only slot type the pipeline
+    ///   gives it": a weapon's slot type (prefix, suffix, inscription), one for the whole content
+    ///   (`assert_catalogue`); which one, and the weapon-only rule for a suffix or an
+    ///   inscription, which the off-hand also has, are escalated;
+    /// - `RATING_PERCENT`: personalisation only, never a record: §7.2's armor bound counts it
+    ///   apart from the 37 `ARMOR` passives (F-21);
     /// - every other passive: any source.
     fn allows(self: @Passive, source: Source) -> bool {
         let id = *self.id;
@@ -222,15 +229,11 @@ pub impl PassiveImpl of PassiveTrait {
             held_slot || source == Source::SetBonus
         } else if id == id::ARMOR && *self.guard != guard::ALWAYS {
             source == Source::Insignia || source == Source::SetBonus
-        } else if id == id::QUICK_CAST_EVERY_N {
-            source == Source::Inscription
+        } else if id == id::QUICK_CAST_EVERY_N || id == id::DAMAGE_TYPE {
+            held_slot
         } else if id == id::CONDITION_DURATION {
             source == Source::Prefix
-        } else if id == id::DAMAGE_TYPE {
-            held_slot
-        } else if id == id::KNOCKDOWN_FLAT {
-            source == Source::SetBonus
-        } else if id == id::BASE_DAMAGE_PERCENT || id == id::RATING_PERCENT {
+        } else if id == id::RATING_PERCENT {
             false
         } else {
             true
@@ -247,12 +250,17 @@ pub impl PassiveAssert of PassiveAssertTrait {
         assert(*self.scope < 4, errors::SCOPE);
     }
 
-    /// The content pipeline's checks of one passive (§4, §7.2): id 0 has every field 0;
-    /// otherwise the id is one of the MVP's; its `param` is in the enumeration its id names (a
-    /// damage type 1–9, a condition 1–9, an attribute that fits 4 bits, a profession 1–6),
-    /// else 0; a guard only on `ARMOR` (3, 4) and `DAMAGE_PERCENT` (1); a scope 0–3 only on
-    /// `DAMAGE_PERCENT` and `PENETRATION`; `min ≤ max`, within the id's range (the bounds §7.2
-    /// states for the snapshot's sums, the fields' widths, 0 for a passive without a value).
+    /// The content pipeline's checks of one passive (§4, §7.2), only what the document states:
+    /// id 0 has every field 0; otherwise the id is one of the MVP's; its `param` is in the
+    /// enumeration its id names (a damage type 1–9, a condition 1–9, a profession 1–6; an
+    /// attribute is any `u8`, its id space not being settled: escalated), else 0; a guard only on
+    /// `ARMOR` (3, 4) and `DAMAGE_PERCENT` (1); a scope 0–3 only on `DAMAGE_PERCENT` and
+    /// `PENETRATION`; `min ≤ max` within the range §4 and §7.2 state: `DAMAGE_PERCENT` and
+    /// guarded `ARMOR` ±18, unguarded `ARMOR` ±255, `PENETRATION` 0…36, `ADRENALINE_EVERY_N`
+    /// 1…255, `QUICK_CAST_EVERY_N` 0…255 (8 bits), non-negative for what §4 or ENG-01 §3.1
+    /// gives as a plus (`ARMOR_VS` "+ armor", `KNOCKDOWN_FLAT` "+ ticks", the duration percents'
+    /// "bonuses"), 0 for a passive without a value (`DAMAGE_TYPE`, `HALVE_FIRST_HEAVY_HIT`). An
+    /// aggregate the snapshot saturates (`ARMOR_VS` at 63, FX-23) bounds no single passive.
     fn assert_legal(self: @Passive) {
         let id = *self.id;
         if id == id::NONE {
@@ -267,7 +275,7 @@ pub impl PassiveAssert of PassiveAssertTrait {
         } else if id == id::CONDITION_DURATION {
             p >= condition::BLEEDING && p <= condition::LAST
         } else if id == id::QUICK_CAST_EVERY_N || id == id::ATTRIBUTE {
-            p < ATTRIBUTE_BOUND
+            true
         } else if id == id::ENERGY_COST {
             p >= 1 && p <= LAST_PROFESSION
         } else {
@@ -297,16 +305,15 @@ pub impl PassiveAssert of PassiveAssertTrait {
             (-MAX_ARMOR, MAX_ARMOR)
         } else if id == id::PENETRATION {
             (0, MAX_PENETRATION)
-        } else if id == id::KNOCKDOWN_FLAT {
-            (0, MAX_KNOCKDOWN_FLAT)
-        } else if id == id::ARMOR_VS || id == id::CONDITION_DURATION || id == id::ENCHANT_DURATION {
-            (0, MAX_SIX_BITS)
-        } else if id == id::LIFE_STEAL_ON_HIT || id == id::ENERGY_ON_HIT {
-            (0, MAX_ON_HIT)
-        } else if id == id::ADRENALINE_EVERY_N || id == id::QUICK_CAST_EVERY_N {
-            (1, 255)
-        } else if id == id::RATING_PERCENT {
-            (0, MAX_RATING_PERCENT)
+        } else if id == id::ADRENALINE_EVERY_N {
+            (1, MAX_EVERY_N)
+        } else if id == id::QUICK_CAST_EVERY_N {
+            (0, MAX_EVERY_N)
+        } else if id == id::ARMOR_VS
+            || id == id::KNOCKDOWN_FLAT
+            || id == id::CONDITION_DURATION
+            || id == id::ENCHANT_DURATION {
+            (0, 32767)
         } else if id == id::DAMAGE_TYPE || id == id::HALVE_FIRST_HEAVY_HIT {
             (0, 0)
         } else {

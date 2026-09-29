@@ -1,0 +1,539 @@
+// CBT-01 fix loop 2 (re-audit of PR 165 at 2d9990e): the validators accept exactly the set
+// design/19 allows, and every accepted collection of passives is representable in the snapshot.
+//
+// The flattening below is a test oracle, not the snapshot builder (that is ENG-06's, with
+// design/15's formulas): it sums what §4 and §7.2 say to sum, saturates only where the documents
+// say a sum saturates or is capped at use (`ARMOR_VS` at 63, FX-23; `KNOCKDOWN_FLAT` at 3 and the
+// duration percents at 50, ENG-01 §3.1), and converts each result into its field, which panics if
+// it does not fit. The loadouts are built from records the validators accept, placed as design/15
+// places them: a prefix on the weapon, a suffix and an inscription on the weapon and the
+// off-hand, an insignia and a rune on each of the 5 armor pieces, and one set's 2 bonuses. The
+// sums the documents give no capacity rule for are escalated (REPORT.md, fix loop 2), not
+// flattened here.
+use grimworld_logic::models::armor_set::{ArmorSet, ArmorSetAssert, ArmorSetTrait};
+use grimworld_logic::models::modifier::{Modifier, ModifierAssert, ModifierTrait, slot};
+use grimworld_logic::snapshot::{
+    MemberBar, MemberKit, MemberStats, QuickCast, pack_bar, pack_kit, pack_stats, unpack_bar,
+    unpack_kit, unpack_stats,
+};
+use grimworld_logic::types::combat::condition;
+use grimworld_logic::types::effect::{guard, scope};
+use grimworld_logic::types::passive::{Passive, PassiveAssert, PassiveTrait, id};
+
+/// The weighted rating of the pieces and the shield, each personalised (F-21): 255 + 25 + 255 +
+/// 25.
+const RATINGS: i32 = 560;
+
+#[generate_trait]
+impl FixtureImpl of Fixture {
+    fn passive(id: u8, param: u8, value: i16) -> Passive {
+        PassiveTrait::new(id, param, 0, 0, value, value)
+    }
+
+    fn damage(guard: u8, scope: u8, value: i16) -> Passive {
+        PassiveTrait::new(id::DAMAGE_PERCENT, 0, guard, scope, value, value)
+    }
+
+    fn penetration(scope: u8, value: i16) -> Passive {
+        PassiveTrait::new(id::PENETRATION, 0, 0, scope, value, value)
+    }
+
+    fn armor(guard: u8, value: i16) -> Passive {
+        PassiveTrait::new(id::ARMOR, 0, guard, 0, value, value)
+    }
+
+    fn modifier(slot: u8, benefit: Passive, cost: Passive) -> Modifier {
+        ModifierTrait::new(slot, benefit, cost)
+    }
+
+    /// The passives an adventurer holds with these modifiers on every slot of their type and
+    /// this set's two bonuses, after the content pipeline's checks: each modifier on its slot
+    /// type, the modifiers together (`assert_catalogue`), the set.
+    fn loadout(
+        prefix: Modifier,
+        suffix: Modifier,
+        inscription: Modifier,
+        insignia: Modifier,
+        rune: Modifier,
+        set: ArmorSet,
+    ) -> Span<Passive> {
+        assert(prefix.slot == slot::PREFIX && suffix.slot == slot::SUFFIX, 'slots');
+        assert(inscription.slot == slot::INSCRIPTION && insignia.slot == slot::INSIGNIA, 'slots');
+        assert(rune.slot == slot::RUNE, 'slots');
+        ModifierAssert::assert_catalogue(
+            array![prefix, suffix, inscription, insignia, rune].span(),
+        );
+        set.assert_legal();
+        let mut held: Array<Passive> = array![];
+        let placed = array![
+            (prefix, 1_u8), (suffix, 2), (inscription, 2), (insignia, 5), (rune, 5),
+        ];
+        for (modifier, count) in placed {
+            for _ in 0..count {
+                held.append(modifier.benefit);
+                held.append(modifier.cost);
+            }
+        }
+        let [first, second] = set.bonuses;
+        held.append(first);
+        held.append(second);
+        held.span()
+    }
+
+    /// The sum of the passives `id` of `guard` that apply to `scope` (a scope `ALL` applies to
+    /// every scope; a passive without a scope has 0), at their widest value.
+    fn sum(held: Span<Passive>, id: u8, guard: u8, scope: u8) -> i32 {
+        let mut total: i32 = 0;
+        for passive in held {
+            if *passive.id == id
+                && *passive.guard == guard
+                && (*passive.scope == scope || *passive.scope == scope::ALL) {
+                total += (*passive.max).into();
+            }
+        }
+        total
+    }
+
+    /// The sum of the passives `id` of `param`.
+    fn sum_param(held: Span<Passive>, id: u8, param: u8) -> i32 {
+        let mut total: i32 = 0;
+        for passive in held {
+            if *passive.id == id && *passive.param == param {
+                total += (*passive.max).into();
+            }
+        }
+        total
+    }
+
+    fn count(held: Span<Passive>, id: u8) -> u32 {
+        let mut count = 0;
+        for passive in held {
+            if *passive.id == id {
+                count += 1;
+            }
+        }
+        count
+    }
+
+    fn at_most(value: i32, cap: i32) -> i32 {
+        if value > cap {
+            cap
+        } else {
+            value
+        }
+    }
+
+    /// The oracle: `held` into the three snapshot words, each packed and unpacked. A sum that
+    /// does not fit its field panics in its conversion.
+    fn flatten(held: Span<Passive>, ratings: i32) -> (MemberStats, MemberBar, MemberKit) {
+        let d = |g: u8, s: u8| -> i8 {
+            Self::sum(held, id::DAMAGE_PERCENT, g, s).try_into().expect('damage sum overflows')
+        };
+        let p = |s: u8| -> u8 {
+            Self::sum(held, id::PENETRATION, 0, s).try_into().expect('penetration overflows')
+        };
+        let unguarded = Self::sum(held, id::ARMOR, guard::ALWAYS, 0) + ratings;
+        // Two quick-cast pairs at most.
+        let mut pairs: Array<QuickCast> = array![];
+        for passive in held {
+            if *passive.id == id::QUICK_CAST_EVERY_N {
+                pairs
+                    .append(
+                        QuickCast {
+                            attribute: *passive.param, every: (*passive.max).try_into().unwrap(),
+                        },
+                    );
+            }
+        }
+        assert(pairs.len() <= 2, 'more than 2 quick-cast pairs');
+        while pairs.len() < 2 {
+            pairs.append(Default::default());
+        }
+        let bar = MemberBar {
+            skills: [0; 8],
+            elite_slot: 255,
+            damage: [
+                d(guard::ALWAYS, scope::WEAPON), d(guard::ALWAYS, scope::ATTACK_SKILL),
+                d(guard::ALWAYS, scope::SPELL), d(guard::ABOVE_HALF, scope::WEAPON),
+                d(guard::ABOVE_HALF, scope::ATTACK_SKILL), d(guard::ABOVE_HALF, scope::SPELL),
+            ],
+            penetration: [p(scope::WEAPON), p(scope::ATTACK_SKILL), p(scope::SPELL)],
+            quick_cast: [*pairs[0], *pairs[1]],
+            armor: unguarded.try_into().expect('armor overflows'),
+        };
+        // One condition's duration: one prefix.
+        let mut conditions: Array<Passive> = array![];
+        for passive in held {
+            if *passive.id == id::CONDITION_DURATION {
+                conditions.append(*passive);
+            }
+        }
+        assert(conditions.len() <= 1, 'more than one condition');
+        let (condition, percent) = match conditions.pop_front() {
+            Option::Some(passive) => (
+                passive.param, Self::at_most(passive.max.into(), 50).try_into().unwrap(),
+            ),
+            Option::None => (0, 0),
+        };
+        let mut every: u8 = 0;
+        for passive in held {
+            if *passive.id == id::ADRENALINE_EVERY_N {
+                let n: u8 = (*passive.max).try_into().unwrap();
+                if every == 0 || n < every {
+                    every = n;
+                }
+            }
+        }
+        let g = |guard: u8| -> i8 {
+            Self::sum(held, id::ARMOR, guard, 0).try_into().expect('guarded armor overflows')
+        };
+        let kit = MemberKit {
+            belt: [0; 4],
+            life_steal: 0,
+            energy_on_hit: 0,
+            condition,
+            condition_duration: percent,
+            enchantment_duration: Self::at_most(Self::sum(held, id::ENCHANT_DURATION, 0, 0), 50)
+                .try_into()
+                .unwrap(),
+            double_adrenaline_every: every,
+            health_bonus: 0,
+            armor_stance: g(guard::IN_STANCE),
+            armor_enchanted: g(guard::ENCHANTED),
+            knockdown: Self::at_most(Self::sum(held, id::KNOCKDOWN_FLAT, 0, 0), 3)
+                .try_into()
+                .unwrap(),
+            halving: Self::count(held, id::HALVE_FIRST_HEAVY_HIT) > 0,
+        };
+        let vs = |t: u8| -> u8 {
+            Self::at_most(Self::sum_param(held, id::ARMOR_VS, t), 63).try_into().unwrap()
+        };
+        let stats = MemberStats {
+            armor_vs: [vs(1), vs(2), vs(3), vs(4), vs(5), vs(6), vs(7), vs(8), vs(9)],
+            ..Default::default(),
+        };
+        assert(unpack_bar(pack_bar(bar)) == bar, 'bar round trip');
+        assert(unpack_kit(pack_kit(kit)) == kit, 'kit round trip');
+        assert(unpack_stats(pack_stats(stats)) == stats, 'stats round trip');
+        (stats, bar, kit)
+    }
+}
+
+// CBT-7 (flattening proof), damage: 7 sources of +18 above half on every scope reach 126; the
+// held-item costs add −18 always to each scope, 5 of them; the insignias hold the audit's CBT-8
+// pair, +18 in a stance and −18 enchanted.
+#[test]
+#[available_gas(l2_gas: 3199308)] // ceil(1.05 × 3046960 measured)
+fn test_flatten_damage_extremes() {
+    let up = Fixture::damage(guard::ABOVE_HALF, scope::ALL, 18);
+    let down = Fixture::damage(guard::ALWAYS, scope::ALL, -18);
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, up, down),
+        Fixture::modifier(slot::SUFFIX, up, down),
+        Fixture::modifier(slot::INSCRIPTION, up, down),
+        Fixture::modifier(
+            slot::INSIGNIA,
+            Fixture::armor(guard::IN_STANCE, 18),
+            Fixture::armor(guard::ENCHANTED, -18),
+        ),
+        Fixture::modifier(slot::RUNE, Fixture::armor(guard::ALWAYS, 255), Default::default()),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [up, up]),
+    );
+    let (_, bar, kit) = Fixture::flatten(held, RATINGS);
+    assert(bar.damage == [-90, -90, -90, 126, 126, 126], 'damage sums');
+    assert(kit.armor_stance == 90 && kit.armor_enchanted == -90, 'guarded sums');
+    assert(bar.armor == 5 * 255 + 560, 'unguarded');
+}
+
+// CBT-7, penetration and guarded armor at their counts: 7 × 36 = 252; 7 × −18 = −126; the
+// unguarded armor at every held-item and armor slot, −255, without ratings.
+#[test]
+#[available_gas(l2_gas: 6314574)] // ceil(1.05 × 6013880 measured)
+fn test_flatten_penetration_and_armor_extremes() {
+    let pierce = Fixture::penetration(scope::ALL, 36);
+    let low = Fixture::armor(guard::ALWAYS, -255);
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, pierce, low),
+        Fixture::modifier(slot::SUFFIX, pierce, low),
+        Fixture::modifier(slot::INSCRIPTION, pierce, low),
+        Fixture::modifier(slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, -18), low),
+        Fixture::modifier(slot::RUNE, low, Default::default()),
+        ArmorSetTrait::new(
+            [1, 2, 3, 4, 5],
+            [Fixture::armor(guard::IN_STANCE, -18), Fixture::armor(guard::IN_STANCE, -18)],
+        ),
+    );
+    let (_, bar, kit) = Fixture::flatten(held, 0);
+    assert(bar.penetration == [180, 180, 180], 'penetration: 5 held slots');
+    assert(kit.armor_stance == -126, 'guarded: 7 sources');
+    assert(bar.armor == -15 * 255, 'unguarded: 15 slots');
+    // Penetration's 7th source: the set's two bonuses.
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, pierce, Default::default()),
+        Fixture::modifier(slot::SUFFIX, pierce, Default::default()),
+        Fixture::modifier(slot::INSCRIPTION, pierce, Default::default()),
+        Fixture::modifier(slot::INSIGNIA, low, Default::default()),
+        Fixture::modifier(slot::RUNE, low, Default::default()),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [pierce, pierce]),
+    );
+    let (_, bar, _) = Fixture::flatten(held, 0);
+    assert(bar.penetration == [252, 252, 252], 'penetration: 7 sources');
+}
+
+// CBT-7, the saturated and capped sums, each at the widest value a passive may carry: `ARMOR_VS`
+// at 63 (FX-23), knock-down at 3 and the duration percents at 50 (ENG-01 §3.1); one condition
+// (one prefix); two quick-cast pairs (one slot type, on the weapon and the off-hand).
+#[test]
+#[available_gas(l2_gas: 3167189)] // ceil(1.05 × 3016370 measured)
+fn test_flatten_saturated_extremes() {
+    let vs = Fixture::passive(id::ARMOR_VS, 1, 32767);
+    let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 32767);
+    let enchant = Fixture::passive(id::ENCHANT_DURATION, 0, 32767);
+    let held = Fixture::loadout(
+        Fixture::modifier(
+            slot::PREFIX, Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 32767), vs,
+        ),
+        Fixture::modifier(slot::SUFFIX, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 255), knock),
+        Fixture::modifier(slot::INSCRIPTION, enchant, vs),
+        Fixture::modifier(slot::INSIGNIA, knock, enchant),
+        Fixture::modifier(slot::RUNE, vs, knock),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, vs]),
+    );
+    let (stats, bar, kit) = Fixture::flatten(held, RATINGS);
+    assert(stats.armor_vs == [63, 0, 0, 0, 0, 0, 0, 0, 0], 'armor vs saturated');
+    assert(kit.knockdown == 3 && kit.enchantment_duration == 50, 'capped');
+    assert(kit.condition == condition::BLEEDING && kit.condition_duration == 50, 'one condition');
+    let pair = QuickCast { attribute: 3, every: 255 };
+    assert(bar.quick_cast == [pair, pair], 'two pairs');
+}
+
+// CBT-8: a modifier's benefit and cost are refused only when they add to one counted sum
+// (statistic, guard, scope). The audit's insignia: `ARMOR +10 IN_STANCE`, `ARMOR −5 ENCHANTED`.
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_separate_sums_accepted() {
+    let insignia = Fixture::modifier(
+        slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::ENCHANTED, -5),
+    );
+    insignia.assert_legal();
+    // Unguarded and guarded armor are separate sums.
+    Fixture::modifier(slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(0, -5))
+        .assert_legal();
+    // Damage: another scope, or another guard.
+    let weapon = Fixture::damage(guard::ALWAYS, scope::WEAPON, 10);
+    Fixture::modifier(slot::PREFIX, weapon, Fixture::damage(guard::ALWAYS, scope::SPELL, -5))
+        .assert_legal();
+    Fixture::modifier(slot::PREFIX, weapon, Fixture::damage(guard::ABOVE_HALF, scope::WEAPON, -5))
+        .assert_legal();
+    Fixture::modifier(
+        slot::SUFFIX, Fixture::penetration(scope::WEAPON, 4), Fixture::penetration(scope::SPELL, 1),
+    )
+        .assert_legal();
+    // Saturated or capped sums: twice in one slot breaks nothing.
+    let vs = Fixture::passive(id::ARMOR_VS, 1, 7);
+    Fixture::modifier(slot::RUNE, vs, Fixture::passive(id::ARMOR_VS, 2, 7)).assert_legal();
+    Fixture::modifier(slot::RUNE, vs, vs).assert_legal();
+    let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 1);
+    Fixture::modifier(slot::RUNE, knock, knock).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: counted twice')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_damage_all_and_weapon_same_guard_refused() {
+    let all = Fixture::damage(guard::ALWAYS, scope::ALL, 10);
+    Fixture::modifier(slot::PREFIX, all, Fixture::damage(guard::ALWAYS, scope::WEAPON, -5))
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: counted twice')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_penetration_all_and_spell_refused() {
+    Fixture::modifier(
+        slot::SUFFIX, Fixture::penetration(scope::ALL, 4), Fixture::penetration(scope::SPELL, 1),
+    )
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: counted twice')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_unguarded_armor_twice_refused() {
+    Fixture::modifier(slot::RUNE, Fixture::armor(0, 5), Fixture::armor(0, -2)).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: counted twice')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_stance_armor_twice_refused() {
+    Fixture::modifier(
+        slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::IN_STANCE, -2),
+    )
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: counted twice')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_two_conditions_on_one_prefix_refused() {
+    Fixture::modifier(
+        slot::PREFIX,
+        Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
+        Fixture::passive(id::CONDITION_DURATION, condition::POISON, 10),
+    )
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: counted twice')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_two_quick_casts_on_one_slot_refused() {
+    let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
+    Fixture::modifier(slot::SUFFIX, quick, Fixture::passive(id::QUICK_CAST_EVERY_N, 4, 5))
+        .assert_legal();
+}
+
+// CBT-7: quick-cast and `DAMAGE_TYPE` on any slot type of the weapon and the off-hand, one slot
+// type for the whole content, whichever (the document names none: escalated, not chosen).
+#[test]
+#[available_gas(l2_gas: 714945)] // ceil(1.05 × 680900 measured)
+fn test_one_slot_type_accepted() {
+    let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
+    let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
+    let cold = Fixture::passive(id::DAMAGE_TYPE, 5, 0);
+    let none: Passive = Default::default();
+    for held_slot in array![slot::PREFIX, slot::SUFFIX, slot::INSCRIPTION] {
+        ModifierAssert::assert_catalogue(
+            array![
+                Fixture::modifier(held_slot, quick, none),
+                Fixture::modifier(held_slot, Fixture::passive(id::QUICK_CAST_EVERY_N, 7, 4), none),
+                Fixture::modifier(held_slot, fire, none), Fixture::modifier(held_slot, cold, none),
+            ]
+                .span(),
+        );
+    }
+}
+
+#[test]
+#[should_panic(expected: 'modifier: quick-cast slots')]
+#[available_gas(l2_gas: 132353)] // ceil(1.05 × 126050 measured)
+fn test_quick_cast_on_two_slot_types_refused() {
+    let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
+    let none: Passive = Default::default();
+    ModifierAssert::assert_catalogue(
+        array![
+            Fixture::modifier(slot::SUFFIX, quick, none),
+            Fixture::modifier(slot::INSCRIPTION, quick, none),
+        ]
+            .span(),
+    );
+}
+
+// The audit's case: a fire prefix and a cold suffix.
+#[test]
+#[should_panic(expected: 'modifier: damage type slots')]
+#[available_gas(l2_gas: 131219)] // ceil(1.05 × 124970 measured)
+fn test_damage_type_on_two_slot_types_refused() {
+    let none: Passive = Default::default();
+    ModifierAssert::assert_catalogue(
+        array![
+            Fixture::modifier(slot::PREFIX, Fixture::passive(id::DAMAGE_TYPE, 4, 0), none),
+            Fixture::modifier(slot::SUFFIX, Fixture::passive(id::DAMAGE_TYPE, 5, 0), none),
+        ]
+            .span(),
+    );
+}
+
+#[test]
+#[should_panic(expected: 'passive: not on this source')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_quick_cast_on_an_armor_slot_refused() {
+    Fixture::modifier(
+        slot::INSIGNIA, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5), Default::default(),
+    )
+        .assert_legal();
+}
+
+// CBT-7: an attribute's id space is not settled (escalated): any `u8` is accepted.
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_attribute_ids_accepted() {
+    Fixture::passive(id::ATTRIBUTE, 255, 1).assert_legal();
+    Fixture::passive(id::ATTRIBUTE, 16, -2).assert_legal();
+    Fixture::passive(id::QUICK_CAST_EVERY_N, 16, 5).assert_legal();
+    Fixture::passive(id::QUICK_CAST_EVERY_N, 255, 0).assert_legal();
+}
+
+// CBT-1: no single passive is bounded by an aggregate the snapshot saturates or caps; a plus
+// stays a plus (§4: "+ armor", "+ ticks"; ENG-01 §3.1's percent bonuses).
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_saturated_values_accepted() {
+    Fixture::passive(id::ARMOR_VS, 1, 64).assert_legal();
+    Fixture::passive(id::ARMOR_VS, 9, 32767).assert_legal();
+    Fixture::passive(id::KNOCKDOWN_FLAT, 0, 4).assert_legal();
+    Fixture::passive(id::ENCHANT_DURATION, 0, 64).assert_legal();
+    Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 64).assert_legal();
+    Fixture::passive(id::ARMOR_VS, 1, 0).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: value out of bounds')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_negative_knockdown_refused() {
+    Fixture::passive(id::KNOCKDOWN_FLAT, 0, -1).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: value out of bounds')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_negative_enchant_duration_refused() {
+    Fixture::passive(id::ENCHANT_DURATION, 0, -1).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: value out of bounds')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_adrenaline_every_0_refused() {
+    Fixture::passive(id::ADRENALINE_EVERY_N, 0, 0).assert_legal();
+}
+
+// CBT-2: sums the documents give no capacity rule for are accepted as content and escalated
+// (REPORT.md, fix loop 2), e.g. a set's two `LIFE_STEAL_ON_HIT` bonuses of 255.
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_unruled_sums_accepted_and_escalated() {
+    let steal = Fixture::passive(id::LIFE_STEAL_ON_HIT, 0, 255);
+    ArmorSetTrait::new([1, 2, 3, 4, 5], [steal, steal]).assert_legal();
+    Fixture::modifier(
+        slot::SUFFIX, Fixture::passive(id::LIFE_STEAL_ON_HIT, 0, 300), Default::default(),
+    )
+        .assert_legal();
+}
+
+// CBT-6: the slot type is checked by `ModifierAssert`; `source` only maps it.
+#[test]
+#[should_panic(expected: 'modifier: slot')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_slot_0_refused() {
+    Fixture::modifier(0, Fixture::armor(0, 5), Default::default()).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: slot')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_slot_6_refused() {
+    Fixture::modifier(6, Fixture::armor(0, 5), Default::default()).assert_legal();
+}
+
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_source_maps_slots() {
+    assert(Fixture::modifier(6, Default::default(), Default::default()).source().is_none(), '6');
+    assert(Fixture::modifier(0, Default::default(), Default::default()).source().is_none(), '0');
+    assert(
+        Fixture::modifier(slot::RUNE, Default::default(), Default::default()).source().is_some(),
+        '5',
+    );
+}
