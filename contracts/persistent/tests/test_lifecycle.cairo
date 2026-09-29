@@ -369,7 +369,7 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 25856870)] // ceil(1.05 × 24625590 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
     let id = adventurer(world);
@@ -382,7 +382,7 @@ fn test_start_hub_from_the_registry() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 29643033)] // ceil(1.05 × 28231460 measured)
 fn test_start_hub_refusals() {
     // No region 1 in the registry.
     let class = declare("Registry").unwrap().contract_class();
@@ -407,7 +407,7 @@ fn test_start_hub_refusals() {
 // level 1, a Vanguard's 20 energy, 2 pips, armor 80), the owner as controller, no task yet (E-14);
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 37511681)] // ceil(1.05 × 35725410 measured)
 fn test_enter() {
     let world = setup();
     let id = adventurer(world);
@@ -446,7 +446,7 @@ fn test_enter() {
 // The belt's reserve, the worst case (ENG-01 §6, §9.3): four items on four pages, each lane
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 36166274)] // ceil(1.05 × 34444070 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
     let id = adventurer(world);
@@ -477,7 +477,7 @@ fn test_enter_reserves_the_belt() {
 // Two slots of the same item are one debit of their sum (ENG-01 §6); a lane left non-zero keeps
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 32917983)] // ceil(1.05 × 31350460 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
     let id = adventurer(world);
@@ -493,7 +493,7 @@ fn test_enter_one_debit_per_item() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 45804182)] // ceil(1.05 × 43623030 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -532,7 +532,7 @@ fn test_enter_refusals() {
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 34669149)] // ceil(1.05 × 33018237 measured)
 fn test_travel() {
     let world = setup();
     let id = adventurer(world);
@@ -593,7 +593,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // Returned through a hub gate: the hub reached and unlocked, the belt's unused counts back in the
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 36870907)] // ceil(1.05 × 35115149 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -634,7 +634,7 @@ fn test_report_returned_through_a_hub_gate() {
 // Travel back and defeat: `hub` 0 is the last hub (D-04); on defeat the belt comes back as on
 // return (D-141, E-15).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 38047719)] // ceil(1.05 × 36235922 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -662,7 +662,7 @@ fn test_report_to_the_last_hub() {
 // Through a gate to a location: still inside, in the next instance; nothing credited (the reserve
 // carries). Writes: `place`.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 37204494)] // ceil(1.05 × 35432851 measured)
 fn test_report_moved() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -690,7 +690,7 @@ fn test_report_moved() {
 // What the models hold today is applied: experience to every contributor, gold and balances to the
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 36668785)] // ceil(1.05 × 34922652 measured)
 fn test_report_open() {
     let world = setup();
     let id = adventurer(world);
@@ -722,7 +722,7 @@ fn test_report_open() {
 
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 37248146)] // ceil(1.05 × 35474424 measured)
 fn test_report_refusals() {
     let world = setup();
     let id = adventurer(world);

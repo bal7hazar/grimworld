@@ -844,7 +844,7 @@ mod close_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 100000000)]
+    #[available_gas(l2_gas: 5039507)] // ceil(1.05 × 4799530 measured)
     fn test_close_on_defeat() {
         let class = declare("ReportSink").unwrap().contract_class();
         let (hub, _) = class.deploy(@array![]).unwrap();

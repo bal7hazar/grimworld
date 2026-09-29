@@ -90,7 +90,7 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 8664621)] // ceil(1.05 × 8252020 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -99,7 +99,7 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 8804723)] // ceil(1.05 × 8385450 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -108,7 +108,7 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 8875209)] // ceil(1.05 × 8452580 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -117,7 +117,7 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 8931930)] // ceil(1.05 × 8506600 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -126,7 +126,7 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 9272256)] // ceil(1.05 × 8830720 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -135,7 +135,7 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 9008864)] // ceil(1.05 × 8579870 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -144,7 +144,7 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 9976229)] // ceil(1.05 × 9501170 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -153,7 +153,7 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 8705466)] // ceil(1.05 × 8290920 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
     let gas = get_available_gas();
@@ -162,7 +162,7 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 100000000)]
+#[available_gas(l2_gas: 8902163)] // ceil(1.05 × 8478250 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
     let gas = get_available_gas();
