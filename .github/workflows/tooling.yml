@@ -281,7 +281,7 @@ jobs:
           # setsid(2) itself failing stops with 127 and the command does not run. Linux refuses setsid(2) (EPERM) to
           # a group leader that has another member in its group: a wrapper makes perl one, with a short-lived child.
           mkdir -p "$work/leader"; realperl=$(command -v perl)
-          printf '#!/bin/sh\nexec %s -e '"'"'use POSIX (); setpgrp(0, 0); fork() or exec "sleep", "5"; exec { $ARGV[0] } @ARGV'"'"' -- %s "$@"\n' "$realperl" "$realperl" > "$work/leader/perl"
+          printf '#!/bin/sh\nexec %s -e '"'"'use POSIX (); defined(POSIX::setpgid(0, 0)) or die "setpgid: $!"; fork() or exec "sleep", "5"; exec { $ARGV[0] } @ARGV'"'"' -- %s "$@"\n' "$realperl" "$realperl" > "$work/leader/perl"
           chmod +x "$work/leader/perl"; rm -f "$work/ran"
           set +e; PATH=$work/leader:$nosetsid scripts/with-node.sh touch "$work/ran" 2> "$work/err"; rc=$?; set -e
           echo "leader case: rc=$rc ran=$(ls "$work/ran" 2>&1)"; cat "$work/err"; cat "$work/leader/perl"; [ "$rc" = 127 ]; grep -q 'setsid: ' "$work/err"; [ ! -e "$work/ran" ]
