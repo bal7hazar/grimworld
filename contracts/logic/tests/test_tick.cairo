@@ -265,7 +265,7 @@ fn run(ref world: World, ticks: u8) {
 // design/19 §10.3, the degeneration: Poisoned to 72, Bleeding to 77 from step 2 of tick 70,
 // regeneration 0. Ticks 70–72 lose 14 each (−7 pips), ticks 73–75 lose 6 (−3): 60 in all.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 6421670)] // ceil(1.05 × 6115876 measured)
 fn test_example_condition_degeneration() {
     let mut spec = Fixture::spec();
     spec.conditions = [77, 72, 0, 0];
@@ -281,7 +281,7 @@ fn test_example_condition_degeneration() {
 // design/19 §10.1, step 3 of ticks 42–44: goblin 24 Burning to 44, health regeneration 0, goes
 // 87 → 73 → 59 → 45; tick 45 changes nothing.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 6091674)] // ceil(1.05 × 5801594 measured)
 fn test_example_burning_goblin() {
     let mut goblin = Fixture::goblin(24, HOB);
     goblin.health = 87;
@@ -300,7 +300,7 @@ fn test_example_burning_goblin() {
 // field goes to none, R = 61. It skips ticks 52 and 53, acts at 54; the smash is usable in step 2
 // of tick 62 (T > R).
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 6188461)] // ceil(1.05 × 5893772 measured)
 fn test_example_interrupt() {
     let content = Fixture::content();
     let caste = Fixture::caste(HOB, 1);
@@ -329,7 +329,7 @@ fn test_example_interrupt() {
 // 10); it is frozen from tick 103 to 106 and nothing of it changes; awake at 107, its activation
 // has lapsed at 103: none, R = 112, and it acts in step 2 of 107.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 11763438)] // ceil(1.05 × 11203274 measured)
 fn test_example_lapse() {
     let mut goblin = Fixture::goblin(30, HOB);
     goblin.start(0, 0, 3, 100);
@@ -364,7 +364,7 @@ fn test_example_lapse() {
 // B = 51 and acts again at 52; an attack skill with activation 1 resolves at 51, does not act in
 // 51, has no recovery (k < n + 2) and acts at 52; with k = 3 it recovers to B = 52 and acts at 53.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 17215972)] // ceil(1.05 × 16396163 measured)
 fn test_example_activated_attack_cost() {
     let content = Fixture::content();
     // Plain attack, k = 2.
@@ -404,7 +404,7 @@ fn test_example_activated_attack_cost() {
 // 200 with activation 2 (after the quick-cast bonus) and interrupted in step 2 of 201 recharges
 // from 201.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 15570467)] // ceil(1.05 × 14829016 measured)
 fn test_example_member_activation() {
     let content = Fixture::content();
     let mut member = Fixture::member(Fixture::spec());
@@ -445,7 +445,7 @@ fn test_example_member_activation() {
 // energy in thirds up to its max. `MemberTrait::load` derives an effect's pips once: a skill's at
 // its rank, a potion's through its belt slot.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 10426415)] // ceil(1.05 × 9929919 measured)
 fn test_regeneration() {
     let content = Content {
         skills: array![
@@ -487,7 +487,7 @@ fn test_regeneration() {
 // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
 // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 10889414)] // ceil(1.05 × 10370870 measured)
 fn test_load_store() {
     let mut spec = Fixture::spec();
     spec.conditions = [11, 12, 13, 14];
@@ -527,7 +527,7 @@ fn test_load_store() {
 // A goblin's derived fields: max health from the adventurer's formula times its caste's
 // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 789285)] // ceil(1.05 × 751700 measured)
 fn test_goblin_load() {
     let caste = CasteSheet {
         id: 3,
@@ -561,7 +561,7 @@ fn test_goblin_load() {
 // §5.8 step 3, FX-12, D-157 E: out of combat (no goblin of the awake set Engaged) a member loses
 // 1 quarter strike a tick, floored at 0; a goblin not Engaged too; an Engaged one keeps it.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 11399985)] // ceil(1.05 × 10857128 measured)
 fn test_adrenaline_decay() {
     let mut spec = Fixture::spec();
     spec.adrenaline = 5;
@@ -588,7 +588,7 @@ fn test_adrenaline_decay() {
 // §5.13: goblins at 0 in step 3 die after every actor of the step, in id order; a dead goblin is
 // no longer touched. Goblin energy regenerates in thirds up to the caste's.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 6545520)] // ceil(1.05 × 6233828 measured)
 fn test_deaths_in_step_3() {
     let mut a = Fixture::goblin(8, HOB);
     a.health = 10;
@@ -618,7 +618,7 @@ fn test_deaths_in_step_3() {
 // §5.13, FX-8: the adventurer at 0 in step 3 is down at step 5 and the run stops; at 0 in step 2
 // the tick stops at once (no later act, no step 3) and step 5 still runs.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 10753238)] // ceil(1.05 × 10241179 measured)
 fn test_defeat() {
     let mut spec = Fixture::spec();
     spec.health = 6;
@@ -645,7 +645,7 @@ fn test_defeat() {
 // Step 2 (§5.2): a knocked-down goblin, a busy one (activating, recovering), a frozen one and a
 // dead one do not act; the others act in ascending id order.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 7526095)] // ceil(1.05 × 7167709 measured)
 fn test_who_acts() {
     let mut knocked = Fixture::goblin(8, HOB);
     knocked.knocked = 1;
@@ -669,7 +669,7 @@ fn test_who_acts() {
 
 // Step 0: the flags "since the last tick" and "hit this tick" clear; `HALVED` stays.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 5071745)] // ceil(1.05 × 4830233 measured)
 fn test_flags_cleared() {
     let mut spec = Fixture::spec();
     spec.flags = flag::TURNED + flag::INSTANT + flag::HIT + flag::HALVED;
@@ -681,7 +681,7 @@ fn test_flags_cleared() {
 // Step 0's awake set (§5.2, design/02): the 8 nearest goblins alive and not asleep, ties by lowest
 // id; an asleep or dead goblin never.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 8643275)] // ceil(1.05 × 8231690 measured)
 fn test_awake_set() {
     let mut goblins = array![];
     for entity in 8..19_u16 {
@@ -798,7 +798,7 @@ fn representative() -> (World, Content) {
 
 // Determinism (AC-2): the same state gives the same world, over 10 ticks of the worst state.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 38337974)] // ceil(1.05 × 36512356 measured)
 fn test_deterministic() {
     let (mut a, content) = worst();
     let (mut b, _) = worst();
@@ -811,21 +811,21 @@ fn test_deterministic() {
 
 // The fixtures' own cost, subtracted from the benchmarks below.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 11211879)] // ceil(1.05 × 10677980 measured)
 fn test_cost_fixture_worst() {
     let (world, content) = worst();
     assert(world.goblins.len() == 8 && content.skills.len() == 28, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 11837322)] // ceil(1.05 × 11273640 measured)
 fn test_cost_fixture_worst_words() {
     let (words, content) = worst_words();
     assert(words.goblins.len() == 8 && content.skills.len() == 28, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 7259522)] // ceil(1.05 × 6913830 measured)
 fn test_cost_fixture_representative() {
     let (world, content) = representative();
     assert(world.goblins.len() == 8 && content.castes.len() == 2, 'representative');
@@ -833,7 +833,7 @@ fn test_cost_fixture_representative() {
 
 // Cost: one representative tick, the pipeline alone (Idle rules).
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 7908282)] // ceil(1.05 × 7531697 measured)
 fn test_cost_tick_representative() {
     let (mut world, content) = representative();
     let mut rules = Idle {};
@@ -841,9 +841,47 @@ fn test_cost_tick_representative() {
     assert(world.clock == 50, 'one tick');
 }
 
+// Cost: a batch's 10 representative ticks, the pipeline alone.
+#[test]
+#[available_gas(l2_gas: 13793399)] // ceil(1.05 × 13136570 measured)
+fn test_cost_batch_representative() {
+    let (mut world, content) = representative();
+    let mut rules = Idle {};
+    TickTrait::run(ref world, @content, 10, ref rules);
+    assert(world.clock == 59, 'ten ticks');
+}
+
+#[test]
+#[available_gas(l2_gas: 7882781)] // ceil(1.05 × 7507410 measured)
+fn test_cost_fixture_representative_words() {
+    let (world, content) = representative();
+    let words = world.store();
+    assert(words.goblins.len() == 8 && content.castes.len() == 2, 'representative');
+}
+
+// A batch's 10 representative ticks through one library call: load, ticks, store, the call.
+#[test]
+#[available_gas(l2_gas: 16536692)] // ceil(1.05 × 15749230 measured)
+fn test_cost_library_call_batch_representative() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (world, content) = representative();
+    let words = library.run(world.store(), content, 10);
+    assert(words.clock == 59, 'ten ticks');
+}
+
+#[test]
+#[available_gas(l2_gas: 7893816)] // ceil(1.05 × 7517920 measured)
+fn test_cost_library_baseline_representative() {
+    let _class = declare("TickLibrary").unwrap().contract_class();
+    let (world, content) = representative();
+    let words = world.store();
+    assert(words.clock == 49, 'declared');
+}
+
 // Cost: one worst tick, the pipeline alone (Idle rules).
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 13093659)] // ceil(1.05 × 12470151 measured)
 fn test_cost_tick_worst() {
     let (mut world, content) = worst();
     let mut rules = Idle {};
@@ -855,7 +893,7 @@ fn test_cost_tick_worst() {
 
 // Cost: a batch's 10 worst ticks (weight 10), the pipeline alone.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 19103184)] // ceil(1.05 × 18193508 measured)
 fn test_cost_batch_worst() {
     let (mut world, content) = worst();
     let mut rules = Idle {};
@@ -865,7 +903,7 @@ fn test_cost_batch_worst() {
 
 // Cost, once per call: loading the worst state's actors from their words and storing them back.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 13838685)] // ceil(1.05 × 13179700 measured)
 fn test_cost_load_store_worst() {
     let (words, content) = worst_words();
     let world = words.load(@content);
@@ -877,7 +915,7 @@ fn test_cost_load_store_worst() {
 // one worst tick, store) in the test's own code; the next test runs it through `library_call`.
 // The difference is the call: its syscall and the words and content through calldata and back.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 15721032)] // ceil(1.05 × 14972411 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (words, content) = worst_words();
@@ -889,7 +927,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 16560822)] // ceil(1.05 × 15772211 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -900,7 +938,7 @@ fn test_cost_library_call() {
 
 // The batch's 10 worst ticks through one library call (one call per invocation, ENG-01 §1.3).
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 22585257)] // ceil(1.05 × 21509768 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -911,7 +949,7 @@ fn test_cost_library_call_batch() {
 
 // The library call runs the pipeline: the same words as a direct run.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 35207191)] // ceil(1.05 × 33530658 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -928,7 +966,7 @@ fn test_library_matches_pipeline() {
 // the fully unpacked record, their oracle: a regeneration in entry 1 or 2, falling with rank or
 // negative, none; a potion with and without one; a caste.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 1382420)] // ceil(1.05 × 1316590 measured)
 fn test_sheets_read_oracle() {
     let (skill, caste) = records();
     let unpacked: Skill = Record::<Skill>::unpack(skill);
@@ -965,14 +1003,14 @@ fn test_sheets_read_oracle() {
 // The content's price, per record, once per batch (D-145): a `SKILL` and a `CASTE` read into their
 // sheets from their parts. The baseline packs them only; the unpacked path is the oracle's.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 350385)] // ceil(1.05 × 333700 measured)
 fn test_cost_sheets_baseline() {
     let (skill, caste) = records();
     assert(skill.len() == 2 && caste.len() == 2, 'parts');
 }
 
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 436475)] // ceil(1.05 × 415690 measured)
 fn test_cost_sheets() {
     let (skill, caste) = records();
     let sheet = SkillSheetTrait::read(5, skill);
@@ -982,7 +1020,7 @@ fn test_cost_sheets() {
 }
 
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 562464)] // ceil(1.05 × 535680 measured)
 fn test_cost_sheets_unpacked() {
     let (skill, caste) = records();
     let skill: Skill = Record::<Skill>::unpack(skill);

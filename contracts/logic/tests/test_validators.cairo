@@ -308,7 +308,7 @@ fn test_sources_accepted() {
 // CBT-3: an attack's hit modifier takes the attacked foe: `FOES`.
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 94196)] // ceil(1.05 × 89710 measured)
+#[available_gas(l2_gas: 93146)] // ceil(1.05 × 88710 measured)
 fn test_attack_bonus_on_allies_refused() {
     let bonus = Fixture::modifier_on_foe(kind::ATTACK_BONUS);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..bonus });
@@ -316,14 +316,14 @@ fn test_attack_bonus_on_allies_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 94395)] // ceil(1.05 × 89900 measured)
+#[available_gas(l2_gas: 93345)] // ceil(1.05 × 88900 measured)
 fn test_attack_hit_penetration_on_allies_refused() {
     let pierce = Fixture::modifier_on_foe(kind::HIT_PENETRATION);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..pierce });
 }
 
 #[test]
-#[available_gas(l2_gas: 409679)] // ceil(1.05 × 390170 measured)
+#[available_gas(l2_gas: 403379)] // ceil(1.05 × 384170 measured)
 fn test_attack_modifiers_on_foes_accepted() {
     Fixture::attack_with(Fixture::modifier_on_foe(kind::ATTACK_BONUS));
     Fixture::attack_with(Fixture::modifier_on_foe(kind::HIT_PENETRATION));

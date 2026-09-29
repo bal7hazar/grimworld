@@ -55,3 +55,6 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_lifecycle::test_refused_sequence` | 33194666 | 34854400 | 5.00 % | 0 | 4512 | 2026-09-29 | 038194a |
 | `test_lifecycle::test_set_controller` | 33106152 | 34761460 | 5.00 % | 0 | 4992 | 2026-09-29 | 038194a |
 | `test_lifecycle::test_travel_back` | 31658519 | 33241445 | 5.00 % | 0 | 4992 | 2026-09-29 | 038194a |
+| `test_tick_words::test_tick_constants` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | 0489b29 |
+| `test_tick_words::test_tick_words_goblin` | 551950 | 579548 | 5.00 % | 0 | 0 | 2026-09-29 | 0489b29 |
+| `test_tick_words::test_tick_words_member` | 1199020 | 1258971 | 5.00 % | 0 | 0 | 2026-09-29 | 0489b29 |

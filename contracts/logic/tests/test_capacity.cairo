@@ -418,7 +418,7 @@ fn with_prefix(prefix: Modifier) -> Span<Passive> {
 // CBT-9 (CBT-01's audit): a prefix whose benefit and cost name the same condition is legal, and
 // the snapshot sums them per condition: Bleeding 33 + 10 = 43. The oracle and the builder agree.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 3904583)] // ceil(1.05 × 3718650 measured)
 fn test_same_condition_summed() {
     let prefix = Fixture::modifier(
         slot::PREFIX,
@@ -432,7 +432,7 @@ fn test_same_condition_summed() {
 
 // CBT-9: the sum above 50 is capped at 50 (ENG-01 §3.1), after summing.
 #[test]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 3908447)] // ceil(1.05 × 3722330 measured)
 fn test_same_condition_capped() {
     let prefix = Fixture::modifier(
         slot::PREFIX,
@@ -449,7 +449,7 @@ fn test_same_condition_capped() {
 // CBT-9: two conditions are still refused, by the builder as by the validators.
 #[test]
 #[should_panic(expected: 'snapshot: two conditions')]
-#[available_gas(l2_gas: 99999999)]
+#[available_gas(l2_gas: 29820)] // ceil(1.05 × 28400 measured)
 fn test_two_conditions_builder_refused() {
     MemberKitTrait::condition_duration(
         array![
