@@ -22,3 +22,5 @@ export {
   createStarknetChain,
 } from "./starknet";
 export type { ChainConfig, NodeFunderConfig } from "./starknet";
+export { createFunder, createServiceFunder } from "./funder";
+export type { FunderConfig, ServiceFunderConfig } from "./funder";
