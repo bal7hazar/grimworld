@@ -218,6 +218,7 @@ verified by the cross-cutting audit.
 | CBT-05 | Skill engine: costs, activation, interrupt, effects; skill registry | CBT-02 | Opus 5.5 | D S P C Q | todo |
 | CBT-06 | Goblin spawn from pack registry; state machine; shared flood pathfinding | CBT-02 | Opus 5.5 | D P C Q | todo |
 | CBT-07 | AI profiles: swarm, kite, support, brute | CBT-06 | Opus 5.5 | D P C Q | todo |
+| CBT-08a | `set_build`: the bar, attributes, belt and equipment validated in one call; the belt's worst case measured (D-148). CBT-08's first part, pulled forward (D-150) | CBT-01, ENG-04, ENG-06 | Opus 5.5 | D S Q + GPT-6-Astra | doing ([brief](docs/briefs/CBT-08a-set-build.md)) |
 | CBT-08 | Attributes, build lock, skill bar | CBT-05 | Opus 5.5 | D S Q | todo |
 | CNT-01 | Seed data: 3 professions × 6 starter skills, 5 castes, MVP packs | CBT-05, CBT-07 | Sonnet 5 | D V | todo |
 | CLI-04 | Client simulation of combat + parity vectors | CBT-03…07 | Opus 5.5 | P Q | todo |
