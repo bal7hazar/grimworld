@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-09-29 06:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 06:50 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -8,13 +8,14 @@ are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03,
 FND-04, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, SPK-4, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21, DOC-01,
-**ENG-01**. Running: **FND-05** (providers, on ENG-01's `IFate`) and **ENG-01b** (the accounting's
-three open findings and the content version). Next: ENG-02 to ENG-04 on ENG-01's interfaces.
+ENG-01, **FND-05**. Running: **ENG-01b** (the accounting's findings and the content version, fix
+loop 1). Next: ENG-02 to ENG-04 on ENG-01's interfaces.
 
 ## What moved
 
 | | |
 |---|---|
+| **FND-05** | [#92](https://github.com/bal7hazar/grimworld/pull/92) merged: `derive` and one Fate domain per use, the admin setters, the client's burner account behind `AccountProvider`; its funder bound to the local node. PASS WITH FINDINGS after two fix loops |
 | **ENG-01** | [#81](https://github.com/bal7hazar/grimworld/pull/81) merged: five contracts frozen as compiling code, layouts, events, batch codec, per-branch budgets. Instance slots reused, records never zeroed. Merged by the project manager's decision (D-141) with three accounting findings carried to ENG-01b; no security finding. S1 estimated at **$0.556** against $0.50, pending ENG-07's measure of a tick inside a batch |
 | **D-141** | ENG-01's escalations decided and written in design/02, 07, 17, 18 and cost-budget.md: 16 goblins an invocation, a goblin's first record weighs 1, an unsplittable action runs, a content version, the belt back on defeat, nothing carried through a gate (reversible by the owner), the full roster keeps goblins in their chunk, `mine` alone |
 | **SPK-4** | [#82](https://github.com/bal7hazar/grimworld/pull/82): the client's simulation is a TypeScript mirror checked by vectors; damage edges decided (D-140) |
@@ -24,19 +25,19 @@ three open findings and the content version). Next: ENG-02 to ENG-04 on ENG-01's
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| FND-05 providers | `claude-opus-5-5` | launching |
-| ENG-01b accounting | `claude-sonnet-5-5` | launching |
+| ENG-01b accounting, fix loop 1 (with the content version on `open`, `mine`, `barter`) | `claude-sonnet-5-5` | running |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-1. FND-05 and ENG-01b: review, `[GPT-6-Astra]` audits, merge.
-2. ENG-02 (helpers, D-140's table), ENG-03 (registries, the content version measured), ENG-04.
+1. ENG-01b: re-audit `[GPT-6-Astra]`, merge; then design/02 and cost-budget.md take its final figures (70 slots, `mine` 57.8M, `enter_rift` 12.5M).
+2. A brief for the burner's funder on a public network (a service of the game behind the `Funder` port; FND-05's escalation), before any play on Sepolia.
+3. ENG-02 (helpers, D-140's table), ENG-03 (registries, the content version measured), ENG-04.
 
 ## Decisions needed
 
-None open. Answered: D-141 (ENG-01's merge and escalations).
+None open. Answered: D-141 (ENG-01's merge and escalations), and its refinement: the content version on `open`, `mine`, `barter` ([decision](docs/decisions/2026-09-29-content-version-standalone.md)).
 
 ## Launcher: for its next change (not before a finding or a task needs one)
 
