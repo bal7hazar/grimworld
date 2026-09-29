@@ -134,6 +134,13 @@ that produced it. The tag is never omitted and never guessed.
 
 ## 3. The machine: what every launch must respect
 
+> **Scope of the launcher** (project manager, 2026-09-29): `scripts/agent.sh` protects against
+> **accidental** over-launch (two orchestrators racing, a miscount, a stale record, a crash) and fails
+> closed when it cannot tell. It does **not** protect against a process of the same Unix user that
+> acts on purpose (such a process can already start work outside any launcher). A finding that needs
+> a deliberate act by that user is a **note**, not a blocker or a major. Every audit of the launcher
+> is briefed with this scope.
+
 Ideation happened on the owner's Mac. **Implementation runs on the VPS**: a new
 project-manager session (account bal7hazar) is bootstrapped with
 [docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) and creates the first
