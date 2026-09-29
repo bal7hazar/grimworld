@@ -1,6 +1,6 @@
 # Programme
 
-**2026-09-28, 22:40 UTC** — written by the project manager `[Fable 5.1] Chef de projet Grim World`.
+**2026-09-29, 00:45 UTC** — written by the project manager `[Fable 5.1] Chef de projet Grim World`.
 Rewritten at each of its check-ins. The live state of each track is in the track's own
 `STATUS.md`; this file says where the programme is, what was decided and what waits for the
 owner.
@@ -9,14 +9,20 @@ owner.
 
 | Track | Repository | Orchestrator (model verified) | Where it is | Next stop |
 |---|---|---|---|---|
-| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0. Done: FND-01b, FND-02, FND-03, FND-06, SPK-1, SPK-2, SPK-5b, SPK-11, ART-00. Running: SPK-7 (chunked maps), SPK-1b (account's part of a transaction). To come: DES-21, FND-05, SPK-4, FND-04 | Gate of Phase 0 |
-| Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Gates L-G1 and L-G2 passed. LIB-04 merged under option B; LIB-05 starts with the take-over of the engine, then the assembly and the flood | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
-| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | Gate A-G1 passed. Workspace merged; `quiver_quest`: library merged, component in audit | `quiver_quest` 0.1.0: a publication, asked of the project manager |
+| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 15 tasks done: FND-01, 01b, 02, 03, 06, ART-00, SPK-1, 1b, 2, 5, 5b, 7, 11, DES-21, DOC-01. Running: FND-04 (cost budgets). Then ENG-01 (core interfaces, brief written), FND-05, SPK-4 | Gate of Phase 0 |
+| Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
+| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | `quiver_quest`: library merged; component being redone around the held list (ARC-03c, fix loop 1 after a first audit) | `quiver_quest` 0.1.0: a publication, asked of the project manager |
 
-Budget: 3 agents at a time across the three tracks, audits included (D-118). Caps: game 2, map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
-The machine also runs the owner's other programmes: about 6 agents in all.
+Budget: 3 agents at a time across the three tracks, audits included (D-118); caps: game 2,
+map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
+In use at 00:45 UTC: 3 of 3 (FND-04, M1-T1a, ARC-03c). Machine: load 6, 23 GB available.
 
-## Decided on 2026-09-28
+The three launchers hold their agents by slot locks and are on the same reference, commit
+`2628b21` of the game's launcher, audited by `[GPT-6-Sol]`. Its scope is stated: it guards
+against accidental over-launch and fails closed; it does not guard against a deliberate act
+of the same Unix user.
+
+## Decided on 2026-09-28 and 2026-09-29
 
 | # | Decision | By |
 |---|---|---|
