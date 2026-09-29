@@ -294,3 +294,84 @@ pub mod Instances {
         }
     }
 }
+
+/// The storage layout of `Instances` is what docs/architecture/ENG-01-interfaces.md says: every
+/// variable's name and keys, hence its address (a unit test: the storage is visible from here).
+#[cfg(test)]
+mod layout_tests {
+    use snforge_std::map_entry_address;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
+    use super::Instances;
+
+    fn address_of(base: StorageBaseAddress) -> felt252 {
+        storage_address_from_base(base).into()
+    }
+
+    // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
+    #[test]
+    #[available_gas(l2_gas: 193242)] // ceil(1.05 × 184040 measured)
+    fn test_instances_storage_addresses() {
+        let state = @Instances::contract_state_for_testing();
+        assert(
+            address_of(state.placements.entry(42).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("placements"), array![42].span(),
+            ),
+            'placements',
+        );
+        assert(
+            address_of(state.headers.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("headers"), array![7].span(),
+            ),
+            'headers',
+        );
+        assert(
+            address_of(state.entropy.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("entropy"), array![7].span(),
+            ),
+            'entropy',
+        );
+        assert(
+            address_of(state.revealed.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("revealed"), array![7].span(),
+            ),
+            'revealed',
+        );
+        assert(
+            address_of(state.quotas.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("quotas"), array![7].span(),
+            ),
+            'quotas',
+        );
+        assert(
+            address_of(state.tasks.entry((7, 3)).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("tasks"), array![7, 3].span(),
+            ),
+            'tasks',
+        );
+        assert(
+            address_of(state.members.entry((7, 0)).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("members"), array![7, 0].span(),
+            ),
+            'members',
+        );
+        assert(
+            address_of(state.roster.entry((7, 1)).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("roster"), array![7, 1].span(),
+            ),
+            'roster',
+        );
+        assert(
+            address_of(state.chunks.entry((7, 224)).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("chunks"), array![7, 224].span(),
+            ),
+            'chunks',
+        );
+        assert(
+            address_of(state.goblins.entry((7, 3601)).as_ptr().__storage_pointer_address__) == map_entry_address(
+                selector!("goblins"), array![7, 3601].span(),
+            ),
+            'goblins',
+        );
+    }
+}
