@@ -26,3 +26,12 @@
 | Heat | Android's first throttling level does not fail the line; the moderate level fails it |
 | Idle animations | On by default, at 12 frames per second; SPK-6 also measures them off |
 | Spending | None so far |
+
+## Revised, 2026-09-29 (owner): D-152
+
+**Android is dropped for now and the tests on phones move to the end.** SPK-6.1, SPK-6.2 and the
+Capacitor shell (CV-02) run before the hardening phase (Phase 6), not before CLI-01. CLI-01 no
+longer waits for SPK-6.1: the client is built and played in the browser first, and Capacitor wraps
+it later. The owner's thresholds above (heat, idle animations) stay for when SPK-6 runs; the
+Android at 90 or 120 Hz is no longer asked. Risk R-9 (a phone that heats or drains) is watched
+later, on the power rules of design/11 meanwhile.
