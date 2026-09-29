@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+# setsid(1) for macOS, which has none: scripts/with-node.sh starts its command with `setsid "$@" &`
+# and needs the command's pid to be the id of a new session and process group. POSIX::setsid then
+# exec keeps the pid. A background job of a non-interactive shell is never a group leader, so
+# setsid succeeds; if it fails, this exits 1 rather than run the command in the caller's group.
+# Only `pnpm test:node` puts this folder on PATH (IDX-01a report, *Deviations*).
+use strict;
+use warnings;
+use POSIX ();
+
+@ARGV or die "usage: setsid <command> [args...]\n";
+defined POSIX::setsid() or die "setsid: $!\n";
+exec { $ARGV[0] } @ARGV or die "setsid: $ARGV[0]: $!\n";
