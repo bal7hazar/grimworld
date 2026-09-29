@@ -8,7 +8,7 @@
 //    the highest checked block is the served one, and the state is `ok`;
 // 3. applies the next blocks, up to a batch, each with the events of both contracts in block order,
 //    each in one transaction; a block whose parent is not the stored tip waits for the next step;
-// 4. forgets the history below the kept depth.
+// 4. once blocks are checked, forgets the history below the kept depth (never above them).
 // It halts (state `halted`, for good; the reason in the log and in every answer) on an event of
 // the two contracts it cannot decode, a gap in the lot or trade ids (store.ts), a close of a lot or
 // trade that is not open, or a node that went back below the kept history. Pre-confirmed blocks are
@@ -131,8 +131,10 @@ export class Indexer {
           return true;
         }
       }
-      if (this.store.checked() < stored.number)
+      if (this.store.checked() < stored.number) {
         this.store.setChecked(stored.number);
+        await this.prune(chainTip.number);
+      }
       if (!this.served || !sameBlock(this.served, stored)) {
         this.served = stored;
         this.setStatus("ok");
@@ -141,7 +143,6 @@ export class Indexer {
     let next = stored ? stored.number + 1 : this.config.from;
     if (next > chainTip.number) return false;
     const last = Math.min(chainTip.number, next + this.batch - 1);
-    let applied = 0;
     for (; next <= last; next++) {
       const block = await this.chain.header(next);
       if (!block) break;
@@ -160,9 +161,7 @@ export class Indexer {
       this.store.apply(block, events);
       this.blocksApplied++;
       this.eventsApplied += events.length;
-      applied++;
     }
-    if (applied > 0) await this.prune(chainTip.number);
     return true;
   }
 
@@ -174,7 +173,8 @@ export class Indexer {
     if (this.depth === "l1") floor = await this.chain.l1Accepted();
     else floor = chainTip - this.depth;
     if (floor === null) return; // nothing final yet: everything is kept
-    floor = Math.min(floor, stored.number);
+    // Never above the checked blocks: a block is checked before its history may be forgotten.
+    floor = Math.min(floor, stored.number, this.store.checked());
     if (floor > lowest.number) this.store.prune(floor);
   }
 
