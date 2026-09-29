@@ -74,7 +74,7 @@ Screenshots of shapes with no art from the pack (debug tiles, outlines) may be p
 | CLI-03a | **A rendering sandbox on fixed data**: a hexagonal room rendered on demand, a camera that follows, sight of radius 6, facing and arcs, touch input; iterated in the browser, mobile and desktop. Wired to `client/sim` and the chain by CLI-03 | none (ART-02 for the art at its final scale) | Opus 5.5 | D Q + `[GPT-6-Sol]` |
 | SPK-6a | **The protocol of SPK-6** on real phones: devices, builds, what is measured (battery, heat, frame time on demand, taps on the intended tile at the default zoom), the thresholds of ADR-0003, how a run is recorded. SPK-6 itself runs on CLI-03a's build | none | Opus 5.5, research | D (project manager) |
 
-Then (D-151): **CV-02**, the Capacitor shell, before **SPK-6.1**, the rendering verdict on the owner's phones (iPhone 14 first; it does not close without an Android at 90 or 120 Hz), which unblocks CLI-01; **SPK-6.2**, transactions from a burner, after CLI-01. Builds with the atlas stay on the owner's phones (D-73).
+**Moved to the end, before Phase 6 (D-152, owner): CV-02 and SPK-6.1/6.2; Android dropped for now.** As decided by D-151: **CV-02**, the Capacitor shell, before **SPK-6.1**, the rendering verdict on the owner's phones (iPhone 14 first; it does not close without an Android at 90 or 120 Hz), which unblocks CLI-01; **SPK-6.2**, transactions from a burner, after CLI-01. Builds with the atlas stay on the owner's phones (D-73).
 
 After these: CLI-03 (the sandbox wired to `client/sim` and the chain) when CLI-01 and CLI-02 are
 merged; CLI-05, CLI-07 and CLI-08 are candidates for this track, assigned by the project manager
