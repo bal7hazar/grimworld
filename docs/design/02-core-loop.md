@@ -18,6 +18,9 @@ In a dedicated instance, **time is discrete and owned by the adventurer**.
   4. Durations and recharges decrease.
   5. Defeat / objective checks.
 
+  The steps' exact order between actors, how durations count, and what happens at 0 health in
+  the middle of a tick: [19-effects §5](19-effects.md#5-the-resolution-order).
+
 Consequences:
 
 - An instance can be left untouched for a week and resumed exactly where it was, as long

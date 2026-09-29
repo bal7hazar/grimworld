@@ -1,6 +1,6 @@
 # 04 — Combat
 
-> Status: **Draft v0.3** — numbers are initial values for balancing. v0.3: the edges of the damage rules (D-140), the flood stopped at 15 layers (D-127).
+> Status: **Draft v0.4** — numbers are initial values for balancing. v0.4: the effects, their order and their edges are [19-effects](19-effects.md) (DES-04). v0.3: the edges of the damage rules (D-140), the flood stopped at 15 layers (D-127).
 > v0.2: hex grid, six facings and arcs.
 
 Combat happens only in dedicated instances and is resolved tick by tick
@@ -130,7 +130,10 @@ panic is kept for an invariant whose breach is a bug.
 | A goblin whose own tile is not marked occupied | Cannot happen by the rules: the contracts assert it, and a test holds the invariant |
 
 Damage types: slashing, piercing, blunt, fire, cold, lightning, earth, shadow, holy. Armor
-can carry a bonus against a type. Life steal and degeneration ignore armor.
+can carry a bonus against a type. Life steal and degeneration ignore armor. The order of one
+hit (arc, block, armor, damage, on-hit effects, death) is [19-effects §5.4–§5.5](19-effects.md#55-one-hit-in-order), which also says which rules
+apply to weapon hits and which to spells, bombs and traps;
+whether penetration is flat, as above, or a percent is FX-9.
 
 ## Energy and adrenaline
 
@@ -141,7 +144,10 @@ can carry a bonus against a type. Life steal and degeneration ignore armor.
 ## Conditions
 
 Conditions are fixed-effect debuffs with a duration in ticks. They do not stack; reapplying
-refreshes the duration.
+refreshes the duration (how: [19-effects §5.7](19-effects.md#57-effects-applied-refreshed-replaced), FX-6; whether
+Knocked down is refreshed or ignored while held is FX-31).
+The MVP has the first five of design/09 (Bleeding, Poison, Burning, Crippled, Knocked down);
+Dazed, Blind, Weakness and Deep wound come after it (19-effects §3.2, FX-22).
 
 | Condition | Effect |
 |---|---|
@@ -163,10 +169,13 @@ deterministic.
 A skill with activation `n` resolves at the end of the `n`-th tick. Between the start and
 the resolution, the caster is **activating** and visible as such: goblins can interrupt the
 adventurer, and the adventurer can interrupt a telegraphed goblin skill. An interrupted
-skill still pays its energy and goes on recharge.
+skill still pays its energy and goes on recharge. What interrupts, when an activation resolves
+and what it keeps: [19-effects §5.1 and §5.9](19-effects.md#59-activation-and-interrupts) (FX-1 to FX-4, FX-29);
+mining is not an activation ([19-effects §5.10](19-effects.md#510-mining-eng-01-41-design17)).
 
 This is the main source of tactical depth of the tick system: a hobgoblin's 3-tick
-overhead smash gives exactly three actions to step away, interrupt or brace.
+overhead smash gives exactly three ticks to step away, interrupt or brace: three actions if
+each costs one tick, fewer if one costs more ([19-effects §5.1](19-effects.md#51-the-clock-deadlines-and-counting)).
 
 ## Goblin AI
 

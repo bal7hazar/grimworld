@@ -187,6 +187,8 @@ Rules:
   When it ends, **returned or defeated**, the unused ones go back to the pack; those consumed
   are gone (D-141, E-15: defeat costs the instance, nothing else).
 - A potion's strength is fixed by its recipe; potions do not scale with attributes.
+- A potion's effect is one entry of [19-effects](19-effects.md) (§8 maps the families above to
+  its kinds; "+movement", revive, reveal the floor and a bomb's target are FX-18).
 - Brewing happens in hubs only.
 
 ## Economy notes
