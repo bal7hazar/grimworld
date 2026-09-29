@@ -38,6 +38,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-161 | The worst tick is above its target (about 2.1M to 2.5M against 1.47M): CBT-02b now; SPK-12 on client-side proving, on the Mac | Project manager |
 | D-160 | DES-06's 33 questions decided; strength capped by level | Project manager |
 | D-159 | CBT-02 next with the tick's cost as its budget; DES-06 beside it. S1 at $0.585 (E) | Project manager |
 | D-158 | `set_build` reads less (item data copied at creation); the belt's worst case accepted (+$0.002 on S1) | Project manager |
@@ -83,7 +84,7 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 
 | Risk | State |
 |---|---|
-| The cost of an expedition (R-2) | Target $0.50 for 300 actions. Measured with one action per transaction: $0.69 to $0.87. **Estimated on the frozen interfaces, with batches: $0.556 in the worst case**, under the target in the mixed one. The answer turns on ENG-07's measure of a tick inside a batch. Levers listed in [the decision](docs/decisions/2026-09-29-eng-01-escalations.md). A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
+| The cost of an expedition (R-2) | **Likely** (D-161): S1 estimated at $0.585 before the tick; a worst tick with the map about 2.1M to 2.5M against 1.47M. Levers: CBT-02b, then ENG-07's (compact sheets, packed calldata), then design; SPK-12 studies client-side proving. Reopening ADR-0001 would be the owner's |
 | Sessions and agents share one machine and one user with the owner's other programmes | Incident of 2026-09-29, 00:02 UTC: a wildcard deletion in `/tmp` by the game orchestrator; no damage found. Rule in OPERATIONS §3: delete and kill only what you created, by exact path and pid |
 | Secrets reach every agent of the machine | The launchers empty them in their agents; the settings file is restricted to its owner; the residual is accepted |
 | Audits that need four passes (LIB-03, LIB-04, SPK-2) | Tasks cut smaller; the rule of three loops applied by the project manager |
