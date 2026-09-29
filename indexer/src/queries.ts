@@ -189,14 +189,13 @@ export class Queries {
     const params: Record<string, SQLInputValue> = {
       at,
       kind,
-      after: after ?? -1n,
       ...(items ? { items: JSON.stringify(items) } : {}),
     };
     const keys = this.all(
       `SELECT DISTINCT market_key FROM lots
        WHERE kind = :kind AND open = 1 AND ${AS_OF} AND market_key > :after ${filter}
        ORDER BY market_key LIMIT :limit`,
-      { ...params, limit: limit + 1 },
+      { ...params, after: after ?? -1n, limit: limit + 1 },
     ).map((row) => BigInt(row.market_key as number));
     const more = keys.length > limit;
     const page = keys.slice(0, limit);

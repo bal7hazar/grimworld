@@ -22,8 +22,11 @@
 //
 // Bounded: at most `perProcess` subscriptions, and `perClient` from one remote address (an HTTP/1.1
 // connection carries one stream, so the cap per connection is kept per address). A subscriber whose
-// unsent output passes `maxBuffered` bytes (it stops reading) is dropped: its stream is destroyed,
-// which the client library reads as the end of its copy (R4).
+// unsent output is still above `maxBuffered` bytes when the next publication (a block, a rewind, a
+// state) comes has stopped reading: it is dropped, its stream destroyed, which the client library
+// reads as the end of its copy (R4). The check is made before a publication, not after each write:
+// a subscriber that reads empties its buffer between blocks, even after a snapshot larger than the
+// cap. The memory a stream holds is thus bounded by the cap plus one publication.
 import { headOf, type Header } from "./chain.ts";
 import type { Indexer, Status } from "./indexer.ts";
 import { Queries, type Invitation, type Lot } from "./queries.ts";
@@ -149,39 +152,48 @@ export class Subscriptions {
     return { status, ...(reason ? { reason } : {}) };
   }
 
-  /** Writes, then drops the subscriber if its unsent output passed the cap. False once dropped. */
+  /** Writes to a subscription still open; false once it is closed. */
   private write(subscription: Subscription, chunk: string): boolean {
     if (!this.all.has(subscription)) return false;
     subscription.sink.write(chunk);
-    if (subscription.sink.buffered() > this.limits.maxBuffered) {
+    return true;
+  }
+
+  /**
+   * The subscriptions to publish to: a subscriber whose unsent output is still above the cap
+   * (it stopped reading since the last publication) is dropped first.
+   */
+  private live(): Subscription[] {
+    for (const subscription of [...this.all]) {
+      const unsent = subscription.sink.buffered();
+      if (unsent <= this.limits.maxBuffered) continue;
       this.all.delete(subscription);
       this.dropped++;
       this.log(
-        `a subscriber of ${describe(subscription.topic)} dropped: ${subscription.sink.buffered()} bytes unsent`,
+        `a subscriber of ${describe(subscription.topic)} dropped: ${unsent} bytes unsent`,
       );
       subscription.sink.destroy();
-      return false;
     }
-    return true;
+    return [...this.all];
   }
 
   private status(status: Status, reason: string) {
     if (status === "ok") return;
-    for (const subscription of [...this.all]) {
+    for (const subscription of this.live()) {
       subscription.stale = true;
       this.write(subscription, frame("status", this.statusOf(status, reason)));
     }
   }
 
   private rewound(to: number) {
-    for (const subscription of [...this.all]) {
+    for (const subscription of this.live()) {
       subscription.stale = true;
       this.write(subscription, frame("rewind", { to }));
     }
   }
 
   private served(previous: Header | null, next: Header) {
-    for (const subscription of [...this.all]) {
+    for (const subscription of this.live()) {
       if (subscription.stale || !previous) this.snapshot(subscription, next);
       else this.changes(subscription, previous, next);
     }
