@@ -7,9 +7,13 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |
 |---|---|---:|---:|---|---|
 | grimworld_ephemeral | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_admin::test_instances_set_admin_hands_over` | 3474760 | 3648498 | 2026-09-29 | e246ac5 |
+| grimworld_ephemeral | `test_admin::test_instances_set_admin_refused` | 2999520 | 3149496 | 2026-09-29 | e246ac5 |
+| grimworld_ephemeral | `test_admin::test_instances_set_contracts_by_admin` | 2837290 | 2979155 | 2026-09-29 | e246ac5 |
+| grimworld_ephemeral | `test_admin::test_instances_set_contracts_refused_to_others` | 2733090 | 2869745 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 205040 | 215292 | 2026-09-29 | a767e84 |
 | grimworld_ephemeral | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 2026-09-29 | d65eb86 |
-| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 2026-09-29 | e246ac5 |
+| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 2026-09-29 | a767e84 |
 | grimworld_ephemeral | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_four_revealed` | 442850 | 464993 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_none` | 282660 | 296793 | 2026-09-29 | d65eb86 |
@@ -34,6 +38,11 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_actions::test_encoder_refusals` | 40480 | 42504 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_durations::test_base_above_cap_refused` | 15520 | 16296 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_durations::test_effective_duration_maximum` | 13720 | 14406 | 2026-09-29 | d65eb86 |
+| grimworld_logic | `test_fate::test_derive_distinct_per_domain_and_index` | 3325820 | 3492111 | 2026-09-29 | e246ac5 |
+| grimworld_logic | `test_fate::test_derive_fuzz` | 1054980 | 1107729 | 2026-09-29 | e246ac5 |
+| grimworld_logic | `test_fate::test_derive_oracle` | 56600 | 59430 | 2026-09-29 | e246ac5 |
+| grimworld_logic | `test_fate::test_domain_binds_subject_and_counter` | 98770 | 103709 | 2026-09-29 | e246ac5 |
+| grimworld_logic | `test_fate::test_purposes_distinct` | 369296 | 387761 | 2026-09-29 | e246ac5 |
 | grimworld_logic | `test_hexmap::test_hexmap_distance` | 13720 | 14406 | 2026-09-28 | 5267868 |
 | grimworld_logic | `test_packing::test_bar_and_kit_layout` | 212440 | 223062 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_packing::test_bitmap` | 20570 | 21599 | 2026-09-29 | d65eb86 |
@@ -47,7 +56,11 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_packing::test_task_page_layout` | 142250 | 149363 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 2026-09-29 | 2704c6d |
-| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 2026-09-29 | a767e84 |
+| grimworld_persistent | `test_admin::test_hub_set_admin_hands_over` | 4895740 | 5140527 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `test_admin::test_hub_set_admin_refused` | 4359910 | 4577906 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `test_admin::test_hub_set_contracts_by_admin` | 4245460 | 4457733 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `test_admin::test_hub_set_contracts_refused_to_others` | 4106290 | 4311605 | 2026-09-29 | e246ac5 |
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_calls` | 388601 | 408032 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_deployment` | 272510 | 286136 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `test_contracts::test_fate_word` | 397644 | 417527 | 2026-09-29 | 2704c6d |
@@ -55,6 +68,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_contracts::test_market_and_registry_deploy` | 3706010 | 3891311 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `test_events::test_hub_events` | 81630 | 85712 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `test_events::test_market_events` | 78760 | 82698 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_fate::test_fate_anyone_gets_only_their_domain` | 746048 | 783351 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `test_fate::test_fate_at_the_configured_address` | 4706656 | 4941989 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `test_fate::test_fate_deterministic_per_transaction_and_domain` | 965838 | 1014130 | 2026-09-29 | e246ac5 |
+| grimworld_persistent | `test_fate::test_fate_values_distinct_through_derive` | 3427106 | 3598462 | 2026-09-29 | e246ac5 |
 | grimworld_persistent | `test_layout::test_account_and_adventurer_layout` | 319110 | 335066 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `test_layout::test_attributes_above_36_bits_refused` | 41350 | 43418 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `test_layout::test_item_grimoire_rift_layout` | 325140 | 341397 | 2026-09-29 | d65eb86 |

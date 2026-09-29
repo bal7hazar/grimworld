@@ -10,6 +10,8 @@ pub mod actions;
 pub mod content;
 /// Effective durations after modifiers, bounded (fix loop 2, F-9).
 pub mod durations;
+/// Values from a Fate word: `derive`, and one domain purpose per use of the provider (ADR-0002).
+pub mod fate;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
 /// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.

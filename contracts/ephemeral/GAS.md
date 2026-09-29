@@ -7,9 +7,13 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
 | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_admin::test_instances_set_admin_hands_over` | 3474760 | 3648498 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
+| `test_admin::test_instances_set_admin_refused` | 2999520 | 3149496 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
+| `test_admin::test_instances_set_contracts_by_admin` | 2837290 | 2979155 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
+| `test_admin::test_instances_set_contracts_refused_to_others` | 2733090 | 2869745 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
 | `test_events::test_instances_event_keys_and_data` | 205040 | 215292 | 5.00 % | 0 | 0 | 2026-09-29 | a767e84 |
 | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
-| `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 4.99 % | 0 | 576 | 2026-09-29 | e246ac5 |
+| `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 4.99 % | 0 | 576 | 2026-09-29 | a767e84 |
 | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |
 | `test_instances::test_probe_events_four_revealed` | 442850 | 464993 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |
 | `test_instances::test_probe_events_none` | 282660 | 296793 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |

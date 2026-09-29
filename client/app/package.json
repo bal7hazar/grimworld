@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
     "test": "vitest run",
+    "test:node": "vitest run src/account/burner.node.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
