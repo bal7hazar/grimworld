@@ -222,7 +222,7 @@ init_slots() { # creates the missing slot files only (never replaces one), then 
 # shellcheck disable=SC2016
 inner='exec 7< "$GW_SLOT_TOTAL" 8< "$GW_SLOT_TRACK" || exit 75
 if ! flock -w 5 7 || ! flock -w 5 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
-echo "slots-acquired $(date -u +%FT%TZ)" >> "$0"
+echo "slots-acquired $(date -u +%FT%TZ)" >> "$0" || exit 75   # no marker, no agent: the launcher would report a failure
 printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TOTAL"; printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TRACK"
 "$@" < /dev/null >> "$0" 2>&1; s=$?
 echo "model=$("$GW_AGENT_SH" model "$GW_TASK" 2> /dev/null)" >> "$0"
@@ -517,13 +517,27 @@ start=$(cat "$L/$task.start")
 for _ in $(seq 1 200); do
   run_log=$(tail -c +$((start + 1)) "$L/$task.log" 2> /dev/null || true)
   if grep -q '^slots-acquired' <<< "$run_log"; then
-    echo "$task: holds slots $FREE_TOTAL and $FREE_TRACK"; exit 0
+    if grep -q '^exit=' <<< "$run_log"; then
+      echo "$task: took slots $FREE_TOTAL and $FREE_TRACK, ran and has already ended: $(grep '^exit=' <<< "$run_log" | tail -1)"
+    else
+      echo "$task: holds slots $FREE_TOTAL and $FREE_TRACK"
+    fi
+    exit 0
   fi
   if grep -q '^slot-refused' <<< "$run_log"; then
     die "$task could not take its slots ($FREE_TOTAL, $FREE_TRACK) and did not start"
   fi
   sleep 0.1
 done
-if [ "$use_unit" = 1 ]; then systemctl --user stop "$unit" 2> /dev/null || true
-else kill -TERM -- -"$(cat "$L/$task.pid")" 2> /dev/null || true; fi
-die "$task did not report its slots within 20 s: stopped; check $L/$task.log and the slots (agent.sh status)"
+if [ "$use_unit" = 1 ]; then
+  systemctl --user stop "$unit" 2> /dev/null || true
+  systemctl --user is-active -q "$unit" 2> /dev/null && die "$task did not report its slots within 20 s and its unit $unit is still active: stop it by hand"
+else
+  pg=$(cat "$L/$task.pid")
+  kill -TERM -- -"$pg" 2> /dev/null || true
+  for _ in $(seq 1 50); do kill -0 -- -"$pg" 2> /dev/null || break; sleep 0.1; done
+  kill -KILL -- -"$pg" 2> /dev/null || true
+  sleep 0.2
+  kill -0 -- -"$pg" 2> /dev/null && die "$task did not report its slots within 20 s and its process group $pg is still alive: stop it by hand"
+fi
+die "$task did not report its slots within 20 s: stopped (verified); check $L/$task.log and the slots (agent.sh status)"

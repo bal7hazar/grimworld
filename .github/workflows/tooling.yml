@@ -166,17 +166,18 @@ jobs:
           # End to end on the detached path, with a stub codex that sleeps: the launch confirms that the agent
           # holds its two slots before it returns, status lists them, and they are free once it ends.
           for k in b; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done; wait_slot total-2 free; wait_slot game-2 free
-          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a script node runs for 15 s)
+          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a node script that waits for $fake/release)
           # GitHub's runner has node elsewhere: link it where the launcher expects it (the runner allows sudo).
           if [ ! -x /usr/bin/node ] && command -v node > /dev/null; then sudo ln -s "$(command -v node)" /usr/bin/node; fi
           if [ -x /usr/bin/node ]; then
             rm -f .claude/worktrees/logs/slottest.*   # this fixture's own record, from an earlier run
             mkdir -p "$fake/bin" .claude/worktrees/cli-slottest
-            printf 'setTimeout(() => {}, 15000);\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"   # alive past the held check
+            # the stub lives until the fixture releases it, so the held check cannot race its exit
+            printf 'import("node:fs").then((fs) => { const f = process.env.HOME + "/release"; const t = setInterval(() => { if (fs.existsSync(f)) clearInterval(t); }, 200); });\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"
             out=$(HOME=$fake PATH="$fake/bin:$PATH" scripts/agent.sh slottest codex gpt-6-sol new "x" audit 2>&1)
             echo "$out"; grep -qF 'slottest: holds slots total-1 and game-1' <<< "$out"
             st=$(HOME=$fake scripts/agent.sh status); grep -q '^slot total-1 held slottest' <<< "$st"
-            wait_slot total-1 free 60; wait_slot game-1 free 60   # the stub's 15 s, node's start, the inner shell's end
+            touch "$fake/release"; wait_slot total-1 free 60; wait_slot game-1 free 60   # released: it ends, the slots free
           else
             echo "end-to-end slot fixture skipped: no /usr/bin/node on this runner"
           fi
