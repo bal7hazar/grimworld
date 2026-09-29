@@ -61,7 +61,7 @@ Nothing blocks.
 
 | Risk | State |
 |---|---|
-| The cost of an expedition (R-2) | Measured at $0.69 to $0.87 with one action per transaction; estimated at $0.54 to $0.73 with batches of 10 and the MVP's burner (D-133, D-137); target $0.50. A new storage slot costs about 0.45M L2 gas and an overwritten one 0.03M (FND-04, in audit): the saving is in not creating slots again at each `enter`, not in the ticks. Next: FND-04's budgets, then ENG-01. A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
+| The cost of an expedition (R-2) | Measured at $0.69 to $0.87 with one action per transaction; estimated at $0.54 to $0.73 with batches of 10 and the MVP's burner (D-133, D-137); target $0.50. A new storage slot costs about 0.45M L2 gas and an overwritten one 0.03M (FND-04, reproduced by its audit). `enter` creates 4 new slots at each instance; reusing them is a design for ENG-01 to measure, not a saving observed. Next: FND-04's budgets, then ENG-01. A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
 | Sessions and agents share one machine and one user with the owner's other programmes | Incident of 2026-09-29, 00:02 UTC: a wildcard deletion in `/tmp` by the game orchestrator; no damage found. Rule in OPERATIONS §3: delete and kill only what you created, by exact path and pid |
 | Secrets reach every agent of the machine | The launchers empty them in their agents; the settings file is restricted to its owner; the residual is accepted |
 | Audits that need four passes (LIB-03, LIB-04, SPK-2) | Tasks cut smaller; the rule of three loops applied by the project manager |
