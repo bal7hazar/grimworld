@@ -1,80 +1,80 @@
 # Status — track CV (the client's visual work, on the owner's Mac)
 
-**2026-09-29 11:15 UTC** — written by the orchestrator of track CV,
+**2026-09-29 11:30 UTC** — written by the orchestrator of track CV,
 `[Opus 5.5] Orchestrateur client visuel (Mac)`. Mandate:
-[ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146; #117, amended by #119). Rewritten at
-each check-in; the project manager reads it like a track's `STATUS.md`.
+[ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146; #117, amended by #119 and by #127,
+D-149: a budget of 5 on the Mac, tasks lent by the game). Rewritten at each check-in; the project
+manager reads it like a track's `STATUS.md`.
 
 ## Where we are
 
-The track opened today. The mandate and its amendment are on `main`. **CV-01 is merged**
-([#121](https://github.com/bal7hazar/grimworld/pull/121)): the Mac launcher `scripts/mac/agent.sh`,
-audited by `[GPT-6-Sol]` (PASS at the fourth pass, after three fix loops). Its report and the four
-audit passes are archived in `docs/reports/CV-01-*`. Next: ART-02 and CLI-03a, launched with it.
-
-## Checks of the machine (2026-09-29, 10:10 UTC)
-
-| Check | Result |
-|---|---|
-| Account of the agents | `CLAUDE_CONFIG_DIR=~/.claude-b7r claude auth status`: logged in, **claude-b7r@proton.me**, checked before every launch and resume. The Mac's default `claude` configuration (`~/.claude`) is the desktop app's, on bal7hazar: no agent uses it |
-| `claude` CLI | 2.1.281 |
-| `codex` | 0.156.1; its read-only sandbox (Seatbelt) works inside a launchd job (the audits of CV-01 ran so) |
-| `gh` | logged in as bal7hazar |
-| Python | `python3` 3.11; `python3.12` 3.12.0 (`/opt/homebrew/bin`), the one the art pipeline needs |
-| Node | 22.22.2 on the agents' `PATH` (it holds the `claude` CLI); `.tool-versions` pins 24.21.0, not installed on the Mac; the CI runs 24 |
-| Machine | macOS 26.6 arm64, 12 cores, 64 GB; load about 2 |
-| The calling session's environment | Holds, by name, the Sepolia account (`STARKNET_*`), `ATLANTIC_API_KEY` and the app's own credentials (`ANTHROPIC_BASE_URL`, `CLAUDE_CODE_*`). An agent's environment is built from nothing (CV-01, requirement 3), tested with decoys |
+The Mac launcher is merged and audited (CV-01, CV-02), and carries the owner's budget of 5 with a
+load threshold of 18 (owner, 2026-09-29; D-149). Four agents run: ART-02, CLI-03a, IDX-01a (lent by the
+game) and SPK-6a.
 
 ## Tasks
 
 | ID | Task | Model | State |
 |---|---|---|---|
-| CV-01 | The launcher of the track on the Mac, `scripts/mac/agent.sh` | Opus 5.5 | **Done**: [#121](https://github.com/bal7hazar/grimworld/pull/121), 102 local test cases; [report](../reports/CV-01-mac-launcher.md), [audit](../reports/CV-01-audit-gpt-6-sol.md): pass 1 FAIL (label not checked; test cleanup on interruption; a race test; `Read(//…)` withdrawn, Claude Code's absolute form), passes 2 and 3 FAIL (the test harness only), pass 4 PASS |
-| ART-02 | ART-00's atlas corrected: scale, Python 3.12, the same output on macOS and Linux ([brief](../briefs/ART-02-atlas-scale.md)) | Opus 5.5 | Launched once this brief is on `main` |
-| CLI-03a | A rendering sandbox on fixed data ([brief](../briefs/CLI-03a-render-sandbox.md)) | Opus 5.5 | Launched with ART-02 |
-| SPK-6a | The protocol of SPK-6 on real phones | Opus 5.5, research | Brief to write; when a slot frees |
-
-CV-01's own agent and its audits were launched by hand by the orchestrator under the launcher's
-rules (launchd job, `KeepAlive` false, environment from nothing, `CLAUDE_CONFIG_DIR` checked,
-profile plus Mac denies, never `--dangerously-skip-permissions`). Every launch from now on goes
-through `scripts/mac/agent.sh`.
-
-### Findings on ART-00's atlas, on this Mac (`python3.12 tools/art/build.py --check`)
-
-The PixiJS check is green (164 frames, 26 animations). The fingerprint of `out/` is `f4c768bf…`
-here against `eca5e893…` on the VPS. Visible heights: runt 121–157 px, skirmisher 81–133, slinger
-65–83, shaman 151–199, hobgoblin 156–235, vanguard 84–104, warden 79–90, cleric 62–71. ART-02
-starts from these.
+| CV-01 | The Mac launcher, `scripts/mac/agent.sh` | Opus 5.5 | **Done**, [#121](https://github.com/bal7hazar/grimworld/pull/121); [report](../reports/CV-01-mac-launcher.md), [audit](../reports/CV-01-audit-gpt-6-sol.md) (PASS at the fourth pass, three fix loops) |
+| CV-02 | The launcher's budget of 5, load 18, the pinned Node on the agents' `PATH` (owner, 2026-09-29, D-149) | Sonnet 5.5 | **Done**, [#129](https://github.com/bal7hazar/grimworld/pull/129); [report](../reports/CV-02-launcher-budget.md), [audit](../reports/CV-02-audit-gpt-6-sol.md) (PASS) |
+| ART-02 | ART-00's atlas corrected: scale, Python 3.12, the same output on macOS and Linux ([brief](../briefs/ART-02-atlas-scale.md)) | Opus 5.5 | **Running** since 11:11 UTC |
+| CLI-03a | A rendering sandbox on fixed data ([brief](../briefs/CLI-03a-render-sandbox.md)) | Opus 5.5 | **Running** since 11:11 UTC |
+| IDX-01a | The indexer, part 1: following the chain, the nine frozen events in versioned tables, rewind; a test emitter ([brief](../briefs/IDX-01a-indexer-core.md)). IDX-01 is lent by the game (D-149) and split at the brief stage: IDX-01b (queries, subscriptions, the client's freshness rule) follows | Opus 5.5 | **Running** since 11:23 UTC |
+| SPK-6a | The protocol of SPK-6 on real phones ([brief](../briefs/SPK-6a-protocol.md)) | Opus 5.5 | **Running** since 11:23 UTC |
 
 ## Agents on the Mac
 
-Budget: 2 at a time, audits included (D-146).
+Budget: 5 at a time, audits and lent tasks included; no launch above a 5-minute load of 18 or under
+8 GB available (D-149). Load at 11:23 UTC: 2.9.
 
-| Agent | Model (ran) | Since | State |
+| Agent | Model (ran) | Since | Launched |
 |---|---|---|---|
-| — | | | none running |
+| ART-02 | Opus 5.5 | 11:11 UTC | `scripts/mac/agent.sh`, slot cv-1 |
+| CLI-03a | Opus 5.5 | 11:11 UTC | `scripts/mac/agent.sh`, slot cv-2 |
+| IDX-01a | Opus 5.5 | 11:23 UTC | by hand, under the launcher's rules |
+| SPK-6a | Opus 5.5 | 11:23 UTC | by hand, under the launcher's rules |
+
+Why by hand: the slots `cv-3`…`cv-5` of CV-02 are created by `slots-init`, which runs only while every
+slot is free (so that no held slot is ever replaced), and ART-02 and CLI-03a hold `cv-1` and `cv-2`.
+IDX-01a and SPK-6a were launched with the same environment, account check, profile, deny rules and
+record format as the launcher (so that it can resume them); `slots-init` runs as soon as both slots
+are free, and every later launch goes through the launcher.
+
+## The machine
+
+| Check | Result |
+|---|---|
+| Account of the agents | `CLAUDE_CONFIG_DIR=~/.claude-b7r claude auth status`: **claude-b7r@proton.me**, checked before every launch and resume. `~/.claude` (bal7hazar) is the desktop app's: no agent uses it |
+| Node, pnpm | nodejs **24.21.0** installed with asdf (2026-09-29, for IDX-01, D-149), pnpm 12.5.1 among its global packages; no asdf plugin added, the owner's global versions untouched. The agents' `PATH` starts with asdf's shims (CV-02): in the repository `node` is 24.21.0 and `pnpm` 12.5.1 |
+| Cairo | scarb 2.19.4, snforge 0.61.0, starknet-devnet 0.10.0; `scarb build` of `contracts/` green in 4 s |
+| Python | `python3` 3.11; `python3.12` 3.12.0, for the art pipeline |
+| codex | 0.156.1; its read-only sandbox works inside a launchd job |
+| The session's environment | Holds, by name, the Sepolia account, `ATLANTIC_API_KEY` and the app's credentials; no agent inherits any of it (environment built from nothing, tested with decoys) |
 
 ## Pull requests
 
 | PR | Content | State |
 |---|---|---|
-| [#118](https://github.com/bal7hazar/grimworld/pull/118) | This file | Merged |
-| [#121](https://github.com/bal7hazar/grimworld/pull/121) | CV-01, the Mac launcher | Merged |
-| This one (`cv/cv-02-briefs`) | Briefs of ART-02 and CLI-03a; CV-01's report and audit archived; this file | Merged on green CI |
+| [#118](https://github.com/bal7hazar/grimworld/pull/118), [#126](https://github.com/bal7hazar/grimworld/pull/126), [#131](https://github.com/bal7hazar/grimworld/pull/131) | Status, reports, briefs | Merged |
+| [#121](https://github.com/bal7hazar/grimworld/pull/121), [#129](https://github.com/bal7hazar/grimworld/pull/129) | CV-01, CV-02 | Merged |
 
 ## Waiting for the owner
 
 | | |
 |---|---|
-| ART-02's Linux check | The cross-machine fingerprint must be checked on Linux x86_64. Either the owner starts Docker Desktop on the Mac and the orchestrator runs it there, or the project manager has it run on the VPS |
-| Sizes on screen | Later, on CLI-03a's sandbox: the sprites' heights (ART-1, provisional by D-146) and the tile size: sight of radius 6 across 375 px gives tiles under 29 px, against I-6's 40 points |
+| ART-02's Linux check | The cross-machine fingerprint must be checked on Linux x86_64: the owner starts Docker Desktop on the Mac, or the project manager has it run on the VPS |
+| Sizes on screen | On CLI-03a's sandbox: the sprites' heights (ART-1, provisional by D-146). The tile size is ADR-0006 §5's (about 30 points at 390, taps snapping to the nearest valid tile) |
 
 ## Asked of the project manager
 
-Nothing open. The two precisions asked on 2026-09-29 (the account check on the Mac, briefs `CV-*`)
-are answered by #119.
+Nothing open. Expected from IDX-01a: a `PENDING-cv-*` request for the CI (the prettier check and the
+root `format` script cover `client` only; the `client` job has no starknet-devnet, so the indexer's
+local-node scenario runs on the Mac only).
 
 ## Next
 
-1. ART-02 and CLI-03a in parallel with `scripts/mac/agent.sh` (allowlists apart: `tools/art/**`,
-   `client/app/src/**`); their audits as slots free; SPK-6a after.
+1. The four reports as they come; reviews; audits (ART-02: Q + `[GPT-6-Sol]`; CLI-03a: D Q +
+   `[GPT-6-Sol]`; IDX-01a: S P Q + `[GPT-6-Sol]`; SPK-6a: D); CLI-03a looked at in the browser.
+2. `slots-init` when `cv-1` and `cv-2` are free.
+3. IDX-01b's brief after IDX-01a's report.
