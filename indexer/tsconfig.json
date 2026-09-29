@@ -1,0 +1,23 @@
+{
+  // A Node process, not a bundle: NodeNext resolution, Node's types, and sources that Node 24 runs
+  // as they are (erasable syntax only, `.ts` imports). The build (tsconfig.build.json) emits
+  // dist/ and rewrites the imports to `.js`. The strictness is the client's (client/tsconfig.base.json).
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "test-node", "*.config.ts"]
+}
