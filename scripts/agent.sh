@@ -40,6 +40,7 @@
 #                          wait only: the budget is counted by the slots' locks, never from these
 #   logs/<task>.profile    the profile of the launch, reused by `resume`
 #   logs/<task>.cli        the CLI and the model id asked for, checked against the one that ran
+#   logs/<task>.run        this launch's inner shell: slot-refused, slots-acquired, ended (the launcher reads it)
 #   logs/<task>.sepolia    present while the last launch had --with-sepolia (the brief grants it)
 #   logs/<task>.last.md    codex only: its last message, i.e. the audit report
 set -euo pipefail
@@ -221,12 +222,13 @@ init_slots() { # creates the missing slot files only (never replaces one), then 
 # (`model=`), then the exit status. Single quotes on purpose: the inner shell expands them.
 # shellcheck disable=SC2016
 inner='exec 7< "$GW_SLOT_TOTAL" 8< "$GW_SLOT_TRACK" || exit 75
-if ! flock -w 5 7 || ! flock -w 5 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$0"; exit 75; fi
-echo "slots-acquired $(date -u +%FT%TZ)" >> "$0" || exit 75   # no marker, no agent: the launcher would report a failure
+if ! flock -w 5 7 || ! flock -w 5 8; then echo "slot-refused $(date -u +%FT%TZ)" >> "$GW_RUN_FILE"; exit 75; fi
+echo "slots-acquired $(date -u +%FT%TZ)" >> "$GW_RUN_FILE" || exit 75   # no marker, no agent: the launcher would report a failure
 printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TOTAL"; printf "%s\n" "$GW_SLOT_NAME" > "$GW_SLOT_TRACK"
 "$@" < /dev/null >> "$0" 2>&1; s=$?
 echo "model=$("$GW_AGENT_SH" model "$GW_TASK" 2> /dev/null)" >> "$0"
-echo "exit=$s $(date -u +%FT%TZ)" >> "$0"'
+echo "exit=$s $(date -u +%FT%TZ)" >> "$0"
+echo "ended exit=$s $(date -u +%FT%TZ)" >> "$GW_RUN_FILE"'
 thresholds_ok() { # prints the reason and returns 1 when a launch must wait
   local load5 mem_kb
   load5=$(cut -d' ' -f2 /proc/loadavg)
@@ -285,7 +287,7 @@ case "${1:-}" in
   run-in-slots)   # run-in-slots <total slot> <track slot> <log> <command…>: the inner shell of a launch (tests)
     [ $# -ge 5 ] || die "usage: agent.sh run-in-slots <total slot> <track slot> <log> <command…>"
     slots_ready || exit 4
-    GW_SLOT_TOTAL=$SLOTS/$2 GW_SLOT_TRACK=$SLOTS/$3 GW_SLOT_NAME="run-in-slots $$" GW_AGENT_SH=$0 GW_TASK=none \
+    GW_SLOT_TOTAL=$SLOTS/$2 GW_SLOT_TRACK=$SLOTS/$3 GW_SLOT_NAME="run-in-slots $$" GW_AGENT_SH=$0 GW_TASK=none GW_RUN_FILE="$4.run" \
       exec bash -c "$inner" "$4" "${@:5}" ;;
   status)
     mkdir -p "$L"
@@ -491,8 +493,12 @@ echo "--- $(date -u +%FT%TZ) $desc $cli $model_id $([ "$use_unit" = 1 ] && echo 
 rm -f "$L/$task.unit" "$L/$task.pid"
 if [ "$sepolia" = 1 ]; then date -u +%FT%TZ > "$L/$task.sepolia"; else rm -f "$L/$task.sepolia"; fi
 slot_name="$task ($([ "$use_unit" = 1 ] && echo "unit $unit" || echo setsid), $(date -u +%FT%TZ))"
+# The launch's own record of its inner shell (slot-refused, slots-acquired, ended): a file the agent's
+# output never reaches, emptied at each launch.
+run_file=$L/$task.run
+: > "$run_file"
 if [ "$use_unit" = 1 ]; then
-  run+=(--setenv=GW_SLOT_TOTAL="$slot_total" --setenv=GW_SLOT_TRACK="$slot_track" --setenv=GW_SLOT_NAME="$slot_name")
+  run+=(--setenv=GW_SLOT_TOTAL="$slot_total" --setenv=GW_SLOT_TRACK="$slot_track" --setenv=GW_SLOT_NAME="$slot_name" --setenv=GW_RUN_FILE="$run_file")
   "${run[@]}" bash -c "$inner" "$L/$task.log" "${cmd[@]}" 9>&-
   echo "$unit" > "$L/$task.unit"
   echo "$task: started [$label] as systemd user unit $unit, log $L/$task.log"
@@ -504,40 +510,45 @@ else
     LANG="${LANG:-C.UTF-8}" PATH="$path" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
     DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
     BASH_DEFAULT_TIMEOUT_MS=1800000 BASH_MAX_TIMEOUT_MS=3600000 \
-    GW_SLOT_TOTAL="$slot_total" GW_SLOT_TRACK="$slot_track" GW_SLOT_NAME="$slot_name" \
+    GW_SLOT_TOTAL="$slot_total" GW_SLOT_TRACK="$slot_track" GW_SLOT_NAME="$slot_name" GW_RUN_FILE="$run_file" \
     GW_AGENT_SH="$root/scripts/agent.sh" GW_TASK="$task" nice -n 10 setsid nohup bash -c "$inner" "$L/$task.log" "${cmd[@]}" > /dev/null 2>&1 9>&- &
   echo "$!" > "$L/$task.pid"
   echo "$task: started [$label] detached with setsid, pid $!, log $L/$task.log"
 fi
-# The launch lock is held until this launch's inner shell reports, in its own log (from this run's
-# offset), that it holds both slots (`slots-acquired`) or could not take them (`slot-refused`). The
-# deadline covers both waits (2 × 5 s) and the start; past it the agent is stopped and the launch
-# reported as failed, so a launch never reports what it did not do (audit of PR 74, A1, A2).
-start=$(cat "$L/$task.start")
+# The launch lock is held until this launch's inner shell reports, in its run file ($L/<task>.run,
+# which the agent's output never reaches), that it holds both slots (`slots-acquired`) or could not
+# take them (`slot-refused`). The deadline covers both waits (2 × 5 s) and the start; past it the
+# agent is stopped, and the stop is reported as verified only when the unit is inactive or both of
+# its slots are free again (audits of PR 74).
 for _ in $(seq 1 200); do
-  run_log=$(tail -c +$((start + 1)) "$L/$task.log" 2> /dev/null || true)
-  if grep -q '^slots-acquired' <<< "$run_log"; then
-    if grep -q '^exit=' <<< "$run_log"; then
-      echo "$task: took slots $FREE_TOTAL and $FREE_TRACK, ran and has already ended: $(grep '^exit=' <<< "$run_log" | tail -1)"
+  run_state=$(cat "$run_file" 2> /dev/null || true)
+  if grep -q '^slots-acquired' <<< "$run_state"; then
+    if grep -q '^ended' <<< "$run_state"; then
+      echo "$task: took slots $FREE_TOTAL and $FREE_TRACK, ran and has ended ($(grep '^ended' <<< "$run_state" | tail -1))"
     else
-      echo "$task: holds slots $FREE_TOTAL and $FREE_TRACK"
+      echo "$task: holds slots $FREE_TOTAL and $FREE_TRACK (at $(date -u +%T))"
     fi
     exit 0
   fi
-  if grep -q '^slot-refused' <<< "$run_log"; then
+  if grep -q '^slot-refused' <<< "$run_state"; then
     die "$task could not take its slots ($FREE_TOTAL, $FREE_TRACK) and did not start"
   fi
   sleep 0.1
 done
 if [ "$use_unit" = 1 ]; then
   systemctl --user stop "$unit" 2> /dev/null || true
-  systemctl --user is-active -q "$unit" 2> /dev/null && die "$task did not report its slots within 20 s and its unit $unit is still active: stop it by hand"
-else
-  pg=$(cat "$L/$task.pid")
-  kill -TERM -- -"$pg" 2> /dev/null || true
-  for _ in $(seq 1 50); do kill -0 -- -"$pg" 2> /dev/null || break; sleep 0.1; done
-  kill -KILL -- -"$pg" 2> /dev/null || true
-  sleep 0.2
-  kill -0 -- -"$pg" 2> /dev/null && die "$task did not report its slots within 20 s and its process group $pg is still alive: stop it by hand"
+  st=$(systemctl --user show -p ActiveState --value "$unit" 2> /dev/null || echo unknown)
+  case $st in
+    inactive | failed) die "$task did not report its slots within 20 s: its unit $unit is stopped ($st)" ;;
+    *) die "$task did not report its slots within 20 s and its unit $unit is '$st': stop it by hand" ;;
+  esac
 fi
-die "$task did not report its slots within 20 s: stopped (verified); check $L/$task.log and the slots (agent.sh status)"
+pg=$(cat "$L/$task.pid")
+kill -TERM -- -"$pg" 2> /dev/null || true
+for _ in $(seq 1 50); do kill -0 -- -"$pg" 2> /dev/null || break; sleep 0.1; done
+kill -KILL -- -"$pg" 2> /dev/null || true
+sleep 0.5
+if [ "$(slot_state "$FREE_TOTAL" 2> /dev/null)" = free ] && [ "$(slot_state "$FREE_TRACK" 2> /dev/null)" = free ]; then
+  die "$task did not report its slots within 20 s: stopped, and its slots are free again"
+fi
+die "$task did not report its slots within 20 s: its process group was signalled, but a slot is still not free: find its holder (agent.sh slots) and stop it by hand"
