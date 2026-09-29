@@ -69,7 +69,12 @@ async function isDeployed(provider: RpcProvider, address: string): Promise<boole
   }
 }
 
-export function createStarknetChain(config: ChainConfig): BurnerChain {
+export function createStarknetChain(options: ChainConfig): BurnerChain {
+  // Copied once, as the funder does: the address derived and the node asked stay those of creation.
+  const config = Object.freeze({
+    nodeUrl: String(options.nodeUrl),
+    accountClass: String(options.accountClass),
+  });
   const provider = new RpcProvider({ nodeUrl: config.nodeUrl });
   return {
     async binding() {
@@ -146,6 +151,35 @@ const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const SN_MAIN = "0x534e5f4d41494e";
 
 /**
+ * The funder's configuration, copied once at construction and frozen (fix loop 2, F-1): the check,
+ * the provider and the signer all read this copy, never the caller's object, so a configuration
+ * changed after construction, or while a check is pending, cannot make the check look at one node
+ * or funder and the signature go to another.
+ */
+interface FunderSnapshot {
+  readonly nodeUrl: string;
+  readonly accountClass: string;
+  readonly funderAddress: string;
+  readonly funderKey: string;
+  readonly amount: bigint;
+  readonly pollMs: number;
+  readonly fetch: typeof fetch;
+}
+
+function snapshot(config: NodeFunderConfig): FunderSnapshot {
+  const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
+  return Object.freeze({
+    nodeUrl: String(config.nodeUrl),
+    accountClass: String(config.accountClass),
+    funderAddress: String(config.funderAddress),
+    funderKey: String(config.funderKey),
+    amount: BigInt(config.amount),
+    pollMs: Number(config.pollMs ?? 250),
+    fetch: fetchImpl,
+  });
+}
+
+/**
  * Checks, before anything is signed or sent, that the funder is the local node's (fix loop 1, F-1):
  * 1. the endpoint is on this machine (loopback): a public endpoint is refused before any request;
  * 2. the node answers `devnet_getPredeployedAccounts`, a method of the local node only (a public
@@ -154,11 +188,12 @@ const SN_MAIN = "0x534e5f4d41494e";
  * The chain id alone cannot tell the local node from Sepolia (the node reports `SN_SEPOLIA`), and a
  * loopback address alone can be a tunnel to a public node. Check 2 is the one configuration cannot
  * pass: configuration only supplies an endpoint, an address and a key, and the funder signs only
- * with a key the node itself publishes to anyone who asks. Such a key holds nothing of value on any
- * network; a key of value is never published by a node. Getting past it takes a program written to
- * impersonate the local node, not a setting.
+ * with the account and key a node on this machine publishes as its own pre-funded one, over the
+ * endpoint it then sends to (the same frozen snapshot). The protection is that enforced boundary,
+ * not the key's worth: whoever funds such an account elsewhere cannot make this funder sign there.
+ * Getting past it takes a program written to impersonate the local node, not a setting.
  */
-async function assertLocalNode(config: NodeFunderConfig, fetchImpl: typeof fetch): Promise<void> {
+async function assertLocalNode(config: FunderSnapshot): Promise<void> {
   let url: URL;
   try {
     url = new URL(config.nodeUrl);
@@ -169,7 +204,7 @@ async function assertLocalNode(config: NodeFunderConfig, fetchImpl: typeof fetch
     throw new LocalNodeRefused("the endpoint is not on this machine");
   }
   const rpc = async (method: string, params: unknown): Promise<unknown> => {
-    const response = await fetchImpl(config.nodeUrl, {
+    const response = await config.fetch(config.nodeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -209,12 +244,13 @@ async function assertLocalNode(config: NodeFunderConfig, fetchImpl: typeof fetch
  * at every `provide`, before any signature). Funding on a public network is a service of the game
  * behind the same `Funder`, never this.
  */
-export function createNodeFunder(config: NodeFunderConfig): Funder {
-  const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
-  const provider = new RpcProvider({ nodeUrl: config.nodeUrl, baseFetch: fetchImpl });
+export function createNodeFunder(options: NodeFunderConfig): Funder {
+  // Only the snapshot is read from here on: the caller's object may change, it is not looked at.
+  const config = snapshot(options);
+  const provider = new RpcProvider({ nodeUrl: config.nodeUrl, baseFetch: config.fetch });
   return {
     async provide(publicKey, address) {
-      await assertLocalNode(config, fetchImpl);
+      await assertLocalNode(config);
       // The signer exists only once the node is known to be the local one.
       const funder = new Account({
         provider,
@@ -241,7 +277,7 @@ export function createNodeFunder(config: NodeFunderConfig): Funder {
       };
       const { transaction_hash } = await funder.execute([...deploy.calls, fund]);
       const receipt = await provider.waitForTransaction(transaction_hash, {
-        retryInterval: config.pollMs ?? 250,
+        retryInterval: config.pollMs,
       });
       if (!receipt.isSuccess()) throw new Error("the funding execution did not succeed");
     },

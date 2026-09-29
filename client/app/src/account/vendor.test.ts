@@ -72,7 +72,15 @@ function vendorOrigins(
     if (VENDOR_FILE.test(file)) found.push(`${symbol.getName()} (${file})`);
   }
   if (found.length > 0) return found;
-  const walk = (inner: ts.Type) => found.push(...vendorOrigins(checker, inner, seen));
+  const walk = (inner: ts.Type | undefined) => {
+    if (inner) found.push(...vendorOrigins(checker, inner, seen));
+  };
+  // A generic parameter carries its constraint and its default (fix loop 2, F-4).
+  if (type.flags & ts.TypeFlags.TypeParameter) {
+    walk(type.getConstraint());
+    walk(type.getDefault());
+  }
+  type.aliasTypeArguments?.forEach(walk);
   if (type.isUnionOrIntersection()) type.types.forEach(walk);
   if (type.flags & ts.TypeFlags.Object) {
     if ((type as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference) {
@@ -86,6 +94,7 @@ function vendorOrigins(
         walk(info.type);
       }
       for (const signature of [...type.getCallSignatures(), ...type.getConstructSignatures()]) {
+        signature.getTypeParameters()?.forEach(walk);
         walk(signature.getReturnType());
         for (const parameter of signature.getParameters()) walk(checker.getTypeOfSymbol(parameter));
       }
@@ -112,6 +121,15 @@ function leaks(p: ts.Program, file: string): string[] {
     }
     if (symbol.flags & ts.SymbolFlags.Value) {
       types.push(checker.getTypeOfSymbolAtLocation(symbol, declaration));
+    }
+    // The generic parameters of the exported declarations themselves (an interface, an alias, a
+    // class, a function): their constraints and defaults.
+    for (const node of symbol.getDeclarations() ?? []) {
+      for (const parameter of ts.getEffectiveTypeParameterDeclarations(
+        node as ts.DeclarationWithTypeParameters,
+      )) {
+        types.push(checker.getTypeAtLocation(parameter));
+      }
     }
     const seen = new Set<ts.Type>();
     for (const type of types) {
@@ -164,18 +182,29 @@ describe("the vendor stays inside", () => {
       ...fixture("class", "export class Built { constructor(account: Account) { void account; } }"),
       ...fixture("promise", "export function later(): Promise<Account> { throw 0; }"),
       ...fixture("deep", "export type Deep = { outer: { inner: [string, Account | null] } };"),
+      // Fix loop 2, F-4: generic parameters' constraints and defaults (the audit's two first).
+      ...fixture("constraint", "export interface Leak { <T extends Account>(account: T): T }"),
+      ...fixture("default", "export type Leak<T = Account> = { value: T };"),
+      ...fixture("unused_constraint", "export interface Holder<T extends Account> { n: number }"),
+      ...fixture("unused_default", "export class Box<T = Account> { n = 0; }"),
+      ...fixture("function", "export function f<T extends Account>(): void {}"),
+      ...fixture("method", "export type Runner = { run<T extends Account | string>(): void };"),
+      ...fixture("nested", "export type Outer<U extends { inner: Account }> = U[];"),
       [`${HERE}__fixture_clean.ts`]:
         "export interface Clean { a: string; [k: string]: string; }\n" +
         "export interface Made { new (x: number): Clean }\n" +
-        "export function later(): Promise<Clean> { throw 0; }\n",
+        "export function later(): Promise<Clean> { throw 0; }\n" +
+        'export type Ok<T extends string = "a"> = { v: T; f<U extends Clean>(u: U): U };\n',
     };
     const p = program([], fixtures);
     expect(diagnostics(p)).toEqual([]);
-    for (const file of Object.keys(fixtures)) {
-      const found = leaks(p, file);
-      if (file.endsWith("_clean.ts")) expect(found, file).toEqual([]);
-      else expect(found.length, file).toBeGreaterThan(0);
-    }
+    const clean = `${HERE}__fixture_clean.ts`;
+    expect(leaks(p, clean)).toEqual([]);
+    // Every leaking fixture must be detected; the misses are listed together.
+    const missed = Object.keys(fixtures)
+      .filter((file) => file !== clean && leaks(p, file).length === 0)
+      .map((file) => file.slice(HERE.length));
+    expect(missed).toEqual([]);
   }, 30_000);
 
   it("a fixture that does not compile fails the check", () => {
