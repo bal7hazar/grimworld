@@ -117,7 +117,16 @@ function DebugPanel({ controller, info }: { controller: SandboxController; info:
       {info.zoomInfo.offscreen && (
         <div style={styles.row}>
           offscreen: <b>{info.zoomInfo.offscreen.n}</b> canvas px per art px,{" "}
-          {info.zoomInfo.offscreen.width} × {info.zoomInfo.offscreen.height} texels
+          {info.zoomInfo.offscreen.width} × {info.zoomInfo.offscreen.height} texels drawn (
+          <b>{info.zoomInfo.offscreen.cost.toFixed(2)}×</b> the canvas), allocated{" "}
+          {info.zoomInfo.offscreen.allocatedWidth} × {info.zoomInfo.offscreen.allocatedHeight} (
+          {info.zoomInfo.offscreen.allocatedCost.toFixed(2)}×)
+        </div>
+      )}
+      {info.zoomInfo.sharpFallback && (
+        <div style={styles.row}>
+          <b>sharp falls back</b>: its offscreen does not fit the GPU&apos;s texture limit; drawn
+          directly, as continuous
         </div>
       )}
       <div style={styles.row}>

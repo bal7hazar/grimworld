@@ -1,4 +1,4 @@
-import { type Container, Graphics } from "pixi.js";
+import { type Container, Graphics, type Sprite } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
@@ -214,9 +214,8 @@ describe("the terrain, baked chunk by chunk", () => {
   });
 
   it("caps a chunk's texture by the GPU's limit", () => {
-    const surface = new (class extends FakeSurface {
-      override readonly maxTextureSize = 2048;
-    })();
+    const surface = new FakeSurface();
+    surface.maxTextureSize = 2048;
     const renderer = new Renderer(surface, new FakeHost(), { idle: false });
     renderer.resize({ width: 375, height: 812 });
     renderer.zoomAt(100, { x: 0, y: 0 });
@@ -262,41 +261,55 @@ describe("the overlay", () => {
 });
 
 describe("sharp bilinear (the offscreen pass)", () => {
-  function sharp(dpr = 2) {
+  function sharp(options: { width?: number; height?: number; limit?: number } = {}) {
     const host = new FakeHost();
-    const surface = new FakeSurface(2, dpr);
+    const surface = new FakeSurface(2, 2);
+    if (options.limit) surface.maxTextureSize = options.limit;
     const renderer = new Renderer(surface, host, { idle: false, mode: "sharp" });
-    renderer.resize({ width: 375, height: 812 });
+    renderer.resize({ width: options.width ?? 375, height: options.height ?? 812 });
     renderer.setView(toView(initialState(fixtureNamed("cave"))));
     host.run(100);
     return { host, surface, renderer };
   }
 
+  const shown = (surface: FakeSurface) => (surface.stage.children[0] as Sprite).texture;
+
   it("draws the world into a linear texture at the next integer scale, then down to the target", () => {
     const { surface, renderer } = sharp();
     const texture = renderer.offscreenTexture();
     expect(texture).not.toBeNull();
-    // 13 across on 375: 0.4507 CSS px per art px, 0.901 canvas px; n = 1, oversampled × 1.109.
+    // 13 across on 375: 0.4507 CSS px per art px, 0.901 canvas px; n = 1, oversampled × 1.109,
+    // allocated in the bucket × 1.25.
     const oversample = 832 / 750; // 1 / (2 × 375 / 832)
     expect(texture!.source.scaleMode).toBe("linear");
     expect(texture!.source.resolution).toBe(2);
-    expect(texture!.width).toBe(Math.ceil(375 * oversample));
-    expect(texture!.height).toBe(Math.ceil(812 * oversample));
+    expect(texture!.width).toBe(Math.ceil(375 * 1.25));
+    expect(texture!.height).toBe(Math.ceil(812 * 1.25));
+    // The frame draws into, and the screen shows, the part it needs.
+    const view = shown(surface);
+    expect(view.source).toBe(texture!.source);
+    expect(view.frame.width).toBe(Math.ceil(375 * oversample));
+    expect(view.frame.height).toBe(Math.ceil(812 * oversample));
     expect(renderer.zoomInfo()).toMatchObject({
       mode: "sharp",
-      offscreen: { n: 1, width: 2 * Math.ceil(375 * oversample) },
+      sharpFallback: false,
+      offscreen: {
+        n: 1,
+        width: 2 * Math.ceil(375 * oversample),
+        allocatedWidth: 2 * Math.ceil(375 * 1.25),
+        cost: expect.closeTo(oversample ** 2, 2),
+      },
       across: expect.closeTo(13, 9),
     });
     // The world is the pass's root; the stage holds only the sprite that draws the texture down.
     expect(surface.stage.children).toHaveLength(1);
-    expect((surface.stage.children[0] as { texture?: unknown }).texture).toBe(texture);
     // FakeSurface.renderTo throws unless the world is a root (no parent).
     expect(surface.passes).toEqual([texture]);
     // Inside the pass an art pixel is exactly n = 1 texel: world scale × oversample × resolution.
     expect(surface.stage.children[0]!.scale.x).toBeCloseTo(1 / oversample, 9);
   });
 
-  it("one pass per frame drawn, none when nothing is drawn; a new texture on zoom and resize", () => {
+  it("one pass per frame drawn, none when nothing is drawn; a new texture past its bucket", () => {
     const { host, surface, renderer } = sharp();
     const first = renderer.offscreenTexture()!;
     host.run(5000);
@@ -304,12 +317,12 @@ describe("sharp bilinear (the offscreen pass)", () => {
     renderer.pan(5, 0);
     host.run(100);
     expect(renderer.offscreenTexture()).toBe(first); // same size: kept
-    renderer.zoomAt(1.3, { x: 187, y: 406 });
+    renderer.zoomAt(1.3, { x: 187, y: 406 }); // n = 2, oversample 1.70: past the × 1.25 bucket
     host.run(100);
     const zoomed = renderer.offscreenTexture()!;
     expect(zoomed).not.toBe(first);
     expect(first.destroyed).toBe(true);
-    renderer.resize({ width: 390, height: 844 });
+    renderer.resize({ width: 800, height: 1200 });
     host.run(100);
     expect(renderer.offscreenTexture()).not.toBe(zoomed);
     expect(zoomed.destroyed).toBe(true);
@@ -317,13 +330,49 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(host.quiet()).toBe(true);
   });
 
-  it("drops the texture when leaving sharp, and puts the world back on the stage", () => {
+  it("a pinch of 60 frames allocates a few textures, not one per frame", () => {
+    const { host, renderer } = sharp();
+    const allocated = new Set([renderer.offscreenTexture()]);
+    // Out, then back in, one wheel step per frame: the needed size changes at every frame.
+    for (const factor of [...Array(30).fill(0.985), ...Array(30).fill(1 / 0.985)]) {
+      renderer.zoomAt(factor, { x: 187, y: 406 });
+      host.run(1000 / 60);
+      allocated.add(renderer.offscreenTexture());
+    }
+    expect(allocated.size).toBeLessThanOrEqual(6);
+  });
+
+  it("falls back to drawing directly when the offscreen does not fit the GPU's limit", () => {
+    // 1440 × 900 at resolution 2: even × 1 is 2880 × 1800 texels, over a limit of 2048.
+    const { surface, renderer } = sharp({ width: 1440, height: 900, limit: 2048 });
+    expect(renderer.offscreenTexture()).toBeNull();
+    expect(surface.passes).toHaveLength(0);
+    expect(surface.renders).toBe(1);
+    const world = surface.stage.children[0] as Container;
+    expect(world.children).toHaveLength(3); // the world itself is on the stage
+    expect(renderer.zoomInfo()).toMatchObject({
+      mode: "sharp",
+      sharpFallback: true,
+      offscreen: null,
+    });
+    // The same window with a GPU that takes it: the offscreen pass comes back.
+    surface.maxTextureSize = 4096;
+    renderer.pan(1, 0);
+    renderer.draw();
+    expect(renderer.offscreenTexture()?.source.pixelWidth).toBeLessThanOrEqual(4096);
+    expect(renderer.zoomInfo().sharpFallback).toBe(false);
+  });
+
+  it("gives the texture back as soon as it leaves sharp, even with no frame (page hidden)", () => {
     const { host, surface, renderer } = sharp();
     const texture = renderer.offscreenTexture()!;
+    host.setHidden(true);
+    const renders = surface.renders;
     renderer.setMode("continuous");
-    host.run(100);
     expect(renderer.offscreenTexture()).toBeNull();
     expect(texture.destroyed).toBe(true);
+    host.run(1000);
+    expect(surface.renders).toBe(renders); // no frame was needed for it
     const world = surface.stage.children[0] as Container;
     expect(world.children).toHaveLength(3); // ground, overlay, actors
   });

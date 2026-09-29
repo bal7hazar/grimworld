@@ -4,7 +4,7 @@ import type { Surface } from "../render/renderer";
 /** A surface without a GPU: it counts renders, bakes and offscreen passes. */
 export class FakeSurface implements Surface {
   readonly stage = new Container();
-  readonly maxTextureSize: number = 4096;
+  maxTextureSize = 4096;
   renders = 0;
   readonly bakes: number[] = [];
   /** Offscreen passes (`sharp`): the target of each. */

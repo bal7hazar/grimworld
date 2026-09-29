@@ -64,7 +64,32 @@ describe("the three modes at the default zoom (REPORT, Resume 2)", () => {
     integer: info.integer,
     tileWidth: Number(info.tileWidth.toFixed(2)),
     across: Number(info.across.toFixed(2)),
-    offscreen: info.offscreen,
+    offscreen: info.offscreen && {
+      n: info.offscreen.n,
+      width: info.offscreen.width,
+      height: info.offscreen.height,
+    },
+  });
+
+  it("the offscreen's cost against the canvas's pixels (N-2: it nears 4 just above an integer)", () => {
+    const cost = (width: number, height: number, dpr: number) => {
+      const info = figures("sharp", width, height, dpr);
+      return {
+        cost: Number(info.offscreen!.cost.toFixed(2)),
+        allocated: Number(info.offscreen!.allocatedCost.toFixed(2)),
+      };
+    };
+    expect(cost(375, 812, 2)).toEqual({ cost: 1.23, allocated: 1.56 });
+    expect(cost(1440, 900, 2)).toEqual({ cost: 1.52, allocated: 1.56 });
+    // Just above an integer: s × r = 1.01 → n = 2, oversample 1.98, cost 3.9.
+    const surface = new FakeSurface(2, 2);
+    const renderer = new Renderer(surface, new FakeHost(), { idle: false, mode: "sharp" });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.zoomAt(1.01 / (0.45072115 * 2), { x: 187.5, y: 406 });
+    const near = renderer.zoomInfo().offscreen!;
+    expect(near.n).toBe(2);
+    expect(near.cost).toBeGreaterThan(3.8);
+    expect(near.cost).toBeLessThan(4);
   });
 
   it("375 × 812 at DPR 2", () => {

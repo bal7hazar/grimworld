@@ -94,12 +94,24 @@ export interface ZoomInfo {
   readonly deviceScale: number;
   /** Whether an art pixel covers a whole number of screen pixels. */
   readonly integer: boolean;
-  /** `sharp` only: the offscreen pass, `n` canvas pixels per art pixel, its size in texels. */
+  /**
+   * `sharp` only: the offscreen pass: `n` canvas pixels per art pixel, the texels it needs, the
+   * texels allocated (buckets, reused during a pinch), and its cost against the canvas's own
+   * pixels. Null in the other modes, and when `sharp` falls back (see `sharpFallback`).
+   */
   readonly offscreen: {
     readonly n: number;
     readonly width: number;
     readonly height: number;
+    readonly allocatedWidth: number;
+    readonly allocatedHeight: number;
+    /** Texels drawn per frame over the canvas's pixels: the oversampling squared. */
+    readonly cost: number;
+    /** Texels allocated over the canvas's pixels. */
+    readonly allocatedCost: number;
   } | null;
+  /** `sharp` asked for, but its offscreen does not fit the GPU's texture limit: drawn directly. */
+  readonly sharpFallback: boolean;
   /** Tile width, CSS px. */
   readonly tileWidth: number;
   /** Tiles across the viewport's width. */
@@ -164,14 +176,36 @@ export interface RendererOptions {
   readonly onDraw?: (stats: FrameStats) => void;
 }
 
-/** The `sharp` mode's offscreen texture: the world at an integer scale, drawn down linearly. */
+/**
+ * The `sharp` mode's offscreen texture: the world at an integer scale, drawn down linearly. It is
+ * allocated in buckets larger than what a frame needs, and a frame draws into its top-left part.
+ */
 interface Offscreen {
   readonly texture: RenderTexture;
+  /** Allocated size, CSS px at `resolution`. */
   readonly width: number;
   readonly height: number;
   readonly resolution: number;
-  readonly n: number;
+  /** The part of it the last frame used, as a texture the screen sprite draws. */
+  view: Texture;
+  viewWidth: number;
+  viewHeight: number;
 }
+
+/** What a `sharp` frame needs: the integer, the oversampling, the size in CSS px. */
+interface OffscreenPlan {
+  readonly n: number;
+  readonly oversample: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Offscreen buckets: the allocated oversampling is the needed one rounded up to a quarter of the
+ * viewport, so a pinch reallocates when it crosses a quarter, not at every frame; a texture more
+ * than two quarters too large is given back.
+ */
+export const OFFSCREEN_BUCKET = 0.25;
 
 /**
  * Draws a `ViewState` on demand. Every change (a view, the camera, the size) asks for one frame;
@@ -251,6 +285,8 @@ export class Renderer implements FrameClient {
    */
   setMode(mode: ScaleMode): void {
     this.mode = mode;
+    // Leaving sharp gives the texture back now, not at the next frame (none while hidden).
+    if (mode !== "sharp") this.dropOffscreen();
     this.mountStage();
     this.setScale(this.zoomed ? this.wanted : this.defaultScale());
     this.scheduler.invalidate();
@@ -343,6 +379,10 @@ export class Renderer implements FrameClient {
     const { resolution, devicePixelRatio } = this.surface;
     const deviceScale = scale * devicePixelRatio;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
+    const allocated = plan && this.allocation(plan);
+    const canvas = this.viewport.width * this.viewport.height * resolution * resolution;
+    const texels = (w: number, h: number) =>
+      Math.round(w * resolution) * Math.round(h * resolution);
     return {
       mode: this.mode,
       devicePixelRatio,
@@ -352,11 +392,17 @@ export class Renderer implements FrameClient {
       deviceScale,
       // Whole on the screen only when the canvas is the screen (see scaling.ts).
       integer: resolution === devicePixelRatio && isWhole(deviceScale),
-      offscreen: plan && {
-        n: plan.n,
-        width: Math.round(plan.width * resolution),
-        height: Math.round(plan.height * resolution),
-      },
+      offscreen: plan &&
+        allocated && {
+          n: plan.n,
+          width: Math.round(plan.width * resolution),
+          height: Math.round(plan.height * resolution),
+          allocatedWidth: Math.round(allocated.width * resolution),
+          allocatedHeight: Math.round(allocated.height * resolution),
+          cost: texels(plan.width, plan.height) / canvas,
+          allocatedCost: texels(allocated.width, allocated.height) / canvas,
+        },
+      sharpFallback: this.mode === "sharp" && plan === null,
       tileWidth: TILE_WIDTH * scale,
       across: this.viewport.width / (TILE_WIDTH * scale),
     };
@@ -421,8 +467,11 @@ export class Renderer implements FrameClient {
   draw(): void {
     this.bakeTerrain();
     const { centre, scale } = this.camera;
-    if (this.mode !== "sharp") {
+    const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
+    if (!plan) {
+      // Continuous, snap, or sharp falling back: the world drawn directly.
       this.dropOffscreen();
+      this.mountStage(false);
       this.placeWorld(scale, this.viewport.width, this.viewport.height, centre);
       this.surface.render();
       return;
@@ -430,7 +479,7 @@ export class Renderer implements FrameClient {
     // Sharp bilinear: the world nearest-neighbour at `n` texels per art pixel into the offscreen
     // texture (one extra pass, only in a frame being drawn), then that texture drawn down to the
     // target scale, linearly, by `screen`.
-    const plan = this.offscreenPlan();
+    this.mountStage(true);
     const offscreen = this.ensureOffscreen(plan);
     this.placeWorld(scale * plan.oversample, plan.width, plan.height, centre);
     this.surface.renderTo(this.world, offscreen.texture);
@@ -455,59 +504,100 @@ export class Renderer implements FrameClient {
     this.world.position.set(width / 2 - centre.x * scale, height / 2 - centre.y * scale);
   }
 
-  /** The world on the stage, or (`sharp`) the offscreen texture's sprite with the world as a root. */
-  private mountStage(): void {
-    this.surface.stage.removeChildren();
-    if (this.mode === "sharp") this.surface.stage.addChild(this.screen);
-    else this.surface.stage.addChild(this.world);
+  /**
+   * The world on the stage, or the offscreen texture's sprite with the world as a root (`sharp`,
+   * when its offscreen fits; `draw` decides, the mode gives the first guess).
+   */
+  private mountStage(offscreen = this.mode === "sharp"): void {
+    const child = offscreen ? this.screen : this.world;
+    const stage = this.surface.stage;
+    if (stage.children.length === 1 && stage.children[0] === child) return;
+    stage.removeChildren();
+    stage.addChild(child);
   }
 
   /**
-   * `sharp`: the offscreen texture's size (CSS px, at the canvas resolution) and oversampling,
-   * the integer `n` lowered only if the GPU's texture limit requires it.
+   * `sharp`: what a frame needs, or null when an offscreen at the integer `n` does not fit the
+   * GPU's texture limit (a large window at resolution 2): `sharp` then falls back to drawing
+   * directly, and never asks for a texture larger than the GPU takes.
    */
-  private offscreenPlan(): { n: number; oversample: number; width: number; height: number } {
+  private offscreenPlan(): OffscreenPlan | null {
     const { resolution, maxTextureSize } = this.surface;
-    const { width, height } = this.viewport;
     const { n, oversample } = sharpFactor(this.camera.scale, resolution);
-    const limit = maxTextureSize / (Math.max(width, height) * resolution);
-    const k = Math.max(1, Math.min(oversample, limit));
+    const width = Math.ceil(this.viewport.width * oversample);
+    const height = Math.ceil(this.viewport.height * oversample);
+    if (Math.max(width, height) * resolution > maxTextureSize) return null;
+    return { n, oversample, width, height };
+  }
+
+  /** The bucket a plan is allocated in, never above the GPU's limit (the plan itself fits). */
+  private allocation(plan: OffscreenPlan): { width: number; height: number } {
+    const { resolution, maxTextureSize } = this.surface;
+    const k = Math.ceil(plan.oversample / OFFSCREEN_BUCKET - 1e-9) * OFFSCREEN_BUCKET;
+    const limit = Math.floor(maxTextureSize / resolution);
     return {
-      n: k === oversample ? n : this.camera.scale * resolution * k,
-      oversample: k,
-      width: Math.ceil(width * k),
-      height: Math.ceil(height * k),
+      width: Math.max(plan.width, Math.min(Math.ceil(this.viewport.width * k), limit)),
+      height: Math.max(plan.height, Math.min(Math.ceil(this.viewport.height * k), limit)),
     };
   }
 
-  /** Keeps the offscreen texture while its size holds; destroys and remakes it on zoom or resize. */
-  private ensureOffscreen(plan: { n: number; width: number; height: number }): Offscreen {
+  /**
+   * Reuses the offscreen texture while the frame's size fits in it and it is not more than two
+   * buckets too large; otherwise gives it back and allocates the plan's bucket. The screen sprite
+   * draws the part the frame used.
+   */
+  private ensureOffscreen(plan: OffscreenPlan): Offscreen {
     const resolution = this.surface.resolution;
+    const bucket = this.allocation(plan);
+    const slack = 2 * OFFSCREEN_BUCKET;
     const current = this.offscreen;
-    if (
-      current &&
-      current.width === plan.width &&
-      current.height === plan.height &&
-      current.resolution === resolution
-    ) {
-      return current;
+    const reuse =
+      current !== null &&
+      current.resolution === resolution &&
+      current.width >= plan.width &&
+      current.height >= plan.height &&
+      current.width <= bucket.width + this.viewport.width * slack &&
+      current.height <= bucket.height + this.viewport.height * slack;
+    let offscreen: Offscreen;
+    if (reuse && current) {
+      offscreen = current;
+    } else {
+      this.dropOffscreen();
+      const texture = RenderTexture.create({
+        width: bucket.width,
+        height: bucket.height,
+        resolution,
+        scaleMode: "linear",
+        antialias: false,
+      });
+      offscreen = {
+        texture,
+        width: bucket.width,
+        height: bucket.height,
+        resolution,
+        view: Texture.EMPTY,
+        viewWidth: 0,
+        viewHeight: 0,
+      };
+      this.offscreen = offscreen;
     }
-    this.dropOffscreen();
-    const texture = RenderTexture.create({
-      width: plan.width,
-      height: plan.height,
-      resolution,
-      scaleMode: "linear",
-      antialias: false,
-    });
-    this.offscreen = { texture, width: plan.width, height: plan.height, resolution, n: plan.n };
-    this.screen.texture = texture;
-    return this.offscreen;
+    if (offscreen.viewWidth !== plan.width || offscreen.viewHeight !== plan.height) {
+      if (offscreen.view !== Texture.EMPTY) offscreen.view.destroy(false);
+      offscreen.view = new Texture({
+        source: offscreen.texture.source,
+        frame: new Rectangle(0, 0, plan.width, plan.height),
+      });
+      offscreen.viewWidth = plan.width;
+      offscreen.viewHeight = plan.height;
+      this.screen.texture = offscreen.view;
+    }
+    return offscreen;
   }
 
   private dropOffscreen(): void {
     if (!this.offscreen) return;
     this.screen.texture = Texture.EMPTY;
+    if (this.offscreen.view !== Texture.EMPTY) this.offscreen.view.destroy(false);
     this.offscreen.texture.destroy(true);
     this.offscreen = null;
   }
@@ -534,7 +624,7 @@ export class Renderer implements FrameClient {
    */
   private bakeResolution(frame: Rectangle): number {
     // What the world is drawn at: the canvas, or `sharp`'s offscreen texture.
-    const oversample = this.mode === "sharp" ? this.offscreenPlan().oversample : 1;
+    const oversample = this.mode === "sharp" ? (this.offscreenPlan()?.oversample ?? 1) : 1;
     const wanted = this.camera.scale * this.surface.resolution * oversample;
     const stepped = 2 ** (Math.round(2 * Math.log2(wanted)) / 2);
     const side = Math.max(frame.width, frame.height, 1);

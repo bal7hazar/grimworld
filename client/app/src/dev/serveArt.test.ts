@@ -1,11 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { serveArt } from "./serveArt";
 
-// A scratch folder inside the package (removed after the tests): no image of the pack, plain text.
-const scratch = mkdtempSync(fileURLToPath(new URL("../../.art-test-", import.meta.url)));
+// A scratch folder of the system's (removed after the tests): no image of the pack, plain text.
+const scratch = mkdtempSync(join(tmpdir(), "art-test-"));
 const root = join(scratch, "out");
 const outside = join(scratch, "outside");
 
