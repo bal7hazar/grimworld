@@ -231,7 +231,6 @@ it becomes a library of pieces that the generator lays out.
 | Crossing chunks (R-5) | Free: a goblin has global coordinates. Moving writes the occupied bit of the chunk left and of the chunk entered |
 | Follow | **The window follows the adventurer at every move.** There is no margin and no re-centring rule. What is simulated, shown and targetable depends on the adventurer's position only, never on a state the player cannot know |
 | Storage | **None.** The window is recomputed at each tick from the chunks: reads instead of one write per move |
-| A chunk that is not revealed | **Wall in the window**, in zones and dungeons alike (D-136): a constant in the assembly. Sight never reaches it: the move that would bring sight onto it reveals it |
 | At the edge of a location | The window stays centred: the chunks it overlaps beyond the edge, or outside the outline of a zone, are void and enter the assembly as a constant, without a read (D-134) |
 | Row parity | The window's origin stays on an even global row, so that the hex neighbourhood of the library holds: the library derives every neighbour from the parity of the **local** row. The origin therefore moves vertically by two rows at a time; the sixteenth row absorbs the difference |
 

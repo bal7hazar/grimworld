@@ -180,17 +180,21 @@ orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build
   **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
   average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
   check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
-  both thresholds and the budget of 3 (active `grimworld-*`, `hexmap-*`, `quiver-*` units,
-  plus detached agents counted per working directory under the three repositories: live pids
-  of the launchers' `logs/*.pid` and codex `exec` processes), fixed in the script, on every
-  launch and resume (exit 4, before any worktree is created). A count that cannot be made
-  refuses the launch. The count and the start run under the shared lock
-  `~/orchestrator/agent-launch.lock`, so two launchers cannot both take the last slot: **the
-  launchers of the map library and of `quiver` take the same lock** (`flock` on that file around
-  their count and start). Each
-  launcher also enforces the caps per track (its own `TRACK`: game 2, map library 1, quiver 1)
-  and, on the other tracks, the game's waiting marker (`~/orchestrator/waiting/game`, less than
-  30 minutes old); an agent whose directory cannot be read counts against every track; `scripts/agent.sh thresholds` tells whether a launch may proceed now.
+  both thresholds, fixed in the script, and the budget **as slots**: files in
+  `~/orchestrator/slots/`, `total-1`…`total-3` for the budget of 3 and `game-1`, `game-2`,
+  `lib-1`, `quiver-1` for the caps per track (game 2, map library 1, quiver 1). A launch or resume
+  takes one free total slot and one free slot of its own track (`TRACK` in the launcher), or
+  refuses (exit 4, before any worktree is created). The agent's process takes the two locks itself
+  (`flock -n`) and its children inherit them, so the kernel frees them when the agent's last
+  process ends, however it ends: nothing is counted by reading processes, pid files or units. The
+  launcher waits until the agent holds its slots before it returns, under the shared launch lock
+  `~/orchestrator/agent-launch.lock`, so two launchers cannot take the same slot; **the launchers
+  of the map library and of `quiver` are copies of this one** (their own `TRACK`, the same slots
+  and lock), synced from the commit the CHANGELOG marks as "launcher reference". On the other
+  tracks, the game's waiting marker (`~/orchestrator/waiting/game`, less than 30 minutes old)
+  refuses a launch. `scripts/agent.sh thresholds` tells whether a launch may proceed now, and
+  `scripts/agent.sh slots` (or `status`) who holds each slot; the name written in a slot file is
+  for display only.
   The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
   `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
   still start one.

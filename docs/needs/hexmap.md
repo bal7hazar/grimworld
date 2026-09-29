@@ -91,4 +91,4 @@ Decided on the findings of the game's spike SPK-7; inputs of N-1 and N-3.
 | | |
 |---|---|
 | N-1, generation | The four corner tiles of a chunk are always wall; openings are on the edges, never on a corner |
-| N-3, assembly | A chunk the window overlaps may be **void** or **not revealed** (D-136: assembled as wall, the same case) (beyond the edge of the location, or outside the outline of a zone): the function takes a flag or an absent chunk for it and assembles wall, without a read. The window is never clamped |
+| N-3, assembly | A chunk the window overlaps may be **void** (beyond the edge of the location, or outside the outline of a zone): the function takes a flag or an absent chunk for it and assembles wall, without a read. The window is never clamped |
