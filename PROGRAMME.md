@@ -38,6 +38,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-156 | The funder's caps for Sepolia playtests (test tokens); mainnet caps stay the owner's | Project manager |
 | D-155 | DES-04's 43 combat rules accepted; a last narrow pass, then CBT-01 | Project manager |
 | D-154 | Non-reproducible Cairo builds: SPK-13 on the Mac, N-3 first on the library's slot | Project manager |
 | D-153 | The indexer's needs from the game (a `[lib]` target, first) and its CI; the market key: strict rarity | Owner |
