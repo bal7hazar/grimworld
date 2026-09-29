@@ -7,7 +7,6 @@ two runs give byte-identical outputs. `--check` also parses the atlases with Pix
 node and pnpm from .tool-versions, see scripts/setup-toolchain.sh).
 """
 
-import hashlib
 import json
 import os
 import shutil
@@ -102,18 +101,26 @@ def forbidden_word_check():
 
 def main():
     import numpy as np
-    from artpipe import atlas, clean, preview
+    from artpipe import atlas, clean, fingerprint, preview
 
+    if "--fingerprint" in sys.argv[1:]:
+        if not OUT.is_dir():
+            raise SystemExit("tools/art/out/ does not exist: build it first")
+        fingerprint.report(OUT)
+        return
     if not (ASSETS / "README.md").exists():
         raise SystemExit("The art pack is missing: run `git submodule update --init assets` "
                          "(a private repository, see tools/art/README.md).")
     manifest = tomllib.loads((HERE / "manifest.toml").read_text())
     s = manifest["settings"]
+    method = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--resample=")),
+                  s["resample"])
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir()
 
-    sprites, report, origins = [], {"tolerance": s["key_tolerance"], "sprites": {}, "sheets": {}}, {}
+    sprites, origins = [], {}
+    report = {"tolerance": s["key_tolerance"], "resample": method, "sprites": {}, "sheets": {}}
     cut_cache = {}
     for sp in manifest["sprite"]:
         name = sp["name"]
@@ -134,6 +141,8 @@ def main():
             sources.add("original strips")
         every = [p for _, ps in anims for p in ps]
         cell_w, cell_h, baseline, cells = clean.place(every, s["cell_margin"])
+        cells, cell_w, cell_h, baseline, scaled = scale_sprite(
+            sp, anims, cells, cell_w, baseline, manifest["build"], method, s["cell_margin"])
         k, out_anims = 0, []
         for a, ps in anims:
             out_anims.append({"name": a["name"], "fps": a["fps"], "loop": a["loop"],
@@ -159,11 +168,16 @@ def main():
             "role": sp["role"], "origin": sp["origin"], "kind": sp["kind"],
             "cell": [cell_w, cell_h], "baseline": baseline,
             "animations": {a["name"]: len(a["cells"]) for a in out_anims},
-            "magenta_left": left, "pinkish": pink,
+            "magenta_left": left, "pinkish": pink, "scale": scaled,
         }
         if left:
             raise SystemExit(f"{name}: {left} key-coloured pixels left in the output")
 
+    try:
+        check_scale(report["sprites"], manifest["order"])
+    except SystemExit:
+        print_scale(report)
+        raise
     index = atlas.pack(sprites, s, OUT)
     for name, info in index["sprites"].items():
         report["sprites"][name]["page"] = f'atlas-{info["page"]}'
@@ -178,6 +192,53 @@ def main():
     if "--check" in sys.argv[1:]:
         sys.stdout.flush()
         pixi_check()
+
+
+def scale_sprite(sp, anims, cells, cell_w, baseline, builds, method, margin):
+    """Resample a sprite's placed cells to its build's height (artpipe/scale.py), unless every idle
+    frame already stands within 2 px of it. Returns (cells, cell_w, cell_h, baseline, info)."""
+    from artpipe import clean, scale
+    k, idle = 0, None
+    for a, ps in anims:
+        if a["name"] == "idle":
+            idle = slice(k, k + len(ps))
+        k += len(ps)
+    if idle is None:
+        raise SystemExit(f'{sp["name"]}: no idle animation, its height cannot be measured')
+    target = scale.target_height(sp, builds)
+    cells_before = cells
+    measured, before = scale.sprite_height(cells[idle])
+    info = {"build": sp.get("build"), "target": target, "source": measured,
+            "source_idle": [before[0], before[-1]], "factor": [1, 1]}
+    if any(abs(h - target) > 2 for h in before):
+        levels = scale.alpha_levels(cells)
+        out = [scale.resample(c, cell_w // 2, baseline, target, measured, method, levels)[0]
+               for c in cells]
+        cell_w, _, baseline, cells = clean.place([clean.register(c) for c in out], margin)
+        info["factor"] = [target, measured]
+    height, after = scale.sprite_height(cells[idle])
+    info.update(height=height, idle=[after[0], after[-1]],
+                source_frames=[scale.visible_height(c) for c in cells_before[idle]],
+                frames=[scale.visible_height(c) for c in cells[idle]])
+    return cells, cell_w, cells[0].shape[0], baseline, info
+
+
+def check_scale(sprites, order):
+    """AC-1 and AC-2: every sprite's height (the median of its idle frames) within 2 px of its
+    target; no basic goblin taller than the shortest profession; `order.tallest` the tallest
+    sprite. Fails the build otherwise. The idle frames' own range (breathing, a raised weapon) is
+    printed, not checked: a sprite whose idle moves by more than 4 px cannot fit ±2 at one scale."""
+    from artpipe import scale
+    problems = []
+    for name, r in sprites.items():
+        h, t = r["scale"]["height"], r["scale"]["target"]
+        if abs(h - t) > 2:
+            problems.append(f"{name}: {h} px tall (median of the idle frames), target {t} (±2)")
+    problems += scale.check_order({n: r["scale"]["height"] for n, r in sprites.items()},
+                                  order["basic"], order["tallest"],
+                                  {n: r["role"] for n, r in sprites.items()})
+    if problems:
+        raise SystemExit("scale check failed:\n  " + "\n  ".join(problems))
 
 
 def pixi_check():
@@ -229,16 +290,30 @@ def verify(pages, index, sprites, s):
 
 
 def print_report(report):
+    from artpipe import fingerprint
     print(f"key tolerance: {report['tolerance']} (max channel distance)")
     print(f"{'sprite':<11}{'role':<11}{'cell':<10}{'frames':<8}{'magenta':<8}{'pinkish':<8}page")
     for name, r in report["sprites"].items():
         frames = sum(r["animations"].values())
         print(f"{name:<11}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{frames:<8}"
               f"{r['magenta_left']:<8}{r['pinkish']:<8}{r['page']}")
-    digest = hashlib.sha256()
-    for f in sorted(OUT.iterdir()):
-        digest.update(f.name.encode() + f.read_bytes())
-    print(f"out/ sha256: {digest.hexdigest()}")
+    print_scale(report)
+    fingerprint.report(OUT)
+
+
+def print_scale(report):
+    """The table of Scope 4: sprite, build, target, source height, factor, result, cell."""
+    print(f"scale: resampling {report['resample']}; heights in px, visible height rule in "
+          "artpipe/scale.py (idle frames, median and range)")
+    print(f"{'sprite':<11}{'build':<8}{'target':<8}{'source':<14}{'factor':<16}{'result':<14}cell")
+    for name, r in report["sprites"].items():
+        c = r["scale"]
+        p, q = c["factor"]
+        factor = "1 (kept)" if p == q else f"{p}/{q}={p / q:.3f}"
+        src = f"{c['source']} ({c['source_idle'][0]}-{c['source_idle'][1]})"
+        res = f"{c['height']} ({c['idle'][0]}-{c['idle'][1]})"
+        print(f"{name:<11}{c['build'] or '-':<8}{c['target']:<8}{src:<14}{factor:<16}{res:<14}"
+              f"{r['cell'][0]}x{r['cell'][1]}")
 
 
 if __name__ == "__main__":

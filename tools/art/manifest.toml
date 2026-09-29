@@ -18,12 +18,29 @@ min_component = 6      # a detached speck smaller than this many px is dropped
 cell_margin = 4        # transparent margin kept around the union of a sprite's frames
 atlas_max = 2048       # page side, at most
 atlas_padding = 2      # transparent gutter between packed frames
+resample = "area"      # "area" (overlap average, alpha made binary) or "nearest"; see artpipe/scale.py
+
+# Heights of the builds, in px (ART-02; D-146, provisional: the owner sets the final sizes by eye).
+# Every sprite names its build; its visible height (idle, feet to top of head, what a hand holds
+# left out: artpipe/scale.py) is resampled to its build's height. A sprite's own `height = N`
+# overrides its build's. Changing a caste's height is one line: here, or its `height`.
+[build]
+small = 78             # basic goblins
+medium = 94            # heroes, the shaman
+large = 128            # the boss
+
+# What the build checks on the result (AC-2): no basic goblin taller than the shortest profession,
+# and `tallest` taller than every other sprite.
+[order]
+basic = ["runt", "skirmisher", "slinger"]
+tallest = "hobgoblin"
 
 # ---------------------------------------------------------------- goblin castes (MVP)
 
 [[sprite]]
 name = "runt"
 role = "caste"
+build = "small"
 kind = "generated"
 file = "goblin_common.png"
 origin = "generated common goblin sheet (chosen over Torch Goblin, design/10: generated when it exists)"
@@ -46,6 +63,7 @@ origin = "generated common goblin sheet (chosen over Torch Goblin, design/10: ge
 [[sprite]]
 name = "skirmisher"
 role = "caste"
+build = "small"
 kind = "strip"
 root = "Enemy Pack/Spear Goblin"
 origin = "original Spear Goblin strips (the only candidate)"
@@ -70,6 +88,7 @@ origin = "original Spear Goblin strips (the only candidate)"
 [[sprite]]
 name = "slinger"
 role = "caste"
+build = "small"
 kind = "strip"
 root = "Enemy Pack/Torch Goblin"
 origin = "PLACEHOLDER: original Torch Goblin strips (no goblin slinger exists)"
@@ -92,6 +111,7 @@ origin = "PLACEHOLDER: original Torch Goblin strips (no goblin slinger exists)"
 [[sprite]]
 name = "shaman"
 role = "caste"
+build = "medium"
 kind = "generated"
 file = "goblin_shaman.png"
 origin = "generated shaman sheet (chosen over Hex Shaman, design/10: generated when it exists)"
@@ -114,6 +134,7 @@ origin = "generated shaman sheet (chosen over Hex Shaman, design/10: generated w
 [[sprite]]
 name = "hobgoblin"
 role = "caste"
+build = "large"
 kind = "generated"
 file = "hobgoblin.png"
 origin = "generated hobgoblin sheet (chosen over Troll, design/10: generated when it exists)"
@@ -139,6 +160,7 @@ origin = "generated hobgoblin sheet (chosen over Troll, design/10: generated whe
 [[sprite]]
 name = "vanguard"
 role = "profession"
+build = "medium"
 kind = "strip"
 root = "Units/Blue Units/Warrior"
 origin = "original Warrior strips, blue"
@@ -171,6 +193,7 @@ origin = "original Warrior strips, blue"
 [[sprite]]
 name = "warden"
 role = "profession"
+build = "medium"
 kind = "strip"
 root = "Units/Blue Units/Archer"
 origin = "original Archer strips, blue"
@@ -193,6 +216,7 @@ origin = "original Archer strips, blue"
 [[sprite]]
 name = "cleric"
 role = "profession"
+build = "medium"
 kind = "strip"
 root = "Units/Blue Units/Monk"
 origin = "original Monk strips, blue"
