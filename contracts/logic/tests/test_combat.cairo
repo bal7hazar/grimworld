@@ -707,7 +707,7 @@ fn test_item_entry_not_a_potion_refused() {
 
 // §4, §7.2: `MODIFIER`, 1 part: slot type low, benefit and cost high.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5) and the caste's DS-18 and DS-29 bounds
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 340631)] // ceil(1.05 × 324410 measured)
 fn test_modifier_round_trip() {
     let top = ModifierTrait::new(0xFF, Fixture::passive_max(), Fixture::passive_max());
@@ -746,7 +746,7 @@ fn test_modifier_slot_refused() {
 
 // §7.2: `ARMOR_SET`, 1 part: 5 piece bases low, 2 bonuses high.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5) and the caste's DS-18 and DS-29 bounds
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 264506)] // ceil(1.05 × 251910 measured)
 fn test_armor_set_round_trip() {
     let top = ArmorSetTrait::new(

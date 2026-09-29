@@ -282,7 +282,7 @@ fn test_damage_percent_as_benefit_and_cost_refused() {
 
 // CBT-2: the sources design/19 allows are accepted.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5) and the caste's DS-18 and DS-29 bounds
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 1523907)] // ceil(1.05 × 1451340 measured)
 fn test_sources_accepted() {
     Fixture::on(slot::PREFIX, Fixture::damage());

@@ -477,10 +477,10 @@ pub fn saturate(sum: u32, cap: u32) -> u32 {
     }
 }
 
-// The production flattening (design/19 §4, §7.2; design/20 §1, D-160): the build and the passives
-// it holds into the snapshot's three words, every restriction of design/20's capacity proof
-// checked first. Built before any production snapshot (D-160); `set_build` and `enter` wire it
-// (persistent package: escalated in CBT-02's report).
+// The production flattening (design/19 §4, §7.2; design/20 §1, D-160): the build and the
+// passives it holds into the snapshot's three words, every restriction of design/20's capacity
+// proof checked first. Built before any production snapshot (D-160); `set_build` and `enter` wire
+// it (persistent package: escalated in CBT-02's report).
 
 /// Armor against a type saturates at 63 (6 bits, FX-23).
 pub const MAX_ARMOR_VS: u32 = 63;
@@ -750,8 +750,9 @@ fn fit<T, +TryInto<i32, T>>(value: i32) -> T {
 
 #[generate_trait]
 pub impl SnapshotBuildImpl of SnapshotBuildTrait {
-    /// The production snapshot of a build and the passives it holds (design/19 §4, §7.2; design/20
-    /// §1.3, D-160): the checks of `BuildAssert` first, then the sums, each into its field.
+    /// The production snapshot of a build and the passives it holds (design/19 §4, §7.2;
+    /// design/20 §1.3, D-160): the checks of `BuildAssert` first, then the sums, each into its
+    /// field.
     /// - Max health: `100 + 20 (L − 1)` + equipment (rune identity), refused below 1 (DS-2); the
     ///   final maximum is `max_health`, `MemberKit.health_bonus` is freed and 0 (DS-3).
     /// - Max energy: the profession's + *Wellspring* (3 a primary rank, the Arcanist's) + light
@@ -792,7 +793,10 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         } else {
             0
         };
-        let energy = base_energy + wellspring + light_energy + HeldSums::total(held, id::MAX_ENERGY);
+        let energy = base_energy
+            + wellspring
+            + light_energy
+            + HeldSums::total(held, id::MAX_ENERGY);
         assert(energy >= 0, build_errors::MAX_ENERGY);
         let base_regen: i32 = ProfessionTrait::energy_regen(profession).into();
         let light_regen = if light {
@@ -866,7 +870,8 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                 pairs
                     .append(
                         QuickCast {
-                            attribute: index.try_into().unwrap(), every: fit((*h.passive.max).into()),
+                            attribute: index.try_into().unwrap(),
+                            every: fit((*h.passive.max).into()),
                         },
                     );
             }
@@ -895,9 +900,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         for h in held {
             conditions.append(*h.passive);
         }
-        let (condition, condition_duration) = MemberKitTrait::condition_duration(
-            conditions.span(),
-        );
+        let (condition, condition_duration) = MemberKitTrait::condition_duration(conditions.span());
         assert(*loadout.rating <= MAX_RATING, build_errors::RATING);
         let rating: i32 = (*loadout.rating).into();
         let d = |guard: u8, class: u8| -> i8 {

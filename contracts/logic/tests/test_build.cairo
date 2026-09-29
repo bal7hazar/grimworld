@@ -9,13 +9,9 @@ use grimworld_logic::models::caste::{CasteAssert, CasteRecord, CasteTrait, Weapo
 use grimworld_logic::models::index::{Caste, Skill};
 use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::models::skill::SkillTrait;
-use grimworld_logic::snapshot::{
-    HeldPassive, Loadout, MemberStats, SnapshotBuildTrait, pack_stats,
-};
+use grimworld_logic::snapshot::{HeldPassive, Loadout, MemberStats, SnapshotBuildTrait, pack_stats};
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
-use grimworld_logic::types::effect::{
-    Carrier, EntryAssert, EntryTrait, filter, kind, shape, target,
-};
+use grimworld_logic::types::effect::{Carrier, EntryAssert, EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, Source, id};
 use grimworld_logic::types::tick::CasteSheetTrait;
 
@@ -100,20 +96,25 @@ fn fits(p: Passive, source: Source) -> bool {
     p.allows(source) && PassiveTrait::fits_source(array![p].span(), source)
 }
 
-// §6 test 1: for each row of §1.3 under B, a source at its bound passes, a unit beyond is refused,
-// a source that may not hold the passive is refused, and a modifier's benefit and cost are summed.
+// §6 test 1: for each row of §1.3 under B, a source at its bound passes, a unit beyond is
+// refused, a source that may not hold the passive is refused, and a modifier's benefit and cost are
+// summed.
 #[test]
 #[available_gas(l2_gas: 1897833)] // ceil(1.05 × 1807460 measured)
 fn test_per_source_bounds() {
     // (id, param, source, lo, hi)
     let rows = array![
-        (id::MAX_HEALTH, 0, Source::Prefix, 0_i16, 30_i16), (id::MAX_HEALTH, 0, Source::Insignia, 0, 15),
-        (id::MAX_HEALTH, 0, Source::Rune, -75, 50), (id::MAX_HEALTH, 0, Source::SetBonus, -75, 50),
-        (id::MAX_ENERGY, 0, Source::Suffix, -5, 5), (id::MAX_ENERGY, 0, Source::SetBonus, -5, 5),
+        (id::MAX_HEALTH, 0, Source::Prefix, 0_i16, 30_i16),
+        (id::MAX_HEALTH, 0, Source::Insignia, 0, 15), (id::MAX_HEALTH, 0, Source::Rune, -75, 50),
+        (id::MAX_HEALTH, 0, Source::SetBonus, -75, 50), (id::MAX_ENERGY, 0, Source::Suffix, -5, 5),
+        (id::MAX_ENERGY, 0, Source::SetBonus, -5, 5),
         (id::ENERGY_REGEN, 0, Source::Inscription, -1, 0),
-        (id::ENERGY_REGEN, 0, Source::SetBonus, -1, 1), (id::HEALTH_REGEN, 0, Source::Prefix, -1, 0),
-        (id::HEALTH_REGEN, 0, Source::SetBonus, -1, 1), (id::ARMOR_VS, damage::FIRE, Source::Rune, 0, 7),
-        (id::ATTRIBUTE, PRIMARY, Source::Rune, 1, 3), (id::LIFE_STEAL_ON_HIT, 0, Source::Suffix, 0, 5),
+        (id::ENERGY_REGEN, 0, Source::SetBonus, -1, 1),
+        (id::HEALTH_REGEN, 0, Source::Prefix, -1, 0),
+        (id::HEALTH_REGEN, 0, Source::SetBonus, -1, 1),
+        (id::ARMOR_VS, damage::FIRE, Source::Rune, 0, 7),
+        (id::ATTRIBUTE, PRIMARY, Source::Rune, 1, 3),
+        (id::LIFE_STEAL_ON_HIT, 0, Source::Suffix, 0, 5),
         (id::ENERGY_ON_HIT, 0, Source::Prefix, 0, 1),
         (id::CONDITION_DURATION, condition::POISON, Source::Prefix, 0, 33),
         (id::ENCHANT_DURATION, 0, Source::Insignia, 0, 20),
@@ -208,13 +209,17 @@ fn test_extremal_max_energy_and_rank() {
 }
 
 // §6 test 2: weapon damage 32, a personalised maul at requirement (27 × 120 / 100, DS-4); the
-// strength is 5 × the weapon attribute's rank capped by level (DS-9): 50, and 40 under a cap of 40.
+// strength is 5 × the weapon attribute's rank capped by level (DS-9): 50, and 40 under a cap of
+// 40.
 #[test]
 #[available_gas(l2_gas: 611205)] // ceil(1.05 × 582100 measured)
 fn test_extremal_weapon() {
     let maul = Loadout {
-        weapon: weapon::MAUL, weapon_damage: 27, weapon_ticks: 2, personalised: true,
-        ..loadout(1, 20)
+        weapon: weapon::MAUL,
+        weapon_damage: 27,
+        weapon_ticks: 2,
+        personalised: true,
+        ..loadout(1, 20),
     };
     let snapshot = SnapshotBuildTrait::build(@maul, array![].span());
     assert(snapshot.stats.weapon_damage == 32, 'weapon damage 32');
@@ -358,14 +363,35 @@ fn test_instance_of_two_kinds_refused() {
 /// pips, weapon damage 255, flee 100, health regeneration 20.
 fn caste_at_bounds() -> Caste {
     CasteTrait::new(
-        6, 1, 1000, 20, 40, [0; 9], WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1), 85,
-        10, [1, 0, 0, 0], 15, 100, 0, false,
+        6,
+        1,
+        1000,
+        20,
+        40,
+        [0; 9],
+        WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1),
+        85,
+        10,
+        [1, 0, 0, 0],
+        15,
+        100,
+        0,
+        false,
     )
 }
 
 fn skill_of(adrenaline: u8) -> Skill {
     SkillTrait::new(
-        1, 1, skill_kind::ATTACK, 0, adrenaline, 1, 5, 1, target::FOE, false,
+        1,
+        1,
+        skill_kind::ATTACK,
+        0,
+        adrenaline,
+        1,
+        5,
+        1,
+        target::FOE,
+        false,
         [Default::default(); 3],
     )
 }
@@ -407,7 +433,7 @@ fn test_caste_energy_regen_refused() {
 #[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
 fn test_caste_weapon_damage_refused() {
     let caste = Caste {
-        weapon: WeaponTrait::new(weapon::MAUL, 256, damage::BLUNT, 2, 1), ..caste_at_bounds()
+        weapon: WeaponTrait::new(weapon::MAUL, 256, damage::BLUNT, 2, 1), ..caste_at_bounds(),
     };
     Record::<Caste>::pack(@caste);
 }

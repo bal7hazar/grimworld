@@ -97,10 +97,12 @@ pub mod errors {
 /// held by that source: `PassiveTrait::allows`). Initial content bounds; BAL-01 sets values under
 /// them. A free function: a constant table by passive and source, which a trait would not make
 /// clearer (docs/CAIRO.md §7).
-/// - Row 1, max health: held slots 0…+30, an insignia ≤ 15 (the chest's; the piece's own, 15 / 10
+/// - Row 1, max health: held slots 0…+30, an insignia ≤ 15 (the chest's; the piece's own, 15 /
+/// 10
 ///   / 5, needs the insignia record to name its piece: DS-23, CNT-01), a rune and a set bonus
 ///   −75…+50.
-/// - Rows 2–4: max energy −5…+5 (held, set bonus); energy regeneration and health regeneration
+/// - Rows 2–4: max energy −5…+5 (held, set bonus); energy regeneration and health
+/// regeneration
 ///   −1…0 on a held slot, −1…+1 on a set bonus.
 /// - Row 7: armor against a type 0…+7, any source. Row 8: an attribute +1…+3, runes only.
 /// - Rows 13, 14: life steal 0…+5, energy on hit 0…+1, held slots only.

@@ -528,8 +528,8 @@ fn test_load_store() {
 }
 
 // design/20 §6 test 9 (DES06-7, DS-29): step 3's pip sum at its extremes computes without
-// overflow and clamps to ±10: −10 (the field at 0), four −10 effects and the three conditions give
-// −64, 20 health lost; +10 and four +10 effects give +50, 20 health gained.
+// overflow and clamps to ±10: −10 (the field at 0), four −10 effects and the three conditions
+// give −64, 20 health lost; +10 and four +10 effects give +50, 20 health gained.
 #[test]
 #[available_gas(l2_gas: 10129063)] // ceil(1.05 × 9646726 measured)
 fn test_regeneration_extremes() {
