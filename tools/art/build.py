@@ -60,6 +60,8 @@ def bootstrap(version=sys.version_info, which=shutil.which):
     was made with another Python) and installing the pinned requirements."""
     other = select_python(version, which)
     if other:
+        print(f"Python {version[0]}.{version[1]}: re-executing under {other}", file=sys.stderr)
+        sys.stderr.flush()
         os.execv(other, [other, str(Path(__file__).resolve()), *sys.argv[1:]])
     py = VENV / "bin" / "python"
     if Path(sys.prefix).resolve() == VENV.resolve():
