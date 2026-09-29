@@ -90,3 +90,59 @@ for this reason (ADR-0006).
 4. No `u256` without its written reason.
 5. No computation at run time of what could be a table or a stored field.
 6. The gas table of the report matches a re-run.
+
+## 7. Organisation of the code (owner's rule, 2026-09-29, D-143)
+
+The layering is the one of the owner's Arcade packages (`cartridge-gg/arcade`,
+`packages/quest`), without Dojo. Starknet storage replaces Dojo's models; the semantics stay.
+
+### Layers
+
+| Folder or file | Holds |
+|---|---|
+| `models/` | One file per stored entity: its struct, its `...Impl of ...Trait` (constructor and behaviour), its `...Assert` impl, its `errors` module |
+| `models/index.cairo` | The structs of every model, together |
+| `events/` | One file per event, same shape; `events/index.cairo` holds the structs |
+| `types/` | Enums and value types that are not stored on their own (a task, a reward, a direction) |
+| `helpers/` | What belongs to no entity (packing primitives, bits, a seeder), still scoped in traits |
+| `store.cairo` | The only access to storage: `Store::get_x`, `Store::set_x` |
+| `component.cairo` or `systems/` | Entrypoints and access control, nothing else |
+| `elements/` (the game) | One file per content behaviour |
+
+### Functions are scoped
+
+| Do | Not |
+|---|---|
+| `#[generate_trait] pub impl DefinitionImpl of DefinitionTrait { fn new(...) -> Definition; fn is_active(self: @Definition, time: u64) -> bool; }`, called `DefinitionTrait::new(...)` and `definition.is_active(time)` | `pub fn definition_create(...)`, `pub fn definition_is_active(...)`, free functions in a file |
+| Checks in `impl DefinitionAssert of AssertTrait { fn assert_valid_id(...) }` | Checks inlined anywhere |
+| Short names, scoped by the trait: `Held::remove`, `Batch::merge` | `held_remove`, `batch_merge` |
+
+A free function remains only where no type owns it and a trait would add nothing (a
+constant table). An auditor reads a free function as a finding to justify.
+
+### Every stored entity is a model
+
+| | |
+|---|---|
+| A struct | Its keys and fields, named as the design names them |
+| Into its storage | `StorePacking<Model, Packed>` (or `starknet::Store` derived when packing saves nothing), so that the store reads and writes the struct, never raw felts |
+| Into its event | For a model the indexer tracks, a conversion `Into<@Model, ModelEvent>`, the event carrying the keys and the new values |
+| Tracked or not | A property of the model, known at compile time (a trait the model implements, or a constant), never a runtime lookup |
+
+### The store emits on write
+
+`Store::set_x` writes the model and, **if and only if the model is tracked**, emits its
+event, like a Dojo world does, without a world: no registry, no dispatch, no permission
+lookup at run time. A model that the indexer does not need is not tracked and emits
+nothing. The list of tracked models is part of the interface of the indexer (D-130).
+
+The exact mechanism (a generic trait of the store, a macro, or a convention written by
+hand), its cost against a hand-written write, and a reference implementation are
+settled by task ARC-06, shown to the owner on one model before the code is reworked.
+
+## 8. What an auditor checks (organisation lens)
+
+1. The layers of §7; nothing stored outside a model, nothing read or written outside the store.
+2. No free function without a written reason.
+3. Every tracked model emits on every write, and only tracked models emit.
+4. Names short and scoped; the design's words.
