@@ -24,7 +24,7 @@ const X_LOW = -160n;
 const X_HIGH = 80n;
 const SHIFT = 65536n;
 
-/** design/04 *Damage formula*; spikes/SPK-4/cairo/src/damage.cairo. */
+/** design/04 *Damage formula*; spikes/SPK-4/cairo/logic/src/damage.cairo. */
 export function damage(
   base: bigint,
   strength: bigint,
@@ -56,7 +56,7 @@ function axial(tile: bigint): [bigint, bigint] {
 
 const abs = (x: bigint): bigint => (x < 0n ? -x : x);
 
-/** Hex distance on the window; spikes/SPK-4/cairo/src/board.cairo. */
+/** Hex distance on the window; spikes/SPK-4/cairo/logic/src/board.cairo. */
 export function distance(a: bigint, b: bigint): bigint {
   const [qa, ra] = axial(a);
   const [qb, rb] = axial(b);
@@ -66,7 +66,7 @@ export function distance(a: bigint, b: bigint): bigint {
   return narrow(u8, d);
 }
 
-/** One goblin step; spikes/SPK-4/cairo/src/board.cairo. */
+/** One goblin step; spikes/SPK-4/cairo/logic/src/board.cairo. */
 export function goblinStep(
   walkable: bigint,
   occupied: bigint,
@@ -108,7 +108,7 @@ export function goblinStep(
   return [best, feltAdd(feltSub(occupied, 1n << goblin), 1n << best)];
 }
 
-/** One case, `[op, args...]`, decoded as spikes/SPK-4/cairo/src/exec.cairo does. */
+/** One case, `[op, args...]`, decoded as spikes/SPK-4/cairo/logic/src/exec.cairo does. */
 export function run(c: bigint[]): bigint[] {
   const op = c[0];
   if (op === 0n) {

@@ -1,6 +1,7 @@
 # Build outputs and scratch files of SPK-4: Scarb and cargo targets, the cairo-vm clone, the tools
 # installed by cargo, the WebAssembly packages, measurement scratch.
 target/
+.snfoundry_cache/
 out/
 vm/vendor/
 vm/tools/

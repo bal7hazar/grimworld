@@ -26,7 +26,9 @@ pub const X_HIGH: i32 = 80;
 /// # Panics
 /// * If `armor + bonus` overflows or `penetration` exceeds it (u16), if `base` times the factor
 ///   overflows a u32, if the result is negative or does not fit a u16
-pub fn damage(base: u16, strength: u16, armor: u16, bonus: u16, penetration: u16, modifier: i16) -> u16 {
+pub fn damage(
+    base: u16, strength: u16, armor: u16, bonus: u16, penetration: u16, modifier: i16,
+) -> u16 {
     let effective: u16 = armor + bonus - penetration;
     let x: i32 = strength.into() - effective.into();
     // [Compute] Clamp, then read the table: branch-free is not cheaper for two comparisons.

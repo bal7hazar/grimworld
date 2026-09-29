@@ -1,18 +1,20 @@
-[package]
-name = "spk4"
+# The logic under test of SPK-4, as a workspace so that scripts/gas_budgets.py can measure it
+# (--workspace spikes/SPK-4/cairo --budgets spikes/SPK-4/BUDGETS.md). The executables are in
+# ../exec: an executable target needs gas calculation disabled, and snforge needs it enabled.
+[workspace]
+members = ["logic"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024_07"
 cairo-version = "2.19"
 
-# The pure library and its tests. The executables are in ../exec: an executable target needs gas
-# calculation disabled, and snforge needs it enabled.
-
-[dev-dependencies]
+[workspace.dependencies]
 snforge_std = "0.61"
 assert_macros = "2.19"
 
-[scripts]
+[workspace.scripts]
 test = "snforge test"
 
-[tool.scarb]
+[workspace.tool.scarb]
 allow-prebuilt-plugins = ["snforge_std"]

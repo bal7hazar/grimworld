@@ -1,8 +1,8 @@
 //! One goblin step on the window of D-120: 15 columns × 16 rows of pointy-top hexes, origin on an
 //! even row, odd rows shifted right, tile `15 row + col`, one felt per layer with bit i for tile i
 //! (SPK-7's conventions). The goblin steps to its free neighbour nearest to the target, ties by
-//! lowest tile index (design/04 *Goblin AI*); it holds when no free neighbour is nearer than its own
-//! tile, or when it already stands next to the target. The distance is the hex distance: the
+//! lowest tile index (design/04 *Goblin AI*); it holds when no free neighbour is nearer than its
+//! own tile, or when it already stands next to the target. The distance is the hex distance: the
 //! shared flood of design/02 is out of this spike's scope.
 //!
 //! Layers are felts, read through a u256 view (docs/CAIRO.md §4, written reason: 240 tiles do not
@@ -95,7 +95,8 @@ pub fn goblin_step(walkable: felt252, occupied: felt252, goblin: u8, target: u8)
     let mut best = goblin;
     let mut best_d = here;
     // [Compute] The six neighbours, those inside the window: E, W on the row; the two above and
-    // the two below sit at columns (col − 1, col) on an even row and (col, col + 1) on an odd one.
+    // the two below sit at columns (col − 1, col) on an even row and (col, col + 1) on an odd
+    // one.
     if col + 1 < WIDTH {
         consider(goblin + 1, target, w, o, goblin, ref best, ref best_d);
     }

@@ -3,8 +3,8 @@
 //! A case is `[op, args...]`, its result a list of felts:
 //! * `op = 0`, damage: `[base, strength, armor, bonus, penetration, modifier]` → `[damage]`
 //! * `op = 1`, goblin step: `[walkable, occupied, goblin, target]` → `[tile, occupied]`
-//! An argument outside its type (a u16 above 65535, an i16 outside [−32768, 32767] as a felt) is a
-//! panic, as a transaction with that calldata would be.
+//! An argument outside its type (a u16 above 65535, an i16 outside [−32768, 32767] as a felt) is
+//! a panic, as a transaction with that calldata would be.
 
 use crate::board::goblin_step;
 use crate::damage::damage;

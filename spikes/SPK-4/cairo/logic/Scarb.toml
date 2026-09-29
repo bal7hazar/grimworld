@@ -1,0 +1,17 @@
+[package]
+name = "spk4"
+version.workspace = true
+edition.workspace = true
+cairo-version.workspace = true
+
+# The pure library (state in, state out, no storage) and its tests.
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[scripts]
+test.workspace = true
+
+[tool]
+scarb.workspace = true

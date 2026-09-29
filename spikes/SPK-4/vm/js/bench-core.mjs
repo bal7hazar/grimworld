@@ -47,6 +47,7 @@ export async function bench({ init, Runner, wasmBytes, stepJson, batchJson, vect
   let divergences = 0;
   let steps = 0;
   let maxSteps = 0;
+  const byOp = {};
   const shown = [];
   const outcomes = [];
   for (let i = 0; i < vectors.length; i++) {
@@ -62,8 +63,24 @@ export async function bench({ init, Runner, wasmBytes, stepJson, batchJson, vect
     }
     steps += o.steps;
     maxSteps = Math.max(maxSteps, o.steps);
+    if (o.ok && (v.case[0] === "0x0" || v.case[0] === "0x1")) {
+      const k = v.case[0] === "0x0" ? "damage" : "goblin_step";
+      const b = (byOp[k] ??= { n: 0, sum: 0, max: 0 });
+      b.n++;
+      b.sum += o.steps;
+      b.max = Math.max(b.max, o.steps);
+    }
   }
-  r.step = { vectors: vectors.length, divergences, shown, mean_steps: +(steps / vectors.length).toFixed(1), max_steps: maxSteps };
+  const stepsByOp = {};
+  for (const [k, b] of Object.entries(byOp)) stepsByOp[k] = { ok_runs: b.n, mean: +(b.sum / b.n).toFixed(1), max: b.max };
+  r.step = {
+    vectors: vectors.length,
+    divergences,
+    shown,
+    mean_steps: +(steps / vectors.length).toFixed(1),
+    max_steps: maxSteps,
+    steps_by_op: stepsByOp,
+  };
 
   // Timing: three passes, per-call times of the median pass.
   const passes = [];

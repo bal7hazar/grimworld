@@ -25,7 +25,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 P = 2**251 + 17 * 2**192 + 1
-MANIFEST = "spikes/SPK-4/exec/Scarb.toml"
+MANIFEST = "spikes/SPK-4/exec/Scarb.exec.toml"
 ARGS = os.path.join(HERE, "out", "batch-args.json")
 BATCH = 500
 U16 = [0, 1, 2, 39, 40, 41, 79, 80, 81, 159, 160, 161, 239, 240, 241, 255, 256, 1000, 32767, 32768, 65534, 65535]
