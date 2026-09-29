@@ -229,7 +229,7 @@ class Redacted:
         self.stream = stream
 
     def write(self, text):
-        return self.stream.write(re.sub(WORD, "<generated>", text, flags=re.IGNORECASE))
+        return self.stream.write(re.sub(WORD, "<redacted>", text, flags=re.IGNORECASE))
 
     def __getattr__(self, name):
         return getattr(self.stream, name)
@@ -411,6 +411,18 @@ def pixi_check():
     subprocess.run([*pnpm, "run", "check"], check=True)
 
 
+def feet_row(alpha):
+    """The row under the feet of a trimmed frame, read from its alpha channel: the rule of
+    `clean.register` (the lowest row at least 8 % of the width wide, solid = alpha >= 64), and its
+    fallback, the last row, when no row is wide enough. The Hex Shaman's last explosion frame
+    (28 x 46 px, a fading spark) needs the fallback."""
+    import numpy as np
+    solid = alpha >= 64
+    need = max(4, (8 * solid.shape[1] + 50) // 100)
+    rows = np.flatnonzero(solid.sum(axis=1) >= need)
+    return (int(rows.max()) if len(rows) else solid.shape[0] - 1) + 1
+
+
 def verify(pages, index, sprites, s):
     """Checks on what was written: pages within limits, frames inside pages, one cell size and
     one baseline per sprite, and every frame's pixels read back from the PNG."""
@@ -431,11 +443,8 @@ def verify(pages, index, sprites, s):
             crop = img[fr["y"]:fr["y"] + fr["h"], fr["x"]:fr["x"] + fr["w"]]
             assert crop[..., 3].any(), key
             # Same baseline, read back from the PNG: the feet row of the frame as placed in its cell.
-            solid = crop[..., 3] >= 64
-            need = max(4, (8 * fr["w"] + 50) // 100)            # as clean.register
-            rows = np.flatnonzero(solid.sum(axis=1) >= need)
-            feet = (rows.max() if len(rows) else solid.shape[0] - 1) + 1   # the same fallback
-            assert sr["y"] + feet == spec[name]["baseline"], f"{key}: baseline off"
+            assert sr["y"] + feet_row(crop[..., 3]) == spec[name]["baseline"], \
+                f"{key}: baseline off"
         for anim, keys in page["animations"].items():
             assert keys and all(k in page["frames"] for k in keys), anim
         # What PixiJS 8's Spritesheet.parse reads: frames, animations, meta.image/size/scale.

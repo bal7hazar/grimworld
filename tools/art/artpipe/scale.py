@@ -197,5 +197,3 @@ def check_order(heights, order, role, spec):
     errors = [m for names, m in found if any(spec[n] != NATIVE for n in names)]
     warnings = [m for names, m in found if all(spec[n] == NATIVE for n in names)]
     return errors, warnings
-
-

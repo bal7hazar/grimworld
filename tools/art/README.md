@@ -75,8 +75,9 @@ pixel fingerprint also differs on Linux, the cause is elsewhere. So the pipeline
   so the files can be byte-identical wherever Python's zlib is the same deflate (the `encoders:`
   line says which);
 - computes every pixel in integers: the registration on the feet, resampling by integer overlap
-  weights (int64 sums are exact in any order), thresholds as integer fractions. The float values left are Python scalars (the anchor written to the JSON), which are
-  IEEE double operations, the same on every machine.
+  weights (int64 sums are exact in any order), thresholds as integer fractions. The float values
+  left are Python scalars (the anchor written to the JSON), which are IEEE double operations, the
+  same on every machine.
 
 When the file fingerprint still differs, the pixel-and-metadata one is the reference.
 
@@ -120,12 +121,31 @@ placing the sprite at its tile position puts the feet on it. Frame rates and loo
    frames) within 2 px of its target; the order rule: no basic goblin (`[order] basic`) taller than
    the shortest profession, `[order] tallest` taller than every other sprite. Between native
    drawings the rule is only a **warning** the build prints (the pack keeps its own proportions and
-   the owner scales the sprites by eye in the sandbox: the runt, the Thief, and the skirmisher, the
-   Spear Goblin, stand taller than the cleric, the Monk); a failure that involves a resampled
-   sprite is an error. `[order]` and `[height]` name only sprites of the manifest, with at least one
+   the owner scales the sprites by eye in the sandbox); a failure that involves a resampled sprite
+   is an error. On the native heights below, the shortest profession is the cleric (67): the runt
+   (73) and the skirmisher (70) are taller than it, so the build prints two warnings; the slinger
+   (67) is not; the hobgoblin (209) is taller than every other sprite, so the boss rule holds. `[order]` and `[height]` name only sprites of the manifest, with at least one
    profession; pages ≤ 2048; frames inside pages, none overlapping; one cell size per sprite; the
    baseline of every frame read back from the written PNG; JSON references valid; and no trace of
    the manga's name in `tools/art` or `CREDITS.md`.
+
+## Native heights (a record)
+
+Measured on 2026-09-29 by `tools/art/build.py` (the `scale:` table it prints: visible height of the
+idle frames, feet to top of head, median with the range of the frames; rule in `artpipe/scale.py`).
+`tools/art/build.py --pack-heights` prints the same measure for every unit of the pack. Every sprite
+is native, so these are the pack's own drawings; they change only if the pack or a manifest line does.
+
+| Sprite | Source unit | Height (px) | Idle frames |
+|---|---|---|---|
+| runt | Thief | 73 | 72-76 |
+| skirmisher | Spear Goblin | 70 | 68-74 |
+| slinger | Torch Goblin | 67 | 66-68 |
+| shaman | Hex Shaman | 70 | 69-73 |
+| hobgoblin | Troll | 209 | 206-211 |
+| vanguard | Warrior, blue | 87 | 85-89 |
+| warden | Archer, blue | 88 | 86-89 |
+| cleric | Monk, blue | 67 | 66-68 |
 
 ## The manifest
 

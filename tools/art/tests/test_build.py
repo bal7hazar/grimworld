@@ -54,7 +54,7 @@ class CommandLine(unittest.TestCase):
         sink = io.StringIO()
         build.Redacted(sink).write("Enemy Pack/" + build.WORD.title() + "/x.png\n")
         self.assertNotIn(build.WORD, sink.getvalue().lower())
-        self.assertIn("<generated>", sink.getvalue())
+        self.assertIn("<redacted>", sink.getvalue())
 
 
 class PythonSelection(unittest.TestCase):
@@ -479,6 +479,74 @@ class Scale(unittest.TestCase):
         warnings = build.check_scale(sprites, order, specs)
         self.assertEqual(len(warnings), 1)
         self.assertIn("runt (73 px) is taller than the shortest profession", warnings[0])
+
+
+class RealManifest(unittest.TestCase):
+    """The committed manifest.toml itself (stdlib only): the owner's mapping of 2026-09-29."""
+
+    MAPPING = {                 # sprite: (root in the pack, animations it must hold)
+        "runt": ("Enemy Pack/Thief", {"idle", "move", "attack"}),
+        "skirmisher": ("Enemy Pack/Spear Goblin", {"idle", "move", "attack"}),
+        "slinger": ("Enemy Pack/Torch Goblin", {"idle", "move", "attack"}),
+        "shaman": ("Enemy Pack/Hex Shaman",
+                   {"idle", "move", "attack", "projectile", "explosion"}),
+        "hobgoblin": ("Enemy Pack/Troll", {"idle", "move", "attack", "windup", "recover"}),
+        "vanguard": ("Units/Blue Units/Warrior", {"idle", "move", "attack", "attack2", "guard"}),
+        "warden": ("Units/Blue Units/Archer", {"idle", "move", "attack"}),
+        "cleric": ("Units/Blue Units/Monk", {"idle", "move", "heal"}),
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        import tomllib
+        cls.manifest = tomllib.loads((HERE / "manifest.toml").read_text())
+
+    def test_exactly_the_eight_sprites_of_the_mapping(self):
+        sprites = {sp["name"]: sp for sp in self.manifest["sprite"]}
+        self.assertEqual(len(sprites), len(self.manifest["sprite"]))          # no duplicate
+        self.assertEqual(set(sprites), set(self.MAPPING))
+        for name, (root, anims) in self.MAPPING.items():
+            self.assertEqual(sprites[name]["root"], root, name)
+            self.assertEqual({a["name"] for a in sprites[name]["anim"]}, anims, name)
+
+    def test_every_sprite_is_a_native_strip_and_none_is_generated(self):
+        self.assertEqual(self.manifest["height"], dict.fromkeys(self.MAPPING, "native"))
+        for sp in self.manifest["sprite"]:
+            self.assertNotIn("kind", sp)                     # there is one kind of source: strips
+            for a in sp["anim"]:
+                self.assertTrue(a["file"].endswith(".png"), (sp["name"], a["name"]))
+                self.assertNotIn("row", a)                   # no sheet rows
+            self.assertNotIn("file", sp)                     # no sheet file of a sprite
+        self.assertFalse({"key_tolerance", "fringe_radius", "min_alpha", "min_component"}
+                         & set(self.manifest["settings"]))      # no keying settings left
+
+    def test_the_troll_telegraph_does_not_loop(self):
+        troll = next(sp for sp in self.manifest["sprite"] if sp["name"] == "hobgoblin")
+        anims = {a["name"]: a for a in troll["anim"]}
+        for name in ("windup", "recover", "attack"):
+            self.assertFalse(anims[name]["loop"], name)
+        self.assertEqual(anims["windup"]["file"], "Troll_Windup.png")
+        self.assertEqual(anims["recover"]["file"], "Troll_Recovery.png")
+
+    @unittest.skipIf(np is None, "needs the venv (NumPy)")
+    def test_the_manifest_is_sound(self):
+        self.assertEqual(scale.validate_manifest(self.manifest, build.METHODS), [])
+
+
+@unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
+class FeetRow(unittest.TestCase):
+    def test_the_lowest_wide_row(self):
+        alpha = np.zeros((20, 40), np.uint8)
+        alpha[2:15, 10:30] = 255                                # a body, 20 wide
+        alpha[15:19, 19:21] = 255                               # a thin tip: 2 px, not the feet
+        self.assertEqual(build.feet_row(alpha), 15)
+
+    def test_fallback_to_the_last_row_when_no_row_is_wide_enough(self):
+        # the Hex Shaman's last explosion frame: 28 x 46, no row of 4 px (8 % of 28, at least 4)
+        alpha = np.zeros((46, 28), np.uint8)
+        alpha[5:40, 12:14] = 255                                # a 2 px wide spark
+        self.assertFalse((alpha.astype(bool).sum(axis=1) >= 4).any())
+        self.assertEqual(build.feet_row(alpha), 46)             # the last row, plus one
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
