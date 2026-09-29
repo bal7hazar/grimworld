@@ -80,11 +80,20 @@ exits, nice 10, caffeinate's assertion), the environment against decoys (`STARKN
 the budget of 2 with a claude and a codex, two launchers racing for the last free slot, a label file
 holding another task's label, a job that never reports, resume, `wait`, `stop`, the refusals,
 `bash -n` and `shellcheck`, and finally that every job, file and lock it made is gone. It prints one
-`ok`/`FAIL` line per case and takes about 30 seconds (28 s measured on 2026-09-29).
+`ok`/`FAIL` line per case and takes about a minute (59 s measured on 2026-09-29).
 
 Its tasks are named `<run id>-<case>`, so every label of a run starts with
-`grimworld.cv.test.<run id>-`. A task is recorded before it is launched. The cleanup runs on EXIT,
-INT and TERM. It recovers every exact label from the run's own files (`logs/*.label` and the
-`logs/<label>.plist` the launcher wrote), never a label outside that prefix. It stops and boots out
-each job, checks that each label is gone, and only then removes the test home; if any label is
-still loaded, it keeps the home and says so.
+`grimworld.cv.test.<run id>-`. A task is recorded before it is launched, and a launcher started in the
+background (the race) has its exact pid recorded. The cleanup runs on EXIT, INT and TERM (and ignores
+a second signal while it runs):
+1. It stops the in-flight launchers by pid: SIGSTOP, their direct children listed by parent pid,
+   TERM and CONT. It waits for the launchers and for those children, so a `launchctl bootstrap` that
+   is under way ends before the next step.
+2. It recovers every exact label from the run's own files (`logs/*.label` and the
+   `logs/<label>.plist` the launcher wrote), never a label outside that prefix, and stops and boots
+   out each job.
+3. It checks that no label of the run is loaded, and only then removes the test home. If any label
+   is still loaded, it keeps the home and says so.
+
+A test runs this drain 0.1 to 3.5 s after starting two launchers, so that it catches them in every
+phase from the account check to a running job.

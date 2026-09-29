@@ -52,10 +52,43 @@ job_state() { # <label> -> running | not-running | absent
   if grep -qE $'^\tstate = running$' <<< "$out"; then echo running; else echo not-running; fi
 }
 job_pid() { launchctl print "$DOMAIN/$1" 2> /dev/null | sed -nE $'s/^\tpid = ([0-9]+)$/\\1/p' | head -1; }
-wait_for() { # <seconds> <condition…>
+# wait_for runs its condition again on every try: pass a command or a function, never a value
+# computed once by the caller (`test "$(…)" = x` would be evaluated before the first try).
+wait_for() { # <seconds> <condition command…>
   local n=$(($1 * 10)); shift
   while [ "$n" -gt 0 ]; do "$@" && return 0; sleep 0.1; n=$((n - 1)); done
   return 1
+}
+label_absent() { [ "$(job_state "$1")" = absent ]; }   # queries launchd on every call
+nothing_runs_for() { ! pgrep -f -- "$1" > /dev/null; }  # a read: no process names the task (<id>-…)
+pid_gone() { ! kill -0 "$1" 2> /dev/null; }
+
+# Launchers started in the background (the race, the drain test): their exact pids, so that a
+# cleanup can stop them before it scans the labels.
+inflight=()
+agent_bg() { # <output file> <launcher arguments…>: the launcher itself is the background process
+  local out=$1; shift
+  (exec env HOME="$run" STARKNET_PRIVATE_KEY=decoy ANTHROPIC_BASE_URL=decoy CLAUDE_CODE_OAUTH_TOKEN=decoy \
+    ATLANTIC_API_KEY=decoy GH_TOKEN=decoy "$A" "$@" > "$out" 2>&1) &
+  inflight+=("$!")
+}
+# Stop the in-flight launchers by their exact pids: each is frozen (SIGSTOP, so that it cannot start
+# a new command), its direct children are listed by parent pid (pgrep -P, never a name pattern),
+# then it gets TERM and CONT. The launchers are waited for, and so are the children they had (a
+# `launchctl bootstrap` under way ends before the labels are scanned, so no job can be loaded after
+# the scan). Children are waited for, not signalled.
+INFLIGHT_RC=""   # the exit statuses of the launchers stopped last (143: stopped by the TERM)
+stop_inflight() {
+  local p c rc kids=()
+  for p in "${inflight[@]}"; do
+    kill -STOP "$p" 2> /dev/null || continue
+    while read -r c; do [ -n "$c" ] && kids+=("$c"); done < <(pgrep -P "$p" 2> /dev/null)
+    kill -TERM "$p" 2> /dev/null; kill -CONT "$p" 2> /dev/null
+  done
+  INFLIGHT_RC=""
+  for p in "${inflight[@]}"; do rc=0; wait "$p" 2> /dev/null || rc=$?; INFLIGHT_RC="$INFLIGHT_RC $rc"; done
+  for c in "${kids[@]}"; do wait_for 30 pid_gone "$c"; done
+  inflight=()
 }
 
 # Every exact label this run may have created, recovered from its own files: the label files
@@ -83,24 +116,38 @@ stop_label() { # <label>
     if [ "$pgid" = "$pid" ]; then kill -TERM -- "-$pid" 2> /dev/null; else kill -TERM "$pid" 2> /dev/null; fi
   fi
   launchctl bootout "$DOMAIN/$l" 2> /dev/null
-  wait_for 5 test "$(job_state "$l")" = absent
+  wait_for 5 label_absent "$l"
 }
-cleaned=0 CLEAN_LEFT=""
-cleanup() {
-  [ "$cleaned" = 0 ] || return 0
-  cleaned=1
+# drain: nothing of this run stays loaded. First the in-flight launchers (above), then the tasks
+# (agent.sh stop), then every label recovered from the run's files; then a check, after a pause, of
+# the recovered labels and of launchd's list for this run's prefix (a check only: nothing is ever
+# done to a label that is not recovered from this run's files). Returns 1 and sets DRAIN_LEFT if any
+# is still loaded.
+DRAIN_LEFT=""
+drain() {
   local t l
+  stop_inflight
   rm -f "$run"/hold.* "$run/test-hang"
   for t in "${tasks[@]}"; do agent stop "$t" > /dev/null 2>&1; done
   for l in $(run_labels); do
     labels+=("$l")
-    [ "$(job_state "$l")" = absent ] || stop_label "$l"
+    label_absent "$l" || stop_label "$l"
   done
+  sleep 0.5
+  DRAIN_LEFT=""
+  for l in $(run_labels); do label_absent "$l" || DRAIN_LEFT="$DRAIN_LEFT $l"; done
+  l=$(launchctl list | awk '{ print $3 }' | grep -F "$PREFIX" || true)
+  [ -z "$l" ] || DRAIN_LEFT="$DRAIN_LEFT $(echo "$l" | tr '\n' ' ')"
+  [ -z "$DRAIN_LEFT" ]
+}
+cleaned=0
+cleanup() {
+  [ "$cleaned" = 0 ] || return 0
+  cleaned=1
+  trap '' INT TERM   # a second signal must not cut the cleanup short
   # The home is removed only when every label is verified gone; otherwise it is kept, and said.
-  CLEAN_LEFT=""
-  for l in $(run_labels); do [ "$(job_state "$l")" = absent ] || CLEAN_LEFT="$CLEAN_LEFT $l"; done
-  if [ -n "$CLEAN_LEFT" ]; then
-    echo "FAIL cleanup: still loaded:$CLEAN_LEFT; the test home $run is kept" >&2
+  if ! drain; then
+    echo "FAIL cleanup: still loaded:$DRAIN_LEFT; the test home $run is kept" >&2
     return 1
   fi
   [ ! -d "$run/orchestrator/slots" ] || chmod 755 "$run/orchestrator/slots"   # read-only by design
@@ -215,6 +262,22 @@ check "AC-4 dry run codex: header [GPT-6-Sol] … (audit)" bash -c 'grep -qF "# 
 agent --dry-run "$id-C4" codex gpt-6-sol new "audit" implement > /dev/null 2>&1
 check "AC-4 codex with another profile than audit is refused" test $? = 2
 
+# --- Audit 2, A3: task names starting with `test.`. Outside test mode (the user's real home, a dry
+# run: nothing is created, nothing is run) they are refused, so that no real label reads as a test
+# label; an ordinary name is accepted there. In test mode such a name is accepted.
+out=$("$A" --dry-run "test.$id-D5" claude opus new "hello" implement 2>&1); rc=$?
+checkx "A3 outside test mode, a task named test.<…> is refused (exit 2)" \
+  'test "$rc" = 2 && grep -qF "test.$id-D5" <<< "$out" && grep -qF "starts the labels of the tests only" <<< "$out"'
+out=$("$A" --dry-run "$id-D5" claude opus new "hello" implement 2>&1); rc=$?
+checkx "A3 outside test mode, an ordinary name is accepted, with a real label grimworld.cv.<task>.<hhmmss>" \
+  'test "$rc" = 0 && grep -qE "launchd job gui/[0-9]+/grimworld\.cv\.$id-D5\.[0-9]{6} " <<< "$out"'
+out=$(agent --dry-run "test.$id-D5" claude opus new "hello" implement 2>&1); rc=$?
+checkx "A3 in test mode, test.<…> is accepted, with a test label grimworld.cv.test.test.<task>.<hhmmss>" \
+  'test "$rc" = 0 && grep -qE "launchd job gui/[0-9]+/grimworld\.cv\.test\.test\.$id-D5\.[0-9]{6} " <<< "$out"'
+out=$(agent --dry-run "$id-D5" claude opus new "hello" implement 2>&1); rc=$?
+checkx "A3 in test mode, the run's own names (<id>-<case>) are accepted, with the prefix $PREFIX" \
+  'test "$rc" = 0 && grep -qE "launchd job gui/[0-9]+/${PREFIX//./\\.}D5\.[0-9]{6} " <<< "$out"'
+
 # --- AC-2, AC-3, AC-4, AC-8: a real launch of the claude stub.
 t=$id-T2
 touch "$run/hold.$t"
@@ -308,14 +371,16 @@ checkx "AC-5 codex ran -s read-only and its model was read" \
   'grep -qx read-only "$run/argv.$t5b" && test "$(agent model "$t5b")" = gpt-6-sol'
 
 # --- AC-5, the race: exactly one slot free (t5b holds the other), two launchers started together.
-# The two launchers run concurrently inside this one foreground command, and both are waited for.
+# The two launchers run concurrently inside this one foreground command, and both are waited for;
+# their pids are in `inflight` meanwhile, so that an interruption stops them before the cleanup scans.
 r1=$id-Ra r2=$id-Rb
 touch "$run/hold.$r1" "$run/hold.$r2"
 record "$r1"; record "$r2"
-agent --branch "cv/$r1" "$r1" claude opus new "race 1" implement > "$run/out.$r1" 2>&1 & p1=$!
-agent --branch "cv/$r2" "$r2" claude opus new "race 2" implement > "$run/out.$r2" 2>&1 & p2=$!
-wait "$p1"; x1=$?
-wait "$p2"; x2=$?
+agent_bg "$run/out.$r1" --branch "cv/$r1" "$r1" claude opus new "race 1" implement
+agent_bg "$run/out.$r2" --branch "cv/$r2" "$r2" claude opus new "race 2" implement
+wait "${inflight[0]}"; x1=$?
+wait "${inflight[1]}"; x2=$?
+inflight=()
 if [ "$x1" = 0 ]; then win=$r1 lose=$r2; else win=$r2 lose=$r1; fi
 check "AC-5 race: exactly one launcher took the free slot (exit 0), the other refused (exit 4) [$x1, $x2]" \
   test "$(printf '%s\n' "$x1" "$x2" | sort | tr '\n' ' ')" = "0 4 "
@@ -378,6 +443,29 @@ checkx "stop: the job is stopped, booted out, verified; its process is gone; its
   'test "$rc" = 0 && grep -q "(verified)" "$run/out" && test "$(job_state "$l9")" = absent && ! kill -0 "${p9:-0}" 2> /dev/null && test "$(agent slots | grep -c " free")" = 2'
 rm -f "$run/hold.$t9"
 
+# --- Audit 2, A1: an interruption while two launchers are in flight. Both slots are free; two
+# launchers start in the background and, after a delay that lands them in different phases (account
+# check, launch lock, worktree, bootstrap, wait for the slot), `drain` runs as the cleanup's first
+# step does. Nothing of this run may stay loaded, and no stub may keep running. The same drain is what
+# the INT and TERM traps run.
+for delay in 0.1 0.3 0.6 1.0 1.5 2.0 2.5 3.5; do
+  d=${delay/./}
+  i1=$id-I${d}a i2=$id-I${d}b
+  touch "$run/hold.$i1" "$run/hold.$i2"
+  record "$i1"; record "$i2"
+  agent_bg "$run/out.$i1" --branch "cv/$i1" "$i1" claude opus new "in flight 1" implement
+  agent_bg "$run/out.$i2" --branch "cv/$i2" "$i2" claude opus new "in flight 2" implement
+  sleep "$delay"
+  # shellcheck disable=SC2034 # read by checkx
+  inflight_before=${#inflight[@]}
+  drain; rc=$?
+  phase="launchers exit${INFLIGHT_RC}; labels written: $(cat "$L/$i1.label" "$L/$i2.label" 2> /dev/null | wc -l | tr -d ' ')"
+  checkx "A1(2) drain $delay s after starting two launchers ($phase): they are stopped first, nothing of the run is loaded" \
+    'test "$inflight_before" = 2 && test "$rc" = 0 && test "${#inflight[@]}" = 0'
+  checkx "A1(2) after that drain: no stub of $i1 or $i2 runs, both slots are free" \
+    'wait_for 5 nothing_runs_for "$i1" && wait_for 5 nothing_runs_for "$i2" && test "$(agent slots | grep -c " free")" = 2'
+done
+
 # --- AC-10: syntax and shellcheck.
 check "AC-10 bash -n" /opt/homebrew/bin/bash -n "$here/agent.sh" "$here/test.sh"
 check "AC-10 shellcheck scripts/mac/*.sh" /opt/homebrew/bin/shellcheck "$here"/*.sh
@@ -395,7 +483,7 @@ trap - EXIT INT TERM
 cleanup; rc=$?
 left=$(launchctl list | awk '{ print $3 }' | grep -F "$PREFIX" || true)
 gone=1; for l in "${labels[@]}"; do [ "$(job_state "$l")" = absent ] || gone=0; done
-check "AC-11 the cleanup verified every label gone (${#labels[@]} labels recovered from the run's files)" test "$rc" = 0 -a "$gone" = 1
+check "AC-11 the cleanup verified every label gone ($(printf '%s\n' "${labels[@]}" | sort -u | wc -l | tr -d ' ') labels recovered from the run's files)" test "$rc" = 0 -a "$gone" = 1
 check "AC-11 the unrecorded job was recovered and booted out" \
   bash -c 'printf "%s\n" "${@:2}" | grep -qxF "$1" && ! launchctl print "gui/$(id -u)/$1" > /dev/null 2>&1' _ "$lu" "${labels[@]}"
 check "AC-11 launchctl list holds no label of $PREFIX*" test -z "$left"
