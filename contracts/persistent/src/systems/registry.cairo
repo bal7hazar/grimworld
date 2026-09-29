@@ -1,12 +1,28 @@
 //! `Registry`: content as data (pillar 6, design/01 *Horizontal scaling*), read by every contract
 //! and by the client. One uniform store: a record of kind `k` is `parts(k)` felts under
 //! `(k, id, part)` (`grimworld_logic::content`). Written by the administrator role only (ADR-0007;
-//! who holds it is Q-08). ENG-01 freezes the interface and storage; ENG-03 writes the checks.
+//! who holds it is Q-08). ENG-01 froze the interface and storage; ENG-03 wrote the checks.
+//!
+//! A record that was never written reads as `parts(kind)` zeros: part 0 is 0, which is how every
+//! reader tells a missing record (a written record has `LIVE` in part 0).
 
 use starknet::{ClassHash, ContractAddress};
 
 pub const VERSION: felt252 = 'grimworld-registry-1';
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
+/// The revert of an administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
+pub const NOT_ADMIN: felt252 = 'not admin';
+/// `set_admin` to the zero address would leave the role to nobody.
+pub const ZERO_ADMIN: felt252 = 'admin is zero';
+/// `set_record`'s refusals (ENG-01 §3.5, §4.5).
+pub const PART_COUNT: felt252 = 'registry: part count';
+pub const NOT_LIVE: felt252 = 'registry: part 0 not live';
+pub const ZERO_ID: felt252 = 'registry: id zero';
+pub const NOT_NEXT: felt252 = 'registry: id not next';
+pub const NO_PARENT: felt252 = 'registry: no parent';
+pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
+/// `records` and `bundle` past their bound (ENG-01 §4.5).
+pub const TOO_MANY: felt252 = 'registry: too many records';
 
 #[starknet::interface]
 pub trait IRegistryAdmin<T> {
@@ -23,13 +39,33 @@ pub trait IRegistryAdmin<T> {
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
 
+/// Whether part 0 of a record has `LIVE` (bit 250) and nothing above it. `u256` only to split the
+/// felt into its limbs, the cheapest split on Cairo 2.19 (as `packing::split`).
+#[inline(always)]
+fn is_live(word: felt252) -> bool {
+    let wide: u256 = word.into();
+    let (live, _) = DivRem::div_rem(
+        wide.high, grimworld_logic::packing::LIVE_HIGH.try_into().unwrap(),
+    );
+    live == 1
+}
+
 #[starknet::contract]
 pub mod Registry {
+    use core::num::traits::Zero;
+    use grimworld_logic::content::{LOCATION, MAX_READ, OUTLINE, SHOP, is_sequential, parts};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::packing::Counter;
-    use starknet::storage::{Map, StoragePointerWriteAccess};
-    use starknet::{ClassHash, ContractAddress};
-    use super::{NOT_IMPLEMENTED, VERSION};
+    use grimworld_logic::world::{CHUNK_SET, INDEX_BOUND};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
+    use starknet::{ClassHash, ContractAddress, get_caller_address};
+    use super::{
+        NOT_ADMIN, NOT_IMPLEMENTED, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT,
+        TOO_MANY, VERSION, ZERO_ADMIN, ZERO_ID, is_live,
+    };
 
     #[storage]
     pub struct Storage {
@@ -50,17 +86,33 @@ pub mod Registry {
 
     #[abi(embed_v0)]
     impl RegistryReadImpl of IRegistryRead<ContractState> {
+        /// `parts(kind)` felts; zeros for a record never written.
         fn record(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let mut out: Array<felt252> = array![];
+            self.read_into(kind, id, parts(kind), ref out);
+            out.span()
         }
+        /// The records of `ids`, one after the other, `parts(kind)` felts each.
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(ids.len() <= MAX_READ, TOO_MANY);
+            let count = parts(kind);
+            let mut out: Array<felt252> = array![];
+            for id in ids {
+                self.read_into(kind, *id, count, ref out);
+            }
+            out.span()
         }
         fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, Span<felt252>) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(requests.len() <= MAX_READ, TOO_MANY);
+            let mut out: Array<felt252> = array![];
+            for request in requests {
+                let (kind, id) = *request;
+                self.read_into(kind, id, parts(kind), ref out);
+            }
+            (self.content_version.read(), out.span())
         }
         fn content_version(self: @ContractState) -> u32 {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            self.content_version.read()
         }
     }
 
@@ -69,17 +121,89 @@ pub mod Registry {
         fn version(self: @ContractState) -> felt252 {
             VERSION
         }
+        /// A change is told by comparing each part with the stored felt: only the parts that
+        /// differ are written, and the version is raised once if any did. A rewrite of the same
+        /// values writes nothing and leaves the version as it was.
         fn set_record(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.admin.read(), NOT_ADMIN);
+            let count = parts(kind);
+            assert(record.len() == count.into(), PART_COUNT);
+            assert(id != 0, ZERO_ID);
+            assert(is_live(*record.at(0)), NOT_LIVE);
+            if is_sequential(kind) {
+                let last = self.last_ids.read(kind).value;
+                let id_wide: u64 = id.into();
+                if id_wide == last + 1 {
+                    // A new id: none of its keys was ever written (ids are never reused, records
+                    // never zeroed), so there is nothing to read or compare.
+                    let mut part: u8 = 0;
+                    for felt in record {
+                        if *felt != 0 {
+                            self.records.write((kind, id, part), *felt);
+                        }
+                        part += 1;
+                    }
+                    self.last_ids.write(kind, Counter { value: id_wide });
+                    self.raise_version();
+                    return;
+                }
+                assert(id_wide <= last, NOT_NEXT);
+            } else if kind == OUTLINE {
+                let (location, chunk) = DivRem::div_rem(id, 256);
+                assert(chunk < INDEX_BOUND.into() || chunk == CHUNK_SET.into(), OUTLINE_CHUNK);
+                self.assert_exists(LOCATION, location);
+            } else if kind == SHOP {
+                self.assert_exists(LOCATION, id / 16);
+            }
+            // `TASK` and `QUEST` take quiver's ids: quiver's records are not in this contract, so
+            // nothing is checked beyond a non-zero id (ENG-03 report, escalation).
+            let mut changed = false;
+            let mut part: u8 = 0;
+            for felt in record {
+                let key = (kind, id, part);
+                if self.records.read(key) != *felt {
+                    self.records.write(key, *felt);
+                    changed = true;
+                }
+                part += 1;
+            }
+            if changed {
+                self.raise_version();
+            }
         }
         fn last_id(self: @ContractState, kind: u8) -> u32 {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            parts(kind);
+            self.last_ids.read(kind).value.try_into().unwrap()
         }
+        /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.admin.read(), NOT_ADMIN);
+            assert(admin.is_non_zero(), ZERO_ADMIN);
+            self.admin.write(admin);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+    }
+
+    #[generate_trait]
+    pub impl InternalImpl of InternalTrait {
+        /// Appends the `count` parts of `(kind, id)` to `out`.
+        #[inline(always)]
+        fn read_into(self: @ContractState, kind: u8, id: u32, count: u8, ref out: Array<felt252>) {
+            for part in 0..count {
+                out.append(self.records.read((kind, id, part)));
+            }
+        }
+        /// A record exists when its part 0 is not 0 (ENG-01 §3.5).
+        #[inline(always)]
+        fn assert_exists(self: @ContractState, kind: u8, id: u32) {
+            assert(self.records.read((kind, id, 0)) != 0, NO_PARENT);
+        }
+        /// The content version, raised by one (D-141): one read and one write of one slot.
+        #[inline(always)]
+        fn raise_version(ref self: ContractState) {
+            self.content_version.write(self.content_version.read() + 1);
         }
     }
 }
@@ -98,7 +222,7 @@ mod layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 57981)] // ceil(1.05 × 55220 measured)
+    #[available_gas(l2_gas: 58296)] // ceil(1.05 × 55520 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
         assert(
@@ -119,5 +243,57 @@ mod layout_tests {
             ) == selector!("content_version"),
             'content_version',
         );
+    }
+}
+
+/// The content version's own cost, apart from everything else (ENG-03, for ENG-06 and ENG-07):
+/// the same state, with and without the version's read, and with and without its raise. The cost
+/// is the difference between a probe and its baseline (see GAS.md).
+#[cfg(test)]
+mod version_cost_tests {
+    use snforge_std::{store, test_address};
+    use starknet::storage::StoragePointerReadAccess;
+    use super::Registry;
+    use super::Registry::InternalTrait;
+
+    #[test]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    fn test_version_cost_baseline() {
+        let state = Registry::contract_state_for_testing();
+        let _ = @state;
+    }
+
+    // `bundle`'s part of the version: one read of one slot.
+    #[test]
+    #[available_gas(l2_gas: 36383)] // ceil(1.05 × 34650 measured)
+    fn test_version_cost_read() {
+        let state = @Registry::contract_state_for_testing();
+        assert(state.content_version.read() == 0, 'version 0');
+    }
+
+    // `set_record`'s part, when the record changed: the read and the write of the raise.
+    #[test]
+    #[available_gas(l2_gas: 507066)] // ceil(1.05 × 482920 measured)
+    fn test_version_cost_raise() {
+        let mut state = Registry::contract_state_for_testing();
+        state.raise_version();
+    }
+
+    // The baseline of the next one: a version already written.
+    #[test]
+    #[available_gas(l2_gas: 444087)] // ceil(1.05 × 422940 measured)
+    fn test_version_cost_stored_baseline() {
+        let state = Registry::contract_state_for_testing();
+        store(test_address(), selector!("content_version"), array![7].span());
+        let _ = @state;
+    }
+
+    // Every raise after the first: the slot holds a version, the write overwrites it.
+    #[test]
+    #[available_gas(l2_gas: 514647)] // ceil(1.05 × 490140 measured)
+    fn test_version_cost_raise_again() {
+        let mut state = Registry::contract_state_for_testing();
+        store(test_address(), selector!("content_version"), array![7].span());
+        state.raise_version();
     }
 }

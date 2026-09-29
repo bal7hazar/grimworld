@@ -27,11 +27,7 @@ fn location_max() -> Location {
         sealed: true,
         entry_chunk: 224,
         entry_tile: 224,
-        set_pieces: Lanes16 {
-            lanes: [
-                0xFFFF, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0xFFFF,
-            ],
-        },
+        set_pieces: Lanes16 { lanes: [0xFFFF, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0xFFFF] },
     }
 }
 
@@ -71,7 +67,7 @@ fn gate_max() -> Gate {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 84987)] // ceil(1.05 × 80940 measured)
 fn test_region_round_trip() {
     let region = Region { town: 0xFFFF, book: 2, first_location: 0xFFFF, name: 'Fifteen letters' };
     assert(unpack_region(pack_region(region)) == region, 'round trip');
@@ -84,14 +80,14 @@ fn test_region_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 25694)] // ceil(1.05 × 24470 measured)
 #[should_panic(expected: 'region: name too long')]
 fn test_region_name_too_long() {
     pack_region(Region { town: 1, book: 0, first_location: 1, name: 'Sixteen letters!' });
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 754467)] // ceil(1.05 × 718540 measured)
 fn test_location_round_trip() {
     let top = location_max();
     let (a, b) = pack_location(top);
@@ -103,7 +99,7 @@ fn test_location_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 248157)] // ceil(1.05 × 236340 measured)
 fn test_location_bits() {
     let mut value = location_zero();
     value.kind = 1;
@@ -122,15 +118,15 @@ fn test_location_bits() {
     value.entry_chunk = 1;
     value.entry_tile = 1;
     let (a, _) = pack_location(value);
-    // type 0 · region 8 · biome 24 · level min 32 · level max 40 · rank 48 · width 56 · height 64
-    // · N 72 · floors 80 · next floor 88 · spawn table 104 · sealed 120 · entry chunk 128 · entry
-    // tile 136.
+    // type 0 · region 8 · biome 24 · level min 32 · level max 40 · rank 48 · width 56 ·
+    // height 64 · N 72 · floors 80 · next floor 88 · spawn table 104 · sealed 120 · entry
+    // chunk 128 · entry tile 136.
     let low: felt252 = 0x1000100010101010101010101000101;
     assert(a == low + TWO_128 + 0x100 * TWO_128 + LIVE, 'bits');
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'location: width')]
 fn test_location_width_refused() {
     let mut value = location_zero();
@@ -139,7 +135,7 @@ fn test_location_width_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'location: height')]
 fn test_location_height_refused() {
     let mut value = location_zero();
@@ -148,7 +144,7 @@ fn test_location_height_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'location: entry chunk')]
 fn test_location_entry_chunk_refused() {
     let mut value = location_zero();
@@ -157,7 +153,7 @@ fn test_location_entry_chunk_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'location: entry tile')]
 fn test_location_entry_tile_refused() {
     let mut value = location_zero();
@@ -166,7 +162,7 @@ fn test_location_entry_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 208950)] // ceil(1.05 × 199000 measured)
 fn test_gate_round_trip() {
     let top = gate_max();
     assert(unpack_gate(pack_gate(top)) == top, 'round trip');
@@ -182,7 +178,8 @@ fn test_gate_round_trip() {
         quest: 0,
     };
     assert(unpack_gate(pack_gate(gate)) == gate, 'a floor gate');
-    // source 0 · destination 16 · anchor chunk 32, tile 40 · entry chunk 48, tile 56 · kind 64 ·
+    // source 0 · destination 16 · anchor chunk 32, tile 40 · entry chunk 48, tile 56 · kind 64
+    // ·
     // rank 72 · quest 80; nothing in the high limb.
     let one = pack_gate(
         Gate {
@@ -202,7 +199,7 @@ fn test_gate_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'gate: anchor chunk')]
 fn test_gate_anchor_chunk_refused() {
     let mut gate = gate_max();
@@ -211,7 +208,7 @@ fn test_gate_anchor_chunk_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'gate: anchor tile')]
 fn test_gate_anchor_tile_refused() {
     let mut gate = gate_max();
@@ -220,7 +217,7 @@ fn test_gate_anchor_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'gate: entry chunk')]
 fn test_gate_entry_chunk_refused() {
     let mut gate = gate_max();
@@ -229,7 +226,7 @@ fn test_gate_entry_chunk_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'gate: entry tile')]
 fn test_gate_entry_tile_refused() {
     let mut gate = gate_max();
@@ -238,7 +235,7 @@ fn test_gate_entry_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 23457)] // ceil(1.05 × 22340 measured)
 fn test_outline_round_trip() {
     // All 225 bits set: 128 in the low limb, 97 in the high one.
     let full = Outline {
@@ -256,7 +253,7 @@ fn test_outline_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 #[should_panic(expected: 'outline: above bit 224')]
 fn test_outline_above_bit_224_refused() {
     pack_outline(Outline { low: 0, high: 0x2000000000000000000000000 });

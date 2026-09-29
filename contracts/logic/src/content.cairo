@@ -60,6 +60,10 @@ pub fn is_sequential(kind: u8) -> bool {
     kind != OUTLINE && kind != SHOP && kind != TASK && kind != QUEST
 }
 
+/// Records one `records` or `bundle` call returns at most (ENG-01 §4.5): at most 3 parts each, so
+/// a call reads at most 96 records' slots and, for `bundle`, the content version.
+pub const MAX_READ: u32 = 32;
+
 pub fn parts(kind: u8) -> u8 {
     assert(kind != 0 && kind <= LAST_KIND, 'registry: unknown kind');
     *PARTS.span()[kind.into()]

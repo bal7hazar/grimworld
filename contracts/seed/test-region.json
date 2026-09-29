@@ -1,0 +1,43 @@
+{
+  "region_fields": ["id", "town", "book", "first_location", "name"],
+  "regions": [
+    1, 1, 0, 1, "Test Region"
+  ],
+
+  "location_fields": [
+    "id", "kind", "region", "biome", "level_min", "level_max", "rank", "width", "height",
+    "target", "floors", "next_floor", "spawn_table", "sealed", "entry_chunk", "entry_tile",
+    "set_piece_1", "set_piece_2", "set_piece_3", "set_piece_4", "set_piece_5",
+    "set_piece_6", "set_piece_7", "set_piece_8", "set_piece_9", "set_piece_10",
+    "set_piece_11", "set_piece_12", "set_piece_13", "set_piece_14", "set_piece_15"
+  ],
+  "locations": [
+    1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    2, 3, 1, 1, 1, 3, 0, 3, 2, 0, 0, 0, 0, 0, 0, 105,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    3, 4, 1, 3, 3, 5, 0, 15, 15, 6, 2, 4, 0, 0, 112, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    4, 4, 1, 3, 3, 5, 0, 15, 15, 8, 2, 0, 0, 0, 112, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  ],
+
+  "outline_fields": [
+    "location", "chunk",
+    "row_0", "row_1", "row_2", "row_3", "row_4", "row_5", "row_6", "row_7",
+    "row_8", "row_9", "row_10", "row_11", "row_12", "row_13", "row_14"
+  ],
+  "outlines": [
+    2, 255, 7, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    2, 2, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095,
+    2, 16, 32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767, 1023, 1023, 1023, 1023, 1023
+  ],
+
+  "gate_fields": [
+    "id", "source", "destination", "anchor_chunk", "anchor_tile", "entry_chunk", "entry_tile",
+    "kind", "rank", "quest"
+  ],
+  "gates": [
+    1, 1, 2, 0, 0, 0, 105, 1, 0, 0,
+    2, 2, 1, 0, 105, 0, 0, 1, 0, 0,
+    3, 2, 3, 16, 110, 112, 112, 2, 0, 0,
+    4, 3, 2, 112, 112, 16, 110, 2, 0, 0,
+    5, 3, 4, 0, 0, 112, 112, 3, 0, 0
+  ]
+}

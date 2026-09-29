@@ -9,7 +9,8 @@
 //!   the bar's skills, a pack's template);
 //! - a quest is quiver's id, a `u32` (the registry's id space);
 //! - a level, a rank, a count of floors or chunks is a `u8`;
-//! - a location is at most 15 × 15 chunks (ENG-01 §3.2): its width and height are 1 to 15, a chunk
+//! - a location is at most 15 × 15 chunks (ENG-01 §3.2): its width and height are 1 to 15, a
+//! chunk
 //!   index `15 cy + cx` and a tile index in a chunk `15 row + column` are below 225.
 
 use crate::packing::{
@@ -57,8 +58,8 @@ fn index_fits(value: u8, message: felt252) {
 }
 
 /// `REGION`, 1 part (design/01 *Horizontal scaling*).
-/// town 0–15 · book 16–31 · first location 32–47 · name 128–247 (a short string of at most 15
-/// characters) · `LIVE`.
+/// town 0–15 · book 16–31 · first location 32–47 · name 128–247 (a short string of at
+/// most 15 characters) · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Region {
     /// The region's town, a `LOCATION` of type `TOWN`.
@@ -92,10 +93,10 @@ pub fn unpack_region(word: felt252) -> Region {
 }
 
 /// `LOCATION`, 2 parts (design/01, design/17, design/18, ADR-0006).
-/// Part 0: type 0–7 · region 8–23 · biome 24–31 · level min 32–39 · level max 40–47 · rank
-/// required 48–55 · width 56–63 · height 64–71 (chunks, 1–15) · `N` 72–79 · floors 80–87 · next
-/// floor 88–103 · spawn table 104–119 · sealed 120–127 · entry chunk 128–135 · entry tile 136–143
-/// · `LIVE`.
+/// Part 0: type 0–7 · region 8–23 · biome 24–31 · level min 32–39 · level max 40–47
+/// · rank required 48–55 · width 56–63 · height 64–71 (chunks, 1–15) · `N` 72–79 ·
+/// floors 80–87 · next floor 88–103 · spawn table 104–119 · sealed 120–127 · entry
+/// chunk 128–135 · entry tile 136–143 · `LIVE`.
 /// Part 1: the set pieces, up to 15 `SET_PIECE` ids (`Lanes16`, 0 for none) · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Location {
@@ -195,8 +196,9 @@ pub fn unpack_location(part0: felt252, part1: felt252) -> Location {
 }
 
 /// `GATE`, 1 part (design/01 *Connectivity*, ADR-0006: a gate is an anchor on the outline).
-/// source 0–15 · destination 16–31 · source anchor chunk 32–39, tile 40–47 · destination entry
-/// chunk 48–55, tile 56–63 · kind 64–71 · rank required 72–79 · quest required 80–111 · `LIVE`.
+/// source 0–15 · destination 16–31 · source anchor chunk 32–39, tile 40–47 · destination
+/// entry chunk 48–55, tile 56–63 · kind 64–71 · rank required 72–79 · quest required
+/// 80–111 · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Gate {
     pub source: u16,
