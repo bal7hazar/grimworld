@@ -118,20 +118,23 @@ impl FixtureImpl of Fixture {
         PassiveTrait::new(0xFF, 0xFF, 7, 3, -32768, 32767)
     }
 
+    /// Every field at its widest that packs: the layout's width, or design/20's bound where
+    /// `assert_valid` checks one (DS-18: health 1,000 %, energy regeneration 10, weapon damage
+    /// 255, flee 100; DS-29: health regeneration 20).
     fn caste_max() -> Caste {
         CasteTrait::new(
             0xFF,
             0xFF,
-            0xFFFF,
-            0xFF,
+            1000,
+            20,
             0xFF,
             [63, 1, 2, 3, 4, 5, 6, 7, 63],
-            WeaponTrait::new(15, 0xFFFF, 15, 15, 15),
+            WeaponTrait::new(15, 255, 15, 15, 15),
             85,
-            0xFF,
+            10,
             [0xFFFF, 2, 3, 0xFFFF],
             15,
-            0xFF,
+            100,
             0xFFFF,
             true,
         )
@@ -704,7 +707,8 @@ fn test_item_entry_not_a_potion_refused() {
 
 // §4, §7.2: `MODIFIER`, 1 part: slot type low, benefit and cost high.
 #[test]
-#[available_gas(l2_gas: 300458)] // ceil(1.05 × 286150 measured)
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5) and the caste's DS-18 and DS-29 bounds
+#[available_gas(l2_gas: 340631)] // ceil(1.05 × 324410 measured)
 fn test_modifier_round_trip() {
     let top = ModifierTrait::new(0xFF, Fixture::passive_max(), Fixture::passive_max());
     let packed = top.pack();
@@ -742,7 +746,8 @@ fn test_modifier_slot_refused() {
 
 // §7.2: `ARMOR_SET`, 1 part: 5 piece bases low, 2 bonuses high.
 #[test]
-#[available_gas(l2_gas: 233678)] // ceil(1.05 × 222550 measured)
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5) and the caste's DS-18 and DS-29 bounds
+#[available_gas(l2_gas: 264506)] // ceil(1.05 × 251910 measured)
 fn test_armor_set_round_trip() {
     let top = ArmorSetTrait::new(
         [0xFFFF, 2, 3, 4, 0xFFFF], [Fixture::passive_max(), Fixture::passive_max()],

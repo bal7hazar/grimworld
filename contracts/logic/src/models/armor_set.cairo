@@ -23,11 +23,14 @@ pub impl ArmorSetAssert of ArmorSetAssertTrait {
     /// The content pipeline's checks: both bonuses legal and allowed on a set bonus
     /// (`PassiveTrait::allows`, design/19 §7.2). Two bonuses of one statistic are two of the
     /// "2 set bonuses" §7.2 counts; a `KNOCKDOWN_FLAT` sum is capped at 3 at use (ENG-01 §3.1),
-    /// so the snapshot's 2 bits hold it saturated.
+    /// so the snapshot's 2 bits hold it saturated. Each bonus, one source, within design/20's
+    /// per-source bounds (DS-1).
     fn assert_legal(self: @ArmorSet) {
         let [first, second] = *self.bonuses;
         first.assert_source(Source::SetBonus);
         second.assert_source(Source::SetBonus);
+        PassiveAssert::assert_source_bounds(array![first].span(), Source::SetBonus);
+        PassiveAssert::assert_source_bounds(array![second].span(), Source::SetBonus);
     }
 }
 

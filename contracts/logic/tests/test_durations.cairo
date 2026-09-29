@@ -18,6 +18,8 @@ fn test_effective_duration_maximum() {
     assert(effective_duration(MAX_BASE_DURATION, 500, 90) == MAX_DURATION, 'bonuses clamped');
     assert(effective_duration(20, 33, 0) == 26, 'rending +33 %');
     assert(effective_duration(2, 0, 1) == 3, 'set bonus +1 tick');
+    // design/20 §6 test 10: a duration carried as a value, at its widest, gives 49,153.
+    assert(effective_duration(32767, 50, 3) == 49153, 'value duration widest');
     // The last clock an action may start at, plus its ticks and the longest duration, is the cap.
     assert(LAST_TICK + MAX_WEIGHT_TICKS + MAX_DURATION == MAX_CLOCK, 'LAST_TICK');
 }

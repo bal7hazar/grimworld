@@ -282,7 +282,8 @@ fn test_damage_percent_as_benefit_and_cost_refused() {
 
 // CBT-2: the sources design/19 allows are accepted.
 #[test]
-#[available_gas(l2_gas: 1239231)] // ceil(1.05 × 1180220 measured)
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5) and the caste's DS-18 and DS-29 bounds
+#[available_gas(l2_gas: 1523907)] // ceil(1.05 × 1451340 measured)
 fn test_sources_accepted() {
     Fixture::on(slot::PREFIX, Fixture::damage());
     Fixture::on(slot::SUFFIX, Fixture::damage());
@@ -297,10 +298,9 @@ fn test_sources_accepted() {
     // "+15 % damage, −5 energy" (design/15): a counted benefit with an uncounted cost.
     let energy = Fixture::passive(id::MAX_ENERGY, 0, -5);
     ModifierTrait::new(slot::INSCRIPTION, Fixture::damage(), energy).assert_legal();
-    // Hob-breaker: the stance insignia's armor as a bonus, knock-down 1 + 2 = 3 ticks.
+    // Hob-breaker: the stance insignia's armor as a bonus, knock-down +1 a bonus (DS-5: ≤ 1).
     let one = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 1);
-    let two = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 2);
-    ArmorSetTrait::new([1, 2, 3, 4, 5], [one, two]).assert_legal();
+    ArmorSetTrait::new([1, 2, 3, 4, 5], [one, one]).assert_legal();
     ArmorSetTrait::new([1, 2, 3, 4, 5], [Fixture::damage(), Fixture::stance_armor()])
         .assert_legal();
 }

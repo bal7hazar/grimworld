@@ -139,6 +139,7 @@ pub mod errors {
     pub const TWO_HITS: felt252 = 'carrier: two hits';
     pub const HIT_NOT_FIRST: felt252 = 'carrier: damage not first';
     pub const TWO_HOLDING: felt252 = 'carrier: two holding entries';
+    pub const TWO_ATTACK_BONUSES: felt252 = 'carrier: two attack bonuses';
     pub const MODIFIER_NO_HIT: felt252 = 'carrier: modifier without hit';
     pub const MODIFIER_SET: felt252 = 'carrier: modifier set';
     pub const ATTACK_BONUS: felt252 = 'carrier: attack bonus';
@@ -449,6 +450,7 @@ pub impl EntryAssert of EntryAssertTrait {
         let mut hit: Option<Entry> = Option::None;
         let mut holding = false;
         let mut modifier = false;
+        let mut bonus = false;
         let mut trap = false;
         let mut index: u32 = 0;
         for entry in entries {
@@ -494,6 +496,9 @@ pub impl EntryAssert of EntryAssertTrait {
                 }
                 if k == kind::ATTACK_BONUS {
                     assert(carrier == Carrier::Attack, errors::ATTACK_BONUS);
+                    // DS-20 (design/20 §1.6, D-160): at most one a carrier.
+                    assert(!bonus, errors::TWO_ATTACK_BONUSES);
+                    bonus = true;
                 }
                 if entry.is_hit_modifier() {
                     // An attack's implicit hit is on the attacked foe: its modifiers take it

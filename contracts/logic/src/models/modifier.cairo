@@ -70,7 +70,8 @@ pub impl ModifierAssert of ModifierAssertTrait {
     /// cost or none, each legal and allowed on that slot type (`PassiveTrait::allows`,
     /// design/19 §7.2), the cost included; one slot being one source, together they add to each
     /// sum §7.2 bounds by counting sources no more than one passive may
-    /// (`PassiveAssert::assert_contributions`, per guard and hit class), and they do not name two
+    /// (`PassiveAssert::assert_contributions`, per guard and hit class), within design/20's
+    /// per-source bounds (`PassiveAssert::assert_source_bounds`, DS-1), and they do not name two
     /// things a single-valued field cannot keep (`PassiveTrait::conflicts`).
     fn assert_legal(self: @Modifier) {
         self.assert_slot();
@@ -80,7 +81,9 @@ pub impl ModifierAssert of ModifierAssertTrait {
         self.cost.assert_source(source);
         self.cost.assert_fixed();
         assert(!self.benefit.conflicts(self.cost), errors::TWICE);
-        PassiveAssert::assert_contributions(array![*self.benefit, *self.cost].span());
+        let passives = array![*self.benefit, *self.cost].span();
+        PassiveAssert::assert_contributions(passives);
+        PassiveAssert::assert_source_bounds(passives, source);
     }
 
     /// The content pipeline's checks across every `MODIFIER` of the content, each legal: "the

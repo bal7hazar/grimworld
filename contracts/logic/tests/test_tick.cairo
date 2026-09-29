@@ -527,6 +527,30 @@ fn test_load_store() {
     assert(activation_of(@back) == (2, 8, 72) && back.recharge(3) == 500, 'goblin timers');
 }
 
+// design/20 §6 test 9 (DES06-7, DS-29): step 3's pip sum at its extremes computes without
+// overflow and clamps to ±10: −10 (the field at 0), four −10 effects and the three conditions give
+// −64, 20 health lost; +10 and four +10 effects give +50, 20 health gained.
+#[test]
+#[available_gas(l2_gas: 10129063)] // ceil(1.05 × 9646726 measured)
+fn test_regeneration_extremes() {
+    let mut spec = Fixture::spec();
+    spec.health_regen = -10;
+    spec.effect_regen = [-10; 4];
+    spec.effects = [(1, false, 99, 0); 4];
+    spec.conditions = [99, 99, 99, 0];
+    let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
+    run(ref world, 1);
+    assert(*world.members.at(0).health == 380, '-64 pips: -20');
+    let mut spec = Fixture::spec();
+    spec.health = 300;
+    spec.health_regen = 10;
+    spec.effect_regen = [10; 4];
+    spec.effects = [(1, false, 99, 0); 4];
+    let mut world = Fixture::world(0, array![Fixture::member(spec)], array![]);
+    run(ref world, 1);
+    assert(*world.members.at(0).health == 320, '+50 pips: +20');
+}
+
 // A goblin's derived fields: max health from the adventurer's formula times its caste's
 // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank.
 #[test]
@@ -883,7 +907,7 @@ fn test_cost_library_call_batch_representative() {
 #[available_gas(l2_gas: 7893816)] // ceil(1.05 × 7517920 measured)
 fn test_cost_library_baseline_representative() {
     let _class = declare("TickLibrary").unwrap().contract_class();
-    let (world, content) = representative();
+    let (world, _content) = representative();
     let words = world.store();
     assert(words.clock == 49, 'declared');
 }
