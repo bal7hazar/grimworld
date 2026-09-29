@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-09-29 09:10 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 10:05 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -8,14 +8,17 @@ are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03,
 FND-04, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, SPK-4, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21, DOC-01,
-ENG-01, FND-05, ENG-01b. Phase 1: **ENG-04** done; **ENG-03** (registries) in its audit. Next:
-ENG-02 (helpers; line of sight waits for the map library), IDX-01 (the indexer, on the frozen
-events), ENG-06 after ENG-03. D-143 (the organisation of Cairo code) binds every task from now.
+ENG-01, FND-05, ENG-01b. Phase 1: **ENG-04, ENG-03, ENG-02a** done. Next: ENG-06 (instance
+lifecycle, on ENG-03 and ENG-04), then ENG-05 and ENG-07; ENG-02's line of sight waits for the map
+library; IDX-01 waits for ARC-06's tracked models (D-143). The app account's quota is saved until
+2026-09-30 14:00 UTC: launches continue, the session checks in only on completions.
 
 ## What moved
 
 | | |
 |---|---|
+| **ENG-03** | [#106](https://github.com/bal7hazar/grimworld/pull/106) merged: the registry, the content version, a test region; D-145 |
+| **ENG-02a** | [#113](https://github.com/bal7hazar/grimworld/pull/113) merged: the `2^(x/40)` table for the contracts and the client |
 | **ENG-04** | [#100](https://github.com/bal7hazar/grimworld/pull/100) merged: accounts and adventurers on `Hub`, the ownership check; targets accepted as measured (D-144); scoped under D-143 |
 | **ENG-01b** | [#93](https://github.com/bal7hazar/grimworld/pull/93) merged: every branch accounted (at most 70 slots a batch; the capped batch 48.54M in a fresh slot, above 40M until ENG-07 measures a tick in a batch); the content version frozen on `play`, `open`, `mine`, `barter` |
 | **FND-05** | [#92](https://github.com/bal7hazar/grimworld/pull/92) merged: `derive` and one Fate domain per use, the admin setters, the client's burner account behind `AccountProvider`; its funder bound to the local node. PASS WITH FINDINGS after two fix loops |
@@ -28,13 +31,13 @@ events), ENG-06 after ENG-03. D-143 (the organisation of Cairo code) binds every
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| AUD-106, audit of ENG-03 (registries) | `gpt-6-astra` | running |
+| — | | none running |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-1. ENG-03: audit, merge; its escalations (quiver's ids, `bundle`'s per-slot cost, `set_record`'s computation, how an instance finds a location's quotas) to the project manager.
+1. ENG-06: brief and launch (enter with the snapshot, resume, return, close, the entry draw, `Instances.set_controller`, the start hub from the registry, D-144 and D-145's conditions).
 2. A brief for the burner's funder on a public network (a service of the game behind the `Funder` port; FND-05's escalation), before any play on Sepolia.
 3. ENG-02 (helpers, D-140's table), ENG-03 (registries, the content version measured), ENG-04.
 
