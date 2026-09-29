@@ -10,6 +10,10 @@ use starknet::{ClassHash, ContractAddress};
 pub const VERSION: felt252 = 'grimworld-instances-1';
 /// The revert of every entrypoint not written yet.
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
+/// The revert of an administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
+pub const NOT_ADMIN: felt252 = 'not admin';
+/// `set_admin` to the zero address would leave the role to nobody.
+pub const ZERO_ADMIN: felt252 = 'admin is zero';
 
 /// A goblin as stored, or as derived from its chunk when it has no record (`derived`).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -116,12 +120,13 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
+    use core::num::traits::Zero;
     use grimworld_logic::interface::IInstanceEntry;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
     use grimworld_logic::types::InstanceId;
-    use starknet::storage::{Map, StoragePointerWriteAccess};
-    use starknet::{ClassHash, ContractAddress};
+    use starknet::storage::{Map, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::events::{
         BatchPlayed, ChunkRevealed, Defeated, GoblinKilled, InstanceClosed, InstanceEntered,
         Refused,
@@ -305,11 +310,17 @@ pub mod Instances {
             registry: ContractAddress,
             fate: ContractAddress,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
+            self.hub.write(hub);
+            self.registry.write(registry);
+            self.fate.write(fate);
         }
 
+        /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
+            assert(admin.is_non_zero(), super::ZERO_ADMIN);
+            self.admin.write(admin);
         }
 
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
