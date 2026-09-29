@@ -20,15 +20,16 @@ use snforge_std::{
 };
 
 #[test]
-// gas: raised, it calls the stub `set_build` now that `register` is implemented (ENG-04)
-#[available_gas(l2_gas: 4201817)] // ceil(1.05 × 4001730 measured)
+// gas: raised, it calls a stub (`buy_skill` since CBT-08a) now that `register` is implemented (ENG-04)
+#[available_gas(l2_gas: 4201397)] // ceil(1.05 × 4001330 measured)
 fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
     let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
     assert(IHubAdminDispatcher { contract_address: address }.version() == HUB_VERSION, 'version');
+    // `set_build` is implemented since CBT-08a; `buy_skill` is still a stub.
     #[feature("safe_dispatcher")]
-    let set = IHubSafeDispatcher { contract_address: address }.set_build(1, 0, 0, 0);
-    assert(*set.unwrap_err().at(0) == NOT_IMPLEMENTED, 'set_build is a stub');
+    let bought = IHubSafeDispatcher { contract_address: address }.buy_skill(1, 1);
+    assert(*bought.unwrap_err().at(0) == NOT_IMPLEMENTED, 'buy_skill is a stub');
 }
 
 #[test]
