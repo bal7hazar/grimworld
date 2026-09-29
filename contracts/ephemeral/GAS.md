@@ -6,6 +6,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
+| `systems::instances::close_tests::test_close_on_defeat` | 4799530 | 5039507 | 5.00 % | 0 | 928 | 2026-09-29 | 8e10cda |
 | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
 | `test_admin::test_instances_set_admin_hands_over` | 3474760 | 3648498 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
 | `test_admin::test_instances_set_admin_refused` | 2999520 | 3149496 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
@@ -13,7 +14,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_admin::test_instances_set_contracts_refused_to_others` | 2733090 | 2869745 | 5.00 % | 0 | 576 | 2026-09-29 | e246ac5 |
 | `test_events::test_instances_event_keys_and_data` | 205040 | 215292 | 5.00 % | 0 | 0 | 2026-09-29 | a767e84 |
 | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
-| `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 4.99 % | 0 | 576 | 2026-09-29 | a767e84 |
+| `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 4.99 % | 0 | 576 | 2026-09-29 | 7a1116a |
 | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |
 | `test_instances::test_probe_events_four_revealed` | 442850 | 464993 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |
 | `test_instances::test_probe_events_none` | 282660 | 296793 | 5.00 % | 0 | 96 | 2026-09-29 | d65eb86 |
@@ -32,3 +33,19 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_layout::test_record_sizes` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
 | `test_layout::test_roster_masking` | 328620 | 345051 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_walls_above_224_refused` | 17720 | 18606 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
+| `test_lifecycle::test_create_first_entry` | 31631012 | 33212563 | 5.00 % | 0 | 4896 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_create_refusals` | 32573826 | 34202518 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_create_reuses_the_slot` | 43967391 | 46165761 | 5.00 % | 0 | 6624 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_create_sealed` | 25833696 | 27125381 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_create_without_tasks` | 27762006 | 29150107 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_generation_isolation` | 45572993 | 47851643 | 5.00 % | 0 | 6336 | 2026-09-29 | 224ad21 |
+| `test_lifecycle::test_leave_to_a_hub` | 33175476 | 34834250 | 5.00 % | 0 | 5280 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_leave_to_a_location` | 39121427 | 41077499 | 5.00 % | 0 | 5184 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_not_controller` | 27966354 | 29364672 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_refused_absent` | 40143332 | 42150499 | 5.00 % | 0 | 5760 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_refused_closed` | 38055615 | 39958396 | 5.00 % | 0 | 4992 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_refused_gate` | 58509716 | 61435202 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_refused_sealed` | 29068609 | 30522040 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_refused_sequence` | 33019086 | 34670041 | 5.00 % | 0 | 4512 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_set_controller` | 32926602 | 34572933 | 5.00 % | 0 | 4992 | 2026-09-29 | 8e10cda |
+| `test_lifecycle::test_travel_back` | 31486399 | 33060719 | 5.00 % | 0 | 4992 | 2026-09-29 | 8e10cda |

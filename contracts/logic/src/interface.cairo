@@ -43,6 +43,16 @@ pub struct Results {
     pub belt: [u8; 4],
 }
 
+/// The bits of `Results.facts`.
+pub mod facts {
+    pub const DUNGEON_CLEARED: u32 = 0x1;
+    pub const TRIAL_PASSED: u32 = 0x2;
+    pub const RIFT_CLEARED: u32 = 0x4;
+    pub const ZONE_REVEALED: u32 = 0x8;
+    /// A hub gate reached: `Results.location` is the hub, unlocked for map travel (design/01).
+    pub const HUB_REACHED: u32 = 0x10;
+}
+
 /// Implemented by the persistent contract `Hub`; callable only by the registered `Instances`.
 #[starknet::interface]
 pub trait IResults<T> {

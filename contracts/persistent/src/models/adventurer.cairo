@@ -2,8 +2,8 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    LIVE, Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits,
-    join, low_field, split, u16_at, u32_at,
+    LIVE, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
+    field, fits, join, low_field, split, u16_at, u32_at,
 };
 use starknet::ContractAddress;
 
@@ -33,6 +33,17 @@ pub mod errors {
     pub const PACK_HOLDS_EQUIPMENT: felt252 = 'pack holds equipment';
     pub const WEARS_EQUIPMENT: felt252 = 'wears equipment';
     pub const PACK_HOLDS_GOLD: felt252 = 'pack holds gold';
+    // Places (ENG-06).
+    /// `AdventurerPlace.unlocked` holds hub ids below 64.
+    pub const HUB_ABOVE_63: felt252 = 'hub above 63';
+    /// Map travel to a hub not unlocked (design/01 *Connectivity*).
+    pub const NOT_UNLOCKED: felt252 = 'hub not unlocked';
+    /// Region 1 is not in the registry: no start hub (D-144).
+    pub const NO_START_REGION: felt252 = 'no start region';
+    /// A report for an adventurer not inside that instance.
+    pub const NOT_ITS_INSTANCE: felt252 = 'not its instance';
+    /// Experience past a `u32`.
+    pub const EXPERIENCE_OVERFLOW: felt252 = 'experience overflow';
 }
 
 // Stored words written or read by arithmetic, without the packers: each function below is pinned
@@ -70,14 +81,185 @@ pub impl AdventurerCoreImpl of AdventurerCoreTrait {
     fn deleted(core: felt252) -> felt252 {
         core + DELETED_MARK
     }
+
+    /// `(experience, level, rank, profession)` of a stored core.
+    fn profile(core: felt252) -> (u32, u8, u8, u8) {
+        let (low, _) = split(core);
+        (u32_at(low, P32), byte_at(low, P96), byte_at(low, P104), byte_at(low, P112))
+    }
+
+    /// The stored core with `filled` pack lanes more and `emptied` fewer (`pack_lanes`, bits
+    /// 184-199): the balance changes that fill or empty a lane keep it (ENG-01 fix loop 1, F-5).
+    fn with_pack_lanes(core: felt252, filled: u16, emptied: u16) -> felt252 {
+        core + filled.into() * PACK_LANES_UNIT - emptied.into() * PACK_LANES_UNIT
+    }
+
+    /// The stored core with `amount` experience more (bits 32-63), refused past a `u32`. What a
+    /// level needs is design/03's rule for a later lot: the level is not raised here (escalated in
+    /// ENG-06's report).
+    fn with_experience(core: felt252, amount: u32) -> felt252 {
+        let (experience, _, _, _) = Self::profile(core);
+        let total: u64 = experience.into() + amount.into();
+        assert(total <= 0xFFFFFFFF, errors::EXPERIENCE_OVERFLOW);
+        core + amount.into() * EXPERIENCE_UNIT
+    }
 }
 
+/// `AdventurerCore.pack_lanes` (bit 184) and `experience` (bit 32) as units of the stored word.
+const PACK_LANES_UNIT: felt252 = 0x10000000000000000000000000000000000000000000000;
+const EXPERIENCE_UNIT: felt252 = 0x100000000;
+
+/// A stored `AdventurerPlace` read and changed by arithmetic (pinned against the packer by
+/// `test_place_words`): entering an instance, moving to the next one, being in a hub, unlocking
+/// one.
 #[generate_trait]
 pub impl AdventurerPlaceImpl of AdventurerPlaceTrait {
     /// `inside` of a stored place, without unpacking the other fields.
     fn is_inside(place: felt252) -> bool {
         let (low, _) = split(place);
         byte_at(low, P96) != 0
+    }
+
+    /// `(instance, hub, last hub, inside)` of a stored place.
+    fn fields(place: felt252) -> (u64, u16, u16, bool) {
+        let (low, _) = split(place);
+        (
+            low_field(low, P64.try_into().unwrap()).try_into().unwrap(),
+            u16_at(low, P64),
+            u16_at(low, P80),
+            byte_at(low, P96) != 0,
+        )
+    }
+
+    /// The place of a new adventurer: in `hub`, its last hub, `hub` unlocked (D-144: region 1's
+    /// town, unlocked from creation).
+    fn new(hub: u16) -> felt252 {
+        join(hub.into() * P64 + hub.into() * P80, Self::bit(hub))
+    }
+
+    /// Inside `instance`, entered from its hub: `hub` 0, `last_hub` the hub it left, `inside` 1.
+    fn entered(place: felt252, instance: u64) -> felt252 {
+        let (low, high) = split(place);
+        join(instance.into() + u16_at(low, P64).into() * P80 + P96, high)
+    }
+
+    /// Still inside, its instance now `instance` (a gate to another location, D-02).
+    fn moved(place: felt252, instance: u64) -> felt252 {
+        let (low, high) = split(place);
+        let (above, _) = DivRem::div_rem(low, P64.try_into().unwrap());
+        join(above * P64 + instance.into(), high)
+    }
+
+    /// In `hub`, which is also its last hub: no instance, not inside.
+    fn located(place: felt252, hub: u16) -> felt252 {
+        let (_, high) = split(place);
+        join(hub.into() * P64 + hub.into() * P80, high)
+    }
+
+    /// `hub` unlocked for map travel (design/01: reaching a hub gate unlocks the hub).
+    fn unlocked(place: felt252, hub: u16) -> felt252 {
+        let (low, high) = split(place);
+        join(low, high | Self::bit(hub))
+    }
+
+    fn is_unlocked(place: felt252, hub: u16) -> bool {
+        let (_, high) = split(place);
+        hub < 64 && high & Self::bit(hub) != 0
+    }
+
+    /// Bit `hub` of `unlocked`: a table (docs/CAIRO.md §3); a hub id of 64 or more is refused.
+    fn bit(hub: u16) -> u128 {
+        match hub {
+            0 => 0x1,
+            1 => 0x2,
+            2 => 0x4,
+            3 => 0x8,
+            4 => 0x10,
+            5 => 0x20,
+            6 => 0x40,
+            7 => 0x80,
+            8 => 0x100,
+            9 => 0x200,
+            10 => 0x400,
+            11 => 0x800,
+            12 => 0x1000,
+            13 => 0x2000,
+            14 => 0x4000,
+            15 => 0x8000,
+            16 => 0x10000,
+            17 => 0x20000,
+            18 => 0x40000,
+            19 => 0x80000,
+            20 => 0x100000,
+            21 => 0x200000,
+            22 => 0x400000,
+            23 => 0x800000,
+            24 => 0x1000000,
+            25 => 0x2000000,
+            26 => 0x4000000,
+            27 => 0x8000000,
+            28 => 0x10000000,
+            29 => 0x20000000,
+            30 => 0x40000000,
+            31 => 0x80000000,
+            32 => 0x100000000,
+            33 => 0x200000000,
+            34 => 0x400000000,
+            35 => 0x800000000,
+            36 => 0x1000000000,
+            37 => 0x2000000000,
+            38 => 0x4000000000,
+            39 => 0x8000000000,
+            40 => 0x10000000000,
+            41 => 0x20000000000,
+            42 => 0x40000000000,
+            43 => 0x80000000000,
+            44 => 0x100000000000,
+            45 => 0x200000000000,
+            46 => 0x400000000000,
+            47 => 0x800000000000,
+            48 => 0x1000000000000,
+            49 => 0x2000000000000,
+            50 => 0x4000000000000,
+            51 => 0x8000000000000,
+            52 => 0x10000000000000,
+            53 => 0x20000000000000,
+            54 => 0x40000000000000,
+            55 => 0x80000000000000,
+            56 => 0x100000000000000,
+            57 => 0x200000000000000,
+            58 => 0x400000000000000,
+            59 => 0x800000000000000,
+            60 => 0x1000000000000000,
+            61 => 0x2000000000000000,
+            62 => 0x4000000000000000,
+            63 => 0x8000000000000000,
+            _ => core::panic_with_felt252(errors::HUB_ABOVE_63),
+        }
+    }
+}
+
+/// The belt word (`Lanes32`): the potion item of each slot in lanes 0-3, the count to carry in
+/// each slot in lane 4, 8 bits a slot (ENG-01 §3.3).
+#[generate_trait]
+pub impl BeltImpl of BeltTrait {
+    /// `(items, counts)` of a stored belt word.
+    fn read(belt: felt252) -> ([u32; 4], [u8; 4]) {
+        let (low, high) = split(belt);
+        let s32: NonZero<u128> = P32.try_into().unwrap();
+        let (low, a) = DivRem::div_rem(low, s32);
+        let (low, b) = DivRem::div_rem(low, s32);
+        let (d, c) = DivRem::div_rem(low, s32);
+        (
+            [
+                a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(),
+                d.try_into().unwrap(),
+            ],
+            [
+                low_field(high, P8.try_into().unwrap()).try_into().unwrap(), byte_at(high, P8),
+                byte_at(high, P16), byte_at(high, P24),
+            ],
+        )
     }
 }
 
@@ -112,6 +294,22 @@ pub impl AdventurerAssert of AdventurerAssertTrait {
         assert(pack_page == 0 || pack_page == LIVE, errors::PACK_HOLDS_EQUIPMENT);
         assert(equipped == 0 || equipped == LIVE, errors::WEARS_EQUIPMENT);
         assert(gold == 0 || gold == LIVE, errors::PACK_HOLDS_GOLD);
+    }
+
+    /// Map travel goes to an unlocked hub (design/01 *Connectivity*).
+    fn assert_unlocked(place: felt252, hub: u16) {
+        assert(AdventurerPlaceTrait::is_unlocked(place, hub), errors::NOT_UNLOCKED);
+    }
+
+    /// D-144: the start hub is region 1's town, read from the registry.
+    fn assert_start_region(exists: bool) {
+        assert(exists, errors::NO_START_REGION);
+    }
+
+    /// A report is about the instance its first contributor is inside (ENG-01 §6).
+    fn assert_in_instance(place: felt252, instance: u64) {
+        let (current, _, _, inside) = AdventurerPlaceTrait::fields(place);
+        assert(inside && current == instance, errors::NOT_ITS_INSTANCE);
     }
 }
 

@@ -152,21 +152,45 @@ pub trait IInstancesAdmin<T> {
 #[starknet::contract]
 pub mod Instances {
     use core::num::traits::Zero;
-    use grimworld_logic::interface::IInstanceEntry;
+    use grimworld_logic::content::{GATE, LOCATION, exists};
+    use grimworld_logic::fate::{ENTRY, derive, domain};
+    use grimworld_logic::interface::{
+        IFateDispatcher, IFateDispatcherTrait, IInstanceEntry, IRegistryReadDispatcher,
+        IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait, Results, facts,
+    };
+    use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
+    use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
-    use grimworld_logic::types::InstanceId;
-    use starknet::storage::{Map, StoragePointerReadAccess, StoragePointerWriteAccess};
-    use starknet::{ClassHash, ContractAddress, get_caller_address};
+    use grimworld_logic::types::{
+        InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
+    };
+    use starknet::storage::{
+        Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
+    use starknet::storage_access::{Store, StorePacking};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
     use crate::events::{
         BatchPlayed, ChunkRevealed, Defeated, GoblinKilled, InstanceClosed, InstanceEntered,
         Refused,
     };
     use crate::models::chunk::Chunk;
     use crate::models::goblin::Goblin;
-    use crate::models::instance::{Header, Placement, Quotas};
-    use crate::models::member::Member;
+    use crate::models::instance::{
+        DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementTrait, Quotas, QuotasTrait,
+        RETURNED, ROSTER_LANES, errors, mask_roster_page,
+    };
+    use crate::models::member::{
+        DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member, MemberState,
+        MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD, errors as member_errors,
+    };
     use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
+
+    /// Task entries on a stored page (`TaskPage`).
+    const TASKS_PER_PAGE: u32 = 4;
+    /// Words of a member (`Member`), in the view.
+    const MEMBER_WORDS: u32 = 8;
 
     /// docs/architecture/ENG-01-interfaces.md, *Instances storage*. Every key starts with the
     /// instance's slot, except `placements` (by adventurer: its reference to an instance).
@@ -282,6 +306,15 @@ pub mod Instances {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
 
+        /// Leaves through `gate` (design/02 *Ending an expedition*, D-02): the caller controls the
+        /// member, then the instance's checks (`HeaderAssert::refusal`), then the gate from the
+        /// registry, which must stand in this location with the member on its anchor
+        /// (`GateTrait::can_leave`). Any refusal emits `Refused`, draws nothing, changes nothing
+        /// and returns 0. A hub gate closes the instance (Returned, the hub reached and
+        /// unlocked) and returns 0. A link closes it (Moved) and enters its destination in the
+        /// same slot, the next generation, with its entry draw: nothing of the member carries
+        /// but the belt's reserve (D-141, E-20); returns the new id. Calls: `Registry.record`
+        /// (the gate; and the destination, through a link), `fate` (a link), `Hub.report`.
         fn leave(
             ref self: ContractState,
             instance_id: InstanceId,
@@ -289,17 +322,153 @@ pub mod Instances {
             sequence: u32,
             gate: u16,
         ) -> InstanceId {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let Option::Some((slot, header, placement, state)) = self
+                .admit(instance_id, adventurer_id, sequence) else {
+                return 0;
+            };
+            let registry = IRegistryReadDispatcher { contract_address: self.registry.read() };
+            let parts = registry.record(GATE, gate.into());
+            if !exists(parts) {
+                self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Gate);
+                return 0;
+            }
+            let record: Gate = GateRecord::unpack(parts);
+            if !record.can_leave(header.location, state.x, state.y) {
+                self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Gate);
+                return 0;
+            }
+            if record.kind == gate_kind::HUB {
+                self
+                    .close(
+                        instance_id,
+                        slot,
+                        header,
+                        placement,
+                        state,
+                        Outcome::Returned,
+                        record.destination,
+                        facts::HUB_REACHED,
+                    );
+                return 0;
+            }
+            let parts = registry.record(LOCATION, record.destination.into());
+            if !exists(parts) {
+                self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Gate);
+                return 0;
+            }
+            let location: Location = LocationRecord::unpack(parts);
+            if !location.has_map() {
+                self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Gate);
+                return 0;
+            }
+
+            self.emit(InstanceClosed { instance_id, outcome: Outcome::Moved });
+            let (max_health, max_energy) = MemberStateTrait::maxima(
+                self
+                    .members
+                    .entry((slot, placement.member))
+                    .as_ptr()
+                    .__storage_pointer_address__
+                    .word(STATS_WORD),
+            );
+            let next = self
+                .begin(
+                    slot,
+                    header.generation,
+                    adventurer_id,
+                    gate,
+                    @record,
+                    @location,
+                    header.tasks,
+                    max_health,
+                    max_energy,
+                    state.belt,
+                );
+            self.report(instance_id, adventurer_id, Outcome::Moved, 0, 0, 0, next, [0; 4]);
+            next
         }
 
+        /// Travels back to the last hub (design/02, D-04): the same checks as `leave`, then a
+        /// sealed Red Rift refuses (`Refusal::Sealed`, design/17); otherwise the instance closes,
+        /// Returned, and the hub places the adventurer in its last hub (`Results.hub` 0). No
+        /// registry read: the seal is in the header. Calls: `Hub.report`.
         fn travel_back(
             ref self: ContractState, instance_id: InstanceId, adventurer_id: u32, sequence: u32,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let Option::Some((slot, header, placement, state)) = self
+                .admit(instance_id, adventurer_id, sequence) else {
+                return;
+            };
+            if header.is_sealed() {
+                self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Sealed);
+                return;
+            }
+            self.close(instance_id, slot, header, placement, state, Outcome::Returned, 0, 0);
         }
 
+        /// The stored words of the instance (ENG-01 §4.1), read through the gates of §2.1: an id
+        /// whose generation is not the slot's current one answers nothing (every word 0, every
+        /// list empty); task pages up to `⌈tasks / 4⌉`; the members' eight words; roster pages
+        /// up to `⌈roster_count / 15⌉`, masked (F-13). The window's chunks and goblins are read
+        /// only through `revealed`: nothing is revealed until ENG-05's reveal, so they are empty;
+        /// ENG-05 and ENG-07 fill them.
         fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let (slot, generation) = instance_parts(instance_id);
+            let header_word = self.headers.entry(slot).as_ptr().__storage_pointer_address__.word(0);
+            let header: Header = StorePacking::unpack(header_word);
+            if generation == 0 || header.generation != generation {
+                return InstanceView {
+                    instance_id,
+                    header: 0,
+                    entropy: 0,
+                    revealed: 0,
+                    quotas: 0,
+                    tasks: array![].span(),
+                    members: array![].span(),
+                    roster: array![].span(),
+                    goblins: array![].span(),
+                    chunks: array![].span(),
+                };
+            }
+            let mut tasks: Array<felt252> = array![];
+            let pages: u32 = (header.tasks.into() + TASKS_PER_PAGE - 1) / TASKS_PER_PAGE;
+            for page in 0..pages {
+                let page: u8 = page.try_into().unwrap();
+                tasks
+                    .append(
+                        self.tasks.entry((slot, page)).as_ptr().__storage_pointer_address__.word(0),
+                    );
+            }
+            let mut members: Array<felt252> = array![];
+            for m in 0..header.members {
+                let base = self.members.entry((slot, m)).as_ptr().__storage_pointer_address__;
+                for offset in 0..MEMBER_WORDS {
+                    members.append(base.word(offset.try_into().unwrap()));
+                }
+            }
+            let mut roster: Array<felt252> = array![];
+            let lanes: u32 = ROSTER_LANES.into();
+            let pages: u32 = (header.roster_count.into() + lanes - 1) / lanes;
+            for page in 0..pages {
+                let page: u8 = page.try_into().unwrap();
+                let stored = self.roster.entry((slot, page)).read();
+                roster
+                    .append(
+                        StorePacking::pack(mask_roster_page(stored, page, header.roster_count)),
+                    );
+            }
+            InstanceView {
+                instance_id,
+                header: header_word,
+                entropy: self.entropy.entry(slot).read(),
+                revealed: self.revealed.entry(slot).as_ptr().__storage_pointer_address__.word(0),
+                quotas: self.quotas.entry(slot).as_ptr().__storage_pointer_address__.word(0),
+                tasks: tasks.span(),
+                members: members.span(),
+                roster: roster.span(),
+                goblins: array![].span(),
+                chunks: array![].span(),
+            }
         }
 
         fn instance_region(
@@ -308,13 +477,30 @@ pub mod Instances {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
 
+        /// `(instance id, member, inside)`: the adventurer's last instance, 0 if it never entered.
         fn placement(self: @ContractState, adventurer_id: u32) -> (InstanceId, u8, bool) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let placement = self.placements.entry(adventurer_id).read();
+            if placement.slot == 0 {
+                return (0, 0, false);
+            }
+            (
+                instance_id(placement.slot, placement.generation),
+                placement.member,
+                placement.inside != 0,
+            )
         }
     }
 
     #[abi(embed_v0)]
     impl InstanceEntryImpl of IInstanceEntry<ContractState> {
+        /// `Hub` only (ENG-01 §1.2). The adventurer's slot, or a new one at its first entry
+        /// (`next_slot`); the gate and its destination from the registry (a location with a
+        /// map); the snapshot and the task pages (`⌈tasks / 4⌉`); then the new generation
+        /// (`begin`), with the entry draw after every check. What a reused slot held is left
+        /// unreachable (§2.1): the header, entropy, revealed set, quotas and the member's eight
+        /// words are rewritten, the roster's count is 0, task pages beyond the count are never
+        /// read. The entry chunk's reveal is ENG-05's: until then `revealed` is empty and no
+        /// chunk word is written, so no chunk of an earlier generation is reachable.
         fn create(
             ref self: ContractState,
             adventurer_id: u32,
@@ -323,13 +509,57 @@ pub mod Instances {
             snapshot: Snapshot,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.hub.read(), errors::NOT_HUB);
+            assert(tasks.len() <= MAX_TASKS.into(), errors::TOO_MANY_TASKS);
+            let placement = self.placements.entry(adventurer_id).read();
+            assert(placement.inside == 0, errors::ALREADY_INSIDE);
+            let registry = IRegistryReadDispatcher { contract_address: self.registry.read() };
+            let parts = registry.record(GATE, gate.into());
+            assert(exists(parts), errors::NO_GATE);
+            let record: Gate = GateRecord::unpack(parts);
+            let parts = registry.record(LOCATION, record.destination.into());
+            assert(exists(parts), errors::NO_LOCATION);
+            let location: Location = LocationRecord::unpack(parts);
+            assert(location.has_map(), errors::NO_MAP);
+
+            let slot = if placement.slot != 0 {
+                placement.slot
+            } else {
+                let next = self.next_slot.read().value;
+                self.next_slot.write(Counter { value: next + 1 });
+                next.try_into().unwrap()
+            };
+            self.write_tasks(slot, tasks);
+            let member = self.members.entry((slot, 0));
+            member.stats.write(snapshot.stats);
+            member.bar.write(snapshot.bar);
+            member.kit.write(snapshot.kit);
+            member.controller.write(controller);
+            let previous = self.headers.entry(slot).read().generation;
+            self
+                .begin(
+                    slot,
+                    previous,
+                    adventurer_id,
+                    gate,
+                    @record,
+                    @location,
+                    tasks.len().try_into().unwrap(),
+                    snapshot.stats.max_health,
+                    snapshot.stats.max_energy,
+                    snapshot.belt_counts,
+                )
         }
 
+        /// `Hub` only: the account changed owner while the adventurer is inside (A-7, M-6). One
+        /// word, the member's controller.
         fn set_controller(
             ref self: ContractState, adventurer_id: u32, controller: ContractAddress,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.hub.read(), errors::NOT_HUB);
+            let placement = self.placements.entry(adventurer_id).read();
+            assert(placement.inside != 0, errors::NOT_INSIDE);
+            self.members.entry((placement.slot, placement.member)).controller.write(controller);
         }
     }
 
@@ -361,6 +591,325 @@ pub mod Instances {
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+    }
+
+    /// One stored word of a record, read or written as stored (the views return words in their
+    /// layouts; a constant word is written without its packer). Until the store of D-143 (ARC-06,
+    /// ENG-R1) takes over every access to storage.
+    #[generate_trait]
+    impl WordImpl of WordTrait {
+        fn word(self: starknet::storage_access::StorageBaseAddress, offset: u8) -> felt252 {
+            Store::<felt252>::read_at_offset(0, self, offset).unwrap_syscall()
+        }
+
+        fn set_word(
+            self: starknet::storage_access::StorageBaseAddress, offset: u8, value: felt252,
+        ) {
+            Store::<felt252>::write_at_offset(0, self, offset, value).unwrap_syscall()
+        }
+    }
+
+    #[generate_trait]
+    pub impl InternalImpl of InternalTrait {
+        /// The access check of a gate action (M-6, ENG-01 §1.2), then its refusals: the caller
+        /// must be the controller of the adventurer's member (a revert otherwise, not a refusal of
+        /// the game), then `HeaderAssert::refusal`. A refusal emits `Refused` and returns `None`.
+        /// Returns the instance's slot, its header, the adventurer's placement and its member
+        /// state.
+        fn admit(
+            ref self: ContractState, instance_id: InstanceId, adventurer_id: u32, sequence: u32,
+        ) -> Option<(u32, Header, Placement, MemberState)> {
+            let (slot, generation) = instance_parts(instance_id);
+            let placement = self.placements.entry(adventurer_id).read();
+            let member = self.members.entry((placement.slot, placement.member));
+            assert(member.controller.read() == get_caller_address(), member_errors::NOT_CONTROLLER);
+            let header = self.headers.entry(slot).read();
+            let state = member.state.read();
+            match header.refusal(generation, @placement, slot, state.status, sequence) {
+                Option::Some(reason) => {
+                    self.refuse(instance_id, adventurer_id, sequence, header.sequence, reason);
+                    Option::None
+                },
+                Option::None => Option::Some((slot, header, placement, state)),
+            }
+        }
+
+        fn refuse(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            from: u32,
+            sequence: u32,
+            reason: Refusal,
+        ) {
+            self.emit(Refused { instance_id, adventurer_id, from, sequence, reason });
+        }
+
+        /// A new generation of `slot` after `previous` (ENG-01 §2.1): its header, the entry draw
+        /// (`fate(poseidon(id, 0, ENTRY))`, ADR-0002; the entropy is the value derived from it),
+        /// an empty revealed set, the location's quotas, and the member's four transient words
+        /// for clock 0 (F-12, F-14): on the gate's entry tile, maxima from `stats`, the belt's
+        /// `belt` counts, no activation, condition, effect or recharge. The placement follows.
+        /// The caller has made every check: the draw comes last but for the writes it feeds.
+        fn begin(
+            ref self: ContractState,
+            slot: u32,
+            previous: u32,
+            adventurer_id: u32,
+            gate: u16,
+            record: @Gate,
+            location: @Location,
+            tasks: u8,
+            max_health: u16,
+            max_energy: u8,
+            belt: [u8; 4],
+        ) -> InstanceId {
+            let generation = previous + 1;
+            let id = instance_id(slot, generation);
+            let destination = *record.destination;
+            self
+                .headers
+                .entry(slot)
+                .write(
+                    HeaderTrait::new(
+                        generation,
+                        destination,
+                        tasks,
+                        *location.sealed,
+                        *record.entry_chunk,
+                        *record.entry_tile,
+                        gate,
+                    ),
+                );
+            let draw = domain(id.into(), 0, ENTRY);
+            let word = IFateDispatcher { contract_address: self.fate.read() }.fate(draw);
+            self.entropy.entry(slot).write(derive(word, draw, 0));
+            self.revealed.entry(slot).write(Bitmap { bits: 0 });
+            self.quotas.entry(slot).write(QuotasTrait::new(*location.target));
+            let (x, y) = record.entry();
+            let member = self.members.entry((slot, 0));
+            member
+                .state
+                .write(
+                    MemberStateTrait::entering(adventurer_id, x, y, max_health, max_energy, belt),
+                );
+            let base = member.as_ptr().__storage_pointer_address__;
+            base.set_word(TIMERS_WORD, EMPTY_TIMERS);
+            base.set_word(EFFECTS_WORD, EMPTY_EFFECTS);
+            base.set_word(RECHARGES_WORD, EMPTY_RECHARGES);
+            self.placements.entry(adventurer_id).write(PlacementTrait::new(slot, generation));
+            self
+                .emit(
+                    InstanceEntered { instance_id: id, adventurer_id, location: destination, gate },
+                );
+            id
+        }
+
+        /// **The closing path** of every way out that ends a member's presence: `leave` through a
+        /// hub gate and `travel_back` (`Outcome::Returned`), and ENG-07's defeat
+        /// (`Outcome::Defeated`, the member `DOWN`). The header's status, the member's status, the
+        /// placement left, `InstanceClosed`, then one report to the hub with the belt's unused
+        /// counts, credited back on return and on defeat alike (D-141, E-15). `hub` is where the
+        /// adventurer goes: 0 for its last hub (travel back, defeat: D-04). `facts` is
+        /// `HUB_REACHED` through a hub gate (that hub unlocked, design/01).
+        fn close(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            slot: u32,
+            header: Header,
+            placement: Placement,
+            state: MemberState,
+            outcome: Outcome,
+            hub: u16,
+            facts: u32,
+        ) {
+            let (status, member_status) = match outcome {
+                Outcome::Returned => (RETURNED, GONE),
+                Outcome::Defeated => (DEFEATED, DOWN),
+                _ => core::panic_with_felt252('close: not a closing outcome'),
+            };
+            self.headers.entry(slot).write(Header { status, ..header });
+            self
+                .members
+                .entry((slot, placement.member))
+                .state
+                .write(MemberState { status: member_status, ..state });
+            self.placements.entry(state.adventurer).write(Placement { inside: 0, ..placement });
+            self.emit(InstanceClosed { instance_id, outcome });
+            self.report(instance_id, state.adventurer, outcome, hub, facts, hub, 0, state.belt);
+        }
+
+        /// One call to `Hub.report` (D-131: one a transaction) with what a lifecycle path has to
+        /// settle: no loot, experience or task progress (ENG-07's and the Fate actions').
+        fn report(
+            ref self: ContractState,
+            instance_id: InstanceId,
+            adventurer_id: u32,
+            outcome: Outcome,
+            hub: u16,
+            facts: u32,
+            location: u16,
+            next: InstanceId,
+            belt: [u8; 4],
+        ) {
+            IResultsDispatcher { contract_address: self.hub.read() }
+                .report(
+                    Results {
+                        instance_id,
+                        contributors: array![adventurer_id].span(),
+                        experience: 0,
+                        gold: 0,
+                        balances: array![].span(),
+                        equipment: array![].span(),
+                        tasks: array![].span(),
+                        facts,
+                        location,
+                        outcome,
+                        hub,
+                        next,
+                        belt,
+                    },
+                );
+        }
+
+        /// The task pages a snapshot needs, `⌈tasks / 4⌉`, the last one padded with empty
+        /// entries.
+        fn write_tasks(ref self: ContractState, slot: u32, tasks: Span<TaskEntry>) {
+            let count = tasks.len();
+            let mut first: u32 = 0;
+            let mut page: u8 = 0;
+            while first < count {
+                let mut entries: Array<TaskEntry> = array![];
+                for i in first..first + TASKS_PER_PAGE {
+                    entries.append(if i < count {
+                        *tasks[i]
+                    } else {
+                        Default::default()
+                    });
+                }
+                self
+                    .tasks
+                    .entry((slot, page))
+                    .write(
+                        TaskPage { entries: [*entries[0], *entries[1], *entries[2], *entries[3]] },
+                    );
+                first += TASKS_PER_PAGE;
+                page += 1;
+            }
+        }
+    }
+}
+
+/// The closing path on defeat (ENG-07 calls it; no ENG-06 entrypoint reaches it): the header
+/// `DEFEATED`, the member `DOWN`, the placement left, `InstanceClosed`, and one report whose belt
+/// is the unused counts (D-141, E-15), to the last hub (`hub` 0, D-04). The hub's `report` is
+/// mocked; its settlement is tested in `grimworld_persistent`.
+#[cfg(test)]
+mod close_tests {
+    use grimworld_logic::types::{Outcome, instance_id};
+    use snforge_std::{
+        ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events,
+        test_address,
+    };
+    use starknet::storage::{StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use crate::events::InstanceClosed;
+    use crate::models::instance::{DEFEATED, HeaderTrait, OPEN, Placement, PlacementTrait};
+    use crate::models::member::{DOWN, INSIDE, MemberState};
+    use super::Instances;
+    use super::Instances::InternalTrait;
+
+    #[starknet::interface]
+    trait ISink<T> {
+        /// `(reports, outcome index, hub, belt as a felt, the first contributor)`.
+        fn last(self: @T) -> (u32, felt252, u16, felt252, u32);
+    }
+
+    /// Receives the report as the hub would and keeps what the closing path sends.
+    #[starknet::contract]
+    mod ReportSink {
+        use grimworld_logic::interface::{IResults, Results};
+        use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+
+        #[storage]
+        struct Storage {
+            count: u32,
+            outcome: felt252,
+            hub: u16,
+            belt: felt252,
+            adventurer: u32,
+        }
+
+        #[abi(embed_v0)]
+        impl ResultsImpl of IResults<ContractState> {
+            fn report(ref self: ContractState, results: Results) {
+                let mut outcome = array![];
+                results.outcome.serialize(ref outcome);
+                let [a, b, c, d] = results.belt;
+                self.count.write(self.count.read() + 1);
+                self.outcome.write(*outcome[0]);
+                self.hub.write(results.hub);
+                self
+                    .belt
+                    .write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
+                self.adventurer.write(*results.contributors[0]);
+            }
+            fn barter(ref self: ContractState, adventurer_id: u32, collector: u16) -> bool {
+                false
+            }
+        }
+
+        #[abi(embed_v0)]
+        impl SinkImpl of super::ISink<ContractState> {
+            fn last(self: @ContractState) -> (u32, felt252, u16, felt252, u32) {
+                (
+                    self.count.read(),
+                    self.outcome.read(),
+                    self.hub.read(),
+                    self.belt.read(),
+                    self.adventurer.read(),
+                )
+            }
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5039507)] // ceil(1.05 × 4799530 measured)
+    fn test_close_on_defeat() {
+        let class = declare("ReportSink").unwrap().contract_class();
+        let (hub, _) = class.deploy(@array![]).unwrap();
+        let mut state = Instances::contract_state_for_testing();
+        state.hub.write(hub);
+        let slot = 3;
+        let id = instance_id(slot, 5);
+        let header = HeaderTrait::new(5, 2, 0, false, 0, 105, 1);
+        let placement = PlacementTrait::new(slot, 5);
+        let member = MemberState {
+            adventurer: 7, status: INSIDE, health: 0, belt: [1, 0, 3, 0], ..Default::default(),
+        };
+        state.headers.entry(slot).write(header);
+        state.placements.entry(7).write(placement);
+        let mut spy = spy_events();
+        state.close(id, slot, header, placement, member, Outcome::Defeated, 0, 0);
+
+        assert(header.status == OPEN, 'was open');
+        assert(state.headers.entry(slot).read().status == DEFEATED, 'defeated');
+        let down = state.members.entry((slot, 0)).state.read();
+        assert(down == MemberState { status: DOWN, ..member }, 'member down');
+        assert(state.placements.entry(7).read() == Placement { inside: 0, ..placement }, 'left');
+        spy
+            .assert_emitted(
+                @array![
+                    (
+                        test_address(),
+                        Instances::Event::InstanceClosed(
+                            InstanceClosed { instance_id: id, outcome: Outcome::Defeated },
+                        ),
+                    ),
+                ],
+            );
+        // One report: Defeated (variant 2), to the last hub (0), the belt's unused counts.
+        let sink = ISinkDispatcher { contract_address: hub };
+        assert(sink.last() == (1, 2, 0, 0x30001, 7), 'report on defeat');
     }
 }
 

@@ -8,6 +8,7 @@ use crate::packing::{
     P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P72, P8, P80, P88, P96, byte_at, join,
     low_field, split, u16_at,
 };
+use crate::professions::ProfessionTrait;
 
 /// What the build and the equipment give, fixed for the instance (design/03, design/15).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -230,6 +231,46 @@ pub struct Snapshot {
     /// Potions carried in each belt slot: debited from the pack in the entry transaction (the
     /// reserve), credited back unused by the closing report (`Results.belt`).
     pub belt_counts: [u8; 4],
+}
+
+/// Health at level 1, and what each level above adds (design/03, *Base stats*).
+pub const BASE_HEALTH: u16 = 100;
+pub const HEALTH_PER_LEVEL: u16 = 20;
+/// `MemberStats.health_regen` is the pips plus 10: no regeneration nor degeneration.
+pub const NO_HEALTH_REGEN: u8 = 10;
+
+#[generate_trait]
+pub impl SnapshotImpl of SnapshotTrait {
+    /// The snapshot of an adventurer at entry, from what its models hold today (ENG-06): its
+    /// level and primary profession give health, energy, regeneration and armor (design/03); its
+    /// bar, elite slot and belt are copied. What equipment, attribute ranks and set bonuses would
+    /// add is 0: no entrypoint can yet equip an item or spend a point (`set_build` is a later
+    /// lot's), and design/15's formulas are that lot's.
+    fn new(
+        level: u8,
+        profession: u8,
+        skills: [u16; 8],
+        elite_slot: u8,
+        belt: [u32; 4],
+        belt_counts: [u8; 4],
+    ) -> Snapshot {
+        let stats = MemberStats {
+            max_health: BASE_HEALTH + HEALTH_PER_LEVEL * (level.into() - 1),
+            max_energy: ProfessionTrait::energy(profession),
+            energy_regen: ProfessionTrait::energy_regen(profession),
+            health_regen: NO_HEALTH_REGEN,
+            armor: ProfessionTrait::armor(profession),
+            level,
+            profession,
+            ..Default::default(),
+        };
+        Snapshot {
+            stats,
+            bar: MemberBar { skills, elite_slot },
+            kit: MemberKit { belt, ..Default::default() },
+            belt_counts,
+        }
+    }
 }
 
 /// One task an instance reports (D-131): the quiver task id and what counts toward it, which the

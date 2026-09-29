@@ -60,7 +60,7 @@ never read by a game system.
 | Attribute points | 5 per level up to 10, 10 from 11 to 15, 15 from 16 to 20 (170), plus 15 at Tin and 15 at Copper | 200 |
 | Energy | by profession | 20–30 |
 | Energy regeneration | by profession, in pips | 2–4 pips |
-| Armor | by profession armor class, scales with level | 60–80 |
+| Armor | by profession armor class; the class's, flat at every level, until BAL-01 sets its curve (D-148) | 60–80 |
 
 **Pips.** Regeneration is expressed in pips, as in GW1, converted to ticks:
 

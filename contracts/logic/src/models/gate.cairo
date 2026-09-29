@@ -3,7 +3,7 @@
 use crate::content::{GATE, Record};
 use crate::packing::{P16, P32, P40, P48, P56, P64, P72, P8, P80, join, split};
 pub use super::index::Gate;
-use super::location::LocationAssert;
+use super::location::{LocationAssert, LocationTrait};
 
 /// Gate kinds (ENG-01 §3.5).
 pub mod kind {
@@ -18,6 +18,17 @@ pub mod errors {
     pub const ANCHOR_TILE: felt252 = 'gate: anchor tile';
     pub const ENTRY_CHUNK: felt252 = 'gate: entry chunk';
     pub const ENTRY_TILE: felt252 = 'gate: entry tile';
+    // `Hub.enter`'s refusals of a gate (design/01 *Connectivity*, ENG-06).
+    /// No `GATE` record under that id.
+    pub const NONE: felt252 = 'gate: none';
+    /// The gate does not stand in the hub the adventurer is in.
+    pub const NOT_HERE: felt252 = 'gate: not in this hub';
+    /// A floor gate (from a dungeon floor only) or a Rift gate (`enter_rift`).
+    pub const KIND: felt252 = 'gate: kind';
+    /// The adventurer's guild rank is below the gate's.
+    pub const RANK: felt252 = 'gate: rank';
+    /// The gate requires a quest: quiver's quests are not embedded yet (E-14).
+    pub const QUEST: felt252 = 'gate: quest';
 }
 
 #[generate_trait]
@@ -45,10 +56,47 @@ pub impl GateImpl of GateTrait {
             quest,
         }
     }
+
+    /// Its anchor as a global tile `(x, y)` of its source location.
+    #[inline(always)]
+    fn anchor(self: @Gate) -> (u8, u8) {
+        LocationTrait::position(*self.anchor_chunk, *self.anchor_tile)
+    }
+
+    /// Where it leads, as a global tile `(x, y)` of its destination.
+    #[inline(always)]
+    fn entry(self: @Gate) -> (u8, u8) {
+        LocationTrait::position(*self.entry_chunk, *self.entry_tile)
+    }
+
+    /// Whether an adventurer standing on `(x, y)` in `location` can leave through it (design/02
+    /// *Ending an expedition*: "walk into a hub gate"; ENG-06): it stands in that location, the
+    /// adventurer is on its anchor, and it is a hub gate or a link. A floor gate is refused (a
+    /// dungeon's exit is a quota object, placed by ENG-05's generation, ADR-0006), a Rift gate is
+    /// `enter_rift`'s lot's. A gate that requires a rank or a quest is refused too: the snapshot
+    /// holds no guild rank, and quiver's quests are not embedded (E-14).
+    fn can_leave(self: @Gate, location: u16, x: u8, y: u8) -> bool {
+        *self.source == location
+            && (*self.kind == kind::HUB || *self.kind == kind::LINK)
+            && *self.rank == 0
+            && *self.quest == 0
+            && self.anchor() == (x, y)
+    }
 }
 
 #[generate_trait]
 pub impl GateAssert of GateAssertTrait {
+    /// `Hub.enter`'s checks of a gate (design/01 *Connectivity*): it stands in the adventurer's
+    /// hub, it is a hub gate or a link, and the adventurer meets its requirements. A quest
+    /// requirement is refused whatever the adventurer holds until quiver's quests are embedded
+    /// (E-14).
+    fn assert_enterable(self: @Gate, hub: u16, rank: u8) {
+        assert(*self.source == hub, errors::NOT_HERE);
+        assert(*self.kind == kind::HUB || *self.kind == kind::LINK, errors::KIND);
+        assert(rank >= *self.rank, errors::RANK);
+        assert(*self.quest == 0, errors::QUEST);
+    }
+
     /// The anchor and the entry are chunks of their locations and tiles of those chunks.
     #[inline(always)]
     fn assert_valid(self: @Gate) {
