@@ -31,7 +31,7 @@ fn test_hub_deploys_and_stubs_revert() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2478210)] // ceil(1.05 × 2360200 measured)
+#[available_gas(l2_gas: 3891311)] // ceil(1.05 × 3706010 measured)
 fn test_market_and_registry_deploy() {
     let class = declare("Market").unwrap().contract_class();
     let (market, _) = class.deploy(@array![1, 2, 3]).unwrap();

@@ -28,10 +28,19 @@ pub fn split(word: felt252) -> (u128, u128) {
     (wide.low, high)
 }
 
-/// A stored record from its two limbs, `LIVE` set. `high` must be below 2^122.
+/// A stored record from its two limbs, `LIVE` set. `high` must be below 2^122: a field that
+/// overflows into `LIVE` or beyond is refused, never written.
 #[inline(always)]
 pub fn join(low: u128, high: u128) -> felt252 {
+    assert(high < LIVE_HIGH, 'packing: high limb overflow');
     low.into() + high.into() * TWO_POW_128 + LIVE
+}
+
+/// Refuses a value wider than its field (`size = 2^width`): a packer checks every field narrower
+/// than its Cairo type, so that it can never corrupt its neighbour (ENG-01 fix loop 1, F-9).
+#[inline(always)]
+pub fn fits(value: u128, size: u128, message: felt252) {
+    assert(value < size, message);
 }
 
 /// The field of `limb` at bit `2^offset = shift`, of width `2^width = size`.
@@ -198,6 +207,23 @@ pub impl Lanes16StorePacking of starknet::storage_access::StorePacking<Lanes16, 
     }
 }
 
+/// A counter kept with `LIVE`, so that it is never 0 in storage: a counter that returns to 0 (the
+/// open lots) and rises again would otherwise pay a new slot each time (ENG-01, *Reuse, measured*).
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
+pub struct Counter {
+    pub value: u64,
+}
+
+pub impl CounterStorePacking of starknet::storage_access::StorePacking<Counter, felt252> {
+    fn pack(value: Counter) -> felt252 {
+        join(value.value.into(), 0)
+    }
+    fn unpack(value: felt252) -> Counter {
+        let (low, _) = split(value);
+        Counter { value: low.try_into().unwrap() }
+    }
+}
+
 /// A bitmap of 250 bits (bits 0 to 249) in one felt, `LIVE` at bit 250: the revealed set of an
 /// instance (bit `15 cy + cx`), known skills, "distinct" counters of titles (T-2).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -207,6 +233,8 @@ pub struct Bitmap {
 
 pub impl BitmapStorePacking of starknet::storage_access::StorePacking<Bitmap, felt252> {
     fn pack(value: Bitmap) -> felt252 {
+        let wide: u256 = value.bits.into();
+        assert(wide.high < LIVE_HIGH, 'packing: bitmap above bit 249');
         value.bits + LIVE
     }
     fn unpack(value: felt252) -> Bitmap {

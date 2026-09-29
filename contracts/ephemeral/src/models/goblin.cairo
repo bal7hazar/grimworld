@@ -4,7 +4,7 @@
 
 use grimworld_logic::packing::{
     P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88, byte_at, field,
-    join, low_field, split, u16_at,
+    fits, join, low_field, split, u16_at,
 };
 use crate::models::member::{pack_four28, unpack_four28};
 
@@ -114,6 +114,9 @@ pub struct GoblinTimers {
 
 pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<GoblinTimers, felt252> {
     fn pack(value: GoblinTimers) -> felt252 {
+        fits(value.act_deadline.into(), P28, 'packing: deadline above 2^28');
+        fits(value.bleeding.into(), P28, 'packing: deadline above 2^28');
+        fits(value.poison.into(), P28, 'packing: deadline above 2^28');
         let low: u128 = value.act_slot.into()
             + value.act_target.into() * P8
             + value.act_deadline.into() * P24

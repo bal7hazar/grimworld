@@ -3,8 +3,8 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    P104, P16, P24, P32, P40, P48, P56, P64, P72, P80, P88, byte_at, field, join, low_field, split,
-    u16_at, u32_at,
+    P104, P16, P24, P32, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join, low_field,
+    split, u16_at, u32_at,
 };
 
 /// Item flags (`ItemBase.flags`).
@@ -135,6 +135,7 @@ pub impl GrimoireStateStorePacking of starknet::storage_access::StorePacking<
     GrimoireState, felt252,
 > {
     fn pack(value: GrimoireState) -> felt252 {
+        fits(value.remaining.into(), P48, 'packing: remaining above 48 b');
         join(value.known.into() + value.remaining.into() * P16 + value.hints.into() * P64, 0)
     }
     fn unpack(value: felt252) -> GrimoireState {
@@ -160,6 +161,8 @@ pub struct Pairs {
 
 pub impl PairsStorePacking of starknet::storage_access::StorePacking<Pairs, felt252> {
     fn pack(value: Pairs) -> felt252 {
+        fits(value.low, 0x20000000000000000000000000000000, 'packing: pairs 0-24 overflow');
+        fits(value.high, 0x1000000000000000000000000000000, 'packing: pairs 25-48 overflow');
         join(value.low, value.high)
     }
     fn unpack(value: felt252) -> Pairs {

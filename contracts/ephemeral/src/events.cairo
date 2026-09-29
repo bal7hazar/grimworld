@@ -43,6 +43,34 @@ pub struct Refused {
     pub reason: Refusal,
 }
 
+/// A goblin died (design/02: each action emits what it emits alone). `tile` is where its remains
+/// lie; `by` the entity whose action killed it (M-4 credit is the results').
+#[derive(Drop, Serde, Debug, PartialEq, starknet::Event)]
+pub struct GoblinKilled {
+    #[key]
+    pub instance_id: InstanceId,
+    pub entity: u16,
+    pub caste: u16,
+    pub tile: u16,
+    pub by: u16,
+}
+
+/// A chunk was revealed (generated) by a move.
+#[derive(Drop, Serde, Debug, PartialEq, starknet::Event)]
+pub struct ChunkRevealed {
+    #[key]
+    pub instance_id: InstanceId,
+    pub chunk: u8,
+}
+
+/// A member was defeated (health reached 0).
+#[derive(Drop, Serde, Debug, PartialEq, starknet::Event)]
+pub struct Defeated {
+    #[key]
+    pub instance_id: InstanceId,
+    pub adventurer_id: u32,
+}
+
 /// An instance closed: returned, defeated, or left through a gate (then `InstanceEntered` of the
 /// next one follows in the same invocation).
 #[derive(Drop, Serde, Debug, PartialEq, starknet::Event)]

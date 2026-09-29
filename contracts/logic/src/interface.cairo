@@ -35,6 +35,12 @@ pub struct Results {
     pub hub: u16,
     /// Moved: the instance entered through the gate.
     pub next: InstanceId,
+    /// The potions left in each belt slot, credited back to the first contributor's pack when the
+    /// report closes its presence (Returned; Defeated per escalation E-15). Zero in an `Open` or
+    /// `Moved` report: the reserve carries into the next instance. What was consumed is gone. The
+    /// reserve was debited from the pack at entry (`Hub.enter`); two slots of the same item are
+    /// debited and credited as their sum (ENG-01 fix loop 1, F-1).
+    pub belt: [u8; 4],
 }
 
 /// Implemented by the persistent contract `Hub`; callable only by the registered `Instances`.

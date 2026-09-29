@@ -3,8 +3,8 @@
 //! derived at each tick (ENG-01, *Chunks*). Layouts: docs/architecture/ENG-01-interfaces.md.
 
 use grimworld_logic::packing::{
-    LIVE, P16, P24, P32, P36, P64, P8, P96, TWO_POW_128, byte_at, field, join, low_field, split,
-    u16_at,
+    LIVE, P16, P24, P32, P36, P64, P8, P96, TWO_POW_128, byte_at, field, fits, join, low_field,
+    split, u16_at,
 };
 
 /// 2^97: the part of the walls above bit 128, in the high limb.
@@ -22,6 +22,9 @@ pub struct Terrain {
 
 pub impl TerrainStorePacking of starknet::storage_access::StorePacking<Terrain, felt252> {
     fn pack(value: Terrain) -> felt252 {
+        let walls: u256 = value.walls.into();
+        assert(walls.high < P97, 'packing: walls above bit 224');
+        fits(value.edges.into(), 0x10, 'packing: edges above 4 bits');
         value.walls + value.edges.into() * P225 + LIVE
     }
     fn unpack(value: felt252) -> Terrain {
@@ -48,6 +51,10 @@ pub struct PackPlacement {
     pub count: u8,
     /// bits 36-60: each goblin's tile as one of the 19 tiles within 2 of the pack's, 5 bits each
     pub offsets: u32,
+    /// bits 61-63: the pack's shared state while none of its goblins has a record: 0 asleep,
+    /// 1 on watch, 2 alerted (design/05: a pack shares aggro). Alerting a pack writes this word,
+    /// not one record per goblin (ENG-01 fix loop 1, F-2)
+    pub alert: u8,
 }
 
 /// An object placed at reveal (design/18). Kinds: 0 none, 1 chest, 2 vein, 3 gathering node,
@@ -74,7 +81,11 @@ pub struct Features {
 }
 
 fn pack_pack(p: PackPlacement) -> u128 {
-    p.tile.into()
+    fits(p.count.into(), 0x10, 'packing: pack count above 15');
+    fits(p.offsets.into(), 0x2000000, 'packing: offsets above 25 bits');
+    fits(p.alert.into(), 0x8, 'packing: pack alert above 7');
+    p.alert.into() * 0x2000000000000000
+        + p.tile.into()
         + p.template.into() * P8
         + p.level.into() * P24
         + p.count.into() * P32
@@ -88,10 +99,13 @@ fn unpack_pack(bits: u128) -> PackPlacement {
         level: byte_at(bits, P24),
         count: field(bits, P32, 0x10).try_into().unwrap(),
         offsets: field(bits, P36, 0x2000000).try_into().unwrap(),
+        alert: field(bits, 0x2000000000000000, 0x8).try_into().unwrap(),
     }
 }
 
 fn pack_object(o: Object) -> u128 {
+    fits(o.kind.into(), 0x10, 'packing: object kind above 15');
+    fits(o.state.into(), 0x10, 'packing: object state above 15');
     o.tile.into() + o.kind.into() * P8 + o.state.into() * 0x1000 + o.param.into() * P16
 }
 

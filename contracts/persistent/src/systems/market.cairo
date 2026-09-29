@@ -60,6 +60,7 @@ pub trait IMarketAdmin<T> {
 
 #[starknet::contract]
 pub mod Market {
+    use grimworld_logic::packing::Counter;
     use starknet::storage::{Map, StoragePointerWriteAccess};
     use starknet::{ClassHash, ContractAddress};
     use crate::events::{LotClosed, LotPosted, TradeClosed, TradeOpened};
@@ -72,12 +73,12 @@ pub mod Market {
         pub admin: ContractAddress,
         pub hub: ContractAddress,
         pub registry: ContractAddress,
-        pub lot_count: u64,
-        pub open_lot_count: u64,
+        pub lot_count: Counter,
+        pub open_lot_count: Counter,
         pub lots: Map<u64, Lot>,
         /// `(account, page)`: its open lots, three per page, the count on page 0.
         pub seller_lots: Map<(u32, u8), SellerPage>,
-        pub trade_count: u64,
+        pub trade_count: Counter,
         /// Five slots each.
         pub trades: Map<u64, Trade>,
     }
@@ -101,6 +102,10 @@ pub mod Market {
         self.admin.write(admin);
         self.hub.write(hub);
         self.registry.write(registry);
+        // Counters start at their LIVE zero: the first posting and the first trade overwrite.
+        self.lot_count.write(Counter { value: 0 });
+        self.open_lot_count.write(Counter { value: 0 });
+        self.trade_count.write(Counter { value: 0 });
     }
 
     #[abi(embed_v0)]

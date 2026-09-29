@@ -39,23 +39,41 @@ const K_SKILL: u32 = 4;
 const K_ITEM: u32 = 5;
 const K_INTERACT: u32 = 6;
 
-pub fn encode_action(action: Action) -> u32 {
+/// The 24 bits of an action; `None` for a direction above 5, a bar slot above 7 or a belt slot
+/// above 3: the encoder refuses what the decoder would refuse, so that no out-of-range value
+/// spills into a neighbouring field (ENG-01 fix loop 1, F-10).
+pub fn encode_action(action: Action) -> Option<u32> {
     match action {
-        Action::Move(d) => K_MOVE + d.into() * 8,
-        Action::Turn(d) => K_TURN + d.into() * 8,
-        Action::Wait => K_WAIT,
-        Action::Attack(entity) => K_ATTACK + entity.into() * 8,
+        Action::Move(d) => if d > 5 {
+            None
+        } else {
+            Some(K_MOVE + d.into() * 8)
+        },
+        Action::Turn(d) => if d > 5 {
+            None
+        } else {
+            Some(K_TURN + d.into() * 8)
+        },
+        Action::Wait => Some(K_WAIT),
+        Action::Attack(entity) => Some(K_ATTACK + entity.into() * 8),
         Action::Skill((
             slot, target,
         )) => {
+            if slot > 7 {
+                return None;
+            }
             let (flag, value): (u32, u32) = match target {
                 Target::Entity(e) => (0, e.into()),
                 Target::Tile(t) => (1, t.into()),
             };
-            K_SKILL + slot.into() * 8 + flag * 64 + value * 128
+            Some(K_SKILL + slot.into() * 8 + flag * 64 + value * 128)
         },
-        Action::Item((slot, entity)) => K_ITEM + slot.into() * 8 + entity.into() * 32,
-        Action::Interact(tile) => K_INTERACT + tile.into() * 8,
+        Action::Item((slot, entity)) => if slot > 3 {
+            None
+        } else {
+            Some(K_ITEM + slot.into() * 8 + entity.into() * 32)
+        },
+        Action::Interact(tile) => Some(K_INTERACT + tile.into() * 8),
     }
 }
 
@@ -116,7 +134,8 @@ pub fn decode_action(code: u32) -> Option<Action> {
     None
 }
 
-/// The batch felt of 1 to 10 actions; `None` for an empty or longer batch.
+/// The batch felt of 1 to 10 actions; `None` for an empty or longer batch, or an action out of
+/// range.
 pub fn encode_batch(actions: Span<Action>) -> Option<felt252> {
     let count = actions.len();
     if count == 0 || count > MAX_ACTIONS.into() {
@@ -130,7 +149,10 @@ pub fn encode_batch(actions: Span<Action>) -> Option<felt252> {
         if i == 5 {
             factor = 1;
         }
-        let code: u128 = encode_action(*action).into();
+        let code: u128 = match encode_action(*action) {
+            Some(code) => code.into(),
+            None => { return None; },
+        };
         if i < 5 {
             low += code * factor;
         } else {

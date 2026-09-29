@@ -1,6 +1,8 @@
 // The events of `Instances` have the keys and data of docs/architecture/ENG-01-interfaces.md: the
 // selector of the name, then the instance id; the data in the declared order.
-use grimworld_ephemeral::events::{BatchPlayed, InstanceClosed, InstanceEntered, Refused};
+use grimworld_ephemeral::events::{
+    BatchPlayed, ChunkRevealed, Defeated, GoblinKilled, InstanceClosed, InstanceEntered, Refused,
+};
 use grimworld_ephemeral::systems::instances::Instances::Event;
 use grimworld_logic::types::{Outcome, Refusal, Stop, instance_id};
 
@@ -56,4 +58,26 @@ fn test_instances_event_keys_and_data() {
     );
     assert(keys == array![selector!("InstanceClosed"), id.into()], 'closed keys');
     assert(data == array![2], 'closed data');
+}
+
+// Fix loop 1, F-7: the per-action events of design/02 beside BatchPlayed.
+#[test]
+#[available_gas(l2_gas: 62055)] // ceil(1.05 × 59100 measured)
+fn test_per_action_event_keys_and_data() {
+    let id = instance_id(5, 2);
+    let (keys, data) = split(
+        Event::GoblinKilled(
+            GoblinKilled { instance_id: id, entity: 42, caste: 3, tile: 0x0707, by: 0 },
+        ),
+    );
+    assert(keys == array![selector!("GoblinKilled"), id.into()], 'killed keys');
+    assert(data == array![42, 3, 0x0707, 0], 'killed data');
+
+    let (keys, data) = split(Event::ChunkRevealed(ChunkRevealed { instance_id: id, chunk: 112 }));
+    assert(keys == array![selector!("ChunkRevealed"), id.into()], 'revealed keys');
+    assert(data == array![112], 'revealed data');
+
+    let (keys, data) = split(Event::Defeated(Defeated { instance_id: id, adventurer_id: 9 }));
+    assert(keys == array![selector!("Defeated"), id.into()], 'defeated keys');
+    assert(data == array![9], 'defeated data');
 }

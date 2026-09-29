@@ -30,7 +30,9 @@ pub trait IHub<T> {
     fn set_build(ref self: T, adventurer_id: u32, build: felt252, belt: felt252, equipped: felt252);
 
     // Travel (design/01, design/02, design/17)
-    /// Through a gate of its hub: snapshot, task ids, then `Instances.create`; returns the id.
+    /// Through a gate of its hub: snapshot, task ids, the belt's potions debited from the pack (the
+    /// reserve, credited back unused by the closing report), then `Instances.create`; returns the
+    /// id.
     fn enter(ref self: T, adventurer_id: u32, gate: u16) -> InstanceId;
     /// Rift `index` of the account's board of the day (the first board action draws it).
     fn enter_rift(ref self: T, adventurer_id: u32, index: u8) -> InstanceId;
@@ -87,14 +89,19 @@ pub trait IHubViews<T> {
     /// The six words of `Adventurer`, in order.
     fn adventurer(self: @T, adventurer_id: u32) -> Span<felt252>;
     fn known_skills(self: @T, adventurer_id: u32) -> Span<felt252>;
-    /// "Distinct" counters of titles (T-2), by registry `COUNTER` id.
+    /// "Distinct" counters of titles (T-2), by registry `COUNTER` id: at most 32 ids a call (one
+    /// read each), in the order asked; an unwritten counter is 0.
     fn counters(self: @T, adventurer_id: u32, counters: Span<u16>) -> Span<felt252>;
-    /// Balance pages (`Lanes32`, item `7 page + lane`) of an owner key (`models::account`).
+    /// Balance pages (`Lanes32`, item `7 page + lane`) of an owner key (`models::account`): at most
+    /// 32 pages a call (one read each), in the order asked; an unwritten page is empty. The client
+    /// asks for the pages of the items it knows of (the registry lists them); no view enumerates
+    /// an owner's pages.
     fn balances(self: @T, owner: felt252, pages: Span<u32>) -> Span<felt252>;
     fn gold(self: @T, owner: felt252) -> u64;
     /// `(ItemBase, ItemMods)`.
     fn item(self: @T, entity: u32) -> (felt252, felt252);
     fn pack(self: @T, adventurer_id: u32) -> Span<u32>;
+    /// The account's equipment in the vault: 4 pages a pane, at most 8 panes (32 reads).
     fn vault(self: @T, account_id: u32) -> Span<u32>;
     /// `(GrimoireState, Pairs, Pairs)`.
     fn grimoire(self: @T, adventurer_id: u32, book: u16) -> (felt252, felt252, felt252);
@@ -138,7 +145,7 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use grimworld_logic::interface::{IResults, Results};
-    use grimworld_logic::packing::{Bitmap, Lanes32};
+    use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
     use grimworld_logic::types::InstanceId;
     use starknet::storage::{Map, StoragePointerWriteAccess};
     use starknet::{ClassHash, ContractAddress};
@@ -159,9 +166,9 @@ pub mod Hub {
         pub instances: ContractAddress,
         pub market: ContractAddress,
         pub fate: ContractAddress,
-        pub next_account: u32,
-        pub next_adventurer: u32,
-        pub next_item: u32,
+        pub next_account: Counter,
+        pub next_adventurer: Counter,
+        pub next_item: Counter,
         pub account_of: Map<ContractAddress, u32>,
         /// Two slots each: owner, record.
         pub accounts: Map<u32, Account>,
@@ -214,9 +221,9 @@ pub mod Hub {
         self.instances.write(instances);
         self.market.write(market);
         self.fate.write(fate);
-        self.next_account.write(1);
-        self.next_adventurer.write(1);
-        self.next_item.write(1);
+        self.next_account.write(Counter { value: 1 });
+        self.next_adventurer.write(Counter { value: 1 });
+        self.next_item.write(Counter { value: 1 });
     }
 
     #[abi(embed_v0)]

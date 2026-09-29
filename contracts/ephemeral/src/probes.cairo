@@ -1,7 +1,7 @@
 //! Measurement probes of ENG-01, never deployed by the game: `ReuseProbe` prices a storage key
 //! written, kept or zeroed, then written again (docs/architecture/ENG-01-interfaces.md, *Reuse,
 //! measured*); `CallProbe` prices a view call from one contract to another (the registry read of
-//! an invocation). No game rule lives here.
+//! an invocation); `EventProbe` prices the per-action events. No game rule lives here.
 
 #[starknet::interface]
 pub trait IReuseProbe<T> {
@@ -79,6 +79,51 @@ pub mod CallProbe {
 
         fn set(ref self: ContractState, key: u32, value: felt252) {
             self.slots.write(key, value);
+        }
+    }
+}
+
+#[starknet::interface]
+pub trait IEventProbe<T> {
+    /// Emits `killed` events shaped as `GoblinKilled` and `revealed` shaped as `ChunkRevealed`.
+    fn fire(ref self: T, killed: u32, revealed: u32);
+}
+
+/// Prices the per-action events of `Instances` (fix loop 1, F-7): the same call with and without
+/// its events.
+#[starknet::contract]
+pub mod EventProbe {
+    use crate::events::{ChunkRevealed, GoblinKilled};
+
+    #[storage]
+    struct Storage {}
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    pub enum Event {
+        GoblinKilled: GoblinKilled,
+        ChunkRevealed: ChunkRevealed,
+    }
+
+    #[abi(embed_v0)]
+    impl EventProbeImpl of super::IEventProbe<ContractState> {
+        fn fire(ref self: ContractState, killed: u32, revealed: u32) {
+            let mut i: u32 = 0;
+            while i != killed {
+                let entity: u16 = (8 + i).try_into().unwrap();
+                self
+                    .emit(
+                        GoblinKilled {
+                            instance_id: 0x100000001, entity, caste: 3, tile: 0x707, by: 0,
+                        },
+                    );
+                i += 1;
+            }
+            let mut j: u32 = 0;
+            while j != revealed {
+                self.emit(ChunkRevealed { instance_id: 0x100000001, chunk: j.try_into().unwrap() });
+                j += 1;
+            }
         }
     }
 }

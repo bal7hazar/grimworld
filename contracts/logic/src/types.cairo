@@ -44,10 +44,20 @@ pub const MAX_PACKS_PER_CHUNK: u8 = 2;
 pub const MAX_PACK_SIZE: u8 = 5;
 /// Objects placed in one chunk: chests, veins, nodes, traps, collectors, landmarks (ENG-01).
 pub const MAX_OBJECTS_PER_CHUNK: u8 = 3;
-/// Goblins displaced from their spawn at once in an instance (the roster, ENG-01; escalated).
-pub const MAX_ROSTER: u8 = 30;
-/// The clock of an instance never passes this: deadlines are stored in 28 bits (ENG-01).
+/// Goblins displaced from their spawn, alive or dead and not looted, at once in an instance: the
+/// roster, four pages of fifteen (ENG-01, E-2). It is also how a view finds remains lying away
+/// from their spawn chunk (F-6).
+pub const MAX_ROSTER: u8 = 60;
+pub const ROSTER_PAGES: u8 = 4;
+/// No deadline passes this: deadlines are stored in 28 bits (ENG-01, E-4).
 pub const MAX_CLOCK: u32 = 0xFFFFFFF;
+/// The longest duration, recharge or activation the registry may hold (a `u16` of ticks).
+pub const MAX_DURATION: u32 = 0xFFFF;
+/// An action runs only while `clock ≤ LAST_TICK`: then every deadline it can set,
+/// `clock + ticks run + a duration`, stays at or below `MAX_CLOCK` (ENG-01, E-4).
+pub const LAST_TICK: u32 = MAX_CLOCK - MAX_DURATION - MAX_WEIGHT_TICKS;
+/// The world ticks one batch can run (weight 10).
+pub const MAX_WEIGHT_TICKS: u32 = 10;
 /// Chunks per page of `instance_region` (a node's call limits, design/02).
 pub const REGION_PAGE: u8 = 16;
 

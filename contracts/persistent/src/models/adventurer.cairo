@@ -2,8 +2,8 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    Lanes32, P104, P112, P120, P16, P32, P40, P48, P64, P80, P96, byte_at, field, join, low_field,
-    split, u16_at, u32_at,
+    Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits, join,
+    low_field, split, u16_at, u32_at,
 };
 
 /// Who it is and how far it went.
@@ -29,6 +29,9 @@ pub struct AdventurerCore {
     pub trials_tried: u16,
     /// bits 176-183: 0 active, 1 deleted (its slot freed, design/03)
     pub status: u8,
+    /// bits 184-199: non-zero balance lanes in its pack, so that `delete_adventurer` checks an
+    /// empty pack without scanning pages (design/03, D-33; ENG-01 fix loop 1, F-5)
+    pub pack_lanes: u16,
 }
 
 pub impl AdventurerCoreStorePacking of starknet::storage_access::StorePacking<
@@ -45,7 +48,8 @@ pub impl AdventurerCoreStorePacking of starknet::storage_access::StorePacking<
         let high: u128 = value.unspent.into()
             + value.trials_first.into() * P16
             + value.trials_tried.into() * P32
-            + value.status.into() * P48;
+            + value.status.into() * P48
+            + value.pack_lanes.into() * P56;
         join(low, high)
     }
     fn unpack(value: felt252) -> AdventurerCore {
@@ -62,6 +66,7 @@ pub impl AdventurerCoreStorePacking of starknet::storage_access::StorePacking<
             trials_first: u16_at(high, P16),
             trials_tried: u16_at(high, P32),
             status: byte_at(high, P48),
+            pack_lanes: u16_at(high, P56),
         }
     }
 }
@@ -128,6 +133,7 @@ pub impl BuildStorePacking of starknet::storage_access::StorePacking<Build, felt
             + s5.into() * P80
             + s6.into() * P96
             + s7.into() * P112;
+        fits(value.attributes.into(), 0x1000000000, 'packing: attributes above 36 b');
         join(low, value.attributes.into() + value.elite_slot.into() * P40)
     }
     fn unpack(value: felt252) -> Build {

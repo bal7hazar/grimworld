@@ -227,7 +227,8 @@ pub struct Snapshot {
     pub stats: MemberStats,
     pub bar: MemberBar,
     pub kit: MemberKit,
-    /// Potions carried in each belt slot.
+    /// Potions carried in each belt slot: debited from the pack in the entry transaction (the
+    /// reserve), credited back unused by the closing report (`Results.belt`).
     pub belt_counts: [u8; 4],
 }
 

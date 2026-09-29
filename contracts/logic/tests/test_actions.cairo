@@ -13,7 +13,7 @@ fn ten() -> Array<Action> {
 
 // Every kind, every argument at its widest, ten actions: decoding gives them back in order.
 #[test]
-#[available_gas(l2_gas: 380058)] // ceil(1.05 × 361960 measured)
+#[available_gas(l2_gas: 386778)] // ceil(1.05 × 368360 measured)
 fn test_batch_round_trip() {
     let actions = ten();
     let word = encode_batch(actions.span()).unwrap();
@@ -22,7 +22,7 @@ fn test_batch_round_trip() {
 
 // The layout pinned: count at bits 0-3, action i at 4 + 24 i (i < 5), then 128 + 24 (i - 5).
 #[test]
-#[available_gas(l2_gas: 122420)] // ceil(1.05 × 116590 measured)
+#[available_gas(l2_gas: 126641)] // ceil(1.05 × 120610 measured)
 fn test_batch_layout() {
     // Move East = 0; Attack 9 = 3 + 9 × 8; Skill slot 2 on tile 300 = 4 + 2 × 8 + 64 + 300 ×
     // 128;
@@ -41,7 +41,7 @@ fn test_batch_layout() {
         + (6 + 5 * 8) * 0x10000000000000000000000000 // bit 100
         + 2 * two_128;
     assert(word == expected, 'layout');
-    assert(encode_action(Action::Turn(3)) == 1 + 3 * 8, 'turn');
+    assert(encode_action(Action::Turn(3)) == Some(1 + 3 * 8), 'turn');
 }
 
 // One encoding per batch: counts out of 1-10, bits beyond the count, bad arguments are refused.
@@ -62,4 +62,20 @@ fn test_batch_refusals() {
     assert(decode_batch(1 + 7 * 0x10).is_none(), 'kind 7');
     // Wait with an argument.
     assert(decode_batch(1 + (2 + 8) * 0x10).is_none(), 'wait argument');
+}
+
+// The encoder refuses what the decoder refuses: a direction above 5, a bar slot above 7, a belt
+// slot above 3 (fix loop 1, F-10); one bad action refuses the whole batch.
+#[test]
+#[available_gas(l2_gas: 42504)] // ceil(1.05 × 40480 measured)
+fn test_encoder_refusals() {
+    assert(encode_action(Action::Move(6)).is_none(), 'move 6');
+    assert(encode_action(Action::Turn(255)).is_none(), 'turn 255');
+    assert(encode_action(Action::Skill((8, Target::Entity(1)))).is_none(), 'skill slot 8');
+    assert(encode_action(Action::Item((4, 1))).is_none(), 'belt slot 4');
+    assert(encode_action(Action::Move(5)).is_some(), 'move 5');
+    assert(encode_action(Action::Skill((7, Target::Tile(0xFFFF)))).is_some(), 'skill slot 7');
+    assert(encode_action(Action::Item((3, 0xFFFF))).is_some(), 'belt slot 3');
+    let batch = array![Action::Wait, Action::Item((4, 8))];
+    assert(encode_batch(batch.span()).is_none(), 'batch with a bad action');
 }

@@ -26,7 +26,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 321395)] // ceil(1.05 × 306090 measured)
+#[available_gas(l2_gas: 335066)] // ceil(1.05 × 319110 measured)
 fn test_account_and_adventurer_layout() {
     let record = AccountRecord {
         slots: 3, adventurers: 2, highest_rank: 9, vault_panes: 4, lots: 20,
@@ -47,6 +47,7 @@ fn test_account_and_adventurer_layout() {
         trials_first: 0x3FF,
         trials_tried: 0x3FF,
         status: 1,
+        pack_lanes: 0xFFFF,
     };
     let word = StorePacking::<AdventurerCore, felt252>::pack(core);
     assert(StorePacking::<AdventurerCore, felt252>::unpack(word) == core, 'core trip');
@@ -76,7 +77,7 @@ fn test_account_and_adventurer_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 340694)] // ceil(1.05 × 324470 measured)
+#[available_gas(l2_gas: 341397)] // ceil(1.05 × 325140 measured)
 fn test_item_grimoire_rift_layout() {
     let base = ItemBase {
         base: 0xFFFF,
@@ -124,7 +125,7 @@ fn test_item_grimoire_rift_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 206871)] // ceil(1.05 × 197020 measured)
+#[available_gas(l2_gas: 207449)] // ceil(1.05 × 197570 measured)
 fn test_market_layout() {
     let lot = Lot {
         price: 0xFFFFFFFFFFFFFFFF,
@@ -175,4 +176,21 @@ fn test_market_layout() {
         'equipment key',
     );
     assert(market_key(EQUIPMENT, 5, 40, 9, 4, true, true) == 0x20000000000 + 40, 'boss key');
+}
+
+// Fix loop 1, F-9: fields narrower than their type are refused when too wide.
+#[test]
+#[should_panic(expected: 'packing: attributes above 36 b')]
+#[available_gas(l2_gas: 43418)] // ceil(1.05 × 41350 measured)
+fn test_attributes_above_36_bits_refused() {
+    StorePacking::<
+        Build, felt252,
+    >::pack(Build { bar: [0; 8], attributes: 0x1000000000, elite_slot: 0 });
+}
+
+#[test]
+#[should_panic(expected: 'packing: pairs 25-48 overflow')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_pairs_overflow_refused() {
+    StorePacking::<Pairs, felt252>::pack(Pairs { low: 0, high: 0x1000000000000000000000000000000 });
 }

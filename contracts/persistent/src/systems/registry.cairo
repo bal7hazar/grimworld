@@ -11,10 +11,11 @@ pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
 #[starknet::interface]
 pub trait IRegistryAdmin<T> {
     fn version(self: @T) -> felt252;
-    /// Writes one record: exactly `parts(kind)` felts. A new id must be the next of its kind
-    /// (append-only, design/01 rule 2); an existing id's values may change.
+    /// Writes one record: exactly `parts(kind)` felts, part 0 with `LIVE` set. A sequential kind's
+    /// new id must be `last_id + 1` (append-only, design/01 rule 2); a composite kind's id must
+    /// name an existing parent (`content::is_sequential`). An existing id's values may change.
     fn set_record(ref self: T, kind: u8, id: u32, record: Span<felt252>);
-    /// The highest id of a kind.
+    /// The highest id of a sequential kind; 0 for a composite kind.
     fn last_id(self: @T, kind: u8) -> u32;
     fn set_admin(ref self: T, admin: ContractAddress);
     fn upgrade(ref self: T, class_hash: ClassHash);
@@ -23,6 +24,7 @@ pub trait IRegistryAdmin<T> {
 #[starknet::contract]
 pub mod Registry {
     use grimworld_logic::interface::IRegistryRead;
+    use grimworld_logic::packing::Counter;
     use starknet::storage::{Map, StoragePointerWriteAccess};
     use starknet::{ClassHash, ContractAddress};
     use super::{NOT_IMPLEMENTED, VERSION};
@@ -32,8 +34,8 @@ pub mod Registry {
         pub admin: ContractAddress,
         /// `(kind, id, part)` → one felt of the record.
         pub records: Map<(u8, u32, u8), felt252>,
-        /// Highest id of each kind.
-        pub last_ids: Map<u8, u32>,
+        /// Highest id of each sequential kind (`content::is_sequential`); 0 for composite kinds.
+        pub last_ids: Map<u8, Counter>,
     }
 
     #[constructor]

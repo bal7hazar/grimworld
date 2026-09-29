@@ -3,10 +3,11 @@
 //! that controls the adventurer (M-6). Layouts: docs/architecture/ENG-01-interfaces.md, *Member*.
 
 use grimworld_logic::packing::{
-    P112, P120, P16, P24, P28, P32, P56, P64, P8, P80, P84, P96, byte_at, join, low_field, split,
-    u16_at, u32_at,
+    P112, P120, P16, P24, P28, P32, P56, P64, P8, P80, P84, P96, byte_at, fits, join, low_field,
+    split, u16_at, u32_at,
 };
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
+use grimworld_logic::types::MAX_CLOCK;
 use starknet::ContractAddress;
 
 /// Member status (`MemberState.status`).
@@ -108,6 +109,12 @@ pub struct MemberTimers {
 
 pub impl MemberTimersStorePacking of starknet::storage_access::StorePacking<MemberTimers, felt252> {
     fn pack(value: MemberTimers) -> felt252 {
+        for deadline in array![
+            value.act_deadline, value.bleeding, value.poison, value.burning, value.crippled,
+            value.knocked,
+        ] {
+            assert(deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
+        }
         let low: u128 = value.act_slot.into()
             + value.act_target.into() * P8
             + value.act_tile.into() * P24
@@ -153,6 +160,7 @@ pub struct MemberEffects {
 }
 
 fn pack_effect(e: Effect) -> u128 {
+    assert(e.deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
     e.skill.into() + e.charges.into() * P16 + e.deadline.into() * P24
 }
 
@@ -189,7 +197,13 @@ pub struct Recharges {
     pub deadlines: [u32; 8],
 }
 
+/// Four 28-bit deadlines in one limb; a value of 2^28 or more is refused (it would corrupt the
+/// next lane).
 pub fn pack_four28(a: u32, b: u32, c: u32, d: u32) -> u128 {
+    fits(a.into(), P28, 'packing: deadline above 2^28');
+    fits(b.into(), P28, 'packing: deadline above 2^28');
+    fits(c.into(), P28, 'packing: deadline above 2^28');
+    fits(d.into(), P28, 'packing: deadline above 2^28');
     a.into() + b.into() * P28 + c.into() * P56 + d.into() * P84
 }
 

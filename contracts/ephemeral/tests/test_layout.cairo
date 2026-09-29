@@ -5,7 +5,7 @@ use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement,
 use grimworld_ephemeral::models::goblin::{Goblin, GoblinState, GoblinTimers};
 use grimworld_ephemeral::models::instance::{Header, Placement, Quotas};
 use grimworld_ephemeral::models::member::{
-    Effect, Member, MemberEffects, MemberState, MemberTimers, Recharges,
+    Effect, Member, MemberEffects, MemberState, MemberTimers, Recharges, pack_four28,
 };
 use grimworld_logic::packing::LIVE;
 use starknet::storage_access::StorePacking;
@@ -23,7 +23,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 467166)] // ceil(1.05 × 444920 measured)
+#[available_gas(l2_gas: 467513)] // ceil(1.05 × 445250 measured)
 fn test_placement_and_header_layout() {
     let placement = Placement { slot: 0xFFFFFFFF, generation: 0xFFFFFFFF, member: 7, inside: 1 };
     let word = StorePacking::<Placement, felt252>::pack(placement);
@@ -66,7 +66,7 @@ fn test_placement_and_header_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 475587)] // ceil(1.05 × 452940 measured)
+#[available_gas(l2_gas: 506709)] // ceil(1.05 × 482580 measured)
 fn test_member_layout() {
     let state = MemberState {
         adventurer: 0xFFFFFFFF,
@@ -125,7 +125,7 @@ fn test_member_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 329091)] // ceil(1.05 × 313420 measured)
+#[available_gas(l2_gas: 374850)] // ceil(1.05 × 357000 measured)
 fn test_chunk_layout() {
     // Every tile a wall, every edge open: bit 228 is the last one used.
     let all: felt252 = 0x200000000000000000000000000000000000000000000000000000000 - 1;
@@ -136,7 +136,7 @@ fn test_chunk_layout() {
     assert(StorePacking::<Terrain, felt252>::pack(edge) == all + 1 + LIVE, 'edges at bit 225');
 
     let pack = PackPlacement {
-        tile: 224, template: 0xFFFF, level: 28, count: 5, offsets: 0x1FFFFFF,
+        tile: 224, template: 0xFFFF, level: 28, count: 5, offsets: 0x1FFFFFF, alert: 7,
     };
     let object = Object { tile: 224, kind: 7, state: 1, param: 0xFFFF };
     let features = Features {
@@ -157,7 +157,7 @@ fn test_chunk_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 318623)] // ceil(1.05 × 303450 measured)
+#[available_gas(l2_gas: 339014)] // ceil(1.05 × 322870 measured)
 fn test_goblin_layout() {
     let state = GoblinState {
         x: 224,
@@ -203,4 +203,70 @@ fn test_goblin_layout() {
             + LIVE,
         'effect skill at bit 108',
     );
+}
+
+// Fix loop 1, F-9: every field narrower than its Cairo type is refused when too wide, at its
+// boundary; nothing spills into a neighbouring lane.
+#[test]
+#[available_gas(l2_gas: 337250)] // ceil(1.05 × 321190 measured)
+fn test_deadline_boundaries() {
+    let max: u32 = 0xFFFFFFF;
+    assert(
+        pack_four28(max, 0, 0, max) == 0xFFFFFFF + 0xFFFFFFF * 0x1000000000000000000000, 'lanes',
+    );
+    let timers = MemberTimers { knocked: max, ..Default::default() };
+    let word = StorePacking::<MemberTimers, felt252>::pack(timers);
+    assert(StorePacking::<MemberTimers, felt252>::unpack(word) == timers, 'MAX_CLOCK fits');
+    let pack = PackPlacement { count: 15, offsets: 0x1FFFFFF, alert: 7, ..Default::default() };
+    let features = Features {
+        packs: [pack, Default::default()],
+        objects: [Default::default(), Default::default(), Default::default()],
+        touched: 0,
+    };
+    let word = StorePacking::<Features, felt252>::pack(features);
+    assert(StorePacking::<Features, felt252>::unpack(word) == features, 'widest pack');
+}
+
+#[test]
+#[should_panic(expected: 'packing: deadline above 2^28')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_recharge_above_28_bits_refused() {
+    pack_four28(0, 0x10000000, 0, 0);
+}
+
+#[test]
+#[should_panic(expected: 'packing: deadline above 2^28')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_goblin_deadline_above_28_bits_refused() {
+    let timers = GoblinTimers { poison: 0x10000000, ..Default::default() };
+    StorePacking::<GoblinTimers, felt252>::pack(timers);
+}
+
+#[test]
+#[should_panic(expected: 'packing: deadline > MAX_CLOCK')]
+#[available_gas(l2_gas: 49592)] // ceil(1.05 × 47230 measured)
+fn test_member_deadline_past_max_clock_refused() {
+    let timers = MemberTimers { act_deadline: 0x10000000, ..Default::default() };
+    StorePacking::<MemberTimers, felt252>::pack(timers);
+}
+
+#[test]
+#[should_panic(expected: 'packing: offsets above 25 bits')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_pack_offsets_refused() {
+    let pack = PackPlacement { offsets: 0x2000000, ..Default::default() };
+    let features = Features {
+        packs: [pack, Default::default()],
+        objects: [Default::default(), Default::default(), Default::default()],
+        touched: 0,
+    };
+    StorePacking::<Features, felt252>::pack(features);
+}
+
+#[test]
+#[should_panic(expected: 'packing: walls above bit 224')]
+#[available_gas(l2_gas: 18606)] // ceil(1.05 × 17720 measured)
+fn test_walls_above_224_refused() {
+    let walls: felt252 = 0x200000000000000000000000000000000000000000000000000000000; // 2^225
+    StorePacking::<Terrain, felt252>::pack(Terrain { walls, edges: 0 });
 }

@@ -2,7 +2,8 @@
 // lanes, bitmaps; the snapshot's and the task pages' layouts; identifiers.
 use grimworld_logic::content::{LAST_KIND, parts};
 use grimworld_logic::packing::{
-    Bitmap, LIVE, Lanes16, Lanes32, pack_lanes16, pack_lanes32, unpack_lanes16, unpack_lanes32,
+    Bitmap, Counter, LIVE, Lanes16, Lanes32, join, pack_lanes16, pack_lanes32, unpack_lanes16,
+    unpack_lanes32,
 };
 use grimworld_logic::snapshot::{
     MemberBar, MemberKit, MemberStats, TaskEntry, TaskPage, pack_bar, pack_kit, pack_stats,
@@ -14,7 +15,7 @@ use starknet::storage_access::StorePacking;
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
 #[test]
-#[available_gas(l2_gas: 116676)] // ceil(1.05 × 111120 measured)
+#[available_gas(l2_gas: 117023)] // ceil(1.05 × 111450 measured)
 fn test_lanes32() {
     let lanes = Lanes32 { lanes: [1, 2, 3, 0xFFFFFFFF, 5, 6, 0xFFFFFFFF] };
     let word = pack_lanes32(lanes);
@@ -26,7 +27,7 @@ fn test_lanes32() {
 }
 
 #[test]
-#[available_gas(l2_gas: 450482)] // ceil(1.05 × 429030 measured)
+#[available_gas(l2_gas: 451889)] // ceil(1.05 × 430370 measured)
 fn test_lanes16() {
     let lanes = Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 0xFFFF, 9, 10, 11, 12, 13, 14, 0xFFFF] };
     assert(unpack_lanes16(pack_lanes16(lanes)) == lanes, 'round trip');
@@ -37,7 +38,7 @@ fn test_lanes16() {
 }
 
 #[test]
-#[available_gas(l2_gas: 19100)] // ceil(1.05 × 18190 measured)
+#[available_gas(l2_gas: 21599)] // ceil(1.05 × 20570 measured)
 fn test_bitmap() {
     let top: felt252 = 0x200000000000000000000000000000000000000000000000000000000000000; // 2^249
     let bitmap = Bitmap { bits: top + 1 };
@@ -47,7 +48,7 @@ fn test_bitmap() {
 }
 
 #[test]
-#[available_gas(l2_gas: 317657)] // ceil(1.05 × 302530 measured)
+#[available_gas(l2_gas: 318003)] // ceil(1.05 × 302860 measured)
 fn test_stats_layout() {
     let stats = MemberStats {
         max_health: 0xFFFF,
@@ -79,7 +80,7 @@ fn test_stats_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 222600)] // ceil(1.05 × 212000 measured)
+#[available_gas(l2_gas: 223062)] // ceil(1.05 × 212440 measured)
 fn test_bar_and_kit_layout() {
     let bar = MemberBar { skills: [1, 2, 3, 4, 5, 6, 7, 0xFFFF], elite_slot: 255 };
     assert(unpack_bar(pack_bar(bar)) == bar, 'bar round trip');
@@ -103,7 +104,7 @@ fn test_bar_and_kit_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 149132)] // ceil(1.05 × 142030 measured)
+#[available_gas(l2_gas: 149363)] // ceil(1.05 × 142250 measured)
 fn test_task_page_layout() {
     let full = TaskEntry { task: 0xFFFFFFFF, kind: 0xFF, param: 0xFFFF };
     let page = TaskPage { entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full] };
@@ -128,4 +129,32 @@ fn test_identifiers() {
     assert(goblin_entity(0, 0) == 8, 'first goblin');
     assert(goblin_entity(224, 9) == 8 + 16 * 224 + 9, 'last goblin');
     assert(parts(2) == 2 && parts(15) == 3 && parts(LAST_KIND) == 1, 'parts per kind');
+}
+
+// Fix loop 1: a counter is never 0 in storage (F-4); a high limb that would reach LIVE, or a
+// bitmap above bit 249, is refused (F-9).
+#[test]
+#[available_gas(l2_gas: 19278)] // ceil(1.05 × 18360 measured)
+fn test_counter_never_zero() {
+    let zero = StorePacking::<Counter, felt252>::pack(Counter { value: 0 });
+    assert(zero == LIVE, 'zero is LIVE');
+    let max = Counter { value: 0xFFFFFFFFFFFFFFFF };
+    let word = StorePacking::<Counter, felt252>::pack(max);
+    assert(StorePacking::<Counter, felt252>::unpack(word) == max, 'round trip');
+    assert(join(0, 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) != 0, 'widest high limb');
+}
+
+#[test]
+#[should_panic(expected: 'packing: high limb overflow')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_join_refuses_live_overflow() {
+    join(0, 0x4000000000000000000000000000000);
+}
+
+#[test]
+#[should_panic(expected: 'packing: bitmap above bit 249')]
+#[available_gas(l2_gas: 18606)] // ceil(1.05 × 17720 measured)
+fn test_bitmap_above_249_refused() {
+    let bit250: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
+    StorePacking::<Bitmap, felt252>::pack(Bitmap { bits: bit250 });
 }

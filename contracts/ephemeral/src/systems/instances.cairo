@@ -108,12 +108,15 @@ pub trait IInstancesAdmin<T> {
 #[starknet::contract]
 pub mod Instances {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::packing::{Bitmap, Lanes16};
+    use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
     use grimworld_logic::types::InstanceId;
     use starknet::storage::{Map, StoragePointerWriteAccess};
     use starknet::{ClassHash, ContractAddress};
-    use crate::events::{BatchPlayed, InstanceClosed, InstanceEntered, Refused};
+    use crate::events::{
+        BatchPlayed, ChunkRevealed, Defeated, GoblinKilled, InstanceClosed, InstanceEntered,
+        Refused,
+    };
     use crate::models::chunk::Chunk;
     use crate::models::goblin::Goblin;
     use crate::models::instance::{Header, Placement, Quotas};
@@ -129,7 +132,7 @@ pub mod Instances {
         pub registry: ContractAddress,
         pub fate: ContractAddress,
         /// The next slot handed out, at an adventurer's first entry; slots are never freed.
-        pub next_slot: u32,
+        pub next_slot: Counter,
         pub placements: Map<u32, Placement>,
         pub headers: Map<u32, Header>,
         /// The entry draw plus the player entropy, a sum of hashes (a set, ADR-0006 option C).
@@ -141,7 +144,9 @@ pub mod Instances {
         pub tasks: Map<(u32, u8), TaskPage>,
         /// `(slot, member)`: eight consecutive slots each.
         pub members: Map<(u32, u8), Member>,
-        /// `(slot, page)`: pages 0-1, fifteen entity ids each; 0 is an empty lane.
+        /// `(slot, page)`: pages 0-3, fifteen entity ids each, compact: entries beyond
+        /// `header.roster_count` are never read. Goblins displaced from their spawn, alive or dead
+        /// and not looted (how a view finds remains away from their spawn chunk).
         pub roster: Map<(u32, u8), Lanes16>,
         /// `(slot, chunk)`: two consecutive slots each.
         pub chunks: Map<(u32, u8), Chunk>,
@@ -156,6 +161,9 @@ pub mod Instances {
         BatchPlayed: BatchPlayed,
         Refused: Refused,
         InstanceClosed: InstanceClosed,
+        GoblinKilled: GoblinKilled,
+        ChunkRevealed: ChunkRevealed,
+        Defeated: Defeated,
     }
 
     #[constructor]
@@ -170,7 +178,7 @@ pub mod Instances {
         self.hub.write(hub);
         self.registry.write(registry);
         self.fate.write(fate);
-        self.next_slot.write(1);
+        self.next_slot.write(Counter { value: 1 });
     }
 
     #[abi(embed_v0)]
