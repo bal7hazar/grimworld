@@ -6,7 +6,9 @@
 // node probe `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys
 // a test watches (`load` before and after).
 use core::testing::get_available_gas;
-use grimworld_logic::content::{GATE, LOCATION, REGION};
+use grimworld_logic::content::{GATE, ITEM, LOCATION, REGION, SKILL};
+use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::interface::{
     IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher,
     IResultsSafeDispatcherTrait, Results, facts,
@@ -559,6 +561,49 @@ fn test_enter_refusals() {
     act(world, ALICE).delete_adventurer(other);
     #[feature("safe_dispatcher")]
     refused(try_act(world, ALICE).enter(other, INTO_ZONE), ADVENTURER_DELETED);
+}
+
+// CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
+// reach the snapshot; once inside, the build is locked (design/03).
+#[test]
+#[available_gas(l2_gas: 100000000)]
+fn test_enter_after_set_build() {
+    let world = setup();
+    let id = adventurer(world);
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
+    for item in 1..9_u32 {
+        let class = if item == 8 {
+            item_class::POTION
+        } else {
+            item_class::INGREDIENT
+        };
+        admin
+            .set_record(ITEM, item, ItemTrait::new(class, 1, 0, 1, 0, Default::default(), 0, 0).pack());
+    }
+    admin
+        .set_record(
+            SKILL,
+            1,
+            SkillTrait::new(VANGUARD, 1, 1, 5, 0, 1, 8, 1, 1, true, [Default::default(); 3]).pack(),
+        );
+    write(
+        world.hub,
+        map_entry_address(selector!("known_skills"), array![id.into(), 0].span()),
+        0x2 + LIVE,
+    );
+    give(world, id, 8, 5);
+    let belt: felt252 = StorePacking::pack(Lanes32 { lanes: [0, 8, 0, 0, 0x300, 0, 0] });
+    // Skill 1 in slot 1 (bits 16-31), the elite slot 1 (bits 168-175).
+    let build = 0x10000 + 0x10000000000 * 0x100000000000000000000000000000000;
+    act(world, ALICE).set_build(id, build, belt - LIVE, 0);
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(balance(world, id, 8) == 2, 'reserve debited');
+    let snapshot = created(world).snapshot;
+    assert(snapshot.kit.belt == [0, 8, 0, 0] && snapshot.belt_counts == [0, 3, 0, 0], 'belt');
+    assert(snapshot.bar.skills == [0, 1, 0, 0, 0, 0, 0, 0] && snapshot.bar.elite_slot == 1, 'bar');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).set_build(id, build, belt - LIVE, 0), NOT_IN_HUB);
 }
 
 // ---- travel -------------------------------------------------------------------------------------
