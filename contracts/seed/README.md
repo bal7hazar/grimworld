@@ -1,7 +1,7 @@
 # Seed data
 
 Content written into `Registry` through `set_record` (ENG-03). The records' bit layouts are
-`grimworld_logic::world` and docs/architecture/ENG-01-interfaces.md §3.5; the files here hold the
+the models of `grimworld_logic::models` and docs/architecture/ENG-01-interfaces.md §3.5; the files here hold the
 fields, not the packed felts.
 
 | File | What |
@@ -41,7 +41,8 @@ chunk.
 
 ## Writing it
 
-`contracts/persistent/tests/test_seed.cairo`: `write_seed(registry)` reads the file, packs every
-record with the layouts, and writes it as the administrator, regions first, locations before their
-outlines. `test_seed_written_and_read_back` writes it and reads it back in one `bundle`. The
-deployment scripts that write it to a network are OPS-01's.
+`contracts/persistent/tests/test_seed.cairo`: `SeedTrait::write(registry)` reads the file, builds
+every record as its model, packs it through `content::Record`, and writes it as the
+administrator, regions first, locations before their outlines. `test_seed_written_and_read_back`
+writes it and reads it back in one `bundle`. The deployment scripts that write it to a network are
+OPS-01's.

@@ -15,19 +15,22 @@ use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
 
 pub const VERSION: felt252 = 'grimworld-registry-1';
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
-/// The revert of an administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
-pub const NOT_ADMIN: felt252 = 'not admin';
-/// `set_admin` to the zero address would leave the role to nobody.
-pub const ZERO_ADMIN: felt252 = 'admin is zero';
-/// `set_record`'s refusals (ENG-01 §3.5, §4.5).
-pub const PART_COUNT: felt252 = 'registry: part count';
-pub const NOT_LIVE: felt252 = 'registry: part 0 not live';
-pub const ZERO_ID: felt252 = 'registry: id zero';
-pub const NOT_NEXT: felt252 = 'registry: id not next';
-pub const NO_PARENT: felt252 = 'registry: no parent';
-pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
-/// `records` and `bundle` past their bound (ENG-01 §4.5).
-pub const TOO_MANY: felt252 = 'registry: too many records';
+
+pub mod errors {
+    /// An administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
+    pub const NOT_ADMIN: felt252 = 'not admin';
+    /// `set_admin` to the zero address would leave the role to nobody.
+    pub const ZERO_ADMIN: felt252 = 'admin is zero';
+    /// `set_record`'s refusals (ENG-01 §3.5, §4.5).
+    pub const PART_COUNT: felt252 = 'registry: part count';
+    pub const NOT_LIVE: felt252 = 'registry: part 0 not live';
+    pub const ZERO_ID: felt252 = 'registry: id zero';
+    pub const NOT_NEXT: felt252 = 'registry: id not next';
+    pub const NO_PARENT: felt252 = 'registry: no parent';
+    pub const OUTLINE_CHUNK: felt252 = 'registry: outline chunk';
+    /// `records` and `bundle` past their bound (ENG-01 §4.5).
+    pub const TOO_MANY: felt252 = 'registry: too many records';
+}
 
 #[starknet::interface]
 pub trait IRegistryAdmin<T> {
@@ -44,39 +47,32 @@ pub trait IRegistryAdmin<T> {
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
 
-/// Whether part 0 of a record has `LIVE` (bit 250) and nothing above it. `u256` only to split the
-/// felt into its limbs, the cheapest split on Cairo 2.19 (as `packing::split`).
-#[inline(always)]
-fn is_live(word: felt252) -> bool {
-    let wide: u256 = word.into();
-    let (live, _) = DivRem::div_rem(
-        wide.high, grimworld_logic::packing::LIVE_HIGH.try_into().unwrap(),
-    );
-    live == 1
-}
+/// The parts of a record in `records`, read and written at their address without hashing the
+/// whole key for each part. The map hashes its key's members in order, a Pedersen chain from the
+/// variable's selector: `h(h(h(selector, kind), id), part)`. `key` is the record's two links,
+/// computed once; `address` adds the part's (tested against the map's own addresses:
+/// `test_part_address_is_the_maps`).
+#[generate_trait]
+pub impl PartsImpl of Parts {
+    #[inline(always)]
+    fn key(kind: u8, id: u32) -> felt252 {
+        pedersen(pedersen(selector!("records"), kind.into()), id.into())
+    }
 
-/// The address of a record's parts in `records`, without hashing the whole key for each part. The
-/// map hashes its key's members in order, a Pedersen chain from the variable's selector:
-/// `h(h(h(selector, kind), id), part)`. The first two links are the record's, computed once; each
-/// part adds one (tested against the map's own addresses: `test_part_address_is_the_maps`).
-#[inline(always)]
-pub fn record_key(kind: u8, id: u32) -> felt252 {
-    pedersen(pedersen(selector!("records"), kind.into()), id.into())
-}
+    #[inline(always)]
+    fn address(key: felt252, part: u8) -> StorageAddress {
+        storage_address_from_base(storage_base_address_from_felt252(pedersen(key, part.into())))
+    }
 
-#[inline(always)]
-pub fn part_address(key: felt252, part: u8) -> StorageAddress {
-    storage_address_from_base(storage_base_address_from_felt252(pedersen(key, part.into())))
-}
+    #[inline(always)]
+    fn read(address: StorageAddress) -> felt252 {
+        storage_read_syscall(0, address).unwrap_syscall()
+    }
 
-#[inline(always)]
-fn read_part(address: StorageAddress) -> felt252 {
-    storage_read_syscall(0, address).unwrap_syscall()
-}
-
-#[inline(always)]
-fn write_part(address: StorageAddress, value: felt252) {
-    storage_write_syscall(0, address, value).unwrap_syscall()
+    #[inline(always)]
+    fn write(address: StorageAddress, value: felt252) {
+        storage_write_syscall(0, address, value).unwrap_syscall()
+    }
 }
 
 #[starknet::contract]
@@ -84,18 +80,15 @@ pub mod Registry {
     use core::num::traits::Zero;
     use grimworld_logic::content::{LOCATION, MAX_READ, OUTLINE, SHOP, is_sequential, parts};
     use grimworld_logic::interface::IRegistryRead;
-    use grimworld_logic::packing::Counter;
-    use grimworld_logic::world::{CHUNK_SET, INDEX_BOUND};
+    use grimworld_logic::models::location::INDEX_BOUND;
+    use grimworld_logic::models::outline::CHUNK_SET;
+    use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::{ClassHash, ContractAddress, get_caller_address};
-    use super::{
-        NOT_ADMIN, NOT_IMPLEMENTED, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT,
-        TOO_MANY, VERSION, ZERO_ADMIN, ZERO_ID, is_live, part_address, read_part, record_key,
-        write_part,
-    };
+    use super::{NOT_IMPLEMENTED, Parts, VERSION, errors};
 
     #[storage]
     pub struct Storage {
@@ -124,7 +117,7 @@ pub mod Registry {
         }
         /// The records of `ids`, one after the other, `parts(kind)` felts each.
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
-            assert(ids.len() <= MAX_READ, TOO_MANY);
+            RegistryAssert::assert_bound(ids.len());
             let count = parts(kind);
             let mut out: Array<felt252> = array![];
             for id in ids {
@@ -133,7 +126,7 @@ pub mod Registry {
             out.span()
         }
         fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, Span<felt252>) {
-            assert(requests.len() <= MAX_READ, TOO_MANY);
+            RegistryAssert::assert_bound(requests.len());
             let mut out: Array<felt252> = array![];
             for request in requests {
                 let (kind, id) = *request;
@@ -155,22 +148,19 @@ pub mod Registry {
         /// differ are written, and the version is raised once if any did. A rewrite of the same
         /// values writes nothing and leaves the version as it was.
         fn set_record(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
-            assert(get_caller_address() == self.admin.read(), NOT_ADMIN);
-            let count = parts(kind);
-            assert(record.len() == count.into(), PART_COUNT);
-            assert(id != 0, ZERO_ID);
-            assert(is_live(*record.at(0)), NOT_LIVE);
+            self.assert_admin();
+            RegistryAssert::assert_record(kind, id, record);
             if is_sequential(kind) {
                 let last = self.last_ids.read(kind).value;
                 let id_wide: u64 = id.into();
                 if id_wide == last + 1 {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
-                    let key = record_key(kind, id);
+                    let key = Parts::key(kind, id);
                     let mut part: u8 = 0;
                     for felt in record {
                         if *felt != 0 {
-                            write_part(part_address(key, part), *felt);
+                            Parts::write(Parts::address(key, part), *felt);
                         }
                         part += 1;
                     }
@@ -178,23 +168,17 @@ pub mod Registry {
                     self.raise_version();
                     return;
                 }
-                assert(id_wide <= last, NOT_NEXT);
-            } else if kind == OUTLINE {
-                let (location, chunk) = DivRem::div_rem(id, 256);
-                assert(chunk < INDEX_BOUND.into() || chunk == CHUNK_SET.into(), OUTLINE_CHUNK);
-                self.assert_exists(LOCATION, location);
-            } else if kind == SHOP {
-                self.assert_exists(LOCATION, id / 16);
+                RegistryAssert::assert_existing(id_wide, last);
+            } else {
+                self.assert_parent(kind, id);
             }
-            // `TASK` and `QUEST` take quiver's ids: quiver's records are not in this contract, so
-            // nothing is checked beyond a non-zero id (ENG-03 report, escalation).
-            let key = record_key(kind, id);
+            let key = Parts::key(kind, id);
             let mut changed = false;
             let mut part: u8 = 0;
             for felt in record {
-                let address = part_address(key, part);
-                if read_part(address) != *felt {
-                    write_part(address, *felt);
+                let address = Parts::address(key, part);
+                if Parts::read(address) != *felt {
+                    Parts::write(address, *felt);
                     changed = true;
                 }
                 part += 1;
@@ -209,12 +193,68 @@ pub mod Registry {
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
-            assert(get_caller_address() == self.admin.read(), NOT_ADMIN);
-            assert(admin.is_non_zero(), ZERO_ADMIN);
+            self.assert_admin();
+            assert(admin.is_non_zero(), errors::ZERO_ADMIN);
             self.admin.write(admin);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+    }
+
+    /// The writer's and the readers' checks (ENG-01 §3.5, §4.5), in the order `set_record` makes
+    /// them: the administrator, the kind, the part count, the id, `LIVE`, then the allocation.
+    #[generate_trait]
+    pub impl RegistryAssert of RegistryAssertTrait {
+        #[inline(always)]
+        fn assert_admin(self: @ContractState) {
+            assert(get_caller_address() == self.admin.read(), errors::NOT_ADMIN);
+        }
+
+        /// A known kind, exactly `parts(kind)` felts, a non-zero id, and part 0 with `LIVE` and
+        /// nothing above it. `u256` only to split part 0 into its limbs, the cheapest split on
+        /// Cairo 2.19 (as `packing::split`).
+        #[inline(always)]
+        fn assert_record(kind: u8, id: u32, record: Span<felt252>) {
+            let count = parts(kind);
+            assert(record.len() == count.into(), errors::PART_COUNT);
+            assert(id != 0, errors::ZERO_ID);
+            let wide: u256 = (*record.at(0)).into();
+            let (live, _) = DivRem::div_rem(wide.high, LIVE_HIGH.try_into().unwrap());
+            assert(live == 1, errors::NOT_LIVE);
+        }
+
+        /// A sequential id that is not new must exist: at most `last_id` (ids are append-only).
+        #[inline(always)]
+        fn assert_existing(id: u64, last: u64) {
+            assert(id <= last, errors::NOT_NEXT);
+        }
+
+        /// A composite id names an existing parent: `OUTLINE` a location (and a chunk below 225, or
+        /// 255), `SHOP` a hub. `TASK` and `QUEST` take quiver's ids: quiver's records are not in
+        /// this contract, so nothing is checked beyond a non-zero id (ENG-03 report, escalation).
+        #[inline(always)]
+        fn assert_parent(self: @ContractState, kind: u8, id: u32) {
+            if kind == OUTLINE {
+                let (location, chunk) = DivRem::div_rem(id, 256);
+                assert(
+                    chunk < INDEX_BOUND.into() || chunk == CHUNK_SET.into(), errors::OUTLINE_CHUNK,
+                );
+                self.assert_exists(LOCATION, location);
+            } else if kind == SHOP {
+                self.assert_exists(LOCATION, id / 16);
+            }
+        }
+
+        /// A record exists when its part 0 is not 0 (ENG-01 §3.5).
+        #[inline(always)]
+        fn assert_exists(self: @ContractState, kind: u8, id: u32) {
+            assert(self.records.read((kind, id, 0)) != 0, errors::NO_PARENT);
+        }
+
+        #[inline(always)]
+        fn assert_bound(count: u32) {
+            assert(count <= MAX_READ, errors::TOO_MANY);
         }
     }
 
@@ -223,15 +263,10 @@ pub mod Registry {
         /// Appends the `count` parts of `(kind, id)` to `out`.
         #[inline(always)]
         fn read_into(self: @ContractState, kind: u8, id: u32, count: u8, ref out: Array<felt252>) {
-            let key = record_key(kind, id);
+            let key = Parts::key(kind, id);
             for part in 0..count {
-                out.append(read_part(part_address(key, part)));
+                out.append(Parts::read(Parts::address(key, part)));
             }
-        }
-        /// A record exists when its part 0 is not 0 (ENG-01 §3.5).
-        #[inline(always)]
-        fn assert_exists(self: @ContractState, kind: u8, id: u32) {
-            assert(self.records.read((kind, id, 0)) != 0, NO_PARENT);
         }
         /// The content version, raised by one (D-141): one read and one write of one slot.
         #[inline(always)]
@@ -248,7 +283,7 @@ mod layout_tests {
     use snforge_std::map_entry_address;
     use starknet::storage::{StorageAsPointer, StoragePathEntry};
     use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
-    use super::Registry;
+    use super::{Parts, Registry};
 
     fn address_of(base: StorageBaseAddress) -> felt252 {
         storage_address_from_base(base).into()
@@ -278,7 +313,7 @@ mod layout_tests {
         );
     }
 
-    // The oracle of `record_key` and `part_address`: the map's own address, for the widest keys.
+    // The oracle of `Parts::key` and `Parts::address`: the map's own address, for the widest keys.
     #[test]
     #[available_gas(l2_gas: 186228)] // ceil(1.05 × 177360 measured)
     fn test_part_address_is_the_maps() {
@@ -291,7 +326,7 @@ mod layout_tests {
             let expected: felt252 = address_of(
                 state.records.entry((kind, id, part)).as_ptr().__storage_pointer_address__,
             );
-            let got: felt252 = super::part_address(super::record_key(kind, id), part).into();
+            let got: felt252 = Parts::address(Parts::key(kind, id), part).into();
             assert(got == expected, 'part address');
         }
     }

@@ -9,10 +9,13 @@ use grimworld_logic::interface::{
     IRegistryReadSafeDispatcherTrait,
 };
 use grimworld_logic::packing::LIVE;
+use grimworld_persistent::systems::registry::errors::{
+    NOT_ADMIN, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT, TOO_MANY, ZERO_ADMIN,
+    ZERO_ID,
+};
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait, IRegistryAdminSafeDispatcher,
-    IRegistryAdminSafeDispatcherTrait, NOT_ADMIN, NOT_IMPLEMENTED, NOT_LIVE, NOT_NEXT, NO_PARENT,
-    OUTLINE_CHUNK, PART_COUNT, TOO_MANY, ZERO_ADMIN, ZERO_ID,
+    IRegistryAdminSafeDispatcherTrait, NOT_IMPLEMENTED,
 };
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, map_entry_address, start_cheat_caller_address,
@@ -35,38 +38,65 @@ struct Registry {
     safe_read: IRegistryReadSafeDispatcher,
 }
 
-/// A registry deployed with `ADMIN`, the caller set to `ADMIN`.
-fn deploy() -> Registry {
-    let class = declare("Registry").unwrap().contract_class();
-    let (address, _) = class.deploy(@array![ADMIN]).unwrap();
-    start_cheat_caller_address(address, ADMIN.try_into().unwrap());
-    Registry {
-        address,
-        admin: IRegistryAdminDispatcher { contract_address: address },
-        safe: IRegistryAdminSafeDispatcher { contract_address: address },
-        read: IRegistryReadDispatcher { contract_address: address },
-        safe_read: IRegistryReadSafeDispatcher { contract_address: address },
+#[generate_trait]
+impl RegistryFixture of Fixture {
+    /// A registry deployed with `ADMIN`, the caller set to `ADMIN`.
+    fn deploy() -> Registry {
+        let class = declare("Registry").unwrap().contract_class();
+        let (address, _) = class.deploy(@array![ADMIN]).unwrap();
+        start_cheat_caller_address(address, ADMIN.try_into().unwrap());
+        Registry {
+            address,
+            admin: IRegistryAdminDispatcher { contract_address: address },
+            safe: IRegistryAdminSafeDispatcher { contract_address: address },
+            read: IRegistryReadDispatcher { contract_address: address },
+            safe_read: IRegistryReadSafeDispatcher { contract_address: address },
+        }
+    }
+
+    fn version(self: Registry) -> u32 {
+        self.read.content_version()
+    }
+
+    /// `count` 3-part records (`BOOK`, the widest kind) written straight into storage, and the
+    /// version 5.
+    fn books(self: Registry, count: u32) -> Array<(u8, u32)> {
+        let mut requests: Array<(u8, u32)> = array![];
+        for id in 1..count + 1 {
+            for part in 0..3_u8 {
+                store(
+                    self.address,
+                    map_entry_address(
+                        selector!("records"), array![BOOK.into(), id.into(), part.into()].span(),
+                    ),
+                    array![Felts::live(id.into())].span(),
+                );
+            }
+            requests.append((BOOK, id));
+        }
+        store(self.address, selector!("content_version"), array![5].span());
+        requests
     }
 }
 
-fn live(value: felt252) -> felt252 {
-    LIVE + value
-}
+/// Records of one, two or three parts, `LIVE` set in part 0.
+#[generate_trait]
+impl FeltsImpl of Felts {
+    fn live(value: felt252) -> felt252 {
+        LIVE + value
+    }
 
-fn one(value: felt252) -> Span<felt252> {
-    array![live(value)].span()
-}
+    fn one(value: felt252) -> Span<felt252> {
+        array![Self::live(value)].span()
+    }
 
-fn two(a: felt252, b: felt252) -> Span<felt252> {
-    array![live(a), b].span()
-}
+    fn two(a: felt252, b: felt252) -> Span<felt252> {
+        array![Self::live(a), b].span()
+    }
 
-fn three(a: felt252, b: felt252, c: felt252) -> Span<felt252> {
-    array![live(a), b, c].span()
-}
-
-fn version(r: Registry) -> u32 {
-    r.read.content_version()
+    fn three(a: felt252, b: felt252, c: felt252) -> Span<felt252> {
+        array![Self::live(a), b, c].span()
+    }
 }
 
 // --- set_record: what it writes -----------------------------------------------------------------
@@ -74,14 +104,14 @@ fn version(r: Registry) -> u32 {
 #[test]
 #[available_gas(l2_gas: 4625471)] // ceil(1.05 × 4405210 measured)
 fn test_set_record_new_sequential() {
-    let r = deploy();
+    let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
-    r.admin.set_record(LOCATION, 1, two(5, 6));
+    r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
     assert(r.admin.last_id(LOCATION) == 1, 'last id 1');
-    assert(r.read.record(LOCATION, 1) == two(5, 6), 'read back');
-    r.admin.set_record(LOCATION, 2, two(7, 0));
+    assert(r.read.record(LOCATION, 1) == Felts::two(5, 6), 'read back');
+    r.admin.set_record(LOCATION, 2, Felts::two(7, 0));
     assert(r.admin.last_id(LOCATION) == 2, 'last id 2');
-    assert(r.read.record(LOCATION, 2) == two(7, 0), 'a part of 0');
+    assert(r.read.record(LOCATION, 2) == Felts::two(7, 0), 'a part of 0');
     assert(r.admin.last_id(GATE) == 0, 'other kinds apart');
 }
 
@@ -89,37 +119,37 @@ fn test_set_record_new_sequential() {
 #[test]
 #[available_gas(l2_gas: 4697154)] // ceil(1.05 × 4473480 measured)
 fn test_set_record_existing_changes() {
-    let r = deploy();
-    r.admin.set_record(LOCATION, 1, two(5, 6));
-    r.admin.set_record(LOCATION, 2, two(7, 8));
-    r.admin.set_record(LOCATION, 1, two(9, 0));
-    assert(r.read.record(LOCATION, 1) == two(9, 0), 'changed');
-    assert(r.read.record(LOCATION, 2) == two(7, 8), 'the other kept');
+    let r = Fixture::deploy();
+    r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
+    r.admin.set_record(LOCATION, 2, Felts::two(7, 8));
+    r.admin.set_record(LOCATION, 1, Felts::two(9, 0));
+    assert(r.read.record(LOCATION, 1) == Felts::two(9, 0), 'changed');
+    assert(r.read.record(LOCATION, 2) == Felts::two(7, 8), 'the other kept');
     assert(r.admin.last_id(LOCATION) == 2, 'last id kept');
 }
 
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 7528322)] // ceil(1.05 × 7169830 measured)
+#[available_gas(l2_gas: 7418177)] // ceil(1.05 × 7064930 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
-    let r = deploy();
+    let r = Fixture::deploy();
     // Location 2 does not exist yet: its outline and a shop of hub 2 are refused.
-    let refused = r.safe.set_record(OUTLINE, 2 * 256 + 255, one(1));
+    let refused = r.safe.set_record(OUTLINE, 2 * 256 + 255, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NO_PARENT, 'outline without location');
-    let refused = r.safe.set_record(SHOP, 2 * 16 + 1, two(1, 0));
+    let refused = r.safe.set_record(SHOP, 2 * 16 + 1, Felts::two(1, 0));
     assert(*refused.unwrap_err().at(0) == NO_PARENT, 'shop without hub');
-    r.admin.set_record(LOCATION, 1, two(0, 0));
-    r.admin.set_record(LOCATION, 2, two(0, 0));
-    r.admin.set_record(OUTLINE, 2 * 256 + 255, one(1));
-    r.admin.set_record(OUTLINE, 2 * 256 + 16, one(2));
-    r.admin.set_record(SHOP, 2 * 16 + 1, two(3, 4));
-    assert(r.read.record(OUTLINE, 2 * 256 + 255) == one(1), 'chunk set');
-    assert(r.read.record(OUTLINE, 2 * 256 + 16) == one(2), 'border mask');
-    assert(r.read.record(SHOP, 2 * 16 + 1) == two(3, 4), 'shop');
+    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    r.admin.set_record(LOCATION, 2, Felts::two(0, 0));
+    r.admin.set_record(OUTLINE, 2 * 256 + 255, Felts::one(1));
+    r.admin.set_record(OUTLINE, 2 * 256 + 16, Felts::one(2));
+    r.admin.set_record(SHOP, 2 * 16 + 1, Felts::two(3, 4));
+    assert(r.read.record(OUTLINE, 2 * 256 + 255) == Felts::one(1), 'chunk set');
+    assert(r.read.record(OUTLINE, 2 * 256 + 16) == Felts::one(2), 'border mask');
+    assert(r.read.record(SHOP, 2 * 16 + 1) == Felts::two(3, 4), 'shop');
     assert(r.admin.last_id(OUTLINE) == 0 && r.admin.last_id(SHOP) == 0, 'composite: last id 0');
     // Location 3 still does not exist.
-    let refused = r.safe.set_record(OUTLINE, 3 * 256 + 255, one(1));
+    let refused = r.safe.set_record(OUTLINE, 3 * 256 + 255, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NO_PARENT, 'outline of location 3');
 }
 
@@ -128,25 +158,25 @@ fn test_set_record_composite_needs_parent() {
 #[available_gas(l2_gas: 4398303)] // ceil(1.05 × 4188860 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
-    let r = deploy();
-    r.admin.set_record(LOCATION, 1, two(0, 0));
-    let refused = r.safe.set_record(OUTLINE, 256 + 225, one(1));
+    let r = Fixture::deploy();
+    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    let refused = r.safe.set_record(OUTLINE, 256 + 225, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == OUTLINE_CHUNK, 'chunk 225');
-    let refused = r.safe.set_record(OUTLINE, 256 + 254, one(1));
+    let refused = r.safe.set_record(OUTLINE, 256 + 254, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == OUTLINE_CHUNK, 'chunk 254');
-    r.admin.set_record(OUTLINE, 256 + 224, one(1));
-    r.admin.set_record(OUTLINE, 256 + 255, one(1));
+    r.admin.set_record(OUTLINE, 256 + 224, Felts::one(1));
+    r.admin.set_record(OUTLINE, 256 + 255, Felts::one(1));
 }
 
 // `TASK` and `QUEST` take quiver's ids: any non-zero id.
 #[test]
-#[available_gas(l2_gas: 3784001)] // ceil(1.05 × 3603810 measured)
+#[available_gas(l2_gas: 3783791)] // ceil(1.05 × 3603610 measured)
 fn test_set_record_quiver_ids() {
-    let r = deploy();
-    r.admin.set_record(TASK, 0x12345, one(1));
-    r.admin.set_record(QUEST, 0xFFFFFFFF, two(1, 2));
-    assert(r.read.record(TASK, 0x12345) == one(1), 'task');
-    assert(r.read.record(QUEST, 0xFFFFFFFF) == two(1, 2), 'quest');
+    let r = Fixture::deploy();
+    r.admin.set_record(TASK, 0x12345, Felts::one(1));
+    r.admin.set_record(QUEST, 0xFFFFFFFF, Felts::two(1, 2));
+    assert(r.read.record(TASK, 0x12345) == Felts::one(1), 'task');
+    assert(r.read.record(QUEST, 0xFFFFFFFF) == Felts::two(1, 2), 'quest');
     assert(r.admin.last_id(TASK) == 0 && r.admin.last_id(QUEST) == 0, 'last id 0');
 }
 
@@ -156,35 +186,35 @@ fn test_set_record_quiver_ids() {
 #[available_gas(l2_gas: 1325657)] // ceil(1.05 × 1262530 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
-    let r = deploy();
+    let r = Fixture::deploy();
     start_cheat_caller_address(r.address, OTHER.try_into().unwrap());
-    let refused = r.safe.set_record(REGION, 1, one(1));
+    let refused = r.safe.set_record(REGION, 1, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_ADMIN, 'not admin');
-    assert(r.admin.last_id(REGION) == 0 && version(r) == 0, 'nothing written');
+    assert(r.admin.last_id(REGION) == 0 && r.version() == 0, 'nothing written');
 }
 
 #[test]
 #[available_gas(l2_gas: 1728353)] // ceil(1.05 × 1646050 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
-    let r = deploy();
-    let refused = r.safe.set_record(LOCATION, 1, one(1));
+    let r = Fixture::deploy();
+    let refused = r.safe.set_record(LOCATION, 1, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == PART_COUNT, 'too few');
-    let refused = r.safe.set_record(LOCATION, 1, three(1, 2, 3));
+    let refused = r.safe.set_record(LOCATION, 1, Felts::three(1, 2, 3));
     assert(*refused.unwrap_err().at(0) == PART_COUNT, 'too many');
     let refused = r.safe.set_record(REGION, 1, array![].span());
     assert(*refused.unwrap_err().at(0) == PART_COUNT, 'empty');
-    assert(r.admin.last_id(LOCATION) == 0 && version(r) == 0, 'nothing written');
+    assert(r.admin.last_id(LOCATION) == 0 && r.version() == 0, 'nothing written');
 }
 
 #[test]
 #[available_gas(l2_gas: 1270458)] // ceil(1.05 × 1209960 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {
-    let r = deploy();
-    let refused = r.safe.set_record(0, 1, one(1));
+    let r = Fixture::deploy();
+    let refused = r.safe.set_record(0, 1, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'kind 0');
-    let refused = r.safe.set_record(26, 1, one(1));
+    let refused = r.safe.set_record(26, 1, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'kind 26');
     let refused = r.safe_read.record(26, 1);
     assert(*refused.unwrap_err().at(0) == UNKNOWN_KIND, 'read kind 26');
@@ -196,7 +226,7 @@ fn test_set_record_unknown_kind_refused() {
 #[available_gas(l2_gas: 2205084)] // ceil(1.05 × 2100080 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
-    let r = deploy();
+    let r = Fixture::deploy();
     let refused = r.safe.set_record(REGION, 1, array![0].span());
     assert(*refused.unwrap_err().at(0) == NOT_LIVE, 'zero');
     let refused = r.safe.set_record(REGION, 1, array![0x1234].span());
@@ -208,17 +238,17 @@ fn test_set_record_not_live_refused() {
     // `LIVE` in part 1 does not make part 0 live.
     let refused = r.safe.set_record(LOCATION, 1, array![1, LIVE].span());
     assert(*refused.unwrap_err().at(0) == NOT_LIVE, 'LIVE in part 1');
-    assert(r.admin.last_id(REGION) == 0 && version(r) == 0, 'nothing written');
+    assert(r.admin.last_id(REGION) == 0 && r.version() == 0, 'nothing written');
 }
 
 #[test]
 #[available_gas(l2_gas: 1229928)] // ceil(1.05 × 1171360 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
-    let r = deploy();
-    let refused = r.safe.set_record(REGION, 0, one(1));
+    let r = Fixture::deploy();
+    let refused = r.safe.set_record(REGION, 0, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == ZERO_ID, 'sequential');
-    let refused = r.safe.set_record(TASK, 0, one(1));
+    let refused = r.safe.set_record(TASK, 0, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == ZERO_ID, 'composite');
 }
 
@@ -227,15 +257,15 @@ fn test_set_record_id_zero_refused() {
 #[available_gas(l2_gas: 3396173)] // ceil(1.05 × 3234450 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
-    let r = deploy();
-    let refused = r.safe.set_record(GATE, 2, one(1));
+    let r = Fixture::deploy();
+    let refused = r.safe.set_record(GATE, 2, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_NEXT, 'first is 1');
-    r.admin.set_record(GATE, 1, one(1));
-    let refused = r.safe.set_record(GATE, 3, one(1));
+    r.admin.set_record(GATE, 1, Felts::one(1));
+    let refused = r.safe.set_record(GATE, 3, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_NEXT, 'a gap');
-    let refused = r.safe.set_record(GATE, 0xFFFFFFFF, one(1));
+    let refused = r.safe.set_record(GATE, 0xFFFFFFFF, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_NEXT, 'far');
-    assert(r.admin.last_id(GATE) == 1 && version(r) == 1, 'only gate 1');
+    assert(r.admin.last_id(GATE) == 1 && r.version() == 1, 'only gate 1');
 }
 
 // --- the content version (AC-2) -----------------------------------------------------------------
@@ -243,49 +273,49 @@ fn test_set_record_not_next_refused() {
 #[test]
 #[available_gas(l2_gas: 8777822)] // ceil(1.05 × 8359830 measured)
 fn test_version_rises_per_changed_record() {
-    let r = deploy();
-    assert(version(r) == 0, '0 at deployment');
-    r.admin.set_record(BOOK, 1, three(1, 2, 3));
-    assert(version(r) == 1, 'new record: +1');
-    r.admin.set_record(BOOK, 1, three(1, 2, 3));
-    assert(version(r) == 1, 'same values: +0');
-    r.admin.set_record(BOOK, 1, three(1, 2, 4));
-    assert(version(r) == 2, 'one part: +1');
-    r.admin.set_record(BOOK, 1, three(5, 6, 7));
-    assert(version(r) == 3, 'three parts: +1');
-    r.admin.set_record(BOOK, 1, three(5, 6, 7));
-    assert(version(r) == 3, 'same again: +0');
+    let r = Fixture::deploy();
+    assert(r.version() == 0, '0 at deployment');
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
+    assert(r.version() == 1, 'new record: +1');
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
+    assert(r.version() == 1, 'same values: +0');
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 4));
+    assert(r.version() == 2, 'one part: +1');
+    r.admin.set_record(BOOK, 1, Felts::three(5, 6, 7));
+    assert(r.version() == 3, 'three parts: +1');
+    r.admin.set_record(BOOK, 1, Felts::three(5, 6, 7));
+    assert(r.version() == 3, 'same again: +0');
     // A part set back to 0 is a change.
-    r.admin.set_record(BOOK, 1, three(5, 0, 7));
-    assert(version(r) == 4, 'to zero: +1');
+    r.admin.set_record(BOOK, 1, Felts::three(5, 0, 7));
+    assert(r.version() == 4, 'to zero: +1');
     // Composite kinds likewise.
-    r.admin.set_record(LOCATION, 1, two(0, 0));
-    assert(version(r) == 5, 'location: +1');
-    r.admin.set_record(OUTLINE, 256 + 255, one(9));
-    assert(version(r) == 6, 'new outline: +1');
-    r.admin.set_record(OUTLINE, 256 + 255, one(9));
-    assert(version(r) == 6, 'same outline: +0');
-    r.admin.set_record(OUTLINE, 256 + 255, one(8));
-    assert(version(r) == 7, 'changed outline: +1');
+    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    assert(r.version() == 5, 'location: +1');
+    r.admin.set_record(OUTLINE, 256 + 255, Felts::one(9));
+    assert(r.version() == 6, 'new outline: +1');
+    r.admin.set_record(OUTLINE, 256 + 255, Felts::one(9));
+    assert(r.version() == 6, 'same outline: +0');
+    r.admin.set_record(OUTLINE, 256 + 255, Felts::one(8));
+    assert(r.version() == 7, 'changed outline: +1');
 }
 
 #[test]
 #[available_gas(l2_gas: 7482573)] // ceil(1.05 × 7126260 measured)
 fn test_bundle_version_and_order() {
-    let r = deploy();
-    r.admin.set_record(REGION, 1, one(1));
-    r.admin.set_record(LOCATION, 1, two(2, 3));
-    r.admin.set_record(BOOK, 1, three(4, 5, 6));
+    let r = Fixture::deploy();
+    r.admin.set_record(REGION, 1, Felts::one(1));
+    r.admin.set_record(LOCATION, 1, Felts::two(2, 3));
+    r.admin.set_record(BOOK, 1, Felts::three(4, 5, 6));
     let (v, records) = r
         .read
         .bundle(array![(BOOK, 1), (REGION, 1), (LOCATION, 2), (LOCATION, 1)].span());
     assert(v == 3, 'version');
     // In the order asked; location 2 is missing: two zeros.
-    let expected = array![live(4), 5, 6, live(1), 0, 0, live(2), 3];
+    let expected = array![Felts::live(4), 5, 6, Felts::live(1), 0, 0, Felts::live(2), 3];
     assert(records == expected.span(), 'records in order');
-    r.admin.set_record(REGION, 1, one(7));
+    r.admin.set_record(REGION, 1, Felts::one(7));
     let (v, records) = r.read.bundle(array![(REGION, 1)].span());
-    assert(v == 4 && records == one(7), 'after a change');
+    assert(v == 4 && records == Felts::one(7), 'after a change');
     let (v, records) = r.read.bundle(array![].span());
     assert(v == 4 && records.len() == 0, 'no request');
 }
@@ -294,18 +324,20 @@ fn test_bundle_version_and_order() {
 #[test]
 #[available_gas(l2_gas: 3090318)] // ceil(1.05 × 2943160 measured)
 fn test_missing_record_reads_zeros() {
-    let r = deploy();
+    let r = Fixture::deploy();
     assert(r.read.record(BOOK, 1) == array![0, 0, 0].span(), 'record');
     assert(r.read.records(REGION, array![1, 2].span()) == array![0, 0].span(), 'records');
-    r.admin.set_record(REGION, 1, one(1));
-    assert(r.read.records(REGION, array![2, 1].span()) == array![0, live(1)].span(), 'mixed');
+    r.admin.set_record(REGION, 1, Felts::one(1));
+    assert(
+        r.read.records(REGION, array![2, 1].span()) == array![0, Felts::live(1)].span(), 'mixed',
+    );
 }
 
 #[test]
 #[available_gas(l2_gas: 5061326)] // ceil(1.05 × 4820310 measured)
 #[feature("safe_dispatcher")]
 fn test_reads_bounded() {
-    let r = deploy();
+    let r = Fixture::deploy();
     let mut ids: Array<u32> = array![];
     let mut requests: Array<(u8, u32)> = array![];
     for i in 1..33_u32 {
@@ -330,14 +362,14 @@ fn test_reads_bounded() {
 #[available_gas(l2_gas: 3188483)] // ceil(1.05 × 3036650 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_hands_over() {
-    let r = deploy();
+    let r = Fixture::deploy();
     r.admin.set_admin(OTHER.try_into().unwrap());
-    let refused = r.safe.set_record(REGION, 1, one(1));
+    let refused = r.safe.set_record(REGION, 1, Felts::one(1));
     assert(*refused.unwrap_err().at(0) == NOT_ADMIN, 'former admin');
     let refused = r.safe.set_admin(ADMIN.try_into().unwrap());
     assert(*refused.unwrap_err().at(0) == NOT_ADMIN, 'former admin, set_admin');
     start_cheat_caller_address(r.address, OTHER.try_into().unwrap());
-    r.admin.set_record(REGION, 1, one(1));
+    r.admin.set_record(REGION, 1, Felts::one(1));
     assert(r.admin.last_id(REGION) == 1, 'new admin writes');
 }
 
@@ -345,51 +377,32 @@ fn test_set_admin_hands_over() {
 #[available_gas(l2_gas: 2854173)] // ceil(1.05 × 2718260 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_refused() {
-    let r = deploy();
+    let r = Fixture::deploy();
     start_cheat_caller_address(r.address, OTHER.try_into().unwrap());
     let refused = r.safe.set_admin(OTHER.try_into().unwrap());
     assert(*refused.unwrap_err().at(0) == NOT_ADMIN, 'not admin');
     start_cheat_caller_address(r.address, ADMIN.try_into().unwrap());
     let refused = r.safe.set_admin(0.try_into().unwrap());
     assert(*refused.unwrap_err().at(0) == ZERO_ADMIN, 'zero');
-    r.admin.set_record(REGION, 1, one(1));
+    r.admin.set_record(REGION, 1, Felts::one(1));
 }
 
 #[test]
 #[available_gas(l2_gas: 859131)] // ceil(1.05 × 818220 measured)
 #[feature("safe_dispatcher")]
 fn test_upgrade_stub() {
-    let r = deploy();
+    let r = Fixture::deploy();
     let refused = r.safe.upgrade(0x1234.try_into().unwrap());
     assert(*refused.unwrap_err().at(0) == NOT_IMPLEMENTED, 'stub');
 }
 
 // --- gas (AC-5): each call alone is in `snforge test --gas-report`; see GAS.md ------------------
 
-/// `count` 3-part records (`BOOK`, the widest kind) written straight into storage, and the version.
-fn stored_books(r: Registry, count: u32) -> Array<(u8, u32)> {
-    let mut requests: Array<(u8, u32)> = array![];
-    for id in 1..count + 1 {
-        for part in 0..3_u8 {
-            store(
-                r.address,
-                map_entry_address(
-                    selector!("records"), array![BOOK.into(), id.into(), part.into()].span(),
-                ),
-                array![live(id.into())].span(),
-            );
-        }
-        requests.append((BOOK, id));
-    }
-    store(r.address, selector!("content_version"), array![5].span());
-    requests
-}
-
 // The baseline of the tests below: the deployment alone.
 #[test]
 #[available_gas(l2_gas: 748902)] // ceil(1.05 × 713240 measured)
 fn test_gas_deploy() {
-    deploy();
+    Fixture::deploy();
 }
 
 // `set_record` of a new 3-part record: 3 record slots, `last_id` and the version, all new
@@ -397,8 +410,8 @@ fn test_gas_deploy() {
 #[test]
 #[available_gas(l2_gas: 3359496)] // ceil(1.05 × 3199520 measured)
 fn test_gas_set_record_new() {
-    let r = deploy();
-    r.admin.set_record(BOOK, 1, three(1, 2, 3));
+    let r = Fixture::deploy();
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
 }
 
 // `set_record` changing a 3-part record: its 3 parts and the version overwritten (ENG-01 §10:
@@ -406,34 +419,34 @@ fn test_gas_set_record_new() {
 #[test]
 #[available_gas(l2_gas: 3866489)] // ceil(1.05 × 3682370 measured)
 fn test_gas_set_record_changed() {
-    let r = deploy();
-    r.admin.set_record(BOOK, 1, three(1, 2, 3));
-    r.admin.set_record(BOOK, 1, three(4, 5, 6));
+    let r = Fixture::deploy();
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
+    r.admin.set_record(BOOK, 1, Felts::three(4, 5, 6));
 }
 
 // `set_record` of the same values: 3 reads, nothing written, the version kept.
 #[test]
 #[available_gas(l2_gas: 3653423)] // ceil(1.05 × 3479450 measured)
 fn test_gas_set_record_unchanged() {
-    let r = deploy();
-    r.admin.set_record(BOOK, 1, three(1, 2, 3));
-    r.admin.set_record(BOOK, 1, three(1, 2, 3));
+    let r = Fixture::deploy();
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
 }
 
 // `records` against `bundle` for the same record: the difference is the version's read.
 #[test]
 #[available_gas(l2_gas: 2756082)] // ceil(1.05 × 2624840 measured)
 fn test_gas_records_1() {
-    let r = deploy();
-    stored_books(r, 1);
+    let r = Fixture::deploy();
+    r.books(1);
     assert(r.read.records(BOOK, array![1].span()).len() == 3, '3 felts');
 }
 
 #[test]
 #[available_gas(l2_gas: 2778710)] // ceil(1.05 × 2646390 measured)
 fn test_gas_bundle_1() {
-    let r = deploy();
-    let requests = stored_books(r, 1);
+    let r = Fixture::deploy();
+    let requests = r.books(1);
     let (v, records) = r.read.bundle(requests.span());
     assert(v == 5 && records.len() == 3, '1 record');
 }
@@ -441,8 +454,8 @@ fn test_gas_bundle_1() {
 #[test]
 #[available_gas(l2_gas: 15857888)] // ceil(1.05 × 15102750 measured)
 fn test_gas_bundle_10() {
-    let r = deploy();
-    let requests = stored_books(r, 10);
+    let r = Fixture::deploy();
+    let requests = r.books(10);
     let (v, records) = r.read.bundle(requests.span());
     assert(v == 5 && records.len() == 30, '10 records');
 }
@@ -451,8 +464,8 @@ fn test_gas_bundle_10() {
 #[test]
 #[available_gas(l2_gas: 47829212)] // ceil(1.05 × 45551630 measured)
 fn test_gas_bundle_32() {
-    let r = deploy();
-    let requests = stored_books(r, 32);
+    let r = Fixture::deploy();
+    let requests = r.books(32);
     let (v, records) = r.read.bundle(requests.span());
     assert(v == 5 && records.len() == 96, '32 records');
 }

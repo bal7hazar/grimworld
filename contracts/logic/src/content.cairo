@@ -60,6 +60,17 @@ pub fn is_sequential(kind: u8) -> bool {
     kind != OUTLINE && kind != SHOP && kind != TASK && kind != QUEST
 }
 
+/// A registry record's model and its parts (D-143): the model packs into the `parts(KIND)` felts
+/// that `Registry.set_record` takes and `record`, `records` and `bundle` return, and unpacks from
+/// them. Implemented by each model of `crate::models`.
+pub trait Record<T> {
+    /// The record's kind.
+    const KIND: u8;
+    /// The record's parts; refuses a field wider than its layout.
+    fn pack(self: @T) -> Span<felt252>;
+    fn unpack(parts: Span<felt252>) -> T;
+}
+
 /// Records one `records` or `bundle` call returns at most (ENG-01 §4.5): at most 3 parts each, so
 /// a call reads at most 96 records' slots and, for `bundle`, the content version.
 pub const MAX_READ: u32 = 32;

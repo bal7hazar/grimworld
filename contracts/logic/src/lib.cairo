@@ -14,6 +14,8 @@ pub mod durations;
 pub mod fate;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
+/// The world's registry records as models: regions, locations, gates, outlines (D-143).
+pub mod models;
 /// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.
 pub mod packing;
 /// The snapshot of an adventurer taken at entry, and the tasks an instance reports.
@@ -22,5 +24,3 @@ pub mod snapshot;
 pub mod tick;
 /// Identifiers, bounds and enums shared by the two domains.
 pub mod types;
-/// The bit layouts of the world's registry records: regions, locations, gates, outlines.
-pub mod world;

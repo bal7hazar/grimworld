@@ -476,8 +476,10 @@ A part's address is the map's, `h(h(h(selector("records"), kind), id), part)` (P
 two links are computed once a record, each part adds one (tested against the map,
 `test_part_address_is_the_maps`); `bundle` of 32 three-part records: 4,045,220 → 3,477,020 (M).
 
-**Layouts of the world's records** (ENG-03, `grimworld_logic::world`, round-trip and bit tests in
-`logic/tests/test_world.cairo`). Every content id is a `u16`, as every registry id the frozen
+**Layouts of the world's records** (ENG-03; models under D-143: the structs in
+`grimworld_logic::models::index`, each with `new`, its `...Assert` checks, its `errors` and its
+`content::Record` impl packing into the record's parts; round-trip and bit tests in
+`logic/tests/test_models.cairo`). Every content id is a `u16`, as every registry id the frozen
 layouts hold (`Header.location`, the bar, a pack's template); a quest is quiver's `u32`; levels,
 ranks and counts are `u8`; a location is at most 15 × 15 chunks (§3.2), so a chunk index `15 cy +
 cx` and a tile index `15 row + column` are below 225 and a width or height is 1–15 (4 bits checked
