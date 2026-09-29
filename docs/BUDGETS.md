@@ -38,6 +38,13 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_actions::test_encoder_refusals` | 40480 | 42504 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_durations::test_base_above_cap_refused` | 15520 | 16296 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_durations::test_effective_duration_maximum` | 13720 | 14406 | 2026-09-29 | d65eb86 |
+| grimworld_logic | `test_exp2::test_assert_covered` | 13720 | 14406 | 2026-09-29 | 108f24c |
+| grimworld_logic | `test_exp2::test_assert_covered_above_refused` | 15520 | 16296 | 2026-09-29 | 108f24c |
+| grimworld_logic | `test_exp2::test_assert_covered_below_refused` | 15520 | 16296 | 2026-09-29 | 108f24c |
+| grimworld_logic | `test_exp2::test_bench_lookup` | 19160 | 20118 | 2026-09-29 | 108f24c |
+| grimworld_logic | `test_exp2::test_clamp_ends` | 20850 | 21893 | 2026-09-29 | 108f24c |
+| grimworld_logic | `test_exp2::test_every_entry_and_clamp` | 2901800 | 3046890 | 2026-09-29 | 108f24c |
+| grimworld_logic | `test_exp2::test_octaves_exact` | 23960 | 25158 | 2026-09-29 | 108f24c |
 | grimworld_logic | `test_fate::test_derive_distinct_per_domain_and_index` | 3325820 | 3492111 | 2026-09-29 | e246ac5 |
 | grimworld_logic | `test_fate::test_derive_fuzz` | 1054980 | 1107729 | 2026-09-29 | e246ac5 |
 | grimworld_logic | `test_fate::test_derive_oracle` | 56600 | 59430 | 2026-09-29 | e246ac5 |

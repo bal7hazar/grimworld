@@ -12,6 +12,8 @@ pub mod content;
 pub mod durations;
 /// Values from a Fate word: `derive`, and one domain purpose per use of the provider (ADR-0002).
 pub mod fate;
+/// What belongs to no entity, scoped in traits: the table of `2^(x/40)`.
+pub mod helpers;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
 /// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.
