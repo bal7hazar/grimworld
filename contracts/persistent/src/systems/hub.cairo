@@ -156,13 +156,15 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{GATE, REGION, exists};
+    use grimworld_logic::content::{GATE, ITEM, REGION, SKILL, exists};
     use grimworld_logic::interface::{
         IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IRegistryReadDispatcher,
         IRegistryReadDispatcherTrait, IResults, Results, facts,
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord, errors as gate_errors};
+    use grimworld_logic::models::item::ItemTrait;
     use grimworld_logic::models::region::{Region, RegionRecord};
+    use grimworld_logic::models::skill::SkillTrait;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::ProfessionAssert;
     use grimworld_logic::snapshot::SnapshotTrait;
@@ -182,11 +184,13 @@ pub mod Hub {
     };
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerCoreTrait, AdventurerPlaceTrait, BELT_WORD,
-        BUILD_WORD, BeltTrait, Build, CORE_WORD, EMPTY_LANES, EQUIPPED_WORD, NAME_WORD, NEW_BUILD,
-        PLACE_WORD,
+        BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, CORE_WORD, EMPTY_LANES,
+        EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE, PLACE_WORD,
     };
     use crate::models::balance::BalanceTrait;
-    use crate::models::item::{Gold, Grimoire, Item, RiftBoard};
+    use crate::models::item::{
+        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, RiftBoard,
+    };
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
 
@@ -439,6 +443,19 @@ pub mod Hub {
             account.set_word(RECORD_WORD, AccountRecordTrait::without_adventurer(record));
             base.set_word(CORE_WORD, AdventurerCoreTrait::deleted(core));
         }
+        /// The build in one call (design/03; ENG-01 §4.3), in a hub (the build is locked inside),
+        /// every rule checked before anything is written. The bar: each skill known, in the
+        /// registry, of the primary or the secondary profession, none twice, at most one elite
+        /// and `elite_slot` naming it. The attributes: `BuildAssert::assert_attributes`. The belt:
+        /// potions of the registry, a count only with an item, the pack holding each item's summed
+        /// count (the reserve `enter` debits). The equipment: each entity in the adventurer's
+        /// pack, wearable, worn in its lane's slot, no off-hand beside a weapon held in both
+        /// hands: the slot and the hands are the item's own, copied from its `BASE` at creation
+        /// (D-158), so no base is read. Reads: the ownership check's 3 words, the known-skills
+        /// pages of the bar, the pack pages of the belt's items (at most 4), each equipped
+        /// entity's `ItemBase` (at most 7); one `Registry.bundle` call for the skills and the
+        /// belt's items (at most 12 records, none when both are empty). Writes (ENG-01 §9.3):
+        /// `build`, `belt`, `equipped`, overwritten, the words sent plus `LIVE`.
         fn set_build(
             ref self: ContractState,
             adventurer_id: u32,
@@ -446,7 +463,128 @@ pub mod Hub {
             belt: felt252,
             equipped: felt252,
         ) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let (_, core, _) = self.owned_in_hub(adventurer_id);
+            let (_, level, rank, primary) = AdventurerCoreTrait::profile(core);
+            let secondary = AdventurerCoreTrait::secondary(core);
+            let build_word = BuildAssert::assert_layout(build);
+            let belt_word = BeltAssert::assert_layout(belt);
+            let equipped_word = EquippedAssert::assert_layout(equipped);
+
+            let value: Build = StorePacking::unpack(build_word);
+            value.assert_attributes(primary, secondary, level, rank);
+            value.assert_distinct();
+            let (items, counts) = BeltTrait::read(belt_word);
+            BeltAssert::assert_counts(items, counts);
+            let entities = unpack_lanes32(equipped_word).lanes.span();
+            EquippedAssert::assert_distinct(entities);
+
+            // What the registry is asked, in order: the bar's skills, the belt's distinct items.
+            let mut requests: Array<(u8, u32)> = array![];
+            let mut known: Array<bool> = array![];
+            let (mut page, mut page_word) = (0_u8, 0);
+            let mut read = false;
+            for skill in value.bar.span() {
+                let skill = *skill;
+                if skill == 0 {
+                    continue;
+                }
+                let (at, bit) = KnownSkillsTrait::at(skill);
+                if !read || at != page {
+                    page = at;
+                    page_word = self
+                        .known_skills
+                        .entry((adventurer_id, page))
+                        .as_ptr()
+                        .__storage_pointer_address__
+                        .word(0);
+                    read = true;
+                }
+                known.append(KnownSkillsTrait::knows(page_word, bit));
+                requests.append((SKILL, skill.into()));
+            }
+            let skills = requests.len();
+            let slots = items.span();
+            for i in 0..4_u32 {
+                let item = *slots[i];
+                if item == 0 {
+                    continue;
+                }
+                let mut first = true;
+                for j in 0..i {
+                    if *slots[j] == item {
+                        first = false;
+                    }
+                }
+                if first {
+                    requests.append((ITEM, item));
+                }
+            }
+            let belt_items = requests.len();
+            let pack = owner_key(PACK, adventurer_id);
+            for entry in BalanceTrait::merge(items, counts) {
+                let (item, count) = entry;
+                let (page, lane) = BalanceTrait::at(item);
+                let word = self
+                    .balances
+                    .entry((pack, page))
+                    .as_ptr()
+                    .__storage_pointer_address__
+                    .word(0);
+                BeltAssert::assert_held(BalanceTrait::amount(word, lane), count);
+            }
+            let mut two_handed = false;
+            for lane in 0..7_u32 {
+                let entity = *entities[lane];
+                if entity == 0 {
+                    continue;
+                }
+                let word = self.items.entry(entity).as_ptr().__storage_pointer_address__.word(0);
+                let item: ItemBase = StorePacking::unpack(word);
+                item.assert_wearable(adventurer_id);
+                EquippedAssert::assert_slot(item.slot, lane);
+                if lane == 0 {
+                    two_handed = item.is_two_handed();
+                }
+            }
+            EquippedAssert::assert_hands(two_handed, *entities[1]);
+
+            if requests.len() != 0 {
+                let (_, parts) = IRegistryReadDispatcher { contract_address: self.registry.read() }
+                    .bundle(requests.span());
+                let mut at: u32 = 0;
+                let mut elite = NO_ELITE;
+                let mut slot: u8 = 0;
+                let mut k: u32 = 0;
+                for skill in value.bar.span() {
+                    if *skill != 0 {
+                        let part = *parts[at];
+                        let (profession, is_elite) = SkillTrait::profile(part);
+                        BuildAssert::assert_skill(
+                            *known[k], part != 0, profession, primary, secondary,
+                        );
+                        if is_elite {
+                            BuildAssert::assert_one_elite(elite);
+                            elite = slot;
+                        }
+                        at += 2;
+                        k += 1;
+                    }
+                    slot += 1;
+                }
+                value.assert_elite_slot(elite);
+                for _ in skills..belt_items {
+                    let part = *parts[at];
+                    BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
+                    at += 1;
+                }
+            } else {
+                value.assert_elite_slot(NO_ELITE);
+            }
+
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            base.set_word(BUILD_WORD, build_word);
+            base.set_word(BELT_WORD, belt_word);
+            base.set_word(EQUIPPED_WORD, equipped_word);
         }
         /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
         /// ownership check, the gate from the registry and its requirements, the belt's reserve

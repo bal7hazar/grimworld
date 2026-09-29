@@ -1,11 +1,14 @@
 //! An adventurer (design/03): six consecutive slots under its id. Layouts:
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
+use grimworld_logic::models::item::class as item_class;
 use grimworld_logic::packing::{
-    LIVE, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
-    field, fits, join, low_field, split, u16_at, u32_at,
+    LIVE, Lanes32, P104, P112, P12, P120, P16, P24, P32, P36, P4, P40, P48, P56, P64, P8, P80, P96,
+    byte_at, field, fits, join, low_field, split, u16_at, u32_at,
 };
+use grimworld_logic::professions::ProfessionTrait;
 use starknet::ContractAddress;
+use crate::helpers::BitTrait;
 
 /// `AdventurerCore.status`: an adventurer is never zeroed; deletion marks it (design/03, D-33).
 pub const ACTIVE: u8 = 0;
@@ -44,6 +47,36 @@ pub mod errors {
     pub const NOT_ITS_INSTANCE: felt252 = 'not its instance';
     /// Experience past a `u32`.
     pub const EXPERIENCE_OVERFLOW: felt252 = 'experience overflow';
+    // `set_build` (design/03, design/15; ENG-01 §4.3): one refusal per rule.
+    /// A bit outside the fields of `Build`, `belt` or `equipped` (they come without `LIVE`).
+    pub const BUILD_LAYOUT: felt252 = 'build: layout';
+    pub const BELT_LAYOUT: felt252 = 'belt: layout';
+    pub const EQUIPPED_LAYOUT: felt252 = 'equipped: layout';
+    /// The bar: the same skill twice.
+    pub const DUPLICATE_SKILL: felt252 = 'build: duplicate skill';
+    pub const SKILL_NOT_KNOWN: felt252 = 'build: skill not known';
+    /// Not in the registry.
+    pub const NO_SKILL: felt252 = 'build: no skill';
+    /// Of neither its primary nor its secondary profession.
+    pub const SKILL_PROFESSION: felt252 = 'build: skill profession';
+    pub const TWO_ELITES: felt252 = 'build: two elites';
+    /// `elite_slot` is not the elite's slot, or not `NO_ELITE` without one.
+    pub const ELITE_SLOT: felt252 = 'build: elite slot';
+    /// Attributes: a rank above 12, a rank in an index its professions do not have, more points
+    /// than the level and the rank give.
+    pub const RANK_ABOVE_12: felt252 = 'build: rank above 12';
+    pub const NO_ATTRIBUTE: felt252 = 'build: no such attribute';
+    pub const POINTS: felt252 = 'build: points';
+    /// The belt: a count in a slot without an item, an item that is not a potion, more than the
+    /// pack holds.
+    pub const COUNT_WITHOUT_ITEM: felt252 = 'belt: count without item';
+    pub const NOT_A_POTION: felt252 = 'belt: not a potion';
+    pub const BELT_NOT_IN_PACK: felt252 = 'belt: not in the pack';
+    /// The equipment: the same entity in two slots, an item of another slot (or of none), a
+    /// weapon in both hands with an off-hand.
+    pub const DUPLICATE_ITEM: felt252 = 'equipped: duplicate';
+    pub const WRONG_SLOT: felt252 = 'equipped: wrong slot';
+    pub const TWO_HANDS: felt252 = 'equipped: two hands';
 }
 
 // Stored words written or read by arithmetic, without the packers: each function below is pinned
@@ -86,6 +119,12 @@ pub impl AdventurerCoreImpl of AdventurerCoreTrait {
     fn profile(core: felt252) -> (u32, u8, u8, u8) {
         let (low, _) = split(core);
         (u32_at(low, P32), byte_at(low, P96), byte_at(low, P104), byte_at(low, P112))
+    }
+
+    /// The secondary profession of a stored core (0: none yet; design/03, at Copper rank).
+    fn secondary(core: felt252) -> u8 {
+        let (low, _) = split(core);
+        byte_at(low, P120)
     }
 
     /// The stored core with `filled` pack lanes more and `emptied` fewer (`pack_lanes`, bits
@@ -260,6 +299,213 @@ pub impl BeltImpl of BeltTrait {
                 byte_at(high, P16), byte_at(high, P24),
             ],
         )
+    }
+}
+
+/// Attribute points that reaching each level gives, cumulated, levels 0 to 20 (design/03, *Base
+/// stats*: 5 a level up to 10, 10 from 11 to 15, 15 from 16 to 20, 170 at level 20).
+const LEVEL_POINTS: [u16; 21] = [
+    0, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 55, 65, 75, 85, 95, 110, 125, 140, 155, 170,
+];
+/// The last level design/03 gives points for.
+const MAX_LEVEL: u8 = 20;
+/// Points given at Tin and again at Copper (design/03), guild ranks 1 and 2 (design/06).
+const RANK_POINTS: u16 = 15;
+const TIN: u8 = 1;
+const COPPER: u8 = 2;
+/// What ranks 0 to 12 of one attribute cost, cumulated (design/03, *Rank cost*).
+const RANK_COST: [u16; 13] = [0, 1, 3, 6, 10, 15, 21, 28, 37, 48, 61, 77, 97];
+/// The highest rank points buy (design/03: ranks go from 0 to 12).
+pub const MAX_RANK: u8 = 12;
+/// `Build.attributes` holds nine build-local indices (D-157, A: content names a global attribute
+/// id, the flattening maps it to its index): 0 to 4 the primary profession's attributes in
+/// design/03's order, its primary attribute at 0; 5 to 8 the secondary's without its primary
+/// attribute (design/03: the secondary gives its attributes "except its primary attribute"), in
+/// the same order. An index its professions do not have holds 0.
+pub const SECONDARY_FIRST: u8 = 5;
+pub const ATTRIBUTE_INDICES: u8 = 9;
+/// `known_skills`: a `Bitmap` of 250 skill ids a page (ENG-01 §3.3).
+pub const SKILLS_PER_PAGE: u16 = 250;
+
+/// The build sent to `set_build` (design/03): the bar, the attributes, the elite slot.
+#[generate_trait]
+pub impl BuildImpl of BuildTrait {
+    /// The attribute points that `level` and the guild `rank` give (design/03, *Base stats*).
+    fn points(level: u8, rank: u8) -> u16 {
+        let level = if level > MAX_LEVEL {
+            MAX_LEVEL
+        } else {
+            level
+        };
+        let mut points = *LEVEL_POINTS.span()[level.into()];
+        if rank >= TIN {
+            points += RANK_POINTS;
+        }
+        if rank >= COPPER {
+            points += RANK_POINTS;
+        }
+        points
+    }
+
+    /// Whether build-local index `index` names an attribute of these professions.
+    fn has_attribute(index: u8, primary: u8, secondary: u8) -> bool {
+        if index < SECONDARY_FIRST {
+            index < ProfessionTrait::attributes(primary)
+        } else {
+            secondary != 0 && index - SECONDARY_FIRST + 1 < ProfessionTrait::attributes(secondary)
+        }
+    }
+}
+
+#[generate_trait]
+pub impl BuildAssert of BuildAssertTrait {
+    /// The stored word of a `Build` sent without `LIVE` (ENG-01 §4.3); a bit outside its fields
+    /// (164-167, 176 and up) is refused.
+    fn assert_layout(build: felt252) -> felt252 {
+        let (_, high) = BitTrait::limbs(build);
+        let (above, _) = DivRem::div_rem(high, P36.try_into().unwrap());
+        assert(above < P12 && above % P4 == 0, errors::BUILD_LAYOUT);
+        build + LIVE
+    }
+
+    /// design/03 *Attributes*: each rank at most 12, a rank only in an index its professions have,
+    /// the points spent within what the level and the rank give. Bound: the nine indices.
+    fn assert_attributes(self: @Build, primary: u8, secondary: u8, level: u8, rank: u8) {
+        let mut rest: u64 = *self.attributes;
+        let mut spent: u16 = 0;
+        for index in 0..ATTRIBUTE_INDICES {
+            let (next, value) = DivRem::div_rem(rest, 16);
+            rest = next;
+            if value == 0 {
+                continue;
+            }
+            let value: u8 = value.try_into().unwrap();
+            assert(value <= MAX_RANK, errors::RANK_ABOVE_12);
+            assert(BuildTrait::has_attribute(index, primary, secondary), errors::NO_ATTRIBUTE);
+            spent += *RANK_COST.span()[value.into()];
+        }
+        assert(spent <= BuildTrait::points(level, rank), errors::POINTS);
+    }
+
+    /// No skill twice on the bar (design/03: 8 skills equipped). Bound: 8 slots, 28 pairs.
+    fn assert_distinct(self: @Build) {
+        let bar = self.bar.span();
+        for i in 1..8_u32 {
+            let skill = *bar[i];
+            if skill == 0 {
+                continue;
+            }
+            for j in 0..i {
+                assert(*bar[j] != skill, errors::DUPLICATE_SKILL);
+            }
+        }
+    }
+
+    /// A skill of the bar may be equipped: known by the adventurer, in the registry, of its
+    /// primary or its secondary profession (design/03).
+    fn assert_skill(known: bool, exists: bool, profession: u8, primary: u8, secondary: u8) {
+        assert(known, errors::SKILL_NOT_KNOWN);
+        assert(exists, errors::NO_SKILL);
+        assert(
+            profession == primary || (secondary != 0 && profession == secondary),
+            errors::SKILL_PROFESSION,
+        );
+    }
+
+    /// At most one elite skill (design/03): `found` is the slot of the one met so far.
+    fn assert_one_elite(found: u8) {
+        assert(found == NO_ELITE, errors::TWO_ELITES);
+    }
+
+    /// `elite_slot` names the elite's slot, or `NO_ELITE` when the bar has none.
+    fn assert_elite_slot(self: @Build, found: u8) {
+        assert(*self.elite_slot == found, errors::ELITE_SLOT);
+    }
+}
+
+/// `known_skills` pages (ENG-01 §3.3): bit `skill % 250` of page `skill / 250`.
+#[generate_trait]
+pub impl KnownSkillsImpl of KnownSkillsTrait {
+    /// `(page, bit)` of a skill id; a page past a `u8` holds no skill (none is known there).
+    fn at(skill: u16) -> (u8, u8) {
+        let (page, bit) = DivRem::div_rem(skill, SKILLS_PER_PAGE.try_into().unwrap());
+        (page.try_into().expect(errors::SKILL_NOT_KNOWN), bit.try_into().unwrap())
+    }
+
+    /// Whether bit `bit` (0 to 249) of a stored page is set; a page never written knows none.
+    fn knows(page: felt252, bit: u8) -> bool {
+        let (low, high) = split(page);
+        if bit < 128 {
+            BitTrait::is_set(low, bit)
+        } else {
+            BitTrait::is_set(high, bit - 128)
+        }
+    }
+}
+
+#[generate_trait]
+pub impl BeltAssert of BeltAssertTrait {
+    /// The stored word of a belt sent without `LIVE`: lanes 5 and 6 are empty (ENG-01 §3.3).
+    fn assert_layout(belt: felt252) -> felt252 {
+        let (_, high) = BitTrait::limbs(belt);
+        assert(high < P32, errors::BELT_LAYOUT);
+        belt + LIVE
+    }
+
+    /// A slot carrying a count names an item (ENG-01 §4.5: 4 slots, ≤ 255 each).
+    fn assert_counts(items: [u32; 4], counts: [u8; 4]) {
+        let items = items.span();
+        let counts = counts.span();
+        for i in 0..4_u32 {
+            assert(*items[i] != 0 || *counts[i] == 0, errors::COUNT_WITHOUT_ITEM);
+        }
+    }
+
+    /// A belt item is a potion of the registry (design/03: the belt's potion slots).
+    fn assert_potion(exists: bool, class: u8) {
+        assert(exists && class == item_class::POTION, errors::NOT_A_POTION);
+    }
+
+    /// The pack holds what the belt carries of an item (`held`), the slots of one item summed.
+    fn assert_held(held: u32, count: u32) {
+        assert(held >= count, errors::BELT_NOT_IN_PACK);
+    }
+}
+
+/// `equipped`: seven entities, lanes weapon, off-hand, chest, legs, head, hands, feet (ENG-01
+/// §3.3).
+#[generate_trait]
+pub impl EquippedAssert of EquippedAssertTrait {
+    /// The stored word of `equipped` sent without `LIVE`: nothing above lane 6.
+    fn assert_layout(equipped: felt252) -> felt252 {
+        let (_, high) = BitTrait::limbs(equipped);
+        assert(high < P96, errors::EQUIPPED_LAYOUT);
+        equipped + LIVE
+    }
+
+    /// No entity in two slots. Bound: 7 lanes, 21 pairs.
+    fn assert_distinct(entities: Span<u32>) {
+        for i in 1..7_u32 {
+            let entity = *entities[i];
+            if entity == 0 {
+                continue;
+            }
+            for j in 0..i {
+                assert(*entities[j] != entity, errors::DUPLICATE_ITEM);
+            }
+        }
+    }
+
+    /// The item is worn in lane `lane`'s slot (design/15): `slot` is `ItemBase.slot`, its base's
+    /// slot copied at creation (D-158); 0, an item not worn, fits no lane.
+    fn assert_slot(slot: u8, lane: u32) {
+        let slot: u32 = slot.into();
+        assert(slot == lane + 1, errors::WRONG_SLOT);
+    }
+
+    /// A weapon held in both hands leaves the off-hand empty (design/15, *Weapons*: hands 2).
+    fn assert_hands(two_handed: bool, off_hand: u32) {
+        assert(!two_handed || off_hand == 0, errors::TWO_HANDS);
     }
 }
 

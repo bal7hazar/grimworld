@@ -169,6 +169,20 @@ pub struct Modifier {
     pub cost: Passive,
 }
 
+/// `BASE`, 2 parts (design/15; ENG-01 §3.5). CBT-08a lays out only its prefix, from bit 0 of
+/// part 0: what the creator of an item copies into `ItemBase` (D-158), so that `set_build` reads
+/// no `BASE`. The lot that lays out the rest (class, profession, damage by requirement, rating,
+/// look) appends to it; until then this model covers the prefix only, and its packer writes every
+/// other bit 0: part 0 low: slot 0–7 · hands 8–15 · `LIVE` in both parts.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Base {
+    /// `base::slot::WEAPON` … `FEET`: `equipped`'s lane plus one.
+    pub slot: u8,
+    /// A weapon's hands (design/15, *Weapons*): 1, or 2 for a maul, a bow or a staff; 0 for
+    /// anything else.
+    pub hands: u8,
+}
+
 /// `ARMOR_SET`, 1 part (design/15 D-45, design/19 §7.2).
 /// low: 5 piece bases, `u16` each, at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · high:
 /// the 3-piece bonus 128–180 · the 5-piece bonus 181–233 · `LIVE`.

@@ -18,10 +18,16 @@ a location transition is reachable without `play` (ENG-07). Then one transaction
   travel_back                          Returned to the last hub
   travel                               map travel to the start town
   leave refused (a wrong sequence)     `Refused`, nothing changed
+  set_build, 4 potions on 4 pages      CBT-08a: the belt `enter` reserves (adventurer 2)
+  enter, the belt's worst case         4 pack pages debited, each lane emptied (D-148)
+  leave to a hub / travel_back         the 4 pages credited back by the closing report
   set_account_owner, 0 to 3 inside     the real `Instances.set_controller`, from other accounts
 
-The belt stays empty: `set_build` is a later lot's, so no pack page is reserved here (the snforge
-tests measure the belt's pages). The first pre-funded account is the administrator and plays
+Adventurer 1 carries no belt; adventurer 2 carries the belt's worst case. Its pack is filled by one
+`report` the administrator sends while the hub names it as `instances` (no entrypoint fills a pack
+yet), then the real `Instances` is registered again. The bar and the equipment stay empty on the
+node: no entrypoint teaches a skill or creates an equipment entity yet (the snforge tests measure
+them, with `store`). The first pre-funded account is the administrator and plays
 account 1; accounts 2 to 4 of the node play the `set_account_owner` cases. One JSON line per
 transaction on stdout. Local node only: the script refuses any node URL that is not 127.0.0.1 and
 never reads a Sepolia variable. From the repository root, after
@@ -49,8 +55,9 @@ LOGS = os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node
 ACCOUNTS = os.path.join(LOGS, "accounts-eng06.json")
 
 LIVE = 1 << 250
-REGION, LOCATION, GATE = 1, 2, 4
+REGION, LOCATION, GATE, ITEM = 1, 2, 4, 11
 HUB_GATE, LINK, FLOOR = 1, 2, 3
+INGREDIENT, POTION = 1, 3
 
 
 def emit(record):
@@ -101,6 +108,23 @@ def gate(source, destination, anchor, entry, kind):
     low = (source + (destination << 16) + (anchor[0] << 32) + (anchor[1] << 40) + (entry[0] << 48)
            + (entry[1] << 56) + (kind << 64))
     return [low + LIVE]
+
+
+def item(klass):
+    """An `ITEM` of region 1, value 1: class only (the potion's entry is the content pipeline's)."""
+    return [klass + (1 << 8) + (1 << 32) + LIVE]
+
+
+# `set_build`'s words, without `LIVE` (ENG-01 §3.3): an empty bar (elite slot 255, bit 168), and a
+# belt of items in lanes 0-3 and their counts in lane 4.
+EMPTY_BUILD = 255 << 168
+POTIONS = (1, 8, 15, 22)
+OPEN = 0
+
+
+def belt(items, counts):
+    lane4 = sum(c << (8 * i) for i, c in enumerate(counts))
+    return sum(it << (32 * i) for i, it in enumerate(items)) + (lane4 << 128)
 
 
 if os.path.exists(ACCOUNTS):
@@ -214,6 +238,8 @@ records = [(REGION, 1, region(1, 0, 1, "Test Region")),
            (GATE, 4, gate(3, 2, (112, 112), (16, 110), LINK)),
            (GATE, 5, gate(3, 4, (0, 0), (112, 112), FLOOR)),
            (GATE, 6, gate(2, 3, (0, 105), (112, 112), LINK))]
+# Items 1 to 22 (sequential ids): potions 1, 8, 15, 22, one per pack page; the others ingredients.
+records += [(ITEM, i, item(POTION if i in POTIONS else INGREDIENT)) for i in range(1, 23)]
 for kind, rid, parts in records:
     invoke(f"set_record {kind} {rid}", registry, "set_record", kind, rid, len(parts), *parts,
            record=False)
@@ -235,6 +261,29 @@ invoke("travel_back (Returned to the last hub)", instances, "travel_back", fourt
 invoke("travel (to the start town)", hub, "travel", 1, 1)
 fifth = entered(invoke("enter, later entry (again)", hub, "enter", 1, 1))
 invoke("leave refused (sequence 7 against 0: Refused)", instances, "leave", fifth, 1, 7, 2)
+
+# CBT-08a: the belt's worst case (D-148), with adventurer 2: four potions (items 1, 8, 15, 22, lane
+# 1 of pack pages 0 to 3) carried in by `set_build`, debited by `enter`, credited back by the
+# closing report. No entrypoint fills a pack yet but a report, so the probe credits it with one:
+# the hub's `instances` is pointed at the administrator's account for one `report` (Open, the four
+# balances, from an instance the adventurer is inside), then back; then the adventurer leaves.
+setup_in = entered(invoke("enter (adventurer 2, to fill its pack)", hub, "enter", 2, 1,
+                          record=False))
+invoke("Hub.set_contracts (instances: the administrator)", hub, "set_contracts", registry,
+       ADDRESS, 4, fate, record=False)
+invoke("report (Open: 3 of each potion into the pack)", hub, "report",
+       setup_in, 1, 2, 0, 0, 4, *[f for item in POTIONS for f in (item, 3)], 0, 0, 0, 0,
+       OPEN, 0, 0, 0, 0, 0, 0, record=False)
+invoke("Hub.set_contracts (instances back)", hub, "set_contracts", registry, instances, 4, fate,
+       record=False)
+invoke("leave to a hub", instances, "leave", setup_in, 2, 0, 2, record=False)
+invoke("set_build, 4 potions on 4 pack pages (empty bar, no equipment)", hub, "set_build", 2,
+       EMPTY_BUILD, belt(POTIONS, (3, 3, 3, 3)), 0)
+belted = entered(invoke("enter, later entry, the belt's worst case (4 pages, each lane emptied)",
+                        hub, "enter", 2, 1))
+invoke("leave to a hub, the belt credited back (4 pages)", instances, "leave", belted, 2, 0, 2)
+belted = entered(invoke("enter, later entry, the belt's worst case (again)", hub, "enter", 2, 1))
+invoke("travel_back, the belt credited back (4 pages)", instances, "travel_back", belted, 2, 0)
 
 # set_account_owner with k adventurers inside, k = 0 to 3, the real set_controller (D-144).
 # Accounts 2, 3 and 4 are players 3, 1 and 2's; adventurers 4 to 7 theirs.
