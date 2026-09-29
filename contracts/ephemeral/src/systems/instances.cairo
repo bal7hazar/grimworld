@@ -46,9 +46,13 @@ pub struct InstanceView {
     pub tasks: Span<felt252>,
     /// Eight words per member, in `Member`'s order (the controller last).
     pub members: Span<felt252>,
-    /// The roster pages.
+    /// The roster pages, **masked** (F-13): lanes of entries at or beyond the header's roster count
+    /// are zeros, whatever an earlier generation left in them
+    /// (`models::instance::mask_roster_page`).
+    /// Pages beyond `⌈roster_count / 15⌉` are not returned.
     pub roster: Span<felt252>,
-    /// Every goblin of the members' windows.
+    /// Every goblin of the members' windows: the untouched ones derived, the touched ones and the
+    /// roster's (read through masked pages only) stored.
     pub goblins: Span<GoblinView>,
     /// The chunks the members' windows overlap (revealed ones with their words).
     pub chunks: Span<RegionChunk>,
@@ -74,7 +78,10 @@ pub trait IInstances<T> {
     /// Barter with the collector on `tile` (design/15): its price comes from the pack.
     fn barter(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, tile: u16);
     /// Leave through `gate`: closes the instance; a gate to another location enters it in the
-    /// same invocation (entry draw) and returns the new id, in the same slot; 0 to a hub.
+    /// same invocation (entry draw) and returns the new id, in the same slot; 0 to a hub. The new
+    /// generation initialises every transient member word for its clock 0 (state from the
+    /// snapshot, timers, effects, recharges): nothing of the old location carries but the belt's
+    /// reserve (fix loop 2, F-12).
     fn leave(
         ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, gate: u16,
     ) -> InstanceId;
@@ -83,7 +90,9 @@ pub trait IInstances<T> {
 
     /// One call, readable at a block hash or `pre_confirmed` (design/02).
     fn instance_state(self: @T, instance_id: InstanceId) -> InstanceView;
-    /// Chunks `first .. first + count` (index `15 cy + cx`), `count` at most `REGION_PAGE`.
+    /// Chunks `first .. first + count` (index `15 cy + cx`), `count` at most `REGION_PAGE`. Goblins
+    /// and remains lying in a chunk away from their spawn are found through the roster, read
+    /// through masked pages only (F-6, F-13).
     fn instance_region(
         self: @T, instance_id: InstanceId, first: u8, count: u8,
     ) -> Span<RegionChunk>;

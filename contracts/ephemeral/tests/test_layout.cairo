@@ -3,11 +3,11 @@
 // names and keys (their addresses) are checked in `systems::instances::layout_tests`.
 use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement, Terrain};
 use grimworld_ephemeral::models::goblin::{Goblin, GoblinState, GoblinTimers};
-use grimworld_ephemeral::models::instance::{Header, Placement, Quotas};
+use grimworld_ephemeral::models::instance::{Header, Placement, Quotas, mask_roster_page};
 use grimworld_ephemeral::models::member::{
     Effect, Member, MemberEffects, MemberState, MemberTimers, Recharges, pack_four28,
 };
-use grimworld_logic::packing::LIVE;
+use grimworld_logic::packing::{LIVE, Lanes16};
 use starknet::storage_access::StorePacking;
 
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -269,4 +269,24 @@ fn test_pack_offsets_refused() {
 fn test_walls_above_224_refused() {
     let walls: felt252 = 0x200000000000000000000000000000000000000000000000000000000; // 2^225
     StorePacking::<Terrain, felt252>::pack(Terrain { walls, edges: 0 });
+}
+
+// Fix loop 2, F-13: an earlier generation filled page 0; the new one has one entry. Masked, the
+// page shows that entry and zeros elsewhere; page 1 shows zeros; with 16 entries page 1 keeps its
+// lane 0 only.
+#[test]
+#[available_gas(l2_gas: 345051)] // ceil(1.05 × 328620 measured)
+fn test_roster_masking() {
+    let stale = Lanes16 {
+        lanes: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115],
+    };
+    let masked = mask_roster_page(stale, 0, 1);
+    assert(
+        masked == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, 'one entry',
+    );
+    assert(mask_roster_page(stale, 1, 1) == Lanes16 { lanes: [0; 15] }, 'page 1 empty');
+    assert(mask_roster_page(stale, 0, 0) == Lanes16 { lanes: [0; 15] }, 'count 0');
+    assert(mask_roster_page(stale, 0, 60) == stale, 'full page kept');
+    let page1 = mask_roster_page(stale, 1, 16);
+    assert(page1 == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, 'entry 15');
 }

@@ -8,6 +8,8 @@
 pub mod actions;
 /// The kinds of registry records and their size.
 pub mod content;
+/// Effective durations after modifiers, bounded (fix loop 2, F-9).
+pub mod durations;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
 /// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.

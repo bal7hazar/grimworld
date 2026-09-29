@@ -1,0 +1,30 @@
+// Fix loop 2, F-9: the effective duration after modifiers never passes MAX_DURATION.
+use grimworld_logic::durations::{
+    MAX_BASE_DURATION, MAX_DURATION_BONUS_PERCENT, MAX_DURATION_FLAT, effective_duration,
+};
+use grimworld_logic::types::{LAST_TICK, MAX_CLOCK, MAX_DURATION, MAX_WEIGHT_TICKS};
+
+// The widest base with every bonus at its cap is exactly MAX_DURATION; bonuses beyond the caps
+// are clamped; design/15's +33 % on a condition of 20 ticks gives 26.
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_effective_duration_maximum() {
+    assert(
+        effective_duration(
+            MAX_BASE_DURATION, MAX_DURATION_BONUS_PERCENT, MAX_DURATION_FLAT,
+        ) == MAX_DURATION,
+        'maximum is MAX_DURATION',
+    );
+    assert(effective_duration(MAX_BASE_DURATION, 500, 90) == MAX_DURATION, 'bonuses clamped');
+    assert(effective_duration(20, 33, 0) == 26, 'rending +33 %');
+    assert(effective_duration(2, 0, 1) == 3, 'set bonus +1 tick');
+    // The last clock an action may start at, plus its ticks and the longest duration, is the cap.
+    assert(LAST_TICK + MAX_WEIGHT_TICKS + MAX_DURATION == MAX_CLOCK, 'LAST_TICK');
+}
+
+#[test]
+#[should_panic(expected: 'duration: base above the cap')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_base_above_cap_refused() {
+    effective_duration(MAX_BASE_DURATION + 1, 0, 0);
+}

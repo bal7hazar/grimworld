@@ -25,11 +25,14 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_layout::test_placement_and_header_layout` | 445250 | 467513 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_layout::test_recharge_above_28_bits_refused` | 15520 | 16296 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_layout::test_record_sizes` | 13720 | 14406 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_layout::test_roster_masking` | 328620 | 345051 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_layout::test_walls_above_224_refused` | 17720 | 18606 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_actions::test_batch_layout` | 120610 | 126641 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_actions::test_batch_refusals` | 102710 | 107846 | 2026-09-29 | 2704c6d |
 | grimworld_logic | `test_actions::test_batch_round_trip` | 368360 | 386778 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_actions::test_encoder_refusals` | 40480 | 42504 | 2026-09-29 | d65eb86 |
+| grimworld_logic | `test_durations::test_base_above_cap_refused` | 15520 | 16296 | 2026-09-29 | d65eb86 |
+| grimworld_logic | `test_durations::test_effective_duration_maximum` | 13720 | 14406 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_hexmap::test_hexmap_distance` | 13720 | 14406 | 2026-09-28 | 5267868 |
 | grimworld_logic | `test_packing::test_bar_and_kit_layout` | 212440 | 223062 | 2026-09-29 | d65eb86 |
 | grimworld_logic | `test_packing::test_bitmap` | 20570 | 21599 | 2026-09-29 | d65eb86 |

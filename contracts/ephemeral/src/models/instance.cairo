@@ -164,3 +164,33 @@ pub impl QuotasStorePacking of starknet::storage_access::StorePacking<Quotas, fe
         }
     }
 }
+
+/// Roster pages hold fifteen entity ids each; entry `e` is lane `e % 15` of page `e / 15`.
+pub const ROSTER_LANES: u8 = 15;
+
+/// **Masking, not rewriting** (fix loop 2, F-13): every read of a roster page, internal or in a
+/// view, goes through this. Lanes of entries at or beyond `header.roster_count` are zeroed, so a
+/// lane an earlier generation left (the count was reset at entry, the page was not rewritten) is
+/// never read as an entry and never returned. No raw page leaves the contract unmasked.
+pub fn mask_roster_page(
+    page: grimworld_logic::packing::Lanes16, index: u8, count: u8,
+) -> grimworld_logic::packing::Lanes16 {
+    let first: u16 = index.into() * ROSTER_LANES.into();
+    let count: u16 = count.into();
+    let mut out: Array<u16> = array![];
+    let mut entry = first;
+    for lane in page.lanes.span() {
+        out.append(if entry < count {
+            *lane
+        } else {
+            0
+        });
+        entry += 1;
+    }
+    grimworld_logic::packing::Lanes16 {
+        lanes: [
+            *out[0], *out[1], *out[2], *out[3], *out[4], *out[5], *out[6], *out[7], *out[8],
+            *out[9], *out[10], *out[11], *out[12], *out[13], *out[14],
+        ],
+    }
+}

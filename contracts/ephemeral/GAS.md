@@ -25,4 +25,5 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `test_layout::test_placement_and_header_layout` | 445250 | 467513 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_recharge_above_28_bits_refused` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_record_sizes` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_roster_masking` | 328620 | 345051 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |
 | `test_layout::test_walls_above_224_refused` | 17720 | 18606 | 5.00 % | 0 | 0 | 2026-09-29 | d65eb86 |

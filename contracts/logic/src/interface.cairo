@@ -56,7 +56,9 @@ pub trait IResults<T> {
 #[starknet::interface]
 pub trait IInstanceEntry<T> {
     /// Creates an instance of the gate's destination at sequence 0, with the entry draw (Fate),
-    /// in the adventurer's reusable slot; returns its id.
+    /// in the adventurer's reusable slot; returns its id. Every member word is written for the new
+    /// generation at clock 0: state from the snapshot (the belt's counts from the reserve), timers,
+    /// effects and recharges empty (`LIVE` only). Nothing of a previous instance carries (F-12).
     fn create(
         ref self: T,
         adventurer_id: u32,
