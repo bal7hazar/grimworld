@@ -186,7 +186,7 @@ pub struct Entry {
 }
 
 // Offsets of the entry's fields above 80 bits (a table, docs/CAIRO.md §3).
-const P86: u128 = 0x400000000000000000000;
+const P86: u128 = 0x4000000000000000000000;
 const P88: u128 = 0x10000000000000000000000;
 const P91: u128 = 0x80000000000000000000000;
 const P92: u128 = 0x100000000000000000000000;

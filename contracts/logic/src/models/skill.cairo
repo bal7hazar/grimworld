@@ -7,7 +7,7 @@ use crate::types::combat::skill_kind;
 use crate::types::effect::{Carrier, Entry, EntryAssert, EntryTrait};
 pub use super::index::Skill;
 
-const P82: u128 = 0x40000000000000000000;
+const P82: u128 = 0x400000000000000000000;
 
 pub mod errors {
     pub const TARGET: felt252 = 'skill: target';

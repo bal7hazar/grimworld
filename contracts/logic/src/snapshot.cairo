@@ -13,7 +13,7 @@
 use crate::helpers::signed::SignedTrait;
 use crate::packing::{
     P104, P108, P112, P120, P12, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
-    P96, byte_at, field, fits, join, low_field, split, u16_at,
+    P96, fits, join, low_field, split,
 };
 use crate::professions::ProfessionTrait;
 
@@ -67,9 +67,11 @@ pub struct MemberStats {
 
 pub fn pack_stats(s: MemberStats) -> felt252 {
     let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = s.armor_vs;
-    for vs in s.armor_vs.span() {
-        fits((*vs).into(), 0x40, errors::ARMOR_VS);
-    }
+    assert(
+        v1 < 64 && v2 < 64 && v3 < 64 && v4 < 64 && v5 < 64 && v6 < 64 && v7 < 64 && v8 < 64
+            && v9 < 64,
+        errors::ARMOR_VS,
+    );
     let low: u128 = s.max_health.into()
         + s.max_energy.into() * P16
         + s.energy_regen.into() * P24
@@ -100,37 +102,57 @@ pub fn pack_stats(s: MemberStats) -> felt252 {
 
 pub fn unpack_stats(word: felt252) -> MemberStats {
     let (low, high) = split(word);
+    let b8: NonZero<u128> = P8.try_into().unwrap();
     let b16: NonZero<u128> = P16.try_into().unwrap();
-    let b32: NonZero<u128> = P32.try_into().unwrap();
-    let six = 0x40;
+    let b6: NonZero<u128> = 0x40;
+    let (low, max_health) = DivRem::div_rem(low, b16);
+    let (low, max_energy) = DivRem::div_rem(low, b8);
+    let (low, energy_regen) = DivRem::div_rem(low, b8);
+    let (low, health_regen) = DivRem::div_rem(low, b8);
+    // Bits 40–47 are free (the single armor moved to `MemberBar`, FX-24).
+    let (low, v1) = DivRem::div_rem(low / P8, b6);
+    let (low, v2) = DivRem::div_rem(low, b6);
+    // Bits 60–63 are free.
+    let (low, level) = DivRem::div_rem(low / 0x10, b8);
+    let (low, profession) = DivRem::div_rem(low, b8);
+    let (low, primary_rank) = DivRem::div_rem(low, b8);
+    let (low, weapon) = DivRem::div_rem(low, b8);
+    let (low, weapon_damage) = DivRem::div_rem(low, b8);
+    let (low, weapon_ticks) = DivRem::div_rem(low, b8);
+    let (weapon_strength, weapon_range) = DivRem::div_rem(low, b8);
+    let (high, ranks) = DivRem::div_rem(high, P32.try_into().unwrap());
+    let (high, damage_type) = DivRem::div_rem(high, b8);
+    // Bits 168–175 are free (the single penetration moved to `MemberBar`, FX-24).
+    let (high, requirement_met) = DivRem::div_rem(high / P8, b8);
+    let (high, set_bonuses) = DivRem::div_rem(high, b16);
+    let (high, v3) = DivRem::div_rem(high, b6);
+    let (high, v4) = DivRem::div_rem(high, b6);
+    let (high, v5) = DivRem::div_rem(high, b6);
+    let (high, v6) = DivRem::div_rem(high, b6);
+    let (high, v7) = DivRem::div_rem(high, b6);
+    let (v9, v8) = DivRem::div_rem(high, b6);
     MemberStats {
-        max_health: low_field(low, b16).try_into().unwrap(),
-        max_energy: byte_at(low, P16),
-        energy_regen: byte_at(low, P24),
-        health_regen: byte_at(low, P32),
+        max_health: max_health.try_into().unwrap(),
+        max_energy: max_energy.try_into().unwrap(),
+        energy_regen: energy_regen.try_into().unwrap(),
+        health_regen: health_regen.try_into().unwrap(),
         armor_vs: [
-            field(low, P48, six).try_into().unwrap(),
-            field(low, 0x40000000000000, six).try_into().unwrap(),
-            field(high, P72, six).try_into().unwrap(),
-            field(high, 0x40000000000000000000, six).try_into().unwrap(),
-            field(high, P84, six).try_into().unwrap(),
-            field(high, 0x40000000000000000000000, six).try_into().unwrap(),
-            field(high, P96, six).try_into().unwrap(),
-            field(high, 0x40000000000000000000000000, six).try_into().unwrap(),
-            field(high, P108, six).try_into().unwrap(),
+            v1.try_into().unwrap(), v2.try_into().unwrap(), v3.try_into().unwrap(),
+            v4.try_into().unwrap(), v5.try_into().unwrap(), v6.try_into().unwrap(),
+            v7.try_into().unwrap(), v8.try_into().unwrap(), v9.try_into().unwrap(),
         ],
-        level: byte_at(low, P64),
-        profession: byte_at(low, P72),
-        primary_rank: byte_at(low, P80),
-        weapon: byte_at(low, P88),
-        weapon_damage: byte_at(low, P96),
-        weapon_ticks: byte_at(low, P104),
-        weapon_range: byte_at(low, P112),
-        weapon_strength: byte_at(low, P120),
-        ranks: low_field(high, b32).try_into().unwrap(),
-        damage_type: byte_at(high, P32),
-        requirement_met: byte_at(high, P48),
-        set_bonuses: u16_at(high, P56),
+        level: level.try_into().unwrap(),
+        profession: profession.try_into().unwrap(),
+        primary_rank: primary_rank.try_into().unwrap(),
+        weapon: weapon.try_into().unwrap(),
+        weapon_damage: weapon_damage.try_into().unwrap(),
+        weapon_ticks: weapon_ticks.try_into().unwrap(),
+        weapon_range: weapon_range.try_into().unwrap(),
+        weapon_strength: weapon_strength.try_into().unwrap(),
+        ranks: ranks.try_into().unwrap(),
+        damage_type: damage_type.try_into().unwrap(),
+        requirement_met: requirement_met.try_into().unwrap(),
+        set_bonuses: set_bonuses.try_into().unwrap(),
     }
 }
 

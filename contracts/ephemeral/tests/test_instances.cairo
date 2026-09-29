@@ -19,7 +19,8 @@ fn deploy_instances() -> ContractAddress {
 }
 
 #[test]
-#[available_gas(l2_gas: 2783298)] // ceil(1.05 × 2650760 measured)
+// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+#[available_gas(l2_gas: 2783508)] // ceil(1.05 × 2650960 measured)
 fn test_instances_deploys_and_stubs_revert() {
     let address = deploy_instances();
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');

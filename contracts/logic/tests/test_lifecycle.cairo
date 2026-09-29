@@ -96,7 +96,8 @@ fn test_enterable_quest() {
 
 // design/03: health 100 + 20 per level above 1; energy, its pips and armor by profession.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+// gas: raised, CBT-01: the snapshot's bar and kit hold design/19 section 7.2's passives (FX-24), compared whole
+#[available_gas(l2_gas: 53288)] // ceil(1.05 × 50750 measured)
 fn test_snapshot() {
     let snapshot = SnapshotTrait::new(
         20, 3, [1, 2, 3, 4, 5, 6, 7, 8], 2, [9, 10, 11, 12], [1, 2, 3, 4],
@@ -106,13 +107,20 @@ fn test_snapshot() {
         max_energy: 30,
         energy_regen: 4,
         health_regen: 10,
-        armor: 60,
         level: 20,
         profession: 3,
         ..Default::default(),
     };
     assert(snapshot.stats == stats, 'stats');
-    assert(snapshot.bar == MemberBar { skills: [1, 2, 3, 4, 5, 6, 7, 8], elite_slot: 2 }, 'bar');
+    let bar = MemberBar {
+        skills: [1, 2, 3, 4, 5, 6, 7, 8],
+        elite_slot: 2,
+        damage: [0; 6],
+        penetration: [0; 3],
+        quick_cast: [Default::default(); 2],
+        armor: 60,
+    };
+    assert(snapshot.bar == bar, 'bar');
     assert(snapshot.kit == MemberKit { belt: [9, 10, 11, 12], ..Default::default() }, 'kit');
     assert(snapshot.belt_counts == [1, 2, 3, 4], 'belt');
     assert(
@@ -131,7 +139,8 @@ fn test_snapshot() {
 
 #[test]
 #[should_panic(expected: 'bad profession')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+// gas: raised, CBT-01: the snapshot's bar is built with design/19 section 7.2's passives (FX-24)
+#[available_gas(l2_gas: 22806)] // ceil(1.05 × 21720 measured)
 fn test_snapshot_of_no_profession() {
     SnapshotTrait::new(1, 0, [0; 8], 255, [0; 4], [0; 4]);
 }
