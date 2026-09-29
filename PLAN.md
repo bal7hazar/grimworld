@@ -195,6 +195,7 @@ and CLI-08 are candidates for this track.
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, chain access through starknet.js, subscription to the indexer | FND-01b, SPK-6, IDX-01 | Opus 5.5 | S Q | todo |
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness. SPK-4 / D-140: a TypeScript mirror checked by vectors generated from the Cairo code (option (a)); measure the full tick in TypeScript and Poseidon, which the spike did not | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
+| FND-08 | **The burner's funder on a public network**: a service of the game behind FND-05's `Funder` port, tested on the local node; before any play on Sepolia (D-150) | FND-05 | Opus 5.5 | S Q + GPT-6-Astra | todo |
 | OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer | ENG-07 | Sonnet 5 | S Q | todo |
 | IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo (lent to track CV on the Mac, D-149) |
 | IDX-02 | The indexer hosted for Sepolia, watched, rebuilt from the chain on demand | IDX-01, OPS-01 | Sonnet 5.5 | S Q | todo |
@@ -206,7 +207,7 @@ verified by the cross-cutting audit.
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| CBT-01 | Freeze combat interfaces: actor stats, skill and effect schema, caste schema | Phase 1 | Orchestrator + Opus 5.5 | D | todo |
+| CBT-01 | Freeze combat interfaces: actor stats, skill and effect schema, caste schema (the shape of DES-06's sheet). **Pulled forward while the engine chain waits (D-150)** | DES-04 | Orchestrator + Opus 5.5 | D | todo, **next** (D-150: before CBT-01, pulled forward) |
 | CBT-02 | World tick pipeline (5 steps), regeneration, durations, recharges | CBT-01 | Opus 5.5 | D P C Q | todo |
 | CBT-03 | Weapon attacks, damage formula, armor, arcs, flank and critical. D-140 (design/04 *Edges*): armor clamped at 0; every percent modifier of damage summed and applied once, truncating; damage saturated to [0, 65,535]; a goblin's own tile unmarked asserted; no panic on a legal action | CBT-02 | Opus 5.5 | D S P C Q | todo |
 | CBT-04 | Conditions (MVP five) | CBT-02 | Opus 5.5 | D P Q | todo |

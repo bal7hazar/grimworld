@@ -38,6 +38,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-150 | The game's slots while the engine chain waits: DES-04 then CBT-01; FND-08, the funder | Project manager |
 | D-149 | The Mac takes tasks of the game without Sepolia, under track CV's orchestrator: IDX-01 first; 5 agents on the Mac (owner) | Project manager; budget by the owner |
 | D-148 | ENG-06: three measured budgets on the lifecycle; a gate is used by standing on its anchor tile; armor flat until BAL-01 | Project manager |
 | D-147 | The owner's review of ARC-06: no `logic/` folder; tracking a model is optional, chosen by the consumer | Owner |
