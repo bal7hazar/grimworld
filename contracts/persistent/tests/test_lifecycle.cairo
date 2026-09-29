@@ -566,7 +566,7 @@ fn test_enter_refusals() {
 // CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
-#[available_gas(l2_gas: 44422224)] // ceil(1.05 × 42306880 measured)
+#[available_gas(l2_gas: 44436830)] // ceil(1.05 × 42320790 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);

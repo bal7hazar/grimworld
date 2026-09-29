@@ -391,11 +391,20 @@ Layouts (`contracts/persistent/src/models/`), every one with `LIVE`:
   `delete_adventurer` checks an empty pack without scanning pages (fix loop 1, F-5).
 - `AdventurerPlace`: instance id 0–63 · hub 64–79 (0 inside) · last hub 80–95 · inside 96–103 ·
   unlocked hubs 128–191.
-- `Build`: bar 8 × `u16` 0–127 · attribute ranks 9 × 4 bits 128–163 · elite slot 168–175.
+- `Build`: bar 8 × `u16` 0–127 · attribute ranks 9 × 4 bits 128–163 · elite slot 168–175 (255 none).
+  The nine ranks are **build-local indices** (D-157 A, CBT-08a): 0–4 the primary profession's
+  attributes in design/03's order, its primary attribute at 0; 5–8 the secondary's without its
+  primary attribute, in the same order; an index the professions do not have holds 0. `set_build`
+  takes the word without `LIVE` and refuses a bit in 164–167 or from 176 up.
 - `belt` (`Lanes32`, lanes 0–3: potion items; lane 4: the count to carry in each slot, 4 × `u8`) · `equipped` (`Lanes32`: weapon, off-hand, chest,
   legs, head, hands, feet) · `name` (short string).
 - `ItemBase`: base 0–15 · requirement 16–23 · rarity 24–31 · level 32–39 · flags 40–47 (identified,
-  personalised, boss, component) · look 48–63 · set 64–79 · owner kind 80–87 · owner 88–119.
+  personalised, boss, component) · look 48–63 · set 64–79 · owner kind 80–87 · owner 88–119 ·
+  **slot 120–123 · hands 124–127** (D-158, CBT-08a): its `BASE`'s slot (1 weapon, 2 off-hand,
+  3 chest, 4 legs, 5 head, 6 hands, 7 feet: `equipped`'s lane + 1; 0 an item not worn) and hands
+  (1 or 2 on a weapon, 0 elsewhere), copied from the `BASE` record by whoever creates the item
+  (`ItemBaseTrait::new`: loot, a craft, a shop, a quest, a collector, the ephemeral domain's
+  equipment drops in `Results.equipment` alike), so that `set_build` reads no `BASE` record.
   `ItemMods`: five `(modifier u16, value u8)` at 0, 24, 48, 72, 96 (prefix, suffix, inscription,
   insignia, rune): written at identification, when the modifiers come to exist (design/15).
 - `GrimoireState`: known recipes 0–15 · untried pairs per signature 6 × 8 at 16–63 · 4 hints of 16
@@ -526,6 +535,8 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `SKILL` | 0 | header, low limb (83 bits): profession 0–7 · attribute 8–15 · skill kind 16–23 (design/19 §3.4, 1–12) · energy 24–31 · adrenaline (strikes) 32–39 · activation 40–55 · recharge 56–71 (both ≤ `MAX_BASE_DURATION`) · range 72–79 · target 80–81 (self, foe, ally, tile) · elite 82 · **entry 1** 128–224 |
 | `SKILL` | 1 | **entry 2** 0–96 · **entry 3** 128–224 |
 | `ITEM` | 0 | class 0–7 (1 ingredient, 2 material, 3 potion, 4 trophy, 5 stillstone, 6 heartstone, 7 quest, 8 failed brew) · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 · the potion's **entry** 128–224 · range 225–232 · bomb strength 233–240 (FX-18, FX-28) |
+| `BASE` | 0 | **slot 0–7** (1 weapon … 7 feet, as `ItemBase.slot`) · **hands 8–15** (1 or 2 on a weapon, 0 elsewhere); the rest of part 0 and part 1 (class, profession, damage by requirement, rating, look) are laid out by a later lot, appended after bit 15 (CBT-08a; `grimworld_logic::models::base`, which covers this prefix only) |
+| `BASE` | 1 | `LIVE` only, until then |
 | `MODIFIER` | 0 | slot type 0–7 (1 prefix, 2 suffix, 3 inscription, 4 insignia, 5 rune: `ItemMods`' order) · **benefit** 128–180 · **cost** 181–233 (a passive each; the cost fixed, id 0 for none) |
 | `ARMOR_SET` | 0 | 5 piece bases `u16` at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · the 3-piece bonus 128–180 · the 5-piece bonus 181–233 (a passive each) |
 | `CASTE` | 0 | tier 0–7 · AI profile 8–15 · health multiplier (percent) 16–31 · health regeneration + 10 32–39 · armor 40–47 · weapon 48–79 (class 48–51 · damage 52–67 · damage type 68–71 · ticks 72–75 · range 76–79) · energy (≤ 85) 80–87 · energy regeneration 88–95 · flee threshold 96–103 · rank of its skills 104–107 · boss 108 · armor per damage type 128–181 (type `t` at `128 + 6 (t − 1)`, ≤ 63) · loot table 182–197 |

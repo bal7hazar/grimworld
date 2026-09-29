@@ -1,7 +1,6 @@
 //! An adventurer (design/03): six consecutive slots under its id. Layouts:
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
-use grimworld_logic::models::base::Base;
 use grimworld_logic::models::item::class as item_class;
 use grimworld_logic::packing::{
     LIVE, Lanes32, P104, P112, P12, P120, P16, P24, P32, P36, P4, P40, P48, P56, P64, P8, P80, P96,
@@ -73,10 +72,9 @@ pub mod errors {
     pub const COUNT_WITHOUT_ITEM: felt252 = 'belt: count without item';
     pub const NOT_A_POTION: felt252 = 'belt: not a potion';
     pub const BELT_NOT_IN_PACK: felt252 = 'belt: not in the pack';
-    /// The equipment: the same entity in two slots, a base missing from the registry, a base of
-    /// another slot, a weapon in both hands with an off-hand.
+    /// The equipment: the same entity in two slots, an item of another slot (or of none), a
+    /// weapon in both hands with an off-hand.
     pub const DUPLICATE_ITEM: felt252 = 'equipped: duplicate';
-    pub const NO_BASE: felt252 = 'equipped: no base';
     pub const WRONG_SLOT: felt252 = 'equipped: wrong slot';
     pub const TWO_HANDS: felt252 = 'equipped: two hands';
 }
@@ -498,10 +496,10 @@ pub impl EquippedAssert of EquippedAssertTrait {
         }
     }
 
-    /// The entity's base is in the registry and is worn in lane `lane`'s slot (design/15).
-    fn assert_slot(exists: bool, base: @Base, lane: u32) {
-        assert(exists, errors::NO_BASE);
-        let slot: u32 = (*base.slot).into();
+    /// The item is worn in lane `lane`'s slot (design/15): `slot` is `ItemBase.slot`, its base's
+    /// slot copied at creation (D-158); 0, an item not worn, fits no lane.
+    fn assert_slot(slot: u8, lane: u32) {
+        let slot: u32 = slot.into();
         assert(slot == lane + 1, errors::WRONG_SLOT);
     }
 

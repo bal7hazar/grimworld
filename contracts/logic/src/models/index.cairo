@@ -169,10 +169,11 @@ pub struct Modifier {
     pub cost: Passive,
 }
 
-/// `BASE`, 2 parts (design/15; ENG-01 §3.5 names its fields without their bits). CBT-08a lays out
-/// only what `set_build` reads, from bit 0 of part 0, so that the lot that lays out the rest
-/// (class, profession, damage by requirement, rating, look) appends to it:
-/// part 0 low: slot 0–7 · hands 8–15 · `LIVE` in both parts.
+/// `BASE`, 2 parts (design/15; ENG-01 §3.5). CBT-08a lays out only its prefix, from bit 0 of
+/// part 0: what the creator of an item copies into `ItemBase` (D-158), so that `set_build` reads
+/// no `BASE`. The lot that lays out the rest (class, profession, damage by requirement, rating,
+/// look) appends to it; until then this model covers the prefix only, and its packer writes every
+/// other bit 0: part 0 low: slot 0–7 · hands 8–15 · `LIVE` in both parts.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Base {
     /// `base::slot::WEAPON` … `FEET`: `equipped`'s lane plus one.

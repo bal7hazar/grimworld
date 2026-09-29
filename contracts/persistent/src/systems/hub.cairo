@@ -156,12 +156,11 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{BASE, GATE, ITEM, REGION, SKILL, exists};
+    use grimworld_logic::content::{GATE, ITEM, REGION, SKILL, exists};
     use grimworld_logic::interface::{
         IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IRegistryReadDispatcher,
         IRegistryReadDispatcherTrait, IResults, Results, facts,
     };
-    use grimworld_logic::models::base::{Base, BaseRecord, BaseTrait};
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord, errors as gate_errors};
     use grimworld_logic::models::item::ItemTrait;
     use grimworld_logic::models::region::{Region, RegionRecord};
@@ -189,7 +188,9 @@ pub mod Hub {
         EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE, PLACE_WORD,
     };
     use crate::models::balance::BalanceTrait;
-    use crate::models::item::{Gold, Grimoire, Item, ItemBase, ItemBaseAssert, RiftBoard};
+    use crate::models::item::{
+        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, RiftBoard,
+    };
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
 
@@ -448,12 +449,13 @@ pub mod Hub {
         /// and `elite_slot` naming it. The attributes: `BuildAssert::assert_attributes`. The belt:
         /// potions of the registry, a count only with an item, the pack holding each item's summed
         /// count (the reserve `enter` debits). The equipment: each entity in the adventurer's
-        /// pack, wearable, its base worn in its lane's slot, no off-hand beside a weapon held in
-        /// both hands. Reads: the ownership check's 3 words, the known-skills pages of the bar,
-        /// the pack pages of the belt's items (at most 4), each equipped entity's `ItemBase` (at
-        /// most 7); one `Registry.bundle` call for the skills, belt items and bases (at most 19
-        /// records, none when all three are empty). Writes (ENG-01 §9.3): `build`, `belt`,
-        /// `equipped`, overwritten, the words sent plus `LIVE`.
+        /// pack, wearable, worn in its lane's slot, no off-hand beside a weapon held in both
+        /// hands: the slot and the hands are the item's own, copied from its `BASE` at creation
+        /// (D-158), so no base is read. Reads: the ownership check's 3 words, the known-skills
+        /// pages of the bar, the pack pages of the belt's items (at most 4), each equipped
+        /// entity's `ItemBase` (at most 7); one `Registry.bundle` call for the skills and the
+        /// belt's items (at most 12 records, none when both are empty). Writes (ENG-01 §9.3):
+        /// `build`, `belt`, `equipped`, overwritten, the words sent plus `LIVE`.
         fn set_build(
             ref self: ContractState,
             adventurer_id: u32,
@@ -476,8 +478,7 @@ pub mod Hub {
             let entities = unpack_lanes32(equipped_word).lanes.span();
             EquippedAssert::assert_distinct(entities);
 
-            // What the registry is asked, in order: the bar's skills, the belt's distinct items,
-            // the equipped entities' bases.
+            // What the registry is asked, in order: the bar's skills, the belt's distinct items.
             let mut requests: Array<(u8, u32)> = array![];
             let mut known: Array<bool> = array![];
             let (mut page, mut page_word) = (0_u8, 0);
@@ -531,7 +532,7 @@ pub mod Hub {
                     .word(0);
                 BeltAssert::assert_held(BalanceTrait::amount(word, lane), count);
             }
-            let mut lanes: Array<u32> = array![];
+            let mut two_handed = false;
             for lane in 0..7_u32 {
                 let entity = *entities[lane];
                 if entity == 0 {
@@ -540,9 +541,12 @@ pub mod Hub {
                 let word = self.items.entry(entity).as_ptr().__storage_pointer_address__.word(0);
                 let item: ItemBase = StorePacking::unpack(word);
                 item.assert_wearable(adventurer_id);
-                requests.append((BASE, item.base.into()));
-                lanes.append(lane);
+                EquippedAssert::assert_slot(item.slot, lane);
+                if lane == 0 {
+                    two_handed = item.is_two_handed();
+                }
             }
+            EquippedAssert::assert_hands(two_handed, *entities[1]);
 
             if requests.len() != 0 {
                 let (_, parts) = IRegistryReadDispatcher { contract_address: self.registry.read() }
@@ -573,16 +577,6 @@ pub mod Hub {
                     BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
                     at += 1;
                 }
-                let mut two_handed = false;
-                for lane in lanes {
-                    let base: Base = BaseRecord::unpack(parts.slice(at, 2));
-                    EquippedAssert::assert_slot(*parts[at] != 0, @base, lane);
-                    if lane == 0 {
-                        two_handed = base.is_two_handed();
-                    }
-                    at += 2;
-                }
-                EquippedAssert::assert_hands(two_handed, *entities[1]);
             } else {
                 value.assert_elite_slot(NO_ELITE);
             }

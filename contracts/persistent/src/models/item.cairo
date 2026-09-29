@@ -2,11 +2,15 @@
 //! grimoire (design/07) and the Rift board (design/17). Layouts:
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
+use grimworld_logic::models::base::Base;
 use grimworld_logic::packing::{
-    P104, P16, P24, P32, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join, low_field,
-    split, u16_at, u32_at,
+    P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join,
+    low_field, split, u16_at, u32_at,
 };
 use super::account::PACK;
+
+/// `ItemBase.hands` sits at bit 124.
+const P124: u128 = 0x10000000000000000000000000000000;
 
 /// Item flags (`ItemBase.flags`).
 pub const IDENTIFIED: u8 = 1;
@@ -25,6 +29,45 @@ pub mod errors {
     pub const A_COMPONENT: felt252 = 'item: a component';
     /// Fine or above and not identified: identifying is "needed to equip it" (design/15).
     pub const UNIDENTIFIED: felt252 = 'item: unidentified';
+}
+
+#[generate_trait]
+pub impl ItemBaseImpl of ItemBaseTrait {
+    /// An item as its creator writes it (loot, a craft, a shop, a quest, a collector: design/15):
+    /// the slot and the hands of its `BASE` record are copied into it, so that `set_build` reads
+    /// no registry record (D-158). Every writer of a new entity calls this.
+    fn new(
+        base: u16,
+        record: @Base,
+        requirement: u8,
+        rarity: u8,
+        level: u8,
+        flags: u8,
+        look: u16,
+        set: u16,
+        owner_kind: u8,
+        owner: u32,
+    ) -> ItemBase {
+        ItemBase {
+            base,
+            requirement,
+            rarity,
+            level,
+            flags,
+            look,
+            set,
+            owner_kind,
+            owner,
+            slot: *record.slot,
+            hands: *record.hands,
+        }
+    }
+
+    /// A weapon held in both hands: nothing goes in the off-hand (design/15, *Weapons*).
+    #[inline(always)]
+    fn is_two_handed(self: @ItemBase) -> bool {
+        *self.hands == 2
+    }
 }
 
 #[generate_trait]
@@ -62,10 +105,17 @@ pub struct ItemBase {
     pub owner_kind: u8,
     /// bits 88-119: the adventurer or account holding it; 0 in escrow (the lot names the entity)
     pub owner: u32,
+    /// bits 120-123: its base's slot, copied from the `BASE` record at creation (D-158):
+    /// `grimworld_logic::models::base::slot`, 0 for an item that is not worn (a component)
+    pub slot: u8,
+    /// bits 124-127: its base's hands, copied likewise: 1 or 2 on a weapon, 0 elsewhere
+    pub hands: u8,
 }
 
 pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase, felt252> {
     fn pack(value: ItemBase) -> felt252 {
+        fits(value.slot.into(), P4, 'packing: slot above 4 b');
+        fits(value.hands.into(), P4, 'packing: hands above 4 b');
         join(
             value.base.into()
                 + value.requirement.into() * P16
@@ -75,7 +125,9 @@ pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase
                 + value.look.into() * P48
                 + value.set.into() * P64
                 + value.owner_kind.into() * P80
-                + value.owner.into() * P88,
+                + value.owner.into() * P88
+                + value.slot.into() * P120
+                + value.hands.into() * P124,
             0,
         )
     }
@@ -91,6 +143,8 @@ pub impl ItemBaseStorePacking of starknet::storage_access::StorePacking<ItemBase
             set: u16_at(low, P64),
             owner_kind: byte_at(low, P80),
             owner: u32_at(low, P88),
+            slot: field(low, P120, P4).try_into().unwrap(),
+            hands: field(low, P124, P4).try_into().unwrap(),
         }
     }
 }

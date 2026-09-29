@@ -1,11 +1,13 @@
 // The storage records of `Hub` and `Market` are what docs/architecture/ENG-01-interfaces.md says:
 // each record's size in slots, the bit offsets of every packed record, LIVE included, and the
 // market key. The variables' names and keys are checked in each contract's `layout_tests`.
+use grimworld_logic::models::base::{BaseTrait, slot};
 use grimworld_logic::packing::LIVE;
-use grimworld_persistent::models::account::{Account, AccountRecord, VAULT, owner_key};
+use grimworld_persistent::models::account::{Account, AccountRecord, PACK, VAULT, owner_key};
 use grimworld_persistent::models::adventurer::{Adventurer, AdventurerCore, AdventurerPlace, Build};
 use grimworld_persistent::models::item::{
-    Gold, Grimoire, GrimoireState, Item, ItemBase, ItemMods, Modifier, Pairs, RiftBoard,
+    Gold, Grimoire, GrimoireState, IDENTIFIED, Item, ItemBase, ItemBaseTrait, ItemMods, Modifier,
+    Pairs, RiftBoard,
 };
 use grimworld_persistent::models::market::{
     BALANCE, EQUIPMENT, Lot, SellerPage, Trade, TradeHead, TradeMoney, market_key,
@@ -77,7 +79,8 @@ fn test_account_and_adventurer_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 341397)] // ceil(1.05 × 325140 measured)
+// gas: raised, D-158: `ItemBase` gains slot and hands, packed and unpacked in the round trip
+#[available_gas(l2_gas: 367584)] // ceil(1.05 × 350080 measured)
 fn test_item_grimoire_rift_layout() {
     let base = ItemBase {
         base: 0xFFFF,
@@ -89,6 +92,8 @@ fn test_item_grimoire_rift_layout() {
         set: 0xFFFF,
         owner_kind: 3,
         owner: 0xFFFFFFFF,
+        slot: 15,
+        hands: 15,
     };
     let word = StorePacking::<ItemBase, felt252>::pack(base);
     assert(StorePacking::<ItemBase, felt252>::unpack(word) == base, 'base trip');
@@ -193,4 +198,56 @@ fn test_attributes_above_36_bits_refused() {
 #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 fn test_pairs_overflow_refused() {
     StorePacking::<Pairs, felt252>::pack(Pairs { low: 0, high: 0x1000000000000000000000000000000 });
+}
+
+// CBT-08a, D-158: `ItemBase.slot` at bit 120 and `hands` at 124, 4 bits each, copied from the
+// `BASE` record by the constructor every creator of an item calls.
+#[test]
+#[available_gas(l2_gas: 189693)] // ceil(1.05 × 180660 measured)
+fn test_item_slot_and_hands() {
+    let one = ItemBase { slot: 1, ..Default::default() };
+    assert(
+        StorePacking::<ItemBase, felt252>::pack(one) == 0x1000000000000000000000000000000 + LIVE,
+        'slot at bit 120',
+    );
+    let two = ItemBase { hands: 1, ..Default::default() };
+    assert(
+        StorePacking::<ItemBase, felt252>::pack(two) == 0x10000000000000000000000000000000 + LIVE,
+        'hands at bit 124',
+    );
+    let maul = BaseTrait::new(slot::WEAPON, 2);
+    let item = ItemBaseTrait::new(7, @maul, 9, 1, 20, IDENTIFIED, 3, 0, PACK, 5);
+    let expected = ItemBase {
+        base: 7,
+        requirement: 9,
+        rarity: 1,
+        level: 20,
+        flags: IDENTIFIED,
+        look: 3,
+        set: 0,
+        owner_kind: PACK,
+        owner: 5,
+        slot: slot::WEAPON,
+        hands: 2,
+    };
+    assert(item == expected, 'copied from the base');
+    assert(item.is_two_handed(), 'two hands');
+    let feet = ItemBaseTrait::new(8, @BaseTrait::new(slot::FEET, 0), 0, 0, 1, 0, 0, 0, PACK, 5);
+    assert(feet.slot == slot::FEET && feet.hands == 0 && !feet.is_two_handed(), 'feet');
+    let word = StorePacking::<ItemBase, felt252>::pack(item);
+    assert(StorePacking::<ItemBase, felt252>::unpack(word) == item, 'round trip');
+}
+
+#[test]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[should_panic(expected: 'packing: slot above 4 b')]
+fn test_item_slot_too_wide() {
+    StorePacking::<ItemBase, felt252>::pack(ItemBase { slot: 16, ..Default::default() });
+}
+
+#[test]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[should_panic(expected: 'packing: hands above 4 b')]
+fn test_item_hands_too_wide() {
+    StorePacking::<ItemBase, felt252>::pack(ItemBase { hands: 16, ..Default::default() });
 }

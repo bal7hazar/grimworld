@@ -1,5 +1,6 @@
 //! `BASE`: its constructor, its checks and its record (layout: `models::index::Base`). An
-//! equipment base: the slot it is worn in and, for a weapon, its hands (design/15).
+//! equipment base: the slot it is worn in and, for a weapon, its hands (design/15). The creator of
+//! an item copies both into `ItemBase` (`ItemBaseTrait::new`, D-158).
 
 use crate::content::{BASE, Record};
 use crate::packing::{LIVE, P8, join, low_field, split};

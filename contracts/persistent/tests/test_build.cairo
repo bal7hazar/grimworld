@@ -1,12 +1,13 @@
 // CBT-08a: `Hub.set_build` (design/03 *Attributes*, *The skill bar*; design/15; ENG-01 §4.3,
 // §9.3, §10; D-150, D-157 A). One call stores the bar, the attributes, the belt and the
 // equipment; every rule is a refusal tested at its boundary. `Registry` is the real one, written
-// with the records the rules read (`SKILL`, `ITEM`, `BASE`); what no entrypoint can yet produce
-// (known skills, pack balances, equipment entities, a level, a rank, a secondary profession) is set
-// with `store`.
+// with the records the rules read (`SKILL`, `ITEM`); equipment is created by
+// `ItemBaseTrait::new`, which copies its `BASE`'s slot and hands (D-158); what no entrypoint can
+// yet produce (known skills, pack balances, equipment entities, a level, a rank, a secondary
+// profession) is set with `store`.
 use core::testing::get_available_gas;
-use grimworld_logic::content::{BASE, ITEM, LOCATION, REGION, SKILL};
-use grimworld_logic::models::base::{BaseRecord, BaseTrait};
+use grimworld_logic::content::{ITEM, LOCATION, REGION, SKILL};
+use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
@@ -16,12 +17,12 @@ use grimworld_persistent::models::account::{PACK, VAULT, owner_key};
 use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, BELT_LAYOUT, BELT_NOT_IN_PACK, BUILD_LAYOUT, COUNT_WITHOUT_ITEM,
     DUPLICATE_ITEM, DUPLICATE_SKILL, ELITE_SLOT, EQUIPPED_LAYOUT, NOT_A_POTION, NOT_IN_HUB,
-    NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_BASE, NO_SKILL, POINTS, RANK_ABOVE_12,
-    SKILL_NOT_KNOWN, SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
+    NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_SKILL, POINTS, RANK_ABOVE_12, SKILL_NOT_KNOWN,
+    SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
 };
 use grimworld_persistent::models::adventurer::{AdventurerCore, NO_ELITE};
 use grimworld_persistent::models::item::errors::{A_COMPONENT, NOT_IN_PACK, UNIDENTIFIED};
-use grimworld_persistent::models::item::{COMPONENT, IDENTIFIED, ItemBase};
+use grimworld_persistent::models::item::{COMPONENT, IDENTIFIED, ItemBaseTrait};
 use grimworld_persistent::systems::hub::{
     IHubDispatcher, IHubDispatcherTrait, IHubSafeDispatcher, IHubSafeDispatcherTrait,
 };
@@ -59,7 +60,7 @@ const IN_VAULT: u32 = 110; // a chest in Alice's vault
 const A_COMPONENT_ENTITY: u32 = 111;
 const FINE_CLOSED: u32 = 112; // a fine chest, unidentified
 const FINE_OPEN: u32 = 113; // a fine chest, identified
-const UNKNOWN_BASE: u32 = 114; // its base, 9, has no record
+const NOT_WORN: u32 = 114; // its base, 9, has no slot
 const NEVER: u32 = 115; // an entity never written
 
 fn addr(value: felt252) -> ContractAddress {
@@ -126,11 +127,6 @@ fn setup() -> World {
             class::INGREDIENT
         };
         admin.set_record(ITEM, id, item(kind));
-    }
-    admin.set_record(BASE, 1, BaseTrait::new(1, 1).pack());
-    admin.set_record(BASE, 2, BaseTrait::new(1, 2).pack());
-    for slot in 2..8_u8 {
-        admin.set_record(BASE, slot.into() + 1, BaseTrait::new(slot, 0).pack());
     }
     World { hub, registry }
 }
@@ -211,9 +207,19 @@ fn give(world: World, id: u32, item: u32, amount: u32) {
     };
     write(world.hub, key, StorePacking::pack(page));
 }
+/// The `BASE` records of the bases above; 9 has no slot.
+fn base_record(base: u16) -> Base {
+    match base {
+        1 => BaseTrait::new(1, 1),
+        2 => BaseTrait::new(1, 2),
+        9 => BaseTrait::new(0, 0),
+        _ => BaseTrait::new((base - 1).try_into().unwrap(), 0),
+    }
+}
+/// An entity as its creator writes it (`ItemBaseTrait::new`: the base's slot and hands copied).
 fn put_item(world: World, entity: u32, base: u16, rarity: u8, flags: u8, kind: u8, owner: u32) {
     let key = map_entry_address(selector!("items"), array![entity.into()].span());
-    let item = ItemBase { base, rarity, flags, owner_kind: kind, owner, ..Default::default() };
+    let item = ItemBaseTrait::new(base, @base_record(base), 0, rarity, 0, flags, 0, 0, kind, owner);
     write(world.hub, key, StorePacking::pack(item));
 }
 
@@ -245,7 +251,7 @@ fn adventurer(world: World, profession: u8) -> u32 {
     put_item(world, A_COMPONENT_ENTITY, 4, 0, COMPONENT, PACK, id);
     put_item(world, FINE_CLOSED, 4, 1, 0, PACK, id);
     put_item(world, FINE_OPEN, 4, 1, IDENTIFIED, PACK, id);
-    put_item(world, UNKNOWN_BASE, 9, 0, 0, PACK, id);
+    put_item(world, NOT_WORN, 9, 0, 0, PACK, id);
     id
 }
 
@@ -308,7 +314,7 @@ fn try_set(
 // a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
 // pieces worn. Writes: `build`, `belt`, `equipped`, overwritten, each the word sent plus `LIVE`.
 #[test]
-#[available_gas(l2_gas: 80606591)] // ceil(1.05 × 76768181 measured)
+#[available_gas(l2_gas: 69351987)] // ceil(1.05 × 66049511 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -347,7 +353,7 @@ fn test_set_build_worst_case() {
 
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
-#[available_gas(l2_gas: 83610882)] // ceil(1.05 × 79629411 measured)
+#[available_gas(l2_gas: 72215799)] // ceil(1.05 × 68776951 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -369,7 +375,7 @@ fn test_set_build_parts() {
 
 // An empty build: no registry call, the words of a new adventurer back.
 #[test]
-#[available_gas(l2_gas: 81398007)] // ceil(1.05 × 77521911 measured)
+#[available_gas(l2_gas: 70166021)] // ceil(1.05 × 66824781 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -394,7 +400,7 @@ fn test_set_build_empty() {
 // -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 79750440)] // ceil(1.05 × 75952800 measured)
+#[available_gas(l2_gas: 69144674)] // ceil(1.05 × 65852070 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -418,7 +424,7 @@ fn test_set_build_ownership_refusals() {
 // A bit outside the fields: 164-167 and 176 up in `build`, 160 up in `belt`, 224 up in
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
-#[available_gas(l2_gas: 82336086)] // ceil(1.05 × 78415320 measured)
+#[available_gas(l2_gas: 71721689)] // ceil(1.05 × 68306370 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -449,7 +455,7 @@ fn test_set_build_layout_refusals() {
 // -------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 79693982)] // ceil(1.05 × 75899030 measured)
+#[available_gas(l2_gas: 69093024)] // ceil(1.05 × 65802880 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -460,7 +466,7 @@ fn test_bar_duplicate_refused() {
 
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
-#[available_gas(l2_gas: 83074520)] // ceil(1.05 × 79118590 measured)
+#[available_gas(l2_gas: 72550895)] // ceil(1.05 × 69096090 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -478,7 +484,7 @@ fn test_bar_known_and_registered() {
 
 // Of the primary or the secondary profession (design/03).
 #[test]
-#[available_gas(l2_gas: 80468136)] // ceil(1.05 × 76636320 measured)
+#[available_gas(l2_gas: 69911846)] // ceil(1.05 × 66582710 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -493,7 +499,7 @@ fn test_bar_profession() {
 
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
-#[available_gas(l2_gas: 83460710)] // ceil(1.05 × 79486390 measured)
+#[available_gas(l2_gas: 72976827)] // ceil(1.05 × 69501740 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -515,7 +521,7 @@ fn test_bar_elite() {
 
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
-#[available_gas(l2_gas: 81586166)] // ceil(1.05 × 77701110 measured)
+#[available_gas(l2_gas: 70998743)] // ceil(1.05 × 67617850 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -533,7 +539,7 @@ fn test_attributes_rank_and_points() {
 
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
-#[available_gas(l2_gas: 89070293)] // ceil(1.05 × 84828850 measured)
+#[available_gas(l2_gas: 78610025)] // ceil(1.05 × 74866690 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -563,7 +569,7 @@ fn test_attributes_points_by_level() {
 // The build-local indices (D-157 A): 0-4 the primary's, 5-8 the secondary's without its primary
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
-#[available_gas(l2_gas: 86018972)] // ceil(1.05 × 81922830 measured)
+#[available_gas(l2_gas: 75458439)] // ceil(1.05 × 71865180 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -588,7 +594,7 @@ fn test_attributes_indices() {
 // ------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 81550056)] // ceil(1.05 × 77666720 measured)
+#[available_gas(l2_gas: 71007552)] // ceil(1.05 × 67626240 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -607,7 +613,7 @@ fn test_belt_items() {
 
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
-#[available_gas(l2_gas: 82053384)] // ceil(1.05 × 78146080 measured)
+#[available_gas(l2_gas: 71467032)] // ceil(1.05 × 68063840 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -624,7 +630,7 @@ fn test_belt_counts_within_the_pack() {
 // -------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 85614380)] // ceil(1.05 × 81537504 measured)
+#[available_gas(l2_gas: 74225198)] // ceil(1.05 × 70690664 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -635,13 +641,13 @@ fn test_equipment_owned_and_wearable() {
     refused(try_set(world, id, empty(), 0, chest(A_COMPONENT_ENTITY)), A_COMPONENT);
     refused(try_set(world, id, empty(), 0, chest(FINE_CLOSED)), UNIDENTIFIED);
     accepted(try_set(world, id, empty(), 0, chest(FINE_OPEN)));
-    refused(try_set(world, id, empty(), 0, chest(UNKNOWN_BASE)), NO_BASE);
+    refused(try_set(world, id, empty(), 0, chest(NOT_WORN)), WRONG_SLOT);
     refused(try_set(world, id, empty(), 0, equipped([0, 0, 103, 0, 0, 0, 103])), DUPLICATE_ITEM);
 }
 
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
-#[available_gas(l2_gas: 85506432)] // ceil(1.05 × 81434697 measured)
+#[available_gas(l2_gas: 72857597)] // ceil(1.05 × 69388187 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
