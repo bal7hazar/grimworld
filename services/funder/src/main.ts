@@ -1,7 +1,7 @@
 import { createFundingChain } from "./chain.ts";
 import { ConfigError, ENV, readConfig } from "./config.ts";
 import { createFunderServer, createLogger } from "./http.ts";
-import { fileLedger, memoryLedger } from "./ledger.ts";
+import { LedgerLocked, fileLedger, memoryLedger, type Ledger } from "./ledger.ts";
 import { HOUR_MS, createFundingService } from "./service.ts";
 
 /**
@@ -23,16 +23,23 @@ try {
 delete process.env[ENV.key];
 
 const log = createLogger((line) => process.stdout.write(`${line}\n`), config.funderKey.forms());
+let ledger: Ledger;
+try {
+  ledger = config.stateFile ? fileLedger(config.stateFile) : memoryLedger();
+} catch (error) {
+  // Two services on one ledger could hand two executions the same nonce (fix loop 2, F-1).
+  process.stderr.write(`funder: ${error instanceof LedgerLocked ? error.message : "no state"}\n`);
+  process.exit(1);
+}
 const service = createFundingService({
   chain: createFundingChain(config),
-  ledger: config.stateFile ? fileLedger(config.stateFile) : memoryLedger(),
+  ledger,
   limits: {
     dailyBudget: config.dailyBudget,
     clientRate: config.clientRate,
     windowMs: HOUR_MS,
     settleMs: 60_000,
     pollMs: 500,
-    holdMs: 5 * 60_000,
   },
   onEvent: log,
 });
@@ -54,6 +61,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     server.close();
     server.closeAllConnections();
+    ledger.close();
     process.exit(0);
   });
 }

@@ -16,8 +16,13 @@ import type { Secret } from "./secret.ts";
 
 /**
  * The service's only door to the chain, and the only module that can send (COMMON §4): nothing it
- * exports is an account, a signer or a provider. `fund` checks the network before it builds a
- * signer, at every call, and the execution it signs is bound to the chain id it checked.
+ * exports is an account, a signer or a provider. `prepare` checks the network before it builds a
+ * signer, at every funding, and the execution it signs is bound to the chain id it checked.
+ *
+ * Signing and handing to the node are two steps (fix loop 2): `prepare` signs and gives the
+ * execution's id and its signed form, which the service keeps before `submit` hands it over. A
+ * nonce therefore only ever carries that one execution: when its fate is unclear, the same signed
+ * execution is handed again (`verify`, then `submit`), never another one.
  */
 
 /** The STRK token, the same address on the local node and on Starknet's networks. */
@@ -59,13 +64,30 @@ export interface FundingChain {
   /** The funding account's nonce in the latest block: the executions it has had included. */
   nonce(): Promise<bigint>;
   /**
-   * Checks the network (`NetworkRefused`), then signs, with the nonce given, and sends the
-   * account's deployment and its funding as one execution, within the fee cap (`FeeRefused`).
-   * Resolves with the execution's id. Any failure before the execution is handed to the node is a
-   * `NotSent`; any other may have been sent.
+   * Checks the network (`NetworkRefused`), then signs, with the nonce given, the account's
+   * deployment and its funding as one execution, within the fee cap (`FeeRefused`). Hands nothing
+   * to the node: every failure is a `NotSent`.
    */
-  fund(publicKey: string, address: string, nonce: bigint): Promise<string>;
+  prepare(publicKey: string, address: string, nonce: bigint): Promise<Signed>;
+  /**
+   * Hands a signed execution to the node. The request leaves during the call itself, before it
+   * returns: nothing the caller awaits comes between its checks and the handing. Resolves with the
+   * execution's id; a failure may or may not have reached the node.
+   */
+  submit(payload: string): Promise<string>;
+  /**
+   * Before a signed execution is handed again: refuses (`NetworkRefused`) unless the node's chain
+   * id is still the one it was signed for, and still allowed.
+   */
+  verify(payload: string): Promise<void>;
   status(id: string): Promise<FundingStatus>;
+}
+
+/** A signed execution: its id, computed before it is handed over, and its signed form. */
+export interface Signed {
+  readonly transaction: string;
+  /** The signed execution and the chain id it is bound to, as JSON: public, no key in it. */
+  readonly payload: string;
 }
 
 export interface ChainOptions {
@@ -91,11 +113,59 @@ export function feeBound(bounds: ResourceBoundsBN): bigint {
 
 const FELT = /^0x[0-9a-fA-F]{1,64}$/;
 
-interface Prepared {
-  funder: Account;
-  calls: Call[];
-  bounds: ResourceBoundsBN;
+/** A signed INVOKE v3 as the RPC takes it: the fields its id is computed from. */
+interface SignedInvoke {
+  sender_address: string;
+  calldata: string[];
+  version: string;
+  nonce: string;
+  tip: string;
+  paymaster_data: string[];
+  account_deployment_data: string[];
+  nonce_data_availability_mode: "L1" | "L2";
+  fee_data_availability_mode: "L1" | "L2";
+  resource_bounds: Record<
+    "l1_gas" | "l2_gas" | "l1_data_gas",
+    { max_amount: string; max_price_per_unit: string }
+  >;
 }
+
+interface Payload {
+  chainId: string;
+  transaction: string;
+  invoke: SignedInvoke;
+}
+
+/** The execution's id, as the node computes it (it must answer the same, `hand` checks). */
+function executionId(invoke: SignedInvoke, chainId: bigint): string {
+  const bound = (b: { max_amount: string; max_price_per_unit: string }) => ({
+    max_amount: BigInt(b.max_amount),
+    max_price_per_unit: BigInt(b.max_price_per_unit),
+  });
+  const mode = (m: "L1" | "L2") => (m === "L1" ? 0 : 1);
+  return num.toHex(
+    hash.calculateInvokeTransactionHash({
+      senderAddress: invoke.sender_address,
+      version: invoke.version,
+      compiledCalldata: invoke.calldata,
+      chainId: num.toHex(chainId),
+      nonce: invoke.nonce,
+      accountDeploymentData: invoke.account_deployment_data,
+      nonceDataAvailabilityMode: mode(invoke.nonce_data_availability_mode),
+      feeDataAvailabilityMode: mode(invoke.fee_data_availability_mode),
+      resourceBounds: {
+        l1_gas: bound(invoke.resource_bounds.l1_gas),
+        l2_gas: bound(invoke.resource_bounds.l2_gas),
+        l1_data_gas: bound(invoke.resource_bounds.l1_data_gas),
+      },
+      tip: invoke.tip,
+      paymasterData: invoke.paymaster_data,
+    } as never),
+  );
+}
+
+/** The RPC's error for an execution the node already has. */
+const DUPLICATE_TX = 59;
 
 export function createFundingChain(options: ChainOptions): FundingChain {
   // Copied once: the network checked, the class deployed and the account signing stay those of
@@ -126,11 +196,49 @@ export function createFundingChain(options: ChainOptions): FundingChain {
     return BigInt(body.result);
   }
 
-  /** Everything before the execution reaches the node: the network, the calls, the fee's cap. */
-  async function prepare(publicKey: string, address: string, nonce: bigint): Promise<Prepared> {
+  /** The node's chain id, refused unless configured and not mainnet. */
+  async function allowedChainId(): Promise<bigint> {
     const id = await chainId();
     if (id === SN_MAIN) throw new NetworkRefused("the chain is mainnet");
     if (!config.networks.includes(id)) throw new NetworkRefused("the chain is not configured");
+    return id;
+  }
+
+  /**
+   * Hands the signed execution to the node: the request is made during this call, synchronously,
+   * and the answer checked after. The node's id must be the one computed before.
+   */
+  function hand(payload: Payload): Promise<string> {
+    const request = config.fetch(config.rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "starknet_addInvokeTransaction",
+        params: { invoke_transaction: payload.invoke },
+      }),
+    });
+    return request.then(async (response) => {
+      const body = (await response.json()) as {
+        result?: { transaction_hash?: string };
+        error?: { code?: number };
+      };
+      if (body.error) {
+        if (body.error.code === DUPLICATE_TX) return payload.transaction;
+        throw new Error(`the node refused the execution (${String(body.error.code)})`);
+      }
+      const id = body.result?.transaction_hash;
+      if (!id || BigInt(id) !== BigInt(payload.transaction)) {
+        throw new Error("the node's execution id differs from the one computed");
+      }
+      return payload.transaction;
+    });
+  }
+
+  /** Everything before the execution reaches the node: the network, the calls, the fee's cap. */
+  async function prepare(publicKey: string, address: string, nonce: bigint): Promise<Signed> {
+    const id = await allowedChainId();
     // The signer exists only once the network is known, and signs for that chain id only: the
     // same execution is invalid on any other network.
     const provider = new RpcProvider({
@@ -167,7 +275,18 @@ export function createFundingChain(options: ChainOptions): FundingChain {
     ];
     const estimate = await funder.estimateInvokeFee(calls, { nonce, tip: 0n });
     if (feeBound(estimate.resourceBounds) > config.maxFee) throw new FeeRefused();
-    return { funder, calls, bounds: estimate.resourceBounds };
+    // Signed here, handed over later by `submit`: nothing reaches the node in this function.
+    const invoke = (await funder.getSignedTransaction(calls, {
+      nonce,
+      resourceBounds: estimate.resourceBounds,
+      tip: 0n,
+    })) as unknown as SignedInvoke;
+    if (BigInt(invoke.nonce) !== nonce) throw new NotSent("the signed nonce is not the one held");
+    const transaction = executionId(invoke, id);
+    return {
+      transaction,
+      payload: JSON.stringify({ chainId: num.toHex(id), transaction, invoke } satisfies Payload),
+    };
   }
 
   return {
@@ -202,22 +321,26 @@ export function createFundingChain(options: ChainOptions): FundingChain {
       return num.toBigInt(await reader.getNonceForAddress(config.funderAddress, "latest"));
     },
 
-    async fund(publicKey, address, nonce) {
-      let prepared: Prepared;
+    async prepare(publicKey, address, nonce) {
       try {
-        prepared = await prepare(publicKey, address, nonce);
+        return await prepare(publicKey, address, nonce);
       } catch (error) {
         throw error instanceof NotSent
           ? error
           : new NotSent("the funding was not prepared", { cause: error });
       }
-      // From here the execution may reach the node, whatever the answer: not a `NotSent`.
-      const { transaction_hash } = await prepared.funder.execute(prepared.calls, {
-        nonce,
-        resourceBounds: prepared.bounds,
-        tip: 0n,
-      });
-      return transaction_hash;
+    },
+
+    submit(payload) {
+      return hand(JSON.parse(payload) as Payload);
+    },
+
+    async verify(payload) {
+      const parsed = JSON.parse(payload) as Payload;
+      // Checked again before every handing: the signature is bound to its chain id anyway.
+      if ((await allowedChainId()) !== BigInt(parsed.chainId)) {
+        throw new NetworkRefused("the chain is not the one the execution was signed for");
+      }
     },
 
     async status(id) {

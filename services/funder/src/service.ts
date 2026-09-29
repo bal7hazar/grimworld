@@ -1,5 +1,5 @@
-import { NetworkRefused, NotSent, type FundingChain } from "./chain.ts";
-import type { Grant, Ledger } from "./ledger.ts";
+import { NetworkRefused, type FundingChain, type Signed } from "./chain.ts";
+import type { Grant, Hold, Ledger } from "./ledger.ts";
 
 /**
  * The funding service's rules (FND-08), with no network or HTTP of its own: the chain and the
@@ -8,14 +8,16 @@ import type { Grant, Ledger } from "./ledger.ts";
  * 2. a key is funded once: a key with a grant gets the grant's answer again, and nothing is sent;
  *    requests for the same key at the same time share one answer;
  * 3. an account that exists already is never funded;
- * 4. one funding at a time holds the funding account (fix loop 1, F-1): a funding waits until the
- *    nonce of the one before is consumed (or known never to be), then signs with the next nonce;
- * 5. at that moment, and only then (fix loop 1, F-2), the caps are checked and taken: a client
- *    signs at most `clientRate` fundings per hour, and all clients together at most `dailyBudget`
- *    per day (UTC), counted on the clock at signing; they are given back only when nothing was sent;
- * 6. the chain module checks the network and the fee cap before it signs (`chain.ts`).
- * Checks 5 are also made, without taking anything, before a request queues, so that a request
- * bound to be refused does not wait.
+ * 4. one funding at a time holds the funding account (fix loops 1 and 2, F-1): a funding waits
+ *    until the nonce of the one before is consumed, then signs with the next nonce, and keeps the
+ *    signed execution before handing it over; a nonce carries one execution, ever;
+ * 5. the chain module checks the network and the fee cap before it signs (`chain.ts`);
+ * 6. with no await between them and the handing (fix loop 2, F-2), the caps are checked and
+ *    taken: at most `clientRate` executions handed to the node per client in any hour, and at most
+ *    `dailyBudget` per UTC day for all clients together, counted at the moment of handing. Once
+ *    taken they are never given back: from then on the execution may be on the chain.
+ * Checks 6 are also made, without taking anything, before a request queues and before signing, so
+ * that a request bound to be refused neither waits nor signs.
  */
 
 export type Outcome =
@@ -38,12 +40,6 @@ export interface Limits {
   /** How long a request waits for its funding to settle before answering `pending`. */
   readonly settleMs: number;
   readonly pollMs: number;
-  /**
-   * How long a nonce stays held with no sign of its execution (the node does not know it, or the
-   * send failed with no answer) before it counts as never consumed. While the execution is known
-   * to the node, the nonce stays held however long it takes.
-   */
-  readonly holdMs: number;
 }
 
 export interface ServiceOptions {
@@ -80,6 +76,8 @@ function parse(request: unknown): { publicKey: string; address?: string } | unde
 
 type Sent =
   | { kind: "sent"; transaction: string }
+  | { kind: "lost"; transaction: string }
+  | { kind: "exists" }
   | { kind: "limited" | "exhausted" | "refused" | "unavailable" };
 
 export function createFundingService(options: ServiceOptions): FundingService {
@@ -105,8 +103,11 @@ export function createFundingService(options: ServiceOptions): FundingService {
   }
 
   /**
-   * Waits until the nonce held by the last funding is consumed, or known never to be; `false` when
-   * that takes longer than a request may wait (the hold stays, nothing is sent).
+   * Waits until the nonce of the last execution handed to the node is consumed; `false` when that
+   * takes longer than a request may wait (the hold stays, nothing is sent). A hold ends only on
+   * that proof (fix loop 2, F-1), never on time and never on an `unknown`: until then, whenever
+   * the node does not know the execution, the same signed execution is handed again. Its nonce
+   * therefore never carries a second one.
    */
   async function released(): Promise<boolean> {
     const until = now() + limits.settleMs;
@@ -117,62 +118,96 @@ export function createFundingService(options: ServiceOptions): FundingService {
         ledger.setHold(undefined);
         return true;
       }
-      // The nonce is not consumed. It stays held while the node knows the execution; it is let go
-      // when nothing has shown for `holdMs`: the execution never reached the node. If it does
-      // after all, it and the next funding share one nonce, and only one of them can execute.
-      const known = hold.transaction ? (await chain.status(hold.transaction)) !== "unknown" : false;
-      if (!known && now() - hold.at >= limits.holdMs) {
-        event("released", { nonce: hold.nonce });
-        ledger.setHold(undefined);
-        return true;
+      // A hold written before fix loop 2 has no signed execution to hand again: it waits for its
+      // nonce like the others.
+      if (hold.payload && (await chain.status(hold.transaction)) === "unknown") {
+        await handAgain(hold);
       }
       if (now() >= until) return false;
       await sleep(limits.pollMs);
     }
   }
 
-  /** Holds the funding account, takes the caps, signs and sends. Runs in the queue only. */
+  /**
+   * Hands the held execution again, as it was signed. The node does not know it, so this handing
+   * may be its first arrival: it is counted like one, at this moment, and waits while the caps are
+   * full. Counting it twice when the first did arrive only ever over-counts.
+   */
+  async function handAgain(hold: Hold): Promise<void> {
+    try {
+      await chain.verify(hold.payload);
+    } catch {
+      return;
+    }
+    // From here to the handing there is no await.
+    const at = now();
+    const client = hold.client ?? "";
+    if (capped(client, at)) {
+      event("held", { transaction: hold.transaction });
+      return;
+    }
+    ledger.spend(dayOf(at), 1);
+    ledger.addTime(client, at);
+    ledger.setHold({ ...hold, client, at });
+    event("resent", { transaction: hold.transaction });
+    await chain.submit(hold.payload).catch(() => undefined);
+  }
+
+  /**
+   * Holds the funding account, signs, takes the caps and hands the execution to the node. Runs in
+   * the queue only. Every await comes before the caps are taken (fix loop 2, F-2): from the check
+   * to the handing, the code runs without a pause, so the day and the hour that count an execution
+   * are those of the moment it is handed to the node.
+   */
   async function send(publicKey: string, address: string, client: string): Promise<Sent> {
     if (!(await released())) return { kind: "unavailable" };
+    // Deployed while this request waited (a funding of the same key that was thought lost).
+    if (await chain.isDeployed(address)) return { kind: "exists" };
+    // Not signed for a request the caps refuse already; checked again, for good, below.
+    const early = capped(client, now());
+    if (early) {
+      event(early, { address });
+      return { kind: early };
+    }
+    const nonce = await chain.nonce();
+    let signed: Signed;
+    try {
+      signed = await chain.prepare(publicKey, address, nonce);
+    } catch (error) {
+      // Nothing was handed to the node: nothing was taken, and the nonce was never held.
+      event("refused", { address, reason: error instanceof Error ? error.message : "unknown" });
+      return { kind: error instanceof NetworkRefused ? "refused" : "unavailable" };
+    }
+
+    // From here to the handing there is no await.
     const at = now();
-    const day = dayOf(at);
     const full = capped(client, at);
     if (full) {
+      // The signed execution is dropped, never handed: its nonce stays free.
       event(full, { address });
       return { kind: full };
     }
-    ledger.spend(day, 1);
+    ledger.spend(dayOf(at), 1);
     ledger.addTime(client, at);
-    const giveBack = () => {
-      ledger.spend(day, -1);
-      ledger.removeTime(client, at);
-    };
-    let nonce: bigint;
+    // Kept before it is handed: whatever happens next, this nonce carries this execution only.
+    ledger.setHold({
+      nonce: String(nonce),
+      transaction: signed.transaction,
+      payload: signed.payload,
+      client,
+      at,
+    });
+    const handed = chain.submit(signed.payload);
+
     try {
-      nonce = await chain.nonce();
-    } catch {
-      giveBack();
-      return { kind: "unavailable" };
-    }
-    // Held before signing: a stop from here on leaves the hold in the file.
-    ledger.setHold({ nonce: String(nonce), at });
-    try {
-      const transaction = await chain.fund(publicKey, address, nonce);
-      ledger.setHold({ nonce: String(nonce), transaction, at });
-      return { kind: "sent", transaction };
+      await handed;
     } catch (error) {
-      if (error instanceof NotSent) {
-        // Nothing reached the node: the caps and the nonce are free again.
-        giveBack();
-        ledger.setHold(undefined);
-        event("refused", { address, reason: error.message });
-        return { kind: error instanceof NetworkRefused ? "refused" : "unavailable" };
-      }
-      // It may have been sent: the caps stay spent and the nonce held, until it is consumed or
-      // `holdMs` shows nothing of it.
+      // It may have reached the node: the caps stay spent and the nonce held, with the execution
+      // to hand again.
       event("send-failed", { address, reason: error instanceof Error ? error.name : "unknown" });
-      return { kind: "unavailable" };
+      return { kind: "lost", transaction: signed.transaction };
     }
+    return { kind: "sent", transaction: signed.transaction };
   }
 
   function provided(grant: Grant, repeated: boolean): Outcome {
@@ -245,9 +280,19 @@ export function createFundingService(options: ServiceOptions): FundingService {
       ledger.setGrant(publicKey, undefined);
       throw error;
     }
+    if (sent.kind === "exists") {
+      const done: Grant = { address, status: "succeeded" };
+      ledger.setGrant(publicKey, done);
+      event("exists", { address });
+      return provided(done, true);
+    }
+    if (sent.kind === "lost") {
+      // Perhaps on the node: the key's next request asks about this execution before anything.
+      ledger.setGrant(publicKey, { address, transaction: sent.transaction, status: "pending" });
+      return { kind: "unavailable" };
+    }
     if (sent.kind !== "sent") {
-      // Not sent, or perhaps sent and unanswered: the key may ask again. If it was deployed after
-      // all, the chain refuses a second deployment and its transfer with it.
+      // Nothing was handed to the node: the key may ask again.
       ledger.setGrant(publicKey, undefined);
       return sent;
     }

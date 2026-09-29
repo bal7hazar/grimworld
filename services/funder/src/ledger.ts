@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 
 /**
  * What the service remembers: the funding of each key, how many fundings each day (UTC) has
@@ -14,12 +14,20 @@ export interface Grant {
   readonly status: "sending" | "pending" | "succeeded";
 }
 
-/** A nonce of the funding account that a funding used: no other funding signs until it is consumed. */
+/**
+ * A nonce of the funding account and the one execution signed with it, kept before that execution
+ * is handed to the node (fix loop 2): no other execution is signed until the nonce is consumed,
+ * and while the node does not know this one, it is handed again as it is.
+ */
 export interface Hold {
   /** The nonce, as a decimal string. */
   readonly nonce: string;
-  readonly transaction?: string;
-  /** When the funding was signed, in milliseconds. */
+  readonly transaction: string;
+  /** The signed execution (`Signed.payload`): public, no key in it. */
+  readonly payload: string;
+  /** Whose funding it is: a handing again counts against this client's rate. */
+  readonly client: string;
+  /** When it was last handed to the node, in milliseconds. */
   readonly at: number;
 }
 
@@ -34,6 +42,8 @@ export interface Ledger {
   removeTime(client: string, at: number): void;
   hold(): Hold | undefined;
   setHold(hold: Hold | undefined): void;
+  /** Lets another process open the file. */
+  close(): void;
 }
 
 interface State {
@@ -43,8 +53,9 @@ interface State {
   hold?: Hold;
 }
 
-function ledgerOver(state: State, save: () => void): Ledger {
+function ledgerOver(state: State, save: () => void, close: () => void): Ledger {
   return {
+    close,
     grant: (publicKey) => state.grants[publicKey],
     setGrant(publicKey, grant) {
       if (grant) state.grants[publicKey] = grant;
@@ -102,19 +113,68 @@ function empty(): State {
 
 /** For development and tests only: a restart forgets everything (`FUNDER_EPHEMERAL=1`). */
 export function memoryLedger(): Ledger {
-  return ledgerOver(empty(), () => undefined);
+  return ledgerOver(
+    empty(),
+    () => undefined,
+    () => undefined,
+  );
+}
+
+/** Another process holds the file: two services on one ledger could hand two executions one nonce. */
+export class LedgerLocked extends Error {
+  constructor() {
+    super("the state file is open in another process");
+    this.name = "LedgerLocked";
+  }
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Takes `<path>.lock` for this process: refused while a living process holds it. */
+function lock(path: string): () => void {
+  const lockPath = `${path}.lock`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      writeFileSync(lockPath, String(process.pid), { flag: "wx" });
+      return () => {
+        if (existsSync(lockPath) && readFileSync(lockPath, "utf8") === String(process.pid)) {
+          unlinkSync(lockPath);
+        }
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const holder = Number(readFileSync(lockPath, "utf8"));
+      if (Number.isInteger(holder) && holder > 0 && alive(holder)) throw new LedgerLocked();
+      // Left by a process that stopped: taken over.
+      unlinkSync(lockPath);
+    }
+  }
+  throw new LedgerLocked();
 }
 
 /**
- * A ledger written to `path` after every change (a new file, then renamed over the old one). One
- * service at a time per file and per funding account: nothing coordinates two processes.
+ * A ledger written to `path` after every change (a new file, then renamed over the old one), open
+ * in one process at a time (`<path>.lock`). One ledger per funding account: two services with two
+ * files on one account are not detected here, and must not be run (README).
  */
 export function fileLedger(path: string): Ledger {
+  const unlock = lock(path);
   const state: State = existsSync(path)
     ? { ...empty(), ...(JSON.parse(readFileSync(path, "utf8")) as Partial<State>) }
     : empty();
-  return ledgerOver(state, () => {
-    writeFileSync(`${path}.next`, JSON.stringify(state));
-    renameSync(`${path}.next`, path);
-  });
+  return ledgerOver(
+    state,
+    () => {
+      writeFileSync(`${path}.next`, JSON.stringify(state));
+      renameSync(`${path}.next`, path);
+    },
+    unlock,
+  );
 }

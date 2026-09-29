@@ -38,6 +38,17 @@ given it must be the key's):
 | `FUNDER_TRUST_PROXY`         |          | off               | `1`: the client is the last `X-Forwarded-For` hop                                                            |
 | `FUNDER_ORIGIN`              |          | `*`               | `Access-Control-Allow-Origin`                                                                                |
 
+## One execution per nonce
+
+A funding is signed, kept in the state file with its nonce, and only then handed to the node. The
+next funding waits until that nonce is consumed on the chain; while the node does not know the
+kept execution, the service hands the same one again. A second service refuses a state file that
+is open (`<file>.lock`); two services on one funding account with two files must never be run.
+
+If a kept execution can never be included (the node refuses it for good), fundings stop and
+answer `unavailable`: the operator consumes that nonce by sending any transaction from the funding
+account, and the service goes on by itself.
+
 ## Run and test
 
 ```

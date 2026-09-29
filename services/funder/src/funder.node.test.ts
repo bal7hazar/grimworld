@@ -185,6 +185,8 @@ describe.skipIf(!nodeUrl)("the funding service on the local node", () => {
       // 4. A restart forgets neither: the budget stays spent, the first key stays funded.
       await service.stop();
       service = await start(env);
+      // Fix loop 2: a second service on the same state file refuses to start.
+      await expect(start(env)).rejects.toThrow(/open in another process/);
       expect(await post(service.url, third)).toEqual({ status: 503, body: { error: "exhausted" } });
       expect((await post(service.url, { publicKey: first.publicKey })).body).toMatchObject({
         status: "succeeded",
