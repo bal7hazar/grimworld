@@ -18,20 +18,20 @@ Every figure is marked:
 | Item | L2 gas | Kind | Source |
 |---|---:|---|---|
 | The burner's fixed part: validation 87,805, its own execution 141,670, the fee transfer 455,360, the second residual 32,600 | **717,435** | M | SPK-1b §1, Sepolia |
-| A constant of every transaction + its 2 signature felts, **together** | 14,880 | M | FND-04 §2: identified only as a sum |
-| — split as a constant 4,640 + 2 × 5,120 | — | assumed normalisation | FND-04 §2: a free signature with a constant of 14,880 fits the same receipts. The floor below does not depend on the split |
+| A constant of every transaction + its 2 signature felts, **together** (the aggregate) | 14,880 | **chosen normalisation, not measured** | FND-04 §2, §4.1: every aggregate congruent to 880 modulo 2,000, from 880 to 74,880, fits the same receipts with the same divisibility |
+| — split as a constant 4,640 + 2 × 5,120 | — | chosen normalisation | FND-04 §2: a free signature with a constant of 14,880 fits the same receipts. The floor depends on the aggregate, not on its split |
 | **A felt of calldata** | **5,120** | M | FND-04 §3: controlled pairs, exact |
 | A multicall's header: the first call 4 felts (count, to, selector, length); **each further call 3** (to, selector, length) | 20,480, then **15,360** a call | D | the account's calldata layout × 5,120 |
-| **A new storage slot** (its value was 0 before the transaction) | **453,524** | M | FND-04 §4: least squares over 23 shapes; pairs 426,000 to 482,000 |
-| **An overwritten or zeroed slot** | **32,072** | M | FND-04 §4: least squares; pairs 20,000 to 80,000 |
+| **A new storage slot** (its value was 0 before the transaction) | **453,524** | M, fitted under the 14,880 convention | FND-04 §4: least squares over 23 shapes; pairs 426,000 to 482,000; 452,808 to 453,691 under every admissible aggregate (§4.1) |
+| **An overwritten or zeroed slot** | **32,072** | M, fitted under the 14,880 convention | FND-04 §4: least squares; pairs 20,000 to 80,000; 24,878 to 33,751 under every admissible aggregate (§4.1) |
 | An event | 0 beyond its emitting call | M | FND-04 §3 |
-| **The floor of a burner transaction**: fixed part + constant + 6 felts (signature, the header of one call) + the fee token's 2 balances | **816,939** | D | the lines above |
+| **The floor of a burner transaction**: fixed part + constant + 6 felts (signature, the header of one call) + the fee token's 2 balances | **816,939** | D, under the 14,880 convention | the lines above. 815,419 to 818,459 under the aggregates 2,000 either side; 806,297 to 862,551 under every admissible one (FND-04 §4.1) |
 | The L1 data gas | under 1 % of these transactions at today's price | M | SPK-1 §6 |
 
 **A transaction of the game costs**
 
 ```
-L2 gas ≈ 816,939                                 the floor (D)
+L2 gas ≈ 816,939                                 the floor (D, under the 14,880 convention)
        + game computation                        the calls, their storage reads and writes as syscalls
        + 5,120 × felts of arguments               beyond the header of one call; + 3 felts per further call
        + 453,524 × new game slots
@@ -49,9 +49,10 @@ L2 gas ≈ 816,939                                 the floor (D)
 - A new slot costs as much as **14 overwritten slots**, or **89 felts** of calldata.
 - **Zeroing a slot earned nothing back** in any receipt read.
 - **Every `enter` writes 4 new slots under a new instance id** (M). The 45 enters read wrote 180
-  distinct new keys; none rewrote a key zeroed by a `leave` (FND-04, `reuse-check-output.txt`).
+  distinct new keys. No zero-then-rewrite was observed, and no instance key was recycled between
+  enters (FND-04, `reuse-check-output.txt`).
 - **The saving needs reused keys**, not merely stopping the zeroing: instance slots reused, with a
-  generation in the record. Such a reuse was not observed. Pricing a reused key holding a value as
+  generation in the record. No instance key was recycled in the transactions read. Pricing a reused key holding a value as
   an overwrite is an **extrapolation (E)**: 4 × 421,452 = about 1.7M less per `enter`.
 
 ## 2. Budgets per kind of transaction
@@ -66,7 +67,7 @@ The *game slots* do not count the fee token's 2 balances, which are in the floor
 | — one tick inside a batch, the **expedition's target** | **1,469,435** | — | What S1 needs for $0.50 (§3). A move inside a queue costs 1,467,187 against 3,326,336 alone (SPK-1: the queue reads and writes the instance once) | E | the same |
 | **A move-only `play` batch** (10 moves near goblins; under design/02 planned moves are queued on the client and join `play`) | **17,400,000** | **0 / 10** | The spike's movement benchmark, SPK-2's `walk` of 10 moves, 8 goblins following: 17,306,703 with the burner (D). With its 14 argument felts replaced by 30 (3 a move): 17,388,623 (E). Exploring (no goblin): 2,446,355, 0 / 2 (D) | E | ENG-01's `play` with moves only, traced |
 | **Enter** (its entry draw included) | **3,600,000** | **4 / 2** | 3,555,447 with the burner; 4 new slots under a new instance id | M (SPK-1b) | — |
-| — enter, if its instance slots are **reused keys** (a generation in the record) | **1,900,000** | 0 / 6 | 1,869,639: the same with its 4 new slots priced as overwrites. No reuse observed | E (extrapolation) | a layout that reuses keys, traced |
+| — enter, if its instance slots are **reused keys** (a generation in the record) | **1,900,000** | 0 / 6 | 1,869,639: the same with its 4 new slots priced as overwrites. No instance key was recycled between enters | E (extrapolation) | a layout that reuses keys, traced |
 | **Leave** | **1,700,000** | **0 / 5** (4 zeroed) | 1,659,915 with the burner | M (SPK-1b) | — |
 | **A Fate action**, sent alone (a loot, a chest, an identification: design/02, ADR-0002 rule 3). **Not the entry draw: `enter` has its own budget above** | **2,900,000** | **≤ 2 / ≤ 4** | Floor + a call of about 1.0M (the order of `enter`'s 0.93M) + 2 new slots for what it gives + 4 others: 2,852,275 | E: not measured | ENG's first Fate entrypoint on Sepolia, traced |
 | **A revealed chunk**, inside a batch at weight 2 | **2,500,000 a chunk** | **1 new a chunk**, and the revealed bitmap once per transaction: **new** at the instance's first reveal, **overwritten** after | Generation 0.39M to 0.45M in memory (SPK-7). **SPK-7's observed layout**: `reveal` writes the terrain slot of each chunk (new) and the revealed bitmap once; no occupancy. Slots on Sepolia's prices (D): 1 chunk 907,048 at the first reveal, 485,596 after; 3 chunks 1,392,644 after. One chunk revealed alone: 2,455,200 on the local node; three: 5,919,680 (SPK-7, local meter) | E | ENG-05 on Sepolia, traced |
@@ -136,8 +137,11 @@ Zero tip, the prices of §1.
 - **The worst one does not yet.** It needs its moves near goblins in tens and a tick inside a
   batch of **1.47M on average** (E). Measured alone, the tick is 3.56M; shared as a walk, it
   would be 1.71M.
-- S1's 36 queues of 5 near goblins are **55 %** of its total once fights are batched (D): the
-  moves near goblins weigh as much as the fights.
+- S1's 36 queues of 5 near goblins cost 358.0M (D). Their share of S1 once fights are batched:
+  - **43.554 %** with each tick as measured and the 27 felts (E);
+  - **54.685 %** with the batch's reads and writes shared (E).
+
+  Either way, the moves near goblins weigh about as much as the fights.
 - **Break-even L2 gas price**, fights batched and shared (E): **18.4 Gfri** for S1 and 27.1 for S2.
   Today it is 21.3; it ranged 19.6 to 30.8 over the fortnight before SPK-1.
 
@@ -159,5 +163,5 @@ Zero tip, the prices of §1.
 | CB-1 | **"Power" in PLAN's FND-04 row**, a power budget of the adventurer: out of this task's scope (brief); left open for the design |
 | CB-2 | Does a tick inside a batch share its reads and writes as the walk does? The figure of 1.71M a tick is an estimate; ENG-01's `play` on Sepolia measures it |
 | CB-3 | design/02's 37.3M and 40M leave out the chunked map's per-tick overhead. With it, a worst batch as measured is 37.6M to 44.2M (§2, E). Whether 40M holds depends on how much of SPK-7's 720,000 a batch pays once (cached chunk reads, slots changed once) and how much per tick (assembly, updates). A measurement of `play` with the chunked window decides it, or the weights move |
-| CB-5 | A reused key's price: no transaction read rewrote a used key. `enter`'s 1.9M budget with reused keys is an extrapolation until a layout with a generation in the record is traced |
+| CB-5 | A recycled instance key's price: no zero-then-rewrite was observed, and no instance key was recycled between enters (keys holding a value were overwritten many times: they price the other slot). `enter`'s 1.9M budget with reused keys is an extrapolation until a layout with a generation in the record is traced |
 | CB-4 | The rule behind an overwrite's spread (FND-04 §7): a layout that groups its keys may pay the low end |

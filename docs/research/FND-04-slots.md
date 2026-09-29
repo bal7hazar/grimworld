@@ -9,9 +9,9 @@ transaction. Scripts and raw outputs: `spikes/FND-04/` (its `README.md`).
 
 | Question | Answer |
 |---|---|
-| **What a changed slot costs** | **It depends on whether the slot held a value.** A slot whose value was 0 before (a **new** slot) costs **453,524 L2 gas** (least squares over 23 shapes; controlled pairs 426,000 to 482,000, median 449,187.5). A slot that held a value and is overwritten or set to 0 costs **32,072** (least squares; pairs and single cases 20,000 to 80,000, median 33,333.3). Both are beyond the write's computation, once per slot and per transaction (§3, §4) |
+| **What a changed slot costs** | **It depends on whether the slot held a value.** A slot whose value was 0 before (a **new** slot) costs **453,524 L2 gas** (least squares over 23 shapes under the chosen 14,880 convention, §4.1: 452,808 to 453,691 under every admissible one; controlled pairs 426,000 to 482,000, median 449,187.5). A slot that held a value and is overwritten or set to 0 costs **32,072** (least squares under the same convention: 24,878 to 33,751 under every admissible one; pairs and single cases 20,000 to 80,000, median 33,333.3). Both are beyond the write's computation, once per slot and per transaction (§3, §4) |
 | **Against quiver's 402,000** (D-135) | **Of the right size for a new slot, 12 times too high for an overwritten one.** Our new slot is 1.13× quiver's figure (1.06× to 1.20× over the pairs). Its excess over an overwrite, 421,452, is within 5 % of 402,000. None of the game's measured ticks and queues writes a new slot: they overwrite 2 to 10 |
-| **Does it explain SPK-1 §4's residuals?** | **Largely, with a stated error.** The first unattributed residual splits into a constant, 5,120 per felt of calldata (measured by controlled pairs) and a state part (§2). The constant and the signature's price are **not separable** (every transaction has a 2-felt signature); `4,640 + 5,120 × 2` is an assumed normalisation of their identified sum, 14,880. Slot counts **predict** the state part with an error of up to 165,481 L2 gas (−2.6 %), ±8.4 % on the game's actions (§4). Events are not in it (§3) |
+| **Does it explain SPK-1 §4's residuals?** | **Largely, with a stated error.** The first unattributed residual splits into a constant, 5,120 per felt of calldata (measured by controlled pairs) and a state part (§2). The constant and the signature's price are **not separable** (every transaction has a 2-felt signature), and **their sum is not identified either**: `4,640 + 5,120 × 2 = 14,880` is a **chosen normalisation**, one of the aggregates (every value congruent to 880 modulo 2,000, from 880 to 74,880) that keep the observed divisibility. The slot prices and the floor are given under that convention, with how far they move under the others (§4.1). Slot counts **predict** the state part with an error of up to 165,481 L2 gas (−2.6 %), ±8.4 % on the game's actions (§4). Events are not in it (§3) |
 | **The differences between actions** | Queues and ticks differ by their calldata (5,120 a felt) and their overwritten slots. `enter` is higher by its **4 new slots** in `Instances` (SPK-1 §8.3's inference, now measured). SPK-1b's relayer case is higher by **one new slot, the SNIP-9 nonce** in the burner (SPK-1b §7.2's inference, now measured), and by 11 felts of calldata |
 | **Zeroing and reuse** | `leave` sets 4 slots of the instance to 0. Each `enter` writes 4 new slots **under a new instance id**: the 45 enters of SPK-1 and SPK-1b wrote 180 distinct new keys, and no new write revisits a zeroed key (`reuse_check.py`). **No zero-then-rewrite of the same key was observed**, and no refund for zeroing was seen. That a reused key holding a value would be priced as an overwrite is an **extrapolation** from the overwrites measured; the saving needs **reused keys** (instance slots reused, a generation in the record), not merely stopping the zeroing |
 | **SPK-2's native entrypoints** | The local node reports state diffs (starknet-devnet, RPC 0.10.2). Game slots per transaction: ticks 10 overwritten; queues 2 to 10 overwritten; `enter` 4 new and 2 overwritten; `leave` 4 zeroed and 1 overwritten; brewing a new pair 2 new and 3 overwritten; accepting a quest 1 new; claiming it 1 new and 2 overwritten. Every transaction also changes 2 slots of the fee token (§5) |
@@ -62,10 +62,11 @@ Every repeat of an action gave identical figures and an identical state diff, wi
 This is an accounting identity: it **defines** the state part. Two of its terms are measured and
 one is not:
 - **5,120 per felt of calldata** is measured by controlled pairs (§3).
-- **The constant and the signature's price are not separable.** Every transaction here carries a
-  2-felt signature, so only their sum is identified: 4,640 + 2 × 5,120 = **14,880**. Pricing a
-  signature felt like a calldata felt is an **assumed normalisation**. A free signature with a
-  constant of 14,880 fits the same receipts. So do other constants: 640, 2,640, 4,640, 6,640 …
+- **Neither the constant and the signature's price, nor their sum, is measured.** Every
+  transaction here carries a 2-felt signature, so the two cannot be separated. Their sum,
+  4,640 + 2 × 5,120 = **14,880**, is **a chosen normalisation**: other sums fit the same receipts
+  with the same divisibility (16,880, for one). Pricing a signature felt like a calldata felt is a
+  second choice inside it. A free signature with a constant of 14,880 fits the same receipts. So do other constants: 640, 2,640, 4,640, 6,640 …
   (every 2,000) with the signature priced 5,120, or 880 … 14,880 … with it free (`slots-output.txt`
   §2).
 
@@ -140,6 +141,21 @@ A least-squares fit of the state part on two prices, over the 23 Sierra-metered 
 
 The medians are conventional (the mean of the two middle values when their number is even).
 
+**Under the other admissible aggregates** (`slots-output.txt` §4.1). The fit above uses the chosen
+14,880. Refitted under every aggregate that keeps the divisibility:
+
+| Aggregate | New slot | Other slot | Floor of a burner transaction |
+|---:|---:|---:|---:|
+| 880 (the lowest) | 453,691 | 33,751 | 806,297 |
+| 12,880 | 453,548 | 32,312 | 815,419 |
+| **14,880 (the convention used)** | **453,524** | **32,072** | **816,939** |
+| 16,880 | 453,500 | 31,832 | 818,459 |
+| 74,880 (the highest: a state part reaches 0) | 452,808 | 24,878 | 862,551 |
+
+- The new-slot price barely moves: 0.2 % end to end.
+- The other-slot price moves by about 120 per 1,000 of aggregate: 24,878 to 33,751.
+- The floor moves by 1,520 for each step of 2,000, and from 806,297 to 862,551 end to end.
+
 - **The fit's error** is at most 165,481 L2 gas (a setup of 14 new slots, −2.6 %). On the game's
   actions it is within ±8.4 %: the ticks and queues of 12 slots are 420,000 against 384,866 fitted.
 - **quiver's figure** matches the new slot, not the overwritten one. Its quest completion
@@ -185,11 +201,14 @@ is new when no earlier transaction of the run gave it a value, or the last one s
   thousands of keys, were not measured.
 - **Mainnet.** Sepolia runs 0.14.4, mainnet ran 0.14.3 at SPK-1's reading. The same rule is
   expected there (SPK-1 §6); that was not checked.
-- **The constant and the signature's price.** Only their sum, 14,880, is identified (§2); res2 is
-  not split further.
-- **A reused key.** No transaction wrote a key that an earlier one had zeroed or used: every
-  `enter` writes under a new instance id (`reuse-check-output.txt`: 180 new keys, all distinct, 0
-  revisits). That a key reused while holding a value costs an overwrite is an extrapolation.
+- **The constant and the signature's price.** Neither is measured, nor is their sum: 14,880 is a
+  chosen normalisation (§2, §4.1). res2 is not split further.
+- **A recycled instance key.** No zero-then-rewrite was observed, and no instance key was
+  recycled between enters: every `enter` writes under a new instance id
+  (`reuse-check-output.txt`: 180 new keys, all distinct; 0 new writes to a key zeroed earlier).
+  Keys already holding a value were overwritten many times: those writes are the evidence for the
+  other-slot price. That an instance key recycled while holding a value costs an overwrite is an
+  extrapolation.
 
 ## 7. Open questions
 
