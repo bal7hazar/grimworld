@@ -14,6 +14,39 @@ pub const NOT_ADMIN: felt252 = 'not admin';
 /// `set_admin` to the zero address would leave the role to nobody.
 pub const ZERO_ADMIN: felt252 = 'admin is zero';
 
+/// The hub a new adventurer is placed in: region 1's town (design/01, design/09). A constant until
+/// ENG-03's registries hold the region's town hub (`REGION` 1); escalated in ENG-04's report.
+pub const START_HUB: u16 = 1;
+/// `AdventurerPlace.unlocked` of a new adventurer: bit `START_HUB`, the hub it stands in.
+pub const START_UNLOCKED: u64 = 0x2;
+
+// Refusals of the accounts and adventurers (ENG-04).
+/// `register` by an address that already owns an account.
+pub const HAS_ACCOUNT: felt252 = 'account exists';
+/// `create_adventurer` by an address that owns no account.
+pub const NO_ACCOUNT: felt252 = 'no account';
+/// Every slot of the account holds an adventurer (design/03, D-33).
+pub const NO_FREE_SLOT: felt252 = 'no free slot';
+/// Not one of the MVP's professions (`grimworld_logic::professions`).
+pub const BAD_PROFESSION: felt252 = 'bad profession';
+pub const EMPTY_NAME: felt252 = 'empty name';
+/// `set_account_owner` by anyone but the account's owner (A-7).
+pub const NOT_ACCOUNT_OWNER: felt252 = 'not account owner';
+/// `set_account_owner` to an address that already owns an account (one account per address).
+pub const OWNER_HAS_ACCOUNT: felt252 = 'owner has an account';
+/// `set_account_owner` to the zero address would leave the account to nobody.
+pub const ZERO_OWNER: felt252 = 'owner is zero';
+// The ownership helper, one refusal per case.
+pub const NO_ADVENTURER: felt252 = 'no adventurer';
+pub const NOT_OWNER: felt252 = 'not owner';
+pub const ADVENTURER_DELETED: felt252 = 'adventurer deleted';
+pub const NOT_IN_HUB: felt252 = 'not in a hub';
+// `delete_adventurer`: what "its inventory emptied" covers (design/03, D-33).
+pub const PACK_HOLDS_ITEMS: felt252 = 'pack holds items';
+pub const PACK_HOLDS_EQUIPMENT: felt252 = 'pack holds equipment';
+pub const WEARS_EQUIPMENT: felt252 = 'wears equipment';
+pub const PACK_HOLDS_GOLD: felt252 = 'pack holds gold';
+
 /// What players call, in hubs. Every entrypoint that names an adventurer checks that the caller
 /// owns the adventurer's account (ADR-0007, *Access control*), and that the adventurer is in a hub
 /// (design/16: trade and services in hubs only).
@@ -149,18 +182,34 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use core::num::traits::Zero;
-    use grimworld_logic::interface::{IResults, Results};
+    use grimworld_logic::interface::{
+        IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IResults, Results,
+    };
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
+    use grimworld_logic::professions::is_playable;
     use grimworld_logic::types::InstanceId;
-    use starknet::storage::{Map, StoragePointerReadAccess, StoragePointerWriteAccess};
-    use starknet::{ClassHash, ContractAddress, get_caller_address};
+    use starknet::storage::{
+        Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
+    use starknet::storage_access::{Store, StorePacking};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
-    use crate::models::account::Account;
-    use crate::models::adventurer::Adventurer;
+    use crate::models::account::{
+        Account, AccountRecord, IDS_PER_PAGE, PACK, START_SLOTS, lane_at, owner_key, with_lane,
+    };
+    use crate::models::adventurer::{
+        ACTIVE, Adventurer, AdventurerCore, AdventurerPlace, Build, DELETED, NO_ELITE,
+    };
     use crate::models::item::{Gold, Grimoire, Item, RiftBoard};
-    use super::{NOT_IMPLEMENTED, VERSION};
+    use super::{
+        ADVENTURER_DELETED, BAD_PROFESSION, EMPTY_NAME, HAS_ACCOUNT, NOT_ACCOUNT_OWNER, NOT_IMPLEMENTED,
+        NOT_IN_HUB, NOT_OWNER, NO_ACCOUNT, NO_ADVENTURER, NO_FREE_SLOT, OWNER_HAS_ACCOUNT,
+        PACK_HOLDS_EQUIPMENT, PACK_HOLDS_GOLD, PACK_HOLDS_ITEMS, START_HUB, START_UNLOCKED, VERSION,
+        WEARS_EQUIPMENT, ZERO_OWNER,
+    };
 
     /// docs/architecture/ENG-01-interfaces.md, *Hub storage*. quiver's components (quests,
     /// achievements) add their own storage when ARC's packages are embedded.
@@ -233,17 +282,161 @@ pub mod Hub {
 
     #[abi(embed_v0)]
     impl HubImpl of super::IHub<ContractState> {
+        /// One account per address, with its three slots (D-33). Writes (ENG-01 §9.3): the
+        /// account's two words and `account_of[caller]` new, `next_account` overwritten.
         fn register(ref self: ContractState) -> u32 {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let caller = get_caller_address();
+            assert(self.account_of.entry(caller).read() == 0, HAS_ACCOUNT);
+            let next = self.next_account.read().value;
+            let account_id: u32 = next.try_into().unwrap();
+            self.next_account.write(Counter { value: next + 1 });
+            let record = AccountRecord {
+                slots: START_SLOTS, adventurers: 0, highest_rank: 0, vault_panes: 0, lots: 0,
+            };
+            self.accounts.entry(account_id).write(Account { owner: caller, record });
+            self.account_of.entry(caller).write(account_id);
+            account_id
         }
+
+        /// A-7: the current owner hands the account over; the adventurers stay. The old owner's
+        /// `account_of` is zeroed (E-19). An adventurer inside an instance gets the new owner as
+        /// controller (ENG-01 §1.2). Bound: the account's adventurers, at most its slots (one page
+        /// of seven, ENG-01 §4.5).
         fn set_account_owner(ref self: ContractState, account_id: u32, owner: ContractAddress) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let caller = get_caller_address();
+            let account = self.accounts.entry(account_id);
+            assert(account.owner.read() == caller, NOT_ACCOUNT_OWNER);
+            assert(owner.is_non_zero(), ZERO_OWNER);
+            assert(self.account_of.entry(owner).read() == 0, OWNER_HAS_ACCOUNT);
+            account.owner.write(owner);
+            self.account_of.entry(owner).write(account_id);
+            self.account_of.entry(caller).write(0);
+
+            let count = account.record.read().adventurers;
+            if count == 0 {
+                return;
+            }
+            let instances = IInstanceEntryDispatcher { contract_address: self.instances.read() };
+            let mut ids = Lanes32 { lanes: [0; 7] };
+            let mut i: u8 = 0;
+            while i != count {
+                let (page, lane) = DivRem::div_rem(i, IDS_PER_PAGE.try_into().unwrap());
+                if lane == 0 {
+                    ids = self.account_adventurers.entry((account_id, page)).read();
+                }
+                let adventurer_id = lane_at(ids, lane);
+                if self.adventurers.entry(adventurer_id).place.read().inside != 0 {
+                    instances.set_controller(adventurer_id, owner);
+                }
+                i += 1;
+            }
         }
+
+        /// D-32: a name and a primary profession; placed in `START_HUB`, at level 1, rank Wood.
+        /// Writes (ENG-01 §9.3): the adventurer's six words new, its lane of the account's list
+        /// (new on a page's first lane), the account's record and `next_adventurer` overwritten.
         fn create_adventurer(ref self: ContractState, name: felt252, profession: u8) -> u32 {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let account_id = self.account_of.entry(get_caller_address()).read();
+            assert(account_id != 0, NO_ACCOUNT);
+            assert(name != 0, EMPTY_NAME);
+            assert(is_playable(profession), BAD_PROFESSION);
+            let record_ptr = self.accounts.entry(account_id).record;
+            let mut record = record_ptr.read();
+            assert(record.adventurers < record.slots, NO_FREE_SLOT);
+
+            let next = self.next_adventurer.read().value;
+            let adventurer_id: u32 = next.try_into().unwrap();
+            self.next_adventurer.write(Counter { value: next + 1 });
+            let core = AdventurerCore {
+                account: account_id,
+                experience: 0,
+                merit: 0,
+                level: 1,
+                rank: 0,
+                profession,
+                secondary: 0,
+                unspent: 0,
+                trials_first: 0,
+                trials_tried: 0,
+                status: ACTIVE,
+                pack_lanes: 0,
+            };
+            let place = AdventurerPlace {
+                instance: 0, hub: START_HUB, last_hub: START_HUB, inside: 0, unlocked: START_UNLOCKED,
+            };
+            let build = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
+            let empty = Lanes32 { lanes: [0; 7] };
+            self
+                .adventurers
+                .entry(adventurer_id)
+                .write(Adventurer { core, place, build, belt: empty, equipped: empty, name });
+
+            let (page, lane) = DivRem::div_rem(record.adventurers, IDS_PER_PAGE.try_into().unwrap());
+            let list = self.account_adventurers.entry((account_id, page));
+            list.write(with_lane(list.read(), lane, adventurer_id));
+            record.adventurers += 1;
+            record_ptr.write(record);
+            adventurer_id
         }
+
+        /// D-33: frees the slot once the pack is empty. "Its inventory emptied", each checked by
+        /// one read, without scanning: the pack's balances (`core.pack_lanes` = 0), its equipment
+        /// (the compact list's first lane is 0), what it wears (`equipped` all 0), its gold (0).
+        /// The belt names potion items; the potions themselves are pack balances. The adventurer's
+        /// record is never zeroed: `core.status` = `DELETED` marks it, and its id is never reused.
+        /// Writes (ENG-01 §9.3): `core`, the account's record, the list's hole and last pages, all
+        /// overwritten (one page while the account has seven adventurers or fewer).
         fn delete_adventurer(ref self: ContractState, adventurer_id: u32) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let (mut core, _) = self.owned_in_hub(adventurer_id);
+            assert(core.pack_lanes == 0, PACK_HOLDS_ITEMS);
+            assert(
+                lane_at(self.packs.entry((adventurer_id, 0)).read(), 0) == 0, PACK_HOLDS_EQUIPMENT,
+            );
+            assert(
+                self.adventurers.entry(adventurer_id).equipped.read().lanes == [0; 7],
+                WEARS_EQUIPMENT,
+            );
+            assert(self.gold.entry(owner_key(PACK, adventurer_id)).read().amount == 0, PACK_HOLDS_GOLD);
+
+            // The swap removal: the last id moves into the hole. Bound: the account's adventurers.
+            let account_id = core.account;
+            let record_ptr = self.accounts.entry(account_id).record;
+            let mut record = record_ptr.read();
+            let last = record.adventurers - 1;
+            let per_page: NonZero<u8> = IDS_PER_PAGE.try_into().unwrap();
+            let (last_page, last_lane) = DivRem::div_rem(last, per_page);
+            let last_ptr = self.account_adventurers.entry((account_id, last_page));
+            let mut last_ids = last_ptr.read();
+            let last_id = lane_at(last_ids, last_lane);
+            last_ids = with_lane(last_ids, last_lane, 0);
+            if last_id != adventurer_id {
+                let mut i: u8 = 0;
+                let mut ids = Lanes32 { lanes: [0; 7] };
+                loop {
+                    assert(i != last, 'not in the account list');
+                    let (page, lane) = DivRem::div_rem(i, per_page);
+                    if lane == 0 {
+                        ids = self.account_adventurers.entry((account_id, page)).read();
+                    }
+                    if lane_at(ids, lane) == adventurer_id {
+                        if page == last_page {
+                            last_ids = with_lane(last_ids, lane, last_id);
+                        } else {
+                            self
+                                .account_adventurers
+                                .entry((account_id, page))
+                                .write(with_lane(ids, lane, last_id));
+                        }
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            last_ptr.write(last_ids);
+            record.adventurers = last;
+            record_ptr.write(record);
+            core.status = DELETED;
+            self.adventurers.entry(adventurer_id).core.write(core);
         }
         fn set_build(
             ref self: ContractState,
@@ -334,14 +527,39 @@ pub mod Hub {
 
     #[abi(embed_v0)]
     impl HubViewsImpl of super::IHubViews<ContractState> {
+        /// 0: the address owns no account.
         fn account_of(self: @ContractState, owner: ContractAddress) -> u32 {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            self.account_of.entry(owner).read()
         }
+        /// The record as stored (0 for an account that does not exist), and the ids of its
+        /// adventurers not deleted, in the list's order.
         fn account(self: @ContractState, account_id: u32) -> (ContractAddress, felt252, Span<u32>) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let account = self.accounts.entry(account_id);
+            let base = account.as_ptr().__storage_pointer_address__;
+            let word = Store::<felt252>::read_at_offset(0, base, 1).unwrap_syscall();
+            let record: AccountRecord = StorePacking::unpack(word);
+            let mut ids: Array<u32> = array![];
+            let mut page_ids = Lanes32 { lanes: [0; 7] };
+            let mut i: u8 = 0;
+            while i != record.adventurers {
+                let (page, lane) = DivRem::div_rem(i, IDS_PER_PAGE.try_into().unwrap());
+                if lane == 0 {
+                    page_ids = self.account_adventurers.entry((account_id, page)).read();
+                }
+                ids.append(lane_at(page_ids, lane));
+                i += 1;
+            }
+            (account.owner.read(), word, ids.span())
         }
+        /// The six words as stored (six 0 for an id never created); a deleted adventurer keeps
+        /// its words, `DELETED` in `core.status`.
         fn adventurer(self: @ContractState, adventurer_id: u32) -> Span<felt252> {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            let mut words: Array<felt252> = array![];
+            for offset in 0..6_u8 {
+                words.append(Store::<felt252>::read_at_offset(0, base, offset).unwrap_syscall());
+            }
+            words.span()
         }
         fn known_skills(self: @ContractState, adventurer_id: u32) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -453,6 +671,28 @@ pub mod Hub {
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+    }
+
+    #[generate_trait]
+    pub impl InternalImpl of InternalTrait {
+        /// The check of every entrypoint that names an adventurer (ADR-0007, *Access control*;
+        /// ENG-01 §1.2): it exists, the caller owns its account, it is not deleted, and it is in a
+        /// hub (not inside an instance). Three reads: `core`, the account's owner, `place`.
+        /// Returns them for the entrypoint to use.
+        fn owned_in_hub(
+            self: @ContractState, adventurer_id: u32,
+        ) -> (AdventurerCore, AdventurerPlace) {
+            let adventurer = self.adventurers.entry(adventurer_id);
+            let core = adventurer.core.read();
+            assert(core.account != 0, NO_ADVENTURER);
+            assert(
+                self.accounts.entry(core.account).owner.read() == get_caller_address(), NOT_OWNER,
+            );
+            assert(core.status != DELETED, ADVENTURER_DELETED);
+            let place = adventurer.place.read();
+            assert(place.inside == 0, NOT_IN_HUB);
+            (core, place)
         }
     }
 }

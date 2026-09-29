@@ -16,6 +16,8 @@ pub mod fate;
 pub mod interface;
 /// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.
 pub mod packing;
+/// Profession ids, and those a player may choose at creation.
+pub mod professions;
 /// The snapshot of an adventurer taken at entry, and the tasks an instance reports.
 pub mod snapshot;
 /// The rules of a tick: state in, state out.

@@ -2,7 +2,7 @@
 //! follow an address. What is shared (the vault, gold, Rifts) is keyed by account id; what is
 //! personal by adventurer id (design/03, D-33).
 
-use grimworld_logic::packing::{P16, P24, P32, P8, byte_at, join, low_field, split};
+use grimworld_logic::packing::{Lanes32, P16, P24, P32, P8, byte_at, join, low_field, split};
 use starknet::ContractAddress;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -59,4 +59,43 @@ pub const ESCROW: u8 = 3;
 
 pub fn owner_key(kind: u8, id: u32) -> felt252 {
     kind.into() * 0x100000000 + id.into()
+}
+
+/// Adventurer slots of a new account (design/03, D-33: three; more can be bought).
+pub const START_SLOTS: u8 = 3;
+
+/// `account_adventurers` is a compact list of adventurer ids, seven per page (`Lanes32`), its
+/// length `AccountRecord.adventurers`: an append writes lane `n % 7` of page `n / 7`; a removal
+/// moves the last id into the hole and clears the last lane. A page once written keeps `LIVE`.
+pub const IDS_PER_PAGE: u8 = 7;
+
+/// Lane `lane` (0 to 6) of a page.
+pub fn lane_at(page: Lanes32, lane: u8) -> u32 {
+    let [a, b, c, d, e, f, g] = page.lanes;
+    match lane {
+        0 => a,
+        1 => b,
+        2 => c,
+        3 => d,
+        4 => e,
+        5 => f,
+        6 => g,
+        _ => core::panic_with_felt252('lane above 6'),
+    }
+}
+
+/// The page with lane `lane` (0 to 6) set to `value`.
+pub fn with_lane(page: Lanes32, lane: u8, value: u32) -> Lanes32 {
+    let [a, b, c, d, e, f, g] = page.lanes;
+    let lanes = match lane {
+        0 => [value, b, c, d, e, f, g],
+        1 => [a, value, c, d, e, f, g],
+        2 => [a, b, value, d, e, f, g],
+        3 => [a, b, c, value, e, f, g],
+        4 => [a, b, c, d, value, f, g],
+        5 => [a, b, c, d, e, value, g],
+        6 => [a, b, c, d, e, f, value],
+        _ => core::panic_with_felt252('lane above 6'),
+    };
+    Lanes32 { lanes }
 }

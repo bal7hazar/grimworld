@@ -6,6 +6,12 @@ use grimworld_logic::packing::{
     low_field, split, u16_at, u32_at,
 };
 
+/// `AdventurerCore.status`: an adventurer is never zeroed; deletion marks it (design/03, D-33).
+pub const ACTIVE: u8 = 0;
+pub const DELETED: u8 = 1;
+/// `Build.elite_slot` when no elite skill is on the bar.
+pub const NO_ELITE: u8 = 255;
+
 /// Who it is and how far it went.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct AdventurerCore {
