@@ -52,7 +52,7 @@ Budget: 2 at a time, audits included (D-146).
 
 | PR | Content | State |
 |---|---|---|
-| This one (`cv/cv-00-status`) | This file; `PENDING-cv-mandate.md` | Open; merged after #117 |
+| [#118](https://github.com/bal7hazar/grimworld/pull/118) (`cv/cv-00-status`) | This file; `PENDING-cv-mandate.md` | Open; merged after #117 |
 
 ## Asked of the project manager
 
