@@ -1,6 +1,7 @@
 # 07 — Loot and alchemy
 
 > Status: **Draft v0.2** — numbers are initial values for balancing.
+> v0.3: the belt's unused potions go back on defeat as on return (D-141).
 > v0.2: rarity signatures added to alchemy; satchel removed (loot is kept on defeat).
 
 This is where randomness lives (pillar 5). Every draw in this document uses the
@@ -181,6 +182,10 @@ Potions are consumables used in an instance (1 tick). They fill the gaps of a so
 Rules:
 
 - The **belt** holds 4 potion slots, filled in a hub. The belt is part of the build.
+- The belt's potions are taken from the pack at entry, as the expedition's reserve, and carry
+  through every gate of the expedition ([02](02-core-loop.md#instances-are-not-saved-d-05)).
+  When it ends, **returned or defeated**, the unused ones go back to the pack; those consumed
+  are gone (D-141, E-15: defeat costs the instance, nothing else).
 - A potion's strength is fixed by its recipe; potions do not scale with attributes.
 - Brewing happens in hubs only.
 

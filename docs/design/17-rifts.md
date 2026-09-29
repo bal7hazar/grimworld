@@ -1,6 +1,6 @@
 # 17 — Rifts: ephemeral dungeons and stillstone
 
-> Status: **Draft v0.5** (v0.5: three open, five a day, the fifth is the Red Rift)
+> Status: **Draft v0.6** (v0.6: `mine` is sent alone, D-141; v0.5: three open, five a day, the fifth is the Red Rift)
 > Previous: **Draft v0.3** (v0.3: rotation by slots proposed; enchanter owns modifiers; no stillstone at collectors)
 > Previous: **Draft v0.2** (v0.2: Rift; closing delay triggered by the first clear; ten grades; stillstone is a rare reagent) — proposal following the lore premise
 > ([lore/00-premise](../lore/00-premise.md)). Numbers are initial values. Names are
@@ -102,6 +102,12 @@ reagent**, asked for by a few precise operations.
 
 Mining: adjacent to the vein, **3 ticks**, interrupted by any hit taken. No draw. Three
 ticks is three goblin turns: mining in a room that is not cleared is a decision.
+
+`mine` is **sent alone**, like a Fate action, although it draws nothing (D-141, E-18): it
+runs its three ticks in its own transaction, whatever it changes (design/02, E-21). Moving it
+into a batch as an *Interact* of weight 3 saves a transaction's fixed part per vein; it is the
+first lever if the expedition's cost misses its target, once ENG-07 has measured a tick inside
+a batch.
 
 Stillstone has **one grade**. It is counted, not slotted, and can be traded.
 

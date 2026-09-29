@@ -77,13 +77,42 @@ The *game slots* do not count the fee token's 2 balances, which are in the floor
 | The burner's deployment (once per burner) | 2,168,115 | 3 / 0 in the burner | `DEPLOY_ACCOUNT` of SPK-1b | M | — |
 | Funding a burner (a STRK transfer by the game; once, then top-ups) | about 1,710,000 | 1 / 0 in the fee token (its first balance) | The burner's own STRK transfer back to the owner, 1,285,115 (M, SPK-1b), with the recipient's balance new instead of overwritten: 1,706,567. A top-up overwrites: about 1.29M | E | ADR-0005's funding path |
 
+### Per-branch budgets (D-141, E-7, E-8)
+
+ENG-01 froze the layouts and priced every entrypoint from the union of the storage keys each of
+its branches writes ([ENG-01](ENG-01-interfaces.md) §9.3 and §10, from
+`contracts/tools/budget_table.py`). **Those budgets replace the rows above for `enter` and for the
+actions sent alone**: their overrun is the ticks an action runs among goblins, which the design
+requires. Initialised means the instance slot already holds the keys; cold, that it never did
+(instance slots are reused; a key's first write is new). E: from measured parts.
+
+| Kind, worst branch | Initialised | Cold |
+|---|---:|---:|
+| `enter`, a later entry (belt reserve, snapshot, two events) | 3.73M | — |
+| `enter`, the adventurer's first | 11.77M | — |
+| `leave` | 1.95M | — |
+| `loot`, a boss's three items | 3.68M | 6.63M |
+| `open`, goblins near | 9.13M | 23.79M |
+| `barter`, goblins near | 8.94M | 21.49M |
+| `mine`, goblins near (3 ticks, E-21: its class's bound is 58M) | 20.56M | 57.31M |
+| An action sent alone, no goblin near | 2.5M to 3.0M | — |
+| A played batch, 16 goblins at most (E-16), the window at its high end | 47.33M | 62.01M without E-1's weight |
+
+ENG-01b completes three branches (an objective completed by a standalone action's ticks, `barter`'s
+price refusal, `enter_rift` at an adventurer's first entry: `mine` moves to about 57.8M cold,
+`enter_rift` to about 12.5M). The batch's 40M target and weight 10 stand until ENG-07 measures a tick
+inside a batch. The expedition S1 is then estimated at **$0.556** (ENG-01 §10.2); the levers, in the
+order they would be pulled: `mine` inside `play` (E-18), `enter`'s snapshot as calldata (E-7), the
+per-action events (E-17), then the target itself.
+
 The hub estimates take snforge's call × 1.157 (the median Sepolia/snforge ratio of SPK-1 §3's
 light actions), plus the floor, 3 felts of arguments and the slots the local node's traces show
 (`budget-output.txt`).
 
 **Rules the budgets imply for ENG-01** (from the prices; ENG-01 decides the layout):
 1. **Count new slots first.**
-   - A transaction of play writes no new slot, except for revealed chunks.
+   - A transaction of play writes no new slot, except for revealed chunks and a goblin's first
+     records in an instance slot (ENG-01: they weigh 1 more each, D-141, E-1).
    - A new key costs about 0.45M whatever follows. Only **reused keys** (instance slots reused,
      a generation in the record) turn later writes into overwrites; that price for them is an
      extrapolation (E).

@@ -1,6 +1,6 @@
 # 02 — Core loop: tick, instances, expeditions
 
-> Status: **Draft v0.5** — v0.5: planned queues and played batches told apart; the rule of batches (D-133, DES-21); v0.4: the window follows the adventurer, 15 × 16, not stored (D-120); v0.3: reconciled with ADR-0006 (chunks, window, sight).
+> Status: **Draft v0.6** — v0.6: ENG-01's rules of a batch (16 goblins, first records weigh 1, an unsplittable action runs), the content version, the belt on defeat, what carries through a gate (D-141); v0.5: planned queues and played batches told apart; the rule of batches (D-133, DES-21); v0.4: the window follows the adventurer, 15 × 16, not stored (D-120); v0.3: reconciled with ADR-0006 (chunks, window, sight).
 
 ## The tick (D-01)
 
@@ -94,6 +94,14 @@ There are no checkpoints and no camps. Long dungeons are made of floors, and eac
 its own instance entered from the previous one; leaving the dungeon means starting again
 from the first floor.
 
+**Through a gate, only the belt's reserve carries (D-141, E-20).** The next instance starts the
+adventurer anew: health and energy full, adrenaline at its start, no condition, effect,
+recharge or activation. The belt, filled once at the hub for the whole expedition, is what wears down over
+the floors of a dungeon. It is the baseline's rule (a new area restores the character) and **a
+choice the owner may reverse**: carrying health and energy would make a dungeon a test of
+endurance. The contract writes the member's four words at a gate whatever the rule, so reversing
+it changes no interface and no cost.
+
 ### Ending an expedition (D-04)
 
 | Outcome | Trigger | XP | Loot | Quest progress | Where next |
@@ -106,6 +114,10 @@ from the first floor.
   with whatever was earned and a better idea of the fight. *Try, fail, adjust the build,
   retry* is the intended loop (pillar 2).
 - Looted items go straight to the inventory.
+- **The belt on defeat (D-141, E-15).** Potions are taken from the pack into the belt's reserve
+  at entry; on defeat, as on return, the unused ones go back to the pack, and those consumed are
+  gone ([07](07-loot-and-alchemy.md)). Whether a Red Rift should cost more is a question for the
+  balance simulator, later.
 - What cannot be kept is what was not finished: a boss at half health, an unlooted corpse,
   a gate not reached.
 - A **hardcore** ruleset (permanent death or loot loss) may be offered later as an opt-in;
@@ -213,12 +225,32 @@ action has a **weight**:
 
 ```
 weight(action) = max(1, world ticks it runs) + 2 × chunks it reveals
+                 + goblin records it writes for the first time in the instance's slot
 weight(batch)  = Σ weight(action)  ≤ 10          per invocation of play
+goblins(batch) = distinct goblin records changed  ≤ 16   per invocation of play
 ```
 
+**Two rules of the transaction, not of the game (D-141).** The player sees a batch leave
+earlier, nothing else; the client counts both as the contract does.
+
+- **At most 16 goblins changed by one invocation (E-16).** A batch stops before the action that
+  would change a seventeenth distinct goblin record (`Stop::Weight`), and that action opens the
+  next batch. Without a cap, ten ticks among goblins could change 140 of them, and no bound in
+  gas would hold.
+- **A goblin's first record weighs 1 more (E-1).** Instance slots are reused; a goblin record
+  written for the first time in the slot (in any of its instances) is a new storage slot, about
+  0.84M more than an overwrite. The contract reads the record as empty and counts it.
+- **An action that cannot be split always runs (E-21).** The cap and the weight bind from an
+  invocation's second action on: its first action runs whatever it changes, since a refusal
+  could never be lifted (in a fresh slot, records warm only by running) and a rule never blocks
+  a legal action (D-140). Its class has its own bound, 58M L2 gas in a fresh slot (a 3-tick
+  action among 42 goblins; ENG-01 §10.1). An action sent alone, `mine` above all, is such an action.
+
 **The gas bound is a target, not yet a proven bound.** 40M L2 gas per batch is an estimate
-from the figures below; ENG-01 proves it, or replaces the figure and the weights, before the
-weights are frozen.
+from the figures below. ENG-01 counted it in storage slots: with the rules above, a batch changes
+at most 64 slots (a reveal's case is settled by ENG-01b), but priced as if each tick cost what it
+costs alone, the worst batch is 40.8M to 47.3M ([ENG-01](../architecture/ENG-01-interfaces.md) §10.1). ENG-07 measures a tick inside a
+batch; until then 40M and weight 10 stand.
 
 | Figure | L2 gas | Source, and what it leaves out |
 |---|---:|---|
@@ -235,7 +267,8 @@ weights are frozen.
   it keeps a batch at 10 actions at most.
 - **When the next action would pass 10**, the current batch leaves first and the action opens
   the next one. The player sees nothing. If the contract counts a weight above 10 anyway (a
-  modified client), the action that passes is invalid and the batch stops there.
+  modified client), the action that passes is invalid and the batch stops there; an
+  invocation's first action is never refused for its weight (E-21).
 - **If a batch runs out of resources anyway** (the bound was wrong), the transaction is
   included and reverted: see *The chain's answer*. The client resubmits the same actions in
   smaller batches; a single action that runs out is a bug, reported, not retried.
@@ -347,7 +380,17 @@ of the actions executed: one Poseidon hash per action and one felt written per i
 to the state (a hash of the instance state: far more hashing, on every batch) costs gas on
 every batch, unmeasured; it is left to co-op or version 1.
 
-**Executing a batch.** The contract checks the sequence; a mismatch runs nothing. Then each
+**The content version (D-141, E-5).** Play reads the game's content (castes, skills, items,
+loot tables) from the registry, once per invocation. Content changes while instances are live: the
+world waits, and an instance may stay open for weeks. What must not happen is a batch computed
+under one content and executed under another. The registry carries a **content version**,
+returned with the content that invocation already reads; the client states the version its batch
+was computed under. **A different version refuses the batch whole, before any action runs**; the
+client reloads the content and computes again, and the instance goes on under the new content.
+ENG-03 measures the cost (one compared value, one felt of calldata).
+
+**Executing a batch.** The contract checks the sequence and the content version; a mismatch runs
+nothing. Then each
 action is checked against the state it meets; the first invalid one stops the batch, and the
 rest is dropped. **For invalidity in the game, with enough resources, the invocation does not
 revert**: the account's nonce moves, the fee is paid, and `BatchPlayed` says what ran.
@@ -355,6 +398,8 @@ revert**: the account's nonce moves, the fee is paid, and `BatchPlayed` says wha
 | Invalid when | |
 |---|---|
 | The sequence differs | Another device, a reorg, a retry of a batch that already landed, another adventurer (co-op) |
+| The content version differs | The content changed after the client computed the batch: nothing runs; the client reloads and computes again |
+| The batch would change a seventeenth goblin | Above (E-16); not for an invocation's first action (E-21) |
 | The action is illegal in the state it meets | Tile blocked, out of range or of sight, not enough energy, recharging, a second turn or a second instant skill between two ticks, acting while knocked down, an item not in the belt |
 | The weight passes 10 | Above |
 | The adventurer is defeated, the instance closed | By an earlier action of the batch |

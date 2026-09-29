@@ -1,6 +1,6 @@
 # 18 — Terrain, features and perception
 
-> Status: **Draft v0.3** — v0.3: the window follows the adventurer (D-120); v0.2: rewritten for [ADR-0006](../architecture/ADR-0006-chunked-maps.md).
+> Status: **Draft v0.4** — v0.4: goblins away from their chunk, the full roster (D-141); v0.3: the window follows the adventurer (D-120); v0.2: rewritten for [ADR-0006](../architecture/ADR-0006-chunked-maps.md).
 > Numbers are initial values; costs are measured in spike SPK-7. The file keeps its name
 > so that links hold.
 
@@ -74,6 +74,11 @@ Line of sight matters for **acting**, not for seeing: ranged attacks and spells 
 | A goblin notices | Its whole pack becomes engaged |
 | A shout, or a fight, within 8 tiles | Other packs within that distance become alerted |
 | The goblin falls out of the window (the adventurer got more than 7 tiles away) | It returns to its place, regenerates, and goes back to its first state |
+
+**Goblins away from their chunk (D-141, E-2).** A goblin that follows the adventurer out of the
+chunk it was placed in, or dies away from it and is not yet looted, is kept in the instance's
+roster of displaced goblins, which holds 60. **While the roster is full, a goblin does not leave
+its spawn chunk**: it holds at the chunk's edge. No remains are ever dropped, and no loot lost.
 
 Approach is part of the game: a pack on watch has a back, an asleep pack can be struck
 first, and the side one arrives from decides both.
