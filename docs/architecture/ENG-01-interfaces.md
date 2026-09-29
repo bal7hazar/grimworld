@@ -73,6 +73,10 @@ When an account changes owner while one of its adventurers is inside, `Hub.set_a
 
 ### 1.3 Class size (ADR-0007, NS-3, R-22)
 
+> **After ENG-06** (measured): `Instances` 28,841 CASM felts, **35.2 %** of the nearer limit; `Hub`
+> 28,980, **35.4 %**. The tick, the reveal and the Fate actions are still to come: ENG-05 and ENG-07
+> put the pure rules in library classes, as this section decides.
+
 Limits (docs.starknet.io, *Chain info*, read 2026-09-29): **4,089,446 bytes** of Sierra class,
 **81,920 felts** of CASM bytecode. Measured by `python3 contracts/tools/class_sizes.py` after
 `scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (M, this commit):
@@ -1237,6 +1241,12 @@ implementing lots' benchmarks, each against its row above.
 `create_adventurer` 4,700,000 cold, 4,350,000 initialised; `delete_adventurer` 1,750,000;
 `set_account_owner` with 7 inside 3,700,000 (re-measured by ENG-06). The table above stays the
 script's output; these figures supersede its targets for those rows.
+
+**Measured by ENG-06** (D-148, and the orchestrator's +10 % under D-144): `enter`, a later entry
+without a belt, 4,100,000; `leave` to a hub and `travel_back` 2,350,000; `set_account_owner` with 7
+inside 3,893,819 (D). Calls: `enter` 5 (the gate read by `Hub`, then the gate and its destination by
+`Instances.create`), `leave` 2 to a hub and 4 to a location: a gate names its location, so the two
+are read by two calls (D-148 (a)). The entry chunk's two keys move from `enter` to ENG-05's reveal.
 
 ### 10.1 The 40 M bound of design/02, in slots and gas (OP-2, CB-3)
 

@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-09-29 10:05 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 12:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -8,15 +8,17 @@ are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 **Phase 0 — Foundations, native Starknet (ADR-0007).** Done: FND-01, FND-01b, FND-02, FND-03,
 FND-04, FND-06, ART-00, SPK-1, SPK-1b, SPK-2, SPK-4, SPK-5, SPK-5b, SPK-7, SPK-11, DES-21, DOC-01,
-ENG-01, FND-05, ENG-01b. Phase 1: **ENG-04, ENG-03, ENG-02a** done. Next: ENG-06 (instance
-lifecycle, on ENG-03 and ENG-04), then ENG-05 and ENG-07; ENG-02's line of sight waits for the map
-library; IDX-01 waits for ARC-06's tracked models (D-143). The app account's quota is saved until
-2026-09-30 14:00 UTC: launches continue, the session checks in only on completions.
+ENG-01, FND-05, ENG-01b. Phase 1: ENG-04, ENG-03, ENG-02a, **ENG-06** done. Next: ENG-05 (chunk
+reveal) and ENG-02 (line of sight) wait for the map library's release (LIB-05); ENG-07 after ENG-05;
+ENG-R1 (D-143, D-147) after ARC-07. **IDX-01 is lent to track CV (D-149)**: any change to ENG-01's
+frozen events is announced here. `tools/art` moved to track CV (D-146). The app account's quota is
+saved until 2026-09-30 14:00 UTC: the session checks in only on completions.
 
 ## What moved
 
 | | |
 |---|---|
+| **ENG-06** | [#120](https://github.com/bal7hazar/grimworld/pull/120) merged: enter, leave, travel back, the closing report, generation isolation tested on every word; D-148 |
 | **ENG-03** | [#106](https://github.com/bal7hazar/grimworld/pull/106) merged: the registry, the content version, a test region; D-145 |
 | **ENG-02a** | [#113](https://github.com/bal7hazar/grimworld/pull/113) merged: the `2^(x/40)` table for the contracts and the client |
 | **ENG-04** | [#100](https://github.com/bal7hazar/grimworld/pull/100) merged: accounts and adventurers on `Hub`, the ownership check; targets accepted as measured (D-144); scoped under D-143 |
@@ -37,7 +39,7 @@ Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, 
 
 ## Next
 
-1. ENG-06: brief and launch (enter with the snapshot, resume, return, close, the entry draw, `Instances.set_controller`, the start hub from the registry, D-144 and D-145's conditions).
+1. Nothing of the engine chain can start before the map library's release (ENG-05, ENG-02) or ARC-07 (ENG-R1). Candidates meanwhile, for the project manager: the Rift board and `enter_rift`, `set_build` (the belt's worst case, D-148), loot and the Fate actions.
 2. A brief for the burner's funder on a public network (a service of the game behind the `Funder` port; FND-05's escalation), before any play on Sepolia.
 3. ENG-02 (helpers, D-140's table), ENG-03 (registries, the content version measured), ENG-04.
 
@@ -64,7 +66,7 @@ L-1 and L-2 of the previous status were done by #58 and #60.
 
 | # | Question | From | For |
 |---|---|---|---|
-| ART-1 | Display scale: the generated goblins are drawn about twice as large as the pack's units; nothing is resampled. Which on-screen size per caste? | ART-00 | Owner (art direction), before CLI-03 |
+| ART-1 | Answered provisionally (D-146): sprites at the pack's heights, task ART-02 of track CV | ART-00 | — |
 | ART-2 | Slinger placeholder: the Torch Goblin stands in (the pack's slinger is a gnome) | ART-00 | Owner, at the first commission (ART-01) |
 | TC-1 | `CONTEXT.md` §4 and `docs/CAIRO.md` should name Cairo 2.13 / Scarb 2.13.1 / snforge 0.51.2; ADR-0001 option B and ADR-0003's indexer consequence are confirmed by SPK-5 (Slot retired) | SPK-5 | Project manager (documents it owns) |
 
