@@ -67,6 +67,11 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
   tool the system already provides at the pinned version; after adding any plugin, check that
   the same command still works from a directory without `.tool-versions` (`cd /tmp`), and stop
   and escalate if it does not (docs/reports/INC-2026-09-28-asdf-node-shims.md).
+- **The machine is shared** (OPERATIONS §3): delete and kill only what you created, named
+  exactly: a path you made yourself (`mktemp -d` under your worktree, never directly under
+  `/tmp`), a process whose pid you recorded. Never a wildcard outside your own worktree (`rm -rf
+  /tmp/tmp.*`), never a kill by pattern (`pkill`, `killall`), never a `git clean` or a
+  `git worktree prune` outside your worktree. Your profile refuses the typed forms.
 - `npm`, `npx` and `corepack` print `No version is set for nodejs; please run asdf set …` on
   stderr on this machine: a harmless warning, not a failure.
 

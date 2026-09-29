@@ -84,6 +84,18 @@ Bash(asdf list*)
 !Bash(find * -fprint*)
 !Bash(find * -fls*)
 
+# The machine is shared (OPERATIONS §3): delete and kill only what you created, named exactly.
+# Never a wildcard under /tmp, never a kill by pattern.
+!Bash(rm */tmp/*)
+!Bash(rm -* /tmp*)
+!Bash(pkill)
+!Bash(pkill *)
+!Bash(killall)
+!Bash(killall *)
+!Bash(* pkill *)
+!Bash(* killall *)
+!Bash(git worktree prune*)
+
 # Never: read the machine's Claude settings (they hold credentials), print the registry token,
 # or list the environment. Agents run with the registry token emptied by the launcher; these
 # rules stop the typed forms only: code an agent runs (python3, node) can still read files of
