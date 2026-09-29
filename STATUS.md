@@ -47,6 +47,10 @@ chunks), the slot locks and their transition, the exceptions for PR 48, DES-21 a
 
 L-1 and L-2 of the previous status were done by #58 and #60.
 
+| # | What | Source |
+|---|---|---|
+| L-3 | CI of documents: refuse a pull request that deletes a file under `docs/decisions/` or removes a row of CONTEXT §6, unless its title says so. After the queue on the path to ENG-01 | Project manager, 2026-09-29, after PR 60's revert |
+
 ## Blocked
 
 | What | By |
