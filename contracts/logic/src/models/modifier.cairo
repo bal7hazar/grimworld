@@ -58,8 +58,6 @@ pub impl ModifierRecord of Record<Modifier> {
     fn unpack(parts: Span<felt252>) -> Modifier {
         let (low, high) = split(*parts[0]);
         let (benefit, cost) = PassiveTrait::unpack_pair(high);
-        Modifier {
-            slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(), benefit, cost,
-        }
+        Modifier { slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(), benefit, cost }
     }
 }

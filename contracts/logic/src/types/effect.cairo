@@ -3,8 +3,10 @@
 //! limb of a registry record: `SKILL` holds three, `ITEM` one.
 //!
 //! Layout of an entry, in the order of design/19 §2.1's table (bits of its limb):
-//! kind 0–7 · param 8–15 · `v0` 16–31 · `v12` 32–47 (signed, two's complement) · `d0` 48–63 ·
-//! `d12` 64–79 · charges 80–85 · target 86–87 · shape 88–90 · filter 91 · guard 92–94 ·
+//! kind 0–7 · param 8–15 · `v0` 16–31 · `v12` 32–47 (signed, two's complement) · `d0`
+//! 48–63 ·
+//! `d12` 64–79 · charges 80–85 · target 86–87 · shape 88–90 · filter 91 · guard
+//! 92–94 ·
 //! scope 95–96. 97 bits: an entry fits a high limb (122 bits) as well as a low one (128).
 
 use crate::durations::MAX_BASE_DURATION;
@@ -372,8 +374,8 @@ pub impl EntryAssert of EntryAssertTrait {
     }
 
     /// The content pipeline's checks of one entry (§2.1, §3; X-1): an empty entry has every field
-    /// 0; otherwise its kind is one of the MVP's, its shape 1–5 and its guard 0–4, the fields its
-    /// kind does not read are 0, its `param` is one its kind names, its value at ranks 0 and 15
+    /// 0; otherwise its kind is one of the MVP's, its shape 1–5 and its guard 0–4, the fields
+    /// its kind does not read are 0, its `param` is one its kind names, its value at ranks 0 and 15
     /// lies within its kind's bounds, its duration at ranks 0 and 15 within 0…43,688, and an
     /// `ON_ATTACK_CONDITION` has a duration or charges.
     fn assert_legal(self: @Entry) {

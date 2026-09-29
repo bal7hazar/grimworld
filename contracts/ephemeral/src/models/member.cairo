@@ -215,7 +215,8 @@ pub impl MemberTimersStorePacking of starknet::storage_access::StorePacking<Memb
 }
 
 /// A held effect on a member: a stance, an enchantment, a preparation, a glyph, a hex, a potion's
-/// (design/19 §5.7, §7.2). 56 bits: skill 0-15 · charges 16-21 · (bit 22 free) · potion tag 23 ·
+/// (design/19 §5.7, §7.2). 56 bits: skill 0-15 · charges 16-21 · (bit 22 free) · potion tag 23
+/// ·
 /// deadline 24-51 · rank 52-55. Its carrier is the skill id, or with the tag the belt slot 0-3
 /// whose potion item is the carrier (FX-42).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]

@@ -33,7 +33,11 @@ pub impl ArmorSetRecord of Record<ArmorSet> {
 
     fn pack(self: @ArmorSet) -> Span<felt252> {
         let [a, b, c, d, e] = *self.pieces;
-        let low: u128 = a.into() + b.into() * P16 + c.into() * P32 + d.into() * P48 + e.into() * P64;
+        let low: u128 = a.into()
+            + b.into() * P16
+            + c.into() * P32
+            + d.into() * P48
+            + e.into() * P64;
         let [first, second] = *self.bonuses;
         array![join(low, PassiveTrait::pack_pair(@first, @second))].span()
     }

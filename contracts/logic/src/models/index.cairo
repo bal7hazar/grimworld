@@ -102,13 +102,15 @@ pub struct Outline {
     pub high: u128,
 }
 
-// The combat's records (CBT-01; design/19 §7.2, §7.3; ENG-01 §3.5). Their entries and passives are
-// `types::effect::Entry` (97 bits) and `types::passive::Passive` (53 bits).
+// The combat's records (CBT-01; design/19 §7.2, §7.3; ENG-01 §3.5). Their entries and passives
+// are `types::effect::Entry` (97 bits) and `types::passive::Passive` (53 bits).
 
 /// `SKILL`, 2 parts (design/03 *Skill definition*, design/19 §7.2).
-/// Part 0 low, the header: profession 0–7 · attribute 8–15 · kind 16–23 · energy 24–31 ·
-/// adrenaline 32–39 · activation 40–55 · recharge 56–71 · range 72–79 · target 80–81 · elite 82
-/// (83 bits) · part 0 high: entry 1 · part 1 low: entry 2 · part 1 high: entry 3 · `LIVE` in both.
+/// Part 0 low, the header: profession 0–7 · attribute 8–15 · kind 16–23 · energy 24–31
+/// ·
+/// adrenaline 32–39 · activation 40–55 · recharge 56–71 · range 72–79 · target 80–81
+/// · elite 82 (83 bits) · part 0 high: entry 1 · part 1 low: entry 2 · part 1 high: entry 3 ·
+/// `LIVE` in both.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Skill {
     pub profession: u8,
@@ -133,8 +135,10 @@ pub struct Skill {
 }
 
 /// `ITEM`, 1 part (ENG-01 §3.5, design/07, design/19 §7.2, FX-18, FX-28).
-/// low: class 0–7 · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 (72 bits) ·
-/// high: the potion's entry 128–224 · range 225–232 · bomb strength 233–240 (113 bits) · `LIVE`.
+/// low: class 0–7 · region 8–23 · rarity 24–31 · value 32–63 · book index 64–71 (72
+/// bits) ·
+/// high: the potion's entry 128–224 · range 225–232 · bomb strength 233–240 (113 bits) ·
+/// `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Item {
     /// `item::class::INGREDIENT` … `FAILED_BREW`.
@@ -175,7 +179,8 @@ pub struct ArmorSet {
     pub bonuses: [Passive; 2],
 }
 
-/// A caste's weapon, inline (design/19 §7.3: no `BASE` read), 32 bits: class 0–3 · damage 4–19 ·
+/// A caste's weapon, inline (design/19 §7.3: no `BASE` read), 32 bits: class 0–3 · damage
+/// 4–19 ·
 /// damage type 20–23 · ticks 24–27 · range 28–31.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct Weapon {
@@ -189,11 +194,12 @@ pub struct Weapon {
 }
 
 /// `CASTE`, 2 parts: the caste sheet's shape (design/19 §7.3; DES-06 fills the values), 243 bits.
-/// Part 0 low: tier 0–7 · AI profile 8–15 · health multiplier 16–31 · health regeneration + 10
-/// 32–39 · armor 40–47 · weapon 48–79 · energy 80–87 · energy regeneration 88–95 · flee threshold
-/// 96–103 · rank 104–107 · boss 108 (109 bits) · part 0 high: armor per damage type 128–181 (9 ×
-/// 6, type `t` at `128 + 6 (t − 1)`) · loot table 182–197 (70 bits) · part 1 low: 4 skills 0–63
-/// (`u16` each, in priority order) · part 1 high: empty · `LIVE` in both.
+/// Part 0 low: tier 0–7 · AI profile 8–15 · health multiplier 16–31 · health regeneration
+/// + 10 32–39 · armor 40–47 · weapon 48–79 · energy 80–87 · energy regeneration 88–95
+/// · flee threshold 96–103 · rank 104–107 · boss 108 (109 bits) · part 0 high: armor per
+/// damage type 128–181 (9 ×
+/// 6, type `t` at `128 + 6 (t − 1)`) · loot table 182–197 (70 bits) · part 1 low: 4 skills
+/// 0–63 (`u16` each, in priority order) · part 1 high: empty · `LIVE` in both.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Caste {
     /// 1–6.

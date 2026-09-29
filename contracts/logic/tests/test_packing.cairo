@@ -49,7 +49,7 @@ fn test_bitmap() {
 }
 
 #[test]
-// gas: raised, CBT-01: nine armors per damage type (FX-23, FX-24) and two more layouts checked
+// gas: raised, CBT-01: nine armors by damage type (FX-23, FX-24)
 #[available_gas(l2_gas: 579516)] // ceil(1.05 × 551920 measured)
 fn test_stats_layout() {
     let stats = MemberStats {
@@ -86,7 +86,7 @@ fn test_stats_layout() {
 }
 
 #[test]
-// gas: raised, CBT-01: the bar's and the kit's high limbs hold design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: design/19's passives in the bar and the kit (FX-24)
 #[available_gas(l2_gas: 398969)] // ceil(1.05 × 379970 measured)
 fn test_bar_and_kit_layout() {
     let bar = MemberBar {
@@ -215,7 +215,9 @@ fn test_bar_passives_layout() {
     assert(bit(MemberBar { penetration: [1, 0, 0], ..empty }) == two_184, 'penetration at 184');
     let two_208: felt252 = TWO_128 * 0x100000000000000000000;
     let one = QuickCast { attribute: 1, every: 0 };
-    assert(bit(MemberBar { quick_cast: [one, Default::default()], ..empty }) == two_208, 'qc at 208');
+    assert(
+        bit(MemberBar { quick_cast: [one, Default::default()], ..empty }) == two_208, 'qc at 208',
+    );
     let two_232: felt252 = TWO_128 * 0x100000000000000000000000000;
     assert(bit(MemberBar { armor: 1, ..empty }) == two_232, 'armor at 232');
     assert(bit(MemberBar { armor: -1, ..empty }) == two_232 * 0xFFFF, 'armor signed');
@@ -268,9 +270,7 @@ fn test_kit_passives_layout() {
     assert(bit(MemberKit { double_adrenaline_every: 1, ..k }) == TWO_128 * 0x100000000, 'N at 160');
     assert(bit(MemberKit { armor_stance: 1, ..k }) == TWO_128 * 0x100000000000000, 'stance 184');
     assert(bit(MemberKit { armor_stance: -1, ..k }) == TWO_128 * 0xFF00000000000000, 'signed');
-    assert(
-        bit(MemberKit { armor_enchanted: 1, ..k }) == TWO_128 * 0x10000000000000000, 'ench 192',
-    );
+    assert(bit(MemberKit { armor_enchanted: 1, ..k }) == TWO_128 * 0x10000000000000000, 'ench 192');
     assert(bit(MemberKit { knockdown: 1, ..k }) == TWO_128 * 0x1000000000000000000, 'kd at 200');
     assert(bit(MemberKit { halving: true, ..k }) == TWO_128 * 0x4000000000000000000, 'halving 202');
     let top = MemberKit {

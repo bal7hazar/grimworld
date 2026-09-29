@@ -57,8 +57,8 @@ impl FixtureImpl of Fixture {
         Self::skill(
             skill_kind::SPELL,
             [
-                ring(Self::damage(damage::FIRE, 20, 80)), ring(Self::inflict(condition::BURNING, 1, 3)),
-                Default::default(),
+                ring(Self::damage(damage::FIRE, 20, 80)),
+                ring(Self::inflict(condition::BURNING, 1, 3)), Default::default(),
             ],
         )
     }
@@ -66,7 +66,7 @@ impl FixtureImpl of Fixture {
     /// Snare: `TRAP`, then its payload, earth damage 10…40 and Crippled 3.
     fn snare() -> Skill {
         let trap = Entry {
-            kind: kind::TRAP, target: target::TILE, shape: shape::SINGLE, ..Default::default()
+            kind: kind::TRAP, target: target::TILE, shape: shape::SINGLE, ..Default::default(),
         };
         Self::skill(
             skill_kind::TRAP,
@@ -99,8 +99,12 @@ impl FixtureImpl of Fixture {
     /// Venom Coat: `ON_ATTACK_CONDITION` Poison 24 for 12 ticks.
     fn venom_coat() -> Skill {
         let coat = Entry {
-            param: condition::POISON, v0: 24, v12: 24, d0: 12, d12: 12,
-            ..Self::on_self(kind::ON_ATTACK_CONDITION)
+            param: condition::POISON,
+            v0: 24,
+            v12: 24,
+            d0: 12,
+            d12: 12,
+            ..Self::on_self(kind::ON_ATTACK_CONDITION),
         };
         Self::skill(skill_kind::PREPARATION, [coat, Default::default(), Default::default()])
     }
@@ -134,7 +138,8 @@ impl FixtureImpl of Fixture {
     }
 }
 
-// §2.1: 97 bits, every field at its widest round-trips; each sits at its bit; the empty entry is 0.
+// §2.1: 97 bits, every field at its widest round-trips; each sits at its bit; the empty entry is
+// 0.
 #[test]
 #[available_gas(l2_gas: 803502)] // ceil(1.05 × 765240 measured)
 fn test_entry_round_trip() {
@@ -284,7 +289,7 @@ fn test_entry_legal() {
     let sidestep = Entry { param: 1, d0: 2, d12: 6, ..Fixture::on_self(kind::EVADE) };
     sidestep.assert_legal();
     let warcry = Entry {
-        v0: 10, v12: 20, d0: 5, d12: 11, scope: scope::ALL, ..Fixture::on_self(kind::PENETRATION)
+        v0: 10, v12: 20, d0: 5, d12: 11, scope: scope::ALL, ..Fixture::on_self(kind::PENETRATION),
     };
     warcry.assert_legal();
     let drain = Entry { v0: -255, v12: -255, ..Fixture::on_foe(kind::ENERGY) };
@@ -467,8 +472,13 @@ fn test_skill_round_trip() {
     assert(Record::<Skill>::unpack(zero.pack()) == zero, 'zero round trip');
     // Header bits: kind 16, energy 24, activation 40, recharge 56, target 80, elite 82.
     let header = SkillTrait::new(0, 0, 1, 1, 0, 1, 1, 0, 1, true, [Default::default(); 3]);
-    let expected = 0x10000 + 0x1000000 + 0x10000000000 + 0x100000000000000
-        + 0x100000000000000000000 + 0x400000000000000000000 + LIVE;
+    let expected = 0x10000
+        + 0x1000000
+        + 0x10000000000
+        + 0x100000000000000
+        + 0x100000000000000000000
+        + 0x400000000000000000000
+        + LIVE;
     assert(*header.pack()[0] == expected, 'header bits');
     // Entries: 1 in part 0's high limb, 2 in part 1's low, 3 in its high.
     let one = Entry { kind: 1, ..Default::default() };
@@ -509,10 +519,7 @@ fn test_legal_carriers() {
     Fixture::venom_coat().assert_legal();
     let skullring = Fixture::skill(
         skill_kind::ATTACK,
-        [
-            Fixture::inflict(condition::KNOCKED_DOWN, 2, 2), Default::default(),
-            Default::default(),
-        ],
+        [Fixture::inflict(condition::KNOCKED_DOWN, 2, 2), Default::default(), Default::default()],
     );
     skullring.assert_legal();
     let dressing = Fixture::skill(
@@ -626,8 +633,7 @@ fn test_carrier_trap_payload_on_self_refused() {
 #[available_gas(l2_gas: 101388)] // ceil(1.05 × 96560 measured)
 fn test_carrier_disc_1_in_a_skill_refused() {
     let hit = Entry { shape: shape::DISC_1, ..Fixture::damage(damage::FIRE, 1, 2) };
-    Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()])
-        .assert_legal();
+    Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()]).assert_legal();
 }
 
 #[test]
@@ -635,8 +641,7 @@ fn test_carrier_disc_1_in_a_skill_refused() {
 #[available_gas(l2_gas: 84578)] // ceil(1.05 × 80550 measured)
 fn test_carrier_disc_2_refused() {
     let hit = Entry { shape: shape::DISC_2, ..Fixture::damage(damage::FIRE, 1, 2) };
-    Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()])
-        .assert_legal();
+    Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()]).assert_legal();
 }
 
 #[test]
@@ -650,7 +655,9 @@ fn test_skill_seal_of_capture_refused() {
 #[test]
 #[available_gas(l2_gas: 479850)] // ceil(1.05 × 457000 measured)
 fn test_item_round_trip() {
-    let top = ItemTrait::new(0xFF, 0xFFFF, 0xFF, 0xFFFFFFFF, 0xFF, Fixture::entry_max(), 0xFF, 0xFF);
+    let top = ItemTrait::new(
+        0xFF, 0xFFFF, 0xFF, 0xFFFFFFFF, 0xFF, Fixture::entry_max(), 0xFF, 0xFF,
+    );
     let packed = top.pack();
     assert(packed.len() == parts(ITEM).into(), 'parts');
     assert(Record::<Item>::unpack(packed) == top, 'top round trip');
@@ -672,7 +679,7 @@ fn test_item_round_trip() {
         v12: 40,
         target: target::TILE,
         shape: shape::DISC_1,
-        ..e
+        ..e,
     };
     let bomb = ItemTrait::new(class::POTION, 1, 1, 10, 0, fire, 4, 60);
     bomb.assert_legal();
@@ -776,14 +783,28 @@ fn test_caste_round_trip() {
     let parts = one.pack();
     // Weapon class at 48, its range at 76, rank at 104, boss at 108; loot table at 182; skill 3
     // at part 1's bit 48.
-    let low = 0x1000000000000 + 0x10000000000000000000 + 0x100000000000000000000000000
+    let low = 0x1000000000000
+        + 0x10000000000000000000
+        + 0x100000000000000000000000000
         + 0x1000000000000000000000000000;
     let two_182: felt252 = TWO_128 * 0x40000000000000;
     assert(*parts[0] == low + two_182 + LIVE, 'part 0 bits');
     assert(*parts[1] == 0x1000000000000 + LIVE, 'part 1 bits');
     // Armor against type 9 at 128 + 48.
     let vs = CasteTrait::new(
-        0, 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0, 1], Default::default(), 0, 0, [0; 4], 0, 0, 0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        [0, 0, 0, 0, 0, 0, 0, 0, 1],
+        Default::default(),
+        0,
+        0,
+        [0; 4],
+        0,
+        0,
+        0,
         false,
     );
     assert(*vs.pack()[0] == TWO_128 * 0x1000000000000 + LIVE, 'vs 9 at 176');
@@ -843,9 +864,7 @@ fn test_caste_weapon_refused() {
 #[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
 fn test_caste_health_regen_refused() {
     let top = Fixture::caste_max();
-    Caste {
-        tier: 1, health_regen: 21, weapon: WeaponTrait::new(1, 1, 1, 1, 1), ..top,
-    }
+    Caste { tier: 1, health_regen: 21, weapon: WeaponTrait::new(1, 1, 1, 1, 1), ..top }
         .assert_legal();
 }
 

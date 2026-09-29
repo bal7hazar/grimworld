@@ -873,7 +873,7 @@ mod close_tests {
     }
 
     #[test]
-    // gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+    // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
     #[available_gas(l2_gas: 5047203)] // ceil(1.05 × 4806860 measured)
     fn test_close_on_defeat() {
         let class = declare("ReportSink").unwrap().contract_class();

@@ -2,7 +2,8 @@
 //! carries two, a benefit and a cost; an `ARMOR_SET` bonus is one. They are flattened into the
 //! snapshot at entry, losslessly (§7.2).
 //!
-//! Layout of a passive, 53 bits: id 0–7 · param 8–15 · guard 16–18 · scope 19–20 · min 21–36 ·
+//! Layout of a passive, 53 bits: id 0–7 · param 8–15 · guard 16–18 · scope 19–20 · min
+//! 21–36 ·
 //! max 37–52 (`min` and `max` signed, two's complement). The cost of a modifier is fixed (`min =
 //! max`); the benefit's rolled value is the item's `ItemMods` byte. Id 0 is no passive.
 
@@ -171,7 +172,9 @@ pub impl PassiveAssert of PassiveAssertTrait {
         assert(*self.min <= *self.max, errors::RANGE);
         let g = *self.guard;
         if id == id::ARMOR {
-            assert(g == guard::ALWAYS || g == guard::IN_STANCE || g == guard::ENCHANTED, errors::GUARD);
+            assert(
+                g == guard::ALWAYS || g == guard::IN_STANCE || g == guard::ENCHANTED, errors::GUARD,
+            );
         } else if id == id::DAMAGE_PERCENT {
             assert(g == guard::ALWAYS || g == guard::ABOVE_HALF, errors::GUARD);
         } else {

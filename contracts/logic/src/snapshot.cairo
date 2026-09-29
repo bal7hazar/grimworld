@@ -12,7 +12,7 @@
 
 use crate::helpers::signed::SignedTrait;
 use crate::packing::{
-    P104, P108, P112, P120, P12, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
+    P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
     P96, fits, join, low_field, split,
 };
 use crate::professions::ProfessionTrait;
@@ -20,7 +20,8 @@ use crate::professions::ProfessionTrait;
 /// The widest unguarded armor (design/19 §7.2, F-20; F-21 settled by CBT-01): the weighted rating
 /// of the five pieces (each `u8`, weights summing to 1: at most 255) and the shield's (`u8`, 255),
 /// each raised by personalisation's +10 % of its rating (`RATING_PERCENT`, design/15 D-48: at most
-/// ⌊255 × 10 / 100⌋ = 25 each), and at most 37 unguarded `ARMOR` passives of −255…+255: `255 + 25 +
+/// ⌊255 × 10 / 100⌋ = 25 each), and at most 37 unguarded `ARMOR` passives of −255…+255:
+/// `255 + 25 +
 /// 255 + 25 + 37 × 255 = 9,995 < 32,767`. The two 255 limits are the ratings before
 /// personalisation. An `i16` holds it.
 pub const MAX_UNGUARDED_ARMOR: i16 = 9995;
@@ -45,8 +46,8 @@ pub struct MemberStats {
     pub energy_regen: u8,
     /// Health regeneration in pips, plus 10 (0 to 20 for −10 to +10 pips).
     pub health_regen: u8,
-    /// `ARMOR_VS` per damage type, index `type − 1`, 6 bits each, saturated at 63 (FX-23): types 1–2
-    /// at bits 48 and 54, types 3–9 at `200 + 6 (type − 3)`.
+    /// `ARMOR_VS` per damage type, index `type − 1`, 6 bits each, saturated at 63 (FX-23): types
+    /// 1–2 at bits 48 and 54, types 3–9 at `200 + 6 (type − 3)`.
     pub armor_vs: [u8; 9],
     pub level: u8,
     pub profession: u8,
@@ -68,7 +69,14 @@ pub struct MemberStats {
 pub fn pack_stats(s: MemberStats) -> felt252 {
     let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = s.armor_vs;
     assert(
-        v1 < 64 && v2 < 64 && v3 < 64 && v4 < 64 && v5 < 64 && v6 < 64 && v7 < 64 && v8 < 64
+        v1 < 64
+            && v2 < 64
+            && v3 < 64
+            && v4 < 64
+            && v5 < 64
+            && v6 < 64
+            && v7 < 64
+            && v8 < 64
             && v9 < 64,
         errors::ARMOR_VS,
     );
@@ -287,8 +295,9 @@ pub impl MemberBarStorePacking of starknet::storage_access::StorePacking<MemberB
 
 /// The belt (4 potion item ids) and the modifiers of the equipment, flattened at entry
 /// (design/15: equipment cannot change during an expedition; design/19 §7.2, FX-24). High limb,
-/// 75 bits: life steal 128–135 · energy on hit 136–143 · condition 144–147 · its duration percent
-/// 148–153 · enchantment duration percent 154–159 · double adrenaline every N hits 160–167 ·
+/// 75 bits: life steal 128–135 · energy on hit 136–143 · condition 144–147 · its duration
+/// percent 148–153 · enchantment duration percent 154–159 · double adrenaline every N hits
+/// 160–167 ·
 /// health bonus 168–183 · armor in a stance 184–191 · armor enchanted 192–199 (signed) ·
 /// knock-down ticks 200–201 · halving 202.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]

@@ -433,7 +433,7 @@ fn test_start_hub_refusals() {
 // level 1, a Vanguard's 20 energy, 2 pips, armor 80), the owner as controller, no task yet (E-14);
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 37980926)] // ceil(1.05 × 36172310 measured)
 fn test_enter() {
     let world = setup();
@@ -473,7 +473,7 @@ fn test_enter() {
 // The belt's reserve, the worst case (ENG-01 §6, §9.3): four items on four pages, each lane
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 36415019)] // ceil(1.05 × 34680970 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
@@ -507,7 +507,7 @@ fn test_enter_reserves_the_belt() {
 // Two slots of the same item are one debit of their sum (ENG-01 §6); a lane left non-zero keeps
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 33079358)] // ceil(1.05 × 31504150 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
@@ -524,7 +524,7 @@ fn test_enter_one_debit_per_item() {
 }
 
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 46130312)] // ceil(1.05 × 43933630 measured)
 fn test_enter_refusals() {
     let world = setup();
@@ -564,7 +564,7 @@ fn test_enter_refusals() {
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 34830524)] // ceil(1.05 × 33171927 measured)
 fn test_travel() {
     let world = setup();
@@ -631,7 +631,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // Returned through a hub gate: the hub reached and unlocked, the belt's unused counts back in the
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 37032281)] // ceil(1.05 × 35268839 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
@@ -673,7 +673,7 @@ fn test_report_returned_through_a_hub_gate() {
 // Travel back and defeat: `hub` 0 is the last hub (D-04); on defeat the belt comes back as on
 // return (D-141, E-15).
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 38370468)] // ceil(1.05 × 36543302 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
@@ -707,7 +707,7 @@ fn test_report_to_the_last_hub() {
 // Through a gate to a location: still inside, in the next instance; nothing credited (the reserve
 // carries). Writes: `place`.
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 37365869)] // ceil(1.05 × 35586541 measured)
 fn test_report_moved() {
     let world = setup();
@@ -740,7 +740,7 @@ fn test_report_moved() {
 // What the models hold today is applied: experience to every contributor, gold and balances to the
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 36830160)] // ceil(1.05 × 35076342 measured)
 fn test_report_open() {
     let world = setup();
@@ -777,7 +777,7 @@ fn test_report_open() {
 
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
-// gas: raised, CBT-01: the snapshot Hub.enter builds and sends carries design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 37409520)] // ceil(1.05 × 35628114 measured)
 fn test_report_refusals() {
     let world = setup();

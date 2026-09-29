@@ -96,7 +96,7 @@ fn test_enterable_quest() {
 
 // design/03: health 100 + 20 per level above 1; energy, its pips and armor by profession.
 #[test]
-// gas: raised, CBT-01: the snapshot's bar and kit hold design/19 section 7.2's passives (FX-24), compared whole
+// gas: raised, CBT-01: design/19's passives in the snapshot (FX-24)
 #[available_gas(l2_gas: 53288)] // ceil(1.05 × 50750 measured)
 fn test_snapshot() {
     let snapshot = SnapshotTrait::new(
@@ -139,7 +139,7 @@ fn test_snapshot() {
 
 #[test]
 #[should_panic(expected: 'bad profession')]
-// gas: raised, CBT-01: the snapshot's bar is built with design/19 section 7.2's passives (FX-24)
+// gas: raised, CBT-01: design/19's passives in the snapshot (FX-24)
 #[available_gas(l2_gas: 22806)] // ceil(1.05 × 21720 measured)
 fn test_snapshot_of_no_profession() {
     SnapshotTrait::new(1, 0, [0; 8], 255, [0; 4], [0; 4]);

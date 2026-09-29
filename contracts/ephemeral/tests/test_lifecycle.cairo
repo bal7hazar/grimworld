@@ -473,7 +473,7 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // placement, header, entropy, revealed, quotas, the member's 8 words and ⌈16 / 4⌉ = 4 task
 // pages new (19 − 2: the entry chunk's 2 words are ENG-05's reveal), `next_slot` overwritten.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 33508348)] // ceil(1.05 × 31912712 measured)
 fn test_create_first_entry() {
     let world = setup();
@@ -577,7 +577,7 @@ fn test_create_first_entry() {
 
 // The same with no task: no task page is written (17 − 4 = 13 new).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 29323031)] // ceil(1.05 × 27926696 measured)
 fn test_create_without_tasks() {
     let world = setup();
@@ -592,7 +592,7 @@ fn test_create_without_tasks() {
 // A later entry reuses the slot: generation + 1, `next_slot` untouched, every key already written
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 46692336)] // ceil(1.05 × 44468891 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
@@ -615,7 +615,7 @@ fn test_create_reuses_the_slot() {
 }
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 35324495)] // ceil(1.05 × 33642376 measured)
 fn test_create_refusals() {
     let world = setup();
@@ -640,7 +640,7 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 27298306)] // ceil(1.05 × 25998386 measured)
 fn test_create_sealed() {
     let world = setup();
@@ -708,7 +708,7 @@ fn fill_slot(world: World) {
 // A slot another generation used, with stale data in every word: the new instance shows nothing of
 // it, through the view and through the stored words its gates reach.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 48365933)] // ceil(1.05 × 46062793 measured)
 fn test_generation_isolation() {
     let world = setup();
@@ -827,7 +827,7 @@ fn test_generation_isolation() {
 // unlocked, the belt's counts reported (ENG-01 §9.3: header, member state, placement: 0 new, 3
 // overwritten; `InstanceClosed`; one report).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 35018683)] // ceil(1.05 × 33351126 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
@@ -877,7 +877,7 @@ fn test_leave_to_a_hub() {
 // entropy, revealed, quotas, the 4 transient member words, the placement: 9 written, 0 new (the
 // entry chunk's 2 words are ENG-05's).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 41321718)] // ceil(1.05 × 39354017 measured)
 fn test_leave_to_a_location() {
     let world = setup();
@@ -991,7 +991,7 @@ fn test_leave_to_a_location() {
 
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 33241445)] // ceil(1.05 × 31658519 measured)
 fn test_travel_back() {
     let world = setup();
@@ -1047,7 +1047,7 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 }
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 34854400)] // ceil(1.05 × 33194666 measured)
 fn test_refused_sequence() {
     let world = setup();
@@ -1062,7 +1062,7 @@ fn test_refused_sequence() {
 
 // An id of an earlier generation, and an instance already closed.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 40319670)] // ceil(1.05 × 38399685 measured)
 fn test_refused_closed() {
     let world = setup();
@@ -1076,7 +1076,7 @@ fn test_refused_closed() {
 
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 42511668)] // ceil(1.05 × 40487302 measured)
 fn test_refused_absent() {
     let world = setup();
@@ -1092,7 +1092,7 @@ fn test_refused_absent() {
 // Every gate that cannot be taken from where the member stands (design/02: "the gate is
 // reachable"), before any draw.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 61642430)] // ceil(1.05 × 58707076 measured)
 fn test_refused_gate() {
     let world = setup();
@@ -1109,7 +1109,7 @@ fn test_refused_gate() {
 
 // A sealed Red Rift: no travel back (design/17).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 30698776)] // ceil(1.05 × 29236929 measured)
 fn test_refused_sealed() {
     let world = setup();
@@ -1119,7 +1119,7 @@ fn test_refused_sealed() {
 
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 29560896)] // ceil(1.05 × 28153234 measured)
 fn test_not_controller() {
     let world = setup();
@@ -1136,7 +1136,7 @@ fn test_not_controller() {
 // ---- set_controller -----------------------------------------------------------------------------
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19 section 7.2's passives (FX-24), a larger Serde and packing at create
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
 #[available_gas(l2_gas: 34761460)] // ceil(1.05 × 33106152 measured)
 fn test_set_controller() {
     let world = setup();

@@ -4,7 +4,7 @@
 
 use crate::content::{ITEM, Record};
 use crate::packing::{P16, P24, P32, P64, P8, join, split};
-use crate::types::effect::{Carrier, EntryAssert, EntryTrait, ENTRY_BOUND};
+use crate::types::effect::{Carrier, ENTRY_BOUND, EntryAssert, EntryTrait};
 pub use super::index::Item;
 
 /// Item classes, in the order of ENG-01 §3.5's list.

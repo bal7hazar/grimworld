@@ -26,8 +26,8 @@ pub mod condition {
     pub const BURNING_PIPS: i32 = 7;
 }
 
-/// Damage types, ids 1–9 (design/19 §3.1, design/04's order): 1–3 physical, 4–7 elemental, 8–9
-/// neither (FX-23).
+/// Damage types, ids 1–9 (design/19 §3.1, design/04's order): 1–3 physical, 4–7 elemental,
+/// 8–9 neither (FX-23).
 pub mod damage {
     pub const SLASHING: u8 = 1;
     pub const PIERCING: u8 = 2;
@@ -104,8 +104,8 @@ pub enum HitClass {
 }
 
 /// Who placed a trap (design/19 §7.2, a placed trap's chunk-object `param`, 16 bits): bit 15 is
-/// 0 for a member (member 0–7 at bits 0–2, bar slot 0–7 at bits 3–5) and 1 for a goblin (entity
-/// − 8 at bits 0–11, at most 3,593 − 8 < 4,096; caste skill 0–3 at bits 12–13).
+/// 0 for a member (member 0–7 at bits 0–2, bar slot 0–7 at bits 3–5) and 1 for a goblin
+/// (entity − 8 at bits 0–11, at most 3,593 − 8 < 4,096; caste skill 0–3 at bits 12–13).
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub enum Placer {
     /// `(member, bar slot)`.
@@ -153,7 +153,9 @@ pub impl PlacerImpl of PlacerTrait {
     /// The placer of a placed trap's `param`.
     fn from_param(param: u16) -> Placer {
         if param >= GOBLIN_BIT {
-            let (skill, entity) = DivRem::div_rem(param - GOBLIN_BIT, ENTITY_SIZE.try_into().unwrap());
+            let (skill, entity) = DivRem::div_rem(
+                param - GOBLIN_BIT, ENTITY_SIZE.try_into().unwrap(),
+            );
             Placer::Goblin((entity + FIRST_GOBLIN, skill.try_into().unwrap()))
         } else {
             let (slot, member) = DivRem::div_rem(param, 8);

@@ -70,7 +70,7 @@ fn test_placement_and_header_layout() {
 }
 
 #[test]
-// gas: raised, CBT-01: the member and goblin words carry design/19 section 7.2's fields, more of them checked
+// gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 585680)] // ceil(1.05 × 557790 measured)
 fn test_member_layout() {
     let state = MemberState {
@@ -117,9 +117,7 @@ fn test_member_layout() {
     );
 
     // design/19 §7.2: charges 0–63, the potion tag with a belt slot 0–3, rank 0–15.
-    let full = Effect {
-        skill: 0xFFFF, charges: 63, potion: false, deadline: 0xFFFFFFF, rank: 15,
-    };
+    let full = Effect { skill: 0xFFFF, charges: 63, potion: false, deadline: 0xFFFFFFF, rank: 15 };
     let drunk = Effect { skill: 3, charges: 1, potion: true, deadline: 3, rank: 0 };
     let effects = MemberEffects { effects: [full, drunk, full, full] };
     let word = StorePacking::<MemberEffects, felt252>::pack(effects);
@@ -165,7 +163,7 @@ fn test_chunk_layout() {
 }
 
 #[test]
-// gas: raised, CBT-01: the member and goblin words carry design/19 section 7.2's fields, more of them checked
+// gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 362387)] // ceil(1.05 × 345130 measured)
 fn test_goblin_layout() {
     let state = GoblinState {
@@ -305,7 +303,7 @@ fn test_roster_masking() {
 // Fix loop 3, F-14: empty timers are "no activation" (slot 255) and zero deadlines, not LIVE alone
 // (slot 0 would name bar slot 0). Their packed words are pinned.
 #[test]
-// gas: raised, CBT-01: the member and goblin words carry design/19 section 7.2's fields, more of them checked
+// gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 220395)] // ceil(1.05 × 209900 measured)
 fn test_empty_timers_packed() {
     let member = empty_member_timers();
@@ -338,9 +336,9 @@ fn test_combat_fields_layout() {
 
     let slot = |effect: Effect| -> felt252 {
         let empty: Effect = Default::default();
-        StorePacking::<MemberEffects, felt252>::pack(
-            MemberEffects { effects: [effect, empty, empty, empty] },
-        )
+        StorePacking::<
+            MemberEffects, felt252,
+        >::pack(MemberEffects { effects: [effect, empty, empty, empty] })
             - LIVE
     };
     assert(slot(Effect { charges: 1, ..Default::default() }) == 0x10000, 'charges at 16');
@@ -350,9 +348,9 @@ fn test_combat_fields_layout() {
     // The fourth slot's rank is the word's bits 236–239.
     let last = Effect { rank: 15, deadline: 0xFFFFFFF, ..Default::default() };
     let empty: Effect = Default::default();
-    let word = StorePacking::<MemberEffects, felt252>::pack(
-        MemberEffects { effects: [empty, empty, empty, last] },
-    );
+    let word = StorePacking::<
+        MemberEffects, felt252,
+    >::pack(MemberEffects { effects: [empty, empty, empty, last] });
     let effects = StorePacking::<MemberEffects, felt252>::unpack(word);
     assert(effects == MemberEffects { effects: [empty, empty, empty, last] }, 'last slot trip');
 
