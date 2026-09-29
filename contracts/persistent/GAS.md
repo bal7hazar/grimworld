@@ -8,7 +8,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 |---|---:|---:|---:|---:|---:|---|---|
 | `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
 | `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
-| `systems::registry::layout_tests::test_registry_storage_addresses` | 55220 | 57981 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 4.43 % | 0 | 0 | 2026-09-29 | e246ac5 |
 | `test_contracts::test_fate_refuses_mainnet_calls` | 388601 | 408032 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
 | `test_contracts::test_fate_refuses_mainnet_deployment` | 272510 | 286136 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
 | `test_contracts::test_fate_word` | 397644 | 417527 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |

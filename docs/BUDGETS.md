@@ -7,9 +7,9 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |
 |---|---|---:|---:|---|---|
 | grimworld_ephemeral | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 2026-09-29 | 2704c6d |
-| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 88140 | 92547 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 90510 | 92547 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 2026-09-29 | d65eb86 |
-| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650760 | 2783298 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_four_revealed` | 442850 | 464993 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_none` | 282660 | 296793 | 2026-09-29 | d65eb86 |
@@ -47,7 +47,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_packing::test_task_page_layout` | 142250 | 149363 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 2026-09-29 | 2704c6d |
-| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55220 | 57981 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 2026-09-29 | e246ac5 |
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_calls` | 388601 | 408032 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_deployment` | 272510 | 286136 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `test_contracts::test_fate_word` | 397644 | 417527 | 2026-09-29 | 2704c6d |
