@@ -30,7 +30,7 @@ straight to the inventory and is kept whatever the outcome of the expedition
 Why on loot and not on death: moving and fighting then need no randomness at all, so they
 can be rendered optimistically and batched; only the loot action carries a randomness
 request, and it is a moment where a short reveal delay reads as suspense rather than lag.
-Looting always ends an action queue.
+Looting always ends an action queue and a batch.
 
 ### Loot tables
 

@@ -29,7 +29,7 @@ How the replacement stays cheap:
   of a **randomness provider** behind an interface.
 - The provider's implementation is configuration. MVP: transaction hash. Version 1:
   verifiable function, from Cartridge or of our own.
-- Rules 1 to 3, 5 and 6 below apply from the MVP. Rule 4 applies from version 1.
+- Rules 1 to 3, 5, 6 and 7 below apply from the MVP (rule 7 states the MVP's accepted weakness and what version 1 must add). Rule 4 applies from version 1.
 - A deployment check refuses the provisional provider on mainnet.
 
 ## Decision for version 1 (proposed)
@@ -50,16 +50,34 @@ And one class that does not exist: **combat has no randomness** (D-40).
 2. **One vRNG request per transaction.** A transaction that needs several Fate values
    derives them from the single random word: `poseidon(word, domain, index)`, with a
    distinct domain constant per use. Never reuse a value for two decisions.
-3. **Fate actions end an action queue** and are submitted alone with their
-   `request_random` call first in the multicall.
+3. **Fate actions end a batch, and a planned queue** (D-133), and are submitted alone with
+   their `request_random` call first in the multicall. Our client submits a Fate action
+   alone; the guarantee comes from rule 7, not from the transaction's shape.
 4. **No public data as a source** (from version 1). The transaction-hash provider of the
    MVP must be impossible to enable on mainnet.
 5. **No re-roll.** State that records a pending Fate draw (remains on a tile, an untried
    pair) is consumed in the same transaction as the draw. There is no path where a player
-   sees a result and the draw is still pending.
+   sees a result and the draw is still pending. Every precondition of a Fate action is
+   checked before drawing.
 6. **Nothing is decided before it is seen.** There is no instance seed from which a whole
    location could be computed. Each reveal draws its own word (owner's requirement: a fog
    of war that reading the chain cannot lift).
+7. **A transaction may compose several calls** (D-133). In the MVP, the transaction-hash
+   provider can be steered by any call in the same transaction; this is the accepted
+   weakness above. From version 1, the provider must not draw from anything the same
+   transaction can steer: neither its hash or calldata, nor state written by an earlier
+   call of the same transaction.
+
+Version 1 also requires of the provider and of the account design (D-133):
+
+- Fate draws are **attempt-stable**: the same attempt cannot be retried for a new value (for
+  example, a request committed in one transaction and fulfilled in a later one, the result
+  bound to the request).
+- A transaction that aborts after seeing its draw does not re-roll it.
+- The calls allowed to share a transaction with a Fate call are stated.
+
+This comes on top of rule 7, which it does not replace. The MVP's hash provider stays the
+accepted weakness.
 
 ### Hidden information
 

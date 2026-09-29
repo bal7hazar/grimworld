@@ -24,7 +24,7 @@ are all playable end to end by a stranger, on a public network.
 | Equipment | Merchant, smith, armorer, collectors; **looted equipment** with rarity, identification, salvage and modifiers; **boss weapons and boss armor with set bonuses** ([15-equipment](15-equipment.md)) |
 | Trade | Direct trade between players and an **auction house** ([16-trade](16-trade.md)) |
 | Hubs | Services as contract calls; the list of adventurers present, from the indexer. No chat, no live movement, no rankings |
-| Client | iOS and Android apps first, desktop web second; optimistic rendering, action queue |
+| Client | iOS and Android apps first, desktop web second; optimistic rendering, played batches |
 | Account | Burner accounts behind the account interface; no prompt, no fee (ADR-0005). Randomness from the transaction hash (ADR-0002). **Test networks only, nothing of value** |
 | Rifts | Grades Wood to Copper; three open, five a day, the Red Rift last; mining and stillstone ([17-rifts](17-rifts.md)) |
 | Maps | Chunks generated at reveal, simulation window, zone outlines (ADR-0006) |

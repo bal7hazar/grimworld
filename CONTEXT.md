@@ -86,7 +86,14 @@ Use these words, in code and in prose, with these meanings only.
 | **Tick** | The unit of time in an instance |
 | **Clock** | The time of an instance, in ticks |
 | **Action** | One player input in an instance, with a tick cost |
-| **Queue** | Several actions submitted in one transaction |
+| **Queue** | Actions planned in advance (a path), walked by the client, which stops them on design/02's conditions. Also called a planned queue |
+| **Batch** | Played actions sent in one transaction |
+| **Played / planned** | Played: an action the player has decided, on the result the client computed. Planned: an action of a queue, not yet walked |
+| **Rewind** | The client takes the chain's state and drops the actions after the difference |
+| **Sequence** | The count of actions an instance has executed |
+| **Weight** | An action's share of a batch's bound |
+| **Copy of the instance** | What the client holds of an instance, read from the chain at one block: every revealed chunk and every goblin, frozen or awake. Simulation runs only over it |
+| **Recovery** | After an unknown outcome, at launch or on another device: the client adopts a snapshot read at one block and keeps only the played actions whose results are unchanged |
 | **Chunk** | 15 × 15 tiles: the unit of storage and generation of a map |
 | **Window** | The board of 15 columns × 16 rows on which a tick is computed. It follows the adventurer and is assembled from the chunks at each tick, never stored |
 | **Sight** | The hexagon of radius 6 within which goblins are shown; always inside the window |
