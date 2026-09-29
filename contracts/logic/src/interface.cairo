@@ -80,7 +80,12 @@ pub trait IRegistryRead<T> {
     fn records(self: @T, kind: u8, ids: Span<u32>) -> Span<felt252>;
     /// Records of several kinds in one call, in the order asked: what a `play` needs (castes,
     /// skills, pack templates, the location) costs one call per invocation, not one per kind.
-    fn bundle(self: @T, requests: Span<(u8, u32)>) -> Span<felt252>;
+    /// Returns the **content version** first (D-141, E-5), then the records: the version is a
+    /// value of the registry's storage, raised by every write of a record, that a batch is
+    /// computed under and executed under (`play`'s `version`).
+    fn bundle(self: @T, requests: Span<(u8, u32)>) -> (u32, Span<felt252>);
+    /// The content version alone (the client's read before it computes a batch).
+    fn content_version(self: @T) -> u32;
 }
 
 /// The randomness provider (ADR-0002): game code calls only this. The MVP's provider is

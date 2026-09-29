@@ -36,6 +36,9 @@ pub mod Registry {
         pub records: Map<(u8, u32, u8), felt252>,
         /// Highest id of each sequential kind (`content::is_sequential`); 0 for composite kinds.
         pub last_ids: Map<u8, Counter>,
+        /// The content version (D-141, E-5): 0 at deployment, raised by one by every
+        /// `set_record` that changes a record; returned by `bundle`. One slot, always written.
+        pub content_version: u32,
     }
 
     #[constructor]
@@ -51,7 +54,10 @@ pub mod Registry {
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
-        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> Span<felt252> {
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, Span<felt252>) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+        fn content_version(self: @ContractState) -> u32 {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
     }
@@ -104,6 +110,11 @@ mod layout_tests {
                 state.last_ids.entry(2).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("last_ids"), array![2].span()),
             'last_ids',
+        );
+        assert(
+            address_of(state.content_version.as_ptr().__storage_pointer_address__)
+                == selector!("content_version"),
+            'content_version',
         );
     }
 }

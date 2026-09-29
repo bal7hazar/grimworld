@@ -25,7 +25,7 @@ fn test_instances_deploys_and_stubs_revert() {
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');
     let safe = IInstancesSafeDispatcher { contract_address: address };
     #[feature("safe_dispatcher")]
-    let played = safe.play(0x100000001, 1, 0, 1);
+    let played = safe.play(0x100000001, 1, 0, 3, 1);
     assert(*played.unwrap_err().at(0) == NOT_IMPLEMENTED, 'play is a stub');
 }
 

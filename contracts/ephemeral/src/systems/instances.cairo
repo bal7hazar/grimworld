@@ -64,10 +64,18 @@ pub struct InstanceView {
 #[starknet::interface]
 pub trait IInstances<T> {
     /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::actions`).
+    /// `version` is the content version the batch was computed under (D-141, E-5): the one
+    /// `bundle` returns in the call every invocation makes; a different one refuses the batch
+    /// whole, before any action runs (`Stop::Version`), like a sequence mismatch.
     /// Checks the sequence, runs the actions in order, stops at the first invalid one or when the
     /// weight would pass 10, never reverts for invalidity in the game; emits `BatchPlayed`.
     fn play(
-        ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, actions: felt252,
+        ref self: T,
+        instance_id: InstanceId,
+        adventurer_id: u32,
+        sequence: u32,
+        version: u32,
+        actions: felt252,
     );
     /// Fate: loot a goblin's remains (target: its entity id). Every precondition before the draw.
     fn loot(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, target: u16);
@@ -197,6 +205,7 @@ pub mod Instances {
             instance_id: InstanceId,
             adventurer_id: u32,
             sequence: u32,
+            version: u32,
             actions: felt252,
         ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)

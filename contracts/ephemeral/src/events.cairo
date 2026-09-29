@@ -29,6 +29,9 @@ pub struct BatchPlayed {
     pub sequence: u32,
     /// After the batch.
     pub clock: u32,
+    /// The registry's content version the batch ran under; on `Stop::Version`, the current one
+    /// the client must recompute under (D-141, E-5).
+    pub version: u32,
 }
 
 /// A Fate or gate action refused before any draw; nothing changed (design/02).

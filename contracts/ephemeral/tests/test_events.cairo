@@ -35,12 +35,13 @@ fn test_instances_event_keys_and_data() {
                 stop: Stop::Invalid,
                 sequence: 43,
                 clock: 77,
+                version: 6,
             },
         ),
     );
     assert(keys == array![selector!("BatchPlayed"), id.into()], 'batch keys');
     // Stop::Invalid is variant 2.
-    assert(data == array![9, 40, 3, 2, 43, 77], 'batch data');
+    assert(data == array![9, 40, 3, 2, 43, 77, 6], 'batch data');
 
     let (keys, data) = split(
         Event::Refused(

@@ -89,6 +89,9 @@ pub enum Stop {
     Defeated,
     /// The instance is closed (or the id is of an earlier generation): nothing ran.
     Closed,
+    /// The content version differs from the one the batch was computed under: nothing ran, the
+    /// client reloads the content and computes again (D-141, E-5).
+    Version,
 }
 
 /// Why a standalone action was refused before any draw (`Refused.reason`, design/02).
