@@ -9,7 +9,7 @@ pub const LOCATION: u8 = 2;
 /// id `location × 256 + chunk` is the tile mask of a border chunk (ADR-0006, *Outlines*).
 pub const OUTLINE: u8 = 3;
 pub const GATE: u8 = 4;
-/// The quotas of a location (ADR-0006, kind 2).
+/// The quotas of a location (ADR-0006, kind 2): id = the location's id (D-145).
 pub const QUOTAS: u8 = 5;
 pub const SPAWN_TABLE: u8 = 6;
 pub const PACK: u8 = 7;
@@ -51,13 +51,13 @@ pub const PARTS: [u8; 26] = [
 
 /// Allocation (ENG-01 fix loop 1, F-8). **Sequential** kinds take ids 1, 2, 3 … in order: a new
 /// id must be `last_id(kind) + 1`, and `last_id` is the highest written. **Composite** kinds take
-/// ids built from other records (`OUTLINE`: `location × 256 + chunk`; `SHOP`: `hub × 16 +
-/// service`) or given by quiver (`TASK`, `QUEST`: quiver's ids): any id whose parent exists;
-/// `last_id` stays 0 for them. For every kind a record **exists** when its part 0 is not 0: its
-/// writer sets `LIVE`
-/// (bit 250) in part 0, so that a record whose fields are all 0 still exists.
+/// ids built from other records (`QUOTAS`: its location's id, D-145; `OUTLINE`: `location × 256 +
+/// chunk`; `SHOP`: `hub × 16 + service`): any id whose parent exists; or given by quiver (`TASK`,
+/// `QUEST`: the administrator's quiver ids, taken as they are, D-145). `last_id` stays 0 for them.
+/// For every kind a record **exists** when its part 0 is not 0: its writer sets `LIVE` (bit 250)
+/// in part 0, so that a record whose fields are all 0 still exists.
 pub fn is_sequential(kind: u8) -> bool {
-    kind != OUTLINE && kind != SHOP && kind != TASK && kind != QUEST
+    kind != QUOTAS && kind != OUTLINE && kind != SHOP && kind != TASK && kind != QUEST
 }
 
 /// A registry record's model and its parts (D-143): the model packs into the `parts(KIND)` felts

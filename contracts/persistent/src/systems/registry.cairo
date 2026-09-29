@@ -78,7 +78,7 @@ pub impl PartsImpl of Parts {
 #[starknet::contract]
 pub mod Registry {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{LOCATION, MAX_READ, OUTLINE, SHOP, is_sequential, parts};
+    use grimworld_logic::content::{LOCATION, MAX_READ, OUTLINE, QUOTAS, SHOP, is_sequential, parts};
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::location::INDEX_BOUND;
     use grimworld_logic::models::outline::CHUNK_SET;
@@ -172,18 +172,7 @@ pub mod Registry {
             } else {
                 self.assert_parent(kind, id);
             }
-            let key = Parts::key(kind, id);
-            let mut changed = false;
-            let mut part: u8 = 0;
-            for felt in record {
-                let address = Parts::address(key, part);
-                if Parts::read(address) != *felt {
-                    Parts::write(address, *felt);
-                    changed = true;
-                }
-                part += 1;
-            }
-            if changed {
+            if self.update(kind, id, record) {
                 self.raise_version();
             }
         }
@@ -194,7 +183,7 @@ pub mod Registry {
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
             self.assert_admin();
-            assert(admin.is_non_zero(), errors::ZERO_ADMIN);
+            RegistryAssert::assert_new_admin(admin);
             self.admin.write(admin);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
@@ -209,6 +198,12 @@ pub mod Registry {
         #[inline(always)]
         fn assert_admin(self: @ContractState) {
             assert(get_caller_address() == self.admin.read(), errors::NOT_ADMIN);
+        }
+
+        /// `set_admin` never hands the role to the zero address, which would leave it to nobody.
+        #[inline(always)]
+        fn assert_new_admin(admin: ContractAddress) {
+            assert(admin.is_non_zero(), errors::ZERO_ADMIN);
         }
 
         /// A known kind, exactly `parts(kind)` felts, a non-zero id, and part 0 with `LIVE` and
@@ -230,12 +225,16 @@ pub mod Registry {
             assert(id <= last, errors::NOT_NEXT);
         }
 
-        /// A composite id names an existing parent: `OUTLINE` a location (and a chunk below 225, or
-        /// 255), `SHOP` a hub. `TASK` and `QUEST` take quiver's ids: quiver's records are not in
-        /// this contract, so nothing is checked beyond a non-zero id (ENG-03 report, escalation).
+        /// A composite id names an existing parent: `QUOTAS` its location (the same id, D-145),
+        /// `OUTLINE` a location (and a chunk below 225, or 255), `SHOP` a location as its hub (its
+        /// existence only: that it is a town or an outpost is the content pipeline's check).
+        /// `TASK` and `QUEST` take the administrator's quiver ids as they are (D-145): that a
+        /// quiver id exists is the content pipeline's check (OPS-01).
         #[inline(always)]
         fn assert_parent(self: @ContractState, kind: u8, id: u32) {
-            if kind == OUTLINE {
+            if kind == QUOTAS {
+                self.assert_exists(LOCATION, id);
+            } else if kind == OUTLINE {
                 let (location, chunk) = DivRem::div_rem(id, 256);
                 assert(
                     chunk < INDEX_BOUND.into() || chunk == CHUNK_SET.into(), errors::OUTLINE_CHUNK,
@@ -267,6 +266,23 @@ pub mod Registry {
             for part in 0..count {
                 out.append(Parts::read(Parts::address(key, part)));
             }
+        }
+        /// The writer's change detection: each part compared with the stored felt, only the parts
+        /// that differ written. Whether any did, which raises the version once.
+        #[inline(always)]
+        fn update(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) -> bool {
+            let key = Parts::key(kind, id);
+            let mut changed = false;
+            let mut part: u8 = 0;
+            for felt in record {
+                let address = Parts::address(key, part);
+                if Parts::read(address) != *felt {
+                    Parts::write(address, *felt);
+                    changed = true;
+                }
+                part += 1;
+            }
+            changed
         }
         /// The content version, raised by one (D-141): one read and one write of one slot.
         #[inline(always)]
@@ -381,5 +397,93 @@ mod version_cost_tests {
         let mut state = Registry::contract_state_for_testing();
         store(test_address(), selector!("content_version"), array![7].span());
         state.raise_version();
+    }
+}
+
+/// The writer's change detection, apart from the version (ENG-03 fix loop 1, F-3): a stored
+/// 3-part record rewritten through `update` (read, compare, write what differs) against the same
+/// rewrite made blind (every part written, nothing read). Identical values and changed values
+/// each have their own matched pair; none of these raises the version.
+#[cfg(test)]
+mod detection_cost_tests {
+    use grimworld_logic::content::BOOK;
+    use grimworld_logic::packing::LIVE;
+    use snforge_std::{map_entry_address, store, test_address};
+    use super::Registry::InternalTrait;
+    use super::{Parts, Registry};
+
+    /// Book 1, stored with parts `(LIVE + 1, 2, 3)`.
+    #[generate_trait]
+    impl BookFixture of Book {
+        fn store() {
+            let parts = Self::stored();
+            for part in 0..3_u8 {
+                store(
+                    test_address(),
+                    map_entry_address(
+                        selector!("records"), array![BOOK.into(), 1, part.into()].span(),
+                    ),
+                    array![*parts[part.into()]].span(),
+                );
+            }
+        }
+
+        fn stored() -> Span<felt252> {
+            array![LIVE + 1, 2, 3].span()
+        }
+
+        fn changed() -> Span<felt252> {
+            array![LIVE + 4, 5, 6].span()
+        }
+
+        /// Every part written, nothing read or compared: a writer without change detection.
+        fn write_blind(record: Span<felt252>) {
+            let key = Parts::key(BOOK, 1);
+            let mut part: u8 = 0;
+            for felt in record {
+                Parts::write(Parts::address(key, part), *felt);
+                part += 1;
+            }
+        }
+    }
+
+    // The baseline of the four below: the record stored, nothing else.
+    #[test]
+    #[available_gas(l2_gas: 1352841)] // ceil(1.05 × 1288420 measured)
+    fn test_detection_cost_stored_baseline() {
+        let _state = Registry::contract_state_for_testing();
+        Book::store();
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 1538681)] // ceil(1.05 × 1465410 measured)
+    fn test_detection_cost_identical_blind() {
+        let _state = Registry::contract_state_for_testing();
+        Book::store();
+        Book::write_blind(Book::stored());
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 1456907)] // ceil(1.05 × 1387530 measured)
+    fn test_detection_cost_identical() {
+        let mut state = Registry::contract_state_for_testing();
+        Book::store();
+        assert(!state.update(BOOK, 1, Book::stored()), 'no change');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 1538681)] // ceil(1.05 × 1465410 measured)
+    fn test_detection_cost_changed_blind() {
+        let _state = Registry::contract_state_for_testing();
+        Book::store();
+        Book::write_blind(Book::changed());
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 1600956)] // ceil(1.05 × 1524720 measured)
+    fn test_detection_cost_changed() {
+        let mut state = Registry::contract_state_for_testing();
+        Book::store();
+        assert(state.update(BOOK, 1, Book::changed()), 'changed');
     }
 }

@@ -78,11 +78,12 @@ pub struct Written {
 #[generate_trait]
 impl StreamImpl of Stream {
     fn length(ref self: Span<felt252>) -> u32 {
-        (*self.pop_front().expect(errors::TRUNCATED)).try_into().expect(errors::LENGTH)
+        let length = *SeedAssert::assert_some(self.pop_front(), errors::TRUNCATED);
+        SeedAssert::assert_some(length.try_into(), errors::LENGTH)
     }
 
     fn take(ref self: Span<felt252>, count: u32) -> Span<felt252> {
-        assert(self.len() >= count, errors::TRUNCATED);
+        SeedAssert::assert_available(self, count);
         let taken = self.slice(0, count);
         self = self.slice(count, self.len() - count);
         taken
@@ -92,7 +93,12 @@ impl StreamImpl of Stream {
     fn names(ref self: Span<felt252>) -> Array<ByteArray> {
         let mut names: Array<ByteArray> = array![];
         for _ in 0..Self::length(ref self) {
-            names.append(Serde::<ByteArray>::deserialize(ref self).expect(errors::COLUMN));
+            names
+                .append(
+                    SeedAssert::assert_some(
+                        Serde::<ByteArray>::deserialize(ref self), errors::COLUMN,
+                    ),
+                );
         }
         names
     }
@@ -107,8 +113,8 @@ impl StreamImpl of Stream {
 /// A row of the file, read as the model it describes.
 #[generate_trait]
 impl RowImpl of Row {
-    fn field<T, +TryInto<felt252, T>>(self: Span<felt252>, i: u32) -> T {
-        (*self[i]).try_into().expect(errors::RANGE)
+    fn field<T, +TryInto<felt252, T>, +Drop<T>>(self: Span<felt252>, i: u32) -> T {
+        SeedAssert::assert_some((*self[i]).try_into(), errors::RANGE)
     }
 
     fn location(self: Span<felt252>) -> Location {
@@ -122,7 +128,7 @@ impl RowImpl of Row {
             ],
         };
         let sealed: u8 = self.field(13);
-        assert(sealed <= 1, errors::SEALED);
+        SeedAssert::assert_sealed(sealed);
         LocationTrait::new(
             self.field(1),
             self.field(2),
@@ -150,7 +156,7 @@ impl RowImpl of Row {
         let mut factor: u256 = 1;
         for i in 2..OUTLINE_COLUMNS {
             let value: u16 = self.field(i);
-            assert(value < 0x8000, errors::OUTLINE_ROW);
+            SeedAssert::assert_outline_row(value);
             bits += value.into() * factor;
             factor *= 0x8000;
         }
@@ -176,7 +182,7 @@ impl RowImpl of Row {
 #[generate_trait]
 impl NameImpl of Name {
     fn short(self: @ByteArray) -> felt252 {
-        assert(self.len() <= 15, errors::NAME);
+        SeedAssert::assert_name(self);
         let mut word: felt252 = 0;
         for i in 0..self.len() {
             word = word * 256 + self.at(i).unwrap().into();
@@ -196,8 +202,46 @@ impl SeedAssert of SeedAssertTrait {
             assert(fields[i] == expected[i], errors::COLUMN);
         }
         let (count, rest) = DivRem::div_rem(rows.len(), expected.len().try_into().unwrap());
-        assert(rest == 0, errors::SHORT_ROW);
+        Self::assert_whole(rest);
         count
+    }
+
+    /// A value the file must hold: a parse that failed refuses with `message`.
+    fn assert_some<T, +Drop<T>>(value: Option<T>, message: felt252) -> T {
+        value.expect(message)
+    }
+
+    /// The stream still holds `count` felts.
+    fn assert_available(stream: Span<felt252>, count: u32) {
+        assert(stream.len() >= count, errors::TRUNCATED);
+    }
+
+    /// A table's elements are a whole number of rows.
+    fn assert_whole(rest: u32) {
+        assert(rest == 0, errors::SHORT_ROW);
+    }
+
+    /// Nothing is left after the last table.
+    fn assert_read(stream: Span<felt252>) {
+        assert(stream.len() == 0, errors::UNREAD);
+    }
+
+    fn assert_region_columns(fields: @Array<ByteArray>, expected: @Array<ByteArray>) {
+        assert(fields == expected, errors::COLUMNS);
+    }
+
+    fn assert_sealed(value: u8) {
+        assert(value <= 1, errors::SEALED);
+    }
+
+    /// A row of an outline holds 15 bits, one a column.
+    fn assert_outline_row(value: u16) {
+        assert(value < 0x8000, errors::OUTLINE_ROW);
+    }
+
+    /// A region's name is a short string of at most 15 characters.
+    fn assert_name(name: @ByteArray) {
+        assert(name.len() <= 15, errors::NAME);
     }
 }
 
@@ -217,14 +261,16 @@ pub impl SeedImpl of SeedTrait {
         let region_fields = stream.names();
         // Five elements a row: four numbers, then the name (a `ByteArray` of several felts).
         let (count, rest) = DivRem::div_rem(stream.length(), 5);
-        assert(rest == 0, errors::SHORT_ROW);
+        SeedAssert::assert_whole(rest);
         let mut regions: Array<RegionRow> = array![];
         for _ in 0..count {
             let numbers = stream.take(4);
-            let name = Serde::<ByteArray>::deserialize(ref stream).expect(errors::NAME);
+            let name = SeedAssert::assert_some(
+                Serde::<ByteArray>::deserialize(ref stream), errors::NAME,
+            );
             regions.append(RegionRow { numbers, name });
         }
-        assert(stream.len() == 0, errors::UNREAD);
+        SeedAssert::assert_read(stream);
         Seed {
             gate_fields,
             gates,
@@ -245,7 +291,7 @@ pub impl SeedImpl of SeedTrait {
         let region_columns: Array<ByteArray> = array![
             "id", "town", "book", "first_location", "name",
         ];
-        assert(self.region_fields == @region_columns, errors::COLUMNS);
+        SeedAssert::assert_region_columns(self.region_fields, @region_columns);
         for region in self.regions.span() {
             let row = *region.numbers;
             let value = RegionTrait::new(
@@ -337,7 +383,7 @@ impl SeedFixture of Fixture {
 
 // The test region, written and read back in one `bundle` (AC-4): 13 records, 17 slots.
 #[test]
-#[available_gas(l2_gas: 22533641)] // ceil(1.05 × 21460610 measured)
+#[available_gas(l2_gas: 22537631)] // ceil(1.05 × 21464410 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
@@ -402,7 +448,7 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 13 `set_record` (AC-4): this test less the baseline.
 #[test]
-#[available_gas(l2_gas: 20400303)] // ceil(1.05 × 19428860 measured)
+#[available_gas(l2_gas: 20404293)] // ceil(1.05 × 19432660 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -410,7 +456,7 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-#[available_gas(l2_gas: 29433800)] // ceil(1.05 × 28032190 measured)
+#[available_gas(l2_gas: 29441780)] // ceil(1.05 × 28039790 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);

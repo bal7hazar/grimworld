@@ -24,6 +24,13 @@ fields, not the packed felts.
 | `GATE` | 3, 4 | Zone → floor 1 (anchored at chunk 16, tile 110), floor 1's entrance → zone: links |
 | `GATE` | 5 | Floor 1 → floor 2: a floor gate, no anchor (a dungeon's exit is a quota, ADR-0006) |
 
+**Quotas (D-145: `QUOTAS` id = the location's id).** The seed writes none yet: `QUOTAS`' bit
+layout is ENG-05's. ENG-05 adds, with its layout: `QUOTAS` 3, floor 1's exit (count 1; gate 5 has no
+anchor because a dungeon's exit is a quota, ADR-0006); `QUOTAS` 2, the zone's collector camp
+(count 1, design/18); `QUOTAS` 4, floor 2's boss arena, a set-piece quota, once a `SET_PIECE`
+exists. The town (1) has no map and no quota. The registry already accepts them only after their
+location.
+
 A chunk of the chunk set with no tile mask is whole. No spawn table, set piece, book or quest is
 referenced: those kinds' layouts are later tasks'.
 

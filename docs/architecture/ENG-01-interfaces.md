@@ -415,11 +415,18 @@ a boss item: `2^41 + base`.
 and S-6: a zone or a quest is data.
 
 **Allocation** (fix loop 1, F-8; `content::is_sequential`):
-- **Sequential kinds** (every kind but four): ids 1, 2, 3 … A new id must be `last_id(kind) + 1`;
+- **Sequential kinds** (every kind but five): ids 1, 2, 3 … A new id must be `last_id(kind) + 1`;
   `last_id` is the highest written. Append-only: an id is never reused.
-- **Composite kinds**: `OUTLINE` (`location × 256 + chunk`, 255 for the chunk set), `SHOP`
-  (`hub × 16 + service`), `TASK` and `QUEST` (the ids quiver hands out). Any id whose parent exists
-  (the location, the hub, quiver's task or quest); `last_id` stays 0 for them.
+- **Composite kinds**, `last_id` 0 for all of them:
+  - keyed by another record, any id whose parent exists: `QUOTAS` (the location's own id: one
+    record per location, parent `LOCATION`; D-145, ENG-03 fix loop 1), `OUTLINE` (`location × 256
+    + chunk`, 255 for the chunk set; parent the location), `SHOP` (`hub × 16 + service`; parent the
+    hub, a location). The check establishes the parent's **existence** only: that a `SHOP`'s parent
+    is a town or an outpost, or that an id's fields make sense, is the content pipeline's semantic
+    validation (design/01 rule 4), not the registry's;
+  - `TASK` and `QUEST`: **the administrator's quiver ids, taken as they are** (any non-zero id;
+    D-145). That the quiver task or quest exists is checked by the content pipeline (OPS-01), not
+    by `Registry`, which holds no quiver address.
 - **Existence**, for every kind: a record exists when its part 0 is not 0. Its writer sets `LIVE`
   (bit 250) in part 0, so that a record whose fields are all 0 still exists, and a rewrite is O.
 
@@ -429,7 +436,7 @@ and S-6: a zone or a quest is data.
 | `LOCATION` | 2 | 2 | type (town, outpost, zone, dungeon, elite, Rift, trial), region, biome, level band, rank required, size in chunks, dungeon `N` and floors, next floor, spawn table, set pieces, entry chunk and tile, sealed |
 | `OUTLINE` | 3 | 1 | id `location × 256 + 255`: the zone's chunk set (bitmap); id `location × 256 + chunk`: a border chunk's tile mask (ADR-0006, *Outlines*) |
 | `GATE` | 4 | 1 | source, destination, source anchor (chunk, tile), destination entry, kind (hub, link, floor, Rift), rank required, quest required |
-| `QUOTAS` | 5 | 1 | up to 6 quotas of a location: kind (exit, Heart, vein, collector, landmark, set piece), param, count |
+| `QUOTAS` | 5 | 1 | id = its location's id (composite, D-145): up to 6 quotas of that location: kind (exit, Heart, vein, collector, landmark, set piece), param, count |
 | `SPAWN_TABLE` | 6 | 1 | up to 7 (pack template, weight), density |
 | `PACK` | 7 | 1 | up to 5 (caste, count min, max), level offset |
 | `CASTE` | 8 | 2 | tier, AI profile, health multiplier, armor, weapon, 4 skills, loot table, boss |
@@ -463,9 +470,11 @@ with the version its batch was computed under (§4.1).
 **The writer's checks** (ENG-03, `systems/registry.cairo`). `set_record` refuses, in this order: a
 caller other than `admin` (`'not admin'`); an unknown kind; a record of other than `parts(kind)`
 felts; id 0; a part 0 without `LIVE` or with a bit above it; for a sequential kind, an id that is
-neither existing (≤ `last_id`) nor `last_id + 1`; for `OUTLINE`, a chunk that is neither below 225
-nor 255, or a location that does not exist; for `SHOP`, a hub (`id / 16`, a location) that does not
-exist. `TASK` and `QUEST` take any non-zero id: quiver's records are not in this contract. **A change
+neither existing (≤ `last_id`) nor `last_id + 1`; for `QUOTAS`, a location (`id`) that does not
+exist; for `OUTLINE`, a chunk that is neither below 225 nor 255, or a location that does not exist;
+for `SHOP`, a hub (`id / 16`, a location) that does not exist (existence only, not its type).
+`TASK` and `QUEST` take any non-zero id (D-145). `set_admin` refuses a caller other than `admin`,
+then the zero address (`'admin is zero'`). **A change
 is told part by part**: each part is compared with the stored felt, only the parts that differ are
 written, and the version is raised once if any did; a rewrite of the same values writes nothing. A
 new sequential id reads nothing (its keys were never written) and always raises. **A record never
@@ -483,7 +492,10 @@ two links are computed once a record, each part adds one (tested against the map
 layouts hold (`Header.location`, the bar, a pack's template); a quest is quiver's `u32`; levels,
 ranks and counts are `u8`; a location is at most 15 × 15 chunks (§3.2), so a chunk index `15 cy +
 cx` and a tile index `15 row + column` are below 225 and a width or height is 1–15 (4 bits checked
-in an 8-bit field). Every packer refuses a wider value; no field straddles bit 128; `LIVE` in part 0.
+in an 8-bit field), **or 0 for a location without a map** (a town or an outpost: real time, no
+tick; the test region's town is 0 × 0, entry 0, 0). The packer refuses only a width or height above
+15; a 0 on a zone or a dungeon is the content pipeline's to refuse. Every packer refuses a wider
+value; no field straddles bit 128; `LIVE` in part 0.
 
 | Kind | Part | Bits |
 |---|---|---|
@@ -504,19 +516,42 @@ in an 8-bit field). Every packer refuses a wider value; no field straddles bit 1
 
 Several records changed in one transaction overwrite the version's slot once in the state diff.
 
+**The writer's change detection, measured apart from the version** (ENG-03 fix loop 1, F-3; M,
+snforge L2 gas, whole tests of `detection_cost_tests`). A stored 3-part record is rewritten through
+`update` (each part read and compared, only what differs written) or blind (every part written,
+nothing read), with identical and with changed values; no case raises the version, whose increment
+is the 67,200 above:
+
+| Rewrite of a stored 3-part record | Blind (no detection) | With detection | Detection's own cost |
+|---|---:|---:|---:|
+| Identical values | 1,465,410 | 1,387,530 | **−77,880** (3 reads and compares instead of 3 writes) |
+| Changed values (all 3 parts) | 1,465,410 | 1,524,720 | **+59,310** (3 reads and compares, before the same 3 writes) |
+
+The baseline (the record stored, nothing rewritten) is 1,288,420: detection alone costs 99,110 on
+an identical rewrite; a blind write of 3 parts costs 176,990 whether the values change or not
+(snforge prices every write; on the local node a write of the same value changes no state and
+costs about 40,000 of computation, §2.2). A changed part costs detection one read and one compare,
+about 20,000 a part; the version is raised only when something changed.
+
 **`set_record` and `bundle` against §10** (M: snforge; D: with §10's prices, F = 816,939, 5,120 a
 calldata felt, N = 453,524, O = 32,072):
 
 | Call | Execution (M, `--gas-report`) | Whole call in snforge (M, test less its baseline) | As a transaction (D) | §10 |
 |---|---:|---:|---:|---:|
-| `set_record`, a new 3-part record (5 new slots) | 373,620 | 2,486,280 | 3,488,899 | 3,165,279 |
-| `set_record`, the 3 parts changed (4 overwritten: the parts and the version; `last_id` is not written) | 382,010 | 482,850 | 1,357,957 | 1,058,019 |
-| `set_record`, the same values (3 reads, nothing written) | 179,090 | 279,930 | 1,026,749 | — |
+| `set_record`, a new 3-part record (5 new slots) | 373,820 | 2,486,480 | 3,489,099 | 3,165,279 |
+| `set_record`, the 3 parts changed (4 overwritten: the parts and the version; `last_id` is not written) | 382,210 | 483,050 | 1,358,157 | 1,058,019 |
+| `set_record`, the same values (3 reads, nothing written) | 179,290 | 280,130 | 1,026,949 | — |
 | `bundle`, 1 three-part record | 140,800 | — | — | — |
 | `bundle`, 10 | 1,109,380 | — | — | — |
 | `bundle`, 32 (the bound: 96 slots and the version, 97 reads) | 3,477,020 | — | — | — |
 
-§10 priced `set_record`'s computation at 0: the measured execution (0.37–0.38 M) is the difference.
+§10 priced `set_record`'s computation at **50,000** (`budget_table.py`), included in both its
+totals (ENG-03 fix loop 1, F-2, corrects "at 0"). The differences: a new record **+323,820** =
+373,820 − 50,000 (the execution above §10's); a changed record **+300,138** = 382,210 − 50,000 −
+32,072 (the execution above §10's, less the `last_id` overwrite §10 counted and a change does not
+make). At `40cf091` they were +323,620 and +299,938; `QUOTAS`' composite check (D-145) adds 200 to
+every `set_record` since. The execution figures and the transaction totals above are the current
+ones.
 A `bundle` read costs about **36,000 a slot** in execution (107,620 a three-part record between 1
 and 32 records), which §9.3–§10 do not count beyond the call's C: ENG-06 and ENG-07 add it to the
 invocations that read content.
