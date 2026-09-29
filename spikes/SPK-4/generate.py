@@ -124,15 +124,36 @@ def malformed_case(r):
     return [r.choice([2, 3, P - 1])] + [0] * 6
 
 
+def decoding_case(r):
+    """One argument just outside its type, the others chosen so that the logic itself would not
+    panic on the value the argument would wrap to or be read as: only the decoding can panic.
+    Added after the first mutation run (ts/mutants.ts): a mirror that skipped the check survived
+    every vector but three, where only the panic data told it apart."""
+    k = r.randrange(7)
+    big = r.choice([65536, 65537, 70000, 131071, 2**32, P - 1])
+    if k == 0:  # base; x <= -40, so that base × factor fits a u32 for base < 2^17
+        return [0, big if big < 2**17 else 70000, 0, 40 + r.randrange(0, 100), 0, 0, 0]
+    if k in (1, 2, 3, 4):  # strength, armor, bonus or penetration
+        c = [0, r.randrange(0, 1000), r.randrange(0, 200), r.randrange(0, 200), 0, 0, 0]
+        c[k + 1] = big
+        return c
+    if k == 5:  # modifier outside i16
+        return [0, r.randrange(0, 1000), 60, 60, 0, 0, felt(r.choice([32768, 40000, -32769, -40000]))]
+    return [1, (1 << 240) - 1, 0, r.choice([256, 300, 2**16, P - 1]) if r.random() < 0.5 else 100,
+            r.choice([256, 300, 2**16, P - 1])]
+
+
 def cases(count, seed):
     r = random.Random(seed)
     out = []
     for _ in range(count):
         k = r.random()
-        if k < 0.495:
+        if k < 0.49:
             out.append(damage_case(r))
-        elif k < 0.99:
+        elif k < 0.975:
             out.append(goblin_case(r))
+        elif k < 0.99:
+            out.append(decoding_case(r))
         else:
             out.append(malformed_case(r))
     return out
