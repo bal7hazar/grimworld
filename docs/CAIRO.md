@@ -109,6 +109,8 @@ The layering is the one of the owner's Arcade packages (`cartridge-gg/arcade`,
 | `component.cairo` or `systems/` | Entrypoints and access control, nothing else |
 | `elements/` (the game) | One file per content behaviour |
 
+No other layer: no `logic/` folder (owner, 2026-09-29, D-147).
+
 ### Functions are scoped
 
 | Do | Not |
@@ -128,6 +130,7 @@ constant table). An auditor reads a free function as a finding to justify.
 | Into its storage | `StorePacking<Model, Packed>` (or `starknet::Store` derived when packing saves nothing), so that the store reads and writes the struct, never raw felts |
 | Into its event | For a model the indexer tracks, a conversion `Into<@Model, ModelEvent>`, the event carrying the keys and the new values |
 | Tracked or not | A property of the model, known at compile time (a trait the model implements, or a constant), never a runtime lookup |
+| Optional | Tracking is optional: a model the indexer does not need emits nothing, and a package lets its consumer leave a model untracked (owner, 2026-09-29, D-147) |
 
 ### The store emits on write
 
