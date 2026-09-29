@@ -80,6 +80,7 @@ const SCHEMA = `
     lot_size INTEGER NOT NULL, price TEXT NOT NULL, expiry TEXT NOT NULL,
     equipment INTEGER NOT NULL, modifiers TEXT NOT NULL,
     open INTEGER NOT NULL, sold INTEGER NOT NULL, posted INTEGER NOT NULL, closed_time INTEGER,
+    price_hi INTEGER NOT NULL, price_lo INTEGER NOT NULL,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS lots_current ON lots (lot) WHERE _to IS NULL;
@@ -88,7 +89,10 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS lots_kind ON lots (kind, market_key, lot_size, price, lot) WHERE open = 1;
   CREATE INDEX IF NOT EXISTS lots_key_from ON lots (market_key, lot_size, _from);
   CREATE INDEX IF NOT EXISTS lots_key_to ON lots (market_key, lot_size, _to) WHERE _to IS NOT NULL;
-  CREATE INDEX IF NOT EXISTS lots_sales ON lots (market_key, lot_size, closed_time) WHERE sold = 1;
+  -- Q3 (queries.ts): the sales of a key and lot size in a window of block time, summed in SQL from
+  -- the index alone (it covers every column the aggregate reads).
+  CREATE INDEX IF NOT EXISTS lots_sales
+    ON lots (market_key, lot_size, closed_time, price_hi, price_lo, _from, _to) WHERE sold = 1;
   CREATE TABLE IF NOT EXISTS trades (
     trade TEXT NOT NULL, invited INTEGER NOT NULL, inviter INTEGER NOT NULL,
     open INTEGER NOT NULL, outcome INTEGER, opened INTEGER NOT NULL, opened_time INTEGER NOT NULL,
@@ -159,6 +163,8 @@ const LOT_COLUMNS = [
   "equipment",
   "modifiers",
   "posted",
+  "price_hi",
+  "price_lo",
 ];
 const pick = (row: Row, columns: string[]): Row =>
   Object.fromEntries(columns.map((column) => [column, row[column] ?? null]));
@@ -190,12 +196,17 @@ export class Store {
     this.db.close();
   }
 
-  /** A read statement of the queries (queries.ts), prepared once. */
-  statement(sql: string): StatementSync {
-    let statement = this.prepared.get(sql);
+  /**
+   * A read statement of the queries (queries.ts), prepared once. `bigints`: its integers are read
+   * as bigints (Q3's sums, which may pass 2^53).
+   */
+  statement(sql: string, bigints = false): StatementSync {
+    const key = `${bigints ? "b" : "n"}${sql}`;
+    let statement = this.prepared.get(key);
     if (!statement) {
       statement = this.db.prepare(sql);
-      this.prepared.set(sql, statement);
+      statement.setReadBigInts(bigints);
+      this.prepared.set(key, statement);
     }
     return statement;
   }
@@ -349,6 +360,8 @@ export class Store {
                 key.kind === "equipment" ? Number(key.identified) : null,
               lot_size: event.lotSize,
               price: u64Text(event.price),
+              price_hi: Number(event.price >> 32n),
+              price_lo: Number(event.price & 0xffffffffn),
               expiry: u64Text(event.expiry),
               equipment: event.equipment,
               modifiers: canonical(event.modifiers),
@@ -579,9 +592,11 @@ function statements(db: DatabaseSync) {
     currentLot: db.prepare("SELECT * FROM lots WHERE lot = ? AND _to IS NULL"),
     insertLot: db.prepare(
       `INSERT INTO lots (lot, market_key, kind, item, base, requirement, rarity, identified,
-         lot_size, price, expiry, equipment, modifiers, open, sold, posted, closed_time, _from)
+         lot_size, price, expiry, equipment, modifiers, open, sold, posted, closed_time,
+         price_hi, price_lo, _from)
        VALUES (:lot, :market_key, :kind, :item, :base, :requirement, :rarity, :identified,
-         :lot_size, :price, :expiry, :equipment, :modifiers, :open, :sold, :posted, :closed_time, :_from)`,
+         :lot_size, :price, :expiry, :equipment, :modifiers, :open, :sold, :posted, :closed_time,
+         :price_hi, :price_lo, :_from)`,
     ),
     closeLot: db.prepare(
       "UPDATE lots SET _to = ? WHERE lot = ? AND _to IS NULL",

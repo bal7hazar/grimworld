@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   INVITATION_SECONDS,
+  MAX_SIZES,
   MIN_SALES,
   PRICE_WINDOW_SECONDS,
 } from "./queries.ts";
-import { answer, respond } from "./server.ts";
+import { AnswerCache, answer, respond } from "./server.ts";
 import { FakeNode, ev } from "./testing/fake-node.ts";
 import { indexerOf, settle } from "./testing/setup.ts";
 
@@ -368,7 +369,11 @@ describe("R1, R2 and the parameters", () => {
     for (const target of bad) {
       const { code, body } = answer(subject, target);
       expect([target, code]).toEqual([target, 400]);
-      expect(body).toMatchObject({ status: "ok", head: { number: 1 } });
+      expect(body).toMatchObject({
+        status: "error",
+        state: "ok",
+        head: { number: 1 },
+      });
     }
     expect(respond(subject, "GET", "/lotss?key=0x7")).toMatchObject({
       code: 404,
@@ -401,5 +406,86 @@ describe("R6: answers kept for the served block, by hash and commitments", () =>
     expect(after.head.number).toBe(2);
     expect(after.head.hash).toBe((first.head as { hash: string }).hash);
     expect(after.lots.map((lot) => lot.lot)).toEqual(["1"]);
+  });
+});
+
+describe("fix loop 1: R6's rewind clear, Q2's bound, the cache's bytes", () => {
+  it("R6: a block served again with the same hash AND commitments after a rewind is read again (the rewind's clear is the only defence)", async () => {
+    // Blocks 5 and 6 are empty; block 4 is replaced (lot 4 at 44 instead of 40) under replacement
+    // blocks 5' and 6' that keep the hashes and the commitments of 5 and 6, as devnet's empty blocks
+    // do. The served block is 6 before and after: only the rewind, found by the ancestors' check,
+    // tells the cache its answers are void.
+    const node = new FakeNode();
+    for (let lot = 1; lot <= 4; lot++)
+      node.mine([ev.posted(lot, { price: BigInt(10 * lot) })]);
+    node.mine();
+    node.mine();
+    const subject = indexerOf(node, 1000, { depth: 10, everyMs: 0 });
+    await settle(subject);
+    const before = ok(subject, "/lots?key=0x7&size=1&limit=100");
+    expect(before.head.number).toBe(6);
+    const prices = (body: Record<string, unknown>) =>
+      (body.lots as { lot: string; price: string }[]).map(
+        (lot) => `${lot.lot}@${lot.price}`,
+      );
+    expect(prices(before)).toContain("4@40");
+    const old = node.blocks.slice(4, 7).map((block) => block.commitment);
+    node.reorg(3, [[[ev.posted(4, { price: 44n })]], [], []], true);
+    node.blocks[5]!.commitment = old[1]!;
+    node.blocks[6]!.commitment = old[2]!;
+    await settle(subject);
+    expect(subject.rewindCount).toBe(1);
+    const after = ok(subject, "/lots?key=0x7&size=1&limit=100");
+    // The same block 6 (hash and commitments) is served...
+    expect(after.head).toMatchObject({
+      number: 6,
+      hash: (before.head as unknown as { hash: string }).hash,
+      commitments: (before.head as unknown as { commitments: string })
+        .commitments,
+    });
+    // ...and the answer is the replacement's, not the one kept before the rewind.
+    expect(prices(after)).toContain("4@44");
+    expect(prices(after)).not.toContain("4@40");
+  });
+
+  it("Q2 reads at most MAX_SIZES lot sizes per key, and says so", async () => {
+    const node = new FakeNode();
+    node.mine(
+      Array.from({ length: MAX_SIZES + 1 }, (_, i) =>
+        ev.posted(i + 1, { size: i + 1, price: BigInt(100 - i) }),
+      ),
+    );
+    const subject = indexerOf(node);
+    await settle(subject);
+    const [key] = ok(subject, "/market?kind=balance").keys as {
+      sizes: { size: number }[];
+      truncated?: boolean;
+    }[];
+    expect(key!.sizes.map((size) => size.size)).toEqual(
+      Array.from({ length: MAX_SIZES }, (_, i) => i + 1),
+    );
+    expect(key!.truncated).toBe(true);
+  });
+
+  it("the answer cache is bounded in bytes: the oldest go first, and an answer too large is not kept", async () => {
+    const node = new FakeNode();
+    node.mine(Array.from({ length: 30 }, (_, i) => ev.posted(i + 1)));
+    const subject = indexerOf(node);
+    await settle(subject);
+    const served = subject.served!;
+    const cache = new AnswerCache(subject, 1000, 600);
+    const read = (limit: number) => () => ({
+      rows: "x".repeat(limit),
+    });
+    for (let i = 0; i < 10; i++) cache.read(served, `/a${i}`, read(250));
+    expect(cache.bytes).toBeLessThanOrEqual(1000);
+    cache.read(served, "/a9", read(250));
+    expect(cache.hits).toBe(1); // the newest is kept
+    cache.read(served, "/a0", read(250));
+    expect(cache.misses).toBe(11); // the oldest was forgotten
+    cache.read(served, "/big", read(700));
+    cache.read(served, "/big", read(700));
+    expect(cache.misses).toBe(13); // over MAX_ENTRY: read each time, never kept
+    expect(cache.bytes).toBeLessThanOrEqual(1000);
   });
 });

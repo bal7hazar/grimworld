@@ -141,12 +141,23 @@ export class IndexerClient {
     } catch (error) {
       return { fresh: false, reason: `indexer: ${(error as Error).message}` };
     }
+    // Step 1 accepts a 200 only. A 400 or 404 is the caller's bug; any other code is "loading".
     if (answer.code === 400 || answer.code === 404)
       throw new Error(`${path}: ${String(answer.body.error)}`);
+    if (answer.code !== 200) {
+      const state =
+        answer.code === 503
+          ? String(answer.body.status)
+          : `error ${answer.code}`;
+      return { fresh: false, reason: `indexer ${state}` };
+    }
     return this.check(answer.body as unknown as T);
   }
 
-  /** Applies R3 to an answer already read (step 1 done): its state, then the tip, then its block. */
+  /**
+   * Applies R3 to the body of a 200 answer already read (step 1 done): its state, then the tip,
+   * then its block. Never pass it the body of another code: `raw()` gives the code.
+   */
   async check<T extends { status: string; head?: Head | null }>(
     answer: T,
   ): Promise<Checked<T>> {

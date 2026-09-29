@@ -7,7 +7,11 @@
 // commitments): the cache empties when another block is served and at every rewind.
 // Every parameter is checked before anything is read: an unknown route is 404, a missing, unknown,
 // repeated or malformed parameter 400, each with the head. Nothing a client sends stops the process:
-// a target that is not a path is 400, an exception while answering is 500.
+// a target that is not a path is 400, an exception while answering is 500. Only a 200 holds rows:
+// every other answer's `status` is `error` (4xx, 500; the serving state is in `state`) or the
+// state that is not `ok` (503), never `ok`.
+// CORS: a request whose `Origin` is one of `allowedOrigins` (none by default: the same origin only)
+// is answered with `access-control-allow-origin` set to it, JSON and event streams alike.
 import {
   createServer,
   type IncomingMessage,
@@ -43,11 +47,16 @@ export const MAX_LIST = 100;
 
 class BadRequest extends Error {}
 
-/** An error answer: the error, the state and the served head. */
+/** An error answer: `status: "error"`, the error, the serving state and the served head. */
 function refusal(indexer: Indexer, code: number, error: string): Answer {
   return {
     code,
-    body: { error, status: indexer.status, head: headOf(indexer.served) },
+    body: {
+      status: "error",
+      error,
+      state: indexer.status,
+      head: headOf(indexer.served),
+    },
   };
 }
 
@@ -141,7 +150,10 @@ const KINDS: readonly MarketKey["kind"][] = ["balance", "equipment", "boss"];
 
 // --- routes --------------------------------------------------------------------------------------
 
-type Read = (queries: Queries, served: Header) => Record<string, unknown>;
+export type Read = (
+  queries: Queries,
+  served: Header,
+) => Record<string, unknown>;
 
 /** The route of a query: its parameters checked, and the read to make as of the served block. */
 function route(url: URL): Read | null {
@@ -273,16 +285,33 @@ export function topicOf(url: URL): Topic | null {
 
 // --- R6: answers kept for the served block ---------------------------------------------------------
 
-/** The rows of the answers read at one served block, by target; emptied at every rewind. */
-class AnswerCache {
-  static readonly MAX = 1000;
+/**
+ * The rows of the answers read at one served block, by target; emptied at every rewind. Bounded in
+ * bytes (the JSON of the rows): MAX_BYTES in all, the oldest forgotten first; an answer larger than
+ * MAX_ENTRY is not kept.
+ */
+export class AnswerCache {
+  static readonly MAX_BYTES = 32 * 2 ** 20;
+  static readonly MAX_ENTRY = 2 ** 20;
+  private readonly maxBytes: number;
+  private readonly maxEntry: number;
   private block: Header | null = null;
-  private readonly answers = new Map<string, Record<string, unknown>>();
+  private readonly answers = new Map<
+    string,
+    { rows: Record<string, unknown>; bytes: number }
+  >();
+  bytes = 0;
   readonly queries: Queries;
   hits = 0;
   misses = 0;
 
-  constructor(indexer: Indexer) {
+  constructor(
+    indexer: Indexer,
+    maxBytes = AnswerCache.MAX_BYTES,
+    maxEntry = AnswerCache.MAX_ENTRY,
+  ) {
+    this.maxBytes = maxBytes;
+    this.maxEntry = maxEntry;
     this.queries = new Queries(indexer.store);
     indexer.listen({ rewound: () => this.clear() });
   }
@@ -290,8 +319,10 @@ class AnswerCache {
   clear() {
     this.block = null;
     this.answers.clear();
+    this.bytes = 0;
   }
 
+  /** The rows of `target` at `served`: kept ones, or read by `read` (and kept if they fit). */
   read(served: Header, target: string, read: Read): Record<string, unknown> {
     if (!this.block || !sameBlock(this.block, served)) {
       this.clear();
@@ -300,19 +331,25 @@ class AnswerCache {
     const kept = this.answers.get(target);
     if (kept) {
       this.hits++;
-      return kept;
+      return kept.rows;
     }
     this.misses++;
     const rows = read(this.queries, served);
-    if (this.answers.size >= AnswerCache.MAX)
-      this.answers.delete(this.answers.keys().next().value!);
-    this.answers.set(target, rows);
+    const bytes = JSON.stringify(rows).length;
+    if (bytes > this.maxEntry) return rows;
+    for (const [oldest, entry] of this.answers) {
+      if (this.bytes + bytes <= this.maxBytes) break;
+      this.answers.delete(oldest);
+      this.bytes -= entry.bytes;
+    }
+    this.answers.set(target, { rows, bytes });
+    this.bytes += bytes;
     return rows;
   }
 }
 
 const caches = new WeakMap<Indexer, AnswerCache>();
-function cacheOf(indexer: Indexer): AnswerCache {
+export function cacheOf(indexer: Indexer): AnswerCache {
   let cache = caches.get(indexer);
   if (!cache) {
     cache = new AnswerCache(indexer);
@@ -377,7 +414,8 @@ export function answer(
     rpcCalls: { ...indexer.chain.calls },
     subscriptions: subscriptions?.size ?? 0,
     subscribersDropped: subscriptions?.dropped ?? 0,
-    answerCache: { hits: cache.hits, misses: cache.misses },
+    subscribersDroppedBy: subscriptions?.drops ?? {},
+    answerCache: { hits: cache.hits, misses: cache.misses, bytes: cache.bytes },
     rssMB: Math.round(process.memoryUsage().rss / 2 ** 20),
     maxRssMB: Math.round(process.resourceUsage().maxRSS / 1024),
     uptimeMs: Date.now() - started,
@@ -437,12 +475,26 @@ export function respond(
   }
 }
 
-function send(response: ServerResponse, result: Answer) {
+type Headers = Record<string, string>;
+
+function send(response: ServerResponse, result: Answer, headers: Headers) {
   response.writeHead(result.code, {
+    ...headers,
     "content-type": "application/json",
     "cache-control": "no-store",
   });
   response.end(JSON.stringify(result.body));
+}
+
+/** The CORS headers of an answer to `request`: its origin only if allowed. */
+function corsOf(
+  request: IncomingMessage,
+  allowed: ReadonlySet<string>,
+): Headers {
+  const origin = request.headers.origin;
+  return origin !== undefined && allowed.has(origin)
+    ? { "access-control-allow-origin": origin, vary: "Origin" }
+    : { vary: "Origin" };
 }
 
 /**
@@ -454,6 +506,7 @@ function stream(
   subscriptions: Subscriptions,
   request: IncomingMessage,
   response: ServerResponse,
+  headers: Headers,
 ): boolean {
   if (request.method !== "GET" || !parsable(request.url)) return false;
   const url = new URL(request.url, "http://indexer");
@@ -462,25 +515,27 @@ function stream(
     topic = topicOf(url);
   } catch (error) {
     if (!(error instanceof BadRequest)) throw error;
-    send(response, refusal(indexer, 400, error.message));
+    send(response, refusal(indexer, 400, error.message), headers);
     return true;
   }
   if (!topic) return false;
   const client = request.socket.remoteAddress ?? "";
   const refused = subscriptions.refusal(client);
   if (refused) {
-    send(response, refusal(indexer, 429, refused));
+    send(response, refusal(indexer, 429, refused), headers);
     return true;
   }
   response.writeHead(200, {
+    ...headers,
     "content-type": "text/event-stream",
     "cache-control": "no-store",
     connection: "keep-alive",
   });
   response.flushHeaders();
   const sink: Sink = {
-    write: (chunk) => void response.write(chunk),
+    write: (chunk) => response.write(chunk),
     buffered: () => response.writableLength,
+    onDrain: (listener) => void response.once("drain", listener),
     destroy: () => response.destroy(),
   };
   const close = subscriptions.open(topic, sink, client);
@@ -491,6 +546,8 @@ function stream(
 export type ServeOptions = {
   limits?: Partial<Limits>;
   log?: (message: string) => void;
+  /** Origins answered with `access-control-allow-origin` (default none: the same origin only). */
+  allowedOrigins?: readonly string[];
 };
 
 /** The HTTP server; `server.subscriptions` holds its streams, ended when the server closes. */
@@ -499,13 +556,15 @@ export function serve(
   options: ServeOptions = {},
 ): Server & { subscriptions: Subscriptions } {
   const subscriptions = new Subscriptions(indexer, options.limits, options.log);
+  const allowed = new Set(options.allowedOrigins ?? []);
   const server = createServer(
     (request: IncomingMessage, response: ServerResponse) => {
+      const headers = corsOf(request, allowed);
       try {
-        if (stream(indexer, subscriptions, request, response)) return;
+        if (stream(indexer, subscriptions, request, response, headers)) return;
       } catch {
         if (!response.headersSent)
-          send(response, refusal(indexer, 500, "internal error"));
+          send(response, refusal(indexer, 500, "internal error"), headers);
         else response.destroy();
         return;
       }
@@ -513,9 +572,12 @@ export function serve(
       try {
         result = respond(indexer, request.method, request.url, subscriptions);
       } catch {
-        result = { code: 500, body: { error: "internal error", head: null } };
+        result = {
+          code: 500,
+          body: { status: "error", error: "internal error", head: null },
+        };
       }
-      send(response, result);
+      send(response, result, headers);
     },
   );
   server.on("close", () => subscriptions.close());

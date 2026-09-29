@@ -11,7 +11,7 @@ import {
   type Head,
   type NodeReader,
 } from "./client/index.ts";
-import { serve } from "./server.ts";
+import { cacheOf, serve } from "./server.ts";
 import { FakeNode, ev } from "./testing/fake-node.ts";
 import { indexerOf, nodeFetch, settle } from "./testing/setup.ts";
 
@@ -335,6 +335,128 @@ describe("AC-4: the library runs in a browser and holds no key", () => {
       );
       expect(text).not.toMatch(/private_?key|signer|starknet_add/i);
       expect(text).not.toMatch(/\bAccount\b/); // starknet.js's sending account
+    }
+  });
+});
+
+describe("fix loop 1: the client library", () => {
+  async function running(node: FakeNode) {
+    const subject = indexerOf(node);
+    await settle(subject);
+    const server = serve(subject);
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const { port } = server.address() as { port: number };
+    const client = new IndexerClient({
+      url: `http://127.0.0.1:${port}`,
+      node: "http://node",
+      fetch: ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+        String(input).startsWith("http://node")
+          ? nodeFetch(node)(input, init)
+          : fetch(input, init)) as typeof fetch,
+    });
+    const stop = () => {
+      server.close();
+      server.closeAllConnections();
+    };
+    return { subject, server, client, stop };
+  }
+
+  it("R3 step 1 accepts a 200 only: any other code is 'loading', whatever its body says, and the node is not read", async () => {
+    for (const code of [500, 429, 502]) {
+      const log: string[] = [];
+      const client = new IndexerClient({
+        url: "http://indexer",
+        node: reader(log, 10),
+        fetch: indexerFetch(log, code, okBody), // a body that looks `ok`
+      });
+      expect(await client.lots("0x7", 1)).toEqual({
+        fresh: false,
+        reason: `indexer error ${code}`,
+      });
+      expect(log).toEqual(["indexer"]);
+    }
+  });
+
+  it("an exception inside answer() while the indexer is ok: a 500 whose status is `error`, refused by the client", async () => {
+    const node = new FakeNode();
+    node.mine([ev.posted(1)]);
+    const { subject, client, stop } = await running(node);
+    try {
+      cacheOf(subject).queries.lots = () => {
+        throw new Error("disk says no");
+      };
+      const raw = await client.raw("/lots", { key: "0x7", size: 1 });
+      expect(raw.code).toBe(500);
+      expect(raw.body).toMatchObject({
+        status: "error",
+        state: "ok",
+        error: "internal error",
+      });
+      expect(await client.lots(7n, 1)).toEqual({
+        fresh: false,
+        reason: "indexer error 500",
+      });
+    } finally {
+      stop();
+    }
+  });
+
+  it("one connection at a time: connect() again ends the first, whose late end does not touch the second", async () => {
+    const node = new FakeNode();
+    node.mine([ev.posted(1)]);
+    const { server, client, stop } = await running(node);
+    try {
+      const cache = new LotCache(client, 7n, 1);
+      const ends: (Error | null)[] = [];
+      cache.connect(undefined, (error) => ends.push(error));
+      while (!cache.ready) await new Promise((r) => setTimeout(r, 5));
+      const close = cache.connect();
+      while (!cache.ready) await new Promise((r) => setTimeout(r, 5));
+      // The first stream has ended (aborted by the second connect), and the server holds one.
+      while (ends.length === 0) await new Promise((r) => setTimeout(r, 5));
+      while (server.subscriptions.size !== 1)
+        await new Promise((r) => setTimeout(r, 5));
+      await new Promise((r) => setTimeout(r, 30));
+      expect(ends).toEqual([null]);
+      expect(cache.ready).toBe(true);
+      expect(cache.status).toBe("ok");
+      await close();
+      expect(cache.ready).toBe(false);
+      expect(cache.status).toBe("disconnected");
+    } finally {
+      stop();
+    }
+  });
+
+  it("read(): a copy voided while the node is being read (a rewind, a new snapshot, the end) is not fresh", async () => {
+    for (const voiding of [
+      { event: "rewind", data: { to: 8 } },
+      { event: "reset-begin", data: { head: HEAD, total: 1 } },
+      { event: "status", data: { status: "halted" } },
+    ] as Frame[]) {
+      let during: () => void = () => {};
+      const client = new IndexerClient({
+        url: "http://indexer",
+        node: {
+          tip: async () => 10,
+          block: async () => {
+            during();
+            return HEAD;
+          },
+        },
+      });
+      const cache = new PresenceCache(client, 3);
+      cache.receive({ event: "reset-begin", data: { head: HEAD, total: 1 } });
+      cache.receive({
+        event: "reset-page",
+        data: { rows: [{ adventurer: 1 }] },
+      });
+      cache.receive({ event: "reset-end", data: { head: HEAD, total: 1 } });
+      expect((await cache.read()).fresh).toBe(true);
+      during = () => cache.receive(voiding);
+      expect((await cache.read()).fresh).toBe(false);
     }
   });
 });

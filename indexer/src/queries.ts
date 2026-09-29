@@ -10,6 +10,8 @@ import type { Header } from "./chain.ts";
 import { canonical, decodeMarketKey, type MarketKey } from "./events.ts";
 import { u64Decimal, u64Text, type Store } from "./store.ts";
 
+/** Q2: the lot sizes read per key, at most (design/16's are 1, 10 and 100). */
+export const MAX_SIZES = 8;
 /** Q3's window: the sales of the last 7 days of block time, `(T - 7 days, T]`. */
 export const PRICE_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 /** Q3: under this many sales in the window, the mean price is absent (scope 6). */
@@ -121,7 +123,8 @@ export class Queries {
     );
   }
 
-  private lotPage(
+  /** A page of Q1's lots after `after`, without the count (the snapshots' pages). */
+  lotPage(
     at: number,
     key: bigint,
     size: number,
@@ -145,30 +148,14 @@ export class Queries {
     return rows.map(lotOut);
   }
 
-  /** Every open lot of `(key, size)` at `at`, in Q1's order, `page` at a time (the snapshots). */
-  *lotPages(
-    at: number,
-    key: bigint,
-    size: number,
-    page: number,
-  ): Generator<Lot[]> {
-    let after: LotCursor | undefined;
-    for (;;) {
-      const lots = this.lotPage(at, key, size, page, after);
-      if (lots.length === 0) return;
-      yield lots;
-      const last = lots[lots.length - 1]!;
-      after = { price: BigInt(last.price), lot: BigInt(last.lot) };
-      if (lots.length < page) return;
-    }
-  }
-
   /**
    * Q2: the market keys of a kind (`balance`, `equipment`, `boss`; ENG-01 §3.4) with an open lot at
    * `at`, by key; for each, per lot size, the cheapest open lot (ties by lot id). `items`: only
    * these balance item ids (the client's category, from the registry). `limit` keys after the key
    * `after`. Every step is an index seek (the next key, the next lot size, the cheapest lot), never
-   * a scan of a key's lots: its cost follows the page, not the number of lots.
+   * a scan of a key's lots, and at most MAX_SIZES lot sizes are read per key (`truncated` when a key
+   * has more; design/16's sizes are 1, 10 and 100): a request makes at most
+   * `(limit + 1) × (2 × MAX_SIZES + 2)` seeks, whatever the number of lots.
    */
   market(
     at: number,
@@ -181,6 +168,7 @@ export class Queries {
       key: string;
       decoded: MarketKey;
       sizes: { size: number; cheapest: Lot }[];
+      truncated?: true;
     }[];
     next: string | null;
   } {
@@ -193,6 +181,7 @@ export class Queries {
       key: string;
       decoded: MarketKey;
       sizes: { size: number; cheapest: Lot }[];
+      truncated?: true;
     }[] = [];
     // One key more than the page: whether there is a next page.
     while (found.length <= limit) {
@@ -213,9 +202,14 @@ export class Queries {
         key = BigInt(row.market_key as number);
       }
       cursor = key;
-      const sizes = this.cheapestPerSize(at, key);
+      const { sizes, truncated } = this.cheapestPerSize(at, key);
       if (sizes.length === 0) continue;
-      found.push({ key: canonical(key), decoded: decodeMarketKey(key), sizes });
+      found.push({
+        key: canonical(key),
+        decoded: decodeMarketKey(key),
+        sizes,
+        ...(truncated ? { truncated } : {}),
+      });
     }
     const more = found.length > limit;
     const keys = found.slice(0, limit);
@@ -225,11 +219,11 @@ export class Queries {
     };
   }
 
-  /** The cheapest open lot of `key` at `at`, per lot size, by lot size. */
+  /** The cheapest open lot of `key` at `at`, per lot size, by lot size: the first MAX_SIZES. */
   private cheapestPerSize(
     at: number,
     key: bigint,
-  ): { size: number; cheapest: Lot }[] {
+  ): { sizes: { size: number; cheapest: Lot }[]; truncated?: true } {
     const sizes: { size: number; cheapest: Lot }[] = [];
     let size = 0;
     for (;;) {
@@ -240,7 +234,8 @@ export class Queries {
            ORDER BY lot_size LIMIT 1`,
         )
         .get({ at, key, size }) as Row | undefined;
-      if (!next) return sizes;
+      if (!next) return { sizes };
+      if (sizes.length === MAX_SIZES) return { sizes, truncated: true };
       size = Number(next.lot_size);
       const [cheapest] = this.lotPage(at, key, size, 1);
       sizes.push({ size, cheapest: cheapest! });
@@ -263,38 +258,56 @@ export class Queries {
   } {
     const until = block.timestamp;
     const after = until - PRICE_WINDOW_SECONDS;
-    const rows = this.all(
-      `SELECT price FROM lots
-       WHERE market_key = :key AND lot_size = :size AND sold = 1 AND ${AS_OF}
-         AND closed_time > :after AND closed_time <= :until`,
-      { at: block.number, key, size, after, until },
-    );
+    // One aggregate row, from the index `lots_sales` alone (market_key, lot_size, closed_time,
+    // price_hi, price_lo, _from, _to WHERE sold = 1): a range seek on the key, the size and the
+    // window, memory bounded whatever the number of sales. A u64 price is summed as its two 32-bit
+    // halves (SQLite's integers are signed 64-bit): each sum stays below 2^63 up to 2^31 sales in the
+    // window, and SQLite raises an error rather than wrap past it. The sums are read only from 5
+    // sales on.
+    const row = this.store
+      .statement(
+        `SELECT count(*) AS sales,
+           CASE WHEN count(*) >= :min THEN sum(price_hi) END AS hi,
+           CASE WHEN count(*) >= :min THEN sum(price_lo) END AS lo
+         FROM lots INDEXED BY lots_sales
+         WHERE market_key = :key AND lot_size = :size AND sold = 1 AND ${AS_OF}
+           AND closed_time > :after AND closed_time <= :until`,
+        true,
+      )
+      .get({
+        at: block.number,
+        key,
+        size,
+        after,
+        until,
+        min: MIN_SALES,
+      }) as { sales: bigint; hi: bigint | null; lo: bigint | null };
     const window = { after, until };
-    if (rows.length < MIN_SALES) return { sales: rows.length, window };
-    const sum = rows.reduce(
-      (total, row) => total + BigInt(`0x${String(row.price)}`),
-      0n,
-    );
-    return {
-      sales: rows.length,
-      mean: (sum / BigInt(rows.length)).toString(),
-      window,
-    };
+    const sales = Number(row.sales);
+    if (row.hi === null || row.lo === null) return { sales, window };
+    const sum = (row.hi << 32n) + row.lo;
+    return { sales, mean: (sum / row.sales).toString(), window };
   }
 
-  /** Q4: the adventurers in hub `hub` at `at`, by id, `limit` after `after`; and their count. */
+  /**
+   * Q4: the adventurers in hub `hub` at `at`, by id, `limit` after `after`; and their count (-1
+   * when not `counted`: a snapshot's later pages).
+   */
   presence(
     at: number,
     hub: number,
     limit: number,
     after = -1,
+    counted = true,
   ): { count: number; adventurers: number[] } {
-    const count = Number(
-      this.get(
-        `SELECT count(*) AS count FROM presence WHERE hub = :hub AND ${AS_OF}`,
-        { at, hub },
-      ).count,
-    );
+    const count = counted
+      ? Number(
+          this.get(
+            `SELECT count(*) AS count FROM presence WHERE hub = :hub AND ${AS_OF}`,
+            { at, hub },
+          ).count,
+        )
+      : -1;
     const adventurers = this.all(
       `SELECT adventurer FROM presence
        WHERE hub = :hub AND ${AS_OF} AND adventurer > :after
@@ -338,6 +351,7 @@ export class Queries {
     invited: number,
     limit = Number.MAX_SAFE_INTEGER,
     after?: bigint,
+    counted = true,
   ): { total: number; invitations: Invitation[] } {
     const params = {
       at: block.number,
@@ -347,16 +361,88 @@ export class Queries {
     };
     const where = `invited = :invited AND open = 1 AND ${AS_OF}
       AND opened_time > :after AND opened_time <= :until`;
-    const total = Number(
-      this.get(`SELECT count(*) AS count FROM trades WHERE ${where}`, params)
-        .count,
-    );
+    const total = counted
+      ? Number(
+          this.get(
+            `SELECT count(*) AS count FROM trades WHERE ${where}`,
+            params,
+          ).count,
+        )
+      : -1;
     const rows = this.all(
       `SELECT trade, invited, inviter, opened, opened_time FROM trades
        WHERE ${where} AND trade > :cursor ORDER BY trade LIMIT :limit`,
       { ...params, cursor: after === undefined ? "" : u64Text(after), limit },
     );
     return { total, invitations: rows.map(invitationOut) };
+  }
+
+  /**
+   * The invitations of `invited` that appeared (`added`) or went away (`removed`, by trade id) in
+   * each block of `(from, to]`, by events or by block time alone. Two queries for the whole range
+   * (its blocks, then every trade version that may be shown in it), then each block's set is
+   * compared with the one before, in memory.
+   */
+  invitationChanges(
+    invited: number,
+    from: Header,
+    to: number,
+  ): Map<number, { added: Invitation[]; removed: string[] }> {
+    const blocks = this.all(
+      `SELECT number, timestamp FROM blocks
+       WHERE number > :from AND number <= :to ORDER BY number`,
+      { from: from.number, to },
+    ).map((row) => ({
+      number: Number(row.number),
+      timestamp: Number(row.timestamp),
+    }));
+    const changes = new Map<
+      number,
+      { added: Invitation[]; removed: string[] }
+    >();
+    if (blocks.length === 0) return changes;
+    const earliest = Math.min(
+      from.timestamp,
+      ...blocks.map((block) => block.timestamp),
+    );
+    const versions = this.all(
+      `SELECT trade, invited, inviter, opened, opened_time, _from, _to FROM trades
+       WHERE invited = :invited AND open = 1 AND _from <= :to
+         AND (_to IS NULL OR _to > :from) AND opened_time > :after`,
+      {
+        invited,
+        from: from.number,
+        to,
+        after: earliest - INVITATION_SECONDS,
+      },
+    );
+    const shown = (number: number, timestamp: number) =>
+      new Map(
+        versions
+          .filter(
+            (row) =>
+              Number(row._from) <= number &&
+              (row._to === null || Number(row._to) > number) &&
+              Number(row.opened_time) > timestamp - INVITATION_SECONDS &&
+              Number(row.opened_time) <= timestamp,
+          )
+          .map((row) => {
+            const invitation = invitationOut(row);
+            return [invitation.trade, invitation] as const;
+          }),
+      );
+    let before = shown(from.number, from.timestamp);
+    for (const block of blocks) {
+      const now = shown(block.number, block.timestamp);
+      const added = [...now.values()].filter(
+        (invitation) => !before.has(invitation.trade),
+      );
+      const removed = [...before.keys()].filter((trade) => !now.has(trade));
+      if (added.length || removed.length)
+        changes.set(block.number, { added, removed });
+      before = now;
+    }
+    return changes;
   }
 
   // --- changes between two blocks (the subscriptions) --------------------------------------------

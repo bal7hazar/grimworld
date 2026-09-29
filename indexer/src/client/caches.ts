@@ -9,7 +9,10 @@
 //   `head`: rows and head never disagree.
 // - `read()` is the only way to the rows: it takes the rows and their head together, then passes
 //   the head through R3 (client.ts); a cache that is not ready, or whose head fails the rule,
-//   answers "not fresh".
+//   answers "not fresh". A copy voided while the node was being read (the stream ended, a rewind,
+//   a status, a new snapshot) is "not fresh" too: `epoch` counts the voidings.
+// - One connection at a time: `connect()` ends the one before, and whatever that one does as it
+//   ends (a late frame, its end) is ignored (`generation`).
 import type { Checked, IndexerClient } from "./client.ts";
 import type { Frame, Head, Invitation, Lot } from "./protocol.ts";
 import { canonical } from "./protocol.ts";
@@ -33,6 +36,11 @@ export class StreamCache<Row> {
   ready = false;
   /** `disconnected`, `connecting`, the indexer's state, or `ok` once ready. */
   status = "disconnected";
+  /** The current connection; a frame or an end of an older one is ignored. */
+  private generation = 0;
+  private abort: AbortController | null = null;
+  /** How many times the copy was voided: a read across a voiding is not fresh. */
+  private epoch = 0;
 
   constructor(
     client: IndexerClient,
@@ -56,13 +64,18 @@ export class StreamCache<Row> {
     onFrame?: (frame: Frame) => void,
     onEnd?: (error: Error | null) => void,
   ): () => Promise<void> {
+    this.abort?.abort(); // the connection before, if any: its end is ignored below
     const controller = new AbortController();
+    this.abort = controller;
+    const generation = ++this.generation;
+    const current = () => generation === this.generation;
     this.forget("connecting");
     const done = this.client
       .stream(
         this.path,
         this.query,
         (frame) => {
+          if (!current()) return;
           this.receive(frame);
           onFrame?.(frame);
         },
@@ -72,7 +85,12 @@ export class StreamCache<Row> {
         () => onEnd?.(controller.signal.aborted ? null : new Error("ended")),
         (error: Error) => onEnd?.(error),
       )
-      .finally(() => this.forget("disconnected"));
+      .finally(() => {
+        if (current()) {
+          this.abort = null;
+          this.forget("disconnected");
+        }
+      });
     return async () => {
       controller.abort();
       await done;
@@ -80,6 +98,7 @@ export class StreamCache<Row> {
   }
 
   private forget(status: string) {
+    this.epoch++;
     this.ready = false;
     this.staging = null;
     this.held = [];
@@ -153,11 +172,14 @@ export class StreamCache<Row> {
     if (!this.ready || !this.head)
       return { fresh: false, reason: `cache ${this.status}` };
     const head = this.head;
+    const epoch = this.epoch;
     const rows = [...this.rows.values()].sort(this.order);
     const verdict = await this.client.verify(head);
-    return verdict === null
-      ? { fresh: true, answer: { head, rows } }
-      : { fresh: false, reason: verdict };
+    if (verdict !== null) return { fresh: false, reason: verdict };
+    // The copy may have been voided while the node was read: then it is not an answer any more.
+    if (!this.ready || this.epoch !== epoch)
+      return { fresh: false, reason: `cache ${this.status}` };
+    return { fresh: true, answer: { head, rows } };
   }
 
   /** How many rows the cache holds, checked or not: tests only. */

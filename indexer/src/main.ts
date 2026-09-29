@@ -18,7 +18,7 @@ import { serve } from "./server.ts";
 import { Store } from "./store.ts";
 
 const USAGE =
-  "usage: grimworld-indexer run|rebuild --hub <address> --market <address> --from <block> --db <file> [--port <n>] [--host <h>] [--poll <ms>] [--depth <blocks>|l1] [--batch <n>] [--recheck <blocks>] [--recheck-every <ms>] [--lot-count <n>] [--trade-count <n>] [--max-subscriptions <n>] [--max-subscriptions-per-client <n>] [--max-buffered <bytes>] [--rpc <url>]";
+  "usage: grimworld-indexer run|rebuild --hub <address> --market <address> --from <block> --db <file> [--port <n>] [--host <h>] [--poll <ms>] [--depth <blocks>|l1] [--batch <n>] [--recheck <blocks>] [--recheck-every <ms>] [--lot-count <n>] [--trade-count <n>] [--max-subscriptions <n>] [--max-subscriptions-per-client <n>] [--max-buffered <bytes>] [--stall <ms>] [--keep-alive <ms>] [--allow-origin <origin>]... [--rpc <url>]";
 
 function log(message: string) {
   console.log(`[indexer ${new Date().toISOString()}] ${message}`);
@@ -76,6 +76,9 @@ const { values, positionals } = parseArgs({
     "max-subscriptions": { type: "string" },
     "max-subscriptions-per-client": { type: "string" },
     "max-buffered": { type: "string" },
+    stall: { type: "string" },
+    "keep-alive": { type: "string" },
+    "allow-origin": { type: "string", multiple: true },
     rpc: { type: "string" },
   },
 });
@@ -140,20 +143,23 @@ try {
   process.exit(2);
 }
 
+for (const origin of values["allow-origin"] ?? []) {
+  if (!URL.canParse(origin) || new URL(origin).origin !== origin)
+    fail(`--allow-origin ${origin}: an origin, scheme://host[:port]`);
+}
+// The defaults bound the streams' memory: 512 subscriptions × 512 KiB unsent = 256 MiB at most.
 const server = serve(indexer, {
+  allowedOrigins: values["allow-origin"] ?? [],
   limits: {
-    perProcess: integer(values["max-subscriptions"], "max-subscriptions", 1000),
+    perProcess: integer(values["max-subscriptions"], "max-subscriptions", 512),
     perClient: integer(
       values["max-subscriptions-per-client"],
       "max-subscriptions-per-client",
       16,
     ),
-    maxBuffered: integer(
-      values["max-buffered"],
-      "max-buffered",
-      16 * 2 ** 20,
-      1,
-    ),
+    maxBuffered: integer(values["max-buffered"], "max-buffered", 512 * 1024, 1),
+    stallMs: integer(values.stall, "stall", 30_000, 1),
+    keepAliveMs: integer(values["keep-alive"], "keep-alive", 15_000, 1),
   },
   log,
 });

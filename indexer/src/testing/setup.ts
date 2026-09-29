@@ -5,8 +5,13 @@ import { Indexer } from "../indexer.ts";
 import { Halt, Store } from "../store.ts";
 import { FakeNode, HUB, MARKET } from "./fake-node.ts";
 
-export function indexerOf(node: FakeNode, depth = 1000): Indexer {
+export function indexerOf(
+  node: FakeNode,
+  depth = 1000,
+  recheck?: { depth: number; everyMs: number },
+): Indexer {
   return new Indexer({
+    recheck,
     chain: new Chain(node.rpc, { hub: HUB, market: MARKET }),
     store: new Store(":memory:"),
     config: { hub: HUB, market: MARKET, from: 1, lotCount: 0n, tradeCount: 0n },

@@ -149,7 +149,7 @@ describe("fix loop 1: nothing a client sends stops the process", () => {
     for (const target of ["//[", "http://indexer/head", "*", "//"]) {
       expect(respond(subject, "GET", target)).toMatchObject({
         code: 400,
-        body: { error: "bad request", status: "ok", head },
+        body: { error: "bad request", status: "error", state: "ok", head },
       });
     }
     expect(respond(subject, "POST", "/head")).toMatchObject({
@@ -170,9 +170,11 @@ describe("fix loop 1: nothing a client sends stops the process", () => {
     };
     const { code, body } = respond(subject, "GET", "/stats");
     expect(code).toBe(500);
+    // Never `status: "ok"` on an error: the serving state is in `state`.
     expect(body).toEqual({
+      status: "error",
       error: "internal error",
-      status: "ok",
+      state: "ok",
       head: expect.objectContaining({ number: 1 }),
     });
   });
