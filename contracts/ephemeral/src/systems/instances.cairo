@@ -178,13 +178,12 @@ pub mod Instances {
     use crate::models::chunk::Chunk;
     use crate::models::goblin::Goblin;
     use crate::models::instance::{
-        DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementTrait, Quotas,
-        QuotasTrait, RETURNED, ROSTER_LANES, errors, mask_roster_page,
+        DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementTrait, Quotas, QuotasTrait,
+        RETURNED, ROSTER_LANES, errors, mask_roster_page,
     };
     use crate::models::member::{
-        DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member,
-        MemberState, MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD,
-        errors as member_errors,
+        DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member, MemberState,
+        MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD, errors as member_errors,
     };
     use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
 
@@ -401,10 +400,7 @@ pub mod Instances {
                 return;
             };
             if header.is_sealed() {
-                self
-                    .refuse(
-                        instance_id, adventurer_id, sequence, header.sequence, Refusal::Sealed,
-                    );
+                self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Sealed);
                 return;
             }
             self.close(instance_id, slot, header, placement, state, Outcome::Returned, 0, 0);
@@ -456,7 +452,10 @@ pub mod Instances {
             for page in 0..pages {
                 let page: u8 = page.try_into().unwrap();
                 let stored = self.roster.entry((slot, page)).read();
-                roster.append(StorePacking::pack(mask_roster_page(stored, page, header.roster_count)));
+                roster
+                    .append(
+                        StorePacking::pack(mask_roster_page(stored, page, header.roster_count)),
+                    );
             }
             InstanceView {
                 instance_id,
@@ -603,7 +602,9 @@ pub mod Instances {
             Store::<felt252>::read_at_offset(0, self, offset).unwrap_syscall()
         }
 
-        fn set_word(self: starknet::storage_access::StorageBaseAddress, offset: u8, value: felt252) {
+        fn set_word(
+            self: starknet::storage_access::StorageBaseAddress, offset: u8, value: felt252,
+        ) {
             Store::<felt252>::write_at_offset(0, self, offset, value).unwrap_syscall()
         }
     }
@@ -697,7 +698,10 @@ pub mod Instances {
             base.set_word(EFFECTS_WORD, EMPTY_EFFECTS);
             base.set_word(RECHARGES_WORD, EMPTY_RECHARGES);
             self.placements.entry(adventurer_id).write(PlacementTrait::new(slot, generation));
-            self.emit(InstanceEntered { instance_id: id, adventurer_id, location: destination, gate });
+            self
+                .emit(
+                    InstanceEntered { instance_id: id, adventurer_id, location: destination, gate },
+                );
             id
         }
 
@@ -768,7 +772,8 @@ pub mod Instances {
                 );
         }
 
-        /// The task pages a snapshot needs, `⌈tasks / 4⌉`, the last one padded with empty entries.
+        /// The task pages a snapshot needs, `⌈tasks / 4⌉`, the last one padded with empty
+        /// entries.
         fn write_tasks(ref self: ContractState, slot: u32, tasks: Span<TaskEntry>) {
             let count = tasks.len();
             let mut first: u32 = 0;
@@ -843,7 +848,9 @@ mod close_tests {
                 self.count.write(self.count.read() + 1);
                 self.outcome.write(*outcome[0]);
                 self.hub.write(results.hub);
-                self.belt.write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
+                self
+                    .belt
+                    .write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
                 self.adventurer.write(*results.contributors[0]);
             }
             fn barter(ref self: ContractState, adventurer_id: u32, collector: u16) -> bool {

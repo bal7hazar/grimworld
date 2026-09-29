@@ -21,9 +21,13 @@ fn test_position() {
 #[available_gas(l2_gas: 34608)] // ceil(1.05 × 32960 measured)
 fn test_has_map() {
     let place = |kind: u8| {
-        LocationTrait::new(kind, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 15] })
+        LocationTrait::new(
+            kind, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, false, 0, 0, Lanes16 { lanes: [0; 15] },
+        )
     };
-    assert(!place(location_kind::TOWN).has_map() && !place(location_kind::OUTPOST).has_map(), 'hubs');
+    assert(
+        !place(location_kind::TOWN).has_map() && !place(location_kind::OUTPOST).has_map(), 'hubs',
+    );
     for kind in array![
         location_kind::ZONE, location_kind::DUNGEON, location_kind::ELITE, location_kind::RIFT,
         location_kind::TRIAL,
@@ -94,7 +98,9 @@ fn test_enterable_quest() {
 #[test]
 #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_snapshot() {
-    let snapshot = SnapshotTrait::new(20, 3, [1, 2, 3, 4, 5, 6, 7, 8], 2, [9, 10, 11, 12], [1, 2, 3, 4]);
+    let snapshot = SnapshotTrait::new(
+        20, 3, [1, 2, 3, 4, 5, 6, 7, 8], 2, [9, 10, 11, 12], [1, 2, 3, 4],
+    );
     let stats = MemberStats {
         max_health: 480,
         max_energy: 30,
@@ -110,11 +116,15 @@ fn test_snapshot() {
     assert(snapshot.kit == MemberKit { belt: [9, 10, 11, 12], ..Default::default() }, 'kit');
     assert(snapshot.belt_counts == [1, 2, 3, 4], 'belt');
     assert(
-        (ProfessionTrait::energy(1), ProfessionTrait::energy_regen(1), ProfessionTrait::armor(1)) == (20, 2, 80),
+        (
+            ProfessionTrait::energy(1), ProfessionTrait::energy_regen(1), ProfessionTrait::armor(1),
+        ) == (20, 2, 80),
         'vanguard',
     );
     assert(
-        (ProfessionTrait::energy(2), ProfessionTrait::energy_regen(2), ProfessionTrait::armor(2)) == (25, 3, 70),
+        (
+            ProfessionTrait::energy(2), ProfessionTrait::energy_regen(2), ProfessionTrait::armor(2),
+        ) == (25, 3, 70),
         'warden',
     );
 }

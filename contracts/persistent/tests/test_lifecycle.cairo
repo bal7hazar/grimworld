@@ -1,15 +1,19 @@
 // ENG-06: the hub's side of the instance lifecycle (design/02 *Expedition lifecycle*, design/01
-// *Connectivity*; ENG-01 §6, §9.3, §10; D-141 E-15, D-144): `enter` (the gate's requirements, the
-// belt's reserve, the snapshot), `travel`, the settlement `report`, and the start hub read from the
-// registry. `Registry` is the real one; `Instances` is a double that records what `create` receives
-// (the real one is in `grimworld_ephemeral`, which this package does not depend on; the node probe
-// `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys a test
-// watches (`load` before and after).
+// *Connectivity*; ENG-01 §6, §9.3, §10; D-141 E-15, D-144): `enter` (the gate's requirements,
+// the belt's reserve, the snapshot), `travel`, the settlement `report`, and the start hub read from
+// the registry. `Registry` is the real one; `Instances` is a double that records what `create`
+// receives (the real one is in `grimworld_ephemeral`, which this package does not depend on; the
+// node probe `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys
+// a test watches (`load` before and after).
 use core::testing::get_available_gas;
 use grimworld_logic::content::{GATE, LOCATION, REGION};
-use grimworld_logic::interface::{IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher, IResultsSafeDispatcherTrait, Results, facts};
-use grimworld_logic::models::gate::errors as gate_errors;
-use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
+use grimworld_logic::interface::{
+    IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher,
+    IResultsSafeDispatcherTrait, Results, facts,
+};
+use grimworld_logic::models::gate::{
+    GateRecord, GateTrait, errors as gate_errors, kind as gate_kind,
+};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
@@ -21,7 +25,9 @@ use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, EXPERIENCE_OVERFLOW, HUB_ABOVE_63, NOT_IN_HUB, NOT_ITS_INSTANCE, NOT_OWNER,
     NOT_UNLOCKED, NO_ADVENTURER, NO_START_REGION,
 };
-use grimworld_persistent::models::adventurer::{AdventurerCore, AdventurerPlace, AdventurerPlaceTrait};
+use grimworld_persistent::models::adventurer::{
+    AdventurerCore, AdventurerPlace, AdventurerPlaceTrait,
+};
 use grimworld_persistent::models::balance::errors::NOT_ENOUGH;
 use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::systems::hub::Hub::Event;
@@ -108,7 +114,9 @@ mod EntryDouble {
             self.bar.write(starknet::storage_access::StorePacking::pack(snapshot.bar));
             self.kit.write(starknet::storage_access::StorePacking::pack(snapshot.kit));
             let [a, b, c, d] = snapshot.belt_counts;
-            self.belt.write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
+            self
+                .belt
+                .write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
             instance_id(1, count)
         }
         fn set_controller(
@@ -149,8 +157,8 @@ const VANGUARD: u8 = 1;
 const TOWN: u16 = 1;
 const ZONE: u16 = 2;
 const OUTPOST: u16 = 4;
-// Gates: 1 town → zone (a hub gate); 2 zone → town (not in a hub); 3 a floor gate and 4 a Rift gate
-// from the town; 5 a rank, 6 a quest; 7 a link from the town to the floor.
+// Gates: 1 town → zone (a hub gate); 2 zone → town (not in a hub); 3 a floor gate and 4 a Rift
+// gate from the town; 5 a rank, 6 a quest; 7 a link from the town to the floor.
 const INTO_ZONE: u16 = 1;
 
 fn addr(value: felt252) -> ContractAddress {
@@ -166,7 +174,21 @@ struct World {
 
 fn location(kind: u8, width: u8, entry_tile: u8) -> Span<felt252> {
     LocationTrait::new(
-        kind, 1, 1, 1, 3, 0, width, width, 0, 0, 0, 0, false, 0, entry_tile,
+        kind,
+        1,
+        1,
+        1,
+        3,
+        0,
+        width,
+        width,
+        0,
+        0,
+        0,
+        0,
+        false,
+        0,
+        entry_tile,
         Lanes16 { lanes: [0; 15] },
     )
         .pack()
@@ -184,7 +206,8 @@ fn setup_with_town(town: u16) -> World {
     let class = declare("EntryDouble").unwrap().contract_class();
     let (instances, _) = class.deploy(@array![hub.into()]).unwrap();
     start_cheat_caller_address(hub, addr(ADMIN));
-    IHubAdminDispatcher { contract_address: hub }.set_contracts(registry, instances, addr(4), addr(5));
+    IHubAdminDispatcher { contract_address: hub }
+        .set_contracts(registry, instances, addr(4), addr(5));
 
     start_cheat_caller_address(registry, addr(ADMIN));
     let admin = IRegistryAdminDispatcher { contract_address: registry };
@@ -392,7 +415,10 @@ fn test_start_hub_refusals() {
     start_cheat_caller_address(hub, addr(ALICE));
     IHubDispatcher { contract_address: hub }.register();
     #[feature("safe_dispatcher")]
-    refused(IHubSafeDispatcher { contract_address: hub }.create_adventurer('A', VANGUARD), NO_START_REGION);
+    refused(
+        IHubSafeDispatcher { contract_address: hub }.create_adventurer('A', VANGUARD),
+        NO_START_REGION,
+    );
     // A town whose id `unlocked` cannot hold.
     let world = setup_with_town(64);
     let hub = act(world, ALICE);
@@ -461,7 +487,9 @@ fn test_enter_reserves_the_belt() {
     let hub = act(world, ALICE);
     let gas = get_available_gas();
     hub.enter(id, INTO_ZONE);
-    println!("gas enter, a belt of 4 pages emptied (Instances a double): {}", gas - get_available_gas());
+    println!(
+        "gas enter, a belt of 4 pages emptied (Instances a double): {}", gas - get_available_gas(),
+    );
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 6, 0), 'writes: 4 pages, core, place');
     for item in array![7, 15, 22, 29] {
@@ -564,12 +592,17 @@ fn test_travel() {
     println!("gas travel: {}", gas - get_available_gas());
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
-    let expected = AdventurerPlace { instance: 0, hub: TOWN, last_hub: TOWN, inside: 0, unlocked: 0x12 };
+    let expected = AdventurerPlace {
+        instance: 0, hub: TOWN, last_hub: TOWN, inside: 0, unlocked: 0x12,
+    };
     assert(place_of(world, id) == expected, 'in the town');
     spy
         .assert_emitted(
             @array![
-                (world.hub, Event::AdventurerLocated(AdventurerLocated { hub: TOWN, adventurer: id })),
+                (
+                    world.hub,
+                    Event::AdventurerLocated(AdventurerLocated { hub: TOWN, adventurer: id }),
+                ),
             ],
         );
     act(world, ALICE).travel(id, OUTPOST);
@@ -639,7 +672,9 @@ fn test_report_to_the_last_hub() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
     report(world, Results { belt: [3, 0, 0, 0], ..results(instance, id, Outcome::Returned) });
-    let expected = AdventurerPlace { instance: 0, hub: TOWN, last_hub: TOWN, inside: 0, unlocked: 0x2 };
+    let expected = AdventurerPlace {
+        instance: 0, hub: TOWN, last_hub: TOWN, inside: 0, unlocked: 0x2,
+    };
     assert(place_of(world, id) == expected, 'travelled back');
     assert(balance(world, id, 7) == 3, 'credited');
 
@@ -654,7 +689,10 @@ fn test_report_to_the_last_hub() {
     spy
         .assert_emitted(
             @array![
-                (world.hub, Event::AdventurerLocated(AdventurerLocated { hub: TOWN, adventurer: id })),
+                (
+                    world.hub,
+                    Event::AdventurerLocated(AdventurerLocated { hub: TOWN, adventurer: id }),
+                ),
             ],
         );
 }
@@ -668,7 +706,9 @@ fn test_report_moved() {
     let (id, instance) = inside_with_a_belt(world);
     let next = instance_id(1, 2);
     refused(
-        try_report(world, Results { next, belt: [1, 0, 0, 0], ..results(instance, id, Outcome::Moved) }),
+        try_report(
+            world, Results { next, belt: [1, 0, 0, 0], ..results(instance, id, Outcome::Moved) },
+        ),
         results_errors::BELT,
     );
     let keys = watched(id);
@@ -680,7 +720,9 @@ fn test_report_moved() {
     println!("gas report, moved: {}", gas - get_available_gas());
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
-    let expected = AdventurerPlace { instance: next, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2 };
+    let expected = AdventurerPlace {
+        instance: next, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2,
+    };
     assert(place_of(world, id) == expected, 'in the next instance');
     // The next report names the next instance.
     refused(try_report(world, results(instance, id, Outcome::Returned)), NOT_ITS_INSTANCE);
@@ -713,7 +755,11 @@ fn test_report_open() {
     assert(core_of(world, id).pack_lanes == 2, 'two lanes filled');
     assert(place_of(world, id).inside == 1, 'still inside');
     let core = core_of(world, id);
-    write(world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { experience: 0xFFFFFFF0, ..core }));
+    write(
+        world.hub,
+        adventurer_word(id, 0),
+        StorePacking::pack(AdventurerCore { experience: 0xFFFFFFF0, ..core }),
+    );
     refused(
         try_report(world, Results { experience: 0x10, ..results(instance, id, Outcome::Open) }),
         EXPERIENCE_OVERFLOW,
@@ -729,18 +775,46 @@ fn test_report_refusals() {
     let instance = act(world, ALICE).enter(id, INTO_ZONE);
     start_cheat_caller_address(world.hub, addr(ALICE));
     #[feature("safe_dispatcher")]
-    refused(IResultsSafeDispatcher { contract_address: world.hub }.report(results(instance, id, Outcome::Open)), NOT_INSTANCES);
+    refused(
+        IResultsSafeDispatcher { contract_address: world.hub }
+            .report(results(instance, id, Outcome::Open)),
+        NOT_INSTANCES,
+    );
     let nine = array![id, id, id, id, id, id, id, id, id].span();
     let balances = array![(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1)];
     let cases = array![
-        (Results { contributors: array![].span(), ..results(instance, id, Outcome::Open) }, results_errors::CONTRIBUTORS),
-        (Results { contributors: nine, ..results(instance, id, Outcome::Open) }, results_errors::CONTRIBUTORS),
-        (Results { balances: balances.span(), ..results(instance, id, Outcome::Open) }, results_errors::BALANCES),
-        (Results { equipment: array![1].span(), ..results(instance, id, Outcome::Open) }, results_errors::EQUIPMENT),
-        (Results { tasks: array![(1, 1)].span(), ..results(instance, id, Outcome::Open) }, results_errors::TASKS),
-        (Results { facts: facts::DUNGEON_CLEARED, ..results(instance, id, Outcome::Open) }, results_errors::FACTS),
-        (Results { belt: [1, 0, 0, 0], ..results(instance, id, Outcome::Open) }, results_errors::BELT),
-        (Results { instance_id: instance + 1, ..results(instance, id, Outcome::Open) }, NOT_ITS_INSTANCE),
+        (
+            Results { contributors: array![].span(), ..results(instance, id, Outcome::Open) },
+            results_errors::CONTRIBUTORS,
+        ),
+        (
+            Results { contributors: nine, ..results(instance, id, Outcome::Open) },
+            results_errors::CONTRIBUTORS,
+        ),
+        (
+            Results { balances: balances.span(), ..results(instance, id, Outcome::Open) },
+            results_errors::BALANCES,
+        ),
+        (
+            Results { equipment: array![1].span(), ..results(instance, id, Outcome::Open) },
+            results_errors::EQUIPMENT,
+        ),
+        (
+            Results { tasks: array![(1, 1)].span(), ..results(instance, id, Outcome::Open) },
+            results_errors::TASKS,
+        ),
+        (
+            Results { facts: facts::DUNGEON_CLEARED, ..results(instance, id, Outcome::Open) },
+            results_errors::FACTS,
+        ),
+        (
+            Results { belt: [1, 0, 0, 0], ..results(instance, id, Outcome::Open) },
+            results_errors::BELT,
+        ),
+        (
+            Results { instance_id: instance + 1, ..results(instance, id, Outcome::Open) },
+            NOT_ITS_INSTANCE,
+        ),
     ];
     let keys = watched(id);
     let before = values(world.hub, keys.span());

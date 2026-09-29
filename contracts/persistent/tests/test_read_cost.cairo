@@ -5,12 +5,12 @@
 // (a registry with eight gates, the probe); the probe's one call is measured with
 // `get_available_gas` around it (printed), and the whole tests differ only by it. ENG-06's report
 // derives the call's share and the read's share from these figures.
+use core::testing::get_available_gas;
 use grimworld_logic::content::GATE;
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind};
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
 };
-use core::testing::get_available_gas;
 use snforge_std::{ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address};
 use starknet::ContractAddress;
 

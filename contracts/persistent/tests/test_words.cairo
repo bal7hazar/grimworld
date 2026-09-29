@@ -37,7 +37,9 @@ fn test_place_words() {
     assert(located == pack_place(back), 'located');
     assert(!AdventurerPlaceTrait::is_unlocked(located, 9), 'not yet');
     let opened = AdventurerPlaceTrait::unlocked(located, 9);
-    assert(opened == pack_place(AdventurerPlace { unlocked: 0x8000000000000221, ..back }), 'unlock');
+    assert(
+        opened == pack_place(AdventurerPlace { unlocked: 0x8000000000000221, ..back }), 'unlock',
+    );
     assert(AdventurerPlaceTrait::is_unlocked(opened, 9), 'unlocked');
     assert(AdventurerPlaceTrait::is_unlocked(opened, 63), 'bit 63');
     assert(!AdventurerPlaceTrait::is_unlocked(opened, 64), 'no hub 64');
@@ -79,7 +81,9 @@ fn test_core_words() {
 #[should_panic(expected: 'experience overflow')]
 #[available_gas(l2_gas: 78288)] // ceil(1.05 × 74560 measured)
 fn test_experience_overflow_refused() {
-    let word: felt252 = StorePacking::pack(AdventurerCore { experience: 100, ..Default::default() });
+    let word: felt252 = StorePacking::pack(
+        AdventurerCore { experience: 100, ..Default::default() },
+    );
     AdventurerCoreTrait::with_experience(word, 0xFFFFFFFF - 99);
 }
 
@@ -146,7 +150,9 @@ fn test_belt_merge() {
     assert(BalanceTrait::merge([4, 4, 4, 4], [0, 0, 0, 5]) == array![(4, 5)], 'last slot');
     assert(BalanceTrait::merge([1, 2, 3, 4], [0; 4]) == array![], 'empty belt');
     assert(
-        BalanceTrait::merge([1, 2, 3, 4], [255; 4]) == array![(1, 255), (2, 255), (3, 255), (4, 255)],
+        BalanceTrait::merge(
+            [1, 2, 3, 4], [255; 4],
+        ) == array![(1, 255), (2, 255), (3, 255), (4, 255)],
         'four items',
     );
 }

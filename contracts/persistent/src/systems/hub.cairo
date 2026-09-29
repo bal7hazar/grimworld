@@ -672,7 +672,10 @@ pub mod Hub {
             let (filled, _) = self.change_pack(adventurer_id, credit.span(), true);
             if filled != 0 || results.experience != 0 {
                 let core = AdventurerCoreTrait::with_pack_lanes(base.word(CORE_WORD), filled, 0);
-                base.set_word(CORE_WORD, AdventurerCoreTrait::with_experience(core, results.experience));
+                base
+                    .set_word(
+                        CORE_WORD, AdventurerCoreTrait::with_experience(core, results.experience),
+                    );
             }
             if results.gold != 0 {
                 let entry = self.gold.entry(owner_key(PACK, adventurer_id));

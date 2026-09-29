@@ -209,7 +209,8 @@ mod HubDouble {
                 location: self.location.read(),
                 next: self.next.read(),
                 belt: [
-                    (belt % 0x100).try_into().unwrap(), ((belt / 0x100) % 0x100).try_into().unwrap(),
+                    (belt % 0x100).try_into().unwrap(),
+                    ((belt / 0x100) % 0x100).try_into().unwrap(),
                     ((belt / 0x10000) % 0x100).try_into().unwrap(),
                     (belt / 0x1000000).try_into().unwrap(),
                 ],
@@ -286,7 +287,13 @@ fn location(
 }
 
 fn gate(
-    source: u16, destination: u16, anchor: (u8, u8), entry: (u8, u8), kind: u8, rank: u8, quest: u32,
+    source: u16,
+    destination: u16,
+    anchor: (u8, u8),
+    entry: (u8, u8),
+    kind: u8,
+    rank: u8,
+    quest: u32,
 ) -> Span<felt252> {
     let (anchor_chunk, anchor_tile) = anchor;
     let (entry_chunk, entry_tile) = entry;
@@ -377,7 +384,8 @@ fn refused<T, +Drop<T>>(result: Result<T, Array<felt252>>, message: felt252) {
     }
 }
 
-// ---- storage keys (ENG-01 §3.2) -----------------------------------------------------------------
+// ---- storage keys (ENG-01 §3.2)
+// -----------------------------------------------------------------
 
 fn key(name: felt252, keys: Array<felt252>) -> felt252 {
     map_entry_address(name, keys.span())
@@ -453,15 +461,17 @@ fn state_of(world: World, slot: u32) -> MemberState {
     StorePacking::unpack(read(world.instances, member_word(slot, 0)))
 }
 fn placement_of(world: World, adventurer: u32) -> Placement {
-    StorePacking::unpack(read(world.instances, key(selector!("placements"), array![adventurer.into()])))
+    StorePacking::unpack(
+        read(world.instances, key(selector!("placements"), array![adventurer.into()])),
+    )
 }
 
 // ---- create -------------------------------------------------------------------------------------
 
 // An adventurer's first entry: a new slot, generation 1, every word of §2.1 written for clock 0,
 // the entry draw under `poseidon(id, 0, ENTRY)`. Write set (ENG-01 §9.3, first entry, cold): the
-// placement, header, entropy, revealed, quotas, the member's 8 words and ⌈16 / 4⌉ = 4 task pages
-// new (19 − 2: the entry chunk's 2 words are ENG-05's reveal), `next_slot` overwritten.
+// placement, header, entropy, revealed, quotas, the member's 8 words and ⌈16 / 4⌉ = 4 task
+// pages new (19 − 2: the entry chunk's 2 words are ENG-05's reveal), `next_slot` overwritten.
 #[test]
 #[available_gas(l2_gas: 33212563)] // ceil(1.05 × 31631012 measured)
 fn test_create_first_entry() {
@@ -499,12 +509,17 @@ fn test_create_first_entry() {
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
     assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
     assert(draws(world) == 1, 'one draw');
-    assert(read(world.instances, key(selector!("revealed"), array![1])) == LIVE, 'nothing revealed');
+    assert(
+        read(world.instances, key(selector!("revealed"), array![1])) == LIVE, 'nothing revealed',
+    );
     let quotas: Quotas = StorePacking::unpack(
         read(world.instances, key(selector!("quotas"), array![1])),
     );
     assert(quotas == Quotas { target: 0, open_edges: 0, left: [0; 14] }, 'a zone: N = 0');
-    assert(placement_of(world, HERO) == Placement { slot: 1, generation: 1, member: 0, inside: 1 }, 'placement');
+    assert(
+        placement_of(world, HERO) == Placement { slot: 1, generation: 1, member: 0, inside: 1 },
+        'placement',
+    );
     assert(read(world.instances, selector!("next_slot")) == 2 + LIVE, 'next slot');
 
     let snap = snapshot();
@@ -534,7 +549,9 @@ fn test_create_first_entry() {
     let page: TaskPage = StorePacking::unpack(
         read(world.instances, key(selector!("tasks"), array![1, 3])),
     );
-    assert(page.entries == [*tasks(16)[12], *tasks(16)[13], *tasks(16)[14], *tasks(16)[15]], 'page 3');
+    assert(
+        page.entries == [*tasks(16)[12], *tasks(16)[13], *tasks(16)[14], *tasks(16)[15]], 'page 3',
+    );
 
     spy
         .assert_emitted(
@@ -630,7 +647,8 @@ fn test_create_sealed() {
     assert(quotas.target == 6, 'N of the floor');
 }
 
-// ---- generation isolation (AC-2, ENG-01 §2.1) ---------------------------------------------------
+// ---- generation isolation (AC-2, ENG-01 §2.1)
+// ---------------------------------------------------
 
 /// Stale data in every word of slot 1 that an earlier generation could have left.
 fn fill_slot(world: World) {
@@ -644,7 +662,11 @@ fn fill_slot(world: World) {
         let full = Lanes16 {
             lanes: [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114],
         };
-        write(world.instances, key(selector!("roster"), array![s, page.into()]), StorePacking::pack(full));
+        write(
+            world.instances,
+            key(selector!("roster"), array![s, page.into()]),
+            StorePacking::pack(full),
+        );
     }
     let stale_timers = MemberTimers {
         act_slot: 3,
@@ -660,7 +682,11 @@ fn fill_slot(world: World) {
     write(world.instances, member_word(1, 0), junk);
     write(world.instances, member_word(1, 1), StorePacking::pack(stale_timers));
     let effect = Effect { skill: 5, charges: 2, deadline: 90 };
-    write(world.instances, member_word(1, 2), StorePacking::pack(MemberEffects { effects: [effect; 4] }));
+    write(
+        world.instances,
+        member_word(1, 2),
+        StorePacking::pack(MemberEffects { effects: [effect; 4] }),
+    );
     write(world.instances, member_word(1, 3), StorePacking::pack(Recharges { deadlines: [80; 8] }));
     for chunk in array![0, 16, 112] {
         write(world.instances, key(selector!("chunks"), array![s, chunk]), junk);
@@ -689,15 +715,23 @@ fn test_generation_isolation() {
     assert(view.revealed == LIVE, 'nothing revealed');
     let quotas: Quotas = StorePacking::unpack(view.quotas);
     assert(quotas == Quotas { target: 0, open_edges: 0, left: [0; 14] }, 'quotas fresh');
-    assert(view.entropy != LIVE + 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 'entropy fresh');
+    assert(
+        view.entropy != LIVE + 0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff,
+        'entropy fresh',
+    );
     assert(view.tasks.len() == 1, 'one task page');
     let page: TaskPage = StorePacking::unpack(*view.tasks[0]);
-    assert(page.entries == [*tasks(1)[0], Default::default(), Default::default(), Default::default()], 'task page rewritten');
+    assert(
+        page.entries == [*tasks(1)[0], Default::default(), Default::default(), Default::default()],
+        'task page rewritten',
+    );
     assert(view.roster.len() == 0, 'no roster page');
     assert(view.goblins.len() == 0 && view.chunks.len() == 0, 'no chunk, no goblin');
     assert(view.members.len() == 8, 'one member');
     let state: MemberState = StorePacking::unpack(*view.members[0]);
-    assert(state.adventurer == HERO && state.health == 140 && state.status == INSIDE, 'state fresh');
+    assert(
+        state.adventurer == HERO && state.health == 140 && state.status == INSIDE, 'state fresh',
+    );
     let timers: MemberTimers = StorePacking::unpack(*view.members[1]);
     assert(timers == empty_member_timers(), 'timers fresh');
     assert(*view.members[2] == LIVE && *view.members[3] == LIVE, 'effects, recharges fresh');
@@ -734,7 +768,9 @@ fn test_generation_isolation() {
         chunks: array![].span(),
     };
     assert(old == empty, 'old id: nothing');
-    assert(play(world, ALICE).instance_state(0) == InstanceView { instance_id: 0, ..empty }, 'id 0');
+    assert(
+        play(world, ALICE).instance_state(0) == InstanceView { instance_id: 0, ..empty }, 'id 0',
+    );
 }
 
 // ---- leave, travel back -------------------------------------------------------------------------
@@ -776,7 +812,9 @@ fn test_leave_to_a_hub() {
             @array![
                 (
                     world.instances,
-                    Event::InstanceClosed(InstanceClosed { instance_id: id, outcome: Outcome::Returned }),
+                    Event::InstanceClosed(
+                        InstanceClosed { instance_id: id, outcome: Outcome::Returned },
+                    ),
                 ),
             ],
         );
@@ -807,10 +845,16 @@ fn test_leave_to_a_location() {
     };
     write(world.instances, member_word(1, 1), StorePacking::pack(busy));
     let effect = Effect { skill: 4, charges: 1, deadline: 20 };
-    write(world.instances, member_word(1, 2), StorePacking::pack(MemberEffects { effects: [effect; 4] }));
+    write(
+        world.instances,
+        member_word(1, 2),
+        StorePacking::pack(MemberEffects { effects: [effect; 4] }),
+    );
     write(world.instances, member_word(1, 3), StorePacking::pack(Recharges { deadlines: [25; 8] }));
     // Half the health gone, a potion drunk, adrenaline built: none of it carries but the belt.
-    let hurt = MemberState { health: 70, energy: 10, adrenaline: 8, belt: [1, 1, 0, 0], hits: 3, ..state_of(world, 1) };
+    let hurt = MemberState {
+        health: 70, energy: 10, adrenaline: 8, belt: [1, 1, 0, 0], hits: 3, ..state_of(world, 1),
+    };
     write(world.instances, member_word(1, 0), StorePacking::pack(hurt));
     let header = Header { sequence: 12, clock: 40, ..header_of(world, 1) };
     write(world.instances, key(selector!("headers"), array![1]), StorePacking::pack(header));
@@ -843,7 +887,10 @@ fn test_leave_to_a_location() {
         read(world.instances, key(selector!("quotas"), array![1])),
     );
     assert(quotas.target == 6, 'N of floor 1');
-    assert(placement_of(world, HERO) == Placement { slot: 1, generation: 2, member: 0, inside: 1 }, 'placement');
+    assert(
+        placement_of(world, HERO) == Placement { slot: 1, generation: 2, member: 0, inside: 1 },
+        'placement',
+    );
     let draw = domain(next.into(), 0, ENTRY);
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
     assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
@@ -865,13 +912,18 @@ fn test_leave_to_a_location() {
             @array![
                 (
                     world.instances,
-                    Event::InstanceClosed(InstanceClosed { instance_id: id, outcome: Outcome::Moved }),
+                    Event::InstanceClosed(
+                        InstanceClosed { instance_id: id, outcome: Outcome::Moved },
+                    ),
                 ),
                 (
                     world.instances,
                     Event::InstanceEntered(
                         InstanceEntered {
-                            instance_id: next, adventurer_id: HERO, location: FLOOR_1, gate: LINK_HERE,
+                            instance_id: next,
+                            adventurer_id: HERO,
+                            location: FLOOR_1,
+                            gate: LINK_HERE,
                         },
                     ),
                 ),

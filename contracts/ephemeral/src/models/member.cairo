@@ -65,8 +65,10 @@ pub impl MemberStateImpl of MemberStateTrait {
 /// condition: `LIVE + 255`), and no effect or recharge (`LIVE`). Pinned against the packers by
 /// `test_empty_words`.
 pub const EMPTY_TIMERS: felt252 = 0x4000000000000000000000000000000000000000000000000000000000000ff;
-pub const EMPTY_EFFECTS: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
-pub const EMPTY_RECHARGES: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
+pub const EMPTY_EFFECTS: felt252 =
+    0x400000000000000000000000000000000000000000000000000000000000000;
+pub const EMPTY_RECHARGES: felt252 =
+    0x400000000000000000000000000000000000000000000000000000000000000;
 
 /// What changes at every tick.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -303,4 +305,3 @@ pub struct Member {
 pub fn empty_member_timers() -> MemberTimers {
     MemberTimers { act_slot: NO_SLOT, ..Default::default() }
 }
-

@@ -2,8 +2,8 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    LIVE, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at, field,
-    fits, join, low_field, split, u16_at, u32_at,
+    LIVE, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
+    field, fits, join, low_field, split, u16_at, u32_at,
 };
 use starknet::ContractAddress;
 
@@ -110,7 +110,8 @@ const PACK_LANES_UNIT: felt252 = 0x100000000000000000000000000000000000000000000
 const EXPERIENCE_UNIT: felt252 = 0x100000000;
 
 /// A stored `AdventurerPlace` read and changed by arithmetic (pinned against the packer by
-/// `test_place_words`): entering an instance, moving to the next one, being in a hub, unlocking one.
+/// `test_place_words`): entering an instance, moving to the next one, being in a hub, unlocking
+/// one.
 #[generate_trait]
 pub impl AdventurerPlaceImpl of AdventurerPlaceTrait {
     /// `inside` of a stored place, without unpacking the other fields.
@@ -250,7 +251,10 @@ pub impl BeltImpl of BeltTrait {
         let (low, b) = DivRem::div_rem(low, s32);
         let (d, c) = DivRem::div_rem(low, s32);
         (
-            [a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(), d.try_into().unwrap()],
+            [
+                a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(),
+                d.try_into().unwrap(),
+            ],
             [
                 low_field(high, P8.try_into().unwrap()).try_into().unwrap(), byte_at(high, P8),
                 byte_at(high, P16), byte_at(high, P24),
