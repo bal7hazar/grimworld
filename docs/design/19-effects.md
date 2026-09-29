@@ -99,7 +99,7 @@ Ids are proposals for CBT-01, grouped; the MVP ones first. **P** marks a kind wi
 | Id | Kind | Parameters | Rule |
 |---|---|---|---|
 | 6 | `CONDITION` | `param` the condition; the **duration** is the entry's (scaled) duration | applies or refreshes (§5.5) |
-| 7 | `CURE` | `param` the condition | ends it now: its deadline set to the current tick's end (§5.1). Field Dressing (Bleeding), restoratives' "remove a condition" (design/07). Curing an absent condition does nothing |
+| 7 | `CURE` | `param` the condition | ends it now: a duration of 0 (§5.1). Field Dressing (Bleeding), restoratives' "remove a condition" (design/07). Curing an absent condition does nothing |
 
 Conditions, ids in ENG-01's storage order, then the post-MVP ones (design/04, design/09):
 
@@ -231,8 +231,9 @@ So a condition of `d` ticks degenerates exactly `d` times (in steps 3), whether 
 action phase or by a goblin in step 2; a 1-tick spell of the adventurer resolves in step 1 of its
 action's first tick; a goblin's 3-tick wind-up started in step 2 of tick `T` resolves in step 1 of
 `T + 3`, after the adventurer's next **three** actions (design/04: "exactly three actions"). An
-effect that "ends now" (a cure, a spent block) gets `D = x`, which is no longer active in the next
-test. Deadlines stay below `MAX_CLOCK` by ENG-01's `LAST_TICK`.
+effect that "ends now" (a cure, a spent block) takes a duration of 0: `D = t₀ − 1`, that is `c` in
+the action phase and `T − 1` in tick `T`, so that no later test finds it active (a Bleeding cured
+in step 1 of tick `T` does not degenerate in its step 3). Deadlines stay below `MAX_CLOCK` by ENG-01's `LAST_TICK`.
 
 ### 5.2 The adventurer's action
 
