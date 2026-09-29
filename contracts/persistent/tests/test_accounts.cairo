@@ -298,8 +298,7 @@ fn changes(before: Span<felt252>, after: Span<felt252>) -> (u32, u32, u32) {
 // ---- the stored words written by arithmetic, against the packers (the oracle, CAIRO §2) --------
 
 #[test]
-// gas: raised, the new place is computed from region 1's town now, no longer a constant (D-144,
-// ENG-06)
+// gas: raised, the new place is computed from region 1's town (D-144, ENG-06)
 #[available_gas(l2_gas: 607950)] // ceil(1.05 × 579000 measured)
 fn test_stored_words() {
     let record = AccountRecord { slots: START_SLOTS, ..Default::default() };
@@ -364,8 +363,7 @@ fn test_stored_words() {
 // ---- register ----------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 15613805)] // ceil(1.05 × 14870290 measured)
 fn test_register() {
     let (hub, _) = setup();
@@ -391,8 +389,7 @@ fn test_register() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 9477321)] // ceil(1.05 × 9026020 measured)
 fn test_register_twice_refused() {
     let (hub, _) = setup();
@@ -404,8 +401,7 @@ fn test_register_twice_refused() {
 // ---- create_adventurer -------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 25005509)] // ceil(1.05 × 23814770 measured)
 fn test_create_adventurer() {
     let (hub, _) = setup();
@@ -480,8 +476,7 @@ fn test_playable_professions() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 7921158)] // ceil(1.05 × 7543960 measured)
 fn test_create_without_account_refused() {
     let (hub, _) = setup();
@@ -490,8 +485,7 @@ fn test_create_without_account_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 9642717)] // ceil(1.05 × 9183540 measured)
 fn test_create_empty_name_refused() {
     let (hub, _) = setup();
@@ -501,8 +495,7 @@ fn test_create_empty_name_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 9641405)] // ceil(1.05 × 9182290 measured)
 fn test_create_bad_profession_refused() {
     let (hub, _) = setup();
@@ -514,8 +507,7 @@ fn test_create_bad_profession_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 20330667)] // ceil(1.05 × 19362540 measured)
 fn test_create_no_free_slot_refused() {
     let (hub, _) = setup();
@@ -527,8 +519,7 @@ fn test_create_no_free_slot_refused() {
 // ---- delete_adventurer -------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 29391632)] // ceil(1.05 × 27992030 measured)
 fn test_delete_frees_the_slot_and_marks_the_record() {
     let (hub, _) = setup();
@@ -565,8 +556,7 @@ fn test_delete_frees_the_slot_and_marks_the_record() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 22215312)] // ceil(1.05 × 21157440 measured)
 fn test_delete_the_last_listed() {
     let (hub, _) = setup();
@@ -583,8 +573,7 @@ fn test_delete_the_last_listed() {
 
 /// ENG-01 §9.3's worst case: the hole and the last id on two pages (an account of eight).
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 42848820)] // ceil(1.05 × 40808400 measured)
 fn test_delete_across_pages() {
     let (hub, _) = setup();
@@ -611,8 +600,7 @@ fn test_delete_across_pages() {
 
 /// The MVP's worst deletion: 3 slots, the 2nd of 3 (two entries inspected, one page written).
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 25009709)] // ceil(1.05 × 23818770 measured)
 fn test_delete_worst_three_slots() {
     let (hub, _) = setup();
@@ -632,8 +620,7 @@ fn test_delete_worst_three_slots() {
 /// ENG-01 §9.3's two-page row at its longest search: the 7th of 8 (seven entries inspected, the
 /// hole on page 0, the last id on page 1).
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 42905205)] // ceil(1.05 × 40862100 measured)
 fn test_delete_worst_two_pages() {
     let (hub, _) = setup();
@@ -658,8 +645,7 @@ fn test_delete_worst_two_pages() {
 /// A negative swap delta: the last id is lower than the deleted one (a reused slot put a higher id
 /// first), so the lane falls by the difference; the page stays correctly packed.
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 25438035)] // ceil(1.05 × 24226700 measured)
 fn test_delete_negative_delta() {
     let (hub, _) = setup();
@@ -680,8 +666,7 @@ fn test_delete_negative_delta() {
 /// A deletion within the final page of a multi-page list: the hole and the last id on page 1, page
 /// 0 untouched; then deltas across pages, positive and negative.
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 51902886)] // ceil(1.05 × 49431320 measured)
 fn test_delete_within_the_final_page() {
     let (hub, _) = setup();
@@ -717,8 +702,7 @@ fn test_delete_within_the_final_page() {
 // The ownership helper, each case (through `delete_adventurer`).
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13976351)] // ceil(1.05 × 13310810 measured)
 fn test_helper_no_adventurer() {
     let (hub, _) = setup();
@@ -730,8 +714,7 @@ fn test_helper_no_adventurer() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 19530168)] // ceil(1.05 × 18600160 measured)
 fn test_helper_not_owner() {
     let (hub, _) = setup();
@@ -744,8 +727,7 @@ fn test_helper_not_owner() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 17799348)] // ceil(1.05 × 16951760 measured)
 fn test_helper_deleted() {
     let (hub, _) = setup();
@@ -758,8 +740,7 @@ fn test_helper_deleted() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13562535)] // ceil(1.05 × 12916700 measured)
 fn test_helper_not_in_a_hub() {
     let (hub, _) = setup();
@@ -772,8 +753,7 @@ fn test_helper_not_in_a_hub() {
 // "Its inventory emptied" (design/03, D-33), each part.
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13641380)] // ceil(1.05 × 12991790 measured)
 fn test_delete_pack_balances_refused() {
     let (hub, _) = setup();
@@ -784,8 +764,7 @@ fn test_delete_pack_balances_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13980099)] // ceil(1.05 × 13314380 measured)
 fn test_delete_pack_equipment_refused() {
     let (hub, _) = setup();
@@ -797,8 +776,7 @@ fn test_delete_pack_equipment_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13556141)] // ceil(1.05 × 12910610 measured)
 fn test_delete_equipped_refused() {
     let (hub, _) = setup();
@@ -810,8 +788,7 @@ fn test_delete_equipped_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13955435)] // ceil(1.05 × 13290890 measured)
 fn test_delete_pack_gold_refused() {
     let (hub, _) = setup();
@@ -824,8 +801,7 @@ fn test_delete_pack_gold_refused() {
 
 /// A pack emptied again (its lanes, pages and gold kept `LIVE` at 0) does not stop deletion.
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 14601552)] // ceil(1.05 × 13906240 measured)
 fn test_delete_after_the_pack_was_emptied() {
     let (hub, _) = setup();
@@ -841,8 +817,7 @@ fn test_delete_after_the_pack_was_emptied() {
 // ---- set_account_owner -------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 28756361)] // ceil(1.05 × 27387010 measured)
 fn test_set_account_owner() {
     let (hub, double) = setup();
@@ -878,8 +853,7 @@ fn test_set_account_owner() {
 
 /// ENG-01 §9.3 and §10's worst case: seven adventurers inside, each one's controller moved.
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 44845742)] // ceil(1.05 × 42710230 measured)
 fn test_set_account_owner_seven_inside() {
     let (hub, double) = setup();
@@ -919,8 +893,7 @@ fn test_set_account_owner_seven_inside() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 22163967)] // ceil(1.05 × 21108540 measured)
 fn test_set_account_owner_only_those_inside() {
     let (hub, double) = setup();
@@ -937,8 +910,7 @@ fn test_set_account_owner_only_those_inside() {
 /// `Instances.set_controller` reverts: the transfer reverts with it, and nothing of it is kept (the
 /// owner word, both `account_of` entries).
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 22484595)] // ceil(1.05 × 21413900 measured)
 fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
     let (hub, _) = setup();
@@ -963,8 +935,7 @@ fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13693922)] // ceil(1.05 × 13041830 measured)
 fn test_set_account_owner_wrong_caller_refused() {
     let (hub, _) = setup();
@@ -976,8 +947,7 @@ fn test_set_account_owner_wrong_caller_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 15415376)] // ceil(1.05 × 14681310 measured)
 fn test_set_account_owner_to_an_account_holder_refused() {
     let (hub, _) = setup();
@@ -990,8 +960,7 @@ fn test_set_account_owner_to_an_account_holder_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`, and `create_adventurer` reads region 1's town from
-// it (D-144, ENG-06)
+// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
 #[available_gas(l2_gas: 13351380)] // ceil(1.05 × 12715600 measured)
 fn test_set_account_owner_to_zero_refused() {
     let (hub, _) = setup();
