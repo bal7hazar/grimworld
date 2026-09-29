@@ -13,8 +13,11 @@
 # - Environment built from nothing: the job starts `/usr/bin/env -i` with a whitelist (build_env),
 #   whatever the caller or launchd hold. The desktop app's sessions carry the Sepolia account, the
 #   Atlantic key, the registry token and the app's own tokens: none reaches an agent.
-# - Budget of 2 agents at a time on the Mac, audits included (ORCH-client-visual §3), counted by
-#   kernel locks on the slot files ~/orchestrator/slots/cv-1 and cv-2, never by reading processes.
+# - Budget of 5 agents at a time on the Mac, audits and lent tasks included (owner, 2026-09-29, D-149),
+#   counted by kernel locks on the slot files ~/orchestrator/slots/cv-1 … cv-5, never by reading
+#   processes. No new agent while the 5-minute load average is above 18 or memory under 8 GB.
+# - The CLIs are started by absolute path (cli_bin), never through PATH; the agents' PATH starts with
+#   asdf's shims, so a worktree's pins (node, pnpm, scarb, snforge) decide the tools.
 # - Account: claude agents run on claude-b7r (CLAUDE_CONFIG_DIR=~/.claude-b7r), checked before
 #   every launch and resume; the owner's own configuration (~/.claude, bal7hazar) is never used.
 # Agents never run with --dangerously-skip-permissions: each launch passes a profile of
@@ -106,11 +109,21 @@ P=$root/scripts/profiles
 ORCH=$HOME/orchestrator
 SLOTS=$ORCH/slots
 LAUNCH_LOCK=$ORCH/agent-launch.lock
-# The agents' PATH, fixed: the node install that holds the claude CLI (a native binary installed by
-# npm under node 22.22.2), asdf's shims (a worktree's pinned tools) and asdf itself (~/go/bin),
-# ~/.local/bin (codex), Homebrew, the system. In test mode the stubs come first.
-PATH_FIXED="$HOME/.asdf/installs/nodejs/22.22.2/bin:$HOME/.asdf/shims:$HOME/go/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-[ "$TEST" = 0 ] || PATH_FIXED="$HOME/bin:$PATH_FIXED"
+# The agents' PATH, fixed: asdf's shims first (a worktree's .tool-versions decides node, pnpm, scarb,
+# snforge), asdf itself (~/go/bin), ~/.local/bin, Homebrew, the system. The node install that holds
+# the claude CLI is not on it.
+PATH_FIXED="$HOME/.asdf/shims:$HOME/go/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# The CLIs, by absolute path, from a fixed table. claude is a native binary (`claude.exe` of its npm
+# package, installed under node 22.22.2) and needs no node on PATH. asdf's shims hold a `claude` shim
+# that resolves the node of the current directory, so the CLI is never looked up on PATH. A test home
+# has its stubs in place of the table.
+cli_bin() { # <cli> -> its absolute path
+  if [ "$TEST" = 1 ]; then echo "$HOME/bin/$1"; return; fi
+  case "$1" in
+    claude) echo "$HOME/.asdf/installs/nodejs/22.22.2/bin/claude" ;;
+    codex) echo "$HOME/.local/bin/codex" ;;
+  esac
+}
 
 # The title tag of every job, log line and session: the model's display name, never guessed
 # (the table of scripts/agent.sh).
@@ -218,7 +231,8 @@ reap() { # <task>: boot out the task's job if it has exited; never one that runs
 # configuration), codex prints `model:` at the start of each run.
 reported_model() { # <task>
   local cli expected wt dir f
-  read -r cli expected < "$L/$1.cli" 2> /dev/null || { echo unknown; return; }
+  [ -f "$L/$1.cli" ] || { echo unknown; return; }
+  read -r cli expected < "$L/$1.cli" || { echo unknown; return; }
   if [ "$cli" = codex ]; then
     f=$(tail -c +$(($(cat "$L/$1.start" 2> /dev/null || echo 0) + 1)) "$L/$1.log" 2> /dev/null |
       grep -m1 -E '^model: ' || true)   # grep -m1 closes the pipe early: tail's SIGPIPE is fine
@@ -239,12 +253,12 @@ reported_model() { # <task>
 }
 
 # Machine thresholds, fixed here on purpose (no variable relaxes them): no agent starts or resumes
-# while the 5-minute load average (sysctl vm.loadavg) is above 10 or less than 8 GB of memory is
+# while the 5-minute load average (sysctl vm.loadavg) is above 18 (1.5 × the 12 cores) or less than 8 GB of memory is
 # available. Available memory is free + inactive + speculative pages of vm_stat (the pages the
 # kernel hands out without swapping; memory_pressure prints the same counters, more slowly). A
 # running agent is never stopped for load.
-MAX_LOAD5=10 MIN_MEM_GB=8
-# The budget: 2 agents at a time on the Mac, audits included, as two slot files the agents hold by
+MAX_LOAD5=18 MIN_MEM_GB=8
+# The budget: 5 agents at a time on the Mac, audits and lent tasks included, as five slot files the agents hold by
 # kernel locks. The slots are opened read-only (a missing one is an error, never a new slot) in a
 # read-only directory (mode 555), so that a held slot cannot be removed or replaced by a new inode (a
 # lock protects an inode, not a name); `slots-init` creates missing ones, only while every slot is
@@ -252,7 +266,7 @@ MAX_LOAD5=10 MIN_MEM_GB=8
 # macOS's own tool; there is no flock(1)): the lock belongs to the open file, which the inner shell
 # and every child it starts share, so the kernel frees it when the last of them has ended, however it
 # ends. lockf exits 75 when the lock is held.
-SLOT_NAMES=(cv-1 cv-2)
+SLOT_NAMES=(cv-1 cv-2 cv-3 cv-4 cv-5)
 slot_state() { # <slot> -> free | held | missing | unreadable | unlockable
   local f=$SLOTS/$1 fd rc=0
   if [ ! -f "$f" ]; then echo missing; return; fi
@@ -595,12 +609,10 @@ prompt="$prompt
 
 Foreground only: never run a command in the background and never end your turn waiting for one; in headless mode that ends the session. $end"
 
-# The CLI, resolved once on the agents' PATH, so that the account check and the job run the same
-# binary. In test mode it must be a stub of the test home.
-bin=$(PATH=$PATH_FIXED command -v "$cli" 2> /dev/null || true)
-if [ "$dry" = 1 ] && [ -z "$bin" ]; then bin=$cli; fi
-[ -n "$bin" ] || die "$cli is not on the agents' PATH ($PATH_FIXED)"
-if [ "$TEST" = 1 ] && [ "$bin" != "$HOME/bin/$cli" ]; then die "test mode: $cli resolves to $bin, not to the stub $HOME/bin/$cli"; fi
+# The CLI, by its absolute path from the table, so that the account check and the job run the same
+# binary. A dry run checks nothing on the machine.
+bin=$(cli_bin "$cli")
+if [ "$dry" = 0 ] && [ ! -x "$bin" ]; then die "$cli: $bin is missing or not executable"; fi
 
 case "$cli:$mode" in
   claude:new)
@@ -632,6 +644,7 @@ tmp=$L/tmp-$task
 if [ "$dry" = 1 ]; then
   echo "# $desc"
   echo "# worktree $wt  log $L/$task.log  launchd job $DOMAIN/$label  with-assets=$assets"
+  echo "# PATH $PATH_FIXED"
   printf '%q ' "${cmd[@]}"
   echo
   exit 0

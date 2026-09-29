@@ -60,6 +60,14 @@ pub fn is_sequential(kind: u8) -> bool {
     kind != QUOTAS && kind != OUTLINE && kind != SHOP && kind != TASK && kind != QUEST
 }
 
+/// Whether a record read from the registry exists: its part 0 is not 0 (a record never written
+/// reads as zeros). A free function beside `is_sequential`: the rule is the registry's, for every
+/// kind, and no model owns it.
+#[inline(always)]
+pub fn exists(parts: Span<felt252>) -> bool {
+    *parts[0] != 0
+}
+
 /// A registry record's model and its parts (D-143): the model packs into the `parts(KIND)` felts
 /// that `Registry.set_record` takes and `record`, `records` and `bundle` return, and unpacks from
 /// them. Implemented by each model of `crate::models`.

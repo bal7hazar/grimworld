@@ -5,6 +5,8 @@
 pub mod account;
 /// Adventurers.
 pub mod adventurer;
+/// Pages of balances: the pack's, the vault's, escrow's.
+pub mod balance;
 /// Equipment entities, grimoires, gold, Rift boards.
 pub mod item;
 /// Lots and trades.

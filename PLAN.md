@@ -171,7 +171,7 @@ lent to it (D-149): IDX-01.
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| ART-02 | ART-00's atlas corrected: sprites at the height of the pack's unit of their build (78, 94, 128 px; ART-1 answered provisionally), Python 3.12, the same output on macOS and Linux | ART-00 | Opus 5.5 | Q + GPT-6-Sol | todo |
+| ART-02 | ART-00's atlas corrected: hand-drawn units at their native height, only the generated goblins reduced to the pack's scale (owner, D-146 corrected; ART-1 answered provisionally), Python 3.12, the same output on macOS and Linux | ART-00 | Opus 5.5 | Q + GPT-6-Sol | todo |
 | CLI-03a | A rendering sandbox on fixed data: hexagonal room on demand, camera that follows, sight 6, facing and arcs, touch; no rule outside `client/sim` (mandate §6) | — | Opus 5.5 | D Q + GPT-6-Sol | todo |
 | SPK-6a | The protocol of SPK-6 on real phones | — | Opus 5.5, research | D | todo |
 
@@ -190,11 +190,12 @@ and CLI-08 are candidates for this track.
 | ENG-03 | Registries: region, location, gate + seed data for a test region; **a content version returned with the content, its cost measured** (D-141, E-5) | ENG-01 | Opus 5.5 | D S Q + GPT-6-Astra | done (2026-09-29, [#106](https://github.com/bal7hazar/grimworld/pull/106); [report](docs/reports/ENG-03-registries.md)) |
 | ENG-04 | Adventurer creation and ownership | ENG-01 | Opus 5.5 | D S Q + GPT-6-Astra | done (2026-09-29, [#100](https://github.com/bal7hazar/grimworld/pull/100); [report](docs/reports/ENG-04-adventurers.md); F-5, F-6 deferred to ENG-R1) |
 | ENG-05 | Chunk reveal engine: random word, generation with margins, edges and openings, bands, quotas, anchors, placement (ADR-0006). D-134: void chunks around every location and outside a zone's outline (wall, never revealed, never stored); a chunk's four corner tiles are always wall | ENG-02, SPK-7, LIB-05 | Opus 5.5 | D S P C Q + GPT-6-Astra | todo |
-| ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; entry draw (Fate); `Instances.set_controller` (ENG-04 calls it from `set_account_owner`, tested there with a double). D-145: read only the records its ticks use, and measure where `bundle`'s 36,000 a slot goes (the call against the read) before the weights are frozen | ENG-03, ENG-04 | Opus 5.5 | D S C Q + GPT-6-Astra | doing ([brief](docs/briefs/ENG-06-instance-lifecycle.md)) |
+| ENG-06 | Instance lifecycle: enter with snapshot, resume, return, close; entry draw (Fate); `Instances.set_controller` (ENG-04 calls it from `set_account_owner`, tested there with a double). D-145: read only the records its ticks use, and measure where `bundle`'s 36,000 a slot goes (the call against the read) before the weights are frozen | ENG-03, ENG-04 | Opus 5.5 | D S C Q + GPT-6-Astra | done (2026-09-29, [#120](https://github.com/bal7hazar/grimworld/pull/120); [report](docs/reports/ENG-06-instance-lifecycle.md); F-2 deferred to ENG-R1) |
 | ENG-07 | Movement, facing, simulation window (15 × 16, follows the adventurer, assembled at each tick, not stored), action queue with stop conditions, instance clock. From SPK-7: assemble the window only with a goblin awake; read chunks once per batch; B′ (stored window) only if fights pay for it, with a benchmark of a chunk-set change built from valid deferred ticks (SPK-7 audit, finding 3, deferred); select ≤ 8 awake goblins among more. D-134: the window is never clamped; void chunks are a constant in the assembly. D-145: read only the records its ticks use, and measure where `bundle`'s 36,000 a slot goes (the call against the read) before the weights are frozen | ENG-05, ENG-06, ENG-01b | Opus 5.5 | D S P C Q | todo |
 | CLI-01 | Client shell in Capacitor: account provider interface with a **burner** implementation, chain access through starknet.js, subscription to the indexer | FND-01b, SPK-6, IDX-01 | Opus 5.5 | S Q | todo |
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness. SPK-4 / D-140: a TypeScript mirror checked by vectors generated from the Cairo code (option (a)); measure the full tick in TypeScript and Poseidon, which the spike did not | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
+| FND-08 | **The burner's funder on a public network**: a service of the game behind FND-05's `Funder` port, tested on the local node; before any play on Sepolia (D-150) | FND-05 | Opus 5.5 | S Q + GPT-6-Astra | doing ([brief](docs/briefs/FND-08-funder-service.md)) |
 | OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer | ENG-07 | Sonnet 5 | S Q | todo |
 | IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo (lent to track CV on the Mac, D-149) |
 | IDX-02 | The indexer hosted for Sepolia, watched, rebuilt from the chain on demand | IDX-01, OPS-01 | Sonnet 5.5 | S Q | todo |
@@ -206,7 +207,7 @@ verified by the cross-cutting audit.
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| CBT-01 | Freeze combat interfaces: actor stats, skill and effect schema, caste schema | Phase 1 | Orchestrator + Opus 5.5 | D | todo |
+| CBT-01 | Freeze combat interfaces: actor stats, skill and effect schema, caste schema (the shape of DES-06's sheet). **Pulled forward while the engine chain waits (D-150)** | DES-04 | Orchestrator + Opus 5.5 | D | todo, **next** (D-150: before CBT-01, pulled forward) |
 | CBT-02 | World tick pipeline (5 steps), regeneration, durations, recharges | CBT-01 | Opus 5.5 | D P C Q | todo |
 | CBT-03 | Weapon attacks, damage formula, armor, arcs, flank and critical. D-140 (design/04 *Edges*): armor clamped at 0; every percent modifier of damage summed and applied once, truncating; damage saturated to [0, 65,535]; a goblin's own tile unmarked asserted; no panic on a legal action | CBT-02 | Opus 5.5 | D S P C Q | todo |
 | CBT-04 | Conditions (MVP five) | CBT-02 | Opus 5.5 | D P Q | todo |
@@ -305,7 +306,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-01 | **Interface** (`docs/design/11-interface.md`) | Phase 1 (CLI-03) | done (draft v0.1) |
 | DES-02 | **Vision**: what the adventurer sees inside a room (whole room or a radius), what goblins perceive, how line of sight and sleep interact | Phase 1 (ENG-07) | done (`docs/design/18-rooms.md`) |
 | DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | done (`docs/design/18-rooms.md`) |
-| DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | todo |
+| DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | doing (D-150; Opus 5.5, `[GPT-6-Astra]`; [brief](docs/briefs/DES-04-effects.md)) |
 | DES-05 | **Skill lists**: the 6 trainer skills per MVP profession (only the 6 starters exist) | Phase 2 (CNT-01) | todo |
 | DES-06 | **Caste sheets**: health and armor per caste, skill list, priority list, boss phases | Phase 2 (CNT-01) | todo |
 | DES-07 | **Curves**: experience per level, merit per quest, gold income and prices, attribute points per level | Phase 3 (GLD-01) | todo |

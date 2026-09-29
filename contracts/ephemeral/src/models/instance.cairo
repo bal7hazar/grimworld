@@ -6,6 +6,119 @@ use grimworld_logic::packing::{
     P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, byte_at, join, low_field, split, u16_at,
     u32_at,
 };
+use grimworld_logic::types::Refusal;
+
+/// The reverts of `Instances`' lifecycle (ENG-06). A refusal of the game (a gate action that
+/// cannot run) is not a revert: it emits `Refused` and changes nothing (design/02).
+pub mod errors {
+    /// `create`, `set_controller` called by anyone but the registered hub (ENG-01 §1.2).
+    pub const NOT_HUB: felt252 = 'not hub';
+    /// `create` for an adventurer already in an instance (design/02: at most one).
+    pub const ALREADY_INSIDE: felt252 = 'already inside';
+    /// `set_controller` for an adventurer in no instance.
+    pub const NOT_INSIDE: felt252 = 'not inside';
+    /// More task entries than a snapshot holds (D-131).
+    pub const TOO_MANY_TASKS: felt252 = 'too many tasks';
+    /// `create` through a gate or to a location the registry does not hold.
+    pub const NO_GATE: felt252 = 'no gate';
+    pub const NO_LOCATION: felt252 = 'no location';
+    /// `create` to a hub: a town or an outpost is not an instance (design/01).
+    pub const NO_MAP: felt252 = 'location without a map';
+}
+
+/// `Header.flags` bit 0: a sealed Red Rift, no travel back (design/17).
+pub const SEALED: u8 = 1;
+
+#[generate_trait]
+pub impl PlacementImpl of PlacementTrait {
+    /// Inside the instance `(slot, generation)`, as its first member (one in the MVP, M-3).
+    fn new(slot: u32, generation: u32) -> Placement {
+        Placement { slot, generation, member: 0, inside: 1 }
+    }
+
+    /// Whether it places the adventurer inside the instance `(slot, generation)`.
+    fn is_in(self: @Placement, slot: u32, generation: u32) -> bool {
+        *self.inside != 0 && *self.slot == slot && *self.generation == generation
+    }
+}
+
+#[generate_trait]
+pub impl HeaderImpl of HeaderTrait {
+    /// The header of a new generation (ENG-01 §2.1): sequence 0, clock 0, open, one member, the
+    /// tasks snapshotted, nothing revealed, the roster empty (its stale lanes masked by the count),
+    /// the entrance and the gate.
+    fn new(
+        generation: u32,
+        location: u16,
+        tasks: u8,
+        sealed: bool,
+        entry_chunk: u8,
+        entry_tile: u8,
+        gate: u16,
+    ) -> Header {
+        Header {
+            generation,
+            sequence: 0,
+            clock: 0,
+            location,
+            status: OPEN,
+            members: 1,
+            tasks,
+            revealed_count: 0,
+            roster_count: 0,
+            flags: if sealed {
+                SEALED
+            } else {
+                0
+            },
+            entry_chunk,
+            entry_tile,
+            gate,
+        }
+    }
+
+    #[inline(always)]
+    fn is_sealed(self: @Header) -> bool {
+        *self.flags & SEALED != 0
+    }
+}
+
+#[generate_trait]
+pub impl HeaderAssert of HeaderAssertTrait {
+    /// The checks of a gate action (`leave`, `travel_back`) once its caller controls the member,
+    /// before any registry read or draw (design/02 *The chain's answer*; ADR-0002 rule 3), in this
+    /// order: the instance is the slot's current generation and open (`Closed`); the adventurer is
+    /// inside it and not down (`Absent`); the sequence is the instance's (`Sequence`). `None`: it
+    /// may run. A refusal is not a revert.
+    fn refusal(
+        self: @Header,
+        generation: u32,
+        placement: @Placement,
+        slot: u32,
+        member_status: u8,
+        sequence: u32,
+    ) -> Option<Refusal> {
+        if *self.generation != generation || *self.status != OPEN {
+            return Option::Some(Refusal::Closed);
+        }
+        if !placement.is_in(slot, generation) || member_status != super::member::INSIDE {
+            return Option::Some(Refusal::Absent);
+        }
+        if *self.sequence != sequence {
+            return Option::Some(Refusal::Sequence);
+        }
+        Option::None
+    }
+}
+
+#[generate_trait]
+pub impl QuotasImpl of QuotasTrait {
+    /// A new generation's quotas: the location's target number of chunks `N` (0 in a zone). What
+    /// each quota has left to place is written by ENG-05, with `QUOTAS`' layout; until then 0.
+    fn new(target: u8) -> Quotas {
+        Quotas { target, open_edges: 0, left: [0; 14] }
+    }
+}
 
 /// Where an adventurer's instances live: its reusable slot, the generation of its last instance,
 /// its member index there, and whether it is inside now. Keyed by adventurer id: it is the

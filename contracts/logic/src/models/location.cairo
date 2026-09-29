@@ -77,6 +77,23 @@ pub impl LocationImpl of LocationTrait {
             set_pieces,
         }
     }
+
+    /// The global tile `(x, y)` of tile `15 row + column` of chunk `15 cy + cx`: `x = 15 cx +
+    /// column`, `y = 15 cy + row`, both below 225 (ENG-01 §3.2).
+    #[inline(always)]
+    fn position(chunk: u8, tile: u8) -> (u8, u8) {
+        let side: NonZero<u8> = 15;
+        let (cy, cx) = DivRem::div_rem(chunk, side);
+        let (row, column) = DivRem::div_rem(tile, side);
+        (cx * 15 + column, cy * 15 + row)
+    }
+
+    /// A location with a map, played in an instance (design/01 *Location types*): not a town nor
+    /// an outpost, which are hubs.
+    #[inline(always)]
+    fn has_map(self: @Location) -> bool {
+        *self.kind != kind::TOWN && *self.kind != kind::OUTPOST
+    }
 }
 
 #[generate_trait]

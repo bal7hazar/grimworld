@@ -5,7 +5,11 @@ Mac. It keeps the contract of [OPERATIONS.md](../../OPERATIONS.md) §3–§4 as 
 it on the VPS (a committed brief, a fresh worktree, a log, `REPORT.md`, resume and never a relaunch
 from scratch, the model's tag everywhere, a budget counted by locks, nothing secret in an agent's
 environment), with macOS mechanics. `scripts/agent.sh`, `scripts/lock.sh` and `scripts/profiles/`
-are frozen and used as they are. Brief: [CV-01](../../docs/briefs/CV-01-mac-launcher.md).
+are frozen and used as they are. Briefs: [CV-01](../../docs/briefs/CV-01-mac-launcher.md), then
+[CV-02](../../docs/briefs/CV-02-launcher-budget.md): by the owner's decision of 2026-09-29 (D-149),
+at most **5 agents at a time** on the Mac, audits and lent tasks included, no new agent while the
+5-minute load average is above **18** (1.5 × the 12 cores) or available memory is under 8 GB, and the
+agents run on the Node and pnpm that the repository pins.
 
 ```
 scripts/mac/agent.sh [--dry-run] [--with-assets] [--branch <b>] <task> <claude|codex> <model> <new|resume> "<prompt>" [profile] [sid] [effort]
@@ -13,9 +17,10 @@ scripts/mac/agent.sh status | wait <task> | sid <task> | model <task> | threshol
 scripts/mac/test.sh     # the tests, with stub CLIs; never a real agent, never a token
 ```
 
-Exit codes: 0 done, 2 refused (usage, record, model, profile, `--with-sepolia`, a launch that did not
-report), 4 thresholds or budget, 5 account. Once on the Mac, before the first launch:
-`scripts/mac/agent.sh slots-init`.
+Exit codes: 0 done, 2 refused (usage, record, model, profile, `--with-sepolia`, a CLI binary missing
+or not executable, a launch that did not report), 4 thresholds or budget, 5 account. Once on the Mac,
+before the first launch: `scripts/mac/agent.sh slots-init` (on a Mac that has `cv-1` and `cv-2` it adds
+`cv-3` to `cv-5` and keeps the two, while every slot is free).
 
 ## Summary
 
@@ -26,9 +31,10 @@ report), 4 thresholds or budget, 5 account. Once on the Mac, before the first la
 | Detached | A launchd job of the GUI domain: `launchctl bootstrap gui/<uid> logs/<label>.plist`, label `grimworld.cv.<task>.<utc hhmmss>`, `RunAtLoad` true, `KeepAlive` false (never restarted), `AbandonProcessGroup` true, `Nice` 10, stdout and stderr to the task's log, run under `caffeinate -i`. Its parent is launchd (pid 1): closing the desktop app does not stop it. `launchctl submit` is never used. |
 | Environment | The job starts `/usr/bin/env -i` with a whitelist: `HOME USER LOGNAME SHELL LANG TMPDIR PATH BASH_DEFAULT_TIMEOUT_MS BASH_MAX_TIMEOUT_MS`, `CLAUDE_CONFIG_DIR` (claude) and the launcher's `GW_*`. The shells add `PWD SHLVL _` and caffeinate `__CF_USER_TEXT_ENCODING`; nothing of the caller. `HOME`, `USER` and `SHELL` come from the user database. claude also gets `--settings` emptying the registry token, the five `STARKNET_*` and `ATLANTIC_API_KEY`. |
 | Permissions | The profile of `scripts/profiles/`, read as `scripts/agent.sh` reads it, plus Mac deny rules (launchd, `open`, `osascript`, `caffeinate`, the keychain, this launcher, the credentials of `~/.claude-b7r`, `~/.codex`, `~/.config/gh` by `~`, `$HOME` and absolute path). Never `--dangerously-skip-permissions`. Codex: `exec -s read-only` (resume: `sandbox_mode="read-only"`), profile `audit` only. |
-| Budget | 2 agents at a time on the Mac, audits included: slot files `~/orchestrator/slots/cv-1`, `cv-2` (directory mode 555; `slots-init` creates missing ones). The agent's inner shell locks one with `/usr/bin/lockf -s -t 5 7` on a descriptor its children inherit, writes `slots-acquired` in `logs/<task>.run`; the kernel frees the lock however the agent ends. The launcher holds `~/orchestrator/agent-launch.lock` from the count to `slots-acquired` and stops the job by its label if that never comes (20 s), saying whether the stop is verified. |
-| Thresholds | Fixed: no launch or resume while the 5-minute load (`sysctl vm.loadavg`) is above 10 or less than 8 GB is available (free + inactive + speculative pages of `vm_stat`). A running agent is never stopped for load. |
-| Builds | No build lock on the Mac (`scripts/lock.sh` needs `flock`): the Mac's heavy builds are serialised by the budget of 2. |
+| Budget | 5 agents at a time on the Mac, audits and lent tasks included (D-149): slot files `~/orchestrator/slots/cv-1` to `cv-5` (directory mode 555; `slots-init` creates missing ones). The agent's inner shell locks one with `/usr/bin/lockf -s -t 5 7` on a descriptor its children inherit, writes `slots-acquired` in `logs/<task>.run`; the kernel frees the lock however the agent ends. The launcher holds `~/orchestrator/agent-launch.lock` from the count to `slots-acquired` and stops the job by its label if that never comes (20 s), saying whether the stop is verified. |
+| Thresholds | Fixed: no launch or resume while the 5-minute load (`sysctl vm.loadavg`) is above 18 or less than 8 GB is available (free + inactive + speculative pages of `vm_stat`). A running agent is never stopped for load. |
+| Builds | No build lock on the Mac (`scripts/lock.sh` needs `flock`): the Mac's heavy builds are bounded by the budget of 5 and the load threshold. |
+| PATH and CLIs | The agents' `PATH` is fixed: `~/.asdf/shims` first (the worktree's `.tool-versions` decides `node` 24.21.0, `pnpm` 12.5.1, `scarb`, `snforge`), then `~/go/bin`, `~/.local/bin`, Homebrew, the system; the node install of the `claude` CLI (`nodejs/22.22.2/bin`) is not on it. The CLIs are started by absolute path from a table in the script (`claude` `~/.asdf/installs/nodejs/22.22.2/bin/claude`, `codex` `~/.local/bin/codex`), never through `PATH` (the shims hold a `claude` shim that would resolve the worktree's node); the launcher exits 2 if the file is missing or not executable, and the account check runs the same binary. `claude` there is the native binary `claude.exe` of its npm package (per the CV-01 report), so it needs no `node`. `--dry-run` prints the `PATH` on a `# PATH` line. |
 | Labels | The label read from `logs/<task>.label` is checked before any `launchctl print`, kill or bootout: it must be exactly `grimworld.cv.<task>.<hhmmss>` (`grimworld.cv.test.<task>.<hhmmss>` in test mode). Anything else, such as a copy of another task's label, is refused and never acted on: `stop`, `wait`, a launch or resume of the task exit 2, and `status` lists the task as `refused`. Outside the tests a task name may not start with `test.`, so no real label reads as a test label. |
 | Closing a job | A finished job stays loaded in launchd until it is booted out by its exact label (`logs/<task>.label`): `wait`, `status`, `stop` and the next launch of the task do it. `stop` signals the job's process group (launchd makes the job a group leader; `AbandonProcessGroup` means a bootout alone would leave the CLI running), then boots it out, then checks the label, the group and the slot are gone. |
 
@@ -58,7 +64,7 @@ is refused (exit 2). Every override is read from files of the test home and only
 
 | Override | Test mode only |
 |---|---|
-| Stub CLIs | `$HOME/bin` comes first on the agents' PATH, and the CLI **must** resolve there, else refused |
+| Stub CLIs | The table of CLI paths is `$HOME/bin/<cli>` (the stubs of the test home), never the real binaries |
 | Thresholds | `$HOME/test-load5`, `$HOME/test-mem-gb` |
 | Deadline of `slots-acquired` | `$HOME/test-deadline` |
 | A job that never reports | `$HOME/test-hang`: the launcher then adds `GW_TEST_HANG=1` to the job's environment, which it builds from nothing, so no caller can set it |
@@ -77,10 +83,12 @@ against accidents, not against a deliberate act of the same Unix user.
 account refusals (nothing created), the detachment (parent pid 1, alive after the launching shell
 exits, nice 10, caffeinate's assertion), the environment against decoys (`STARKNET_PRIVATE_KEY`,
 `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN`, `ATLANTIC_API_KEY`, `GH_TOKEN`…), the command line,
-the budget of 2 with a claude and a codex, two launchers racing for the last free slot, a label file
+`slots-init` on a directory holding two slots, the budget of 5 (five stubs, a sixth refused), the load
+threshold at 18, the agent's `PATH` and the CLI's absolute path, a missing CLI, `status` on a task
+without `.cli`, two launchers racing for the last free slot of five, a label file
 holding another task's label, a job that never reports, resume, `wait`, `stop`, the refusals,
 `bash -n` and `shellcheck`, and finally that every job, file and lock it made is gone. It prints one
-`ok`/`FAIL` line per case and takes about a minute (59 s measured on 2026-09-29).
+`ok`/`FAIL` line per case and takes about a minute.
 
 Its tasks are named `<run id>-<case>`, so every label of a run starts with
 `grimworld.cv.test.<run id>-`. A task is recorded before it is launched, and a launcher started in the
