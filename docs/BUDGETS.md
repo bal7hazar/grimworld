@@ -11,9 +11,9 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_admin::test_instances_set_admin_refused` | 2999520 | 3149496 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_admin::test_instances_set_contracts_by_admin` | 2837290 | 2979155 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_admin::test_instances_set_contracts_refused_to_others` | 2733090 | 2869745 | 2026-09-29 | e246ac5 |
-| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 88140 | 92547 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 205040 | 215292 | 2026-09-29 | a767e84 |
 | grimworld_ephemeral | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 2026-09-29 | d65eb86 |
-| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650760 | 2783298 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 2026-09-29 | a767e84 |
 | grimworld_ephemeral | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_four_revealed` | 442850 | 464993 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_none` | 282660 | 296793 | 2026-09-29 | d65eb86 |
@@ -56,7 +56,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_packing::test_task_page_layout` | 142250 | 149363 | 2026-09-29 | d65eb86 |
 | grimworld_persistent | `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 2026-09-29 | 2704c6d |
 | grimworld_persistent | `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 2026-09-29 | 2704c6d |
-| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55220 | 57981 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55520 | 57981 | 2026-09-29 | a767e84 |
 | grimworld_persistent | `test_admin::test_hub_set_admin_hands_over` | 4895740 | 5140527 | 2026-09-29 | e246ac5 |
 | grimworld_persistent | `test_admin::test_hub_set_admin_refused` | 4359910 | 4577906 | 2026-09-29 | e246ac5 |
 | grimworld_persistent | `test_admin::test_hub_set_contracts_by_admin` | 4245460 | 4457733 | 2026-09-29 | e246ac5 |

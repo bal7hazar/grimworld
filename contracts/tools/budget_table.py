@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """ENG-01: the write set and the budget of every entrypoint, derived from physical keys
-(docs/architecture/ENG-01-interfaces.md §9.3, §10, §10.1). Fix loop 3 (F-2, F-3, F-4).
+(docs/architecture/ENG-01-interfaces.md §9.3, §10, §10.1). ENG-01b: F-2, F-3, F-4 of the final audit,
+the content version (D-141, E-5), and D-141's rules of a batch (E-1, E-16, E-21).
 
 Every write is a **physical key** with an identity (a tuple: the storage variable and its keys, the
 word of a multi-slot record), and a **rule**:
@@ -34,14 +35,17 @@ import math
 import sys
 
 F, N, O, C, FELT = 816_939, 453_524, 32_072, 136_000, 5_120
+TICK_ACTION_CALLDATA = 5  # instance, adventurer, sequence, content version (D-141), tile
+PLAY_CALLDATA = 5  # instance, adventurer, sequence, content version (D-141, E-5), actions
 TICK_ALONE, TICK_SHARED = 3_564_913, 1_705_764
+CLASS_BOUND = 58_000_000  # the cold bound of an unsplittable action (E-21)
 WINDOW_LOW, WINDOW_HIGH = 65_224, 720_000
 GENERATION = 450_000  # a chunk's generation, the high end of SPK-7's 0.39-0.45 M (M)
 RATIO = 1.157
 
 # Frozen event shapes: keys (selector included) + data felts (contracts/*/src/events.cairo).
 EVENT_FELTS = {
-    "InstanceEntered": 2 + 3, "BatchPlayed": 2 + 6, "Refused": 2 + 4, "InstanceClosed": 2 + 1,
+    "InstanceEntered": 2 + 3, "BatchPlayed": 2 + 7, "Refused": 2 + 4, "InstanceClosed": 2 + 1,
     "GoblinKilled": 2 + 4, "ChunkRevealed": 2 + 1, "Defeated": 2 + 1,
     "AdventurerLocated": 2 + 1, "TitleDisplayed": 2 + 2, "TrialPassed": 2 + 2,
     "DungeonCleared": 2 + 1, "RankReached": 2 + 1,
@@ -229,10 +233,17 @@ row("`enter` (with `create`), first entry of the adventurer",
 row("`enter`, a later entry",
     Branch("entered", 1_450_000, ["instances", "registry(hub)", "registry", "fate"], 2,
            ev(InstanceEntered=1, AdventurerLocated=1), create_keys(first_entry=False), ""))
-row("`enter_rift`, later entry, the day's first board action",
-    Branch("entered", 1_550_000, ["instances", "registry(hub)", "registry", "fate", "fate(board)"], 2,
-           ev(InstanceEntered=1, AdventurerLocated=1),
-           create_keys(first_entry=False).add(("H.board", ACCT), "first"), "`enter` + the board's draw"))
+RIFT_BOARD = Keys().add(("H.board", ACCT), "first")
+RIFT_CALLS = ["instances", "registry(hub)", "registry", "fate", "fate(board)"]
+RIFT_EVENTS = ev(InstanceEntered=1, AdventurerLocated=1)
+row("`enter_rift`, either entry: the adventurer's first (a Rift can be its first instance, F-4) or a later one",
+    Branch("entered, first entry of the adventurer", 1_550_000, RIFT_CALLS, 2, RIFT_EVENTS,
+           create_keys(first_entry=True).union(RIFT_BOARD), "`enter` + the board's draw; the first instance slot, `I.next_slot`"),
+    Branch("entered, later entry", 1_550_000, RIFT_CALLS, 2, RIFT_EVENTS,
+           create_keys(first_entry=False).union(RIFT_BOARD), "`enter` + the board's draw"))
+row("`enter_rift`, later entry alone, the day's first board action",
+    Branch("entered", 1_550_000, RIFT_CALLS, 2, RIFT_EVENTS,
+           create_keys(first_entry=False).union(RIFT_BOARD), "kept apart from the selector's maximum (F-4)"))
 
 
 def leave_to_hub():
@@ -268,23 +279,43 @@ row("`loot`",
     Branch("refused", 150_000, [], 4, ev(Refused=1), Keys(), "a check fails before the draw: changes nothing"))
 
 
-def tick_branches(action, extra_inst, completion_report, completion_calls, ticks, goblins, extra_events, compute0):
+def tick_branches(action, extra_inst, completion_report, completion_calls, ticks, goblins, extra_events, compute0,
+                  price_refusal=False):
+    """A standalone action's branches (F-3): each of completion, interruption or refusal, defeat and a
+    quiet completion, alone and **with the objective its ticks can complete** (a burning or poisoned
+    Rift Heart dying, a dungeon cleared: the account's board, the 'distinct' counter, `DungeonCleared`);
+    a collector's refusal on price is its own branch, with its `Hub.barter` call."""
     tick_compute = compute0 + ticks * (TICK_ALONE + WINDOW_HIGH)
     base = world(goblins, 4, goblins, True).union(extra_inst)
+    near = world(goblins, 4, goblins, True).union(report_open())
     kills = ev(GoblinKilled=goblins)
-    out = [Branch("completion, goblins near", tick_compute, completion_calls, 4, {**kills, **extra_events},
-                  Keys().union(base).union(completion_report).union(report_open()),
-                  f"{ticks} tick(s) as alone and their window; {goblins} goblins (14 a tick); ≤ {goblins} kills (traps)"),
-           Branch("interrupted or refused after its tick(s), goblins near", tick_compute, ["registry", "hub"], 4,
-                  {**kills, "Refused": 1}, Keys().union(world(goblins, 4, goblins, True)).union(report_open()),
-                  "the ticks ran; no result of the action itself"),
-           Branch("defeat, goblins near", tick_compute, ["registry", "hub"], 4,
-                  {**kills, "Defeated": 1, "InstanceClosed": 1, "AdventurerLocated": 1},
-                  Keys().union(world(goblins, 4, goblins, True)).union(report_open()).union(closing()),
-                  "closes: both placements, the belt credited back (E-15 a)"),
-           Branch("completion, no goblin near", compute0 + ticks * 300_000, completion_calls, 4, extra_events,
-                  Keys().many(instance_head(), "old").add(("I.member", 0, "state"), "old").union(extra_inst)
-                  .union(completion_report).union(report_open()), "quiet ticks, 0.30 M each")]
+    closed = {"Defeated": 1, "InstanceClosed": 1, "AdventurerLocated": 1}
+    quiet = Keys().many(instance_head(), "old").add(("I.member", 0, "state"), "old").union(extra_inst)
+    plain = [
+        ("completion, goblins near", tick_compute, completion_calls, {**kills, **extra_events},
+         Keys().union(base).union(completion_report).union(report_open()),
+         f"{ticks} tick(s) as alone and their window; {goblins} goblins (14 a tick); ≤ {goblins} kills (traps)"),
+        ("interrupted before its result, goblins near", tick_compute, ["registry", "hub"], {**kills, "Refused": 1},
+         near, "the ticks ran; no result of the action itself"),
+    ]
+    if price_refusal:
+        plain.append(("refused on price, goblins near", tick_compute, ["registry", "hub.barter", "hub"],
+                      {**kills, "Refused": 1}, near, "the ticks ran; `Hub.barter` found the price absent: nothing exchanged"))
+    plain += [
+        ("defeat, goblins near", tick_compute, ["registry", "hub"], {**kills, **closed},
+         Keys().union(near).union(closing()), "closes: both placements, the belt credited back (E-15 a)"),
+        ("completion, no goblin near", compute0 + ticks * 300_000, completion_calls, extra_events,
+         Keys().union(quiet).union(completion_report).union(report_open()), "quiet ticks, 0.30 M each"),
+    ]
+    out = []
+    for name, compute, calls, events, keys, basis in plain:
+        out.append(Branch(name, compute, calls, TICK_ACTION_CALLDATA, events, keys, basis))
+        out.append(Branch(name + ", with the objective", compute, calls, TICK_ACTION_CALLDATA, {**events, "DungeonCleared": 1},
+                          Keys().union(keys).union(report_objective()), "and the objective the ticks completed"))
+    # A different content version is refused before any tick, like a failed precondition (D-141): the
+    # `bundle` call that returns the version, `Refused`, nothing written.
+    out.append(Branch("refused, content version differs", 150_000, ["registry"], TICK_ACTION_CALLDATA,
+                      ev(Refused=1), Keys(), "before any tick: changes nothing"))
     return out
 
 
@@ -299,50 +330,70 @@ BARTER = Keys().many([("H.pack_page", ADV, "price", 0), ("H.pack_page", ADV, "pr
     ("H.item", "given", "base"), "new").add(("H.next_item",), "old").add(("H.pack_list", ADV, 0), "first").add(
     ("H.core", ADV), "old")
 row("`barter` (1 tick, then the hub's exchange)",
-    *tick_branches("barter", Keys(), BARTER, ["registry", "hub.barter", "hub"], 1, 14, {}, 400_000))
+    *tick_branches("barter", Keys(), BARTER, ["registry", "hub.barter", "hub"], 1, 14, {}, 400_000, price_refusal=True))
 
 # ---- play: a batch ------------------------------------------------------------------------------
-def batch(goblins, one_word=False, reveals=0, features=9):
+def batch(goblins, one_word=False, reveals=0, features=9, goblin_rule="first"):
+    """A batch's instance writes. Chunks have **one physical identity per word**, whether a reveal or a
+    tick writes it (F-2): the batch's chunks are the `features` of the union of the windows (at most
+    9), a `reveals` of them revealed by this batch (their `terrain` and `features` words start the
+    transaction unwritten: `first`), the others existing (`features`: `old`). `goblin_rule` is the
+    goblins' classification at the start: `old` for the gas-maximising batch of E-1's weight (the
+    branch with n first records is scanned in `checks()`, where n new records cost n ticks), `first`
+    for the single action that runs whatever it changes (E-21)."""
     if one_word:
-        k = world_one_word(goblins, features, goblins)
+        k = world_one_word(goblins, 0, goblins)
     else:
-        k = world(goblins, features, goblins, True)
+        k = world(goblins, 0, goblins, True)
+    if goblin_rule != "first":
+        for key in list(k.rules):
+            if key[0] == "I.goblin":
+                k.rules[key] = goblin_rule
+    for c in range(features):
+        k.add(("I.chunk", c, "features"), "first" if c < reveals else "old")
     for c in range(reveals):
-        k.add(("I.chunk", f"revealed{c}", "terrain"), "first").add(("I.chunk", f"revealed{c}", "features"), "first")
+        k.add(("I.chunk", c, "terrain"), "first")
     if reveals:
         k.many([("I.revealed",), ("I.quotas",)], "old")
     return k.union(report_open())
 
 
-def play_branches(goblins, ticks=10, tick=TICK_ALONE, window=WINDOW_HIGH, one_word=False, label=""):
+def play_branches(goblins, ticks=10, tick=TICK_ALONE, window=WINDOW_HIGH, one_word=False, label="", reveals=0,
+                  goblin_rule="first", single=False):
     """Open, objective, defeat, and objective then defeat, each the union of its parts. A single
-    action does not move the window (4 chunks); a batch of 10 moves spans the union of 9."""
-    features = 9 if ticks == 10 else 4
-    compute = ticks * (tick + window)
-    common = {"BatchPlayed": 1, "GoblinKilled": goblins}
+    action does not move the window (4 chunks); a batch of 10 moves spans the union of 9. With
+    `reveals`, 4 chunks are revealed by 2 ticks of the weight (E-12: a reveal weighs 2)."""
+    features = 4 if single else 9
+    compute = ticks * (tick + window) + reveals * GENERATION
+    events = {"BatchPlayed": 1, "GoblinKilled": goblins}
+    if reveals:
+        events["ChunkRevealed"] = reveals
 
     def body():
-        return batch(goblins, one_word, features=features)
+        return batch(goblins, one_word, reveals=reveals, features=features, goblin_rule=goblin_rule)
 
     closed = {"Defeated": 1, "InstanceClosed": 1, "AdventurerLocated": 1}
     return [
-        Branch(f"open{label}", compute, ["registry", "hub"], 4, common, body()),
-        Branch(f"objective (a Rift or a dungeon cleared){label}", compute, ["registry", "hub"], 4,
-               {**common, "DungeonCleared": 1}, body().union(report_objective())),
-        Branch(f"defeat{label}", compute, ["registry", "hub"], 4, {**common, **closed},
+        Branch(f"open{label}", compute, ["registry", "hub"], PLAY_CALLDATA, events, body()),
+        Branch(f"objective (a Rift or a dungeon cleared){label}", compute, ["registry", "hub"], PLAY_CALLDATA,
+               {**events, "DungeonCleared": 1}, body().union(report_objective())),
+        Branch(f"defeat{label}", compute, ["registry", "hub"], PLAY_CALLDATA, {**events, **closed},
                body().union(closing())),
-        Branch(f"objective and defeat{label}", compute, ["registry", "hub"], 4,
-               {**common, "DungeonCleared": 1, **closed},
-               body().union(report_objective()).union(closing())),
+        Branch(f"objective and defeat{label}", compute, ["registry", "hub"], PLAY_CALLDATA,
+               {**events, "DungeonCleared": 1, **closed}, body().union(report_objective()).union(closing())),
     ]
 
 
-PLAY_CAPPED = play_branches(16)
-PLAY_REVEALS = Branch("4 reveals, 2 ticks", 2 * (TICK_ALONE + WINDOW_HIGH) + 4 * GENERATION, ["registry", "hub"], 4,
-                      {"BatchPlayed": 1, "GoblinKilled": 16, "ChunkRevealed": 4}, batch(16, reveals=4))
-row("`play`, weight 10, the cap of 16 goblins (E-16), ticks as alone", *PLAY_CAPPED, PLAY_REVEALS)
-row("`play`, one 3-tick action alone, 42 goblins (E-21)", *play_branches(42, ticks=3))
-row("`play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b)", *play_branches(42, ticks=3, one_word=True))
+# The weighted batch (E-16, E-1): goblin records already written (`old`); the first-record weight is
+# what makes the gas maximum the batch with none new; the batch with the most new keys is another
+# (five ticks, five first records, scanned in `checks()`).
+PLAY_CAPPED = play_branches(16, goblin_rule="old")
+PLAY_REVEALS = play_branches(16, ticks=2, reveals=4, label=", 4 reveals, 2 ticks", goblin_rule="old")
+row("`play`, weight 10, the cap of 16 goblins (E-16), first records weighed (E-1), ticks as alone",
+    *PLAY_CAPPED, *PLAY_REVEALS)
+row("`play`, one 3-tick action alone, 42 goblins (E-21)", *play_branches(42, ticks=3, single=True))
+row("`play`, one 3-tick action alone, 42 goblins, one word per goblin (E-1 b, not adopted)",
+    *play_branches(42, ticks=3, one_word=True, single=True))
 
 # ---- Hub --------------------------------------------------------------------------------------
 def B(name, compute, calls, calldata, events, keys, basis=""):
@@ -482,7 +533,8 @@ row("`confirm_trade`", B("the swap (7 + 7 items, 2 + 2 balances, gold)", 800_000
 row("`decline_trade`, `cancel_trade`", B("closed", 100_000, ["hub.seller"], 2, ev(TradeClosed=1),
                                          Keys().add(("M.trade", "t", "head"), "old")))
 row("`Registry.set_record` (3 parts)", B("written", 50_000, [], 6, {}, Keys()
-    .many([("R.record", p) for p in range(3)], "first").add(("R.last_id", "kind"), "first")))
+    .many([("R.record", p) for p in range(3)], "first").add(("R.last_id", "kind"), "first")
+    .add(("R.content_version",), "first"), "the content version rises by one (D-141, E-5): 0 at deployment, so its first write is new"))
 row("admin setters, `upgrade`", B("set", 100_000, [], 4, {}, Keys().many([("A.address", i) for i in range(4)], "old")))
 
 
@@ -516,29 +568,66 @@ def budget_table():
               f"| {cn} / {co} → **{wc.gas(True):,}** |")
 
 
+def batch_branch(br, new_records):
+    """`br` with its first `new_records` goblin records written for the first time in the slot."""
+    k = Keys().union(br.keys)
+    for g in range(new_records):
+        k.add(("I.goblin", g, "state"), "new").add(("I.goblin", g, "timers"), "new")
+    return Branch(br.name, br.compute, br.calls, br.calldata, br.events, k)
+
+
 def checks():
     print("\nEvent prices from their shapes (E):")
     for e in sorted(EVENT_FELTS):
         print(f"  {e}: {EVENT_FELTS[e]} felts, {event_gas(e):,}")
-    capped = PLAY_CAPPED
+    capped = PLAY_CAPPED + PLAY_REVEALS
     print("\n§10.1, a batch with the cap (16 goblins), branch by branch:")
-    for b in capped + [PLAY_REVEALS]:
+    for b in capped:
         print(f"  {b.name}: keys {len(b.keys.rules)}; initialised {b.keys.counts(False)} → {b.gas(False):,}; "
               f"cold {b.keys.counts(True)} → {b.gas(True):,}")
     for label, tick in (("shared", TICK_SHARED),):
-        low = [x for x in play_branches(16, tick=tick, window=WINDOW_LOW)]
-        high = [x for x in play_branches(16, tick=tick, window=WINDOW_HIGH)]
+        low = play_branches(16, tick=tick, window=WINDOW_LOW, goblin_rule="old")
+        high = play_branches(16, tick=tick, window=WINDOW_HIGH, goblin_rule="old")
         print(f"  ticks {label}: {max(b.gas(False) for b in low):,} to {max(b.gas(False) for b in high):,}")
-    low = play_branches(16, window=WINDOW_LOW)
+    low = play_branches(16, window=WINDOW_LOW, goblin_rule="old")
     print(f"  ticks alone, the window at its low end: {max(b.gas(False) for b in low):,}")
-    b16 = batch(16)
-    b24 = batch(24)
+    b16 = batch(16, goblin_rule="old")
+    b24 = batch(24, goblin_rule="old")
     print(f"  cap 24 instead of 16: +{(len(b24.rules) - len(b16.rules)) * O:,} ({len(b24.rules) - len(b16.rules)} more keys overwritten)")
+
+    # The slot bound, from the key sets alone (F-2): the most distinct keys any branch of a capped batch
+    # writes, whatever it costs; the branch that costs the most is another one.
+    most = max(capped, key=lambda b: len(b.keys.rules))
+    top = max(capped, key=lambda b: b.gas(False))
+    print(f"\nSlot bound, from the key sets: at most {len(most.keys.rules)} keys, in '{most.name}' "
+          f"(initialised {most.gas(False):,}); the gas maximum is '{top.name}' "
+          f"({len(top.keys.rules)} keys, {top.gas(False):,})")
+    chunk_keys = sum(1 for k in most.keys.rules if k[0] == "I.chunk")
+    print(f"  chunk keys of that branch: {chunk_keys} = 9 features words (a revealed chunk's is one of them) "
+          f"+ 4 terrain words")
+
+    # E-1: a goblin record written for the first time weighs 1 more, so a batch of weight 10 with n such
+    # records runs 10 - n ticks. The worst branch as n grows, cold (every `first` key new).
+    print("\nE-1, first records weighed: the worst branch of a batch of 16 goblins, n of them new, 10 - n ticks:")
+    before = max(play_branches(16), key=lambda b: b.gas(True))
+    print(f"  no weight (before D-141): {before.name}, cold {before.gas(True):,}")
+    for n in range(10):
+        branches = [batch_branch(br, n) for br in play_branches(16, ticks=10 - n, goblin_rule="old")]
+        w = max(branches, key=lambda b: b.gas(True))
+        print(f"  n = {n}: {w.name}: keys {len(w.keys.rules)}, cold {w.keys.counts(True)} → {w.gas(True):,}")
+
+    # E-21: the class of an action that cannot be split has its own bound.
+    unsplittable = [b for name, brs in ROWS if name.startswith("`mine`") or "one 3-tick action alone, 42 goblins (E-21)" in name
+                    for b in brs]
+    cold = max(b.gas(True) for b in unsplittable)
+    print(f"\nE-21, the unsplittable class (3-tick action among 42 goblins, `mine`): cold maximum {cold:,} "
+          f"against {CLASS_BOUND:,} → {'holds' if cold <= CLASS_BOUND else 'EXCEEDED'}")
+
     # The audit's figure for the one-word alternative, reproduced under fix loop 2's model: 42 goblin
     # words + 3 roster pages new, 16 other (the 4th roster page counted), events 42 × 65,648 + 2 × 46,336.
     old_model = F + 3 * (TICK_ALONE + WINDOW_HIGH) + 2 * C + 45 * N + 16 * O + 42 * 65_648 + 2 * 46_336
-    print(f"  the audit's one-word figure under fix loop 2's model: {old_model:,} (61 keys: 45 new, 16 other)")
-    one = play_branches(42, ticks=3, one_word=True)
+    print(f"\nthe audit's one-word figure under fix loop 2's model: {old_model:,} (61 keys: 45 new, 16 other)")
+    one = play_branches(42, ticks=3, one_word=True, single=True)
     for b in one:
         print(f"  one word per goblin, {b.name}: keys {len(b.keys.rules)}; cold {b.keys.counts(True)} → {b.gas(True):,}")
 

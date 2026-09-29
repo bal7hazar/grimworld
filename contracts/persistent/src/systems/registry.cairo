@@ -14,6 +14,8 @@ pub trait IRegistryAdmin<T> {
     /// Writes one record: exactly `parts(kind)` felts, part 0 with `LIVE` set. A sequential kind's
     /// new id must be `last_id + 1` (append-only, design/01 rule 2); a composite kind's id must
     /// name an existing parent (`content::is_sequential`). An existing id's values may change.
+    /// Every changed record raises the content version by one (D-141, E-5): a batch computed under
+    /// the earlier content is then refused by `play` (`Stop::Version`).
     fn set_record(ref self: T, kind: u8, id: u32, record: Span<felt252>);
     /// The highest id of a sequential kind; 0 for a composite kind.
     fn last_id(self: @T, kind: u8) -> u32;
@@ -36,6 +38,9 @@ pub mod Registry {
         pub records: Map<(u8, u32, u8), felt252>,
         /// Highest id of each sequential kind (`content::is_sequential`); 0 for composite kinds.
         pub last_ids: Map<u8, Counter>,
+        /// The content version (D-141, E-5): 0 at deployment, raised by one by every
+        /// changed record (`set_record`, automatically, no admin setter); returned by `bundle`.
+        pub content_version: u32,
     }
 
     #[constructor]
@@ -51,7 +56,10 @@ pub mod Registry {
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
-        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> Span<felt252> {
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, Span<felt252>) {
+            core::panic_with_felt252(NOT_IMPLEMENTED)
+        }
+        fn content_version(self: @ContractState) -> u32 {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
     }
@@ -104,6 +112,12 @@ mod layout_tests {
                 state.last_ids.entry(2).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("last_ids"), array![2].span()),
             'last_ids',
+        );
+        assert(
+            address_of(
+                state.content_version.as_ptr().__storage_pointer_address__,
+            ) == selector!("content_version"),
+            'content_version',
         );
     }
 }
