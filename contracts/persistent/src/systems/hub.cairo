@@ -14,14 +14,12 @@ pub const NOT_ADMIN: felt252 = 'not admin';
 /// `set_admin` to the zero address would leave the role to nobody.
 pub const ZERO_ADMIN: felt252 = 'admin is zero';
 
-/// The hub a new adventurer is placed in: region 1's town (design/01, design/09). A constant until
-/// ENG-03's registries hold the region's town hub (`REGION` 1); escalated in ENG-04's report.
-pub const START_HUB: u16 = 1;
-/// `AdventurerPlace.unlocked` of a new adventurer: bit `START_HUB`, the hub it stands in.
-pub const START_UNLOCKED: u64 = 0x2;
-/// The stored `AdventurerPlace` of a new adventurer: in `START_HUB`, its last hub, `START_UNLOCKED`
-/// (pinned against the packer by `test_stored_words`).
-pub const NEW_PLACE: felt252 = 0x400000000000000000000000000000200000000000100010000000000000000;
+/// `report` or `barter` called by anyone but the registered `Instances` (ADR-0007).
+pub const NOT_INSTANCES: felt252 = 'not instances';
+
+/// The region whose town a new adventurer starts in (D-144: region 1's town, read from the
+/// registry's `REGION` record; design/01, design/09).
+pub const START_REGION: u32 = 1;
 
 /// What players call, in hubs. Every entrypoint that names an adventurer checks that the caller
 /// owns the adventurer's account (ADR-0007, *Access control*), and that the adventurer is in a hub
@@ -158,12 +156,17 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use core::num::traits::Zero;
+    use grimworld_logic::content::{GATE, REGION, exists};
     use grimworld_logic::interface::{
-        IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IResults, Results,
+        IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IRegistryReadDispatcher,
+        IRegistryReadDispatcherTrait, IResults, Results, facts,
     };
+    use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord, errors as gate_errors};
+    use grimworld_logic::models::region::{Region, RegionRecord};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::ProfessionAssert;
-    use grimworld_logic::types::InstanceId;
+    use grimworld_logic::snapshot::SnapshotTrait;
+    use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
         StoragePointerWriteAccess,
@@ -179,10 +182,13 @@ pub mod Hub {
     };
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerCoreTrait, AdventurerPlaceTrait, BELT_WORD,
-        BUILD_WORD, CORE_WORD, EMPTY_LANES, EQUIPPED_WORD, NAME_WORD, NEW_BUILD, PLACE_WORD,
+        BUILD_WORD, BeltTrait, Build, CORE_WORD, EMPTY_LANES, EQUIPPED_WORD, NAME_WORD, NEW_BUILD,
+        PLACE_WORD,
     };
+    use crate::models::balance::BalanceTrait;
     use crate::models::item::{Gold, Grimoire, Item, RiftBoard};
-    use super::{NEW_PLACE, NOT_IMPLEMENTED, VERSION};
+    use crate::types::results::{ResultsAssert, ResultsTrait};
+    use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
 
     /// docs/architecture/ENG-01-interfaces.md, *Hub storage*. quiver's components (quests,
     /// achievements) add their own storage when ARC's packages are embedded.
@@ -310,7 +316,8 @@ pub mod Hub {
             }
         }
 
-        /// D-32: a name and a primary profession; placed in `START_HUB`, at level 1, rank Wood.
+        /// D-32: a name and a primary profession; placed in region 1's town, read from the
+        /// registry (D-144: one `record` call), unlocked, at level 1, rank Wood.
         /// Writes (ENG-01 §9.3): the adventurer's six words new, its lane of the account's list
         /// (new on a page's first lane), the account's record and `next_adventurer` overwritten.
         /// The words are written as stored, without the packers (pinned by `test_stored_words`).
@@ -329,7 +336,7 @@ pub mod Hub {
             self.next_adventurer.write(Counter { value: next + 1 });
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             base.set_word(CORE_WORD, AdventurerCoreTrait::new(account_id, profession));
-            base.set_word(PLACE_WORD, NEW_PLACE);
+            base.set_word(PLACE_WORD, AdventurerPlaceTrait::new(self.start_hub()));
             base.set_word(BUILD_WORD, NEW_BUILD);
             base.set_word(BELT_WORD, EMPTY_LANES);
             base.set_word(EQUIPPED_WORD, EMPTY_LANES);
@@ -441,14 +448,57 @@ pub mod Hub {
         ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+        /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
+        /// ownership check, the gate from the registry and its requirements, the belt's reserve
+        /// debited from the pack, the snapshot, then `Instances.create`, which makes the entry
+        /// draw. Every check comes before the call: a refusal reverts, drawing nothing and
+        /// changing nothing. Writes (ENG-01 §9.3): the pack pages of the belt's items (at most
+        /// 4, overwritten), `core` when a pack lane falls to 0, `place`. Calls: `Registry.record`
+        /// (the gate), `Instances.create`. Task ids: none until quiver's quests are embedded
+        /// (E-14).
         fn enter(ref self: ContractState, adventurer_id: u32, gate: u16) -> InstanceId {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let (_, core, place) = self.owned_in_hub(adventurer_id);
+            let (_, hub, _, _) = AdventurerPlaceTrait::fields(place);
+            let (_, level, rank, profession) = AdventurerCoreTrait::profile(core);
+            let parts = IRegistryReadDispatcher { contract_address: self.registry.read() }
+                .record(GATE, gate.into());
+            assert(exists(parts), gate_errors::NONE);
+            let record: Gate = GateRecord::unpack(parts);
+            record.assert_enterable(hub, rank);
+
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            let (items, counts) = BeltTrait::read(base.word(BELT_WORD));
+            let reserve = BalanceTrait::merge(items, counts);
+            let (_, emptied) = self.change_pack(adventurer_id, reserve.span(), false);
+            if emptied != 0 {
+                base.set_word(CORE_WORD, AdventurerCoreTrait::with_pack_lanes(core, 0, emptied));
+            }
+            let build: Build = StorePacking::unpack(base.word(BUILD_WORD));
+            let snapshot = SnapshotTrait::new(
+                level, profession, build.bar, build.elite_slot, items, counts,
+            );
+
+            let instance = IInstanceEntryDispatcher { contract_address: self.instances.read() }
+                .create(adventurer_id, get_caller_address(), gate, snapshot, array![].span());
+            base.set_word(PLACE_WORD, AdventurerPlaceTrait::entered(place, instance));
+            self.emit(AdventurerLocated { hub: 0, adventurer: adventurer_id });
+            instance
         }
         fn enter_rift(ref self: ContractState, adventurer_id: u32, index: u8) -> InstanceId {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+        /// Map travel to an unlocked hub (design/01 *Connectivity*), which becomes its last hub.
+        /// Writes `place`; no registry read (ENG-01 §10: 0 calls).
         fn travel(ref self: ContractState, adventurer_id: u32, hub: u16) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            let (_, _, place) = self.owned_in_hub(adventurer_id);
+            AdventurerAssert::assert_unlocked(place, hub);
+            self
+                .adventurers
+                .entry(adventurer_id)
+                .as_ptr()
+                .__storage_pointer_address__
+                .set_word(PLACE_WORD, AdventurerPlaceTrait::located(place, hub));
+            self.emit(AdventurerLocated { hub, adventurer: adventurer_id });
         }
         fn accept_quest(ref self: ContractState, adventurer_id: u32, quest: u32) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -593,8 +643,73 @@ pub mod Hub {
 
     #[abi(embed_v0)]
     impl ResultsImpl of IResults<ContractState> {
+        /// The settlement of an instance's results (ENG-01 §6), `Instances` only. The first
+        /// contributor must be inside that instance. Applies what the models hold: the belt's
+        /// reserve credited back to the pack when the report closes the member's presence, on
+        /// return and on defeat alike (D-141, E-15), with the balances as one pass over their
+        /// pages; the placement (in a hub: the one reported, else its last hub, D-04; or the next
+        /// instance through a gate); a hub reached, unlocked; gold; experience to every
+        /// contributor. Refuses what has no model yet (`types::results`). Writes (ENG-01 §9.3):
+        /// the pack pages (at most 4 for the belt, overwritten), `core` when a lane fills or
+        /// experience changes, `place` when it closes or moves, `gold` when gold comes.
         fn report(ref self: ContractState, results: Results) {
-            core::panic_with_felt252(NOT_IMPLEMENTED)
+            assert(get_caller_address() == self.instances.read(), NOT_INSTANCES);
+            results.assert_settled();
+            let adventurer_id = *results.contributors[0];
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            let place = base.word(PLACE_WORD);
+            AdventurerAssert::assert_in_instance(place, results.instance_id);
+
+            let mut credit = if results.closes() {
+                let (items, _) = BeltTrait::read(base.word(BELT_WORD));
+                BalanceTrait::merge(items, results.belt)
+            } else {
+                array![]
+            };
+            for balance in results.balances {
+                credit.append(*balance);
+            }
+            let (filled, _) = self.change_pack(adventurer_id, credit.span(), true);
+            if filled != 0 || results.experience != 0 {
+                let core = AdventurerCoreTrait::with_pack_lanes(base.word(CORE_WORD), filled, 0);
+                base.set_word(CORE_WORD, AdventurerCoreTrait::with_experience(core, results.experience));
+            }
+            if results.gold != 0 {
+                let entry = self.gold.entry(owner_key(PACK, adventurer_id));
+                entry.write(Gold { amount: entry.read().amount + results.gold });
+            }
+            if results.experience != 0 {
+                for other in results.contributors.slice(1, results.contributors.len() - 1) {
+                    let other = self.adventurers.entry(*other).as_ptr().__storage_pointer_address__;
+                    other
+                        .set_word(
+                            CORE_WORD,
+                            AdventurerCoreTrait::with_experience(
+                                other.word(CORE_WORD), results.experience,
+                            ),
+                        );
+                }
+            }
+
+            match results.outcome {
+                Outcome::Open => {},
+                Outcome::Moved => base
+                    .set_word(PLACE_WORD, AdventurerPlaceTrait::moved(place, results.next)),
+                _ => {
+                    let (_, _, last_hub, _) = AdventurerPlaceTrait::fields(place);
+                    let hub = if results.hub != 0 {
+                        results.hub
+                    } else {
+                        last_hub
+                    };
+                    let mut located = AdventurerPlaceTrait::located(place, hub);
+                    if results.facts & facts::HUB_REACHED != 0 {
+                        located = AdventurerPlaceTrait::unlocked(located, results.location);
+                    }
+                    base.set_word(PLACE_WORD, located);
+                    self.emit(AdventurerLocated { hub, adventurer: adventurer_id });
+                },
+            }
         }
         fn barter(ref self: ContractState, adventurer_id: u32, collector: u16) -> bool {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -699,6 +814,68 @@ pub mod Hub {
                 account_id, status, place, owner, get_caller_address(),
             );
             (account_id, core, place)
+        }
+
+        /// Region 1's town (D-144), read from the registry: one `record` call. Refuses when the
+        /// region is missing; a town id of 64 or more when it is placed (`unlocked` holds bits
+        /// 0-63).
+        fn start_hub(self: @ContractState) -> u16 {
+            let parts = IRegistryReadDispatcher { contract_address: self.registry.read() }
+                .record(REGION, START_REGION);
+            AdventurerAssert::assert_start_region(exists(parts));
+            let region: Region = RegionRecord::unpack(parts);
+            region.town
+        }
+
+        /// Credits (`credit`) or debits the adventurer's pack by `(item, amount)` changes, each
+        /// page read once and written once, however many changes it holds (at most 12: a belt of
+        /// 4 and 8 balances, ENG-01 §4.5). Returns `(lanes filled, lanes emptied)` for
+        /// `core.pack_lanes`. Refuses a debit the pack cannot pay.
+        fn change_pack(
+            ref self: ContractState, adventurer_id: u32, changes: Span<(u32, u32)>, credit: bool,
+        ) -> (u16, u16) {
+            let owner = owner_key(PACK, adventurer_id);
+            let (mut filled, mut emptied) = (0_u16, 0_u16);
+            let count = changes.len();
+            for i in 0..count {
+                let (item, _) = *changes[i];
+                let (page, _) = BalanceTrait::at(item);
+                let mut first = true;
+                for j in 0..i {
+                    let (earlier, _) = *changes[j];
+                    let (earlier_page, _) = BalanceTrait::at(earlier);
+                    if earlier_page == page {
+                        first = false;
+                    }
+                }
+                if !first {
+                    continue;
+                }
+                let entry = self.balances.entry((owner, page)).as_ptr().__storage_pointer_address__;
+                let mut word = entry.word(0);
+                for j in i..count {
+                    let (other, amount) = *changes[j];
+                    let (other_page, lane) = BalanceTrait::at(other);
+                    if other_page != page {
+                        continue;
+                    }
+                    if credit {
+                        let (next, lane_filled) = BalanceTrait::credit(word, lane, amount);
+                        word = next;
+                        if lane_filled {
+                            filled += 1;
+                        }
+                    } else {
+                        let (next, lane_emptied) = BalanceTrait::debit(word, lane, amount);
+                        word = next;
+                        if lane_emptied {
+                            emptied += 1;
+                        }
+                    }
+                }
+                entry.set_word(0, word);
+            }
+            (filled, emptied)
         }
     }
 }

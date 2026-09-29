@@ -35,6 +35,41 @@ pub impl ProfessionImpl of ProfessionTrait {
     fn is_playable(id: u8) -> bool {
         id >= 1 && id <= 3
     }
+
+    /// The base energy of a primary profession (design/03, *Professions*): a table.
+    fn energy(id: u8) -> u8 {
+        match id {
+            0 => core::panic_with_felt252(errors::BAD_PROFESSION),
+            1 => 20,
+            2 => 25,
+            3 => 30,
+            _ => core::panic_with_felt252(errors::BAD_PROFESSION),
+        }
+    }
+
+    /// Its energy regeneration, in pips (design/03).
+    fn energy_regen(id: u8) -> u8 {
+        match id {
+            0 => core::panic_with_felt252(errors::BAD_PROFESSION),
+            1 => 2,
+            2 => 3,
+            3 => 4,
+            _ => core::panic_with_felt252(errors::BAD_PROFESSION),
+        }
+    }
+
+    /// The armor of its armor class (design/03's table). design/03 says armor "scales with level"
+    /// without a formula: the class's value is used at every level until one is written
+    /// (escalated in ENG-06's report).
+    fn armor(id: u8) -> u8 {
+        match id {
+            0 => core::panic_with_felt252(errors::BAD_PROFESSION),
+            1 => 80,
+            2 => 70,
+            3 => 60,
+            _ => core::panic_with_felt252(errors::BAD_PROFESSION),
+        }
+    }
 }
 
 #[generate_trait]
