@@ -63,4 +63,20 @@ for every gate, written in design/02; the client walks the adventurer onto the t
 
 ## Decision
 
-Pending.
+**D-148**, `[Opus 5.5]` project manager, 2026-09-29, under D-128: the four recommendations.
+
+1. **Accepted**: `enter` (a later entry) **4,100,000**; `leave` to a hub and `travel_back`
+   **2,350,000**; `leave` to a location and the first `enter` keep §10. The reads §10 did not
+   count are the design's (a gate, then its destination); the overrun is about 0.7M on S1, under
+   $0.001, and none of it is in a tick. The belt's worst case is measured on the node by the task
+   that brings `set_build`; if it passes these targets, it comes back to the project manager.
+2. **(a)**, two registry calls: (b) would duplicate content that the pipeline must keep equal, for
+   0.1M on entrypoints that run once or twice an expedition.
+3. **The class's armor, flat, at every level**, until BAL-01 sets the curve; design/03 says so.
+4. **A gate is used by standing on its anchor tile**, one rule for every gate, written in design/02;
+   the client walks the adventurer onto the tile.
+
+The design lines of 3 and 4 go into design/03 and design/02 in ENG-06's pull request (OPERATIONS
+§5). **What would reverse it**: 1, a batch or a tick found paying these reads; 3, the owner or
+BAL-01 wanting armor to grow before the balance pass; 4, the owner preferring a gate used from an
+adjacent tile (a change of design/02 and of the client's path, not of storage).
