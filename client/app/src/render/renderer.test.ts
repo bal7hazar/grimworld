@@ -145,7 +145,14 @@ function oneGoblin(x: number, y: number, facing: Facing): ViewState {
   return {
     tiles,
     actors: [
-      { id: 1, side: "adventurer", profession: "vanguard", tile: { x, y: y - 2 }, facing: 0, mark: null },
+      {
+        id: 1,
+        side: "adventurer",
+        profession: "vanguard",
+        tile: { x, y: y - 2 },
+        facing: 0,
+        mark: null,
+      },
       { id: 2, side: "goblin", caste: "runt", tile: { x, y }, facing, mark: "alerted" },
     ],
     adventurerId: 1,

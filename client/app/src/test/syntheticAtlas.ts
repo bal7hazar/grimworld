@@ -1,4 +1,4 @@
-import { BufferImageSource, Spritesheet, Texture } from "pixi.js";
+import { BufferImageSource, Spritesheet, type SpritesheetData, Texture } from "pixi.js";
 import type { SpritesIndex } from "../render/sprites";
 
 /**
@@ -23,8 +23,10 @@ export const SYNTHETIC_INDEX: SpritesIndex = {
   },
 };
 
-export function syntheticSheetJson() {
-  const frames: Record<string, unknown> = {};
+export function syntheticSheetJson(): SpritesheetData & {
+  meta: { size: { w: number; h: number } };
+} {
+  const frames: SpritesheetData["frames"] = {};
   const animations: Record<string, string[]> = {};
   let x = 0;
   for (const [anim, count] of [

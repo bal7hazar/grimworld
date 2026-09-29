@@ -34,8 +34,8 @@ export function libraryNext(tile: Tile, direction: Facing): Tile {
   const oy = tile.y - 8 + (tile.y & 1);
   const position = (tile.y - oy) * W + (tile.x - ox);
   const local = (tile.y - oy) & 1;
-  const offsets = NEXT[direction] as readonly [number, number];
-  const next = position + offsets[local];
+  const [even, odd] = NEXT[direction] as readonly [number, number];
+  const next = position + (local === 0 ? even : odd);
   return { x: ox + (next % W), y: oy + Math.floor(next / W) };
 }
 

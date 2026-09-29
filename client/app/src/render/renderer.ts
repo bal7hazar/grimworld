@@ -16,7 +16,15 @@ import {
   type FrameStats,
   type Advance,
 } from "./scheduler";
-import { SHAPE_HEIGHT, SHAPE_IDLE, drawBody, drawMark, drawOverlay, drawTerrain, drawWedge } from "./shapes";
+import {
+  SHAPE_HEIGHT,
+  SHAPE_IDLE,
+  drawBody,
+  drawMark,
+  drawOverlay,
+  drawTerrain,
+  drawWedge,
+} from "./shapes";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import type { ViewActor, ViewState } from "./view";
 
@@ -100,7 +108,8 @@ function tick(now: number, fps: number): number {
   return Math.floor((now * fps) / 1000 + 1e-6);
 }
 
-const spriteName = (actor: ViewActor) => (actor.side === "adventurer" ? actor.profession : actor.caste);
+const spriteName = (actor: ViewActor) =>
+  actor.side === "adventurer" ? actor.profession : actor.caste;
 
 export interface RendererOptions {
   readonly library?: SpriteLibrary | null;

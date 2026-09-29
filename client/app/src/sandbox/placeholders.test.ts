@@ -44,7 +44,8 @@ describe("placeholders", () => {
     expect(distance(at(0), at(14))).toBe(2);
     expect(distance(at(7), at(13))).toBe(6);
     expect(distance(at(24), at(24))).toBe(0);
-    for (const d of LIBRARY_DIRECTIONS) expect(distance({ x: 5, y: 5 }, neighbour({ x: 5, y: 5 }, d))).toBe(1);
+    for (const d of LIBRARY_DIRECTIONS)
+      expect(distance({ x: 5, y: 5 }, neighbour({ x: 5, y: 5 }, d))).toBe(1);
   });
 
   it("sight is the hexagon of radius 6: 127 tiles, 13 on the adventurer's row", () => {
@@ -70,7 +71,11 @@ describe("placeholders", () => {
 
   it("a step goes to the closer free floor tile and faces the direction moved", () => {
     const terrain = open(30, 30);
-    const adventurer: ViewActor = { ...goblin(10, 10, 0, 1), side: "adventurer", profession: "vanguard" } as ViewActor;
+    const adventurer: ViewActor = {
+      ...goblin(10, 10, 0, 1),
+      side: "adventurer",
+      profession: "vanguard",
+    } as ViewActor;
     // (8, 12) is 3 away; East (9, 10) and North-East (9, 11) are both 2 away: East, the lower.
     const step = stepToward(terrain, [adventurer], 1, { x: 8, y: 12 });
     expect(step).toEqual({ tile: { x: 9, y: 10 }, facing: 0 });

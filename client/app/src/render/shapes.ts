@@ -192,14 +192,22 @@ export function drawMark(mark: Mark): Graphics {
   g.circle(0, 0, 10).fill({ color: 0x000000, alpha: 0.55 });
   switch (mark) {
     case "asleep":
-      g.moveTo(-5, -5).lineTo(5, -5).lineTo(-5, 5).lineTo(5, 5).stroke({ width: 2.5, color: 0x9fd3ff });
+      g.moveTo(-5, -5)
+        .lineTo(5, -5)
+        .lineTo(-5, 5)
+        .lineTo(5, 5)
+        .stroke({ width: 2.5, color: 0x9fd3ff });
       break;
     case "alerted":
       g.rect(-1.5, -7, 3, 9).fill(0xffd23f);
       g.circle(0, 5, 1.8).fill(0xffd23f);
       break;
     case "engaged":
-      g.moveTo(-6, -6).lineTo(6, 6).moveTo(6, -6).lineTo(-6, 6).stroke({ width: 3, color: 0xff4d4d });
+      g.moveTo(-6, -6)
+        .lineTo(6, 6)
+        .moveTo(6, -6)
+        .lineTo(-6, 6)
+        .stroke({ width: 3, color: 0xff4d4d });
       break;
     case "fleeing":
       g.moveTo(1, -6).lineTo(-5, 0).lineTo(1, 6).moveTo(7, -6).lineTo(1, 0).lineTo(7, 6);

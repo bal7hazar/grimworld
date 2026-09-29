@@ -105,7 +105,8 @@ function patternMap(
       const glyph = placed.find(([t]) => t.x === x && t.y === y)?.[1];
       const border = x === 0 || y === 0 || x === width - 1 || y === height - 1;
       const corner =
-        (x % CHUNK === 0 || x % CHUNK === CHUNK - 1) && (y % CHUNK === 0 || y % CHUNK === CHUNK - 1);
+        (x % CHUNK === 0 || x % CHUNK === CHUNK - 1) &&
+        (y % CHUNK === 0 || y % CHUNK === CHUNK - 1);
       line += glyph ?? (border || corner || rock(x, y) ? "#" : ".");
     }
     lines.push(line);
@@ -134,17 +135,12 @@ const edge = fromAscii({
     { x: 25, y: 6 },
     { x: 26, y: 6 },
   ],
-  map: patternMap(
-    45,
-    30,
-    (x, y) => (x * 7 + y * 11) % 17 === 0,
-    [
-      [{ x: 23, y: 7 }, "A"],
-      [{ x: 19, y: 10 }, "s"],
-      [{ x: 21, y: 3 }, "r"],
-      [{ x: 26, y: 9 }, "h"],
-    ],
-  ),
+  map: patternMap(45, 30, (x, y) => (x * 7 + y * 11) % 17 === 0, [
+    [{ x: 23, y: 7 }, "A"],
+    [{ x: 19, y: 10 }, "s"],
+    [{ x: 21, y: 3 }, "r"],
+    [{ x: 26, y: 9 }, "h"],
+  ]),
 });
 
 export const FIXTURES: Readonly<Record<string, SandboxWorld>> = { meadow, cave, edge };

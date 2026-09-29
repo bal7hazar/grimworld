@@ -10,7 +10,8 @@ const sources = import.meta.glob<string>("../**/*.{ts,tsx}", {
   eager: true,
 });
 
-const IMPORTS_PLACEHOLDERS = /from\s+["'][^"']*placeholders["']|import\(\s*["'][^"']*placeholders["']/;
+const IMPORTS_PLACEHOLDERS =
+  /from\s+["'][^"']*placeholders["']|import\(\s*["'][^"']*placeholders["']/;
 
 describe("placeholders.ts", () => {
   it("is imported by the sandbox's wiring only", () => {

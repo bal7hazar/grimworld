@@ -1,12 +1,4 @@
-import type {
-  Caste,
-  Facing,
-  Mark,
-  Profession,
-  Tile,
-  TileKind,
-  ViewActor,
-} from "../../render/view";
+import type { Caste, Facing, Mark, Profession, Tile, TileKind, ViewActor } from "../../render/view";
 import { CHUNK, type SandboxWorld } from "../world";
 
 /** A goblin's facing and mark, when the fixture does not give its own. */
