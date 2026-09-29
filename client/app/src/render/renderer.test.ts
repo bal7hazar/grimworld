@@ -1,6 +1,6 @@
 import { type Container, Graphics, type Sprite } from "pixi.js";
 import { describe, expect, it } from "vitest";
-import { tileToPixel } from "../input/coords";
+import { tileToPixel, worldToScreen } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
 import { SandboxSession } from "../sandbox/session";
 import { initialState, toView } from "../sandbox/wiring";
@@ -9,7 +9,7 @@ import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
-import { IDLE_MAX_FPS, Renderer, STEP_MS } from "./renderer";
+import { DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
 import { drawOverlay, overlayPlan } from "./shapes";
 import { type SpriteLibrary, libraryFrom } from "./sprites";
 import type { Facing, ViewState } from "./view";
@@ -416,5 +416,111 @@ describe("drawing order during a step", () => {
     host.run(60);
     const actors = (surface.stage.children[0] as Container).children[3] as Container;
     for (const node of actors.children) expect(node.zIndex).toBe(node.position.y);
+  });
+});
+
+interface NodeParts {
+  readonly container: Container;
+  readonly body: Container;
+  readonly wedge: Container;
+  readonly mark: Container | null;
+}
+
+const nodesOf = (renderer: Renderer) => renderer["nodes"] as Map<number, NodeParts>;
+
+describe("the feet in their tile (CLI-03b)", () => {
+  const MODES = ["continuous", "snap", "sharp"] as const;
+
+  /** A point of the world in screen CSS px, whatever the mode (sharp: through its offscreen). */
+  function onScreen(surface: FakeSurface, node: Container): { x: number; y: number } {
+    const top = surface.stage.children[0] as Container;
+    const p = node.getGlobalPosition();
+    const k = top.children.length === 4 ? 1 : top.scale.x;
+    return { x: p.x * k, y: p.y * k };
+  }
+
+  for (const withAtlas of [false, true]) {
+    const label = withAtlas ? "atlas" : "shapes";
+    it(`the feet at the expected pixel for every facing, zoom and mode; wedge on the centre (${label})`, async () => {
+      const library = withAtlas ? await syntheticLibrary() : null;
+      for (const mode of MODES) {
+        for (const feet of [0, DEFAULT_FEET, 0.8]) {
+          for (const facing of LIBRARY_DIRECTIONS) {
+            const surface = new FakeSurface(2, 2);
+            const renderer = new Renderer(surface, new FakeHost(), {
+              idle: false,
+              library,
+              mode,
+              feet,
+            });
+            renderer.resize({ width: 375, height: 812 });
+            const tile = { x: 10, y: 11 };
+            renderer.setView(oneGoblin(tile.x, tile.y, facing));
+            for (const across of [4, 9, 13, 25]) {
+              renderer.zoomTo(across);
+              renderer.pan(7, -3); // off the goblin's centre
+              renderer.draw();
+              const { camera, viewport } = renderer.cameraState();
+              const node = nodesOf(renderer).get(2)!;
+              const centre = tileToPixel(tile);
+              const feetAt = { x: centre.x, y: centre.y + feetOffset(feet) };
+              const expected = worldToScreen(camera, viewport, feetAt);
+              const at = onScreen(surface, node.body);
+              const wedge = onScreen(surface, node.wedge);
+              const onCentre = worldToScreen(camera, viewport, centre);
+              const what = `${mode} feet ${feet} facing ${facing} across ${across}`;
+              // Sharp's offscreen is a whole number of pixels: its centre is up to half a pixel
+              // off the viewport's, for the wedge as for the feet (as before CLI-03b).
+              const digits = mode === "sharp" ? 0 : 6;
+              expect(at.x, what).toBeCloseTo(expected.x, digits);
+              expect(at.y, what).toBeCloseTo(expected.y, digits);
+              expect(wedge.x, what).toBeCloseTo(onCentre.x, digits);
+              expect(wedge.y, what).toBeCloseTo(onCentre.y, digits);
+              // In every mode, exactly: the feet straight below the wedge, by the offset.
+              expect(at.x - wedge.x, what).toBeCloseTo(0, 6);
+              expect(at.y - wedge.y, what).toBeCloseTo(feetOffset(feet) * camera.scale, 6);
+              // The drawing order stays by row: z is the tile's centre, not the feet.
+              expect(node.container.zIndex).toBe(centre.y);
+            }
+            renderer.destroy();
+          }
+        }
+      }
+    });
+  }
+
+  it("the feet move body and mark together; overlay (arcs, selection) and wedge do not move", () => {
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, new FakeHost(), { idle: false });
+    renderer.resize({ width: 375, height: 812 });
+    const base = oneGoblin(10, 10, 0);
+    const view: ViewState = {
+      ...base,
+      arcs: {
+        actorId: 2,
+        front: [],
+        frontSide: [],
+        rearSide: [{ x: 10, y: 11 }],
+        back: [{ x: 11, y: 10 }],
+      },
+      selectedTile: { x: 8, y: 12 },
+    };
+    renderer.setView(view);
+    const overlay = renderer["overlay"] as Graphics;
+    const node = nodesOf(renderer).get(2)!;
+    const before = {
+      overlay: overlay.getLocalBounds().rectangle.clone(),
+      wedge: node.wedge.position.clone(),
+      gap: node.mark!.position.y - node.body.position.y,
+    };
+    expect(renderer.feetFraction()).toBe(DEFAULT_FEET);
+    expect(node.body.position.y).toBeCloseTo(feetOffset(DEFAULT_FEET), 9);
+    renderer.setFeet(1);
+    expect(node.body.position.y).toBe(32); // the inner radius: half a tile's width
+    expect(node.mark!.position.y - node.body.position.y).toBeCloseTo(before.gap, 9);
+    expect(node.wedge.position).toEqual(before.wedge);
+    expect(overlay.getLocalBounds().rectangle).toEqual(before.overlay);
+    renderer.setFeet(0);
+    expect(node.body.position.y).toBe(0);
   });
 });
