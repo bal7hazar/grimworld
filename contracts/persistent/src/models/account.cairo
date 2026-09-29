@@ -69,6 +69,35 @@ pub const START_SLOTS: u8 = 3;
 /// moves the last id into the hole and clears the last lane. A page once written keeps `LIVE`.
 pub const IDS_PER_PAGE: u8 = 7;
 
+/// Offset of `record` in `Account`, for a read of the stored word.
+pub const RECORD_WORD: u8 = 1;
+
+/// The stored `AccountRecord` of a new account: `START_SLOTS` slots, nothing else, `LIVE`
+/// (pinned against the packer by `test_stored_words`).
+pub const NEW_RECORD: felt252 = 0x400000000000000000000000000000000000000000000000000000000000003;
+/// One more adventurer, added to a stored `AccountRecord` (its field at bit 8).
+pub const ONE_ADVENTURER: felt252 = 0x100;
+
+/// `(slots, adventurers)` of a stored `AccountRecord`, without unpacking the other fields.
+pub fn slots_and_count(record: felt252) -> (u8, u8) {
+    let (low, _) = split(record);
+    (low_field(low, P8.try_into().unwrap()).try_into().unwrap(), byte_at(low, P8))
+}
+
+/// What one unit of lane `lane` (0 to 6) adds to a stored `Lanes32`: a table (docs/CAIRO.md §3).
+pub fn lane_unit(lane: u8) -> felt252 {
+    match lane {
+        0 => 0x1,
+        1 => 0x100000000,
+        2 => 0x10000000000000000,
+        3 => 0x1000000000000000000000000,
+        4 => 0x100000000000000000000000000000000,
+        5 => 0x10000000000000000000000000000000000000000,
+        6 => 0x1000000000000000000000000000000000000000000000000,
+        _ => core::panic_with_felt252('lane above 6'),
+    }
+}
+
 /// Lane `lane` (0 to 6) of a page.
 pub fn lane_at(page: Lanes32, lane: u8) -> u32 {
     let [a, b, c, d, e, f, g] = page.lanes;

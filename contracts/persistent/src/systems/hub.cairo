@@ -19,6 +19,9 @@ pub const ZERO_ADMIN: felt252 = 'admin is zero';
 pub const START_HUB: u16 = 1;
 /// `AdventurerPlace.unlocked` of a new adventurer: bit `START_HUB`, the hub it stands in.
 pub const START_UNLOCKED: u64 = 0x2;
+/// The stored `AdventurerPlace` of a new adventurer: in `START_HUB`, its last hub, `START_UNLOCKED`
+/// (pinned against the packer by `test_stored_words`).
+pub const NEW_PLACE: felt252 = 0x400000000000000000000000000000200000000000100010000000000000000;
 
 // Refusals of the accounts and adventurers (ENG-04).
 /// `register` by an address that already owns an account.
@@ -185,29 +188,31 @@ pub mod Hub {
     use grimworld_logic::interface::{
         IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IResults, Results,
     };
-    use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
+    use grimworld_logic::packing::{Bitmap, Counter, LIVE, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::is_playable;
     use grimworld_logic::types::InstanceId;
     use starknet::storage::{
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
-    use starknet::storage_access::{Store, StorePacking};
+    use starknet::storage_access::{Store, StorageBaseAddress, StorePacking};
     use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
     use crate::models::account::{
-        Account, AccountRecord, IDS_PER_PAGE, PACK, START_SLOTS, lane_at, owner_key, with_lane,
+        Account, AccountRecord, IDS_PER_PAGE, NEW_RECORD, ONE_ADVENTURER, PACK, RECORD_WORD,
+        lane_at, lane_unit, owner_key, slots_and_count,
     };
     use crate::models::adventurer::{
-        ACTIVE, Adventurer, AdventurerCore, AdventurerPlace, Build, DELETED, NO_ELITE,
+        Adventurer, BELT_WORD, BUILD_WORD, CORE_WORD, DELETED, DELETED_MARK, EMPTY_LANES,
+        EQUIPPED_WORD, NAME_WORD, NEW_BUILD, PLACE_WORD, core_fields, is_inside, new_core,
     };
     use crate::models::item::{Gold, Grimoire, Item, RiftBoard};
     use super::{
-        ADVENTURER_DELETED, BAD_PROFESSION, EMPTY_NAME, HAS_ACCOUNT, NOT_ACCOUNT_OWNER, NOT_IMPLEMENTED,
-        NOT_IN_HUB, NOT_OWNER, NO_ACCOUNT, NO_ADVENTURER, NO_FREE_SLOT, OWNER_HAS_ACCOUNT,
-        PACK_HOLDS_EQUIPMENT, PACK_HOLDS_GOLD, PACK_HOLDS_ITEMS, START_HUB, START_UNLOCKED, VERSION,
+        ADVENTURER_DELETED, BAD_PROFESSION, EMPTY_NAME, HAS_ACCOUNT, NEW_PLACE, NOT_ACCOUNT_OWNER,
+        NOT_IMPLEMENTED, NOT_IN_HUB, NOT_OWNER, NO_ACCOUNT, NO_ADVENTURER, NO_FREE_SLOT,
+        OWNER_HAS_ACCOUNT, PACK_HOLDS_EQUIPMENT, PACK_HOLDS_GOLD, PACK_HOLDS_ITEMS, VERSION,
         WEARS_EQUIPMENT, ZERO_OWNER,
     };
 
@@ -290,10 +295,9 @@ pub mod Hub {
             let next = self.next_account.read().value;
             let account_id: u32 = next.try_into().unwrap();
             self.next_account.write(Counter { value: next + 1 });
-            let record = AccountRecord {
-                slots: START_SLOTS, adventurers: 0, highest_rank: 0, vault_panes: 0, lots: 0,
-            };
-            self.accounts.entry(account_id).write(Account { owner: caller, record });
+            let account = self.accounts.entry(account_id);
+            account.owner.write(caller);
+            set_word(account.as_ptr().__storage_pointer_address__, RECORD_WORD, NEW_RECORD);
             self.account_of.entry(caller).write(account_id);
             account_id
         }
@@ -312,7 +316,9 @@ pub mod Hub {
             self.account_of.entry(owner).write(account_id);
             self.account_of.entry(caller).write(0);
 
-            let count = account.record.read().adventurers;
+            let (_, count) = slots_and_count(
+                word(account.as_ptr().__storage_pointer_address__, RECORD_WORD),
+            );
             if count == 0 {
                 return;
             }
@@ -325,7 +331,8 @@ pub mod Hub {
                     ids = self.account_adventurers.entry((account_id, page)).read();
                 }
                 let adventurer_id = lane_at(ids, lane);
-                if self.adventurers.entry(adventurer_id).place.read().inside != 0 {
+                let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+                if is_inside(word(base, PLACE_WORD)) {
                     instances.set_controller(adventurer_id, owner);
                 }
                 i += 1;
@@ -335,108 +342,106 @@ pub mod Hub {
         /// D-32: a name and a primary profession; placed in `START_HUB`, at level 1, rank Wood.
         /// Writes (ENG-01 §9.3): the adventurer's six words new, its lane of the account's list
         /// (new on a page's first lane), the account's record and `next_adventurer` overwritten.
+        /// The words are written as stored, without the packers (pinned by `test_stored_words`).
         fn create_adventurer(ref self: ContractState, name: felt252, profession: u8) -> u32 {
             let account_id = self.account_of.entry(get_caller_address()).read();
             assert(account_id != 0, NO_ACCOUNT);
             assert(name != 0, EMPTY_NAME);
             assert(is_playable(profession), BAD_PROFESSION);
-            let record_ptr = self.accounts.entry(account_id).record;
-            let mut record = record_ptr.read();
-            assert(record.adventurers < record.slots, NO_FREE_SLOT);
+            let account = self.accounts.entry(account_id).as_ptr().__storage_pointer_address__;
+            let record = word(account, RECORD_WORD);
+            let (slots, count) = slots_and_count(record);
+            assert(count < slots, NO_FREE_SLOT);
 
             let next = self.next_adventurer.read().value;
             let adventurer_id: u32 = next.try_into().unwrap();
             self.next_adventurer.write(Counter { value: next + 1 });
-            let core = AdventurerCore {
-                account: account_id,
-                experience: 0,
-                merit: 0,
-                level: 1,
-                rank: 0,
-                profession,
-                secondary: 0,
-                unspent: 0,
-                trials_first: 0,
-                trials_tried: 0,
-                status: ACTIVE,
-                pack_lanes: 0,
-            };
-            let place = AdventurerPlace {
-                instance: 0, hub: START_HUB, last_hub: START_HUB, inside: 0, unlocked: START_UNLOCKED,
-            };
-            let build = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
-            let empty = Lanes32 { lanes: [0; 7] };
-            self
-                .adventurers
-                .entry(adventurer_id)
-                .write(Adventurer { core, place, build, belt: empty, equipped: empty, name });
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            set_word(base, CORE_WORD, new_core(account_id, profession));
+            set_word(base, PLACE_WORD, NEW_PLACE);
+            set_word(base, BUILD_WORD, NEW_BUILD);
+            set_word(base, BELT_WORD, EMPTY_LANES);
+            set_word(base, EQUIPPED_WORD, EMPTY_LANES);
+            set_word(base, NAME_WORD, name);
 
-            let (page, lane) = DivRem::div_rem(record.adventurers, IDS_PER_PAGE.try_into().unwrap());
-            let list = self.account_adventurers.entry((account_id, page));
-            list.write(with_lane(list.read(), lane, adventurer_id));
-            record.adventurers += 1;
-            record_ptr.write(record);
+            // The list is compact: the lanes from its length on are 0, so the new id is added to
+            // its lane, and a page's first lane is written without reading the page.
+            let (page, lane) = DivRem::div_rem(count, IDS_PER_PAGE.try_into().unwrap());
+            let list = self.account_adventurers.entry((account_id, page)).as_ptr().__storage_pointer_address__;
+            let ids = if lane == 0 {
+                EMPTY_LANES
+            } else {
+                word(list, 0)
+            };
+            set_word(list, 0, ids + adventurer_id.into() * lane_unit(lane));
+            set_word(account, RECORD_WORD, record + ONE_ADVENTURER);
             adventurer_id
         }
 
         /// D-33: frees the slot once the pack is empty. "Its inventory emptied", each checked by
         /// one read, without scanning: the pack's balances (`core.pack_lanes` = 0), its equipment
-        /// (the compact list's first lane is 0), what it wears (`equipped` all 0), its gold (0).
-        /// The belt names potion items; the potions themselves are pack balances. The adventurer's
-        /// record is never zeroed: `core.status` = `DELETED` marks it, and its id is never reused.
-        /// Writes (ENG-01 §9.3): `core`, the account's record, the list's hole and last pages, all
-        /// overwritten (one page while the account has seven adventurers or fewer).
+        /// (the compact list's first page is empty), what it wears (`equipped` all 0), its gold
+        /// (0). The belt names potion items; the potions themselves are pack balances. The
+        /// adventurer's record is never zeroed: `core.status` = `DELETED` marks it, and its id is
+        /// never reused. Writes (ENG-01 §9.3): `core`, the account's record, the list's hole and
+        /// last pages, all overwritten (one page while the account has seven adventurers or fewer).
         fn delete_adventurer(ref self: ContractState, adventurer_id: u32) {
-            let (mut core, _) = self.owned_in_hub(adventurer_id);
-            assert(core.pack_lanes == 0, PACK_HOLDS_ITEMS);
-            assert(
-                lane_at(self.packs.entry((adventurer_id, 0)).read(), 0) == 0, PACK_HOLDS_EQUIPMENT,
-            );
-            assert(
-                self.adventurers.entry(adventurer_id).equipped.read().lanes == [0; 7],
-                WEARS_EQUIPMENT,
-            );
-            assert(self.gold.entry(owner_key(PACK, adventurer_id)).read().amount == 0, PACK_HOLDS_GOLD);
+            let (account_id, core, _) = self.owned_in_hub(adventurer_id);
+            let (_, _, pack_lanes) = core_fields(core);
+            assert(pack_lanes == 0, PACK_HOLDS_ITEMS);
+            // Three words compared as stored: each is empty exactly when all its fields are 0,
+            // i.e. it holds 0 (never written) or `LIVE` alone. The pack's list is compact: it is
+            // empty exactly when its page 0 is.
+            let pack_page = self.packs.entry((adventurer_id, 0)).as_ptr().__storage_pointer_address__;
+            assert(is_empty(word(pack_page, 0)), PACK_HOLDS_EQUIPMENT);
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            assert(is_empty(word(base, EQUIPPED_WORD)), WEARS_EQUIPMENT);
+            let gold = self.gold.entry(owner_key(PACK, adventurer_id)).as_ptr().__storage_pointer_address__;
+            assert(is_empty(word(gold, 0)), PACK_HOLDS_GOLD);
 
-            // The swap removal: the last id moves into the hole. Bound: the account's adventurers.
-            let account_id = core.account;
-            let record_ptr = self.accounts.entry(account_id).record;
-            let mut record = record_ptr.read();
-            let last = record.adventurers - 1;
+            // The swap removal: the last id moves into the hole, the last lane is cleared. Bound:
+            // the account's adventurers.
+            let account = self.accounts.entry(account_id).as_ptr().__storage_pointer_address__;
+            let record = word(account, RECORD_WORD);
+            let (_, count) = slots_and_count(record);
+            let last = count - 1;
             let per_page: NonZero<u8> = IDS_PER_PAGE.try_into().unwrap();
             let (last_page, last_lane) = DivRem::div_rem(last, per_page);
-            let last_ptr = self.account_adventurers.entry((account_id, last_page));
-            let mut last_ids = last_ptr.read();
+            let last_list = self.account_adventurers.entry((account_id, last_page)).as_ptr().__storage_pointer_address__;
+            let last_word = word(last_list, 0);
+            let last_ids = unpack_lanes32(last_word);
             let last_id = lane_at(last_ids, last_lane);
-            last_ids = with_lane(last_ids, last_lane, 0);
+            let mut last_new = last_word - last_id.into() * lane_unit(last_lane);
             if last_id != adventurer_id {
+                let moved: felt252 = last_id.into() - adventurer_id.into();
                 let mut i: u8 = 0;
-                let mut ids = Lanes32 { lanes: [0; 7] };
+                let mut ids = last_ids;
+                let mut list = last_list;
+                let mut list_word = last_word;
                 loop {
                     assert(i != last, 'not in the account list');
                     let (page, lane) = DivRem::div_rem(i, per_page);
-                    if lane == 0 {
-                        ids = self.account_adventurers.entry((account_id, page)).read();
+                    if lane == 0 && page != last_page {
+                        list = self.account_adventurers.entry((account_id, page)).as_ptr().__storage_pointer_address__;
+                        list_word = word(list, 0);
+                        ids = unpack_lanes32(list_word);
+                    } else if lane == 0 {
+                        ids = last_ids;
                     }
                     if lane_at(ids, lane) == adventurer_id {
                         if page == last_page {
-                            last_ids = with_lane(last_ids, lane, last_id);
+                            last_new += moved * lane_unit(lane);
                         } else {
-                            self
-                                .account_adventurers
-                                .entry((account_id, page))
-                                .write(with_lane(ids, lane, last_id));
+                            set_word(list, 0, list_word + moved * lane_unit(lane));
                         }
                         break;
                     }
                     i += 1;
                 }
             }
-            last_ptr.write(last_ids);
-            record.adventurers = last;
-            record_ptr.write(record);
-            core.status = DELETED;
-            self.adventurers.entry(adventurer_id).core.write(core);
+            set_word(last_list, 0, last_new);
+            set_word(account, RECORD_WORD, record - ONE_ADVENTURER);
+            set_word(base, CORE_WORD, core + DELETED_MARK);
         }
         fn set_build(
             ref self: ContractState,
@@ -674,25 +679,40 @@ pub mod Hub {
         }
     }
 
+    /// A stored record whose fields are all 0: never written, or `LIVE` alone.
+    fn is_empty(word: felt252) -> bool {
+        word == 0 || word == LIVE
+    }
+
+    /// Word `offset` of the record at `base`, as stored (no unpacking: docs/CAIRO.md §1).
+    fn word(base: StorageBaseAddress, offset: u8) -> felt252 {
+        Store::<felt252>::read_at_offset(0, base, offset).unwrap_syscall()
+    }
+
+    fn set_word(base: StorageBaseAddress, offset: u8, value: felt252) {
+        Store::<felt252>::write_at_offset(0, base, offset, value).unwrap_syscall()
+    }
+
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
         /// The check of every entrypoint that names an adventurer (ADR-0007, *Access control*;
-        /// ENG-01 §1.2): it exists, the caller owns its account, it is not deleted, and it is in a
-        /// hub (not inside an instance). Three reads: `core`, the account's owner, `place`.
-        /// Returns them for the entrypoint to use.
-        fn owned_in_hub(
-            self: @ContractState, adventurer_id: u32,
-        ) -> (AdventurerCore, AdventurerPlace) {
-            let adventurer = self.adventurers.entry(adventurer_id);
-            let core = adventurer.core.read();
-            assert(core.account != 0, NO_ADVENTURER);
+        /// ENG-01 §1.2), one refusal per case: it exists (`NO_ADVENTURER`), the caller owns its
+        /// account (`NOT_OWNER`), it is not deleted (`ADVENTURER_DELETED`), it is in a hub, not
+        /// inside an instance (`NOT_IN_HUB`). Three reads: `core`, the account's owner, `place`.
+        /// Returns `(account id, core, place)`, the two words as stored, for the entrypoint to
+        /// unpack what it needs.
+        fn owned_in_hub(self: @ContractState, adventurer_id: u32) -> (u32, felt252, felt252) {
+            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            let core = word(base, CORE_WORD);
+            let (account_id, status, _) = core_fields(core);
+            assert(account_id != 0, NO_ADVENTURER);
             assert(
-                self.accounts.entry(core.account).owner.read() == get_caller_address(), NOT_OWNER,
+                self.accounts.entry(account_id).owner.read() == get_caller_address(), NOT_OWNER,
             );
-            assert(core.status != DELETED, ADVENTURER_DELETED);
-            let place = adventurer.place.read();
-            assert(place.inside == 0, NOT_IN_HUB);
-            (core, place)
+            assert(status != DELETED, ADVENTURER_DELETED);
+            let place = word(base, PLACE_WORD);
+            assert(!is_inside(place), NOT_IN_HUB);
+            (account_id, core, place)
         }
     }
 }

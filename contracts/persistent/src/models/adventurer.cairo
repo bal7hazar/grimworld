@@ -2,7 +2,7 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits, join,
+    LIVE, Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits, join,
     low_field, split, u16_at, u32_at,
 };
 
@@ -11,6 +11,42 @@ pub const ACTIVE: u8 = 0;
 pub const DELETED: u8 = 1;
 /// `Build.elite_slot` when no elite skill is on the bar.
 pub const NO_ELITE: u8 = 255;
+/// Offsets of the words of `Adventurer` from its address, for a read of one stored word.
+pub const CORE_WORD: u8 = 0;
+pub const PLACE_WORD: u8 = 1;
+pub const BUILD_WORD: u8 = 2;
+pub const BELT_WORD: u8 = 3;
+pub const EQUIPPED_WORD: u8 = 4;
+pub const NAME_WORD: u8 = 5;
+
+/// `inside` of a stored `AdventurerPlace` word, without unpacking the other fields.
+pub fn is_inside(place: felt252) -> bool {
+    let (low, _) = split(place);
+    byte_at(low, P96) != 0
+}
+
+// Stored words written or changed by arithmetic, without the packers: each is pinned against the
+// packer by `test_stored_words` (the packers are the oracle, docs/CAIRO.md §2).
+
+/// The stored `AdventurerCore` of a new adventurer: its account, level 1, its profession, every
+/// other field 0 (`ACTIVE`).
+pub fn new_core(account: u32, profession: u8) -> felt252 {
+    LIVE + account.into() + LEVEL_ONE + profession.into() * PROFESSION_UNIT
+}
+const LEVEL_ONE: felt252 = 0x1000000000000000000000000;
+const PROFESSION_UNIT: felt252 = 0x10000000000000000000000000000;
+/// Added to a stored `AdventurerCore` whose status is `ACTIVE`, it becomes `DELETED` (bit 176).
+pub const DELETED_MARK: felt252 = 0x100000000000000000000000000000000000000000000;
+/// The stored `Build` of a new adventurer: an empty bar, no attribute rank, `NO_ELITE`.
+pub const NEW_BUILD: felt252 = 0x4000000000000000000ff000000000000000000000000000000000000000000;
+/// A stored `Lanes32` with every lane 0 (the belt and the equipment of a new adventurer).
+pub const EMPTY_LANES: felt252 = LIVE;
+
+/// `(account, status, pack_lanes)` of a stored `AdventurerCore`, without unpacking the others.
+pub fn core_fields(core: felt252) -> (u32, u8, u16) {
+    let (low, high) = split(core);
+    (low_field(low, P32.try_into().unwrap()).try_into().unwrap(), byte_at(high, P48), u16_at(high, P56))
+}
 
 /// Who it is and how far it went.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]

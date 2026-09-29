@@ -26,8 +26,8 @@ fn test_hub_deploys_and_stubs_revert() {
     let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
     assert(IHubAdminDispatcher { contract_address: address }.version() == HUB_VERSION, 'version');
     #[feature("safe_dispatcher")]
-    let registered = IHubSafeDispatcher { contract_address: address }.register();
-    assert(*registered.unwrap_err().at(0) == NOT_IMPLEMENTED, 'register is a stub');
+    let set = IHubSafeDispatcher { contract_address: address }.set_build(1, 0, 0, 0);
+    assert(*set.unwrap_err().at(0) == NOT_IMPLEMENTED, 'set_build is a stub');
 }
 
 #[test]
