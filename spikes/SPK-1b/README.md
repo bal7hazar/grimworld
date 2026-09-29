@@ -27,7 +27,7 @@ the redaction, the send cap, the repeat-run guard. Added to it:
 | `measure.mjs` → `measure-output.txt` | The run: A, the burner's funding and deployment, B, C, and D until it stopped (35 transactions) |
 | `measure-d.mjs` → `measure-d-output.txt` | The rest of D, then the adventurer given back and the burner's STRK returned (9 transactions). It resumes from what the outputs record. `*.incomplete-*` are its earlier attempts, kept |
 | `ledger.jsonl` | Every transaction sent (44): reservation, hash, settlement (receipt fee and the owner's spending apart). Rewritten from `ledger-v1.jsonl` (the run's own, one row per receipt) by `migrate_ledger.py` |
-| `test_ledger.mjs` | Offline, with a stubbed RPC: failures after the broadcast, while reading the receipt and while tracing, and before any hash; recovery and reconciliation; paymaster settlement; the committed ledger |
+| `test_retired.mjs` | Offline, with a stubbed RPC: failures after the broadcast, while reading the receipt and while tracing, and before any hash; recovery and reconciliation; paymaster settlement; the committed ledger |
 | `analyse.py` → `analyse-output.txt` | The table: SPK-1 §4's attribution per case, the splits, the money |
 | `summary.py`, `tree.py`, `selectors.json` | One line per receipt; one trace's invocation tree with entry point names |
 | `check_secrets.py` | AC-3: SPK-1's check, which also covers the burner key and checks that its file is ignored and untracked. It validates the burner inventory and requires the expected burner |
@@ -44,7 +44,7 @@ node spikes/SPK-1b/measure.mjs          # writes measure-output.txt; refuses if 
 node spikes/SPK-1b/measure-d.mjs        # writes measure-d-output.txt; refuses if it exists
 python3 spikes/SPK-1b/analyse.py > spikes/SPK-1b/analyse-output.txt
 python3 spikes/SPK-1b/check_secrets.py --log <agent log>
-node spikes/SPK-1b/test_redaction.mjs && node spikes/SPK-1b/test_ledger.mjs && python3 spikes/SPK-1b/test_check_secrets.py   # no network
+node spikes/SPK-1b/test_redaction.mjs && node spikes/SPK-1b/test_retired.mjs && python3 spikes/SPK-1b/test_check_secrets.py   # no network
 ```
 
 Never redirect the output of the sending scripts with `>`. The balance is the owner's money.

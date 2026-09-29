@@ -146,6 +146,7 @@ export function emit(record) {
 let id = 0;
 /** A raw JSON-RPC call; returns { result } or { error }. */
 export async function rpcRaw(method, params = []) {
+  if (String(method).startsWith("starknet_add")) throw new Error(`${RETIRED} (${method})`);   // retired: reads only
   const response = await fetch(URL, {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": USER_AGENT },
@@ -168,8 +169,10 @@ export async function rpc(method, params = []) {
 /** Stops the process unless the endpoint is Sepolia. Every sending script calls it first. */
 // SPK-1b is closed (orchestrator, 2026-09-28): its measurements are done and audited; its
 // crash-recovery path is not (audit of PR 51, re-audit findings 1 and 7). Sending is retired so
-// that these scripts can never send again (measure.mjs and measure-d.mjs, the only callers of
-// makeSender, refuse as their first statement); future Sepolia sending uses audited tooling.
+// that nothing here can send again: measure.mjs and measure-d.mjs refuse as their first
+// statement, and the library's sending paths throw before any network access (makeSender, tracked,
+// account, and rpcRaw for starknet_add* methods; re-audit of PR 51, finding 1). Reads still work.
+// Future Sepolia sending uses audited tooling.
 export const RETIRED = "SPK-1b is closed: sending is retired (audit of PR 51, findings 1 and 7); nothing is sent";
 export function refuseRetired() {
   console.error(RETIRED);
@@ -187,7 +190,7 @@ export async function requireSepolia() {
 }
 
 export function account() {
-  return new Account({ provider, address: ADDRESS, signer: KEY });
+  throw new Error(RETIRED);   // retired: no live account is built any more
 }
 
 /** The account address, for calldata only: never print it (emit and console redact it). */
@@ -246,6 +249,7 @@ function sleep(ms) {
  * receipt every POLL_MS until ACCEPTED_ON_L2, and returns the record. Any revert stops the run.
  */
 export async function makeSender(acc, maxTx, ledger, { payer, tip: givenTip = null } = {}) {
+  throw new Error(RETIRED);   // retired: nothing below runs
   if (!ledger || !payer) throw new Error("makeSender: a ledger and the payer's role are required (fix loop 1)");
   let nonce = BigInt(await acc.getNonce("latest"));
   const tip = givenTip ?? (await provider.getEstimateTip("latest", { maxBlocks: 20 })).recommendedTip;
@@ -489,6 +493,7 @@ export function netTransfer(record, payer) {
  */
 export async function tracked(ledger, { label, payer, payerAddress = null, maxFee: bound, paymaster = false, nonce = null,
   submit, trace = true, measured = true, extra = {} }) {
+  throw new Error(RETIRED);   // retired: nothing below runs
   const id = ledger.reserve({ label, payer, payerAddress, maxFee: bound, paymaster, nonce });
   const submittedAt = now();
   const t0 = performance.now();

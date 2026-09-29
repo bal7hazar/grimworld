@@ -175,7 +175,7 @@ were found by the audit (fix loop 1):
 
 Neither changed what was sent: the run stayed far below both caps (44 of 60, 3.97 of 40 STRK).
 
-**The caps since fix loop 1** (`makeLedger` and `tracked` in `lib.mjs`, `test_ledger.mjs`):
+**The caps since fix loop 1** (`makeLedger` and `tracked` in `lib.mjs`; their test, `test_ledger.mjs`, was removed when sending was retired, see *Closure*):
 - Every transaction is **reserved before it is submitted**, at its maximum cost, and its hash is
   written as soon as it is known.
 - It is **settled** after its receipt with two amounts apart: the receipt's fee, whoever paid it,
@@ -246,5 +246,6 @@ The sending scripts are retired (orchestrator, 2026-09-28): the re-audit of PR 5
 crash-recovery path unsafe (a lost submission response could be voided on an unchanged nonce;
 recovery did not restore the measurement's progress). The measurements are unaffected: 44
 transactions, reconciled by the auditor. Rather than harden a one-off path, `measure.mjs` and
-`measure-d.mjs` refuse as their first statement; future Sepolia sending goes through tooling of its
-own, audited.
+`measure-d.mjs` refuse as their first statement, and the library's sending paths throw before any
+network access (`makeSender`, `tracked`, `account`, and `rpcRaw` for `starknet_add*`;
+`test_retired.mjs` shows it offline). Future Sepolia sending goes through tooling of its own, audited.
