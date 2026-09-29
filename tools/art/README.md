@@ -21,14 +21,16 @@ Without access to it, the rest of the repository still builds; only the art is m
 
     tools/art/build.py
 
-One command. It needs **Python 3.12** or newer (NumPy 2.5.3 needs it) and a network the first
-time. Started by an older Python (`python3` is 3.11 on some Macs), it re-executes itself once under
-the `python3.12` on `PATH`, after asking that interpreter its version; it refuses, naming 3.12, when
-there is none, when it reports an older version, or when it was already re-executed once, before it
-creates or uses anything. On first run it creates `tools/art/.venv` and installs the pinned
+One command. It needs **Python 3.12 or 3.13**, exactly: the versions whose wheels
+`requirements.txt` pins by hash (`PYTHONS` in `build.py`, the one place that says so), and a
+network the first time. A newer Python (3.14) is refused, naming them. Started by an older Python
+(`python3` is 3.11 on some Macs), it re-executes itself once under the `python3.12` on `PATH`,
+after asking that interpreter its version; it refuses, naming 3.12 and 3.13, when there is none,
+when it reports another version, or when it was already re-executed once, before it creates or
+uses anything. On first run it creates `tools/art/.venv` and installs the pinned
 `requirements.txt` (Pillow, NumPy) with `pip --require-hashes`, then hands off to the venv's
 interpreter, once. An existing `.venv` is asked directly (its interpreter, not only `pyvenv.cfg`):
-it is rebuilt when its Python is older than 3.12, when `pyvenv.cfg` is missing, unreadable or names
+it is rebuilt when its Python is not 3.12 or 3.13, when `pyvenv.cfg` is missing, unreadable or names
 another version, or when a pinned distribution is missing or at another version; a 3.13 venv under
 a 3.12 start is kept. Started directly by `tools/art/.venv/bin/python`, the build checks the
 running venv the same way and refuses when it is wrong (run `python3 tools/art/build.py` to
@@ -123,7 +125,8 @@ placing the sprite at its tile position puts the feet on it. Frame rates and loo
 6. **Checks** (the build fails otherwise): no pixel within the key tolerance is left in any
    output frame; every resampled sprite's height (median of its idle frames) within 2 px of its
    target; no basic goblin (`[order] basic`) taller than the shortest profession, except the
-   names in `[order] exempt`, which must be native (the skirmisher: the pack's Spear Goblin, 70,
+   names in `[order] exempt`, which must be native drawings of the pack, kind strip (the
+   skirmisher: the pack's Spear Goblin, 70,
    is taller than its Monk, 67); a resampled basic goblin is always compared; `[order] tallest`
    taller than every other sprite; `[order]` and `[height]` naming only sprites of the manifest,
    with at least one profession; pages ≤ 2048; frames inside pages, none overlapping; one cell

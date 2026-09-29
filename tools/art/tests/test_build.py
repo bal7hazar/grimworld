@@ -58,9 +58,37 @@ class CommandLine(unittest.TestCase):
 
 
 class PythonSelection(unittest.TestCase):
-    def test_current_python_when_3_12_or_newer(self):
+    def test_current_python_when_3_12_or_3_13(self):
+        self.assertEqual(build.PYTHONS, ((3, 12), (3, 13)))
         self.assertIsNone(build.select_python((3, 12, 0), lambda n: None, env={}))
         self.assertIsNone(build.select_python((3, 13, 1), lambda n: None, env={}))
+
+    def test_refuses_python_3_14_naming_the_hashed_versions(self):
+        with self.assertRaises(SystemExit) as e:
+            build.select_python((3, 14, 0), lambda n: "/x/python3.12", probe=lambda p: (3, 12),
+                                env={})
+        self.assertEqual(str(e.exception),
+                         "tools/art/build.py runs under Python 3.12 or 3.13 (the versions whose "
+                         "wheels requirements.txt pins by hash), found 3.14: run it with Python "
+                         "3.12 or 3.13.")
+
+    def test_python_3_14_refused_before_any_venv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            venv = Path(tmp) / ".venv"
+            saved, build.VENV = build.VENV, venv
+            try:
+                with self.assertRaises(SystemExit):
+                    build.bootstrap((3, 14, 0), lambda n: None, run=lambda *a, **k: self.fail(),
+                                    execv=lambda *a: self.fail(), env={})
+            finally:
+                build.VENV = saved
+            self.assertFalse(venv.exists())
+
+    def test_own_info_and_probe_share_one_check(self):
+        self.assertTrue(build.PROBE.startswith(build.INFO))
+        info = build.own_info({"numpy": "x"})
+        self.assertEqual(info["python"], list(sys.version_info[:2]))
+        self.assertEqual(set(info["dists"]), {"numpy"})
 
     def test_reexecutes_under_a_probed_python3_12(self):
         asked = []
@@ -143,6 +171,7 @@ class FakeVenv:
         if cmd[1:3] == ["-m", "pip"]:
             self.dists = dict(PINS)
             self.installed += 1
+            self.pip = cmd
             return subprocess.CompletedProcess(cmd, 0, "", "")
         info = {"python": list(self.python), "dists": {n: self.dists.get(n) for n in cmd[3:]}}
         return subprocess.CompletedProcess(cmd, 0, json.dumps(info), "")
@@ -165,6 +194,16 @@ class Venv(unittest.TestCase):
             calls = self.boot(fake)
             self.assertEqual((fake.created, fake.installed), (1, 1))
             self.assertTrue(calls[0][0].endswith(".venv/bin/python"))
+            self.assertEqual(fake.pip[1:], ["-m", "pip", "install", "--quiet", "--require-hashes",
+                                            "-r", str(build.HERE / "requirements.txt")])
+
+    def test_venv_of_python_3_14_is_rebuilt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeVenv(Path(tmp) / ".venv", python=(3, 14), dists=PINS)
+            self.assertEqual(build.venv_problem(fake.venv, PINS, fake),
+                             "its interpreter is Python 3.14, not 3.12 or 3.13")
+            self.boot(fake)
+            self.assertEqual((fake.created, fake.installed), (1, 1))
 
     def test_venv_of_python_3_11_is_rebuilt(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -217,7 +256,7 @@ class Venv(unittest.TestCase):
             self.assertIn("refusing to loop", str(e.exception))
             self.assertEqual(len(calls), 1)
 
-    def direct(self, venv, dists, cfg=True):
+    def direct(self, venv, dists):
         """Started directly by the venv's interpreter (sys.prefix is the venv)."""
         env = {build.HANDOFF: "1"}
         saved, build.VENV = build.VENV, venv
@@ -307,9 +346,10 @@ class Scale(unittest.TestCase):
         self.assertEqual(kept, {(200, 30, 30), (20, 20, 160)})
 
     def manifest(self, **height):
-        sprites = [{"name": n, "role": r} for n, r in (
-            ("runt", "caste"), ("skirmisher", "caste"), ("slinger", "caste"), ("hob", "caste"),
-            ("cleric", "profession"))]
+        sprites = [{"name": n, "role": r, "kind": k} for n, r, k in (
+            ("runt", "caste", "generated"), ("skirmisher", "caste", "strip"),
+            ("slinger", "caste", "strip"), ("hob", "caste", "generated"),
+            ("cleric", "profession", "strip"))]
         heights = dict({"runt": 67, "skirmisher": "native", "slinger": "native", "hob": 119,
                         "cleric": "native"}, **height)
         return {"sprite": sprites, "height": heights, "settings": {"resample": "area"},
@@ -322,37 +362,49 @@ class Scale(unittest.TestCase):
         m = self.manifest(slinger="big", ghost=70)
         del m["height"]["cleric"]
         m["settings"]["resample"] = "lanczos"
-        problems = scale.validate_manifest(m, methods)
-        self.assertTrue(any("'ghost', which is not a sprite" in p for p in problems))
-        self.assertTrue(any("cleric: no line in [height]" in p for p in problems))
-        self.assertTrue(any("slinger = 'big'" in p for p in problems))
-        self.assertTrue(any("settings.resample = 'lanczos'" in p for p in problems))
-        self.assertTrue(any("height = 0" in p or "runt = 0" in p
-                            for p in scale.validate_manifest(self.manifest(runt=0), methods)))
+        self.assertEqual(scale.validate_manifest(m, methods), [
+            "[height] names 'ghost', which is not a sprite of the manifest",
+            'cleric: no line in [height] ("native" or a height in px)',
+            "[height] slinger = 'big': must be \"native\" or a positive height in px",
+            "settings.resample = 'lanczos', not one of area, area-blend, nearest"])
+        self.assertEqual(scale.validate_manifest(self.manifest(runt=0), methods),
+                         ["[height] runt = 0: must be \"native\" or a positive height in px"])
 
-    def test_exemption_must_be_native_and_basic(self):
+    def test_exemption_must_be_native_basic_and_a_pack_drawing(self):
         problems = scale.validate_manifest(self.manifest(skirmisher=75), build.METHODS)
         self.assertEqual(problems, ["[order] exempt 'skirmisher' is resampled ([height] 75): only "
                                     "a native sprite may be exempt"])
         m = self.manifest()
         m["order"]["exempt"] = ["hob"]
-        self.assertIn("[order] exempt 'hob' is not in basic",
-                      scale.validate_manifest(m, build.METHODS))
+        self.assertEqual(scale.validate_manifest(m, build.METHODS),
+                         ["[order] exempt 'hob' is not in basic"])
+        m = self.manifest(runt="native")                           # a generated sprite, native
+        m["order"]["exempt"] = ["skirmisher", "runt"]
+        self.assertEqual(scale.validate_manifest(m, build.METHODS),
+                         ["[order] exempt 'runt' is a generated sprite: only a drawing of the "
+                          "pack (kind strip) may be exempt"])
 
     def test_order_rule(self):
         m = self.manifest()
         role = {sp["name"]: sp["role"] for sp in m["sprite"]}
+        kind = {sp["name"]: sp["kind"] for sp in m["sprite"]}
         good = {"runt": 67, "skirmisher": 70, "slinger": 67, "hob": 119, "cleric": 67}
-        self.assertEqual(scale.check_order(good, m["order"], role, m["height"]), [])
-        problems = scale.check_order(dict(good, runt=70), m["order"], role, m["height"])
+        self.assertEqual(scale.check_order(good, m["order"], role, m["height"], kind), [])
+        problems = scale.check_order(dict(good, runt=70), m["order"], role, m["height"], kind)
         self.assertEqual(problems, ["runt (70 px) is taller than the shortest profession, "
                                     "cleric (67 px)"])
         slinger80 = dict(m["height"], slinger=80)                  # a resampled basic goblin
-        problems = scale.check_order(dict(good, slinger=80), m["order"], role, slinger80)
+        problems = scale.check_order(dict(good, slinger=80), m["order"], role, slinger80, kind)
         self.assertEqual(problems, ["slinger (80 px) is taller than the shortest profession, "
                                     "cleric (67 px)"])
-        problems = scale.check_order(dict(good, hob=70), m["order"], role, m["height"])
+        problems = scale.check_order(dict(good, hob=70), m["order"], role, m["height"], kind)
         self.assertTrue(any("hob (70 px) is not taller than skirmisher" in p for p in problems))
+        # the audit's case: a generated runt, native and exempt, at 150 px, no longer passes
+        order = dict(m["order"], exempt=["skirmisher", "runt"])
+        problems = scale.check_order(dict(good, runt=150, hob=160), order, role,
+                                     dict(m["height"], runt="native"), kind)
+        self.assertEqual(problems, ["[order] exempt 'runt' is a generated sprite: only a drawing "
+                                    "of the pack (kind strip) may be exempt"])
 
     def test_order_validated(self):
         role = {"runt": "caste", "hob": "caste", "cleric": "profession"}

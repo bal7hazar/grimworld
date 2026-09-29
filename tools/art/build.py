@@ -2,7 +2,8 @@
 """Asset pipeline entry point: `tools/art/build.py`.
 
 Reads the private art pack (submodule `assets`), writes atlases, JSON, a report and a preview to
-`tools/art/out/` (ignored by git, D-73). Needs Python 3.12 (re-executes under `python3.12` when
+`tools/art/out/` (ignored by git, D-73). Needs Python 3.12 or 3.13, exactly (PYTHONS: the
+versions whose wheels requirements.txt pins by hash; re-executes under `python3.12` when
 started by an older one); sets up its own virtualenv on first run. Deterministic: two runs give
 byte-identical outputs; the pixel-and-metadata fingerprint is meant to match across machines
 (README; a hypothesis until checked on Linux). Modes: see USAGE.
@@ -21,7 +22,11 @@ REPO = HERE.parent.parent
 VENV = HERE / ".venv"
 OUT = HERE / "out"
 ASSETS = REPO / "assets"
-PYTHON = (3, 12)            # NumPy 2.5.3 (requirements.txt) needs Python 3.12 or newer
+# The one place that says which Pythons run the build: exactly the versions whose wheels
+# requirements.txt pins by hash (cp312, cp313). The first is the one an older Python re-executes to.
+PYTHONS = ((3, 12), (3, 13))
+PYTHON = PYTHONS[0]
+SUPPORTED = " or ".join("%d.%d" % v for v in PYTHONS)
 MARKER = "GRIMWORLD_ART_REEXEC"   # set before re-executing under python3.12: never twice
 HANDOFF = "GRIMWORLD_ART_VENV"    # set before handing off to .venv/bin/python: never twice
 METHODS = ("area", "area-blend", "nearest")
@@ -33,15 +38,18 @@ USAGE = """usage: tools/art/build.py [--check] [--resample=area|area-blend|neare
   --check              after the build, parse the atlases with PixiJS 8 (tools/art/check)
   --resample=FILTER    resampling filter of the generated sheets (default: the manifest's)"""
 
-# Run by the venv's interpreter: its version and the installed versions of the named distributions.
-PROBE = """import sys, json, importlib.metadata as m
-def v(n):
-    try:
-        return m.version(n)
-    except m.PackageNotFoundError:
-        return None
-print(json.dumps({"python": list(sys.version_info[:2]), "dists": {n: v(n) for n in sys.argv[1:]}}))
+# The interpreter check, one implementation: an interpreter's version and the installed versions of
+# the named distributions. Run in a venv's interpreter by PROBE, and in this process by own_info.
+INFO = """import sys, importlib.metadata as m
+def info(names):
+    def v(n):
+        try:
+            return m.version(n)
+        except m.PackageNotFoundError:
+            return None
+    return {"python": list(sys.version_info[:2]), "dists": {n: v(n) for n in names}}
 """
+PROBE = INFO + "import json\nprint(json.dumps(info(sys.argv[1:])))\n"
 
 
 def parse_args(argv):
@@ -71,14 +79,17 @@ def probe_version(python, run=subprocess.run):
 
 
 def select_python(version, which, probe=probe_version, env=os.environ):
-    """Which interpreter runs the build: None for the current one (`version` is at least 3.12),
-    else the path of the `python3.12` found by `which`, once its own reported version is checked.
-    Refuses, naming 3.12, when there is none, when it reports an older version, or when this
-    process was already re-executed once (`MARKER` set). Called before any venv is touched."""
-    if tuple(version[:2]) >= PYTHON:
+    """Which interpreter runs the build: None for the current one (`version` is one of PYTHONS),
+    else, for an older one, the path of the `python3.12` found by `which`, once its own reported
+    version is checked. Refuses, naming PYTHONS, a newer Python (no hashed wheels for it), no
+    `python3.12`, one that reports a version outside PYTHONS, or a second re-execution (`MARKER`
+    set). Called before any venv is touched."""
+    if tuple(version[:2]) in PYTHONS:
         return None
-    need = "tools/art/build.py needs Python %d.%d or newer (NumPy 2.5.3), found %d.%d" % (
-        *PYTHON, *version[:2])
+    need = ("tools/art/build.py runs under Python %s (the versions whose wheels requirements.txt "
+            "pins by hash), found %d.%d" % (SUPPORTED, *version[:2]))
+    if tuple(version[:2]) > PYTHONS[-1]:
+        raise SystemExit(f"{need}: run it with Python {SUPPORTED}.")
     if env.get(MARKER):
         raise SystemExit(f"{need}, after re-executing under python3.12 once already: refusing "
                          "to loop. Install Python 3.12 and run it again.")
@@ -87,7 +98,7 @@ def select_python(version, which, probe=probe_version, env=os.environ):
     if not found:
         raise SystemExit(f"{need}, and no `{name}` on PATH: install Python 3.12 and run it again.")
     got = probe(found)
-    if got is None or got < PYTHON:
+    if got not in PYTHONS:
         raise SystemExit(f"{need}; `{found}` (the `{name}` on PATH) reports "
                          f"{'no version' if got is None else '%d.%d' % got}: install Python "
                          "3.12 and run it again.")
@@ -124,25 +135,20 @@ def pins(path):
 
 
 def own_info(want):
-    """What PROBE prints, for the running interpreter itself."""
-    import importlib.metadata as m
-
-    def v(n):
-        try:
-            return m.version(n)
-        except m.PackageNotFoundError:
-            return None
-    return {"python": list(sys.version_info[:2]), "dists": {n: v(n) for n in want}}
+    """What PROBE prints, for the running interpreter itself (the same INFO code)."""
+    space = {}
+    exec(INFO, space)
+    return space["info"](sorted(want))
 
 
 def venv_check(venv, info, want):
     """What is wrong with a venv whose interpreter reported `info` (PROBE's output), or None. Its
-    version must be 3.12 or newer and equal the one of a readable pyvenv.cfg (without it, Python
+    version must be one of PYTHONS and equal the one of a readable pyvenv.cfg (without it, Python
     does not treat the folder as a venv), and every pin must be installed at its version. A venv of
     3.13 is fine under a 3.12 start: no rebuild between two good versions."""
     got = tuple(info["python"])
-    if got < PYTHON:
-        return "its interpreter is Python %d.%d, older than 3.12" % got
+    if got not in PYTHONS:
+        return "its interpreter is Python %d.%d, not %s" % (*got, SUPPORTED)
     cfg = venv_version(venv)
     if cfg is None:
         return "no readable pyvenv.cfg"
@@ -173,7 +179,7 @@ def venv_problem(venv, want, run=subprocess.run):
 
 def bootstrap(version=None, which=shutil.which, probe=probe_version, run=subprocess.run,
               execv=os.execv, env=os.environ, prefix=None, info=own_info):
-    """Re-run under Python 3.12+, then under tools/art/.venv: created when missing, rebuilt when
+    """Re-run under one of PYTHONS, then under tools/art/.venv: created when missing, rebuilt when
     `venv_problem` finds it unusable, checked again, then handed off to once (`HANDOFF`). Started
     directly by the venv's interpreter, the running venv is checked too (`venv_check`), and refused
     when it is wrong: it cannot rebuild itself while it runs."""
@@ -427,7 +433,8 @@ def check_scale(sprites, order):
                             f"{SPREAD}: the height is their median")
     problems += scale.check_order({n: r["scale"]["height"] for n, r in sprites.items()}, order,
                                   {n: r["role"] for n, r in sprites.items()},
-                                  {n: r["scale"]["spec"] for n, r in sprites.items()})
+                                  {n: r["scale"]["spec"] for n, r in sprites.items()},
+                                  {n: r["kind"] for n, r in sprites.items()})
     if problems:
         raise SystemExit("scale check failed:\n  " + "\n  ".join(problems))
     return warnings

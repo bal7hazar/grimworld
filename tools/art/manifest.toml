@@ -38,8 +38,9 @@ warden = "native"      # Archer, 88
 cleric = "native"      # Monk, 67
 
 # What the build checks on the result (AC-2): no basic goblin taller than the shortest profession,
-# except the ones listed in `exempt`, which must be native (the pack's own drawing keeps the
-# pack's proportions); a resampled basic goblin is always compared. `tallest` is taller than every
+# except the ones listed in `exempt`, which must be native drawings of the pack, kind "strip" (the
+# pack's own drawing keeps the pack's proportions); a resampled or generated basic goblin is always
+# compared. `tallest` is taller than every
 # other sprite.
 [order]
 basic = ["runt", "skirmisher", "slinger"]

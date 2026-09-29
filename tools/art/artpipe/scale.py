@@ -137,11 +137,11 @@ def height_problem(name, spec):
     return f'[height] {name} = {spec!r}: must be "native" or a positive height in px'
 
 
-def validate_order(order, role, spec=None):
+def validate_order(order, role, spec=None, kind=None):
     """`[order]` of the manifest against the sprites (`role` maps each to caste or profession,
-    `spec` to its `[height]` line). An `exempt` name must be a `basic` one and native: only the
-    pack's own drawing, untouched, may stand taller than the shortest profession. Returns the list
-    of problems."""
+    `spec` to its `[height]` line, `kind` to generated or strip). An `exempt` name must be a
+    `basic` one, native and a strip: only the pack's own drawing, untouched, may stand taller than
+    the shortest profession. Returns the list of problems."""
     problems = []
     basic, tallest = order.get("basic", []), order.get("tallest")
     for n in [*basic, *order.get("exempt", []), tallest]:
@@ -155,6 +155,9 @@ def validate_order(order, role, spec=None):
         elif n in role and spec is not None and spec.get(n) != NATIVE:
             problems.append(f"[order] exempt {n!r} is resampled ([height] {spec.get(n)!r}): "
                             "only a native sprite may be exempt")
+        elif n in role and kind is not None and kind.get(n) != "strip":
+            problems.append(f"[order] exempt {n!r} is a {kind.get(n)} sprite: only a drawing of "
+                            "the pack (kind strip) may be exempt")
     if not any(r == "profession" for r in role.values()):
         problems.append("[order] cannot compare: the manifest has no profession")
     return problems
@@ -165,27 +168,32 @@ def validate_manifest(manifest, methods):
     sprites, each line valid; `[order]` (validate_order); `settings.resample` one of `methods`.
     Returns the list of problems (empty when the manifest is sound)."""
     role = {sp["name"]: sp["role"] for sp in manifest.get("sprite", [])}
+    kind = {sp["name"]: sp.get("kind") for sp in manifest.get("sprite", [])}
     heights = manifest.get("height", {})
     problems = [f"[height] names {n!r}, which is not a sprite of the manifest"
                 for n in heights if n not in role]
     problems += [f'{n}: no line in [height] ("native" or a height in px)'
                  for n in role if n not in heights]
-    problems += [p for n in role if n in heights for p in [height_problem(n, heights[n])] if p]
-    problems += validate_order(manifest.get("order", {}), role, heights)
+    for n in role:
+        problem = height_problem(n, heights[n]) if n in heights else None
+        if problem:
+            problems.append(problem)
+    problems += validate_order(manifest.get("order", {}), role, heights, kind)
     method = manifest.get("settings", {}).get("resample")
     if method not in methods:
         problems.append(f"settings.resample = {method!r}, not one of {', '.join(methods)}")
     return problems
 
 
-def check_order(heights, order, role, spec):
+def check_order(heights, order, role, spec, kind):
     """AC-2. The rule: every basic goblin (`order.basic`) is no taller than the shortest
-    profession, except the names listed in `order.exempt`, which must be native: the pack's own
-    drawing keeps the pack's proportions (its Spear Goblin, 70 px, is taller than its Monk, 67 px).
-    A resampled basic goblin is always compared. `order.tallest` is taller than every other sprite.
-    `heights` maps a sprite to its measured idle height, `role` to caste or profession, `spec` to
-    its `[height]` line. Returns the list of problems."""
-    problems = validate_order(order, role, spec)
+    profession, except the names listed in `order.exempt`, which must be native drawings of the
+    pack (kind strip): the pack's own drawing keeps the pack's proportions (its Spear Goblin,
+    70 px, is taller than its Monk, 67 px). A resampled or generated basic goblin is always
+    compared. `order.tallest` is taller than every other sprite. `heights` maps a sprite to its
+    measured idle height, `role` to caste or profession, `spec` to its `[height]` line, `kind` to
+    generated or strip. Returns the list of problems."""
+    problems = validate_order(order, role, spec, kind)
     if problems:
         return problems
     heroes = [n for n in heights if role[n] == "profession"]

@@ -1,7 +1,7 @@
 # Pinned, with hashes (ART-02): tools/art/build.py installs them with pip's --require-hashes.
 # Hashes from PyPI's JSON API (https://pypi.org/pypi/<name>/<version>/json), 2026-09-29: the
-# wheels of CPython 3.12 and 3.13 (the build accepts a 3.13 venv) for macOS arm64 and manylinux
-# x86_64. No sdist: a machine without a matching wheel is refused rather than building from source.
+# wheels of CPython 3.12 and 3.13 (PYTHONS in build.py: change both together) for macOS arm64 and
+# manylinux x86_64. No sdist: a machine without a matching wheel is refused rather than building from source.
 pillow==12.3.0 \
     --hash=sha256:ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7 \
     --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91 \
