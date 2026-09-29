@@ -6,7 +6,7 @@
 //    `recheck.everyMs`, the last `recheck.depth` blocks below the tip again (on devnet a replaced
 //    ancestor can hide under a tip of the same hash and commitments, as empty blocks have); the
 //    highest checked block is the served one, and the state is `ok`; then forgets the history
-//    below the kept depth (never above the checked blocks);
+//    below the kept depth, counted from the checked tip (never above the checked blocks);
 // 3. applies the next blocks, up to a batch, each with the events of both contracts in block order,
 //    each in one transaction. Before applying block N+1 it reads the stored tip N again, AFTER N+1's
 //    header and events were read: N+1 is applied only if N is still the node's (hash AND
@@ -18,6 +18,12 @@
 // applying is made permanent only if the block and its parent are still the node's when read again;
 // otherwise the step ends and the next one rewinds. Pre-confirmed blocks are never read: the
 // node's tip is its latest accepted block.
+//
+// RESIDUAL, DEVNET ONLY: a block replaced deeper than `recheck.depth` below the tip, under
+// replacement blocks that keep the aborted blocks' hashes AND commitments (devnet's empty blocks
+// do), is not seen: the tip and the window above it look unchanged. On a real network a replaced
+// block changes its hash, so its children's parent hashes change up to the tip, and the tip check
+// sees it. Nothing here covers that devnet case beyond the window.
 import { Chain, sameBlock, type Header } from "./chain.ts";
 import { DecodeError, decode } from "./events.ts";
 import { Halt, Store, type Applied, type Config } from "./store.ts";
@@ -166,7 +172,7 @@ export class Indexer {
       }
       if (this.store.checked() < stored.number) {
         this.store.setChecked(stored.number);
-        await this.prune(chainTip.number);
+        await this.prune();
       }
       if (!this.served || !sameBlock(this.served, stored)) {
         this.served = stored;
@@ -217,16 +223,24 @@ export class Indexer {
     return true;
   }
 
-  private async prune(chainTip: number) {
+  /**
+   * Forgets the history below the floor. A number of blocks counts down from the indexer's own
+   * checked tip, never from the node's: during a catch-up the node is far ahead, and a floor taken
+   * from its tip would forget blocks within the configured depth of what the indexer holds (fix
+   * loop 2). `l1`: blocks accepted on L1 are final, so the floor is the last of them, never above
+   * the checked tip.
+   */
+  private async prune() {
     const stored = this.store.tip();
     const lowest = this.store.lowest();
     if (!stored || !lowest) return;
+    const checked = this.store.checked();
     let floor: number | null;
     if (this.depth === "l1") floor = await this.chain.l1Accepted();
-    else floor = chainTip - this.depth;
+    else floor = checked - this.depth;
     if (floor === null) return; // nothing final yet: everything is kept
     // Never above the checked blocks: a block is checked before its history may be forgotten.
-    floor = Math.min(floor, stored.number, this.store.checked());
+    floor = Math.min(floor, stored.number, checked);
     if (floor > lowest.number) this.store.prune(floor);
   }
 

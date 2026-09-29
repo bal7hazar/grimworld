@@ -5,6 +5,7 @@
 // Nothing a node or a transport says is logged as it is: an RPC error is its method and code, a
 // transport error its method and error code (a provider's text, or undici's, may hold the URL and
 // its key).
+import { createHash } from "node:crypto";
 import { canonical, type Source } from "./events.ts";
 
 /** A JSON-RPC transport: the method's result, or an RpcError. */
@@ -33,17 +34,13 @@ export function parseRpcUrl(url: string): URL | null {
     : null;
 }
 
-/** The URL without credentials, path or query: what may appear in a log. Never throws. */
+/**
+ * What a log says of the RPC URL: a fixed label and the first 8 hex digits of the URL's sha256,
+ * enough to tell two configurations apart. No part of the URL is ever logged: a provider's key can
+ * be in its host (`https://<key>.rpc.example.com/`) as well as in its path or query. Never throws.
+ */
 export function redact(url: string): string {
-  const parsed = parseRpcUrl(url);
-  if (!parsed) return "(not an http(s) URL; not shown)";
-  const hidden =
-    parsed.username ||
-    parsed.password ||
-    parsed.pathname !== "/" ||
-    parsed.search ||
-    parsed.hash;
-  return `${parsed.protocol}//${parsed.host}${hidden ? "/…(redacted)" : ""}`;
+  return `rpc ${createHash("sha256").update(url).digest("hex").slice(0, 8)}`;
 }
 
 /** JSON-RPC over HTTP POST. */

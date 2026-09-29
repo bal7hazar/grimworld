@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   BadAnswer,
@@ -98,12 +99,29 @@ describe("block headers", () => {
 describe("secrets in logs", () => {
   const url = "https://user:pw@rpc.example.com/v0_10/SECRETKEY?key=SECRETQUERY";
 
-  it("redact keeps the scheme and host only, and never throws", () => {
-    expect(redact(url)).toBe("https://rpc.example.com/…(redacted)");
-    expect(redact("http://127.0.0.1:5050")).toBe("http://127.0.0.1:5050");
-    expect(redact("http://127.0.0.1:5050/")).toBe("http://127.0.0.1:5050");
-    expect(redact("not a url SECRETKEY")).not.toContain("SECRETKEY");
-    expect(redact("ftp://SECRETKEY@host/")).not.toContain("SECRETKEY");
+  it("redact logs no part of the URL, the host included: a label and 8 hex of its sha256 (GPT 3, fix loop 2)", () => {
+    const inHost = "https://SECRETHOST.rpc.example.com/";
+    const label = redact(inHost);
+    expect(label).toMatch(/^rpc [0-9a-f]{8}$/);
+    expect(label).toBe(
+      `rpc ${createHash("sha256").update(inHost).digest("hex").slice(0, 8)}`,
+    );
+    for (const secret of [
+      inHost,
+      url,
+      "http://127.0.0.1:5050",
+      "not a url SECRETKEY",
+      "ftp://SECRETKEY@host/",
+    ]) {
+      const text = redact(secret);
+      expect(text).toMatch(/^rpc [0-9a-f]{8}$/);
+      for (const part of ["SECRET", "example", "127.0.0.1", "5050", "http"]) {
+        expect(text).not.toContain(part);
+      }
+    }
+    // Two configurations are told apart; the same one always has the same label.
+    expect(redact(url)).not.toBe(label);
+    expect(redact(inHost)).toBe(label);
   });
 
   it("parseRpcUrl accepts http(s) only", () => {

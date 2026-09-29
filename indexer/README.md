@@ -25,8 +25,10 @@ INDEXER_RPC_URL=<url> node src/main.ts rebuild --hub <address> --market <address
 | `--lot-count`, `--trade-count`               | 0                            | The contracts' counters at the block before `--from`: 0 at deployment, which is the only supported start (below)                                                                       |
 | `--rpc <url>`                                | `INDEXER_RPC_URL`            | Prefer the environment: argv is visible to every user of the machine                                                                                                                   |
 
-The RPC URL may carry a provider's key: it is never logged. A URL that is not http(s) is refused
-at start without printing it; node and transport errors are logged by method and code only.
+The RPC URL may carry a provider's key, in its host as well as its path or query: no part of it is
+ever logged. The log names it `rpc <8 hex>`, the first 8 hex digits of the URL's sha256, which tells
+two configurations apart. A URL that is not http(s) is refused at start without printing it; node
+and transport errors are logged by method and code only.
 
 ## States (R1, R2)
 
@@ -41,6 +43,12 @@ included, carries `head {number, hash, commitments}`, the served block (null whi
 - **A block is its hash AND its commitments.** starknet-devnet 0.10.0 gives a replacement block the
   hash of the block it replaced. An accepted block without its four commitments, or of another
   height than asked, is refused (the step is retried).
+- **Residual, devnet only.** A block replaced deeper than `--recheck` blocks below the tip, under
+  replacement blocks that keep the aborted blocks' hashes and commitments (devnet's empty blocks
+  do), is not seen. On a real network a replaced block changes its hash, so every child's parent
+  hash changes up to the tip, and the tip check sees it.
+- **The kept history counts from the indexer's own checked tip** (`--depth <blocks>`), never from
+  the node's: during a catch-up the last `--depth` blocks the indexer holds stay rewindable.
 - **Rarity < 128 in the equipment market key.** ENG-01's key is `2^40 + base × 2^16 + requirement ×
 2^8 + rarity × 2 + identified`: rarity has 7 bits, and a rarity of 128 or more would be the same
   key as `requirement + 1` (`src/events.ts`, `decodeMarketKey`). Escalated to the project manager.

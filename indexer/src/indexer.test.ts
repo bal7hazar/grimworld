@@ -273,6 +273,33 @@ describe("history", () => {
     );
   });
 
+  it("counts the kept depth from its own checked tip during a catch-up, not from the node's (GPT 1, fix loop 2)", async () => {
+    const node = new FakeNode();
+    for (let k = 1; k <= 1000; k++) node.mine([ev.located(k, 9)]);
+    const subject = indexer(node, { depth: 20, batch: 100 });
+    await subject.step(); // applies 1..100
+    await subject.step(); // checks 100, prunes at 100 - 20, then applies 101..200
+    // 20 blocks below the checked tip (100) are kept; the node's tip (1000) gave 980, clamped to 100.
+    expect(subject.store.lowest()?.number).toBe(80);
+    // Blocks 99 onwards replaced: a reorg of depth 2 below the checked tip, within the depth.
+    node.reorg(
+      902,
+      Array.from({ length: 902 }, (_, i) => [[ev.located(i, 10)]]),
+    );
+    await settle(subject);
+    expect(subject.status).toBe("ok");
+    expect(subject.rewinds[0]).toMatchObject({ to: 98 });
+    expect(subject.served?.number).toBe(1000);
+    // The tables as of the tip equal a rebuild's (a pruned database keeps fewer old versions).
+    const fresh = indexer(node, { depth: 20, batch: 100 });
+    await settle(fresh);
+    for (const table of ["presence", "events"] as const) {
+      expect(subject.store.at(table, 1000)).toEqual(
+        fresh.store.at(table, 1000),
+      );
+    }
+  });
+
   it("keeps everything down to the last block accepted on L1 (depth l1)", async () => {
     const node = new FakeNode();
     history(node, 6);

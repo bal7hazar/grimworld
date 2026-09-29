@@ -197,8 +197,12 @@ jobs:
 
   # IDX-01a (D-153): the indexer's local-node scenario (`pnpm --filter @grimworld/indexer
   # test:node`: deploy the test emitter on starknet-devnet, emit the nine events, reorgs of depth 1
-  # to 5 by devnet_abortBlocks, restart, rebuild, pruning). Only when the change touches indexer/
-  # (`discover` compares the tree with the base). Every version comes from `discover` (validated
+  # to 5 by devnet_abortBlocks, restart, rebuild, pruning). It runs only when the change touches
+  # indexer/ (`discover` compares the tree with the base; D-153's grant), or when the base is
+  # unknown. It does NOT run for a change elsewhere, even one it depends on: .tool-versions,
+  # scripts/setup-toolchain.sh, scripts/with-node.sh, contracts/persistent (the events), this
+  # workflow. Such a change is checked by this job at the next change under indexer/, not before
+  # (widening the trigger is with the project manager). Every version comes from `discover` (validated
   # there) or is pinned here and checked against the repository's pins: starknet-devnet as
   # scripts/setup-toolchain.sh pins it, its release tarball verified by sha256 before it is
   # unpacked and its binary before it is run. No secret; the network is the package registries and
@@ -210,15 +214,21 @@ jobs:
     timeout-minutes: 15
     env:
       DEVNET_VERSION: 0.10.0
-      # sha256 of starknet-devnet-x86_64-unknown-linux-gnu.tar.gz of release v0.10.0.
+      # sha256 of starknet-devnet-x86_64-unknown-linux-gnu.tar.gz of release v0.10.0: pinned here
+      # only. The binary's sha256 lives in scripts/setup-toolchain.sh (`binary_sha256`,
+      # `starknet-devnet:0.10.0:amd64`) and is repeated below; a devnet bump edits both files, and
+      # .tool-versions.
       DEVNET_TARBALL_SHA256: 0d27863ec959dc74ec6de985c3ec8eb093d6670bacd7672b51dc71ec8528969b
-      # sha256 of the binary inside it: scripts/setup-toolchain.sh, `starknet-devnet:0.10.0:amd64`.
+      # The binary inside it: the same value as scripts/setup-toolchain.sh (checked by `pins`).
       DEVNET_BINARY_SHA256: 4e2e6479fa9502f2952ed26740d5cc8ebeb3695c16e752edcc560f6e736b167c
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # The Scarb of the emitter's job (validated by discover), and the pins above against the
-      # repository's: a devnet bump in .tool-versions or setup-toolchain.sh without this job fails.
+      # repository's. When this job runs, it fails if .tool-versions or setup-toolchain.sh pin
+      # another devnet than this job; a bump in those files alone does not run it (see above).
       - name: pins
         id: pins
         env:
