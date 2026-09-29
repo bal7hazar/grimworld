@@ -198,6 +198,7 @@ and CLI-08 are candidates for this track.
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness. SPK-4 / D-140: a TypeScript mirror checked by vectors generated from the Cairo code (option (a)); measure the full tick in TypeScript and Poseidon, which the spike did not | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
 | FND-08 | **The burner's funder on a public network**: a service of the game behind FND-05's `Funder` port, tested on the local node; before any play on Sepolia (D-150) | FND-05 | Opus 5.5 | S Q + GPT-6-Astra | doing ([brief](docs/briefs/FND-08-funder-service.md)) |
+| FND-09 | `scripts/with-node.sh` on macOS (a fallback without `setsid`) and a `--full-archive` node for the indexer (D-153, item 2) | FND-02 | Sonnet 5.5 | Q + GPT-6-Sol | todo ([brief](docs/briefs/FND-09-with-node-mac.md)) |
 | OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer | ENG-07 | Sonnet 5 | S Q | todo |
 | IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo (lent to track CV on the Mac, D-149) |
 | IDX-02 | The indexer hosted for Sepolia, watched, rebuilt from the chain on demand | IDX-01, OPS-01 | Sonnet 5.5 | S Q | todo |
@@ -247,7 +248,7 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | RWD-03 | Crafter helper and books; rarity signatures, discovery, hints | RWD-01 | Opus 5.5 | D S P C Q | todo |
 | RWD-04 | Potions: effects, belt, use in instance | RWD-03, CBT-05 | Opus 5.5 | D S P Q | todo |
 | RWD-05 | Merchants, smiths, armorers, collectors | RWD-01 | Opus 5.5 | D S Q | todo |
-| RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance | RWD-01 | Opus 5.5 | D S P C Q | todo |
+| RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance. **D-153: the contract refuses any rarity outside design/15's values (the market key's assumption), tested with 128** | RWD-01 | Opus 5.5 | D S P C Q | todo |
 | RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | RWD-08 | Boss items and boss armor sets with 3- and 5-piece bonuses | RWD-06 | Opus 5.5 | D S P Q | todo |
 | RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + GPT-6-Astra | todo |

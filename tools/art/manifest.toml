@@ -18,6 +18,34 @@ min_component = 6      # a detached speck smaller than this many px is dropped
 cell_margin = 4        # transparent margin kept around the union of a sprite's frames
 atlas_max = 2048       # page side, at most
 atlas_padding = 2      # transparent gutter between packed frames
+resample = "area"      # "area", "area-blend" or "nearest" (artpipe/scale.py); --resample=… overrides
+palette_max = 64       # "area" snaps colours to the source's palette when it has at most this many
+
+# The height of every sprite, one line each (ART-02; D-146 as corrected by the owner, 2026-09-29:
+# the final sizes are the owner's eye on CLI-03a's sandbox). "native": the pack's own drawing,
+# never resampled (factor 1, pixels untouched). A number: the visible height in px (idle frames,
+# feet to top of head, what a hand holds left out: artpipe/scale.py) the sprite is resampled to.
+# Only the generated sheets are resampled, to the scale of the pack's hand-drawn units
+# (`tools/art/build.py --pack-heights` measures them).
+[height]
+runt = 67              # the pack's small goblins: Torch Goblin 67, Spear Goblin 70; the Monk is 67
+skirmisher = "native"  # Spear Goblin, 70
+slinger = "native"     # Torch Goblin, 67
+shaman = 87            # the pack's heroes: Warrior 87, Archer 88
+hobgoblin = 119        # the pack's Minotaur, 119
+vanguard = "native"    # Warrior, 87
+warden = "native"      # Archer, 88
+cleric = "native"      # Monk, 67
+
+# What the build checks on the result (AC-2): no basic goblin taller than the shortest profession,
+# except the ones listed in `exempt`, which must be native drawings of the pack, kind "strip" (the
+# pack's own drawing keeps the pack's proportions); a resampled or generated basic goblin is always
+# compared. `tallest` is taller than every
+# other sprite.
+[order]
+basic = ["runt", "skirmisher", "slinger"]
+exempt = ["skirmisher"]  # native Spear Goblin, 70 px: taller than the pack's Monk (the cleric), 67
+tallest = "hobgoblin"
 
 # ---------------------------------------------------------------- goblin castes (MVP)
 

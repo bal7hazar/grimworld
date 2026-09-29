@@ -1,17 +1,6 @@
-import { useEffect, useRef } from "react";
-import { renderFrame } from "./frame";
+import { Sandbox } from "./sandbox/Sandbox";
 
+/** Until CLI-01 and CLI-03, the app is the rendering sandbox (CLI-03a). */
 export function App() {
-  const host = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const element = host.current;
-    if (!element) return;
-    const pending = renderFrame(element);
-    return () => {
-      void pending.then((app) => app.destroy(true));
-    };
-  }, []);
-
-  return <div ref={host} />;
+  return <Sandbox />;
 }

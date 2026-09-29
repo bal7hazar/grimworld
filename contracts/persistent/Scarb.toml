@@ -12,6 +12,10 @@ grimworld_logic = { path = "../logic" }
 snforge_std.workspace = true
 assert_macros.workspace = true
 
+# D-153: a library target beside the contracts, so that the indexer's emitter (IDX-01a) reuses
+# ENG-01's event types instead of copying them.
+[lib]
+
 [[target.starknet-contract]]
 sierra = true
 casm = true
