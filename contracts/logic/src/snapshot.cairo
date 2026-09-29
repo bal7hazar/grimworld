@@ -10,12 +10,12 @@
 //! `MemberStats` holds the armor against each damage type where the single armor, the physical and
 //! elemental armors and the single penetration were.
 
+use crate::durations::MAX_DURATION_BONUS_PERCENT;
 use crate::helpers::signed::SignedTrait;
 use crate::packing::{
     P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
     P96, join, low_field, split,
 };
-use crate::durations::MAX_DURATION_BONUS_PERCENT;
 use crate::professions::ProfessionTrait;
 use crate::types::passive::{Passive, id};
 

@@ -1,13 +1,14 @@
-//! The state a world tick reads and writes, and the content it reads (CBT-02; design/19 §5, §7.2).
+//! The state a world tick reads and writes, and the content it reads (CBT-02; design/19 §5,
+//! §7.2).
 //!
 //! **Words in, words out.** The library call takes and returns the stored words (`Words`): a
 //! member's four words that change in play (`MemberState`, `MemberTimers`, `MemberEffects`,
-//! `Recharges`, ENG-01 §3.2) with the three snapshot words it reads, a goblin's two (`GoblinState`,
-//! `GoblinTimers`), as `Instances` reads and writes them. Inside the call, each actor's **hot
-//! fields** (what the ticks read and write) are unpacked once (`load`) into a small struct, the
-//! ticks work on them, and they are written back into the words as deltas (`store`). Measured
-//! (CBT-02's report): the words alone cost a limb split per read, a struct of every field cost its
-//! copies; this is the cheapest of the three.
+//! `Recharges`, ENG-01 §3.2) with the three snapshot words it reads, a goblin's two
+//! (`GoblinState`, `GoblinTimers`), as `Instances` reads and writes them. Inside the call, each
+//! actor's **hot fields** (what the ticks read and write) are unpacked once (`load`) into a small
+//! struct, the ticks work on them, and they are written back into the words as deltas (`store`).
+//! Measured (CBT-02's report): the words alone cost a limb split per read, a struct of every field
+//! cost its copies; this is the cheapest of the three.
 //!
 //! The words' layouts are the ephemeral package's (it owns the storage); the offsets below are
 //! ENG-01's frozen ones, and the ephemeral package's tests pin `load` and `store` against its
@@ -18,9 +19,9 @@
 //! regeneration, and each held effect's `REGENERATION` pips at its rank. The executor (CBT-05)
 //! sets an effect's pips and deadline when it holds one.
 
+use crate::helpers::signed::SignedTrait;
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
-use crate::helpers::signed::SignedTrait;
 use crate::packing::{
     P112, P16, P24, P28, P32, P40, P52, P56, P64, P72, P8, P80, P84, P88, P96, field, low_field,
     split,
@@ -274,12 +275,16 @@ fn member_hot(
     let (low, high) = split(*words.state);
     let (tlow, thigh) = split(*words.timers);
     (
-        field(low, P56, P8).try_into().unwrap(), field(low, P64, P16).try_into().unwrap(),
-        field(low, P80, P16).try_into().unwrap(), field(low, P96, P16).try_into().unwrap(),
+        field(low, P56, P8).try_into().unwrap(),
+        field(low, P64, P16).try_into().unwrap(),
+        field(low, P80, P16).try_into().unwrap(),
+        field(low, P96, P16).try_into().unwrap(),
         field(high, P32, P8).try_into().unwrap(),
         low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
-        field(tlow, P8, P16).try_into().unwrap(), field(tlow, P24, P8).try_into().unwrap(),
-        field(tlow, P32, P32).try_into().unwrap(), field(tlow, P64, P32).try_into().unwrap(),
+        field(tlow, P8, P16).try_into().unwrap(),
+        field(tlow, P24, P8).try_into().unwrap(),
+        field(tlow, P32, P32).try_into().unwrap(),
+        field(tlow, P64, P32).try_into().unwrap(),
         field(tlow, P96, P32).try_into().unwrap(),
         low_field(thigh, P32.try_into().unwrap()).try_into().unwrap(),
         field(thigh, P64, P32).try_into().unwrap(),
@@ -329,7 +334,9 @@ pub impl MemberImpl of MemberTrait {
             burning,
             knocked,
         ) =
-            member_hot(@words);
+            member_hot(
+            @words,
+        );
         let (low, _) = split(words.stats);
         let health_regen: i32 = field(low, P32, P8).try_into().unwrap();
         let (elow, ehigh) = split(words.effects);
@@ -391,7 +398,9 @@ pub impl MemberImpl of MemberTrait {
             burning,
             knocked,
         ) =
-            member_hot(self.words);
+            member_hot(
+            self.words,
+        );
         let words = *self.words;
         let state = words.state
             + delta(status.into(), (*self.status).into(), F56)
@@ -446,15 +455,21 @@ fn goblin_hot(
     let (low, _) = split(state);
     let (tlow, thigh) = split(timers);
     (
-        field(low, P24, P8).try_into().unwrap(), field(low, P32, P16).try_into().unwrap(),
+        field(low, P24, P8).try_into().unwrap(),
+        field(low, P32, P16).try_into().unwrap(),
         field(low, 0x1000000000000, P8).try_into().unwrap(),
-        field(low, P56, P8).try_into().unwrap(), field(low, P64, P16).try_into().unwrap(),
+        field(low, P56, P8).try_into().unwrap(),
+        field(low, P64, P16).try_into().unwrap(),
         low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
-        field(tlow, P8, P16).try_into().unwrap(), field(tlow, P24, P28).try_into().unwrap(),
-        field(tlow, P52, P28).try_into().unwrap(), field(tlow, P80, P28).try_into().unwrap(),
+        field(tlow, P8, P16).try_into().unwrap(),
+        field(tlow, P24, P28).try_into().unwrap(),
+        field(tlow, P52, P28).try_into().unwrap(),
+        field(tlow, P80, P28).try_into().unwrap(),
         low_field(thigh, P28.try_into().unwrap()).try_into().unwrap(),
-        field(thigh, P56, P28).try_into().unwrap(), field(thigh, P84, P28).try_into().unwrap(),
-        field(low, P80, P8).try_into().unwrap(), field(tlow, P108, P16).try_into().unwrap(),
+        field(thigh, P56, P28).try_into().unwrap(),
+        field(thigh, P84, P28).try_into().unwrap(),
+        field(low, P80, P8).try_into().unwrap(),
+        field(tlow, P108, P16).try_into().unwrap(),
         field(thigh, P118, 0x10).try_into().unwrap(),
     )
 }
@@ -482,7 +497,9 @@ pub impl GoblinImpl of GoblinTrait {
             effect,
             rank,
         ) =
-            goblin_hot(words.state, words.timers);
+            goblin_hot(
+            words.state, words.timers,
+        );
         let sheet = content.caste(caste);
         let regen: i32 = (*sheet.health_regen).into();
         let effect_regen: i32 = if effect == 0 {
@@ -537,7 +554,9 @@ pub impl GoblinImpl of GoblinTrait {
             _,
             _,
         ) =
-            goblin_hot(*self.state, *self.timers);
+            goblin_hot(
+            *self.state, *self.timers,
+        );
         let state = *self.state
             + delta(ai.into(), (*self.ai).into(), F24)
             + delta(health.into(), (*self.health).into(), F32)

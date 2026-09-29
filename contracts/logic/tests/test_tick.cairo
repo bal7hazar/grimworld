@@ -17,8 +17,7 @@ use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::tick::{
     Actor, CasteSheet, CasteSheetTrait, Content, Goblin, GoblinTrait, GoblinWords, Member,
     MemberTrait, MemberWords, NO_SLOT, PotionSheet, PotionSheetTrait, SkillSheet, SkillSheetTrait,
-    Words,
-    WordsTrait, World, WorldStoreTrait, ai, flag, status,
+    Words, WordsTrait, World, WorldStoreTrait, ai, flag, status,
 };
 use snforge_std::{DeclareResultTrait, declare};
 
@@ -109,7 +108,11 @@ impl FixtureImpl of Fixture {
         }
         let regen: i32 = spec.health_regen.into() + 10;
         let regen: felt252 = regen.into();
-        let stats = LIVE + 480 + 20 * two(16) + spec.energy_regen.into() * two(24) + regen * two(32);
+        let stats = LIVE
+            + 480
+            + 20 * two(16)
+            + spec.energy_regen.into() * two(24)
+            + regen * two(32);
         let kit = LIVE + 100 + 101 * two(32) + 102 * two(64) + 103 * two(96);
         MemberWords { state, timers, effects, recharges: LIVE, stats, bar, kit }
     }
@@ -458,7 +461,9 @@ fn test_regeneration() {
         castes: array![].span(),
     };
     let mut spec = Fixture::spec();
-    spec.effects = [(1, false, 10, 12), (1, true, MAX_CLOCK, 0), (1, false, 4, 12), (0, false, 0, 0)];
+    spec
+        .effects =
+            [(1, false, 10, 12), (1, true, MAX_CLOCK, 0), (1, false, 4, 12), (0, false, 0, 0)];
     spec.energy = 55;
     spec.health_regen = 1;
     spec.energy_regen = 4;
@@ -507,9 +512,7 @@ fn test_load_store() {
     assert(again == Member { words, ..member }, 'store writes the fields');
     // A goblin: caste 2, level 10.
     let goblin = Fixture::goblin(9, RUNT);
-    let words = GoblinWords {
-        entity: 9, awake: true, state: goblin.state, timers: goblin.timers,
-    };
+    let words = GoblinWords { entity: 9, awake: true, state: goblin.state, timers: goblin.timers };
     let loaded = GoblinTrait::load(words, @content);
     assert(loaded == goblin, 'goblin load');
     let mut changed = loaded;
@@ -541,7 +544,11 @@ fn test_goblin_load() {
     let content = Content {
         skills: array![
             SkillSheet {
-                id: SMASH, kind: skill_kind::SPELL, activation: 0, recharge: 0, regen0: 1,
+                id: SMASH,
+                kind: skill_kind::SPELL,
+                activation: 0,
+                recharge: 0,
+                regen0: 1,
                 regen12: 4,
             },
         ]
@@ -552,7 +559,9 @@ fn test_goblin_load() {
     // Level 20, caste 3; its effect is skill 24 at rank 8: 1 + 3 × 8 / 12 = 3.
     let state = LIVE + 3 * two(64) + 20 * two(80);
     let timers = LIVE + 255 + SMASH.into() * two(108) + 8 * two(246);
-    let goblin = GoblinTrait::load(GoblinWords { entity: 77, awake: false, state, timers }, @content);
+    let goblin = GoblinTrait::load(
+        GoblinWords { entity: 77, awake: false, state, timers }, @content,
+    );
     assert(goblin.max_health == 720 && goblin.health_regen == 2, 'health');
     assert(goblin.max_energy == 60 && goblin.energy_regen == 2, 'energy');
     assert(goblin.effect_regen == 3 && !goblin.awake, 'effect');
@@ -1037,12 +1046,33 @@ fn records() -> (Span<felt252>, Span<felt252>) {
         kind::REGENERATION, 0, 2, 6, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
     );
     let skill = SkillTrait::new(
-        1, 1, skill_kind::SPELL, 10, 0, 1, 12, 0, target::SELF, false,
+        1,
+        1,
+        skill_kind::SPELL,
+        10,
+        0,
+        1,
+        12,
+        0,
+        target::SELF,
+        false,
         [regen, Default::default(), Default::default()],
     );
     let caste = CasteTrait::new(
-        4, 1, 150, 10, 40, [0; 9], WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1), 10, 1,
-        [SMASH, 25, 26, 27], 12, 30, 0, false,
+        4,
+        1,
+        150,
+        10,
+        40,
+        [0; 9],
+        WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1),
+        10,
+        1,
+        [SMASH, 25, 26, 27],
+        12,
+        30,
+        0,
+        false,
     );
     (Record::<Skill>::pack(@skill), Record::<Caste>::pack(@caste))
 }

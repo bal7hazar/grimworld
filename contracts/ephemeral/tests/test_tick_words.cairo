@@ -156,7 +156,7 @@ fn test_tick_words_member() {
     let state_after: MemberState = StorePacking::unpack(stored.state);
     assert(
         state_after == MemberState {
-            status: DOWN, health: 0, energy: 75, adrenaline: 0, flags: flag::HALVED, ..state
+            status: DOWN, health: 0, energy: 75, adrenaline: 0, flags: flag::HALVED, ..state,
         },
         'state stored',
     );
@@ -171,7 +171,7 @@ fn test_tick_words_member() {
             poison: 0,
             burning: 1,
             knocked: 99,
-            ..timers
+            ..timers,
         },
         'timers stored',
     );
@@ -255,7 +255,12 @@ fn test_tick_words_goblin() {
     let state_after: GoblinState = StorePacking::unpack(stored.state);
     assert(
         state_after == GoblinState {
-            ai: DEAD, health: 0, energy: 0, adrenaline: 0, recharges: [0xFFFFFFF, 2, 999, 4], ..state
+            ai: DEAD,
+            health: 0,
+            energy: 0,
+            adrenaline: 0,
+            recharges: [0xFFFFFFF, 2, 999, 4],
+            ..state,
         },
         'state stored',
     );
@@ -270,7 +275,7 @@ fn test_tick_words_goblin() {
             burning: 0,
             knocked: 1,
             effect_deadline: 0,
-            ..timers
+            ..timers,
         },
         'timers stored',
     );

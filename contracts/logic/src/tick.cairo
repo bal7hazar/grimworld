@@ -44,7 +44,9 @@ pub trait Rules<R> {
     fn perceive(ref self: R, ref world: World);
     /// Step 1: the executor (design/19 §5.14, CBT-05) for the activation of `actor`'s `slot` on
     /// `target`, which the pipeline has concluded (field cleared, recharge set).
-    fn resolve(ref self: R, ref world: World, content: @Content, actor: Actor, slot: u8, target: u16);
+    fn resolve(
+        ref self: R, ref world: World, content: @Content, actor: Actor, slot: u8, target: u16,
+    );
     /// Step 2: the goblin at `index` acts (the AI, ENG-07); it is awake, alive, not busy, not
     /// knocked down, and did not resolve an activation in step 1.
     fn act(ref self: R, ref world: World, content: @Content, index: u32);
@@ -197,9 +199,9 @@ pub impl TickImpl of TickTrait {
         false
     }
 
-    /// Step 3 (§5.8): members, then awake goblins, ascending id. Out of combat is, for a member, no
-    /// goblin of the tick's awake set Engaged; for a goblin, not Engaged. A goblin at 0 dies after
-    /// every actor of the step, in id order.
+    /// Step 3 (§5.8): members, then awake goblins, ascending id. Out of combat is, for a member,
+    /// no goblin of the tick's awake set Engaged; for a goblin, not Engaged. A goblin at 0 dies
+    /// after every actor of the step, in id order.
     fn regenerate(ref world: World) {
         let t = world.clock;
         let mut engaged = false;
@@ -464,8 +466,8 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     }
 
     /// Step 1 at `A`: the activation ends, its recharge counts from `A` (FX-2); an attack skill
-    /// whose weapon costs `k ≥ n + 2` recovers until `B = A + k − n − 1` (FX-15, §10.9). Returns
-    /// its slot and target for the executor.
+    /// whose weapon costs `k ≥ n + 2` recovers until `B = A + k − n − 1` (FX-15, §10.9).
+    /// Returns its slot and target for the executor.
     fn conclude(ref self: Goblin, caste: @CasteSheet, content: @Content) -> (u8, u16) {
         let slot = self.act_slot;
         let target = self.act_target;
@@ -517,11 +519,13 @@ pub impl GoblinTickImpl of GoblinTickTrait {
             + held(self.effect_regen, self.effect_deadline, t);
         self.health = heal(self.health, pips, self.max_health);
         let energy: u16 = self.energy.into() + self.energy_regen.into();
-        self.energy = if energy > self.max_energy.into() {
-            self.max_energy
-        } else {
-            energy.try_into().unwrap()
-        };
+        self
+            .energy =
+                if energy > self.max_energy.into() {
+                    self.max_energy
+                } else {
+                    energy.try_into().unwrap()
+                };
         if self.ai != ai::ENGAGED {
             let decayed = decay(self.adrenaline.into());
             self.adrenaline = decayed.try_into().unwrap();
@@ -538,8 +542,8 @@ pub impl GoblinTickImpl of GoblinTickTrait {
 // Free functions below: the arithmetic of one quantity, shared by members and goblins; no type
 // owns it (docs/CAIRO.md §7).
 
-/// The pips of the degenerating conditions active at `t` (§5.8 step 1): −3 Bleeding, −4 Poison,
-/// −7 Burning (`types::combat::condition`).
+/// The pips of the degenerating conditions active at `t` (§5.8 step 1): −3 Bleeding, −4
+/// Poison, −7 Burning (`types::combat::condition`).
 #[inline(always)]
 fn degeneration(bleeding: u32, poison: u32, burning: u32, t: u32) -> i32 {
     let mut pips = 0;

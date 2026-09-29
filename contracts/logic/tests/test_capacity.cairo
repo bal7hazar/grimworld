@@ -176,9 +176,7 @@ impl FixtureImpl of Fixture {
         )
             .try_into()
             .unwrap();
-        assert(
-            MemberKitTrait::condition_duration(held) == (condition, percent), 'builder differs',
-        );
+        assert(MemberKitTrait::condition_duration(held) == (condition, percent), 'builder differs');
         let mut every: u8 = 0;
         for passive in held {
             if *passive.id == id::ADRENALINE_EVERY_N {
