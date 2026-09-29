@@ -55,6 +55,15 @@ events, storage structs) with no game logic, and a document that says why each i
    adventurer id, for instance state: M-1), its packing into felts, and **the slots each entrypoint
    changes**. A table: entrypoint × {slots read, slots changed, of which new}, worst case, with the
    reason for each.
+   - **Design rule (project manager, 2026-09-29, from FND-04): an instance's slots are reused**, from
+     one instance of an adventurer to the next, instead of being zeroed at `leave` and created again
+     at `enter` (4 new slots, about 1.9M today), **as long as nothing of the old instance can be read
+     by the new one.** State how the new instance makes the old content unreachable (a generation
+     counter in the record, checked on every read; a generation in the *key* would create new slots
+     and defeat the rule) and how this keeps M-1 (instance state keyed by instance id: for example
+     instance ids recycled from a pool the adventurer or the contract holds, with a generation per
+     id). The security lens of the audit checks that no field of an old instance is reachable, in the
+     contract or through the views.
 3. **Entrypoints and views**, with their Cairo signatures: `play` and the standalone Fate and gate
    entrypoints of design/02, entry and leaving, the hub and persistent actions the MVP needs, the
    registry writers, `instance_state`, `instance_region`, and the views of the indexer. Bounds on
