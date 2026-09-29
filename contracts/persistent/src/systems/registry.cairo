@@ -112,8 +112,9 @@ mod layout_tests {
             'last_ids',
         );
         assert(
-            address_of(state.content_version.as_ptr().__storage_pointer_address__)
-                == selector!("content_version"),
+            address_of(
+                state.content_version.as_ptr().__storage_pointer_address__,
+            ) == selector!("content_version"),
             'content_version',
         );
     }
