@@ -141,7 +141,7 @@ jobs:
           refuses 'the grimworld track is at its cap'
           # A slot already held cannot be taken: the inner shell refuses and runs nothing (75).
           set +e; HOME=$fake scripts/agent.sh run-in-slots total-3 game-1 "$fake/c.log" touch "$fake/ran"; s=$?; set -e
-          [ "$s" = 75 ]; [ ! -e "$fake/ran" ]; grep -q '^slot-refused' "$fake/c.log"
+          [ "$s" = 75 ]; [ ! -e "$fake/ran" ]; grep -q '^slot-refused' "$fake/c.log.run"
           # A fourth launch is refused: three total slots held (the third by another track).
           run total-3 lib-1 c
           refuses 'the budget of 3 agents is in use'
