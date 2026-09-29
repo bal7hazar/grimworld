@@ -224,8 +224,8 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
             day: low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
             cleared: byte_at(low, P32),
             rifts: [
-                u16_at(low, P40), u16_at(low, P56), u16_at(low, P72),
-                u16_at(low, P88), u16_at(low, P104),
+                u16_at(low, P40), u16_at(low, P56), u16_at(low, P72), u16_at(low, P88),
+                u16_at(low, P104),
             ],
         }
     }

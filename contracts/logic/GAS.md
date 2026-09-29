@@ -6,4 +6,14 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
+| `test_actions::test_batch_layout` | 116590 | 122420 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_actions::test_batch_refusals` | 102710 | 107846 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_actions::test_batch_round_trip` | 361960 | 380058 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
 | `test_hexmap::test_hexmap_distance` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-28 | 5267868 |
+| `test_packing::test_bar_and_kit_layout` | 212000 | 222600 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_packing::test_bitmap` | 18190 | 19100 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_packing::test_identifiers` | 19050 | 20003 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_packing::test_lanes16` | 429030 | 450482 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_packing::test_lanes32` | 111120 | 116676 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_packing::test_stats_layout` | 302530 | 317657 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_packing::test_task_page_layout` | 142030 | 149132 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |

@@ -2,7 +2,7 @@
 // lanes, bitmaps; the snapshot's and the task pages' layouts; identifiers.
 use grimworld_logic::content::{LAST_KIND, parts};
 use grimworld_logic::packing::{
-    Bitmap, Lanes16, Lanes32, LIVE, pack_lanes16, pack_lanes32, unpack_lanes16, unpack_lanes32,
+    Bitmap, LIVE, Lanes16, Lanes32, pack_lanes16, pack_lanes32, unpack_lanes16, unpack_lanes32,
 };
 use grimworld_logic::snapshot::{
     MemberBar, MemberKit, MemberStats, TaskEntry, TaskPage, pack_bar, pack_kit, pack_stats,
@@ -28,9 +28,7 @@ fn test_lanes32() {
 #[test]
 #[available_gas(l2_gas: 450482)] // ceil(1.05 × 429030 measured)
 fn test_lanes16() {
-    let lanes = Lanes16 {
-        lanes: [1, 2, 3, 4, 5, 6, 7, 0xFFFF, 9, 10, 11, 12, 13, 14, 0xFFFF],
-    };
+    let lanes = Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 0xFFFF, 9, 10, 11, 12, 13, 14, 0xFFFF] };
     assert(unpack_lanes16(pack_lanes16(lanes)) == lanes, 'round trip');
     let mut one = [0_u16; 15];
     let [a, b, c, d, e, f, g, h, _, j, k, l, m, n, o] = one;
@@ -108,9 +106,7 @@ fn test_bar_and_kit_layout() {
 #[available_gas(l2_gas: 149132)] // ceil(1.05 × 142030 measured)
 fn test_task_page_layout() {
     let full = TaskEntry { task: 0xFFFFFFFF, kind: 0xFF, param: 0xFFFF };
-    let page = TaskPage {
-        entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full],
-    };
+    let page = TaskPage { entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full] };
     assert(unpack_task_page(pack_task_page(page)) == page, 'round trip');
     let second = TaskPage {
         entries: [

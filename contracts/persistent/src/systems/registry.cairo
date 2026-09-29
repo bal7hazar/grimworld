@@ -70,3 +70,35 @@ pub mod Registry {
         }
     }
 }
+
+/// The storage layout of `Registry` is what docs/architecture/ENG-01-interfaces.md says: every
+/// variable's name and keys, hence its address.
+#[cfg(test)]
+mod layout_tests {
+    use snforge_std::map_entry_address;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
+    use super::Registry;
+
+    fn address_of(base: StorageBaseAddress) -> felt252 {
+        storage_address_from_base(base).into()
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 57981)] // ceil(1.05 × 55220 measured)
+    fn test_registry_storage_addresses() {
+        let state = @Registry::contract_state_for_testing();
+        assert(
+            address_of(
+                state.records.entry((2, 5, 1)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("records"), array![2, 5, 1].span()),
+            'records',
+        );
+        assert(
+            address_of(
+                state.last_ids.entry(2).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("last_ids"), array![2].span()),
+            'last_ids',
+        );
+    }
+}

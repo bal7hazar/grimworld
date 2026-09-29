@@ -24,7 +24,8 @@ fn test_batch_round_trip() {
 #[test]
 #[available_gas(l2_gas: 122420)] // ceil(1.05 × 116590 measured)
 fn test_batch_layout() {
-    // Move East = 0; Attack 9 = 3 + 9 × 8; Skill slot 2 on tile 300 = 4 + 2 × 8 + 64 + 300 × 128;
+    // Move East = 0; Attack 9 = 3 + 9 × 8; Skill slot 2 on tile 300 = 4 + 2 × 8 + 64 + 300 ×
+    // 128;
     // Item slot 1 on entity 8 = 5 + 8 + 8 × 32; Interact tile 5 = 6 + 5 × 8; Wait = 2.
     let actions = array![
         Action::Move(0), Action::Attack(9), Action::Skill((2, Target::Tile(300))),

@@ -86,12 +86,8 @@ fn unpack_pack(bits: u128) -> PackPlacement {
         tile: low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
         template: u16_at(bits, P8),
         level: byte_at(bits, P24),
-        count: field(bits, P32, 0x10)
-            .try_into()
-            .unwrap(),
-        offsets: field(bits, P36, 0x2000000)
-            .try_into()
-            .unwrap(),
+        count: field(bits, P32, 0x10).try_into().unwrap(),
+        offsets: field(bits, P36, 0x2000000).try_into().unwrap(),
     }
 }
 
@@ -102,9 +98,7 @@ fn pack_object(o: Object) -> u128 {
 fn unpack_object(bits: u128) -> Object {
     Object {
         tile: low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
-        kind: field(bits, P8, 0x10)
-            .try_into()
-            .unwrap(),
+        kind: field(bits, P8, 0x10).try_into().unwrap(),
         state: field(bits, 0x1000, 0x10).try_into().unwrap(),
         param: u16_at(bits, P16),
     }

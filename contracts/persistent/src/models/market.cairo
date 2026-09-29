@@ -3,8 +3,8 @@
 //! Layouts: docs/architecture/ENG-01-interfaces.md, *Market storage*.
 
 use grimworld_logic::packing::{
-    Lanes32, P104, P112, P32, P40, P48, P56, P64, P8, P88, P96, byte_at, join, low_field, split, u16_at,
-    u32_at,
+    Lanes32, P104, P112, P32, P40, P48, P56, P64, P8, P88, P96, byte_at, join, low_field, split,
+    u16_at, u32_at,
 };
 
 /// Lot states (`Lot.state`).
@@ -191,7 +191,9 @@ pub struct Trade {
 /// - a balance: its item id;
 /// - equipment: `2^40 + base × 2^16 + requirement × 2^8 + rarity × 2 + identified`;
 /// - a boss item: `2^41 + base` (each boss item is its own key).
-pub fn market_key(kind: u8, item: u32, base: u16, requirement: u8, rarity: u8, identified: bool, boss: bool) -> felt252 {
+pub fn market_key(
+    kind: u8, item: u32, base: u16, requirement: u8, rarity: u8, identified: bool, boss: bool,
+) -> felt252 {
     if kind == BALANCE {
         return item.into();
     }

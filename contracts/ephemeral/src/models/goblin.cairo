@@ -3,8 +3,8 @@
 //! placement (ENG-01, *Goblins*). Layouts: docs/architecture/ENG-01-interfaces.md, *Goblin*.
 
 use grimworld_logic::packing::{
-    P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88, byte_at,
-    field, join, low_field, split, u16_at,
+    P104, P108, P112, P120, P16, P24, P28, P32, P48, P52, P56, P64, P8, P80, P88, byte_at, field,
+    join, low_field, split, u16_at,
 };
 use crate::models::member::{pack_four28, unpack_four28};
 
@@ -120,10 +120,7 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
             + value.bleeding.into() * P52
             + value.poison.into() * P80
             + value.effect_skill.into() * P108;
-        join(
-            low,
-            pack_four28(value.burning, value.crippled, value.knocked, value.effect_deadline),
-        )
+        join(low, pack_four28(value.burning, value.crippled, value.knocked, value.effect_deadline))
     }
     fn unpack(value: felt252) -> GoblinTimers {
         let (low, high) = split(value);

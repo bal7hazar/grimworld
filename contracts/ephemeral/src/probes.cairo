@@ -41,7 +41,9 @@ pub trait ICallProbe<T> {
     /// Reads `count` felts under consecutive keys of this contract's own storage.
     fn records(self: @T, first: u32, count: u32) -> Span<felt252>;
     /// The same records, read from another `CallProbe` through one view call.
-    fn records_of(self: @T, other: starknet::ContractAddress, first: u32, count: u32) -> Span<felt252>;
+    fn records_of(
+        self: @T, other: starknet::ContractAddress, first: u32, count: u32,
+    ) -> Span<felt252>;
     fn set(ref self: T, key: u32, value: felt252);
 }
 

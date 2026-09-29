@@ -62,7 +62,9 @@ pub trait IInstances<T> {
     /// A played batch: `actions` is 1 to 10 actions in one felt (`grimworld_logic::actions`).
     /// Checks the sequence, runs the actions in order, stops at the first invalid one or when the
     /// weight would pass 10, never reverts for invalidity in the game; emits `BatchPlayed`.
-    fn play(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, actions: felt252);
+    fn play(
+        ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, actions: felt252,
+    );
     /// Fate: loot a goblin's remains (target: its entity id). Every precondition before the draw.
     fn loot(ref self: T, instance_id: InstanceId, adventurer_id: u32, sequence: u32, target: u16);
     /// Fate: open the chest on `tile`.
@@ -82,7 +84,9 @@ pub trait IInstances<T> {
     /// One call, readable at a block hash or `pre_confirmed` (design/02).
     fn instance_state(self: @T, instance_id: InstanceId) -> InstanceView;
     /// Chunks `first .. first + count` (index `15 cy + cx`), `count` at most `REGION_PAGE`.
-    fn instance_region(self: @T, instance_id: InstanceId, first: u8, count: u8) -> Span<RegionChunk>;
+    fn instance_region(
+        self: @T, instance_id: InstanceId, first: u8, count: u8,
+    ) -> Span<RegionChunk>;
     /// `(instance id, member index, inside)` of an adventurer; id 0 if it never entered.
     fn placement(self: @T, adventurer_id: u32) -> (InstanceId, u8, bool);
 }
@@ -265,7 +269,9 @@ pub mod Instances {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
 
-        fn set_controller(ref self: ContractState, adventurer_id: u32, controller: ContractAddress) {
+        fn set_controller(
+            ref self: ContractState, adventurer_id: u32, controller: ContractAddress,
+        ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
     }
@@ -314,63 +320,63 @@ mod layout_tests {
     fn test_instances_storage_addresses() {
         let state = @Instances::contract_state_for_testing();
         assert(
-            address_of(state.placements.entry(42).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("placements"), array![42].span(),
-            ),
+            address_of(
+                state.placements.entry(42).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("placements"), array![42].span()),
             'placements',
         );
         assert(
-            address_of(state.headers.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("headers"), array![7].span(),
-            ),
+            address_of(
+                state.headers.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("headers"), array![7].span()),
             'headers',
         );
         assert(
-            address_of(state.entropy.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("entropy"), array![7].span(),
-            ),
+            address_of(
+                state.entropy.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("entropy"), array![7].span()),
             'entropy',
         );
         assert(
-            address_of(state.revealed.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("revealed"), array![7].span(),
-            ),
+            address_of(
+                state.revealed.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("revealed"), array![7].span()),
             'revealed',
         );
         assert(
-            address_of(state.quotas.entry(7).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("quotas"), array![7].span(),
-            ),
+            address_of(
+                state.quotas.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("quotas"), array![7].span()),
             'quotas',
         );
         assert(
-            address_of(state.tasks.entry((7, 3)).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("tasks"), array![7, 3].span(),
-            ),
+            address_of(
+                state.tasks.entry((7, 3)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("tasks"), array![7, 3].span()),
             'tasks',
         );
         assert(
-            address_of(state.members.entry((7, 0)).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("members"), array![7, 0].span(),
-            ),
+            address_of(
+                state.members.entry((7, 0)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("members"), array![7, 0].span()),
             'members',
         );
         assert(
-            address_of(state.roster.entry((7, 1)).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("roster"), array![7, 1].span(),
-            ),
+            address_of(
+                state.roster.entry((7, 1)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("roster"), array![7, 1].span()),
             'roster',
         );
         assert(
-            address_of(state.chunks.entry((7, 224)).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("chunks"), array![7, 224].span(),
-            ),
+            address_of(
+                state.chunks.entry((7, 224)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("chunks"), array![7, 224].span()),
             'chunks',
         );
         assert(
-            address_of(state.goblins.entry((7, 3601)).as_ptr().__storage_pointer_address__) == map_entry_address(
-                selector!("goblins"), array![7, 3601].span(),
-            ),
+            address_of(
+                state.goblins.entry((7, 3601)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("goblins"), array![7, 3601].span()),
             'goblins',
         );
     }

@@ -42,7 +42,9 @@ fn test_instances_event_keys_and_data() {
 
     let (keys, data) = split(
         Event::Refused(
-            Refused { instance_id: id, adventurer_id: 9, from: 40, sequence: 41, reason: Refusal::Gone },
+            Refused {
+                instance_id: id, adventurer_id: 9, from: 40, sequence: 41, reason: Refusal::Gone,
+            },
         ),
     );
     assert(keys == array![selector!("Refused"), id.into()], 'refused keys');

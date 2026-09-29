@@ -6,6 +6,38 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 
 | Package | Test | Measured (l2 gas) | Budget (l2 gas) | Date | Commit |
 |---|---|---:|---:|---|---|
-| grimworld_ephemeral | `test_ephemeral::test_ephemeral_deploys_and_answers_version` | 277140 | 290997 | 2026-09-28 | 5267868 |
+| grimworld_ephemeral | `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 88140 | 92547 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650760 | 2783298 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_instances::test_probe_read_direct` | 5095200 | 5349960 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_instances::test_probe_read_through_a_call` | 5213110 | 5473766 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_layout::test_chunk_layout` | 313420 | 329091 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_layout::test_goblin_layout` | 303450 | 318623 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_layout::test_member_layout` | 452940 | 475587 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_layout::test_placement_and_header_layout` | 444920 | 467166 | 2026-09-29 | 2704c6d |
+| grimworld_ephemeral | `test_layout::test_record_sizes` | 13720 | 14406 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_actions::test_batch_layout` | 116590 | 122420 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_actions::test_batch_refusals` | 102710 | 107846 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_actions::test_batch_round_trip` | 361960 | 380058 | 2026-09-29 | 2704c6d |
 | grimworld_logic | `test_hexmap::test_hexmap_distance` | 13720 | 14406 | 2026-09-28 | 5267868 |
-| grimworld_persistent | `test_persistent::test_persistent_deploys_and_answers_version` | 277140 | 290997 | 2026-09-28 | 5267868 |
+| grimworld_logic | `test_packing::test_bar_and_kit_layout` | 212000 | 222600 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_packing::test_bitmap` | 18190 | 19100 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_packing::test_identifiers` | 19050 | 20003 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_packing::test_lanes16` | 429030 | 450482 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_packing::test_lanes32` | 111120 | 116676 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_packing::test_stats_layout` | 302530 | 317657 | 2026-09-29 | 2704c6d |
+| grimworld_logic | `test_packing::test_task_page_layout` | 142030 | 149132 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `systems::registry::layout_tests::test_registry_storage_addresses` | 55220 | 57981 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_calls` | 388601 | 408032 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_contracts::test_fate_refuses_mainnet_deployment` | 272510 | 286136 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_contracts::test_fate_word` | 397644 | 417527 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_contracts::test_hub_deploys_and_stubs_revert` | 4000630 | 4200662 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_contracts::test_market_and_registry_deploy` | 2360200 | 2478210 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_events::test_hub_events` | 81630 | 85712 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_events::test_market_events` | 78760 | 82698 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_layout::test_account_and_adventurer_layout` | 306090 | 321395 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_layout::test_item_grimoire_rift_layout` | 324470 | 340694 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_layout::test_market_layout` | 197020 | 206871 | 2026-09-29 | 2704c6d |
+| grimworld_persistent | `test_layout::test_record_sizes` | 13720 | 14406 | 2026-09-29 | 2704c6d |

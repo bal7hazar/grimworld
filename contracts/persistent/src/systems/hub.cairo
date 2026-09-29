@@ -334,7 +334,9 @@ pub mod Hub {
         fn known_skills(self: @ContractState, adventurer_id: u32) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
-        fn counters(self: @ContractState, adventurer_id: u32, counters: Span<u16>) -> Span<felt252> {
+        fn counters(
+            self: @ContractState, adventurer_id: u32, counters: Span<u16>,
+        ) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
         fn balances(self: @ContractState, owner: felt252, pages: Span<u32>) -> Span<felt252> {
@@ -383,7 +385,12 @@ pub mod Hub {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
         fn escrow(
-            ref self: ContractState, adventurer_id: u32, lot: u64, kind: u8, item: u32, quantity: u32,
+            ref self: ContractState,
+            adventurer_id: u32,
+            lot: u64,
+            kind: u8,
+            item: u32,
+            quantity: u32,
         ) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
@@ -426,5 +433,113 @@ pub mod Hub {
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+    }
+}
+
+/// The storage layout of `Hub` is what docs/architecture/ENG-01-interfaces.md says: every
+/// variable's name and keys, hence its address.
+#[cfg(test)]
+mod layout_tests {
+    use snforge_std::map_entry_address;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
+    use super::Hub;
+
+    fn address_of(base: StorageBaseAddress) -> felt252 {
+        storage_address_from_base(base).into()
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 270669)] // ceil(1.05 × 257780 measured)
+    fn test_hub_storage_addresses() {
+        let state = @Hub::contract_state_for_testing();
+        assert(
+            address_of(
+                state
+                    .account_of
+                    .entry(0x123_felt252.try_into().unwrap())
+                    .as_ptr()
+                    .__storage_pointer_address__,
+            ) == map_entry_address(selector!("account_of"), array![0x123].span()),
+            'account_of',
+        );
+        assert(
+            address_of(
+                state.accounts.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("accounts"), array![7].span()),
+            'accounts',
+        );
+        assert(
+            address_of(
+                state.account_adventurers.entry((7, 1)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("account_adventurers"), array![7, 1].span()),
+            'account_adventurers',
+        );
+        assert(
+            address_of(
+                state.adventurers.entry(9).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("adventurers"), array![9].span()),
+            'adventurers',
+        );
+        assert(
+            address_of(
+                state.known_skills.entry((9, 0)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("known_skills"), array![9, 0].span()),
+            'known_skills',
+        );
+        assert(
+            address_of(
+                state.counters.entry((9, 4)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("counters"), array![9, 4].span()),
+            'counters',
+        );
+        assert(
+            address_of(
+                state.account_counters.entry((7, 4)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("account_counters"), array![7, 4].span()),
+            'account_counters',
+        );
+        assert(
+            address_of(
+                state.grimoires.entry((9, 1)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("grimoires"), array![9, 1].span()),
+            'grimoires',
+        );
+        assert(
+            address_of(
+                state.balances.entry((0x100000009, 3)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("balances"), array![0x100000009, 3].span()),
+            'balances',
+        );
+        assert(
+            address_of(
+                state.gold.entry(0x200000007).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("gold"), array![0x200000007].span()),
+            'gold',
+        );
+        assert(
+            address_of(
+                state.items.entry(55).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("items"), array![55].span()),
+            'items',
+        );
+        assert(
+            address_of(
+                state.packs.entry((9, 2)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("packs"), array![9, 2].span()),
+            'packs',
+        );
+        assert(
+            address_of(
+                state.vaults.entry((7, 3)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("vaults"), array![7, 3].span()),
+            'vaults',
+        );
+        assert(
+            address_of(
+                state.rift_boards.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("rift_boards"), array![7].span()),
+            'rift_boards',
+        );
     }
 }

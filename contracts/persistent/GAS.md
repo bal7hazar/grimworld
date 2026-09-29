@@ -6,4 +6,17 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
-| `test_persistent::test_persistent_deploys_and_answers_version` | 277140 | 290997 | 5.00 % | 0 | 96 | 2026-09-28 | 5267868 |
+| `systems::hub::layout_tests::test_hub_storage_addresses` | 257780 | 270669 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `systems::market::layout_tests::test_market_storage_addresses` | 62770 | 65909 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `systems::registry::layout_tests::test_registry_storage_addresses` | 55220 | 57981 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_fate_refuses_mainnet_calls` | 388601 | 408032 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_fate_refuses_mainnet_deployment` | 272510 | 286136 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_fate_word` | 397644 | 417527 | 5.00 % | 0 | 96 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_hub_deploys_and_stubs_revert` | 4000630 | 4200662 | 5.00 % | 0 | 864 | 2026-09-29 | 2704c6d |
+| `test_contracts::test_market_and_registry_deploy` | 2360200 | 2478210 | 5.00 % | 0 | 576 | 2026-09-29 | 2704c6d |
+| `test_events::test_hub_events` | 81630 | 85712 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_events::test_market_events` | 78760 | 82698 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_account_and_adventurer_layout` | 306090 | 321395 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_item_grimoire_rift_layout` | 324470 | 340694 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_market_layout` | 197020 | 206871 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_record_sizes` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |

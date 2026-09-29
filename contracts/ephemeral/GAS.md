@@ -6,4 +6,13 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
-| `test_ephemeral::test_ephemeral_deploys_and_answers_version` | 277140 | 290997 | 5.00 % | 0 | 96 | 2026-09-28 | 5267868 |
+| `systems::instances::layout_tests::test_instances_storage_addresses` | 184040 | 193242 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_events::test_instances_event_keys_and_data` | 88140 | 92547 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_instances::test_instances_deploys_and_stubs_revert` | 2650760 | 2783298 | 5.00 % | 0 | 576 | 2026-09-29 | 2704c6d |
+| `test_instances::test_probe_read_direct` | 5095200 | 5349960 | 5.00 % | 0 | 960 | 2026-09-29 | 2704c6d |
+| `test_instances::test_probe_read_through_a_call` | 5213110 | 5473766 | 5.00 % | 0 | 960 | 2026-09-29 | 2704c6d |
+| `test_layout::test_chunk_layout` | 313420 | 329091 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_goblin_layout` | 303450 | 318623 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_member_layout` | 452940 | 475587 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_placement_and_header_layout` | 444920 | 467166 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |
+| `test_layout::test_record_sizes` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-09-29 | 2704c6d |

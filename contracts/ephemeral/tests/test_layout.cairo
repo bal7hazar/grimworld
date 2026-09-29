@@ -53,7 +53,9 @@ fn test_placement_and_header_layout() {
     assert(StorePacking::<Header, felt252>::unpack(word) == header, 'header trip');
     let one = Header { sequence: 1, tasks: 1, gate: 1, ..Default::default() };
     let expected = 0x100000000 + TWO_128 + 0x1000000000000 * TWO_128 + LIVE;
-    assert(StorePacking::<Header, felt252>::pack(one) == expected, 'sequence 32 tasks 128 gate 176');
+    assert(
+        StorePacking::<Header, felt252>::pack(one) == expected, 'sequence 32 tasks 128 gate 176',
+    );
     assert(StorePacking::<Header, felt252>::pack(Default::default()) == LIVE, 'never 0');
 
     let quotas = Quotas {
@@ -119,9 +121,7 @@ fn test_member_layout() {
     let word = StorePacking::<Recharges, felt252>::pack(recharges);
     assert(StorePacking::<Recharges, felt252>::unpack(word) == recharges, 'recharges trip');
     let slot4 = Recharges { deadlines: [0, 0, 0, 0, 1, 0, 0, 0] };
-    assert(
-        StorePacking::<Recharges, felt252>::pack(slot4) == TWO_128 + LIVE, 'slot 4 at bit 128',
-    );
+    assert(StorePacking::<Recharges, felt252>::pack(slot4) == TWO_128 + LIVE, 'slot 4 at bit 128');
 }
 
 #[test]
@@ -133,15 +133,15 @@ fn test_chunk_layout() {
     let word = StorePacking::<Terrain, felt252>::pack(terrain);
     assert(StorePacking::<Terrain, felt252>::unpack(word) == terrain, 'terrain trip');
     let edge = Terrain { walls: 0, edges: 1 };
-    assert(
-        StorePacking::<Terrain, felt252>::pack(edge) == all + 1 + LIVE, 'edges at bit 225',
-    );
+    assert(StorePacking::<Terrain, felt252>::pack(edge) == all + 1 + LIVE, 'edges at bit 225');
 
     let pack = PackPlacement {
         tile: 224, template: 0xFFFF, level: 28, count: 5, offsets: 0x1FFFFFF,
     };
     let object = Object { tile: 224, kind: 7, state: 1, param: 0xFFFF };
-    let features = Features { packs: [pack, pack], objects: [object, object, object], touched: 0x3FF };
+    let features = Features {
+        packs: [pack, pack], objects: [object, object, object], touched: 0x3FF,
+    };
     let word = StorePacking::<Features, felt252>::pack(features);
     assert(StorePacking::<Features, felt252>::unpack(word) == features, 'features trip');
     let touched = Features {

@@ -7,8 +7,8 @@ use crate::types::{InstanceId, Outcome};
 
 /// The results interface (ADR-0001, *Keeping the exit open*): what an instance hands to the
 /// persistent domain, in **one call per transaction** that has any result (D-131). Bounds are
-/// checked by the receiver: contributors ≤ 8, balances ≤ 8, equipment ≤ 3, tasks ≤ 16 and only
-/// among the ids snapshotted at entry.
+/// checked by the receiver: contributors ≤ 8, balances ≤ 8, equipment ≤ 3, tasks ≤ 16 and
+/// only among the ids snapshotted at entry.
 #[derive(Drop, Serde, Debug, PartialEq)]
 pub struct Results {
     pub instance_id: InstanceId,

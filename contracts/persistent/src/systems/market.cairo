@@ -13,7 +13,9 @@ pub trait IMarket<T> {
     /// A lot of 1, 10 or 100 of a balance (`kind` 0, `item` its id) or one equipment entity
     /// (`kind` 1). Tin rank or above, 10 + rank lots per account, 2 % fee never refunded;
     /// emits `LotPosted`; returns the lot id (the next of `lot_count`).
-    fn post_lot(ref self: T, adventurer_id: u32, kind: u8, item: u32, lot_size: u8, price: u64) -> u64;
+    fn post_lot(
+        ref self: T, adventurer_id: u32, kind: u8, item: u32, lot_size: u8, price: u64,
+    ) -> u64;
     /// Pays `price` (it must be the asked one) into the seller's vault; the goods go to the buyer's
     /// vault. Refused when expired or not open (the "lost race", design/16). Emits `LotClosed`.
     fn buy_lot(ref self: T, adventurer_id: u32, lot: u64, price: u64);
@@ -104,7 +106,12 @@ pub mod Market {
     #[abi(embed_v0)]
     impl MarketImpl of super::IMarket<ContractState> {
         fn post_lot(
-            ref self: ContractState, adventurer_id: u32, kind: u8, item: u32, lot_size: u8, price: u64,
+            ref self: ContractState,
+            adventurer_id: u32,
+            kind: u8,
+            item: u32,
+            lot_size: u8,
+            price: u64,
         ) -> u64 {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
@@ -168,5 +175,43 @@ pub mod Market {
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
+    }
+}
+
+/// The storage layout of `Market` is what docs/architecture/ENG-01-interfaces.md says: every
+/// variable's name and keys, hence its address.
+#[cfg(test)]
+mod layout_tests {
+    use snforge_std::map_entry_address;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
+    use super::Market;
+
+    fn address_of(base: StorageBaseAddress) -> felt252 {
+        storage_address_from_base(base).into()
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 65909)] // ceil(1.05 × 62770 measured)
+    fn test_market_storage_addresses() {
+        let state = @Market::contract_state_for_testing();
+        assert(
+            address_of(
+                state.lots.entry(5).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("lots"), array![5].span()),
+            'lots',
+        );
+        assert(
+            address_of(
+                state.seller_lots.entry((7, 0)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("seller_lots"), array![7, 0].span()),
+            'seller_lots',
+        );
+        assert(
+            address_of(
+                state.trades.entry(3).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("trades"), array![3].span()),
+            'trades',
+        );
     }
 }

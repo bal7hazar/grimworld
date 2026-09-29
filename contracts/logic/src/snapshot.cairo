@@ -257,7 +257,8 @@ fn unpack_task(bits: u128) -> TaskEntry {
     let (rest, task) = DivRem::div_rem(bits, P32.try_into().unwrap());
     let (param, kind) = DivRem::div_rem(rest, P8.try_into().unwrap());
     TaskEntry {
-        task: task.try_into().unwrap(), kind: kind.try_into().unwrap(),
+        task: task.try_into().unwrap(),
+        kind: kind.try_into().unwrap(),
         param: param.try_into().unwrap(),
     }
 }
