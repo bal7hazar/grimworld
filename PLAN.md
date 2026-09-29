@@ -166,8 +166,8 @@ them as separate Scarb packages (D-125). The game consumes them **by published v
 
 Run by a local orchestrator on the owner's Mac, which has a browser the agents can drive. Mandate:
 [docs/briefs/ORCH-client-visual.md](docs/briefs/ORCH-client-visual.md). It writes `client/app`
-(rendering, interface, input; `account/` and `chain.ts` stay CLI-01's) and `tools/art`; 2 agents on
-the Mac; live state in `docs/status/client-visual.md`.
+(rendering, interface, input; `account/` and `chain.ts` stay CLI-01's) and `tools/art`; live state in `docs/status/client-visual.md`. Budget on the Mac: 5 agents (owner). Tasks of the game
+lent to it (D-149): IDX-01.
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
@@ -196,7 +196,7 @@ and CLI-08 are candidates for this track.
 | CLI-02 | Client simulation core mirroring ENG-05/07 + parity harness. SPK-4 / D-140: a TypeScript mirror checked by vectors generated from the Cairo code (option (a)); measure the full tick in TypeScript and Poseidon, which the spike did not | ENG-02, SPK-4 | Opus 5.5 | P Q | todo |
 | CLI-03 | Hex room rendering on demand, touch input, facing display, optimistic state with rewind | CLI-01, CLI-02, SPK-6 | Opus 5.5 | D Q + power rules | todo |
 | OPS-01 | Deployment scripts of our own (declare, deploy, configure, upgrade): local node, Sepolia; the indexer | ENG-07 | Sonnet 5 | S Q | todo |
-| IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo |
+| IDX-01 | **The indexer** (D-130): our own process from the prototype of SPK-11; the events frozen by ENG-01; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule | ENG-01 | Opus 5.5 | S P Q + GPT-6-Sol | todo (lent to track CV on the Mac, D-149) |
 | IDX-02 | The indexer hosted for Sepolia, watched, rebuilt from the chain on demand | IDX-01, OPS-01 | Sonnet 5.5 | S Q | todo |
 
 **Exit criteria**: gate of the overview, demonstrated on Sepolia; constraints M-1…M-6

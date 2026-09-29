@@ -17,7 +17,7 @@ session on the Mac starts a local orchestrator; this file is its mandate.
 
 | | Paths |
 |---|---|
-| **Writes** | `client/app/src/**` except what stays the game's (below); `client/app/index.html`, `client/app/vite.config.ts`; `client/app/package.json` and `pnpm-lock.yaml` for rendering, input and development dependencies only, each addition named in the pull request; `tools/art/**` (moved from the game's track); `scripts/mac/**` (a launch script for the Mac, if needed, §3); the briefs `docs/briefs/{ART,CLI,SPK-6,CV}*` of its own tasks (the macOS launcher is CV-01); its reports archived in `docs/reports/`; `docs/research/SPK-6-*`; `docs/status/client-visual.md` |
+| **Writes** | The allowlist of each task lent by the game (§8); `client/app/src/**` except what stays the game's (below); `client/app/index.html`, `client/app/vite.config.ts`; `client/app/package.json` and `pnpm-lock.yaml` for rendering, input and development dependencies only, each addition named in the pull request; `tools/art/**` (moved from the game's track); `scripts/mac/**` (a launch script for the Mac, if needed, §3); the briefs `docs/briefs/{ART,CLI,SPK-6,CV}*` of its own tasks (the macOS launcher is CV-01); its reports archived in `docs/reports/`; `docs/research/SPK-6-*`; `docs/status/client-visual.md` |
 | **Stays the game's** | `client/app/src/account/**`, `client/app/src/chain.ts` and their tests (CLI-01). A change the track needs in `App.tsx` or `main.tsx` that CLI-01 also touches is coordinated through the project manager |
 | **Never** | `contracts/`, `client/sim/**`, `spikes/`, `scripts/` outside `scripts/mac/`, `.github/`, the `assets` pointer, `PLAN.md`, `STATUS.md`, `CONTEXT.md`, `PROGRAMME.md`, `OPERATIONS.md`, `docs/design/`, `docs/architecture/`, `docs/decisions/` except a `PENDING-cv-<topic>.md` asking the project manager |
 
@@ -42,8 +42,12 @@ The game orchestrator does not merge for this track.
   **claude-b7r**, otherwise nothing is launched; the Mac's launcher sets
   `CLAUDE_CONFIG_DIR=~/.claude-b7r` for every sub-agent and refuses to launch without it
   (amended 2026-09-29, answering `PENDING-cv-mandate.md`).
-- **Budget.** At most **2 agents at a time on the Mac**, audits included. It is apart from the
-  VPS's budget of 3 (D-118): another machine.
+- **Budget.** At most **5 agents at a time on the Mac**, audits included, the tasks lent by the
+  game (§8) counted in it (owner, 2026-09-29; the Mac has 12 cores and 64 GB). It is apart from the
+  VPS's budget of 3 (D-118): another machine. **Before each launch**, as on the VPS: no new agent
+  while the 5-minute load average is above 18 (1.5 × the 12 cores) or available memory is under
+  8 GB; wait and check again; a running agent is never stopped for load. The Mac's launcher
+  (CV-01) enforces the cap and both thresholds.
 - **Launch.** Detached, so that a restart of the desktop app does not kill an agent (OPERATIONS
   §3); the allowlists of `scripts/profiles/` passed to the CLI; never
   `--dangerously-skip-permissions`; no Sepolia account and no registry token in an agent's
@@ -100,3 +104,22 @@ when they come.
 `docs/status/client-visual.md`, dated, rewritten by the local orchestrator at each check-in:
 tasks, agents, pull requests, what waits. The project manager reads it like the tracks'
 `STATUS.md`. A message to the project manager only for a decision; first line, the subject.
+
+## 8. Tasks lent by the game's track (D-149)
+
+The VPS runs the game's chain of engine tasks under a budget of 3; the Mac has room. The project
+manager lends this orchestrator whole tasks of the game that need neither Sepolia nor a file the
+game's orchestrator is writing. For a lent task this orchestrator writes the brief, launches,
+reviews, has it audited and merges it, under OPERATIONS.md and the game's rules (`docs/CAIRO.md`,
+`docs/briefs/COMMON.md`); its allowlist is the brief's, and the brief names the paths.
+
+| ID | Task | Allowlist | Before the first launch |
+|---|---|---|---|
+| IDX-01 | **The indexer** (D-130, PLAN Phase 1): a TypeScript process from SPK-11's prototype; the events frozen by ENG-01 are its interface; versioned tables, rewind on reorg, queries and subscriptions; the client's freshness rule. Tested against a local node, never Sepolia | `indexer/**` (a new package of the pnpm workspace), the line adding it to `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `docs/briefs/IDX-*`, its report | Node 24.21 (`.tool-versions`) on the Mac; Scarb 2.19.4, snforge 0.61 and starknet-devnet 0.10.0 as `scripts/setup-toolchain.sh` pins them, checked by a build of `contracts/` |
+
+- The game's orchestrator does not launch a lent task. A change a lent task needs in the game's
+  events or contracts is a `PENDING-cv-*` request; if ENG-R1 or a later lot changes an event,
+  the game's orchestrator announces it in `STATUS.md`.
+- Next candidates, lent by the project manager when they are ready: CLI-02 (the client's mirror,
+  after ENG-02), audits by `claude` of the game's lots, spikes that need no Sepolia.
+
