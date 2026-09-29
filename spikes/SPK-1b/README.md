@@ -24,10 +24,10 @@ the redaction, the send cap, the repeat-run guard. Added to it:
 |---|---|
 | `classes.mjs` | Read only: account classes declared on Sepolia, their versions and SNIP-9 support |
 | `class-at.mjs` | Read only: the class of a contract (AVNU's relayers and forwarder) |
-| `measure.mjs` → `measure-output.txt` | The run: A, the burner's funding and deployment, B, C, and D until it stopped (35 transactions) |
-| `measure-d.mjs` → `measure-d-output.txt` | The rest of D, then the adventurer given back and the burner's STRK returned (9 transactions). It resumes from what the outputs record. `*.incomplete-*` are its earlier attempts, kept |
+| `measure.mjs` → `measure-output.txt` | Retired: now only refuses; its code is in the history. The run: A, the burner's funding and deployment, B, C, and D until it stopped (35 transactions) |
+| `measure-d.mjs` → `measure-d-output.txt` | Retired: now only refuses; its code is in the history. The rest of D, then the adventurer given back and the burner's STRK returned (9 transactions). It resumes from what the outputs record. `*.incomplete-*` are its earlier attempts, kept |
 | `ledger.jsonl` | Every transaction sent (44): reservation, hash, settlement (receipt fee and the owner's spending apart). Rewritten from `ledger-v1.jsonl` (the run's own, one row per receipt) by `migrate_ledger.py` |
-| `test_retired.mjs` | Offline, with a stubbed RPC: failures after the broadcast, while reading the receipt and while tracing, and before any hash; recovery and reconciliation; paymaster settlement; the committed ledger |
+| `test_retired.mjs` | Offline: every sending path refuses (makeSender, tracked, account, rpcRaw outside its read methods, paymaster methods included), no provider is exported, the two measurement scripts only refuse, and no network call is made. The ledger tests of fix loop 1 (failures after the broadcast, recovery, reconciliation, paymaster settlement) were removed with the sender they exercised |
 | `analyse.py` → `analyse-output.txt` | The table: SPK-1 §4's attribution per case, the splits, the money |
 | `summary.py`, `tree.py`, `selectors.json` | One line per receipt; one trace's invocation tree with entry point names |
 | `check_secrets.py` | AC-3: SPK-1's check, which also covers the burner key and checks that its file is ignored and untracked. It validates the burner inventory and requires the expected burner |

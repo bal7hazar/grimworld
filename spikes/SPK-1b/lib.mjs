@@ -19,7 +19,7 @@ let URL = null;
 let ADDRESS = null;
 let KEY = null;
 let PATTERNS = [];
-export let provider = null;
+let provider = null;   // module-private: SPK-1b is closed, nothing outside may send through it
 
 /** Stops with a message naming the variable and the rule, never its value. */
 function refuse(message, code = 2) {
@@ -145,8 +145,15 @@ export function emit(record) {
 
 let id = 0;
 /** A raw JSON-RPC call; returns { result } or { error }. */
+// The only RPC methods left: reads (SPK-1b is closed, audit of PR 51, finding 1).
+const READ_METHODS = new Set(["starknet_chainId", "starknet_specVersion", "starknet_blockNumber",
+  "starknet_getNonce", "starknet_getTransactionReceipt", "starknet_getTransactionByHash",
+  "starknet_getTransactionStatus", "starknet_getBlockWithTxHashes", "starknet_getBlockWithReceipts",
+  "starknet_traceTransaction", "starknet_call", "starknet_getClass", "starknet_getClassAt",
+  "starknet_getClassHashAt", "starknet_getStorageAt", "starknet_getEvents"]);
+
 export async function rpcRaw(method, params = []) {
-  if (String(method).startsWith("starknet_add")) throw new Error(`${RETIRED} (${method})`);   // retired: reads only
+  if (!READ_METHODS.has(method)) throw new Error(`${RETIRED} (${method})`);   // retired: reads only
   const response = await fetch(URL, {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": USER_AGENT },
@@ -171,7 +178,7 @@ export async function rpc(method, params = []) {
 // crash-recovery path is not (audit of PR 51, re-audit findings 1 and 7). Sending is retired so
 // that nothing here can send again: measure.mjs and measure-d.mjs refuse as their first
 // statement, and the library's sending paths throw before any network access (makeSender, tracked,
-// account, and rpcRaw for starknet_add* methods; re-audit of PR 51, finding 1). Reads still work.
+// account, provider no longer exported, and rpcRaw limited to READ_METHODS; re-audit of PR 51, finding 1).
 // Future Sepolia sending uses audited tooling.
 export const RETIRED = "SPK-1b is closed: sending is retired (audit of PR 51, findings 1 and 7); nothing is sent";
 export function refuseRetired() {

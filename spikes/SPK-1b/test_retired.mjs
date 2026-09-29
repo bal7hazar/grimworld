@@ -14,9 +14,15 @@ async function refuses(name, f) {
 await refuses("makeSender", () => lib.makeSender({}, 1, {}, { payer: "owner" }));
 await refuses("tracked", () => lib.tracked({ reserve: () => 0 }, { label: "x", payer: "owner", submit: async () => ({}) }));
 await refuses("account", () => lib.account());
-for (const m of ["starknet_addInvokeTransaction", "starknet_addDeclareTransaction", "starknet_addDeployAccountTransaction"]) {
+for (const m of ["starknet_addInvokeTransaction", "starknet_addDeclareTransaction", "starknet_addDeployAccountTransaction",
+                 "paymaster_executeTransaction", "paymaster_buildTransaction", "starknet_estimateFee"]) {
   await refuses(`rpcRaw ${m}`, () => lib.rpcRaw(m, []));
 }
 check("no network call was made", fetches === 0);
+check("no submission-capable provider is exported", !("provider" in lib));
+for (const f of ["measure.mjs", "measure-d.mjs"]) {
+  const text = (await import("node:fs")).readFileSync(new URL(`./${f}`, import.meta.url), "utf8");
+  check(`${f} only refuses (no Account, no provider, no send)`, !/Account|provider|execute|send/.test(text.replace(/^\/\/.*$/gm, "")));
+}
 console.log(failed ? `${failed} failed` : "all passed");
 process.exit(failed ? 1 : 0);
