@@ -389,6 +389,13 @@ was computed under. **A different version refuses the batch whole, before any ac
 client reloads the content and computes again, and the instance goes on under the new content.
 ENG-03 measures the cost (one compared value, one felt of calldata).
 
+**Which entrypoints carry it** ([decision](../decisions/2026-09-29-content-version-standalone.md)):
+an entrypoint carries the content version **if and only if it executes something the client
+computed from the content** (world ticks, a price, a path). So `play`, `open`, `mine` and `barter`
+carry it; `loot`, `leave`, `travel_back` and `enter` do not (they run nothing the client computed:
+the draw and the next instance are the chain's). On an action sent alone, a different version is
+refused before any tick, like a failed precondition (`Refused`, changing nothing).
+
 **Executing a batch.** The contract checks the sequence and the content version; a mismatch runs
 nothing. Then each
 action is checked against the state it meets; the first invalid one stops the batch, and the
