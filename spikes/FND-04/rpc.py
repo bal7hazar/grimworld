@@ -22,6 +22,8 @@ READ_METHODS = frozenset(
         "starknet_getTransactionByHash",
         "starknet_getClassHashAt",
         "starknet_getStorageAt",
+        "starknet_blockNumber",
+        "starknet_getBlockWithTxHashes",
     }
 )
 
