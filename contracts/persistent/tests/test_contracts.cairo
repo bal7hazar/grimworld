@@ -20,7 +20,7 @@ use snforge_std::{
 };
 
 #[test]
-// gas: raised, it calls a stub (`buy_skill` since CBT-08a) now that `register` is implemented (ENG-04)
+// gas: raised, it calls a stub (`buy_skill` since CBT-08a) now `register` is written (ENG-04)
 #[available_gas(l2_gas: 4201397)] // ceil(1.05 × 4001330 measured)
 fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
