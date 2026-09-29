@@ -29,6 +29,7 @@ report), 4 thresholds or budget, 5 account. Once on the Mac, before the first la
 | Budget | 2 agents at a time on the Mac, audits included: slot files `~/orchestrator/slots/cv-1`, `cv-2` (directory mode 555; `slots-init` creates missing ones). The agent's inner shell locks one with `/usr/bin/lockf -s -t 5 7` on a descriptor its children inherit, writes `slots-acquired` in `logs/<task>.run`; the kernel frees the lock however the agent ends. The launcher holds `~/orchestrator/agent-launch.lock` from the count to `slots-acquired` and stops the job by its label if that never comes (20 s), saying whether the stop is verified. |
 | Thresholds | Fixed: no launch or resume while the 5-minute load (`sysctl vm.loadavg`) is above 10 or less than 8 GB is available (free + inactive + speculative pages of `vm_stat`). A running agent is never stopped for load. |
 | Builds | No build lock on the Mac (`scripts/lock.sh` needs `flock`): the Mac's heavy builds are serialised by the budget of 2. |
+| Labels | The label read from `logs/<task>.label` is checked before any `launchctl print`, kill or bootout: it must be exactly `grimworld.cv.<task>.<hhmmss>` (`grimworld.cv.test.<task>.<hhmmss>` in test mode). Anything else, such as a copy of another task's label, is refused and never acted on: `stop`, `wait`, a launch or resume of the task exit 2, and `status` lists the task as `refused`. Outside the tests a task name may not start with `test.`, so no real label reads as a test label. |
 | Closing a job | A finished job stays loaded in launchd until it is booted out by its exact label (`logs/<task>.label`): `wait`, `status`, `stop` and the next launch of the task do it. `stop` signals the job's process group (launchd makes the job a group leader; `AbandonProcessGroup` means a bootout alone would leave the CLI running), then boots it out, then checks the label, the group and the slot are gone. |
 
 Files, under `<main checkout>/.claude/worktrees/`: `cli-<task>/` (the worktree), and in `logs/`:
@@ -76,6 +77,14 @@ against accidents, not against a deliberate act of the same Unix user.
 account refusals (nothing created), the detachment (parent pid 1, alive after the launching shell
 exits, nice 10, caffeinate's assertion), the environment against decoys (`STARKNET_PRIVATE_KEY`,
 `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN`, `ATLANTIC_API_KEY`, `GH_TOKEN`…), the command line,
-the budget of 2 with a claude and a codex, a job that never reports, resume, `wait`, `stop`, the
-refusals, `bash -n` and `shellcheck`, and finally that every job, file and lock it made is gone. It
-prints one `ok`/`FAIL` line per case and takes about 30 seconds (26 s measured on 2026-09-29).
+the budget of 2 with a claude and a codex, two launchers racing for the last free slot, a label file
+holding another task's label, a job that never reports, resume, `wait`, `stop`, the refusals,
+`bash -n` and `shellcheck`, and finally that every job, file and lock it made is gone. It prints one
+`ok`/`FAIL` line per case and takes about 30 seconds (28 s measured on 2026-09-29).
+
+Its tasks are named `<run id>-<case>`, so every label of a run starts with
+`grimworld.cv.test.<run id>-`. A task is recorded before it is launched. The cleanup runs on EXIT,
+INT and TERM. It recovers every exact label from the run's own files (`logs/*.label` and the
+`logs/<label>.plist` the launcher wrote), never a label outside that prefix. It stops and boots out
+each job, checks that each label is gone, and only then removes the test home; if any label is
+still loaded, it keeps the home and says so.

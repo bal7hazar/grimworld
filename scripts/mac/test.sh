@@ -40,9 +40,11 @@ agent() {
 }
 W=$run/repo/.claude/worktrees
 L=$W/logs
-record() { # <task>: remember the task and its current label, for the cleanup
+# Every task of this run is named <id>-<case>, so every label it can create starts with PREFIX; the
+# cleanup never acts on a label outside it.
+PREFIX=grimworld.cv.test.$id-
+record() { # <task>: remember the task BEFORE launching it, so that an interruption cannot lose it
   tasks+=("$1")
-  [ ! -f "$L/$1.label" ] || labels+=("$(cat "$L/$1.label")")
 }
 job_state() { # <label> -> running | not-running | absent
   local out
@@ -56,16 +58,57 @@ wait_for() { # <seconds> <condition…>
   return 1
 }
 
+# Every exact label this run may have created, recovered from its own files: the label files
+# (logs/*.label) and the job definitions the launcher wrote (logs/<label>.plist), whatever the test
+# managed to record. Only labels of this run's prefix, and of the launcher's form, are kept.
+run_labels() {
+  local f l
+  shopt -s nullglob
+  {
+    for f in "$L"/*.label; do cat "$f"; echo; done
+    for f in "$L"/*.plist; do f=${f##*/}; echo "${f%.plist}"; done
+  } | while IFS= read -r l; do
+    case $l in "$PREFIX"*) [[ ${l#"$PREFIX"} =~ ^[A-Za-z0-9]+\.[0-9]{6}$ ]] && echo "$l" ;; esac
+  done | sort -u
+  shopt -u nullglob
+}
+# Stop and boot out one job of this run by its exact label: its process group first (launchd makes
+# the job a group leader; AbandonProcessGroup keeps a bootout from reaching the stub), then bootout.
+stop_label() { # <label>
+  local l=$1 pid pgid
+  case $l in "$PREFIX"*) ;; *) return 1 ;; esac
+  pid=$(job_pid "$l")
+  if [ -n "$pid" ]; then
+    pgid=$(ps -o pgid= -p "$pid" 2> /dev/null | tr -d ' ')
+    if [ "$pgid" = "$pid" ]; then kill -TERM -- "-$pid" 2> /dev/null; else kill -TERM "$pid" 2> /dev/null; fi
+  fi
+  launchctl bootout "$DOMAIN/$l" 2> /dev/null
+  wait_for 5 test "$(job_state "$l")" = absent
+}
+cleaned=0 CLEAN_LEFT=""
 cleanup() {
+  [ "$cleaned" = 0 ] || return 0
+  cleaned=1
   local t l
+  rm -f "$run"/hold.* "$run/test-hang"
   for t in "${tasks[@]}"; do agent stop "$t" > /dev/null 2>&1; done
-  for l in "${labels[@]}"; do
-    [ "$(job_state "$l")" = absent ] || launchctl bootout "$DOMAIN/$l" 2> /dev/null
+  for l in $(run_labels); do
+    labels+=("$l")
+    [ "$(job_state "$l")" = absent ] || stop_label "$l"
   done
+  # The home is removed only when every label is verified gone; otherwise it is kept, and said.
+  CLEAN_LEFT=""
+  for l in $(run_labels); do [ "$(job_state "$l")" = absent ] || CLEAN_LEFT="$CLEAN_LEFT $l"; done
+  if [ -n "$CLEAN_LEFT" ]; then
+    echo "FAIL cleanup: still loaded:$CLEAN_LEFT; the test home $run is kept" >&2
+    return 1
+  fi
   [ ! -d "$run/orchestrator/slots" ] || chmod 755 "$run/orchestrator/slots"   # read-only by design
   rm -rf "$run"
 }
 trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 # --- The stubs: they print what they were given and hold while $HOME/hold.<task> exists (60 s at most).
 mkdir -p "$run/bin"
@@ -114,12 +157,12 @@ for variant in '{"loggedIn": true, "email": "bal7hazar@example.com"}' \
   'loggedIn: true email: claude-b7r@proton.me' \
   '{"loggedIn": true, "email": "x"} {"loggedIn": true, "email": "claude-b7r@proton.me"}'; do
   printf '%s\n' "$variant" > "$run/stub-auth.json"
-  t=A1-$id
+  t=$id-A1
   agent --branch "cv/$t" "$t" claude opus new "hello" implement > "$run/out" 2>&1; rc=$?
   check "AC-1 account refused ($variant): exit 5, no worktree, log, lock or job" \
     test "$rc" = 5 -a ! -e "$W/cli-$t" -a ! -e "$L/$t.log" -a ! -e "$L/$t.label" -a ! -e "$run/orchestrator"
 done
-check "AC-1 no job was created for A1" bash -c "! launchctl list | grep -qF 'grimworld.cv.test.A1-$id'"
+check "AC-1 no job was created for A1" bash -c "! launchctl list | grep -qF 'grimworld.cv.test.$id-A1'"
 printf '%s\n' "$good_auth" > "$run/stub-auth.json"
 
 # --- The slots of the test home.
@@ -128,16 +171,16 @@ check "slots-init: cv-1, cv-2, directory read-only" \
   test -f "$run/orchestrator/slots/cv-1" -a -f "$run/orchestrator/slots/cv-2" -a "$(stat -f %Lp "$run/orchestrator/slots" 2> /dev/null)" = 555
 
 # --- AC-9: refusals.
-agent --with-sepolia "X-$id" claude opus new "hello" implement > /dev/null 2>&1
+agent --with-sepolia "$id-X" claude opus new "hello" implement > /dev/null 2>&1
 check "AC-9 --with-sepolia refused (exit 2)" test $? = 2
-agent "X-$id" claude opus-4 new "hello" implement > /dev/null 2>&1
+agent "$id-X" claude opus-4 new "hello" implement > /dev/null 2>&1
 check "AC-9 unknown model refused (exit 2)" test $? = 2
-agent "X-$id" codex gpt-5 new "hello" audit > /dev/null 2>&1
+agent "$id-X" codex gpt-5 new "hello" audit > /dev/null 2>&1
 check "AC-9 unknown codex model refused (exit 2)" test $? = 2
 echo 11.5 > "$run/test-load5"
 agent thresholds > /dev/null 2>&1; rc=$?
-agent --branch "cv/X-$id" "X-$id" claude opus new "hello" implement > /dev/null 2>&1; rc2=$?
-check "AC-9 load above 10 refuses (thresholds and launch: exit 4, no worktree)" test "$rc" = 4 -a "$rc2" = 4 -a ! -e "$W/cli-X-$id"
+agent --branch "cv/$id-X" "$id-X" claude opus new "hello" implement > /dev/null 2>&1; rc2=$?
+check "AC-9 load above 10 refuses (thresholds and launch: exit 4, no worktree)" test "$rc" = 4 -a "$rc2" = 4 -a ! -e "$W/cli-$id-X"
 rm -f "$run/test-load5"; echo 7 > "$run/test-mem-gb"
 agent thresholds > /dev/null 2>&1
 check "AC-9 memory under 8 GB refuses (exit 4)" test $? = 4
@@ -148,7 +191,7 @@ HOME=$here "$A" status > /dev/null 2>&1
 check "a HOME that is neither the user's nor a test home is refused" test $? = 2
 
 # --- AC-4: the built command (dry run).
-t=D4-$id
+t=$id-D4
 out=$(agent --dry-run "$t" claude opus new "hello" implement 2>&1)
 line=$(grep -v '^#' <<< "$out" | head -1)
 eval "argv=($line)"
@@ -165,19 +208,19 @@ check "AC-4 dry run: profile rules, Mac deny rules, --settings, --name" has_all 
 check "AC-4 dry run: never --dangerously-skip-permissions" bash -c "! grep -q -- dangerously <<< \"\$1\"" _ "$out"
 check "AC-4 dry run: the foreground rule ends the prompt" \
   bash -c 'grep -qF "Foreground only: never run a command in the background and never end your turn waiting for one; in headless mode that ends the session. Your turn ends when REPORT.md is written." <<< "$1"' _ "${argv[2]}"
-out=$(agent --dry-run "C4-$id" codex gpt-6-sol new "audit" 2>&1)
+out=$(agent --dry-run "$id-C4" codex gpt-6-sol new "audit" 2>&1)
 line=$(grep -v '^#' <<< "$out" | head -1); eval "argv=($line)"
 check "AC-4 dry run codex: exec -s read-only, profile audit" has_all exec -s read-only -m gpt-6-sol
-check "AC-4 dry run codex: header [GPT-6-Sol] … (audit)" bash -c 'grep -qF "# [GPT-6-Sol] C4-'"$id"' new (audit)" <<< "$1"' _ "$out"
-agent --dry-run "C4-$id" codex gpt-6-sol new "audit" implement > /dev/null 2>&1
+check "AC-4 dry run codex: header [GPT-6-Sol] … (audit)" bash -c 'grep -qF "# [GPT-6-Sol] $2-C4 new (audit)" <<< "$1"' _ "$out" "$id"
+agent --dry-run "$id-C4" codex gpt-6-sol new "audit" implement > /dev/null 2>&1
 check "AC-4 codex with another profile than audit is refused" test $? = 2
 
 # --- AC-2, AC-3, AC-4, AC-8: a real launch of the claude stub.
-t=T2-$id
+t=$id-T2
 touch "$run/hold.$t"
+record "$t"
 bash -c 'HOME="$1" STARKNET_PRIVATE_KEY=decoy ANTHROPIC_BASE_URL=decoy CLAUDE_CODE_OAUTH_TOKEN=decoy ATLANTIC_API_KEY=decoy GH_TOKEN=decoy "$2" --branch "cv/$3" "$3" claude opus new "hello" implement; exit $?' \
   _ "$run" "$A" "$t" > "$run/out" 2>&1; rc=$?
-record "$t"
 check "launch of $t: exit 0, holds a slot" bash -c 'test "$1" = 0 && grep -q "holds slot cv-" "$2"' _ "$rc" "$run/out"
 label=$(cat "$L/$t.label" 2> /dev/null)
 check "AC-8 the label is grimworld.cv.test.$t.<hhmmss>" bash -c '[[ $1 =~ ^grimworld\.cv\.test\.'"$t"'\.[0-9]{6}$ ]]' _ "$label"
@@ -208,6 +251,13 @@ mapfile -t argv < "$run/argv.$t"
 check "AC-4 the stub's argv: profile rules, Mac deny rules, --settings, --name" has_all \
   --permission-mode acceptEdits 'Bash(git commit *)' 'Bash(git rebase*)' 'Bash(launchctl*)' \
   'Read(~/.claude-b7r/**)' 'Bash(* $HOME/.claude-b7r*)' --settings --name "[Opus 5.5] $t"
+# The absolute Read rules are `Read(//<absolute path>/**)`: `//` is absolute in Claude Code rules,
+# `/` would be relative to the project. Both forms, `~` and `//$HOME`, exactly.
+check "AC-4 the stub's argv: the Read denies, exactly, in the ~ and //\$HOME forms" has_all \
+  'Read(~/.claude-b7r/**)' 'Read(~/.codex/**)' 'Read(~/.config/gh/**)' \
+  "Read(//${run#/}/.claude-b7r/**)" "Read(//${run#/}/.claude/**)" "Read(//${run#/}/.codex/**)" "Read(//${run#/}/.config/gh/**)"
+check "AC-4 the stub's argv: no absolute Read rule with a single slash" \
+  bash -c '! grep -qE "^Read\(/[^/]" "$1"' _ "$run/argv.$t"
 check "AC-4 the stub's argv: never --dangerously-skip-permissions" bash -c '! grep -q dangerously "$1"' _ "$run/argv.$t"
 check "AC-4 the plist: never --dangerously-skip-permissions" bash -c '! grep -q dangerously "$1"' _ "$L/$label.plist"
 checkx "AC-7 a new launch refuses while the task's worktree exists with a record" \
@@ -223,7 +273,7 @@ checkx "AC-8 status shows the task stopped, implement, ran=claude-opus-5-5" \
   'agent status > "$run/status" 2>&1; grep -qE "^$t +stopped +implement +ran=claude-opus-5-5 " "$run/status"'
 
 # --- AC-7: resume.
-t7=R7-$id
+t7=$id-R7
 agent "$t7" claude opus resume "go on" > /dev/null 2>&1
 check "AC-7 resume without a record is refused" test $? = 2
 agent "$t" claude sonnet resume "go on" > /dev/null 2>&1
@@ -231,7 +281,6 @@ check "AC-7 resume with another model is refused" test $? = 2
 agent "$t" claude opus resume "go on" research > /dev/null 2>&1
 check "AC-7 resume with another profile is refused" test $? = 2
 agent "$t" claude opus resume "go on" > "$run/out" 2>&1; rc=$?
-record "$t"
 agent wait "$t" > /dev/null 2>&1
 mapfile -t argv < "$run/argv.$t"
 check "AC-7 resume runs claude --continue, keeps the profile implement" \
@@ -242,10 +291,10 @@ check "AC-7 the resumed run has its own header and exit=" \
   bash -c 'test "$(grep -c "^--- .* $2 resume (implement) " "$1")" = 1 && test "$(grep -c "^exit=0 " "$1")" = 2' _ "$L/$t.log" "$t"
 
 # --- AC-5: the budget of 2, counted by locks.
-t5a=B5a-$id t5b=B5b-$id t5c=B5c-$id
+t5a=$id-B5a t5b=$id-B5b t5c=$id-B5c
 touch "$run/hold.$t5a" "$run/hold.$t5b"
-agent --branch "cv/$t5a" "$t5a" claude opus new "a" implement > /dev/null 2>&1; ra=$?; record "$t5a"
-agent --branch "cv/$t5b" "$t5b" codex gpt-6-sol new "b" > /dev/null 2>&1; rb=$?; record "$t5b"
+record "$t5a"; agent --branch "cv/$t5a" "$t5a" claude opus new "a" implement > /dev/null 2>&1; ra=$?
+record "$t5b"; agent --branch "cv/$t5b" "$t5b" codex gpt-6-sol new "b" > /dev/null 2>&1; rb=$?
 check "AC-5 two stubs run (a claude, a codex)" test "$ra" = 0 -a "$rb" = 0
 checkx "AC-5 both slots are held" 'test "$(agent slots | grep -c " held ")" = 2'
 agent --branch "cv/$t5c" "$t5c" claude opus new "c" implement > "$run/out" 2>&1; rc=$?
@@ -257,14 +306,59 @@ agent thresholds > /dev/null 2>&1
 check "AC-5 when a stub ends its slot is free again, without any cleanup step" test $? = 0
 checkx "AC-5 codex ran -s read-only and its model was read" \
   'grep -qx read-only "$run/argv.$t5b" && test "$(agent model "$t5b")" = gpt-6-sol'
-rm -f "$run/hold.$t5b"
-agent wait "$t5a" > /dev/null 2>&1; agent wait "$t5b" > /dev/null 2>&1
+
+# --- AC-5, the race: exactly one slot free (t5b holds the other), two launchers started together.
+# The two launchers run concurrently inside this one foreground command, and both are waited for.
+r1=$id-Ra r2=$id-Rb
+touch "$run/hold.$r1" "$run/hold.$r2"
+record "$r1"; record "$r2"
+agent --branch "cv/$r1" "$r1" claude opus new "race 1" implement > "$run/out.$r1" 2>&1 & p1=$!
+agent --branch "cv/$r2" "$r2" claude opus new "race 2" implement > "$run/out.$r2" 2>&1 & p2=$!
+wait "$p1"; x1=$?
+wait "$p2"; x2=$?
+if [ "$x1" = 0 ]; then win=$r1 lose=$r2; else win=$r2 lose=$r1; fi
+check "AC-5 race: exactly one launcher took the free slot (exit 0), the other refused (exit 4) [$x1, $x2]" \
+  test "$(printf '%s\n' "$x1" "$x2" | sort | tr '\n' ' ')" = "0 4 "
+check "AC-5 race: the refused launcher created no worktree, no record, no job" \
+  bash -c 'test ! -e "$1" && test ! -e "$2" && test ! -e "$3" && ! launchctl list | grep -qF "$4"' \
+  _ "$W/cli-$lose" "$L/$lose.label" "$L/$lose.log" "grimworld.cv.test.$lose."
+checkx "AC-5 race: the winner runs, both slots are held" \
+  'test "$(job_state "$(cat "$L/$win.label")")" = running && test "$(agent slots | grep -c " held ")" = 2'
+
+# --- Audit A1: a label file that is not the task's is refused, never acted on. The winner's label
+# is copied into the file of t5a (ended); every command on t5a must leave the winner running.
+# shellcheck disable=SC2034 # read by checkx
+lw=$(cat "$L/$win.label")
+cp "$L/$t5a.label" "$run/label.$t5a.saved"
+cp "$L/$win.label" "$L/$t5a.label"
+agent stop "$t5a" > "$run/out" 2>&1; rc=$?
+checkx "A1 stop of a task whose label file holds another task's label: refused (exit 2), the other job still runs" \
+  'test "$rc" = 2 && grep -q "not a label of $t5a" "$run/out" && test "$(job_state "$lw")" = running'
+agent wait "$t5a" > "$run/out" 2>&1; rc=$?
+checkx "A1 wait on it: refused at once (exit 2), the other job still runs" \
+  'test "$rc" = 2 && grep -q "not a label of $t5a" "$run/out" && test "$(job_state "$lw")" = running'
+agent status > "$run/out" 2>&1; rc=$?
+checkx "A1 status: lists it as refused and leaves the other job running" \
+  'test "$rc" = 0 && grep -qE "^$t5a +refused " "$run/out" && grep -qE "^$win +running " "$run/out" && test "$(job_state "$lw")" = running'
+agent --branch "cv/$t5a" "$t5a" claude opus new "again" implement > "$run/out" 2>&1; rc=$?
+checkx "A1 a new launch of it (whose reap reads the label): refused (exit 2), the other job still runs" \
+  'test "$rc" = 2 && grep -q "not a label of $t5a" "$run/out" && test "$(job_state "$lw")" = running'
+agent "$t5a" claude opus resume "again" > "$run/out" 2>&1; rc=$?
+checkx "A1 a resume of it: refused (exit 2), the other job still runs" \
+  'test "$rc" = 2 && grep -q "not a label of $t5a" "$run/out" && test "$(job_state "$lw")" = running'
+echo "grimworld.cv.$t5a.101010" > "$L/$t5a.label"   # the real prefix, in test mode
+agent stop "$t5a" > "$run/out" 2>&1; rc=$?
+check "A1 a label of the other mode's prefix is refused too (exit 2)" test "$rc" = 2
+cp "$run/label.$t5a.saved" "$L/$t5a.label"
+
+rm -f "$run/hold.$t5b" "$run/hold.$win"
+agent wait "$t5a" > /dev/null 2>&1; agent wait "$t5b" > /dev/null 2>&1; agent wait "$win" > /dev/null 2>&1
 
 # --- AC-6: a job that never writes slots-acquired is stopped by its label, and reported.
-t6=H6-$id
+t6=$id-H6
 touch "$run/test-hang"; echo 3 > "$run/test-deadline"
-agent --branch "cv/$t6" "$t6" claude opus new "hang" implement > "$run/out" 2>&1; rc=$?
 record "$t6"
+agent --branch "cv/$t6" "$t6" claude opus new "hang" implement > "$run/out" 2>&1; rc=$?
 rm -f "$run/test-hang" "$run/test-deadline"
 l6=$(cat "$L/$t6.label" 2> /dev/null)
 check "AC-6 a job that never reports: exit 2, stopped by its label, verified" \
@@ -273,9 +367,9 @@ checkx "AC-6 its label is gone from launchd and both slots are free" \
   'test "$(job_state "$l6")" = absent && test "$(agent slots | grep -c " free")" = 2'
 
 # --- stop: the task's own job, by its label.
-t9=S9-$id
+t9=$id-S9
 touch "$run/hold.$t9"
-agent --branch "cv/$t9" "$t9" claude opus new "stop me" implement > /dev/null 2>&1; record "$t9"
+record "$t9"; agent --branch "cv/$t9" "$t9" claude opus new "stop me" implement > /dev/null 2>&1
 l9=$(cat "$L/$t9.label")
 # shellcheck disable=SC2034 # read by checkx
 p9=$(job_pid "$l9")
@@ -289,12 +383,22 @@ check "AC-10 bash -n" /opt/homebrew/bin/bash -n "$here/agent.sh" "$here/test.sh"
 check "AC-10 shellcheck scripts/mac/*.sh" /opt/homebrew/bin/shellcheck "$here"/*.sh
 check "AC-10 /bin/bash 3.2 is refused by the launcher" bash -c '/bin/bash "$1" status > /dev/null 2>&1; test $? = 2' _ "$A"
 
-# --- AC-11: nothing left behind.
-trap - EXIT
-cleanup
-left=$(launchctl list | awk '{ print $3 }' | grep -F "$id" || true)
+# --- AC-11: nothing left behind. One job is launched and deliberately not recorded (as if the test
+# had been interrupted between the launcher's bootstrap and `record`): the cleanup must recover its
+# label from this run's files and boot it out.
+tu=$id-U1
+touch "$run/hold.$tu"
+agent --branch "cv/$tu" "$tu" claude opus new "unrecorded" implement > /dev/null 2>&1
+lu=$(cat "$L/$tu.label" 2> /dev/null)
+check "AC-11 an unrecorded job runs before the cleanup" test "$(job_state "$lu")" = running
+trap - EXIT INT TERM
+cleanup; rc=$?
+left=$(launchctl list | awk '{ print $3 }' | grep -F "$PREFIX" || true)
 gone=1; for l in "${labels[@]}"; do [ "$(job_state "$l")" = absent ] || gone=0; done
-check "AC-11 every job is gone (${#labels[@]} labels checked, none containing $id in launchctl list)" test "$gone" = 1 -a -z "$left"
+check "AC-11 the cleanup verified every label gone (${#labels[@]} labels recovered from the run's files)" test "$rc" = 0 -a "$gone" = 1
+check "AC-11 the unrecorded job was recovered and booted out" \
+  bash -c 'printf "%s\n" "${@:2}" | grep -qxF "$1" && ! launchctl print "gui/$(id -u)/$1" > /dev/null 2>&1' _ "$lu" "${labels[@]}"
+check "AC-11 launchctl list holds no label of $PREFIX*" test -z "$left"
 check "AC-11 the test home is removed" test ! -e "$run"
 check "AC-11 no process of the stubs is left" bash -c '! pgrep -f "$1" > /dev/null' _ "$run/bin/"
 

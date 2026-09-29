@@ -154,6 +154,9 @@ load_profile() { # <profile> -> fills the arrays allow and deny
 # launchd, no opening apps or scripting them, no sleep assertion, no keychain, no launcher of this
 # track, and no reading of the agents' own credentials (claude-b7r, codex, gh), by `~`, `$HOME` and
 # the absolute path of the home (the profiles name /home/claude, the VPS's home, only).
+# The absolute Read rules are written `Read(//Users/<u>/…)` on purpose ("/$HOME" below, $HOME being
+# /Users/<u>): in Claude Code permission rules `//path` is an absolute path, while `/path` is relative
+# to the settings' project. Do not "fix" the double slash.
 # shellcheck disable=SC2016 # `$HOME` is literal text of the rules
 MAC_DENY=('Bash(launchctl*)' 'Bash(* launchctl*)' 'Bash(open *)' 'Bash(osascript*)' 'Bash(caffeinate*)'
   'Bash(security *)' 'Bash(scripts/mac/agent.sh*)' 'Bash(./scripts/mac/agent.sh*)'
@@ -174,17 +177,37 @@ job_pid() { # <label> -> the pid launchd reports for it, or nothing
   out=$(job_print "$1") || return 0
   sed -nE $'/^\tpid = [0-9]+$/{s/^\tpid = //p;q;}' <<< "$out"
 }
-task_label() { cat "$L/$1.label" 2> /dev/null || true; }
-running() { # <task>
+# A task name: letters, digits, . _ -, not starting with a dot; outside the tests not starting with
+# `test.`, so that no real label (grimworld.cv.<task>.…) reads as a test label (grimworld.cv.test.…).
+check_task() { # <task>
+  case "$1" in *[!A-Za-z0-9._-]* | "" | .*) die "task name '$1': letters, digits, . _ - only, not starting with a dot" ;; esac
+  [ "$TEST" = 1 ] || case "$1" in test.*) die "task name '$1': 'test.' starts the labels of the tests only" ;; esac
+}
+# The recorded label of a task, validated before any launchctl print, kill or bootout: it must be
+# exactly <prefix><task>.<hhmmss>, the prefix of this mode (grimworld.cv. or grimworld.cv.test.). A
+# file holding anything else (a copy of another task's label, say) is refused, never acted on: the
+# job it names may be another task's. Prints nothing when the task has no label file.
+task_label() { # <task> -> the label, or nothing; returns 1 (and says why) on a label that is not the task's
+  local f=$L/$1.label label rest
+  [ -f "$f" ] || return 0
+  label=$(cat "$f" 2> /dev/null) || { echo "mac/agent.sh: $f cannot be read: refused, check it" >&2; return 1; }
+  rest=${label#"$LABEL_PREFIX$1."}
+  if [ "$rest" = "$label" ] || ! [[ $rest =~ ^[0-9]{6}$ ]]; then
+    echo "mac/agent.sh: $f holds '$label', which is not a label of $1 ($LABEL_PREFIX$1.<hhmmss>): refused, nothing done to that job; check the file" >&2
+    return 1
+  fi
+  echo "$label"
+}
+running() { # <task>; returns 0 running, 1 not running, 2 its label file is refused
   local label
-  label=$(task_label "$1")
+  label=$(task_label "$1") || return 2
   [ -n "$label" ] && [ "$(job_state "$label")" = running ]
 }
 # A job that has exited stays loaded in launchd (KeepAlive false: it is never restarted) until it is
 # booted out, by its exact label: by `wait`, `status`, `stop`, or the next launch of the task.
-reap() { # <task>: boot out the task's job if it has exited; never one that runs
+reap() { # <task>: boot out the task's job if it has exited; never one that runs; 1 on a refused label
   local label
-  label=$(task_label "$1")
+  label=$(task_label "$1") || return 1
   [ -n "$label" ] || return 0
   [ "$(job_state "$label")" = not-running ] || return 0
   launchctl bootout "$DOMAIN/$label" 2> /dev/null || true
@@ -458,9 +481,14 @@ case "${1:-}" in
       [ "$ran" = "$expected" ] || [ "$ran" = unknown ] || ran="$ran MISMATCH(expected $expected)"
       # While running: the header of this run (at its recorded offset). Stopped: the last line of
       # the log, the inner shell's `exit=…`.
-      if running "$t"; then state=running
-        last=$(tail -c +$(($(cat "$L/$t.start" 2> /dev/null || echo 0) + 1)) "$f" 2> /dev/null | head -1 || true)
-      else reap "$t"; state=stopped last=$(tail -1 "$f"); fi
+      # A task whose label file is refused is listed as such, and its job is never looked at.
+      rc=0; running "$t" 2> /dev/null || rc=$?
+      case $rc in
+        0) state=running
+          last=$(tail -c +$(($(cat "$L/$t.start" 2> /dev/null || echo 0) + 1)) "$f" 2> /dev/null | head -1 || true) ;;
+        2) state=refused last="its label file $L/$t.label is not a label of $t: nothing done, check it" ;;
+        *) reap "$t" 2> /dev/null || true; state=stopped last=$(tail -1 "$f") ;;
+      esac
       printf '%-24s %-8s %-10s ran=%-18s last write %s  %s\n' "$t" "$state" \
         "$(cat "$L/$t.profile" 2> /dev/null || echo -)" "$ran" "$(date -u -r "$f" +%FT%TZ)" "$last"
     done
@@ -471,25 +499,34 @@ case "${1:-}" in
     exit 0 ;;
   model)
     [ -n "${2:-}" ] || die "usage: mac/agent.sh model <task>"
+    check_task "$2"
     reported_model "$2"
     exit 0 ;;
   wait)
     [ -n "${2:-}" ] || die "usage: mac/agent.sh wait <task>"
+    check_task "$2"
     poll=5; [ "$TEST" = 0 ] || poll=0.5
-    while running "$2"; do sleep "$poll"; done
-    reap "$2"
+    while :; do
+      rc=0; running "$2" || rc=$?
+      [ "$rc" = 0 ] || break
+      sleep "$poll"
+    done
+    [ "$rc" != 2 ] || exit 2   # the label file is refused (task_label said why)
+    reap "$2" || exit 2
     grep -E '^exit=[0-9a-z]+ [0-9]{4}-[0-9]{2}-[0-9]{2}T' "$L/$2.log" 2> /dev/null | tail -1 || true
     echo "model=$(reported_model "$2")"
     exit 0 ;;
   sid)
     [ -n "${2:-}" ] || die "usage: mac/agent.sh sid <task>"
+    check_task "$2"
     wt=$W/cli-$2
     grep -l -F "\"cwd\":\"$wt\"" "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2> /dev/null |
       sort | tail -1 | sed -E 's/.*rollout-.{19}-(.*)\.jsonl$/\1/'   # names start with the date
     exit 0 ;;
   stop)   # the task's own job, by its recorded label, and nothing else
     [ -n "${2:-}" ] || die "usage: mac/agent.sh stop <task>"
-    label=$(task_label "$2")
+    check_task "$2"
+    label=$(task_label "$2") || exit 2
     [ -n "$label" ] || die "$2 has no recorded label ($L/$2.label): nothing to stop"
     if [ "$(job_state "$label")" = absent ]; then echo "$2: its job $label is not loaded"; exit 0; fi
     was=$(job_state "$label")
@@ -517,7 +554,9 @@ while [ "${1:-}" != "${1#--}" ]; do
 done
 [ $# -ge 5 ] || die "usage: mac/agent.sh [--dry-run] [--with-assets] [--branch <b>] <task> <claude|codex> <model> <new|resume> \"<prompt>\" [profile] [sid] [effort]"
 task=$1 cli=$2 model=$3 mode=$4 prompt=$5 profile=${6:-} sid=${7:-} effort=${8:-}
-case "$task" in *[!A-Za-z0-9._-]* | "" | .*) die "task name '$task': letters, digits, . _ - only, not starting with a dot" ;; esac
+check_task "$task"
+# A label file that is not the task's refuses the launch before anything is created or signalled.
+task_label "$task" > /dev/null || exit 2
 case "$cli" in claude | codex) ;; *) die "cli must be claude or codex" ;; esac
 case "$mode" in new | resume) ;; *) die "mode must be new or resume" ;; esac
 t=$(tag "$cli" "$model")
@@ -604,7 +643,7 @@ check_account "$cli" "$bin"
 # One launch at a time (the lock is held until this launcher exits, after `slots-acquired`), so two
 # launchers cannot both take the last slot. A launchd job inherits no descriptor from here.
 take_launch_lock
-reap "$task"
+reap "$task" || exit 2
 if running "$task"; then die "$task: already running (job $(task_label "$task"))"; fi
 thresholds_ok || exit 4   # sets FREE_SLOT
 slot=$SLOTS/$FREE_SLOT
@@ -645,7 +684,7 @@ for _ in $(seq 1 "$deadline"); do
   run_state=$(cat "$run_file" 2> /dev/null || true)
   if grep -q '^slots-acquired' <<< "$run_state"; then
     if grep -q '^ended' <<< "$run_state"; then
-      reap "$task"
+      reap "$task" || true
       echo "$task: took slot $FREE_SLOT, ran and has ended ($(grep '^ended' <<< "$run_state" | tail -1))"
     else
       echo "$task: holds slot $FREE_SLOT (at $(date -u +%T))"
