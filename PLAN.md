@@ -171,7 +171,7 @@ lent to it (D-149): IDX-01.
 
 | ID | Task | Depends on | Executor | Audits | Status |
 |---|---|---|---|---|---|
-| ART-02 | ART-00's atlas corrected: sprites at the height of the pack's unit of their build (78, 94, 128 px; ART-1 answered provisionally), Python 3.12, the same output on macOS and Linux | ART-00 | Opus 5.5 | Q + GPT-6-Sol | todo |
+| ART-02 | ART-00's atlas corrected: hand-drawn units at their native height, only the generated goblins reduced to the pack's scale (owner, D-146 corrected; ART-1 answered provisionally), Python 3.12, the same output on macOS and Linux | ART-00 | Opus 5.5 | Q + GPT-6-Sol | todo |
 | CLI-03a | A rendering sandbox on fixed data: hexagonal room on demand, camera that follows, sight 6, facing and arcs, touch; no rule outside `client/sim` (mandate §6) | — | Opus 5.5 | D Q + GPT-6-Sol | todo |
 | SPK-6a | The protocol of SPK-6 on real phones | — | Opus 5.5, research | D | todo |
 
