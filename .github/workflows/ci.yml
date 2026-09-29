@@ -113,6 +113,13 @@ jobs:
         working-directory: .
         run: python3 contracts/tools/class_sizes.py
 
+      # ENG-02a (D-140): the table of 2^(x/40) is generated once, for the contracts and the client;
+      # a stale or hand-edited copy of either file fails here.
+      - name: exp2 table is current
+        if: matrix.dir == 'contracts'
+        working-directory: .
+        run: python3 contracts/tools/exp2_table.py --check
+
   client:
     needs: discover
     runs-on: ubuntu-latest
