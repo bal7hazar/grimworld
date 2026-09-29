@@ -16,6 +16,11 @@ pub const DOWN: u8 = 1;
 pub const GONE: u8 = 2;
 /// Energy is stored in thirds (design/03, *Pips*).
 pub const ENERGY_THIRDS: u16 = 3;
+/// Offsets of the words of `Member` from its address, for a word read or written as stored.
+pub const TIMERS_WORD: u8 = 1;
+pub const EFFECTS_WORD: u8 = 2;
+pub const RECHARGES_WORD: u8 = 3;
+pub const STATS_WORD: u8 = 4;
 
 pub mod errors {
     /// A gate action by anyone but the member's controller (M-6, ENG-01 §1.2).
@@ -28,15 +33,17 @@ pub impl MemberStateImpl of MemberStateTrait {
     /// health and energy at their maxima from the snapshot, no adrenaline, inside, the counters and
     /// flags 0; the belt's counts are the reserve's, the only thing that carries (D-141, E-20).
     /// Facing: 0 until ENG-05 knows the entrance's side (design/18: "away from the entrance").
-    fn entering(adventurer: u32, x: u8, y: u8, stats: @MemberStats, belt: [u8; 4]) -> MemberState {
+    fn entering(
+        adventurer: u32, x: u8, y: u8, max_health: u16, max_energy: u8, belt: [u8; 4],
+    ) -> MemberState {
         MemberState {
             adventurer,
             x,
             y,
             facing: 0,
             status: INSIDE,
-            health: *stats.max_health,
-            energy: (*stats.max_energy).into() * ENERGY_THIRDS,
+            health: max_health,
+            energy: max_energy.into() * ENERGY_THIRDS,
             adrenaline: 0,
             hits: 0,
             casts: 0,
@@ -44,7 +51,22 @@ pub impl MemberStateImpl of MemberStateTrait {
             flags: 0,
         }
     }
+
+    /// `(max health, max energy)` of a stored `MemberStats` word (bits 0-15, 16-23), without
+    /// unpacking the other eighteen fields.
+    fn maxima(stats: felt252) -> (u16, u8) {
+        let (low, _) = split(stats);
+        (low_field(low, P16.try_into().unwrap()).try_into().unwrap(), byte_at(low, P16))
+    }
 }
+
+/// The stored words of a member's timers, effects and recharges entering a new generation (ENG-01
+/// §2.1, F-12, F-14), written as they are stored: `empty_member_timers` packed (no activation, no
+/// condition: `LIVE + 255`), and no effect or recharge (`LIVE`). Pinned against the packers by
+/// `test_empty_words`.
+pub const EMPTY_TIMERS: felt252 = 0x4000000000000000000000000000000000000000000000000000000000000ff;
+pub const EMPTY_EFFECTS: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
+pub const EMPTY_RECHARGES: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
 
 /// What changes at every tick.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -282,24 +304,3 @@ pub fn empty_member_timers() -> MemberTimers {
     MemberTimers { act_slot: NO_SLOT, ..Default::default() }
 }
 
-/// The transient words of a member entering a new generation (ENG-01 §2.1, F-12, F-14).
-#[generate_trait]
-pub impl MemberImpl of MemberTrait {
-    /// No activation, no condition (`empty_member_timers`, stored `LIVE + 255`).
-    #[inline(always)]
-    fn empty_timers() -> MemberTimers {
-        empty_member_timers()
-    }
-
-    /// No effect running (stored `LIVE`).
-    #[inline(always)]
-    fn empty_effects() -> MemberEffects {
-        MemberEffects { effects: [Default::default(); 4] }
-    }
-
-    /// No recharge running (stored `LIVE`).
-    #[inline(always)]
-    fn empty_recharges() -> Recharges {
-        Recharges { deadlines: [0; 8] }
-    }
-}

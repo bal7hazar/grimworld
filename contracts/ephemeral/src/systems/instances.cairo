@@ -182,7 +182,9 @@ pub mod Instances {
         QuotasTrait, RETURNED, ROSTER_LANES, errors, mask_roster_page,
     };
     use crate::models::member::{
-        DOWN, GONE, Member, MemberState, MemberStateTrait, MemberTrait, errors as member_errors,
+        DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member,
+        MemberState, MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD,
+        errors as member_errors,
     };
     use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
 
@@ -362,7 +364,14 @@ pub mod Instances {
             }
 
             self.emit(InstanceClosed { instance_id, outcome: Outcome::Moved });
-            let stats = self.members.entry((slot, placement.member)).stats.read();
+            let (max_health, max_energy) = MemberStateTrait::maxima(
+                self
+                    .members
+                    .entry((slot, placement.member))
+                    .as_ptr()
+                    .__storage_pointer_address__
+                    .word(STATS_WORD),
+            );
             let next = self
                 .begin(
                     slot,
@@ -372,7 +381,8 @@ pub mod Instances {
                     @record,
                     @location,
                     header.tasks,
-                    @stats,
+                    max_health,
+                    max_energy,
                     state.belt,
                 );
             self.report(instance_id, adventurer_id, Outcome::Moved, 0, 0, 0, next, [0; 4]);
@@ -536,7 +546,8 @@ pub mod Instances {
                     @record,
                     @location,
                     tasks.len().try_into().unwrap(),
-                    @snapshot.stats,
+                    snapshot.stats.max_health,
+                    snapshot.stats.max_energy,
                     snapshot.belt_counts,
                 )
         }
@@ -583,12 +594,17 @@ pub mod Instances {
         }
     }
 
-    /// One stored word of a record, read as stored (the views return words in their layouts).
-    /// Until the store of D-143 (ARC-06, ENG-R1) takes over every access to storage.
+    /// One stored word of a record, read or written as stored (the views return words in their
+    /// layouts; a constant word is written without its packer). Until the store of D-143 (ARC-06,
+    /// ENG-R1) takes over every access to storage.
     #[generate_trait]
     impl WordImpl of WordTrait {
         fn word(self: starknet::storage_access::StorageBaseAddress, offset: u8) -> felt252 {
             Store::<felt252>::read_at_offset(0, self, offset).unwrap_syscall()
+        }
+
+        fn set_word(self: starknet::storage_access::StorageBaseAddress, offset: u8, value: felt252) {
+            Store::<felt252>::write_at_offset(0, self, offset, value).unwrap_syscall()
         }
     }
 
@@ -643,7 +659,8 @@ pub mod Instances {
             record: @Gate,
             location: @Location,
             tasks: u8,
-            stats: @MemberStats,
+            max_health: u16,
+            max_energy: u8,
             belt: [u8; 4],
         ) -> InstanceId {
             let generation = previous + 1;
@@ -670,10 +687,15 @@ pub mod Instances {
             self.quotas.entry(slot).write(QuotasTrait::new(*location.target));
             let (x, y) = record.entry();
             let member = self.members.entry((slot, 0));
-            member.state.write(MemberStateTrait::entering(adventurer_id, x, y, stats, belt));
-            member.timers.write(MemberTrait::empty_timers());
-            member.effects.write(MemberTrait::empty_effects());
-            member.recharges.write(MemberTrait::empty_recharges());
+            member
+                .state
+                .write(
+                    MemberStateTrait::entering(adventurer_id, x, y, max_health, max_energy, belt),
+                );
+            let base = member.as_ptr().__storage_pointer_address__;
+            base.set_word(TIMERS_WORD, EMPTY_TIMERS);
+            base.set_word(EFFECTS_WORD, EMPTY_EFFECTS);
+            base.set_word(RECHARGES_WORD, EMPTY_RECHARGES);
             self.placements.entry(adventurer_id).write(PlacementTrait::new(slot, generation));
             self.emit(InstanceEntered { instance_id: id, adventurer_id, location: destination, gate });
             id
