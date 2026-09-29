@@ -52,3 +52,4 @@ Published on 2026-09-29 by the orchestrator's session. Read by the project manag
 | Registry | https://scarbs.xyz/packages/quiver_quest ; the index lists `0.1.0` with `cksum sha256:494228f198376611f338d75a4c8511cd02eec1bc8ee666c4bd6c7973eeb4379c`, **the checksum of the go**; dependencies `starknet ^2.19.0` (normal) and `snforge_std ^0.61.0` (test) |
 | Tag | `quiver_quest-v0.1.0` points at `364462f9c7dcc60f52dd45ab1e9d735c3aa7cbe2`, the commit of the go |
 | Release | https://github.com/bal7hazar/quiver/releases/tag/quiver_quest-v0.1.0 , not a draft, the archive attached |
+| Consumed | A fresh project depending on `quiver_quest = "0.1.0"` and importing `QuestComponent` builds with Scarb 2.19.4; its lock file records the source `registry+https://scarbs.xyz/` and the same checksum |
