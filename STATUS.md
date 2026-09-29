@@ -49,7 +49,7 @@ L-1 and L-2 of the previous status were done by #58 and #60.
 
 | # | What | Source |
 |---|---|---|
-| L-3 | CI of documents: refuse a pull request that deletes a file under `docs/decisions/` or removes a row of CONTEXT §6, unless its title says so. After the queue on the path to ENG-01 | Project manager, 2026-09-29, after PR 60's revert |
+| L-3 | Moved to PLAN FND-07 (at the gate of Phase 0) | |
 
 ## Blocked
 

@@ -96,6 +96,10 @@ jobs:
           grep -q 'runs without the Sepolia account' <<< "$(scripts/agent.sh --dry-run SPK-1 claude opus resume "x" implement 2>&1)"
           out=$(scripts/agent.sh --dry-run smoke claude opus new "x" implement)
           grep -qF -- 'scarb\ publish' <<< "$out"
+          # D-132: no agent publishes, whatever the flags before the subcommand (the deny patterns reach
+          # the implement profile; cargo is allowed for named subcommands only, never publish).
+          for rule in 'scarb\ publish\*' 'scarb\ \*\ publish\*'; do grep -qF -- "$rule" <<< "$out"; done
+          if grep -qF -- 'Bash\(cargo\ \*\)' <<< "$out"; then echo "cargo allowed with any subcommand" >&2; exit 1; fi
           grep -qF -- '.claude/\*\*' <<< "$out"
           # The budget as slots (OPERATIONS §3): ~/orchestrator/slots, in a fake HOME. A slot is held by a
           # kernel lock for as long as its holder lives; nothing is counted by reading processes.
@@ -141,7 +145,7 @@ jobs:
           refuses 'the grimworld track is at its cap'
           # A slot already held cannot be taken: the inner shell refuses and runs nothing (75).
           set +e; HOME=$fake scripts/agent.sh run-in-slots total-3 game-1 "$fake/c.log" touch "$fake/ran"; s=$?; set -e
-          [ "$s" = 75 ]; [ ! -e "$fake/ran" ]; grep -q '^slot-refused' "$fake/c.log"
+          [ "$s" = 75 ]; [ ! -e "$fake/ran" ]; grep -q '^slot-refused' "$fake/c.log.run"
           # A fourth launch is refused: three total slots held (the third by another track).
           run total-3 lib-1 c
           refuses 'the budget of 3 agents is in use'
@@ -162,21 +166,25 @@ jobs:
           HOME=$fake scripts/agent.sh thresholds   # the marker never stops the game
           touch -d '40 minutes ago' "$fake/orchestrator/waiting/game"
           HOME=$fake scripts/.agent-hexmap-ci.sh thresholds   # a stale marker is ignored
+          chmod 000 "$fake/orchestrator/waiting"   # a marker that cannot be read counts as present
+          set +e; out=$(HOME=$fake scripts/.agent-hexmap-ci.sh thresholds 2>&1); s=$?; set -e
+          chmod 755 "$fake/orchestrator/waiting"; echo "$out"; [ "$s" = 4 ]; grep -qF 'cannot be read' <<< "$out"
           rm -f scripts/.agent-hexmap-ci.sh
           # End to end on the detached path, with a stub codex that sleeps: the launch confirms that the agent
           # holds its two slots before it returns, status lists them, and they are free once it ends.
           for k in b; do kill -9 -- -"${pid[$k]}" 2> /dev/null || true; done; wait_slot total-2 free; wait_slot game-2 free
-          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a script node runs for 15 s)
+          # (the launcher starts codex as /usr/bin/node <codex>: the stub is a node script that waits for $fake/release)
           # GitHub's runner has node elsewhere: link it where the launcher expects it (the runner allows sudo).
           if [ ! -x /usr/bin/node ] && command -v node > /dev/null; then sudo ln -s "$(command -v node)" /usr/bin/node; fi
           if [ -x /usr/bin/node ]; then
             rm -f .claude/worktrees/logs/slottest.*   # this fixture's own record, from an earlier run
             mkdir -p "$fake/bin" .claude/worktrees/cli-slottest
-            printf 'setTimeout(() => {}, 15000);\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"   # alive past the held check
+            # the stub lives until the fixture releases it, so the held check cannot race its exit
+            printf 'import("node:fs").then((fs) => { const f = process.env.HOME + "/release"; const t = setInterval(() => { if (fs.existsSync(f)) clearInterval(t); }, 200); });\n' > "$fake/bin/codex"; chmod +x "$fake/bin/codex"
             out=$(HOME=$fake PATH="$fake/bin:$PATH" scripts/agent.sh slottest codex gpt-6-sol new "x" audit 2>&1)
             echo "$out"; grep -qF 'slottest: holds slots total-1 and game-1' <<< "$out"
             st=$(HOME=$fake scripts/agent.sh status); grep -q '^slot total-1 held slottest' <<< "$st"
-            wait_slot total-1 free 60; wait_slot game-1 free 60   # the stub's 15 s, node's start, the inner shell's end
+            touch "$fake/release"; wait_slot total-1 free 60; wait_slot game-1 free 60   # released: it ends, the slots free
           else
             echo "end-to-end slot fixture skipped: no /usr/bin/node on this runner"
           fi
