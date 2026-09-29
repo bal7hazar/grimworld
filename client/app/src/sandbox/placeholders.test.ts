@@ -7,13 +7,16 @@ import {
   distance,
   facingToward,
   neighbour,
+  revealInSight,
   stepToward,
   tilesInSight,
+  visibleActors,
 } from "./placeholders";
-import type { Terrain } from "./world";
+import { CHUNK, type Terrain } from "./world";
 
 function open(width: number, height: number): Terrain {
-  return { width, height, kinds: new Array(width * height).fill("floor") };
+  const kinds = new Array(width * height).fill("floor");
+  return { width, height, kinds, hidden: kinds };
 }
 
 const goblin = (x: number, y: number, facing: Facing, id = 2): ViewActor => ({
@@ -84,6 +87,38 @@ describe("placeholders", () => {
     // No closer free tile: no step.
     expect(stepToward(terrain, [adventurer, goblin(9, 10, 0)], 1, { x: 5, y: 10 })).toBeNull();
     expect(stepToward(terrain, [adventurer], 1, { x: 10, y: 10 })).toBeNull();
+  });
+
+  it("a tie between two steps goes to the lowest tile index, not the lowest direction", () => {
+    const terrain = open(30, 30);
+    const adventurer = { ...goblin(10, 10, 0, 1), side: "adventurer", profession: "vanguard" };
+    // (12, 12) is 3 away; North-West (10, 11) and West (11, 10) are both 2 away. West has the
+    // lower tile index (row 10 before row 11), though North-West has the lower direction (2 < 3).
+    expect(stepToward(terrain, [adventurer as ViewActor], 1, { x: 12, y: 12 })).toEqual({
+      tile: { x: 11, y: 10 },
+      facing: 3,
+    });
+  });
+
+  it("visibleActors: the adventurer, and the goblins within sight only (design/18)", () => {
+    const adventurer = { ...goblin(10, 10, 0, 1), side: "adventurer", profession: "vanguard" };
+    const near = goblin(16, 10, 0, 2);
+    const far = goblin(17, 10, 0, 3);
+    const seen = visibleActors(open(30, 30), [adventurer as ViewActor, near, far]);
+    expect(seen.map((a) => a.id)).toEqual([1, 2]);
+  });
+
+  it("revealInSight: a chunk that sight touches takes its hidden terrain; others stay", () => {
+    const base = open(45, 15);
+    const kinds = base.kinds.map((kind, i) => (i % 45 >= 2 * CHUNK ? "unrevealed" : kind));
+    const hidden = base.kinds.map((kind, i) => (i % 45 === 31 ? "wall" : kind));
+    const terrain: Terrain = { ...base, kinds, hidden };
+    // Six tiles from x = 30: sight touches the third chunk.
+    const revealed = revealInSight(terrain, { x: 24, y: 7 });
+    expect(revealed.kinds.filter((k) => k === "unrevealed")).toHaveLength(0);
+    expect(revealed.kinds[7 * 45 + 31]).toBe("wall");
+    // Seven tiles away: nothing changes.
+    expect(revealInSight(terrain, { x: 23, y: 7 })).toBe(terrain);
   });
 
   it("facingToward gives the direction of an adjacent tile only", () => {

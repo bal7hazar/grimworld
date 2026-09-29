@@ -1,7 +1,7 @@
 import { Graphics } from "pixi.js";
 import { HEX_RADIUS, type Point, tileToPixel } from "../input/coords";
 import { WEDGE } from "./facing";
-import type { Caste, Mark, Profession, Tile, ViewArcs, ViewState, ViewTile } from "./view";
+import type { Caste, Mark, Profession, Tile, ViewState, ViewTile } from "./view";
 
 /**
  * Plain shapes: the terrain (the pack has no hex terrain, design/10), and the actors when the atlas
@@ -54,7 +54,7 @@ function drawRock(g: Graphics, tile: Tile): void {
 }
 
 /**
- * The static layers, to be baked into one texture: a continuous ground (each hex grown by half a
+ * The static layers of one chunk, to be baked into one texture: a continuous ground (each hex grown by half a
  * pixel so that no seam shows), rocks on walls, the hex grid, and the unrevealed.
  */
 export function drawTerrain(tiles: readonly ViewTile[]): Graphics {
@@ -76,37 +76,59 @@ export function drawTerrain(tiles: readonly ViewTile[]): Graphics {
   return g;
 }
 
+/** What the overlay draws, as tiles: kept apart from the drawing so that tests can read it. */
+export interface OverlayPlan {
+  /** Revealed tiles beyond sight: seen before, dimmed. */
+  readonly dimmed: readonly Tile[];
+  /** The selected actor's rear-side tiles: a tint and a ring. */
+  readonly rings: readonly Tile[];
+  /** The selected actor's back tile: a tint and a cross. */
+  readonly crosses: readonly Tile[];
+  readonly path: readonly Tile[];
+  readonly selected: Tile | null;
+}
+
+export function overlayPlan(view: ViewState): OverlayPlan {
+  const inSight = new Set(view.sight.map((t) => `${t.x},${t.y}`));
+  return {
+    dimmed: view.tiles.filter((t) => t.kind !== "unrevealed" && !inSight.has(`${t.x},${t.y}`)),
+    rings: view.arcs?.rearSide ?? [],
+    crosses: view.arcs?.back ?? [],
+    path: view.path,
+    selected: view.selectedTile,
+  };
+}
+
 /**
  * What changes with the view but does not move: beyond sight dimmed, the planned path, the
  * selected tile, the selected actor's rear-side (a tint and a ring) and back (a tint and a cross).
  */
 export function drawOverlay(g: Graphics, view: ViewState): void {
+  const plan = overlayPlan(view);
   g.clear();
-  for (const tile of view.tiles) {
-    if (tile.seen === "before" && tile.kind !== "unrevealed") {
-      g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: 0.45 });
-    }
+  for (const tile of plan.dimmed) {
+    g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: 0.45 });
   }
-  if (view.arcs) drawArcs(g, view.arcs);
-  for (const tile of view.path) {
+  drawArcs(g, plan);
+  for (const tile of plan.path) {
     const c = tileToPixel(tile);
     g.circle(c.x, c.y, 5).fill({ color: COLOURS.path, alpha: 0.75 });
   }
-  if (view.selectedTile) {
-    g.poly(hexCorners(tileToPixel(view.selectedTile), -2)).stroke({
+  if (plan.selected) {
+    g.poly(hexCorners(tileToPixel(plan.selected), -2)).stroke({
       width: 3,
       color: COLOURS.selected,
     });
   }
 }
 
-function drawArcs(g: Graphics, arcs: ViewArcs): void {
-  for (const tile of arcs.rearSide) {
+function drawArcs(g: Graphics, plan: OverlayPlan): void {
+  for (const tile of plan.rings) {
     const c = tileToPixel(tile);
     g.poly(hexCorners(c, -1)).fill({ color: COLOURS.rearSide, alpha: 0.35 });
     g.circle(c.x, c.y, 11).stroke({ width: 4, color: COLOURS.rearSide });
   }
-  for (const tile of arcs.back) {
+  for (const tile of plan.crosses) {
     const c = tileToPixel(tile);
     g.poly(hexCorners(c, -1)).fill({ color: COLOURS.back, alpha: 0.4 });
     g.moveTo(c.x - 11, c.y - 11)

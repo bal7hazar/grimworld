@@ -2,11 +2,26 @@ import { Application, TextureStyle, Ticker } from "pixi.js";
 import type { Surface } from "./renderer";
 
 /**
- * Device pixels per CSS pixel: an integer, capped at 2 (ADR-0003: "an integer multiple of the art
- * resolution, capped at 2× device pixels").
+ * Device pixels per CSS pixel: an integer, rounded down, capped at 2 (ADR-0003: "an integer
+ * multiple of the art resolution, capped at 2× device pixels"). A ratio of 1.5 renders at 1, 2.625
+ * at 2: never more pixels than the screen has.
  */
 export function surfaceResolution(devicePixelRatio: number): number {
-  return Math.min(2, Math.max(1, Math.round(devicePixelRatio || 1)));
+  const ratio = Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1;
+  return Math.min(2, Math.max(1, Math.floor(ratio)));
+}
+
+/** The largest texture side: WebGL's `MAX_TEXTURE_SIZE`, or WebGPU's `maxTextureDimension2D`. */
+export function gpuMaxTextureSize(renderer: unknown): number {
+  const r = renderer as {
+    gl?: WebGLRenderingContext;
+    gpu?: { device?: { limits?: { maxTextureDimension2D?: number } } };
+  };
+  const size = r.gl
+    ? Number(r.gl.getParameter(r.gl.MAX_TEXTURE_SIZE))
+    : r.gpu?.device?.limits?.maxTextureDimension2D;
+  // WebGL guarantees 2048 at least (WebGL 2), WebGPU 8192.
+  return typeof size === "number" && Number.isFinite(size) && size >= 2048 ? size : 2048;
 }
 
 /**
@@ -57,7 +72,7 @@ export async function createPixiSurface(
   const surface: Surface = {
     stage: app.stage,
     resolution,
-    maxTextureSize: 4096,
+    maxTextureSize: gpuMaxTextureSize(app.renderer),
     render: () => app.render(),
     bake: (target, frame, bakeResolution) =>
       app.renderer.generateTexture({ target, frame, resolution: bakeResolution, antialias: false }),

@@ -93,7 +93,13 @@ export class GestureTracker {
 
   up(id: number): void {
     if (!this.pointers.delete(id)) return;
-    if (this.pointers.size > 0) return;
+    if (this.pointers.size > 0) {
+      // A finger of a pinch lifted: the other drags on from where it is, not from the first down.
+      const [rest] = [...this.pointers.values()];
+      if (rest) this.start = rest;
+      this.dragging = true;
+      return;
+    }
     this.cancelPress();
     if (!this.dragging && !this.pressed && !this.multi)
       this.emit({ kind: "tap", point: this.start });

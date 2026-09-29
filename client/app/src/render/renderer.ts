@@ -26,13 +26,14 @@ import {
   drawWedge,
 } from "./shapes";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
-import type { ViewActor, ViewState } from "./view";
+import type { ViewActor, ViewState, ViewTile } from "./view";
 
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
 export interface Surface {
   readonly stage: Container;
   /** Device pixels per CSS pixel the surface renders at. */
   readonly resolution: number;
+  /** The GPU's largest texture side, read from the renderer. */
   readonly maxTextureSize: number;
   render(): void;
   /** Renders `frame` of `target` into a texture of `resolution` pixels per world pixel. */
@@ -61,6 +62,49 @@ export const DEFAULT_ZOOM: ZoomSettings = {
   minAcross: 25,
   maxAcross: 4,
 };
+
+/**
+ * The "integer scale" option: the nearest scale at which one art pixel covers a whole number of
+ * device pixels (1, 2, 3, …), or a whole fraction of one below 1 (1/2, 1/3, …), nearest in ratio.
+ * ADR-0003 asks for "an integer multiple of the art resolution"; ADR-0006 §5 asks for 13 tiles
+ * across a phone, about 0.45 of the art. The two are escalated; this lets the owner compare.
+ */
+export function snapScale(scale: number, resolution: number): number {
+  const device = scale * resolution;
+  if (device >= 1) {
+    const low = Math.max(1, Math.floor(device));
+    const n = device / low <= (low + 1) / device ? low : low + 1;
+    return n / resolution;
+  }
+  const inverse = 1 / device;
+  const low = Math.max(1, Math.floor(inverse));
+  const n = inverse / low <= (low + 1) / inverse ? low : low + 1;
+  return 1 / (n * resolution);
+}
+
+/** The terrain is baked chunk by chunk (ADR-0006: chunks of 15 × 15). */
+export const BAKE_CHUNK = 15;
+
+interface ChunkBake {
+  key: string;
+  graphics: Graphics;
+  frame: Rectangle;
+  readonly sprite: Sprite;
+  resolution: number;
+  dirty: boolean;
+}
+
+/** What the zoom gives on screen, for the panel. */
+export interface ZoomInfo {
+  /** CSS pixels per art pixel. */
+  readonly scale: number;
+  /** Device pixels per art pixel. */
+  readonly deviceScale: number;
+  /** Tile width, CSS px. */
+  readonly tileWidth: number;
+  /** Tiles across the viewport's width. */
+  readonly across: number;
+}
 
 /** Durations of what animates on an input, in ms. */
 export const STEP_MS = 180;
@@ -115,6 +159,8 @@ export interface RendererOptions {
   readonly library?: SpriteLibrary | null;
   readonly zoom?: ZoomSettings;
   readonly idle?: boolean;
+  /** The "integer scale" option (off by default). */
+  readonly snap?: boolean;
   readonly onDraw?: (stats: FrameStats) => void;
 }
 
@@ -126,18 +172,17 @@ export interface RendererOptions {
 export class Renderer implements FrameClient {
   readonly scheduler: FrameScheduler;
   private readonly world = new Container();
-  private readonly ground = new Sprite(Texture.EMPTY);
+  private readonly ground = new Container();
   private readonly overlay = new Graphics();
   private readonly actorsLayer = new Container({ sortableChildren: true });
   private readonly nodes = new Map<number, ActorNode>();
-  private terrain: Graphics | null = null;
-  private terrainFrame = new Rectangle();
-  private terrainKey = "";
-  private terrainDirty = false;
-  private bakedResolution = 0;
+  private readonly chunks = new Map<string, ChunkBake>();
   private view: ViewState | null = null;
   private viewport: Viewport = { width: 1, height: 1 };
   private camera: Camera = { centre: { x: 0, y: 0 }, scale: 1 };
+  /** The scale asked for (fit, pinch, wheel); `camera.scale` is it, snapped when `snap` is on. */
+  private wanted = 1;
+  private snap: boolean;
   private cameraTween: Tween | null = null;
   private zoomed = false;
   private zoom: ZoomSettings;
@@ -154,6 +199,7 @@ export class Renderer implements FrameClient {
     this.library = options.library ?? null;
     this.zoom = options.zoom ?? DEFAULT_ZOOM;
     this.idleOn = options.idle ?? true;
+    this.snap = options.snap ?? false;
     this.scheduler = new FrameScheduler(host, this, options.onDraw);
     this.world.addChild(this.ground, this.overlay, this.actorsLayer);
     surface.stage.addChild(this.world);
@@ -165,20 +211,7 @@ export class Renderer implements FrameClient {
     const previous = this.view;
     this.view = view;
     const now = this.host.now();
-    const key = `${view.tiles.length}:${view.tiles.map((t) => `${t.x},${t.y}${t.kind[0]}`).join("")}`;
-    if (key !== this.terrainKey) {
-      this.terrainKey = key;
-      this.terrain?.destroy();
-      this.terrain = drawTerrain(view.tiles);
-      const b = this.terrain.getLocalBounds();
-      this.terrainFrame = new Rectangle(
-        Math.floor(b.minX),
-        Math.floor(b.minY),
-        Math.ceil(b.maxX) - Math.floor(b.minX),
-        Math.ceil(b.maxY) - Math.floor(b.minY),
-      );
-      this.terrainDirty = true;
-    }
+    this.syncChunks(view.tiles);
     drawOverlay(this.overlay, view);
     this.syncActors(view, now);
     const adventurer = view.actors.find((a) => a.id === view.adventurerId);
@@ -196,8 +229,14 @@ export class Renderer implements FrameClient {
 
   resize(viewport: Viewport): void {
     this.viewport = viewport;
-    const scale = this.zoomed ? this.clampScale(this.camera.scale) : this.defaultScale();
-    this.camera = { ...this.camera, scale };
+    this.setScale(this.zoomed ? this.clampScale(this.wanted) : this.defaultScale());
+    this.scheduler.invalidate();
+  }
+
+  /** The "integer scale" option: snaps the zoom to whole device pixels per art pixel. */
+  setSnap(on: boolean): void {
+    this.snap = on;
+    this.setScale(this.wanted);
     this.scheduler.invalidate();
   }
 
@@ -213,8 +252,9 @@ export class Renderer implements FrameClient {
   zoomAt(factor: number, point: Point): void {
     this.cameraTween = null;
     const anchor = screenToWorld(this.camera, this.viewport, point);
-    const scale = this.clampScale(this.camera.scale * factor);
     this.zoomed = true;
+    this.setScale(this.clampScale(this.wanted * factor));
+    const scale = this.camera.scale;
     this.camera = {
       scale,
       centre: {
@@ -228,14 +268,14 @@ export class Renderer implements FrameClient {
   /** Sets the zoom to `across` tiles (a preset of the panel). */
   zoomTo(across: number): void {
     this.zoomed = across !== this.zoom.defaultAcross;
-    this.camera = { ...this.camera, scale: fitScale(this.viewport, across) };
+    this.setScale(fitScale(this.viewport, across));
     this.scheduler.invalidate();
   }
 
   setZoomSettings(zoom: ZoomSettings): void {
     this.zoom = zoom;
     this.zoomed = false;
-    this.camera = { ...this.camera, scale: this.defaultScale() };
+    this.setScale(this.defaultScale());
     this.scheduler.invalidate();
   }
 
@@ -277,14 +317,21 @@ export class Renderer implements FrameClient {
     return { camera: this.camera, viewport: this.viewport };
   }
 
-  /** Tile width on screen at the current zoom, in CSS pixels. */
-  tileWidth(): number {
-    return TILE_WIDTH * this.camera.scale;
+  /** What the current zoom gives on screen. */
+  zoomInfo(): ZoomInfo {
+    const { scale } = this.camera;
+    return {
+      scale,
+      deviceScale: scale * this.surface.resolution,
+      tileWidth: TILE_WIDTH * scale,
+      across: this.viewport.width / (TILE_WIDTH * scale),
+    };
   }
 
   destroy(): void {
     this.scheduler.destroy();
-    this.terrain?.destroy();
+    for (const chunk of this.chunks.values()) this.dropChunk(chunk);
+    this.chunks.clear();
     this.world.destroy({ children: true });
   }
 
@@ -297,6 +344,7 @@ export class Renderer implements FrameClient {
       if (node.move) {
         const [x = 0, y = 0] = at(node.move, progress(node.move, now));
         node.container.position.set(x, y);
+        node.container.zIndex = y;
         if (now >= node.move.start + node.move.duration) node.move = null;
         else moving = true;
         changed = true;
@@ -346,6 +394,12 @@ export class Renderer implements FrameClient {
     return fitScale(this.viewport, this.zoom.defaultAcross);
   }
 
+  private setScale(wanted: number): void {
+    this.wanted = wanted;
+    const scale = this.snap ? snapScale(wanted, this.surface.resolution) : wanted;
+    this.camera = { ...this.camera, scale };
+  }
+
   private clampScale(scale: number): number {
     const low = fitScale(this.viewport, this.zoom.minAcross);
     const high = fitScale(this.viewport, this.zoom.maxAcross);
@@ -363,26 +417,71 @@ export class Renderer implements FrameClient {
   }
 
   /**
-   * The terrain texture's resolution: the screen's pixels per world pixel, in steps of √2 so that
-   * a pinch rebakes a few times, not at every frame; capped by the texture size.
+   * A chunk texture's resolution: the screen's pixels per world pixel, in steps of √2 so that a
+   * pinch rebakes a few times, not at every frame; capped by the GPU's texture size.
    */
-  private bakeResolution(): number {
+  private bakeResolution(frame: Rectangle): number {
     const wanted = this.camera.scale * this.surface.resolution;
     const stepped = 2 ** (Math.round(2 * Math.log2(wanted)) / 2);
-    const side = Math.max(this.terrainFrame.width, this.terrainFrame.height, 1);
+    const side = Math.max(frame.width, frame.height, 1);
     return Math.min(stepped, this.surface.maxTextureSize / side);
   }
 
+  /** Groups the tiles by chunk; a chunk whose tiles' kinds changed is drawn again, and rebaked. */
+  private syncChunks(tiles: readonly ViewTile[]): void {
+    const groups = new Map<string, ViewTile[]>();
+    for (const tile of tiles) {
+      const id = `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
+      let group = groups.get(id);
+      if (!group) groups.set(id, (group = []));
+      group.push(tile);
+    }
+    for (const [id, group] of groups) {
+      const key = group.map((t) => `${t.x},${t.y}${t.kind[0]}`).join("");
+      const chunk = this.chunks.get(id);
+      if (chunk?.key === key) continue;
+      const graphics = drawTerrain(group);
+      const b = graphics.getLocalBounds();
+      const frame = new Rectangle(
+        Math.floor(b.minX),
+        Math.floor(b.minY),
+        Math.ceil(b.maxX) - Math.floor(b.minX),
+        Math.ceil(b.maxY) - Math.floor(b.minY),
+      );
+      if (chunk) {
+        chunk.graphics.destroy();
+        Object.assign(chunk, { key, graphics, frame, dirty: true });
+      } else {
+        const sprite = new Sprite(Texture.EMPTY);
+        this.ground.addChild(sprite);
+        this.chunks.set(id, { key, graphics, frame, sprite, resolution: 0, dirty: true });
+      }
+    }
+    for (const [id, chunk] of this.chunks) {
+      if (!groups.has(id)) {
+        this.dropChunk(chunk);
+        this.chunks.delete(id);
+      }
+    }
+  }
+
+  private dropChunk(chunk: ChunkBake): void {
+    chunk.graphics.destroy();
+    if (chunk.sprite.texture !== Texture.EMPTY) chunk.sprite.texture.destroy(true);
+    chunk.sprite.destroy();
+  }
+
   private bakeTerrain(): void {
-    if (!this.terrain) return;
-    const resolution = this.bakeResolution();
-    if (!this.terrainDirty && resolution === this.bakedResolution) return;
-    const old = this.ground.texture;
-    this.ground.texture = this.surface.bake(this.terrain, this.terrainFrame, resolution);
-    this.ground.position.set(this.terrainFrame.x, this.terrainFrame.y);
-    if (old !== Texture.EMPTY) old.destroy(true);
-    this.terrainDirty = false;
-    this.bakedResolution = resolution;
+    for (const chunk of this.chunks.values()) {
+      const resolution = this.bakeResolution(chunk.frame);
+      if (!chunk.dirty && resolution === chunk.resolution) continue;
+      const old = chunk.sprite.texture;
+      chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+      chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
+      if (old !== Texture.EMPTY) old.destroy(true);
+      chunk.dirty = false;
+      chunk.resolution = resolution;
+    }
   }
 
   private syncActors(view: ViewState, now: number): void {

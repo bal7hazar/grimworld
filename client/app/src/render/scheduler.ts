@@ -70,18 +70,8 @@ export class FrameScheduler {
     this.onDraw(this.stats());
   }
 
-  /** Re-reads the client's animation state (an animation was turned on or off). */
-  poke(): void {
-    this.wakeAt(this.host.now());
-  }
-
   stats(): FrameStats {
     return { renders: this.renders, sinceInput: this.sinceInput };
-  }
-
-  /** True when neither a frame nor a timer is pending. */
-  idle(): boolean {
-    return this.frame === null && this.timer === null;
   }
 
   destroy(): void {

@@ -51,7 +51,8 @@ const TIE = 1e-6;
 /**
  * The tile whose hex holds a world point: the tile with the nearest centre. **A point on the
  * boundary of two or three hexes goes to the lowest tile index** (`y`, then `x`), the tie-break of
- * design/04 (line of sight) and of CONTEXT §8 ("lowest tile index").
+ * design/04 *Ranges* ("when the line passes exactly between two tiles, the lower tile index is
+ * taken").
  */
 export function pixelToTile(point: Point): Tile {
   const row = Math.round(-point.y / ROW_HEIGHT);
@@ -103,9 +104,4 @@ export function fitScale(viewport: Viewport, across: number): number {
   const width = across * TILE_WIDTH;
   const height = (across - 1) * ROW_HEIGHT + 2 * HEX_RADIUS;
   return Math.min(viewport.width / width, viewport.height / height);
-}
-
-/** Tile width on screen, in CSS pixels, at a scale. */
-export function tileWidthOnScreen(scale: number): number {
-  return TILE_WIDTH * scale;
 }

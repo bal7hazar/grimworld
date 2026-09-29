@@ -1,10 +1,20 @@
 import { Ticker } from "pixi.js";
 import { describe, expect, it } from "vitest";
-import { stopPixiTickers, surfaceResolution } from "./pixiSurface";
+import { gpuMaxTextureSize, stopPixiTickers, surfaceResolution } from "./pixiSurface";
 
 describe("the PixiJS surface", () => {
-  it("renders at an integer resolution, capped at 2", () => {
-    expect([0, 1, 1.25, 1.5, 2, 2.625, 3].map(surfaceResolution)).toEqual([1, 1, 1, 2, 2, 2, 2]);
+  it("renders at an integer resolution, rounded down, capped at 2", () => {
+    expect([0, 1, 1.25, 1.5, 1.99, 2, 2.625, 3, NaN].map(surfaceResolution)).toEqual([
+      1, 1, 1, 1, 1, 2, 2, 2, 1,
+    ]);
+  });
+
+  it("reads the GPU's texture limit from the renderer", () => {
+    const gl = { MAX_TEXTURE_SIZE: 0x0d33, getParameter: () => 16384 };
+    expect(gpuMaxTextureSize({ gl })).toBe(16384);
+    const gpu = { device: { limits: { maxTextureDimension2D: 8192 } } };
+    expect(gpuMaxTextureSize({ gpu })).toBe(8192);
+    expect(gpuMaxTextureSize({})).toBe(2048);
   });
 
   it("keeps PixiJS's own tickers from starting when a system joins them", () => {

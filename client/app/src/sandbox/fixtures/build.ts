@@ -71,6 +71,8 @@ export function fromAscii(fixture: AsciiFixture): SandboxWorld {
       }
     });
   });
+  // The map's terrain of an unrevealed chunk is what the chunk becomes when it is revealed.
+  const hidden = [...kinds];
   for (const [cx, cy] of fixture.unrevealed ?? []) {
     for (let y = cy * CHUNK; y < (cy + 1) * CHUNK; y++) {
       for (let x = cx * CHUNK; x < (cx + 1) * CHUNK; x++) kinds[y * width + x] = "unrevealed";
@@ -81,7 +83,7 @@ export function fromAscii(fixture: AsciiFixture): SandboxWorld {
   return {
     name: fixture.name,
     description: fixture.description,
-    terrain: { width, height, kinds },
+    terrain: { width, height, kinds, hidden },
     actors,
     adventurerId: 1,
     path: fixture.path ?? [],

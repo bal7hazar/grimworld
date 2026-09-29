@@ -4,7 +4,7 @@ import { type Gesture, GestureTracker } from "../input/gestures";
 import type { Intent } from "../input/intent";
 import { loadAtlas } from "../render/atlas";
 import { createPixiSurface, pixiTickersRunning } from "../render/pixiSurface";
-import { Renderer, type ZoomSettings } from "../render/renderer";
+import { Renderer, type ZoomInfo, type ZoomSettings } from "../render/renderer";
 import type { FrameStats } from "../render/scheduler";
 import { browserHost } from "../render/scheduler";
 import type { SpriteLibrary } from "../render/sprites";
@@ -16,10 +16,12 @@ export interface SandboxInfo {
   readonly fixture: string;
   readonly description: string;
   readonly stats: FrameStats;
-  /** Tile width on screen at the current zoom, CSS px. */
-  readonly tileWidth: number;
+  /** What the current zoom gives: CSS and device pixels per art pixel, tile width, tiles across. */
+  readonly zoomInfo: ZoomInfo;
   readonly zoom: ZoomSettings;
   readonly idle: boolean;
+  /** The "integer scale" option. */
+  readonly snap: boolean;
   readonly atlas: "loading" | "loaded" | "none" | "failed";
   readonly sprites: readonly { readonly name: string; readonly scale: number }[];
   readonly said: string;
@@ -29,6 +31,7 @@ export interface SandboxInfo {
 export interface SandboxOptions {
   readonly fixture: string | null;
   readonly idle: boolean;
+  readonly snap: boolean;
   readonly zoom: ZoomSettings;
 }
 
@@ -41,6 +44,7 @@ export class SandboxController {
   private atlas: SandboxInfo["atlas"] = "loading";
   private library: SpriteLibrary | null = null;
   private idle: boolean;
+  private snap: boolean;
   private zoom: ZoomSettings;
   private readonly cleanups: (() => void)[] = [];
   private listener: ((info: SandboxInfo) => void) | null = null;
@@ -52,6 +56,7 @@ export class SandboxController {
   ) {
     this.state = initialState(fixtureNamed(options.fixture));
     this.idle = options.idle;
+    this.snap = options.snap;
     this.zoom = options.zoom;
   }
 
@@ -60,6 +65,7 @@ export class SandboxController {
     let controller: SandboxController | null = null;
     const renderer = new Renderer(surface, browserHost(), {
       idle: options.idle,
+      snap: options.snap,
       zoom: options.zoom,
       onDraw: () => controller?.notify(),
     });
@@ -182,6 +188,13 @@ export class SandboxController {
     this.notify();
   }
 
+  setSnap(on: boolean): void {
+    this.snap = on;
+    this.renderer.scheduler.input();
+    this.renderer.setSnap(on);
+    this.notify();
+  }
+
   setZoom(zoom: ZoomSettings): void {
     this.zoom = zoom;
     this.renderer.setZoomSettings(zoom);
@@ -219,9 +232,10 @@ export class SandboxController {
       fixture: this.state.world.name,
       description: this.state.world.description,
       stats: this.renderer.scheduler.stats(),
-      tileWidth: this.renderer.tileWidth(),
+      zoomInfo: this.renderer.zoomInfo(),
       zoom: this.zoom,
       idle: this.idle,
+      snap: this.snap,
       atlas: this.atlas,
       sprites: all.map((name) => ({ name, scale: this.renderer.spriteScale(name) })),
       said: this.state.said,

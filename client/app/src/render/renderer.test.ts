@@ -1,4 +1,4 @@
-import { Container, type Rectangle, Texture, TextureSource } from "pixi.js";
+import { Container, Graphics, type Rectangle, Texture, TextureSource } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
@@ -7,14 +7,15 @@ import { FakeHost } from "../test/fakeHost";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
-import { IDLE_MAX_FPS, Renderer, type Surface } from "./renderer";
+import { IDLE_MAX_FPS, Renderer, type Surface, snapScale } from "./renderer";
+import { drawOverlay, overlayPlan } from "./shapes";
 import { type SpriteLibrary, libraryFrom } from "./sprites";
 import type { Facing, ViewState } from "./view";
 
 class FakeSurface implements Surface {
   readonly stage = new Container();
-  readonly resolution = 2;
-  readonly maxTextureSize = 4096;
+  constructor(readonly resolution = 2) {}
+  readonly maxTextureSize: number = 4096;
   renders = 0;
   readonly bakes: number[] = [];
   render(): void {
@@ -52,7 +53,8 @@ describe("renderer on demand (AC-2)", () => {
     const { host, surface } = setup({ idle: false });
     host.run(2000);
     expect(surface.renders).toBe(1);
-    expect(surface.bakes).toHaveLength(1);
+    // The cave is 2 × 1 chunks: one texture each.
+    expect(surface.bakes).toHaveLength(2);
     expect(host.quiet()).toBe(true);
   });
 
@@ -72,7 +74,7 @@ describe("renderer on demand (AC-2)", () => {
     expect(surface.renders - 1).toBe(afterStep);
     expect(host.frames).toBe(frames);
     // The terrain is not baked again for a step: only the tiles' kinds are baked.
-    expect(surface.bakes).toHaveLength(1);
+    expect(surface.bakes).toHaveLength(2);
   });
 
   it("with idle animations off: zero frames between inputs", () => {
@@ -139,7 +141,7 @@ function oneGoblin(x: number, y: number, facing: Facing): ViewState {
   const tiles = [];
   for (let ty = y - 2; ty <= y + 2; ty++) {
     for (let tx = x - 2; tx <= x + 2; tx++) {
-      tiles.push({ x: tx, y: ty, kind: "floor" as const, seen: "now" as const });
+      tiles.push({ x: tx, y: ty, kind: "floor" as const });
     }
   }
   return {
@@ -203,4 +205,110 @@ describe("the six facings (AC-4), against the library's Direction numbering", ()
       }
     });
   }
+});
+
+describe("the terrain, baked chunk by chunk", () => {
+  it("rebakes only the chunk whose tile changed kind", () => {
+    const { host, surface, renderer } = setup({ idle: false, fixture: "cave" });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(2);
+    const view = toView(initialState(fixtureNamed("cave")));
+    const tiles = view.tiles.map((t) =>
+      t.x === 3 && t.y === 3
+        ? { ...t, kind: t.kind === "wall" ? ("floor" as const) : ("wall" as const) }
+        : t,
+    );
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(3);
+    // The same view again: nothing to bake.
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(3);
+  });
+
+  it("caps a chunk's texture by the GPU's limit", () => {
+    const surface = new (class extends FakeSurface {
+      override readonly maxTextureSize = 2048;
+    })();
+    const renderer = new Renderer(surface, new FakeHost(), { idle: false });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.zoomAt(100, { x: 0, y: 0 });
+    renderer.setView(toView(initialState(fixtureNamed("cave"))));
+    renderer.draw();
+    // A chunk is about 1000 art px wide: at most about 2 texture pixels per art pixel.
+    expect(Math.max(...surface.bakes)).toBeLessThanOrEqual(2048 / 990);
+  });
+});
+
+describe("the overlay", () => {
+  it("dims the tiles seen before, rings the rear-side, crosses the back", () => {
+    const base = oneGoblin(10, 10, 0);
+    const view: ViewState = {
+      ...base,
+      sight: base.tiles.filter((t) => t.y >= 10),
+      arcs: {
+        actorId: 2,
+        front: [{ x: 9, y: 10 }],
+        frontSide: [],
+        rearSide: [
+          { x: 10, y: 11 },
+          { x: 10, y: 9 },
+        ],
+        back: [{ x: 11, y: 10 }],
+      },
+      selectedTile: { x: 8, y: 12 },
+    };
+    const plan = overlayPlan(view);
+    expect(plan.dimmed).toEqual(base.tiles.filter((t) => t.y < 10));
+    expect(plan.rings).toEqual(view.arcs?.rearSide);
+    expect(plan.crosses).toEqual(view.arcs?.back);
+    const g = new Graphics();
+    drawOverlay(g, view);
+    const actions = g.context.instructions.map((i) => i.action);
+    // Fills: 10 dimmed, 2 rear-side tints, 1 back tint. Strokes: 2 rings, 1 cross, the selection.
+    expect(actions.filter((a) => a === "fill")).toHaveLength(13);
+    expect(actions.filter((a) => a === "stroke")).toHaveLength(4);
+    // No arcs, nothing selected, all in sight: an empty overlay.
+    drawOverlay(g, { ...base, sight: base.tiles });
+    expect(g.context.instructions).toHaveLength(0);
+  });
+});
+
+describe("the integer scale option (ADR-0003 against ADR-0006 §5)", () => {
+  it("snaps to whole device pixels per art pixel, or whole fractions below one", () => {
+    expect(snapScale(0.4507, 2)).toBe(0.5); // 0.90 device px → 1
+    expect(snapScale(0.4507, 1)).toBe(0.5); // 0.45 → 1/2
+    expect(snapScale(0.3, 1)).toBeCloseTo(1 / 3, 12); // 0.3 → 1/3
+    expect(snapScale(1.3, 2)).toBe(1.5); // 2.6 → 3
+    expect(snapScale(1.2, 1)).toBe(1);
+  });
+
+  for (const resolution of [1, 2]) {
+    it(`gives whole device pixels at every zoom on 375 × 812 (resolution ${resolution})`, () => {
+      const surface = new FakeSurface(resolution);
+      const renderer = new Renderer(surface, new FakeHost(), { idle: false, snap: true });
+      renderer.resize({ width: 375, height: 812 });
+      const whole = (d: number) => Number.isInteger(d) || Number.isInteger(1 / d);
+      // The default (13 across, 0.45 CSS px per art px) snaps to 1/2 on both: tiles of 32 px.
+      expect(renderer.zoomInfo()).toMatchObject({ deviceScale: resolution / 2, tileWidth: 32 });
+      for (const factor of [1.3, 1.7, 0.6]) {
+        renderer.zoomAt(factor, { x: 187, y: 406 });
+        expect(whole(renderer.zoomInfo().deviceScale)).toBe(true);
+      }
+      renderer.setSnap(false);
+      expect(renderer.zoomInfo().tileWidth).not.toBe(32);
+    });
+  }
+});
+
+describe("drawing order during a step", () => {
+  it("takes the actor's z from where it is drawn, not from where it goes", () => {
+    const { host, surface, tap } = setup({ idle: false, fixture: "meadow" });
+    host.run(100);
+    tap(0, 1);
+    host.run(60);
+    const actors = (surface.stage.children[0] as Container).children[2] as Container;
+    for (const node of actors.children) expect(node.zIndex).toBe(node.position.y);
+  });
 });

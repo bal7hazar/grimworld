@@ -32,7 +32,26 @@ describe("fixtures", () => {
   it("edge: unrevealed chunks, not in sight at the start", () => {
     const view = toView(initialState(fixtureNamed("edge")));
     expect(view.tiles.filter((t) => t.kind === "unrevealed")).toHaveLength(3 * CHUNK * CHUNK);
-    expect(view.tiles.some((t) => t.kind === "unrevealed" && t.seen === "now")).toBe(false);
+    const unrevealed = new Set(
+      view.tiles.filter((t) => t.kind === "unrevealed").map((t) => `${t.x},${t.y}`),
+    );
+    expect(view.sight.some((t) => unrevealed.has(`${t.x},${t.y}`))).toBe(false);
+  });
+
+  it("edge: one step West brings sight onto the unrevealed, and the move reveals it (ADR-0006)", () => {
+    let state = initialState(fixtureNamed("edge"));
+    const start = state.world.actors[0]!.tile;
+    state = applyIntent(state, { kind: "tile", tile: { x: start.x + 1, y: start.y } });
+    expect(state.world.actors[0]!.tile).toEqual({ x: start.x + 1, y: start.y });
+    const view = toView(state);
+    const kinds = new Map(view.tiles.map((t) => [`${t.x},${t.y}`, t.kind]));
+    expect(view.sight.every((t) => kinds.get(`${t.x},${t.y}`) !== "unrevealed")).toBe(true);
+    // The chunk (2, 0) sight touched is revealed; (2, 1) and (1, 1), out of sight, are not.
+    const inChunk = (cx: number, cy: number) =>
+      view.tiles.filter((t) => Math.floor(t.x / CHUNK) === cx && Math.floor(t.y / CHUNK) === cy);
+    expect(inChunk(2, 0).some((t) => t.kind === "unrevealed")).toBe(false);
+    expect(inChunk(2, 1).every((t) => t.kind === "unrevealed")).toBe(true);
+    expect(inChunk(1, 1).every((t) => t.kind === "unrevealed")).toBe(true);
   });
 
   it("an unknown name falls back to the meadow", () => {

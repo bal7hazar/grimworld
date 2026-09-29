@@ -17,12 +17,13 @@ export interface Tile {
 /** A tile of a chunk not revealed is wall for the rules (D-136); it is drawn apart. */
 export type TileKind = "floor" | "wall" | "unrevealed";
 
-/** Terrain in sight is drawn bright; revealed terrain beyond sight, dimmed (design/18). */
-export type Seen = "now" | "before";
-
+/**
+ * A tile to draw. Whether it is seen now or seen before is not a field: `ViewState.sight` is the
+ * one source of truth. A revealed tile in `sight` is seen now (drawn bright); every other revealed
+ * tile was seen before (design/18: terrain of every revealed chunk, dimmed beyond sight).
+ */
 export interface ViewTile extends Tile {
   readonly kind: TileKind;
-  readonly seen: Seen;
 }
 
 /**
@@ -72,7 +73,7 @@ export interface ViewState {
   /** The actors to draw: the adventurer, and the goblins in sight only. */
   readonly actors: readonly ViewActor[];
   readonly adventurerId: number;
-  /** The tiles in sight (radius 6 around the adventurer). */
+  /** The tiles in sight (radius 6 around the adventurer): the only record of "seen now". */
   readonly sight: readonly Tile[];
   /** The arcs of the selected actor, if any. */
   readonly arcs: ViewArcs | null;

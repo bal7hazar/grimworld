@@ -1,6 +1,13 @@
 import type { Intent } from "../input/intent";
 import type { Tile, ViewActor, ViewState, ViewTile } from "../render/view";
-import { arcsOf, facingToward, stepToward, tilesInSight } from "./placeholders";
+import {
+  arcsOf,
+  facingToward,
+  revealInSight,
+  stepToward,
+  tilesInSight,
+  visibleActors,
+} from "./placeholders";
 import { type SandboxWorld, inBounds, kindAt, sameTile } from "./world";
 
 /**
@@ -19,7 +26,15 @@ export interface SandboxState {
 }
 
 export function initialState(world: SandboxWorld): SandboxState {
-  return { world, selectedActorId: null, selectedTile: null, path: world.path, said: "" };
+  const adventurer = world.actors.find((a) => a.id === world.adventurerId);
+  const terrain = adventurer ? revealInSight(world.terrain, adventurer.tile) : world.terrain;
+  return {
+    world: { ...world, terrain },
+    selectedActorId: null,
+    selectedTile: null,
+    path: world.path,
+    said: "",
+  };
 }
 
 function describe(actor: ViewActor): string {
@@ -43,11 +58,7 @@ export function applyIntent(state: SandboxState, intent: Intent): SandboxState {
   const where = `(${tile.x}, ${tile.y})`;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
   if (!adventurer) return state;
-  const sight = tilesInSight(terrain, adventurer.tile);
-  const visible = world.actors.filter(
-    (a) => a.side === "adventurer" || sight.some((t) => sameTile(t, a.tile)),
-  );
-  const actor = visible.find((a) => sameTile(a.tile, tile));
+  const actor = visibleActors(terrain, world.actors).find((a) => sameTile(a.tile, tile));
   const kind = inBounds(terrain, tile) ? kindAt(terrain, tile) : null;
 
   if (intent.kind === "inspect") {
@@ -79,7 +90,7 @@ export function applyIntent(state: SandboxState, intent: Intent): SandboxState {
   const arrived = sameTile(step.tile, tile);
   return {
     ...state,
-    world: { ...world, actors },
+    world: { ...world, actors, terrain: revealInSight(terrain, step.tile) },
     selectedTile: arrived ? null : tile,
     path: [],
     said: `tap ${where}: step to (${step.tile.x}, ${step.tile.y}), facing ${step.facing}`,
@@ -91,19 +102,14 @@ export function toView(state: SandboxState): ViewState {
   const { terrain } = world;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
   if (!adventurer) throw new Error(`${world.name}: no adventurer`);
-  const sight = tilesInSight(terrain, adventurer.tile);
-  const inSight = new Set(sight.map((t) => t.y * terrain.width + t.x));
   const tiles: ViewTile[] = [];
   for (let y = 0; y < terrain.height; y++) {
     for (let x = 0; x < terrain.width; x++) {
-      const index = y * terrain.width + x;
-      const kind = terrain.kinds[index] ?? "wall";
-      tiles.push({ x, y, kind, seen: inSight.has(index) ? "now" : "before" });
+      tiles.push({ x, y, kind: terrain.kinds[y * terrain.width + x] ?? "wall" });
     }
   }
-  const actors = world.actors.filter(
-    (a) => a.side === "adventurer" || inSight.has(a.tile.y * terrain.width + a.tile.x),
-  );
+  const sight = tilesInSight(terrain, adventurer.tile);
+  const actors = visibleActors(terrain, world.actors);
   const selected = actors.find((a) => a.id === state.selectedActorId);
   return {
     tiles,

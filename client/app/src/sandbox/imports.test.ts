@@ -34,6 +34,16 @@ describe("placeholders.ts", () => {
     }
   });
 
+  it("is the only place that decides which actors are seen (design/18)", () => {
+    const filtersBySight = /actors\s*\.filter\([^;]*[sS]ight/;
+    const deciders = Object.entries(sources)
+      .filter(([path]) => !/\.test\.tsx?$/.test(path) && path !== "./placeholders.ts")
+      .filter(([, text]) => filtersBySight.test(text))
+      .map(([path]) => path);
+    expect(deciders).toEqual([]);
+    expect(sources["./wiring.ts"]).toContain("visibleActors(");
+  });
+
   it("uses no randomness and no clock", () => {
     const text = sources["./placeholders.ts"] ?? "";
     expect(text).not.toMatch(/Math\.random|Date\.|performance\.now|crypto\./);

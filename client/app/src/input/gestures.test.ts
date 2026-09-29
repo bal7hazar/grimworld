@@ -68,6 +68,18 @@ describe("gestures", () => {
     ]);
   });
 
+  it("after a pinch, the finger left on the screen pans from where it is: no jump", () => {
+    const { gestures, tracker } = setup();
+    tracker.down(1, { x: 100, y: 100 });
+    tracker.down(2, { x: 200, y: 100 });
+    tracker.move(2, { x: 300, y: 100 });
+    tracker.up(1);
+    gestures.length = 0;
+    tracker.move(2, { x: 305, y: 102 });
+    tracker.up(2);
+    expect(gestures).toEqual([{ kind: "pan", dx: 5, dy: 2 }]);
+  });
+
   it("the wheel zooms in on a scroll up and out on a scroll down", () => {
     const { gestures, tracker } = setup();
     tracker.wheel(-100, { x: 1, y: 2 });

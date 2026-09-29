@@ -8,6 +8,8 @@ export interface Terrain {
   readonly width: number;
   readonly height: number;
   readonly kinds: readonly TileKind[];
+  /** What each tile of an unrevealed chunk becomes when it is revealed (fixture data). */
+  readonly hidden: readonly TileKind[];
 }
 
 /** What a fixture holds: the state the chain would hold, written by hand. */

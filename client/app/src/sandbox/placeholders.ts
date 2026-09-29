@@ -1,5 +1,5 @@
 import type { Facing, Tile, ViewActor, ViewArcs } from "../render/view";
-import { type Terrain, inBounds, kindAt, sameTile } from "./world";
+import { CHUNK, type Terrain, inBounds, kindAt, sameTile } from "./world";
 
 /**
  * The only file of `client/app` that computes what the chain decides (ORCH-client-visual §6.1).
@@ -96,7 +96,8 @@ export function facingToward(from: Tile, to: Tile): Facing | null {
  * PLACEHOLDER until CLI-02 (and CLI-03 for paths). One step of an actor toward a target tile:
  * design/04 *Actions*: a move is one tile in one of six directions and sets facing to the direction
  * moved. The step goes to a neighbouring floor tile that no actor holds and that is strictly
- * closer to the target; among several, the lowest direction number. Null when there is none.
+ * closer to the target; among several, the lowest tile index (`y`, then `x`: design/04 and the
+ * determinism rules, "lowest entity id, then lowest tile index"). Null when there is none.
  */
 export function stepToward(
   terrain: Terrain,
@@ -113,10 +114,46 @@ export function stepToward(
     if (kindAt(terrain, tile) !== "floor") continue;
     if (actors.some((a) => sameTile(a.tile, tile))) continue;
     const left = distance(tile, target);
-    if (left < bestDistance) {
+    const lower =
+      best !== null && (tile.y < best.tile.y || (tile.y === best.tile.y && tile.x < best.tile.x));
+    if (left < bestDistance || (left === bestDistance && lower)) {
       best = { tile, facing: d };
       bestDistance = left;
     }
   }
   return best;
+}
+
+/**
+ * PLACEHOLDER until CLI-02. The actors the adventurer sees: design/18 *What the adventurer sees*,
+ * the adventurer and the goblins within sight (radius 6, line of sight not required).
+ */
+export function visibleActors(terrain: Terrain, actors: readonly ViewActor[]): ViewActor[] {
+  const adventurer = actors.find((a) => a.side === "adventurer");
+  if (!adventurer) return [];
+  const sight = tilesInSight(terrain, adventurer.tile);
+  return actors.filter((a) => a.side === "adventurer" || sight.some((t) => sameTile(t, a.tile)));
+}
+
+/**
+ * PLACEHOLDER until CLI-02. The reveal: ADR-0006 §2 and §4, "a chunk is revealed when sight
+ * touches one of its tiles", so sight never reaches an unrevealed tile. Every chunk that sight
+ * from `centre` touches while unrevealed takes the terrain the fixture holds for it (`hidden`),
+ * which stands for the generation at reveal.
+ */
+export function revealInSight(terrain: Terrain, centre: Tile): Terrain {
+  const chunks = new Set<string>();
+  for (const tile of tilesInSight(terrain, centre)) {
+    if (kindAt(terrain, tile) === "unrevealed") {
+      chunks.add(`${Math.floor(tile.x / CHUNK)},${Math.floor(tile.y / CHUNK)}`);
+    }
+  }
+  if (chunks.size === 0) return terrain;
+  const kinds = terrain.kinds.map((kind, index) => {
+    const x = index % terrain.width;
+    const y = Math.floor(index / terrain.width);
+    const touched = chunks.has(`${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`);
+    return touched && kind === "unrevealed" ? (terrain.hidden[index] ?? "wall") : kind;
+  });
+  return { ...terrain, kinds };
 }
