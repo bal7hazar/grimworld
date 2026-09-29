@@ -273,8 +273,8 @@ fn test_cost_on_a_forbidden_source_refused() {
 
 // A counted statistic held twice by one modifier would count one source twice.
 #[test]
-#[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 45224)] // ceil(1.05 × 43070 measured)
 fn test_damage_percent_as_benefit_and_cost_refused() {
     let drawback = Fixture::passive(id::DAMAGE_PERCENT, 0, 18);
     ModifierTrait::new(slot::INSCRIPTION, Fixture::damage(), drawback).assert_legal();
@@ -282,7 +282,7 @@ fn test_damage_percent_as_benefit_and_cost_refused() {
 
 // CBT-2: the sources design/19 allows are accepted.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 1239231)] // ceil(1.05 × 1180220 measured)
 fn test_sources_accepted() {
     Fixture::on(slot::PREFIX, Fixture::damage());
     Fixture::on(slot::SUFFIX, Fixture::damage());

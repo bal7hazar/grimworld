@@ -544,8 +544,11 @@ state, and it is held only where §7.2 allows (`PassiveTrait::allows`, `Source`:
 and `PENETRATION` on the held items' slot types and set bonuses, guarded `ARMOR` on insignias and
 set bonuses, `QUICK_CAST_EVERY_N` and `DAMAGE_TYPE` on the held items' slot types with one slot
 type for the whole content (`ModifierAssert::assert_catalogue`), `CONDITION_DURATION` on the
-prefix, `RATING_PERCENT` on no record); a modifier's benefit and cost never add to one counted sum
-(`shares_sum`: statistic, guard, scope). With these, the sums §7.2 bounds by counting sources, and
+prefix, `RATING_PERCENT` on no record); a modifier's benefit and cost together add to each counted
+sum no more than one passive may (`PassiveAssert::assert_contributions`, per guard and hit class,
+an attack skill's sum taking `WEAPON` and `ATTACK_SKILL`, design/19 §5.4), and never name two
+quick-casts, two conditions or two damage types (`conflicts`); `ENERGY_COST` is 0 or below ("−
+energy"). With these, the sums §7.2 bounds by counting sources, and
 those it saturates or ENG-01 §3.1 caps (`ARMOR_VS`, knock-down, duration percents), fit their
 fields: `logic/tests/test_capacity.cairo` flattens the worst accepted loadouts (CBT-01 fix loops
 1–2). The sums no document bounds (life steal and energy on hit, the health bonus, energy and

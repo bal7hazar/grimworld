@@ -66,6 +66,11 @@ pub const MAX_GUARDED_ARMOR: i16 = 18;
 pub const MAX_PENETRATION: i16 = 36;
 /// An unguarded `ARMOR` passive is bounded to −255…+255 (§7.2).
 pub const MAX_ARMOR: i16 = 255;
+/// The three hit classes a scope-bearing sum is kept for (design/19 §5.4, §7.2): a plain weapon
+/// hit, an attack skill's hit, a spell's hit; the index of `MemberBar`'s sums.
+pub const HIT_WEAPON: u8 = 0;
+pub const HIT_ATTACK_SKILL: u8 = 1;
+pub const HIT_SPELL: u8 = 2;
 /// `ADRENALINE_EVERY_N`'s N is 1…255 (§4).
 pub const MAX_EVERY_N: i16 = 255;
 /// Professions: design/03's six, ids 1–6 (`ENERGY_COST`'s `param`).
@@ -83,6 +88,7 @@ pub mod errors {
     pub const PARAM: felt252 = 'passive: param';
     pub const FIXED: felt252 = 'passive: cost not fixed';
     pub const SOURCE: felt252 = 'passive: not on this source';
+    pub const CONTRIBUTION: felt252 = 'passive: source adds too much';
 }
 
 /// Where a passive is held (design/15, design/19 §4, §7.2): one of an item's five modifier slot
@@ -174,34 +180,44 @@ pub impl PassiveImpl of PassiveTrait {
         (Self::unpack(first), Self::unpack(second))
     }
 
-    /// Whether `self` and `other`, held by one source, would add to the same sum the snapshot
-    /// bounds by counting its sources (§7.2), so that the source would count twice:
-    /// - `DAMAGE_PERCENT`: the same guard and overlapping scopes (equal, or either `ALL`);
-    /// - `PENETRATION`: overlapping scopes;
-    /// - `ARMOR`: the same guard (guarded: 7 sources; unguarded: "at most 5 per item on 7
-    ///   items plus 2 set bonuses", one per slot);
-    /// - `QUICK_CAST_EVERY_N` (2 pairs), `CONDITION_DURATION` (one condition and its percent),
-    ///   `DAMAGE_TYPE` (never summed: one type): any two.
-    /// Every other statistic is saturated or not bounded by a count (`ARMOR_VS`, FX-23;
-    /// `KNOCKDOWN_FLAT` and the duration percents, capped at use by ENG-01 §3.1), so two of it
-    /// in one source break nothing the document states.
-    fn shares_sum(self: @Passive, other: @Passive) -> bool {
+    /// Whether it applies to hits of `class` (`HIT_WEAPON`, `HIT_ATTACK_SKILL`, `HIT_SPELL`, the
+    /// three sums `MemberBar` stores per scope-bearing passive): design/19 §5.4 — a plain weapon
+    /// hit takes `WEAPON`; an attack skill is a `WEAPON` hit "then also `ATTACK_SKILL` for
+    /// scopes"; a spell takes `SPELL`; `ALL` applies to the three.
+    fn applies_to(self: @Passive, class: u8) -> bool {
+        let s = *self.scope;
+        s == scope::ALL
+            || (class == HIT_WEAPON && s == scope::WEAPON)
+            || (class == HIT_ATTACK_SKILL && (s == scope::WEAPON || s == scope::ATTACK_SKILL))
+            || (class == HIT_SPELL && s == scope::SPELL)
+    }
+
+    /// Whether `self` and `other`, held by one source, name two things a field that holds one
+    /// cannot keep: two `QUICK_CAST_EVERY_N` (a source is one of the 2 pairs, §7.2), two
+    /// `CONDITION_DURATION` of different conditions (the kit holds one condition and its
+    /// percent: "one prefix"), two `DAMAGE_TYPE` of different types ("never summed": one type).
+    fn conflicts(self: @Passive, other: @Passive) -> bool {
         let id = *self.id;
-        if id != *other.id || id == id::NONE {
+        if id != *other.id {
             return false;
         }
-        let scopes = *self.scope == *other.scope
-            || *self.scope == scope::ALL
-            || *other.scope == scope::ALL;
-        if id == id::DAMAGE_PERCENT {
-            *self.guard == *other.guard && scopes
-        } else if id == id::PENETRATION {
-            scopes
-        } else if id == id::ARMOR {
-            *self.guard == *other.guard
-        } else {
-            id == id::QUICK_CAST_EVERY_N || id == id::CONDITION_DURATION || id == id::DAMAGE_TYPE
+        id == id::QUICK_CAST_EVERY_N
+            || ((id == id::CONDITION_DURATION || id == id::DAMAGE_TYPE)
+                && *self.param != *other.param)
+    }
+
+    /// The range `(low, high)` that the passives of one source add to the sum of `id` and
+    /// `guard` for hits of `class` (every class for a passive without a scope).
+    fn contribution(passives: Span<Passive>, id: u8, guard: u8, class: u8) -> (i32, i32) {
+        let mut low: i32 = 0;
+        let mut high: i32 = 0;
+        for passive in passives {
+            if *passive.id == id && *passive.guard == guard && passive.applies_to(class) {
+                low += (*passive.min).into();
+                high += (*passive.max).into();
+            }
         }
+        (low, high)
     }
 
     /// Whether `source` may hold it: only the restrictions design/19 §7.2 states.
@@ -257,7 +273,9 @@ pub impl PassiveAssert of PassiveAssertTrait {
     /// `ARMOR` (3, 4) and `DAMAGE_PERCENT` (1); a scope 0–3 only on `DAMAGE_PERCENT` and
     /// `PENETRATION`; `min ≤ max` within the range §4 and §7.2 state: `DAMAGE_PERCENT` and
     /// guarded `ARMOR` ±18, unguarded `ARMOR` ±255, `PENETRATION` 0…36, `ADRENALINE_EVERY_N`
-    /// 1…255, `QUICK_CAST_EVERY_N` 0…255 (8 bits), non-negative for what §4 or ENG-01 §3.1
+    /// 1…255, `QUICK_CAST_EVERY_N` 0…255 (8 bits), non-positive for `ENERGY_COST` (§4: "−
+    /// energy";
+    /// §5.3: "energy after reductions"), non-negative for what §4 or ENG-01 §3.1
     /// gives as a plus (`ARMOR_VS` "+ armor", `KNOCKDOWN_FLAT` "+ ticks", the duration percents'
     /// "bonuses"), 0 for a passive without a value (`DAMAGE_TYPE`, `HALVE_FIRST_HEAVY_HIT`). An
     /// aggregate the snapshot saturates (`ARMOR_VS` at 63, FX-23) bounds no single passive.
@@ -314,6 +332,8 @@ pub impl PassiveAssert of PassiveAssertTrait {
             || id == id::CONDITION_DURATION
             || id == id::ENCHANT_DURATION {
             (0, 32767)
+        } else if id == id::ENERGY_COST {
+            (-32768, 0)
         } else if id == id::DAMAGE_TYPE || id == id::HALVE_FIRST_HEAVY_HIT {
             (0, 0)
         } else {
@@ -326,6 +346,29 @@ pub impl PassiveAssert of PassiveAssertTrait {
     fn assert_source(self: @Passive, source: Source) {
         self.assert_legal();
         assert(*self.id == id::NONE || self.allows(source), errors::SOURCE);
+    }
+
+    /// The passives one source holds (a modifier's benefit and cost) add to each sum §7.2 bounds
+    /// by counting sources no more than one passive may: for `DAMAGE_PERCENT` per guard and hit
+    /// class, −18…+18; for `PENETRATION` per hit class, 0…36; for guarded `ARMOR` per guard,
+    /// −18…+18. So each of the 7 sources adds at most what §7.2's 7 × 18 and 7 × 36 count,
+    /// whatever the scopes: an attack skill's sum takes both `WEAPON` and `ATTACK_SKILL` (§5.4).
+    /// A source's two passives in different sums, or whose total stays within the bound, pass.
+    fn assert_contributions(passives: Span<Passive>) {
+        let within = |id: u8, guard: u8, class: u8, bound_low: i32, bound_high: i32| {
+            let (low, high) = PassiveTrait::contribution(passives, id, guard, class);
+            assert(low >= bound_low && high <= bound_high, errors::CONTRIBUTION);
+        };
+        let damage: i32 = MAX_DAMAGE_PERCENT.into();
+        let pierce: i32 = MAX_PENETRATION.into();
+        let guarded: i32 = MAX_GUARDED_ARMOR.into();
+        for class in array![HIT_WEAPON, HIT_ATTACK_SKILL, HIT_SPELL] {
+            within(id::DAMAGE_PERCENT, guard::ALWAYS, class, -damage, damage);
+            within(id::DAMAGE_PERCENT, guard::ABOVE_HALF, class, -damage, damage);
+            within(id::PENETRATION, guard::ALWAYS, class, 0, pierce);
+        }
+        within(id::ARMOR, guard::IN_STANCE, HIT_WEAPON, -guarded, guarded);
+        within(id::ARMOR, guard::ENCHANTED, HIT_WEAPON, -guarded, guarded);
     }
 
     /// A cost is fixed: `min = max` (design/15, Q-4).

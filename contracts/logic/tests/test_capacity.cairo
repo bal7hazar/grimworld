@@ -18,7 +18,9 @@ use grimworld_logic::snapshot::{
 };
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::{guard, scope};
-use grimworld_logic::types::passive::{Passive, PassiveAssert, PassiveTrait, id};
+use grimworld_logic::types::passive::{
+    HIT_ATTACK_SKILL, HIT_SPELL, HIT_WEAPON, Passive, PassiveAssert, PassiveTrait, id,
+};
 
 /// The weighted rating of the pieces and the shield, each personalised (F-21): 255 + 25 + 255 +
 /// 25.
@@ -80,14 +82,13 @@ impl FixtureImpl of Fixture {
         held.span()
     }
 
-    /// The sum of the passives `id` of `guard` that apply to `scope` (a scope `ALL` applies to
-    /// every scope; a passive without a scope has 0), at their widest value.
-    fn sum(held: Span<Passive>, id: u8, guard: u8, scope: u8) -> i32 {
+    /// The sum of the passives `id` of `guard` that apply to hits of `class` (design/19 §5.4: an
+    /// attack skill's hit takes `WEAPON` and `ATTACK_SKILL`; `ALL` every class; a passive without
+    /// a scope applies to every class), at their widest value.
+    fn sum(held: Span<Passive>, id: u8, guard: u8, class: u8) -> i32 {
         let mut total: i32 = 0;
         for passive in held {
-            if *passive.id == id
-                && *passive.guard == guard
-                && (*passive.scope == scope || *passive.scope == scope::ALL) {
+            if *passive.id == id && *passive.guard == guard && passive.applies_to(class) {
                 total += (*passive.max).into();
             }
         }
@@ -153,11 +154,11 @@ impl FixtureImpl of Fixture {
             skills: [0; 8],
             elite_slot: 255,
             damage: [
-                d(guard::ALWAYS, scope::WEAPON), d(guard::ALWAYS, scope::ATTACK_SKILL),
-                d(guard::ALWAYS, scope::SPELL), d(guard::ABOVE_HALF, scope::WEAPON),
-                d(guard::ABOVE_HALF, scope::ATTACK_SKILL), d(guard::ABOVE_HALF, scope::SPELL),
+                d(guard::ALWAYS, HIT_WEAPON), d(guard::ALWAYS, HIT_ATTACK_SKILL),
+                d(guard::ALWAYS, HIT_SPELL), d(guard::ABOVE_HALF, HIT_WEAPON),
+                d(guard::ABOVE_HALF, HIT_ATTACK_SKILL), d(guard::ABOVE_HALF, HIT_SPELL),
             ],
-            penetration: [p(scope::WEAPON), p(scope::ATTACK_SKILL), p(scope::SPELL)],
+            penetration: [p(HIT_WEAPON), p(HIT_ATTACK_SKILL), p(HIT_SPELL)],
             quick_cast: [*pairs[0], *pairs[1]],
             armor: unguarded.try_into().expect('armor overflows'),
         };
@@ -223,7 +224,7 @@ impl FixtureImpl of Fixture {
 // held-item costs add −18 always to each scope, 5 of them; the insignias hold the audit's CBT-8
 // pair, +18 in a stance and −18 enchanted.
 #[test]
-#[available_gas(l2_gas: 3199308)] // ceil(1.05 × 3046960 measured)
+#[available_gas(l2_gas: 3753036)] // ceil(1.05 × 3574320 measured)
 fn test_flatten_damage_extremes() {
     let up = Fixture::damage(guard::ABOVE_HALF, scope::ALL, 18);
     let down = Fixture::damage(guard::ALWAYS, scope::ALL, -18);
@@ -248,7 +249,7 @@ fn test_flatten_damage_extremes() {
 // CBT-7, penetration and guarded armor at their counts: 7 × 36 = 252; 7 × −18 = −126; the
 // unguarded armor at every held-item and armor slot, −255, without ratings.
 #[test]
-#[available_gas(l2_gas: 6314574)] // ceil(1.05 × 6013880 measured)
+#[available_gas(l2_gas: 7354505)] // ceil(1.05 × 7004290 measured)
 fn test_flatten_penetration_and_armor_extremes() {
     let pierce = Fixture::penetration(scope::ALL, 36);
     let low = Fixture::armor(guard::ALWAYS, -255);
@@ -284,7 +285,7 @@ fn test_flatten_penetration_and_armor_extremes() {
 // at 63 (FX-23), knock-down at 3 and the duration percents at 50 (ENG-01 §3.1); one condition
 // (one prefix); two quick-cast pairs (one slot type, on the weapon and the off-hand).
 #[test]
-#[available_gas(l2_gas: 3167189)] // ceil(1.05 × 3016370 measured)
+#[available_gas(l2_gas: 3694341)] // ceil(1.05 × 3518420 measured)
 fn test_flatten_saturated_extremes() {
     let vs = Fixture::passive(id::ARMOR_VS, 1, 32767);
     let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 32767);
@@ -310,7 +311,7 @@ fn test_flatten_saturated_extremes() {
 // CBT-8: a modifier's benefit and cost are refused only when they add to one counted sum
 // (statistic, guard, scope). The audit's insignia: `ARMOR +10 IN_STANCE`, `ARMOR −5 ENCHANTED`.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 930447)] // ceil(1.05 × 886140 measured)
 fn test_separate_sums_accepted() {
     let insignia = Fixture::modifier(
         slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::ENCHANTED, -5),
@@ -338,37 +339,48 @@ fn test_separate_sums_accepted() {
 }
 
 #[test]
-#[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 44384)] // ceil(1.05 × 42270 measured)
 fn test_damage_all_and_weapon_same_guard_refused() {
+    // 10 + 10 on a plain weapon hit (and on an attack skill's): 20 > 18.
     let all = Fixture::damage(guard::ALWAYS, scope::ALL, 10);
-    Fixture::modifier(slot::PREFIX, all, Fixture::damage(guard::ALWAYS, scope::WEAPON, -5))
+    Fixture::modifier(slot::PREFIX, all, Fixture::damage(guard::ALWAYS, scope::WEAPON, 10))
         .assert_legal();
 }
 
 #[test]
-#[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 124362)] // ceil(1.05 × 118440 measured)
 fn test_penetration_all_and_spell_refused() {
+    // 30 + 10 on a spell's hit: 40 > 36.
     Fixture::modifier(
-        slot::SUFFIX, Fixture::penetration(scope::ALL, 4), Fixture::penetration(scope::SPELL, 1),
+        slot::SUFFIX, Fixture::penetration(scope::ALL, 30), Fixture::penetration(scope::SPELL, 10),
+    )
+        .assert_legal();
+}
+
+// CBT-8 (fix loop 3): two unguarded `ARMOR` passives in one slot are accepted: §7.2 bounds the
+// unguarded armor by its total (±9,995, F-21), not one passive per slot; the audit's rune, +5 and
+// −2.
+#[test]
+#[available_gas(l2_gas: 347865)] // ceil(1.05 × 331300 measured)
+fn test_unguarded_armor_twice_accepted() {
+    Fixture::modifier(slot::RUNE, Fixture::armor(0, 5), Fixture::armor(0, -2)).assert_legal();
+    Fixture::modifier(slot::RUNE, Fixture::armor(0, 255), Fixture::armor(0, 255)).assert_legal();
+    // Within the bound, one source's two passives of a counted sum pass too.
+    Fixture::modifier(
+        slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::IN_STANCE, -2),
     )
         .assert_legal();
 }
 
 #[test]
-#[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
-fn test_unguarded_armor_twice_refused() {
-    Fixture::modifier(slot::RUNE, Fixture::armor(0, 5), Fixture::armor(0, -2)).assert_legal();
-}
-
-#[test]
-#[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 119711)] // ceil(1.05 × 114010 measured)
 fn test_stance_armor_twice_refused() {
+    // 10 + 10 in a stance: 20 > 18.
     Fixture::modifier(
-        slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::IN_STANCE, -2),
+        slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::IN_STANCE, 10),
     )
         .assert_legal();
 }
@@ -397,7 +409,7 @@ fn test_two_quick_casts_on_one_slot_refused() {
 // CBT-7: quick-cast and `DAMAGE_TYPE` on any slot type of the weapon and the off-hand, one slot
 // type for the whole content, whichever (the document names none: escalated, not chosen).
 #[test]
-#[available_gas(l2_gas: 714945)] // ceil(1.05 × 680900 measured)
+#[available_gas(l2_gas: 1920671)] // ceil(1.05 × 1829210 measured)
 fn test_one_slot_type_accepted() {
     let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
     let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
@@ -417,7 +429,7 @@ fn test_one_slot_type_accepted() {
 
 #[test]
 #[should_panic(expected: 'modifier: quick-cast slots')]
-#[available_gas(l2_gas: 132353)] // ceil(1.05 × 126050 measured)
+#[available_gas(l2_gas: 333638)] // ceil(1.05 × 317750 measured)
 fn test_quick_cast_on_two_slot_types_refused() {
     let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
     let none: Passive = Default::default();
@@ -433,7 +445,7 @@ fn test_quick_cast_on_two_slot_types_refused() {
 // The audit's case: a fire prefix and a cold suffix.
 #[test]
 #[should_panic(expected: 'modifier: damage type slots')]
-#[available_gas(l2_gas: 131219)] // ceil(1.05 × 124970 measured)
+#[available_gas(l2_gas: 332105)] // ceil(1.05 × 316290 measured)
 fn test_damage_type_on_two_slot_types_refused() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(
@@ -502,7 +514,7 @@ fn test_adrenaline_every_0_refused() {
 // CBT-2: sums the documents give no capacity rule for are accepted as content and escalated
 // (REPORT.md, fix loop 2), e.g. a set's two `LIFE_STEAL_ON_HIT` bonuses of 255.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 123312)] // ceil(1.05 × 117440 measured)
 fn test_unruled_sums_accepted_and_escalated() {
     let steal = Fixture::passive(id::LIFE_STEAL_ON_HIT, 0, 255);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [steal, steal]).assert_legal();
@@ -536,4 +548,173 @@ fn test_source_maps_slots() {
         Fixture::modifier(slot::RUNE, Default::default(), Default::default()).source().is_some(),
         '5',
     );
+}
+
+// CBT-8 (fix loop 3), flattened: every held-item and armor slot holds two unguarded `ARMOR`
+// passives, +255 (the benefit, the cost) and the set's two bonuses: 32 contributions, 32 × 255 +
+// the personalised ratings = 8,720 ≤ 9,995; at −255 without ratings, −8,160.
+#[test]
+#[available_gas(l2_gas: 7394079)] // ceil(1.05 × 7041980 measured)
+fn test_flatten_unguarded_armor_extremes() {
+    let high = Fixture::armor(0, 255);
+    let low = Fixture::armor(0, -255);
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, high, high),
+        Fixture::modifier(slot::SUFFIX, high, high),
+        Fixture::modifier(slot::INSCRIPTION, high, high),
+        Fixture::modifier(slot::INSIGNIA, high, high),
+        Fixture::modifier(slot::RUNE, high, high),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [high, high]),
+    );
+    let (_, bar, _) = Fixture::flatten(held, RATINGS);
+    assert(bar.armor == 32 * 255 + 560, 'unguarded +8,720');
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, low, low),
+        Fixture::modifier(slot::SUFFIX, low, low),
+        Fixture::modifier(slot::INSCRIPTION, low, low),
+        Fixture::modifier(slot::INSIGNIA, low, low),
+        Fixture::modifier(slot::RUNE, low, low),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [low, low]),
+    );
+    let (_, bar, _) = Fixture::flatten(held, 0);
+    assert(bar.armor == -32 * 255, 'unguarded -8,160');
+}
+
+// CBT-2 (fix loop 3): an attack skill's hit takes `WEAPON` and `ATTACK_SKILL` (design/19 §5.4).
+// One `WEAPON +18` flattens to 18 on plain weapon hits and on attack skills, 0 on spells.
+#[test]
+#[available_gas(l2_gas: 3648362)] // ceil(1.05 × 3474630 measured)
+fn test_flatten_weapon_scope_on_attack_skills() {
+    let none: Passive = Default::default();
+    let weapon = Fixture::damage(guard::ALWAYS, scope::WEAPON, 18);
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, weapon, none),
+        Fixture::modifier(slot::SUFFIX, Fixture::armor(0, 1), none),
+        Fixture::modifier(slot::INSCRIPTION, Fixture::armor(0, 1), none),
+        Fixture::modifier(slot::INSIGNIA, Fixture::armor(0, 1), none),
+        Fixture::modifier(slot::RUNE, Fixture::armor(0, 1), none),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [none, none]),
+    );
+    let (_, bar, _) = Fixture::flatten(held, 0);
+    assert(bar.damage == [18, 18, 0, 0, 0, 0], 'weapon applies to attack skills');
+}
+
+// CBT-2, the worst overlap: each held-item slot holds `WEAPON` and `ATTACK_SKILL` in both
+// orderings (benefit then cost, cost then benefit) at the most a source may add, 9 + 9 and 18 +
+// 18 of penetration; the set's two bonuses are `ALL`. The attack-skill sums reach the counted
+// bound exactly: damage 5 × 18 + 2 × 18 = 126, penetration 5 × 36 + 2 × 36 = 252.
+#[test]
+#[available_gas(l2_gas: 7448354)] // ceil(1.05 × 7093670 measured)
+fn test_flatten_worst_scope_overlap() {
+    let weapon = Fixture::damage(guard::ABOVE_HALF, scope::WEAPON, 9);
+    let attack = Fixture::damage(guard::ABOVE_HALF, scope::ATTACK_SKILL, 9);
+    let all = Fixture::damage(guard::ABOVE_HALF, scope::ALL, 18);
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, weapon, attack),
+        Fixture::modifier(slot::SUFFIX, attack, weapon),
+        Fixture::modifier(slot::INSCRIPTION, weapon, attack),
+        Fixture::modifier(slot::INSIGNIA, Fixture::armor(0, 1), Default::default()),
+        Fixture::modifier(slot::RUNE, Fixture::armor(0, 1), Default::default()),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [all, all]),
+    );
+    let (_, bar, _) = Fixture::flatten(held, 0);
+    assert(bar.damage == [0, 0, 0, 81, 126, 36], 'damage per hit class');
+    let weapon = Fixture::penetration(scope::WEAPON, 18);
+    let attack = Fixture::penetration(scope::ATTACK_SKILL, 18);
+    let all = Fixture::penetration(scope::ALL, 36);
+    let held = Fixture::loadout(
+        Fixture::modifier(slot::PREFIX, attack, weapon),
+        Fixture::modifier(slot::SUFFIX, weapon, attack),
+        Fixture::modifier(slot::INSCRIPTION, attack, weapon),
+        Fixture::modifier(slot::INSIGNIA, Fixture::armor(0, 1), Default::default()),
+        Fixture::modifier(slot::RUNE, Fixture::armor(0, 1), Default::default()),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [all, all]),
+    );
+    let (_, bar, _) = Fixture::flatten(held, 0);
+    assert(bar.penetration == [162, 252, 72], 'penetration per hit class');
+}
+
+// CBT-2: the audit's case, `PENETRATION(WEAPON, 36)` and `PENETRATION(ATTACK_SKILL, 36)` in one
+// modifier: 72 on an attack skill's hit, refused in both orderings.
+#[test]
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 94259)] // ceil(1.05 × 89770 measured)
+fn test_penetration_weapon_and_attack_skill_refused() {
+    Fixture::modifier(
+        slot::PREFIX,
+        Fixture::penetration(scope::WEAPON, 36),
+        Fixture::penetration(scope::ATTACK_SKILL, 36),
+    )
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 95918)] // ceil(1.05 × 91350 measured)
+fn test_penetration_attack_skill_and_weapon_refused() {
+    Fixture::modifier(
+        slot::SUFFIX,
+        Fixture::penetration(scope::ATTACK_SKILL, 36),
+        Fixture::penetration(scope::WEAPON, 36),
+    )
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: source adds too much')]
+#[available_gas(l2_gas: 77343)] // ceil(1.05 × 73660 measured)
+fn test_damage_weapon_and_attack_skill_over_18_refused() {
+    Fixture::modifier(
+        slot::INSCRIPTION,
+        Fixture::damage(guard::ALWAYS, scope::WEAPON, 18),
+        Fixture::damage(guard::ALWAYS, scope::ATTACK_SKILL, 1),
+    )
+        .assert_legal();
+}
+
+#[test]
+#[available_gas(l2_gas: 378074)] // ceil(1.05 × 360070 measured)
+fn test_scope_overlap_within_bound_accepted() {
+    // 10 − 5 on an attack skill's hit; 18 and 18 on weapon and spell hits, which no class adds.
+    Fixture::modifier(
+        slot::PREFIX,
+        Fixture::damage(guard::ALWAYS, scope::WEAPON, 10),
+        Fixture::damage(guard::ALWAYS, scope::ATTACK_SKILL, -5),
+    )
+        .assert_legal();
+    Fixture::modifier(
+        slot::PREFIX,
+        Fixture::damage(guard::ALWAYS, scope::WEAPON, 18),
+        Fixture::damage(guard::ALWAYS, scope::SPELL, 18),
+    )
+        .assert_legal();
+    Fixture::modifier(
+        slot::SUFFIX,
+        Fixture::penetration(scope::WEAPON, 18),
+        Fixture::penetration(scope::ATTACK_SKILL, 18),
+    )
+        .assert_legal();
+}
+
+// CBT-1 (fix loop 3): `ENERGY_COST` is "− energy" (§4), a reduction (§5.3): 0 or below.
+#[test]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+fn test_energy_cost_non_positive_accepted() {
+    Fixture::passive(id::ENERGY_COST, 2, -1).assert_legal();
+    Fixture::passive(id::ENERGY_COST, 2, 0).assert_legal();
+    PassiveTrait::new(id::ENERGY_COST, 6, 0, 0, -32768, 0).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: value out of bounds')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_energy_cost_positive_refused() {
+    Fixture::passive(id::ENERGY_COST, 2, 1).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'passive: value out of bounds')]
+#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+fn test_energy_cost_range_crossing_zero_refused() {
+    PassiveTrait::new(id::ENERGY_COST, 2, 0, 0, -1, 1).assert_legal();
 }

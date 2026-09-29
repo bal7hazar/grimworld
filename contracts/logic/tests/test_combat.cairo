@@ -704,7 +704,7 @@ fn test_item_entry_not_a_potion_refused() {
 
 // §4, §7.2: `MODIFIER`, 1 part: slot type low, benefit and cost high.
 #[test]
-#[available_gas(l2_gas: 191552)] // ceil(1.05 × 182430 measured)
+#[available_gas(l2_gas: 300458)] // ceil(1.05 × 286150 measured)
 fn test_modifier_round_trip() {
     let top = ModifierTrait::new(0xFF, Fixture::passive_max(), Fixture::passive_max());
     let packed = top.pack();

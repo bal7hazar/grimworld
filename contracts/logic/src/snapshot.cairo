@@ -224,12 +224,13 @@ pub struct MemberBar {
     pub skills: [u16; 8],
     /// The slot of the elite skill, 255 for none (bits 128–135).
     pub elite_slot: u8,
-    /// `DAMAGE_PERCENT` sums (bits 136–183), index `3 × guard + scope`: guard `ALWAYS` 0 or
-    /// `ABOVE_HALF` 1, scope `WEAPON` 0 (a plain weapon hit), `ATTACK_SKILL` 1, `SPELL` 2 (a
-    /// passive of scope `ALL` adds to the three). Each −126…+126.
+    /// `DAMAGE_PERCENT` sums (bits 136–183), index `3 × guard + class`: guard `ALWAYS` 0 or
+    /// `ABOVE_HALF` 1, hit class (`passive::HIT_*`) a plain weapon hit 0 (scopes `WEAPON`,
+    /// `ALL`), an attack skill's hit 1 (`WEAPON`, `ATTACK_SKILL`, `ALL`: design/19 §5.4), a
+    /// spell's hit 2 (`SPELL`, `ALL`). Each −126…+126.
     pub damage: [i8; 6],
-    /// `PENETRATION` sums, percent, index the scope as above (bits 184–207). Each ≤ 252, capped
-    /// at 100 at use.
+    /// `PENETRATION` sums, percent, index the hit class as above (bits 184–207). Each ≤ 252,
+    /// capped at 100 at use.
     pub penetration: [u8; 3],
     /// Two quick-cast modifiers, 12 bits each (bits 208–231).
     pub quick_cast: [QuickCast; 2],

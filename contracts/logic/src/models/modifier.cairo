@@ -68,9 +68,10 @@ pub impl ModifierAssert of ModifierAssertTrait {
 
     /// The content pipeline's checks of one modifier: a known slot type; a benefit, and a fixed
     /// cost or none, each legal and allowed on that slot type (`PassiveTrait::allows`,
-    /// design/19 §7.2), the cost included; the benefit and the cost do not add to one sum the
-    /// snapshot bounds by counting sources (`PassiveTrait::shares_sum`: by statistic, guard and
-    /// scope), since one slot is one source.
+    /// design/19 §7.2), the cost included; one slot being one source, together they add to each
+    /// sum §7.2 bounds by counting sources no more than one passive may
+    /// (`PassiveAssert::assert_contributions`, per guard and hit class), and they do not name two
+    /// things a single-valued field cannot keep (`PassiveTrait::conflicts`).
     fn assert_legal(self: @Modifier) {
         self.assert_slot();
         let source = self.source().unwrap();
@@ -78,7 +79,8 @@ pub impl ModifierAssert of ModifierAssertTrait {
         self.benefit.assert_source(source);
         self.cost.assert_source(source);
         self.cost.assert_fixed();
-        assert(!self.benefit.shares_sum(self.cost), errors::TWICE);
+        assert(!self.benefit.conflicts(self.cost), errors::TWICE);
+        PassiveAssert::assert_contributions(array![*self.benefit, *self.cost].span());
     }
 
     /// The content pipeline's checks across every `MODIFIER` of the content, each legal: "the
