@@ -173,6 +173,7 @@ lent to it (D-149): IDX-01.
 |---|---|---|---|---|---|
 | ART-02 | ART-00's atlas corrected: hand-drawn units at their native height, only the generated goblins reduced to the pack's scale (owner, D-146 corrected; ART-1 answered provisionally), Python 3.12, the same output on macOS and Linux | ART-00 | Opus 5.5 | Q + GPT-6-Sol | todo |
 | CLI-03a | A rendering sandbox on fixed data: hexagonal room on demand, camera that follows, sight 6, facing and arcs, touch; no rule outside `client/sim` (mandate §6) | — | Opus 5.5 | D Q + GPT-6-Sol | todo |
+| SPK-13 | Builds of the same sources that differ in gas and Sierra size (Scarb 2.19.4, found by the map library): reproduce, diff, minimise; the game's class hashes checked (D-154); lent to track CV | — | Opus 5.5 | Q + GPT-6-Sol | todo |
 | SPK-6a | The protocol of SPK-6 on real phones | — | Opus 5.5, research | D | done or closing (#138; D-151) |
 | CV-02 | The Capacitor shell (configuration, iOS and Android projects) for SPK-6.1; CLI-01 adds accounts and the chain (D-151) | CLI-03a | Opus 5.5 | S Q | todo, **moved before Phase 6** with SPK-6.1 (D-152) |
 | SPK-6.1 | SPK-6's rendering verdict on the owner's phones: battery, heat (fails from Android's moderate throttling level), frame time, taps; idle animations at 12 fps, also off | CV-02 | Orchestrator + Opus 5.5 | — | todo, **moved before Phase 6** (D-152) |
