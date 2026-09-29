@@ -22,3 +22,5 @@ pub mod snapshot;
 pub mod tick;
 /// Identifiers, bounds and enums shared by the two domains.
 pub mod types;
+/// The bit layouts of the world's registry records: regions, locations, gates, outlines.
+pub mod world;
