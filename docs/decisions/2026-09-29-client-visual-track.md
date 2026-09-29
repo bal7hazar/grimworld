@@ -29,9 +29,7 @@ fingerprint of `out/` is stable on each machine but differs between the Mac and 
 4. **First tasks**: ART-02 (scale, Python, determinism across machines), CLI-03a (a rendering
    sandbox on fixed data), SPK-6a (the protocol of SPK-6). CLI-03a keeps every rule in
    `client/sim` and renders a view state (mandate §6).
-5. **Question ART-1 answered provisionally**: every sprite at the height of the pack's unit of its
-   build (78, 94 or 128 px), a basic goblin never taller than a hero. The final sizes are the
-   owner's eye on CLI-03a's sandbox.
+5. **Question ART-1 answered provisionally**, *corrected by the owner the same day (below)*: the pack's hand-drawn units keep their native height (no resampling, no non-integer factor); only the generated goblin sheets are reduced to the scale of the pack's units (runt about 67–70 px, shaman about 87, hobgoblin about 119). The final sizes are the owner's eye on CLI-03a's sandbox, a line of the manifest.
 6. **Nothing of the pack is posted on GitHub**, screenshots included: the repository is public
    (D-73).
 
@@ -47,6 +45,16 @@ fingerprint of `out/` is stable on each machine but differs between the Mac and 
 The Mac has 12 cores and 64 GB, load about 3: **5 agents at a time on the Mac**, audits included,
 with the load check of the VPS scaled to 12 cores (load above 18 or under 8 GB available: no new
 launch). The Mac's launcher (CV-01) enforces them. Tasks lent by the game count in the 5 (D-149).
+
+## Corrected, 2026-09-29, the sprites' heights (owner, option B of `PENDING-cv-art-heights.md`, #136)
+
+78, 94 and 128 px were not heights of the pack's units: they were the targets the folder of
+generated goblins had set for its own sprites (common goblin, shaman, hobgoblin). The Mac's
+message called them the pack's target heights, and point 5 applied them to every sprite. The
+owner's decision: the hand-drawn units keep their native height, with no resampling (a
+non-integer factor damages pixel art); only the generated sheets are reduced, to the scale of
+the pack's units (runt about 67–70 px, shaman about 87, hobgoblin about 119); the final sizes
+are the owner's eye on CLI-03a, a line of the manifest. ART-02 (#134) follows it before its merge.
 
 ## What would reverse it
 
