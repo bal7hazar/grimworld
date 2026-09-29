@@ -157,7 +157,7 @@ them as separate Scarb packages (D-125). The game consumes them **by published v
 | **Gate A-G1** | **Is the API accepted?** | ARC-01 | Project manager (D-128) | — | **decided 2026-09-28**: accepted (D-131) |
 | ARC-02 | Workspace, **CI by affected package** (a change in `quest` runs `quest` and its dependents only), gas tooling, publication pipeline per package | A-G1 | Sonnet 5.5 | GPT-6-Luna | done |
 | ARC-03 | `quest`: implementation, test-driven; released on scarbs.xyz | ARC-02 | Opus 5.5 | GPT-6-Astra (access control, ownership) | done: `quiver_quest` 0.1.0 published on 2026-09-29 (D-138) |
-| ARC-04 | `achievement`: a package of the same workspace; **event mode only in 0.1.0** (D-139); implementation, release | ARC-03 | Opus 5.5 | GPT-6-Astra | todo |
+| ARC-04 | `achievement`: a package of the same workspace; **event mode only in 0.1.0** (D-139); implementation, release | ARC-03 | Opus 5.5 | GPT-6-Astra | done: `quiver_achievement` 0.1.0 published on 2026-09-29 (D-142) |
 | ARC-05 | `leaderboard`, `social` | After the MVP | — | — | todo |
 
 ## Phase 1 — Walking skeleton
