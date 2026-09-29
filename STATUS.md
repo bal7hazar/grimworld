@@ -1,8 +1,32 @@
 # Status — game track
 
-**2026-09-29 17:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-29 20:05 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
+
+## Pause 2026-09-29
+
+**Paused by the owner** (the app account's quota at 95 %, reset **2026-09-30 14:00 UTC**; the project
+manager's message). Nothing new is launched: no task, fix loop or audit. **No game agent runs.** Resume
+only on the owner's or the project manager's message after the reset.
+
+How to resume anything below: from `/home/claude/projects/grimworld/.claude/worktrees/orch-launcher`
+(detached on `origin/main`), with `export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus`.
+A Claude implementer resumes its own session by task name (`scripts/agent.sh <TASK> claude <model>
+resume "<prompt>"`); a codex audit resumes by its session id (`scripts/agent.sh <AUD> codex gpt-6-astra
+resume "<prompt>" audit <sid>`). Before any audit, the audit worktree is checked out on the PR's head
+and verified equal to it.
+
+| Task | Branch · PR | Last commit | State | Next step | Resume |
+|---|---|---|---|---|---|
+| **CBT-02** the tick's pipeline | `feat/cbt-02-tick-pipeline` · [#182](https://github.com/bal7hazar/grimworld/pull/182) | `0cb93db` (fix loop 1 of 3; CI green) | **finished, awaiting its re-audit** | Re-audit of AUD-182-1 to -9 (audit 1: `logs/AUD-182-audit1.md`); on a pass, merge with its cost escalated (D-161) | Audit: worktree `cli-AUD-182` to `origin/feat/cbt-02-tick-pipeline`, then `scripts/agent.sh AUD-182 codex gpt-6-astra resume "<re-audit of 0cb93db>" audit 01a0ee7f-eb0c-77d3-af9f-0a83c19a6d9d`. Implementer: `scripts/agent.sh CBT-02 claude opus resume "<prompt>"` |
+| **CBT-02b** | — (not briefed) | — | next after CBT-02's merge (D-161) | Brief: levers (a) no copies of the goblin struct, (b) a cheaper limb split; **and wiring the snapshot's flattening into `Hub.set_build` and `Hub.enter`** (CBT-02's escalation 1: D-160's restrictions before any production snapshot) | `scripts/agent.sh --branch feat/cbt-02b-… CBT-02b claude opus new "…"` once briefed |
+| ENG-05, ENG-02 | — | — | waiting for the map library's release of `hexx` (LIB-05) | Brief when released | — |
+| ENG-07 | — | — | after ENG-05 and CBT-02b | Decides levers (c), (d) on its whole-batch measure; then (e) and R-2 (D-161) | — |
+| ENG-R1 | — | — | after ARC-07 | Its row in PLAN holds every deferred organisation finding (ENG-04, ENG-06, CBT-08a) | — |
+
+**Decisions pending:** none of the game track's (the last, D-161, is decided). **Nothing is
+unmerged but #182.**
 
 ## Where we are
 
@@ -51,10 +75,9 @@ Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, 
 
 ## Next
 
-1. The project manager chooses the next lot. The orchestrator's recommendation: **CBT-02** (the world tick's
-   pipeline, regeneration, durations, recharges) as pure rules in a library class (ENG-01 §1.3), from
-   design/19 and CBT-01, with CBT-9 and D-157 E; ENG-07 and CLI-02 build on it.
-2. ENG-05 and ENG-02 when the map library releases `hexx` (LIB-05).
+See **Pause 2026-09-29** above: CBT-02's re-audit, then its merge; then CBT-02b. Since 17:30:
+DES-06 merged (design/20, D-160); CBT-02 built (D-159) and its cost decided (D-161); the map library's
+share of a worst tick recorded (1.06–1.11 M, S1's section below).
 
 ## Decisions needed
 
