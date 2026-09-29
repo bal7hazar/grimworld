@@ -71,7 +71,7 @@ Phases 2–4 contain tracks that run in parallel once their interfaces are froze
 | TOOL-01 | Map tool: draw the **outline of a zone** (chunks and border masks) and authored chunks; write them to the registry; render the world map from outlines | LIB-05 | Opus 5.5 | D V Q | todo |
 | ART-00 | Asset pipeline outside git: pack copied to the VPS by the owner, atlas packing script, clean-up of generated goblin sheets into transparent sprites, renaming after our castes, credit to Pixel Frog | FND-00 | Sonnet 5 | IP check | done (2026-09-28, [#12](https://github.com/bal7hazar/grimworld/pull/12); [report](docs/reports/ART-00-asset-pipeline.md)) |
 | SPK-11 | **Indexer spike** (ADR-0007): what needs indexing at all against what the client reads by view calls; an existing generic indexer configured for our events against our own; reorg handling; hosting and cost | FND-01b | Opus 5.5 | S Q | done (2026-09-28; our own indexer, D-130) |
-| FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power) | SPK-1…7 | Orchestrator | D | todo |
+| FND-04 | Write spike results into the ADRs; set budgets (actions per queue, cost per expedition, power); **the storage slots changed per transaction, read from the traces of SPK-1's and SPK-1b's Sepolia transactions** (quiver's 0.4M per slot checked) | SPK-1…7 | Opus 5.5 (orchestrator reviews) | C D | todo, next ([brief](docs/briefs/FND-04-budgets.md)) |
 
 **Exit criteria**: ADRs accepted or option B re-opened; budgets written in design/02;
 `main` builds from a clean machine.

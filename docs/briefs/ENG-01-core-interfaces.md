@@ -22,7 +22,8 @@ events, storage structs) with no game logic, and a document that says why each i
    - The non-game part of a transaction: about 1.09M L2 gas from the owner's account, 717k from the
      MVP's OpenZeppelin burner (SPK-1 §4, SPK-1b); the fee transfer (455k) is paid by any account.
    - The worst tick: 5.13M on Sepolia (SPK-1), plus 720,000 for the chunked map (SPK-7).
-   - **FND-04's budgets** (`docs/BUDGETS.md` and the ADRs after FND-04): the numbers you design to.
+   - **FND-04's budgets** (`docs/architecture/cost-budget.md`, the slot table of
+     `docs/research/FND-04-slots.md`, and the ADRs after FND-04): the numbers you design to.
 2. **DES-21, design/02 § Planned queues and played batches**: `play(instance_id, adventurer_id,
    sequence, actions[1..10])`, the action enum, weights, `BatchPlayed`, the sequence rules, the
    standalone Fate and gate entrypoints, the views `instance_state` and `instance_region`, the three
