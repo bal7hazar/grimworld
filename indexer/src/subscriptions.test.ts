@@ -576,12 +576,23 @@ describe("AC-5: bounded", () => {
         error: "too many subscriptions from this client",
         head: { number: 1 },
       });
-      // Its snapshot stops at the socket's buffers; it is dropped for the stall, never for bytes.
+      // Its stream stops at the sockets' buffers; it is dropped for the stall, never for bytes. On
+      // Linux the loopback buffers can hold the whole snapshot: blocks of 2 000 lots follow until
+      // they are full (at most 40, about 14 MB).
       const started = performance.now();
-      while (server.subscriptions.dropped === 0) {
-        if (performance.now() - started > 10_000)
+      let lot = 20_000;
+      for (let block = 0; server.subscriptions.dropped === 0; block++) {
+        if (performance.now() - started > 25_000)
           throw new Error("not dropped");
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        if (block < 40) {
+          node.mine(
+            Array.from({ length: 2_000 }, () =>
+              ev.posted(++lot, { price: BigInt(lot) }),
+            ),
+          );
+          await settle(subject);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
       expect(server.subscriptions.drops).toEqual({
         buffered: 0,
@@ -607,5 +618,5 @@ describe("AC-5: bounded", () => {
       server.close();
       server.closeAllConnections();
     }
-  });
+  }, 40_000);
 });
