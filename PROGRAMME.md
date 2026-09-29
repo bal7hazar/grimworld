@@ -54,7 +54,7 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 
 ## Waiting for the owner
 
-**The owner's review of the pattern of ARC-06**, on one model, before `quiver` and the game are reworked.
+**The owner's review of the next iterations of code on the pattern of D-143**: the reference model of ARC-06, then the first lots of ARC-07 and ENG-R1, until nothing is left to say; autonomy after that.
 
 | Open, without urgency | Needed by |
 |---|---|

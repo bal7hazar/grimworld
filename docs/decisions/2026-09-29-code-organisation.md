@@ -39,3 +39,10 @@ every audit now applies.
 | 3 | **ARC-07**, in `quiver`: `quiver_quest` and `quiver_achievement` rewritten on the pattern, as **0.2.0**. Behaviour, tests, gas caps and storage layouts kept, unless the pattern needs another layout, measured | 0.1.0 is published and stays on the registry: a publication cannot be undone. No consumer uses it yet: the game embeds the packages at GLD-02, which will depend on 0.2.0 |
 | 4 | **ENG-R1**, in the game: the contracts written so far brought to §7 (helpers and packing scoped, the tracked models emitting through the store) | After the pattern; tasks running now (ENG-03, ENG-04) scope their functions from today and adopt the store's events when ARC-06 lands |
 | 5 | `hexx-cairo` | The mirror of `hexx` is already methods on types (`Hex::distance_to`); the engine taken over and the extensions follow §7 from the next task. It stores nothing: the model and event rules do not apply |
+
+## Review by the owner (2026-09-29)
+
+The owner accepts the rule and the order above. **The owner reviews the next iterations of
+code on the pattern**: the reference model of ARC-06, then the first lots of ARC-07 and
+ENG-R1, until there is nothing left to say on the work. From then the project manager
+checks the organisation lens itself and the tracks go on without the owner's review.
