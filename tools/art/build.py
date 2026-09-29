@@ -21,13 +21,51 @@ REPO = HERE.parent.parent
 VENV = HERE / ".venv"
 OUT = HERE / "out"
 ASSETS = REPO / "assets"
+PYTHON = (3, 12)            # NumPy 2.5.3 (requirements.txt) needs Python 3.12 or newer
+
+
+def select_python(version, which):
+    """Which interpreter runs the build: None for the current one (`version` is at least 3.12),
+    else the path of `python3.12` found by `which` (shutil.which). Refuses, naming 3.12, when
+    neither holds. Called before any venv is created or used."""
+    if tuple(version[:2]) >= PYTHON:
+        return None
+    name = "python%d.%d" % PYTHON
+    found = which(name)
+    if found:
+        return found
+    raise SystemExit("tools/art/build.py needs Python %d.%d or newer (NumPy 2.5.3), found %d.%d, "
+                     "and no `%s` on PATH: install Python %d.%d and run it again."
+                     % (*PYTHON, *version[:2], name, *PYTHON))
+
+
+def venv_version(venv):
+    """(major, minor) of the Python a venv was made with, from its pyvenv.cfg; None if unreadable."""
+    cfg = venv / "pyvenv.cfg"
+    if not cfg.exists():
+        return None
+    for line in cfg.read_text().splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() in ("version", "version_info"):
+            parts = value.strip().split(".")
+            if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                return int(parts[0]), int(parts[1])
+    return None
 
 
 def bootstrap():
-    """Re-run under tools/art/.venv, creating it and installing the pinned requirements."""
+    """Re-run under Python 3.12+, then under tools/art/.venv, creating it (or rebuilding it when it
+    was made with another Python) and installing the pinned requirements."""
+    other = select_python(sys.version_info, shutil.which)
+    if other:
+        os.execv(other, [other, str(Path(__file__).resolve()), *sys.argv[1:]])
     py = VENV / "bin" / "python"
     if Path(sys.prefix).resolve() == VENV.resolve():
         return
+    if VENV.exists() and venv_version(VENV) != tuple(sys.version_info[:2]):
+        print(f"tools/art/.venv was made with Python {venv_version(VENV)}, not "
+              f"{sys.version_info[0]}.{sys.version_info[1]}: rebuilding it", file=sys.stderr)
+        shutil.rmtree(VENV)
     if not py.exists():
         subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True)
     probe = subprocess.run([str(py), "-c", "import PIL, numpy"], capture_output=True)
