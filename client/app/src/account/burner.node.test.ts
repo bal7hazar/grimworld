@@ -28,7 +28,7 @@ async function settled(status: () => Promise<ExecutionStatus>): Promise<Executio
 }
 
 describe.skipIf(!nodeUrl)("the burner on the local node", () => {
-  it("creates, executes one call, reports its status, signs out and restores", async () => {
+  it("creates, executes one call, reports its status, signs out, restores, and survives a restart", async () => {
     const config = { nodeUrl: nodeUrl!, accountClass: LOCAL_ACCOUNT_CLASS };
     const chain = createStarknetChain(config);
     const funder = createNodeFunder({
@@ -70,5 +70,22 @@ describe.skipIf(!nodeUrl)("the burner on the local node", () => {
     ]);
     expect(await settled(() => again.status(second))).toBe("succeeded");
     expect(await again.status("0x1234" as never)).toBe("unknown");
+
+    // The local node restarts empty (fix loop 1, F-3): a new session finds the account gone, and
+    // the game deploys and funds the same key again.
+    const restarted = await fetch(nodeUrl!, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "devnet_restart", params: {} }),
+    });
+    expect((await restarted.json()).error).toBeUndefined();
+    expect(await chain.isDeployed(address)).toBe(false);
+    const afterReset = createBurnerProvider({ chain, funder, storage });
+    expect(await afterReset.createOrRestore()).toEqual({ address });
+    expect(await chain.isDeployed(address)).toBe(true);
+    const third = await afterReset.execute([
+      { to: STRK, entrypoint: "approve", calldata: [env.NODE_ACCOUNT_ADDRESS!, 3n, 0n] },
+    ]);
+    expect(await settled(() => afterReset.status(third))).toBe("succeeded");
   }, 120_000);
 });

@@ -14,5 +14,11 @@ export type {
 export { AccountError } from "./types";
 export type { BurnerChain, Funder } from "./burner";
 export { STORAGE_KEY, createBurnerProvider } from "./burner";
-export { LOCAL_ACCOUNT_CLASS, STRK, createNodeFunder, createStarknetChain } from "./starknet";
+export {
+  LOCAL_ACCOUNT_CLASS,
+  LocalNodeRefused,
+  STRK,
+  createNodeFunder,
+  createStarknetChain,
+} from "./starknet";
 export type { ChainConfig, NodeFunderConfig } from "./starknet";

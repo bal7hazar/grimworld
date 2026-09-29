@@ -1,6 +1,5 @@
 import {
   AccountError,
-  type AccountHandle,
   type AccountProvider,
   type Call,
   type ExecutionId,
@@ -19,6 +18,11 @@ import {
 
 /** What the burner needs from the chain, for one key. */
 export interface BurnerChain {
+  /**
+   * What the kept account is bound to: the network and the account class. An account's address
+   * depends on the class, and exists only on the network that deployed it.
+   */
+  binding(): Promise<string>;
   /** A new private key, from a secure random source. */
   newKey(): string;
   /** The public key and the account's address for a private key (the address before deployment). */
@@ -42,20 +46,27 @@ export interface Funder {
 export const STORAGE_KEY = "grimworld.account";
 
 interface Kept {
-  readonly v: 1;
+  readonly v: 2;
   readonly key: string;
+  /** `BurnerChain.binding()` when the address was derived. */
+  readonly binding: string;
   readonly address: string;
-  /** The account was seen deployed: no need to ask the chain or the funder again. */
-  readonly ready: boolean;
 }
 
-function read(storage: KeyStorage): Kept | undefined {
+/** The kept record; a record of an earlier version keeps its key and is bound again. */
+function read(
+  storage: KeyStorage,
+): { key: string; binding?: string; address?: string } | undefined {
   const raw = storage.getItem(STORAGE_KEY);
   if (raw === null) return undefined;
   try {
     const kept = JSON.parse(raw) as Partial<Kept>;
-    if (kept.v === 1 && typeof kept.key === "string" && typeof kept.address === "string") {
-      return { v: 1, key: kept.key, address: kept.address, ready: kept.ready === true };
+    if (typeof kept.key === "string") {
+      return {
+        key: kept.key,
+        binding: typeof kept.binding === "string" ? kept.binding : undefined,
+        address: typeof kept.address === "string" ? kept.address : undefined,
+      };
     }
   } catch {
     // unreadable: as if nothing were kept
@@ -78,49 +89,66 @@ export function createBurnerProvider(options: BurnerOptions): AccountProvider {
   const { chain, funder } = options;
   const storage = options.storage ?? globalThis.localStorage;
   let session: { key: string; address: string } | undefined;
-  let opening: Promise<AccountHandle> | undefined;
+  // Every sign-out starts a new generation: an open begun before it cannot open a session after it
+  // (fix loop 1, F-2).
+  let generation = 0;
+  // The work of making the kept account usable, shared by every caller while it runs, across a
+  // sign-out too: the funding is never asked twice at once.
+  let preparing: Promise<Kept> | undefined;
   // Executions go one after the other: a burner's executions are ordered, and two sent at once
   // would race for the same place in that order.
   let queue: Promise<unknown> = Promise.resolve();
 
-  async function open(): Promise<AccountHandle> {
-    let kept = read(storage);
-    if (kept === undefined) {
-      const key = chain.newKey();
-      // Kept before the account exists: an interruption resumes with the same key and address,
-      // and the funding is never spent twice.
-      kept = { v: 1, key, address: chain.derive(key).address, ready: false };
-      storage.setItem(STORAGE_KEY, JSON.stringify(kept));
-    }
-    if (!kept.ready) {
-      if (!(await chain.isDeployed(kept.address))) {
-        await funder.provide(chain.derive(kept.key).publicKey, kept.address);
-      }
-      kept = { ...kept, ready: true };
-      storage.setItem(STORAGE_KEY, JSON.stringify(kept));
-    }
-    session = { key: kept.key, address: kept.address };
-    return { address: kept.address };
+  function keep(kept: Kept): Kept {
+    storage.setItem(STORAGE_KEY, JSON.stringify(kept));
+    return kept;
+  }
+
+  /**
+   * Every new session checks the account on the chain (fix loop 1, F-3): a local node that was
+   * reset has lost it, and the same key is deployed and funded again. The kept record is bound to
+   * the network and the class; under another binding the key is kept and its address derived again.
+   */
+  async function prepare(): Promise<Kept> {
+    const binding = await chain.binding();
+    const found = read(storage);
+    // A new key is kept before its account exists: an interruption resumes with the same key.
+    const key = found?.key ?? chain.newKey();
+    const { publicKey, address } = chain.derive(key);
+    let kept: Kept = { v: 2, key, binding, address };
+    if (found?.binding !== binding || found.address !== address) kept = keep(kept);
+    if (!(await chain.isDeployed(address))) await funder.provide(publicKey, address);
+    return kept;
   }
 
   return {
-    createOrRestore() {
-      if (session) return Promise.resolve({ address: session.address });
-      opening ??= open()
-        .catch((error: unknown) => {
-          throw wrap(error);
-        })
-        .finally(() => {
-          opening = undefined;
-        });
-      return opening;
+    async createOrRestore() {
+      if (session) return { address: session.address };
+      const opened = generation;
+      preparing ??= prepare().finally(() => {
+        preparing = undefined;
+      });
+      let kept: Kept;
+      try {
+        kept = await preparing;
+      } catch (error) {
+        throw wrap(error);
+      }
+      // Signed out while it was being prepared: the account stays kept, no session opens.
+      if (opened !== generation) throw new AccountError("not-ready");
+      session ??= { key: kept.key, address: kept.address };
+      return { address: session.address };
     },
 
     execute(calls) {
       const current = session;
       if (!current) return Promise.reject(new AccountError("not-ready"));
       if (calls.length === 0) return Promise.reject(new AccountError("invalid"));
-      const sent = queue.then(() => chain.send(current.key, current.address, calls));
+      const sent = queue.then(() => {
+        // Signed out while waiting for its turn: nothing is sent.
+        if (session !== current) throw new AccountError("not-ready");
+        return chain.send(current.key, current.address, calls);
+      });
       queue = sent.catch(() => undefined);
       return sent.then(
         (id) => id as ExecutionId,
@@ -139,8 +167,9 @@ export function createBurnerProvider(options: BurnerOptions): AccountProvider {
     },
 
     async signOut() {
-      // The key stays on the device (ADR-0005 §3: losing it loses the account); only the session
-      // ends.
+      // The key stays on the device (ADR-0005 §3: losing it loses the account); the session ends,
+      // and so does any open still running.
+      generation++;
       session = undefined;
     },
   };

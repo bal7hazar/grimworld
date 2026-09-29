@@ -72,6 +72,10 @@ async function isDeployed(provider: RpcProvider, address: string): Promise<boole
 export function createStarknetChain(config: ChainConfig): BurnerChain {
   const provider = new RpcProvider({ nodeUrl: config.nodeUrl });
   return {
+    async binding() {
+      return `${num.toHex(await provider.getChainId())}/${num.toHex(config.accountClass)}`;
+    },
+
     newKey() {
       return encode.addHexPrefix(encode.buf2hex(ec.starkCurve.utils.randomPrivateKey()));
     },
@@ -118,26 +122,105 @@ export function createStarknetChain(config: ChainConfig): BurnerChain {
 }
 
 export interface NodeFunderConfig extends ChainConfig {
-  /** An account of the game that pays: in development, a pre-funded account of the local node. */
+  /** One of the local node's pre-funded accounts, and its key as the node publishes it. */
   funderAddress: string;
   funderKey: string;
   /** STRK given to each new burner, in its smallest unit (fri). */
   amount: bigint;
   /** How often to ask whether the deployment settled, in milliseconds. */
   pollMs?: number;
+  /** Every request of the funder goes through it (tests observe and answer them offline). */
+  fetch?: typeof fetch;
+}
+
+/** The funder refused to act: its configuration is not the local node's (FND-05, fix loop 1). */
+export class LocalNodeRefused extends Error {
+  constructor(reason: string) {
+    super(`local node funder refused: ${reason}`);
+    this.name = "LocalNodeRefused";
+  }
+}
+
+/** Hosts of the machine itself: the only endpoints the development funder talks to. */
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const SN_MAIN = "0x534e5f4d41494e";
+
+/**
+ * Checks, before anything is signed or sent, that the funder is the local node's (fix loop 1, F-1):
+ * 1. the endpoint is on this machine (loopback): a public endpoint is refused before any request;
+ * 2. the node answers `devnet_getPredeployedAccounts`, a method of the local node only (a public
+ *    node does not have it), and **publishes the funder's address with the same private key**;
+ * 3. its chain id is not mainnet's.
+ * The chain id alone cannot tell the local node from Sepolia (the node reports `SN_SEPOLIA`), and a
+ * loopback address alone can be a tunnel to a public node. Check 2 is the one configuration cannot
+ * pass: configuration only supplies an endpoint, an address and a key, and the funder signs only
+ * with a key the node itself publishes to anyone who asks. Such a key holds nothing of value on any
+ * network; a key of value is never published by a node. Getting past it takes a program written to
+ * impersonate the local node, not a setting.
+ */
+async function assertLocalNode(config: NodeFunderConfig, fetchImpl: typeof fetch): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(config.nodeUrl);
+  } catch {
+    throw new LocalNodeRefused("the endpoint is not a URL");
+  }
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || !LOOPBACK.has(url.hostname)) {
+    throw new LocalNodeRefused("the endpoint is not on this machine");
+  }
+  const rpc = async (method: string, params: unknown): Promise<unknown> => {
+    const response = await fetchImpl(config.nodeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    });
+    const body = (await response.json()) as { result?: unknown; error?: unknown };
+    if (body.error !== undefined || body.result === undefined) {
+      throw new LocalNodeRefused(`the node does not answer ${method}`);
+    }
+    return body.result;
+  };
+  const accounts = await rpc("devnet_getPredeployedAccounts", {});
+  const published =
+    Array.isArray(accounts) &&
+    accounts.some((entry: { address?: unknown; private_key?: unknown }) => {
+      try {
+        return (
+          num.toBigInt(String(entry.address)) === num.toBigInt(config.funderAddress) &&
+          num.toBigInt(String(entry.private_key)) === num.toBigInt(config.funderKey)
+        );
+      } catch {
+        return false;
+      }
+    });
+  if (!published) {
+    throw new LocalNodeRefused("the funder is not a pre-funded account the node publishes");
+  }
+  const chainId = await rpc("starknet_chainId", []);
+  if (num.toBigInt(String(chainId)) === num.toBigInt(SN_MAIN)) {
+    throw new LocalNodeRefused("the chain is mainnet");
+  }
 }
 
 /**
  * The game's funder in development: a pre-funded account of the local node deploys the burner's
  * account through the universal deployer and sends it STRK, in one execution (D-137: the game
- * funds, the burner sends directly). Its key is the local node's, never a key of value: a funder on
- * a public network lives on a server of the game, behind the same `Funder`.
+ * funds, the burner sends directly). It refuses anything but the local node (`assertLocalNode`,
+ * at every `provide`, before any signature). Funding on a public network is a service of the game
+ * behind the same `Funder`, never this.
  */
 export function createNodeFunder(config: NodeFunderConfig): Funder {
-  const provider = new RpcProvider({ nodeUrl: config.nodeUrl });
-  const funder = new Account({ provider, address: config.funderAddress, signer: config.funderKey });
+  const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
+  const provider = new RpcProvider({ nodeUrl: config.nodeUrl, baseFetch: fetchImpl });
   return {
     async provide(publicKey, address) {
+      await assertLocalNode(config, fetchImpl);
+      // The signer exists only once the node is known to be the local one.
+      const funder = new Account({
+        provider,
+        address: config.funderAddress,
+        signer: config.funderKey,
+      });
       if (await isDeployed(provider, address)) return;
       const deploy = defaultDeployer.buildDeployerCall(
         {
