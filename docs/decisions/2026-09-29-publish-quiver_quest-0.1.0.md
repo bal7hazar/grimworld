@@ -44,5 +44,11 @@ In a clean clone, on 2026-09-29, 04:40 UTC.
 
 ## After the publication
 
-The orchestrator reports the registry's entry; the project manager reads the registry,
-compares the checksum, records the result here and reports to the owner.
+Published on 2026-09-29 by the orchestrator's session. Read by the project manager at
+05:00 UTC:
+
+| | |
+|---|---|
+| Registry | https://scarbs.xyz/packages/quiver_quest ; the index lists `0.1.0` with `cksum sha256:494228f198376611f338d75a4c8511cd02eec1bc8ee666c4bd6c7973eeb4379c`, **the checksum of the go**; dependencies `starknet ^2.19.0` (normal) and `snforge_std ^0.61.0` (test) |
+| Tag | `quiver_quest-v0.1.0` points at `364462f9c7dcc60f52dd45ab1e9d735c3aa7cbe2`, the commit of the go |
+| Release | https://github.com/bal7hazar/quiver/releases/tag/quiver_quest-v0.1.0 , not a draft, the archive attached |

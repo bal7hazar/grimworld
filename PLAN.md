@@ -155,9 +155,9 @@ them as separate Scarb packages (D-125). The game consumes them **by published v
 | ARC-00 | The repository: name and visibility by the owner; created once named | — | Owner / project manager | — | done (2026-09-28: `bal7hazar/quiver`) |
 | ARC-01 | **Analysis** of `quest` and `achievement` as they are: data model, modes, hooks, the edge cases of ADR-0004, what depends on Dojo; API of the native packages; what Grim World needs first (quests one-shot and daily, prerequisites, progress keyed by adventurer id, claim hook; titles with tiers) | ARC-00 | Opus 5.5, research | GPT-6-Sol | done (2026-09-28; audited three times) |
 | **Gate A-G1** | **Is the API accepted?** | ARC-01 | Project manager (D-128) | — | **decided 2026-09-28**: accepted (D-131) |
-| ARC-02 | Workspace, **CI by affected package** (a change in `quest` runs `quest` and its dependents only), gas tooling, publication pipeline per package | A-G1 | Sonnet 5.5 | GPT-6-Luna | todo |
-| ARC-03 | `quest`: implementation, test-driven; released on scarbs.xyz | ARC-02 | Opus 5.5 | GPT-6-Astra (access control, ownership) | todo |
-| ARC-04 | `achievement`: a package of the same workspace; implementation, release | ARC-03 | Opus 5.5 | GPT-6-Astra | todo |
+| ARC-02 | Workspace, **CI by affected package** (a change in `quest` runs `quest` and its dependents only), gas tooling, publication pipeline per package | A-G1 | Sonnet 5.5 | GPT-6-Luna | done |
+| ARC-03 | `quest`: implementation, test-driven; released on scarbs.xyz | ARC-02 | Opus 5.5 | GPT-6-Astra (access control, ownership) | done: `quiver_quest` 0.1.0 published on 2026-09-29 (D-138) |
+| ARC-04 | `achievement`: a package of the same workspace; **event mode only in 0.1.0** (D-139); implementation, release | ARC-03 | Opus 5.5 | GPT-6-Astra | todo |
 | ARC-05 | `leaderboard`, `social` | After the MVP | — | — | todo |
 
 ## Phase 1 — Walking skeleton

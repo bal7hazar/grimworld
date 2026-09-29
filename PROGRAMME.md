@@ -11,7 +11,7 @@ owner.
 |---|---|---|---|---|
 | Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 16 tasks done, the last one FND-04: the cost budget is written ([docs/architecture/cost-budget.md](docs/architecture/cost-budget.md)), every figure marked measured, derived or estimated. Running: **ENG-01**, the core interfaces, designed against that budget. Then FND-05, SPK-4 | Gate of Phase 0 |
 | Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
-| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | `quiver_quest`: library merged; component being redone around the held list (ARC-03c, fix loop 1 after a first audit) | `quiver_quest` 0.1.0: a publication, asked of the project manager |
+| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | **`quiver_quest` 0.1.0 is published** on scarbs.xyz (2026-09-29). Next: `quiver_achievement` 0.1.0, in event mode only (D-139) | `quiver_achievement` 0.1.0: a publication, asked of the project manager |
 
 Budget: 3 agents at a time across the three tracks, audits included (D-118); caps: game 2,
 map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
@@ -36,7 +36,8 @@ of the same Unix user.
 | D-132 | Publications on scarbs.xyz are decided by the project manager in the owner's name | Owner |
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
-| D-138 | **Go for the first publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks | Project manager, in the owner's name |
+| D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-139 | `quiver_achievement` 0.1.0 in event mode only: its storage mode would cost about 200M gas in the worst call | Project manager |
 | D-137 | The MVP's burners send directly, funded by the game; no paymaster before version 1 | Project manager |
 | D-136 | An unrevealed chunk is wall in the window; the ADR amendments of DES-21 (played batches) accepted | Project manager |
 | D-134 | Void chunks around every location; chunk corners are wall. SPK-7 measured the chunked map at +720k gas per tick with goblins (+14 %) | Project manager |
