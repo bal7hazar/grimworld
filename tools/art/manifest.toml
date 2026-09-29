@@ -18,7 +18,8 @@ min_component = 6      # a detached speck smaller than this many px is dropped
 cell_margin = 4        # transparent margin kept around the union of a sprite's frames
 atlas_max = 2048       # page side, at most
 atlas_padding = 2      # transparent gutter between packed frames
-resample = "area"      # "area" (overlap average, alpha made binary) or "nearest"; see artpipe/scale.py
+resample = "area"      # "area", "area-blend" or "nearest" (artpipe/scale.py); --resample=… overrides
+palette_max = 64       # "area" snaps colours to the source's palette when it has at most this many
 
 # Heights of the builds, in px (ART-02; D-146, provisional: the owner sets the final sizes by eye).
 # Every sprite names its build; its visible height (idle, feet to top of head, what a hand holds

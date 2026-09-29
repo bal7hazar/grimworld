@@ -15,7 +15,10 @@ boundaries), in integer arithmetic only, so that the result is the same on every
   grow a translucent ring); its alpha is the visible part's average alpha, snapped to the nearest
   value the sprite's source uses (the pack's units use only 0, about 80, and 255); its colour is
   the covered pixels' average in premultiplied alpha. No new transparency level appears, so edges
-  stay as hard as the source's; colours blend where source pixels meet.
+  stay as hard as the source's. Where source pixels meet, colours blend; so when the sprite's
+  source has a small palette (at most `palette_max` colours: the pack's units have 10 to 16), each
+  colour is then snapped to the nearest colour of that palette, and no new colour appears either.
+  The generated sheets (tens of thousands of colours) keep the averaged colours.
 """
 
 import numpy as np
@@ -71,6 +74,23 @@ def axis_nearest(size, anchor, p, q):
 def alpha_levels(cells):
     """The alpha values a sprite's source uses (0 included): the levels `area` snaps to."""
     return sorted({0} | {int(v) for c in cells for v in np.unique(c[..., 3])})
+
+
+def palette(cells, most):
+    """The sprite's colours (RGB of its visible pixels), sorted, if at most `most`; else None."""
+    seen = np.unique(np.concatenate([c[c[..., 3] > 0][:, :3] for c in cells]), axis=0)
+    return seen.astype(np.int64) if len(seen) <= most else None
+
+
+def snap(cell, colours):
+    """Every visible pixel's colour replaced by the nearest of `colours` (squared RGB distance;
+    a tie goes to the first in sorted order)."""
+    vis = cell[..., 3] > 0
+    rgb = cell[vis][:, :3].astype(np.int64)
+    d = ((rgb[:, None, :] - colours[None, :, :]) ** 2).sum(axis=2)
+    out = cell.copy()
+    out[vis, :3] = colours[np.argmin(d, axis=1)].astype(np.uint8)
+    return out
 
 
 def resample(cell, anchor_x, anchor_y, p, q, method, levels=range(256)):

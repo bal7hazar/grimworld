@@ -2,9 +2,12 @@
 """Asset pipeline entry point: `tools/art/build.py`.
 
 Reads the private art pack (submodule `assets`), writes atlases, JSON, a report and a preview to
-`tools/art/out/` (ignored by git, D-73). Sets up its own virtualenv on first run. Deterministic:
-two runs give byte-identical outputs. `--check` also parses the atlases with PixiJS 8 (needs
-node and pnpm from .tool-versions, see scripts/setup-toolchain.sh).
+`tools/art/out/` (ignored by git, D-73). Needs Python 3.12 (re-executes under `python3.12` when
+started by an older one); sets up its own virtualenv on first run. Deterministic: two runs give
+byte-identical outputs, and the pixel-and-metadata fingerprint is meant to match across machines
+(README). `--check` also parses the atlases with PixiJS 8 (needs node and pnpm from
+.tool-versions, see scripts/setup-toolchain.sh). Other modes: `--fingerprint`, `--pack-heights`,
+`--resample=<filter>`.
 """
 
 import json
@@ -52,10 +55,10 @@ def venv_version(venv):
     return None
 
 
-def bootstrap():
+def bootstrap(version=sys.version_info, which=shutil.which):
     """Re-run under Python 3.12+, then under tools/art/.venv, creating it (or rebuilding it when it
     was made with another Python) and installing the pinned requirements."""
-    other = select_python(sys.version_info, shutil.which)
+    other = select_python(version, which)
     if other:
         os.execv(other, [other, str(Path(__file__).resolve()), *sys.argv[1:]])
     py = VENV / "bin" / "python"
@@ -111,6 +114,9 @@ def main():
     if not (ASSETS / "README.md").exists():
         raise SystemExit("The art pack is missing: run `git submodule update --init assets` "
                          "(a private repository, see tools/art/README.md).")
+    if "--pack-heights" in sys.argv[1:]:
+        pack_heights()
+        return
     manifest = tomllib.loads((HERE / "manifest.toml").read_text())
     s = manifest["settings"]
     method = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--resample=")),
@@ -142,7 +148,7 @@ def main():
         every = [p for _, ps in anims for p in ps]
         cell_w, cell_h, baseline, cells = clean.place(every, s["cell_margin"])
         cells, cell_w, cell_h, baseline, scaled = scale_sprite(
-            sp, anims, cells, cell_w, baseline, manifest["build"], method, s["cell_margin"])
+            sp, anims, cells, cell_w, baseline, manifest["build"], method, s)
         k, out_anims = 0, []
         for a, ps in anims:
             out_anims.append({"name": a["name"], "fps": a["fps"], "loop": a["loop"],
@@ -194,9 +200,10 @@ def main():
         pixi_check()
 
 
-def scale_sprite(sp, anims, cells, cell_w, baseline, builds, method, margin):
+def scale_sprite(sp, anims, cells, cell_w, baseline, builds, method, s):
     """Resample a sprite's placed cells to its build's height (artpipe/scale.py), unless every idle
-    frame already stands within 2 px of it. Returns (cells, cell_w, cell_h, baseline, info)."""
+    frame already stands within 2 px of it. `method`: nearest, area (then the palette snap), or
+    area-blend (area without it, for comparison). Returns (cells, cell_w, cell_h, baseline, info)."""
     from artpipe import clean, scale
     k, idle = 0, None
     for a, ps in anims:
@@ -212,15 +219,36 @@ def scale_sprite(sp, anims, cells, cell_w, baseline, builds, method, margin):
             "source_idle": [before[0], before[-1]], "factor": [1, 1]}
     if any(abs(h - target) > 2 for h in before):
         levels = scale.alpha_levels(cells)
-        out = [scale.resample(c, cell_w // 2, baseline, target, measured, method, levels)[0]
+        colours = scale.palette(cells, s["palette_max"]) if method == "area" else None
+        kernel = "area" if method == "area-blend" else method
+        out = [scale.resample(c, cell_w // 2, baseline, target, measured, kernel, levels)[0]
                for c in cells]
-        cell_w, _, baseline, cells = clean.place([clean.register(c) for c in out], margin)
+        if colours is not None:
+            out = [scale.snap(c, colours) for c in out]
+        info["palette"] = None if colours is None else len(colours)
+        cell_w, _, baseline, cells = clean.place([clean.register(c) for c in out],
+                                                 s["cell_margin"])
         info["factor"] = [target, measured]
     height, after = scale.sprite_height(cells[idle])
     info.update(height=height, idle=[after[0], after[-1]],
                 source_frames=[scale.visible_height(c) for c in cells_before[idle]],
                 frames=[scale.visible_height(c) for c in cells[idle]])
     return cells, cell_w, cells[0].shape[0], baseline, info
+
+
+def pack_heights():
+    """The visible height (artpipe/scale.py) of every original unit's idle strip in the pack: the
+    blue units and the enemy pack. Prints the median and range over the idle frames."""
+    from artpipe import clean, scale
+    strips = sorted([*(ASSETS / "Units" / "Blue Units").glob("*/*Idle.png"),
+                     *(ASSETS / "Enemy Pack").glob("*/*_Idle.png"),
+                     *(ASSETS / "Enemy Pack" / "Extra").glob("*/*_Idle.png")])
+    print(f"{'unit (idle strip)':<48}median  range")
+    for path in strips:
+        _, _, _, cells = clean.place(clean.cut_strip(path), 4)
+        h, hs = scale.sprite_height(cells)
+        name = str(path.relative_to(ASSETS).parent)
+        print(f"{name:<48}{h:<8}{hs[0]}-{hs[-1]}")
 
 
 def check_scale(sprites, order):
