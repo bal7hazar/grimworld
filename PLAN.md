@@ -312,7 +312,7 @@ the owner, and **due before the phase that consumes it**.
 | DES-03 | **Map parameters**: room size, generator parameters per biome, room features (chests, traps, gathering nodes), gate placement | Phase 1 (ENG-05) | done (`docs/design/18-rooms.md`) |
 | DES-04 | **Effect catalogue**: the closed list of skill effects and their exact resolution order; blocking, interrupts, area targeting, simultaneous deaths | Phase 2 (CBT-01) | done (2026-09-29, [#139](https://github.com/bal7hazar/grimworld/pull/139); design/19; D-155; [report](docs/reports/DES-04-effects.md)) |
 | DES-05 | **Skill lists**: the 6 trainer skills per MVP profession (only the 6 starters exist) | Phase 2 (CNT-01) | todo |
-| DES-06 | **Caste sheets**: health and armor per caste, skill list, priority list, boss phases | Phase 2 (CNT-01) | todo |
+| DES-06 | **Caste sheets**: health and armor per caste, skill list, priority list, boss phases. **D-157: a per-source bound for every statistic (signed where negative), a prerequisite of production snapshots (CBT-02, ENG-07)** | Phase 2 (CNT-01) | todo |
 | DES-07 | **Curves**: experience per level, merit per quest, gold income and prices, attribute points per level | Phase 3 (GLD-01) | todo |
 | DES-08 | **Onboarding**: adventurer creation, first ten minutes, skill quests one by one | Phase 3 (CNT-02) | todo |
 | DES-09 | **Quest list** of Region 1 and the two promotion trials | Phase 3 (CNT-02) | todo |
