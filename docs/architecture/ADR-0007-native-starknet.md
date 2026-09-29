@@ -133,6 +133,20 @@ They cannot be used as they are.
 | Compiler | Cairo 2.19 for the game and its libraries: N-9 disappears. The map library keeps one target |
 | Freedom | Storage layout, packing, events and class boundaries are chosen for cost |
 
+## Measured (Phase 0, gathered by FND-04 on 2026-09-29)
+
+Figures and their sources only; no decision is changed.
+
+| Question | Measured | Source |
+|---|---|---|
+| **Native against Dojo**, like for like, one node and one account (local node) | The worst tick as a transaction: **5.16M** native against **18.94M** on Dojo 1.8 (0.27×). Every action measured: native is **0.26× to 0.58×** Dojo | SPK-2 §8, §9; D-129 |
+| The meter on Sepolia | Sierra gas: the game's calls come within 2 % to 18 % of snforge's Sierra-gas figures | SPK-1 §3 |
+| **The fixed part of a transaction** | 717,435 L2 gas with the MVP's burner sending directly: validation 87,805, the account's execution 141,670, the STRK fee transfer 455,360, a residual 32,600. The fee transfer does not depend on the account | SPK-1b §1 |
+| What native storage costs per transaction | A new slot (its value was 0) **453,524** L2 gas; an overwritten or zeroed slot **32,072**; a felt of calldata 5,120; an event nothing beyond its call | FND-04 §3, §4 |
+| The floor of a burner transaction, before the game computes | 816,939 L2 gas (D) | [cost-budget.md](cost-budget.md) §1 |
+| NS-1, the local node | starknet-devnet accepts the classes of Cairo 2.19; it meters VM resources, not Sierra gas, and reports state diffs in its traces | SPK-5b; SPK-2 §8.2; FND-04 §5 |
+| The indexer | Our own (D-130): the nine events and two views the MVP's indexer needs | SPK-11 |
+
 ## Consequences elsewhere
 
 | Document or task | Change |

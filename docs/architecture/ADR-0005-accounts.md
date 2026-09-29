@@ -77,6 +77,28 @@ never imports a vendor's library outside that module.
 | What does the player see at first login? | Meets A-6, or can be themed to meet it |
 | Can a burner use a paymaster and a verifiable random source on Sepolia without Controller? | One working path identified, with its trust model |
 
+## Measured (Phase 0, gathered by FND-04 on 2026-09-29)
+
+Figures and their sources only; the decision on cost is D-137. Sepolia, `enter` and `leave` of
+SPK-2's native contracts, the same game call in every case.
+
+| The MVP's account on cost | L2 gas | Source |
+|---|---:|---|
+| **An OpenZeppelin burner (`AccountUpgradeable` v3.0.0, class `0x01d1777d…2381`, already declared on Sepolia) sending directly**: fixed part (validation 87,805, execution 141,670, fee transfer 455,360, residual 32,600) | **717,435** | SPK-1b §1, §3 |
+| The owner's account (Braavos), same definition | 1,087,585 (1.52×) | SPK-1b §3 |
+| The burner through a relayer of our own (SNIP-9 v2 outside execution) | 1,587,885 (2.2×) | SPK-1b §3 |
+| The burner through AVNU's public paymaster, default mode | 3,654,080 (5.1×); the burner paid AVNU 1.19× to 1.21× the receipt's fee | SPK-1b §3, §4 |
+| An outside execution's SNIP-9 nonce | **one new storage slot per transaction**, 482,000 of the relayer path's extra cost | FND-04 §3 (SPK-1b §7.2's inference, measured) |
+| `leave` sent by the burner, whole receipt | 1,659,915; 0.0373 STRK at the prices of the run | SPK-1b §3, §5 |
+| The burner's `DEPLOY_ACCOUNT` | 2,168,115 (3 new slots); 0.0485 STRK | SPK-1b §6; FND-04 |
+| Funding the burner and assigning it an adventurer, one multicall | 2,807,735; 0.0627 STRK | SPK-1b §6, §7.3 |
+
+- **No paymaster in the path of play** is the cheapest path measured (D-137).
+- **A minimal account of our own** would save at most 229,475 on `leave` (23 %), an estimate
+  (SPK-1b §5).
+- **Not measured**: a sponsored paymaster (it needs a key); whether the same class hash is
+  declared on mainnet.
+
 ## Consequences
 
 | | |

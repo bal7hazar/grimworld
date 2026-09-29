@@ -319,6 +319,23 @@ a smaller window saves flood layers, not the cost of a layer. The single-limb pa
 reached only by 11 × 11 with an odd origin allowed, which is the one case where the parity
 flag in the tick would be worth its price; SPK-7 says whether it is ever needed.
 
+## Measured (SPK-7, gathered by FND-04 on 2026-09-29)
+
+Figures and their sources only; no decision is changed. SPK-7's figures are from snforge (in
+memory, Sierra gas) and from transactions on the local node, whose meter is not Sepolia's (SPK-2
+§8.2).
+
+| Operation | Measured | Source |
+|---|---|---|
+| Assemble the window, in memory | **65,224** L2 gas, for 2 chunks as for 4 (the estimate above was about 40k) | SPK-7 §2.1 |
+| The window in the tick, as transactions | **+720,000 L2 gas and +256 L1 data gas per tick with goblins awake**, +14.0 % on SPK-2's worst tick | SPK-7 summary, local node |
+| A stored window (B, B′) against assembling it (A) | B +440,000 waiting, +320,000 moving; B′ −640,000 standing, up to 4,848,960 when it writes 4 chunks back | SPK-7 summary |
+| Reveal | One chunk **2,455,200**, three chunks **5,919,680** (cave), as transactions; generation 390k to 447k per chunk in memory | SPK-7 summary |
+| A chunk's storage | 2 slots per chunk (terrain, occupied) under one key. Written at reveal, they are **new slots**: about 0.45M each on Sepolia's slot price (FND-04), 0.94M a chunk with the revealed set | SPK-7 §1; FND-04 §4 |
+| Shared flood, line of sight | 26,452 per layer + 59,380; the capped worst case 634,655. Line of sight 9,716 | SPK-7 summary |
+| **R-12** | **Partly realised, not a blocker, on two conditions**: that the fallback (sight 5, 13 × 14) is not needed, which rests on an analysis, not a measurement; and that **D-133's batches carry the cost per transaction** | SPK-7 §3 |
+| The window against a batch's target | A batch of 10 worst ticks with the window assembled at each tick: about 44.2M L2 gas, over design/02's 40M (an estimate); assembled once per batch it fits | [cost-budget.md](cost-budget.md) §2, CB-3 |
+
 ## What this changes elsewhere
 
 | Document | Change |
