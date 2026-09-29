@@ -1115,3 +1115,61 @@ Three things remain outside CBT-01, and none blocks the freeze:
 
 The third audit's remaining corrections are all addressed in v0.4. Whatever a fourth reading finds
 goes to the project manager with this list.
+
+---
+
+# Final pass (D-155) — `[Opus 5.5]`
+
+## Summary
+- **The pass.** It is limited to what D-155 grants: F-20, F-15, the decisions, and F-16 recorded as
+  ENG-05's. `origin/main` was merged first; it brings D-155's file, the archived audit and the report
+  copy, and no change to what design/19 reads.
+- **The document.** design/19 is now **v0.5, decided**.
+- **Pushed.** Commit **`be82bf5`**. **CI is green at be82bf5**: every check passed, watched with
+  `gh pr checks 139 --watch` to completion; `indexer-node` was skipped by its path filter.
+- **Only 19-effects changed.** The cross-references were checked: the anchors they use (§4, §5, §5.1,
+  §5.5, §5.7, §5.9, §5.10) keep their headings.
+- **A note on the decision file.** `docs/decisions/2026-09-29-des-04-effects.md` on main still reads
+  "Decision: Pending". The pass follows the decision as the brief states it (D-155). The file is the
+  project manager's to update.
+
+## What changed
+| Item | Where in v0.5 |
+|---|---|
+| **F-20**, signed armor | §5.5 step 3, signed aggregation and D-140's floor. `a` = unguarded armor (signed) + `ARMOR` effects + guarded sums whose guard holds (signed) + `ARMOR_VS`; then `a⁺ = max(0, a)`, **then** penetration, `a⁺ − ⌊a⁺ × p / 100⌋`. So the final armor is never below 0, and negative contributions stay permitted. §4 passive 41 is signed, a guarded one in [−18, +18]. §6 restores the floor as an edge (*Armor after bonuses below 0 → 0 before penetration*). §7.2 gives the **encodings and bounds**. §9's FX-24 row names the signed armor |
+| **F-15**, a false guard | §5.14 step 2, **placement**: "only if the `TRAP` entry's guard held: a false guard places nothing and does not execute the payload; the carrier's costs stay paid". Step 5, **the hit**: "if the actor is in the hit's set and the hit's guard held (a `DAMAGE` entry's guard; an implicit weapon hit has none)… A false guard suppresses the hit on every actor; the other entries whose guards held still apply" |
+| **The decisions** | The status block says the FX rules are the project manager's decisions (D-155). §9 is now **"Decisions (D-155)"**, every row "Decided (D-155)" as recommended; FX-26 is "deferred to after the MVP (D-155); its content is post-MVP". In the text, the open phrasings were replaced by the rule: ranks 13–15 extrapolated; radius 2 and 3 not in MVP content until measured; Knocked down refreshed like any condition; "+movement" = a move costs 1 tick even when Crippled; `REVIVE`, `REVEAL_FLOOR` post-MVP; the Seal of Capture and `CAPTURE` **post-MVP** (skill kind 12, kind 23, the coverage row); `MemberMods` "not chosen". `grep -i "escalat\|recommend"` on 19-effects returns nothing |
+| **F-16**, ENG-05's | §7.2: "**The call count is an estimate, not a rule** (F-16, D-145, D-155)". It gives the reason: `bundle` follows no reference, so a fresh reveal needs dependent rounds `LOCATION → SPAWN_TABLE → PACK → CASTE → SKILL`, and the generation bounds are assumed. **ENG-05 defines the read schedule**, and any cache or request list needs its own approval. The decided form is calls of at most 32 records. §9's FX-46 row says the same |
+
+The F-20 encodings, placed in the frozen words, 0 new slots:
+
+| Field | Encoding | Placement | Bound |
+|---|---|---|---|
+| Guarded armor sums, in a stance and enchanted | two **`i8`** | `MemberKit` high limb, as before | a guarded `ARMOR` passive only in an insignia slot (5, one per armor piece) or a set bonus (2), each value in [−18, +18]: 7 × 18 = 126, so each sum lies in [−126, +126] ⊂ [−128, 127] |
+| Unguarded armor | **`i16`** | `MemberBar` 232–247, replacing ENG-01's `u8` `armor` (`MemberStats` 40–47, freed) | rating ≤ 255 + shield ≤ 255 + at most 37 unguarded passives (5 modifiers × 7 items + 2 set bonuses), each in [−255, +255]: 255 + 255 + 37 × 255 = 9,945 < 32,767 |
+
+The unguarded armor had to become signed as well: a negative unguarded modifier, which D-155 keeps
+permitted, cannot be held in ENG-01's `u8` `armor` without losing it before the floor.
+
+## Totals recounted (`python3`)
+| Figure | Arithmetic | Total |
+|---|---|---:|
+| Unguarded armor bound | 255 + 255 + 37 × 255 | **9,945** |
+| Guarded armor sums | 7 × 18 | **126** |
+| `MemberBar` high limb | 8 (elite) + 48 + 24 + 24 + 16 = 120 ≤ 122 | free 248–249, **2 bits** |
+| `MemberKit` high limb | unchanged: the two guarded sums were already 2 × 8 | **75** |
+
+**Slots: still 0 new.**
+
+## Commands run
+- `git fetch origin && git merge --no-edit origin/main`.
+- The edits.
+- `grep -n -i "escalat\|recommend\|auditor"` on 19-effects: only the pointer to DES-04's report
+  remains.
+- The recount above.
+- `git commit`, `git push` → `be82bf5`.
+- `gh pr checks 139 --watch --interval 30` → all `pass`.
+
+**Once the short `[GPT-6-Astra]` check D-155 plans for this pass is done, 19-effects v0.5 is ready
+for CBT-01.** It keeps one dependency, recorded in the document: ENG-05's read schedule, which turns
+the three-call estimate into a figure.
