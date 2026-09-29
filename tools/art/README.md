@@ -26,11 +26,19 @@ time. Started by an older Python (`python3` is 3.11 on some Macs), it re-execute
 the `python3.12` on `PATH`, after asking that interpreter its version; it refuses, naming 3.12, when
 there is none, when it reports an older version, or when it was already re-executed once, before it
 creates or uses anything. On first run it creates `tools/art/.venv` and installs the pinned
-`requirements.txt` (Pillow, NumPy), then re-runs itself inside it. An existing `.venv` is asked
-directly (its interpreter, not only `pyvenv.cfg`): it is rebuilt when its Python is older than 3.12
-or disagrees with its `pyvenv.cfg`, or when a pinned distribution is missing or at another version;
-a 3.13 venv under a 3.12 start is kept. It reads `assets/` and `manifest.toml`, rewrites `out/`,
-prints two tables and the fingerprints, and exits 0. It fails if a check fails (see below).
+`requirements.txt` (Pillow, NumPy) with `pip --require-hashes`, then hands off to the venv's
+interpreter, once. An existing `.venv` is asked directly (its interpreter, not only `pyvenv.cfg`):
+it is rebuilt when its Python is older than 3.12, when `pyvenv.cfg` is missing, unreadable or names
+another version, or when a pinned distribution is missing or at another version; a 3.13 venv under
+a 3.12 start is kept. Started directly by `tools/art/.venv/bin/python`, the build checks the
+running venv the same way and refuses when it is wrong (run `python3 tools/art/build.py` to
+rebuild it). If the venv's interpreter does not run inside the venv after the handoff, the build
+refuses instead of looping. It reads `assets/` and `manifest.toml`, rewrites `out/`, prints two
+tables and the fingerprints, and exits 0. It fails if a check fails (see below).
+
+`requirements.txt` pins each distribution with the SHA-256 of its wheels from PyPI (CPython 3.12
+and 3.13, macOS arm64 and manylinux x86_64); no sdist, so a machine without such a wheel is
+refused rather than compiling NumPy.
 
 Every mode (any other argument is refused):
 
@@ -114,12 +122,13 @@ placing the sprite at its tile position puts the feet on it. Frame rates and loo
    (non-premultiplied) RGBA, so pixel art stays crisp with nearest-neighbour scaling in the client.
 6. **Checks** (the build fails otherwise): no pixel within the key tolerance is left in any
    output frame; every resampled sprite's height (median of its idle frames) within 2 px of its
-   target; no basic goblin (`[order] basic`) drawn from a generated sheet taller than the shortest
-   profession (the pack's own goblins keep the pack's proportions: its Spear Goblin, 70, is taller
-   than its Monk, 67), and `[order] tallest` taller than every other sprite; `[order]` and
-   `[height]` naming only sprites of the manifest, with at least one profession; pages ≤ 2048; frames inside pages, none overlapping; one cell size per
-   sprite; the baseline of every frame read back from the written PNG; JSON references valid; and
-   no trace of the manga's name in `tools/art` or `CREDITS.md`.
+   target; no basic goblin (`[order] basic`) taller than the shortest profession, except the
+   names in `[order] exempt`, which must be native (the skirmisher: the pack's Spear Goblin, 70,
+   is taller than its Monk, 67); a resampled basic goblin is always compared; `[order] tallest`
+   taller than every other sprite; `[order]` and `[height]` naming only sprites of the manifest,
+   with at least one profession; pages ≤ 2048; frames inside pages, none overlapping; one cell
+   size per sprite; the baseline of every frame read back from the written PNG; JSON references
+   valid; and no trace of the manga's name in `tools/art` or `CREDITS.md`.
 
 The generated-sheet folder is found in code (the one subfolder of `assets/Enemy Pack` holding
 `Animated/Raw`); its name is written nowhere here.
@@ -130,8 +139,9 @@ The generated-sheet folder is found in code (the one subfolder of `assets/Enemy 
 `shaman`, `hobgoblin` (castes); `vanguard`, `warden`, `cleric` (professions, blue units), with
 animations, source rows or files, frame rates (12 to 15, ADR-0003) and looping. To change a
 sprite's height, edit its one line in `[height]`: a number resamples it, `"native"` keeps the
-pack's drawing. Where design/10 offers a choice, the generated sheet is taken when it exists. The `slinger` is a placeholder (no
-goblin slinger exists); the Arcanist has no sprite (Q-12) and is left out.
+pack's drawing. Where design/10 offers a choice, the generated sheet is taken when it exists.
+The `slinger` is a placeholder (no goblin slinger exists); the Arcanist has no sprite (Q-12) and
+is left out.
 
 ## PixiJS 8 check
 

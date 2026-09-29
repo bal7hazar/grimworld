@@ -191,6 +191,62 @@ class Venv(unittest.TestCase):
             fake = FakeVenv(Path(tmp) / ".venv", python=(3, 13), dists=PINS, cfg=(3, 12))
             self.assertIn("pyvenv.cfg says Python 3.12", build.venv_problem(fake.venv, PINS, fake))
 
+    def test_venv_without_pyvenv_cfg_rebuilds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeVenv(Path(tmp) / ".venv", python=(3, 12), dists=PINS)
+            (fake.venv / "pyvenv.cfg").unlink()
+            self.assertEqual(build.venv_problem(fake.venv, PINS, fake), "no readable pyvenv.cfg")
+            self.boot(fake)
+            self.assertEqual((fake.created, fake.installed), (1, 1))
+
+    def test_handoff_happens_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeVenv(Path(tmp) / ".venv", python=(3, 12), dists=PINS)
+            env, calls = {}, []
+            saved, build.VENV = build.VENV, fake.venv
+            try:
+                build.bootstrap((3, 12, 0), lambda n: None, run=fake,
+                                execv=lambda *a: calls.append(a), env=env)
+                self.assertEqual(env.get(build.HANDOFF), "1")
+                # the handed-off interpreter does not run inside the venv (sys.prefix elsewhere)
+                with self.assertRaises(SystemExit) as e:
+                    build.bootstrap((3, 12, 0), lambda n: None, run=fake,
+                                    execv=lambda *a: calls.append(a), env=env)
+            finally:
+                build.VENV = saved
+            self.assertIn("refusing to loop", str(e.exception))
+            self.assertEqual(len(calls), 1)
+
+    def direct(self, venv, dists, cfg=True):
+        """Started directly by the venv's interpreter (sys.prefix is the venv)."""
+        env = {build.HANDOFF: "1"}
+        saved, build.VENV = build.VENV, venv
+        try:
+            return build.bootstrap((3, 12, 0), lambda n: None, env=env, prefix=venv,
+                                   info=lambda want: {"python": [3, 12], "dists": dists},
+                                   execv=lambda *a: self.fail("no exec from inside the venv")), env
+        finally:
+            build.VENV = saved
+
+    def test_direct_launch_from_a_good_venv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeVenv(Path(tmp) / ".venv", python=(3, 12), dists=PINS)
+            result, env = self.direct(fake.venv, PINS)
+            self.assertIsNone(result)
+            self.assertNotIn(build.HANDOFF, env)
+
+    def test_direct_launch_from_an_unpinned_venv_refuses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeVenv(Path(tmp) / ".venv", python=(3, 12), dists=PINS)
+            with self.assertRaises(SystemExit) as e:
+                self.direct(fake.venv, dict(PINS, pillow="11.0.0"))
+            self.assertIn("the running venv: pillow 11.0.0, requirements.txt pins 12.3.0",
+                          str(e.exception))
+            (fake.venv / "pyvenv.cfg").unlink()
+            with self.assertRaises(SystemExit) as e:
+                self.direct(fake.venv, PINS)
+            self.assertIn("no readable pyvenv.cfg", str(e.exception))
+
     def test_still_unusable_after_rebuild_refuses(self):
         class Broken(FakeVenv):
             def __call__(self, cmd, **kw):
@@ -250,27 +306,53 @@ class Scale(unittest.TestCase):
         kept = {tuple(c) for c in snapped[snapped[..., 3] > 0][:, :3].tolist()}
         self.assertEqual(kept, {(200, 30, 30), (20, 20, 160)})
 
-    def test_height_spec(self):
-        heights = {"a": "native", "b": 70, "c": "big", "d": 0}
-        self.assertEqual(scale.height_spec("a", heights), "native")
-        self.assertEqual(scale.height_spec("b", heights), 70)
-        for bad in ("c", "d", "e"):
-            with self.assertRaises(SystemExit):
-                scale.height_spec(bad, heights)
+    def manifest(self, **height):
+        sprites = [{"name": n, "role": r} for n, r in (
+            ("runt", "caste"), ("skirmisher", "caste"), ("slinger", "caste"), ("hob", "caste"),
+            ("cleric", "profession"))]
+        heights = dict({"runt": 67, "skirmisher": "native", "slinger": "native", "hob": 119,
+                        "cleric": "native"}, **height)
+        return {"sprite": sprites, "height": heights, "settings": {"resample": "area"},
+                "order": {"basic": ["runt", "skirmisher", "slinger"], "exempt": ["skirmisher"],
+                          "tallest": "hob"}}
+
+    def test_validate_manifest(self):
+        methods = build.METHODS
+        self.assertEqual(scale.validate_manifest(self.manifest(), methods), [])
+        m = self.manifest(slinger="big", ghost=70)
+        del m["height"]["cleric"]
+        m["settings"]["resample"] = "lanczos"
+        problems = scale.validate_manifest(m, methods)
+        self.assertTrue(any("'ghost', which is not a sprite" in p for p in problems))
+        self.assertTrue(any("cleric: no line in [height]" in p for p in problems))
+        self.assertTrue(any("slinger = 'big'" in p for p in problems))
+        self.assertTrue(any("settings.resample = 'lanczos'" in p for p in problems))
+        self.assertTrue(any("height = 0" in p or "runt = 0" in p
+                            for p in scale.validate_manifest(self.manifest(runt=0), methods)))
+
+    def test_exemption_must_be_native_and_basic(self):
+        problems = scale.validate_manifest(self.manifest(skirmisher=75), build.METHODS)
+        self.assertEqual(problems, ["[order] exempt 'skirmisher' is resampled ([height] 75): only "
+                                    "a native sprite may be exempt"])
+        m = self.manifest()
+        m["order"]["exempt"] = ["hob"]
+        self.assertIn("[order] exempt 'hob' is not in basic",
+                      scale.validate_manifest(m, build.METHODS))
 
     def test_order_rule(self):
-        role = {"runt": "caste", "spear": "caste", "hob": "caste", "cleric": "profession",
-                "vanguard": "profession"}
-        kind = {"runt": "generated", "spear": "strip", "hob": "generated", "cleric": "strip",
-                "vanguard": "strip"}
-        order = {"basic": ["runt", "spear"], "tallest": "hob"}
-        good = {"runt": 67, "spear": 70, "hob": 119, "cleric": 67, "vanguard": 87}
-        self.assertEqual(scale.check_order(good, order, role, kind), [])   # native spear exempt
-        problems = scale.check_order(dict(good, runt=70), order, role, kind)
+        m = self.manifest()
+        role = {sp["name"]: sp["role"] for sp in m["sprite"]}
+        good = {"runt": 67, "skirmisher": 70, "slinger": 67, "hob": 119, "cleric": 67}
+        self.assertEqual(scale.check_order(good, m["order"], role, m["height"]), [])
+        problems = scale.check_order(dict(good, runt=70), m["order"], role, m["height"])
         self.assertEqual(problems, ["runt (70 px) is taller than the shortest profession, "
                                     "cleric (67 px)"])
-        problems = scale.check_order(dict(good, hob=87), order, role, kind)
-        self.assertTrue(any("hob (87 px) is not taller than vanguard" in p for p in problems))
+        slinger80 = dict(m["height"], slinger=80)                  # a resampled basic goblin
+        problems = scale.check_order(dict(good, slinger=80), m["order"], role, slinger80)
+        self.assertEqual(problems, ["slinger (80 px) is taller than the shortest profession, "
+                                    "cleric (67 px)"])
+        problems = scale.check_order(dict(good, hob=70), m["order"], role, m["height"])
+        self.assertTrue(any("hob (70 px) is not taller than skirmisher" in p for p in problems))
 
     def test_order_validated(self):
         role = {"runt": "caste", "hob": "caste", "cleric": "profession"}
@@ -294,6 +376,14 @@ class Scale(unittest.TestCase):
         self.assertIs(out, cells)
         self.assertEqual((w, h, b, info["factor"], info["target"]), (cw, ch, base, [1, 1], 40))
 
+    def test_scale_sprite_keeps_the_cells_at_their_height(self):
+        s = {"palette_max": 64, "cell_margin": 4}
+        cw, ch, base, cells = self.placed([40, 41, 40])
+        anims = [({"name": "idle"}, [None] * 3)]
+        out, w, h, b, info = build.scale_sprite("x", anims, cells, cw, base, 40, "area", s)
+        self.assertIs(out, cells)                                # target = measured: no resampling
+        self.assertEqual((info["factor"], info["height"]), ([1, 1], 40))
+
     def test_scale_sprite_to_a_height(self):
         s = {"palette_max": 64, "cell_margin": 4}
         cw, ch, base, cells = self.placed([40, 41, 40, 39])
@@ -305,8 +395,9 @@ class Scale(unittest.TestCase):
 
     def test_check_scale_fails_and_warns(self):
         def entry(role, kind, target, height, idle):
+            spec = target if kind == "generated" else "native"
             return {"role": role, "kind": kind,
-                    "scale": {"target": target, "height": height, "idle": idle}}
+                    "scale": {"target": target, "height": height, "idle": idle, "spec": spec}}
         order = {"basic": ["runt"], "tallest": "hob"}
         sprites = {"runt": entry("caste", "generated", 67, 67, [66, 67]),
                    "hob": entry("caste", "generated", 119, 119, [110, 119]),
@@ -332,6 +423,24 @@ class Keying(unittest.TestCase):
         self.assertEqual(out.dtype, np.uint8)
         self.assertTrue((out[:5, :5, 3] == 0).all())
         self.assertTrue((out[12:18, 12:18] == (90, 90, 90, 255)).all())
+
+    def test_exact_half_fringe_pixel(self):
+        # key (250, 4, 250): m_key = 250 + 250 - 8 = 492. A 50 % mix of grey (100, 100, 100) and
+        # the key is (175, 52, 175): m = 246 = m_key / 2, so a = 255 / 2 = 127.5, rounded half up
+        # to 128; colour (255 p - 127 key) / 128 = (100.58, 99.63, 100.58), rounded to (101, 100).
+        s = {"key_tolerance": 48, "fringe_radius": 2, "min_alpha": 0.06}
+        rgb = np.zeros((40, 40, 3), np.uint8)
+        rgb[:] = (250, 4, 250)
+        rgb[16:24, 16:24] = (100, 100, 100)
+        rgb[16:24, 15] = (175, 52, 175)
+        out, _ = clean.key_sheet(rgb, s)
+        self.assertEqual(out[20, 15].tolist(), [101, 100, 101, 128])
+        self.assertEqual(out[20, 14].tolist(), [0, 0, 0, 0])
+
+    def test_div_round_half_up_with_negative_numerators(self):
+        num = np.array([-3, -5, -1, 0, 1, 3, 5])
+        self.assertEqual(clean.div_round(num, 2).tolist(), [-1, -2, 0, 0, 1, 2, 3])
+        self.assertEqual(clean.div_round(np.array([-7, 7]), 4).tolist(), [-2, 2])   # -1.75, 1.75
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")

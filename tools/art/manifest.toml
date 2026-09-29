@@ -37,11 +37,13 @@ vanguard = "native"    # Warrior, 87
 warden = "native"      # Archer, 88
 cleric = "native"      # Monk, 67
 
-# What the build checks on the result (AC-2): no basic goblin from a generated sheet taller than
-# the shortest profession (the pack's own goblins keep the pack's proportions and are not
-# compared), and `tallest` taller than every other sprite.
+# What the build checks on the result (AC-2): no basic goblin taller than the shortest profession,
+# except the ones listed in `exempt`, which must be native (the pack's own drawing keeps the
+# pack's proportions); a resampled basic goblin is always compared. `tallest` is taller than every
+# other sprite.
 [order]
 basic = ["runt", "skirmisher", "slinger"]
+exempt = ["skirmisher"]  # native Spear Goblin, 70 px: taller than the pack's Monk (the cleric), 67
 tallest = "hobgoblin"
 
 # ---------------------------------------------------------------- goblin castes (MVP)

@@ -23,6 +23,7 @@ OUT = HERE / "out"
 ASSETS = REPO / "assets"
 PYTHON = (3, 12)            # NumPy 2.5.3 (requirements.txt) needs Python 3.12 or newer
 MARKER = "GRIMWORLD_ART_REEXEC"   # set before re-executing under python3.12: never twice
+HANDOFF = "GRIMWORLD_ART_VENV"    # set before handing off to .venv/bin/python: never twice
 METHODS = ("area", "area-blend", "nearest")
 SPREAD = 6                  # px: an idle whose frames span more than this gets a warning
 WORD = "sla" + "yer"        # the manga's name: never written nor printed (D-73, design/10)
@@ -108,23 +109,55 @@ def venv_version(venv):
 
 
 def pins(path):
-    """The pinned distributions of requirements.txt: {lower-case name: version}."""
+    """The pinned distributions of requirements.txt: {lower-case name: version}. Continuation
+    lines and `--hash=` options are read past."""
     out = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text().replace("\\\n", " ").splitlines():
         line = line.split("#", 1)[0].strip()
         if line:
-            name, sep, version = line.partition("==")
+            req = line.split()[0]
+            name, sep, version = req.partition("==")
             if not sep:
-                raise SystemExit(f"{path.name}: {line!r} is not pinned with ==")
+                raise SystemExit(f"{path.name}: {req!r} is not pinned with ==")
             out[name.strip().lower()] = version.strip()
     return out
 
 
+def own_info(want):
+    """What PROBE prints, for the running interpreter itself."""
+    import importlib.metadata as m
+
+    def v(n):
+        try:
+            return m.version(n)
+        except m.PackageNotFoundError:
+            return None
+    return {"python": list(sys.version_info[:2]), "dists": {n: v(n) for n in want}}
+
+
+def venv_check(venv, info, want):
+    """What is wrong with a venv whose interpreter reported `info` (PROBE's output), or None. Its
+    version must be 3.12 or newer and equal the one of a readable pyvenv.cfg (without it, Python
+    does not treat the folder as a venv), and every pin must be installed at its version. A venv of
+    3.13 is fine under a 3.12 start: no rebuild between two good versions."""
+    got = tuple(info["python"])
+    if got < PYTHON:
+        return "its interpreter is Python %d.%d, older than 3.12" % got
+    cfg = venv_version(venv)
+    if cfg is None:
+        return "no readable pyvenv.cfg"
+    if cfg != got:
+        return "pyvenv.cfg says Python %d.%d, its interpreter is %d.%d" % (*cfg, *got)
+    for name, version in sorted(want.items()):
+        have = info["dists"].get(name)
+        if have != version:
+            return f"{name} {have or 'missing'}, requirements.txt pins {version}"
+    return None
+
+
 def venv_problem(venv, want, run=subprocess.run):
     """Why the venv cannot be used as it is: "missing", or what is wrong, or None when it is fine.
-    Asks its interpreter itself (not only pyvenv.cfg): its version must be 3.12 or newer and agree
-    with pyvenv.cfg, and every pin of requirements.txt must be installed at its version. A venv of
-    3.13 is fine under a 3.12 start: no rebuild between two good versions."""
+    Asks its interpreter itself (PROBE), then `venv_check`."""
     py = venv / "bin" / "python"
     if not py.exists():
         return "missing"
@@ -135,24 +168,17 @@ def venv_problem(venv, want, run=subprocess.run):
         info = None
     if info is None:
         return "its interpreter does not run"
-    got = tuple(info["python"])
-    if got < PYTHON:
-        return "its interpreter is Python %d.%d, older than 3.12" % got
-    cfg = venv_version(venv)
-    if cfg is not None and cfg != got:
-        return "pyvenv.cfg says Python %d.%d, its interpreter is %d.%d" % (*cfg, *got)
-    for name, version in sorted(want.items()):
-        have = info["dists"].get(name)
-        if have != version:
-            return f"{name} {have or 'missing'}, requirements.txt pins {version}"
-    return None
+    return venv_check(venv, info, want)
 
 
 def bootstrap(version=None, which=shutil.which, probe=probe_version, run=subprocess.run,
-              execv=os.execv, env=os.environ):
+              execv=os.execv, env=os.environ, prefix=None, info=own_info):
     """Re-run under Python 3.12+, then under tools/art/.venv: created when missing, rebuilt when
-    `venv_problem` finds it unusable, then checked again before use."""
+    `venv_problem` finds it unusable, checked again, then handed off to once (`HANDOFF`). Started
+    directly by the venv's interpreter, the running venv is checked too (`venv_check`), and refused
+    when it is wrong: it cannot rebuild itself while it runs."""
     version = version or sys.version_info
+    prefix = Path(prefix or sys.prefix)
     script = str(Path(__file__).resolve())
     other = select_python(version, which, probe, env)
     if other:
@@ -162,20 +188,30 @@ def bootstrap(version=None, which=shutil.which, probe=probe_version, run=subproc
         return execv(other, [other, script, *sys.argv[1:]])
     env.pop(MARKER, None)
     py = VENV / "bin" / "python"
-    if Path(sys.prefix).resolve() == VENV.resolve():
-        return None
     want = pins(HERE / "requirements.txt")
+    if prefix.resolve() == VENV.resolve():
+        problem = venv_check(VENV, info(want), want)
+        if problem:
+            raise SystemExit(f"tools/art/.venv, the running venv: {problem}. Run "
+                             "`python3 tools/art/build.py` (not the venv's python) to rebuild it.")
+        env.pop(HANDOFF, None)
+        return None
+    if env.get(HANDOFF):
+        raise SystemExit(f"tools/art/.venv/bin/python was started once already but does not run "
+                         f"inside tools/art/.venv (sys.prefix is {prefix}): refusing to loop. "
+                         "Delete tools/art/.venv and run it again.")
     problem = venv_problem(VENV, want, run)
     if problem:
         if VENV.exists():
             print(f"tools/art/.venv: {problem}: rebuilding it", file=sys.stderr)
             shutil.rmtree(VENV)
         run([sys.executable, "-m", "venv", str(VENV)], check=True)
-        run([str(py), "-m", "pip", "install", "--quiet", "-r", str(HERE / "requirements.txt")],
-            check=True)
+        run([str(py), "-m", "pip", "install", "--quiet", "--require-hashes", "-r",
+             str(HERE / "requirements.txt")], check=True)
         problem = venv_problem(VENV, want, run)
         if problem:
             raise SystemExit(f"tools/art/.venv is still unusable after a rebuild: {problem}")
+    env[HANDOFF] = "1"
     return execv(str(py), [str(py), script, *sys.argv[1:]])
 
 
@@ -237,15 +273,10 @@ def main(opts):
     manifest = tomllib.loads((HERE / "manifest.toml").read_text())
     s = manifest["settings"]
     method = opts["resample"] or s["resample"]
-    if method not in METHODS:
-        raise SystemExit(f"manifest.toml: resample = {method!r}, not one of {', '.join(METHODS)}")
-    roles = {sp["name"]: sp["role"] for sp in manifest["sprite"]}
-    problems = scale.validate_order(manifest["order"], roles)
-    problems += [f"[height] names {n!r}, which is not a sprite of the manifest"
-                 for n in manifest["height"] if n not in roles]
+    problems = scale.validate_manifest(manifest, METHODS)
     if problems:
         raise SystemExit("manifest.toml:\n  " + "\n  ".join(problems))
-    specs = {n: scale.height_spec(n, manifest["height"]) for n in roles}
+    specs = {sp["name"]: manifest["height"][sp["name"]] for sp in manifest["sprite"]}
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir()
@@ -396,7 +427,7 @@ def check_scale(sprites, order):
                             f"{SPREAD}: the height is their median")
     problems += scale.check_order({n: r["scale"]["height"] for n, r in sprites.items()}, order,
                                   {n: r["role"] for n, r in sprites.items()},
-                                  {n: r["kind"] for n, r in sprites.items()})
+                                  {n: r["scale"]["spec"] for n, r in sprites.items()})
     if problems:
         raise SystemExit("scale check failed:\n  " + "\n  ".join(problems))
     return warnings
@@ -467,15 +498,16 @@ def print_scale(report):
     result, cell."""
     print(f"scale: resampling {report['resample']}; heights in px, visible height rule in "
           "artpipe/scale.py (idle frames, median and range)")
-    print(f"{'sprite':<11}{'height':<8}{'target':<8}{'source':<14}{'factor':<16}{'result':<14}cell")
+    print(f"{'sprite':<11}{'height':<8}{'target':<8}{'source':<14}{'factor':<25}{'result':<14}"
+          "cell")
     for name, r in report["sprites"].items():
         c = r["scale"]
         p, q = c["factor"]
-        factor = "1 (native)" if c["spec"] == "native" else (
-            "1" if p == q else f"{p}/{q}={p / q:.3f}")
+        factor = "native, cells unchanged" if c["spec"] == "native" else (
+            "1, cells unchanged" if p == q else f"{p}/{q}={p / q:.3f}")
         src = f"{c['source']} ({c['source_idle'][0]}-{c['source_idle'][1]})"
         res = f"{c['height']} ({c['idle'][0]}-{c['idle'][1]})"
-        print(f"{name:<11}{str(c['spec']):<8}{c['target']:<8}{src:<14}{factor:<16}{res:<14}"
+        print(f"{name:<11}{str(c['spec']):<8}{c['target']:<8}{src:<14}{factor:<25}{res:<14}"
               f"{r['cell'][0]}x{r['cell'][1]}")
 
 

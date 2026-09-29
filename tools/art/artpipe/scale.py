@@ -130,48 +130,68 @@ def resample(cell, anchor_x, anchor_y, p, q, method, levels=range(256)):
     return out, ax, ay
 
 
-def height_spec(name, heights):
-    """A sprite's line of `[height]` in the manifest: "native" or a height in px (int)."""
-    if name not in heights:
-        raise SystemExit(f"{name}: no line in [height] of manifest.toml "
-                         f'("native" or a height in px)')
-    spec = heights[name]
-    if spec == NATIVE:
-        return NATIVE
-    if isinstance(spec, bool) or not isinstance(spec, int) or spec <= 0:
-        raise SystemExit(f'{name}: [height] must be "native" or a positive height in px, '
-                         f"not {spec!r}")
-    return spec
+def height_problem(name, spec):
+    """What is wrong with a sprite's line of `[height]` ("native" or a positive int), or None."""
+    if spec == NATIVE or (isinstance(spec, int) and not isinstance(spec, bool) and spec > 0):
+        return None
+    return f'[height] {name} = {spec!r}: must be "native" or a positive height in px'
 
 
-def validate_order(order, role):
-    """`[order]` of the manifest against the sprites (`role` maps each to caste or profession).
-    Returns the list of problems."""
+def validate_order(order, role, spec=None):
+    """`[order]` of the manifest against the sprites (`role` maps each to caste or profession,
+    `spec` to its `[height]` line). An `exempt` name must be a `basic` one and native: only the
+    pack's own drawing, untouched, may stand taller than the shortest profession. Returns the list
+    of problems."""
     problems = []
     basic, tallest = order.get("basic", []), order.get("tallest")
-    for n in [*basic, tallest]:
+    for n in [*basic, *order.get("exempt", []), tallest]:
         if n is None:
             problems.append("[order] names no `tallest`")
         elif n not in role:
             problems.append(f"[order] names {n!r}, which is not a sprite of the manifest")
+    for n in order.get("exempt", []):
+        if n in role and n not in basic:
+            problems.append(f"[order] exempt {n!r} is not in basic")
+        elif n in role and spec is not None and spec.get(n) != NATIVE:
+            problems.append(f"[order] exempt {n!r} is resampled ([height] {spec.get(n)!r}): "
+                            "only a native sprite may be exempt")
     if not any(r == "profession" for r in role.values()):
         problems.append("[order] cannot compare: the manifest has no profession")
     return problems
 
 
-def check_order(heights, order, role, kind):
-    """AC-2. The rule: a basic goblin (`order.basic`) drawn from a generated sheet is never taller
-    than the shortest profession; the pack's own hand-drawn goblins keep the pack's proportions
-    (its Spear Goblin, 70 px, is taller than its Monk, 67 px) and are not compared. `order.tallest`
-    is taller than every other sprite. `heights` maps a sprite to its measured idle height, `role`
-    to caste or profession, `kind` to generated or strip. Returns the list of problems."""
-    problems = validate_order(order, role)
+def validate_manifest(manifest, methods):
+    """Every cross-check of manifest.toml that needs no image: `[height]` names exactly the
+    sprites, each line valid; `[order]` (validate_order); `settings.resample` one of `methods`.
+    Returns the list of problems (empty when the manifest is sound)."""
+    role = {sp["name"]: sp["role"] for sp in manifest.get("sprite", [])}
+    heights = manifest.get("height", {})
+    problems = [f"[height] names {n!r}, which is not a sprite of the manifest"
+                for n in heights if n not in role]
+    problems += [f'{n}: no line in [height] ("native" or a height in px)'
+                 for n in role if n not in heights]
+    problems += [p for n in role if n in heights for p in [height_problem(n, heights[n])] if p]
+    problems += validate_order(manifest.get("order", {}), role, heights)
+    method = manifest.get("settings", {}).get("resample")
+    if method not in methods:
+        problems.append(f"settings.resample = {method!r}, not one of {', '.join(methods)}")
+    return problems
+
+
+def check_order(heights, order, role, spec):
+    """AC-2. The rule: every basic goblin (`order.basic`) is no taller than the shortest
+    profession, except the names listed in `order.exempt`, which must be native: the pack's own
+    drawing keeps the pack's proportions (its Spear Goblin, 70 px, is taller than its Monk, 67 px).
+    A resampled basic goblin is always compared. `order.tallest` is taller than every other sprite.
+    `heights` maps a sprite to its measured idle height, `role` to caste or profession, `spec` to
+    its `[height]` line. Returns the list of problems."""
+    problems = validate_order(order, role, spec)
     if problems:
         return problems
     heroes = [n for n in heights if role[n] == "profession"]
     short = min(heroes, key=lambda n: (heights[n], n))
     for n in order["basic"]:
-        if kind[n] == "generated" and heights[n] > heights[short]:
+        if n not in order.get("exempt", []) and heights[n] > heights[short]:
             problems.append(f"{n} ({heights[n]} px) is taller than the shortest profession, "
                             f"{short} ({heights[short]} px)")
     tallest = order["tallest"]
