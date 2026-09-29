@@ -218,7 +218,7 @@ verified by the cross-cutting audit.
 | CBT-05 | Skill engine: costs, activation, interrupt, effects; skill registry | CBT-02 | Opus 5.5 | D S P C Q | todo |
 | CBT-06 | Goblin spawn from pack registry; state machine; shared flood pathfinding | CBT-02 | Opus 5.5 | D P C Q | todo |
 | CBT-07 | AI profiles: swarm, kite, support, brute | CBT-06 | Opus 5.5 | D P C Q | todo |
-| CBT-08a | `set_build`: the bar, attributes, belt and equipment validated in one call; the belt's worst case measured (D-148). CBT-08's first part, pulled forward (D-150) | CBT-01, ENG-04, ENG-06 | Opus 5.5 | D S Q + GPT-6-Astra | doing ([brief](docs/briefs/CBT-08a-set-build.md)) |
+| CBT-08a | `set_build`: the bar, attributes, belt and equipment validated in one call; the belt's worst case measured (D-148). CBT-08's first part, pulled forward (D-150) | CBT-01, ENG-04, ENG-06 | Opus 5.5 | D S Q + GPT-6-Astra | done (2026-09-29, [#170](https://github.com/bal7hazar/grimworld/pull/170); [report](docs/reports/CBT-08a-set-build.md); D-158) |
 | CBT-08 | Attributes, build lock, skill bar | CBT-05 | Opus 5.5 | D S Q | todo |
 | CNT-01 | Seed data: 3 professions × 6 starter skills, 5 castes, MVP packs | CBT-05, CBT-07 | Sonnet 5 | D V | todo |
 | CLI-04 | Client simulation of combat + parity vectors | CBT-03…07 | Opus 5.5 | P Q | todo |
@@ -249,9 +249,9 @@ Parallel tracks after CBT-02: {CBT-03, CBT-04}, {CBT-05, CBT-08}, {CBT-06, CBT-0
 | RWD-02 | Remains, loot tables, loot action (Fate) | RWD-01 | Opus 5.5 | D S C Q | todo |
 | RWD-03 | Crafter helper and books; rarity signatures, discovery, hints | RWD-01 | Opus 5.5 | D S P C Q | todo |
 | RWD-04 | Potions: effects, belt, use in instance | RWD-03, CBT-05 | Opus 5.5 | D S P Q | todo |
-| RWD-05 | Merchants, smiths, armorers, collectors | RWD-01 | Opus 5.5 | D S Q | todo |
+| RWD-05 | Merchants, smiths, armorers, collectors. CBT-08a (D-158, audit F-3): every item it creates copies its base's slot and hands into `ItemBase` bits 120–127; `set_build` trusts them | RWD-01 | Opus 5.5 | D S Q | todo |
 | RWD-06 | Equipment items as entities: base, requirement, rarity, modifier slots, armor pieces and weighted rating, snapshot into the instance. **D-153: the contract refuses any rarity outside design/15's values (the market key's assumption), tested with 128** | RWD-01 | Opus 5.5 | D S P C Q | todo |
-| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes | RWD-06, RWD-02 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
+| RWD-07 | Looted equipment: drop (Fate), identification (Fate), salvage (Fate), setting modifiers, insignias and runes. CBT-08a (D-158, audit F-3): every item it creates copies its base's slot and hands into `ItemBase` bits 120–127; `set_build` trusts them | RWD-06, RWD-02 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
 | RWD-08 | Boss items and boss armor sets with 3- and 5-piece bonuses | RWD-06 | Opus 5.5 | D S P Q | todo |
 | RWD-09 | Trade: direct exchange between players | RWD-06 | Opus 5.5 | D S Q + GPT-6-Astra | todo |
 | RWD-10 | Auction house: listings in lots, fees, expiry, purchase | RWD-09 | Opus 5.5 | D S C Q + GPT-6-Astra | todo |
