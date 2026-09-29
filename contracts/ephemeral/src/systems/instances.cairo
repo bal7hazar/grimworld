@@ -773,6 +773,117 @@ pub mod Instances {
     }
 }
 
+/// The closing path on defeat (ENG-07 calls it; no ENG-06 entrypoint reaches it): the header
+/// `DEFEATED`, the member `DOWN`, the placement left, `InstanceClosed`, and one report whose belt
+/// is the unused counts (D-141, E-15), to the last hub (`hub` 0, D-04). The hub's `report` is
+/// mocked; its settlement is tested in `grimworld_persistent`.
+#[cfg(test)]
+mod close_tests {
+    use grimworld_logic::types::{Outcome, instance_id};
+    use snforge_std::{
+        ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events,
+        test_address,
+    };
+    use starknet::storage::{StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use crate::events::InstanceClosed;
+    use crate::models::instance::{DEFEATED, HeaderTrait, OPEN, Placement, PlacementTrait};
+    use crate::models::member::{DOWN, INSIDE, MemberState};
+    use super::Instances;
+    use super::Instances::InternalTrait;
+
+    #[starknet::interface]
+    trait ISink<T> {
+        /// `(reports, outcome index, hub, belt as a felt, the first contributor)`.
+        fn last(self: @T) -> (u32, felt252, u16, felt252, u32);
+    }
+
+    /// Receives the report as the hub would and keeps what the closing path sends.
+    #[starknet::contract]
+    mod ReportSink {
+        use grimworld_logic::interface::{IResults, Results};
+        use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+
+        #[storage]
+        struct Storage {
+            count: u32,
+            outcome: felt252,
+            hub: u16,
+            belt: felt252,
+            adventurer: u32,
+        }
+
+        #[abi(embed_v0)]
+        impl ResultsImpl of IResults<ContractState> {
+            fn report(ref self: ContractState, results: Results) {
+                let mut outcome = array![];
+                results.outcome.serialize(ref outcome);
+                let [a, b, c, d] = results.belt;
+                self.count.write(self.count.read() + 1);
+                self.outcome.write(*outcome[0]);
+                self.hub.write(results.hub);
+                self.belt.write(a.into() + b.into() * 0x100 + c.into() * 0x10000 + d.into() * 0x1000000);
+                self.adventurer.write(*results.contributors[0]);
+            }
+            fn barter(ref self: ContractState, adventurer_id: u32, collector: u16) -> bool {
+                false
+            }
+        }
+
+        #[abi(embed_v0)]
+        impl SinkImpl of super::ISink<ContractState> {
+            fn last(self: @ContractState) -> (u32, felt252, u16, felt252, u32) {
+                (
+                    self.count.read(),
+                    self.outcome.read(),
+                    self.hub.read(),
+                    self.belt.read(),
+                    self.adventurer.read(),
+                )
+            }
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_close_on_defeat() {
+        let class = declare("ReportSink").unwrap().contract_class();
+        let (hub, _) = class.deploy(@array![]).unwrap();
+        let mut state = Instances::contract_state_for_testing();
+        state.hub.write(hub);
+        let slot = 3;
+        let id = instance_id(slot, 5);
+        let header = HeaderTrait::new(5, 2, 0, false, 0, 105, 1);
+        let placement = PlacementTrait::new(slot, 5);
+        let member = MemberState {
+            adventurer: 7, status: INSIDE, health: 0, belt: [1, 0, 3, 0], ..Default::default(),
+        };
+        state.headers.entry(slot).write(header);
+        state.placements.entry(7).write(placement);
+        let mut spy = spy_events();
+        state.close(id, slot, header, placement, member, Outcome::Defeated, 0, 0);
+
+        assert(header.status == OPEN, 'was open');
+        assert(state.headers.entry(slot).read().status == DEFEATED, 'defeated');
+        let down = state.members.entry((slot, 0)).state.read();
+        assert(down == MemberState { status: DOWN, ..member }, 'member down');
+        assert(state.placements.entry(7).read() == Placement { inside: 0, ..placement }, 'left');
+        spy
+            .assert_emitted(
+                @array![
+                    (
+                        test_address(),
+                        Instances::Event::InstanceClosed(
+                            InstanceClosed { instance_id: id, outcome: Outcome::Defeated },
+                        ),
+                    ),
+                ],
+            );
+        // One report: Defeated (variant 2), to the last hub (0), the belt's unused counts.
+        let sink = ISinkDispatcher { contract_address: hub };
+        assert(sink.last() == (1, 2, 0, 0x30001, 7), 'report on defeat');
+    }
+}
+
 /// The storage layout of `Instances` is what docs/architecture/ENG-01-interfaces.md says: every
 /// variable's name and keys, hence its address (a unit test: the storage is visible from here).
 #[cfg(test)]

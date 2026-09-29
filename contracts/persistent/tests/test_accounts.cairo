@@ -27,8 +27,11 @@ use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::systems::hub::{
     IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
     IHubSafeDispatcher, IHubSafeDispatcherTrait, IHubViewsDispatcher, IHubViewsDispatcherTrait,
-    NEW_PLACE, START_HUB, START_UNLOCKED,
+    START_REGION,
 };
+use grimworld_persistent::systems::registry::{IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait};
+use grimworld_logic::content::REGION;
+use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, load, map_entry_address,
     start_cheat_caller_address, store,
@@ -132,19 +135,33 @@ const ALICE: felt252 = 0xa11ce;
 const BOB: felt252 = 0xb0b;
 const CAROL: felt252 = 0xca201;
 const NAME: felt252 = 'Aldric';
+/// Region 1's town in the registry of these tests (D-144): where a new adventurer starts.
+const START_HUB: u16 = 1;
+const START_UNLOCKED: u64 = 0x2;
 
 fn addr(value: felt252) -> ContractAddress {
     value.try_into().unwrap()
 }
 
-/// `Hub`, with the double registered as its `Instances`.
+/// `Registry` holding region 1, whose town is `START_HUB` (D-144).
+fn registry() -> ContractAddress {
+    let class = declare("Registry").unwrap().contract_class();
+    let (registry, _) = class.deploy(@array![ADMIN]).unwrap();
+    start_cheat_caller_address(registry, addr(ADMIN));
+    IRegistryAdminDispatcher { contract_address: registry }
+        .set_record(REGION, START_REGION, RegionTrait::new(START_HUB, 0, 2, 'Test Region').pack());
+    registry
+}
+
+/// `Hub`, with the registry and the double registered as its `Instances`.
 fn setup() -> (ContractAddress, ContractAddress) {
+    let registry = registry();
     let class = declare("Hub").unwrap().contract_class();
-    let (hub, _) = class.deploy(@array![ADMIN, 2, 3, 4, 5]).unwrap();
+    let (hub, _) = class.deploy(@array![ADMIN, registry.into(), 3, 4, 5]).unwrap();
     let class = declare("InstancesDouble").unwrap().contract_class();
     let (double, _) = class.deploy(@array![hub.into()]).unwrap();
     start_cheat_caller_address(hub, addr(ADMIN));
-    IHubAdminDispatcher { contract_address: hub }.set_contracts(addr(2), double, addr(4), addr(5));
+    IHubAdminDispatcher { contract_address: hub }.set_contracts(registry, double, addr(4), addr(5));
     (hub, double)
 }
 
@@ -320,8 +337,9 @@ fn test_stored_words() {
     let place = AdventurerPlace {
         instance: 0, hub: START_HUB, last_hub: START_HUB, inside: 0, unlocked: START_UNLOCKED,
     };
-    assert(NEW_PLACE == StorePacking::pack(place), 'new place');
-    assert(!AdventurerPlaceTrait::is_inside(NEW_PLACE), 'new: in a hub');
+    let new_place = AdventurerPlaceTrait::new(START_HUB);
+    assert(new_place == StorePacking::pack(place), 'new place');
+    assert(!AdventurerPlaceTrait::is_inside(new_place), 'new: in a hub');
     let inside: felt252 = StorePacking::pack(
         AdventurerPlace { instance: 0xFFFFFFFFFFFFFFFF, hub: 0, inside: 1, ..place },
     );
@@ -869,8 +887,8 @@ fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
     let class = declare("RefusingInstances").unwrap().contract_class();
     let (refusing, _) = class.deploy(@array![]).unwrap();
     start_cheat_caller_address(hub, addr(ADMIN));
-    IHubAdminDispatcher { contract_address: hub }
-        .set_contracts(addr(2), refusing, addr(4), addr(5));
+    let registry = read(hub, selector!("registry")).try_into().unwrap();
+    IHubAdminDispatcher { contract_address: hub }.set_contracts(registry, refusing, addr(4), addr(5));
     with_adventurers(hub, ALICE, 2);
     put_inside(hub, 2);
     let keys = watched();
