@@ -2,9 +2,118 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::packing::{
-    Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits, join,
-    low_field, split, u16_at, u32_at,
+    LIVE, Lanes32, P104, P112, P120, P16, P32, P40, P48, P56, P64, P80, P96, byte_at, field, fits,
+    join, low_field, split, u16_at, u32_at,
 };
+use starknet::ContractAddress;
+
+/// `AdventurerCore.status`: an adventurer is never zeroed; deletion marks it (design/03, D-33).
+pub const ACTIVE: u8 = 0;
+pub const DELETED: u8 = 1;
+/// `Build.elite_slot` when no elite skill is on the bar.
+pub const NO_ELITE: u8 = 255;
+/// Offsets of the words of `Adventurer` from its address, for a read of one stored word.
+pub const CORE_WORD: u8 = 0;
+pub const PLACE_WORD: u8 = 1;
+pub const BUILD_WORD: u8 = 2;
+pub const BELT_WORD: u8 = 3;
+pub const EQUIPPED_WORD: u8 = 4;
+pub const NAME_WORD: u8 = 5;
+
+/// The refusals of adventurers (ENG-04).
+pub mod errors {
+    pub const EMPTY_NAME: felt252 = 'empty name';
+    // The ownership check of every entrypoint that names an adventurer, one refusal per case.
+    pub const NO_ADVENTURER: felt252 = 'no adventurer';
+    pub const NOT_OWNER: felt252 = 'not owner';
+    pub const ADVENTURER_DELETED: felt252 = 'adventurer deleted';
+    pub const NOT_IN_HUB: felt252 = 'not in a hub';
+    // `delete_adventurer`: what "its inventory emptied" covers (design/03, D-33).
+    pub const PACK_HOLDS_ITEMS: felt252 = 'pack holds items';
+    pub const PACK_HOLDS_EQUIPMENT: felt252 = 'pack holds equipment';
+    pub const WEARS_EQUIPMENT: felt252 = 'wears equipment';
+    pub const PACK_HOLDS_GOLD: felt252 = 'pack holds gold';
+}
+
+// Stored words written or read by arithmetic, without the packers: each function below is pinned
+// against the packer by `test_stored_words` (the packers are the oracle, docs/CAIRO.md §2). They
+// take and return the stored word, since unpacking and packing it is what they save.
+
+const LEVEL_ONE: felt252 = 0x1000000000000000000000000;
+const PROFESSION_UNIT: felt252 = 0x10000000000000000000000000000;
+/// Added to a stored `AdventurerCore` whose status is `ACTIVE`, it becomes `DELETED` (bit 176).
+pub const DELETED_MARK: felt252 = 0x100000000000000000000000000000000000000000000;
+/// The stored `Build` of a new adventurer: an empty bar, no attribute rank, `NO_ELITE`.
+pub const NEW_BUILD: felt252 = 0x4000000000000000000ff000000000000000000000000000000000000000000;
+/// A stored `Lanes32` with every lane 0 (the belt and the equipment of a new adventurer).
+pub const EMPTY_LANES: felt252 = LIVE;
+
+#[generate_trait]
+pub impl AdventurerCoreImpl of AdventurerCoreTrait {
+    /// The stored core of a new adventurer: its account, level 1, its profession, every other
+    /// field 0 (`ACTIVE`).
+    fn new(account: u32, profession: u8) -> felt252 {
+        LIVE + account.into() + LEVEL_ONE + profession.into() * PROFESSION_UNIT
+    }
+
+    /// `(account, status, pack_lanes)` of a stored core, without unpacking the others.
+    fn fields(core: felt252) -> (u32, u8, u16) {
+        let (low, high) = split(core);
+        (
+            low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
+            byte_at(high, P48),
+            u16_at(high, P56),
+        )
+    }
+
+    /// The stored core of an `ACTIVE` adventurer, marked `DELETED`; every other field kept.
+    fn deleted(core: felt252) -> felt252 {
+        core + DELETED_MARK
+    }
+}
+
+#[generate_trait]
+pub impl AdventurerPlaceImpl of AdventurerPlaceTrait {
+    /// `inside` of a stored place, without unpacking the other fields.
+    fn is_inside(place: felt252) -> bool {
+        let (low, _) = split(place);
+        byte_at(low, P96) != 0
+    }
+}
+
+#[generate_trait]
+pub impl AdventurerAssert of AdventurerAssertTrait {
+    /// A name is not empty (D-32).
+    fn assert_valid_name(name: felt252) {
+        assert(name != 0, errors::EMPTY_NAME);
+    }
+
+    /// The ownership check of every entrypoint that names an adventurer (ADR-0007, *Access
+    /// control*; ENG-01 §1.2), from its stored core and place and its account's owner: it exists,
+    /// the caller owns its account, it is not deleted, and it is in a hub (not inside).
+    fn assert_owned_in_hub(
+        account_id: u32,
+        status: u8,
+        place: felt252,
+        owner: ContractAddress,
+        caller: ContractAddress,
+    ) {
+        assert(account_id != 0, errors::NO_ADVENTURER);
+        assert(owner == caller, errors::NOT_OWNER);
+        assert(status != DELETED, errors::ADVENTURER_DELETED);
+        assert(!AdventurerPlaceTrait::is_inside(place), errors::NOT_IN_HUB);
+    }
+
+    /// "Its inventory emptied" (design/03, D-33), each from one stored word: the pack's balance
+    /// lanes, page 0 of its equipment list (compact: empty when page 0 is), what it wears, its
+    /// gold. A word is empty when all its fields are 0: never written (0), or `LIVE` alone.
+    fn assert_emptied(pack_lanes: u16, pack_page: felt252, equipped: felt252, gold: felt252) {
+        assert(pack_lanes == 0, errors::PACK_HOLDS_ITEMS);
+        assert(pack_page == 0 || pack_page == LIVE, errors::PACK_HOLDS_EQUIPMENT);
+        assert(equipped == 0 || equipped == LIVE, errors::WEARS_EQUIPMENT);
+        assert(gold == 0 || gold == LIVE, errors::PACK_HOLDS_GOLD);
+    }
+}
 
 /// Who it is and how far it went.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
