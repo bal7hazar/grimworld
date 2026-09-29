@@ -436,7 +436,7 @@ records. Each is checked at rank 15 (FX-0b) against its kind's bounds.
 |---|---|---|---|---|
 | **Mend Kin** | Cleric, Mending, Spell | 10 / 2 / 8, range 6 | `HEAL` 20…100 (rank 15: 120), `ALLY`, `SINGLE`, `ALLIES` | The Shaman "heals the pack" (design/05). As a spell it is interruptible, so the adventurer can stop it (design/04) |
 | **Overhead Smash** | Vanguard, Mauls, Attack | 10 / 3 / 10 | `ATTACK_BONUS` 20…60 (rank 15: 70), `FOE`, `SINGLE`, `FOES`: **one** entry | design/19 §8 and §10.2: an attack skill with activation 3 |
-| **Nest Call** | Vanguard, Tactics, Shout | 0 / 0 / 0 | none: its only effect is the shout's alert (carrier-level, §5.14 step 6) | The boss's phase 2 (§2.6, DS-14) |
+| **Nest Call** | Vanguard, Tactics, Shout | 0 / 0 / 0 | none: its only effect is the shout's alert (carrier-level, §5.14 step 6) | The boss's phase 2, after the MVP (§2.6, DS-14) |
 | **Trample** | Vanguard, Axes, Attack | 6 adrenaline / – / – | `CONDITION` Knocked down, `v` 2 (both ranks) | Wolf rider (§4) |
 | **Disrupting Chop** | Vanguard, Axes, Attack | 5 / 0 / 12 | `INTERRUPT` (kind 17), `FOE`, `SINGLE` | Champion (§4). Kind 17 is legal in CBT-01 (≤ `LAST_MVP` 18). design/19 marks it **P** only because the MVP has no source; its rule is §5.9 |
 | **Gnawing Rot** | Gravecaller, Curses, Hex | 10 / 2 / 12, range 6 | `REGENERATION` −2…−5 (rank 15: −5), `d` 8…16, `FOE`, `SINGLE`, `FOES` | Hexer's hex (§4) |
@@ -456,7 +456,7 @@ Adrenaline costs: Trample's 6 strikes, and design/03's Cleave (4) and Skullring 
 | Skirmisher | Rending Cut | the sword |
 | Shaman | Mend Kin on the lowest-health ally, then Stone Skin on an ally | the staff, from ≥ 3 tiles |
 | Hobgoblin | Overhead Smash | the maul |
-| Hobgoblin, boss | phase 1 as the Hobgoblin; phase 2: Nest Call once, then Overhead Smash | the maul |
+| Hobgoblin, boss | phase 1 as the Hobgoblin; phase 2 (**after the MVP**, DS-14: no MVP phases): Nest Call once, then Overhead Smash | the maul |
 
 **A skill is usable** for a goblin (DS-15 ★, D-160) when it is recharged and affordable and has a legal
 target in range whose state it changes: below max health for `HEAL`; for a holding entry, a target

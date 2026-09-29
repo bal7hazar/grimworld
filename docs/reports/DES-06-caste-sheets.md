@@ -380,3 +380,66 @@ gh pr checks 179 --watch --interval 30                → cairo (contracts) pass
 ### Deviations in fix loop 2
 
 None beyond the brief. Only `docs/design/20-castes.md` changed. The proposed skill values (DS-30 to DS-33, DS-22) are escalated initial content, not decisions.
+
+## Final pass (D-160)
+
+I merged `origin/main` first. It brought three new files: `docs/decisions/2026-09-29-des-06-castes.md`, the archived audit `docs/reports/DES-06-audit-gpt-6-astra.md`, and `docs/reports/DES-06-caste-sheets.md`.
+
+The final pass is commit `c015a2b` (with the merge). Only `docs/design/20-castes.md` changed. CI on `c015a2b` passed every check, with `indexer-node` skipped by its filter. PR: https://github.com/bal7hazar/grimworld/pull/179.
+
+**Note:** the decision file on main still reads "## Decision — Pending". I wrote D-160 as the brief of this pass states it. The file itself is the orchestrator's to update.
+
+### What was written
+
+- **Status.** design/20 is now **v1.0, decided (D-160)**. The header cites the archived audit's view on each question as the source of the decisions. It also records DS-9 as design/04's rule as written: weapon strength = 5 × the attribute rank, capped by level, with BAL-01 tuning the curve later.
+- **The capacity proof's restrictions.** The document states in three places that the proof's restrictions must exist **before any production snapshot**, built in the lot that builds snapshots (D-160):
+  - the header;
+  - §1.1 and §1.7;
+  - the preambles of §5 and §6.
+
+  The restrictions are the validators (DS-1, 4, 18, 20, 23, 29), the flattening's checks and saturations (DS-1, 2, 3, 5), and the acceptance tests of §6.
+- **§5 is now "Decisions (D-160)".** For each of the 33 questions it gives the question, the rule as decided, and the lots that need it:
+  - **★ CBT-02:** DS-1, 2, 3, 4, 5, 7, 8, 9, 29.
+  - **★ ENG-07:** DS-10, 11, 12, 15, 18, 20, 29.
+  - **CBT-03:** DS-7, 9, 20, 24.
+  - **CBT-05:** DS-7, 21.
+  - **CNT-01:** DS-6, 13, 14, 17, 19, 22, 23, 30–33.
+  - **BAL-01:** DS-6, 30–33.
+  - **CBT-01 follow-up:** DS-1, 18, 29.
+  - **CBT-08:** DS-2, 23.
+  - **Post-MVP:** DS-14 (its field), 16, 25, 26, 27, 28.
+
+  The options, recommendations and auditors' columns are gone. No "escalation", "recommendation", "proposed" or "provisional" is left in the document.
+- **The decided values are written where they apply.**
+
+  §1:
+  - **Row 1:** insignias are 15 / 10 / 5 by piece (DS-23), so equipment ranges −525…+540 and max health's top is **1,020**. The floors are refused by `set_build` (DS-2), and `health_bonus` is freed (DS-3).
+  - **Rows 2 and 3:** the negative ends are refused by `set_build`.
+  - **Row 4:** the packers' `≤ 20` check (DS-29).
+  - **Row 8:** rank 15 (DS-8).
+  - **Row 10:** the strength cap (DS-9).
+  - **§1.6:** the decided hit base is 33,022, with one `ATTACK_BONUS` (DS-20). The summed case is kept, labelled "not chosen".
+
+  §2 and §3:
+  - **§2.1–§2.6:** the profile ids (DS-10); the damage curve (DS-11), with §2.4's flat-damage check kept separate; the boss records (DS-13); no phases in the MVP (DS-14).
+  - **§3.1:** Stone Skin (DS-22), Snare (DS-32), Brace (DS-33), Warcry (DS-30) and Second Wind (DS-31), with no "?" left.
+  - **§3.2:** Shield Kin is added, marked post-MVP, with its content values to be completed before seeding (DS-27).
+  - **§3.3:** the usability rule (DS-15).
+
+  §4 and §6:
+  - **§4:** the post-MVP parts are marked decided as post-MVP: DS-16, 25, 26, 27, 28 and 14. The Champion is complete. The Paladin has four skills. The Lord's reinforcements are by alert.
+  - **§6:** the health fixture is 1,020. The floors are refused. The decided hit vector is 33,022 at `x = 80` → 8,656,519,168, and a second `ATTACK_BONUS` is refused. Test 9 cites DS-29 without options.
+- **Nothing else changed.** No bound, total, sheet value or test outside what the decisions fix.
+
+### Commands run in the final pass
+
+```
+git fetch origin && git merge --no-edit origin/main   → created docs/decisions/2026-09-29-des-06-castes.md,
+                                                        docs/reports/DES-06-audit-gpt-6-astra.md, docs/reports/DES-06-caste-sheets.md
+grep -i -E "escalat|recommend|propos|provisional|**?**" docs/design/20-castes.md
+                                                      → only D-157 B's quoted "whichever content names" remains
+git diff --check                                      → clean
+git push                                              → f3706f3..c015a2b
+gh pr checks 179 --watch --interval 30                → cairo (contracts) pass 1m54s, tooling pass 1m51s, client pass,
+                                                        every spike pass; indexer-node skipping
+```
