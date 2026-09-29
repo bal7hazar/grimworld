@@ -1,0 +1,51 @@
+| Entrypoint | Keys written (count; **N** new when cold; **N!** new every time) | Cold N / O | Initialised N / O |
+|---|---|---|---|
+| `enter` (with `create`) | placement, header, entropy, revealed, quotas (5) **N** · member words (8: state from the snapshot, empty timers, effects, recharges, snapshot, controller) (8) **N** · entry chunk: terrain, features (2) **N** · task pages ⌈t/4⌉, t = 16 (4) **N** · next_slot (written at the first entry only) (1 cold, 0 after) · hub: place (1) · hub: belt reserve, pack pages (4) · hub: core (pack_lanes) (1) | 19 / 7 | 0 / 25 |
+| `enter_rift` | placement, header, entropy, revealed, quotas (5) **N** · member words (8: state from the snapshot, empty timers, effects, recharges, snapshot, controller) (8) **N** · entry chunk: terrain, features (2) **N** · task pages ⌈t/4⌉, t = 16 (4) **N** · next_slot (written at the first entry only) (1 cold, 0 after) · hub: place (1) · hub: belt reserve, pack pages (4) · hub: core (pack_lanes) (1) · the account's board (1) **N** | 20 / 7 | 0 / 26 |
+| `leave`, `travel_back` | header, placement, member state (3) · hub: place, core (2) · hub: belt credit, pack pages (4) | 0 / 9 | 0 / 9 |
+| `leave` through a gate | placement, header, entropy, revealed, quotas (5) · member state, timers, effects, recharges: initialised for clock 0 (F-12) (4) · entry chunk of the next location (2) **N** · hub: place, core (Moved) (2) | 2 / 11 | 0 / 13 |
+| `loot`, a boss (3 items) | header, entropy, goblin state (3) · roster: a swap removal (hole page, last page) (2) · balance pages (3 items) (3) **N** · pack gold (1) **N** · item bases (3 drops, always new) (3) **N!** · next_item (1) · pack list pages, appended (2) **N** · core (pack_lanes, experience) (1) · account counter (Scavenger) (1) **N** · quiver held quests (4) | 10 / 11 | 3 / 18 |
+| `loot`, ordinary remains | header, entropy, goblin state (3) · roster: a swap removal (2) · balance pages (2 ingredients) (2) **N** · pack gold (1) **N** · core (1) · account counter (1) **N** · quiver held quests (4) | 4 / 10 | 0 / 14 |
+| `open`, goblins near (1 tick, then a draw) | goblin words (28) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (1) **N** · roster pages, others (3) · balance pages (3 items) (3) **N** · pack gold (1) **N** · item bases (3 drops, always new) (3) **N!** · next_item (1) · pack list pages, appended (2) **N** · core (pack_lanes, experience) (1) · account counter (Scavenger) (1) **N** · quiver held quests (4) | 39 / 19 | 3 / 55 |
+| `open`, no goblin near | header, entropy, member state, the chest's features (4) · balance pages (2 ingredients) (2) **N** · pack gold (1) **N** · core (1) · account counter (1) **N** · quiver held quests (4) | 4 / 9 | 0 / 13 |
+| `mine`, goblins near (3 ticks, own union) | goblin words (84) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (3) **N** · roster pages, others (1) · hub: stillstone page (1) **N** · hub: core, quiver held quests (5) | 88 / 16 | 0 / 104 |
+| `mine`, goblins near, with the invocation cap of 16 (E-16) | goblin words (32) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (2) **N** · roster pages, others (2) · hub: stillstone page (1) **N** · hub: core, quiver held quests (5) | 35 / 17 | 0 / 52 |
+| `mine`, no goblin near | header, entropy, member state, the vein's features (4) · hub: stillstone page (1) **N** · hub: core, quiver (5) | 1 / 9 | 0 / 10 |
+| `barter`, goblins near (1 tick) | goblin words (28) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (1) **N** · roster pages, others (3) · hub: price pages (2) · hub: the item given, its base (1) **N!** · hub: next_item (1) · hub: pack list page (1) **N** · hub: core (1) · hub: the tick's Open report, quiver (4) | 31 / 21 | 1 / 51 |
+| `barter`, no goblin near | header, member state (2) · hub: price pages (2) · hub: item base (1) **N!** · hub: next_item, core (2) · hub: pack list page (1) **N** | 2 / 6 | 1 / 7 |
+| `register` | account_of, account owner, account record (3) **N!** · next_account (1) | 3 / 1 | 3 / 1 |
+| `set_account_owner` (7 adventurers inside) | owner, account_of[old] (zeroed, E-19) (2) · account_of[new] (1) **N!** · each inside: its member's controller (7) | 1 / 9 | 1 / 9 |
+| `create_adventurer` | adventurer: 6 words (6) **N!** · next_adventurer, account record (2) · account list page, appended (1) **N** | 7 / 2 | 6 / 3 |
+| `delete_adventurer` | core, account record (2) · account list: a swap removal (2) | 0 / 4 | 0 / 4 |
+| `set_build` | build, belt, equipped (3) | 0 / 3 | 0 / 3 |
+| `travel` | place (1) | 0 / 1 | 0 / 1 |
+| `display_title` | none | 0 / 0 | 0 / 0 |
+| `accept_quest` | quiver held record (1) **N** · known skills page (skills given at acceptance) (1) **N** | 2 / 0 | 0 / 2 |
+| `abandon_quest` | quiver held record (1) | 0 / 1 | 0 / 1 |
+| `accept_contract` | quiver held record (1) **N** | 1 / 0 | 0 / 1 |
+| `claim_quest` | core (1) · pack gold, balance page, pack list page, known skills page, counter (5) **N** · reward item base (1) **N!** · next_item, quiver 2 (3) | 6 / 4 | 1 / 9 |
+| `claim_title` | quiver's claim record (1) **N!** | 1 / 0 | 1 / 0 |
+| `buy_skill` | known skills page (1) **N** · pack gold (1) | 1 / 1 | 0 / 2 |
+| `buy`, equipment | item base (1) **N!** · pack list page (1) **N** · gold, next_item, core (3) | 2 / 3 | 1 / 4 |
+| `sell`, equipment | pack gold (first income) (1) **N** · item base, pack list: a swap removal (2), core (4) | 1 / 4 | 0 / 5 |
+| `craft` | item base (1) **N!** · pack list page (1) **N** · material pages 2, gold, next_item, core (5) | 2 / 5 | 1 / 6 |
+| `recycle` | item base, pack list: a swap removal (2), core (4) · material pages (2) **N** | 2 / 4 | 0 / 6 |
+| `personalise` | item base, stillstone page, gold, core (the last stone: pack_lanes) (4) | 0 / 4 | 0 / 4 |
+| `identify` | item mods (they come to exist) (1) **N!** · item base (IDENTIFIED), gold (2) | 1 / 2 | 1 / 2 |
+| `lift_modifier`, with a stone | component base and mods (2) **N!** · pack list page (1) **N** · item mods, next_item, stillstone page, core (last stone), gold (5) | 3 / 5 | 2 / 6 |
+| `lift_modifier`, without (destroyed) | component base and mods (2) **N!** · item base, pack list: a swap removal (2), next_item, gold (5) | 2 / 5 | 2 / 5 |
+| `set_modifier`, with a stone | returned component: base and mods (2) **N!** · item mods, consumed component base, pack list pages 2, next_item, stillstone page, core, gold (8) | 2 / 8 | 2 / 8 |
+| `brew`, a new pair | grimoire state and pairs (2) **N** · potion page (1) **N** · ingredient pages 2, core (3) | 3 / 3 | 0 / 6 |
+| `buy_hint` | grimoire state, stillstone page, core (last stone) (3) | 0 / 3 | 0 / 3 |
+| `stow`, to the vault (8 + 8) | vault list pages, appended (2) **N** · vault balance pages (8) **N** · vault gold (1) **N** · item bases 8, pack list pages 4, pack pages 8, pack gold, core (22) | 11 / 22 | 0 / 33 |
+| `stow`, to the pack (8 + 8) | pack balance pages (8) **N** · pack list pages, appended (2) **N** · pack gold (1) **N** · vault list pages: 8 swap removals (8 hole pages + the tail's 2) (10) · vault balance pages 8, item bases 8, vault gold, core (18) | 11 / 28 | 0 / 39 |
+| `post_lot`, a balance | lot (a new id) (1) **N!** · seller page k (the 4th lot: page 1) (1) **N** · escrow page (1) **N** · lot_count, open_lot_count, seller page 0 (count), pack page, vault gold (fee), account record, core (7) | 3 / 7 | 1 / 9 |
+| `post_lot`, equipment | lot (1) **N!** · seller page k (1) **N** · lot_count, open_lot_count, seller page 0, item base, pack list: a swap removal (2), vault gold, account record (8) | 2 / 8 | 1 / 9 |
+| `buy_lot` | seller's vault gold (1) **N** · buyer's vault page or vault list page (1) **N** · lot, open_lot_count, seller pages: a swap removal (hole, last, page 0), buyer's gold, escrow page or item base, account record (8) | 2 / 8 | 0 / 10 |
+| `withdraw_lot`, `return_lot` | vault page or vault list page (1) **N** · lot, open_lot_count, seller pages 3, escrow page or item base, account record (7) | 1 / 7 | 0 / 8 |
+| `open_trade` | trade head (a new id) (1) **N!** · trade_count (1) | 1 / 1 | 1 / 1 |
+| `set_trade_side` | the side's 2 words (2) **N** · head (1) | 2 / 1 | 0 / 3 |
+| `confirm_trade`, the swap (7 + 7) | pack list pages appended, 2 a side (4) **N** · balance pages credited, 2 a side (4) **N** · pack gold credited, a side (2) **N** · head, item bases 14, pack list removals 4 a side, balance pages debited 4, cores 2 (29) | 10 / 29 | 0 / 39 |
+| `confirm_trade` (first), `decline_trade`, `cancel_trade` | head (1) | 0 / 1 | 0 / 1 |
+| `Registry.set_record` | parts (3) **N!** · last_ids (1) **N** | 4 / 0 | 3 / 1 |
+| admin setters, `upgrade` | addresses (4) | 0 / 4 | 0 / 4 |

@@ -1,0 +1,64 @@
+| Entrypoint | Computation (E) | Calls | Events | Initialised: N / O → L2 | Cold: N / O → L2 | Basis |
+|---|---:|---:|---:|---|---|---|
+| `enter` (with `create`) | 1.45 M | 4 | 92,672 | 0 / 25 → **3,705,411** | 19 / 7 → **11,745,071** | checks, snapshot, entry draw, first chunk's generation 0.39–0.45 M (SPK-7, M); calls: instances, registry ×2, fate |
+| `enter_rift` | 1.55 M | 5 | 92,672 | 0 / 26 → **3,973,483** | 20 / 7 → **12,434,595** | `enter` + the day's board (first action of the day: its draw) |
+| `leave`, `travel_back` | 0.60 M | 1 | 92,672 | 0 / 9 → **1,934,259** | 0 / 9 → **1,934,259** | the closing report; `InstanceClosed`, `AdventurerLocated` |
+| `leave` through a gate | 1.90 M | 3 | 92,672 | 0 / 13 → **3,634,547** | 2 / 11 → **4,477,451** | the next entry draw and generation; snapshot, controller and task words unchanged |
+| `loot`, a boss (3 items) | 0.50 M | 3 | 0 | 3 / 18 → **3,662,807** | 10 / 11 → **6,612,971** | 0 world ticks; calls: registry, fate, hub |
+| `loot`, ordinary remains | 0.50 M | 3 | 0 | 0 / 14 → **2,173,947** | 4 / 10 → **3,859,755** | as above |
+| `open`, goblins near (1 tick, then a draw) | 4.78 M | 3 | 919,072 | 3 / 55 → **10,053,456** | 39 / 19 → **25,225,728** | one tick as alone (SPK-1, M) and its window; ≤ 14 `GoblinKilled` (traps); the draw branch |
+| `open`, no goblin near | 0.80 M | 3 | 0 | 0 / 13 → **2,441,875** | 4 / 9 → **4,127,683** | a quiet tick 0.30 M |
+| `mine`, goblins near (3 ticks, own union) | 13.05 M | 2 | 2,757,216 | 0 / 104 → **20,236,382** | 88 / 16 → **57,324,158** | 3 ticks, 42 goblins (3 × 14), ≤ 42 `GoblinKilled`; completion branch |
+| `mine`, goblins near, with the invocation cap of 16 (E-16) | 13.05 M | 2 | 1,050,368 | 0 / 52 → **16,861,790** | 35 / 17 → **31,612,610** | the same, 16 goblins |
+| `mine`, no goblin near | 0.90 M | 2 | 0 | 0 / 10 → **2,309,659** | 1 / 9 → **2,731,111** | 3 quiet ticks |
+| `barter`, goblins near (1 tick) | 4.68 M | 3 | 919,072 | 1 / 51 → **8,918,120** | 31 / 21 → **21,561,680** | calls: registry, hub `barter`, hub `report` |
+| `barter`, no goblin near | 0.70 M | 3 | 0 | 1 / 7 → **2,602,967** | 2 / 6 → **3,024,419** |  |
+| `register` | 0.20 M | 0 | 0 | 3 / 1 → **2,409,583** | 3 / 1 → **2,409,583** | once per address |
+| `set_account_owner` (7 adventurers inside) | 0.20 M | 7 | 0 | 1 / 9 → **2,711,111** | 1 / 9 → **2,711,111** |  |
+| `create_adventurer` | 0.30 M | 1 | 0 | 6 / 3 → **4,070,299** | 7 / 2 → **4,491,751** | the profession (registry) |
+| `delete_adventurer` | 0.20 M | 0 | 0 | 0 / 4 → **1,145,227** | 0 / 4 → **1,145,227** | pack empty: `pack_lanes` 0, pack lists empty |
+| `set_build` | 0.30 M | 1 | 0 | 0 / 3 → **1,349,155** | 0 / 3 → **1,349,155** | skills and bases (registry) |
+| `travel` | 0.10 M | 0 | 46,336 | 0 / 1 → **995,347** | 0 / 1 → **995,347** | `AdventurerLocated` |
+| `display_title` | 0.05 M | 0 | 46,336 | 0 / 0 → **913,275** | 0 / 0 → **913,275** | event only (T-1) |
+| `accept_quest` | 0.40 M | 1 | 0 | 0 / 2 → **1,417,083** | 2 / 0 → **2,259,987** | the quest (registry) |
+| `abandon_quest` | 0.30 M | 0 | 0 | 0 / 1 → **1,149,011** | 0 / 1 → **1,149,011** |  |
+| `accept_contract` | 0.30 M | 1 | 0 | 0 / 1 → **1,285,011** | 1 / 0 → **1,706,463** | the day's pool (registry) |
+| `claim_quest` | 0.60 M | 1 | 92,672 | 1 / 9 → **2,387,783** | 6 / 4 → **4,495,043** | `RankReached`, `TrialPassed` |
+| `claim_title` | 0.40 M | 0 | 0 | 1 / 0 → **1,670,463** | 1 / 0 → **1,670,463** |  |
+| `buy_skill` | 0.20 M | 1 | 0 | 0 / 2 → **1,217,083** | 1 / 1 → **1,638,535** | the trainer (registry) |
+| `buy`, equipment | 0.30 M | 1 | 0 | 1 / 4 → **1,834,751** | 2 / 3 → **2,256,203** | the offer (registry) |
+| `sell`, equipment | 0.30 M | 1 | 0 | 0 / 5 → **1,413,299** | 1 / 4 → **1,834,751** | the value (registry) |
+| `craft` | 0.30 M | 1 | 0 | 1 / 6 → **1,898,895** | 2 / 5 → **2,320,347** | the offer (registry) |
+| `recycle` | 0.30 M | 1 | 0 | 0 / 6 → **1,445,371** | 2 / 4 → **2,288,275** | the base's materials (registry) |
+| `personalise` | 0.30 M | 1 | 0 | 0 / 4 → **1,381,227** | 0 / 4 → **1,381,227** | the fee (registry) |
+| `identify` | 0.35 M | 2 | 0 | 1 / 2 → **1,956,607** | 1 / 2 → **1,956,607** | calls: registry, fate |
+| `lift_modifier`, with a stone | 0.35 M | 1 | 0 | 2 / 6 → **2,402,419** | 3 / 5 → **2,823,871** | the modifier (registry) |
+| `lift_modifier`, without (destroyed) | 0.35 M | 2 | 0 | 2 / 5 → **2,506,347** | 2 / 5 → **2,506,347** | calls: registry, fate |
+| `set_modifier`, with a stone | 0.35 M | 1 | 0 | 2 / 8 → **2,466,563** | 2 / 8 → **2,466,563** |  |
+| `brew`, a new pair | 0.50 M | 2 | 0 | 0 / 6 → **1,781,371** | 3 / 3 → **3,045,727** | calls: registry (book), fate |
+| `buy_hint` | 0.35 M | 2 | 0 | 0 / 3 → **1,535,155** | 0 / 3 → **1,535,155** | calls: registry, fate |
+| `stow`, to the vault (8 + 8) | 0.40 M | 0 | 0 | 0 / 33 → **2,275,315** | 11 / 22 → **6,911,287** |  |
+| `stow`, to the pack (8 + 8) | 0.40 M | 0 | 0 | 0 / 39 → **2,467,747** | 11 / 28 → **7,103,719** |  |
+| `post_lot`, a balance | 0.30 M | 4 | 65,648 | 1 / 9 → **2,468,759** | 3 / 7 → **3,311,663** | calls: hub seller, escrow, gold; registry (key) |
+| `post_lot`, equipment | 0.30 M | 4 | 65,648 | 1 / 9 → **2,468,759** | 2 / 8 → **2,890,211** |  |
+| `buy_lot` | 0.30 M | 3 | 46,336 | 0 / 10 → **1,891,995** | 2 / 8 → **2,734,899** | calls: seller, gold, release |
+| `withdraw_lot`, `return_lot` | 0.30 M | 2 | 46,336 | 0 / 8 → **1,691,851** | 1 / 7 → **2,113,303** |  |
+| `open_trade` | 0.30 M | 1 | 46,336 | 1 / 1 → **1,784,871** | 1 / 1 → **1,784,871** |  |
+| `set_trade_side` | 0.20 M | 1 | 0 | 0 / 3 → **1,249,155** | 2 / 1 → **2,092,059** |  |
+| `confirm_trade`, the swap (7 + 7) | 0.80 M | 1 | 46,336 | 0 / 39 → **3,050,083** | 10 / 29 → **7,264,603** |  |
+| `confirm_trade` (first), `decline_trade`, `cancel_trade` | 0.10 M | 1 | 46,336 | 0 / 1 → **1,131,347** | 0 / 1 → **1,131,347** |  |
+| `Registry.set_record` | 0.05 M | 0 | 0 | 3 / 1 → **2,259,583** | 4 / 0 → **2,681,035** | administration |
+| admin setters, `upgrade` | 0.10 M | 0 | 0 | 0 / 4 → **1,045,227** | 0 / 4 → **1,045,227** | administration |
+
+§10.1 — a batch of weight 10, the cap of E-16 (16 goblins), no reveal:
+  goblin words (16 × 2): 32
+  chunk features (union of windows): 9
+  roster pages (swap removals touch all 4): 4
+  header, entropy: 2
+  member transient words: 4
+  hub report (core, quiver 4): 5
+  ticks alone: 56 words; 40,329,381 to 46,877,141
+  ticks shared: 56 words; 21,737,891 to 28,285,651
+  cap 24 instead of 16: +513,152 (16 more words overwritten)
+  cold, the 32 goblin words and 2 roster pages new: +14,329,368
+  one 3-tick action alone, 42 goblins: initialised 20,096,982; cold (84 goblin words + 3 roster pages new) 56,763,306; with one word per goblin (E-1 b) cold 38,966,106

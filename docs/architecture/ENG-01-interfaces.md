@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Frozen by ENG-01 (2026-09-29), `[Opus 5.5]`. **Fix loop 1** after the `[GPT-6-Astra]` audit (FAIL, 6 majors): the belt's reserve (§6), per-batch and lifetime bounds (§9.1–9.2), the standalone actions by their behaviour (§4.1), every selector's complete write set, cold and initialised (§9.3), the per-action events restored (§5), remains through the roster (§9.3), registry allocation (§3.5), bounded deadlines and packers (§3.1), a validating encoder (§4.1). The escalations of §11 are open |
+| Status | Frozen by ENG-01 (2026-09-29), `[Opus 5.5]`. **Fix loop 1** after the `[GPT-6-Astra]` audit (FAIL, 6 majors): the belt's reserve (§6), per-batch and lifetime bounds (§9.1–9.2), the standalone actions by their behaviour (§4.1), every selector's complete write set, cold and initialised (§9.3), the per-action events restored (§5), remains through the roster (§9.3), registry allocation (§3.5), bounded deadlines and packers (§3.1), a validating encoder (§4.1). **Fix loop 2** after the re-audit: every generation-changing path initialises the member's transient words (§2.1, F-12); roster pages masked, not rewritten (§2.1, §4.1, F-13); per-invocation unions with compact lists and the unsplittable action (§9.2, E-21); the standalone actions' own unions (§9.3, E-8); every key set re-enumerated and every gas figure computed from it by `contracts/tools/budget_table.py` (§9.3, §10); the views' reads (§9.3); effective durations bounded after modifiers (§3.1). The escalations of §11 are open |
 | Code | `contracts/`: `grimworld_logic` (shared types, wire formats, calls between contracts), `grimworld_ephemeral` (`Instances`), `grimworld_persistent` (`Hub`, `Market`, `Registry`, `TxHashFate`). Interfaces, storage structs, events and packing compile; every game entrypoint reverts with `'not implemented'` |
 | Budgets rest on | [cost-budget.md](cost-budget.md) (FND-04), and one measurement of this task: a reused key (§2) |
 | Rules applied | D-129 (a cost budget), D-133 (batches), D-135 (4 held quests), D-131 (16 tasks, one results call per transaction), D-136, ADR-0001, ADR-0002, ADR-0005, ADR-0006, ADR-0007, M-1…M-6, CAIRO.md, the project manager's rule of 2026-09-29 (instance slots are reused) |
@@ -128,8 +128,8 @@ slot is reached only through a gate that `create` or a reveal rewrites.
 | `headers[slot]` | the instance id: `header.generation` must equal the id's generation, else the call is refused (`Closed`) and views answer nothing | `create` (generation + 1, sequence 0, clock 0, counts reset) |
 | `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the entry chunk only; the location's quotas) |
 | `tasks[(slot, page)]` | `header.tasks` (pages beyond `⌈tasks / 4⌉` are never read) | `create`, only the pages it needs: a page never used before is new then (§9.3) |
-| `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words |
-| `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole), entries beyond the count are never read | nothing at `create`: the count is reset to 0 there, so stale lanes are unreachable without a write |
+| `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words; **every generation-changing path** (`create`, and `leave` through a gate to a location) writes every transient word for the new clock 0: state from the snapshot, timers, effects and recharges empty (fix loop 2, F-12) |
+| `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`mask_roster_page`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
 | `chunks[(slot, c)]` | bit `c` of `revealed`: a chunk not revealed in this generation is never read (wall, D-136) | its reveal, both words |
 | `goblins[(slot, e)]` | its spawn chunk revealed **and** bit `k` of that chunk's `touched` (the roster lists only goblins that pass this gate) | the chunk's reveal clears `touched`; the roster's count is reset at `create` |
 | `placements[adventurer]` | the adventurer id (its reference to its instance, not instance state) | `create`, `leave` |
@@ -139,7 +139,22 @@ any record but the header: the gates above are rewritten in the same invocation 
 The security lens checks one invariant: *no read of a slot's record that does not first pass the
 header's generation and the gate of the table*. The views (`instance_state`, `instance_region`)
 apply the same gates: an id of an earlier generation, or a chunk outside `revealed`, returns no
-stored word.
+stored word; a roster page is returned masked.
+
+**Nothing carries into a new generation but the belt's reserve** (fix loop 2, F-12, the
+orchestrator's ruling). At `create` and at every location or gate transition inside `leave`, the
+member's four transient words are written for clock 0 of the new instance:
+- `MemberState`: position at the entrance, facing away from it (design/18), health, energy and
+  adrenaline from the snapshot (their maxima, and 0 adrenaline), status inside, the hit and cast
+  counters 0, flags 0; **the belt's counts are the reserve's**, carried as the F-1 ruling says;
+- `MemberTimers`, `MemberEffects`, `Recharges`: empty (`LIVE` only). No deadline of the old clock
+  survives, so no deadline can point into the new clock's past or future by mistake.
+
+The snapshot's words (stats, bar, kit), the controller and the task pages are identical across a
+gate within one expedition. They are left as they are: a write of the same value changes nothing.
+If the design means some state to carry across a gate (health, energy, adrenaline, conditions,
+recharges), it is escalated with its clock conversion rather than carried (E-20). Cost: 4 member
+words in `leave` through a gate (§9.3, §10).
 
 ### 2.2 Reuse, measured
 
@@ -203,6 +218,20 @@ gas). This is C.
   action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10`, with `MAX_DURATION`
   = 65,535 the registry's widest duration, recharge or activation. So every deadline fits 28 bits
   (E-4, corrected in fix loop 1).
+- **Effective durations are bounded after modifiers** (fix loop 2, F-9;
+  `grimworld_logic::durations`). design/15's modifiers lengthen durations: conditions inflicted
+  +33 %, enchantments +10 to +20 %, a set bonus +1 tick. The rule:
+  - the registry holds base durations, recharges and activations of at most
+    `MAX_BASE_DURATION = 43,688` ticks, and its writer refuses more;
+  - the percent bonuses that apply to one duration are summed and capped at 50 % (the MVP's largest
+    is +33 %);
+  - the flat bonuses are summed and capped at 3 ticks;
+  - so `effective_duration(base, percent, flat) = ⌊base × (100 + percent) / 100⌋ + flat ≤ 65,535 =
+    MAX_DURATION`, the maximum being exactly it (tested: `test_effective_duration_maximum`,
+    `test_base_above_cap_refused`).
+
+  `LAST_TICK` then keeps every deadline an action sets, `clock + ticks + effective`, at or below
+  `MAX_CLOCK`.
 - **Every packer refuses a field wider than its layout** (fix loop 1, F-9): `join` refuses a high
   limb that would reach `LIVE`; `fits` checks every field narrower than its Cairo type (28-bit
   deadlines, the pack's count, offsets and alert, an object's kind and state, the walls above bit
@@ -474,7 +503,7 @@ estimate cost 153,600, one felt 5,120.
 |---|---:|---|---|---|---|
 | `loot` | 0 (design/04: *pick up*, 0 ticks) | Fate: the drop (D-50) | — | header, entropy, the goblin's state (`LOOTED`), the roster (removed if displaced) | the drop to the pack; Scavenger; loot tasks |
 | `open` | 1 (design/04: *Interact*, a chest) | Fate, after the tick: the chest's content | the tick runs first; if it defeats the member, nothing is drawn and the chest stays | the tick's writes (§9.2 per tick), the chest's object state | the content to the pack |
-| `mine` | 3 (design/17), an activation | **none** (design/17: 1 stillstone, no draw; E-18) | a hit taken during the 3 ticks interrupts it: the vein stays, no stone | the 3 ticks' writes, the vein's state when completed | 1 stillstone; mine tasks |
+| `mine` | up to 3 (design/17), an activation | **none** (design/17: 1 stillstone, no draw; E-18) | **stopping**: the ticks run one by one; a hit taken at tick k (1–3) ends the action after that tick: the vein stays, no stone, the sequence still +1. **Completion**: 3 ticks without a hit mark the vein mined (its object state) and feed the entropy. Defeat ends it too (closing report) | the ticks' writes (its own union, §9.3: up to 42 goblins), the vein's state when completed | completion: 1 stillstone, mine tasks; every branch: the ticks' results (experience, tasks) in one aggregated report, `GoblinKilled` and `Defeated` as they happen |
 | `barter` | 1 (design/04: *Interact*) | none | the tick runs first; the exchange happens if the member still stands next to the collector | the tick's writes | `Hub.barter`: the price out of the pack, the item in (E-6) |
 | `leave`, `travel_back` | 0 | Fate for the next location's entry draw (`leave` to a location) | — | §9.3 | closing report, or Moved |
 
@@ -486,6 +515,18 @@ for a revealed chunk. A `GoblinView` says whether the goblin is **derived** (unt
 spawn, from its pack placement) or stored. `instance_region` finds remains lying away from their
 spawn chunk through the roster (§9.3, F-6). Both views are pure reads: callable at a block hash or
 at `pre_confirmed`.
+
+**The roster in views is masked** (fix loop 2, F-13). `InstanceView.roster` returns the pages up
+to `⌈roster_count / 15⌉` with every lane of an entry at or beyond `header.roster_count` zeroed
+(`models::instance::mask_roster_page`); the goblins they list are the only roster goblins in
+`InstanceView.goblins` and `RegionChunk.goblins`. The same masking applies to every internal read
+(the tick, `loot`, the reveal of a follower's position). A raw page is never returned. Tested at
+the helper (`test_roster_masking`); the view case is in the deferred view tests (E-13): an earlier
+generation fills page 0, the new one has one entry, and the view shows that one entry and zeros
+elsewhere.
+
+**Every generation-changing path initialises the member's transient words** (fix loop 2, F-12; §2.1):
+`create`, and `leave` through a gate to a location. Nothing carries but the belt's reserve.
 
 ### 4.2 The calls between contracts (`grimworld_logic::interface`)
 
@@ -679,7 +720,7 @@ The client's four operations (create or restore, execute, status, sign out) are 
 
 ---
 
-## 9. What an invocation can touch (scope 2, AC-2; fix loop 1, F-2, F-4)
+## 9. What an invocation can touch (scope 2, AC-2; fix loops 1 and 2: F-2 to F-5)
 
 ### 9.1 Three kinds of bound
 
@@ -710,20 +751,36 @@ bounds are kept apart, and every row of §9.3 gives both key states:
 **Per batch** (weight ≤ 10: at most 10 world ticks, at most 10 moves, at most **4** chunks
 revealed, because `Σ (1 + 2 cᵢ) ≤ 10`):
 
-| Record | Union bound without a cap | With the cap of E-16 (16 goblins a batch) | Why |
+| Record | Union bound without a cap | With the cap of E-16 (16 goblins an invocation) | Why |
 |---|---:|---:|---|
 | Goblin records | 140 (280 words) | 16 (32 words) | 10 ticks × 14. The goblins present in the union of the windows (at most 9 chunks, since 10 moves shift a 15 × 16 window by at most 10 tiles each way) × 10 spawns + the roster's 60 = 150 do not bound it lower |
 | Chunk `features` | 9 | 9 | the chunks of the union of windows |
 | Chunk `terrain` (reveals) | 4 | 4 | weight |
-| Roster pages | 4 | 2 | 60 entries; 16 displacements reach at most 2 pages |
+| Roster pages | 4 (≤ 4 first used) | 4 (≤ 2 first used) | a **compact list** (fix loop 2): an append writes the last page; a removal moves the last entry into the hole, so it writes the hole's page and the last page. Over a batch every page can change. Pages first used are new (N): 16 appends reach at most 2 new pages |
 | Header, entropy, revealed, quotas | 4 | 4 | |
 | Member words | 4 | 4 | |
 | Hub `report` | 5 | 5 | core (experience, `pack_lanes`), quiver's held quests ≤ 4 |
-| **Words** | **310** | **60** | |
+| **Words** | **310** | **62** | the gas-worst batch has no reveal: 56 (§10.1) |
+| **Of which new, cold** | 288 + 4 roster | 32 + 2 roster + 8 revealed chunk words = **42** | |
 | Events | ≤ 140 `GoblinKilled`, ≤ 4 `ChunkRevealed`, ≤ 1 `Defeated`, 1 `BatchPlayed` | ≤ 16, ≤ 4, ≤ 1, 1 | |
 
 Without a cap on goblins, a batch's writes are bounded only by 280 goblin words: 8.98 M at O
 initialised, 127 M at N cold. **E-16** proposes the cap, **E-1** the weight of a cold goblin key.
+
+**One action that cannot be split** (fix loop 2, F-2). The cap and the cold weight bound a batch
+of several actions, but a single action runs all its ticks: a 3-tick action (a 3-tick skill; `mine`)
+can change 3 × 14 = **42 goblins** by itself, above the cap of 16, and in a cold slot it can write
+84 new goblin words, above any weight. Its figures (`contracts/tools/budget_table.py`):
+initialised **20,096,982**, cold **56,763,306** (84 goblin words and 3 roster pages new), cold with
+one word per goblin (E-1 option b) **38,966,106**. What happens to it is **E-21**:
+- (a) **it runs**: the cap and the cold weight bind from an invocation's second action on, and the
+  first action is bounded by its own class: 20.1 M initialised, **56.8 M cold**. The bound is raised
+  for that class, cold, to 57 M (or 39 M with E-1 b);
+- (b) **it is refused**: the action is invalid while it would pass the cap or the weight. Cost: a
+  player among many goblins cannot use a 2- or 3-tick action; and in a cold slot the keys can only
+  warm by running, so a refused action can stay refused (a stall).
+- **Recommended: (a) with E-1 (b)**: no stall, and every invocation stays under 40 M
+  (38.97 M cold, 20.10 M initialised).
 
 **Lifetime initialisation of one slot** (all its keys that can ever be new, then O forever):
 
@@ -737,103 +794,100 @@ initialised, 127 M at N cold. **E-16** proposes the cap, **E-1** the weight of a
 | goblin words, 225 × 10 goblins × 2 | 4,500 | 2,040.9 M |
 | **All** | **4,971** | **2,254 M ≈ $1.99** (1 M = $0.000881) |
 
-That is the bound. Real exposure is smaller: every location of a slot shares the same chunk indexes
-(`15 cy + cx`, from the grid's origin), so Region 1's locations of at most 7 × 7 chunks use 49
-indexes. That is 49 × 22 + 21 = 1,099 keys (498 M, $0.44) over the adventurer's life, paid as
-first uses.
+That is the bound, and **it is also Region 1's** (corrected in fix loop 2). Zones of at most 7 × 7
+chunks use the indexes `cx, cy ≤ 6` (49 indexes, 49 × 22 + 21 = 1,099 keys, 498 M). But every
+dungeon floor, Rift floor and trial emerges from its entrance chunk at **(7, 7)** (§3.2), and an
+outline of up to 12 chunks can reach any index within 11 edge steps of it: every index of the
+15 × 15 grid. Over many runs, the floors of Region 1 alone can use the whole grid: **4,971 keys,
+$1.99, once per adventurer slot**, paid as first uses. An expected figure: each dungeon run adds its
+chunk indexes never used before, at most 12 × 22 = 264 keys (120 M, $0.11), so the first runs cost
+most. Placing zones around (7, 7) too would let zones and floors share keys; it lowers the expected
+cost, not the bound.
 
 ### 9.3 Every public entrypoint: its complete write set
 
-Columns: the reads; every key written; **cold** new / overwritten (N / O) when the keys the row
-names were never written; **initialised** N / O when they were. The fee token's 2 balances are in
-F. `C` is the number of calls to other contracts. Counters are `Counter` records with `LIVE`, so an
-allocation counter is always O, never N, and a count that falls to 0 and rises again stays O.
+Re-enumerated in fix loop 2 (F-4), **physical key by physical key, per branch**, and the counts
+**derived from those sets** by `contracts/tools/budget_table.py --keys` (raw output:
+`contracts/tools/budget-keys-output.txt`). A key marked **N** is new when the row's keys were never
+written (**cold**); **N!** is new every time (a new entity, a new lot, a new trade id, the first
+modifiers of an item). Every other key is O. The fee token's 2 balances are in F. Counters are
+`Counter` records with `LIVE`: never N after deployment.
 
-**`Instances`**
+Conventions of the key sets:
+- **Compact lists** (the roster, pack and vault lists, the account's adventurers, the seller's
+  pages): an append writes the last page (N the first time a page is used); a removal moves the last
+  entry into the hole, writing the hole's page and the last page. The seller's pages keep their count
+  on page 0: a 4th lot writes page 1 **and** page 0; a removal writes up to 3 pages.
+- **`core.pack_lanes`** is written by every balance change that empties or fills a pack lane: the
+  last stillstone spent (`buy_hint`, `personalise`, the modifier services), the last potion reserved.
+- **Registry reads**: every row that needs content makes **one** `bundle` call (§3.5): `enter` (gate,
+  location, outline; the snapshot's skills and bases), `buy`, `sell`, `craft`, `recycle`,
+  `personalise`, `identify`, the modifier services, `brew`, `buy_hint`, `buy_skill`, `accept_quest`,
+  `accept_contract`, `claim_quest`, `set_build`, `create_adventurer`, `post_lot` (the market key),
+  and the instance's actions (§4.1).
+- **`create`** writes 15 + ⌈t/4⌉ keys (t ≤ 16 tasks): placement, header, entropy, revealed, quotas,
+  the member's 8 words, the entry chunk's 2, the task pages; plus `next_slot` at an adventurer's
+  first entry only. The roster is not written (§2.1: masked by its count). **Task pages are not
+  initialised ahead**: a later entry with more tasks writes its extra pages new then.
 
-| Entrypoint | Reads | Writes | Cold N / O | Initialised N / O | C |
-|---|---|---|---|---|---:|
-| `create` (by `Hub.enter`) | gate, location, outline (1 `bundle`); placement | `next_slot` (first entry only) · placement · header · entropy · revealed · quotas · task pages `⌈t / 4⌉` (t ≤ 16; pages are written as needed, never initialised ahead) · member 8 words · entry chunk 2 words. The roster is **not** reset: it is a compact list gated by `header.roster_count` (0 at entry), so stale lanes are never read | **17 + ⌈t/4⌉ ≤ 19 / 1** | **0 / 19** (≤ 5 N: an entry chunk index or task pages never used in this slot) | 2 (registry, fate) |
-| `play` | §9.2 | §9.2 | ≤ 40 / 20 with E-16 (≤ 288 / 22 without) | 0 / ≤ 60 (≤ 310 without) | 2 |
-| `loot` (0 world ticks, Fate) | header, member, goblin, its spawn chunk, roster; loot table | header · entropy · goblin state (`LOOTED`) · roster page (removed, if displaced) | 0 / 4 | 0 / 4 | 2 (fate, hub `report`) |
-| `open` (a chest: 1 world tick, then Fate) | + one tick's reads | + one tick (§9.2 per tick: ≤ 28 goblin words, ≤ 4 features, member 4, roster ≤ 1) + the chest's object state | ≤ 28 / 10 | 0 / ≤ 38 | 3 (registry, fate, hub) |
-| `mine` (a vein: 3 world ticks, interrupted by a hit, **no draw**, design/17) | + three ticks' reads | three ticks: union ≤ 42 goblins (≤ 16 with E-16) · features ≤ 4 · member 4 · header, entropy · roster ≤ 3 · the vein's state if completed | ≤ 32 / 14 with E-16 | 0 / ≤ 46 with E-16 | 2 (registry, hub) |
-| `barter` (1 world tick, design/04 *Interact*) | + one tick; collector (registry) | one tick (as `open`) | ≤ 28 / 10 | 0 / ≤ 38 | 3 (registry, hub `barter`, hub `report`) |
-| `leave` / `travel_back` to a hub | header, member, placement | header (status) · placement · member state (gone) | 0 / 3 | 0 / 3 | 1 (hub `report`) |
-| `leave` through a gate to a location | + the next gate and location | as `create` in the same slot: placement · header · entropy · revealed · quotas · member state (position) · entry chunk 2 words. The snapshot and task words carry over unchanged (a write of the same value changes nothing) | ≤ 2 / 7 | 0 / 9 | 3 (registry, fate, hub) |
-| `set_controller` (by `Hub`) | placement | member's `controller` | 0 / 1 | 0 / 1 | — |
-| `set_contracts`, `set_admin`, `upgrade` | admin | ≤ 3 addresses; the class | 0 / ≤ 3 | 0 / ≤ 3 | — |
-
-The hub's side of the calls, added to each transaction:
-
-| Hub call | Writes | Cold N / O | Initialised N / O |
+| Entrypoint | Keys written (count; **N** new when cold; **N!** new every time) | Cold N / O | Initialised N / O |
 |---|---|---|---|
-| `Hub.enter` (before `create`) | place (instance id, inside) · the belt's reserve: pack balance pages of the belt items, at most 4 distinct pages (two slots of the same item are one debit of their sum, one page) · core (`pack_lanes`, when a lane falls to 0) | 0 / ≤ 6 | 0 / ≤ 6 |
-| `report`, Open (a batch with a kill, an objective) | core (experience, merit, level) · quiver's held quests ≤ 4 | 0 / ≤ 5 | 0 / ≤ 5 |
-| `report` of a loot or a chest (drops: ≤ 3 balances, gold, ≤ 3 equipment for a boss, 1 otherwise) | balance pages ≤ 3 · pack gold · each equipment item: base (a new entity: always N) and `next_item` · pack list pages ≤ 2 · core (`pack_lanes`) · account counter (Scavenger, design/13) · quiver ≤ 4 | ≤ 10 / 6 | ≤ 3 / 13 (the entities) |
-| `report` of a mine | stillstone page · core · quiver ≤ 4 | ≤ 1 / 5 | 0 / 6 |
-| `barter` | pack pages of the price ≤ 2 · the item given: base (N) + `next_item` + pack list page · core | ≤ 2 / 4 | 1 / 5 |
-| `report`, closing (Returned, Defeated) | place · core · **the unused belt credited back**: pack pages ≤ 4 (F-1; on defeat per E-15) | 0 / ≤ 6 | 0 / ≤ 6 |
-| `report`, Moved | place (the new id) · core | 0 / 2 | 0 / 2 |
-
-**`Hub`**
-
-| Entrypoint | Bounds | Reads | Writes | Cold N / O | Initialised N / O | C |
-|---|---|---|---|---|---|---:|
-| `register` | one per address | `account_of` | `account_of` · account owner · account record · `next_account` | 3 / 1 | — (once) | — |
-| `set_account_owner` | the account's adventurers ≤ 7 (one page) | account, its adventurers' places | owner · `account_of[new]` · `account_of[old]` (set to 0: see E-19) · per adventurer inside: `Instances.set_controller` | 1 / 2 + 1 per inside | 1 / 2 + 1 per inside | ≤ 7 |
-| `create_adventurer` | account slots | account | adventurer 6 words · `next_adventurer` · account record · account list page | 7 / 2 (6 / 3 once the page exists) | — (once) | — |
-| `delete_adventurer` | pack empty: `pack_lanes` = 0 and pack list pages ≤ 4 empty | core, pack lists | core (deleted) · account record · account list page | 0 / 3 | 0 / 3 | — |
-| `set_build` | bar 8, attributes 9, belt 4 items and 4 counts (lane 4 of `belt`: 4 × u8), 7 equipped | known skills, items ≤ 7 | build · belt · equipped | 0 / 3 | 0 / 3 | — |
-| `enter` | as `create` | as above | hub part + `create` | ≤ 19 / 7 | 0 / 25 | 1 + 2 |
-| `enter_rift` | index 0–4 | board | board (the first action of the day: its draw) + `enter` | ≤ 20 / 7 | 0 / 26 | 1 + 3 |
-| `travel` | unlocked hubs | place | place | 0 / 1 | 0 / 1 | — |
-| `accept_quest` | ≤ 4 held (D-135) | quiver, quest (registry) | quiver held record · known skills page (skills given at acceptance, design/14) | 2 / 0 | 0 / 2 | — |
-| `abandon_quest` | | quiver | quiver held record | 0 / 1 | 0 / 1 | — |
-| `accept_contract` | index 0–2, one held | quiver, the day's pool (registry) | quiver held record | 1 / 0 | 0 / 1 | — |
-| `claim_quest` | | quiver, quest | core · pack gold · balance page · a reward item (base N, `next_item`, pack list) · known skills page · quiver 2 · the "distinct" counter (Warden) | 5 / 5 | 1 / 9 | — |
-| `claim_title` | | counters, quiver | quiver's claim record (event mode) | 1 / 0 | 1 / 0 (each claim once) | — |
-| `display_title` | earned | counters | nothing (event only, T-1) | 0 / 0 | 0 / 0 | — |
-| `buy_skill` | | known skills, gold, shop | known skills page · pack gold | 1 / 1 | 0 / 2 | — |
-| `buy` | quantity | shop, gold | gold · balance page; or an item: base (N) + `next_item` + pack list page · core | 3 / 3 | 1 / 4 | — |
-| `sell` | | item or page | gold (N at the first income) · balance page, or item base (owner none) + pack list · core | 1 / 3 | 0 / 4 | — |
-| `craft` | | shop, material pages | material pages ≤ 2 · gold · item base (N) · `next_item` · pack list · core | 2 / 5 | 1 / 6 | — |
-| `recycle` | | item | item base · pack list · material pages ≤ 2 · core | 2 / 3 | 0 / 5 | — |
-| `personalise` | | item | item base (flag) · stillstone page · gold | 0 / 3 | 0 / 3 | — |
-| `identify` | unidentified | item | item base (`IDENTIFIED`) · item mods (they come to exist: N) · gold | 1 / 2 | 1 / 2 (each item once) | 1 (fate) |
-| `lift_modifier` | slot 0–4 | item | item mods (or item base: destroyed) · the component: base + mods (N, N) · `next_item` · pack list · stillstone page (with a stone) | 2 / 4 | 2 / 4 | 1 (fate, without a stone) |
-| `set_modifier` | | item, component | item mods · component base (consumed) · the returned component (with a stone): base + mods (N, N) · `next_item` · pack list · stillstone page | 2 / 5 | 2 / 5 | — |
-| `brew` | a pair of one book | grimoire, book (registry), pages | grimoire state and pairs · ingredient pages ≤ 2 · potion page · core | 3 / 3 | 0 / 6 | 1 (fate, new pair) |
-| `buy_hint` | 4 hints a book | grimoire | grimoire state · stillstone page | 0 / 2 | 0 / 2 | 1 (fate) |
-| `stow` | ≤ 8 entities, ≤ 8 balances | pages | item bases (owner) ≤ 8 · pack lists ≤ 4 · vault lists ≤ 2 · pack pages ≤ 8 · vault pages ≤ 8 · gold both · core | **11 / 22** (an empty vault: 2 list pages, 8 balance pages, its gold) | 0 / 33 | — |
-| `report`, `barter` (by `Instances`) | §6 | — | the table above | | | — |
-| `seller`, `escrow`, `release`, `transfer_gold`, `exchange` (by `Market`) | as the market rows | | counted in the market rows | | | — |
-| `set_contracts`, `set_admin`, `upgrade` | admin | | ≤ 4 addresses; the class | 0 / ≤ 4 | 0 / ≤ 4 | — |
-
-**`Market`**
-
-| Entrypoint | Bounds | Writes | Cold N / O | Initialised N / O | C |
-|---|---|---|---|---|---:|
-| `post_lot` | 10 + rank lots; Tin | lot (a new id: always N) · `lot_count` · `open_lot_count` · seller page · hub: pack page, or item base (owner escrow) + pack list · escrow page (owner id 0, contract-wide) · vault gold (the 2 % fee) · account record (open lots) · core | 3 / 7 | 1 / 9 | 3 (seller, escrow, gold) |
-| `buy_lot` | the asked price | lot · `open_lot_count` · seller page · hub: buyer's vault gold · seller's vault gold · escrow page · buyer's vault page, or item base + vault list · seller's account record | 4 / 6 | 0 / 10 | 3 |
-| `withdraw_lot`, `return_lot` | open; expired for `return_lot` | lot · `open_lot_count` · seller page · escrow page · vault page, or item base + vault list · account record | 1 / 6 | 0 / 7 | 2 |
-| `open_trade` | invited in the same hub | trade head (a new id: N) · `trade_count` | 1 / 1 | 1 / 1 | 1 |
-| `set_trade_side` | ≤ 7 entities, ≤ 2 balances, gold | head (revision, confirmations reset) · the side's 2 words | 2 / 1 | 0 / 3 | 1 |
-| `confirm_trade`, first | the revision seen | head | 0 / 1 | 0 / 1 | 1 |
-| `confirm_trade`, second (the swap) | | head · hub: item bases ≤ 14 · pack lists ≤ 4 · balance pages ≤ 8 · gold 2 · cores 2 | 5 / 26 | 0 / 31 | 1 |
-| `decline_trade`, `cancel_trade` | the invited account; the inviter | head | 0 / 1 | 0 / 1 | ≤ 1 |
-| `set_contracts`, `set_admin`, `upgrade` | admin | ≤ 2 addresses; the class | 0 / ≤ 2 | 0 / ≤ 2 | — |
-
-**`Registry`**: `set_record` writes `parts(kind)` ≤ 3 words and `last_ids` for a sequential kind
-(N the first time a kind is written, then O): **≤ 4 / 0** cold, **≤ 3 / 1** once the kind exists.
-`set_admin`, `upgrade`: 0 / ≤ 1. **`TxHashFate.fate`** writes nothing.
+| `enter` (with `create`) | placement, header, entropy, revealed, quotas (5) **N** · member words (8: state from the snapshot, empty timers, effects, recharges, snapshot, controller) (8) **N** · entry chunk: terrain, features (2) **N** · task pages ⌈t/4⌉, t = 16 (4) **N** · next_slot (written at the first entry only) (1 cold, 0 after) · hub: place (1) · hub: belt reserve, pack pages (4) · hub: core (pack_lanes) (1) | 19 / 7 | 0 / 25 |
+| `enter_rift` | placement, header, entropy, revealed, quotas (5) **N** · member words (8: state from the snapshot, empty timers, effects, recharges, snapshot, controller) (8) **N** · entry chunk: terrain, features (2) **N** · task pages ⌈t/4⌉, t = 16 (4) **N** · next_slot (written at the first entry only) (1 cold, 0 after) · hub: place (1) · hub: belt reserve, pack pages (4) · hub: core (pack_lanes) (1) · the account's board (1) **N** | 20 / 7 | 0 / 26 |
+| `leave`, `travel_back` | header, placement, member state (3) · hub: place, core (2) · hub: belt credit, pack pages (4) | 0 / 9 | 0 / 9 |
+| `leave` through a gate | placement, header, entropy, revealed, quotas (5) · member state, timers, effects, recharges: initialised for clock 0 (F-12) (4) · entry chunk of the next location (2) **N** · hub: place, core (Moved) (2) | 2 / 11 | 0 / 13 |
+| `loot`, a boss (3 items) | header, entropy, goblin state (3) · roster: a swap removal (hole page, last page) (2) · balance pages (3 items) (3) **N** · pack gold (1) **N** · item bases (3 drops, always new) (3) **N!** · next_item (1) · pack list pages, appended (2) **N** · core (pack_lanes, experience) (1) · account counter (Scavenger) (1) **N** · quiver held quests (4) | 10 / 11 | 3 / 18 |
+| `loot`, ordinary remains | header, entropy, goblin state (3) · roster: a swap removal (2) · balance pages (2 ingredients) (2) **N** · pack gold (1) **N** · core (1) · account counter (1) **N** · quiver held quests (4) | 4 / 10 | 0 / 14 |
+| `open`, goblins near (1 tick, then a draw) | goblin words (28) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (1) **N** · roster pages, others (3) · balance pages (3 items) (3) **N** · pack gold (1) **N** · item bases (3 drops, always new) (3) **N!** · next_item (1) · pack list pages, appended (2) **N** · core (pack_lanes, experience) (1) · account counter (Scavenger) (1) **N** · quiver held quests (4) | 39 / 19 | 3 / 55 |
+| `open`, no goblin near | header, entropy, member state, the chest's features (4) · balance pages (2 ingredients) (2) **N** · pack gold (1) **N** · core (1) · account counter (1) **N** · quiver held quests (4) | 4 / 9 | 0 / 13 |
+| `mine`, goblins near (3 ticks, own union) | goblin words (84) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (3) **N** · roster pages, others (1) · hub: stillstone page (1) **N** · hub: core, quiver held quests (5) | 88 / 16 | 0 / 104 |
+| `mine`, goblins near, with the invocation cap of 16 (E-16) | goblin words (32) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (2) **N** · roster pages, others (2) · hub: stillstone page (1) **N** · hub: core, quiver held quests (5) | 35 / 17 | 0 / 52 |
+| `mine`, no goblin near | header, entropy, member state, the vein's features (4) · hub: stillstone page (1) **N** · hub: core, quiver (5) | 1 / 9 | 0 / 10 |
+| `barter`, goblins near (1 tick) | goblin words (28) **N** · chunk features (window) (4) · member state, timers, effects, recharges (4) · header, entropy (2) · roster pages, first used (1) **N** · roster pages, others (3) · hub: price pages (2) · hub: the item given, its base (1) **N!** · hub: next_item (1) · hub: pack list page (1) **N** · hub: core (1) · hub: the tick's Open report, quiver (4) | 31 / 21 | 1 / 51 |
+| `barter`, no goblin near | header, member state (2) · hub: price pages (2) · hub: item base (1) **N!** · hub: next_item, core (2) · hub: pack list page (1) **N** | 2 / 6 | 1 / 7 |
+| `register` | account_of, account owner, account record (3) **N!** · next_account (1) | 3 / 1 | 3 / 1 |
+| `set_account_owner` (7 adventurers inside) | owner, account_of[old] (zeroed, E-19) (2) · account_of[new] (1) **N!** · each inside: its member's controller (7) | 1 / 9 | 1 / 9 |
+| `create_adventurer` | adventurer: 6 words (6) **N!** · next_adventurer, account record (2) · account list page, appended (1) **N** | 7 / 2 | 6 / 3 |
+| `delete_adventurer` | core, account record (2) · account list: a swap removal (2) | 0 / 4 | 0 / 4 |
+| `set_build` | build, belt, equipped (3) | 0 / 3 | 0 / 3 |
+| `travel` | place (1) | 0 / 1 | 0 / 1 |
+| `display_title` | none | 0 / 0 | 0 / 0 |
+| `accept_quest` | quiver held record (1) **N** · known skills page (skills given at acceptance) (1) **N** | 2 / 0 | 0 / 2 |
+| `abandon_quest` | quiver held record (1) | 0 / 1 | 0 / 1 |
+| `accept_contract` | quiver held record (1) **N** | 1 / 0 | 0 / 1 |
+| `claim_quest` | core (1) · pack gold, balance page, pack list page, known skills page, counter (5) **N** · reward item base (1) **N!** · next_item, quiver 2 (3) | 6 / 4 | 1 / 9 |
+| `claim_title` | quiver's claim record (1) **N!** | 1 / 0 | 1 / 0 |
+| `buy_skill` | known skills page (1) **N** · pack gold (1) | 1 / 1 | 0 / 2 |
+| `buy`, equipment | item base (1) **N!** · pack list page (1) **N** · gold, next_item, core (3) | 2 / 3 | 1 / 4 |
+| `sell`, equipment | pack gold (first income) (1) **N** · item base, pack list: a swap removal (2), core (4) | 1 / 4 | 0 / 5 |
+| `craft` | item base (1) **N!** · pack list page (1) **N** · material pages 2, gold, next_item, core (5) | 2 / 5 | 1 / 6 |
+| `recycle` | item base, pack list: a swap removal (2), core (4) · material pages (2) **N** | 2 / 4 | 0 / 6 |
+| `personalise` | item base, stillstone page, gold, core (the last stone: pack_lanes) (4) | 0 / 4 | 0 / 4 |
+| `identify` | item mods (they come to exist) (1) **N!** · item base (IDENTIFIED), gold (2) | 1 / 2 | 1 / 2 |
+| `lift_modifier`, with a stone | component base and mods (2) **N!** · pack list page (1) **N** · item mods, next_item, stillstone page, core (last stone), gold (5) | 3 / 5 | 2 / 6 |
+| `lift_modifier`, without (destroyed) | component base and mods (2) **N!** · item base, pack list: a swap removal (2), next_item, gold (5) | 2 / 5 | 2 / 5 |
+| `set_modifier`, with a stone | returned component: base and mods (2) **N!** · item mods, consumed component base, pack list pages 2, next_item, stillstone page, core, gold (8) | 2 / 8 | 2 / 8 |
+| `brew`, a new pair | grimoire state and pairs (2) **N** · potion page (1) **N** · ingredient pages 2, core (3) | 3 / 3 | 0 / 6 |
+| `buy_hint` | grimoire state, stillstone page, core (last stone) (3) | 0 / 3 | 0 / 3 |
+| `stow`, to the vault (8 + 8) | vault list pages, appended (2) **N** · vault balance pages (8) **N** · vault gold (1) **N** · item bases 8, pack list pages 4, pack pages 8, pack gold, core (22) | 11 / 22 | 0 / 33 |
+| `stow`, to the pack (8 + 8) | pack balance pages (8) **N** · pack list pages, appended (2) **N** · pack gold (1) **N** · vault list pages: 8 swap removals (8 hole pages + the tail's 2) (10) · vault balance pages 8, item bases 8, vault gold, core (18) | 11 / 28 | 0 / 39 |
+| `post_lot`, a balance | lot (a new id) (1) **N!** · seller page k (the 4th lot: page 1) (1) **N** · escrow page (1) **N** · lot_count, open_lot_count, seller page 0 (count), pack page, vault gold (fee), account record, core (7) | 3 / 7 | 1 / 9 |
+| `post_lot`, equipment | lot (1) **N!** · seller page k (1) **N** · lot_count, open_lot_count, seller page 0, item base, pack list: a swap removal (2), vault gold, account record (8) | 2 / 8 | 1 / 9 |
+| `buy_lot` | seller's vault gold (1) **N** · buyer's vault page or vault list page (1) **N** · lot, open_lot_count, seller pages: a swap removal (hole, last, page 0), buyer's gold, escrow page or item base, account record (8) | 2 / 8 | 0 / 10 |
+| `withdraw_lot`, `return_lot` | vault page or vault list page (1) **N** · lot, open_lot_count, seller pages 3, escrow page or item base, account record (7) | 1 / 7 | 0 / 8 |
+| `open_trade` | trade head (a new id) (1) **N!** · trade_count (1) | 1 / 1 | 1 / 1 |
+| `set_trade_side` | the side's 2 words (2) **N** · head (1) | 2 / 1 | 0 / 3 |
+| `confirm_trade`, the swap (7 + 7) | pack list pages appended, 2 a side (4) **N** · balance pages credited, 2 a side (4) **N** · pack gold credited, a side (2) **N** · head, item bases 14, pack list removals 4 a side, balance pages debited 4, cores 2 (29) | 10 / 29 | 0 / 39 |
+| `confirm_trade` (first), `decline_trade`, `cancel_trade` | head (1) | 0 / 1 | 0 / 1 |
+| `Registry.set_record` | parts (3) **N!** · last_ids (1) **N** | 4 / 0 | 3 / 1 |
+| admin setters, `upgrade` | addresses (4) | 0 / 4 | 0 / 4 |
 
 **Views** (no transaction; reads bound what a node's call must allow):
 
 | View | Bound | Reads |
 |---|---|---:|
-| `Instances.instance_state` | 1 member in the MVP (8 with a party), its window's 4 chunks, the roster | header, entropy, revealed, quotas, ≤ 4 task pages, 8 member words, ≤ 4 roster pages, ≤ 60 roster records × 2, 4 chunks × 2, ≤ 40 touched records × 2: **≤ 223** |
-| `Instances.instance_region` | ≤ 16 chunks | 16 chunks × 2, their touched records ≤ 160 × 2, the roster (to find displaced goblins and remains lying in the range, F-6) ≤ 4 + 60: **≤ 416** |
+| `Instances.instance_state` | 1 member in the MVP (8 with a party), its window's 4 chunks, the roster | header 1, entropy 1, revealed 1, quotas 1, task pages ≤ 4, member words 8, roster pages ≤ 4 (masked, F-13), roster records ≤ 60 × 2 (state and timers), window chunks 4 × 2, their touched records ≤ 40 × 2: **228**; plus the `touched` gate of each roster goblin whose spawn chunk lies outside the window, ≤ 60 `features` reads: **≤ 288** |
+| `Instances.instance_region` | ≤ 16 chunks | header 1 (generation, roster count), revealed 1, 16 chunks × 2 = 32, their touched records ≤ 160 × 2 = 320, roster pages ≤ 4 (masked), every roster goblin's state (its tile) ≤ 60, the timers of those lying in the range ≤ 60, the `touched` gate of their spawn chunks outside the range ≤ 60: **≤ 538** |
 | `Instances.placement` | | 1 |
 | `Hub.counters` | ≤ 32 ids a call | 32 |
 | `Hub.balances` | ≤ 32 pages a call; the client names the pages of the items it knows of (the registry lists items); no view enumerates an owner's pages | 32 |
@@ -842,11 +896,15 @@ The hub's side of the calls, added to each transaction:
 | `Hub.quests` | ≤ 4 held | quiver's |
 | `Market.lot`, `lot_count`, `open_lot_count`, `trade_count`, `trade`, `lots_of` | `lots_of` ≤ 7 pages | 1, 1, 1, 1, 5, ≤ 7 |
 | `Registry.record`, `records`, `bundle` | `records` and `bundle` ≤ 32 records | ≤ 3 × 32 |
+| `Registry.last_id` | one kind | 1 |
+| `version` (`Instances`, `Hub`, `Market`, `Registry`) | a constant of the class | 0 |
+| `TxHashFate` | no view; `fate` reads the transaction's info, no storage | 0 |
+| Addresses of the registered contracts and the admin | not exposed by a view: storage only (read by the contracts themselves at each check) | — |
 
 **Remains lying away from their spawn chunk (F-6).** A goblin displaced from its spawn stays in the
 roster alive **and** dead, until it is looted or goes home (only the living go home). A view finds
-it there: `instance_region` reads the roster (≤ 4 pages, entries beyond `header.roster_count` never
-read) and each listed goblin's state word, and keeps those whose tile lies in the requested chunks.
+it there: `instance_region` reads the roster through **masked** pages (§2.1, F-13: lanes beyond
+`header.roster_count` are zeros) and each listed goblin's state word, and keeps those whose tile lies in the requested chunks.
 Remains that never left their spawn chunk are found through that chunk's `touched` bits. The reuse
 gates are §2.1's: the roster count is reset at `create`, and a listed goblin is read only if its
 spawn chunk is revealed in this generation with its `touched` bit set. Cost: at most 64 reads a
@@ -863,58 +921,79 @@ Checked against the receipts (cost-budget.md §1, M on the left):
 
 ## 10. The budget (scope 8)
 
-`L2 ≈ F + computation + C × 136,000 + N × new + O × overwritten + events`. Computation is E (the
-basis in the row); events are priced from `EventProbe` (§5: 56,740 per `GoblinKilled`, 40,048 per
-`ChunkRevealed` in snforge, × 1.157 on Sepolia, E). The **target** of a row is its worst case in the
-state named.
+`L2 = F + computation + C × calls + N × new + O × overwritten + events`, **computed by
+`contracts/tools/budget_table.py`** from §9.3's key sets (raw output:
+`contracts/tools/budget-output.txt`; fix loop 2, F-2 to F-4). F = 816,939; N = 453,524; O = 32,072;
+C = 136,000 a call between contracts (117,910 in snforge × 1.157, E); events B = 65,648 (four data
+felts: `GoblinKilled`, `LotPosted`) and S = 46,336 (one or two: every other event), from `EventProbe`
+× 1.157 (E). Computation is E, with its basis in the row. The **target** of a row is its worst case
+in the state named: **initialised** (every key it writes exists) or **cold** (none does).
 
-| Entrypoint | Computation (E) | Initialised: N / O → **target** | Cold: N / O → **target** | Against cost-budget.md |
-|---|---:|---|---|---|
-| `enter` (with `create`) | 1.45 M: checks, snapshot, entry draw, the entry chunk's generation 0.39–0.45 M (SPK-7, M) | 0 / 25 → **3,480,000** | 19 / 7 → **11,520,000** (once per adventurer) | 1.9 M reused (E): **departs** +1.58 M (E-7); 3.6 M cold: departs, but paid once, where the spike paid 4 N at every entry |
-| `leave`, `travel_back` | 0.60 M | 0 / 9 → **1,850,000** | same | 1.7 M: **departs** +0.15 M, the belt's credit (F-1) |
-| `leave` through a gate | 1.90 M | 0 / 11 → **3,480,000** | 2 / 9 → **4,320,000** | new row |
-| `play`, weight 10 | §10.1 | 0 / 60 → **40,280,000 to 46,830,000** (ticks as alone); 21,690,000 to 28,240,000 (ticks shared) | with E-1: no worse than initialised | 40 M target: §10.1 |
-| `loot` | 0.50 M; 0 ticks | 3 / 17 → **3,500,000** (a boss: 3 items) | 10 / 10 → **6,450,000** | 2.9 M: **departs** (E-8) |
-| — `loot`, ordinary remains (ingredients and gold) | 0.50 M | 0 / 10 → **1,910,000** | 4 / 6 → **3,600,000** | meets initialised |
-| `open` (chest: 1 tick + draw) | 0.50 M + one tick 3.57 M (M) + window ≤ 0.72 M | 3 / 51 → **9,010,000** | 38 / 16 → **23,760,000** (a fresh slot: 14 goblins' first records) | new row (E-8) |
-| — `open` with no goblin near | 0.50 M + 0.30 M | 1 / 14 → **2,930,000** | 5 / 10 → **4,610,000** | ≈ 2.9 M |
-| `mine` (3 ticks, no draw) | 3 × (3.57 + ≤ 0.72) M | 0 / 52 → **15,610,000** (with E-16) | 32 / 20 → **29,100,000** | new row (E-8, E-18) |
-| — `mine` with no goblin near | 3 × 0.30 M | 0 / 10 → **2,310,000** | 1 / 9 → **2,730,000** | meets |
-| `barter` (1 tick) | 0.40 M + one tick | 1 / 43 → **7,740,000** | 30 / 14 → **19,970,000** | new row |
-| — `barter` with no goblin near | 0.70 M | 1 / 11 → **2,730,000** | 2 / 10 → **3,150,000** | new row |
-| `register` | 0.20 M | — | 3 / 1 → **2,410,000** | once per address |
-| `set_account_owner` | 0.20 M | 1 / 9 (7 inside) → **2,710,000** | same | new row (E-19) |
-| `create_adventurer` | 0.30 M | 6 / 3 → **3,930,000** | 7 / 2 → **4,360,000** | once per adventurer |
-| `delete_adventurer` | 0.20 M | 0 / 3 → **1,120,000** | same | |
-| `set_build` | 0.30 M | 0 / 3 → **1,220,000** | same | meets 2.0 M |
-| `enter_rift` | 1.55 M | 0 / 26 → **3,750,000** | 20 / 7 → **12,210,000** | as `enter` |
-| `travel` | 0.10 M | 0 / 1 → **950,000** | same | meets |
-| `display_title` | 0.05 M | 0 / 0 → **870,000** | same | meets |
-| `accept_quest` | 0.40 M | 0 / 2 → **1,280,000** | 2 / 0 → **2,130,000** | 1.57 M measured (SPK-2, 1/0): meets 2.0 M initialised |
-| `abandon_quest`, `accept_contract` | 0.30 M | 0 / 1 → **1,150,000** | 1 / 0 → **1,570,000** | meets |
-| `claim_quest` | 0.60 M | 1 / 9 → **2,160,000** | 5 / 5 → **3,850,000** | 2.0 M: **departs** by 0.16 M initialised (the reward item is always a new entity) |
-| `claim_title` | 0.40 M | 1 / 0 → **1,680,000** | same | meets |
-| `buy_skill` | 0.20 M | 0 / 2 → **1,090,000** | 1 / 1 → **1,510,000** | meets |
-| `buy` | 0.30 M | 1 / 4 → **1,700,000** | 3 / 3 → **2,580,000** | meets initialised |
-| `sell` | 0.30 M | 0 / 4 → **1,250,000** | 1 / 3 → **1,670,000** | meets |
-| `craft` | 0.30 M | 1 / 6 → **1,770,000** | 2 / 5 → **2,190,000** | meets |
-| `recycle` | 0.30 M | 0 / 5 → **1,280,000** | 2 / 3 → **2,120,000** | meets |
-| `personalise` | 0.30 M | 0 / 3 → **1,220,000** | same | meets |
-| `identify` | 0.35 M | 1 / 2 → **1,830,000** | same | meets 2.9 M |
-| `lift_modifier` | 0.35 M | 2 / 4 → **2,340,000** | same | meets |
-| `set_modifier` | 0.35 M | 2 / 5 → **2,240,000** | same | meets |
-| `brew` | 0.50 M | 0 / 6 → **1,650,000** | 3 / 3 → **2,910,000** | 2.8 M: **departs** by 0.11 M on a book's first brew (the potion's page is also new) |
-| `buy_hint` | 0.35 M | 0 / 2 → **1,370,000** | same | meets |
-| `stow` | 0.40 M | 0 / 33 → **2,280,000** | 11 / 22 → **6,920,000** (an empty vault) | new; bounded by 8 + 8 |
-| `post_lot` | 0.30 M | 1 / 9 → **2,270,000** | 3 / 7 → **3,110,000** | new |
-| `buy_lot` | 0.30 M | 0 / 10 → **1,850,000** | 4 / 6 → **3,530,000** | new |
-| `withdraw_lot`, `return_lot` | 0.30 M | 0 / 7 → **1,610,000** | 1 / 6 → **2,040,000** | new |
-| `open_trade` | 0.30 M | 1 / 1 → **1,740,000** | same | new |
-| `set_trade_side` | 0.20 M | 0 / 3 → **1,250,000** | 2 / 1 → **2,090,000** | new |
-| `confirm_trade`, the swap | 0.80 M | 0 / 31 → **2,750,000** | 5 / 26 → **4,860,000** | new; 7 + 7 items |
-| `confirm_trade` (first), `decline_trade`, `cancel_trade` | 0.10 M | 0 / 1 → **1,090,000** | same | new |
-| `Registry.set_record` | 0.05 M | 3 / 1 → **2,260,000** | 4 / 0 → **2,680,000** | administration |
-| admin setters, `upgrade` | 0.10 M | 0 / ≤ 4 → **1,050,000** | same | administration |
+| Entrypoint | Computation (E) | Calls | Events | Initialised: N / O → L2 | Cold: N / O → L2 | Basis |
+|---|---:|---:|---:|---|---|---|
+| `enter` (with `create`) | 1.45 M | 4 | 92,672 | 0 / 25 → **3,705,411** | 19 / 7 → **11,745,071** | checks, snapshot, entry draw, first chunk's generation 0.39–0.45 M (SPK-7, M); calls: instances, registry ×2, fate |
+| `enter_rift` | 1.55 M | 5 | 92,672 | 0 / 26 → **3,973,483** | 20 / 7 → **12,434,595** | `enter` + the day's board (first action of the day: its draw) |
+| `leave`, `travel_back` | 0.60 M | 1 | 92,672 | 0 / 9 → **1,934,259** | 0 / 9 → **1,934,259** | the closing report; `InstanceClosed`, `AdventurerLocated` |
+| `leave` through a gate | 1.90 M | 3 | 92,672 | 0 / 13 → **3,634,547** | 2 / 11 → **4,477,451** | the next entry draw and generation; snapshot, controller and task words unchanged |
+| `loot`, a boss (3 items) | 0.50 M | 3 | 0 | 3 / 18 → **3,662,807** | 10 / 11 → **6,612,971** | 0 world ticks; calls: registry, fate, hub |
+| `loot`, ordinary remains | 0.50 M | 3 | 0 | 0 / 14 → **2,173,947** | 4 / 10 → **3,859,755** | as above |
+| `open`, goblins near (1 tick, then a draw) | 4.78 M | 3 | 919,072 | 3 / 55 → **10,053,456** | 39 / 19 → **25,225,728** | one tick as alone (SPK-1, M) and its window; ≤ 14 `GoblinKilled` (traps); the draw branch |
+| `open`, no goblin near | 0.80 M | 3 | 0 | 0 / 13 → **2,441,875** | 4 / 9 → **4,127,683** | a quiet tick 0.30 M |
+| `mine`, goblins near (3 ticks, own union) | 13.05 M | 2 | 2,757,216 | 0 / 104 → **20,236,382** | 88 / 16 → **57,324,158** | 3 ticks, 42 goblins (3 × 14), ≤ 42 `GoblinKilled`; completion branch |
+| `mine`, goblins near, with the invocation cap of 16 (E-16) | 13.05 M | 2 | 1,050,368 | 0 / 52 → **16,861,790** | 35 / 17 → **31,612,610** | the same, 16 goblins |
+| `mine`, no goblin near | 0.90 M | 2 | 0 | 0 / 10 → **2,309,659** | 1 / 9 → **2,731,111** | 3 quiet ticks |
+| `barter`, goblins near (1 tick) | 4.68 M | 3 | 919,072 | 1 / 51 → **8,918,120** | 31 / 21 → **21,561,680** | calls: registry, hub `barter`, hub `report` |
+| `barter`, no goblin near | 0.70 M | 3 | 0 | 1 / 7 → **2,602,967** | 2 / 6 → **3,024,419** |  |
+| `register` | 0.20 M | 0 | 0 | 3 / 1 → **2,409,583** | 3 / 1 → **2,409,583** | once per address |
+| `set_account_owner` (7 adventurers inside) | 0.20 M | 7 | 0 | 1 / 9 → **2,711,111** | 1 / 9 → **2,711,111** |  |
+| `create_adventurer` | 0.30 M | 1 | 0 | 6 / 3 → **4,070,299** | 7 / 2 → **4,491,751** | the profession (registry) |
+| `delete_adventurer` | 0.20 M | 0 | 0 | 0 / 4 → **1,145,227** | 0 / 4 → **1,145,227** | pack empty: `pack_lanes` 0, pack lists empty |
+| `set_build` | 0.30 M | 1 | 0 | 0 / 3 → **1,349,155** | 0 / 3 → **1,349,155** | skills and bases (registry) |
+| `travel` | 0.10 M | 0 | 46,336 | 0 / 1 → **995,347** | 0 / 1 → **995,347** | `AdventurerLocated` |
+| `display_title` | 0.05 M | 0 | 46,336 | 0 / 0 → **913,275** | 0 / 0 → **913,275** | event only (T-1) |
+| `accept_quest` | 0.40 M | 1 | 0 | 0 / 2 → **1,417,083** | 2 / 0 → **2,259,987** | the quest (registry) |
+| `abandon_quest` | 0.30 M | 0 | 0 | 0 / 1 → **1,149,011** | 0 / 1 → **1,149,011** |  |
+| `accept_contract` | 0.30 M | 1 | 0 | 0 / 1 → **1,285,011** | 1 / 0 → **1,706,463** | the day's pool (registry) |
+| `claim_quest` | 0.60 M | 1 | 92,672 | 1 / 9 → **2,387,783** | 6 / 4 → **4,495,043** | `RankReached`, `TrialPassed` |
+| `claim_title` | 0.40 M | 0 | 0 | 1 / 0 → **1,670,463** | 1 / 0 → **1,670,463** |  |
+| `buy_skill` | 0.20 M | 1 | 0 | 0 / 2 → **1,217,083** | 1 / 1 → **1,638,535** | the trainer (registry) |
+| `buy`, equipment | 0.30 M | 1 | 0 | 1 / 4 → **1,834,751** | 2 / 3 → **2,256,203** | the offer (registry) |
+| `sell`, equipment | 0.30 M | 1 | 0 | 0 / 5 → **1,413,299** | 1 / 4 → **1,834,751** | the value (registry) |
+| `craft` | 0.30 M | 1 | 0 | 1 / 6 → **1,898,895** | 2 / 5 → **2,320,347** | the offer (registry) |
+| `recycle` | 0.30 M | 1 | 0 | 0 / 6 → **1,445,371** | 2 / 4 → **2,288,275** | the base's materials (registry) |
+| `personalise` | 0.30 M | 1 | 0 | 0 / 4 → **1,381,227** | 0 / 4 → **1,381,227** | the fee (registry) |
+| `identify` | 0.35 M | 2 | 0 | 1 / 2 → **1,956,607** | 1 / 2 → **1,956,607** | calls: registry, fate |
+| `lift_modifier`, with a stone | 0.35 M | 1 | 0 | 2 / 6 → **2,402,419** | 3 / 5 → **2,823,871** | the modifier (registry) |
+| `lift_modifier`, without (destroyed) | 0.35 M | 2 | 0 | 2 / 5 → **2,506,347** | 2 / 5 → **2,506,347** | calls: registry, fate |
+| `set_modifier`, with a stone | 0.35 M | 1 | 0 | 2 / 8 → **2,466,563** | 2 / 8 → **2,466,563** |  |
+| `brew`, a new pair | 0.50 M | 2 | 0 | 0 / 6 → **1,781,371** | 3 / 3 → **3,045,727** | calls: registry (book), fate |
+| `buy_hint` | 0.35 M | 2 | 0 | 0 / 3 → **1,535,155** | 0 / 3 → **1,535,155** | calls: registry, fate |
+| `stow`, to the vault (8 + 8) | 0.40 M | 0 | 0 | 0 / 33 → **2,275,315** | 11 / 22 → **6,911,287** |  |
+| `stow`, to the pack (8 + 8) | 0.40 M | 0 | 0 | 0 / 39 → **2,467,747** | 11 / 28 → **7,103,719** |  |
+| `post_lot`, a balance | 0.30 M | 4 | 65,648 | 1 / 9 → **2,468,759** | 3 / 7 → **3,311,663** | calls: hub seller, escrow, gold; registry (key) |
+| `post_lot`, equipment | 0.30 M | 4 | 65,648 | 1 / 9 → **2,468,759** | 2 / 8 → **2,890,211** |  |
+| `buy_lot` | 0.30 M | 3 | 46,336 | 0 / 10 → **1,891,995** | 2 / 8 → **2,734,899** | calls: seller, gold, release |
+| `withdraw_lot`, `return_lot` | 0.30 M | 2 | 46,336 | 0 / 8 → **1,691,851** | 1 / 7 → **2,113,303** |  |
+| `open_trade` | 0.30 M | 1 | 46,336 | 1 / 1 → **1,784,871** | 1 / 1 → **1,784,871** |  |
+| `set_trade_side` | 0.20 M | 1 | 0 | 0 / 3 → **1,249,155** | 2 / 1 → **2,092,059** |  |
+| `confirm_trade`, the swap (7 + 7) | 0.80 M | 1 | 46,336 | 0 / 39 → **3,050,083** | 10 / 29 → **7,264,603** |  |
+| `confirm_trade` (first), `decline_trade`, `cancel_trade` | 0.10 M | 1 | 46,336 | 0 / 1 → **1,131,347** | 0 / 1 → **1,131,347** |  |
+| `Registry.set_record` | 0.05 M | 0 | 0 | 3 / 1 → **2,259,583** | 4 / 0 → **2,681,035** | administration |
+| admin setters, `upgrade` | 0.10 M | 0 | 0 | 0 / 4 → **1,045,227** | 0 / 4 → **1,045,227** | administration |
+
+Against cost-budget.md:
+- `enter` **3.71 M** initialised (1.9 M expected with reused keys, E-7); 11.75 M cold, once per
+  adventurer (3.6 M measured with the spike's 4 new keys at every entry).
+- `leave` **1.93 M** (1.7 M: +0.23 M, the belt's credit and the two events).
+- A Fate action, 2.9 M: `loot` meets it for ordinary remains (2.17 M) and exceeds it for a boss's
+  three items (3.66 M). `open`, `mine` and `barter` meet it only with no goblin near (E-8).
+- A hub action, 2.0 M: met initialised by every row but these:
+  - `claim_quest`, 2.39 M: the reward entity is always new;
+  - `lift_modifier` and `set_modifier`, 2.40 M to 2.51 M: the component is always new;
+  - `post_lot`, 2.47 M: the lot is always new;
+  - `stow`, 2.28 M to 2.47 M: 8 entities and 8 balances at once;
+  - the trade's swap, 3.05 M: 14 items.
+- A new discovery in brewing, 2.8 M: 3.05 M cold (the potion's page is also new), 1.78 M after.
 
 `contracts/*/GAS.md` and `docs/BUDGETS.md` list the snforge figures of this task's tests (layouts,
 packing, the batch's codec, the probes, deployments). None executes an entrypoint: those are the
@@ -922,82 +1001,87 @@ implementing lots' benchmarks, each against its row above.
 
 ### 10.1 The 40 M bound of design/02, in slots and gas (OP-2, CB-3)
 
-The worst batch is 10 world ticks with no reveal: a reveal takes weight 2 for about 1.4 M (0.45 M
-generation, 2 words, its event), where two ticks take up to 8.6 M. With the cap of E-16:
+The worst batch is 10 world ticks with no reveal: a reveal takes weight 2 for about 1.4 M
+(generation 0.45 M, 2 words, its event), where two ticks take up to 8.6 M. With the cap of E-16
+(16 goblins an invocation):
 
-| Part | Slots, initialised | L2 gas |
+| Part | Slots | L2 gas |
 |---|---|---:|
 | Floor, one call, 4 felts of arguments | — | 816,939 (D) |
 | 10 ticks, each as measured alone (SPK-1 §4, M) | — | 35,649,130 |
 | The window at each tick: 65,224 (in memory, M) to 720,000 (SPK-7's whole difference, M) | — | 652,240 to 7,200,000 |
-| Writes, once per transaction (§9.2 with E-16, no reveal): goblins 32, features 9, roster 2, header and entropy 2, member 4, hub report 5 | 0 / 56 | 1,796,032 |
+| Writes, once per transaction: goblin words 32 + chunk `features` 9 + roster pages 4 + header and entropy 2 + member 4 + hub report 5 = **56** | 0 / 56 | 1,796,032 |
 | Registry `bundle` and hub `report`: 2 calls | — | 272,000 |
-| Events: 16 `GoblinKilled`, 1 `Defeated`, 1 `BatchPlayed` (E, from the probe) | — | 1,050,368 + 46,336 |
-| **Total, ticks as alone** | **0 / 56** | **40,283,045 to 46,830,805** |
-| **Total, ticks shared as a queue shares them** (1,705,764 a tick, E, cost-budget §3) | 0 / 56 | **21,691,555 to 28,239,315** |
-| Without the cap of E-16 (140 goblins): 280 goblin words instead of 32 | 0 / 304 | + 7,953,856 |
-| A cold slot, without E-1: 32 goblin words new | 32 / 24 | + 13,486,464 |
+| Events: 16 `GoblinKilled`, 1 `Defeated`, 1 `BatchPlayed` (E) | — | 1,050,368 + 92,672 |
+| **Total, ticks as alone** | **0 / 56** | **40,329,381 to 46,877,141** |
+| **Total, ticks shared as a queue shares them** (1,705,764 a tick, E, cost-budget §3) | 0 / 56 | **21,737,891 to 28,285,651** |
+| A cap of 24 instead of 16: 16 more goblin words | 0 / 72 | + 513,152 |
+| Without a cap (140 goblins): 248 more goblin words | 0 / 304 | + 7,953,856 |
+| A cold slot, without E-1: the 32 goblin words and 2 roster pages first used, new | 34 / 22 | + 14,329,368 |
+
+Fix loop 2's corrections:
+- The fix-loop-1 table listed terms that summed to 54 (roster 2) and wrote 56. The terms are now
+  complete: a compact roster's swap removals can touch all 4 pages, so the sum is 56 as listed.
+- The alternative cap of 24 costs +513,152 overwrite gas (16 words × O), not +0.26 M.
+- A cold batch's new keys include the roster pages first used.
 
 **What this settles, and what it does not.**
-- **In slots: yes, with E-16.** 56 slots a batch initialised, none new; at most 40 new cold, each
-  counted in the weight by E-1. Without a cap the union is 310 words (§9.2), and 40 M cannot be
-  kept in a cold slot.
-- **In gas: not proven, and now above 40 M even at the low end, if every tick is as expensive as
-  when measured alone.** This fix loop adds 0.9 M of writes (the batch's union rather than one
-  tick) and 1.1 M of events. With the ticks' shared part (CB-2) the batch is 21.7 M to 28.2 M. A
-  measurement of the full tick in a batch decides it (ENG-07, CBT-*); design/02 item 6 cannot be
-  answered by interfaces (E-13). Until then, **keep 40 M and weight 10**. If the measurement gives
-  ticks near their cost alone, the recommendation is weight 9 (36.7 M to 42.5 M) or a bound of
-  47 M.
-- **E-1 (the first write of a goblin key weighs 1)** turns the cold case into a smaller batch:
-  a cold goblin key costs 0.91 M for its 2 words, less than the ≥ 3.9 M of a tick it replaces.
-- A reveal at weight 2 costs 1.4 M: E-12 is unchanged.
+- **In slots: yes, with E-16 and E-21.** 56 slots a batch initialised, none new. At most 42 new
+  keys cold (32 goblin words, 2 roster pages, 8 words of 4 revealed chunks), each goblin key
+  weighed by E-1. A single action of 3 ticks is bounded by its own class (§9.2): 20.1 M initialised,
+  56.8 M cold (39.0 M with E-1 b).
+- **In gas: not proven, and above 40 M at the low end** if every tick is as expensive as when
+  measured alone. With the ticks' shared part (CB-2) the batch is 21.7 M to 28.3 M. A measurement of
+  the full tick in a batch decides it (ENG-07, CBT-*); design/02 item 6 cannot be answered by
+  interfaces (E-13). Until then, **keep 40 M and weight 10**; if the ticks prove near their cost
+  alone, weight 9 (36.7 M to 42.6 M) or a bound of 47 M.
+- A reveal at weight 2 costs about 1.4 M: E-12 is unchanged.
 
 ### 10.2 The expedition (D-129)
 
 S1 (cost-budget.md §3, 300 actions) with this design, E:
-- **About 30 batches** (100 fights in tens, 36 queues of 5 near goblins in tens, the other actions).
-  A typical fight batch writes 29 slots: header, entropy, member 4, 8 goblins × 2, roster 1,
-  features 1, report 5. That is 17 more than the 12 the estimate assumed: +0.55 M a batch. About 3
-  kills a batch add 0.2 M of events. Together **+22.4 M**.
-- `enter` 3.48 M instead of 3.56 M measured: −0.08 M. `leave` 1.85 M instead of 1.66 M: +0.19 M
-  (the belt's credit).
-- **S1 ≈ 608.2 + 22.4 + 0.1 = 630.7 M ≈ $0.556** at cost-budget's prices (the best row of §3 was
-  $0.537). The difference is the goblins' two words and the events.
-- **An adventurer's first expedition adds its lifetime initialisation as it goes**, E: the entry's
-  19 N (+8.0 M over the initialised entry); about 40 goblins woken for the first time (80 words,
-  +33.7 M); about 20 chunks revealed for the first time (40 words, +16.9 M). Together **+58.6 M,
-  about $0.05, once**.
+- **About 30 batches.** A typical fight batch writes 29 slots: header, entropy, member 4, 8
+  goblins × 2, roster 1, features 1, report 5. That is 17 more than the 12 the estimate assumed
+  (+0.55 M a batch), plus about 3 kills of events (+0.2 M): **+22.4 M**.
+- `enter` 3.71 M instead of 3.56 M measured: +0.15 M. `leave` 1.93 M instead of 1.66 M: +0.27 M.
+- **S1 ≈ 608.2 + 22.4 + 0.4 = 631.0 M ≈ $0.556** at cost-budget's prices (the best row of §3 was
+  $0.537).
+- **An adventurer's first expedition adds its lifetime initialisation as it goes** (E): the entry's
+  19 new keys (+8.04 M over an initialised entry); about 40 goblins woken for the first time (80
+  words, +33.7 M); 4 roster pages first used (+1.7 M); about 20 chunks revealed for the first time
+  (40 words, +16.9 M). Together **+60.3 M, about $0.053, once**.
 - Whether S1 meets $0.50 still turns on CB-2 (a tick inside a batch).
 
 ---
 
-## 11. Escalations (review point (a) and (b), fix loop 1)
+## 11. Escalations (review points (a) and (b), fix loops 1 and 2)
 
 Each is a choice the documents do not settle, or where cost departs from a design rule. The code
 follows the **default** named; the project manager decides.
 
 | # | Question | Options, with their cost | Default in the code |
 |---|---|---|---|
-| **E-1** | **A goblin's first key in a slot costs N** (2 words: 0.91 M). Cold, 16 goblins in a batch add 13.5 M that no weight counts. The key is cold whenever this slot never woke that goblin index, in any generation (§9.1) | (a) **weigh it**: +1 per goblin record written for the first time in the slot (the contract reads the record as 0); (b) one word per goblin (drop `GoblinTimers`: loses conditions and the effect, saves 0.45 M a cold goblin); (c) accept | none yet (ENG-07's weight); **(a) recommended**: it keeps a cold batch below an initialised one |
+| **E-1** (recomputed, fix loop 2) | **A goblin's first key in a slot costs N** (2 words: 0.84 M over O). Cold, a capped batch adds **+14.33 M** (32 goblin words and 2 roster pages first used) that no weight counts. The key is cold whenever this slot never woke that goblin index, in any generation (§9.1) | (a) **weigh it**: +1 per goblin record written for the first time in the slot (the contract reads the record as 0); (b) **one word per goblin** (drop `GoblinTimers`: loses conditions and the effect): a cold goblin costs 0.45 M, and a 3-tick action in a cold slot 38.97 M instead of 56.76 M (E-21); (c) accept | none yet (ENG-07's weight); **(a) for batches, with (b) if E-21 (a) is chosen** |
 | **E-2** | **The roster holds 60 entries**: displaced goblins, alive or dead and not looted (F-6). Design/02 bounds awake goblins, not displaced ones or unlooted remains | (a) 60, four pages, only pages in use are written; (b) no roster: scan the touched records of every revealed chunk (up to 2,250 records a view, and a tick cannot find followers cheaply) | (a). **The rule for a 61st** (a goblin that would be displaced, or would die away from its spawn, with the roster full) is a game rule to decide: it stays in its first state? its remains are not left? |
 | **E-3** | At most 2 packs of 5 and 3 objects per chunk (the features word) | a third pack or a fourth object: a third chunk word (+1 slot a reveal) | 2 / 5 / 3; ENG-05 caps |
-| **E-4** (corrected) | **Every deadline is at most `MAX_CLOCK` = 2^28 − 1**, not only the clock. An action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10` (`MAX_DURATION` = 65,535, the registry's widest duration, recharge or activation), so no deadline it sets can pass `MAX_CLOCK`. The packers refuse a deadline above `MAX_CLOCK` or 2^28, instead of spilling into the next lane (tested: `test_deadline_boundaries` and the refusal tests) | 32-bit deadlines: recharges need 2 slots a member | 2^28 − 1; an action past `LAST_TICK` is invalid (268,369,910 ticks: 8.5 years at a tick a second) |
+| **E-4** (corrected, fix loops 1 and 2) | **Every deadline is at most `MAX_CLOCK` = 2^28 − 1**, not only the clock. An action runs only while `clock ≤ LAST_TICK = MAX_CLOCK − MAX_DURATION − 10`. `MAX_DURATION` = 65,535 is the widest **effective** duration: the registry holds bases of at most 43,688 ticks, the modifiers' percents are capped at +50 % and their flat bonuses at +3 (F-9, `durations.cairo`), so the effective maximum is exactly 65,535 (tested). The packers refuse a deadline above `MAX_CLOCK` or 2^28 (tested) | 32-bit deadlines: recharges need 2 slots a member | 2^28 − 1; an action past `LAST_TICK` is invalid (268,369,910 ticks: 8.5 years at a tick a second) |
 | **E-5** | The ephemeral domain reads the registry during play (content, not a persistent model); a content update during an instance changes outcomes | (a) one `bundle` call an invocation (0.14 M); (b) mirror play's content in `Instances`; (c) (a) plus a content version checked at every invocation | (a) |
 | **E-6** | `barter` calls the hub during play (the price is in the pack) | (a) `Hub.barter` in the transaction; (b) snapshot trophies at entry (+1 member word); (c) barter in hubs only | (a) |
-| **E-7** | **`enter` exceeds 1.9 M**: 3.48 M initialised (with the belt's reserve, F-1); 11.52 M cold | the snapshot travelling as calldata against a hash (−3 slots), at the price of `instance_state` no longer holding it (design/02) | stored snapshot; target 3.48 M |
-| **E-8** (corrected) | **The standalone actions are not one kind** (F-3). **`loot`**: 0 ticks, a draw; 3.50 M for a boss's three items, 1.91 M for ordinary remains, against 2.9 M. **`open`**: a chest is an *Interact* (1 tick, design/04), then a draw: up to 9.01 M with goblins near, 2.93 M without. **`mine`**: 3 ticks, no draw: up to 15.61 M with goblins near, 2.31 M without | the budget of 2.9 M holds only without goblins near; with them, a standalone action pays its ticks like a batch | per action, §10 |
+| **E-7** | **`enter` exceeds 1.9 M**: 3.71 M initialised (the belt's reserve, the snapshot's bundle, two events); 11.75 M cold | the snapshot travelling as calldata against a hash (−3 slots), at the price of `instance_state` no longer holding it (design/02) | stored snapshot; target 3.71 M |
+| **E-8** (recomputed, fix loop 2) | **The standalone actions have their own union bounds**, not play's cap (F-3). **`loot`**: 0 ticks, a draw: 3.66 M for a boss's three items, 2.17 M for ordinary remains, against 2.9 M. **`open`**: 1 tick then a draw: 10.05 M with goblins near (25.23 M cold), 2.44 M without. **`mine`**: up to 3 ticks, no draw, 42 goblins in its union: **20.24 M** initialised with goblins near, **57.32 M cold** (88 new, 16 other); with the cap of 16 applied to it, 16.86 M and 31.61 M cold (35 new, 17 other; 33 new, 19 other when its two roster pages were already used); 2.31 M with no goblin near. **`barter`**: 1 tick: 8.92 M with goblins near (21.56 M cold), 2.60 M without | the 2.9 M budget holds only with no goblin near. A cold `mine` among goblins passes 40 M: it cannot be split, so it follows E-21 | per action, §10; E-21 |
 | **E-9** | Version 1's Fate needs a request and a later draw | a provider that keeps requests, or a two-phase `loot` | ADR-0002's |
 | **E-10** | **Class sizes in CI**: `python3 contracts/tools/class_sizes.py` after the build, in `.github/workflows/ci.yml` | — | **the orchestrator's (F-11)**: added by the orchestrator to this pull request before merge |
 | **E-11** | Market: lots are new slots (ids never reused, SPK-11); a trade side ≤ 7 entities and ≤ 2 balances | reuse lot slots per account (−0.42 M a posting) | new slots; 7 / 2 |
 | **E-12** | A reveal weighs 2 but costs 1.4 M (0.6 M after its first time) | weight 1 after ENG-05's measurement | 2 |
-| **E-13** | design/02's tests that need game logic: batch = singles = multicall (item 5), the gas bound with the full execution and a revealed chunk measured (item 6), restart, window crossing, reveal, unrevealed and boundary (item 8), and **fix loop 1's view cases**: a goblin killed away from its spawn chunk, then a restart: `instance_region` of the chunk where it lies shows its remains; after `loot`, they are gone | ENG-05, ENG-06, ENG-07 | out of this task |
+| **E-13** | design/02's tests that need game logic: batch = singles = multicall (item 5), the gas bound with the full execution and a revealed chunk measured (item 6), restart, window crossing, reveal, unrevealed and boundary (item 8), and the view cases of the fix loops: **(F-6)** a goblin killed away from its spawn chunk, then a restart: `instance_region` of the chunk where it lies shows its remains; after `loot`, they are gone. **(F-13)** an earlier generation fills roster page 0; the new one has one entry: `instance_state` and `instance_region` show that entry and zeros in every other lane. **(F-12)** an instance with conditions, effects and recharges running leaves through a gate: the new instance's member has none, and its belt counts are the reserve's | ENG-05, ENG-06, ENG-07 | out of this task (the masking helper is tested: `test_roster_masking`) |
 | **E-14** | quiver's components are not embedded (ARC) | — | ARC-03c/04 |
 | **E-15** (F-1) | **What happens to the belt's unused potions on defeat.** The reserve is debited at entry and credited back unused at the closing report; what is consumed is gone (the orchestrator's ruling). design/03 and design/07 do not settle defeat for the belt: design/07 says loot is kept on defeat, and design/02's D-04 says defeat costs "the instance, nothing else" | (a) **credited back on defeat as on return** (D-04's reading: the potions are not loot but were not used); (b) **lost on defeat** (the belt is part of what the instance costs); (c) lost only in a sealed Red Rift. Cost: (a) and (c) write ≤ 4 pack pages at defeat (0.13 M); (b) none | **stopped, as the ruling asks.** The interface carries the counts (`Results.belt`) whatever the rule; the hub's rule waits for the decision |
-| **E-16** (F-2) | **The union of goblins a batch can change is 140** (10 ticks × 14): 280 words, 8.98 M initialised, 127 M cold | (a) **a cap of 16 distinct goblin records a batch**: the batch stops before the action that would pass it (`Stop::Weight`), counted by the client as by the contract (steady state: 56 slots, §10.1); (b) cap 24 (+0.26 M a batch); (c) no cap: 40 M cannot hold | none (a rule of `play`, ENG-07); **(a) recommended** |
+| **E-16** (F-2) | **The union of goblins an invocation can change is 140** in a batch (10 ticks × 14): 280 words, 8.98 M initialised, 127 M cold; 42 in a single 3-tick action | (a) **a cap of 16 distinct goblin records an invocation**: the batch stops before the action that would pass it (`Stop::Weight`), counted by the client as by the contract (steady state: 56 slots, §10.1); (b) cap 24: **+513,152** a batch (16 more words at O); (c) no cap: 40 M cannot hold. The first action of an invocation is E-21's | none (a rule of `play`, ENG-07); **(a) recommended** |
 | **E-17** (F-7) | **The per-action events cost** 56,740 per `GoblinKilled` and 40,048 per `ChunkRevealed` (snforge, M; about ×1.157 on Sepolia): up to 1.1 M a batch at 16 kills, about 2.6 % of the bound; 0.2 M in a typical fight batch | (a) keep all three (restored, the ruling); (b) drop `GoblinKilled` (the client reads the dead goblin by view; −1.05 M a worst batch) | (a): restored, frozen, tested |
 | **E-18** (F-3) | **`mine` draws nothing** (design/17) but design/02 sends it alone as a Fate action | (a) standalone, as frozen (it runs its 3 ticks outside any batch; one more transaction floor, 0.82 M, per vein); (b) an *Interact* on a vein inside `play` (weight 3), saving the floor | (a) |
 | **E-19** | `set_account_owner` zeroes `account_of[old owner]`; if that address ever owns an account again, its key is new (N) | keep a tombstone (the old owner mapped to a sentinel, O) | zeroed: rare |
+| **E-20** (F-12) | **What of a member carries across a gate** within one expedition (to the next zone, the next floor). The ruling: nothing but the belt's reserve; the design does not say (design/02: "each floor is its own instance entered from the previous one") | (a) **nothing** (the ruling; the code's rule); (b) **health, energy, adrenaline carry**: plain values, no clock conversion; (c) **conditions, effects and recharges carry too**: each deadline `d` becomes `max(0, d − clock_old)` on the new clock 0 (the ticks left), then capped at `MAX_DURATION`. Cost: none of the three changes the writes, since the same 4 member words are written in any case (§9.3); (b) and (c) change the game | (a); escalated for the design (whether a descent heals) |
+| **E-21** (F-2, F-3) | **One action that cannot be split** passes the batch's cap or cold weight by itself: a 3-tick action (a 3-tick skill, `mine`) changes up to 42 goblins; in a cold slot it writes 84 new goblin words | (a) **it runs**: the cap and the weight bind from the second action on; its class's bound is its own, 20.10 M initialised, **56.76 M cold** (38.97 M with E-1 b); (b) **it is refused**: a player among many goblins cannot use a 2- or 3-tick action, and in a cold slot the keys warm only by running, so a refused action can stay refused (a stall) | none (ENG-07); **(a) with E-1 (b) recommended**: no stall, every invocation under 40 M |
 
 ---
 
@@ -1012,7 +1096,7 @@ follows the **default** named; the project manager decides.
 | 5. Batch = singles = multicall tests | E-13 |
 | 6. Prove the gas bound | §9.2 per tick, per batch and lifetime; §10.1 in slots and with measured parts; the proof with the full execution: E-13, E-1, E-12, E-16 |
 | 7. `instance_state` | `InstanceView`, one call, the stored words (§4.1) |
-| 8. `instance_region` | `RegionChunk`, page of 16 chunks, kinds Void / Unrevealed / Revealed (§4.1); remains away from their spawn chunk through the roster (§9.3, F-6); tests, with the cross-chunk death and restart: E-13 |
+| 8. `instance_region` | `RegionChunk`, page of 16 chunks, kinds Void / Unrevealed / Revealed (§4.1); remains away from their spawn chunk through the roster, read masked (§9.3, F-6, F-13); tests, with the cross-chunk death and restart and the masking case: E-13 |
 | 9. Permission | §1.2, M-6 |
 | OP-2 | §9, §10 |
 | PLAN: domains | §1; no storage struct mixes them (§3) |
