@@ -6,7 +6,12 @@
 //! A record that was never written reads as `parts(kind)` zeros: part 0 is 0, which is how every
 //! reader tells a missing record (a written record has `LIVE` in part 0).
 
-use starknet::{ClassHash, ContractAddress};
+use core::pedersen::pedersen;
+use starknet::storage_access::{
+    StorageAddress, storage_address_from_base, storage_base_address_from_felt252,
+};
+use starknet::syscalls::{storage_read_syscall, storage_write_syscall};
+use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
 
 pub const VERSION: felt252 = 'grimworld-registry-1';
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
@@ -50,6 +55,30 @@ fn is_live(word: felt252) -> bool {
     live == 1
 }
 
+/// The address of a record's parts in `records`, without hashing the whole key for each part. The
+/// map hashes its key's members in order, a Pedersen chain from the variable's selector:
+/// `h(h(h(selector, kind), id), part)`. The first two links are the record's, computed once; each
+/// part adds one (tested against the map's own addresses: `test_part_address_is_the_maps`).
+#[inline(always)]
+pub fn record_key(kind: u8, id: u32) -> felt252 {
+    pedersen(pedersen(selector!("records"), kind.into()), id.into())
+}
+
+#[inline(always)]
+pub fn part_address(key: felt252, part: u8) -> StorageAddress {
+    storage_address_from_base(storage_base_address_from_felt252(pedersen(key, part.into())))
+}
+
+#[inline(always)]
+fn read_part(address: StorageAddress) -> felt252 {
+    storage_read_syscall(0, address).unwrap_syscall()
+}
+
+#[inline(always)]
+fn write_part(address: StorageAddress, value: felt252) {
+    storage_write_syscall(0, address, value).unwrap_syscall()
+}
+
 #[starknet::contract]
 pub mod Registry {
     use core::num::traits::Zero;
@@ -64,7 +93,8 @@ pub mod Registry {
     use starknet::{ClassHash, ContractAddress, get_caller_address};
     use super::{
         NOT_ADMIN, NOT_IMPLEMENTED, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT,
-        TOO_MANY, VERSION, ZERO_ADMIN, ZERO_ID, is_live,
+        TOO_MANY, VERSION, ZERO_ADMIN, ZERO_ID, is_live, part_address, read_part, record_key,
+        write_part,
     };
 
     #[storage]
@@ -136,10 +166,11 @@ pub mod Registry {
                 if id_wide == last + 1 {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
+                    let key = record_key(kind, id);
                     let mut part: u8 = 0;
                     for felt in record {
                         if *felt != 0 {
-                            self.records.write((kind, id, part), *felt);
+                            write_part(part_address(key, part), *felt);
                         }
                         part += 1;
                     }
@@ -157,12 +188,13 @@ pub mod Registry {
             }
             // `TASK` and `QUEST` take quiver's ids: quiver's records are not in this contract, so
             // nothing is checked beyond a non-zero id (ENG-03 report, escalation).
+            let key = record_key(kind, id);
             let mut changed = false;
             let mut part: u8 = 0;
             for felt in record {
-                let key = (kind, id, part);
-                if self.records.read(key) != *felt {
-                    self.records.write(key, *felt);
+                let address = part_address(key, part);
+                if read_part(address) != *felt {
+                    write_part(address, *felt);
                     changed = true;
                 }
                 part += 1;
@@ -191,8 +223,9 @@ pub mod Registry {
         /// Appends the `count` parts of `(kind, id)` to `out`.
         #[inline(always)]
         fn read_into(self: @ContractState, kind: u8, id: u32, count: u8, ref out: Array<felt252>) {
+            let key = record_key(kind, id);
             for part in 0..count {
-                out.append(self.records.read((kind, id, part)));
+                out.append(read_part(part_address(key, part)));
             }
         }
         /// A record exists when its part 0 is not 0 (ENG-01 §3.5).
@@ -243,6 +276,24 @@ mod layout_tests {
             ) == selector!("content_version"),
             'content_version',
         );
+    }
+
+    // The oracle of `record_key` and `part_address`: the map's own address, for the widest keys.
+    #[test]
+    #[available_gas(l2_gas: 186228)] // ceil(1.05 × 177360 measured)
+    fn test_part_address_is_the_maps() {
+        let state = @Registry::contract_state_for_testing();
+        let cases: Array<(u8, u32, u8)> = array![
+            (1, 1, 0), (2, 5, 1), (15, 7, 2), (25, 0xFFFFFFFF, 0), (3, 0xFFFFFF, 0),
+        ];
+        for case in cases {
+            let (kind, id, part) = case;
+            let expected: felt252 = address_of(
+                state.records.entry((kind, id, part)).as_ptr().__storage_pointer_address__,
+            );
+            let got: felt252 = super::part_address(super::record_key(kind, id), part).into();
+            assert(got == expected, 'part address');
+        }
     }
 }
 

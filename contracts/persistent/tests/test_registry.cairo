@@ -72,7 +72,7 @@ fn version(r: Registry) -> u32 {
 // --- set_record: what it writes -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 4655207)] // ceil(1.05 × 4433530 measured)
+#[available_gas(l2_gas: 4625471)] // ceil(1.05 × 4405210 measured)
 fn test_set_record_new_sequential() {
     let r = deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -87,7 +87,7 @@ fn test_set_record_new_sequential() {
 
 // An existing record's values change (design/01 rule 2: ids are append-only, values are not).
 #[test]
-#[available_gas(l2_gas: 4776240)] // ceil(1.05 × 4548800 measured)
+#[available_gas(l2_gas: 4697154)] // ceil(1.05 × 4473480 measured)
 fn test_set_record_existing_changes() {
     let r = deploy();
     r.admin.set_record(LOCATION, 1, two(5, 6));
@@ -100,7 +100,7 @@ fn test_set_record_existing_changes() {
 
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 7582586)] // ceil(1.05 × 7221510 measured)
+#[available_gas(l2_gas: 7528322)] // ceil(1.05 × 7169830 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = deploy();
@@ -125,7 +125,7 @@ fn test_set_record_composite_needs_parent() {
 
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
-#[available_gas(l2_gas: 4411575)] // ceil(1.05 × 4201500 measured)
+#[available_gas(l2_gas: 4398303)] // ceil(1.05 × 4188860 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
     let r = deploy();
@@ -140,7 +140,7 @@ fn test_set_record_outline_chunk_refused() {
 
 // `TASK` and `QUEST` take quiver's ids: any non-zero id.
 #[test]
-#[available_gas(l2_gas: 3848975)] // ceil(1.05 × 3665690 measured)
+#[available_gas(l2_gas: 3784001)] // ceil(1.05 × 3603810 measured)
 fn test_set_record_quiver_ids() {
     let r = deploy();
     r.admin.set_record(TASK, 0x12345, one(1));
@@ -153,7 +153,7 @@ fn test_set_record_quiver_ids() {
 // --- set_record: its refusals (AC-1) ------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1316732)] // ceil(1.05 × 1254030 measured)
+#[available_gas(l2_gas: 1325657)] // ceil(1.05 × 1262530 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
     let r = deploy();
@@ -164,7 +164,7 @@ fn test_set_record_refused_to_others() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1701578)] // ceil(1.05 × 1620550 measured)
+#[available_gas(l2_gas: 1728353)] // ceil(1.05 × 1646050 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
     let r = deploy();
@@ -178,7 +178,7 @@ fn test_set_record_part_count_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1268988)] // ceil(1.05 × 1208560 measured)
+#[available_gas(l2_gas: 1270458)] // ceil(1.05 × 1209960 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {
     let r = deploy();
@@ -193,7 +193,7 @@ fn test_set_record_unknown_kind_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2160459)] // ceil(1.05 × 2057580 measured)
+#[available_gas(l2_gas: 2205084)] // ceil(1.05 × 2100080 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = deploy();
@@ -212,7 +212,7 @@ fn test_set_record_not_live_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1212078)] // ceil(1.05 × 1154360 measured)
+#[available_gas(l2_gas: 1229928)] // ceil(1.05 × 1171360 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
     let r = deploy();
@@ -224,7 +224,7 @@ fn test_set_record_id_zero_refused() {
 
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
-#[available_gas(l2_gas: 3370028)] // ceil(1.05 × 3209550 measured)
+#[available_gas(l2_gas: 3396173)] // ceil(1.05 × 3234450 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = deploy();
@@ -241,7 +241,7 @@ fn test_set_record_not_next_refused() {
 // --- the content version (AC-2) -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 9012371)] // ceil(1.05 × 8583210 measured)
+#[available_gas(l2_gas: 8777822)] // ceil(1.05 × 8359830 measured)
 fn test_version_rises_per_changed_record() {
     let r = deploy();
     assert(version(r) == 0, '0 at deployment');
@@ -270,7 +270,7 @@ fn test_version_rises_per_changed_record() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7560651)] // ceil(1.05 × 7200620 measured)
+#[available_gas(l2_gas: 7482573)] // ceil(1.05 × 7126260 measured)
 fn test_bundle_version_and_order() {
     let r = deploy();
     r.admin.set_record(REGION, 1, one(1));
@@ -292,7 +292,7 @@ fn test_bundle_version_and_order() {
 
 // A record never written reads as `parts(kind)` zeros: part 0 is 0, the record does not exist.
 #[test]
-#[available_gas(l2_gas: 3105963)] // ceil(1.05 × 2958060 measured)
+#[available_gas(l2_gas: 3090318)] // ceil(1.05 × 2943160 measured)
 fn test_missing_record_reads_zeros() {
     let r = deploy();
     assert(r.read.record(BOOK, 1) == array![0, 0, 0].span(), 'record');
@@ -302,7 +302,7 @@ fn test_missing_record_reads_zeros() {
 }
 
 #[test]
-#[available_gas(l2_gas: 5043266)] // ceil(1.05 × 4803110 measured)
+#[available_gas(l2_gas: 5061326)] // ceil(1.05 × 4820310 measured)
 #[feature("safe_dispatcher")]
 fn test_reads_bounded() {
     let r = deploy();
@@ -327,7 +327,7 @@ fn test_reads_bounded() {
 
 // The role moves: the new administrator writes, the former one no longer can.
 #[test]
-#[available_gas(l2_gas: 3180188)] // ceil(1.05 × 3028750 measured)
+#[available_gas(l2_gas: 3188483)] // ceil(1.05 × 3036650 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_hands_over() {
     let r = deploy();
@@ -342,7 +342,7 @@ fn test_set_admin_hands_over() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2854803)] // ceil(1.05 × 2718860 measured)
+#[available_gas(l2_gas: 2854173)] // ceil(1.05 × 2718260 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_refused() {
     let r = deploy();
@@ -395,7 +395,7 @@ fn test_gas_deploy() {
 // `set_record` of a new 3-part record: 3 record slots, `last_id` and the version, all new
 // (ENG-01 §10: 5 N / 0 O).
 #[test]
-#[available_gas(l2_gas: 3379026)] // ceil(1.05 × 3218120 measured)
+#[available_gas(l2_gas: 3359496)] // ceil(1.05 × 3199520 measured)
 fn test_gas_set_record_new() {
     let r = deploy();
     r.admin.set_record(BOOK, 1, three(1, 2, 3));
@@ -404,7 +404,7 @@ fn test_gas_set_record_new() {
 // `set_record` changing a 3-part record: its 3 parts and the version overwritten (ENG-01 §10:
 // 0 N / 5 O, which counts `last_id` too; a changed record does not write it).
 #[test]
-#[available_gas(l2_gas: 3950993)] // ceil(1.05 × 3762850 measured)
+#[available_gas(l2_gas: 3866489)] // ceil(1.05 × 3682370 measured)
 fn test_gas_set_record_changed() {
     let r = deploy();
     r.admin.set_record(BOOK, 1, three(1, 2, 3));
@@ -413,7 +413,7 @@ fn test_gas_set_record_changed() {
 
 // `set_record` of the same values: 3 reads, nothing written, the version kept.
 #[test]
-#[available_gas(l2_gas: 3695024)] // ceil(1.05 × 3519070 measured)
+#[available_gas(l2_gas: 3653423)] // ceil(1.05 × 3479450 measured)
 fn test_gas_set_record_unchanged() {
     let r = deploy();
     r.admin.set_record(BOOK, 1, three(1, 2, 3));
@@ -422,7 +422,7 @@ fn test_gas_set_record_unchanged() {
 
 // `records` against `bundle` for the same record: the difference is the version's read.
 #[test]
-#[available_gas(l2_gas: 2773302)] // ceil(1.05 × 2641240 measured)
+#[available_gas(l2_gas: 2756082)] // ceil(1.05 × 2624840 measured)
 fn test_gas_records_1() {
     let r = deploy();
     stored_books(r, 1);
@@ -430,7 +430,7 @@ fn test_gas_records_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2795930)] // ceil(1.05 × 2662790 measured)
+#[available_gas(l2_gas: 2778710)] // ceil(1.05 × 2646390 measured)
 fn test_gas_bundle_1() {
     let r = deploy();
     let requests = stored_books(r, 1);
@@ -439,7 +439,7 @@ fn test_gas_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16043318)] // ceil(1.05 × 15279350 measured)
+#[available_gas(l2_gas: 15857888)] // ceil(1.05 × 15102750 measured)
 fn test_gas_bundle_10() {
     let r = deploy();
     let requests = stored_books(r, 10);
@@ -449,7 +449,7 @@ fn test_gas_bundle_10() {
 
 // The bound: 32 records of 3 parts, 96 slots and the version (ENG-01 §9.3: at most 97 reads).
 #[test]
-#[available_gas(l2_gas: 48425822)] // ceil(1.05 × 46119830 measured)
+#[available_gas(l2_gas: 47829212)] // ceil(1.05 × 45551630 measured)
 fn test_gas_bundle_32() {
     let r = deploy();
     let requests = stored_books(r, 32);

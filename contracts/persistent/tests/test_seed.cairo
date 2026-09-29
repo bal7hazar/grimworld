@@ -303,7 +303,7 @@ fn deploy() -> ContractAddress {
 
 // The test region, written and read back in one `bundle` (AC-4): 13 records, 17 slots.
 #[test]
-#[available_gas(l2_gas: 22560069)] // ceil(1.05 × 21485780 measured)
+#[available_gas(l2_gas: 22435875)] // ceil(1.05 × 21367500 measured)
 fn test_seed_written_and_read_back() {
     let registry = deploy();
     let written = write_seed(registry);
@@ -368,7 +368,7 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 13 `set_record` (AC-4): this test less the baseline.
 #[test]
-#[available_gas(l2_gas: 20397510)] // ceil(1.05 × 19426200 measured)
+#[available_gas(l2_gas: 20306916)] // ceil(1.05 × 19339920 measured)
 fn test_gas_seed_write() {
     let registry = deploy();
     write_records(registry, @seed_records());
@@ -376,7 +376,7 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-#[available_gas(l2_gas: 29394929)] // ceil(1.05 × 27995170 measured)
+#[available_gas(l2_gas: 29247026)] // ceil(1.05 × 27854310 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = deploy();
     write_seed(registry);
