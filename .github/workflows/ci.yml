@@ -1,6 +1,8 @@
-# CI of the contracts and the client (FND-02), beside the `tooling` workflow. "Merge on green CI"
-# means the code works: every Cairo package is formatted, built and tested on the toolchain of its
-# own .tool-versions, and the client is installed, linted, typechecked, tested, built and formatted.
+# CI of the contracts, the client and the indexer (FND-02, D-153), beside the `tooling` workflow.
+# "Merge on green CI" means the code works: every Cairo package is formatted, built and tested on
+# the toolchain of its own .tool-versions; the pnpm workspace (client and indexer) is installed,
+# linted, typechecked, tested, built and formatted; a change to indexer/ also runs the indexer on a
+# local starknet-devnet.
 # No secret, no pull_request_target, read-only token, every third-party action pinned by SHA.
 name: ci
 
@@ -33,11 +35,35 @@ jobs:
       packages: ${{ steps.find.outputs.packages }}
       node: ${{ steps.find.outputs.node }}
       pnpm: ${{ steps.find.outputs.pnpm }}
+      indexer: ${{ steps.changes.outputs.indexer }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - id: find
         run: python3 .github/ci/discover.py
+
+      # Does the change touch indexer/? (the `indexer-node` job runs only then). A pull request is
+      # compared with its base, a push with the commit before it; the base commit is fetched alone
+      # (the checkout is shallow). An unknown base (a new branch, a malformed value) runs the job.
+      # Event values reach the script as environment variables, never interpolated into it.
+      - id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then base=$PR_BASE; else base=$PUSH_BEFORE; fi
+          if ! [[ $base =~ ^[0-9a-f]{40}$ ]] || [[ $base =~ ^0+$ ]] ||
+            ! git fetch --no-tags --depth=1 origin "$base"; then
+            echo "base unknown: the indexer's jobs run"
+            echo "indexer=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$base" HEAD -- indexer/)
+          if [ -n "$changed" ]; then indexer=true; else indexer=false; fi
+          echo "indexer/ changed: $indexer"
+          echo "indexer=$indexer" >> "$GITHUB_OUTPUT"
 
   cairo:
     needs: discover
@@ -164,5 +190,109 @@ jobs:
       - name: build
         run: pnpm build
 
+      # The client and the indexer (D-153). Their build outputs are in the root .gitignore, which
+      # prettier reads, so the `build` above does not reach this check.
       - name: prettier
-        run: pnpm exec prettier --check client
+        run: pnpm exec prettier --check client indexer
+
+  # IDX-01a (D-153): the indexer's local-node scenario (`pnpm --filter @grimworld/indexer
+  # test:node`: deploy the test emitter on starknet-devnet, emit the nine events, reorgs of depth 1
+  # to 5 by devnet_abortBlocks, restart, rebuild, pruning). It runs only when the change touches
+  # indexer/ (`discover` compares the tree with the base; D-153's grant), or when the base is
+  # unknown. It does NOT run for a change elsewhere, even one it depends on: .tool-versions,
+  # scripts/setup-toolchain.sh, scripts/with-node.sh, contracts/persistent (the events), this
+  # workflow. Such a change is checked by this job at the next change under indexer/, not before
+  # (widening the trigger is with the project manager). Every version comes from `discover` (validated
+  # there) or is pinned here and checked against the repository's pins: starknet-devnet as
+  # scripts/setup-toolchain.sh pins it, its release tarball verified by sha256 before it is
+  # unpacked and its binary before it is run. No secret; the network is the package registries and
+  # the devnet release download. The node listens on 127.0.0.1 only (scripts/with-node.sh).
+  indexer-node:
+    needs: discover
+    if: needs.discover.outputs.indexer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEVNET_VERSION: 0.10.0
+      # sha256 of starknet-devnet-x86_64-unknown-linux-gnu.tar.gz of release v0.10.0: pinned here
+      # only. The binary's sha256 lives in scripts/setup-toolchain.sh (`binary_sha256`,
+      # `starknet-devnet:0.10.0:amd64`) and is repeated below; a devnet bump edits both files, and
+      # .tool-versions.
+      DEVNET_TARBALL_SHA256: 0d27863ec959dc74ec6de985c3ec8eb093d6670bacd7672b51dc71ec8528969b
+      # The binary inside it: the same value as scripts/setup-toolchain.sh (checked by `pins`).
+      DEVNET_BINARY_SHA256: 4e2e6479fa9502f2952ed26740d5cc8ebeb3695c16e752edcc560f6e736b167c
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Scarb of the emitter's job (validated by discover), and the pins above against the
+      # repository's. When this job runs, it fails if .tool-versions or setup-toolchain.sh pin
+      # another devnet than this job; a bump in those files alone does not run it (see above).
+      - name: pins
+        id: pins
+        env:
+          PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          set -euo pipefail
+          [ "$(uname -s) $(uname -m)" = "Linux x86_64" ] || { echo "not Linux x86_64" >&2; exit 1; }
+          scarb=$(python3 -c 'import json, os; print(next(p["scarb"] for p in json.loads(os.environ["PACKAGES"]) if p["dir"] == "indexer/emitter"))')
+          [[ $scarb =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "scarb $scarb" >&2; exit 1; }
+          pinned=$(awk '$1 == "starknet-devnet" { print $2 }' .tool-versions)
+          [ "$pinned" = "$DEVNET_VERSION" ] || { echo ".tool-versions pins starknet-devnet $pinned, this job $DEVNET_VERSION" >&2; exit 1; }
+          grep -qF "starknet-devnet:$DEVNET_VERSION:amd64) echo $DEVNET_BINARY_SHA256 ;;" scripts/setup-toolchain.sh ||
+            { echo "scripts/setup-toolchain.sh pins another binary hash" >&2; exit 1; }
+          echo "scarb=$scarb" >> "$GITHUB_OUTPUT"
+
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          scarb-lock: indexer/emitter/Scarb.lock
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ needs.discover.outputs.pnpm }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ needs.discover.outputs.node }}
+          cache: pnpm
+
+      - name: toolchain is the one of .tool-versions
+        env:
+          node_pin: ${{ needs.discover.outputs.node }}
+          pnpm_pin: ${{ needs.discover.outputs.pnpm }}
+          scarb_pin: ${{ steps.pins.outputs.scarb }}
+        run: |
+          set -euo pipefail
+          echo "node $(node --version), pnpm $(pnpm --version), $(scarb --version | head -n 1)"
+          [ "$(node --version)" = "v$node_pin" ] || { echo "node is not $node_pin" >&2; exit 1; }
+          [ "$(pnpm --version)" = "$pnpm_pin" ] || { echo "pnpm is not $pnpm_pin" >&2; exit 1; }
+          scarb --version | grep -q "^scarb $scarb_pin " || { echo "scarb is not $scarb_pin" >&2; exit 1; }
+
+      - name: starknet-devnet
+        run: |
+          set -euo pipefail
+          dir=$RUNNER_TEMP/starknet-devnet
+          mkdir -p "$dir"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$dir/devnet.tar.gz" \
+            "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v${DEVNET_VERSION}/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$DEVNET_TARBALL_SHA256  $dir/devnet.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/devnet.tar.gz" -C "$dir" starknet-devnet
+          echo "$DEVNET_BINARY_SHA256  $dir/starknet-devnet" | sha256sum -c -
+          [ "$("$dir/starknet-devnet" --version)" = "starknet-devnet $DEVNET_VERSION" ] ||
+            { echo "starknet-devnet is not $DEVNET_VERSION" >&2; exit 1; }
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: emitter
+        run: scarb --manifest-path indexer/emitter/Scarb.toml build
+
+      - name: test:node
+        run: pnpm --filter @grimworld/indexer test:node
+
+      - name: scenario output
+        if: always()
+        run: cat indexer/.scenario-results.txt 2> /dev/null || echo "no scenario output"

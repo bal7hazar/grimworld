@@ -12,6 +12,8 @@ example/
 contracts/target/
 node_modules/
 client/*/dist/
+indexer/dist/
+indexer/emitter/target/
 
 # Python bytecode (contracts/tools)
 __pycache__/
