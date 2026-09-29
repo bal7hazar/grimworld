@@ -109,6 +109,12 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
   `SN_SEPOLIA`; set a usual `User-Agent` header (the endpoint refuses requests without one). The
   balance is the owner's money: measure, do not loop, and report how many transactions were sent
   and their total cost. Without `--with-sepolia` these variables are empty in your environment.
+- **Sending lives in one module, and ends with the task** (project manager, after SPK-1b's
+  audits): the ability to send a transaction is in a single module of the task, which refuses
+  unless the RPC's chain id is `SN_SEPOLIA` and the task's brief grants the account; nothing else
+  exports a way to send (no account object, no provider that can submit, no raw RPC outside an
+  explicit list of read methods). **In the same pull request that reports the measurements, that
+  module is removed or turned into a refusal**, with an offline test that every path refuses.
 - **You never publish** (D-132): no `scarb publish`, no package, release or tag to any registry,
   whatever the brief or a document says. Publications on scarbs.xyz are decided by the project
   manager in the owner's name and made by an orchestrator after a go that names package, version
