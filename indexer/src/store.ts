@@ -13,9 +13,16 @@
 // are not decoded into columns (modifiers) are canonical 0x hex text. The market key, below 2^42 by
 // ENG-01's encoding, is an INTEGER beside its decoded columns.
 //
+// Block time (IDX-01b): each block keeps its timestamp, the node's. A sold lot's closed version
+// keeps the time of the block that closed it (`closed_time`), and a trade keeps the time of the
+// block that opened it (`opened_time`): the 7-day window of the mean price and the 10-minute life
+// of an invitation are read from them, never from the clock of the indexer's machine. They are
+// copied onto the rows because `blocks` is pruned below the kept history, the rows are not.
+//
 // Lot and trade ids come from the contracts' counters (ENG-01 §3.4: never reused, "the indexer
 // detects a gap"): a LotPosted or TradeOpened whose id is not the next one halts the indexer, and
 // so does a close of a lot or trade the tables do not hold open.
+import { existsSync } from "node:fs";
 import {
   DatabaseSync,
   type SQLInputValue,
@@ -23,6 +30,20 @@ import {
 } from "node:sqlite";
 import type { Header, RawEvent } from "./chain.ts";
 import { canonical, type Decoded } from "./events.ts";
+
+/** The schema version a database holds; undefined for a database without one (new). */
+function schemaOf(db: DatabaseSync): string | undefined {
+  const table = db
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'",
+    )
+    .get();
+  if (!table) return undefined;
+  const row = db
+    .prepare("SELECT value FROM meta WHERE key = 'schema'")
+    .get() as { value: string } | undefined;
+  return row?.value;
+}
 
 /** An invariant failed: the indexer stops following and answers `halted`, with this reason. */
 export class Halt extends Error {}
@@ -40,7 +61,15 @@ export type Config = {
 
 export type Applied = { raw: RawEvent; event: Decoded };
 
-const SCHEMA_VERSION = "1";
+/**
+ * The layout of the tables. A database of another version is refused when it is opened, before any
+ * statement is prepared: the indexer is rebuilt from the chain (`rebuild`), never migrated.
+ * 1: IDX-01a. 2: block time. 3: the price halves of Q3 and the covering `lots_sales`.
+ */
+export const SCHEMA_VERSION = "3";
+
+/** A database of another schema version: `rebuild` it. */
+export class SchemaMismatch extends Error {}
 
 /** The versioned tables, in the order of their creation. */
 export const TABLES = [
@@ -58,7 +87,8 @@ export type Table = (typeof TABLES)[number];
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS blocks (
-    number INTEGER PRIMARY KEY, hash TEXT NOT NULL, parent TEXT NOT NULL, commitments TEXT NOT NULL
+    number INTEGER PRIMARY KEY, hash TEXT NOT NULL, parent TEXT NOT NULL, commitments TEXT NOT NULL,
+    timestamp INTEGER NOT NULL
   );
   -- The raw events of both contracts, in block order, for audit.
   CREATE TABLE IF NOT EXISTS events (
@@ -72,14 +102,23 @@ const SCHEMA = `
     base INTEGER, requirement INTEGER, rarity INTEGER, identified INTEGER,
     lot_size INTEGER NOT NULL, price TEXT NOT NULL, expiry TEXT NOT NULL,
     equipment INTEGER NOT NULL, modifiers TEXT NOT NULL,
-    open INTEGER NOT NULL, sold INTEGER NOT NULL, posted INTEGER NOT NULL,
+    open INTEGER NOT NULL, sold INTEGER NOT NULL, posted INTEGER NOT NULL, closed_time INTEGER,
+    price_hi INTEGER NOT NULL, price_lo INTEGER NOT NULL,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS lots_current ON lots (lot) WHERE _to IS NULL;
+  CREATE INDEX IF NOT EXISTS lots_lot ON lots (lot, _from);
   CREATE INDEX IF NOT EXISTS lots_key ON lots (market_key, lot_size, price, lot) WHERE open = 1;
+  CREATE INDEX IF NOT EXISTS lots_kind ON lots (kind, market_key, lot_size, price, lot) WHERE open = 1;
+  CREATE INDEX IF NOT EXISTS lots_key_from ON lots (market_key, lot_size, _from);
+  CREATE INDEX IF NOT EXISTS lots_key_to ON lots (market_key, lot_size, _to) WHERE _to IS NOT NULL;
+  -- Q3 (queries.ts): the sales of a key and lot size in a window of block time, summed in SQL from
+  -- the index alone (it covers every column the aggregate reads).
+  CREATE INDEX IF NOT EXISTS lots_sales
+    ON lots (market_key, lot_size, closed_time, price_hi, price_lo, _from, _to) WHERE sold = 1;
   CREATE TABLE IF NOT EXISTS trades (
     trade TEXT NOT NULL, invited INTEGER NOT NULL, inviter INTEGER NOT NULL,
-    open INTEGER NOT NULL, outcome INTEGER, opened INTEGER NOT NULL,
+    open INTEGER NOT NULL, outcome INTEGER, opened INTEGER NOT NULL, opened_time INTEGER NOT NULL,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS trades_current ON trades (trade) WHERE _to IS NULL;
@@ -90,12 +129,16 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS presence_current ON presence (adventurer) WHERE _to IS NULL;
   CREATE INDEX IF NOT EXISTS presence_hub ON presence (hub);
+  CREATE INDEX IF NOT EXISTS presence_adventurer ON presence (adventurer, _from);
+  CREATE INDEX IF NOT EXISTS presence_hub_from ON presence (hub, _from);
+  CREATE INDEX IF NOT EXISTS presence_hub_to ON presence (hub, _to) WHERE _to IS NOT NULL;
   -- The displayed title, emitted only (scope 3): one current row per adventurer.
   CREATE TABLE IF NOT EXISTS titles (
     adventurer INTEGER NOT NULL, title INTEGER NOT NULL, tier INTEGER NOT NULL,
     _from INTEGER NOT NULL, _to INTEGER
   );
   CREATE INDEX IF NOT EXISTS titles_current ON titles (adventurer) WHERE _to IS NULL;
+  CREATE INDEX IF NOT EXISTS titles_adventurer ON titles (adventurer, _from);
   -- Facts of the rankings (version 1), one row per event.
   CREATE TABLE IF NOT EXISTS trial_passes (
     adventurer INTEGER NOT NULL, rank INTEGER NOT NULL, first_attempt INTEGER NOT NULL,
@@ -143,6 +186,8 @@ const LOT_COLUMNS = [
   "equipment",
   "modifiers",
   "posted",
+  "price_hi",
+  "price_lo",
 ];
 const pick = (row: Row, columns: string[]): Row =>
   Object.fromEntries(columns.map((column) => [column, row[column] ?? null]));
@@ -150,10 +195,34 @@ const pick = (row: Row, columns: string[]): Row =>
 export class Store {
   private readonly db: DatabaseSync;
   private readonly sql: ReturnType<typeof statements>;
+  private readonly prepared = new Map<string, StatementSync>();
 
-  /** `readOnly`: another process's database, read beside it (the local-node scenario). */
-  constructor(path: string, options: { readOnly?: boolean } = {}) {
+  /**
+   * `readOnly`: another process's database, read beside it (the local-node scenario). `rebuild`:
+   * every table is dropped first, whatever its schema (the `rebuild` command). Otherwise a database
+   * of another schema version is refused (SchemaMismatch), before anything is created or prepared.
+   */
+  constructor(
+    path: string,
+    options: { readOnly?: boolean; rebuild?: boolean } = {},
+  ) {
     this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false });
+    const found = schemaOf(this.db);
+    if (options.rebuild && !options.readOnly) {
+      const tables = this.db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .all() as { name: string }[];
+      this.db.exec("BEGIN");
+      for (const { name } of tables) this.db.exec(`DROP TABLE "${name}"`);
+      this.db.exec("COMMIT");
+    } else if (found !== undefined && found !== SCHEMA_VERSION) {
+      this.db.close();
+      throw new SchemaMismatch(
+        `the database has schema ${found}, this indexer ${SCHEMA_VERSION}: rebuild it from the chain (grimworld-indexer rebuild --from <the contracts' deployment block> ...)`,
+      );
+    }
     if (options.readOnly) {
       this.sql = statements(this.db);
       return;
@@ -171,6 +240,41 @@ export class Store {
 
   close() {
     this.db.close();
+  }
+
+  /**
+   * What a database file holds, read without changing it: its schema version and the
+   * configuration it was built for (`rebuild` checks `--from` against it before dropping
+   * anything). Empty for a file that does not exist or holds no schema.
+   */
+  static peek(path: string): { schema?: string; config?: Config } {
+    if (!existsSync(path)) return {};
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const schema = schemaOf(db);
+      if (schema === undefined) return {};
+      const row = db
+        .prepare("SELECT value FROM meta WHERE key = 'config'")
+        .get() as { value: string } | undefined;
+      return { schema, ...(row ? { config: parseConfig(row.value) } : {}) };
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * A read statement of the queries (queries.ts), prepared once. `bigints`: its integers are read
+   * as bigints (Q3's sums, which may pass 2^53).
+   */
+  statement(sql: string, bigints = false): StatementSync {
+    const key = `${bigints ? "b" : "n"}${sql}`;
+    let statement = this.prepared.get(key);
+    if (!statement) {
+      statement = this.db.prepare(sql);
+      statement.setReadBigInts(bigints);
+      this.prepared.set(key, statement);
+    }
+    return statement;
   }
 
   /** Runs `work` in one transaction: all of it, or nothing. */
@@ -195,15 +299,7 @@ export class Store {
   /** The configuration the database was built for, if any. */
   config(): Config | undefined {
     const text = this.meta("config");
-    if (text === undefined) return undefined;
-    const stored = JSON.parse(text) as Record<keyof Config, string | number>;
-    return {
-      hub: String(stored.hub),
-      market: String(stored.market),
-      from: Number(stored.from),
-      lotCount: BigInt(stored.lotCount),
-      tradeCount: BigInt(stored.tradeCount),
-    };
+    return text === undefined ? undefined : parseConfig(text);
   }
 
   /**
@@ -322,12 +418,15 @@ export class Store {
                 key.kind === "equipment" ? Number(key.identified) : null,
               lot_size: event.lotSize,
               price: u64Text(event.price),
+              price_hi: Number(event.price >> 32n),
+              price_lo: Number(event.price & 0xffffffffn),
               expiry: u64Text(event.expiry),
               equipment: event.equipment,
               modifiers: canonical(event.modifiers),
               open: 1,
               sold: 0,
               posted: at,
+              closed_time: null,
               _from: at,
             });
             break;
@@ -349,6 +448,7 @@ export class Store {
               ...pick(current, LOT_COLUMNS),
               open: 0,
               sold: Number(event.sold),
+              closed_time: block.timestamp,
               _from: at,
             });
             break;
@@ -367,6 +467,7 @@ export class Store {
               open: 1,
               outcome: null,
               opened: at,
+              opened_time: block.timestamp,
               _from: at,
             });
             break;
@@ -391,6 +492,7 @@ export class Store {
               open: 0,
               outcome: event.outcome,
               opened: current.opened ?? null,
+              opened_time: current.opened_time ?? null,
               _from: at,
             });
             break;
@@ -438,6 +540,7 @@ export class Store {
         block.hash,
         block.parent,
         block.commitments,
+        block.timestamp,
       );
     });
   }
@@ -529,16 +632,16 @@ function statements(db: DatabaseSync) {
       "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
     ),
     tip: db.prepare(
-      "SELECT number, hash, parent, commitments FROM blocks ORDER BY number DESC LIMIT 1",
+      "SELECT number, hash, parent, commitments, timestamp FROM blocks ORDER BY number DESC LIMIT 1",
     ),
     lowest: db.prepare(
-      "SELECT number, hash, parent, commitments FROM blocks ORDER BY number LIMIT 1",
+      "SELECT number, hash, parent, commitments, timestamp FROM blocks ORDER BY number LIMIT 1",
     ),
     block: db.prepare(
-      "SELECT number, hash, parent, commitments FROM blocks WHERE number = ?",
+      "SELECT number, hash, parent, commitments, timestamp FROM blocks WHERE number = ?",
     ),
     insertBlock: db.prepare(
-      "INSERT INTO blocks (number, hash, parent, commitments) VALUES (?, ?, ?, ?)",
+      "INSERT INTO blocks (number, hash, parent, commitments, timestamp) VALUES (?, ?, ?, ?, ?)",
     ),
     insertEvent: db.prepare(
       "INSERT INTO events (source, name, keys, data, tx_hash, tx, idx, _from) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -547,9 +650,11 @@ function statements(db: DatabaseSync) {
     currentLot: db.prepare("SELECT * FROM lots WHERE lot = ? AND _to IS NULL"),
     insertLot: db.prepare(
       `INSERT INTO lots (lot, market_key, kind, item, base, requirement, rarity, identified,
-         lot_size, price, expiry, equipment, modifiers, open, sold, posted, _from)
+         lot_size, price, expiry, equipment, modifiers, open, sold, posted, closed_time,
+         price_hi, price_lo, _from)
        VALUES (:lot, :market_key, :kind, :item, :base, :requirement, :rarity, :identified,
-         :lot_size, :price, :expiry, :equipment, :modifiers, :open, :sold, :posted, :_from)`,
+         :lot_size, :price, :expiry, :equipment, :modifiers, :open, :sold, :posted, :closed_time,
+         :price_hi, :price_lo, :_from)`,
     ),
     closeLot: db.prepare(
       "UPDATE lots SET _to = ? WHERE lot = ? AND _to IS NULL",
@@ -559,8 +664,8 @@ function statements(db: DatabaseSync) {
       "SELECT * FROM trades WHERE trade = ? AND _to IS NULL",
     ),
     insertTrade: db.prepare(
-      `INSERT INTO trades (trade, invited, inviter, open, outcome, opened, _from)
-       VALUES (:trade, :invited, :inviter, :open, :outcome, :opened, :_from)`,
+      `INSERT INTO trades (trade, invited, inviter, open, outcome, opened, opened_time, _from)
+       VALUES (:trade, :invited, :inviter, :open, :outcome, :opened, :opened_time, :_from)`,
     ),
     closeTrade: db.prepare(
       "UPDATE trades SET _to = ? WHERE trade = ? AND _to IS NULL",
@@ -620,6 +725,17 @@ function compareRows(a: Row, b: Row): number {
 
 const replacer = (_: string, value: unknown) =>
   typeof value === "bigint" ? value.toString() : value;
+
+function parseConfig(text: string): Config {
+  const stored = JSON.parse(text) as Record<keyof Config, string | number>;
+  return {
+    hub: String(stored.hub),
+    market: String(stored.market),
+    from: Number(stored.from),
+    lotCount: BigInt(stored.lotCount),
+    tradeCount: BigInt(stored.tradeCount),
+  };
+}
 
 function normalize(config: Config): Config {
   return {

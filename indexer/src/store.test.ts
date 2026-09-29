@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Header, RawEvent } from "./chain.ts";
 import { decode } from "./events.ts";
-import { Halt, Store, type Applied, type Config } from "./store.ts";
+import {
+  Halt,
+  SCHEMA_VERSION,
+  SchemaMismatch,
+  Store,
+  type Applied,
+  type Config,
+} from "./store.ts";
 import { HUB, MARKET, ev, type FakeEvent } from "./testing/fake-node.ts";
 
 const config: Config = {
@@ -23,6 +34,7 @@ const header = (number: number): Header => ({
   hash: `0xb${number}`,
   parent: `0xb${number - 1}`,
   commitments: `0xc${number}`,
+  timestamp: 1000 + number,
 });
 
 function applied(...events: FakeEvent[]): Applied[] {
@@ -275,5 +287,66 @@ describe("the store", () => {
     const s = store();
     expect(() => s.open({ ...config, hub: "0x9" })).toThrow(/rebuild it/);
     s.open({ ...config, hub: "0x01111" }); // the same address, written otherwise
+  });
+});
+
+describe("the schema version (fix loop 2)", () => {
+  const dir = mkdtempSync(
+    join(fileURLToPath(new URL("..", import.meta.url)), ".tmp-schema-"),
+  );
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  /** A database of schema 2 as IDX-01b's first version left it: `lots` without the price halves. */
+  function schema2(path: string) {
+    const db = new DatabaseSync(path);
+    db.exec(`
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE lots (lot TEXT NOT NULL, price TEXT NOT NULL, sold INTEGER NOT NULL,
+        _from INTEGER NOT NULL, _to INTEGER);
+    `);
+    db.prepare("INSERT INTO meta VALUES ('schema', '2'), ('config', ?)").run(
+      JSON.stringify({
+        hub: HUB,
+        market: MARKET,
+        from: 1,
+        lotCount: "0",
+        tradeCount: "0",
+      }),
+    );
+    db.close();
+  }
+
+  it("refuses a database of another version when it is opened, before anything is prepared, and says to rebuild", () => {
+    expect(SCHEMA_VERSION).toBe("3");
+    const path = join(dir, "old.sqlite");
+    schema2(path);
+    for (const options of [{}, { readOnly: true }]) {
+      let error: unknown;
+      try {
+        new Store(path, options);
+      } catch (thrown) {
+        error = thrown;
+      }
+      // Our refusal, not SQLite's "no such column: price_hi" from a statement.
+      expect(error).toBeInstanceOf(SchemaMismatch);
+      expect((error as Error).message).toMatch(
+        /^the database has schema 2, this indexer 3: rebuild it from the chain/,
+      );
+    }
+    // Nothing was changed: still schema 2, still its configuration.
+    expect(Store.peek(path)).toEqual({ schema: "2", config: { ...config } });
+  });
+
+  it("`rebuild` drops every table whatever the schema, and the database is then of this version", () => {
+    const path = join(dir, "rebuilt.sqlite");
+    schema2(path);
+    const s = new Store(path, { rebuild: true });
+    expect(s.config()).toBe(undefined);
+    s.open(config);
+    expect(s.tip()).toBe(undefined);
+    s.close();
+    expect(Store.peek(path)).toEqual({ schema: "3", config: { ...config } });
+    new Store(path).close(); // opens without a refusal now
+    expect(Store.peek(join(dir, "none.sqlite"))).toEqual({});
   });
 });

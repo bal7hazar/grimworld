@@ -1,7 +1,8 @@
 // A fake Starknet node for the unit tests: no network. It answers the read methods the indexer
 // uses (JSON-RPC 0.10 shapes, as starknet-devnet 0.10.0 answers them) from blocks held in memory,
 // and it can mine, reorganise (with devnet's quirk: a replacement block keeps the replaced block's
-// hash, its commitments differ) and move the last L1-accepted block.
+// hash, its commitments differ) and move the last L1-accepted block. Each block has a time: `time`,
+// the next block's, advances by `interval` at every block mined (a test sets either).
 import { RpcError, type Rpc } from "../chain.ts";
 import { SELECTORS, type EventName, type Source } from "../events.ts";
 
@@ -17,6 +18,7 @@ type Block = {
   hash: string;
   parent: string;
   commitment: string;
+  timestamp: number;
   transactions: { hash: string; events: FakeEvent[] }[];
 };
 
@@ -84,6 +86,10 @@ export class FakeNode {
   readonly calls: string[] = [];
   /** Called before each answer: a test injects a reorg between two calls of a step. */
   beforeCall: ((method: string, params: unknown) => void) | null = null;
+  /** The time of the next block mined (seconds). */
+  time = 1_000_000;
+  /** Seconds between two blocks. */
+  interval = 1;
   private salt = 0;
 
   constructor(emptyBlocks = 1) {
@@ -104,11 +110,13 @@ export class FakeNode {
       hash: hex(0xb000000n + BigInt(number) * 0x1000n + BigInt(salt)),
       parent,
       commitment: hex(0xc000000n + BigInt(salt)),
+      timestamp: this.time,
       transactions: transactions.map((events, index) => ({
         hash: hex(0x7000000n + BigInt(salt) * 0x100n + BigInt(index)),
         events,
       })),
     });
+    this.time += this.interval;
     return number;
   }
 
@@ -139,6 +147,7 @@ export class FakeNode {
       block_hash: block.hash,
       parent_hash: block.parent,
       block_number: block.number,
+      timestamp: block.timestamp,
       transaction_commitment: block.commitment,
       event_commitment: block.commitment,
       receipt_commitment: block.commitment,

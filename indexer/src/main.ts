@@ -15,10 +15,10 @@ import { parseArgs } from "node:util";
 import { Chain, httpRpc, parseRpcUrl, redact } from "./chain.ts";
 import { Indexer, type Depth } from "./indexer.ts";
 import { serve } from "./server.ts";
-import { Store } from "./store.ts";
+import { SchemaMismatch, Store } from "./store.ts";
 
 const USAGE =
-  "usage: grimworld-indexer run|rebuild --hub <address> --market <address> --from <block> --db <file> [--port <n>] [--host <h>] [--poll <ms>] [--depth <blocks>|l1] [--batch <n>] [--recheck <blocks>] [--recheck-every <ms>] [--lot-count <n>] [--trade-count <n>] [--rpc <url>]";
+  "usage: grimworld-indexer run|rebuild --hub <address> --market <address> --from <block> --db <file> [--port <n>] [--host <h>] [--poll <ms>] [--depth <blocks>|l1] [--batch <n>] [--recheck <blocks>] [--recheck-every <ms>] [--lot-count <n>] [--trade-count <n>] [--max-subscriptions <n>] [--max-subscriptions-per-client <n>] [--max-buffered <bytes>] [--stall <ms>] [--keep-alive <ms>] [--allow-origin <origin>]... [--rpc <url>]";
 
 function log(message: string) {
   console.log(`[indexer ${new Date().toISOString()}] ${message}`);
@@ -73,6 +73,12 @@ const { values, positionals } = parseArgs({
     "recheck-every": { type: "string" },
     "lot-count": { type: "string" },
     "trade-count": { type: "string" },
+    "max-subscriptions": { type: "string" },
+    "max-subscriptions-per-client": { type: "string" },
+    "max-buffered": { type: "string" },
+    stall: { type: "string" },
+    "keep-alive": { type: "string" },
+    "allow-origin": { type: "string", multiple: true },
     rpc: { type: "string" },
   },
 });
@@ -107,17 +113,26 @@ const recheck = {
   everyMs: integer(values["recheck-every"], "recheck-every", 10_000, 1),
 };
 
-const store = new Store(values.db);
 if (command === "rebuild") {
-  const built = store.config();
+  // Checked before anything is dropped: a refused rebuild keeps the database.
+  const built = Store.peek(values.db!).config;
   if (built && built.from !== config.from) {
     fail(
       `rebuild --from ${config.from}: this database was built from block ${built.from}, the contracts' deployment; a rebuild starts there (a later start would need the lots and trades open at that block)`,
     );
   }
-  store.clear();
-  log(`rebuild: the database is empty; following from block ${config.from}`);
 }
+let store: Store;
+try {
+  // `rebuild` drops every table first, whatever the schema; `run` refuses another schema.
+  store = new Store(values.db!, { rebuild: command === "rebuild" });
+} catch (error) {
+  if (!(error instanceof SchemaMismatch)) throw error;
+  console.error(error.message);
+  process.exit(2);
+}
+if (command === "rebuild")
+  log(`rebuild: the database is empty; following from block ${config.from}`);
 let indexer: Indexer;
 try {
   indexer = new Indexer({
@@ -137,7 +152,26 @@ try {
   process.exit(2);
 }
 
-const server = serve(indexer);
+for (const origin of values["allow-origin"] ?? []) {
+  if (!URL.canParse(origin) || new URL(origin).origin !== origin)
+    fail(`--allow-origin ${origin}: an origin, scheme://host[:port]`);
+}
+// The defaults bound the streams' memory: 512 subscriptions × 512 KiB unsent = 256 MiB at most.
+const server = serve(indexer, {
+  allowedOrigins: values["allow-origin"] ?? [],
+  limits: {
+    perProcess: integer(values["max-subscriptions"], "max-subscriptions", 512),
+    perClient: integer(
+      values["max-subscriptions-per-client"],
+      "max-subscriptions-per-client",
+      16,
+    ),
+    maxBuffered: integer(values["max-buffered"], "max-buffered", 512 * 1024, 1),
+    stallMs: integer(values.stall, "stall", 30_000, 1),
+    keepAliveMs: integer(values["keep-alive"], "keep-alive", 15_000, 1),
+  },
+  log,
+});
 const abort = new AbortController();
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => abort.abort());
@@ -164,6 +198,7 @@ if (!abort.signal.aborted) {
     abort.signal.addEventListener("abort", () => resolve()),
   );
 }
+server.subscriptions.close();
 server.close();
 server.closeAllConnections();
 store.close();

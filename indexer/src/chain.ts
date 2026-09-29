@@ -83,10 +83,25 @@ export type Header = {
   hash: string;
   parent: string;
   commitments: string;
+  /** The block's time (seconds, as the node reports it): the only clock of the rules (IDX-01b). */
+  timestamp: number;
 };
 
 export const sameBlock = (a: Header, b: Header) =>
   a.hash === b.hash && a.commitments === b.commitments;
+
+/** A block as an answer names it (R2): number, hash, commitments, and its time. */
+export type Head = Omit<Header, "parent">;
+
+export const headOf = (header: Header | null | undefined): Head | null =>
+  header
+    ? {
+        number: header.number,
+        hash: header.hash,
+        commitments: header.commitments,
+        timestamp: header.timestamp,
+      }
+    : null;
 
 /** An event of one of the two contracts, with its position in its block. */
 export type RawEvent = {
@@ -103,6 +118,7 @@ export type BlockResult = {
   block_hash?: string;
   parent_hash?: string;
   block_number?: number;
+  timestamp?: number;
   transaction_commitment?: string | null;
   event_commitment?: string | null;
   receipt_commitment?: string | null;
@@ -158,7 +174,8 @@ export class Chain {
   /**
    * The header of an accepted block asked at `number`; null for a pre-confirmed or hash-less
    * block, which is never indexed. A block of another height, or an accepted block without its
-   * parent or its four commitments, is a BadAnswer: its identity is unknown.
+   * parent, its four commitments or its timestamp, is a BadAnswer: its identity (or its time) is
+   * unknown.
    */
   static header(block: BlockResult, number: number): Header | null {
     if (block.status === "PRE_CONFIRMED" || !block.block_hash) return null;
@@ -178,11 +195,17 @@ export class Chain {
         `block ${number} has no parent or no commitments: its identity is unknown`,
       );
     }
+    if (!Number.isSafeInteger(block.timestamp) || block.timestamp! < 0) {
+      throw new BadAnswer(
+        `block ${number} has no timestamp: its time is unknown`,
+      );
+    }
     return {
       number,
       hash: canonical(block.block_hash),
       parent: canonical(block.parent_hash),
       commitments: commitments.map((value) => canonical(value!)).join(","),
+      timestamp: block.timestamp!,
     };
   }
 

@@ -7,6 +7,10 @@
 // rebuild's; stops and restarts the indexer and checks it resumes; rebuilds from the deployment
 // block and compares; and measures as SPK-11 did. Its figures go to .scenario-results.txt and to
 // the console.
+//
+// IDX-01b (queries.scenario.ts, after this describe): the queries against what the emitter sent, block time moved by
+// devnet_increaseTime, the subscriptions read by the client library through a reorg, R3's stale
+// and vanished heads, and the measures on 10 000 lots.
 import {
   appendFileSync,
   mkdtempSync,
@@ -21,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Chain, httpRpc, sameBlock, type Header } from "../src/chain.ts";
 import { Store, TABLES } from "../src/store.ts";
 import { localNode, type LocalNode } from "./node.ts";
+import { describeQueries } from "./queries.scenario.ts";
 import { get, startIndexer, type RunningIndexer } from "./run-indexer.ts";
 
 const nodeUrl = process.env.NODE_URL;
@@ -608,3 +613,5 @@ describe.skipIf(!nodeUrl)("the indexer on the local node", () => {
     expect(await stop(pruned)).toBe(0);
   });
 });
+
+describeQueries(nodeUrl, PACKAGE, out);
