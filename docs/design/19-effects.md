@@ -1,6 +1,8 @@
 # 19 — Effects: the catalogue and the resolution order
 
-> Status: **Draft v0.4** (DES-04, D-150). v0.4: fix loop 3: the executor's dispatch (the implicit
+> Status: **v0.5, decided** (DES-04, D-150, **D-155**). v0.5: the project manager's decisions written
+> in (D-155); signed armor with D-140's zero floor (F-20); a false guard in both executor branches
+> (F-15); the registry-call figure marked an estimate owned by ENG-05 (F-16). v0.4: fix loop 3: the executor's dispatch (the implicit
 > weapon hit first, trap placement outside the actors), an activated attack's recovery, signed
 > arithmetic where a quantity is signed, the snapshot repacked in 0 new slots, the potion tag and
 > the weapon's class, the complete registry-read bound and its calls. v0.3: fix loop 2 after the re-audit: the entry's bits
@@ -13,9 +15,9 @@
 > The closed list of what a skill, a condition, an item, a modifier or a goblin can do to an
 > instance, and the exact order in which a tick resolves it. CBT-01 freezes the combat interfaces
 > from it; the contracts and the client's TypeScript mirror (SPK-4, D-140) follow it.
-> **Rules marked ⟨FX-n⟩ are escalations** the design documents do not settle: the text states the
-> recommendation, which stands only once the project manager has decided it (D-150). §9 groups
-> them and marks those CBT-01 needs first. Everything else is read from design/02, 03, 04, 05, 07,
+> **Rules marked FX-n are the project manager's decisions (D-155)** on the questions the design
+> documents did not settle; §9 lists them, the ones CBT-01 needed first marked ★. FX-26 (the Seal of
+> Capture) is deferred to after the MVP. Everything else is read from design/02, 03, 04, 05, 07,
 > 14, 15, 17, 18 and ENG-01, cited. No number here is a balance value.
 
 ## 1. Principles
@@ -79,9 +81,9 @@ is the source's rank in the skill's attribute: a member's from its snapshot (4 b
 0–15), a goblin's from its caste sheet (§7.3). Potions, modifiers and terrain traps do not scale
 (`v0 = v12`, `d0 = d12`).
 
-**Ranks 13–15** ⟨FX-0b⟩: the recommendation extrapolates the line up to 15 (the baseline scales
-beyond 12). The content pipeline then checks `value(15)` and `value(0)` against the kind's bounds,
-and every rank 0–15 is stored losslessly (§7.2). The other option caps the rank at 12.
+**Ranks 13–15** ⟨FX-0b, decided D-155⟩: the line is extrapolated up to 15 (the baseline scales
+beyond 12). The content pipeline checks `value(15)` and `value(0)` against the kind's bounds, and
+every rank 0–15 is stored losslessly (§7.2).
 
 ### 2.3 Addressing, shape, filter
 
@@ -99,7 +101,8 @@ allies. There is no friendly fire; a dead goblin is neither.
 | 5 | `DISC_3` | within 3, centre included | 37 | design/04's large areas: **no MVP source**; FX-21, FX-33 |
 
 A tile outside the window is skipped (the window is the board of the tick, design/02); walls hold no
-actor; radius 1 needs no line of sight from the centre, radius 2 and 3 is FX-21. How the actors of
+actor; radius 1 needs no line of sight from the centre, radius 2 and 3 is not used by MVP content until its execution cost is measured,
+and its line of sight is decided then (FX-21, D-155). How the actors of
 all a carrier's entries are ordered and when they are taken is §5.14.
 
 ### 2.4 Guards: subject and time
@@ -159,7 +162,7 @@ lightning, 7 earth (elemental), 8 shadow, 9 holy (neither: FX-23).
 | 2 | Poison | −4 health pips | yes | same |
 | 3 | Burning | −7 health pips | yes | same |
 | 4 | Crippled | a move costs 2 ticks per tile (a member's move; a goblin: FX-15) | yes | same |
-| 5 | Knocked down | cannot act (§5.2; FX-7); critical from any arc for a weapon hit; interrupts (§5.9); reapplied while held: FX-31 | yes | same |
+| 5 | Knocked down | cannot act (§5.2; FX-7); critical from any arc for a weapon hit; interrupts (§5.9); reapplied while held: refreshed like any condition (FX-31) | yes | same |
 | 6 | Dazed | spells take +1 tick; a hit interrupts a spell in activation | **P** | FX-22 |
 | 7 | Blind | a weapon hit misses unless its target is on the attacker's front tile | **P** | FX-22 |
 | 8 | Weakness | −33 % to the holder's weapon hits | **P** | FX-22 |
@@ -184,7 +187,7 @@ Adrenaline is changed by rules, not entries (§5.12).
 | 13 | `BLOCK` | holding | `v` charges 1…63 (scaled); `d` | blocks the next `v` weapon hits it can block (§5.6); ends at 0 charges or its deadline | Brace |
 | 14 | `EVADE` | holding | `param` 1 melee; `d` | evades melee weapon hits while it lasts (FX-11) | Sidestep |
 | 15 | `ON_ATTACK_CONDITION` | holding | `param` condition; `v` its duration 1…32,767; `d` **or** `charges` (one of them non-zero) | each weapon hit landed by the holder spends a charge (if any) and applies the condition to a living target (§5.5 steps 7–8) | Venom Coat (`d`), oils "for N attacks" (`charges`, `d = 0`) |
-| 16 | `MOVEMENT` | holding | FX-18 | draughts' "+movement" | design/07 |
+| 16 | `MOVEMENT` | holding | `d` | while it lasts, the holder's move costs 1 tick even when Crippled (FX-18) | draughts' "+movement" (design/07) |
 
 **Charge-only effects** (`charges > 0`, `d = 0`) have **no time limit** (design/07: oils "for N
 attacks"): their deadline is stored as `MAX_CLOCK` (2^28 − 1), which the clock never reaches (an
@@ -208,7 +211,7 @@ tables:
 | 9 | Trap | placed on a tile, triggers when a foe enters (§5.11) | design/03 |
 | 10 | Glyph | modifies the next spell | design/03 |
 | 11 | `Skill` | FX-25: interruptible; not a spell for Dazed, glyphs, quick cast | design/03 starter tables |
-| 12 | Seal of Capture | FX-26 (**P**) | design/03 |
+| 12 | Seal of Capture | **post-MVP**: FX-26 deferred (D-155) | design/03 |
 
 ### 3.5 Control and placement
 
@@ -223,11 +226,11 @@ tables:
 
 | Id | Kind | Named by | Missing |
 |---|---|---|---|
-| 19 | `REVIVE` | design/07 | FX-18 |
-| 20 | `REVEAL_FLOOR` | design/07 | FX-18 |
+| 19 | `REVIVE` | design/07 | post-MVP (FX-18): trigger, amount and once-per-expedition state designed then |
+| 20 | `REVEAL_FLOOR` | design/07 | post-MVP (FX-18): designed with the reveal bound |
 | 21 | `ON_SKILL_USE` | design/05, Hexer | FX-32: a **placeholder**, no behaviour |
 | 22 | `SUMMON` | design/05, design/03 | FX-20 |
-| 23 | `CAPTURE` | design/03, Seal of Capture | FX-26 |
+| 23 | `CAPTURE` | design/03, Seal of Capture | **post-MVP**: FX-26 deferred (D-155) |
 | — | Paladin "protects the lord", Beguiler "illusions" | design/05, design/03 | **not catalogued** (FX-20) |
 
 ## 4. The catalogue: passive effects
@@ -244,7 +247,7 @@ An `ARMOR_SET` bonus is one passive.
 | Id | Passive | Param; unit | When | Sources |
 |---|---|---|---|---|
 | 40 | `MAX_HEALTH` | ± health | snapshot | Fortitude +30, insignias, runes and their costs (design/15) |
-| 41 | `ARMOR` | ± armor; guard 0, 3 or 4 | snapshot; guarded: at each hit | +4…+5; insignias +10 in a stance / enchanted; shield |
+| 41 | `ARMOR` | ± armor, signed; guard 0, 3 or 4 (a guarded one −18…+18) | snapshot; guarded: at each hit | +4…+5; insignias +10 in a stance / enchanted; shield |
 | 42 | `ARMOR_VS` | damage type; + armor | each hit of that type | +4…+7; classes' innate (+20 physical, +30 elemental) (FX-23) |
 | 43 | `MAX_ENERGY` | ± energy | snapshot | light armor, Wellspring, "−5 energy" |
 | 44 | `ENERGY_REGEN` | ± pips | snapshot | light armor; energy-on-hit's cost |
@@ -271,7 +274,7 @@ An `ARMOR_SET` bonus is one passive.
 60) are summed per statistic (per scope and guard for 47 and 48, per type for 42); 51 is summed per
 condition; for 54, the lowest N counts (as "only the highest rune counts", design/15); 55 keeps
 **one counter per quick-cast modifier held**, at most 2 (§7.2), each independent; 56 follows
-design/15's rune rule. Two exceptions to summing, from design/15 and the auditor: **health runes
+design/15's rune rule. Two exceptions to summing (design/15; FX-43): **health runes
 of the same kind do not add up** (the highest of a kind counts; other `MAX_HEALTH` sources add), and
 **`DAMAGE_TYPE` is never summed**: it is the weapon's type, replaced by a `DAMAGE_TYPE` modifier on
 the weapon, the only slot type the pipeline gives it.
@@ -402,9 +405,12 @@ One source, one target, one hit of class `K` with the carrier's hit modifiers (�
    from, in the target's arcs.
 2. **Miss, block, evade** (§5.6), for `WEAPON`. A stopped hit ends here: nothing of it or of its
    carrier applies to this target, no charge but a block's is spent, not a hit.
-3. **Armor** = the target's armor + `ARMOR` effects + guarded `ARMOR` passives + `ARMOR_VS` (all
-   non-negative); then `armor − ⌊armor × p / 100⌋`, `p` the sum of the penetrations that apply to `K`
-   capped at 100 (FX-9): never below 0, since `p ≤ 100`.
+3. **Armor**, signed (F-20): `a` = the target's unguarded armor (the snapshot's signed value, or the
+   caste's) + its `ARMOR` effects + its guarded `ARMOR` sums whose guard holds (signed; subject the
+   target) + `ARMOR_VS` of the damage type. **D-140's floor**: `a⁺ = max(0, a)`. Then penetration:
+   `a⁺ − ⌊a⁺ × p / 100⌋`, `p` the sum of the penetrations that apply to `K` capped at 100 (FX-9). The
+   final armor, after bonuses and penetration, is never below 0; a negative contribution is
+   permitted and counts before the floor.
 4. **Damage**: the exponent `x = strength − armor` is **signed** and clamped to the table's range
    **[−160, +80]** (design/04, D-140), then `⌊base × table(x) / 2^16⌋`; the sum of the percents that apply to
    `K` (≥ −100) applied once, truncated; clamped to [0, 65,535]; then FX-19's halving if held.
@@ -440,7 +446,7 @@ item id** (resolved through the belt slot the effect stores: two belt slots hold
 are one carrier). The caster does not enter it. A condition is identified by its id.
 
 **Conditions**: different ones stack (their pips are summed); the same one refreshes, `D = max(D_old,
-D_new)` (FX-6); Knocked down: FX-31. A dead goblin takes nothing.
+D_new)` (FX-6); Knocked down likewise (FX-31). A dead goblin takes nothing.
 
 **Holding effects**, in order:
 
@@ -563,8 +569,9 @@ executor**; the hit pipeline (§5.5) resolves one hit and never iterates entries
 **Execution**, for a carrier with its source, its address and its class:
 
 1. **Guards**: every entry's guard is evaluated once, from the state now (§2.4, FX-40).
-2. **Placement** (a `TRAP` carrier): the trap is placed on the target tile (§5.11), **outside any
-   actor iteration**. The payload is **not** executed; it waits for the trigger. The executor stops
+2. **Placement** (a `TRAP` carrier), **only if the `TRAP` entry's guard held**: a false guard places
+   nothing and does not execute the payload; the carrier's costs stay paid. Otherwise the trap is
+   placed on the target tile (§5.11), **outside any actor iteration**. The payload is **not** executed; it waits for the trigger. The executor stops
    here: a placement has no actor.
 3. **Hit modifiers**: the `ATTACK_BONUS` and `HIT_PENETRATION` entries whose guard held are kept for
    the carrier's hit; they are not operations of their own.
@@ -573,7 +580,9 @@ executor**; the hit pipeline (§5.5) resolves one hit and never iterates entries
    The **actor list** is their union in ascending tile index (X-7's exception); a single attacked
    entity is a list of one.
 5. **For each actor of the list, in order**:
-   - **the hit first**, if the actor is in the hit's set: §5.5 with the kept hit modifiers.
+   - **the hit first**, if the actor is in the hit's set **and the hit's guard held** (a `DAMAGE`
+     entry's guard; an implicit weapon hit has none): §5.5 with the kept hit modifiers. A false
+     guard suppresses the hit on every actor; the other entries whose guards held still apply.
      **Stopped** (blocked, evaded, missed) → nothing else of this carrier applies to this actor;
    - then the other entries whose set holds the actor, in entry order, **only if the actor is alive**
      and its guard held: instant kinds apply; a holding entry goes through §5.7 on that actor.
@@ -590,18 +599,19 @@ list is empty does nothing but its carrier-level effects; its costs stay paid.
 |---|---|
 | Energy cost after reductions below 0 | 0 |
 | Activation after reductions below 1, non-instant | 1 (design/03) |
-| A rank 13–15 | FX-0b |
+| A rank 13–15 | extrapolated along the line (FX-0b) |
 | A value outside its kind's bounds | refused by the pipeline; at play, clamped to the kind's bounds |
 | A duration carried as a value above 32,767 | refused by the pipeline (§2.1) |
 | Effective duration | `effective_duration`'s caps, ≤ `MAX_DURATION` |
 | Heal or energy past max or below 0; health pips past ±10 | clamped |
-| Armor below 0; penetration above 100 % | cannot happen (`p` capped at 100); 100 % |
+| Armor after bonuses below 0 (a negative modifier) | 0 before penetration (D-140, F-20); after penetration it stays ≥ 0 since `p ≤ 100` |
+| Penetration above 100 % | 100 % |
 | The exponent `strength − armor` outside [−160, +80] | clamped to the table's range (design/04, D-140) |
 | Percent sum below −100; damage outside [0, 65,535] | −100; the nearest bound |
 | A 0-damage hit | a hit |
 | Life steal above the target's health | the target's health |
 | A cure of an absent condition; anything on a dead goblin | nothing |
-| Knocked down reapplied while held | FX-31 |
+| Knocked down reapplied while held | refreshed, `max(old, new)` (FX-31) |
 | The adventurer knocked down | only Wait (FX-7) |
 | A target illegal at resolution | nothing, costs paid |
 | A carrier with no actor | carrier-level effects only |
@@ -656,7 +666,8 @@ needs, besides ENG-01's fields:
 | Two quick-cast modifiers: attribute 4 + N 8 each | 24 | 2 × 12. At most 2: `QUICK_CAST_EVERY_N` is held only on the weapon and the off-hand (the pipeline gives it one slot type) |
 | `CONDITION_DURATION`: condition 4 + percent 6 | 10 | one prefix, on the weapon only (design/15: prefixes on weapons) |
 | `ENCHANT_DURATION` percent (≤ 63) | 6 | — |
-| `ARMOR` in a stance, `ARMOR` enchanted | 16 | 2 × 8 |
+| `ARMOR` in a stance, `ARMOR` enchanted: two **signed** sums, `i8` each (F-20) | 16 | 2 × 8 |
+| The **unguarded** armor, signed (a negative modifier is permitted), `i16`, replacing ENG-01's `u8` `armor` (40–47 of `MemberStats`, freed) | 16 | 1 × 16 |
 | `KNOCKDOWN_FLAT` (≤ 3) 2; `HALVE_FIRST_HEAVY_HIT` held 1 | 3 | — |
 | `ARMOR_VS` per damage type, 9 × 6 bits (≤ 63, saturated: FX-23), replacing vs physical / vs elemental (16) | 54 | 9 × 6 |
 
@@ -667,17 +678,17 @@ but **other snapshot words have room** (F-17): `MemberBar` holds 8 skill ids (0�
 slot (128–135), leaving **136–249 = 114 bits** free; `MemberStats` has 200–249 = **50** free (high)
 and, once vs physical / vs elemental go, 48–63 = **16** (low).
 
-**The recommended layout, 0 new slots** (FX-24; the auditor's placement):
+**The layout, 0 new slots** (FX-24, D-155):
 
 | Word (ENG-01) | Placement | Bits | Limb check |
 |---|---|---:|---|
-| `MemberBar` | damage sums 136–183 (48), penetration sums 184–207 (24), quick-cast pairs 208–231 (24) | 96 | high limb 128–249: 8 (elite) + 96 = 104 ≤ 122; free 232–249 = **18** |
-| `MemberKit` | high limb: life steal 8 + energy on hit 8 + condition duration 10 + enchantment 6 + double adrenaline N 8 + health bonus 16 + armor in a stance / enchanted 16 + knock-down 2 + halving 1 (the conditional damage, threshold and quick-cast N fields move to `MemberBar`) | 75 | 75 ≤ 122; free **47** |
+| `MemberBar` | damage sums 136–183 (48), penetration sums 184–207 (24), quick-cast pairs 208–231 (24), **unguarded armor `i16` 232–247 (16)** | 112 | high limb 128–249: 8 (elite) + 112 = 120 ≤ 122; free 248–249 = **2** |
+| `MemberKit` | high limb: life steal 8 + energy on hit 8 + condition duration 10 + enchantment 6 + double adrenaline N 8 + health bonus 16 + armor in a stance / enchanted 16 (two `i8`) + knock-down 2 + halving 1 (the conditional damage, threshold and quick-cast N fields move to `MemberBar`) | 75 | 75 ≤ 122; free **47** |
 | `MemberStats` | `ARMOR_VS`: 2 types at 48–59 (low), 7 types at 200–241 (high); ENG-01's single `penetration` (168–175) is freed | 54 | 12 ≤ 16 low; 42 ≤ 50 high |
 
 So the snapshot is written as ENG-01 froze it (8 words, the same writes at create and at a gate);
-only the meaning of free bits changes. **A separate word `MemberMods` is optional**, a layout
-choice with a cost: +1 key per member, whose **first write costs N = 453,524** instead of an
+only the meaning of free bits changes. **A separate word `MemberMods` was not chosen** (FX-24); it
+would have cost +1 key per member, whose **first write costs N = 453,524** instead of an
 overwrite, every later write (each create and gate) **O = 32,072**; never written in play; one more
 storage read when a tick needs it (unpriced by ENG-01, ENG-07 measures).
 
@@ -692,6 +703,16 @@ maul, 4 bow, 5 staff, 6 wand; CBT-01 fixes that this field is the class) and `da
 inscription; 2 set bonuses), so each `i8` sum lies in [−126, +126] ⊂ [−128, 127]. A `PENETRATION`
 passive is bounded to [0, 36]: 7 × 36 = 252 ≤ 255 (`u8`), capped at 100 at use.
 
+**Signed armor (F-20).** A **guarded** `ARMOR` passive (guard 3 or 4) lives only in an insignia slot
+(one per armor piece, 5) or a set bonus (2), and the pipeline bounds its value to **[−18, +18]**: at
+most 7 per guard, so each `i8` sum lies in [−126, +126] ⊂ [−128, 127]. The **unguarded** armor is
+the weighted rating of the pieces and the shield (each `u8`, design/15's weights) + personalisation +
+unguarded `ARMOR` passives, each bounded by the pipeline to [−255, +255], at most 5 per item on 7
+items plus 2 set bonuses = 37: `|a| ≤ 255 + 255 + 37 × 255 = 9,945 < 32,767`, so `i16` holds it
+exactly. At a hit, `a` is summed in `i32` and floored at 0 before penetration (§5.5 step 3). A
+goblin's armor (caste `u8`, `ARMOR` effects `0…255`, `ARMOR_VS`) is never negative; the floor holds
+for it as for a member.
+
 **Registry records** (not yet laid out; ENG-03 laid out five kinds):
 
 | Record | Parts | Layout | Arithmetic |
@@ -702,7 +723,7 @@ passive is bounded to [0, 36]: 7 × 36 = 252 ≤ 255 (`u8`), capped at 100 at us
 | `ARMOR_SET` | 1 | low: 5 piece bases × 16 = **80**; high: 2 × 53 = **106 ≤ 122** | — |
 | `CASTE` | 2 | §7.3, **243 bits** over 4 limbs | §7.3 |
 
-**Cost.** With the recommendation, **0 new slots**: every addition of this document fits the
+**Cost.** With this layout, **0 new slots**: every addition of this document fits the
 frozen words (tables above). After the MVP: the four conditions (FX-22, +1 word per member and per
 goblin), summons (FX-20), revive's state (FX-18).
 
@@ -739,7 +760,13 @@ each from the frozen records and the rules:
 - **Assumptions.** The generation rows are the record kinds of ENG-01 §3.5 that a reveal can need,
   with their per-invocation bounds; ENG-05 confirms which it reads. Standalone actions (`mine`,
   `open`, `barter`) have `T = 0` and no reveal. FX-29's lazy cleanup reads nothing more.
-- The call count and its price are **FX-46**.
+- **The call count is an estimate, not a rule** (F-16, D-145, D-155). `bundle` takes explicit
+  `(kind, id)` requests and follows no reference, so a fresh reveal can need dependent rounds
+  (`LOCATION → SPAWN_TABLE → PACK → CASTE → SKILL`, each id read from the previous answer); the
+  per-kind bounds of the generation rows are assumed, not derived. **ENG-05 defines the read
+  schedule** (its rounds, and any cache or request list, which needs its own approval); until then
+  the three-call figure above is an estimate. What is decided (FX-46) is the form: calls of at most
+  32 records.
 
 ### 7.3 The caste sheet's shape (DES-06 fills the values)
 
@@ -785,7 +812,7 @@ The adrenaline cap is derived (its skills' highest cost).
 | Stone Skin | design/03 | 4; 10 |
 | Static Lash | design/03 | 2; 1 (lightning), 12 (25 %) |
 | Deep Draw | design/03 | 10; 9 |
-| Seal of Capture | design/03 | 12; 23 (**P**, FX-26) |
+| Seal of Capture | design/03 | 12; 23 (**post-MVP**, FX-26 deferred, D-155) |
 | Might, Fieldcraft, Wellspring | design/03 | 48, 57, 43 |
 | Grace, Harvest, Quickness | design/03 | 61–63 (**P**) |
 | The nine conditions | design/04, 09 | §3.2 |
@@ -811,16 +838,17 @@ The adrenaline cap is derived (its skills' highest cost).
 | Shouts and fights alerting | design/18 | skill kind 6; §5.5 step 9 |
 | Chests, remains, nodes, collectors, levers, braziers, landmarks | design/18, 15 | not effects |
 
-## 9. Escalations (open; the project manager decides, D-150)
+## 9. Decisions (D-155)
 
-Numbers are stable. **★ = CBT-01 needs it before freezing**: the decision changes a field, an
-enumeration, a legal combination, or a step or order of §5's functions. Without ★: a value or
-content only, or post-MVP. The options, the reasoning and the auditor's view are in the task's
-report.
+The project manager decided every question below as written here (D-155, 2026-09-29); **FX-26 is
+deferred to after the MVP**. The numbers are the decisions' references in the text. **★** marks the
+decisions CBT-01 needed before freezing (they change a field, an enumeration, a legal combination,
+or a step or order of §5's functions); the others concern values, content or what comes after the
+MVP. The questions, their alternatives and the auditor's views are in DES-04's report.
 
 **A. Time, perception, activation**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-0 ★ | The ⟨FX-0⟩ conventions; **FX-0b** ranks 13–15 | as written; extrapolate to 15 |
 | FX-1 ★ | Activation resolves in step 1 (design/02) or at the tick's end (design/04) | step 1 |
@@ -831,11 +859,11 @@ report.
 | FX-8 ★ | The adventurer at 0 mid-tick | §5.13 |
 | FX-15 ★ | A goblin's act of cost `k > 1` | recovery in the activation field (§5.2): `B = T + k − 1` after a plain attack, `B = A + k − n − 1` after an activated one (`k ≥ n + 2`) |
 | FX-29 ★ | A goblin's activation while frozen at `A` | lapses at `A`, applied lazily |
-| FX-41 ★ | **New.** Perception and the awake set within a tick | perception at step 0 before the selection; the set fixed for the tick, not refilled |
+| FX-41 ★ | Perception and the awake set within a tick | perception at step 0 before the selection; the set fixed for the tick, not refilled |
 
 **B. Hits and damage**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-9 ★ | Penetration: flat or percent | percent, summed, ≤ 100 |
 | FX-10 ★ | What is a hit | any class unstopped, 0 damage included, traps included |
@@ -843,32 +871,32 @@ report.
 | FX-19 ★ | *Hob-breaker*'s halving | final damage of a weapon hit; `2h ≥ max ∧ 2(h ⊖ damage) < max`; spent when it triggers |
 | FX-23 ★ | Shadow and holy; per-type armor | neither class bonus; 9 × 6 bits, saturated at 63 |
 | FX-27 ★ | Arcs for spells; scopes | weapon hits only; `WEAPON` by default |
-| FX-28 ★ | Strength of bombs and traps | **changed**: a bomb's from its recipe (a field of `ITEM`); traps `3 × level` |
+| FX-28 ★ | Strength of bombs and traps | a bomb's from its recipe (a field of `ITEM`); traps `3 × level` |
 
 **C. Held effects and carriers**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-6 ★ | Condition refresh | `max(old, new)` |
 | FX-7 ★ | Knocked down: actions, block, evasion | Wait only; neither |
 | FX-13 ★ | Slots full | earliest deadline, ties lowest slot; a goblin's is replaced |
 | FX-30 ★ | Potency on refresh | the later-deadline application, whole; the new one on a tie |
-| FX-31 ★ | Knocked down reapplied while held | **changed**: refreshed like any condition |
-| FX-40 ★ | **New.** When a carrier's guards are evaluated | once per carrier's execution, before anything applies |
-| FX-42 ★ | **New.** The identity of a held effect | its carrier (a skill id, a potion's item id), not the caster, not the belt slot |
+| FX-31 ★ | Knocked down reapplied while held | refreshed like any condition |
+| FX-40 ★ | When a carrier's guards are evaluated | once per carrier's execution, before anything applies |
+| FX-42 ★ | The identity of a held effect | its carrier (a skill id, a potion's item id), not the caster, not the belt slot |
 | FX-45 ★ | Legal carriers | §5.14: one hit (implicit for attacks), the hit first, one holding entry, hit modifiers on the hit's set, `TRAP` first with its payload deferred |
 
 **D. Adrenaline, counters, passives**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-12 ★ | Adrenaline's cap, out of combat, decay | as §5.8, §5.12; a code constant `ADRENALINE_DECAY` until BAL-01 |
-| FX-39 ★ | Which spell takes the quick-cast bonus | **now ★**: the `N`-th spell with activation ≥ 1, counted at its start; spent if interrupted |
+| FX-39 ★ | Which spell takes the quick-cast bonus | the `N`-th spell with activation ≥ 1, counted at its start; spent if interrupted |
 | FX-43 ★ | Passives held twice | summed per statistic, scope, guard and type; health runes of one kind not added; `DAMAGE_TYPE` never summed; the lowest N for double adrenaline; one counter per quick-cast modifier (≤ 2), bonuses added, activation ≥ 1 |
 
 **E. Areas, bombs, traps**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-14 ★ | Terrain traps' content, lifetime, trigger, full chunk | a `SKILL` id; until triggered; once; invalid when full |
 | FX-33 ★ | design/04's 18 and 36 tiles | discs with their centre (19, 37) |
@@ -878,23 +906,23 @@ report.
 
 **F. Content shape**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-25 ★ | The generic `Skill` kind | interruptible; not a spell for Dazed, glyphs, quick cast |
 | FX-18 ★ | Potions: "+movement", revive, reveal, bombs | a tile flag in `Item`, range and strength in `ITEM`, line of sight |
 | FX-16 | Rime Shard's slow | Crippled |
 | FX-17 | Second Wind's "more" | a second guarded `HEAL` |
 | FX-20 | Shaman "shields", Paladin, summons, Wolf rider | `ARMOR`; the rest waits |
-| FX-26 | The Seal of Capture | post-MVP; a standalone action on remains |
+| FX-26 | The Seal of Capture | **deferred to after the MVP** (D-155); its content (§3.4 skill kind 12, §3.6 kind 23) is post-MVP |
 | FX-32 | The Hexer's trigger | waits for DES-06 |
 
 **G. Storage and reads**
 
-| # | Question | Recommendation |
+| # | Question | Decided (D-155) |
 |---|---|---|
 | FX-22 ★ | The four post-MVP conditions | one more word per member and per goblin when they ship |
-| FX-24 ★ | The inventory of §7.2 | **changed again**: the lossless snapshot repacked into `MemberBar`, `MemberKit`, `MemberStats`, **0 new slots**; `MemberMods` only as an optional layout |
-| FX-46 ★ | The registry reads exceed `MAX_READ`: `36 + 5C + T` records | calls of at most 32 records, `⌈(36 + 5C + T) / 32⌉`: **3 at the MVP's worst** (71 records, 4.28 M of reads), priced by ENG-07 |
+| FX-24 ★ | The inventory of §7.2 | the lossless snapshot repacked into `MemberBar`, `MemberKit`, `MemberStats`, **0 new slots**, with the signed armor of F-20 |
+| FX-46 ★ | The registry reads exceed `MAX_READ`: `36 + 5C + T` records | calls of at most 32 records; the count (3 at the MVP's worst, 71 records, 4.28 M of reads) is an **estimate** until ENG-05 defines the read schedule (D-145, D-155), priced by ENG-07 |
 
 ## 10. Worked examples
 
