@@ -20,14 +20,15 @@ use snforge_std::{
 };
 
 #[test]
-#[available_gas(l2_gas: 4200662)] // ceil(1.05 × 4000630 measured)
+// gas: raised, it calls the stub `set_build` now that `register` is implemented (ENG-04)
+#[available_gas(l2_gas: 4201817)] // ceil(1.05 × 4001730 measured)
 fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
     let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
     assert(IHubAdminDispatcher { contract_address: address }.version() == HUB_VERSION, 'version');
     #[feature("safe_dispatcher")]
-    let registered = IHubSafeDispatcher { contract_address: address }.register();
-    assert(*registered.unwrap_err().at(0) == NOT_IMPLEMENTED, 'register is a stub');
+    let set = IHubSafeDispatcher { contract_address: address }.set_build(1, 0, 0, 0);
+    assert(*set.unwrap_err().at(0) == NOT_IMPLEMENTED, 'set_build is a stub');
 }
 
 #[test]
