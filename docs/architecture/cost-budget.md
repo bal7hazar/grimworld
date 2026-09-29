@@ -88,20 +88,23 @@ requires. Initialised means the instance slot already holds the keys; cold, that
 
 | Kind, worst branch | Initialised | Cold |
 |---|---:|---:|
-| `enter`, a later entry (belt reserve, snapshot, two events) | 3.73M | — |
-| `enter`, the adventurer's first | 11.77M | — |
-| `leave` | 1.95M | — |
+| `enter`, a later entry (belt reserve, snapshot, two events) | 3.73M | 6.26M |
+| `enter`, the adventurer's first | 3.76M | 11.77M |
+| `enter_rift`, the adventurer's first entry (a Rift can be its first instance) | 4.03M | 12.46M |
+| `leave`, `travel_back` to a hub | 1.95M | 1.95M |
 | `loot`, a boss's three items | 3.68M | 6.63M |
-| `open`, goblins near | 9.13M | 23.79M |
-| `barter`, goblins near | 8.94M | 21.49M |
-| `mine`, goblins near (3 ticks, E-21: its class's bound is 58M) | 20.56M | 57.31M |
-| An action sent alone, no goblin near | 2.5M to 3.0M | — |
-| A played batch, 16 goblins at most (E-16), the window at its high end | 47.33M | 62.01M without E-1's weight |
+| `open`, goblins near, with an objective its tick completes | 9.25M | 24.33M |
+| `barter`, goblins near, with an objective | 9.05M | 22.02M |
+| `mine`, goblins near, with an objective (3 ticks, E-21: its class's bound is 58M) | 20.67M | 57.85M |
+| `open`, `mine`, `barter` refused on the content version (D-141) | 1.19M | 1.19M |
+| An action sent alone, no goblin near | 2.5M to 3.1M | — |
+| A played batch, 16 goblins at most (E-16), first records weighed (E-1), the window at its high end | 47.34M | 48.54M |
 
-ENG-01b completes three branches (an objective completed by a standalone action's ticks, `barter`'s
-price refusal, `enter_rift` at an adventurer's first entry: `mine` moves to about 57.8M cold,
-`enter_rift` to about 12.5M). The batch's 40M target and weight 10 stand until ENG-07 measures a tick
-inside a batch. The expedition S1 is then estimated at **$0.556** (ENG-01 §10.2); the levers, in the
+Figures after ENG-01b ([#93](https://github.com/bal7hazar/grimworld/pull/93)): every branch from the
+union of its keys, the content version's felt included. **A batch changes at most 70 storage
+slots** (a reveal with an objective and defeat). The capped batch stays above 40M whether its slot
+is cold or not; only ticks that share their reads and writes (22.2M to 28.7M, ENG-01 §10.1) bring it
+under. The batch's 40M target and weight 10 stand until ENG-07 measures a tick inside a batch. The expedition S1 is then estimated at **$0.556** (ENG-01 §10.2); the levers, in the
 order they would be pulled: `mine` inside `play` (E-18), `enter`'s snapshot as calldata (E-7), the
 per-action events (E-17), then the target itself.
 
