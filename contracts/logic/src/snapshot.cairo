@@ -15,7 +15,9 @@ use crate::packing::{
     P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
     P96, join, low_field, split,
 };
+use crate::durations::MAX_DURATION_BONUS_PERCENT;
 use crate::professions::ProfessionTrait;
+use crate::types::passive::{Passive, id};
 
 /// The widest unguarded armor (design/19 §7.2, F-20; F-21 settled by CBT-01): the weighted rating
 /// of the five pieces (each `u8`, weights summing to 1: at most 255) and the shield's (`u8`, 255),
@@ -35,6 +37,7 @@ pub mod errors {
     pub const CONDITION: felt252 = 'snapshot: condition';
     pub const PERCENT: felt252 = 'snapshot: percent above 63';
     pub const KNOCKDOWN: felt252 = 'snapshot: knock-down above 3';
+    pub const CONDITIONS: felt252 = 'snapshot: two conditions';
 }
 
 /// Every field of the three snapshot words fits its layout (docs/CAIRO.md §7: checks in
@@ -431,6 +434,43 @@ pub fn unpack_kit(word: felt252) -> MemberKit {
         knockdown: knockdown.try_into().unwrap(),
         halving: halving != 0,
     }
+}
+
+/// The snapshot builder's flattening of the kit (design/19 §4, §7.2). ENG-06 builds the rest of
+/// the snapshot with design/15's formulas; the rules here are the ones a flattening defect was
+/// found in (CBT-9).
+#[generate_trait]
+pub impl MemberKitImpl of MemberKitTrait {
+    /// `CONDITION_DURATION` held: `(condition, percent)`, `(0, 0)` for none. Summed **per
+    /// condition** (§4, FX-43: a prefix's benefit and cost may name the same one, 33 + 10 = 43),
+    /// then capped at `MAX_DURATION_BONUS_PERCENT` (ENG-01 §3.1). The kit holds one condition
+    /// ("one prefix"): two conditions are refused, as the validators refuse them on one source.
+    fn condition_duration(held: Span<Passive>) -> (u8, u8) {
+        SourceBoundsAssert::assert_source_bounds(held);
+        let mut condition: u8 = 0;
+        let mut percent: u32 = 0;
+        for passive in held {
+            if *passive.id == id::CONDITION_DURATION {
+                assert(condition == 0 || condition == *passive.param, errors::CONDITIONS);
+                condition = *passive.param;
+                let value: i32 = (*passive.max).into();
+                percent += value.try_into().unwrap();
+            }
+        }
+        if percent > MAX_DURATION_BONUS_PERCENT {
+            percent = MAX_DURATION_BONUS_PERCENT;
+        }
+        (condition, percent.try_into().unwrap())
+    }
+}
+
+/// D-157 G: DES-06 gives every statistic a **per-source bound**, signed where it can be negative,
+/// which the validators and the flattening prove. Until DES-06 lands, this hook checks nothing: a
+/// production snapshot waits for it (D-157), and no bound is guessed here.
+#[generate_trait]
+pub impl SourceBoundsAssert of SourceBoundsAssertTrait {
+    #[inline(always)]
+    fn assert_source_bounds(held: Span<Passive>) {}
 }
 
 pub impl MemberKitStorePacking of starknet::storage_access::StorePacking<MemberKit, felt252> {

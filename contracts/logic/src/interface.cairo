@@ -3,7 +3,7 @@
 
 use starknet::ContractAddress;
 use crate::snapshot::{Snapshot, TaskEntry};
-use crate::types::tick::{Content, World};
+use crate::types::tick::{Content, Words};
 use crate::types::{InstanceId, Outcome};
 
 /// The results interface (ADR-0001, *Keeping the exit open*): what an instance hands to the
@@ -112,7 +112,7 @@ pub trait IFate<T> {
 /// `ITickLibraryLibraryDispatcher`, the class hash being its configuration.
 #[starknet::interface]
 pub trait ITickLibrary<T> {
-    /// Runs `ticks` world ticks over `world` with the batch's `content`, stopping after a tick
-    /// that defeated the adventurer; returns the world.
-    fn run(self: @T, world: World, content: Content, ticks: u8) -> World;
+    /// Runs `ticks` world ticks over the stored `words` with the batch's `content`, stopping after
+    /// a tick that defeated the adventurer; returns the words.
+    fn run(self: @T, words: Words, content: Content, ticks: u8) -> Words;
 }

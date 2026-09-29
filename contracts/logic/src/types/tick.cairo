@@ -1,18 +1,30 @@
-//! The state a world tick reads and writes, and the content it reads, as value types (CBT-02;
-//! design/19 §5, §7.2). The stored words are the ephemeral package's (`MemberState`,
-//! `MemberTimers`, `MemberEffects`, `Recharges`, `GoblinState`, `GoblinTimers`): the caller
-//! (`play`, ENG-07) reads them once, converts them into these, runs the ticks in one library call
-//! and writes back what changed. Only the fields the pipeline reads or writes are here; a field it
-//! does not know is left as stored. The constants below mirror ENG-01's frozen encodings, and the
-//! ephemeral package's tests pin them against its own (`test_tick_constants`).
+//! The state a world tick reads and writes, and the content it reads (CBT-02; design/19 §5, §7.2).
 //!
-//! The content a tick needs is read **once per batch** and kept in memory (D-145): the sheets below
-//! are the few fields of a `SKILL`, an `ITEM` and a `CASTE` the pipeline reads, extracted once per
-//! batch from the records the caller read.
+//! **Words in, words out.** The library call takes and returns the stored words (`Words`): a
+//! member's four words that change in play (`MemberState`, `MemberTimers`, `MemberEffects`,
+//! `Recharges`, ENG-01 §3.2) with the three snapshot words it reads, a goblin's two (`GoblinState`,
+//! `GoblinTimers`), as `Instances` reads and writes them. Inside the call, each actor's **hot
+//! fields** (what the ticks read and write) are unpacked once (`load`) into a small struct, the
+//! ticks work on them, and they are written back into the words as deltas (`store`). Measured
+//! (CBT-02's report): the words alone cost a limb split per read, a struct of every field cost its
+//! copies; this is the cheapest of the three.
+//!
+//! The words' layouts are the ephemeral package's (it owns the storage); the offsets below are
+//! ENG-01's frozen ones, and the ephemeral package's tests pin `load` and `store` against its
+//! packers (`test_tick_words`).
+//!
+//! Beside the hot fields, each actor carries what the tick derives **once per call** from the
+//! snapshot and the content (D-145: content read once per batch, kept in memory): its maxima, its
+//! regeneration, and each held effect's `REGENERATION` pips at its rank. The executor (CBT-05)
+//! sets an effect's pips and deadline when it holds one.
 
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
-use crate::types::combat::activation;
+use crate::helpers::signed::SignedTrait;
+use crate::packing::{
+    P112, P16, P24, P28, P32, P40, P52, P56, P64, P72, P8, P80, P84, P88, P96, field, low_field,
+    split,
+};
 use crate::types::effect::{EntryTrait, kind};
 
 /// Adrenaline lost a tick out of combat, in quarter strikes (design/19 §5.8, FX-12): a code
@@ -23,8 +35,10 @@ pub const MAX_PIPS: i32 = 10;
 pub const HEALTH_PER_PIP: i32 = 2;
 /// Energy is in thirds (design/03: one pip is one energy every 3 ticks).
 pub const ENERGY_THIRDS: u16 = 3;
-/// Stored regeneration is its pips + 10 (`MemberStats.health_regen`, `Caste.health_regen`).
+/// Stored health regeneration is its pips + 10 (`MemberStats.health_regen`, `Caste.health_regen`).
 pub const REGEN_OFFSET: i32 = 10;
+/// No member activation (`MemberTimers.act_slot`, ENG-01).
+pub const NO_SLOT: u8 = 255;
 
 /// `MemberState.status` (ENG-01 §3.2).
 pub mod status {
@@ -45,50 +59,78 @@ pub mod ai {
     pub const LOOTED: u8 = 7;
 }
 
-/// `MemberState.flags` the tick clears at its step 0: what happened "since the last tick" (ENG-01
-/// §3.2) and "hit this tick" (design/19 §7.2, §5.10).
+/// `MemberState.flags`: what happened "since the last tick" (ENG-01 §3.2) and "hit this tick"
+/// (design/19 §7.2, §5.10), which a tick's step 0 clears; `HALVED` is spent once an instance.
 pub mod flag {
     pub const TURNED: u8 = 1;
     pub const INSTANT: u8 = 2;
     pub const HIT: u8 = 8;
     pub const HALVED: u8 = 16;
-    /// The flags a tick's step 0 keeps: all but `TURNED`, `INSTANT` and `HIT` (`HALVED` is spent
-    /// once an instance).
+    /// The flags step 0 keeps.
     pub const KEPT: u8 = 0xFF - TURNED - INSTANT - HIT;
 }
 
-/// No member activation (`MemberTimers.act_slot`, ENG-01).
-pub const NO_SLOT: u8 = 255;
+// Felt shifts `2^bit` for the writes (a table, docs/CAIRO.md §3).
+const F8: felt252 = 0x100;
+const F24: felt252 = 0x1000000;
+const F28: felt252 = 0x10000000;
+const F32: felt252 = 0x100000000;
+const F48: felt252 = 0x1000000000000;
+const F52: felt252 = 0x10000000000000;
+const F56: felt252 = 0x100000000000000;
+const F64: felt252 = 0x10000000000000000;
+const F80: felt252 = 0x100000000000000000000;
+const F84: felt252 = 0x1000000000000000000000;
+const F96: felt252 = 0x1000000000000000000000000;
+const F128: felt252 = 0x100000000000000000000000000000000;
+const F156: felt252 = 0x1000000000000000000000000000000000000000;
+const F160: felt252 = 0x10000000000000000000000000000000000000000;
+const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
+const F192: felt252 = 0x1000000000000000000000000000000000000000000000000;
+const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
+/// `2^108` in the low limb (a goblin's effect skill) and `2^118` in the high limb (its rank).
+const P108: u128 = 0x1000000000000000000000000000;
+const P118: u128 = 0x400000000000000000000000000000;
 
-/// The five MVP conditions' deadlines on the instance clock (design/19 §3.2, `MemberTimers`,
-/// `GoblinTimers`); 0 is none. A condition is active in tick `T` while `T ≤ D` (§5.1).
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
-pub struct Conditions {
-    pub bleeding: u32,
-    pub poison: u32,
-    pub burning: u32,
-    pub crippled: u32,
-    pub knocked: u32,
-}
-
-/// A held effect (design/19 §5.7, §7.2): its carrier (a skill id, or with `potion` a belt slot
-/// 0–3), its charges, its deadline (`MAX_CLOCK` for a charge-only effect) and the source's rank at
-/// application. `carrier` 0 is none.
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
-pub struct Held {
-    pub carrier: u16,
-    pub potion: bool,
-    pub charges: u8,
-    pub deadline: u32,
-    pub rank: u8,
-}
-
-/// A member as a tick reads and writes it (`MemberState`, `MemberTimers`, `MemberEffects`,
-/// `Recharges`), with the snapshot fields it reads (`MemberStats`, `MemberBar`, `MemberKit`).
+/// A member's stored words, in and out of the call: the four that change in play, and the
+/// snapshot's `MemberStats`, `MemberBar`, `MemberKit`, read only.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct MemberWords {
+    pub state: felt252,
+    pub timers: felt252,
+    pub effects: felt252,
+    pub recharges: felt252,
+    pub stats: felt252,
+    pub bar: felt252,
+    pub kit: felt252,
+}
+
+/// A goblin's stored words, in and out of the call, with its entity id and whether it is in the
+/// tick's awake set (design/19 §5.2; not stored).
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct GoblinWords {
+    pub entity: u16,
+    pub awake: bool,
+    pub state: felt252,
+    pub timers: felt252,
+}
+
+/// What crosses the library call: the clock, the members (ascending entity id), the goblins the
+/// ticks may touch (ascending entity id), the goblins killed in resolution order (`GoblinKilled`)
+/// and whether the adventurer was defeated.
+#[derive(Drop, Serde, Debug, PartialEq)]
+pub struct Words {
+    pub clock: u32,
+    pub members: Array<MemberWords>,
+    pub goblins: Array<GoblinWords>,
+    pub killed: Array<u16>,
+    pub defeated: bool,
+}
+
+/// A member inside the call: its hot fields, what it derives once, and its words (the recharges
+/// are read and written in `words.recharges` directly: only at an activation's end).
+#[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Member {
-    /// Its entity id, 0–7 (M-5).
-    pub entity: u8,
     pub status: u8,
     pub health: u16,
     /// In thirds.
@@ -96,31 +138,33 @@ pub struct Member {
     /// In quarter strikes.
     pub adrenaline: u16,
     pub flags: u8,
-    /// The bar slot being activated (`NO_SLOT` for none), its target and its deadline `A`.
+    /// The bar slot activated (`NO_SLOT` for none), its target, whether it is a tile, `A`.
     pub act_slot: u8,
     pub act_target: u16,
+    pub act_tile: u8,
     pub act_deadline: u32,
-    pub conditions: Conditions,
-    pub effects: [Held; 4],
-    /// Each bar slot's recharge deadline `R`.
-    pub recharges: [u32; 8],
-    // The snapshot, read only.
+    pub bleeding: u32,
+    pub poison: u32,
+    pub burning: u32,
+    pub knocked: u32,
+    /// Each effect slot's deadline (read only in the ticks) and `REGENERATION` pips.
+    pub effect_deadlines: [u32; 4],
+    pub effect_regen: [i8; 4],
     pub max_health: u16,
-    pub max_energy: u8,
-    /// Pips + 10.
-    pub health_regen: u8,
-    /// Pips.
+    /// In thirds.
+    pub max_energy: u16,
+    /// Pips, signed.
+    pub health_regen: i8,
+    /// Pips: thirds a tick.
     pub energy_regen: u8,
-    /// The bar's skill ids (`MemberBar.skills`) and the belt's potion item ids (`MemberKit.belt`).
-    pub bar: [u16; 8],
-    pub belt: [u32; 4],
+    pub words: MemberWords,
 }
 
-/// A goblin as a tick reads and writes it (`GoblinState`, `GoblinTimers`).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+/// A goblin inside the call: its hot fields, what it derives once, and its words (the recharges
+/// are read and written in `state` directly).
+#[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Goblin {
     pub entity: u16,
-    /// In the tick's awake set (design/19 §5.2): set at step 0, not stored.
     pub awake: bool,
     pub ai: u8,
     pub health: u16,
@@ -129,20 +173,46 @@ pub struct Goblin {
     /// In quarter strikes.
     pub adrenaline: u8,
     pub caste: u16,
-    pub level: u8,
-    /// The activation field (§5.2): a caste skill 0–3, `activation::RECOVERING` or
-    /// `activation::NONE`; its target; its deadline `A` or `B`.
+    /// The activation field (§5.2): a caste skill 0–3 with `A`, `activation::RECOVERING` with
+    /// `B`, or `activation::NONE`; its target.
     pub act_slot: u8,
     pub act_target: u16,
     pub act_deadline: u32,
-    pub conditions: Conditions,
-    pub effect: Held,
-    /// Its caste skills' recharge deadlines.
-    pub recharges: [u32; 4],
+    pub bleeding: u32,
+    pub poison: u32,
+    pub burning: u32,
+    pub knocked: u32,
+    pub effect_deadline: u32,
+    pub effect_regen: i8,
+    pub max_health: u16,
+    /// Pips, signed.
+    pub health_regen: i8,
+    /// In thirds.
+    pub max_energy: u8,
+    pub energy_regen: u8,
+    pub state: felt252,
+    pub timers: felt252,
 }
 
-/// The fields of a `SKILL` a tick reads: its kind, activation and recharge, and its
-/// `REGENERATION` entry's line (0, 0 without one).
+/// What the ticks run over, inside the call.
+#[derive(Drop, Debug, PartialEq)]
+pub struct World {
+    pub clock: u32,
+    pub members: Array<Member>,
+    pub goblins: Array<Goblin>,
+    pub killed: Array<u16>,
+    pub defeated: bool,
+}
+
+/// An actor of the world, by its index in `World.members` or `World.goblins`.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub enum Actor {
+    Member: u32,
+    Goblin: u32,
+}
+
+/// The fields of a `SKILL` a tick reads: kind, activation, recharge, and its `REGENERATION`
+/// entry's line (0, 0 without one).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct SkillSheet {
     pub id: u16,
@@ -176,7 +246,7 @@ pub struct CasteSheet {
 }
 
 /// The content of a batch, read once (D-145): the skills of the bars, of the goblins' castes and
-/// of held effects; the belt's potions; the castes of the goblins.
+/// of held effects; the belt's potions; the goblins' castes.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Content {
     pub skills: Span<SkillSheet>,
@@ -184,29 +254,356 @@ pub struct Content {
     pub castes: Span<CasteSheet>,
 }
 
-/// What a tick runs over: the clock, the members (ascending entity id), the goblins it may touch
-/// (ascending entity id; those in the awake set have `awake`), the goblins killed so far in
-/// resolution order (`GoblinKilled`), and whether the adventurer was defeated.
-#[derive(Drop, Serde, Debug, PartialEq)]
-pub struct World {
-    pub clock: u32,
-    pub members: Array<Member>,
-    pub goblins: Array<Goblin>,
-    pub killed: Array<u16>,
-    pub defeated: bool,
-}
-
-/// An actor of the world, by its index in `World.members` or `World.goblins`.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub enum Actor {
-    Member: u32,
-    Goblin: u32,
-}
-
 pub mod errors {
     pub const NO_SKILL: felt252 = 'tick: skill not in content';
     pub const NO_CASTE: felt252 = 'tick: caste not in content';
     pub const NO_POTION: felt252 = 'tick: potion not in content';
+    pub const REGEN: felt252 = 'tick: regeneration above i8';
+}
+
+/// `(new − old) × shift`: the delta that rewrites a field in place, its neighbours untouched.
+#[inline(always)]
+fn delta(old: u128, new: u128, shift: felt252) -> felt252 {
+    (new.into() - old.into()) * shift
+}
+
+/// The hot fields of a member's words, in `Member`'s order (status … knocked).
+fn member_hot(
+    words: @MemberWords,
+) -> (u8, u16, u16, u16, u8, u8, u16, u8, u32, u32, u32, u32, u32) {
+    let (low, high) = split(*words.state);
+    let (tlow, thigh) = split(*words.timers);
+    (
+        field(low, P56, P8).try_into().unwrap(), field(low, P64, P16).try_into().unwrap(),
+        field(low, P80, P16).try_into().unwrap(), field(low, P96, P16).try_into().unwrap(),
+        field(high, P32, P8).try_into().unwrap(),
+        low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
+        field(tlow, P8, P16).try_into().unwrap(), field(tlow, P24, P8).try_into().unwrap(),
+        field(tlow, P32, P32).try_into().unwrap(), field(tlow, P64, P32).try_into().unwrap(),
+        field(tlow, P96, P32).try_into().unwrap(),
+        low_field(thigh, P32.try_into().unwrap()).try_into().unwrap(),
+        field(thigh, P64, P32).try_into().unwrap(),
+    )
+}
+
+/// The `(limb is high, shift)` of a member's recharge slot 0–7 and its felt shift.
+#[inline(always)]
+fn member_recharge_at(slot: u8) -> (bool, u128, felt252) {
+    if slot == 0 {
+        (false, 1, 1)
+    } else if slot == 1 {
+        (false, P28, F28)
+    } else if slot == 2 {
+        (false, P56, F56)
+    } else if slot == 3 {
+        (false, P84, F84)
+    } else if slot == 4 {
+        (true, 1, F128)
+    } else if slot == 5 {
+        (true, P28, F156)
+    } else if slot == 6 {
+        (true, P56, F184)
+    } else {
+        (true, P84, F212)
+    }
+}
+
+#[generate_trait]
+pub impl MemberImpl of MemberTrait {
+    /// A member from its words, with what it derives once: the maxima and regeneration of
+    /// `MemberStats`, each held effect's deadline and `REGENERATION` pips (a skill's at the slot's
+    /// rank, a potion's through the belt of `MemberKit`).
+    fn load(words: MemberWords, content: @Content) -> Member {
+        let (
+            status,
+            health,
+            energy,
+            adrenaline,
+            flags,
+            act_slot,
+            act_target,
+            act_tile,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+        ) =
+            member_hot(@words);
+        let (low, _) = split(words.stats);
+        let health_regen: i32 = field(low, P32, P8).try_into().unwrap();
+        let (elow, ehigh) = split(words.effects);
+        let (belt, _) = split(words.kit);
+        let mut deadlines: Array<u32> = array![];
+        let mut regen: Array<i8> = array![];
+        for (limb, shift) in array![(elow, 1), (elow, P56), (ehigh, 1), (ehigh, P56)] {
+            let carrier: u16 = field(limb, shift, P16).try_into().unwrap();
+            deadlines.append(field(limb, shift * P24, P28).try_into().unwrap());
+            let pips: i32 = if carrier == 0 {
+                0
+            } else if field(limb, shift * 0x800000, 2) == 1 {
+                // The potion tag: the carrier is a belt slot.
+                let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
+                (*content.potion(id.try_into().unwrap()).regen).into()
+            } else {
+                content.skill(carrier).regen(field(limb, shift * P52, 0x10).try_into().unwrap())
+            };
+            regen.append(pips.try_into().expect(errors::REGEN));
+        }
+        Member {
+            status,
+            health,
+            energy,
+            adrenaline,
+            flags,
+            act_slot,
+            act_target,
+            act_tile,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+            effect_deadlines: [*deadlines[0], *deadlines[1], *deadlines[2], *deadlines[3]],
+            effect_regen: [*regen[0], *regen[1], *regen[2], *regen[3]],
+            max_health: low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
+            max_energy: field(low, P16, P8).try_into().unwrap() * ENERGY_THIRDS,
+            health_regen: (health_regen - REGEN_OFFSET).try_into().unwrap(),
+            energy_regen: field(low, P24, P8).try_into().unwrap(),
+            words,
+        }
+    }
+
+    /// Its words, the hot fields written back (the effects word is the executor's to write).
+    fn store(self: @Member) -> MemberWords {
+        let (
+            status,
+            health,
+            energy,
+            adrenaline,
+            flags,
+            act_slot,
+            act_target,
+            act_tile,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+        ) =
+            member_hot(self.words);
+        let words = *self.words;
+        let state = words.state
+            + delta(status.into(), (*self.status).into(), F56)
+            + delta(health.into(), (*self.health).into(), F64)
+            + delta(energy.into(), (*self.energy).into(), F80)
+            + delta(adrenaline.into(), (*self.adrenaline).into(), F96)
+            + delta(flags.into(), (*self.flags).into(), F160);
+        let timers = words.timers
+            + delta(act_slot.into(), (*self.act_slot).into(), 1)
+            + delta(act_target.into(), (*self.act_target).into(), F8)
+            + delta(act_tile.into(), (*self.act_tile).into(), F24)
+            + delta(act_deadline.into(), (*self.act_deadline).into(), F32)
+            + delta(bleeding.into(), (*self.bleeding).into(), F64)
+            + delta(poison.into(), (*self.poison).into(), F96)
+            + delta(burning.into(), (*self.burning).into(), F128)
+            + delta(knocked.into(), (*self.knocked).into(), F192);
+        MemberWords { state, timers, ..words }
+    }
+
+    /// The recharge deadline of bar slot 0–7.
+    fn recharge(self: @Member, slot: u8) -> u32 {
+        let (low, high) = split(*self.words.recharges);
+        let (upper, shift, _) = member_recharge_at(slot);
+        let limb = if upper {
+            high
+        } else {
+            low
+        };
+        field(limb, shift, P28).try_into().unwrap()
+    }
+
+    fn set_recharge(ref self: Member, slot: u8, deadline: u32) {
+        let (_, _, shift) = member_recharge_at(slot);
+        let old = self.recharge(slot);
+        self.words.recharges += delta(old.into(), deadline.into(), shift);
+    }
+
+    /// The skill id of bar slot 0–7 (`MemberBar`).
+    #[inline(always)]
+    fn skill(self: @Member, slot: u8) -> u16 {
+        let (low, _) = split(*self.words.bar);
+        let shift = *[1, P16, P32, 0x1000000000000, P64, P80, P96, P112].span()[slot.into()];
+        field(low, shift, P16).try_into().unwrap()
+    }
+}
+
+/// The hot fields of a goblin's words, in `Goblin`'s order (ai … effect deadline), and its level
+/// and effect `(skill, rank)`.
+fn goblin_hot(
+    state: felt252, timers: felt252,
+) -> (u8, u16, u8, u8, u16, u8, u16, u32, u32, u32, u32, u32, u32, u8, u16, u8) {
+    let (low, _) = split(state);
+    let (tlow, thigh) = split(timers);
+    (
+        field(low, P24, P8).try_into().unwrap(), field(low, P32, P16).try_into().unwrap(),
+        field(low, 0x1000000000000, P8).try_into().unwrap(),
+        field(low, P56, P8).try_into().unwrap(), field(low, P64, P16).try_into().unwrap(),
+        low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
+        field(tlow, P8, P16).try_into().unwrap(), field(tlow, P24, P28).try_into().unwrap(),
+        field(tlow, P52, P28).try_into().unwrap(), field(tlow, P80, P28).try_into().unwrap(),
+        low_field(thigh, P28.try_into().unwrap()).try_into().unwrap(),
+        field(thigh, P56, P28).try_into().unwrap(), field(thigh, P84, P28).try_into().unwrap(),
+        field(low, P80, P8).try_into().unwrap(), field(tlow, P108, P16).try_into().unwrap(),
+        field(thigh, P118, 0x10).try_into().unwrap(),
+    )
+}
+
+#[generate_trait]
+pub impl GoblinImpl of GoblinTrait {
+    /// A goblin from its words, with what it derives once from its caste (`content`) and level:
+    /// its maxima, regeneration and its effect's `REGENERATION` pips.
+    fn load(words: GoblinWords, content: @Content) -> Goblin {
+        let (
+            ai,
+            health,
+            energy,
+            adrenaline,
+            caste,
+            act_slot,
+            act_target,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+            effect_deadline,
+            level,
+            effect,
+            rank,
+        ) =
+            goblin_hot(words.state, words.timers);
+        let sheet = content.caste(caste);
+        let regen: i32 = (*sheet.health_regen).into();
+        let effect_regen: i32 = if effect == 0 {
+            0
+        } else {
+            content.skill(effect).regen(rank)
+        };
+        Goblin {
+            entity: words.entity,
+            awake: words.awake,
+            ai,
+            health,
+            energy,
+            adrenaline,
+            caste,
+            act_slot,
+            act_target,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+            effect_deadline,
+            effect_regen: effect_regen.try_into().expect(errors::REGEN),
+            max_health: sheet.max_health(level).try_into().unwrap(),
+            health_regen: (regen - REGEN_OFFSET).try_into().unwrap(),
+            max_energy: *sheet.energy * 3,
+            energy_regen: *sheet.energy_regen,
+            state: words.state,
+            timers: words.timers,
+        }
+    }
+
+    /// Its words, the hot fields written back (its effect's skill, charges and rank are the
+    /// executor's to write).
+    fn store(self: @Goblin) -> GoblinWords {
+        let (
+            ai,
+            health,
+            energy,
+            adrenaline,
+            _,
+            act_slot,
+            act_target,
+            act_deadline,
+            bleeding,
+            poison,
+            burning,
+            knocked,
+            effect_deadline,
+            _,
+            _,
+            _,
+        ) =
+            goblin_hot(*self.state, *self.timers);
+        let state = *self.state
+            + delta(ai.into(), (*self.ai).into(), F24)
+            + delta(health.into(), (*self.health).into(), F32)
+            + delta(energy.into(), (*self.energy).into(), F48)
+            + delta(adrenaline.into(), (*self.adrenaline).into(), F56);
+        let timers = *self.timers
+            + delta(act_slot.into(), (*self.act_slot).into(), 1)
+            + delta(act_target.into(), (*self.act_target).into(), F8)
+            + delta(act_deadline.into(), (*self.act_deadline).into(), F24)
+            + delta(bleeding.into(), (*self.bleeding).into(), F52)
+            + delta(poison.into(), (*self.poison).into(), F80)
+            + delta(burning.into(), (*self.burning).into(), F128)
+            + delta(knocked.into(), (*self.knocked).into(), F184)
+            + delta(effect_deadline.into(), (*self.effect_deadline).into(), F212);
+        GoblinWords { entity: *self.entity, awake: *self.awake, state, timers }
+    }
+
+    /// Alive: neither dead nor looted.
+    #[inline(always)]
+    fn is_alive(self: @Goblin) -> bool {
+        *self.ai < ai::DEAD
+    }
+
+    /// The recharge deadline of caste skill 0–3.
+    fn recharge(self: @Goblin, slot: u8) -> u32 {
+        let (_, high) = split(*self.state);
+        field(high, *[1, P28, P56, P84].span()[slot.into()], P28).try_into().unwrap()
+    }
+
+    fn set_recharge(ref self: Goblin, slot: u8, deadline: u32) {
+        let shift = *[F128, F156, F184, F212].span()[slot.into()];
+        let old = self.recharge(slot);
+        self.state += delta(old.into(), deadline.into(), shift);
+    }
+}
+
+#[generate_trait]
+pub impl WordsImpl of WordsTrait {
+    /// The world of the call: every actor loaded once (D-145).
+    fn load(self: Words, content: @Content) -> World {
+        let mut members = array![];
+        for words in self.members {
+            members.append(MemberTrait::load(words, content));
+        }
+        let mut goblins = array![];
+        for words in self.goblins {
+            goblins.append(GoblinTrait::load(words, content));
+        }
+        World { clock: self.clock, members, goblins, killed: self.killed, defeated: self.defeated }
+    }
+}
+
+#[generate_trait]
+pub impl WorldStoreImpl of WorldStoreTrait {
+    /// The words of the world, every actor's hot fields written back.
+    fn store(self: World) -> Words {
+        let mut members = array![];
+        for member in self.members.span() {
+            members.append(member.store());
+        }
+        let mut goblins = array![];
+        for goblin in self.goblins.span() {
+            goblins.append(goblin.store());
+        }
+        Words { clock: self.clock, members, goblins, killed: self.killed, defeated: self.defeated }
+    }
 }
 
 #[generate_trait]
@@ -232,6 +629,35 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         }
     }
 
+    /// The sheet of skill `id` read from its record's 2 parts (`models::skill` layout): only the
+    /// header's kind, activation and recharge, and the entries' kinds until the `REGENERATION`
+    /// one or an empty entry. `new` on the unpacked record is its oracle.
+    fn read(id: u16, parts: Span<felt252>) -> SkillSheet {
+        let (header, first) = split(*parts[0]);
+        let (second, third) = split(*parts[1]);
+        let mut regen0 = 0;
+        let mut regen12 = 0;
+        for entry in array![first, second, third] {
+            let entry_kind = low_field(entry, P8.try_into().unwrap());
+            if entry_kind == kind::EMPTY.into() {
+                break;
+            }
+            if entry_kind == kind::REGENERATION.into() {
+                regen0 = SignedTrait::from16(field(entry, P16, P16));
+                regen12 = SignedTrait::from16(field(entry, P32, P16));
+                break;
+            }
+        }
+        SkillSheet {
+            id,
+            kind: field(header, P16, P8).try_into().unwrap(),
+            activation: field(header, P40, P16).try_into().unwrap(),
+            recharge: field(header, P56, P16).try_into().unwrap(),
+            regen0,
+            regen12,
+        }
+    }
+
     /// Its `REGENERATION` pips at `rank` (§2.2).
     #[inline(always)]
     fn regen(self: @SkillSheet, rank: u8) -> i32 {
@@ -244,6 +670,18 @@ pub impl PotionSheetImpl of PotionSheetTrait {
     fn new(id: u32, item: @Item) -> PotionSheet {
         let regen = if *item.entry.kind == kind::REGENERATION {
             *item.entry.v0
+        } else {
+            0
+        };
+        PotionSheet { id, regen }
+    }
+
+    /// The sheet of potion `id` read from its record's part (`models::item` layout: the entry in
+    /// the high limb); `new` on the unpacked record is its oracle.
+    fn read(id: u32, parts: Span<felt252>) -> PotionSheet {
+        let (_, entry) = split(*parts[0]);
+        let regen = if low_field(entry, P8.try_into().unwrap()) == kind::REGENERATION.into() {
+            SignedTrait::from16(field(entry, P16, P16))
         } else {
             0
         };
@@ -262,6 +700,27 @@ pub impl CasteSheetImpl of CasteSheetTrait {
             energy_regen: *caste.energy_regen,
             weapon_ticks: *caste.weapon.ticks,
             skills: *caste.skills,
+        }
+    }
+
+    /// The sheet of caste `id` read from its record's 2 parts (`models::caste` layout: the
+    /// weapon's ticks at bit 72); `new` on the unpacked record is its oracle.
+    fn read(id: u16, parts: Span<felt252>) -> CasteSheet {
+        let (low, _) = split(*parts[0]);
+        let (skills, _) = split(*parts[1]);
+        CasteSheet {
+            id,
+            health: field(low, P16, P16).try_into().unwrap(),
+            health_regen: field(low, P32, P8).try_into().unwrap(),
+            energy: field(low, P80, P8).try_into().unwrap(),
+            energy_regen: field(low, P88, P8).try_into().unwrap(),
+            weapon_ticks: field(low, P72, 0x10).try_into().unwrap(),
+            skills: [
+                low_field(skills, P16.try_into().unwrap()).try_into().unwrap(),
+                field(skills, P16, P16).try_into().unwrap(),
+                field(skills, P32, P16).try_into().unwrap(),
+                field(skills, 0x1000000000000, P16).try_into().unwrap(),
+            ],
         }
     }
 
@@ -303,46 +762,5 @@ pub impl ContentImpl of ContentTrait {
             }
         }
         core::panic_with_felt252(errors::NO_CASTE)
-    }
-}
-
-#[generate_trait]
-pub impl ConditionsImpl of ConditionsTrait {
-    /// The health pips of the degenerating conditions active at tick `t` (§5.8 step 1):
-    /// −3 Bleeding, −4 Poison, −7 Burning.
-    #[inline(always)]
-    fn pips(self: @Conditions, t: u32) -> i32 {
-        let mut pips = 0;
-        if t <= *self.bleeding {
-            pips -= 3;
-        }
-        if t <= *self.poison {
-            pips -= 4;
-        }
-        if t <= *self.burning {
-            pips -= 7;
-        }
-        pips
-    }
-
-    /// Knocked down at tick `t`.
-    #[inline(always)]
-    fn knocked(self: @Conditions, t: u32) -> bool {
-        t <= *self.knocked
-    }
-}
-
-#[generate_trait]
-pub impl GoblinImpl of GoblinTrait {
-    /// Alive: neither dead nor looted.
-    #[inline(always)]
-    fn is_alive(self: @Goblin) -> bool {
-        *self.ai < ai::DEAD
-    }
-
-    /// Activating: a caste skill in its activation field.
-    #[inline(always)]
-    fn is_activating(self: @Goblin) -> bool {
-        *self.act_slot <= activation::LAST_SLOT
     }
 }

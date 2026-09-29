@@ -1,7 +1,8 @@
 //! The world tick's pipeline (CBT-02): design/02 *The tick* in design/19 §5's order, as pure rules
 //! over `types::tick::World`: state in, state out, no storage. The caller (`play`, ENG-07) reads
 //! the words once, runs every tick of an action in one call of the library class
-//! (`systems::tick::TickLibrary`, ENG-01 §1.3) and writes what changed.
+//! (`systems::tick::TickLibrary`, ENG-01 §1.3), which loads them, runs the ticks and stores them
+//! back, and writes what changed.
 //!
 //! One tick `T` (§5.1):
 //! 0. the clock advances; the flags "since the last tick" clear; perception and the awake set
@@ -18,13 +19,12 @@
 //! The adventurer at 0 in steps 1–2 stops the tick there: step 5 still runs (FX-8, §5.13).
 //!
 //! The rules that act on one actor (starting, concluding, interrupting an activation, a goblin's
-//! recovery, regeneration) are methods of `MemberTickTrait` and `GoblinTickTrait`, for the executor
-//! and the AI to call.
+//! recovery) are methods of `MemberTickTrait` and `GoblinTickTrait`, for the executor and the AI.
 
 use crate::types::combat::{activation, skill_kind};
 use crate::types::tick::{
-    ADRENALINE_DECAY, Actor, CasteSheet, CasteSheetTrait, ConditionsTrait, Content, ContentTrait,
-    ENERGY_THIRDS, Goblin, GoblinTrait, HEALTH_PER_PIP, MAX_PIPS, Member, NO_SLOT, REGEN_OFFSET, SkillSheetTrait, World, ai, flag, status,
+    ADRENALINE_DECAY, Actor, CasteSheet, Content, ContentTrait, Goblin, GoblinTrait, HEALTH_PER_PIP,
+    MAX_PIPS, Member, MemberTrait, NO_SLOT, World, ai, flag, status,
 };
 
 /// The goblins one tick may hold: the window's (at most 4 chunks × 2 packs × 5) and the roster's
@@ -83,23 +83,28 @@ pub impl TickImpl of TickTrait {
         assert(world.goblins.len() <= MAX_GOBLINS, errors::GOBLINS);
         // Step 0.
         world.clock += 1;
-        let mut members = array![];
-        for mut member in world.members.span() {
-            let mut member = *member;
-            member.flags = member.flags & flag::KEPT;
-            members.append(member);
-        }
-        world.members = members;
+        Self::clear_flags(ref world);
         rules.perceive(ref world);
         // Steps 1 and 2; the adventurer at 0 stops the tick at once (FX-8).
         let (stopped, resolved) = Self::conclude(ref world, content, ref rules);
         if !stopped && !Self::act(ref world, content, resolved, ref rules) {
             // Step 3.
-            Self::regenerate(ref world, content);
+            Self::regenerate(ref world);
         }
         // Step 4 writes nothing. Step 5.
         Self::check(ref world);
         rules.objectives(ref world);
+    }
+
+    /// Step 0: the member flags "since the last tick" and "hit this tick" clear.
+    fn clear_flags(ref world: World) {
+        let mut members = array![];
+        for member in world.members.span() {
+            let mut member = *member;
+            member.flags = member.flags & flag::KEPT;
+            members.append(member);
+        }
+        world.members = members;
     }
 
     /// Step 1: members' activations due, then awake goblins', ascending id. Returns whether the
@@ -111,11 +116,12 @@ pub impl TickImpl of TickTrait {
         let count = world.members.len();
         let mut i = 0;
         while i < count {
-            let mut member = *world.members.at(i);
-            if member.status == status::INSIDE
-                && member.health > 0
-                && member.act_slot != NO_SLOT
-                && member.act_deadline <= t {
+            let member = world.members.at(i);
+            if *member.act_slot != NO_SLOT
+                && *member.act_deadline <= t
+                && *member.status == status::INSIDE
+                && *member.health > 0 {
+                let mut member = *member;
                 let (slot, target) = member.conclude(content);
                 world.set_member(i, member);
                 rules.resolve(ref world, content, Actor::Member(i), slot, target);
@@ -130,26 +136,30 @@ pub impl TickImpl of TickTrait {
         let mut bit: u128 = 1;
         let mut i = 0;
         while i < count {
-            let mut goblin = *world.goblins.at(i);
-            if goblin.awake && goblin.is_alive() {
-                if goblin.is_activating() {
-                    if goblin.act_deadline == t {
-                        let (slot, target) = goblin
-                            .conclude(content.caste(goblin.caste), content);
-                        world.set_goblin(i, goblin);
-                        resolved += bit;
-                        rules.resolve(ref world, content, Actor::Goblin(i), slot, target);
-                        if world.is_down() {
-                            return (true, resolved);
+            let goblin = world.goblins.at(i);
+            if *goblin.awake {
+                let slot = *goblin.act_slot;
+                let deadline = *goblin.act_deadline;
+                if slot <= activation::LAST_SLOT {
+                    if deadline <= t && goblin.is_alive() {
+                        let mut goblin = *goblin;
+                        let caste = content.caste(goblin.caste);
+                        if deadline == t {
+                            let (slot, target) = goblin.conclude(caste, content);
+                            world.set_goblin(i, goblin);
+                            resolved += bit;
+                            rules.resolve(ref world, content, Actor::Goblin(i), slot, target);
+                            if world.is_down() {
+                                return (true, resolved);
+                            }
+                        } else {
+                            goblin.lapse(caste, content);
+                            world.set_goblin(i, goblin);
                         }
-                    } else if goblin.act_deadline < t {
-                        goblin.lapse(content.caste(goblin.caste), content);
-                        world.set_goblin(i, goblin);
                     }
-                } else if goblin.act_slot == activation::RECOVERING && goblin.act_deadline < t {
-                    goblin.act_slot = activation::NONE;
-                    goblin.act_target = 0;
-                    goblin.act_deadline = 0;
+                } else if slot == activation::RECOVERING && deadline < t {
+                    let mut goblin = *goblin;
+                    goblin.clear();
                     world.set_goblin(i, goblin);
                 }
             }
@@ -170,11 +180,11 @@ pub impl TickImpl of TickTrait {
         let mut bit: u128 = 1;
         let mut i = 0;
         while i < count {
-            let goblin = *world.goblins.at(i);
-            if goblin.awake
+            let goblin = world.goblins.at(i);
+            if *goblin.awake
+                && *goblin.act_slot == activation::NONE
+                && *goblin.knocked < t
                 && goblin.is_alive()
-                && goblin.act_slot == activation::NONE
-                && !goblin.conditions.knocked(t)
                 && resolved & bit == 0 {
                 rules.act(ref world, content, i);
                 if world.is_down() {
@@ -190,7 +200,7 @@ pub impl TickImpl of TickTrait {
     /// Step 3 (§5.8): members, then awake goblins, ascending id. Out of combat is, for a member, no
     /// goblin of the tick's awake set Engaged; for a goblin, not Engaged. A goblin at 0 dies after
     /// every actor of the step, in id order.
-    fn regenerate(ref world: World, content: @Content) {
+    fn regenerate(ref world: World) {
         let t = world.clock;
         let mut engaged = false;
         for goblin in world.goblins.span() {
@@ -202,7 +212,9 @@ pub impl TickImpl of TickTrait {
         let mut members = array![];
         for member in world.members.span() {
             let mut member = *member;
-            member.regenerate(t, content, engaged);
+            if member.status == status::INSIDE && member.health > 0 {
+                member.regenerate(t, engaged);
+            }
             members.append(member);
         }
         world.members = members;
@@ -210,7 +222,7 @@ pub impl TickImpl of TickTrait {
         for goblin in world.goblins.span() {
             let mut goblin = *goblin;
             if goblin.awake && goblin.is_alive() {
-                goblin.regenerate(t, content.caste(goblin.caste), content);
+                goblin.regenerate(t);
                 if goblin.health == 0 {
                     goblin.ai = ai::DEAD;
                     world.killed.append(goblin.entity);
@@ -260,11 +272,10 @@ pub impl TickImpl of TickTrait {
         let keys = keys.span();
         let mut last: u32 = 0;
         let mut found = 0;
-        let mut first = true;
         while found < MAX_AWAKE {
             let mut next: u32 = 0xFFFFFFFF;
             for key in keys {
-                if (first || *key > last) && *key < next {
+                if (found == 0 || *key > last) && *key < next {
                     next = *key;
                 }
             }
@@ -272,7 +283,6 @@ pub impl TickImpl of TickTrait {
                 break;
             }
             last = next;
-            first = false;
             found += 1;
         }
         let mut goblins = array![];
@@ -327,8 +337,8 @@ pub impl WorldImpl of WorldTrait {
         self.goblins = goblins;
     }
 
-    /// A goblin at 0 dies at once (§5.13): dead, its remains, out of the awake set's work,
-    /// recorded in resolution order (`GoblinKilled`). For the executor.
+    /// A goblin at 0 dies at once (§5.13): health 0, dead (its remains), out of the awake set's
+    /// work, recorded in resolution order (`GoblinKilled`). For the executor.
     fn kill(ref self: World, index: u32) {
         let mut goblin = *self.goblins.at(index);
         if !goblin.is_alive() {
@@ -359,13 +369,14 @@ pub impl MemberTickImpl of MemberTickTrait {
         };
         self.act_slot = slot;
         self.act_target = target;
+        self.act_tile = 0;
         self.act_deadline = c + n;
     }
 
     /// An instant skill of the bar's `slot` used in the action phase at clock `c`: its recharge
     /// counts from `t₀ = c + 1` (§5.1).
     fn use_instant(ref self: Member, slot: u8, c: u32, content: @Content) {
-        let r = *content.skill(*self.bar.span()[slot.into()]).recharge;
+        let r = *content.skill(self.skill(slot)).recharge;
         self.set_recharge(slot, recharge(c + 1, r));
     }
 
@@ -374,7 +385,7 @@ pub impl MemberTickImpl of MemberTickTrait {
     fn conclude(ref self: Member, content: @Content) -> (u8, u16) {
         let slot = self.act_slot;
         let target = self.act_target;
-        let r = *content.skill(*self.bar.span()[slot.into()]).recharge;
+        let r = *content.skill(self.skill(slot)).recharge;
         self.set_recharge(slot, recharge(self.act_deadline, r));
         self.clear();
         (slot, target)
@@ -386,67 +397,38 @@ pub impl MemberTickImpl of MemberTickTrait {
         if self.act_slot == NO_SLOT {
             return;
         }
-        let r = *content.skill(*self.bar.span()[self.act_slot.into()]).recharge;
+        let r = *content.skill(self.skill(self.act_slot)).recharge;
         self.set_recharge(self.act_slot, recharge(t0, r));
         self.clear();
     }
 
-    /// Step 3 at tick `t` (§5.8), for a member inside and alive: health by its pips (snapshot,
-    /// `REGENERATION` effects, the conditions; clamped to ±10, × 2), energy by its pips in
-    /// thirds, adrenaline decay out of combat (D-157 E).
-    fn regenerate(ref self: Member, t: u32, content: @Content, engaged: bool) {
-        if self.status != status::INSIDE || self.health == 0 {
-            return;
+    /// Step 3 at tick `t` (§5.8) for a member inside and alive: health by its pips (the
+    /// snapshot's, its `REGENERATION` effects', the conditions'; clamped to ±10, × 2), energy by
+    /// its pips in thirds, adrenaline decay out of combat (D-157 E).
+    fn regenerate(ref self: Member, t: u32, engaged: bool) {
+        let mut pips: i32 = self.health_regen.into()
+            + degeneration(self.bleeding, self.poison, self.burning, t);
+        let [r0, r1, r2, r3] = self.effect_regen;
+        if r0 != 0 || r1 != 0 || r2 != 0 || r3 != 0 {
+            let [d0, d1, d2, d3] = self.effect_deadlines;
+            pips += held(r0, d0, t) + held(r1, d1, t) + held(r2, d2, t) + held(r3, d3, t);
         }
-        let mut pips: i32 = self.health_regen.into() - REGEN_OFFSET + self.conditions.pips(t);
-        for held in self.effects.span() {
-            if *held.carrier != 0 && t <= *held.deadline {
-                pips += if *held.potion {
-                    (*content.potion(*self.belt.span()[(*held.carrier).into()]).regen).into()
-                } else {
-                    content.skill(*held.carrier).regen(*held.rank)
-                };
-            }
-        }
-        self.health = health(self.health, pips, self.max_health.into());
-        let max: u16 = self.max_energy.into() * ENERGY_THIRDS;
+        self.health = heal(self.health, pips, self.max_health);
         let energy = self.energy + self.energy_regen.into();
-        self.energy = if energy > max {
-            max
+        self.energy = if energy > self.max_energy {
+            self.max_energy
         } else {
             energy
         };
         if !engaged {
-            self.adrenaline -= min16(self.adrenaline, ADRENALINE_DECAY);
+            self.adrenaline = decay(self.adrenaline);
         }
-    }
-
-    fn set_recharge(ref self: Member, slot: u8, deadline: u32) {
-        let [a, b, c, d, e, f, g, h] = self.recharges;
-        self
-            .recharges =
-                if slot == 0 {
-                    [deadline, b, c, d, e, f, g, h]
-                } else if slot == 1 {
-                    [a, deadline, c, d, e, f, g, h]
-                } else if slot == 2 {
-                    [a, b, deadline, d, e, f, g, h]
-                } else if slot == 3 {
-                    [a, b, c, deadline, e, f, g, h]
-                } else if slot == 4 {
-                    [a, b, c, d, deadline, f, g, h]
-                } else if slot == 5 {
-                    [a, b, c, d, e, deadline, g, h]
-                } else if slot == 6 {
-                    [a, b, c, d, e, f, deadline, h]
-                } else {
-                    [a, b, c, d, e, f, g, deadline]
-                };
     }
 
     fn clear(ref self: Member) {
         self.act_slot = NO_SLOT;
         self.act_target = 0;
+        self.act_tile = 0;
         self.act_deadline = 0;
     }
 }
@@ -508,7 +490,7 @@ pub impl GoblinTickImpl of GoblinTickTrait {
         let slot = self.act_slot;
         let r = *content.skill(*caste.skills.span()[slot.into()]).recharge;
         let deadline = recharge(self.act_deadline, r);
-        if deadline > *self.recharges.span()[slot.into()] {
+        if deadline > self.recharge(slot) {
             self.set_recharge(slot, deadline);
         }
         self.clear();
@@ -517,55 +499,33 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     /// Interrupted at `t₀` (§5.9): the field goes to none, the recharge counts from `t₀`
     /// (FX-2). Nothing unless activating (a recovery is not an activation).
     fn interrupt(ref self: Goblin, t0: u32, caste: @CasteSheet, content: @Content) {
-        if !self.is_activating() {
+        let slot = self.act_slot;
+        if slot > activation::LAST_SLOT {
             return;
         }
-        let slot = self.act_slot;
         let r = *content.skill(*caste.skills.span()[slot.into()]).recharge;
         self.set_recharge(slot, recharge(t0, r));
         self.clear();
     }
 
     /// Step 3 at tick `t` (§5.8) for an awake goblin alive: health by its caste's pips, its
-    /// `REGENERATION` effect and its conditions; energy by the caste's pips in thirds; adrenaline
-    /// decay when not Engaged (D-157 E).
-    fn regenerate(ref self: Goblin, t: u32, caste: @CasteSheet, content: @Content) {
-        let mut pips: i32 = (*caste.health_regen).into() - REGEN_OFFSET + self.conditions.pips(t);
-        let held = self.effect;
-        if held.carrier != 0 && t <= held.deadline {
-            pips += content.skill(held.carrier).regen(held.rank);
-        }
-        self.health = health(self.health, pips, caste.max_health(self.level));
-        let max: u16 = (*caste.energy).into() * ENERGY_THIRDS;
-        let energy: u16 = self.energy.into() + (*caste.energy_regen).into();
-        self.energy = if energy > max {
-            max.try_into().unwrap()
+    /// effect's and its conditions'; energy by the caste's pips in thirds; adrenaline decay when
+    /// not Engaged (D-157 E).
+    fn regenerate(ref self: Goblin, t: u32) {
+        let mut pips: i32 = self.health_regen.into()
+            + degeneration(self.bleeding, self.poison, self.burning, t)
+            + held(self.effect_regen, self.effect_deadline, t);
+        self.health = heal(self.health, pips, self.max_health);
+        let energy: u16 = self.energy.into() + self.energy_regen.into();
+        self.energy = if energy > self.max_energy.into() {
+            self.max_energy
         } else {
             energy.try_into().unwrap()
         };
         if self.ai != ai::ENGAGED {
-            let decay: u8 = ADRENALINE_DECAY.try_into().unwrap();
-            self.adrenaline -= if self.adrenaline < decay {
-                self.adrenaline
-            } else {
-                decay
-            };
+            let decayed = decay(self.adrenaline.into());
+            self.adrenaline = decayed.try_into().unwrap();
         }
-    }
-
-    fn set_recharge(ref self: Goblin, slot: u8, deadline: u32) {
-        let [a, b, c, d] = self.recharges;
-        self
-            .recharges =
-                if slot == 0 {
-                    [deadline, b, c, d]
-                } else if slot == 1 {
-                    [a, deadline, c, d]
-                } else if slot == 2 {
-                    [a, b, deadline, d]
-                } else {
-                    [a, b, c, deadline]
-                };
     }
 
     fn clear(ref self: Goblin) {
@@ -575,9 +535,39 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     }
 }
 
-/// `health + 2 × clamp(pips, −10, 10)`, clamped to `[0, max]` (§5.8 step 1, X-3: the pip sum is
-/// signed). A free function: health's arithmetic, shared by members and goblins.
-fn health(current: u16, pips: i32, max: u32) -> u16 {
+// Free functions below: the arithmetic of one quantity, shared by members and goblins; no type
+// owns it (docs/CAIRO.md §7).
+
+/// The pips of the degenerating conditions active at `t` (§5.8 step 1): −3 Bleeding, −4 Poison,
+/// −7 Burning (`types::combat::condition`).
+#[inline(always)]
+fn degeneration(bleeding: u32, poison: u32, burning: u32, t: u32) -> i32 {
+    let mut pips = 0;
+    if t <= bleeding {
+        pips -= 3;
+    }
+    if t <= poison {
+        pips -= 4;
+    }
+    if t <= burning {
+        pips -= 7;
+    }
+    pips
+}
+
+/// A held effect's pips while it lasts (`t ≤ deadline`).
+#[inline(always)]
+fn held(pips: i8, deadline: u32, t: u32) -> i32 {
+    if pips != 0 && t <= deadline {
+        pips.into()
+    } else {
+        0
+    }
+}
+
+/// `health + 2 × clamp(pips, −10, 10)`, clamped to `[0, max]` (§5.8 step 1; X-3: the pip sum is
+/// signed).
+fn heal(health: u16, pips: i32, max: u16) -> u16 {
     let pips = if pips > MAX_PIPS {
         MAX_PIPS
     } else if pips < -MAX_PIPS {
@@ -585,23 +575,30 @@ fn health(current: u16, pips: i32, max: u32) -> u16 {
     } else {
         pips
     };
-    let next: i32 = current.into() + HEALTH_PER_PIP * pips;
-    if next <= 0 {
-        return 0;
-    }
-    let next: u32 = next.try_into().unwrap();
-    if next > max {
-        max.try_into().unwrap()
+    let change = HEALTH_PER_PIP * pips;
+    if change < 0 {
+        let loss: u16 = (-change).try_into().unwrap();
+        if loss >= health {
+            0
+        } else {
+            health - loss
+        }
     } else {
-        next.try_into().unwrap()
+        let next: u32 = health.into() + change.try_into().unwrap();
+        if next > max.into() {
+            max
+        } else {
+            next.try_into().unwrap()
+        }
     }
 }
 
+/// Adrenaline less `ADRENALINE_DECAY`, floored at 0 (FX-12, D-157 E).
 #[inline(always)]
-fn min16(a: u16, b: u16) -> u16 {
-    if a < b {
-        a
+fn decay(adrenaline: u16) -> u16 {
+    if adrenaline < ADRENALINE_DECAY {
+        0
     } else {
-        b
+        adrenaline - ADRENALINE_DECAY
     }
 }

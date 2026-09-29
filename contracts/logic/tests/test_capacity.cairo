@@ -13,8 +13,8 @@
 use grimworld_logic::models::armor_set::{ArmorSet, ArmorSetAssert, ArmorSetTrait};
 use grimworld_logic::models::modifier::{Modifier, ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::snapshot::{
-    MemberBar, MemberKit, MemberStats, QuickCast, pack_bar, pack_kit, pack_stats, unpack_bar,
-    unpack_kit, unpack_stats,
+    MemberBar, MemberKit, MemberKitTrait, MemberStats, QuickCast, pack_bar, pack_kit, pack_stats,
+    unpack_bar, unpack_kit, unpack_stats,
 };
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::{guard, scope};
@@ -162,20 +162,23 @@ impl FixtureImpl of Fixture {
             quick_cast: [*pairs[0], *pairs[1]],
             armor: unguarded.try_into().expect('armor overflows'),
         };
-        // One condition's duration: one prefix.
-        let mut conditions: Array<Passive> = array![];
+        // One condition's duration: one prefix, whose benefit and cost may name the same
+        // condition, summed per condition then capped (CBT-9, design/19 §4). The builder agrees.
+        let mut condition: u8 = 0;
         for passive in held {
             if *passive.id == id::CONDITION_DURATION {
-                conditions.append(*passive);
+                assert(condition == 0 || condition == *passive.param, 'more than one condition');
+                condition = *passive.param;
             }
         }
-        assert(conditions.len() <= 1, 'more than one condition');
-        let (condition, percent) = match conditions.pop_front() {
-            Option::Some(passive) => (
-                passive.param, Self::at_most(passive.max.into(), 50).try_into().unwrap(),
-            ),
-            Option::None => (0, 0),
-        };
+        let percent: u8 = Self::at_most(
+            Self::sum_param(held, id::CONDITION_DURATION, condition), 50,
+        )
+            .try_into()
+            .unwrap();
+        assert(
+            MemberKitTrait::condition_duration(held) == (condition, percent), 'builder differs',
+        );
         let mut every: u8 = 0;
         for passive in held {
             if *passive.id == id::ADRENALINE_EVERY_N {
@@ -395,6 +398,66 @@ fn test_two_conditions_on_one_prefix_refused() {
         Fixture::passive(id::CONDITION_DURATION, condition::POISON, 10),
     )
         .assert_legal();
+}
+
+/// A loadout whose prefix is `prefix` and whose other slots hold a knock-down tick, which any
+/// source may carry.
+fn with_prefix(prefix: Modifier) -> Span<Passive> {
+    let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 1);
+    let none: Passive = Default::default();
+    Fixture::loadout(
+        prefix,
+        Fixture::modifier(slot::SUFFIX, knock, none),
+        Fixture::modifier(slot::INSCRIPTION, knock, none),
+        Fixture::modifier(slot::INSIGNIA, knock, none),
+        Fixture::modifier(slot::RUNE, knock, none),
+        ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]),
+    )
+}
+
+// CBT-9 (CBT-01's audit): a prefix whose benefit and cost name the same condition is legal, and
+// the snapshot sums them per condition: Bleeding 33 + 10 = 43. The oracle and the builder agree.
+#[test]
+#[available_gas(l2_gas: 99999999)]
+fn test_same_condition_summed() {
+    let prefix = Fixture::modifier(
+        slot::PREFIX,
+        Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
+        Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 10),
+    );
+    prefix.assert_legal();
+    let (_, _, kit) = Fixture::flatten(with_prefix(prefix), 0);
+    assert(kit.condition == condition::BLEEDING && kit.condition_duration == 43, '33 + 10');
+}
+
+// CBT-9: the sum above 50 is capped at 50 (ENG-01 §3.1), after summing.
+#[test]
+#[available_gas(l2_gas: 99999999)]
+fn test_same_condition_capped() {
+    let prefix = Fixture::modifier(
+        slot::PREFIX,
+        Fixture::passive(id::CONDITION_DURATION, condition::POISON, 40),
+        Fixture::passive(id::CONDITION_DURATION, condition::POISON, 30),
+    );
+    prefix.assert_legal();
+    let (_, _, kit) = Fixture::flatten(with_prefix(prefix), 0);
+    assert(kit.condition == condition::POISON && kit.condition_duration == 50, '40 + 30 capped');
+    // None held: no condition.
+    assert(MemberKitTrait::condition_duration(array![].span()) == (0, 0), 'none');
+}
+
+// CBT-9: two conditions are still refused, by the builder as by the validators.
+#[test]
+#[should_panic(expected: 'snapshot: two conditions')]
+#[available_gas(l2_gas: 99999999)]
+fn test_two_conditions_builder_refused() {
+    MemberKitTrait::condition_duration(
+        array![
+            Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
+            Fixture::passive(id::CONDITION_DURATION, condition::POISON, 10),
+        ]
+            .span(),
+    );
 }
 
 #[test]
