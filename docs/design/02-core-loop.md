@@ -535,7 +535,7 @@ enter(adventurer_id, gate)    creates the instance at sequence 0; its event give
 
 | # | Open point | Source | What ENG-01 settles |
 |---|---|---|---|
-| OP-2 | **Storage slots, not only gas.** A **new** storage slot costs about 453,500 L2 gas per transaction and an overwritten or zeroed one about 32,000 (FND-04, in audit; quiver's 402,000 was a new slot, [decision](../decisions/2026-09-28-quest-cost-cap.md)); a batch that changes the same slots pays them once | Project manager, 2026-09-28 | Count the slots each entrypoint changes per transaction, first item of the cost budget; the 40M target of *Size* is checked in slots as well as gas |
+| OP-2 | **Storage slots, not only gas.** A **new** storage slot costs about 453,500 L2 gas per transaction and an overwritten or zeroed one about 32,000 (FND-04, reproduced by its audit; quiver's 402,000 was a new slot, [decision](../decisions/2026-09-28-quest-cost-cap.md)); a batch that changes the same slots pays them once | Project manager, 2026-09-28 | Count the slots each entrypoint changes per transaction, first item of the cost budget; the 40M target of *Size* is checked in slots as well as gas |
 
 ### What ENG-01 must do
 

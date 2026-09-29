@@ -11,7 +11,7 @@
 | | L2 gas |
 |---|---|
 | A quest that completes | 1.17M, of which about 0.92M are its two changed storage slots |
-| **A storage slot changed by a transaction** | **About 402 000 beyond the computation of the write, once per slot and per transaction**, as measured by `quiver` on slots that were new. *Corrected on 2026-09-29*: about 453,500 L2 gas per transaction for a **new** slot (zero before) and about 32,000 for a slot overwritten or set back to zero (FND-04, from the state diffs of the 149 Sepolia transactions of SPK-1 and SPK-1b; in audit) |
+| **A storage slot changed by a transaction** | **About 402 000 beyond the computation of the write, once per slot and per transaction**, as measured by `quiver` on slots that were new. *Corrected on 2026-09-29*: about 453,500 L2 gas per transaction for a **new** slot (zero before) and about 32,000 for a slot overwritten or set back to zero (FND-04, from the state diffs of the 149 Sepolia transactions of SPK-1 and SPK-1b; reproduced by the `[GPT-6-Astra]` audit: 453,524 and 32,072) |
 | 16 tasks per call, one quest per task, no prerequisite | 20.6M: no cap on quests per task fits 16 tasks under 20M |
 | The game's own use (16 tasks, 3 quests and one contract completing) | 10.1M |
 
@@ -43,7 +43,7 @@ cutting the tasks per call would have kept a worst case that content can reach.
 | Every quest of the game is accepted before it progresses | True of the board, of the contracts and of the main chain (design/14) |
 | H = 4 | 3 active quests and one held contract. A change of that rule of the game changes H |
 | Titles | Not counted: `quiver_achievement` in event mode |
-| **ENG-01** | **A new storage slot costs about 0.45M L2 gas; an overwritten one about 0.03M** (corrected on 2026-09-29 from FND-04). What matters is the number of **new** slots a transaction creates: the game's measured ticks and queues create none; `enter` creates 4 (its 1.9M) and `leave` zeroes them, so that the next `enter` pays them again. Slots that are kept and reused cost fourteen times less. It is the first item of ENG-01's cost budget (D-129) |
+| **ENG-01** | **A new storage slot costs about 0.45M L2 gas; an overwritten one about 0.03M** (corrected on 2026-09-29 from FND-04). What matters is the number of **new** slots a transaction creates: the game's measured ticks and queues create none; `enter` creates 4 (its 1.9M); each instance takes new keys, so nothing is reused today. **Reusing an instance's slots would price them as overwrites: that is an extrapolation, not a measurement** (audit of FND-04, `[GPT-6-Astra]`); ENG-01 designs it and measures it. It is the first item of ENG-01's cost budget (D-129) |
 
 ## Correction of 2026-09-29
 
@@ -52,3 +52,8 @@ passed it on as such. What `quiver` measured was the price of a **new** slot. Fo
 a quest that completes writes slots that may already exist for the player (its progress,
 its record); the worst call of ARC-03c is measured on both cases, and its caps are set on
 the measured one. The decision itself (the package bounds what a player holds) is unchanged.
+
+Second correction, the same day: the first one said that the next `enter` "pays again" the
+slots that `leave` zeroes, and that reused slots "cost fourteen times less". Neither was
+observed: no transaction of the spikes wrote to a key that had been zeroed. The two prices
+are measured; what a reused key costs is to be measured by ENG-01.
