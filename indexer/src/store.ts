@@ -151,8 +151,13 @@ export class Store {
   private readonly db: DatabaseSync;
   private readonly sql: ReturnType<typeof statements>;
 
-  constructor(path: string) {
-    this.db = new DatabaseSync(path);
+  /** `readOnly`: another process's database, read beside it (the local-node scenario). */
+  constructor(path: string, options: { readOnly?: boolean } = {}) {
+    this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false });
+    if (options.readOnly) {
+      this.sql = statements(this.db);
+      return;
+    }
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
     this.db.exec(SCHEMA);
     for (const table of TABLES) {

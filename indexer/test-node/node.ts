@@ -30,6 +30,8 @@ export type LocalNode = {
   send: (calls: Call[]) => Promise<number>;
   /** devnet_abortBlocks: removes the blocks from `from` to the tip (full state archive). */
   abortBlocks: (from: number) => Promise<string[]>;
+  /** devnet_createBlock, `count` times: empty blocks. */
+  createBlocks: (count: number) => Promise<void>;
   /** starknet_blockNumber. */
   blockNumber: () => Promise<number>;
 };
@@ -103,6 +105,9 @@ export function localNode(): LocalNode {
         starting_block_id: { block_number: from },
       })) as { aborted: string[] };
       return result.aborted;
+    },
+    async createBlocks(count) {
+      for (let i = 0; i < count; i++) await rpc("devnet_createBlock", []);
     },
     async blockNumber() {
       return (await rpc("starknet_blockNumber", [])) as number;

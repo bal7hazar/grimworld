@@ -9,3 +9,4 @@ emitter/target/
 *.sqlite-*
 .scratch/
 .tmp-*/
+.scenario-results.txt
