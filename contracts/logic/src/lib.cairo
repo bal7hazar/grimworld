@@ -16,6 +16,8 @@ pub mod fate;
 pub mod helpers;
 /// The calls between contracts: results, entry, registry reads, randomness.
 pub mod interface;
+/// The world's registry records as models: regions, locations, gates, outlines (D-143).
+pub mod models;
 /// Packing into felts: two limbs, the `LIVE` bit, lanes, bitmaps.
 pub mod packing;
 /// Profession ids, and those a player may choose at creation.
