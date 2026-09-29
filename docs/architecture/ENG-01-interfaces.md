@@ -1233,6 +1233,11 @@ Against cost-budget.md:
 packing, the batch's codec, the probes, deployments). None executes an entrypoint: those are the
 implementing lots' benchmarks, each against its row above.
 
+**Targets replaced by measurements** (D-144, the rule in cost-budget.md §2): `register` 2,650,000;
+`create_adventurer` 4,700,000 cold, 4,350,000 initialised; `delete_adventurer` 1,750,000;
+`set_account_owner` with 7 inside 3,700,000 (re-measured by ENG-06). The table above stays the
+script's output; these figures supersede its targets for those rows.
+
 ### 10.1 The 40 M bound of design/02, in slots and gas (OP-2, CB-3)
 
 A batch of weight 10 has four branches (fix loop 3, F-2), each the union of its parts' keys, and
