@@ -1,6 +1,6 @@
 # Programme
 
-**2026-09-29, 00:45 UTC** — written by the project manager `[Fable 5.1] Chef de projet Grim World`.
+**2026-09-29, 02:00 UTC** — written by the project manager `[Fable 5.1] Chef de projet Grim World`.
 Rewritten at each of its check-ins. The live state of each track is in the track's own
 `STATUS.md`; this file says where the programme is, what was decided and what waits for the
 owner.
@@ -9,13 +9,13 @@ owner.
 
 | Track | Repository | Orchestrator (model verified) | Where it is | Next stop |
 |---|---|---|---|---|
-| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 15 tasks done: FND-01, 01b, 02, 03, 06, ART-00, SPK-1, 1b, 2, 5, 5b, 7, 11, DES-21, DOC-01. Running: FND-04 (cost budgets). Then ENG-01 (core interfaces, brief written), FND-05, SPK-4 | Gate of Phase 0 |
+| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 16 tasks done, the last one FND-04: the cost budget is written ([docs/architecture/cost-budget.md](docs/architecture/cost-budget.md)), every figure marked measured, derived or estimated. Running: **ENG-01**, the core interfaces, designed against that budget. Then FND-05, SPK-4 | Gate of Phase 0 |
 | Map library (LIB) | `bal7hazar/hexx-cairo` | `[Fable 5.1]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
 | Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | `quiver_quest`: library merged; component being redone around the held list (ARC-03c, fix loop 1 after a first audit) | `quiver_quest` 0.1.0: a publication, asked of the project manager |
 
 Budget: 3 agents at a time across the three tracks, audits included (D-118); caps: game 2,
 map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
-In use at 00:45 UTC: 3 of 3 (FND-04, M1-T1a, ARC-03c). Machine: load 6, 23 GB available.
+The three tracks hold their slots through the launchers' locks.
 
 The three launchers hold their agents by slot locks and are on the same reference, commit
 `2628b21` of the game's launcher, audited by `[GPT-6-Sol]`. Its scope is stated: it guards
@@ -61,7 +61,7 @@ Nothing blocks.
 
 | Risk | State |
 |---|---|
-| The cost of an expedition (R-2) | Measured at $0.69 to $0.87 with one action per transaction; estimated at $0.54 to $0.73 with batches of 10 and the MVP's burner (D-133, D-137); target $0.50. A new storage slot costs about 0.45M L2 gas and an overwritten one 0.03M (FND-04, reproduced by its audit). `enter` creates 4 new slots at each instance; reusing them is a design for ENG-01 to measure, not a saving observed. Next: FND-04's budgets, then ENG-01. A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
+| The cost of an expedition (R-2) | Target $0.50 for 300 actions, that is 1.89M L2 gas per action. Measured: $0.69 to $0.87 with one action per transaction. Derived with batches of 10 and the MVP's burner: $0.54 to $0.73. A burner transaction costs at least 0.82M before the game computes; a new storage slot 0.45M, an overwritten one 0.03M (audited). `enter` creates 4 new slots at each instance; reusing them is a design ENG-01 measures. A paymaster, needed on a public network, costs 2.2 to 5.1 times the fixed part: for the business model |
 | Sessions and agents share one machine and one user with the owner's other programmes | Incident of 2026-09-29, 00:02 UTC: a wildcard deletion in `/tmp` by the game orchestrator; no damage found. Rule in OPERATIONS §3: delete and kill only what you created, by exact path and pid |
 | Secrets reach every agent of the machine | The launchers empty them in their agents; the settings file is restricted to its owner; the residual is accepted |
 | Audits that need four passes (LIB-03, LIB-04, SPK-2) | Tasks cut smaller; the rule of three loops applied by the project manager |
