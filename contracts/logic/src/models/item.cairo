@@ -3,7 +3,7 @@
 //! carries one effect entry (design/19 §5.14), a bomb its range and strength (FX-18, FX-28).
 
 use crate::content::{ITEM, Record};
-use crate::packing::{P16, P24, P32, P64, P8, join, split};
+use crate::packing::{P16, P24, P32, P64, P8, join, low_field, split};
 use crate::types::effect::{Carrier, ENTRY_BOUND, EntryAssert, EntryTrait};
 pub use super::index::Item;
 
@@ -42,6 +42,14 @@ pub impl ItemImpl of ItemTrait {
         strength: u8,
     ) -> Item {
         Item { class, region, rarity, value, book_index, entry, range, strength }
+    }
+
+    /// The class of a record's part 0, the rest left packed: what `set_build` checks of a belt
+    /// item.
+    #[inline(always)]
+    fn class_of(part: felt252) -> u8 {
+        let (low, _) = split(part);
+        low_field(low, P8.try_into().unwrap()).try_into().unwrap()
     }
 
     #[inline(always)]

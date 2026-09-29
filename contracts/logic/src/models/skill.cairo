@@ -52,6 +52,16 @@ pub impl SkillImpl of SkillTrait {
         *self.kind == skill_kind::ATTACK
     }
 
+    /// `(profession, elite)` of a record's part 0, its entries left packed: what `set_build`
+    /// checks of each skill on the bar. The header is 83 bits: the quotient by 2^82 is the elite
+    /// bit.
+    fn profile(part: felt252) -> (u8, bool) {
+        let (header, _) = split(part);
+        let (elite, rest) = DivRem::div_rem(header, P82.try_into().unwrap());
+        let (_, profession) = DivRem::div_rem(rest, P8.try_into().unwrap());
+        (profession.try_into().unwrap(), elite != 0)
+    }
+
     /// Its entry count: the index of the last non-empty entry, 0 to 3 (design/19 §2.1).
     fn count(self: @Skill) -> u8 {
         let [a, b, c] = *self.entries;

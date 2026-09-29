@@ -6,6 +6,7 @@ use grimworld_logic::packing::{
     P104, P16, P24, P32, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join, low_field,
     split, u16_at, u32_at,
 };
+use super::account::PACK;
 
 /// Item flags (`ItemBase.flags`).
 pub const IDENTIFIED: u8 = 1;
@@ -13,6 +14,31 @@ pub const PERSONALISED: u8 = 2;
 pub const BOSS: u8 = 4;
 /// A modifier lifted off an item (design/15): a component, set on another item later.
 pub const COMPONENT: u8 = 8;
+
+/// `ItemBase.rarity` of a common item: no modifier, so nothing to identify (design/15, *Rarity*).
+pub const COMMON: u8 = 0;
+
+pub mod errors {
+    /// Not in the adventurer's pack (another owner, the vault, escrow, or no such entity).
+    pub const NOT_IN_PACK: felt252 = 'item: not in the pack';
+    /// A modifier lifted off an item: a component, not equipment.
+    pub const A_COMPONENT: felt252 = 'item: a component';
+    /// Fine or above and not identified: identifying is "needed to equip it" (design/15).
+    pub const UNIDENTIFIED: felt252 = 'item: unidentified';
+}
+
+#[generate_trait]
+pub impl ItemBaseAssert of ItemBaseAssertTrait {
+    /// What an adventurer may wear (design/15): an item of its own pack (an entity never written
+    /// has owner kind 0), not a component, identified unless common. The requirement is not a
+    /// refusal: "anyone can hold any weapon", below it the damage is divided by 3 (design/15,
+    /// *Requirement*), which the snapshot applies.
+    fn assert_wearable(self: @ItemBase, adventurer_id: u32) {
+        assert(*self.owner_kind == PACK && *self.owner == adventurer_id, errors::NOT_IN_PACK);
+        assert(*self.flags & COMPONENT == 0, errors::A_COMPONENT);
+        assert(*self.rarity == COMMON || *self.flags & IDENTIFIED != 0, errors::UNIDENTIFIED);
+    }
+}
 
 /// What an item is and who holds it. Written when it drops (unidentified: its modifiers do not
 /// exist yet, design/15), when it is crafted or bought, and when it moves.

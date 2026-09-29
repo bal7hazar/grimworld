@@ -169,6 +169,19 @@ pub struct Modifier {
     pub cost: Passive,
 }
 
+/// `BASE`, 2 parts (design/15; ENG-01 §3.5 names its fields without their bits). CBT-08a lays out
+/// only what `set_build` reads, from bit 0 of part 0, so that the lot that lays out the rest
+/// (class, profession, damage by requirement, rating, look) appends to it:
+/// part 0 low: slot 0–7 · hands 8–15 · `LIVE` in both parts.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Base {
+    /// `base::slot::WEAPON` … `FEET`: `equipped`'s lane plus one.
+    pub slot: u8,
+    /// A weapon's hands (design/15, *Weapons*): 1, or 2 for a maul, a bow or a staff; 0 for
+    /// anything else.
+    pub hands: u8,
+}
+
 /// `ARMOR_SET`, 1 part (design/15 D-45, design/19 §7.2).
 /// low: 5 piece bases, `u16` each, at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · high:
 /// the 3-piece bonus 128–180 · the 5-piece bonus 181–233 · `LIVE`.

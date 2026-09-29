@@ -1,4 +1,5 @@
 pub mod armor_set;
+pub mod base;
 pub mod caste;
 pub mod gate;
 /// The structs of every model, together (D-143).

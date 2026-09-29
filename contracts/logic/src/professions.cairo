@@ -58,6 +58,21 @@ pub impl ProfessionImpl of ProfessionTrait {
         }
     }
 
+    /// How many attributes it has, its primary first (design/03, *Attributes*: 26 in all, D-157):
+    /// a table over the six professions, since a secondary profession may be any of them.
+    fn attributes(id: u8) -> u8 {
+        match id {
+            0 => core::panic_with_felt252(errors::BAD_PROFESSION),
+            1 => 5,
+            2 => 4,
+            3 => 5,
+            4 => 4,
+            5 => 4,
+            6 => 4,
+            _ => core::panic_with_felt252(errors::BAD_PROFESSION),
+        }
+    }
+
     /// The armor of its armor class (design/03's table). design/03 says armor "scales with level"
     /// without a formula: the class's value is used at every level until one is written
     /// (escalated in ENG-06's report).
