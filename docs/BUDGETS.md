@@ -14,7 +14,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_admin::test_instances_set_contracts_refused_to_others` | 2733090 | 2869745 | 2026-09-29 | e246ac5 |
 | grimworld_ephemeral | `test_events::test_instances_event_keys_and_data` | 205040 | 215292 | 2026-09-29 | a767e84 |
 | grimworld_ephemeral | `test_events::test_per_action_event_keys_and_data` | 59100 | 62055 | 2026-09-29 | d65eb86 |
-| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783508 | 2026-09-29 | 8e10cda |
+| grimworld_ephemeral | `test_instances::test_instances_deploys_and_stubs_revert` | 2650960 | 2783298 | 2026-09-29 | 7a1116a |
 | grimworld_ephemeral | `test_instances::test_probe_events_eight_killed` | 736580 | 773409 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_four_revealed` | 442850 | 464993 | 2026-09-29 | d65eb86 |
 | grimworld_ephemeral | `test_instances::test_probe_events_none` | 282660 | 296793 | 2026-09-29 | d65eb86 |
