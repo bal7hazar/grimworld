@@ -14,7 +14,7 @@ owner (bal7hazar)
        └─ orchestrator session(s) (Claude App, Opus or Fable, by the project manager's judgement)
             │                                               own briefs, worktrees, reviews, merges
             ├─ sub-agents: claude CLI (Opus 5.5 / Sonnet 5.5 / Fable 5.1, by difficulty) execution
-            └─ auditors:   codex CLI (gpt-6-astra, gpt-6-sol, gpt-6-luna, by kind of task)   audits, when needed
+            └─ auditors:   codex CLI (gpt-6-astra, gpt-6-sol, gpt-6-luna, by kind of task)   the review of every pull request; audits, when needed
 ```
 
 - The **owner** decides on vision, scope, design decisions (`D-xx`), releases and
@@ -68,6 +68,7 @@ published versions). Needs flow through the project manager, never sideways.
 | orchestrator | Claude App session, created by the project manager | **Opus 5.5 or Fable 5.1**, chosen by the project manager |
 | sub-agents (execution) | `claude -p …` launched by an orchestrator through the launcher (§4) | **Sonnet 5.5** (`claude-sonnet-5-5`, title `[Sonnet 5.5]`; it replaces Sonnet 5 for every new launch since 2026-09-28, verified on the VPS from the CLI itself; an agent already running or resumed keeps the model it started on until its task closes) for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Opus 5.5** for design, game logic, algorithms, debugging; **Fable 5.1** for the hardest problems. The brief states the model and, for Fable, why |
 | audits and second opinions | `codex exec …`, **when needed** | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, chosen **by the kind of task** (table below); **never for implementation** |
+| review of the code of a pull request | `codex exec …`, **before every merge** (§6) | `gpt-6-sol`, medium; `gpt-6-astra`, high, for a lot that holds or moves value, touches randomness or access control |
 
 ### Models, as verified
 
@@ -258,7 +259,7 @@ never merged by the agent.
 | status | `scripts/agent.sh status`; log `.claude/worktrees/logs/<task>.log`, each run ending with `exit=<status>` |
 | wait | `scripts/agent.sh wait <task>`, as a background command titled with the model |
 | resume | `scripts/agent.sh <task> claude <model> resume "<follow-up>"` (same profile as the launch); codex: `scripts/agent.sh <task> codex <model> resume "<follow-up>" audit "$(scripts/agent.sh sid <task>)"` |
-| close | read `REPORT.md` and the log; review the pull request (scope = allowlist, deviations, cost table); run the required audits (§6); `gh pr merge --squash` (no `--delete-branch`); archive the report in `docs/reports/`; `git worktree remove --force`; delete the branch; update `PLAN.md`, `STATUS.md` and the changelog on `main` |
+| close | read `REPORT.md` and the log; review the pull request (scope = allowlist, deviations, cost table); have its code reviewed by codex and run the required audits (§6); `gh pr merge --squash` (no `--delete-branch`); archive the report in `docs/reports/`; `git worktree remove --force`; delete the branch; update `PLAN.md`, `STATUS.md` and the changelog on `main` |
 
 The launcher (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher) starts each
 `claude` agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description
@@ -383,6 +384,53 @@ that needs them.
 | **Code quality** | Would the next agent understand and extend it? | Repository patterns; no dead code; meaningful tests; glossary names |
 | **Content validation** | Is the data playable? | Gates reachable; tables non-empty; ranges consistent; recipes ≤ pairs per signature; ids never reused |
 
+### The review of every pull request by codex (owner's rule, 2026-09-29)
+
+The code of **every pull request of a task** is reviewed by codex before it is merged,
+whatever audits the table above also requires. An audit answers the question of its lens
+against a specification; the review reads the changes themselves, on another vendor's
+model than the one that wrote them, and looks for what would hurt once merged: code that
+does not do what it says, a case that is not handled, something that worked and no longer
+does, an input that is trusted, a test that does not test what it names.
+
+| | |
+|---|---|
+| Who asks | The orchestrator that will merge, once the checks of the pull request are green |
+| On what | The head of the branch, read-only, compared with `origin/main`; the brief is given when there is one |
+| Model | §2: `gpt-6-sol`, or `gpt-6-astra` for what holds or moves value, randomness, access control |
+| Launch | As an audit by codex is (§4), under the task name `REV-<TASK-ID>`: `scripts/agent.sh REV-<TASK-ID> codex <model> new "<prompt>" audit`. Where the command `nexus` is installed: `nexus review --project grimworld --task <TASK-ID> --repository grimworld --branch <branch> --brief docs/briefs/<ID>-<slug>.md` |
+| Report | The template below, titled `Review` instead of `Audit`, with the revision that was read. Severities are those of the audits. Its verdict is listed in the pull request with those of the audits; a report with findings is archived as the report of an audit is |
+| After a fix | The review is asked again, by a new reviewer on the new head. It covers the revision it names and no other |
+
+The prompt of a review launched with the launcher:
+
+```
+Review the code of the pull request of <TASK-ID> before it is merged. The changes are what
+`git diff origin/main...origin/<branch>` shows. The brief is docs/briefs/<ID>-<slug>.md.
+Look for what would hurt once merged; taste is not a finding. Answer with the audit report
+template of OPERATIONS.md §6, titled Review, with the revision you read.
+```
+
+Its findings are handled as those of an audit: the orchestrator verifies a finding before
+sending it to a fix, the fix is made by resuming the implementer, and the three fix loops
+count the reviews with the audits.
+
+**Merging without the review** is the orchestrator's decision, in two cases:
+
+| Case | How it is known |
+|---|---|
+| Codex cannot review | It has no quota left, its login is lost, or it could not read or run anything |
+| The change needs none | Nothing that runs changed (documents, plan, status, briefs), or a change of a few lines that the checks cover |
+
+Never for a lot that holds or moves value, touches randomness, access control or
+ownership, or changes a game result: those wait for codex, or for the owner. A merge
+without the review says so in the pull request, with the verdicts:
+`Codex review: none — <reason>`. When codex could not review, the orchestrator says it to
+the project manager at its next check-in, who tells the owner: repairing it is theirs.
+
+The pull requests of documents that the project manager merges itself (§1) change nothing
+that runs: they need no review.
+
 ### Who audits
 
 | Audit | Executor |
@@ -425,8 +473,9 @@ What was reviewed, what was not, and why.
 
 ## 7. Merge, release and quality rules
 
-- Merge only on **green CI** plus the orchestrator's review of `REPORT.md` and the
-  required audits without open `blocker` or `major`. Squash merge, by the orchestrator.
+- Merge only on **green CI** plus the orchestrator's review of `REPORT.md`, the review of
+  the code by codex (§6) or the line that says why there was none, and the required audits,
+  without open `blocker` or `major`. Squash merge, by the orchestrator.
 - Conventional commits; trailer `Co-Authored-By: Claude <Model> <noreply@anthropic.com>`,
   with the model's display name, for example `Claude Fable 5.1` or `Claude Opus 5.5`.
 - Branch name `<type>/<task-id>-<slug>`. One pull request per task. A pull request that
@@ -487,7 +536,8 @@ on the whole phase; documents are reconciled; the owner has signed off.
 
 - [ ] Acceptance criteria met, each covered by a test.
 - [ ] CI green.
-- [ ] Required audits: no open `blocker` or `major`; deferred `minor` have a PLAN entry.
+- [ ] Code reviewed by codex, or the reason why not written in the pull request (§6).
+- [ ] Required audits and review: no open `blocker` or `major`; deferred `minor` have a PLAN entry.
 - [ ] Documents updated in the same pull request.
 - [ ] `REPORT.md` archived; `PLAN.md` and `STATUS.md` updated.
 
