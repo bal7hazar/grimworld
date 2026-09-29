@@ -5,6 +5,7 @@
 // (the real one is in `grimworld_ephemeral`, which this package does not depend on; the node probe
 // `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys a test
 // watches (`load` before and after).
+use core::testing::get_available_gas;
 use grimworld_logic::content::{GATE, LOCATION, REGION};
 use grimworld_logic::interface::{IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher, IResultsSafeDispatcherTrait, Results, facts};
 use grimworld_logic::models::gate::errors as gate_errors;
@@ -413,7 +414,10 @@ fn test_enter() {
     let keys = watched(id);
     let before = values(world.hub, keys.span());
     let mut spy = spy_events();
-    let instance = act(world, ALICE).enter(id, INTO_ZONE);
+    let hub = act(world, ALICE);
+    let gas = get_available_gas();
+    let instance = hub.enter(id, INTO_ZONE);
+    println!("gas enter, no belt (Instances a double): {}", gas - get_available_gas());
     assert(instance == instance_id(1, 1), 'instance id');
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
@@ -454,7 +458,10 @@ fn test_enter_reserves_the_belt() {
     assert(core_of(world, id).pack_lanes == 4, 'four lanes');
     let keys = watched(id);
     let before = values(world.hub, keys.span());
-    act(world, ALICE).enter(id, INTO_ZONE);
+    let hub = act(world, ALICE);
+    let gas = get_available_gas();
+    hub.enter(id, INTO_ZONE);
+    println!("gas enter, a belt of 4 pages emptied (Instances a double): {}", gas - get_available_gas());
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 6, 0), 'writes: 4 pages, core, place');
     for item in array![7, 15, 22, 29] {
@@ -551,7 +558,10 @@ fn test_travel() {
     let keys = watched(id);
     let before = values(world.hub, keys.span());
     let mut spy = spy_events();
-    act(world, ALICE).travel(id, TOWN);
+    let hub = act(world, ALICE);
+    let gas = get_available_gas();
+    hub.travel(id, TOWN);
+    println!("gas travel: {}", gas - get_available_gas());
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
     let expected = AdventurerPlace { instance: 0, hub: TOWN, last_hub: TOWN, inside: 0, unlocked: 0x12 };
@@ -590,16 +600,17 @@ fn test_report_returned_through_a_hub_gate() {
     let keys = watched(id);
     let before = values(world.hub, keys.span());
     let mut spy = spy_events();
-    report(
-        world,
-        Results {
-            hub: OUTPOST,
-            facts: facts::HUB_REACHED,
-            location: OUTPOST,
-            belt: [1, 2, 1, 4],
-            ..results(instance, id, Outcome::Returned),
-        },
-    );
+    let returned = Results {
+        hub: OUTPOST,
+        facts: facts::HUB_REACHED,
+        location: OUTPOST,
+        belt: [1, 2, 1, 4],
+        ..results(instance, id, Outcome::Returned),
+    };
+    start_cheat_caller_address(world.hub, world.instances);
+    let gas = get_available_gas();
+    IResultsDispatcher { contract_address: world.hub }.report(returned);
+    println!("gas report, returned, 4 pages credited: {}", gas - get_available_gas());
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 6, 0), 'writes: 4 pages, core, place');
     let expected = AdventurerPlace {
@@ -662,7 +673,11 @@ fn test_report_moved() {
     );
     let keys = watched(id);
     let before = values(world.hub, keys.span());
-    report(world, Results { next, ..results(instance, id, Outcome::Moved) });
+    start_cheat_caller_address(world.hub, world.instances);
+    let gas = get_available_gas();
+    IResultsDispatcher { contract_address: world.hub }
+        .report(Results { next, ..results(instance, id, Outcome::Moved) });
+    println!("gas report, moved: {}", gas - get_available_gas());
     let after = values(world.hub, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
     let expected = AdventurerPlace { instance: next, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2 };

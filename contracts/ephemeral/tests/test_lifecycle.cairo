@@ -5,6 +5,7 @@
 // `contracts/tools/lifecycle_probe.py` runs the real ones together). Write sets are counted over
 // the keys a test watches (`load` before and after).
 use core::poseidon::poseidon_hash_span;
+use core::testing::get_available_gas;
 use grimworld_ephemeral::events::{InstanceClosed, InstanceEntered, Refused};
 use grimworld_ephemeral::models::instance::errors::{
     ALREADY_INSIDE, NOT_HUB, NOT_INSIDE, NO_GATE, NO_LOCATION, NO_MAP, TOO_MANY_TASKS,
@@ -468,7 +469,11 @@ fn test_create_first_entry() {
     let keys = watched();
     let before = values(world.instances, keys.span());
     let mut spy = spy_events();
-    let id = create(world, HERO, ALICE, INTO_ZONE, 16);
+    start_cheat_caller_address(world.instances, world.hub);
+    let entry = IInstanceEntryDispatcher { contract_address: world.instances };
+    let gas = get_available_gas();
+    let id = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(16));
+    println!("gas create, first entry, 16 tasks (doubles): {}", gas - get_available_gas());
     assert(id == instance_id(1, 1), 'slot 1, generation 1');
     let after = values(world.instances, keys.span());
     assert(changes(before.span(), after.span()) == (17, 1, 0), 'writes: 17 new, 1 overwritten');
@@ -574,7 +579,11 @@ fn test_create_reuses_the_slot() {
     play(world, ALICE).travel_back(first, HERO, 0);
     let keys = watched();
     let before = values(world.instances, keys.span());
-    let second = create(world, HERO, ALICE, INTO_ZONE, 16);
+    start_cheat_caller_address(world.instances, world.hub);
+    let entry = IInstanceEntryDispatcher { contract_address: world.instances };
+    let gas = get_available_gas();
+    let second = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(16));
+    println!("gas create, later entry, 16 tasks (doubles): {}", gas - get_available_gas());
     assert(second == instance_id(1, 2), 'slot 1, generation 2');
     let after = values(world.instances, keys.span());
     let (new, _, zeroed) = changes(before.span(), after.span());
@@ -741,7 +750,10 @@ fn test_leave_to_a_hub() {
     let keys = watched();
     let before = values(world.instances, keys.span());
     let mut spy = spy_events();
-    assert(play(world, ALICE).leave(id, HERO, 0, ZONE_TO_TOWN) == 0, 'no next instance');
+    let instances = play(world, ALICE);
+    let gas = get_available_gas();
+    assert(instances.leave(id, HERO, 0, ZONE_TO_TOWN) == 0, 'no next instance');
+    println!("gas leave to a hub (doubles): {}", gas - get_available_gas());
     let after = values(world.instances, keys.span());
     assert(changes(before.span(), after.span()) == (0, 3, 0), 'writes: 3 overwritten');
     assert(header_of(world, 1).status == RETURNED, 'returned');
@@ -806,7 +818,10 @@ fn test_leave_to_a_location() {
     let keys = watched();
     let before = values(world.instances, keys.span());
     let mut spy = spy_events();
-    let next = play(world, ALICE).leave(id, HERO, 12, LINK_HERE);
+    let instances = play(world, ALICE);
+    let gas = get_available_gas();
+    let next = instances.leave(id, HERO, 12, LINK_HERE);
+    println!("gas leave to a location (doubles): {}", gas - get_available_gas());
     assert(next == instance_id(1, 2), 'next: slot 1, generation 2');
     let after = values(world.instances, keys.span());
     // Nine keys written; the revealed set is written with the value it holds (empty: nothing was
@@ -880,7 +895,10 @@ fn test_travel_back() {
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
     let keys = watched();
     let before = values(world.instances, keys.span());
-    play(world, ALICE).travel_back(id, HERO, 0);
+    let instances = play(world, ALICE);
+    let gas = get_available_gas();
+    instances.travel_back(id, HERO, 0);
+    println!("gas travel_back (doubles): {}", gas - get_available_gas());
     let after = values(world.instances, keys.span());
     assert(changes(before.span(), after.span()) == (0, 3, 0), 'writes: 3 overwritten');
     let expected = Reported {
@@ -930,6 +948,10 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
+    let instances = play(world, ALICE);
+    let gas = get_available_gas();
+    instances.leave(id, HERO, 5, ZONE_TO_TOWN);
+    println!("gas leave refused on the sequence: {}", gas - get_available_gas());
     assert_refused(world, id, 1, 0, Refusal::Sequence, ZONE_TO_TOWN);
     assert_refused(world, id, 3, 0, Refusal::Sequence, 0);
 }
@@ -1020,7 +1042,10 @@ fn test_set_controller() {
     let keys = watched();
     let before = values(world.instances, keys.span());
     start_cheat_caller_address(world.instances, world.hub);
-    IInstanceEntryDispatcher { contract_address: world.instances }.set_controller(HERO, addr(BOB));
+    let entry = IInstanceEntryDispatcher { contract_address: world.instances };
+    let gas = get_available_gas();
+    entry.set_controller(HERO, addr(BOB));
+    println!("gas set_controller: {}", gas - get_available_gas());
     let after = values(world.instances, keys.span());
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'one word');
     assert(read(world.instances, member_word(1, 7)) == BOB, 'controller');
