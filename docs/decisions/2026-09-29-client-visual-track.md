@@ -35,6 +35,13 @@ fingerprint of `out/` is stable on each machine but differs between the Mac and 
 6. **Nothing of the pack is posted on GitHub**, screenshots included: the repository is public
    (D-73).
 
+## Amended, 2026-09-29 (answering the track's `PENDING-cv-mandate.md`, #118)
+
+- The account check on the Mac reads the sub-agents' own configuration:
+  `CLAUDE_CONFIG_DIR=~/.claude-b7r claude auth status` shows claude-b7r, and the Mac's launcher
+  forces that variable for every sub-agent; the default configuration stays the app's (bal7hazar).
+- The track's briefs include `CV-*`; the macOS launcher is CV-01.
+
 ## What would reverse it
 
 The owner preferring the game orchestrator to merge, or the art direction choosing other sizes.

@@ -17,7 +17,7 @@ session on the Mac starts a local orchestrator; this file is its mandate.
 
 | | Paths |
 |---|---|
-| **Writes** | `client/app/src/**` except what stays the game's (below); `client/app/index.html`, `client/app/vite.config.ts`; `client/app/package.json` and `pnpm-lock.yaml` for rendering, input and development dependencies only, each addition named in the pull request; `tools/art/**` (moved from the game's track); `scripts/mac/**` (a launch script for the Mac, if needed, §3); the briefs `docs/briefs/{ART,CLI,SPK-6}*` of its own tasks; its reports archived in `docs/reports/`; `docs/research/SPK-6-*`; `docs/status/client-visual.md` |
+| **Writes** | `client/app/src/**` except what stays the game's (below); `client/app/index.html`, `client/app/vite.config.ts`; `client/app/package.json` and `pnpm-lock.yaml` for rendering, input and development dependencies only, each addition named in the pull request; `tools/art/**` (moved from the game's track); `scripts/mac/**` (a launch script for the Mac, if needed, §3); the briefs `docs/briefs/{ART,CLI,SPK-6,CV}*` of its own tasks (the macOS launcher is CV-01); its reports archived in `docs/reports/`; `docs/research/SPK-6-*`; `docs/status/client-visual.md` |
 | **Stays the game's** | `client/app/src/account/**`, `client/app/src/chain.ts` and their tests (CLI-01). A change the track needs in `App.tsx` or `main.tsx` that CLI-01 also touches is coordinated through the project manager |
 | **Never** | `contracts/`, `client/sim/**`, `spikes/`, `scripts/` outside `scripts/mac/`, `.github/`, the `assets` pointer, `PLAN.md`, `STATUS.md`, `CONTEXT.md`, `PROGRAMME.md`, `OPERATIONS.md`, `docs/design/`, `docs/architecture/`, `docs/decisions/` except a `PENDING-cv-<topic>.md` asking the project manager |
 
@@ -36,8 +36,12 @@ The game orchestrator does not merge for this track.
 
 ## 3. The machine and the agents
 
-- **Account.** `claude auth status` shows **claude-b7r** before the first launch; otherwise
-  nothing is launched (OPERATIONS §2 found the Mac's CLI on bal7hazar on 2026-09-28).
+- **Account.** On the Mac the CLI's default configuration (`~/.claude`) is the app sessions' and
+  stays on bal7hazar. Sub-agents use a separate configuration, `~/.claude-b7r`, logged in as
+  claude-b7r: before the first launch `CLAUDE_CONFIG_DIR=~/.claude-b7r claude auth status` shows
+  **claude-b7r**, otherwise nothing is launched; the Mac's launcher sets
+  `CLAUDE_CONFIG_DIR=~/.claude-b7r` for every sub-agent and refuses to launch without it
+  (amended 2026-09-29, answering `PENDING-cv-mandate.md`).
 - **Budget.** At most **2 agents at a time on the Mac**, audits included. It is apart from the
   VPS's budget of 3 (D-118): another machine.
 - **Launch.** Detached, so that a restart of the desktop app does not kill an agent (OPERATIONS
