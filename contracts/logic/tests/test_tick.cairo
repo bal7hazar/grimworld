@@ -637,7 +637,7 @@ fn candidates() -> (World, Span<u16>) {
 // COST-1: the awake set's selection (§5.2) at the candidate bound, `MAX_GOBLINS` = 100: the 8
 // nearest are the array's last 8.
 #[test]
-#[available_gas(l2_gas: 13556414)] // ceil(1.05 × 12910870 measured)
+#[available_gas(l2_gas: 12861083)] // ceil(1.05 × 12248650 measured)
 fn test_cost_awake_100() {
     let (mut world, distances) = candidates();
     TickTrait::awake(ref world, distances);
@@ -2643,7 +2643,7 @@ fn check(digests: Span<felt252>, expected: Span<felt252>) {
 }
 
 #[test]
-#[available_gas(l2_gas: 136271558)] // ceil(1.05 × 129782436 measured)
+#[available_gas(l2_gas: 136205555)] // ceil(1.05 × 129719576 measured)
 fn test_parity_examples() {
     let expected = array![
         1241239600139814297445332189267579437395556034260927953445438187785428878731,
@@ -2673,7 +2673,7 @@ fn test_parity_examples() {
 }
 
 #[test]
-#[available_gas(l2_gas: 178025069)] // ceil(1.05 × 169547684 measured)
+#[available_gas(l2_gas: 177331470)] // ceil(1.05 × 168887114 measured)
 fn test_parity_states() {
     let expected = array![
         66295114118071479459692970620146523881576091136849489442811860794139663220,
@@ -2689,7 +2689,7 @@ fn test_parity_states() {
 }
 
 #[test]
-#[available_gas(l2_gas: 240933055)] // ceil(1.05 × 229460052 measured)
+#[available_gas(l2_gas: 240934788)] // ceil(1.05 × 229461702 measured)
 fn test_parity_terms_one() {
     let expected = array![
         88087899950557960678794964014890056200459421389235559457401630463246604284,
@@ -2728,7 +2728,7 @@ fn test_parity_terms_eight() {
 }
 
 #[test]
-#[available_gas(l2_gas: 162661520)] // ceil(1.05 × 154915733 measured)
+#[available_gas(l2_gas: 162663253)] // ceil(1.05 × 154917383 measured)
 fn test_parity_terms_mixed() {
     let expected = array![
         27992153565252449929902520995596670114029068624090995673201924444728575957,

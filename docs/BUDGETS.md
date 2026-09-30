@@ -286,7 +286,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_packing::test_stats_layout` | 553910 | 579516 | 2026-09-30 | 13f11a4 |
 | grimworld_logic | `test_packing::test_task_page_layout` | 141890 | 148985 | 2026-09-30 | 13f11a4 |
 | grimworld_logic | `test_tick::test_branch_worlds_take_their_branch` | 70449014 | 73971465 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_cost_awake_100` | 12910870 | 13556414 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_cost_awake_100` | 12248650 | 12861083 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_batch_representative` | 13638920 | 13911629 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_batch_worst` | 28703240 | 30138402 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_bound_activating` | 13693583 | 14378263 | 2026-09-30 | acfebb2 |
@@ -434,11 +434,11 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_tick::test_cost_tick_worst_permuted` | 16919973 | 17765972 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_deterministic` | 58970080 | 61918584 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_library_matches_pipeline` | 57486386 | 60360706 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_parity_examples` | 129784086 | 136271558 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_parity_states` | 169549334 | 178025069 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_parity_examples` | 129719576 | 136205555 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_parity_states` | 168887114 | 177331470 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_parity_terms_eight` | 217306260 | 228171573 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_parity_terms_mixed` | 154917383 | 162661520 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_parity_terms_one` | 229461702 | 240933055 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_parity_terms_mixed` | 154917383 | 162663253 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_parity_terms_one` | 229461702 | 240934788 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_validators::test_armor_vs_negative_refused` | 15520 | 16296 | 2026-09-29 | ca17f63 |
 | grimworld_logic | `test_validators::test_armor_vs_type_0_refused` | 15520 | 16296 | 2026-09-29 | ca17f63 |
 | grimworld_logic | `test_validators::test_armor_vs_type_255_refused` | 15520 | 16296 | 2026-09-29 | ca17f63 |
@@ -483,7 +483,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::tick::tests::test_kits` | 166510 | 174836 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `types::tick::tests::test_sheets_read_oracle` | 1119830 | 1175822 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `types::world::tests::test_adrenaline_decay` | 11380268 | 11949282 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `types::world::tests::test_awake_set` | 8905240 | 9350502 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `types::world::tests::test_awake_set` | 8824740 | 9265977 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `types::world::tests::test_awake_set_apart` | 6817230 | 7158092 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `types::world::tests::test_deaths_in_step_3` | 6924598 | 7270828 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `types::world::tests::test_defeat` | 10842299 | 11384414 | 2026-09-30 | acfebb2 |

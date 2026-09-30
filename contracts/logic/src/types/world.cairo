@@ -417,32 +417,30 @@ pub impl TickImpl of TickTrait {
     /// Step 0's awake set (§5.2, design/02): among the goblins alive and not asleep, the
     /// `MAX_AWAKE` nearest to a member by hex distance (`distances`, one per goblin of the world,
     /// computed on the window by the caller), ties by lowest entity id. Fixed for the tick, and
-    /// formed apart again in the pass that writes the flags.
+    /// formed apart again in the pass that writes the flags. The goblins of the set it replaces are
+    /// read at their current values: each pass walks the frozen runs between the set's indexes.
     fn awake(ref world: World, distances: Span<u16>) {
         let count = world.goblins.len();
         world.assert_distances(distances);
         let all = world.goblins.span();
         let woken = world.woken;
         let values = world.awake.span();
-        // Each candidate's key, `distance × 2^16 + entity`, is unique: select the 8 smallest. The
-        // goblins of the set being replaced are read at their current values.
+        // Each candidate's key, `distance × 2^16 + entity`, is unique: select the 8 smallest.
         let mut keys: Array<u32> = array![];
-        let mut next = 0;
-        let mut i = 0;
-        while i < count {
-            let goblin = if next < woken.len() && *woken[next] == i {
-                next += 1;
-                values[next - 1]
-            } else {
-                all[i]
-            };
-            let key: u32 = if goblin.is_alive() && *goblin.ai != ai::ASLEEP {
-                (*distances[i]).into() * 0x10000 + (*goblin.entity).into()
-            } else {
-                0xFFFFFFFF
-            };
-            keys.append(key);
-            i += 1;
+        let mut from = 0;
+        let mut k = 0;
+        for index in woken {
+            while from < *index {
+                keys.append(Self::key(all[from], *distances[from]));
+                from += 1;
+            }
+            keys.append(Self::key(values[k], *distances[from]));
+            from += 1;
+            k += 1;
+        }
+        while from < count {
+            keys.append(Self::key(all[from], *distances[from]));
+            from += 1;
         }
         let keys = keys.span();
         let mut last: u32 = 0;
@@ -460,29 +458,61 @@ pub impl TickImpl of TickTrait {
             last = least;
             found += 1;
         }
+        let any = found > 0;
         let mut goblins = array![];
         let mut now: Array<u32> = array![];
         let mut awake = array![];
-        let mut next = 0;
-        let mut i = 0;
-        while i < count {
-            let mut goblin = if next < woken.len() && *woken[next] == i {
-                next += 1;
-                *values[next - 1]
-            } else {
-                *all[i]
-            };
-            goblin.awake = found > 0 && *keys[i] <= last;
-            if goblin.awake {
-                now.append(i);
-                awake.append(goblin);
+        let mut from = 0;
+        let mut k = 0;
+        for index in woken {
+            while from < *index {
+                let flag = any && *keys[from] <= last;
+                Self::place(ref goblins, ref now, ref awake, *all[from], from, flag);
+                from += 1;
             }
-            goblins.append(goblin);
-            i += 1;
+            let flag = any && *keys[from] <= last;
+            Self::place(ref goblins, ref now, ref awake, *values[k], from, flag);
+            from += 1;
+            k += 1;
+        }
+        while from < count {
+            let flag = any && *keys[from] <= last;
+            Self::place(ref goblins, ref now, ref awake, *all[from], from, flag);
+            from += 1;
         }
         world.goblins = goblins;
         world.woken = now.span();
         world.awake = awake;
+    }
+
+    /// A candidate's key for the awake set: `distance × 2^16 + entity` for a goblin alive and not
+    /// asleep, none (`0xFFFFFFFF`) for the others.
+    #[inline(always)]
+    fn key(goblin: @Goblin, distance: u16) -> u32 {
+        if goblin.is_alive() && *goblin.ai != ai::ASLEEP {
+            distance.into() * 0x10000 + (*goblin.entity).into()
+        } else {
+            0xFFFFFFFF
+        }
+    }
+
+    /// Goblin `index` with its awake flag, appended to the array, and to the set if awake.
+    #[inline(always)]
+    fn place(
+        ref goblins: Array<Goblin>,
+        ref woken: Array<u32>,
+        ref awake: Array<Goblin>,
+        goblin: Goblin,
+        index: u32,
+        flag: bool,
+    ) {
+        let mut goblin = goblin;
+        goblin.awake = flag;
+        if flag {
+            woken.append(index);
+            awake.append(goblin);
+        }
+        goblins.append(goblin);
     }
 }
 
@@ -1097,7 +1127,7 @@ mod tests {
     // lowest id; an asleep or dead goblin never. The set is formed apart, and a goblin of the set
     // it replaces is read at its current value.
     #[test]
-    #[available_gas(l2_gas: 9350502)] // ceil(1.05 × 8905240 measured)
+    #[available_gas(l2_gas: 9265977)] // ceil(1.05 × 8824740 measured)
     fn test_awake_set() {
         let mut goblins = array![];
         for entity in 8..19_u16 {
