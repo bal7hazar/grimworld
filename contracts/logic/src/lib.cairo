@@ -26,7 +26,5 @@ pub mod professions;
 pub mod snapshot;
 /// The library classes (ENG-01 §1.3): the tick's, `TickLibrary`.
 pub mod systems;
-/// The rules of a tick: state in, state out (CBT-02).
-pub mod tick;
 /// Identifiers, bounds and enums shared by the two domains.
 pub mod types;

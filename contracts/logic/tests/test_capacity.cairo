@@ -11,6 +11,7 @@
 // sums the documents give no capacity rule for are escalated (REPORT.md, fix loop 2), not
 // flattened here.
 use grimworld_logic::models::armor_set::{ArmorSet, ArmorSetAssert, ArmorSetTrait};
+use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::modifier::{Modifier, ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::snapshot::{
     MemberBar, MemberKit, MemberKitTrait, MemberStats, QuickCast, pack_bar, pack_kit, pack_stats,
@@ -44,8 +45,13 @@ impl FixtureImpl of Fixture {
         PassiveTrait::new(id::ARMOR, 0, guard, 0, value, value)
     }
 
+    /// A modifier of `slot`; an insignia is made for the chest (DS-23), the widest piece.
     fn modifier(slot: u8, benefit: Passive, cost: Passive) -> Modifier {
-        ModifierTrait::new(slot, benefit, cost)
+        if slot == slot::INSIGNIA {
+            ModifierTrait::insignia(base_slot::CHEST, benefit, cost)
+        } else {
+            ModifierTrait::new(slot, benefit, cost)
+        }
     }
 
     /// The passives an adventurer holds with these modifiers on every slot of their type and
@@ -388,7 +394,8 @@ fn test_unguarded_armor_twice_accepted() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 119711)] // ceil(1.05 × 114010 measured)
+// gas: raised, DS-23: the fixture's insignia is made for its piece
+#[available_gas(l2_gas: 129003)] // ceil(1.05 × 122860 measured)
 fn test_stance_armor_twice_refused() {
     // 10 + 10 in a stance: 20 > 18.
     Fixture::modifier(
@@ -456,7 +463,7 @@ fn test_same_condition_above_33_refused() {
 // CBT-9, DS-5 (design/20 §6 test 4): summed wide, then saturated at 50: envelope A's 65,534
 // gives 50 (the builder's sum, without the validators that now forbid it).
 #[test]
-#[available_gas(l2_gas: 32225)] // ceil(1.05 × 30690 measured)
+#[available_gas(l2_gas: 40961)] // ceil(1.05 × 39010 measured)
 fn test_same_condition_capped() {
     let wide = Fixture::passive(id::CONDITION_DURATION, condition::POISON, 32767);
     assert(
@@ -526,7 +533,7 @@ fn test_undecided_slot_types_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 98322)] // ceil(1.05 × 93640 measured)
+#[available_gas(l2_gas: 107972)] // ceil(1.05 × 102830 measured)
 fn test_damage_type_suffix_catalogue_refused() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(
@@ -537,7 +544,7 @@ fn test_damage_type_suffix_catalogue_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 98322)] // ceil(1.05 × 93640 measured)
+#[available_gas(l2_gas: 107972)] // ceil(1.05 × 102830 measured)
 fn test_quick_cast_on_a_suffix_refused() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(

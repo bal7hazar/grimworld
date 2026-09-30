@@ -158,11 +158,16 @@ pub struct Item {
 }
 
 /// `MODIFIER`, 1 part (design/15 Q-4, design/19 §4).
-/// low: slot type 0–7 · high: benefit 128–180 · cost 181–233 (53 bits each) · `LIVE`.
+/// low: slot type 0–7 · piece 8–15 · high: benefit 128–180 · cost 181–233 (53 bits each)
+/// ·
+/// `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Modifier {
     /// `modifier::slot::PREFIX` … `RUNE`.
     pub slot: u8,
+    /// An insignia's armor piece, `base::slot::CHEST` … `FEET` (DS-23, D-160: its health bound is
+    /// the piece's); 0 for every other slot type.
+    pub piece: u8,
     /// Its rolled value is the item's `ItemMods` byte.
     pub benefit: Passive,
     /// Fixed (`min = max`); id 0 for a modifier without a cost.
@@ -239,4 +244,103 @@ pub struct Caste {
     pub flee: u8,
     pub loot_table: u16,
     pub boss: bool,
+}
+
+// The actors of a world tick (CBT-02, ENG-01 §3.2): their stored words, as `Instances` passes
+// them to the tick's library call, and their view inside the call.
+
+/// A member's stored words, in and out of the call: the four that change in play, and the
+/// snapshot's `MemberStats`, `MemberBar`, `MemberKit`, read only.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct MemberWords {
+    pub state: felt252,
+    pub timers: felt252,
+    pub effects: felt252,
+    pub recharges: felt252,
+    pub stats: felt252,
+    pub bar: felt252,
+    pub kit: felt252,
+}
+
+/// A member inside the call: its hot fields, what it derives once, and its words (the recharges
+/// are read and written in `words.recharges` directly: only at an activation's end).
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct Member {
+    pub status: u8,
+    pub health: u16,
+    /// In thirds.
+    pub energy: u16,
+    /// In quarter strikes.
+    pub adrenaline: u16,
+    pub flags: u8,
+    /// The bar slot activated (`NO_SLOT` for none), its target, whether it is a tile, `A`.
+    pub act_slot: u8,
+    pub act_target: u16,
+    pub act_tile: u8,
+    pub act_deadline: u32,
+    pub bleeding: u32,
+    pub poison: u32,
+    pub burning: u32,
+    pub knocked: u32,
+    /// Each effect slot's deadline (read only in the ticks) and `REGENERATION` pips.
+    pub effect_deadlines: [u32; 4],
+    pub effect_regen: [i8; 4],
+    pub max_health: u16,
+    /// In thirds.
+    pub max_energy: u16,
+    /// Pips, signed.
+    pub health_regen: i8,
+    /// Pips: thirds a tick.
+    pub energy_regen: u8,
+    /// Its adrenaline gains' cap in quarters: the highest adrenaline cost on its bar (design/19
+    /// §5.12, FX-12), derived once.
+    pub adrenaline_cap: u16,
+    pub words: MemberWords,
+}
+
+/// A goblin's stored words, in and out of the call, with its entity id and whether it is in the
+/// tick's awake set (design/19 §5.2; not stored).
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct GoblinWords {
+    pub entity: u16,
+    pub awake: bool,
+    pub state: felt252,
+    pub timers: felt252,
+}
+
+/// A goblin inside the call: its hot fields, what it derives once, and its words (the recharges
+/// are read and written in `state` directly).
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct Goblin {
+    pub entity: u16,
+    pub awake: bool,
+    pub ai: u8,
+    pub health: u16,
+    /// In thirds.
+    pub energy: u8,
+    /// In quarter strikes.
+    pub adrenaline: u8,
+    pub caste: u16,
+    /// The activation field (§5.2): a caste skill 0–3 with `A`, `activation::RECOVERING` with
+    /// `B`, or `activation::NONE`; its target.
+    pub act_slot: u8,
+    pub act_target: u16,
+    pub act_deadline: u32,
+    pub bleeding: u32,
+    pub poison: u32,
+    pub burning: u32,
+    pub knocked: u32,
+    pub effect_deadline: u32,
+    pub effect_regen: i8,
+    pub max_health: u16,
+    /// Pips, signed.
+    pub health_regen: i8,
+    /// In thirds.
+    pub max_energy: u8,
+    pub energy_regen: u8,
+    /// Its adrenaline gains' cap in quarters: its caste skills' highest cost, at most the field's
+    /// 252 (design/19 §5.12), derived once.
+    pub adrenaline_cap: u8,
+    pub state: felt252,
+    pub timers: felt252,
 }

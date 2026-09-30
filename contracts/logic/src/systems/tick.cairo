@@ -2,14 +2,14 @@
 //! its own class, which `Instances` calls by `library_call` with the class hash as configuration,
 //! once per invocation: the stored words in, the stored words out. It has no storage and reads
 //! nothing: it loads the actors' hot fields once, runs the ticks with the rules of the lots written
-//! so far (`tick::Idle` until CBT-05 and ENG-07 give the executor and the AI), and stores them
-//! back.
+//! so far (`types::world::Idle` until CBT-05 and ENG-07 give the executor and the AI), and stores
+//! them back.
 
 #[starknet::contract]
 pub mod TickLibrary {
     use crate::interface::ITickLibrary;
-    use crate::tick::{Idle, TickTrait};
-    use crate::types::tick::{Content, Words, WordsTrait, WorldStoreTrait};
+    use crate::types::tick::Content;
+    use crate::types::world::{Idle, TickTrait, Words, WordsTrait, WorldStoreTrait};
 
     #[storage]
     struct Storage {}

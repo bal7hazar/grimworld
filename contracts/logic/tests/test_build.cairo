@@ -5,9 +5,12 @@
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::exp2::Exp2;
 use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetTrait};
+use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::caste::{CasteAssert, CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::index::{Caste, Skill};
-use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait, slot};
+use grimworld_logic::models::modifier::{
+    Modifier, ModifierAssert, ModifierRecord, ModifierTrait, slot,
+};
 use grimworld_logic::models::skill::SkillTrait;
 use grimworld_logic::snapshot::{
     HeldPassive, Loadout, MemberStats, SnapshotBuildTrait, max_instances, pack_stats,
@@ -25,12 +28,28 @@ fn passive(id: u8, param: u8, value: i16) -> Passive {
     PassiveTrait::new(id, param, 0, 0, value, value)
 }
 
+/// The piece an insignia of instance 5–9 is worn on: chest, legs, head, hands, feet (the order of
+/// `sources()`); 0 for every other source.
+fn piece(source: Source, instance: u8) -> u8 {
+    if source == Source::Insignia && instance >= 5 {
+        base_slot::CHEST + (instance - 5)
+    } else if source == Source::Insignia {
+        base_slot::CHEST
+    } else {
+        0
+    }
+}
+
 fn held(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
-    HeldPassive { passive, source, instance, modifier, benefit: true }
+    HeldPassive {
+        passive, source, instance, modifier, benefit: true, piece: piece(source, instance),
+    }
 }
 
 fn cost(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
-    HeldPassive { passive, source, instance, modifier, benefit: false }
+    HeldPassive {
+        passive, source, instance, modifier, benefit: false, piece: piece(source, instance),
+    }
 }
 
 /// A level-20 build of `profession`: 12 points in its primary, 10 in another, a sword
@@ -176,11 +195,18 @@ fn envelope(i: u8, param: u8) -> (i32, i32) {
 // stays within the `n × [lo, hi]` computed here. The lower ends of max health, max energy and
 // energy regeneration go below their floors and are refused (DS-2); every other field is shown.
 #[test]
-#[available_gas(l2_gas: 264873)] // ceil(1.05 × 252260 measured)
+#[available_gas(l2_gas: 284067)] // ceil(1.05 × 270540 measured)
 fn test_capacity_proof() {
-    // Max health: `100 + 20 (L − 1)` at level 255, the `u8`'s widest, + equipment ≤ 65,535.
+    // Max health: `100 + 20 (L − 1)` at level 255, the `u8`'s widest, + equipment ≤ 65,535. The
+    // insignias add their pieces' 15 + 10 + 5 + 5 + 5 = 40 (DS-23), not five times the chest's 15.
     let (_, hi) = envelope(id::MAX_HEALTH, 0);
-    assert(hi == 575, 'health envelope');
+    let mut insignias: i32 = 0;
+    for piece in base_slot::CHEST..base_slot::FEET + 1 {
+        insignias += ModifierTrait::insignia_health(piece);
+    }
+    assert(insignias == 40, 'insignias 40');
+    let hi = hi - 5 * 15 + insignias;
+    assert(480 + hi == 1020, 'max health 1,020 at level 20');
     assert(100 + 20 * 254 + hi <= 65535, 'max health u16');
     // Max energy: 30 + Wellspring 3 × 15 + light armor 20 + equipment ≤ 255.
     let (_, hi) = envelope(id::MAX_ENERGY, 0);
@@ -214,12 +240,15 @@ fn test_capacity_proof() {
 // per-source maximum (and, where no floor refuses it, its minimum) flattens without overflow, to
 // exactly the envelope.
 #[test]
-#[available_gas(l2_gas: 16101036)] // ceil(1.05 × 15334320 measured)
+#[available_gas(l2_gas: 17102553)] // ceil(1.05 × 16288145 measured)
 fn test_envelope_builds() {
-    // Held slots at 30, insignias at 15, runes and set bonuses at 50.
+    // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and set
+    // bonuses at 50.
     let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
-    for h in everywhere(passive(id::MAX_HEALTH, 0, 15), array![Source::Insignia].span()) {
-        all.append(h);
+    let mut k: u8 = 0;
+    for value in array![15_i16, 10, 5, 5, 5] {
+        all.append(held(passive(id::MAX_HEALTH, 0, value), Source::Insignia, 5 + k, 200));
+        k += 1;
     }
     for h in everywhere(
         passive(id::MAX_HEALTH, 0, 50), array![Source::Rune, Source::SetBonus].span(),
@@ -227,7 +256,7 @@ fn test_envelope_builds() {
         all.append(h);
     }
     let top = SnapshotBuildTrait::build(@loadout(1, 20), all.span());
-    assert(top.stats.max_health == 480 + 575, 'max health 1,055');
+    assert(top.stats.max_health == 1020, 'max health 1,020');
     let low = SnapshotBuildTrait::build(
         @loadout(3, 20),
         everywhere(
@@ -255,6 +284,56 @@ fn test_envelope_builds() {
         everywhere(passive(id::ENERGY_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
     );
     assert(regen.stats.energy_regen == 7, 'energy regen 7');
+}
+
+// COST-2 (design/20 §1.3, DS-23): five insignias at the chest's 15 are refused, the legs' at 11
+// and a second insignia on one piece too; the widest build stays 1,020 (`test_envelope_builds`).
+#[test]
+#[should_panic(expected: 'build: health above piece')]
+#[available_gas(l2_gas: 1389451)] // ceil(1.05 × 1323286 measured)
+fn test_five_insignias_at_15_refused() {
+    let all = everywhere(passive(id::MAX_HEALTH, 0, 15), array![Source::Insignia].span());
+    SnapshotBuildTrait::build(@loadout(1, 20), all.span());
+}
+
+#[test]
+#[should_panic(expected: 'build: two insignias a piece')]
+#[available_gas(l2_gas: 618142)] // ceil(1.05 × 588706 measured)
+fn test_two_insignias_on_a_piece_refused() {
+    let mut first = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 5, 200);
+    let mut second = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 6, 200);
+    first.piece = base_slot::HEAD;
+    second.piece = base_slot::HEAD;
+    SnapshotBuildTrait::build(@loadout(1, 20), array![first, second].span());
+}
+
+// COST-2, the record (DS-23): an insignia names its piece; its health is within the piece's bound;
+// the slot types that are not insignias name none; the piece round-trips in the record.
+#[test]
+#[available_gas(l2_gas: 275846)] // ceil(1.05 × 262710 measured)
+fn test_insignia_record_piece() {
+    let legs = ModifierTrait::insignia(
+        base_slot::LEGS, passive(id::MAX_HEALTH, 0, 10), Default::default(),
+    );
+    legs.assert_legal();
+    let parts = Record::<Modifier>::pack(@legs);
+    assert(Record::<Modifier>::unpack(parts) == legs, 'piece round-trips');
+}
+
+#[test]
+#[should_panic(expected: 'modifier: health above piece')]
+#[available_gas(l2_gas: 160178)] // ceil(1.05 × 152550 measured)
+fn test_insignia_record_above_piece_refused() {
+    ModifierTrait::insignia(base_slot::LEGS, passive(id::MAX_HEALTH, 0, 11), Default::default())
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'modifier: piece')]
+#[available_gas(l2_gas: 153857)] // ceil(1.05 × 146530 measured)
+fn test_insignia_record_without_piece_refused() {
+    ModifierTrait::new(slot::INSIGNIA, passive(id::MAX_HEALTH, 0, 5), Default::default())
+        .assert_legal();
 }
 
 // AUD-182-2: the audit's rune, a fixed −32,717 health benefit and a +32,767 cost (their sum +50
@@ -338,7 +417,7 @@ fn test_set_bonus_beyond_bound_refused() {
 // slots, insignias 15, 10, 5, 5, 5, five +50 health runes of distinct ids, two +50 set bonuses.
 // The final maximum is `max_health`; `health_bonus` is freed (DS-3).
 #[test]
-#[available_gas(l2_gas: 7143213)] // ceil(1.05 × 6803060 measured)
+#[available_gas(l2_gas: 8011842)] // ceil(1.05 × 7630325 measured)
 fn test_extremal_max_health() {
     let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
     let insignias = [15_i16, 10, 5, 5, 5];
@@ -360,7 +439,7 @@ fn test_extremal_max_health() {
 // §6 test 2: max energy 130 (DS-7): an Arcanist at Wellspring 15 (12 points and a +3 rune: ranks
 // 15, DS-8) in light armor, five held slots and two set bonuses at +5: 30 + 45 + 20 + 35.
 #[test]
-#[available_gas(l2_gas: 3003189)] // ceil(1.05 × 2860180 measured)
+#[available_gas(l2_gas: 3272703)] // ceil(1.05 × 3116860 measured)
 fn test_extremal_max_energy_and_rank() {
     let mut all = everywhere(
         passive(id::MAX_ENERGY, 0, 5),
@@ -400,7 +479,7 @@ fn test_extremal_weapon() {
 
 // §6 test 2, "each other field ≤ its envelope": every source at its widest on every other row.
 #[test]
-#[available_gas(l2_gas: 11646737)] // ceil(1.05 × 11092130 measured)
+#[available_gas(l2_gas: 13994406)] // ceil(1.05 × 13328005 measured)
 fn test_other_fields_within_envelopes() {
     let mut all = array![];
     let mut i: u8 = 0;
@@ -431,7 +510,7 @@ fn test_other_fields_within_envelopes() {
 // §6 test 3: the floors (DS-2), level 1 with every cost at its bound: refused.
 #[test]
 #[should_panic(expected: 'build: max health below 1')]
-#[available_gas(l2_gas: 2334665)] // ceil(1.05 × 2223490 measured)
+#[available_gas(l2_gas: 2558126)] // ceil(1.05 × 2436310 measured)
 fn test_floor_max_health_refused() {
     // Runes: +5 armor and −75 health; set bonuses −75: 100 − 375 − 150.
     let mut all = array![];
@@ -448,7 +527,7 @@ fn test_floor_max_health_refused() {
 
 #[test]
 #[should_panic(expected: 'build: max energy below 0')]
-#[available_gas(l2_gas: 1905992)] // ceil(1.05 × 1815230 measured)
+#[available_gas(l2_gas: 2056583)] // ceil(1.05 × 1958650 measured)
 fn test_floor_max_energy_refused() {
     // A Vanguard's 20, five held slots and two set bonuses at −5: −15.
     let all = everywhere(
@@ -460,7 +539,7 @@ fn test_floor_max_energy_refused() {
 
 #[test]
 #[should_panic(expected: 'build: energy regen below 0')]
-#[available_gas(l2_gas: 1920576)] // ceil(1.05 × 1829120 measured)
+#[available_gas(l2_gas: 2056583)] // ceil(1.05 × 1958650 measured)
 fn test_floor_energy_regen_refused() {
     // A Vanguard's 2 pips, five held slots and two set bonuses at −1: −5.
     let all = everywhere(
@@ -474,7 +553,7 @@ fn test_floor_energy_regen_refused() {
 // type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration 65,534 → 50:
 // `test_capacity::test_same_condition_capped`.
 #[test]
-#[available_gas(l2_gas: 16035044)] // ceil(1.05 × 15271470 measured)
+#[available_gas(l2_gas: 17868921)] // ceil(1.05 × 17018020 measured)
 fn test_saturation() {
     let all = everywhere(passive(id::ENCHANT_DURATION, 0, 20), sources());
     let snapshot = SnapshotBuildTrait::build(@loadout(2, 20), all.span());
@@ -519,7 +598,7 @@ fn test_sixth_rune_refused() {
 
 #[test]
 #[should_panic(expected: 'build: one source, one kind')]
-#[available_gas(l2_gas: 268286)] // ceil(1.05 × 255510 measured)
+#[available_gas(l2_gas: 285968)] // ceil(1.05 × 272350 measured)
 fn test_instance_of_two_kinds_refused() {
     let all = array![
         held(passive(id::ARMOR, 0, 5), Source::Rune, 0, 1),

@@ -7,21 +7,24 @@
 use grimworld_logic::content::Record;
 use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
+use grimworld_logic::models::goblin::{
+    Goblin, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait, GoblinWords, GoblinWordsTrait,
+};
 use grimworld_logic::models::index::{Caste, Item, Skill};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
-use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
-use grimworld_logic::tick::{
-    GoblinLifecycleTrait, GoblinTickTrait, Idle, MemberLifecycleTrait, MemberTickTrait, Rules,
-    TickTrait, WorldTrait,
+use grimworld_logic::models::member::{
+    Member, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWords, MemberWordsTrait,
 };
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
 use grimworld_logic::types::combat::{activation, condition, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::tick::{
-    Actor, CasteSheet, CasteSheetTrait, Content, Goblin, GoblinTrait, GoblinWords, GoblinWordsTrait,
-    Held, Member, MemberTrait, MemberWords, MemberWordsTrait, NO_SLOT, PotionSheet,
-    PotionSheetTrait, SkillSheet, SkillSheetTrait, Words, WordsTrait, World, WorldStoreTrait, ai,
-    flag, status,
+    CasteSheet, CasteSheetTrait, Content, Held, NO_SLOT, PotionSheet, PotionSheetTrait, SkillSheet,
+    SkillSheetTrait, ai, flag, status,
+};
+use grimworld_logic::types::world::{
+    Actor, Idle, Rules, TickTrait, Words, WordsTrait, World, WorldStoreTrait, WorldTrait,
 };
 use snforge_std::{DeclareResultTrait, declare};
 
@@ -859,7 +862,8 @@ fn worst_content(k: u8) -> Content {
 /// The worst state of a tick, by construction (AUD-182-7), every actor loaded from its words so
 /// that the derived fields agree with the stored ones:
 /// - the goblin array at its bound, `MAX_GOBLINS` = 100 (every pass is linear in it), 8 of them
-///   awake (design/02), the 92 others frozen;
+///   awake (design/02), the 92 others frozen; every one of the 100 holds a retained effect, so
+///   `load` looks up its skill (at the list's end) and scales it for each (COST-1);
 /// - each awake goblin takes step 1's costliest branch, its activation concluding (a recovery with
 ///   `k = 3 ≥ n + 2`: the conclusion's every write) at the end of the content's lists, the array
 ///   rebuilt;
@@ -900,7 +904,8 @@ fn worst_of(dying: bool, k: u8, count: u16) -> (World, Content) {
         let words = if awake {
             goblin_words(8 + i, true, health, 50, 99)
         } else {
-            goblin_words(8 + i, false, 280, 0, 0)
+            // Frozen, but loaded: its retained effect is looked up like an awake one's (COST-1).
+            goblin_words(8 + i, false, 280, 0, 99)
         };
         goblins.append(GoblinTrait::load(words, @content));
         i += 1;
@@ -945,21 +950,21 @@ fn test_deterministic() {
 
 // The fixtures' own cost, subtracted from the benchmarks below.
 #[test]
-#[available_gas(l2_gas: 51988220)] // ceil(1.05 × 49512590 measured)
+#[available_gas(l2_gas: 60716996)] // ceil(1.05 × 57825710 measured)
 fn test_cost_fixture_worst() {
     let (world, content) = worst_state(true, 3);
     assert(world.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 51988839)] // ceil(1.05 × 49513180 measured)
+#[available_gas(l2_gas: 60717615)] // ceil(1.05 × 57826300 measured)
 fn test_cost_fixture_worst_batch() {
     let (world, content) = worst_state(false, 1);
     assert(world.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 59007617)] // ceil(1.05 × 56197730 measured)
+#[available_gas(l2_gas: 67736393)] // ceil(1.05 × 64510850 measured)
 fn test_cost_fixture_worst_words() {
     let (words, content) = worst_words();
     assert(words.goblins.len() == 100 && content.skills.len() == 38, 'worst');
@@ -1022,7 +1027,7 @@ fn test_cost_library_baseline_representative() {
 
 // Cost: the worst single tick, by construction (`worst_state`), the pipeline alone.
 #[test]
-#[available_gas(l2_gas: 65022808)] // ceil(1.05 × 61926483 measured)
+#[available_gas(l2_gas: 73751584)] // ceil(1.05 × 70239603 measured)
 fn test_cost_tick_worst() {
     let (mut world, content) = worst_state(true, 3);
     let mut rules = Idle {};
@@ -1063,20 +1068,63 @@ fn test_cost_batch_worst() {
 }
 
 // Cost, once per call: loading the worst state's 101 actors from their words and storing them back.
+// The round trip returns exactly the words it was given (quality 4): every member and goblin word,
+// the clock, the kills. Its baseline builds the same two fixtures.
 #[test]
-#[available_gas(l2_gas: 112692500)] // ceil(1.05 × 107326190 measured)
+#[available_gas(l2_gas: 198274545)] // ceil(1.05 × 188832900 measured)
 fn test_cost_load_store_worst() {
     let (words, content) = worst_words();
+    let (expected, _) = worst_words();
     let world = words.load(@content);
     let words = world.store();
-    assert(words.goblins.len() == 100, 'stored');
+    assert(words == expected, 'the round trip keeps every word');
+}
+
+#[test]
+#[available_gas(l2_gas: 135460080)] // ceil(1.05 × 129009600 measured)
+fn test_cost_fixture_worst_words_twice() {
+    let (words, content) = worst_words();
+    let (expected, _) = worst_words();
+    assert(words.goblins.len() == expected.goblins.len() && content.skills.len() == 38, 'twice');
+}
+
+/// 100 candidates, every one eligible (Alerted, alive), at distances falling along the array: each
+/// of the 8 selection scans updates its running minimum at every element, the costliest order.
+fn candidates() -> (World, Span<u16>) {
+    let content = worst_content(3);
+    let mut goblins = array![];
+    let mut distances = array![];
+    let mut i: u16 = 0;
+    while i < 100 {
+        goblins.append(GoblinTrait::load(goblin_words(8 + i, false, 280, 0, 0), @content));
+        distances.append(200 - i);
+        i += 1;
+    }
+    (Fixture::world(49, array![], goblins), distances.span())
+}
+
+// COST-1: the awake set's selection (§5.2) at the candidate bound, `MAX_GOBLINS` = 100: the 8
+// nearest are the array's last 8.
+#[test]
+#[available_gas(l2_gas: 50299179)] // ceil(1.05 × 47903980 measured)
+fn test_cost_awake_100() {
+    let (mut world, distances) = candidates();
+    TickTrait::awake(ref world, distances);
+    assert(*world.goblins.at(92).awake && !*world.goblins.at(91).awake, 'the 8 nearest');
+}
+
+#[test]
+#[available_gas(l2_gas: 45822095)] // ceil(1.05 × 43640090 measured)
+fn test_cost_fixture_candidates() {
+    let (world, distances) = candidates();
+    assert(world.goblins.len() == 100 && distances.len() == 100, 'candidates');
 }
 
 // Cost of the library call (AC-3): the baseline declares the class and runs the call's body (load,
 // the worst tick, store) in the test's own code; the next test runs it through `library_call`.
 // The difference is the call: its syscall and the words and content through calldata and back.
 #[test]
-#[available_gas(l2_gas: 125724820)] // ceil(1.05 × 119737923 measured)
+#[available_gas(l2_gas: 143182372)] // ceil(1.05 × 136364163 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (words, content) = worst_words();
@@ -1088,7 +1136,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 128431741)] // ceil(1.05 × 122315943 measured)
+#[available_gas(l2_gas: 145889293)] // ceil(1.05 × 138942183 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1101,7 +1149,7 @@ fn test_cost_library_call() {
 // until CBT-05 and ENG-07), so after the opening tick the goblins fall quiet. A trace of the call
 // at the array's bound, not a worst case (that is `test_cost_batch_worst`).
 #[test]
-#[available_gas(l2_gas: 166494101)] // ceil(1.05 × 158565810 measured)
+#[available_gas(l2_gas: 183951653)] // ceil(1.05 × 175192050 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1111,7 +1159,7 @@ fn test_cost_library_call_batch() {
 }
 
 #[test]
-#[available_gas(l2_gas: 59016678)] // ceil(1.05 × 56206360 measured)
+#[available_gas(l2_gas: 67745454)] // ceil(1.05 × 64519480 measured)
 fn test_cost_library_baseline_batch() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (world, _content) = worst_state(false, 1);
@@ -1121,7 +1169,7 @@ fn test_cost_library_baseline_batch() {
 
 // The library call runs the pipeline: the same words as a direct run.
 #[test]
-#[available_gas(l2_gas: 254550856)] // ceil(1.05 × 242429386 measured)
+#[available_gas(l2_gas: 289465960)] // ceil(1.05 × 275681866 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };

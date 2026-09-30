@@ -12,6 +12,8 @@
 
 use crate::durations::MAX_DURATION_BONUS_PERCENT;
 use crate::helpers::signed::SignedTrait;
+use crate::models::base::slot as base_slot;
+use crate::models::modifier::ModifierTrait;
 use crate::packing::{
     P104, P108, P112, P12, P120, P16, P20, P24, P32, P40, P48, P56, P64, P72, P8, P80, P84, P88,
     P96, join, low_field, split,
@@ -43,6 +45,23 @@ pub mod errors {
     pub const KNOCKDOWN: felt252 = 'snapshot: knock-down above 3';
     pub const CONDITIONS: felt252 = 'snapshot: two conditions';
     pub const HEALTH_REGEN: felt252 = 'snapshot: health regen';
+    // The production flattening's (`BuildAssert`).
+    pub const SOURCE_COUNT: felt252 = 'build: too many of a source';
+    pub const INSTANCE: felt252 = 'build: one source, one kind';
+    pub const INSTANCE_SIZE: felt252 = 'build: passives of a source';
+    pub const TWICE: felt252 = 'build: counted twice';
+    pub const MAX_HEALTH: felt252 = 'build: max health below 1';
+    pub const MAX_ENERGY: felt252 = 'build: max energy below 0';
+    pub const ENERGY_REGEN: felt252 = 'build: energy regen below 0';
+    pub const POINTS: felt252 = 'build: points above 12';
+    pub const WEAPON_DAMAGE: felt252 = 'build: weapon damage above 27';
+    pub const RATING: felt252 = 'build: rating above 560';
+    pub const QUICK_CAST_ATTRIBUTE: felt252 = 'build: quick-cast attribute';
+    pub const DAMAGE_TYPE: felt252 = 'build: two damage types';
+    pub const OVERFLOW: felt252 = 'build: sum outside its field';
+    pub const PIECE: felt252 = 'build: insignia piece';
+    pub const PIECE_HEALTH: felt252 = 'build: health above piece';
+    pub const PIECE_TWICE: felt252 = 'build: two insignias a piece';
 }
 
 /// Every field of the three snapshot words fits its layout (docs/CAIRO.md §7: checks in
@@ -89,6 +108,17 @@ pub impl MemberKitAssert of MemberKitAssertTrait {
         assert(*self.condition_duration < 0x40, errors::PERCENT);
         assert(*self.enchantment_duration < 0x40, errors::PERCENT);
         assert(*self.knockdown < 4, errors::KNOCKDOWN);
+    }
+
+    /// The kit holds one condition's duration ("one prefix"): the passives name at most one.
+    fn assert_one_condition(held: Span<Passive>) {
+        let mut condition: u8 = 0;
+        for passive in held {
+            if *passive.id == id::CONDITION_DURATION {
+                assert(condition == 0 || condition == *passive.param, errors::CONDITIONS);
+                condition = *passive.param;
+            }
+        }
     }
 }
 
@@ -453,11 +483,11 @@ pub impl MemberKitImpl of MemberKitTrait {
     /// ("one prefix"): two conditions are refused, as the validators refuse them on one source.
     /// Summed wide (`u32`), then saturated at 50 (DS-5): design/20 §6 test 4's 65,534 gives 50.
     fn condition_duration(held: Span<Passive>) -> (u8, u8) {
+        MemberKitAssert::assert_one_condition(held);
         let mut condition: u8 = 0;
         let mut percent: u32 = 0;
         for passive in held {
             if *passive.id == id::CONDITION_DURATION {
-                assert(condition == 0 || condition == *passive.param, errors::CONDITIONS);
                 condition = *passive.param;
                 let value: i32 = (*passive.max).into();
                 percent += value.try_into().unwrap();
@@ -509,21 +539,6 @@ pub const LIGHT_ENERGY_REGEN: i32 = 1;
 pub const HEAVY_VS_PHYSICAL: u32 = 20;
 pub const MEDIUM_VS_ELEMENTAL: u32 = 30;
 
-pub mod build_errors {
-    pub const SOURCE_COUNT: felt252 = 'build: too many of a source';
-    pub const INSTANCE: felt252 = 'build: one source, one kind';
-    pub const INSTANCE_SIZE: felt252 = 'build: passives of a source';
-    pub const TWICE: felt252 = 'build: counted twice';
-    pub const MAX_HEALTH: felt252 = 'build: max health below 1';
-    pub const MAX_ENERGY: felt252 = 'build: max energy below 0';
-    pub const ENERGY_REGEN: felt252 = 'build: energy regen below 0';
-    pub const POINTS: felt252 = 'build: points above 12';
-    pub const WEAPON_DAMAGE: felt252 = 'build: weapon damage above 27';
-    pub const RATING: felt252 = 'build: rating above 560';
-    pub const QUICK_CAST: felt252 = 'build: quick-cast attribute';
-    pub const DAMAGE_TYPE: felt252 = 'build: two damage types';
-    pub const OVERFLOW: felt252 = 'build: sum outside its field';
-}
 
 /// A passive the build holds (design/20 §1.2). Its value is `passive.max`: a benefit's rolled
 /// value (the caller writes the roll in), a cost's fixed one. `instance` numbers its source: the
@@ -538,6 +553,9 @@ pub struct HeldPassive {
     pub modifier: u32,
     /// A modifier's benefit, not its cost; a set bonus is a benefit.
     pub benefit: bool,
+    /// The armor piece its item is worn on (`base::slot::CHEST` … `FEET`) for an insignia, which
+    /// bounds its health (DS-23); 0 for every other source.
+    pub piece: u8,
 }
 
 /// What the flattening reads besides the passives (design/03, design/15).
@@ -587,14 +605,89 @@ pub fn max_instances(source: Source) -> u8 {
 
 #[generate_trait]
 pub impl BuildAssert of BuildAssertTrait {
+    /// DS-2 (D-160): max health at least 1, max energy and energy regeneration at least 0; the
+    /// build is refused below (`set_build`).
+    fn assert_floors(health: i32, energy: i32, energy_regen: i32) {
+        assert(health >= 1, errors::MAX_HEALTH);
+        assert(energy >= 0, errors::MAX_ENERGY);
+        assert(energy_regen >= 0, errors::ENERGY_REGEN);
+    }
+
+    /// The single-valued fields (design/19 §4, §7.2): one damage type, at most two quick-cast
+    /// pairs, each of an attribute of the build (its index in `points` is its local index, D-157
+    /// A, and fits the pair's 4 bits).
+    fn assert_single_fields(held: Span<HeldPassive>, points: Span<(u8, u8)>) {
+        let mut damage_type: u8 = 0;
+        let mut pairs: u32 = 0;
+        for h in held {
+            let p = *h.passive;
+            if p.id == id::DAMAGE_TYPE {
+                assert(damage_type == 0 || damage_type == p.param, errors::DAMAGE_TYPE);
+                damage_type = p.param;
+            }
+            if p.id == id::QUICK_CAST_EVERY_N {
+                pairs += 1;
+                let mut index: u32 = 16;
+                let mut k: u32 = 0;
+                for (attribute, _) in points {
+                    if *attribute == p.param && index == 16 {
+                        index = k;
+                    }
+                    k += 1;
+                }
+                assert(index < 16, errors::QUICK_CAST_ATTRIBUTE);
+            }
+        }
+        assert(pairs <= 2, errors::QUICK_CAST_ATTRIBUTE);
+    }
+
+    /// DS-23 (D-160): an insignia is worn on an armor piece, one a piece, and adds at most the
+    /// piece's health (15 / 10 / 5), whatever the record names (`set_build` checks the record's
+    /// piece against the item's `BASE.slot`).
+    fn assert_insignia(held: Span<HeldPassive>) {
+        let mut worn: u32 = 0;
+        let mut i: u32 = 0;
+        for h in held {
+            if *h.source == Source::Insignia {
+                let piece = *h.piece;
+                assert(piece >= base_slot::CHEST && piece <= base_slot::FEET, errors::PIECE);
+                let bound = ModifierTrait::insignia_health(piece);
+                let mut first = true;
+                let mut sum: i32 = 0;
+                let mut j: u32 = 0;
+                for other in held {
+                    if *other.instance == *h.instance {
+                        if j < i {
+                            first = false;
+                        }
+                        assert(*other.piece == piece, errors::PIECE);
+                        if *other.passive.id == id::MAX_HEALTH {
+                            let v: i32 = (*other.passive.max).into();
+                            assert(v <= bound, errors::PIECE_HEALTH);
+                            sum += v;
+                        }
+                    }
+                    j += 1;
+                }
+                assert(sum <= bound, errors::PIECE_HEALTH);
+                if first {
+                    let bit: u32 = *[1, 2, 4, 8, 16].span()[(piece - base_slot::CHEST).into()];
+                    assert(worn & bit == 0, errors::PIECE_TWICE);
+                    worn += bit;
+                }
+            }
+            i += 1;
+        }
+    }
+
     /// The build's own bounds design/20 §1 sums from (B, row 9, F-21): each attribute's points
     /// give a rank of at most 12, the weapon's base damage at most 27, the rating at most 560.
     fn assert_loadout(loadout: @Loadout) {
         for (_, points) in *loadout.points {
-            assert(*points <= MAX_POINTS_RANK, build_errors::POINTS);
+            assert(*points <= MAX_POINTS_RANK, errors::POINTS);
         }
-        assert(*loadout.weapon_damage <= MAX_WEAPON_BASE_DAMAGE, build_errors::WEAPON_DAMAGE);
-        assert(*loadout.rating <= MAX_RATING, build_errors::RATING);
+        assert(*loadout.weapon_damage <= MAX_WEAPON_BASE_DAMAGE, errors::WEAPON_DAMAGE);
+        assert(*loadout.rating <= MAX_RATING, errors::RATING);
     }
 
     /// The flattening's checks of the whole build (DS-1, D-160): each passive legal on its
@@ -620,7 +713,7 @@ pub impl BuildAssert of BuildAssertTrait {
                 let mut passives: Array<Passive> = array![];
                 for other in held {
                     if *other.instance == *current.instance {
-                        assert(*other.source == *current.source, build_errors::INSTANCE);
+                        assert(*other.source == *current.source, errors::INSTANCE);
                         passives.append(*other.passive);
                     }
                 }
@@ -629,10 +722,10 @@ pub impl BuildAssert of BuildAssertTrait {
                 } else {
                     2
                 };
-                assert(passives.len() <= size, build_errors::INSTANCE_SIZE);
+                assert(passives.len() <= size, errors::INSTANCE_SIZE);
                 let passives = passives.span();
                 if passives.len() == 2 {
-                    assert(!passives[0].conflicts(passives[1]), build_errors::TWICE);
+                    assert(!passives[0].conflicts(passives[1]), errors::TWICE);
                 }
                 PassiveAssert::assert_contributions(passives);
                 PassiveAssert::assert_source_bounds(passives, *current.source);
@@ -651,7 +744,7 @@ pub impl BuildAssert of BuildAssertTrait {
                     n += *one;
                 }
             }
-            assert(n <= max_instances(source), build_errors::SOURCE_COUNT);
+            assert(n <= max_instances(source), errors::SOURCE_COUNT);
         }
     }
 }
@@ -768,9 +861,10 @@ impl HeldSums of HeldSumsTrait {
 }
 
 /// An `i32` sum into its field, or refused: design/20 §1 proves each fits once `BuildAssert`
-/// passed, so a failure here is a broken proof, never a legal build.
+/// passed, so a failure here is a broken proof, never a legal build. A free function: a
+/// conversion generic over every field's type, which no type owns.
 fn fit<T, +TryInto<i32, T>>(value: i32) -> T {
-    value.try_into().expect(build_errors::OVERFLOW)
+    value.try_into().expect(errors::OVERFLOW)
 }
 
 #[generate_trait]
@@ -793,6 +887,8 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     fn build(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
         BuildAssert::assert_loadout(loadout);
         BuildAssert::assert_sources(held);
+        BuildAssert::assert_single_fields(held, *loadout.points);
+        BuildAssert::assert_insignia(held);
         let level: i32 = (*loadout.level).into();
         let profession = *loadout.profession;
         let light = profession == 3;
@@ -807,7 +903,6 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
 
         // Maxima and regeneration, signed, with DS-2's floors.
         let health = 100 + 20 * (level - 1) + HeldSums::health(held);
-        assert(health >= 1, build_errors::MAX_HEALTH);
         let base_energy: i32 = ProfessionTrait::energy(profession).into();
         let wellspring = if light {
             WELLSPRING_ENERGY_PER_RANK * primary_rank.into()
@@ -823,7 +918,6 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
             + wellspring
             + light_energy
             + HeldSums::total(held, id::MAX_ENERGY);
-        assert(energy >= 0, build_errors::MAX_ENERGY);
         let base_regen: i32 = ProfessionTrait::energy_regen(profession).into();
         let light_regen = if light {
             LIGHT_ENERGY_REGEN
@@ -831,7 +925,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
             0
         };
         let energy_regen = base_regen + light_regen + HeldSums::total(held, id::ENERGY_REGEN);
-        assert(energy_regen >= 0, build_errors::ENERGY_REGEN);
+        BuildAssert::assert_floors(health, energy, energy_regen);
         let health_regen = 10 + HeldSums::total(held, id::HEALTH_REGEN);
 
         // Armor against each type: the class's innate, then saturated (FX-23).
@@ -874,7 +968,6 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         let mut replaced = false;
         for h in held {
             if *h.passive.id == id::DAMAGE_TYPE {
-                assert(!replaced || damage_type == *h.passive.param, build_errors::DAMAGE_TYPE);
                 damage_type = *h.passive.param;
                 replaced = true;
             }
@@ -892,7 +985,6 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                     }
                     k += 1;
                 }
-                assert(index < 16, build_errors::QUICK_CAST);
                 pairs
                     .append(
                         QuickCast {
@@ -902,7 +994,6 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                     );
             }
         }
-        assert(pairs.len() <= 2, build_errors::QUICK_CAST);
         while pairs.len() < 2 {
             pairs.append(Default::default());
         }
@@ -949,7 +1040,7 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
                 profession,
                 primary_rank,
                 weapon: *loadout.weapon,
-                weapon_damage: weapon_damage.try_into().expect(build_errors::OVERFLOW),
+                weapon_damage: weapon_damage.try_into().expect(errors::OVERFLOW),
                 weapon_ticks: *loadout.weapon_ticks,
                 weapon_range: *loadout.weapon_range,
                 weapon_strength: strength.try_into().unwrap(),

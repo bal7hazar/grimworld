@@ -8,13 +8,14 @@ use grimworld_ephemeral::models::goblin::{
 use grimworld_ephemeral::models::member::{
     DOWN, Effect, GONE, INSIDE, MemberEffects, MemberState, MemberTimers, NO_SLOT, Recharges, flag,
 };
+use grimworld_logic::models::goblin::{GoblinTrait, GoblinWords};
+use grimworld_logic::models::member::{MemberTrait, MemberWords};
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
-use grimworld_logic::tick::{Idle, TickTrait};
 use grimworld_logic::types::combat::activation;
 use grimworld_logic::types::tick::{
-    CasteSheet, Content, GoblinTrait, GoblinWords, MemberTrait, MemberWords, PotionSheet,
-    SkillSheet, World, ai, flag as tick_flag, status,
+    CasteSheet, Content, PotionSheet, SkillSheet, ai, flag as tick_flag, status,
 };
+use grimworld_logic::types::world::{Idle, TickTrait, World};
 use starknet::storage_access::StorePacking;
 
 /// The member's bar is 301, 300, 7–12: `load` reads each skill's adrenaline cost (its cap).

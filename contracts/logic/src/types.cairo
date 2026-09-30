@@ -10,6 +10,8 @@ pub mod effect;
 pub mod passive;
 /// The state and content a world tick reads and writes (CBT-02).
 pub mod tick;
+/// The world of a tick's library call, and the pipeline (CBT-02).
+pub mod world;
 
 /// An instance id: `slot × 2^32 + generation`. The slot is a reusable key of the ephemeral
 /// contract's storage (M-1: instance state is keyed by it, never by an adventurer id); the

@@ -3,7 +3,8 @@
 
 use starknet::ContractAddress;
 use crate::snapshot::{Snapshot, TaskEntry};
-use crate::types::tick::{Content, Words};
+use crate::types::tick::Content;
+use crate::types::world::Words;
 use crate::types::{InstanceId, Outcome};
 
 /// The results interface (ADR-0001, *Keeping the exit open*): what an instance hands to the

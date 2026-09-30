@@ -3,6 +3,7 @@
 // is a record the code at b5bce2d accepted; the other tests are the boundaries still accepted, and
 // the snapshot's capacity derived from the sources the validators allow.
 use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetTrait};
+use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::item::{ItemAssert, ItemTrait, class};
 use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::models::skill::{SkillAssert, SkillTrait};
@@ -32,8 +33,13 @@ impl FixtureImpl of Fixture {
     }
 
     /// A modifier of `benefit` on `slot`, without a cost.
+    /// `benefit` on a modifier of `slot`; an insignia is made for the chest (DS-23).
     fn on(slot: u8, benefit: Passive) {
-        ModifierTrait::new(slot, benefit, Default::default()).assert_legal();
+        if slot == slot::INSIGNIA {
+            ModifierTrait::insignia(base_slot::CHEST, benefit, Default::default()).assert_legal();
+        } else {
+            ModifierTrait::new(slot, benefit, Default::default()).assert_legal();
+        }
     }
 
     fn preparation(d0: u16, d12: u16, charges: u8) -> Entry {

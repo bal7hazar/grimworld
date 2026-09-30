@@ -2,8 +2,9 @@
 //! modifier carries two passives, a benefit and a cost (design/15 Q-4, design/19 §4).
 
 use crate::content::{MODIFIER, Record};
-use crate::packing::{P8, join, low_field, split};
+use crate::packing::{P8, join, split};
 use crate::types::passive::{Passive, PassiveAssert, PassiveTrait, Source, id};
+use super::base::slot as base_slot;
 pub use super::index::Modifier;
 
 /// Slot types, in the order of `ItemMods`' five slots (ENG-01 §3.3, design/15).
@@ -23,12 +24,31 @@ pub mod errors {
     pub const TWICE: felt252 = 'modifier: counted twice';
     pub const QUICK_CAST_SLOTS: felt252 = 'modifier: quick-cast slots';
     pub const DAMAGE_TYPE_SLOTS: felt252 = 'modifier: damage type slots';
+    pub const PIECE: felt252 = 'modifier: piece';
+    pub const PIECE_HEALTH: felt252 = 'modifier: health above piece';
 }
 
 #[generate_trait]
 pub impl ModifierImpl of ModifierTrait {
     fn new(slot: u8, benefit: Passive, cost: Passive) -> Modifier {
-        Modifier { slot, benefit, cost }
+        Modifier { slot, piece: 0, benefit, cost }
+    }
+
+    /// An insignia made for armor `piece` (`base::slot::CHEST` … `FEET`, DS-23).
+    fn insignia(piece: u8, benefit: Passive, cost: Passive) -> Modifier {
+        Modifier { slot: slot::INSIGNIA, piece, benefit, cost }
+    }
+
+    /// The most health an insignia of `piece` adds (design/20 §1.3 row 1, DS-23: 15 on the chest,
+    /// 10 on the legs, 5 on the head, the hands and the feet).
+    fn insignia_health(piece: u8) -> i32 {
+        if piece == base_slot::CHEST {
+            15
+        } else if piece == base_slot::LEGS {
+            10
+        } else {
+            5
+        }
     }
 
     /// Whether it has a cost (a cost id 0 is none).
@@ -84,6 +104,28 @@ pub impl ModifierAssert of ModifierAssertTrait {
         let passives = array![*self.benefit, *self.cost].span();
         PassiveAssert::assert_contributions(passives);
         PassiveAssert::assert_source_bounds(passives, source);
+        self.assert_piece();
+    }
+
+    /// DS-23 (D-160): an insignia names its armor piece, and its health (each passive and their
+    /// sum) is within the piece's bound, 15 / 10 / 5; any other slot type names none.
+    fn assert_piece(self: @Modifier) {
+        let piece = *self.piece;
+        if *self.slot != slot::INSIGNIA {
+            assert(piece == 0, errors::PIECE);
+            return;
+        }
+        assert(piece >= base_slot::CHEST && piece <= base_slot::FEET, errors::PIECE);
+        let bound = ModifierTrait::insignia_health(piece);
+        let mut sum: i32 = 0;
+        for passive in array![*self.benefit, *self.cost] {
+            if passive.id == id::MAX_HEALTH {
+                let value: i32 = passive.max.into();
+                assert(value <= bound, errors::PIECE_HEALTH);
+                sum += value;
+            }
+        }
+        assert(sum <= bound, errors::PIECE_HEALTH);
     }
 
     /// The content pipeline's checks across every `MODIFIER` of the content, each legal: "the
@@ -113,12 +155,14 @@ pub impl ModifierRecord of Record<Modifier> {
     const KIND: u8 = MODIFIER;
 
     fn pack(self: @Modifier) -> Span<felt252> {
-        array![join((*self.slot).into(), PassiveTrait::pack_pair(self.benefit, self.cost))].span()
+        let low: u128 = (*self.slot).into() + (*self.piece).into() * P8;
+        array![join(low, PassiveTrait::pack_pair(self.benefit, self.cost))].span()
     }
 
     fn unpack(parts: Span<felt252>) -> Modifier {
         let (low, high) = split(*parts[0]);
         let (benefit, cost) = PassiveTrait::unpack_pair(high);
-        Modifier { slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(), benefit, cost }
+        let (piece, slot) = DivRem::div_rem(low, P8.try_into().unwrap());
+        Modifier { slot: slot.try_into().unwrap(), piece: piece.try_into().unwrap(), benefit, cost }
     }
 }
