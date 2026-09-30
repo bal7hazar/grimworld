@@ -3,5 +3,6 @@
 //! docs/research/SPK-14-hexagonal-chunks.md.
 
 pub mod hexchunk;
+pub mod pieces;
 pub mod tables;
 pub mod window;

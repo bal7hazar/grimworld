@@ -13,6 +13,8 @@ use crate::tables::{FIRST, QHI, QLO, TILE};
 pub const TILES: u8 = 251;
 /// Rows of a chunk.
 pub const ROWS: u8 = 17;
+/// 251 · 64: keeps the rounded lattice coordinates' numerators non-negative.
+const OFFSET: felt252 = 16064;
 
 pub mod errors {
     pub const HEXCHUNK_OUTSIDE: felt252 = 'HexChunk: tile outside';
@@ -70,48 +72,59 @@ pub impl HexChunkImpl of HexChunkTrait {
     /// from the inverse matrix about the chunk's centre (9, 8), then at most one translation
     /// (checked on every tile of 256 x 256 by `geometry.py`, `check_locate`).
     fn locate(q: i32, r: i32) -> Located {
-        let dq = q - 9;
-        let dr = r - 8;
-        let a = Self::round(8 * dq + 19 * dr);
-        let b = Self::round(17 * dq + 9 * dr);
-        let lq = q + 9 * a - 19 * b;
-        let lr = r - 17 * a + 8 * b;
+        // [Compute] Rounded lattice coordinates, on felts shifted to non-negative values:
+        // a = round((8 (q - 9) + 19 (r - 8)) / 251), b = round((17 (q - 9) + 9 (r - 8)) / 251),
+        // each + 64
+        let q: felt252 = q.into();
+        let r: felt252 = r.into();
+        let na: u32 = (8 * q + 19 * r - 224 + 125 + OFFSET).try_into().unwrap();
+        let nb: u32 = (17 * q + 9 * r - 225 + 125 + OFFSET).try_into().unwrap();
+        let (a, _) = DivRem::div_rem(na, 251);
+        let (b, _) = DivRem::div_rem(nb, 251);
+        let a: felt252 = a.into() - 64;
+        let b: felt252 = b.into() - 64;
+        // [Compute] The tile in that chunk, + 32 on both coordinates
+        let lq: u8 = (q + 9 * a - 19 * b + 32).try_into().unwrap();
+        let lr: u8 = (r - 17 * a + 8 * b + 32).try_into().unwrap();
         let (da, db, lq, lr) = Self::enter(lq, lr);
-        Located { a: a + da, b: b + db, q: lq.try_into().unwrap(), r: lr.try_into().unwrap() }
+        Located {
+            a: (a + da).try_into().unwrap(),
+            b: (b + db).try_into().unwrap(),
+            q: lq - 32,
+            r: lr - 32,
+        }
     }
 
-    /// `n / 251` rounded to the nearest, `|n| < 16,000`.
+    /// Whether a local tile, + 32 on both coordinates, is in the chunk.
     #[inline(always)]
-    fn round(n: i32) -> i32 {
-        let shifted: u32 = (n + 125 + 251 * 64).try_into().unwrap();
-        let (quotient, _) = DivRem::div_rem(shifted, 251);
-        let quotient: i32 = quotient.try_into().unwrap();
-        quotient - 64
+    fn inside_shifted(q: u8, r: u8) -> bool {
+        let sum = q + r;
+        r >= 32 && r <= 48 && q >= 32 && q <= 50 && sum >= 72 && sum <= 90
     }
 
-    /// A local tile just outside the chunk brought into the neighbour that holds it.
+    /// A local tile (+ 32) just outside the chunk brought into the neighbour that holds it.
     /// # Returns
-    /// * The lattice step `(da, db)` and the tile in that chunk
-    fn enter(q: i32, r: i32) -> (i32, i32, i32, i32) {
-        if Self::inside(q, r) {
+    /// * The lattice step `(da, db)` and the tile (+ 32) in that chunk
+    fn enter(q: u8, r: u8) -> (felt252, felt252, u8, u8) {
+        if Self::inside_shifted(q, r) {
             return (0, 0, q, r);
         }
-        if Self::inside(q + 9, r - 17) {
+        if Self::inside_shifted(q + 9, r - 17) {
             return (1, 0, q + 9, r - 17);
         }
-        if Self::inside(q + 19, r - 8) {
+        if Self::inside_shifted(q + 19, r - 8) {
             return (0, -1, q + 19, r - 8);
         }
-        if Self::inside(q + 10, r + 9) {
+        if Self::inside_shifted(q + 10, r + 9) {
             return (-1, -1, q + 10, r + 9);
         }
-        if Self::inside(q - 10, r - 9) {
+        if Self::inside_shifted(q - 10, r - 9) {
             return (1, 1, q - 10, r - 9);
         }
-        if Self::inside(q - 19, r + 8) {
+        if Self::inside_shifted(q - 19, r + 8) {
             return (0, 1, q - 19, r + 8);
         }
-        assert(Self::inside(q - 9, r + 17), errors::HEXCHUNK_NOT_FOUND);
+        assert(Self::inside_shifted(q - 9, r + 17), errors::HEXCHUNK_NOT_FOUND);
         (-1, 0, q - 9, r + 17)
     }
 }

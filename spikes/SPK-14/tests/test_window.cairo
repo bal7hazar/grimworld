@@ -3,7 +3,8 @@
 //! parity), both layers; `origin` locates the window of an adventurer on either row parity.
 
 use spk14::hexchunk::HexChunkTrait;
-use spk14::window::{HexOrigin, HexWindowTrait};
+use spk14::pieces::{PIECES_185, PIECES_25};
+use spk14::window::{HexOrigin, HexWindowTableTrait, HexWindowTrait};
 use super::helpers::{has, member, random_bits};
 
 /// Lattice steps of the 12 slots, `slot = 4 da + db + 1`.
@@ -90,20 +91,28 @@ fn check_classes(from: u8, to: u8) {
         let (grid, occ) = window_plain(x0, y0, origin.a, origin.b, terrain.span(), occupied.span());
         let t = terrain.span();
         let o = occupied.span();
-        let (map, got) = HexWindowTrait::window(
-            [
-                Some(*t[0]), Some(*t[1]), Some(*t[2]), Some(*t[3]), Some(*t[4]), Some(*t[5]),
-                Some(*t[6]), Some(*t[7]), Some(*t[8]), Some(*t[9]), Some(*t[10]), Some(*t[11]),
-            ],
-            [
-                Some(*o[0]), Some(*o[1]), Some(*o[2]), Some(*o[3]), Some(*o[4]), Some(*o[5]),
-                Some(*o[6]), Some(*o[7]), Some(*o[8]), Some(*o[9]), Some(*o[10]), Some(*o[11]),
-            ],
-            @origin,
-            0,
-        );
+        let t = [
+            Some(*t[0]), Some(*t[1]), Some(*t[2]), Some(*t[3]), Some(*t[4]), Some(*t[5]),
+            Some(*t[6]), Some(*t[7]), Some(*t[8]), Some(*t[9]), Some(*t[10]), Some(*t[11]),
+        ];
+        let o = [
+            Some(*o[0]), Some(*o[1]), Some(*o[2]), Some(*o[3]), Some(*o[4]), Some(*o[5]),
+            Some(*o[6]), Some(*o[7]), Some(*o[8]), Some(*o[9]), Some(*o[10]), Some(*o[11]),
+        ];
+        let (map, got) = HexWindowTrait::window(t, o, @origin, 0);
         assert!(map.grid == grid, "terrain, bit {}", bit);
         assert!(got == occ, "occupied, bit {}", bit);
+        // The table-driven variant, on the classes whose table is generated
+        assert!(HexChunkTrait::index(origin.q, origin.r) == bit);
+        if bit == 25 || bit == 185 {
+            let pieces = if bit == 25 {
+                PIECES_25.span()
+            } else {
+                PIECES_185.span()
+            };
+            let (map, got) = HexWindowTableTrait::window(t, o, pieces, 0);
+            assert!(map.grid == grid && got == occ, "table, bit {}", bit);
+        }
         bit += 1;
     }
 }

@@ -38,6 +38,49 @@ pub const TILE: [u16; 251] = [
     0x204, 0x205, 0x206, 0x207, 0x208, 0x209, 0x20a,
 ];
 
+/// Per row of a chunk, one lookup: `(FIRST[r], QHI[r], QLO[r])`.
+pub const ROW: [(u8, u8, u8); 17] = [
+    (0, 18, 8), (11, 18, 7), (23, 18, 6), (36, 18, 5), (50, 18, 4), (65, 18, 3), (81, 18, 2),
+    (98, 18, 1), (116, 18, 0), (135, 17, 0), (153, 16, 0), (170, 15, 0), (186, 14, 0), (201, 13, 0),
+    (215, 12, 0), (228, 11, 0), (240, 10, 0),
+];
+
+/// `2^k - 1` in one limb, `k` in `0..=128`.
+pub const BELOW128: [u128; 129] = [
+    0x0, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f, 0xff, 0x1ff, 0x3ff, 0x7ff, 0xfff, 0x1fff, 0x3fff,
+    0x7fff, 0xffff, 0x1ffff, 0x3ffff, 0x7ffff, 0xfffff, 0x1fffff, 0x3fffff, 0x7fffff, 0xffffff,
+    0x1ffffff, 0x3ffffff, 0x7ffffff, 0xfffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff, 0xffffffff,
+    0x1ffffffff, 0x3ffffffff, 0x7ffffffff, 0xfffffffff, 0x1fffffffff, 0x3fffffffff, 0x7fffffffff,
+    0xffffffffff, 0x1ffffffffff, 0x3ffffffffff, 0x7ffffffffff, 0xfffffffffff, 0x1fffffffffff,
+    0x3fffffffffff, 0x7fffffffffff, 0xffffffffffff, 0x1ffffffffffff, 0x3ffffffffffff,
+    0x7ffffffffffff, 0xfffffffffffff, 0x1fffffffffffff, 0x3fffffffffffff, 0x7fffffffffffff,
+    0xffffffffffffff, 0x1ffffffffffffff, 0x3ffffffffffffff, 0x7ffffffffffffff, 0xfffffffffffffff,
+    0x1fffffffffffffff, 0x3fffffffffffffff, 0x7fffffffffffffff, 0xffffffffffffffff,
+    0x1ffffffffffffffff, 0x3ffffffffffffffff, 0x7ffffffffffffffff, 0xfffffffffffffffff,
+    0x1fffffffffffffffff, 0x3fffffffffffffffff, 0x7fffffffffffffffff, 0xffffffffffffffffff,
+    0x1ffffffffffffffffff, 0x3ffffffffffffffffff, 0x7ffffffffffffffffff, 0xfffffffffffffffffff,
+    0x1fffffffffffffffffff, 0x3fffffffffffffffffff, 0x7fffffffffffffffffff, 0xffffffffffffffffffff,
+    0x1ffffffffffffffffffff, 0x3ffffffffffffffffffff, 0x7ffffffffffffffffffff,
+    0xfffffffffffffffffffff, 0x1fffffffffffffffffffff, 0x3fffffffffffffffffffff,
+    0x7fffffffffffffffffffff, 0xffffffffffffffffffffff, 0x1ffffffffffffffffffffff,
+    0x3ffffffffffffffffffffff, 0x7ffffffffffffffffffffff, 0xfffffffffffffffffffffff,
+    0x1fffffffffffffffffffffff, 0x3fffffffffffffffffffffff, 0x7fffffffffffffffffffffff,
+    0xffffffffffffffffffffffff, 0x1ffffffffffffffffffffffff, 0x3ffffffffffffffffffffffff,
+    0x7ffffffffffffffffffffffff, 0xfffffffffffffffffffffffff, 0x1fffffffffffffffffffffffff,
+    0x3fffffffffffffffffffffffff, 0x7fffffffffffffffffffffffff, 0xffffffffffffffffffffffffff,
+    0x1ffffffffffffffffffffffffff, 0x3ffffffffffffffffffffffffff, 0x7ffffffffffffffffffffffffff,
+    0xfffffffffffffffffffffffffff, 0x1fffffffffffffffffffffffffff, 0x3fffffffffffffffffffffffffff,
+    0x7fffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffff, 0x1ffffffffffffffffffffffffffff,
+    0x3ffffffffffffffffffffffffffff, 0x7ffffffffffffffffffffffffffff,
+    0xfffffffffffffffffffffffffffff, 0x1fffffffffffffffffffffffffffff,
+    0x3fffffffffffffffffffffffffffff, 0x7fffffffffffffffffffffffffffff,
+    0xffffffffffffffffffffffffffffff, 0x1ffffffffffffffffffffffffffffff,
+    0x3ffffffffffffffffffffffffffffff, 0x7ffffffffffffffffffffffffffffff,
+    0xfffffffffffffffffffffffffffffff, 0x1fffffffffffffffffffffffffffffff,
+    0x3fffffffffffffffffffffffffffffff, 0x7fffffffffffffffffffffffffffffff,
+    0xffffffffffffffffffffffffffffffff,
+];
+
 /// The low limb of `2^k - 1`, the bits below `k`, for `k` in `0..=251`.
 pub const BELOW_LOW: [u128; 252] = [
     0x0, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f, 0xff, 0x1ff, 0x3ff, 0x7ff, 0xfff, 0x1fff, 0x3fff,
