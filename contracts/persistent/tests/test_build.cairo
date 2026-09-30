@@ -333,7 +333,7 @@ const WORST_CASE_CALL: u128 = 3108768;
 // pieces worn. Writes: `build`, `belt`, `equipped`, overwritten, each the word sent plus `LIVE`.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 75309036)] // ceil(1.05 × 71722891 measured)
+#[available_gas(l2_gas: 75513272)] // ceil(1.05 × 71917401 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -376,7 +376,7 @@ fn test_set_build_worst_case() {
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 78163703)] // ceil(1.05 × 74441621 measured)
+#[available_gas(l2_gas: 78367938)] // ceil(1.05 × 74636131 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -399,7 +399,7 @@ fn test_set_build_parts() {
 // An empty build: no registry call, the words of a new adventurer back.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 76119678)] // ceil(1.05 × 72494931 measured)
+#[available_gas(l2_gas: 76323914)] // ceil(1.05 × 72689441 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -425,7 +425,7 @@ fn test_set_build_empty() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 75102111)] // ceil(1.05 × 71525820 measured)
+#[available_gas(l2_gas: 75306347)] // ceil(1.05 × 71720330 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -450,7 +450,7 @@ fn test_set_build_ownership_refusals() {
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 77668164)] // ceil(1.05 × 73969680 measured)
+#[available_gas(l2_gas: 77872400)] // ceil(1.05 × 74164190 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -482,7 +482,7 @@ fn test_set_build_layout_refusals() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 75050819)] // ceil(1.05 × 71476970 measured)
+#[available_gas(l2_gas: 75255054)] // ceil(1.05 × 71671480 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -494,7 +494,7 @@ fn test_bar_duplicate_refused() {
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 78501024)] // ceil(1.05 × 74762880 measured)
+#[available_gas(l2_gas: 78705260)] // ceil(1.05 × 74957390 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -513,7 +513,7 @@ fn test_bar_known_and_registered() {
 // Of the primary or the secondary profession (design/03).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 75868863)] // ceil(1.05 × 72256060 measured)
+#[available_gas(l2_gas: 76073099)] // ceil(1.05 × 72450570 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -529,7 +529,7 @@ fn test_bar_profession() {
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 78923807)] // ceil(1.05 × 75165530 measured)
+#[available_gas(l2_gas: 79128042)] // ceil(1.05 × 75360040 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -552,7 +552,7 @@ fn test_bar_elite() {
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 76950363)] // ceil(1.05 × 73286060 measured)
+#[available_gas(l2_gas: 77154599)] // ceil(1.05 × 73480570 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -571,7 +571,7 @@ fn test_attributes_rank_and_points() {
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 84538461)] // ceil(1.05 × 80512820 measured)
+#[available_gas(l2_gas: 84742697)] // ceil(1.05 × 80707330 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -602,7 +602,7 @@ fn test_attributes_points_by_level() {
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 81409671)] // ceil(1.05 × 77533020 measured)
+#[available_gas(l2_gas: 81613907)] // ceil(1.05 × 77727530 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -628,7 +628,7 @@ fn test_attributes_indices() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 76962617)] // ceil(1.05 × 73297730 measured)
+#[available_gas(l2_gas: 77166852)] // ceil(1.05 × 73492240 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -648,7 +648,7 @@ fn test_belt_items() {
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 77421719)] // ceil(1.05 × 73734970 measured)
+#[available_gas(l2_gas: 77625954)] // ceil(1.05 × 73929480 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -666,7 +666,7 @@ fn test_belt_counts_within_the_pack() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 80169048)] // ceil(1.05 × 76351474 measured)
+#[available_gas(l2_gas: 80373284)] // ceil(1.05 × 76545984 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -684,7 +684,7 @@ fn test_equipment_owned_and_wearable() {
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 78806214)] // ceil(1.05 × 75053537 measured)
+#[available_gas(l2_gas: 79010450)] // ceil(1.05 × 75248047 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);

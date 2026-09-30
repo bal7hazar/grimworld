@@ -153,7 +153,7 @@ is commit `4ca5802` of CBT-02c's branch. CASM felts of `Hub`, the rest of it unc
 
 The last two rows are probes: the reads and the held list of the wiring take `Hub` to about 46 %,
 and the first pass with the floors alone passes 50 %, so no arrangement of the rest fits. With the
-content's checks `Registry` is 23,296 felts, **28.44 %** (5,234 and 6.39 % without them).
+content's checks `Registry` is 24,608 felts, **30.04 %** (with the skills' counts of fix loop 2) (5,234 and 6.39 % without them).
 
 ---
 
@@ -481,7 +481,8 @@ a boss item: `2^41 + base`.
 ### 3.5 `Registry` storage and shapes (scope 6)
 
 `records: Map<(kind u8, id u32, part u8), felt252>`, `last_ids: Map<kind, Counter>`,
-`content_version: u32` (ENG-01b, D-141; layout-tested). A record is
+`content_version: u32` (ENG-01b, D-141), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
+`CASTE` records name each skill; layout-tested). A record is
 `parts(kind)` felts (`grimworld_logic::content`); values may change (design/01 rules 1–2). Pillar 6
 and S-6: a zone or a quest is data.
 
@@ -552,7 +553,11 @@ piece's 15 / 10 / 5, DS-23); an `ARMOR_SET`, `ArmorSetAssert::assert_legal` (eac
 bonus, within its bounds); a `SKILL` and an `ITEM`, their `assert_legal` (a legal carrier, one
 `ATTACK_BONUS` at most, DS-20; a potion's entry unscaled); a `CASTE`, `CasteAssert::assert_legal`
 (DS-18, DS-29) and the adrenaline of each skill it names that the registry holds, at most 63 strikes
-(DS-18, reading ≤ 4 `SKILL` records). A record past its bound is refused, a new one and a rewrite
+(DS-18, reading ≤ 4 `SKILL` records). **DS-18 holds whatever the order of writes** (CBT-02c fix loop
+2): a written caste moves `caste_skills`' counts from the skills its stored record named to those
+the new one names (only the counts that change are written, ≤ 8), and a `SKILL`, new or
+rewritten, above 63 strikes is refused while its count is not 0 (one read, only above 63). A caste
+may name a skill not yet written; that skill then cannot be written above 63. A record past its bound is refused, a new one and a rewrite
 alike; the administrator pays the checks once, no player's call makes them again. Every other kind
 has no bound of design/20. `set_admin` refuses a caller other than `admin`,
 then the zero address (`'admin is zero'`). **A change
@@ -1271,8 +1276,10 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `Registry.set_record` (3 parts) | written | `R.content_version` 1 (first); `R.last_id` 1 (first); `R.record` 3 (first) | 5 / 0 | 0 / 5 | 6 | — |
 | admin setters, `upgrade` | set | `A.address` 4 (old) | 0 / 4 | 0 / 4 | 4 | — |
 
-`Registry.set_record`'s content checks (§3.5, CBT-02c) write nothing; a `CASTE` also reads the
-skills it names, at most 4 × (1 + 2) = 12 slots. `set_build` and `enter` keep the write sets above:
+`Registry.set_record`'s content checks (§3.5, CBT-02c) write nothing but, for a `CASTE`, the
+counts of `caste_skills` that change (≤ 8 keys, `first` or `old`); a `CASTE` also reads the skills
+it names (≤ 4 × (1 + 2) = 12 slots), its stored record (2) and the counts (≤ 8); a `SKILL` above 63
+strikes reads its count (1). `set_build` and `enter` keep the write sets above:
 the flattening's wiring, which would add their reads of each worn item's `ItemMods` (≤ 7) and the
 distinct `MODIFIER` records worn (≤ 15, in the `bundle` call they already make), is held back
 (§1.3).

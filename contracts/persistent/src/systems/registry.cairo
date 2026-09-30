@@ -84,7 +84,9 @@ pub mod Registry {
     };
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
-    use grimworld_logic::models::caste::{CasteAssert, CasteRecord};
+    use grimworld_logic::models::caste::{
+        CasteAssert, CasteRecord, MAX_SKILL_ADRENALINE, errors as caste_errors,
+    };
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
     use grimworld_logic::models::location::INDEX_BOUND;
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
@@ -108,6 +110,10 @@ pub mod Registry {
         /// The content version (D-141, E-5): 0 at deployment, raised by one by every
         /// changed record (`set_record`, automatically, no admin setter); returned by `bundle`.
         pub content_version: u32,
+        /// How many `CASTE` records name each skill id (a caste naming it twice counts twice):
+        /// while it is not 0, the skill is refused above 63 strikes (DS-18 across records, in
+        /// either order of writes; CBT-02c fix loop 2).
+        pub caste_skills: Map<u32, u32>,
     }
 
     #[constructor]
@@ -158,13 +164,14 @@ pub mod Registry {
         fn set_record(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
             self.assert_admin();
             RegistryAssert::assert_record(kind, id, record);
-            self.assert_content(kind, record);
+            self.assert_content(kind, id, record);
             if is_sequential(kind) {
                 let last = self.last_ids.read(kind).value;
                 let id_wide: u64 = id.into();
                 if id_wide == last + 1 {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
+                    self.name_skills(kind, id, record);
                     let key = Parts::key(kind, id);
                     let mut part: u8 = 0;
                     for felt in record {
@@ -181,6 +188,7 @@ pub mod Registry {
             } else {
                 self.assert_parent(kind, id);
             }
+            self.name_skills(kind, id, record);
             if self.update(kind, id, record) {
                 self.raise_version();
             }
@@ -238,15 +246,21 @@ pub mod Registry {
         /// - `SKILL` and a potion's `ITEM`: their entries a legal carrier, one `ATTACK_BONUS` at
         ///   most (DS-20);
         /// - `CASTE`: `CasteAssert::assert_legal` (DS-18, DS-29), and the adrenaline of each skill
-        ///   it names that the registry holds at most 63 strikes (DS-18, across records).
+        ///   it names that the registry holds at most 63 strikes (DS-18, across records);
+        /// - DS-18 in the other order: a `SKILL` above 63 strikes is refused while a caste names
+        ///   its id (`caste_skills`), whether the skill is new or rewritten.
         /// Every other kind has no bound of design/20.
-        fn assert_content(self: @ContractState, kind: u8, record: Span<felt252>) {
+        fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == MODIFIER {
                 ModifierRecord::unpack(record).assert_legal();
             } else if kind == ARMOR_SET {
                 ArmorSetRecord::unpack(record).assert_legal();
             } else if kind == SKILL {
-                SkillRecord::unpack(record).assert_legal();
+                let skill = SkillRecord::unpack(record);
+                skill.assert_legal();
+                if skill.adrenaline > MAX_SKILL_ADRENALINE {
+                    assert(self.caste_skills.read(id) == 0, caste_errors::SKILL_ADRENALINE);
+                }
             } else if kind == ITEM {
                 ItemRecord::unpack(record).assert_legal();
             } else if kind == CASTE {
@@ -304,6 +318,52 @@ pub mod Registry {
 
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
+        /// A `CASTE` written (after every check): the counts of `caste_skills` move from the
+        /// skills its stored record named to those the new one names; only the counts that
+        /// change are written (a rewrite naming the same skills writes none). At most 8 skill
+        /// ids, so at most 8 counts.
+        fn name_skills(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
+            if kind != CASTE {
+                return;
+            }
+            let new = CasteRecord::unpack(record).skills;
+            let old: [u16; 4] = if self.records.read((CASTE, id, 0)) != 0 {
+                let mut out = array![];
+                self.read_into(CASTE, id, parts(CASTE), ref out);
+                CasteRecord::unpack(out.span()).skills
+            } else {
+                [0; 4]
+            };
+            let (old, new) = (old.span(), new.span());
+            let mut seen: Array<u16> = array![];
+            for skill in array![old, new].span() {
+                for s in *skill {
+                    let s = *s;
+                    if s == 0 || Self::times(seen.span(), s) != 0 {
+                        continue;
+                    }
+                    seen.append(s);
+                    let (before, now) = (Self::times(old, s), Self::times(new, s));
+                    if before != now {
+                        let count = self.caste_skills.read(s.into());
+                        self.caste_skills.write(s.into(), count + now - before);
+                    }
+                }
+            }
+        }
+
+        /// How many times `skill` is in `skills`.
+        #[inline(always)]
+        fn times(skills: Span<u16>, skill: u16) -> u32 {
+            let mut n: u32 = 0;
+            for s in skills {
+                if *s == skill {
+                    n += 1;
+                }
+            }
+            n
+        }
+
         /// Appends the `count` parts of `(kind, id)` to `out`.
         #[inline(always)]
         fn read_into(self: @ContractState, kind: u8, id: u32, count: u8, ref out: Array<felt252>) {
@@ -351,7 +411,8 @@ mod layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 57981)] // ceil(1.05 × 55220 measured)
+    // gas: raised, CBT-02c fix loop 2: the layout checks caste_skills' address too
+    #[available_gas(l2_gas: 72755)] // ceil(1.05 × 69290 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
         assert(
@@ -371,6 +432,12 @@ mod layout_tests {
                 state.content_version.as_ptr().__storage_pointer_address__,
             ) == selector!("content_version"),
             'content_version',
+        );
+        assert(
+            address_of(
+                state.caste_skills.entry(7).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("caste_skills"), array![7].span()),
+            'caste_skills',
         );
     }
 
