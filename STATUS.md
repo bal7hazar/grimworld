@@ -9,8 +9,8 @@ are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 Audits and reviews go through `nexus audit` and `nexus review`; VPS implementers still through
 `scripts/agent.sh`. **CBT-02** ([#182](https://github.com/bal7hazar/grimworld/pull/182)), **CBT-02b**
 ([#196](https://github.com/bal7hazar/grimworld/pull/196)) and **SPK-14** ([#202](https://github.com/bal7hazar/grimworld/pull/202))
-merged. **CBT-02c** ([#206](https://github.com/bal7hazar/grimworld/pull/206)) in its second Codex review,
-to merge unwired (D-168); **CBT-02d** running; **CBT-02e** briefed after CBT-02c's merge. ENG-05 and
+and **CBT-02c** ([#206](https://github.com/bal7hazar/grimworld/pull/206), unwired, D-168) merged.
+**CBT-02d** running; **CBT-02e** ([brief](docs/briefs/CBT-02e-stored-snapshot.md)) launching. ENG-05 and
 ENG-02 wait for `hexx` rc.1.
 A nexus auditor resumed on a new revision could not fetch it (its sandbox refused `FETCH_HEAD`): a new
 auditor per revision is started instead (reported to the owner here, as the standard asks).
@@ -46,6 +46,7 @@ the batch weight from the worst tick.
 
 | | |
 |---|---|
+| **CBT-02c** | [#206](https://github.com/bal7hazar/grimworld/pull/206): design/20's per-record bounds at registration; the flattening linear, unwired (`Hub` 61.15 % wired); CBT-02e stores the snapshot (D-168) |
 | **CBT-02b** | [#196](https://github.com/bal7hazar/grimworld/pull/196): levers (a) and (b); the worst tick proved term by term, escalated not accepted; the Hub wiring moved to CBT-02c and CBT-02e (D-166, D-168) |
 | **SPK-14** | [#202](https://github.com/bal7hazar/grimworld/pull/202): hexagonal chunks measured against 15 × 15; recommendation keep 15 × 15, the owner decides (D-165) |
 | **CBT-08a** | [#170](https://github.com/bal7hazar/grimworld/pull/170): `set_build`; items carry their base's slot and hands; worst case about 3.80M, its target (D-158) |
@@ -60,13 +61,13 @@ the batch weight from the worst tick.
 | Game agent | Model (ran) | State |
 |---|---|---|
 | CBT-02d the tick's remaining levers | Opus 5.5 (scripts/agent.sh) | running since 21:37 |
-| CBT-02c second review | GPT-6-Sol (nexus review) | running |
+| CBT-02e stored snapshot | Opus 5.5 (scripts/agent.sh) | launching |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-CBT-02c's merge (unwired, D-168); CBT-02e's brief and launch; CBT-02d's audits (cost, quality) and
+CBT-02d's and CBT-02e's audits (cost, quality) and
 review; then ENG-R1's brief (D-167), its first lot shown to the owner.
 
 ## Decisions needed
