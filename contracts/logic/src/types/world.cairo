@@ -296,9 +296,13 @@ pub impl TickImpl of TickTrait {
                     let mut goblin = *goblin;
                     if deadline == t {
                         let (slot, target) = goblin.conclude(sheets);
-                        pending.append((k, goblin));
-                        world.flush(pending);
-                        pending = array![];
+                        if pending.len() == 0 {
+                            world.awake = WorldTrait::rebuilt(world.awake.span(), k, goblin);
+                        } else {
+                            pending.append((k, goblin));
+                            world.flush(pending);
+                            pending = array![];
+                        }
                         resolved += bit;
                         let index = *world.woken[k];
                         rules.resolve(ref world, sheets, Actor::Goblin(index), slot, target);

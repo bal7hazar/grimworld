@@ -1,12 +1,15 @@
-// CBT-02: the world tick's pipeline (design/02 *The tick*, design/19 §5). The worked examples of
-// design/19 §10 whose steps are the pipeline's (10.1's step 3, 10.2, 10.3, 10.5, 10.6, 10.9),
-// every rule of the steps one by one, determinism, and the cost of a tick on measured scenarios
-// and at its upper bound (CBT-02b, below), against the expedition's target of 1,469,435 L2 gas a
-// tick inside a batch (docs/architecture/cost-budget.md §2, D-159). The words are built here from
-// ENG-01's offsets; the ephemeral package's `test_tick_words` pins `load` and `store` against its
-// packers. COST-3 (CBT-02b): "worst" in a fixture's or a test's name is the name of a measured
-// scenario, not a claim that no state costs more; "upper bound" is kept for the derived result
-// (REPORT.md, ENG-01 §9.2).
+// CBT-02: the world tick's pipeline (design/02 *The tick*, design/19 §5): determinism, the cost of
+// a tick on measured scenarios and at its upper bound (CBT-02b, CBT-02d, below), against the
+// expedition's target of 1,469,435 L2 gas a tick inside a batch (docs/architecture/cost-budget.md
+// §2, D-159), the library call, and CBT-02d's parity table. The pipeline's rules one by one and
+// the worked examples of design/19 §10 are unit tests in their modules (D-167: `types::world`,
+// `types::tick`, `models::goblin`, `models::member`); what stays here needs the benchmarks' states,
+// a declared class, or both representations. The fixtures below repeat the modules' own
+// (`types::world::fixtures`, a crate apart). The words are built here from ENG-01's offsets; the
+// ephemeral package's `test_tick_words` pins `load` and `store` against its packers. COST-3
+// (CBT-02b): "worst" in a fixture's or a test's name is the name of a measured scenario, not a
+// claim that no state costs more; "upper bound" is kept for the derived result (REPORT.md, ENG-01
+// §9.2).
 use core::testing::get_available_gas;
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::signed::SignedTrait;
@@ -342,8 +345,8 @@ const B246: felt252 = 0x40000000000000000000000000000000000000000000000000000000
 
 /// The content at the MVP's widest (design/19 §7.2: `C = 5`, `T = 10`): the bar's 8 skills (7 and
 /// 8 regenerating 3 pips), 10 terrain traps' skills, the 5 castes' 20; 4 potions. The goblins'
-/// caste, 5, and its skills (40–43) come last in their lists, so every lookup scans the whole
-/// list.
+/// caste, 5, and its skills (40–43) come last in their lists: before CBT-02d every lookup scanned
+/// the whole list; the index reads them at the cost of any other.
 /// The castes' weapons cost `k` ticks.
 fn worst_content(k: u8) -> Content {
     let mut skills = array![];
@@ -381,11 +384,12 @@ fn worst_content(k: u8) -> Content {
 /// CBT-02's heavy scenario of a tick (AUD-182-7), a measured state, not a maximum (COST-3: the
 /// upper bound is CBT-02b's, below), every actor loaded from its words so that the derived fields
 /// agree with the stored ones:
-/// - the goblin array at its bound, `MAX_GOBLINS` = 100 (every pass is linear in it), 8 of them
-///   awake (design/02), the 92 others frozen; every one of the 100 holds a retained effect, so
-///   `load` looks up its skill (at the list's end) and scales it for each (COST-1);
-/// - each awake goblin concludes its activation (a recovery with `k = 3 ≥ n + 2`) at the end of
-///   the content's lists, the array rebuilt;
+/// - the goblin array at its bound, `MAX_GOBLINS` = 100 (before CBT-02d every pass was linear in
+///   it; the steps now read the awake set alone), 8 of them awake (design/02), the 92 others
+///   frozen; every one of the 100 holds a retained effect, so `load` reads its skill and scales
+///   it for each (COST-1);
+/// - each awake goblin concludes its activation (a recovery with `k = 3 ≥ n + 2`), the awake set
+///   rebuilt;
 /// - step 3 with every term: the 3 degenerating conditions and a regenerating effect on each awake
 ///   goblin; on the member, its 3 conditions, 4 regenerating effects (2 potions) and its own
 ///   activation concluding; no goblin Engaged, so the Engaged scan runs the whole awake set;
@@ -1046,29 +1050,39 @@ fn test_cost_bound_free_fixture() {
 #[test]
 #[available_gas(l2_gas: 317079)] // ceil(1.05 × 301980 measured)
 fn test_cost_scan_skill_first() {
-    let sheets = branch_content(3).sheets();
+    let sheets = unindexed(branch_content(3));
     assert(*sheets.skill(1).id == 1, 'first');
 }
 
 #[test]
 #[available_gas(l2_gas: 401384)] // ceil(1.05 × 382270 measured)
 fn test_cost_scan_skill_last() {
-    let sheets = branch_content(3).sheets();
+    let sheets = unindexed(branch_content(3));
     assert(*sheets.skill(43).id == 43, 'last');
 }
 
 #[test]
 #[available_gas(l2_gas: 316029)] // ceil(1.05 × 300980 measured)
 fn test_cost_scan_potion_first() {
-    let sheets = branch_content(3).sheets();
+    let sheets = unindexed(branch_content(3));
     assert(*sheets.potion(100).id == 100, 'first');
 }
 
 #[test]
 #[available_gas(l2_gas: 321290)] // ceil(1.05 × 305990 measured)
 fn test_cost_scan_potion_last() {
-    let sheets = branch_content(3).sheets();
+    let sheets = unindexed(branch_content(3));
     assert(*sheets.potion(103).id == 103, 'last');
+}
+
+/// The sheets of `content` without its index and kits: what a scan by id reads.
+fn unindexed(content: Content) -> Sheets {
+    Sheets {
+        skills: content.skills,
+        potions: content.potions,
+        castes: content.castes,
+        kits: array![].span(),
+    }
 }
 
 // CBT-02d: a read through the index costs the same wherever the record lies: the first skill and
@@ -1195,8 +1209,9 @@ fn test_cost_fixture_worst_permuted() {
 // **What can vary.** Sierra charges a function that has no loop and calls none the gas of its
 // costliest path, whatever path runs: a branch there cannot change the cost. A function with a
 // loop, or calling one, pays the path it takes. A tick's cost, load and store's, and the sheets'
-// therefore vary only with their loops: how many times each runs, which path each iteration
-// takes, and how far each lookup scans its list. The tests below
+// therefore vary only with their loops: how many times each runs and which path each iteration
+// takes (CBT-02d: no lookup scans a list any more; a read through the index costs the same
+// wherever the record lies). The tests below
 // - show the first rule on every arithmetic branch the audits named (`test_cost_path_*`: one
 //   goblin's and one member's step 3 on every path, `store`, `line`; each group measures the same);
 // - measure each loop's iterations on their costliest paths, at the counts' bounds: the tick's
@@ -1538,8 +1553,11 @@ fn test_cost_path_line_falling() {
 // 100-goblin array, and their mixes, every state built by one builder (`term_world`) and measured
 // the same way: the tick alone, `get_available_gas` around `TickTrait::tick` (printed "gas tick"),
 // so that neither a fixture nor the checks after the tick enter a figure. Each test then checks
-// that every awake goblin took its named branch and died in step 3 (quality 3). REPORT.md and
-// ENG-01 §9.2 derive the terms and the bound from these figures.
+// that every awake goblin took its named branch and died in step 3 (quality 3), and that each
+// goblin free in step 2 acted there (CBT-02d: the rules record the acts, `Acts`). REPORT.md and
+// ENG-01 §9.2 derive the terms and the bound from these figures. Since CBT-02d the steps read and
+// write the awake set alone, so a rebuild's cost follows the set's size, not the array's: the terms
+// are taken at the set's bound, 8 (the "eight" states against each other and the mixes).
 
 /// Step 1's branches CBT-02 did not measure: a lapse whose later recharge is kept, a recovery that
 /// runs on, an awake goblin already dead, a free goblin knocked down.
@@ -1752,7 +1770,7 @@ impl ActsRules of Rules<Acts> {
     fn objectives(ref self: Acts, ref world: World) {}
 }
 
-// No goblin awake: the base (the member concluding and dying, the array scanned).
+// No goblin awake: the base (the member concluding and dying; the array not read).
 #[test]
 #[available_gas(l2_gas: 60220339)] // ceil(1.05 × 57352703 measured)
 fn test_cost_term_none() {
@@ -1979,17 +1997,19 @@ fn test_cost_term_mix_lapse_first() {
     );
 }
 
-// COST-1a: load and store, once per call, on their costliest paths. A goblin's load: its caste
-// (the last), its effect (skill 43, the last), its four caste skills each looked up and each
-// raising its adrenaline cap (costs 1 to 4 strikes); the cap's clamp at 252 is not reachable
-// (DS-18: a caste skill costs at most 63 strikes, `CasteAssert::assert_skills`). The member's:
-// its four effects on the skill path (the content's last four skills; the potion path costs less,
-// `test_cost_load_member_*`), its bar's eight skills each raising its cap (costs 1 to 8). `store`
-// has no loop (`test_cost_path_*_store_*`). The lookups not at their list's end are charged as
-// full scans in REPORT.md.
+// COST-1a: load and store, once per call, on their costliest paths (CBT-02d: through the index).
+// The index: every list at its bound (38 skills, 5 castes, 4 potions), each caste's kit finding
+// its four skills and raising its cap at each (costs 1 to 4 strikes); the cap's clamp at 252 is
+// not reachable (DS-18: a caste skill costs at most 63 strikes, `CasteAssert::assert_skills`). A
+// goblin's load has no loop: its caste and its effect (skill 43) read through the index, the
+// costlier path (a goblin without an effect reads one id less). The member's: its four effects on
+// the skill path (the potion path costs less, `test_cost_load_member_*`), its bar's eight skills
+// each raising its cap (costs 1 to 8). `store` has no loop (`test_cost_path_*_store_*`). A read
+// through the index costs the same wherever the record lies (`test_cost_index_*`): nothing is
+// charged beyond the measure.
 
 /// `branch_content(3)` with increasing adrenaline costs: the bar's skills 1–8 cost 1–8 strikes,
-/// caste 5's skills 40–43 cost 1–4, so that every step of an adrenaline cap's loop raises it.
+/// each caste's four skills 1–4, so that every step of an adrenaline cap's loop raises it.
 fn load_content() -> Content {
     let content = branch_content(3);
     let mut skills = array![];
@@ -1997,8 +2017,8 @@ fn load_content() -> Content {
         let mut sheet = *sheet;
         if sheet.id <= 8 {
             sheet.adrenaline = sheet.id.try_into().unwrap();
-        } else if sheet.id >= 40 {
-            sheet.adrenaline = (sheet.id - 39).try_into().unwrap();
+        } else if sheet.id >= 24 && sheet.id <= 43 {
+            sheet.adrenaline = ((sheet.id - 24) % 4 + 1).try_into().unwrap();
         }
         skills.append(sheet);
     }

@@ -301,10 +301,10 @@ pub impl GoblinTickImpl of GoblinTickTrait {
         let slot = self.act_slot;
         let target = self.act_target;
         let a = self.act_deadline;
-        let caste = (*sheets.castes)[self.caste_at];
-        let skill = sheets.caste_skill(self.caste_at, slot);
+        let kit = (*sheets.kits)[self.caste_at];
+        let skill = (*sheets.skills)[*kit.skills.span()[slot.into()]];
         self.set_recharge(slot, TickMathTrait::recharge_deadline(a, *skill.recharge));
-        let k: u32 = (*caste.weapon_ticks).into();
+        let k: u32 = (*kit.weapon_ticks).into();
         let n: u32 = (*skill.activation).into();
         if *skill.kind == skill_kind::ATTACK && k >= n + 2 {
             self.act_slot = activation::RECOVERING;

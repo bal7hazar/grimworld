@@ -141,13 +141,15 @@ pub const ABSENT_LANE: u128 = 0xFFFF;
 /// first is ever read.
 pub const MAX_SKILLS: u32 = 0xFFFF;
 
-/// What a caste's goblins derive from its skills, once per call (CBT-02d): each skill's position
-/// in `Sheets.skills` (`ABSENT` for an empty slot) and their highest adrenaline cost in quarters,
-/// at most the field's 252 (design/19 §5.12).
+/// What a caste's goblins read in the ticks, derived once per call (CBT-02d): each skill's position
+/// in `Sheets.skills` (`ABSENT` for an empty slot), their highest adrenaline cost in quarters, at
+/// most the field's 252 (design/19 §5.12), and the weapon's tick cost `k` (FX-15), so that a
+/// conclusion reads the kit alone.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Kit {
     pub skills: [u32; 4],
     pub cap: u8,
+    pub weapon_ticks: u8,
 }
 
 /// The content as the ticks read it (CBT-02d): its sheets, and each caste's `Kit` in the order of
@@ -439,7 +441,11 @@ pub impl IndexImpl of IndexTrait {
         if cap > MAX_GOBLIN_ADRENALINE.into() {
             cap = MAX_GOBLIN_ADRENALINE.into();
         }
-        Kit { skills: [*at[0], *at[1], *at[2], *at[3]], cap: cap.try_into().unwrap() }
+        Kit {
+            skills: [*at[0], *at[1], *at[2], *at[3]],
+            cap: cap.try_into().unwrap(),
+            weapon_ticks: *caste.weapon_ticks,
+        }
     }
 }
 
@@ -650,7 +656,8 @@ mod tests {
             castes: array![hob, runt].span(),
         };
         let sheets = content.sheets();
-        assert(*sheets.kits[0] == Kit { skills: [2, 1, ABSENT, 0], cap: 20 }, 'hob');
-        assert(*sheets.kits[1] == Kit { skills: [3, MISSING, ABSENT, ABSENT], cap: 252 }, 'runt');
+        let hob = Kit { skills: [2, 1, ABSENT, 0], cap: 20, weapon_ticks: 1 };
+        let runt = Kit { skills: [3, MISSING, ABSENT, ABSENT], cap: 252, weapon_ticks: 1 };
+        assert(*sheets.kits[0] == hob && *sheets.kits[1] == runt, 'kits');
     }
 }
