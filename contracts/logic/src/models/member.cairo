@@ -13,7 +13,8 @@ use crate::packing::{
 };
 use crate::types::combat::{condition, skill_kind};
 use crate::types::tick::{
-    Content, ContentTrait, ENERGY_THIRDS, Held, NO_SLOT, REGEN_OFFSET, SkillSheetTrait,
+    ABSENT, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SheetsTrait,
+    SkillSheet, SkillSheetTrait,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -132,8 +133,9 @@ pub impl MemberImpl of MemberTrait {
 
     /// A member from its words, with what it derives once: the maxima and regeneration of
     /// `MemberStats`, each held effect's deadline and `REGENERATION` pips (a skill's at the slot's
-    /// rank, a potion's through the belt of `MemberKit`).
-    fn load(words: MemberWords, content: @Content) -> Member {
+    /// rank, a potion's through the belt of `MemberKit`), its bar's positions in the content and
+    /// its adrenaline cap (CBT-02d: the index reads each id once).
+    fn load(words: MemberWords, ref index: Index, sheets: @Sheets) -> Member {
         let (
             status,
             health,
@@ -179,11 +181,11 @@ pub impl MemberImpl of MemberTrait {
             // (ENG-01 §3.2; AUD-182-1). Without it, skill 0 is an empty slot.
             let pips: i32 = if potion == 1 {
                 let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
-                (*content.potion(id.try_into().unwrap()).regen).into()
+                (*(*sheets.potions)[index.potion(id.try_into().unwrap())].regen).into()
             } else if carrier == 0 {
                 0
             } else {
-                content.skill(carrier).regen(rank)
+                (*sheets.skills)[index.skill(carrier)].regen(rank)
             };
             MemberAssert::assert_pips(pips);
             regen.append(pips.try_into().unwrap());
@@ -192,13 +194,18 @@ pub impl MemberImpl of MemberTrait {
         let (bar, _) = limbs(words.bar);
         let mut cap: u16 = 0;
         let mut rest = bar;
+        let mut bar_at: Array<u32> = array![];
         for _ in 0..8_u8 {
             let skill = peel(ref rest, N16);
-            if skill != 0 {
-                let cost: u16 = (*content.skill(skill.try_into().unwrap()).adrenaline).into() * 4;
-                if cost > cap {
-                    cap = cost;
-                }
+            if skill == 0 {
+                bar_at.append(ABSENT);
+                continue;
+            }
+            let at = index.skill(skill.try_into().unwrap());
+            bar_at.append(at);
+            let cost: u16 = (*(*sheets.skills)[at].adrenaline).into() * 4;
+            if cost > cap {
+                cap = cost;
             }
         }
         Member {
@@ -222,6 +229,10 @@ pub impl MemberImpl of MemberTrait {
             health_regen: (health_regen - REGEN_OFFSET).try_into().unwrap(),
             energy_regen: energy_regen.try_into().unwrap(),
             adrenaline_cap: cap,
+            bar_at: [
+                *bar_at[0], *bar_at[1], *bar_at[2], *bar_at[3], *bar_at[4], *bar_at[5], *bar_at[6],
+                *bar_at[7],
+            ],
             words,
         }
     }
@@ -285,6 +296,12 @@ pub impl MemberImpl of MemberTrait {
         let (low, _) = limbs(*self.words.bar);
         let shift = *[1, P16, P32, 0x1000000000000, P64, P80, P96, P112].span()[slot.into()];
         field(low, shift, P16).try_into().unwrap()
+    }
+
+    /// The sheet of bar slot 0–7's skill, at its position (CBT-02d).
+    #[inline(always)]
+    fn sheet(self: @Member, slot: u8, sheets: @Sheets) -> @SkillSheet {
+        (*sheets.skills)[*self.bar_at.span()[slot.into()]]
     }
 }
 
@@ -390,17 +407,17 @@ pub impl MemberTickImpl of MemberTickTrait {
 
     /// An instant skill of the bar's `slot` used in the action phase at clock `c`: its recharge
     /// counts from `t₀ = c + 1` (§5.1).
-    fn use_instant(ref self: Member, slot: u8, c: u32, content: @Content) {
-        let r = *content.skill(self.skill(slot)).recharge;
+    fn use_instant(ref self: Member, slot: u8, c: u32, sheets: @Sheets) {
+        let r = *self.sheet(slot, sheets).recharge;
         self.set_recharge(slot, TickMathTrait::recharge_deadline(c + 1, r));
     }
 
     /// Step 1 at `A`: the activation ends; its recharge counts from `A` (FX-2); returns its slot
     /// and target for the executor.
-    fn conclude(ref self: Member, content: @Content) -> (u8, u16) {
+    fn conclude(ref self: Member, sheets: @Sheets) -> (u8, u16) {
         let slot = self.act_slot;
         let target = self.act_target;
-        let r = *content.skill(self.skill(slot)).recharge;
+        let r = *self.sheet(slot, sheets).recharge;
         self.set_recharge(slot, TickMathTrait::recharge_deadline(self.act_deadline, r));
         self.clear();
         (slot, target)
@@ -408,11 +425,11 @@ pub impl MemberTickImpl of MemberTickTrait {
 
     /// Interrupted at `t₀` (§5.9: `c + 1` in the action phase, `T` in a tick): no effect, the
     /// recharge counts from `t₀` (FX-2). Nothing without an activation.
-    fn interrupt(ref self: Member, t0: u32, content: @Content) {
+    fn interrupt(ref self: Member, t0: u32, sheets: @Sheets) {
         if self.act_slot == NO_SLOT {
             return;
         }
-        let r = *content.skill(self.skill(self.act_slot)).recharge;
+        let r = *self.sheet(self.act_slot, sheets).recharge;
         self.set_recharge(self.act_slot, TickMathTrait::recharge_deadline(t0, r));
         self.clear();
     }
@@ -509,7 +526,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
     /// 4. else eviction: the earliest deadline, ties the lowest slot (FX-13).
     /// An effect ends by its deadline: one whose charges reach 0 is ended by the executor with a
     /// deadline of `t − 1`.
-    fn hold(ref self: Member, held: Held, stance: bool, t: u32, content: @Content) -> u8 {
+    fn hold(ref self: Member, held: Held, stance: bool, t: u32, sheets: @Sheets) -> u8 {
         let item = if held.potion {
             self.belt_item(held.carrier)
         } else {
@@ -527,7 +544,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
                 };
                 if same {
                     if held.deadline >= old.deadline {
-                        self.put(slot, held, item, content);
+                        self.put(slot, held, item, sheets);
                     }
                     return slot;
                 }
@@ -542,8 +559,8 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
                 if old.deadline >= t
                     && !old.potion
                     && old.carrier != 0
-                    && *content.skill(old.carrier).kind == skill_kind::STANCE {
-                    self.put(slot, held, item, content);
+                    && *sheets.skill(old.carrier).kind == skill_kind::STANCE {
+                    self.put(slot, held, item, sheets);
                     return slot;
                 }
                 slot += 1;
@@ -556,7 +573,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         while slot < 4 {
             let deadline = self.effect_of(slot).deadline;
             if deadline < t {
-                self.put(slot, held, item, content);
+                self.put(slot, held, item, sheets);
                 return slot;
             }
             if deadline < earliest_deadline {
@@ -565,16 +582,16 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
             }
             slot += 1;
         }
-        self.put(earliest, held, item, content);
+        self.put(earliest, held, item, sheets);
         earliest
     }
 
     /// Writes `held` in `slot` with its pips: a potion's through its item, a skill's at its rank.
-    fn put(ref self: Member, slot: u8, held: Held, item: u32, content: @Content) {
+    fn put(ref self: Member, slot: u8, held: Held, item: u32, sheets: @Sheets) {
         let pips: i32 = if held.potion {
-            (*content.potion(item).regen).into()
+            (*sheets.potion(item).regen).into()
         } else {
-            content.skill(held.carrier).regen(held.rank)
+            sheets.skill(held.carrier).regen(held.rank)
         };
         MemberAssert::assert_pips(pips);
         self.set_effect(slot, held, pips.try_into().unwrap());

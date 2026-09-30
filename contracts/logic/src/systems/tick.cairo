@@ -17,9 +17,9 @@ pub mod TickLibrary {
     #[abi(embed_v0)]
     impl TickLibraryImpl of ITickLibrary<ContractState> {
         fn run(self: @ContractState, words: Words, content: Content, ticks: u8) -> Words {
-            let mut world = words.load(@content);
+            let (mut world, sheets) = words.load(@content);
             let mut rules = Idle {};
-            TickTrait::run(ref world, @content, ticks, ref rules);
+            TickTrait::run(ref world, @sheets, ticks, ref rules);
             world.store()
         }
     }

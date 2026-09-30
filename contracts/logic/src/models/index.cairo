@@ -295,6 +295,9 @@ pub struct Member {
     /// Its adrenaline gains' cap in quarters: the highest adrenaline cost on its bar (design/19
     /// §5.12, FX-12), derived once.
     pub adrenaline_cap: u16,
+    /// Its bar's skills' positions in the content (`types::tick::Sheets.skills`; `ABSENT` for an
+    /// empty slot), found once at its load (CBT-02d).
+    pub bar_at: [u32; 8],
     pub words: MemberWords,
 }
 
@@ -341,6 +344,9 @@ pub struct Goblin {
     /// Its adrenaline gains' cap in quarters: its caste skills' highest cost, at most the field's
     /// 252 (design/19 §5.12), derived once.
     pub adrenaline_cap: u8,
+    /// Its caste's position in the content (`types::tick::Sheets.castes` and `.kits`), found once
+    /// at its load (CBT-02d).
+    pub caste_at: u32,
     pub state: felt252,
     pub timers: felt252,
 }

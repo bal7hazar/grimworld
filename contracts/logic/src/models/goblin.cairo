@@ -10,7 +10,7 @@ use crate::helpers::tick::{TickAssert, TickMathTrait};
 use crate::packing::{N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P84, field, limbs, peel};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::tick::{
-    CasteSheet, CasteSheetTrait, Content, ContentTrait, Held, MAX_GOBLIN_ADRENALINE, REGEN_OFFSET,
+    CasteSheetTrait, Held, Index, IndexTrait, Kit, MISSING, REGEN_OFFSET, Sheets, SheetsTrait,
     SkillSheetTrait, ai,
 };
 
@@ -38,6 +38,7 @@ const F246: felt252 = 0x40000000000000000000000000000000000000000000000000000000
 pub mod errors {
     /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
     pub const REGEN: felt252 = 'goblin: regeneration above i8';
+    pub const NO_SKILL: felt252 = 'tick: skill not in content';
 }
 
 #[generate_trait]
@@ -46,6 +47,13 @@ pub impl GoblinAssert of GoblinAssertTrait {
     #[inline(always)]
     fn assert_pips(pips: i32) {
         assert(pips >= -128 && pips <= 127, errors::REGEN);
+    }
+
+    /// Its caste's skills are all in the content (the kit found each, `IndexTrait::kit`).
+    #[inline(always)]
+    fn assert_kit(kit: @Kit) {
+        let [a, b, c, d] = *kit.skills;
+        assert(a != MISSING && b != MISSING && c != MISSING && d != MISSING, errors::NO_SKILL);
     }
 }
 
@@ -101,9 +109,11 @@ pub impl GoblinImpl of GoblinTrait {
         )
     }
 
-    /// A goblin from its words, with what it derives once from its caste (`content`) and level:
-    /// its maxima, regeneration and its effect's `REGENERATION` pips.
-    fn load(words: GoblinWords, content: @Content) -> Goblin {
+    /// A goblin from its words, with what it derives once from its caste and level: its maxima,
+    /// regeneration and its effect's `REGENERATION` pips; its caste's position and its adrenaline
+    /// cap, its caste's kit's (CBT-02d: the index reads each id once, where a lookup scanned the
+    /// content's lists for the caste, the effect and the four caste skills).
+    fn load(words: GoblinWords, ref index: Index, sheets: @Sheets) -> Goblin {
         let (
             ai,
             health,
@@ -125,27 +135,16 @@ pub impl GoblinImpl of GoblinTrait {
             Self::hot(
             words.state, words.timers,
         );
-        let sheet = content.caste(caste);
+        let caste_at = index.caste(caste);
+        let sheet = (*sheets.castes)[caste_at];
+        let kit = (*sheets.kits)[caste_at];
+        GoblinAssert::assert_kit(kit);
         let regen: i32 = (*sheet.health_regen).into();
         let effect_regen: i32 = if effect == 0 {
             0
         } else {
-            content.skill(effect).regen(rank)
+            (*sheets.skills)[index.skill(effect)].regen(rank)
         };
-        // Its caste skills' highest adrenaline cost, in quarters, at most 252 (§5.12; DS-18
-        // bounds a caste skill at 63 strikes).
-        let mut cap: u16 = 0;
-        for skill in sheet.skills.span() {
-            if *skill != 0 {
-                let cost: u16 = (*content.skill(*skill).adrenaline).into() * 4;
-                if cost > cap {
-                    cap = cost;
-                }
-            }
-        }
-        if cap > MAX_GOBLIN_ADRENALINE.into() {
-            cap = MAX_GOBLIN_ADRENALINE.into();
-        }
         GoblinAssert::assert_pips(effect_regen);
         Goblin {
             entity: words.entity,
@@ -168,7 +167,8 @@ pub impl GoblinImpl of GoblinTrait {
             health_regen: (regen - REGEN_OFFSET).try_into().unwrap(),
             max_energy: *sheet.energy * 3,
             energy_regen: *sheet.energy_regen,
-            adrenaline_cap: cap.try_into().unwrap(),
+            adrenaline_cap: *kit.cap,
+            caste_at,
             state: words.state,
             timers: words.timers,
         }
@@ -289,19 +289,20 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     }
 
     /// An instant caste skill of `slot` used in step 2 of `T`: its recharge counts from `T`.
-    fn use_instant(ref self: Goblin, slot: u8, t: u32, caste: @CasteSheet, content: @Content) {
-        let r = *content.skill(*caste.skills.span()[slot.into()]).recharge;
+    fn use_instant(ref self: Goblin, slot: u8, t: u32, sheets: @Sheets) {
+        let r = *sheets.caste_skill(self.caste_at, slot).recharge;
         self.set_recharge(slot, TickMathTrait::recharge_deadline(t, r));
     }
 
     /// Step 1 at `A`: the activation ends, its recharge counts from `A` (FX-2); an attack skill
     /// whose weapon costs `k ≥ n + 2` recovers until `B = A + k − n − 1` (FX-15, §10.9).
     /// Returns its slot and target for the executor.
-    fn conclude(ref self: Goblin, caste: @CasteSheet, content: @Content) -> (u8, u16) {
+    fn conclude(ref self: Goblin, sheets: @Sheets) -> (u8, u16) {
         let slot = self.act_slot;
         let target = self.act_target;
         let a = self.act_deadline;
-        let skill = content.skill(*caste.skills.span()[slot.into()]);
+        let caste = (*sheets.castes)[self.caste_at];
+        let skill = sheets.caste_skill(self.caste_at, slot);
         self.set_recharge(slot, TickMathTrait::recharge_deadline(a, *skill.recharge));
         let k: u32 = (*caste.weapon_ticks).into();
         let n: u32 = (*skill.activation).into();
@@ -317,9 +318,9 @@ pub impl GoblinTickImpl of GoblinTickTrait {
 
     /// Step 1 of `T > A` for a goblin frozen at `A` (FX-29): the activation lapsed at `A`, as an
     /// interrupt dated `A`; its recharge `A + r − 1` is kept if a later one is stored.
-    fn lapse(ref self: Goblin, caste: @CasteSheet, content: @Content) {
+    fn lapse(ref self: Goblin, sheets: @Sheets) {
         let slot = self.act_slot;
-        let r = *content.skill(*caste.skills.span()[slot.into()]).recharge;
+        let r = *sheets.caste_skill(self.caste_at, slot).recharge;
         let deadline = TickMathTrait::recharge_deadline(self.act_deadline, r);
         if deadline > self.recharge(slot) {
             self.set_recharge(slot, deadline);
@@ -329,12 +330,12 @@ pub impl GoblinTickImpl of GoblinTickTrait {
 
     /// Interrupted at `t₀` (§5.9): the field goes to none, the recharge counts from `t₀`
     /// (FX-2). Nothing unless activating (a recovery is not an activation).
-    fn interrupt(ref self: Goblin, t0: u32, caste: @CasteSheet, content: @Content) {
+    fn interrupt(ref self: Goblin, t0: u32, sheets: @Sheets) {
         let slot = self.act_slot;
         if slot > activation::LAST_SLOT {
             return;
         }
-        let r = *content.skill(*caste.skills.span()[slot.into()]).recharge;
+        let r = *sheets.caste_skill(self.caste_at, slot).recharge;
         self.set_recharge(slot, TickMathTrait::recharge_deadline(t0, r));
         self.clear();
     }
@@ -416,7 +417,7 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
 
     /// A holding effect on its one slot at `t` (§5.7): the same carrier held keeps the later
     /// deadline, the new one on a tie (FX-30); anything else replaces it (FX-13).
-    fn hold(ref self: Goblin, held: Held, t: u32, content: @Content) {
+    fn hold(ref self: Goblin, held: Held, t: u32, sheets: @Sheets) {
         if !self.is_alive() {
             return;
         }
@@ -424,7 +425,7 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
         if old.deadline >= t && old.carrier == held.carrier && held.deadline < old.deadline {
             return;
         }
-        let pips: i32 = content.skill(held.carrier).regen(held.rank);
+        let pips: i32 = sheets.skill(held.carrier).regen(held.rank);
         GoblinAssert::assert_pips(pips);
         self.set_effect(held, pips.try_into().unwrap());
     }

@@ -13,9 +13,9 @@ use grimworld_logic::models::member::{MemberTrait, MemberWords};
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::combat::activation;
 use grimworld_logic::types::tick::{
-    CasteSheet, Content, PotionSheet, SkillSheet, ai, flag as tick_flag, status,
+    CasteSheet, Content, ContentTrait, PotionSheet, SkillSheet, ai, flag as tick_flag, status,
 };
-use grimworld_logic::types::world::{Idle, TickTrait, World};
+use grimworld_logic::types::world::{Idle, TickTrait, WorldTrait};
 use starknet::storage_access::StorePacking;
 
 /// The member's bar is 301, 300, 7–12: `load` reads each skill's adrenaline cost (its cap).
@@ -133,8 +133,8 @@ fn test_tick_constants() {
 #[available_gas(l2_gas: 1292036)] // ceil(1.05 × 1230510 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
-    let content = content();
-    let mut member = MemberTrait::load(words, @content);
+    let (sheets, mut index) = content().index();
+    let mut member = MemberTrait::load(words, ref index, @sheets);
     assert(member.status == INSIDE && member.health == 321, 'state');
     assert(member.energy == 44 && member.adrenaline == 17 && member.flags == state.flags, 'state');
     assert(member.act_slot == 6 && member.act_target == 0x1234 && member.act_tile == 1, 'act');
@@ -225,18 +225,13 @@ fn test_potion_regeneration_every_belt_slot() {
             kit: StorePacking::pack(kit),
             ..words,
         };
-        let member = MemberTrait::load(words, @content);
+        let (sheets, mut index) = content.index();
+        let member = MemberTrait::load(words, ref index, @sheets);
         let pips: i8 = (slot + 1).try_into().unwrap();
         assert(member.effect_regen == [pips, 0, 0, 0], 'belt slot pips');
-        let mut world = World {
-            clock: 10,
-            members: array![member],
-            goblins: array![],
-            killed: array![],
-            defeated: false,
-        };
+        let mut world = WorldTrait::new(10, array![member], array![], array![], false);
         let mut rules = Idle {};
-        TickTrait::run(ref world, @content, 1, ref rules);
+        TickTrait::run(ref world, @sheets, 1, ref rules);
         // Health regeneration +2 pips (stored 12) and the potion's.
         let expected: u16 = state.health + 2 * (2 + slot + 1);
         assert(*world.members.at(0).health == expected, 'belt slot regenerates');
@@ -283,8 +278,8 @@ fn test_tick_words_goblin() {
         state: StorePacking::pack(state),
         timers: StorePacking::pack(timers),
     };
-    let content = content();
-    let mut goblin = GoblinTrait::load(words, @content);
+    let (sheets, mut index) = content().index();
+    let mut goblin = GoblinTrait::load(words, ref index, @sheets);
     assert(goblin.entity == 3593 && goblin.awake && goblin.ai == ALERTED, 'identity');
     assert(goblin.health == 250 && goblin.energy == 100 && goblin.adrenaline == 252, 'state');
     assert(goblin.caste == 12 && goblin.act_slot == 1 && goblin.act_target == 0xBEEF, 'act');
