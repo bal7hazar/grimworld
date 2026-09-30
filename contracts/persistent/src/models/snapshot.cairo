@@ -11,11 +11,7 @@
 //! another level than the adventurer's (D-168 2).
 
 use grimworld_logic::packing::{P64, byte_at, split};
-
-/// Offsets of the words of `StoredSnapshot` from its address.
-pub const STATS_WORD: u8 = 0;
-pub const BAR_WORD: u8 = 1;
-pub const KIT_WORD: u8 = 2;
+use grimworld_logic::snapshot::SnapshotWords;
 
 /// `2^208`: the content version's unit in the kit word (bits 208–239).
 const VERSION_UNIT: felt252 = 0x10000000000000000000000000000000000000000000000000000;
@@ -45,6 +41,22 @@ pub struct StoredSnapshot {
 
 #[generate_trait]
 pub impl StoredSnapshotImpl of StoredSnapshotTrait {
+    /// The snapshot `set_build` stores: the flattening's three packed words, the kit sealed with
+    /// the content `version` it was computed under.
+    #[inline(always)]
+    fn new(stats: felt252, bar: felt252, kit: felt252, version: u32) -> StoredSnapshot {
+        StoredSnapshot { stats, bar, kit: Self::seal(kit, version) }
+    }
+
+    /// What `Instances.create` receives of a snapshot `StoredSnapshotAssert::assert_fresh`
+    /// accepted at `version`: the three words as packed, and the belt's counts.
+    #[inline(always)]
+    fn words(self: @StoredSnapshot, version: u32, belt_counts: [u8; 4]) -> SnapshotWords {
+        SnapshotWords {
+            stats: *self.stats, bar: *self.bar, kit: Self::kit(*self.kit, version), belt_counts,
+        }
+    }
+
     /// The stored kit word: the packed kit (`LIVE` set) and the content `version` it was computed
     /// under.
     #[inline(always)]

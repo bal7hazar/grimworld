@@ -169,7 +169,7 @@ pub mod Hub {
     use grimworld_logic::models::skill::SkillTrait;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::ProfessionAssert;
-    use grimworld_logic::snapshot::{SnapshotWords, Worn};
+    use grimworld_logic::snapshot::Worn;
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
@@ -195,8 +195,9 @@ pub mod Hub {
         PERSONALISED, RiftBoard,
     };
     use crate::models::snapshot::{
-        BAR_WORD, KIT_WORD, STATS_WORD, StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait,
+        StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait,
     };
+    use crate::store::StoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
 
@@ -605,10 +606,9 @@ pub mod Hub {
             base.set_word(BUILD_WORD, build_word);
             base.set_word(BELT_WORD, belt_word);
             base.set_word(EQUIPPED_WORD, equipped_word);
-            let snapshot = self.snapshots.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            snapshot.set_word(STATS_WORD, stats);
-            snapshot.set_word(BAR_WORD, bar);
-            snapshot.set_word(KIT_WORD, StoredSnapshotTrait::seal(kit, version));
+            StoreTrait::set_snapshot(
+                self.snapshots.entry(adventurer_id), StoredSnapshotTrait::new(stats, bar, kit, version),
+            );
         }
         /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
         /// ownership check, the gate from the registry and its requirements, the stored snapshot
@@ -635,19 +635,12 @@ pub mod Hub {
             let record: Gate = GateRecord::unpack(parts);
             record.assert_enterable(hub, rank);
 
-            let stored = self.snapshots.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            let kit = stored.word(KIT_WORD);
-            StoredSnapshotAssert::assert_fresh(kit, version);
+            let stored = StoreTrait::get_snapshot(self.snapshots.entry(adventurer_id));
+            StoredSnapshotAssert::assert_fresh(stored.kit, version);
+            StoredSnapshotAssert::assert_level(stored.stats, level);
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             let (items, counts) = BeltTrait::read(base.word(BELT_WORD));
-            let stats = stored.word(STATS_WORD);
-            StoredSnapshotAssert::assert_level(stats, level);
-            let snapshot = SnapshotWords {
-                stats,
-                bar: stored.word(BAR_WORD),
-                kit: StoredSnapshotTrait::kit(kit, version),
-                belt_counts: counts,
-            };
+            let snapshot = stored.words(version, counts);
 
             let reserve = BalanceTrait::merge(items, counts);
             let (_, emptied) = self.change_pack(adventurer_id, reserve.span(), false);

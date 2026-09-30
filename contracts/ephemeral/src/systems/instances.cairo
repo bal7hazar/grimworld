@@ -162,6 +162,7 @@ pub mod Instances {
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
+    use crate::store::StoreTrait;
     use grimworld_logic::types::{
         InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
     };
@@ -530,13 +531,9 @@ pub mod Instances {
                 next.try_into().unwrap()
             };
             self.write_tasks(slot, tasks);
-            // The snapshot's words as `Hub` stored them (D-168): packed by the flattening, so
-            // written as they are, `bar` and `kit` in the two slots after `stats`.
+            // The snapshot's words as `Hub` stored them (D-168), written as they are.
             let member = self.members.entry((slot, 0));
-            let words = member.as_ptr().__storage_pointer_address__;
-            words.set_word(STATS_WORD, snapshot.stats);
-            words.set_word(STATS_WORD + 1, snapshot.bar);
-            words.set_word(STATS_WORD + 2, snapshot.kit);
+            StoreTrait::set_snapshot(member, @snapshot);
             member.controller.write(controller);
             let (max_health, max_energy) = MemberStateTrait::maxima(snapshot.stats);
             let previous = self.headers.entry(slot).read().generation;
