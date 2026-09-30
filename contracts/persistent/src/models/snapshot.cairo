@@ -151,7 +151,10 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_stale_mark_bits() {
-        assert(STALE_MARK == LIVE + 0x1000000000000000000000000000000000000000000000000000000000000, 'mark');
+        assert(
+            STALE_MARK == LIVE + 0x1000000000000000000000000000000000000000000000000000000000000,
+            'mark',
+        );
         assert(errors::STALE != errors::MISSING, 'errors');
     }
 }

@@ -14,8 +14,8 @@ use snforge_std::{DeclareResultTrait, declare};
 
 /// The widest equipment of design/20 §1.2, as `Hub.set_build` reads it: the sword's prefix,
 /// suffix and inscription (modifiers 1–3), the shield's suffix and inscription (4–5), each
-/// piece's insignia (6–10, made for its piece) and rune (11–15): 15 modifiers, 30 passives (life
-/// steal 1…5 or armor against fire 1…7, each costing 7 armor against cold).
+/// piece's insignia (6–10, made for its piece) and rune (11–15): 15 modifiers, 30 passives
+/// (life steal 1…5 or armor against fire 1…7, each costing 7 armor against cold).
 fn widest() -> (Loadout, Span<Worn>, Span<u16>, Span<felt252>) {
     let cold = PassiveTrait::new(id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
     let steal = PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);

@@ -9,6 +9,7 @@
 // §1.2 counts.
 use core::testing::get_available_gas;
 use grimworld_logic::content::{ITEM, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
@@ -42,7 +43,6 @@ use grimworld_persistent::systems::hub::{
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
 };
-use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, load, map_entry_address,
     start_cheat_caller_address, store,
@@ -499,7 +499,9 @@ fn test_set_build_worst_case() {
     assert(stored_snapshot(world, id) == expected, 'the flattening stored');
     let gas = get_available_gas();
     hub.set_build(id, b, l, e);
-    println!("gas set_build, worst case, again (snapshot overwritten): {}", gas - get_available_gas());
+    println!(
+        "gas set_build, worst case, again (snapshot overwritten): {}", gas - get_available_gas(),
+    );
     assert(stored_snapshot(world, id) == expected, 'the same words');
     let after = array![
         read(world.hub, adventurer_word(id, 2)), read(world.hub, adventurer_word(id, 3)),
@@ -846,7 +848,8 @@ fn test_equipment_slots_and_hands() {
     accepted(try_set(world, id, empty(), 0, equipped([0, 102, 0, 0, 0, 0, 0])));
 }
 
-// ---- the flattening (D-160, D-168) ---------------------------------------------------------------
+// ---- the flattening (D-160, D-168)
+// ---------------------------------------------------------------
 
 // DS-2 (D-160, design/20 §6 test 3): `set_build` flattens the build and refuses it below the
 // floors. A level 1 Vanguard's 100 health: one rune costing 75 leaves 25, accepted; two leave
@@ -957,7 +960,10 @@ fn test_set_build_stores_the_extremal_max_health() {
     let insignias = [15_i16, 10, 5, 5, 5];
     let mut piece: u8 = 3;
     for value in insignias.span() {
-        admin.set_record(MODIFIER, id_next, ModifierTrait::insignia(piece, health(*value), none).pack());
+        admin
+            .set_record(
+                MODIFIER, id_next, ModifierTrait::insignia(piece, health(*value), none).pack(),
+            );
         id_next += 1;
         piece += 1;
     }

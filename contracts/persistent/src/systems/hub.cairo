@@ -159,9 +159,9 @@ pub mod Hub {
     use core::num::traits::Zero;
     use grimworld_logic::content::{GATE, ITEM, MODIFIER, REGION, SKILL, exists};
     use grimworld_logic::interface::{
-        IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher,
-        IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IRegistryReadDispatcher,
-        IRegistryReadDispatcherTrait, IResults, Results, facts,
+        IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher, IInstanceEntryDispatcher,
+        IInstanceEntryDispatcherTrait, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
+        IResults, Results, facts,
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord, errors as gate_errors};
     use grimworld_logic::models::item::ItemTrait;

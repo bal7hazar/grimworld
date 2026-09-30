@@ -609,7 +609,8 @@ pub struct Worn {
 
 #[generate_trait]
 pub impl WornImpl of WornTrait {
-    /// The passives the worn items hold, for the flattening (design/19 §4, §7.2; design/20 §1.2):
+    /// The passives the worn items hold, for the flattening (design/19 §4, §7.2; design/20
+    /// §1.2):
     /// each modifier's benefit, its value the item's rolled byte, and its cost, fixed by its
     /// record; their source the record's slot type; one instance a modifier, numbered
     /// `5 × lane + slot`, so upward; an insignia's piece the item's slot (DS-23). `ids` are the
@@ -1343,9 +1344,8 @@ mod tests {
         MAX_ARMOR_VS, MAX_KNOCKDOWN, MAX_UNGUARDED_ARMOR, MEDIUM_VS_ELEMENTAL, MemberBar, MemberKit,
         MemberKitTrait, MemberStats, PERSONALISED_DAMAGE_PERCENT, QuickCast, STRENGTH_PER_RANK,
         Snapshot, SnapshotBuildTrait, SnapshotTrait, SnapshotWords, TaskEntry, TaskPage,
-        WELLSPRING_ENERGY_PER_RANK, Worn, WornTrait, errors, fit,
-        pack_bar, pack_kit, pack_stats, pack_task_page, saturate, unpack_bar, unpack_kit,
-        unpack_stats, unpack_task_page,
+        WELLSPRING_ENERGY_PER_RANK, Worn, WornTrait, errors, fit, pack_bar, pack_kit, pack_stats,
+        pack_task_page, saturate, unpack_bar, unpack_kit, unpack_stats, unpack_task_page,
     };
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -2675,9 +2675,7 @@ mod tests {
             Worn {
                 lane: 0, slot: base_slot::WEAPON, ids: [1, 2, 0, 0, 0], values: [5, 3, 0, 0, 0],
             },
-            Worn {
-                lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 3, 4], values: [0, 0, 0, 6, 7],
-            },
+            Worn { lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 3, 4], values: [0, 0, 0, 6, 7] },
         ]
             .span()
     }
@@ -2791,7 +2789,9 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 484155)] // ceil(1.05 × 461100 measured)
     fn test_snapshot_words() {
-        let snapshot = SnapshotTrait::new(3, 1, [1, 2, 0, 0, 0, 0, 0, 0], 255, [7; 4], [1, 2, 3, 4]);
+        let snapshot = SnapshotTrait::new(
+            3, 1, [1, 2, 0, 0, 0, 0, 0, 0], 255, [7; 4], [1, 2, 3, 4],
+        );
         let words = snapshot.words();
         assert(unpack_stats(words.stats) == snapshot.stats, 'stats');
         assert(unpack_bar(words.bar) == snapshot.bar, 'bar');

@@ -626,7 +626,9 @@ fn test_create_refusals() {
     refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(0)), NOT_HUB);
     start_cheat_caller_address(world.instances, world.hub);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(17)), TOO_MANY_TASKS);
+    refused(
+        entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(17)), TOO_MANY_TASKS,
+    );
     #[feature("safe_dispatcher")]
     refused(entry.create(HERO, addr(ALICE), 99, snapshot().words(), tasks(0)), NO_GATE);
     #[feature("safe_dispatcher")]
@@ -636,7 +638,9 @@ fn test_create_refusals() {
     assert(draws(world) == 0, 'no draw');
     create(world, HERO, ALICE, INTO_ZONE, 0);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(0)), ALREADY_INSIDE);
+    refused(
+        entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(0)), ALREADY_INSIDE,
+    );
 }
 
 // A sealed destination sets the header's flag (design/17).

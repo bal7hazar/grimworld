@@ -3,7 +3,8 @@
 // the belt's reserve, the snapshot), `travel`, the settlement `report`, and the start hub read from
 // the registry. CBT-02e (D-168): `enter` copies the snapshot `set_build` stored and refuses a
 // missing or stale one; the tests that are not about the build store one as `set_build` does
-// (`put_snapshot`), and those below `enter_after_set_build` take the real path. `Registry` is the real one; `Instances` is a double that records what `create`
+// (`put_snapshot`), and those below `enter_after_set_build` take the real path. `Registry` is the
+// real one; `Instances` is a double that records what `create`
 // receives (the real one is in `grimworld_ephemeral`, which this package does not depend on; the
 // node probe `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys
 // a test watches (`load` before and after).
@@ -21,9 +22,7 @@ use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as l
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
-use grimworld_logic::snapshot::{
-    SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats,
-};
+use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats};
 use grimworld_logic::types::{Outcome, instance_id};
 use grimworld_persistent::events::AdventurerLocated;
 use grimworld_persistent::models::account::{PACK, owner_key};
@@ -709,7 +708,9 @@ fn test_enter_refuses_a_stale_snapshot() {
 
     // A level up.
     let core = core_of(world, id);
-    write(world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { level: 2, ..core }));
+    write(
+        world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { level: 2, ..core }),
+    );
     #[feature("safe_dispatcher")]
     refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
     act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
