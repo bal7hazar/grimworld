@@ -553,13 +553,16 @@ fn test_cost_library_baseline_representative() {
 }
 
 // Cost: one tick of `worst_state`'s scenario, the pipeline alone: a measured state under the upper
-// bound (CBT-02b, below), not the bound.
+// bound (CBT-02b, below), not the bound. CBT-02d prints the tick measured alone ("gas heavy tick"):
+// the difference with the fixture also counts the checks below.
 #[test]
-#[available_gas(l2_gas: 15651020)] // ceil(1.05 × 14905733 measured)
+#[available_gas(l2_gas: 15723250)] // ceil(1.05 × 14974523 measured)
 fn test_cost_tick_worst() {
     let (mut world, content) = worst_state(true, 3);
     let mut rules = Idle {};
+    let before = get_available_gas();
     TickTrait::tick(ref world, @content, ref rules);
+    println!("gas heavy tick: {}", before - get_available_gas());
     let goblin = @world.goblin(92);
     assert(*goblin.act_slot == activation::RECOVERING && goblin.recharge(0) == 59, 'concluded');
     assert(world.killed.len() == 8 && world.defeated, 'every death');
@@ -585,14 +588,21 @@ fn test_cost_tick_worst_8() {
 }
 
 // Cost: a busy 10-tick batch (weight 10), `Busy` keeping every awake goblin and the member
-// resolving or acting at every tick: a measured scenario; every tick of a batch is under the tick's
-// upper bound (CBT-02b, below).
+// resolving or acting at every tick: a measured scenario. CBT-02d measures each tick alone (printed
+// "gas busy tick"): the ticks alternate between 8 conclusions and 8 acts, and in the latter each of
+// `Busy`'s act hooks writes its goblin (its own work, the AI's in ENG-07, not the pipeline's).
 #[test]
-#[available_gas(l2_gas: 30138402)] // ceil(1.05 × 28703240 measured)
+#[available_gas(l2_gas: 31117464)] // ceil(1.05 × 29635680 measured)
 fn test_cost_batch_worst() {
     let (mut world, content) = worst_state(false, 1);
     let mut rules: Busy = Default::default();
-    TickTrait::run(ref world, @content, 10, ref rules);
+    let mut k = 0;
+    while k < 10_u8 {
+        let before = get_available_gas();
+        TickTrait::tick(ref world, @content, ref rules);
+        println!("gas busy tick {}: {}", k, before - get_available_gas());
+        k += 1;
+    }
     assert(world.clock == 59 && !world.defeated, 'ten ticks');
 }
 

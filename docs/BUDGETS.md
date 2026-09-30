@@ -288,7 +288,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_tick::test_branch_worlds_take_their_branch` | 70449014 | 73971465 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_awake_100` | 12248650 | 12861083 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_batch_representative` | 13638920 | 13911629 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_cost_batch_worst` | 28703240 | 30138402 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_cost_batch_worst` | 29635680 | 31117464 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_bound_activating` | 13693583 | 14378263 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_bound_activating_fixture` | 13431340 | 14102907 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_bound_base` | 13624453 | 14305676 | 2026-09-30 | acfebb2 |
@@ -429,7 +429,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_tick::test_cost_term_one_recovering` | 14589173 | 15318632 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_term_one_recovery_end` | 14616646 | 15347479 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_tick_representative` | 7868657 | 7924925 | 2026-09-30 | acfebb2 |
-| grimworld_logic | `test_tick::test_cost_tick_worst` | 14905733 | 15651020 | 2026-09-30 | acfebb2 |
+| grimworld_logic | `test_tick::test_cost_tick_worst` | 14974523 | 15723250 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_tick_worst_8` | 7710593 | 8096123 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_cost_tick_worst_permuted` | 16919973 | 17765972 | 2026-09-30 | acfebb2 |
 | grimworld_logic | `test_tick::test_deterministic` | 58970080 | 61918584 | 2026-09-30 | acfebb2 |
