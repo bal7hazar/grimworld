@@ -13,8 +13,8 @@ use crate::packing::{
 };
 use crate::types::combat::{condition, skill_kind};
 use crate::types::tick::{
-    ABSENT, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SheetsTrait,
-    SkillSheet, SkillSheetTrait,
+    ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SheetsTrait,
+    SkillSheet, SkillSheetTrait, status,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -35,6 +35,9 @@ const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
 const F192: felt252 = 0x1000000000000000000000000000000000000000000000000;
 const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
 const F112: felt252 = 0x10000000000000000000000000000;
+/// `Member.bar_at`'s lanes: bar slot `s`'s position at bits `16 s` (CBT-02d: one `u128`, where
+/// eight `u32` made each copy of a member 7 felts longer).
+const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
 
 pub mod errors {
     /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
@@ -194,15 +197,15 @@ pub impl MemberImpl of MemberTrait {
         let (bar, _) = limbs(words.bar);
         let mut cap: u16 = 0;
         let mut rest = bar;
-        let mut bar_at: Array<u32> = array![];
-        for _ in 0..8_u8 {
+        let mut bar_at: u128 = 0;
+        for shift in BAR_LANES.span() {
             let skill = peel(ref rest, N16);
             if skill == 0 {
-                bar_at.append(ABSENT);
+                bar_at += ABSENT_LANE * *shift;
                 continue;
             }
             let at = index.skill(skill.try_into().unwrap());
-            bar_at.append(at);
+            bar_at += at.into() * *shift;
             let cost: u16 = (*(*sheets.skills)[at].adrenaline).into() * 4;
             if cost > cap {
                 cap = cost;
@@ -229,10 +232,7 @@ pub impl MemberImpl of MemberTrait {
             health_regen: (health_regen - REGEN_OFFSET).try_into().unwrap(),
             energy_regen: energy_regen.try_into().unwrap(),
             adrenaline_cap: cap,
-            bar_at: [
-                *bar_at[0], *bar_at[1], *bar_at[2], *bar_at[3], *bar_at[4], *bar_at[5], *bar_at[6],
-                *bar_at[7],
-            ],
+            bar_at,
             words,
         }
     }
@@ -290,6 +290,17 @@ pub impl MemberImpl of MemberTrait {
         self.words.recharges += TickMathTrait::delta(old.into(), deadline.into(), shift);
     }
 
+    /// 1 if the member is inside at 0 health (the adventurer at 0, FX-8), else 0: what it adds
+    /// to the world's count of members down.
+    #[inline(always)]
+    fn downs(self: @Member) -> u32 {
+        if *self.status == status::INSIDE && *self.health == 0 {
+            1
+        } else {
+            0
+        }
+    }
+
     /// The skill id of bar slot 0–7 (`MemberBar`).
     #[inline(always)]
     fn skill(self: @Member, slot: u8) -> u16 {
@@ -298,10 +309,16 @@ pub impl MemberImpl of MemberTrait {
         field(low, shift, P16).try_into().unwrap()
     }
 
+    /// The position in the content of bar slot 0–7's skill (`ABSENT_LANE` for an empty slot).
+    #[inline(always)]
+    fn position(self: @Member, slot: u8) -> u128 {
+        field(*self.bar_at, *BAR_LANES.span()[slot.into()], P16)
+    }
+
     /// The sheet of bar slot 0–7's skill, at its position (CBT-02d).
     #[inline(always)]
     fn sheet(self: @Member, slot: u8, sheets: @Sheets) -> @SkillSheet {
-        (*sheets.skills)[*self.bar_at.span()[slot.into()]]
+        (*sheets.skills)[self.position(slot).try_into().unwrap()]
     }
 }
 
@@ -636,7 +653,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
 #[cfg(test)]
 mod tests {
     use crate::types::combat::{condition, skill_kind};
-    use crate::types::tick::{ABSENT, Content, ContentTrait, NO_SLOT, flag, status};
+    use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, flag, status};
     use crate::types::world::fixtures::{Fixture, LIVE, two};
     use super::{MemberAssert, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWordsTrait};
 
@@ -680,7 +697,11 @@ mod tests {
             skills: skills.span(), potions: array![].span(), castes: array![].span(),
         };
         let member = Fixture::load_member(words, @content);
-        assert(member.bar_at == [0, 2, 3, 4, 5, 6, 7, ABSENT], 'positions');
+        let mut positions = array![];
+        for slot in 0..8_u8 {
+            positions.append(member.position(slot));
+        }
+        assert(positions == array![0, 2, 3, 4, 5, 6, 7, ABSENT_LANE], 'positions');
         assert(*member.sheet(0, @content.sheets()).id == 8, 'its sheet');
     }
 

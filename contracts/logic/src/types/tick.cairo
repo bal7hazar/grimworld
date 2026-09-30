@@ -134,6 +134,12 @@ pub struct Content {
 
 /// A position in a list of `Sheets` that holds nothing: an empty skill slot.
 pub const ABSENT: u32 = 0xFFFFFFFF;
+/// The same in a 16-bit lane (`Member.bar_at`). A skill's position fits one: the content holds at
+/// most `MAX_SKILLS` skills (`IndexTrait::new`).
+pub const ABSENT_LANE: u128 = 0xFFFF;
+/// Skill ids are `u16`: a content of more skills than that holds the same id twice, and only the
+/// first is ever read.
+pub const MAX_SKILLS: u32 = 0xFFFF;
 
 /// What a caste's goblins derive from its skills, once per call (CBT-02d): each skill's position
 /// in `Sheets.skills` (`ABSENT` for an empty slot) and their highest adrenaline cost in quarters,
@@ -172,6 +178,7 @@ pub mod errors {
     pub const NO_SKILL: felt252 = 'tick: skill not in content';
     pub const NO_CASTE: felt252 = 'tick: caste not in content';
     pub const NO_POTION: felt252 = 'tick: potion not in content';
+    pub const SKILLS: felt252 = 'tick: more skills than ids';
 }
 
 
@@ -359,6 +366,7 @@ pub impl IndexImpl of IndexTrait {
     /// Every record's position, keyed by its id. The lists are read from their ends, so that of two
     /// records with one id the first is kept, as a scan finds it.
     fn new(content: @Content) -> Index {
+        assert(content.skills.len() <= MAX_SKILLS, errors::SKILLS);
         let mut positions: Felt252Dict<u32> = Default::default();
         let mut skills = *content.skills;
         let mut at = skills.len();

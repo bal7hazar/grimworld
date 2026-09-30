@@ -295,9 +295,9 @@ pub struct Member {
     /// Its adrenaline gains' cap in quarters: the highest adrenaline cost on its bar (design/19
     /// §5.12, FX-12), derived once.
     pub adrenaline_cap: u16,
-    /// Its bar's skills' positions in the content (`types::tick::Sheets.skills`; `ABSENT` for an
-    /// empty slot), found once at its load (CBT-02d).
-    pub bar_at: [u32; 8],
+    /// Its bar's skills' positions in the content (`types::tick::Sheets.skills`), found once at its
+    /// load (CBT-02d): slot `s` in bits `16 s`, `ABSENT_LANE` for an empty slot.
+    pub bar_at: u128,
     pub words: MemberWords,
 }
 

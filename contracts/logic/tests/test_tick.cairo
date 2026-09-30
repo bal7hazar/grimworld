@@ -149,7 +149,7 @@ impl FixtureImpl of Fixture {
             health_regen: spec.health_regen,
             energy_regen: spec.energy_regen,
             adrenaline_cap: 0,
-            bar_at: [0, 1, 2, 3, 4, 5, 6, 7],
+            bar_at: 0x00070006000500040003000200010000,
             words: Self::member_words(spec),
         }
     }
@@ -267,7 +267,7 @@ impl ScriptRules of Rules<Script> {
     fn act(ref self: Script, ref world: World, sheets: @Sheets, index: u32) {
         self.acts.append((world.clock, world.goblin(index).entity));
         if world.clock == self.kill_member_at {
-            let mut member = *world.members.at(0);
+            let mut member = world.member(0);
             member.health = 0;
             world.set_member(0, member);
         }
@@ -293,7 +293,7 @@ struct Busy {}
 
 impl BusyRules of Rules<Busy> {
     fn perceive(ref self: Busy, ref world: World) {
-        let mut member = *world.members.at(0);
+        let mut member = world.member(0);
         member.act_slot = 7;
         member.act_target = 8;
         member.act_deadline = world.clock;
@@ -559,7 +559,7 @@ fn test_cost_tick_worst() {
     let goblin = @world.goblin(92);
     assert(*goblin.act_slot == activation::RECOVERING && goblin.recharge(0) == 59, 'concluded');
     assert(world.killed.len() == 8 && world.defeated, 'every death');
-    assert(*world.members.at(0).act_slot == NO_SLOT, 'member resolved');
+    assert(world.member(0).act_slot == NO_SLOT, 'member resolved');
 }
 
 // The same construction with only the 8 awake goblins in the array (no frozen candidate): what
@@ -1729,7 +1729,7 @@ fn term_tick(branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u
     }
     assert(rules.acts.len() == free, 'branch: only the free act');
     assert(world.killed.len() == deaths, 'branch: the deaths');
-    assert(world.defeated && *world.members.at(0).status == status::DOWN, 'branch: member down');
+    assert(world.defeated && world.member(0).status == status::DOWN, 'branch: member down');
     used
 }
 

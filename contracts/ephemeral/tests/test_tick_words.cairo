@@ -234,7 +234,7 @@ fn test_potion_regeneration_every_belt_slot() {
         TickTrait::run(ref world, @sheets, 1, ref rules);
         // Health regeneration +2 pips (stored 12) and the potion's.
         let expected: u16 = state.health + 2 * (2 + slot + 1);
-        assert(*world.members.at(0).health == expected, 'belt slot regenerates');
+        assert(world.member(0).health == expected, 'belt slot regenerates');
     }
 }
 

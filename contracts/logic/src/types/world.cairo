@@ -63,12 +63,15 @@ pub struct Words {
     pub defeated: bool,
 }
 
-/// What the ticks run over, inside the call. Its goblins are read through `WorldTrait::goblin` and
-/// written through `WorldTrait::set_goblin` and `kill`.
+/// What the ticks run over, inside the call. Its members are read through `WorldTrait::member` and
+/// written through `WorldTrait::set_member`; its goblins through `goblin`, `set_goblin` and `kill`.
 #[derive(Drop, Debug, PartialEq)]
 pub struct World {
     pub clock: u32,
-    pub members: Array<Member>,
+    members: Array<Member>,
+    /// How many members are inside at 0 health (FX-8), kept by every write of a member (CBT-02d):
+    /// `WorldTrait::is_down` reads it after every hook, where it loaded each member.
+    downs: u32,
     /// Every goblin the ticks may touch, ascending entity id. An awake goblin's entry is its value
     /// when the awake set was last formed; its current value is in `awake`.
     goblins: Array<Goblin>,
@@ -98,8 +101,11 @@ pub impl WordsImpl of WordsTrait {
     fn load(self: Words, content: @Content) -> (World, Sheets) {
         let (sheets, mut index) = content.index();
         let mut members = array![];
+        let mut downs = 0;
         for words in self.members {
-            members.append(MemberTrait::load(words, ref index, @sheets));
+            let member = MemberTrait::load(words, ref index, @sheets);
+            downs += member.downs();
+            members.append(member);
         }
         let mut goblins = array![];
         let mut woken = array![];
@@ -118,6 +124,7 @@ pub impl WordsImpl of WordsTrait {
         let world = World {
             clock: self.clock,
             members,
+            downs,
             goblins,
             woken: woken.span(),
             awake,
@@ -356,14 +363,17 @@ pub impl TickImpl of TickTrait {
             }
         }
         let mut members = array![];
+        let mut downs = 0;
         for member in world.members.span() {
             let mut member = *member;
             if member.status == status::INSIDE && member.health > 0 {
                 member.regenerate(t, engaged);
             }
+            downs += member.downs();
             members.append(member);
         }
         world.members = members;
+        world.downs = downs;
         if world.awake.len() == 0 {
             return;
         }
@@ -396,6 +406,7 @@ pub impl TickImpl of TickTrait {
             members.append(member);
         }
         world.members = members;
+        world.downs = 0;
         world.defeated = true;
     }
 
@@ -482,7 +493,11 @@ pub impl WorldImpl of WorldTrait {
         defeated: bool,
     ) -> World {
         let (woken, awake) = Self::split(goblins.span());
-        World { clock, members, goblins, woken, awake, killed, defeated }
+        let mut downs = 0;
+        for member in members.span() {
+            downs += member.downs();
+        }
+        World { clock, members, downs, goblins, woken, awake, killed, defeated }
     }
 
     /// The awake set of `goblins`: the indexes and values of those flagged awake, ascending, at
@@ -503,17 +518,27 @@ pub impl WorldImpl of WorldTrait {
     }
 
     /// Whether a member inside is at 0 health (the adventurer at 0, FX-8).
+    #[inline(always)]
     fn is_down(self: @World) -> bool {
-        for member in self.members.span() {
-            if *member.status == status::INSIDE && *member.health == 0 {
-                return true;
-            }
-        }
-        false
+        *self.downs > 0
     }
 
+    /// How many members the world holds.
+    #[inline(always)]
+    fn member_count(self: @World) -> u32 {
+        self.members.len()
+    }
+
+    /// Member `index` as it is now.
+    #[inline(always)]
+    fn member(self: @World, index: u32) -> Member {
+        *self.members[index]
+    }
+
+    /// Writes member `index`, the count of members down with it.
     fn set_member(ref self: World, index: u32, member: Member) {
         let members = self.members.span();
+        self.downs = self.downs - members[index].downs() + member.downs();
         let mut rebuilt = array![];
         rebuilt.append_span(members.slice(0, index));
         rebuilt.append(member);

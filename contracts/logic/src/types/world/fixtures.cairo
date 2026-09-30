@@ -132,7 +132,7 @@ pub impl FixtureImpl of Fixture {
             health_regen: spec.health_regen,
             energy_regen: spec.energy_regen,
             adrenaline_cap: 0,
-            bar_at: [0, 1, 2, 3, 4, 5, 6, 7],
+            bar_at: 0x00070006000500040003000200010000,
             words: Self::member_words(spec),
         }
     }
