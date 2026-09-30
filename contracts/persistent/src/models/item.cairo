@@ -4,7 +4,7 @@
 
 use grimworld_logic::models::base::Base;
 use grimworld_logic::models::index::Modifier as ModifierModel;
-use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait};
+use grimworld_logic::models::modifier::ModifierTrait;
 use grimworld_logic::packing::{
     P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join,
     low_field, split, u16_at, u32_at,
@@ -37,6 +37,10 @@ pub mod errors {
     pub const NO_MODIFIER: felt252 = 'item: no such modifier';
     /// An insignia made for another piece than the one it is worn on (DS-23, D-160).
     pub const INSIGNIA_PIECE: felt252 = 'item: insignia piece';
+    /// A modifier in a slot of another type than its record's (ENG-01 §3.3).
+    pub const SLOT_TYPE: felt252 = 'item: modifier slot type';
+    /// A benefit's rolled value outside its record's range (design/19 §4).
+    pub const VALUE: felt252 = 'item: modifier value';
 }
 
 #[generate_trait]
@@ -231,7 +235,8 @@ pub impl ItemModsImpl of ItemModsTrait {
                     k += 1;
                 }
                 let record = records[k];
-                record.assert_slot();
+                ItemModsAssert::assert_slot(*record.slot, slot);
+                ItemModsAssert::assert_value(*modifier.value, record.benefit);
                 let source = record.source().unwrap();
                 let piece = if source == Source::Insignia {
                     ItemModsAssert::assert_piece(*record.piece, *item.slot);
@@ -277,6 +282,22 @@ pub impl ItemModsAssert of ItemModsAssertTrait {
     #[inline(always)]
     fn assert_exists(part: felt252) {
         assert(part != 0, errors::NO_MODIFIER);
+    }
+
+    /// A modifier sits in the slot of its record's type: `ItemMods`' five slots are the five
+    /// slot types in order (`modifier::slot::PREFIX` … `RUNE`, ENG-01 §3.3), so an item holds at
+    /// most one of each. `position` is the slot's, from 0.
+    #[inline(always)]
+    fn assert_slot(slot_type: u8, position: u8) {
+        assert(slot_type == position + 1, errors::SLOT_TYPE);
+    }
+
+    /// The benefit's rolled value, the item's byte, lies within its record's range (design/19
+    /// §4): the per-source bounds the registry checked on the record (D-166) then bound it.
+    #[inline(always)]
+    fn assert_value(value: u8, benefit: @Passive) {
+        let value: i16 = value.into();
+        assert(value >= *benefit.min && value <= *benefit.max, errors::VALUE);
     }
 
     /// DS-23 (D-160): an insignia is worn on the piece its record names (`base::slot::CHEST` …

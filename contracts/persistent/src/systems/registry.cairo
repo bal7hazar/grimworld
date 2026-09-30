@@ -78,9 +78,17 @@ pub impl PartsImpl of Parts {
 #[starknet::contract]
 pub mod Registry {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{LOCATION, MAX_READ, OUTLINE, QUOTAS, SHOP, is_sequential, parts};
+    use grimworld_logic::content::{
+        ARMOR_SET, CASTE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE, QUOTAS, SHOP, SKILL,
+        is_sequential, parts,
+    };
     use grimworld_logic::interface::IRegistryRead;
+    use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
+    use grimworld_logic::models::caste::{CasteAssert, CasteRecord};
+    use grimworld_logic::models::item::{ItemAssert, ItemRecord};
     use grimworld_logic::models::location::INDEX_BOUND;
+    use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
+    use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::outline::CHUNK_SET;
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
@@ -150,6 +158,7 @@ pub mod Registry {
         fn set_record(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
             self.assert_admin();
             RegistryAssert::assert_record(kind, id, record);
+            self.assert_content(kind, record);
             if is_sequential(kind) {
                 let last = self.last_ids.read(kind).value;
                 let id_wide: u64 = id.into();
@@ -217,6 +226,42 @@ pub mod Registry {
             let wide: u256 = (*record.at(0)).into();
             let (live, _) = DivRem::div_rem(wide.high, LIVE_HIGH.try_into().unwrap());
             assert(live == 1, errors::NOT_LIVE);
+        }
+
+        /// The content's checks of one record (D-166; design/20 §1.3–§1.5, §5), made once, when
+        /// the administrator writes it, so that no player's call makes them again:
+        /// - `MODIFIER` (a prefix, a suffix, an inscription, an insignia, a rune):
+        ///   `ModifierAssert::assert_legal`, its passives legal on its slot type (DS-4), their sum
+        ///   within design/20's per-source bounds (DS-1, DS-5), an insignia's health within its
+        ///   piece's (DS-23);
+        /// - `ARMOR_SET`: each bonus legal on a set bonus and within its bounds (DS-1, DS-5);
+        /// - `SKILL` and a potion's `ITEM`: their entries a legal carrier, one `ATTACK_BONUS` at
+        ///   most (DS-20);
+        /// - `CASTE`: `CasteAssert::assert_legal` (DS-18, DS-29), and the adrenaline of each skill
+        ///   it names that the registry holds at most 63 strikes (DS-18, across records).
+        /// Every other kind has no bound of design/20.
+        fn assert_content(self: @ContractState, kind: u8, record: Span<felt252>) {
+            if kind == MODIFIER {
+                ModifierRecord::unpack(record).assert_legal();
+            } else if kind == ARMOR_SET {
+                ArmorSetRecord::unpack(record).assert_legal();
+            } else if kind == SKILL {
+                SkillRecord::unpack(record).assert_legal();
+            } else if kind == ITEM {
+                ItemRecord::unpack(record).assert_legal();
+            } else if kind == CASTE {
+                let caste = CasteRecord::unpack(record);
+                caste.assert_legal();
+                let mut skills = array![];
+                for skill in caste.skills.span() {
+                    if *skill != 0 && self.records.read((SKILL, (*skill).into(), 0)) != 0 {
+                        let mut out = array![];
+                        self.read_into(SKILL, (*skill).into(), parts(SKILL), ref out);
+                        skills.append(SkillRecord::unpack(out.span()));
+                    }
+                }
+                CasteAssert::assert_skills(skills.span());
+            }
         }
 
         /// A sequential id that is not new must exist: at most `last_id` (ids are append-only).
