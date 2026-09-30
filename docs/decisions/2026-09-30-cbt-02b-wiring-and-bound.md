@@ -55,4 +55,23 @@ and (e), the design levers, R-2 after it (D-161).
 
 ## Decision
 
-Pending.
+**D-166**, `[Fable 5.1]` project manager, 2026-09-30, under D-128: both recommendations.
+
+1. **(a), as CBT-02c**: design/20's per-source bounds are checked **once, at registration**, in the
+   registry's validators (a record past its bound is refused by `set_record`, the admin pays once);
+   `set_build` and `enter` sum the build's sources in one linear pass with the totals' checks (the
+   floors, the counts), wired and **measured against D-158's targets** (3.8M, 5.25M) and ENG-01
+   §1.3's 50 %; (b), the library class with its hash in `Hub`'s configuration, only if `Hub` still
+   passes 50 % after (a), and then as a change of `set_contracts` decided by the project manager.
+   Until CBT-02c is merged, **no production snapshot** (D-160) and nothing deployed. The capacity
+   proof of D-157 G then rests on the registry's refusals plus the linear totals: CBT-02c's audit
+   states it.
+2. **CBT-02b merges** once its audits and its Codex review pass; **CBT-02d**, the goblins' hot
+   fields apart and an index into the content, before ENG-07; **ENG-07 derives a batch's weight
+   from the measured worst tick**, not from design/02's 40M, and the design levers (a smaller
+   goblin array in the window among them) and R-2 come after its measure (D-161).
+
+**What would reverse it**: CBT-02c leaving `Hub` above 50 % or `set_build` above D-158 (then (b),
+and a `set_contracts` change); CBT-02d leaving the worst tick above what a batch of weight 2 can
+carry (then the design levers before ENG-07, not after).
+
