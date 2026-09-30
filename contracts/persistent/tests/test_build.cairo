@@ -334,7 +334,7 @@ fn stored_snapshot(world: World, id: u32) -> (felt252, felt252, felt252) {
     (read(world.hub, key), read(world.hub, key + 1), read(world.hub, key + 2))
 }
 
-/// What the flattening makes of the build `set_build` stored for `id` (a Vanguard, not
+/// What the flattening makes of the build `set_build` stored for `id` (its profession, not
 /// personalised, the belt given), computed here from the same records: `SnapshotBuildTrait::words`
 /// on the items 101–107 as they are worn, and the records of the modifiers `ids` read from the
 /// registry. The kit word sealed with the registry's content version, as `set_build` stores it.
@@ -342,7 +342,7 @@ fn flattened(
     world: World, id: u32, level: u8, ids: Span<u16>, belt_items: [u32; 4], counts: [u8; 4],
 ) -> (felt252, felt252, felt252) {
     let build: Build = StorePacking::unpack(read(world.hub, adventurer_word(id, 2)));
-    let loadout = build.loadout(level, VANGUARD, false, belt_items, counts);
+    let loadout = build.loadout(level, core_of(world, id).profession, false, belt_items, counts);
     let mut worn: Array<Worn> = array![];
     for lane in 0..7_u8 {
         let key = map_entry_address(selector!("items"), array![(101 + lane.into())].span()) + 1;
@@ -989,4 +989,44 @@ fn test_set_build_stores_the_extremal_max_health() {
     assert(stored == expected, 'the flattening stored');
     let (stats, _, _) = stored;
     assert(unpack_stats(stats).max_health == 920, 'max health 920');
+}
+
+// Fix loop 1, AC-1: design/20 §6 test 2's max-energy build as `set_build` can hold it today: a
+// level 20 Arcanist in light armor, the sword's and the shield's five held slots at +5, and a +3
+// rune for its primary attribute on the chest: 30 + 20 + 25 = 75. The rune is stored but adds no
+// rank: `BuildTrait::loadout` passes no attribute point (D-157 A: the global ids runes name are
+// not numbered), so Wellspring's 45 (and the ranks' extremum, 15) is the library's alone
+// (`test_extremal_max_energy_through_the_library`: 120); the set bonuses' 10 no item holds. The
+// words stored are the flattening's.
+#[test]
+#[available_gas(l2_gas: 150000000)]
+fn test_set_build_stores_the_extremal_max_energy() {
+    let world = setup();
+    let id = adventurer(world, ARCANIST);
+    set_profile(world, id, 20, 2, 0);
+    fine_items(world, id);
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
+    let none: Passive = Default::default();
+    let energy = PassiveTrait::new(passive_id::MAX_ENERGY, 0, 0, 0, 1, 5);
+    let held = [
+        modifier_slot::PREFIX, modifier_slot::SUFFIX, modifier_slot::INSCRIPTION,
+        modifier_slot::SUFFIX, modifier_slot::INSCRIPTION,
+    ];
+    let mut next: u32 = 1;
+    for slot in held.span() {
+        admin.set_record(MODIFIER, next, ModifierTrait::new(*slot, energy, none).pack());
+        next += 1;
+    }
+    let attribute = PassiveTrait::new(passive_id::ATTRIBUTE, 13, 0, 0, 1, 3);
+    admin.set_record(MODIFIER, 6, ModifierTrait::new(modifier_slot::RUNE, attribute, none).pack());
+    put_mods(world, 101, [(1, 5), (2, 5), (3, 5), (0, 0), (0, 0)]);
+    put_mods(world, 102, [(0, 0), (4, 5), (5, 5), (0, 0), (0, 0)]);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (6, 3)]);
+    set(world, id, empty(), 0, equipped([101, 102, 103, 0, 0, 0, 0]));
+    let expected = flattened(world, id, 20, array![1_u16, 2, 3, 4, 5, 6].span(), [0; 4], [0; 4]);
+    let stored = stored_snapshot(world, id);
+    assert(stored == expected, 'the flattening stored');
+    let (stats, _, _) = stored;
+    assert(unpack_stats(stats).max_energy == 75, 'max energy 75');
 }
