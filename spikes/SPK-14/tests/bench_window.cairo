@@ -78,6 +78,7 @@ impl Inputs of InputsTrait {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 99293)] // ceil(1.05 × 94564 measured)
 fn bench_rect_window_once() {
     let bench = Inputs::get();
     let (map, occupied) = AssemblyTrait::window(bench.terrain, bench.occupied, @bench.origin, 0);
@@ -86,6 +87,7 @@ fn bench_rect_window_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 166738)] // ceil(1.05 × 158798 measured)
 fn bench_rect_window_twice() {
     let bench = Inputs::get();
     let (map, occupied) = AssemblyTrait::window(bench.terrain, bench.occupied, @bench.origin, 0);
@@ -98,6 +100,7 @@ fn bench_rect_window_twice() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 946512)] // ceil(1.05 × 901440 measured)
 fn bench_hex_window_once() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTrait::window(
@@ -108,6 +111,7 @@ fn bench_hex_window_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 1866638)] // ceil(1.05 × 1777750 measured)
 fn bench_hex_window_twice() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTrait::window(
@@ -124,6 +128,7 @@ fn bench_hex_window_twice() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 865497)] // ceil(1.05 × 824282 measured)
 fn bench_hex_window_six_once() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTrait::window(
@@ -134,6 +139,7 @@ fn bench_hex_window_six_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 1704606)] // ceil(1.05 × 1623434 measured)
 fn bench_hex_window_six_twice() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTrait::window(
@@ -150,6 +156,7 @@ fn bench_hex_window_six_twice() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 360963)] // ceil(1.05 × 343774 measured)
 fn bench_table_window_once() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTableTrait::window(
@@ -160,6 +167,7 @@ fn bench_table_window_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 694909)] // ceil(1.05 × 661818 measured)
 fn bench_table_window_twice() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTableTrait::window(
@@ -174,6 +182,7 @@ fn bench_table_window_twice() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 331391)] // ceil(1.05 × 315610 measured)
 fn bench_table_window_six_once() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTableTrait::window(
@@ -184,6 +193,7 @@ fn bench_table_window_six_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 635765)] // ceil(1.05 × 605490 measured)
 fn bench_table_window_six_twice() {
     let bench = Inputs::get();
     let (map, occupied) = HexWindowTableTrait::window(
@@ -200,6 +210,7 @@ fn bench_table_window_six_twice() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 34934)] // ceil(1.05 × 33270 measured)
 fn bench_rect_origin_once() {
     let bench = Inputs::get();
     let (x, y) = bench.adventurer;
@@ -208,6 +219,7 @@ fn bench_rect_origin_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 38850)] // ceil(1.05 × 37000 measured)
 fn bench_rect_origin_twice() {
     let bench = Inputs::get();
     let (x, y) = bench.adventurer;
@@ -218,6 +230,7 @@ fn bench_rect_origin_twice() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 90773)] // ceil(1.05 × 86450 measured)
 fn bench_hex_origin_once() {
     let bench = Inputs::get();
     let (x, y) = bench.adventurer;
@@ -226,6 +239,7 @@ fn bench_hex_origin_once() {
 
 #[test]
 #[inline(never)]
+#[available_gas(l2_gas: 150528)] // ceil(1.05 × 143360 measured)
 fn bench_hex_origin_twice() {
     let bench = Inputs::get();
     let (x, y) = bench.adventurer;

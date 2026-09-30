@@ -1,0 +1,14 @@
+shape: 17 rows, widths [11, 12, 13, 14, 15, 16, 17, 18, 19, 18, 17, 16, 15, 14, 13, 12, 11] - bijection onto 0..250 checked
+corners at bits [0, 10, 116, 134, 240, 250] - sides 11, 9, 9, 11, 9, 9; ring 52 tiles, interior 199
+tiling: lattice T_U = (-9, 17), T_R = (19, -8); six neighbours checked
+window: at most 6 chunks (first at origin (19, 42)); histogram {4: 1941, 5: 306, 3: 530, 6: 23}
+window: at most 32 row segments per layer (rectangles: 4 pieces)
+sight radius 6: touches at most 4 chunks
+linear layouts: the smallest span is 307 bits (q, stride 19)
+shift step between consecutive rows (0 = shared piece): [3, 3, 1, 1, -1, -1, -3, -3, -4, -2, -2, 0, 0, 2, 2, 4]
+plan: the walk equals the direct construction on all 251 origin classes; at most 32 pieces; slots [(0, -1), (0, 0), (0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
+plan: runs per window row {1: 400, 2: 3424, 3: 192}; chunk changes {'+(T_U+T_R)': 1864, '+T_R': 2016, '+T_U': 168, '-T_R': 64}
+locate: rounding and at most one translation find the chunk of every tile of 256 x 256
+worst class: origin tile (8, 2), bit 25: 32 pieces over 4 chunks
+most chunks over the classes: 6; among those, origin tile (15, 11), bit 185: 28 pieces
+chunks per window over the 251 classes: {3: 50, 4: 173, 5: 26, 6: 2}

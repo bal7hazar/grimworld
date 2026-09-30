@@ -5,6 +5,7 @@ use spk14::hexchunk::{HexChunkTrait, TILES};
 use super::helpers::member;
 
 #[test]
+#[available_gas(l2_gas: 7095123)] // ceil(1.05 × 6757260 measured)
 fn test_index_is_a_bijection() {
     // Every tile of the definition, row by row, has the next bit: the map is onto 0..250 and
     // one-to-one; `tile` inverts it
@@ -31,6 +32,7 @@ fn test_index_is_a_bijection() {
 }
 
 #[test]
+#[available_gas(l2_gas: 43974)] // ceil(1.05 × 41880 measured)
 fn test_corners_and_live_bit() {
     // The six corners: the ends of rows 0, 8 and 16; bit 250 is one of them
     assert!(HexChunkTrait::index(8, 0) == 0);
@@ -43,6 +45,7 @@ fn test_corners_and_live_bit() {
 
 #[test]
 #[should_panic(expected: 'HexChunk: tile outside')]
+#[available_gas(l2_gas: 18071)] // ceil(1.05 × 17210 measured)
 fn test_index_refuses_outside() {
     HexChunkTrait::index(7, 0);
 }
@@ -69,6 +72,7 @@ fn locate_plain(q: i32, r: i32) -> (i32, i32, i32, i32) {
 }
 
 #[test]
+#[available_gas(l2_gas: 1557116117)] // ceil(1.05 × 1482967730 measured)
 fn test_locate_matches_plain() {
     // A band of tiles across several chunks, both signs of the lattice coordinates
     let mut y: i32 = -20;

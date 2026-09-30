@@ -3,10 +3,10 @@
 
     python3 spikes/SPK-14/geometry.py
 
-NOT RUN by the lot that wrote it: its launch profile refused `python3 <file>` (REPORT.md,
-Escalations). Every figure it prints was derived by hand in docs/research/SPK-14-hexagonal-chunks.md;
-this script is how the next run checks them. Each check is an `assert` next to the figure the note
-states, so a wrong hand derivation fails loudly.
+Each figure of docs/research/SPK-14-hexagonal-chunks.md about the shape is an `assert` here or
+printed by it (output: geometry-output.txt). `plan` is the window's walk exactly as the Cairo
+(`src/window.cairo`) does it, checked against a direct construction on all 251 origin classes;
+`locate` is the Cairo's tile-to-chunk rounding. gen_tables.py imports this module.
 
 Conventions (origami_hexmap, docs/needs/hexmap.md point 3): odd-r offset `(x, y)`, axial
 `q = x - (y >> 1)`, `r = y`; `+y` is North. Axial neighbours: (q±1, r), (q, r±1), (q+1, r-1),

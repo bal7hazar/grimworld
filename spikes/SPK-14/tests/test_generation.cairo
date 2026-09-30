@@ -135,6 +135,7 @@ fn reach_plain(walkable: felt252) -> felt252 {
 // --- The steps against their oracles -------------------------------------------------------------
 
 #[test]
+#[available_gas(l2_gas: 241540378)] // ceil(1.05 × 230038455 measured)
 fn test_smooth_matches_plain() {
     let (interior, ring_mask) = masks();
     let wide_interior: u256 = interior.into();
@@ -159,6 +160,7 @@ fn test_smooth_matches_plain() {
 }
 
 #[test]
+#[available_gas(l2_gas: 247651106)] // ceil(1.05 × 235858196 measured)
 fn test_component_matches_plain() {
     let (interior, _) = masks();
     let wide_interior: u256 = interior.into();
@@ -220,6 +222,7 @@ fn check_copied(ours: Span<u8>, theirs: Span<u8>, terrain: felt252, neighbour: f
 }
 
 #[test]
+#[available_gas(l2_gas: 440409413)] // ceil(1.05 × 419437536 measured)
 fn test_generate_open_border_and_copy() {
     let biomes = array![Biome::Meadow, Biome::Forest, Biome::Cave, Biome::Ruin];
     let mut word: felt252 = 'HEX';
@@ -269,6 +272,7 @@ fn test_generate_open_border_and_copy() {
 }
 
 #[test]
+#[available_gas(l2_gas: 105496808)] // ceil(1.05 × 100473150 measured)
 fn test_generate_shares() {
     // Walkable share of the interior over 16 words per biome, in thousandths, beside the
     // rectangle's on the same words (printed for the report; design/18's ranges in SPK-7)
@@ -300,6 +304,7 @@ fn test_generate_shares() {
 }
 
 #[test]
+#[available_gas(l2_gas: 1584025)] // ceil(1.05 × 1508595 measured)
 fn test_rect_generate_deterministic_corners_wall() {
     let sides = RectSides {
         east: Side::Open, west: Side::Open, south: Side::Open, north: Side::Open,

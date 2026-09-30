@@ -118,26 +118,31 @@ fn check_classes(from: u8, to: u8) {
 }
 
 #[test]
+#[available_gas(l2_gas: 4384256730)] // ceil(1.05 × 4175482600 measured)
 fn test_window_matches_plain_0_to_63() {
     check_classes(0, 63);
 }
 
 #[test]
+#[available_gas(l2_gas: 4383031511)] // ceil(1.05 × 4174315724 measured)
 fn test_window_matches_plain_63_to_126() {
     check_classes(63, 126);
 }
 
 #[test]
+#[available_gas(l2_gas: 4383292467)] // ceil(1.05 × 4174564254 measured)
 fn test_window_matches_plain_126_to_189() {
     check_classes(126, 189);
 }
 
 #[test]
+#[available_gas(l2_gas: 4314623301)] // ceil(1.05 × 4109165048 measured)
 fn test_window_matches_plain_189_to_251() {
     check_classes(189, 251);
 }
 
 #[test]
+#[available_gas(l2_gas: 69080923)] // ceil(1.05 × 65791355 measured)
 fn test_window_void_chunks_are_wall() {
     // The 6-chunk class with its chunks void except the origin's: only its tiles are set
     let (x0, y0, origin) = placement(185);
