@@ -6,24 +6,20 @@
 // node probe `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys
 // a test watches (`load` before and after).
 use core::testing::get_available_gas;
-use grimworld_logic::content::{GATE, ITEM, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::content::{GATE, ITEM, LOCATION, REGION, SKILL};
 use grimworld_logic::interface::{
     IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher,
     IResultsSafeDispatcherTrait, Results, facts,
 };
-use grimworld_logic::models::base::BaseTrait;
 use grimworld_logic::models::gate::{
     GateRecord, GateTrait, errors as gate_errors, kind as gate_kind,
 };
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
-use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
-use grimworld_logic::snapshot::{HeldPassive, Loadout, Snapshot, SnapshotBuildTrait};
-use grimworld_logic::types::combat::damage;
-use grimworld_logic::types::passive::{PassiveTrait, Source, id as passive_id};
+use grimworld_logic::snapshot::{Snapshot, SnapshotTrait};
 use grimworld_logic::types::{Outcome, instance_id};
 use grimworld_persistent::events::AdventurerLocated;
 use grimworld_persistent::models::account::{PACK, owner_key};
@@ -35,9 +31,7 @@ use grimworld_persistent::models::adventurer::{
     AdventurerCore, AdventurerPlace, AdventurerPlaceTrait,
 };
 use grimworld_persistent::models::balance::errors::NOT_ENOUGH;
-use grimworld_persistent::models::item::{
-    Gold, IDENTIFIED, ItemBaseTrait, ItemMods, Modifier as ItemModifier,
-};
+use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::systems::hub::Hub::Event;
 use grimworld_persistent::systems::hub::{
     IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
@@ -396,34 +390,6 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
     result
 }
 
-/// The snapshot the flattening gives (`SnapshotBuildTrait::build`, D-160) for what the models hold
-/// today: the level, the profession, no bar, no belt, the class's armor as the rating; what the
-/// models do not hold yet as `BuildTrait::loadout` leaves it (CBT-02b); the passives `held`.
-fn flattened(level: u8, profession: u8, held: Span<HeldPassive>) -> Snapshot {
-    let loadout = Loadout {
-        level,
-        profession,
-        points: array![].span(),
-        bar_attributes: [0; 8],
-        skills: [0; 8],
-        elite_slot: 255,
-        weapon: 0,
-        weapon_damage: 0,
-        weapon_ticks: 0,
-        weapon_range: 0,
-        damage_type: 0,
-        weapon_attribute: 0,
-        requirement_met: 0,
-        personalised: false,
-        strength_cap: 0,
-        rating: 80,
-        set_bonuses: 0,
-        belt: [0; 4],
-        belt_counts: [0; 4],
-    };
-    SnapshotBuildTrait::build(@loadout, held)
-}
-
 // ---- the start hub (D-144) ----------------------------------------------------------------------
 
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
@@ -486,12 +452,9 @@ fn test_enter() {
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
     let expected = AdventurerPlace { instance, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2 };
     assert(place_of(world, id) == expected, 'inside');
-    // The flattening's snapshot (CBT-02b, D-160): the base stats and the class's armor as before,
-    // and heavy armor's +20 against physical damage (design/15), which the flattening adds.
-    let snapshot = flattened(1, VANGUARD, array![].span());
+    let snapshot = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, [0; 4], [0; 4]);
     assert(snapshot.stats.max_health == 100 && snapshot.stats.max_energy == 20, 'base stats');
     assert(snapshot.stats.energy_regen == 2 && snapshot.bar.armor == 80, 'vanguard');
-    assert(snapshot.stats.armor_vs == [20, 20, 20, 0, 0, 0, 0, 0, 0], 'heavy armor');
     let got = created(world);
     let expected = Created {
         count: 1, adventurer: id, controller: addr(ALICE), gate: INTO_ZONE, snapshot, tasks: 0,
@@ -563,8 +526,8 @@ fn test_enter_one_debit_per_item() {
 }
 
 #[test]
-// gas: raised, CBT-02b: enter builds the snapshot through the flattening (D-160)
-#[available_gas(l2_gas: 49606211)] // ceil(1.05 × 47244010 measured)
+// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+#[available_gas(l2_gas: 46068341)] // ceil(1.05 × 43874610 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -643,75 +606,6 @@ fn test_enter_after_set_build() {
     assert(snapshot.bar.skills == [0, 1, 0, 0, 0, 0, 0, 0] && snapshot.bar.elite_slot == 1, 'bar');
     #[feature("safe_dispatcher")]
     refused(try_act(world, ALICE).set_build(id, build, belt - LIVE, 0), NOT_IN_HUB);
-}
-
-// CBT-02b (D-160): `enter` builds the snapshot through the flattening, from the equipment worn: a
-// chest (lane 2) holding an insignia made for the chest (+10 health, costing 3 armor against cold)
-// and a rune (+5 armor against fire, no cost). The snapshot is the flattening's, passives numbered
-// by lane and slot (`ItemModsTrait::held`): 110 health.
-#[test]
-#[available_gas(l2_gas: 37577291)] // ceil(1.05 × 35787896 measured)
-fn test_enter_snapshot_flattened() {
-    let world = setup();
-    let id = adventurer(world);
-    start_cheat_caller_address(world.registry, addr(ADMIN));
-    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
-    let health = PassiveTrait::new(passive_id::MAX_HEALTH, 0, 0, 0, 1, 15);
-    let cold = PassiveTrait::new(passive_id::ARMOR_VS, damage::COLD, 0, 0, 3, 3);
-    let fire = PassiveTrait::new(passive_id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
-    admin.set_record(MODIFIER, 1, ModifierTrait::insignia(3, health, cold).pack());
-    admin
-        .set_record(
-            MODIFIER, 2, ModifierTrait::new(modifier_slot::RUNE, fire, Default::default()).pack(),
-        );
-    let chest = ItemBaseTrait::new(4, @BaseTrait::new(3, 0), 0, 1, 0, IDENTIFIED, 0, 0, PACK, id);
-    let key = map_entry_address(selector!("items"), array![101].span());
-    write(world.hub, key, StorePacking::pack(chest));
-    let none = ItemModifier { id: 0, value: 0 };
-    let mods = ItemMods {
-        mods: [
-            none, none, none, ItemModifier { id: 1, value: 10 }, ItemModifier { id: 2, value: 5 },
-        ],
-    };
-    write(world.hub, key + 1, StorePacking::pack(mods));
-    let equipped = Lanes32 { lanes: [0, 0, 101, 0, 0, 0, 0] };
-    write(world.hub, adventurer_word(id, 4), StorePacking::pack(equipped));
-    let hub = act(world, ALICE);
-    let gas = get_available_gas();
-    hub.enter(id, INTO_ZONE);
-    println!(
-        "gas enter, a chest with two modifiers (Instances a double): {}", gas - get_available_gas(),
-    );
-    let held = array![
-        HeldPassive {
-            passive: PassiveTrait::new(passive_id::MAX_HEALTH, 0, 0, 0, 1, 10),
-            source: Source::Insignia,
-            instance: 13,
-            modifier: 1,
-            benefit: true,
-            piece: 3,
-        },
-        HeldPassive {
-            passive: cold,
-            source: Source::Insignia,
-            instance: 13,
-            modifier: 1,
-            benefit: false,
-            piece: 3,
-        },
-        HeldPassive {
-            passive: PassiveTrait::new(passive_id::ARMOR_VS, damage::FIRE, 0, 0, 1, 5),
-            source: Source::Rune,
-            instance: 14,
-            modifier: 2,
-            benefit: true,
-            piece: 0,
-        },
-    ];
-    let expected = flattened(1, VANGUARD, held.span());
-    let snapshot = created(world).snapshot;
-    assert(snapshot == expected, 'the flattening snapshot');
-    assert(snapshot.stats.max_health == 110, 'the insignia');
 }
 
 // ---- travel -------------------------------------------------------------------------------------
@@ -990,99 +884,4 @@ fn test_report_refusals() {
     // An adventurer in a hub has no instance to report.
     report(world, results(instance, id, Outcome::Returned));
     refused(try_report(world, results(instance, id, Outcome::Open)), NOT_ITS_INSTANCE);
-}
-
-/// The widest equipment design/20 §1.2 counts, worn: a sword (its prefix, suffix and inscription),
-/// a shield (a suffix, an inscription), five armor pieces (an insignia made for the piece and a
-/// rune each): 15 `MODIFIER` records, each a benefit (life steal 5 on the held slots, armor against
-/// fire 7 elsewhere) and a cost (7 armor against cold). As `set_build`'s worst case (`test_build`).
-fn widest_equipment(world: World, id: u32) {
-    start_cheat_caller_address(world.registry, addr(ADMIN));
-    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
-    let cold = PassiveTrait::new(passive_id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
-    let steal = PassiveTrait::new(passive_id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);
-    let fire = PassiveTrait::new(passive_id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
-    let held = [
-        modifier_slot::PREFIX, modifier_slot::SUFFIX, modifier_slot::INSCRIPTION,
-        modifier_slot::SUFFIX, modifier_slot::INSCRIPTION,
-    ];
-    let mut record: u32 = 1;
-    for slot in held.span() {
-        admin.set_record(MODIFIER, record, ModifierTrait::new(*slot, steal, cold).pack());
-        record += 1;
-    }
-    for piece in 3..8_u8 {
-        admin.set_record(MODIFIER, record, ModifierTrait::insignia(piece, fire, cold).pack());
-        record += 1;
-    }
-    for _ in 0..5_u8 {
-        admin
-            .set_record(
-                MODIFIER, record, ModifierTrait::new(modifier_slot::RUNE, fire, cold).pack(),
-            );
-        record += 1;
-    }
-    let none = ItemModifier { id: 0, value: 0 };
-    for lane in 0..7_u32 {
-        let slot: u8 = (lane + 1).try_into().unwrap();
-        let hands: u8 = if lane == 0 {
-            1
-        } else {
-            0
-        };
-        let entity = 101 + lane;
-        let item = ItemBaseTrait::new(
-            (lane + 1).try_into().unwrap(),
-            @BaseTrait::new(slot, hands),
-            0,
-            1,
-            0,
-            IDENTIFIED,
-            0,
-            0,
-            PACK,
-            id,
-        );
-        let key = map_entry_address(selector!("items"), array![entity.into()].span());
-        write(world.hub, key, StorePacking::pack(item));
-        let lanes = if lane == 0 {
-            [
-                ItemModifier { id: 1, value: 5 }, ItemModifier { id: 2, value: 5 },
-                ItemModifier { id: 3, value: 5 }, none, none,
-            ]
-        } else if lane == 1 {
-            [none, ItemModifier { id: 4, value: 5 }, ItemModifier { id: 5, value: 5 }, none, none]
-        } else {
-            let k: u16 = (lane - 2).try_into().unwrap();
-            [
-                none, none, none, ItemModifier { id: 6 + k, value: 7 },
-                ItemModifier { id: 11 + k, value: 7 },
-            ]
-        };
-        write(world.hub, key + 1, StorePacking::pack(ItemMods { mods: lanes }));
-    }
-    let equipped = Lanes32 { lanes: [101, 102, 103, 104, 105, 106, 107] };
-    write(world.hub, adventurer_word(id, 4), StorePacking::pack(equipped));
-}
-
-// `enter`'s worst case (D-158; CBT-02b): the belt's four items on four pages, and the widest
-// equipment, whose 15 modifiers the flattening reads (one `bundle` call) and flattens.
-#[test]
-#[available_gas(l2_gas: 71430574)] // ceil(1.05 × 68029118 measured)
-fn test_enter_worst_case() {
-    let world = setup();
-    let id = adventurer(world);
-    set_belt(world, id, [7, 15, 22, 29], [3, 2, 1, 5]);
-    give(world, id, 7, 3);
-    give(world, id, 15, 2);
-    give(world, id, 22, 1);
-    give(world, id, 29, 5);
-    widest_equipment(world, id);
-    let hub = act(world, ALICE);
-    let gas = get_available_gas();
-    hub.enter(id, INTO_ZONE);
-    println!("gas enter, worst case (Instances a double): {}", gas - get_available_gas());
-    let snapshot = created(world).snapshot;
-    assert(snapshot.kit.life_steal == 25, 'five held slots');
-    assert(snapshot.stats.armor_vs == [20, 20, 20, 63, 63, 0, 0, 0, 0], 'saturated');
 }

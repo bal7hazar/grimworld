@@ -3,14 +3,10 @@
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
 use grimworld_logic::models::base::Base;
-use grimworld_logic::models::index::Modifier as ModifierModel;
-use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait};
 use grimworld_logic::packing::{
     P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join,
     low_field, split, u16_at, u32_at,
 };
-use grimworld_logic::snapshot::HeldPassive;
-use grimworld_logic::types::passive::{Passive, Source};
 use super::account::PACK;
 
 /// `ItemBase.hands` sits at bit 124.
@@ -33,10 +29,6 @@ pub mod errors {
     pub const A_COMPONENT: felt252 = 'item: a component';
     /// Fine or above and not identified: identifying is "needed to equip it" (design/15).
     pub const UNIDENTIFIED: felt252 = 'item: unidentified';
-    /// A modifier on the item that the registry does not hold.
-    pub const NO_MODIFIER: felt252 = 'item: no such modifier';
-    /// An insignia made for another piece than the one it is worn on (DS-23, D-160).
-    pub const INSIGNIA_PIECE: felt252 = 'item: insignia piece';
 }
 
 #[generate_trait]
@@ -197,93 +189,6 @@ pub impl ItemModsStorePacking of starknet::storage_access::StorePacking<ItemMods
             rest = next;
         }
         ItemMods { mods: [*out[0], *out[1], *out[2], *out[3], *out[4]] }
-    }
-}
-
-#[generate_trait]
-pub impl ItemModsImpl of ItemModsTrait {
-    /// The modifier ids the item holds, 0 for an empty slot, in `ItemMods`' order.
-    fn ids(self: @ItemMods) -> [u16; 5] {
-        let [a, b, c, d, e] = *self.mods;
-        [a.id, b.id, c.id, d.id, e.id]
-    }
-
-    /// The passives the item holds, for the snapshot's flattening (design/19 §4, §7.2; design/20
-    /// §1.2; `grimworld_logic::snapshot::HeldPassive`): each modifier's benefit, its value the
-    /// item's `ItemMods` byte (design/19 §4: the rolled value), and its cost, fixed by its record;
-    /// their source the record's slot type; one instance a modifier, numbered `first + slot`; an
-    /// insignia's piece the item's slot (DS-23). `records` are the `MODIFIER` records of `ids`, in
-    /// the same order; a modifier appears once there however many items hold it.
-    fn held(
-        self: @ItemMods,
-        item: @ItemBase,
-        first: u8,
-        ids: Span<u16>,
-        records: Span<ModifierModel>,
-        ref out: Array<HeldPassive>,
-    ) {
-        let mut slot: u8 = 0;
-        for modifier in self.mods.span() {
-            let id = *modifier.id;
-            if id != 0 {
-                let mut k = 0;
-                while *ids[k] != id {
-                    k += 1;
-                }
-                let record = records[k];
-                record.assert_slot();
-                let source = record.source().unwrap();
-                let piece = if source == Source::Insignia {
-                    ItemModsAssert::assert_piece(*record.piece, *item.slot);
-                    *item.slot
-                } else {
-                    0
-                };
-                let instance = first + slot;
-                let benefit = Passive { max: (*modifier.value).into(), ..*record.benefit };
-                out
-                    .append(
-                        HeldPassive {
-                            passive: benefit,
-                            source,
-                            instance,
-                            modifier: id.into(),
-                            benefit: true,
-                            piece,
-                        },
-                    );
-                if record.has_cost() {
-                    out
-                        .append(
-                            HeldPassive {
-                                passive: *record.cost,
-                                source,
-                                instance,
-                                modifier: id.into(),
-                                benefit: false,
-                                piece,
-                            },
-                        );
-                }
-            }
-            slot += 1;
-        }
-    }
-}
-
-#[generate_trait]
-pub impl ItemModsAssert of ItemModsAssertTrait {
-    /// A modifier the item holds is a record of the registry (its part 0 is not 0).
-    #[inline(always)]
-    fn assert_exists(part: felt252) {
-        assert(part != 0, errors::NO_MODIFIER);
-    }
-
-    /// DS-23 (D-160): an insignia is worn on the piece its record names (`base::slot::CHEST` …
-    /// `FEET`), the item's slot copied from its `BASE` (D-158).
-    #[inline(always)]
-    fn assert_piece(piece: u8, slot: u8) {
-        assert(piece == slot, errors::INSIGNIA_PIECE);
     }
 }
 
