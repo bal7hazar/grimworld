@@ -460,34 +460,6 @@ fn test_same_condition_above_33_refused() {
         .assert_legal();
 }
 
-// CBT-9, DS-5 (design/20 §6 test 4): summed wide, then saturated at 50: envelope A's 65,534
-// gives 50 (the builder's sum, without the validators that now forbid it).
-#[test]
-#[available_gas(l2_gas: 40961)] // ceil(1.05 × 39010 measured)
-fn test_same_condition_capped() {
-    let wide = Fixture::passive(id::CONDITION_DURATION, condition::POISON, 32767);
-    assert(
-        MemberKitTrait::condition_duration(array![wide, wide].span()) == (condition::POISON, 50),
-        '65,534 saturated',
-    );
-    // None held: no condition.
-    assert(MemberKitTrait::condition_duration(array![].span()) == (0, 0), 'none');
-}
-
-// CBT-9: two conditions are still refused, by the builder as by the validators.
-#[test]
-#[should_panic(expected: 'snapshot: two conditions')]
-#[available_gas(l2_gas: 29820)] // ceil(1.05 × 28400 measured)
-fn test_two_conditions_builder_refused() {
-    MemberKitTrait::condition_duration(
-        array![
-            Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
-            Fixture::passive(id::CONDITION_DURATION, condition::POISON, 10),
-        ]
-            .span(),
-    );
-}
-
 #[test]
 #[should_panic(expected: 'modifier: counted twice')]
 #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)

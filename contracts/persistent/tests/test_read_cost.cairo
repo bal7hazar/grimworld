@@ -94,7 +94,8 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-#[available_gas(l2_gas: 8649417)] // ceil(1.05 × 8237540 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8710317)] // ceil(1.05 × 8295540 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -103,7 +104,8 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8789519)] // ceil(1.05 × 8370970 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8850419)] // ceil(1.05 × 8428970 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -112,7 +114,8 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8860005)] // ceil(1.05 × 8438100 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8920905)] // ceil(1.05 × 8496100 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -121,7 +124,8 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8916726)] // ceil(1.05 × 8492120 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8977626)] // ceil(1.05 × 8550120 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -130,7 +134,8 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9257052)] // ceil(1.05 × 8816240 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 9317952)] // ceil(1.05 × 8874240 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -139,7 +144,8 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8993660)] // ceil(1.05 × 8565390 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 9054560)] // ceil(1.05 × 8623390 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -148,7 +154,8 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9961025)] // ceil(1.05 × 9486690 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 10021925)] // ceil(1.05 × 9544690 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -157,7 +164,8 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8690262)] // ceil(1.05 × 8276440 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8751162)] // ceil(1.05 × 8334440 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
     let gas = get_available_gas();
@@ -166,7 +174,8 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8886959)] // ceil(1.05 × 8463770 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8947859)] // ceil(1.05 × 8521770 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
     let gas = get_available_gas();
@@ -260,7 +269,16 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
     for id in 1..6_u32 {
         admin.set_record(CASTE, id, caste);
     }
-    let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, Default::default(), 3, 20).pack();
+    // A potion heals its holder, the legal carrier the registry requires (D-166).
+    let heal = grimworld_logic::types::effect::Entry {
+        kind: grimworld_logic::types::effect::kind::HEAL,
+        v0: 20,
+        v12: 20,
+        target: grimworld_logic::types::effect::target::SELF,
+        shape: grimworld_logic::types::effect::shape::SINGLE,
+        ..Default::default(),
+    };
+    let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, heal, 3, 20).pack();
     for id in 1..5_u32 {
         admin.set_record(ITEM, id, potion);
     }
@@ -270,7 +288,8 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-#[available_gas(l2_gas: 61626464)] // ceil(1.05 × 58691870 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 84816963)] // ceil(1.05 × 80778060 measured)
 fn test_content_read_probe_alone() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();
@@ -279,7 +298,8 @@ fn test_content_read_probe_alone() {
 }
 
 #[test]
-#[available_gas(l2_gas: 65919021)] // ceil(1.05 × 62780020 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 89109521)] // ceil(1.05 × 84866210 measured)
 fn test_content_read_worst() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();
@@ -288,7 +308,8 @@ fn test_content_read_worst() {
 }
 
 #[test]
-#[available_gas(l2_gas: 63434301)] // ceil(1.05 × 60413620 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 86624801)] // ceil(1.05 × 82499810 measured)
 fn test_content_read_representative() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();

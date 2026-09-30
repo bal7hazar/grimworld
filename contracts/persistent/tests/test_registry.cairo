@@ -1,14 +1,35 @@
 // ENG-03: `Registry` stores content as data (ENG-01 §3.5). The administrator writes records with
-// `set_record`, which enforces the part count, `LIVE` in part 0, and the allocation of ids
+// `set_record`, which enforces the part count, `LIVE` in part 0, the content's checks of design/20
+// (D-166: a record past its per-source bound is refused), and the allocation of ids
 // (sequential: `last_id + 1`; composite: the parent exists); every changed record raises the
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
-use grimworld_logic::content::{BOOK, GATE, LOCATION, OUTLINE, QUEST, QUOTAS, REGION, SHOP, TASK};
+use grimworld_logic::content::{
+    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS, REGION, SHOP,
+    SKILL, TASK,
+};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
     IRegistryReadSafeDispatcherTrait,
 };
+use grimworld_logic::models::armor_set::{ArmorSetRecord, ArmorSetTrait};
+use grimworld_logic::models::base::slot as base_slot;
+use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait, errors as caste_errors};
+use grimworld_logic::models::item::{
+    ItemRecord, ItemTrait, class as item_class, errors as item_errors,
+};
+use grimworld_logic::models::modifier::{
+    ModifierRecord, ModifierTrait, errors as modifier_errors, slot as modifier_slot,
+};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::LIVE;
+use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
+use grimworld_logic::types::effect::{
+    Entry, EntryTrait, errors as entry_errors, filter, kind, shape, target,
+};
+use grimworld_logic::types::passive::{
+    Passive, PassiveTrait, Source, errors as passive_errors, id as passive_id,
+};
 use grimworld_persistent::systems::registry::errors::{
     NOT_ADMIN, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT, TOO_MANY, ZERO_ADMIN,
     ZERO_ID,
@@ -102,7 +123,8 @@ impl FeltsImpl of Felts {
 // --- set_record: what it writes -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 4622111)] // ceil(1.05 × 4402010 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 4637336)] // ceil(1.05 × 4416510 measured)
 fn test_set_record_new_sequential() {
     let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -117,7 +139,8 @@ fn test_set_record_new_sequential() {
 
 // An existing record's values change (design/01 rule 2: ids are append-only, values are not).
 #[test]
-#[available_gas(l2_gas: 4692597)] // ceil(1.05 × 4469140 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 4715015)] // ceil(1.05 × 4490490 measured)
 fn test_set_record_existing_changes() {
     let r = Fixture::deploy();
     r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
@@ -130,7 +153,8 @@ fn test_set_record_existing_changes() {
 
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 7418513)] // ceil(1.05 × 7065250 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 7469081)] // ceil(1.05 × 7113410 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = Fixture::deploy();
@@ -156,7 +180,8 @@ fn test_set_record_composite_needs_parent() {
 // `QUOTAS` is keyed by its location's id (D-145): one record per location, refused while that
 // location does not exist; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 5602769)] // ceil(1.05 × 5335970 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 5641556)] // ceil(1.05 × 5372910 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy();
@@ -176,7 +201,8 @@ fn test_set_record_quotas_keyed_by_location() {
 
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
-#[available_gas(l2_gas: 4399353)] // ceil(1.05 × 4189860 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 4796873)] // ceil(1.05 × 4568450 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
     let r = Fixture::deploy();
@@ -192,7 +218,8 @@ fn test_set_record_outline_chunk_refused() {
 // `TASK` and `QUEST` take the administrator's quiver ids as they are: any non-zero id (D-145; that
 // the quiver id exists is the content pipeline's check).
 #[test]
-#[available_gas(l2_gas: 3784631)] // ceil(1.05 × 3604410 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3799184)] // ceil(1.05 × 3618270 measured)
 fn test_set_record_quiver_ids() {
     let r = Fixture::deploy();
     r.admin.set_record(TASK, 0x12345, Felts::one(1));
@@ -205,7 +232,8 @@ fn test_set_record_quiver_ids() {
 // --- set_record: its refusals (AC-1) ------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1323158)] // ceil(1.05 × 1260150 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 1675632)] // ceil(1.05 × 1595840 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
     let r = Fixture::deploy();
@@ -216,7 +244,8 @@ fn test_set_record_refused_to_others() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1720688)] // ceil(1.05 × 1638750 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 2778111)] // ceil(1.05 × 2645820 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
     let r = Fixture::deploy();
@@ -245,7 +274,8 @@ fn test_set_record_unknown_kind_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2192253)] // ceil(1.05 × 2087860 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3954626)] // ceil(1.05 × 3766310 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = Fixture::deploy();
@@ -264,7 +294,8 @@ fn test_set_record_not_live_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1224762)] // ceil(1.05 × 1166440 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 1929711)] // ceil(1.05 × 1837820 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
     let r = Fixture::deploy();
@@ -276,7 +307,8 @@ fn test_set_record_id_zero_refused() {
 
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
-#[available_gas(l2_gas: 3376863)] // ceil(1.05 × 3216060 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3949019)] // ceil(1.05 × 3760970 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();
@@ -293,7 +325,8 @@ fn test_set_record_not_next_refused() {
 // --- the content version (AC-2) -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 8770787)] // ceil(1.05 × 8353130 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 8843552)] // ceil(1.05 × 8422430 measured)
 fn test_version_rises_per_changed_record() {
     let r = Fixture::deploy();
     assert(r.version() == 0, '0 at deployment');
@@ -322,7 +355,8 @@ fn test_version_rises_per_changed_record() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7476966)] // ceil(1.05 × 7120920 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 7506996)] // ceil(1.05 × 7149520 measured)
 fn test_bundle_version_and_order() {
     let r = Fixture::deploy();
     r.admin.set_record(REGION, 1, Felts::one(1));
@@ -344,7 +378,8 @@ fn test_bundle_version_and_order() {
 
 // A record never written reads as `parts(kind)` zeros: part 0 is 0, the record does not exist.
 #[test]
-#[available_gas(l2_gas: 3088848)] // ceil(1.05 × 2941760 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3096461)] // ceil(1.05 × 2949010 measured)
 fn test_missing_record_reads_zeros() {
     let r = Fixture::deploy();
     assert(r.read.record(BOOK, 1) == array![0, 0, 0].span(), 'record');
@@ -381,7 +416,8 @@ fn test_reads_bounded() {
 
 // The role moves: the new administrator writes, the former one no longer can.
 #[test]
-#[available_gas(l2_gas: 3184262)] // ceil(1.05 × 3032630 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3544349)] // ceil(1.05 × 3375570 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_hands_over() {
     let r = Fixture::deploy();
@@ -396,7 +432,8 @@ fn test_set_admin_hands_over() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2852703)] // ceil(1.05 × 2716860 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 2860316)] // ceil(1.05 × 2724110 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_refused() {
     let r = Fixture::deploy();
@@ -430,7 +467,8 @@ fn test_gas_deploy() {
 // `set_record` of a new 3-part record: 3 record slots, `last_id` and the version, all new
 // (ENG-01 §10: 5 N / 0 O).
 #[test]
-#[available_gas(l2_gas: 3358026)] // ceil(1.05 × 3198120 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3365639)] // ceil(1.05 × 3205370 measured)
 fn test_gas_set_record_new() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -439,7 +477,8 @@ fn test_gas_set_record_new() {
 // `set_record` changing a 3-part record: its 3 parts and the version overwritten (ENG-01 §10:
 // 0 N / 5 O, which counts `last_id` too; a changed record does not write it).
 #[test]
-#[available_gas(l2_gas: 3863822)] // ceil(1.05 × 3679830 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3878627)] // ceil(1.05 × 3693930 measured)
 fn test_gas_set_record_changed() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -448,7 +487,8 @@ fn test_gas_set_record_changed() {
 
 // `set_record` of the same values: 3 reads, nothing written, the version kept.
 #[test]
-#[available_gas(l2_gas: 3650756)] // ceil(1.05 × 3476910 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 3665561)] // ceil(1.05 × 3491010 measured)
 fn test_gas_set_record_unchanged() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -490,4 +530,324 @@ fn test_gas_bundle_32() {
     let requests = r.books(32);
     let (v, records) = r.read.bundle(requests.span());
     assert(v == 5 && records.len() == 96, '32 records');
+}
+
+// --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1)
+// -------------------
+//
+// Every per-source bound of design/20 that belongs to one record is checked once, when the
+// administrator writes it: at its bound a record is accepted, one unit beyond it is refused.
+
+/// A passive of fixed value `value` (a cost's shape; a benefit at one value).
+fn fixed(id: u8, param: u8, value: i16) -> Passive {
+    PassiveTrait::new(id, param, 0, 0, value, value)
+}
+
+/// The record that makes `passive` one source of `source`: a modifier of that slot type (an
+/// insignia made for the chest), or a set's first bonus.
+fn source_record(passive: Passive, source: Source) -> (u8, Span<felt252>) {
+    let none: Passive = Default::default();
+    match source {
+        Source::Prefix => (
+            MODIFIER, ModifierTrait::new(modifier_slot::PREFIX, passive, none).pack(),
+        ),
+        Source::Suffix => (
+            MODIFIER, ModifierTrait::new(modifier_slot::SUFFIX, passive, none).pack(),
+        ),
+        Source::Inscription => (
+            MODIFIER, ModifierTrait::new(modifier_slot::INSCRIPTION, passive, none).pack(),
+        ),
+        Source::Insignia => (
+            MODIFIER, ModifierTrait::insignia(base_slot::CHEST, passive, none).pack(),
+        ),
+        Source::Rune => (MODIFIER, ModifierTrait::new(modifier_slot::RUNE, passive, none).pack()),
+        Source::SetBonus => (
+            ARMOR_SET, ArmorSetTrait::new([1, 2, 3, 4, 5], [passive, none]).pack(),
+        ),
+    }
+}
+
+/// Writes the record at the next id of its kind; `Ok` when accepted (the id is then taken).
+#[feature("safe_dispatcher")]
+fn try_write(r: Registry, kind: u8, record: Span<felt252>) -> Result<(), Array<felt252>> {
+    let id = r.admin.last_id(kind) + 1;
+    r.safe.set_record(kind, id, record)
+}
+
+fn assert_accepted(result: Result<(), Array<felt252>>) {
+    match result {
+        Result::Ok(()) => {},
+        Result::Err(data) => core::panic_with_felt252(*data.at(0)),
+    }
+}
+
+fn assert_refused(result: Result<(), Array<felt252>>, message: felt252) {
+    match result {
+        Result::Ok(()) => core::panic_with_felt252('should be refused'),
+        Result::Err(data) => assert(*data.at(0) == message, *data.at(0)),
+    }
+}
+
+// design/20 §1.3's rows under envelope B (DS-1, DS-5, DS-7): for each, a record at `lo` and at
+// `hi` is accepted, one at `hi + 1` is refused with the per-source bound, and one at `lo − 1` is
+// refused (by the bound, or by the passive's own range where that is non-negative).
+#[test]
+#[available_gas(l2_gas: 75201063)] // ceil(1.05 × 71620060 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_per_source_bounds() {
+    let r = Fixture::deploy();
+    // (id, param, source, lo, hi)
+    let rows = array![
+        (passive_id::MAX_HEALTH, 0, Source::Prefix, 0_i16, 30_i16),
+        (passive_id::MAX_HEALTH, 0, Source::Insignia, 0, 15),
+        (passive_id::MAX_HEALTH, 0, Source::Rune, -75, 50),
+        (passive_id::MAX_HEALTH, 0, Source::SetBonus, -75, 50),
+        (passive_id::MAX_ENERGY, 0, Source::Suffix, -5, 5),
+        (passive_id::MAX_ENERGY, 0, Source::SetBonus, -5, 5),
+        (passive_id::ENERGY_REGEN, 0, Source::Inscription, -1, 0),
+        (passive_id::ENERGY_REGEN, 0, Source::SetBonus, -1, 1),
+        (passive_id::HEALTH_REGEN, 0, Source::Prefix, -1, 0),
+        (passive_id::HEALTH_REGEN, 0, Source::SetBonus, -1, 1),
+        (passive_id::ARMOR_VS, damage::FIRE, Source::Rune, 0, 7),
+        (passive_id::ATTRIBUTE, 13, Source::Rune, 1, 3),
+        (passive_id::LIFE_STEAL_ON_HIT, 0, Source::Suffix, 0, 5),
+        (passive_id::ENERGY_ON_HIT, 0, Source::Prefix, 0, 1),
+        (passive_id::CONDITION_DURATION, condition::POISON, Source::Prefix, 0, 33),
+        (passive_id::ENCHANT_DURATION, 0, Source::Insignia, 0, 20),
+        (passive_id::KNOCKDOWN_FLAT, 0, Source::SetBonus, 0, 1),
+    ];
+    for (id, param, source, lo, hi) in rows {
+        let (kind, record) = source_record(fixed(id, param, lo), source);
+        assert_accepted(try_write(r, kind, record));
+        let (kind, record) = source_record(fixed(id, param, hi), source);
+        assert_accepted(try_write(r, kind, record));
+        let (kind, record) = source_record(fixed(id, param, hi + 1), source);
+        assert_refused(try_write(r, kind, record), passive_errors::SOURCE_BOUND);
+        let (kind, record) = source_record(fixed(id, param, lo - 1), source);
+        let refused = try_write(r, kind, record);
+        assert(refused.is_err(), 'below lo accepted');
+        let message = *refused.unwrap_err().at(0);
+        assert(
+            message == passive_errors::SOURCE_BOUND || message == passive_errors::VALUE, message,
+        );
+    }
+    // A modifier's benefit and cost on one statistic are summed: +50 and −75 on a rune pass, +30
+    // and +30 on a prefix are refused.
+    let rune = ModifierTrait::new(
+        modifier_slot::RUNE,
+        fixed(passive_id::MAX_HEALTH, 0, 50),
+        fixed(passive_id::MAX_HEALTH, 0, -75),
+    );
+    assert_accepted(try_write(r, MODIFIER, rune.pack()));
+    let prefix = ModifierTrait::new(
+        modifier_slot::PREFIX,
+        fixed(passive_id::MAX_HEALTH, 0, 30),
+        fixed(passive_id::MAX_HEALTH, 0, 30),
+    );
+    assert_refused(try_write(r, MODIFIER, prefix.pack()), passive_errors::SOURCE_BOUND);
+    // A benefit's range, not only its top: 10…31 on a prefix is refused.
+    let wide = PassiveTrait::new(passive_id::MAX_HEALTH, 0, 0, 0, 10, 31);
+    let (kind, record) = source_record(wide, Source::Prefix);
+    assert_refused(try_write(r, kind, record), passive_errors::SOURCE_BOUND);
+    // An existing record rewritten past its bound is refused as a new one is.
+    let (_, record) = source_record(fixed(passive_id::MAX_HEALTH, 0, 31), Source::Prefix);
+    assert_refused(r.safe.set_record(MODIFIER, 1, record), passive_errors::SOURCE_BOUND);
+}
+
+// DS-4 and design/19 §7.2: the passives a source may not hold are refused on it.
+#[test]
+#[available_gas(l2_gas: 10241606)] // ceil(1.05 × 9753910 measured)
+fn test_set_record_sources_refused() {
+    let r = Fixture::deploy();
+    let refused = array![
+        (passive_id::ENERGY_COST, 1, Source::Prefix),
+        (passive_id::ENERGY_COST, 1, Source::SetBonus),
+        (passive_id::BASE_DAMAGE_PERCENT, 0, Source::Rune),
+        (passive_id::RATING_PERCENT, 0, Source::Insignia),
+        (passive_id::ATTRIBUTE, 13, Source::Prefix),
+        (passive_id::LIFE_STEAL_ON_HIT, 0, Source::SetBonus),
+        (passive_id::ENERGY_ON_HIT, 0, Source::Rune), (passive_id::MAX_ENERGY, 0, Source::Insignia),
+        (passive_id::QUICK_CAST_EVERY_N, 13, Source::Suffix),
+        (passive_id::DAMAGE_TYPE, damage::FIRE, Source::Suffix),
+        (passive_id::CONDITION_DURATION, condition::POISON, Source::Inscription),
+    ];
+    for (id, param, source) in refused {
+        let value = if id == passive_id::ENERGY_COST || id == passive_id::DAMAGE_TYPE {
+            0
+        } else {
+            1
+        };
+        let (kind, record) = source_record(fixed(id, param, value), source);
+        assert_refused(try_write(r, kind, record), passive_errors::SOURCE);
+    }
+    // One source adds to a hit's sum no more than one passive may (§7.2): +18 and +1 on weapon
+    // hits.
+    let damage = ModifierTrait::new(
+        modifier_slot::PREFIX,
+        PassiveTrait::new(passive_id::DAMAGE_PERCENT, 0, 0, 0, 18, 18),
+        PassiveTrait::new(passive_id::DAMAGE_PERCENT, 0, 0, 0, 1, 1),
+    );
+    assert_refused(try_write(r, MODIFIER, damage.pack()), passive_errors::CONTRIBUTION);
+    assert(r.admin.last_id(MODIFIER) == 0 && r.admin.last_id(ARMOR_SET) == 0, 'none written');
+}
+
+// DS-23: an insignia names its piece, and its health is within the piece's 15 / 10 / 5.
+#[test]
+#[available_gas(l2_gas: 7574312)] // ceil(1.05 × 7213630 measured)
+fn test_set_record_insignia_pieces() {
+    let r = Fixture::deploy();
+    let none: Passive = Default::default();
+    let health = |value: i16| fixed(passive_id::MAX_HEALTH, 0, value);
+    let legs = ModifierTrait::insignia(base_slot::LEGS, health(10), none);
+    assert_accepted(try_write(r, MODIFIER, legs.pack()));
+    let legs = ModifierTrait::insignia(base_slot::LEGS, health(11), none);
+    assert_refused(try_write(r, MODIFIER, legs.pack()), modifier_errors::PIECE_HEALTH);
+    let head = ModifierTrait::insignia(base_slot::HEAD, health(5), none);
+    assert_accepted(try_write(r, MODIFIER, head.pack()));
+    let feet = ModifierTrait::insignia(base_slot::FEET, health(3), health(3));
+    assert_refused(try_write(r, MODIFIER, feet.pack()), modifier_errors::PIECE_HEALTH);
+    let nowhere = ModifierTrait::new(modifier_slot::INSIGNIA, health(5), none);
+    assert_refused(try_write(r, MODIFIER, nowhere.pack()), modifier_errors::PIECE);
+    let weapon = ModifierTrait::insignia(base_slot::WEAPON, health(5), none);
+    assert_refused(try_write(r, MODIFIER, weapon.pack()), modifier_errors::PIECE);
+}
+
+/// A caste at design/20's bounds (DS-18, DS-29): multiplier 1,000 %, energy 85, regeneration 10
+/// pips, weapon damage 255, flee 100, health regeneration 20, tier 6, rank 15, armor 63 against
+/// every type; its first skill `skill`.
+fn caste_at_bounds(skill: u16) -> Span<felt252> {
+    caste_naming([skill, 0, 0, 0])
+}
+
+/// The caste at bounds, naming `skills`.
+fn caste_naming(skills: [u16; 4]) -> Span<felt252> {
+    CasteTrait::new(
+        6,
+        1,
+        1000,
+        20,
+        40,
+        [63; 9],
+        WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1),
+        85,
+        10,
+        skills,
+        15,
+        100,
+        0,
+        false,
+    )
+        .pack()
+}
+
+/// `record` with `delta` added to part 0: a field raised past what `pack` accepts, as a
+/// hand-made record would carry it.
+fn raised(record: Span<felt252>, delta: felt252) -> Span<felt252> {
+    array![*record[0] + delta, *record[1]].span()
+}
+
+fn skill_of(adrenaline: u8, entries: [Entry; 3]) -> Span<felt252> {
+    SkillTrait::new(1, 1, skill_kind::ATTACK, 0, adrenaline, 1, 5, 1, target::FOE, false, entries)
+        .pack()
+}
+
+// DS-18, DS-29: a caste record at its bounds is accepted; one unit beyond any is refused; the
+// skills it names are at most 63 strikes (across records).
+#[test]
+#[available_gas(l2_gas: 16001055)] // ceil(1.05 × 15239100 measured)
+fn test_set_record_caste_bounds() {
+    let r = Fixture::deploy();
+    assert_accepted(try_write(r, SKILL, skill_of(63, [Default::default(); 3])));
+    assert_accepted(try_write(r, SKILL, skill_of(64, [Default::default(); 3])));
+    assert_accepted(try_write(r, CASTE, caste_at_bounds(1)));
+    assert_refused(try_write(r, CASTE, caste_at_bounds(2)), caste_errors::SKILL_ADRENALINE);
+    let at_bounds = caste_at_bounds(1);
+    // Health 1,001 % (bit 16), health regeneration 21 (bit 32), weapon damage 256 (bit 52),
+    // energy 86 (bit 80), energy regeneration 11 (bit 88), flee 101 (bit 96); tier 7 and tier 0.
+    // The rank (15) and the armor per type (63) are at their fields' widest: a unit more is not a
+    // record's value but the next field's bit.
+    let beyond = array![
+        (0x10000, caste_errors::HEALTH), (0x100000000, caste_errors::HEALTH_REGEN),
+        (0x10000000000000, caste_errors::WEAPON_DAMAGE),
+        (0x100000000000000000000, caste_errors::ENERGY),
+        (0x10000000000000000000000, caste_errors::ENERGY_REGEN),
+        (0x1000000000000000000000000, caste_errors::FLEE), (1, caste_errors::TIER),
+        (-6, caste_errors::TIER),
+    ];
+    for (delta, message) in beyond {
+        assert_refused(try_write(r, CASTE, raised(at_bounds, delta)), message);
+    }
+    assert(r.admin.last_id(CASTE) == 1, 'one caste written');
+}
+
+// DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a
+// legal, unscaled carrier (design/19 §5.14).
+#[test]
+#[available_gas(l2_gas: 8534778)] // ceil(1.05 × 8128360 measured)
+fn test_set_record_carriers() {
+    let r = Fixture::deploy();
+    let bonus = EntryTrait::new(
+        kind::ATTACK_BONUS, 0, 5, 5, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    assert_accepted(
+        try_write(r, SKILL, skill_of(4, [bonus, Default::default(), Default::default()])),
+    );
+    assert_refused(
+        try_write(r, SKILL, skill_of(4, [bonus, bonus, Default::default()])),
+        entry_errors::TWO_ATTACK_BONUSES,
+    );
+    let heal = EntryTrait::new(
+        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, 0, 0, 0,
+    );
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_accepted(try_write(r, ITEM, potion(heal)));
+    assert_refused(try_write(r, ITEM, potion(Default::default())), item_errors::NO_ENTRY);
+    assert_refused(try_write(r, ITEM, potion(Entry { v12: 40, ..heal })), entry_errors::NOT_SCALED);
+    let ingredient = ItemTrait::new(item_class::INGREDIENT, 1, 1, 1, 0, heal, 0, 0).pack();
+    assert_refused(try_write(r, ITEM, ingredient), item_errors::NOT_POTION);
+}
+
+// DS-18 whatever the order of writes (CBT-02c fix loop 2, the review's major): the registry counts
+// the castes that name each skill (`caste_skills`) and refuses a skill above 63 strikes while one
+// does. The caste first, naming skill 1 before it exists: skill 1 at 64 is refused, at 63
+// accepted; then rewritten from 63 to 64, refused. The skill first at 64: the caste naming it is
+// refused (`test_set_record_caste_bounds`). A skill no caste names takes 64.
+#[test]
+#[available_gas(l2_gas: 11654675)] // ceil(1.05 × 11099690 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_caste_skills_either_order() {
+    let r = Fixture::deploy();
+    let none = [Default::default(); 3];
+    assert_accepted(try_write(r, CASTE, caste_at_bounds(1)));
+    assert_refused(try_write(r, SKILL, skill_of(64, none)), caste_errors::SKILL_ADRENALINE);
+    assert(r.admin.last_id(SKILL) == 0, 'skill 1 not written');
+    assert_accepted(try_write(r, SKILL, skill_of(63, none)));
+    assert_refused(r.safe.set_record(SKILL, 1, skill_of(64, none)), caste_errors::SKILL_ADRENALINE);
+    assert_accepted(r.safe.set_record(SKILL, 1, skill_of(62, none)));
+    assert_accepted(try_write(r, SKILL, skill_of(64, none)));
+    assert(r.admin.last_id(SKILL) == 2, 'skill 2, named by none, at 64');
+}
+
+// A caste rewritten moves the counts: naming skill 1 twice, then once, skill 1 stays bound;
+// naming skill 2 instead, skill 1 is released (64 accepted) and skill 2 bound. Two castes naming
+// one skill: it stays bound until neither does.
+#[test]
+#[available_gas(l2_gas: 20179499)] // ceil(1.05 × 19218570 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_caste_rewrite_moves_the_bound() {
+    let r = Fixture::deploy();
+    let none = [Default::default(); 3];
+    assert_accepted(try_write(r, SKILL, skill_of(10, none)));
+    assert_accepted(try_write(r, SKILL, skill_of(10, none)));
+    assert_accepted(try_write(r, CASTE, caste_naming([1, 1, 0, 0])));
+    assert_accepted(r.safe.set_record(CASTE, 1, caste_naming([1, 0, 0, 0])));
+    assert_refused(r.safe.set_record(SKILL, 1, skill_of(64, none)), caste_errors::SKILL_ADRENALINE);
+    assert_accepted(r.safe.set_record(CASTE, 1, caste_naming([2, 0, 0, 0])));
+    assert_accepted(r.safe.set_record(SKILL, 1, skill_of(64, none)));
+    assert_refused(r.safe.set_record(SKILL, 2, skill_of(64, none)), caste_errors::SKILL_ADRENALINE);
+    assert_accepted(try_write(r, CASTE, caste_naming([0, 0, 0, 2])));
+    assert_accepted(r.safe.set_record(CASTE, 1, caste_naming([0, 0, 0, 0])));
+    assert_refused(r.safe.set_record(SKILL, 2, skill_of(64, none)), caste_errors::SKILL_ADRENALINE);
+    assert_accepted(r.safe.set_record(CASTE, 2, caste_naming([0, 0, 0, 0])));
+    assert_accepted(r.safe.set_record(SKILL, 2, skill_of(64, none)));
 }

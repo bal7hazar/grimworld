@@ -1,7 +1,9 @@
-// D-160 (design/20 §6): the acceptance tests the validators and the production flattening owe
-// before any production snapshot. Tests 1 to 7 and 9 are here or in `test_tick`, `test_capacity`,
-// `test_durations` and the ephemeral `test_layout` (each named below); test 8 (a hit's percents)
-// is the damage formula's, CBT-03's, and test 10's counters are CBT-05's.
+// D-160 (design/20 §6): the acceptance tests the validators owe before any production snapshot.
+// Tests 1, 6, 7 and 9 are here or in `test_tick`, `test_capacity`, `test_durations` and the
+// ephemeral `test_layout` (each named below); tests 2 to 5, the flattening's, are its unit tests
+// (`snapshot.cairo`, D-167); the registry's refusals of the same records, when the administrator
+// writes them (D-166), are the persistent package's `test_registry`. Test 8 (a hit's percents) is
+// the damage formula's, CBT-03's, and test 10's counters are CBT-05's.
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::exp2::Exp2;
 use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetTrait};
@@ -12,9 +14,7 @@ use grimworld_logic::models::modifier::{
     Modifier, ModifierAssert, ModifierRecord, ModifierTrait, slot,
 };
 use grimworld_logic::models::skill::SkillTrait;
-use grimworld_logic::snapshot::{
-    HeldPassive, Loadout, MemberStats, SnapshotBuildTrait, max_instances, pack_stats,
-};
+use grimworld_logic::snapshot::max_instances;
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{Carrier, EntryAssert, EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::passive::{Passive, PassiveTrait, Source, id, source_bound};
@@ -22,95 +22,9 @@ use grimworld_logic::types::tick::CasteSheetTrait;
 
 /// Attribute ids of the fixtures (content's global ids, D-157 A): the primary first.
 const PRIMARY: u8 = 13;
-const OTHER: u8 = 14;
 
 fn passive(id: u8, param: u8, value: i16) -> Passive {
     PassiveTrait::new(id, param, 0, 0, value, value)
-}
-
-/// The piece an insignia of instance 5–9 is worn on: chest, legs, head, hands, feet (the order of
-/// `sources()`); 0 for every other source.
-fn piece(source: Source, instance: u8) -> u8 {
-    if source == Source::Insignia && instance >= 5 {
-        base_slot::CHEST + (instance - 5)
-    } else if source == Source::Insignia {
-        base_slot::CHEST
-    } else {
-        0
-    }
-}
-
-fn held(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
-    HeldPassive {
-        passive, source, instance, modifier, benefit: true, piece: piece(source, instance),
-    }
-}
-
-fn cost(passive: Passive, source: Source, instance: u8, modifier: u32) -> HeldPassive {
-    HeldPassive {
-        passive, source, instance, modifier, benefit: false, piece: piece(source, instance),
-    }
-}
-
-/// A level-20 build of `profession`: 12 points in its primary, 10 in another, a sword
-/// (damage 18 at requirement, ticks 1, range 1) of the other attribute, strength cap 75.
-fn loadout(profession: u8, level: u8) -> Loadout {
-    Loadout {
-        level,
-        profession,
-        points: array![(PRIMARY, 12), (OTHER, 10)].span(),
-        bar_attributes: [PRIMARY, OTHER, 0, 0, 0, 0, 0, 0],
-        skills: [1, 2, 0, 0, 0, 0, 0, 0],
-        elite_slot: 255,
-        weapon: weapon::SWORD,
-        weapon_damage: 18,
-        weapon_ticks: 1,
-        weapon_range: 1,
-        damage_type: damage::SLASHING,
-        weapon_attribute: OTHER,
-        requirement_met: 1,
-        personalised: false,
-        strength_cap: 75,
-        rating: 0,
-        set_bonuses: 0,
-        belt: [0; 4],
-        belt_counts: [0; 4],
-    }
-}
-
-/// The 17 sources of design/20 §1.2, instances 0–16: a prefix, 2 suffixes, 2 inscriptions, 5
-/// insignias, 5 runes, 2 set bonuses.
-fn sources() -> Span<Source> {
-    array![
-        Source::Prefix, Source::Suffix, Source::Suffix, Source::Inscription, Source::Inscription,
-        Source::Insignia, Source::Insignia, Source::Insignia, Source::Insignia, Source::Insignia,
-        Source::Rune, Source::Rune, Source::Rune, Source::Rune, Source::Rune, Source::SetBonus,
-        Source::SetBonus,
-    ]
-        .span()
-}
-
-/// One passive on each source of `on` (a subset of the 17), instance `i`, modifier id `100 + i`.
-fn everywhere(p: Passive, on: Span<Source>) -> Array<HeldPassive> {
-    let mut all = array![];
-    let mut i: u8 = 0;
-    for source in sources() {
-        let mut take = false;
-        for kind in on {
-            if *kind == *source {
-                take = true;
-            }
-        }
-        if take {
-            all.append(held(p, *source, i, 100 + i.into()));
-        }
-        i += 1;
-    }
-    all
-}
-
-fn held_slots() -> Span<Source> {
-    array![Source::Prefix, Source::Suffix, Source::Inscription].span()
 }
 
 fn fits(p: Passive, source: Source) -> bool {
@@ -236,77 +150,6 @@ fn test_capacity_proof() {
     assert(7 * 18 <= 127_u32 && 7 * 36 <= 255_u32 && 560 + 32 * 255 <= 9995_u32, 'contributions');
 }
 
-// AUD-182-2, the extremal builds at the envelope: every source that may hold a statistic at its
-// per-source maximum (and, where no floor refuses it, its minimum) flattens without overflow, to
-// exactly the envelope.
-#[test]
-#[available_gas(l2_gas: 17102553)] // ceil(1.05 × 16288145 measured)
-fn test_envelope_builds() {
-    // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and set
-    // bonuses at 50.
-    let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
-    let mut k: u8 = 0;
-    for value in array![15_i16, 10, 5, 5, 5] {
-        all.append(held(passive(id::MAX_HEALTH, 0, value), Source::Insignia, 5 + k, 200));
-        k += 1;
-    }
-    for h in everywhere(
-        passive(id::MAX_HEALTH, 0, 50), array![Source::Rune, Source::SetBonus].span(),
-    ) {
-        all.append(h);
-    }
-    let top = SnapshotBuildTrait::build(@loadout(1, 20), all.span());
-    assert(top.stats.max_health == 1020, 'max health 1,020');
-    let low = SnapshotBuildTrait::build(
-        @loadout(3, 20),
-        everywhere(
-            passive(id::HEALTH_REGEN, 0, -1),
-            array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
-        )
-            .span(),
-    );
-    assert(low.stats.health_regen == 3, 'health regen 3');
-    let high = SnapshotBuildTrait::build(
-        @loadout(3, 20),
-        everywhere(passive(id::HEALTH_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
-    );
-    assert(high.stats.health_regen == 12, 'health regen 12');
-    let steal = SnapshotBuildTrait::build(
-        @loadout(3, 20), everywhere(passive(id::LIFE_STEAL_ON_HIT, 0, 5), held_slots()).span(),
-    );
-    assert(steal.kit.life_steal == 25, 'life steal 25');
-    let hit = SnapshotBuildTrait::build(
-        @loadout(3, 20), everywhere(passive(id::ENERGY_ON_HIT, 0, 1), held_slots()).span(),
-    );
-    assert(hit.kit.energy_on_hit == 5, 'energy on hit 5');
-    let regen = SnapshotBuildTrait::build(
-        @loadout(3, 20),
-        everywhere(passive(id::ENERGY_REGEN, 0, 1), array![Source::SetBonus].span()).span(),
-    );
-    assert(regen.stats.energy_regen == 7, 'energy regen 7');
-}
-
-// COST-2 (design/20 §1.3, DS-23): five insignias at the chest's 15 are refused, the legs' at 11
-// and a second insignia on one piece too; the widest build stays 1,020 (`test_envelope_builds`).
-#[test]
-#[should_panic(expected: 'build: health above piece')]
-#[available_gas(l2_gas: 1389451)] // ceil(1.05 × 1323286 measured)
-fn test_five_insignias_at_15_refused() {
-    let all = everywhere(passive(id::MAX_HEALTH, 0, 15), array![Source::Insignia].span());
-    SnapshotBuildTrait::build(@loadout(1, 20), all.span());
-}
-
-#[test]
-#[should_panic(expected: 'build: two insignias a piece')]
-#[available_gas(l2_gas: 618142)] // ceil(1.05 × 588706 measured)
-fn test_two_insignias_on_a_piece_refused() {
-    let mut first = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 5, 200);
-    let mut second = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 6, 200);
-    first.piece = base_slot::HEAD;
-    second.piece = base_slot::HEAD;
-    SnapshotBuildTrait::build(@loadout(1, 20), array![first, second].span());
-}
-
 // COST-2, the record (DS-23): an insignia names its piece; its health is within the piece's bound;
 // the slot types that are not insignias name none; the piece round-trips in the record.
 #[test]
@@ -348,43 +191,6 @@ fn test_cancelling_rune_refused() {
         .assert_legal();
 }
 
-// AUD-182-2: three runes of one modifier id (+50 health, −75 health): the benefit counts once,
-// every cost counts (FX-43): 480 + 50 − 225.
-#[test]
-#[available_gas(l2_gas: 2108379)] // ceil(1.05 × 2007980 measured)
-fn test_repeated_rune_id() {
-    let rune = ModifierTrait::new(
-        slot::RUNE, passive(id::MAX_HEALTH, 0, 50), passive(id::MAX_HEALTH, 0, -75),
-    );
-    rune.assert_legal();
-    let mut all = array![];
-    let mut i: u8 = 10;
-    while i < 13 {
-        all.append(held(rune.benefit, Source::Rune, i, 9));
-        all.append(cost(rune.cost, Source::Rune, i, 9));
-        i += 1;
-    }
-    let snapshot = SnapshotBuildTrait::build(@loadout(1, 20), all.span());
-    assert(snapshot.stats.max_health == 480 + 50 - 225, 'benefit once, costs all');
-}
-
-// AUD-182-3: a rune's contribution to an attribute is its passives' sum: +1 and +2 on one rune
-// give 3, so 12 points reach 15.
-#[test]
-#[available_gas(l2_gas: 1374881)] // ceil(1.05 × 1309410 measured)
-fn test_rune_attribute_contribution() {
-    let rune = ModifierTrait::new(
-        slot::RUNE, passive(id::ATTRIBUTE, PRIMARY, 1), passive(id::ATTRIBUTE, PRIMARY, 2),
-    );
-    rune.assert_legal();
-    let all = array![
-        held(rune.benefit, Source::Rune, 10, 7), cost(rune.cost, Source::Rune, 10, 7),
-        held(passive(id::ATTRIBUTE, PRIMARY, 2), Source::Rune, 11, 8),
-    ];
-    let snapshot = SnapshotBuildTrait::build(@loadout(3, 20), all.span());
-    assert(snapshot.stats.primary_rank == 15, '12 + (1 + 2)');
-}
-
 // AUD-182-3: a cancelling pair on one rune (+32,767 and −32,764: sum +3) is refused.
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
@@ -411,200 +217,6 @@ fn test_modifier_beyond_bound_refused() {
 fn test_set_bonus_beyond_bound_refused() {
     let knock = passive(id::KNOCKDOWN_FLAT, 0, 2);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]).assert_legal();
-}
-
-// §6 test 2: max health 1,020 (DS-23's insignias 15 / 10 / 5, D-160): level 20, five +30 held
-// slots, insignias 15, 10, 5, 5, 5, five +50 health runes of distinct ids, two +50 set bonuses.
-// The final maximum is `max_health`; `health_bonus` is freed (DS-3).
-#[test]
-#[available_gas(l2_gas: 8011842)] // ceil(1.05 × 7630325 measured)
-fn test_extremal_max_health() {
-    let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
-    let insignias = [15_i16, 10, 5, 5, 5];
-    let mut k: u8 = 0;
-    for value in insignias.span() {
-        all.append(held(passive(id::MAX_HEALTH, 0, *value), Source::Insignia, 5 + k, 200));
-        k += 1;
-    }
-    for held_passive in everywhere(
-        passive(id::MAX_HEALTH, 0, 50), array![Source::Rune, Source::SetBonus].span(),
-    ) {
-        all.append(held_passive);
-    }
-    let snapshot = SnapshotBuildTrait::build(@loadout(1, 20), all.span());
-    assert(snapshot.stats.max_health == 1020, 'max health 1,020');
-    assert(snapshot.kit.health_bonus == 0, 'health bonus freed');
-}
-
-// §6 test 2: max energy 130 (DS-7): an Arcanist at Wellspring 15 (12 points and a +3 rune: ranks
-// 15, DS-8) in light armor, five held slots and two set bonuses at +5: 30 + 45 + 20 + 35.
-#[test]
-#[available_gas(l2_gas: 3272703)] // ceil(1.05 × 3116860 measured)
-fn test_extremal_max_energy_and_rank() {
-    let mut all = everywhere(
-        passive(id::MAX_ENERGY, 0, 5),
-        array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
-    );
-    all.append(held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300));
-    let snapshot = SnapshotBuildTrait::build(@loadout(3, 20), all.span());
-    assert(snapshot.stats.max_energy == 130, 'max energy 130');
-    assert(snapshot.stats.primary_rank == 15, 'rank 15');
-    // The bar's ranks: slot 0 the primary (15), slot 1 the other (10), 4 bits each.
-    assert(snapshot.stats.ranks == 15 + 10 * 16, 'bar ranks');
-    // Light armor's +1 pip (DS-7): 4 + 1.
-    assert(snapshot.stats.energy_regen == 5, 'energy regen');
-    assert(snapshot.stats.health_regen == 10, 'health regen');
-}
-
-// §6 test 2: weapon damage 32, a personalised maul at requirement (27 × 120 / 100, DS-4); the
-// strength is 5 × the weapon attribute's rank capped by level (DS-9): 50, and 40 under a cap of
-// 40.
-#[test]
-#[available_gas(l2_gas: 611205)] // ceil(1.05 × 582100 measured)
-fn test_extremal_weapon() {
-    let maul = Loadout {
-        weapon: weapon::MAUL,
-        weapon_damage: 27,
-        weapon_ticks: 2,
-        personalised: true,
-        ..loadout(1, 20),
-    };
-    let snapshot = SnapshotBuildTrait::build(@maul, array![].span());
-    assert(snapshot.stats.weapon_damage == 32, 'weapon damage 32');
-    assert(snapshot.stats.weapon_strength == 50, '5 x 10');
-    let capped = Loadout { strength_cap: 40, ..maul };
-    let snapshot = SnapshotBuildTrait::build(@capped, array![].span());
-    assert(snapshot.stats.weapon_strength == 40, 'capped by level');
-}
-
-// §6 test 2, "each other field ≤ its envelope": every source at its widest on every other row.
-#[test]
-#[available_gas(l2_gas: 13994406)] // ceil(1.05 × 13328005 measured)
-fn test_other_fields_within_envelopes() {
-    let mut all = array![];
-    let mut i: u8 = 0;
-    for source in sources() {
-        let s = *source;
-        let modifier: u32 = 100 + i.into();
-        if s == Source::Prefix || s == Source::Suffix || s == Source::Inscription {
-            all.append(held(passive(id::LIFE_STEAL_ON_HIT, 0, 5), s, i, modifier));
-            all.append(cost(passive(id::ENERGY_REGEN, 0, -1), s, i, modifier));
-        } else if s == Source::SetBonus {
-            all.append(held(passive(id::HEALTH_REGEN, 0, 1), s, i, modifier));
-        } else {
-            all.append(held(passive(id::ARMOR_VS, damage::FIRE, 7), s, i, modifier));
-            all.append(cost(passive(id::ARMOR_VS, damage::COLD, 7), s, i, modifier));
-        }
-        i += 1;
-    }
-    let snapshot = SnapshotBuildTrait::build(@loadout(3, 20), all.span());
-    assert(snapshot.kit.life_steal == 25, 'life steal 25');
-    // 4 + 1 (light) − 5 = 0, the floor.
-    assert(snapshot.stats.energy_regen == 0, 'energy regen 0');
-    assert(snapshot.stats.health_regen == 12, 'health regen +2');
-    let [_, _, _, fire, cold, _, _, _, _] = snapshot.stats.armor_vs;
-    // 10 sources at 7: 70, saturated at 63 (FX-23).
-    assert(fire == 63 && cold == 63, 'armor vs 10 x 7 saturated');
-}
-
-// §6 test 3: the floors (DS-2), level 1 with every cost at its bound: refused.
-#[test]
-#[should_panic(expected: 'build: max health below 1')]
-#[available_gas(l2_gas: 2558126)] // ceil(1.05 × 2436310 measured)
-fn test_floor_max_health_refused() {
-    // Runes: +5 armor and −75 health; set bonuses −75: 100 − 375 − 150.
-    let mut all = array![];
-    let mut i: u8 = 10;
-    while i < 15 {
-        all.append(held(passive(id::ARMOR, 0, 5), Source::Rune, i, 400));
-        all.append(cost(passive(id::MAX_HEALTH, 0, -75), Source::Rune, i, 400));
-        i += 1;
-    }
-    all.append(held(passive(id::MAX_HEALTH, 0, -75), Source::SetBonus, 15, 0));
-    all.append(held(passive(id::MAX_HEALTH, 0, -75), Source::SetBonus, 16, 0));
-    SnapshotBuildTrait::build(@loadout(1, 1), all.span());
-}
-
-#[test]
-#[should_panic(expected: 'build: max energy below 0')]
-#[available_gas(l2_gas: 2056583)] // ceil(1.05 × 1958650 measured)
-fn test_floor_max_energy_refused() {
-    // A Vanguard's 20, five held slots and two set bonuses at −5: −15.
-    let all = everywhere(
-        passive(id::MAX_ENERGY, 0, -5),
-        array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
-    );
-    SnapshotBuildTrait::build(@loadout(1, 1), all.span());
-}
-
-#[test]
-#[should_panic(expected: 'build: energy regen below 0')]
-#[available_gas(l2_gas: 2056583)] // ceil(1.05 × 1958650 measured)
-fn test_floor_energy_regen_refused() {
-    // A Vanguard's 2 pips, five held slots and two set bonuses at −1: −5.
-    let all = everywhere(
-        passive(id::ENERGY_REGEN, 0, -1),
-        array![Source::Prefix, Source::Suffix, Source::Inscription, Source::SetBonus].span(),
-    );
-    SnapshotBuildTrait::build(@loadout(1, 1), all.span());
-}
-
-// §6 test 4 (DS-5): enchantment 340 → 50 (17 sources at 20), knock-down 4 → 3, armor against a
-// type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration 65,534 → 50:
-// `test_capacity::test_same_condition_capped`.
-#[test]
-#[available_gas(l2_gas: 17868921)] // ceil(1.05 × 17018020 measured)
-fn test_saturation() {
-    let all = everywhere(passive(id::ENCHANT_DURATION, 0, 20), sources());
-    let snapshot = SnapshotBuildTrait::build(@loadout(2, 20), all.span());
-    assert(snapshot.kit.enchantment_duration == 50, 'enchantment 340 -> 50');
-    let all = everywhere(
-        passive(id::KNOCKDOWN_FLAT, 0, 1), array![Source::Suffix, Source::Inscription].span(),
-    );
-    let snapshot = SnapshotBuildTrait::build(@loadout(2, 20), all.span());
-    assert(snapshot.kit.knockdown == 3, 'knock-down 4 -> 3');
-    let all = everywhere(passive(id::ARMOR_VS, damage::FIRE, 7), sources());
-    let snapshot = SnapshotBuildTrait::build(@loadout(2, 20), all.span());
-    let [_, _, _, fire, _, _, _, _, _] = snapshot.stats.armor_vs;
-    assert(fire == 63, 'armor vs 149 -> 63');
-}
-
-// §6 test 5 (FX-43, D-157 D): two health runes of one modifier id count once; of two ids, both.
-#[test]
-#[available_gas(l2_gas: 1930194)] // ceil(1.05 × 1838280 measured)
-fn test_rune_identity() {
-    let rune = passive(id::MAX_HEALTH, 0, 50);
-    let same = array![held(rune, Source::Rune, 10, 7), held(rune, Source::Rune, 11, 7)];
-    let snapshot = SnapshotBuildTrait::build(@loadout(1, 20), same.span());
-    assert(snapshot.stats.max_health == 480 + 50, 'one id: once');
-    let two = array![held(rune, Source::Rune, 10, 7), held(rune, Source::Rune, 11, 8)];
-    let snapshot = SnapshotBuildTrait::build(@loadout(1, 20), two.span());
-    assert(snapshot.stats.max_health == 480 + 100, 'two ids: both');
-}
-
-// The flattening refuses a build that is not one: a sixth rune, a source of two kinds.
-#[test]
-#[should_panic(expected: 'build: too many of a source')]
-#[available_gas(l2_gas: 1261817)] // ceil(1.05 × 1201730 measured)
-fn test_sixth_rune_refused() {
-    let mut all = array![];
-    let mut i: u8 = 0;
-    while i < 6 {
-        all.append(held(passive(id::ARMOR, 0, 5), Source::Rune, i, 1));
-        i += 1;
-    }
-    SnapshotBuildTrait::build(@loadout(1, 20), all.span());
-}
-
-#[test]
-#[should_panic(expected: 'build: one source, one kind')]
-#[available_gas(l2_gas: 285968)] // ceil(1.05 × 272350 measured)
-fn test_instance_of_two_kinds_refused() {
-    let all = array![
-        held(passive(id::ARMOR, 0, 5), Source::Rune, 0, 1),
-        held(passive(id::ARMOR, 0, 5), Source::Insignia, 0, 1),
-    ];
-    SnapshotBuildTrait::build(@loadout(1, 20), all.span());
 }
 
 /// A caste at design/20's bounds (DS-18, DS-29): multiplier 1,000 %, energy 85, regeneration 10
@@ -709,19 +321,6 @@ fn test_caste_skill_of_64_strikes_refused() {
 fn test_caste_health_regen_21_refused_at_pack() {
     let caste = Caste { health_regen: 21, ..caste_at_bounds() };
     Record::<Caste>::pack(@caste);
-}
-
-#[test]
-#[available_gas(l2_gas: 113117)] // ceil(1.05 × 107730 measured)
-fn test_stats_health_regen_20_packs() {
-    pack_stats(MemberStats { health_regen: 20, ..Default::default() });
-}
-
-#[test]
-#[should_panic(expected: 'snapshot: health regen')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
-fn test_stats_health_regen_21_refused() {
-    pack_stats(MemberStats { health_regen: 21, ..Default::default() });
 }
 
 // §6 test 7: one hit's product in a `u64` (§1.6): B's base 33,022 at x = 80 and A's 163,836.
