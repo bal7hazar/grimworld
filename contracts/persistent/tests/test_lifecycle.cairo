@@ -1,15 +1,17 @@
 // ENG-06: the hub's side of the instance lifecycle (design/02 *Expedition lifecycle*, design/01
 // *Connectivity*; ENG-01 §6, §9.3, §10; D-141 E-15, D-144): `enter` (the gate's requirements,
 // the belt's reserve, the snapshot), `travel`, the settlement `report`, and the start hub read from
-// the registry. `Registry` is the real one; `Instances` is a double that records what `create`
+// the registry. CBT-02e (D-168): `enter` copies the snapshot `set_build` stored and refuses a
+// missing or stale one; the tests that are not about the build store one as `set_build` does
+// (`put_snapshot`), and those below `enter_after_set_build` take the real path. `Registry` is the real one; `Instances` is a double that records what `create`
 // receives (the real one is in `grimworld_ephemeral`, which this package does not depend on; the
 // node probe `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys
 // a test watches (`load` before and after).
 use core::testing::get_available_gas;
 use grimworld_logic::content::{GATE, ITEM, LOCATION, REGION, SKILL};
 use grimworld_logic::interface::{
-    IResultsDispatcher, IResultsDispatcherTrait, IResultsSafeDispatcher,
-    IResultsSafeDispatcherTrait, Results, facts,
+    IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IResultsDispatcher,
+    IResultsDispatcherTrait, IResultsSafeDispatcher, IResultsSafeDispatcherTrait, Results, facts,
 };
 use grimworld_logic::models::gate::{
     GateRecord, GateTrait, errors as gate_errors, kind as gate_kind,
@@ -19,7 +21,9 @@ use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as l
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
-use grimworld_logic::snapshot::{Snapshot, SnapshotTrait};
+use grimworld_logic::snapshot::{
+    SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats,
+};
 use grimworld_logic::types::{Outcome, instance_id};
 use grimworld_persistent::events::AdventurerLocated;
 use grimworld_persistent::models::account::{PACK, owner_key};
@@ -28,10 +32,12 @@ use grimworld_persistent::models::adventurer::errors::{
     NOT_UNLOCKED, NO_ADVENTURER, NO_START_REGION,
 };
 use grimworld_persistent::models::adventurer::{
-    AdventurerCore, AdventurerPlace, AdventurerPlaceTrait,
+    AdventurerCore, AdventurerPlace, AdventurerPlaceTrait, NEW_BUILD,
 };
 use grimworld_persistent::models::balance::errors::NOT_ENOUGH;
 use grimworld_persistent::models::item::Gold;
+use grimworld_persistent::models::snapshot::errors::{MISSING, STALE};
+use grimworld_persistent::models::snapshot::{STALE_MARK, StoredSnapshotTrait};
 use grimworld_persistent::systems::hub::Hub::Event;
 use grimworld_persistent::systems::hub::{
     IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
@@ -55,7 +61,7 @@ pub struct Created {
     pub adventurer: u32,
     pub controller: ContractAddress,
     pub gate: u16,
-    pub snapshot: Snapshot,
+    pub snapshot: SnapshotWords,
     pub tasks: u32,
 }
 
@@ -69,7 +75,7 @@ pub trait ICreated<T> {
 #[starknet::contract]
 mod EntryDouble {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::snapshot::{Snapshot, TaskEntry};
+    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
     use grimworld_logic::types::{InstanceId, instance_id};
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, get_caller_address};
@@ -82,7 +88,6 @@ mod EntryDouble {
         adventurer: u32,
         controller: ContractAddress,
         gate: u16,
-        snapshot: felt252,
         tasks: u32,
         stats: felt252,
         bar: felt252,
@@ -102,7 +107,7 @@ mod EntryDouble {
             adventurer_id: u32,
             controller: ContractAddress,
             gate: u16,
-            snapshot: Snapshot,
+            snapshot: SnapshotWords,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
             assert(get_caller_address() == self.hub.read(), 'double: not the hub');
@@ -112,9 +117,9 @@ mod EntryDouble {
             self.controller.write(controller);
             self.gate.write(gate);
             self.tasks.write(tasks.len());
-            self.stats.write(starknet::storage_access::StorePacking::pack(snapshot.stats));
-            self.bar.write(starknet::storage_access::StorePacking::pack(snapshot.bar));
-            self.kit.write(starknet::storage_access::StorePacking::pack(snapshot.kit));
+            self.stats.write(snapshot.stats);
+            self.bar.write(snapshot.bar);
+            self.kit.write(snapshot.kit);
             let [a, b, c, d] = snapshot.belt_counts;
             self
                 .belt
@@ -135,10 +140,10 @@ mod EntryDouble {
                 adventurer: self.adventurer.read(),
                 controller: self.controller.read(),
                 gate: self.gate.read(),
-                snapshot: Snapshot {
-                    stats: starknet::storage_access::StorePacking::unpack(self.stats.read()),
-                    bar: starknet::storage_access::StorePacking::unpack(self.bar.read()),
-                    kit: starknet::storage_access::StorePacking::unpack(self.kit.read()),
+                snapshot: SnapshotWords {
+                    stats: self.stats.read(),
+                    bar: self.bar.read(),
+                    kit: self.kit.read(),
                     belt_counts: [
                         (belt % 0x100).try_into().unwrap(),
                         ((belt / 0x100) % 0x100).try_into().unwrap(),
@@ -207,9 +212,10 @@ fn setup_with_town(town: u16) -> World {
     let (hub, _) = class.deploy(@array![ADMIN, registry.into(), 3, 4, 5]).unwrap();
     let class = declare("EntryDouble").unwrap().contract_class();
     let (instances, _) = class.deploy(@array![hub.into()]).unwrap();
+    let flatten = *declare("FlattenLibrary").unwrap().contract_class().class_hash;
     start_cheat_caller_address(hub, addr(ADMIN));
     IHubAdminDispatcher { contract_address: hub }
-        .set_contracts(registry, instances, addr(4), addr(5));
+        .set_contracts(registry, instances, addr(4), addr(5), flatten);
 
     start_cheat_caller_address(registry, addr(ADMIN));
     let admin = IRegistryAdminDispatcher { contract_address: registry };
@@ -242,11 +248,26 @@ fn try_act(world: World, who: felt252) -> IHubSafeDispatcher {
     IHubSafeDispatcher { contract_address: world.hub }
 }
 
-/// Alice's account and one Vanguard: adventurer 1.
+/// Alice's account and one Vanguard: adventurer 1, with a snapshot (`put_snapshot`).
 fn adventurer(world: World) -> u32 {
     let hub = act(world, ALICE);
     hub.register();
-    hub.create_adventurer('Aldric', VANGUARD)
+    let id = hub.create_adventurer('Aldric', VANGUARD);
+    put_snapshot(world, id, [0; 4]);
+    id
+}
+
+/// The snapshot of `id` as `set_build` stores it (D-168): a level 1 Vanguard's without equipment
+/// (`SnapshotTrait::new`), its kit naming the belt's `items`, sealed with the registry's content
+/// version. Returns its words.
+fn put_snapshot(world: World, id: u32, items: [u32; 4]) -> SnapshotWords {
+    let words = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, items, [0; 4]).words();
+    let version = IRegistryReadDispatcher { contract_address: world.registry }.content_version();
+    let key = snapshot_key(id);
+    write(world.hub, key, words.stats);
+    write(world.hub, key + 1, words.bar);
+    write(world.hub, key + 2, StoredSnapshotTrait::seal(words.kit, version));
+    words
 }
 
 fn refused<T, +Drop<T>>(result: Result<T, Array<felt252>>, message: felt252) {
@@ -262,6 +283,9 @@ fn adventurer_word(id: u32, word: felt252) -> felt252 {
 }
 fn pack_page(id: u32, page: u32) -> felt252 {
     map_entry_address(selector!("balances"), array![owner_key(PACK, id), page.into()].span())
+}
+fn snapshot_key(id: u32) -> felt252 {
+    map_entry_address(selector!("snapshots"), array![id.into()].span())
 }
 fn gold_key(id: u32) -> felt252 {
     map_entry_address(selector!("gold"), array![owner_key(PACK, id)].span())
@@ -395,7 +419,7 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 25926443)] // ceil(1.05 × 24691850 measured)
+#[available_gas(l2_gas: 28109519)] // ceil(1.05 × 26770970 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
     let id = adventurer(world);
@@ -438,7 +462,7 @@ fn test_start_hub_refusals() {
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 38044440)] // ceil(1.05 × 36232800 measured)
+#[available_gas(l2_gas: 41223725)] // ceil(1.05 × 39260690 measured)
 fn test_enter() {
     let world = setup();
     let id = adventurer(world);
@@ -454,9 +478,11 @@ fn test_enter() {
     assert(changes(before.span(), after.span()) == (0, 1, 0), 'writes: place');
     let expected = AdventurerPlace { instance, hub: 0, last_hub: TOWN, inside: 1, unlocked: 0x2 };
     assert(place_of(world, id) == expected, 'inside');
-    let snapshot = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, [0; 4], [0; 4]);
-    assert(snapshot.stats.max_health == 100 && snapshot.stats.max_energy == 20, 'base stats');
-    assert(snapshot.stats.energy_regen == 2 && snapshot.bar.armor == 80, 'vanguard');
+    let base = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, [0; 4], [0; 4]);
+    assert(base.stats.max_health == 100 && base.stats.max_energy == 20, 'base stats');
+    assert(base.stats.energy_regen == 2 && base.bar.armor == 80, 'vanguard');
+    // The stored words, copied (D-168).
+    let snapshot = base.words();
     let got = created(world);
     let expected = Created {
         count: 1, adventurer: id, controller: addr(ALICE), gate: INTO_ZONE, snapshot, tasks: 0,
@@ -471,6 +497,8 @@ fn test_enter() {
     // A link from a hub is a gate too.
     let hub = act(world, ALICE);
     let second = hub.create_adventurer('Brenna', VANGUARD);
+    put_snapshot(world, second, [0; 4]);
+    let hub = act(world, ALICE);
     assert(hub.enter(second, 7) == instance_id(1, 2), 'through a link');
 }
 
@@ -478,11 +506,12 @@ fn test_enter() {
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 36475887)] // ceil(1.05 × 34738940 measured)
+#[available_gas(l2_gas: 38761643)] // ceil(1.05 × 36915850 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
     let id = adventurer(world);
     set_belt(world, id, [7, 15, 22, 29], [3, 2, 1, 5]);
+    put_snapshot(world, id, [7, 15, 22, 29]);
     give(world, id, 7, 3);
     give(world, id, 15, 2);
     give(world, id, 22, 1);
@@ -503,7 +532,9 @@ fn test_enter_reserves_the_belt() {
     }
     assert(core_of(world, id).pack_lanes == 0, 'lanes emptied');
     let snapshot = created(world).snapshot;
-    assert(snapshot.kit.belt == [7, 15, 22, 29] && snapshot.belt_counts == [3, 2, 1, 5], 'belt');
+    let stored = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, [7, 15, 22, 29], [3, 2, 1, 5]);
+    assert(snapshot == stored.words(), 'the stored words');
+    assert(unpack_kit(snapshot.kit).belt == [7, 15, 22, 29], 'belt');
     // Pages hold `LIVE` after the debit: never 0 again (ENG-01 §2.2).
     assert(read(world.hub, pack_page(id, 1)) == LIVE, 'page kept live');
 }
@@ -512,7 +543,7 @@ fn test_enter_reserves_the_belt() {
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 33145266)] // ceil(1.05 × 31566920 measured)
+#[available_gas(l2_gas: 34983470)] // ceil(1.05 × 33317590 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
     let id = adventurer(world);
@@ -569,7 +600,7 @@ fn test_enter_refusals() {
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 45745886)] // ceil(1.05 × 43567510 measured)
+#[available_gas(l2_gas: 48653234)] // ceil(1.05 × 46336413 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -615,17 +646,92 @@ fn test_enter_after_set_build() {
     act(world, ALICE).enter(id, INTO_ZONE);
     assert(balance(world, id, 8) == 2, 'reserve debited');
     let snapshot = created(world).snapshot;
-    assert(snapshot.kit.belt == [0, 8, 0, 0] && snapshot.belt_counts == [0, 3, 0, 0], 'belt');
-    assert(snapshot.bar.skills == [0, 1, 0, 0, 0, 0, 0, 0] && snapshot.bar.elite_slot == 1, 'bar');
+    assert(unpack_kit(snapshot.kit).belt == [0, 8, 0, 0], 'belt');
+    assert(snapshot.belt_counts == [0, 3, 0, 0], 'counts');
+    let bar = unpack_bar(snapshot.bar);
+    assert(bar.skills == [0, 1, 0, 0, 0, 0, 0, 0] && bar.elite_slot == 1, 'bar');
+    // The words `set_build` stored, copied (D-168).
+    let key = snapshot_key(id);
+    let version = IRegistryReadDispatcher { contract_address: world.registry }.content_version();
+    let stored = SnapshotWords {
+        stats: read(world.hub, key),
+        bar: read(world.hub, key + 1),
+        kit: StoredSnapshotTrait::kit(read(world.hub, key + 2), version),
+        belt_counts: [0, 3, 0, 0],
+    };
+    assert(snapshot == stored, 'the stored words');
     #[feature("safe_dispatcher")]
     refused(try_act(world, ALICE).set_build(id, build, belt - LIVE, 0), NOT_IN_HUB);
+}
+
+/// The build of a new adventurer, as the client sends it (`NEW_BUILD` without `LIVE`).
+const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
+
+// CBT-02e (D-168 2): `enter` refuses an adventurer whose snapshot `set_build` never stored,
+// changing nothing; after `set_build`, it enters.
+#[test]
+#[available_gas(l2_gas: 36752650)] // ceil(1.05 × 35002523 measured)
+fn test_enter_refuses_a_missing_snapshot() {
+    let world = setup();
+    let hub = act(world, ALICE);
+    hub.register();
+    let id = hub.create_adventurer('Aldric', VANGUARD);
+    let keys = watched(id);
+    let before = values(world.hub, keys.span());
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), MISSING);
+    let after = values(world.hub, keys.span());
+    assert(changes(before.span(), after.span()) == (0, 0, 0), 'nothing changed');
+    assert(created(world).count == 0, 'nothing created');
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered after set_build');
+}
+
+// D-168 2: every way a stored snapshot goes stale is refused by `enter`, and `set_build` clears
+// it: a record the administrator changed (the content version moves), a level up (GLD-01's, written
+// here with `store`), and the stale mark (what the entrypoints of the report's staleness table
+// write). The snapshot finally copied is the level-2 one.
+#[test]
+#[available_gas(l2_gas: 45249921)] // ceil(1.05 × 43095162 measured)
+fn test_enter_refuses_a_stale_snapshot() {
+    let world = setup();
+    let id = adventurer(world);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+
+    // A record changed after `set_build`.
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    IRegistryAdminDispatcher { contract_address: world.registry }
+        .set_record(GATE, 8, gate(TOWN, ZONE, gate_kind::HUB, 0, 0));
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+
+    // A level up.
+    let core = core_of(world, id);
+    write(world.hub, adventurer_word(id, 0), StorePacking::pack(AdventurerCore { level: 2, ..core }));
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+
+    // The mark.
+    write(world.hub, snapshot_key(id) + 2, STALE_MARK);
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    assert(created(world).count == 0, 'nothing created');
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+
+    act(world, ALICE).enter(id, INTO_ZONE);
+    let snapshot = created(world).snapshot;
+    assert(unpack_stats(snapshot.stats).level == 2, 'the level-2 snapshot');
+    assert(unpack_stats(snapshot.stats).max_health == 120, '100 + 20');
 }
 
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 34892190)] // ceil(1.05 × 33230657 measured)
+#[available_gas(l2_gas: 36730394)] // ceil(1.05 × 34981327 measured)
 fn test_travel() {
     let world = setup();
     let id = adventurer(world);
@@ -680,6 +786,7 @@ fn test_travel() {
 fn inside_with_a_belt(world: World) -> (u32, u64) {
     let id = adventurer(world);
     set_belt(world, id, [7, 15, 22, 29], [3, 2, 1, 5]);
+    put_snapshot(world, id, [7, 15, 22, 29]);
     give(world, id, 7, 3);
     give(world, id, 15, 2);
     give(world, id, 22, 1);
@@ -692,7 +799,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 37088803)] // ceil(1.05 × 35322669 measured)
+#[available_gas(l2_gas: 39359218)] // ceil(1.05 × 37484969 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -734,7 +841,7 @@ fn test_report_returned_through_a_hub_gate() {
 // return (D-141, E-15).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 38425068)] // ceil(1.05 × 36595302 measured)
+#[available_gas(l2_gas: 40350610)] // ceil(1.05 × 38429152 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -768,7 +875,7 @@ fn test_report_to_the_last_hub() {
 // carries). Writes: `place`.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 37423419)] // ceil(1.05 × 35641351 measured)
+#[available_gas(l2_gas: 39693834)] // ceil(1.05 × 37803651 measured)
 fn test_report_moved() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);

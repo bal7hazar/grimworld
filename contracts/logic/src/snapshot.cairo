@@ -1329,6 +1329,8 @@ pub impl TaskPageStorePacking of starknet::storage_access::StorePacking<TaskPage
 mod tests {
     use crate::durations::MAX_DURATION_BONUS_PERCENT;
     use crate::models::base::slot as base_slot;
+    use crate::models::index::Modifier;
+    use crate::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
     use crate::packing::LIVE;
     use crate::professions::ProfessionTrait;
     use crate::types::combat::{condition, damage, weapon};
@@ -1340,7 +1342,8 @@ mod tests {
         BuildAssert, HEAVY_VS_PHYSICAL, HeldPassive, LIGHT_ENERGY, LIGHT_ENERGY_REGEN, Loadout,
         MAX_ARMOR_VS, MAX_KNOCKDOWN, MAX_UNGUARDED_ARMOR, MEDIUM_VS_ELEMENTAL, MemberBar, MemberKit,
         MemberKitTrait, MemberStats, PERSONALISED_DAMAGE_PERCENT, QuickCast, STRENGTH_PER_RANK,
-        Snapshot, SnapshotBuildTrait, TaskEntry, TaskPage, WELLSPRING_ENERGY_PER_RANK, errors, fit,
+        Snapshot, SnapshotBuildTrait, SnapshotTrait, SnapshotWords, TaskEntry, TaskPage,
+        WELLSPRING_ENERGY_PER_RANK, Worn, WornTrait, errors, fit,
         pack_bar, pack_kit, pack_stats, pack_task_page, saturate, unpack_bar, unpack_kit,
         unpack_stats, unpack_task_page,
     };
@@ -2639,5 +2642,160 @@ mod tests {
             ]
                 .span(),
         );
+    }
+
+    // ---- the items worn (CBT-02e, D-168: `WornTrait::held`, `SnapshotBuildTrait::words`) -----
+
+    /// The `MODIFIER` records of the tests below, one part each as the registry stores them: 1 a
+    /// prefix and 2 a suffix (life steal 1…5, costing 7 armor against cold), 3 an insignia made
+    /// for the chest (armor against fire 1…7, no cost), 4 a rune (fire 1…7, costing 7 against
+    /// cold).
+    fn worn_records() -> (Span<u16>, Span<felt252>) {
+        let cold = PassiveTrait::new(id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
+        let steal = PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);
+        let fire = PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
+        let none: Passive = Default::default();
+        let records: Array<Modifier> = array![
+            ModifierTrait::new(modifier_slot::PREFIX, steal, cold),
+            ModifierTrait::new(modifier_slot::SUFFIX, steal, cold),
+            ModifierTrait::insignia(base_slot::CHEST, fire, none),
+            ModifierTrait::new(modifier_slot::RUNE, fire, cold),
+        ];
+        let mut parts = array![];
+        for record in records.span() {
+            parts.append(*ModifierRecord::pack(record)[0]);
+        }
+        (array![1, 2, 3, 4].span(), parts.span())
+    }
+
+    /// A sword (lane 0) holding modifiers 1 and 2 rolled at 5 and 3, and a chest (lane 2) holding
+    /// the insignia rolled at 6 and the rune at 7.
+    fn worn_items() -> Span<Worn> {
+        array![
+            Worn {
+                lane: 0, slot: base_slot::WEAPON, ids: [1, 2, 0, 0, 0], values: [5, 3, 0, 0, 0],
+            },
+            Worn {
+                lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 3, 4], values: [0, 0, 0, 6, 7],
+            },
+        ]
+            .span()
+    }
+
+    // Each modifier's benefit at its rolled value, then its cost; instances `5 × lane + slot`; the
+    // insignia's piece the chest's slot.
+    #[test]
+    #[available_gas(l2_gas: 718998)] // ceil(1.05 × 684760 measured)
+    fn test_worn_held() {
+        let (ids, records) = worn_records();
+        let held_passives = WornTrait::held(worn_items(), ids, records);
+        let cold = passive(id::ARMOR_VS, damage::COLD, 7);
+        let expected = array![
+            held(PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5), Source::Prefix, 0, 1),
+            cost(cold, Source::Prefix, 0, 1),
+            held(PassiveTrait::new(id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 3), Source::Suffix, 1, 2),
+            cost(cold, Source::Suffix, 1, 2),
+            HeldPassive {
+                passive: PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 6),
+                source: Source::Insignia,
+                instance: 13,
+                modifier: 3,
+                benefit: true,
+                piece: base_slot::CHEST,
+            },
+            held(PassiveTrait::new(id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7), Source::Rune, 14, 4),
+            cost(cold, Source::Rune, 14, 4),
+        ];
+        assert(held_passives == expected, 'held');
+    }
+
+    // The words are the flattening's, packed: of the passives held, and of no item at all.
+    #[test]
+    #[available_gas(l2_gas: 4042456)] // ceil(1.05 × 3849958 measured)
+    fn test_words_are_the_flattening() {
+        let (ids, records) = worn_records();
+        let build = loadout(1, 20);
+        let (stats, bar, kit) = SnapshotBuildTrait::words(@build, worn_items(), ids, records);
+        let held_passives = WornTrait::held(worn_items(), ids, records);
+        let snapshot = SnapshotBuildTrait::build(@build, held_passives.span());
+        assert(
+            SnapshotWords { stats, bar, kit, belt_counts: build.belt_counts } == snapshot.words(),
+            'words',
+        );
+        assert(unpack_kit(kit).life_steal == 8, 'life steal 5 + 3');
+        let (stats, bar, kit) = SnapshotBuildTrait::words(
+            @build, array![].span(), array![].span(), array![].span(),
+        );
+        let empty = SnapshotBuildTrait::build(@build, array![].span());
+        assert(stats == pack_stats(empty.stats), 'empty stats');
+        assert(bar == pack_bar(empty.bar), 'empty bar');
+        assert(kit == pack_kit(empty.kit), 'empty kit');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 366125)] // ceil(1.05 × 348690 measured)
+    #[should_panic(expected: 'item: no such modifier')]
+    fn test_worn_unknown_modifier_refused() {
+        let (ids, _) = worn_records();
+        WornTrait::held(worn_items(), ids, array![0, 0, 0, 0].span());
+    }
+
+    // A rune (4) in the insignia's slot.
+    #[test]
+    #[available_gas(l2_gas: 555072)] // ceil(1.05 × 528640 measured)
+    #[should_panic(expected: 'item: modifier slot type')]
+    fn test_worn_slot_type_refused() {
+        let (ids, records) = worn_records();
+        let item = Worn {
+            lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 4, 0], values: [0, 0, 0, 7, 0],
+        };
+        WornTrait::held(array![item].span(), ids, records);
+    }
+
+    // Fire 1…7: 8 is refused, and 0 (`test_worn_value_below_refused`).
+    #[test]
+    #[available_gas(l2_gas: 548342)] // ceil(1.05 × 522230 measured)
+    #[should_panic(expected: 'item: modifier value')]
+    fn test_worn_value_above_refused() {
+        let (ids, records) = worn_records();
+        let item = Worn {
+            lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 4], values: [0, 0, 0, 0, 8],
+        };
+        WornTrait::held(array![item].span(), ids, records);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 547848)] // ceil(1.05 × 521760 measured)
+    #[should_panic(expected: 'item: modifier value')]
+    fn test_worn_value_below_refused() {
+        let (ids, records) = worn_records();
+        let item = Worn {
+            lane: 2, slot: base_slot::CHEST, ids: [0, 0, 0, 0, 4], values: [0, 0, 0, 0, 0],
+        };
+        WornTrait::held(array![item].span(), ids, records);
+    }
+
+    // DS-23: the chest's insignia on the legs.
+    #[test]
+    #[available_gas(l2_gas: 552615)] // ceil(1.05 × 526300 measured)
+    #[should_panic(expected: 'item: insignia piece')]
+    fn test_worn_insignia_piece_refused() {
+        let (ids, records) = worn_records();
+        let item = Worn {
+            lane: 3, slot: base_slot::LEGS, ids: [0, 0, 0, 3, 0], values: [0, 0, 0, 6, 0],
+        };
+        WornTrait::held(array![item].span(), ids, records);
+    }
+
+    // `SnapshotTrait::words` packs the three words of a snapshot and keeps the belt's counts.
+    #[test]
+    #[available_gas(l2_gas: 484155)] // ceil(1.05 × 461100 measured)
+    fn test_snapshot_words() {
+        let snapshot = SnapshotTrait::new(3, 1, [1, 2, 0, 0, 0, 0, 0, 0], 255, [7; 4], [1, 2, 3, 4]);
+        let words = snapshot.words();
+        assert(unpack_stats(words.stats) == snapshot.stats, 'stats');
+        assert(unpack_bar(words.bar) == snapshot.bar, 'bar');
+        assert(unpack_kit(words.kit) == snapshot.kit, 'kit');
+        assert(words.belt_counts == [1, 2, 3, 4], 'counts');
     }
 }

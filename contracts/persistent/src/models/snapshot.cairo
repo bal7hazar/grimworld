@@ -105,7 +105,7 @@ mod tests {
 
     // Sealed with the widest kit and version, the kit comes back whole, and the state reads.
     #[test]
-    #[available_gas(l2_gas: 160000)]
+    #[available_gas(l2_gas: 304731)] // ceil(1.05 × 290220 measured)
     fn test_seal_round_trip() {
         let version = 0xffffffff;
         let word = StoredSnapshotTrait::seal(kit(), version);
@@ -118,28 +118,28 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 40000)]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
     #[should_panic(expected: 'snapshot: missing')]
     fn test_missing_refused() {
         StoredSnapshotAssert::assert_fresh(0, 0);
     }
 
     #[test]
-    #[available_gas(l2_gas: 60000)]
+    #[available_gas(l2_gas: 20685)] // ceil(1.05 × 19700 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_stale_mark_refused() {
         StoredSnapshotAssert::assert_fresh(STALE_MARK, 0);
     }
 
     #[test]
-    #[available_gas(l2_gas: 80000)]
+    #[available_gas(l2_gas: 70539)] // ceil(1.05 × 67180 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_version_refused() {
         StoredSnapshotAssert::assert_fresh(StoredSnapshotTrait::seal(kit(), 4), 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 40000)]
+    #[available_gas(l2_gas: 127985)] // ceil(1.05 × 121890 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_level_refused() {
         let stats = pack_stats(MemberStats { level: 3, ..Default::default() });
@@ -149,7 +149,7 @@ mod tests {
 
     // The stale mark is `LIVE` and bit 240 alone.
     #[test]
-    #[available_gas(l2_gas: 40000)]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_stale_mark_bits() {
         assert(STALE_MARK == LIVE + 0x1000000000000000000000000000000000000000000000000000000000000, 'mark');
         assert(errors::STALE != errors::MISSING, 'errors');

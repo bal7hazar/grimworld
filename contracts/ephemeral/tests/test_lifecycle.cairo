@@ -340,6 +340,7 @@ fn setup() -> World {
     World { instances, registry, fate, hub }
 }
 
+/// The snapshot of the tests; `create` receives its packed words (`words`, D-168).
 fn snapshot() -> Snapshot {
     SnapshotTrait::new(3, 1, [11, 12, 0, 0, 0, 0, 0, 0], 255, [41, 42, 0, 0], [2, 1, 0, 0])
 }
@@ -356,7 +357,7 @@ fn tasks(count: u32) -> Span<TaskEntry> {
 fn create(world: World, adventurer: u32, who: felt252, gate: u16, count: u32) -> u64 {
     start_cheat_caller_address(world.instances, world.hub);
     IInstanceEntryDispatcher { contract_address: world.instances }
-        .create(adventurer, addr(who), gate, snapshot(), tasks(count))
+        .create(adventurer, addr(who), gate, snapshot().words(), tasks(count))
 }
 
 fn play(world: World, who: felt252) -> IInstancesDispatcher {
@@ -483,7 +484,7 @@ fn test_create_first_entry() {
     start_cheat_caller_address(world.instances, world.hub);
     let entry = IInstanceEntryDispatcher { contract_address: world.instances };
     let gas = get_available_gas();
-    let id = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(16));
+    let id = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(16));
     println!("gas create, first entry, 16 tasks (doubles): {}", gas - get_available_gas());
     assert(id == instance_id(1, 1), 'slot 1, generation 1');
     let after = values(world.instances, keys.span());
@@ -603,7 +604,7 @@ fn test_create_reuses_the_slot() {
     start_cheat_caller_address(world.instances, world.hub);
     let entry = IInstanceEntryDispatcher { contract_address: world.instances };
     let gas = get_available_gas();
-    let second = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(16));
+    let second = entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(16));
     println!("gas create, later entry, 16 tasks (doubles): {}", gas - get_available_gas());
     assert(second == instance_id(1, 2), 'slot 1, generation 2');
     let after = values(world.instances, keys.span());
@@ -622,20 +623,20 @@ fn test_create_refusals() {
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
     start_cheat_caller_address(world.instances, addr(ALICE));
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(0)), NOT_HUB);
+    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(0)), NOT_HUB);
     start_cheat_caller_address(world.instances, world.hub);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(17)), TOO_MANY_TASKS);
+    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(17)), TOO_MANY_TASKS);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), 99, snapshot(), tasks(0)), NO_GATE);
+    refused(entry.create(HERO, addr(ALICE), 99, snapshot().words(), tasks(0)), NO_GATE);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), TO_NOWHERE, snapshot(), tasks(0)), NO_LOCATION);
+    refused(entry.create(HERO, addr(ALICE), TO_NOWHERE, snapshot().words(), tasks(0)), NO_LOCATION);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), ZONE_TO_TOWN, snapshot(), tasks(0)), NO_MAP);
+    refused(entry.create(HERO, addr(ALICE), ZONE_TO_TOWN, snapshot().words(), tasks(0)), NO_MAP);
     assert(draws(world) == 0, 'no draw');
     create(world, HERO, ALICE, INTO_ZONE, 0);
     #[feature("safe_dispatcher")]
-    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot(), tasks(0)), ALREADY_INSIDE);
+    refused(entry.create(HERO, addr(ALICE), INTO_ZONE, snapshot().words(), tasks(0)), ALREADY_INSIDE);
 }
 
 // A sealed destination sets the header's flag (design/17).
@@ -726,7 +727,7 @@ fn test_generation_isolation() {
     );
     start_cheat_caller_address(world.instances, world.hub);
     let second = IInstanceEntryDispatcher { contract_address: world.instances }
-        .create(HERO, addr(BOB), INTO_ZONE, other, tasks(1));
+        .create(HERO, addr(BOB), INTO_ZONE, other.words(), tasks(1));
     let view = play(world, BOB).instance_state(second);
     let header = header_of(world, 1);
     assert(header.generation == 2 && header.roster_count == 0, 'roster count reset');

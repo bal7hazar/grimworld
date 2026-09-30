@@ -20,19 +20,20 @@ fn deploy_hub() -> ContractAddress {
     address
 }
 
-// (admin, registry, instances, market, fate) as stored.
-fn stored(hub: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252) {
+// (admin, registry, instances, market, fate, flatten) as stored.
+fn stored(hub: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252, felt252) {
     (
         *load(hub, selector!("admin"), 1).at(0),
         *load(hub, selector!("registry"), 1).at(0),
         *load(hub, selector!("instances"), 1).at(0),
         *load(hub, selector!("market"), 1).at(0),
         *load(hub, selector!("fate"), 1).at(0),
+        *load(hub, selector!("flatten"), 1).at(0),
     )
 }
 
 #[test]
-#[available_gas(l2_gas: 4457733)] // ceil(1.05 × 4245460 measured)
+#[available_gas(l2_gas: 4939893)] // ceil(1.05 × 4704660 measured)
 fn test_hub_set_contracts_by_admin() {
     let hub = deploy_hub();
     start_cheat_caller_address(hub, ADMIN.try_into().unwrap());
@@ -42,8 +43,9 @@ fn test_hub_set_contracts_by_admin() {
             0x13.try_into().unwrap(),
             0x14.try_into().unwrap(),
             0x15.try_into().unwrap(),
+            0x16.try_into().unwrap(),
         );
-    assert(stored(hub) == (ADMIN, 0x12, 0x13, 0x14, 0x15), 'set by the admin');
+    assert(stored(hub) == (ADMIN, 0x12, 0x13, 0x14, 0x15, 0x16), 'set by the admin');
 }
 
 #[test]
@@ -58,14 +60,15 @@ fn test_hub_set_contracts_refused_to_others() {
             0x13.try_into().unwrap(),
             0x14.try_into().unwrap(),
             0x15.try_into().unwrap(),
+            0x16.try_into().unwrap(),
         );
     assert(*result.unwrap_err().at(0) == NOT_ADMIN, 'not admin');
-    assert(stored(hub) == (ADMIN, 2, 3, 4, 5), 'unchanged');
+    assert(stored(hub) == (ADMIN, 2, 3, 4, 5, 0), 'unchanged');
 }
 
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
-#[available_gas(l2_gas: 5140527)] // ceil(1.05 × 4895740 measured)
+#[available_gas(l2_gas: 5636138)] // ceil(1.05 × 5367750 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_hands_over() {
     let hub = deploy_hub();
@@ -78,6 +81,7 @@ fn test_hub_set_admin_hands_over() {
             3.try_into().unwrap(),
             4.try_into().unwrap(),
             0x66.try_into().unwrap(),
+            0x67.try_into().unwrap(),
         );
     assert(*result.unwrap_err().at(0) == NOT_ADMIN, 'former admin refused');
     let result = safe.set_admin(ADMIN.try_into().unwrap());
@@ -90,9 +94,10 @@ fn test_hub_set_admin_hands_over() {
             3.try_into().unwrap(),
             4.try_into().unwrap(),
             0x66.try_into().unwrap(),
+            0x67.try_into().unwrap(),
         )
         .unwrap();
-    assert(stored(hub) == (0xad2, 2, 3, 4, 0x66), 'the new admin sets');
+    assert(stored(hub) == (0xad2, 2, 3, 4, 0x66, 0x67), 'the new admin sets');
 }
 
 #[test]
@@ -109,5 +114,5 @@ fn test_hub_set_admin_refused() {
     stop_cheat_caller_address(hub);
     start_cheat_caller_address(hub, ADMIN.try_into().unwrap());
     assert(*safe.set_admin(0.try_into().unwrap()).unwrap_err().at(0) == ZERO_ADMIN, 'zero refused');
-    assert(stored(hub) == (ADMIN, 2, 3, 4, 5), 'unchanged');
+    assert(stored(hub) == (ADMIN, 2, 3, 4, 5, 0), 'unchanged');
 }

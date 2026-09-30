@@ -1120,7 +1120,7 @@ mod layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 270669)] // ceil(1.05 × 257780 measured)
+    #[available_gas(l2_gas: 285443)] // ceil(1.05 × 271850 measured)
     fn test_hub_storage_addresses() {
         let state = @Hub::contract_state_for_testing();
         assert(
