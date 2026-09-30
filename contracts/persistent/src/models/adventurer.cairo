@@ -7,7 +7,6 @@ use grimworld_logic::packing::{
     byte_at, field, fits, join, low_field, split, u16_at, u32_at,
 };
 use grimworld_logic::professions::ProfessionTrait;
-use grimworld_logic::snapshot::Loadout;
 use starknet::ContractAddress;
 use crate::helpers::BitTrait;
 
@@ -354,49 +353,6 @@ pub impl BuildImpl of BuildTrait {
             index < ProfessionTrait::attributes(primary)
         } else {
             secondary != 0 && index - SECONDARY_FIRST + 1 < ProfessionTrait::attributes(secondary)
-        }
-    }
-
-    /// What the snapshot's flattening reads besides the passives (`SnapshotBuildTrait::build`,
-    /// D-160; CBT-02b wires it into `set_build` and `enter`): the level, the primary profession,
-    /// the bar and its elite slot, the belt, whether the weapon is personalised. What no model
-    /// holds yet keeps the value the snapshot had before the flattening (`SnapshotTrait::new`;
-    /// escalated in CBT-02b's report):
-    /// - no attribute rank: `Build.attributes` holds build-local indices, and the global attribute
-    ///   ids that runes, quick-cast pairs and skills name are not numbered (D-157 A);
-    /// - no weapon statistics and a strength cap of 0: `BASE` lays out only the slot and the hands
-    ///   (D-158), and the cap's curve is BAL-01's (DS-9);
-    /// - the class's armor as the rating (design/03, D-148: the class's value until ratings are
-    ///   laid out);
-    /// - no set bonus: how the pieces of a set are counted is not written.
-    fn loadout(
-        self: @Build,
-        level: u8,
-        profession: u8,
-        personalised: bool,
-        belt: [u32; 4],
-        counts: [u8; 4],
-    ) -> Loadout {
-        Loadout {
-            level,
-            profession,
-            points: array![].span(),
-            bar_attributes: [0; 8],
-            skills: *self.bar,
-            elite_slot: *self.elite_slot,
-            weapon: 0,
-            weapon_damage: 0,
-            weapon_ticks: 0,
-            weapon_range: 0,
-            damage_type: 0,
-            weapon_attribute: 0,
-            requirement_met: 0,
-            personalised,
-            strength_cap: 0,
-            rating: ProfessionTrait::armor(profession).into(),
-            set_bonuses: 0,
-            belt,
-            belt_counts: counts,
         }
     }
 }

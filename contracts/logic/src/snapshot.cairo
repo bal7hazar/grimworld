@@ -501,8 +501,10 @@ pub fn saturate(sum: u32, cap: u32) -> u32 {
 // The production flattening (design/19 §4, §7.2; design/20 §1, D-160): the build and the
 // passives it holds into the snapshot's three words. design/20's capacity proof rests on the
 // registry's refusals of each record (the per-source bounds, D-166) and on the sums' checks made
-// here, in one pass; `Hub.set_build` runs it so that its checks refuse a build there, and
-// `Hub.enter` builds its snapshot through it (CBT-02b, CBT-02c).
+// here, linear in the passives. For `Hub.set_build`, whose checks refuse a build, and `Hub.enter`,
+// which builds its snapshot through it; not wired yet: with it `Hub`'s class passes ENG-01 §1.3's
+// 50 % (CBT-02c's report; D-166 (b), the project manager's). No production snapshot before
+// (D-160).
 
 /// Armor against a type saturates at 63 (6 bits, FX-23).
 pub const MAX_ARMOR_VS: u32 = 63;
@@ -596,8 +598,8 @@ pub fn max_instances(source: Source) -> u8 {
 }
 
 /// The instances counted per source, one 16-bit lane each in the order of `Source`, each lane
-/// starting at `2^15 − 1 − max_instances`: a lane passes `max_instances` exactly when its bit 15
-/// is set (`COUNTS_OVER`). Instances are numbered upward in a `u8`, so a lane counts at most 256
+/// starting at `2^15 − 1 − max_instances`: a lane passes `max_instances` exactly when its bit
+/// 15 is set (`COUNTS_OVER`). Instances are numbered upward in a `u8`, so a lane counts at most 256
 /// and never carries into the next.
 const COUNTS_START: u128 = 0x7ffd7ffa7ffa7ffd7ffd7ffe;
 const COUNTS_OVER: u128 = 0x800080008000800080008000;
@@ -631,8 +633,8 @@ const TYPES: u32 = 9;
 /// `2^15` in each of 12 lanes: the bias that keeps every lane of a signed sum non-negative.
 const BIAS: felt252 = 0x800080008000800080008000800080008000800080008000;
 const HALF: i32 = 0x8000;
-/// The innate armor of the heavy class (types 1–3, 20 each) and of the medium class (types 4–7,
-/// 30 each), in the types' lanes (design/15).
+/// The innate armor of the heavy class (types 1–3, `HEAVY_VS_PHYSICAL` each) and of the medium
+/// class (types 4–7, `MEDIUM_VS_ELEMENTAL` each), in the types' lanes (design/15).
 const HEAVY_LANES: felt252 = 20 * (1 + L1 + L2);
 const MEDIUM_LANES: felt252 = 30 * (L3 + L4 + L5 + L6);
 
@@ -827,8 +829,9 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
     /// Every passive comes from a record the registry accepted (`ModifierAssert::assert_legal`,
     /// `ArmorSetAssert::assert_legal`: its source, its range and the per-source bounds of
     /// design/20 §1.3, DS-1, DS-4, DS-5, DS-23), a benefit at a value its record's range allows;
-    /// the passives of one instance adjacent, instances numbered upward (`Hub.set_build` builds
-    /// them so). What a record cannot break is not checked again; what a sum can break is:
+    /// the passives of one instance adjacent, instances numbered upward (the caller builds them
+    /// so: CBT-02c's wiring numbers a modifier `5 × lane + slot`). What a record cannot break is
+    /// not checked again; what a sum can break is:
     /// - the counts of each source (§1.2), and one insignia a piece (DS-23);
     /// - the build's own bounds (`assert_loadout`), and a quick-cast pair's attribute in the
     ///   build;
@@ -1063,11 +1066,11 @@ pub const NO_HEALTH_REGEN: u8 = 10;
 
 #[generate_trait]
 pub impl SnapshotImpl of SnapshotTrait {
-    /// ENG-06's snapshot of an adventurer at entry, from its level and primary profession
-    /// (health, energy, regeneration and armor, design/03) and its bar, elite slot and belt,
-    /// equipment adding nothing. `Hub.enter` no longer uses it: since CBT-02b it builds the
-    /// snapshot through the flattening (`SnapshotBuildTrait::build`, D-160); the ephemeral
-    /// package's tests use it as a plain snapshot.
+    /// The snapshot of an adventurer at entry, from what its models hold today (ENG-06): its
+    /// level and primary profession give health, energy, regeneration and armor (design/03); its
+    /// bar, elite slot and belt are copied. What equipment, attribute ranks and set bonuses would
+    /// add is 0: `Hub.enter` does not flatten the equipment yet (`SnapshotBuildTrait::build`,
+    /// whose wiring into `Hub` passes ENG-01 §1.3's class limit: CBT-02c, D-166 (b)).
     fn new(
         level: u8,
         profession: u8,
@@ -1166,6 +1169,7 @@ pub impl TaskPageStorePacking of starknet::storage_access::StorePacking<TaskPage
 mod tests {
     use crate::durations::MAX_DURATION_BONUS_PERCENT;
     use crate::models::base::slot as base_slot;
+    use crate::packing::LIVE;
     use crate::professions::ProfessionTrait;
     use crate::types::combat::{condition, damage, weapon};
     use crate::types::effect::{guard, scope};
@@ -1174,13 +1178,12 @@ mod tests {
     };
     use super::{
         BuildAssert, HEAVY_VS_PHYSICAL, HeldPassive, LIGHT_ENERGY, LIGHT_ENERGY_REGEN, Loadout,
-        MAX_ARMOR_VS, MAX_KNOCKDOWN, MEDIUM_VS_ELEMENTAL, MemberBar, MemberKit, MemberKitTrait,
-        MemberStats, PERSONALISED_DAMAGE_PERCENT, QuickCast, STRENGTH_PER_RANK, Snapshot,
-        MAX_UNGUARDED_ARMOR, SnapshotBuildTrait, TaskEntry, TaskPage, WELLSPRING_ENERGY_PER_RANK,
-        errors, fit, pack_bar, pack_kit, pack_stats, pack_task_page, saturate, unpack_bar,
-        unpack_kit, unpack_stats, unpack_task_page,
+        MAX_ARMOR_VS, MAX_KNOCKDOWN, MAX_UNGUARDED_ARMOR, MEDIUM_VS_ELEMENTAL, MemberBar, MemberKit,
+        MemberKitTrait, MemberStats, PERSONALISED_DAMAGE_PERCENT, QuickCast, STRENGTH_PER_RANK,
+        Snapshot, SnapshotBuildTrait, TaskEntry, TaskPage, WELLSPRING_ENERGY_PER_RANK, errors, fit,
+        pack_bar, pack_kit, pack_stats, pack_task_page, saturate, unpack_bar, unpack_kit,
+        unpack_stats, unpack_task_page,
     };
-    use crate::packing::LIVE;
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
@@ -1260,8 +1263,8 @@ mod tests {
             total
         }
 
-        /// The rank of `attribute` (0: none): the build's points plus the highest `ATTRIBUTE` rune for
-        /// it (design/15; runes only, DS-4), at most 15 (DS-8).
+        /// The rank of `attribute` (0: none): the build's points plus the highest `ATTRIBUTE` rune
+        /// for it (design/15; runes only, DS-4), at most 15 (DS-8).
         fn rank(points: Span<(u8, u8)>, held: Span<HeldPassive>, attribute: u8) -> u8 {
             if attribute == 0 {
                 return 0;
@@ -1299,205 +1302,202 @@ mod tests {
 
     /// CBT-02's flattening of a legal build, the oracle.
     fn oracle(loadout: @Loadout, held: Span<HeldPassive>) -> Snapshot {
-    let level: i32 = (*loadout.level).into();
-    let profession = *loadout.profession;
-    let light = profession == 3;
-    let primary = match (*loadout.points).get(0) {
-        Option::Some(entry) => {
-            let (attribute, _) = *entry.unbox();
-            attribute
-        },
-        Option::None => 0,
-    };
-    let primary_rank = Oracle::rank(*loadout.points, held, primary);
+        let level: i32 = (*loadout.level).into();
+        let profession = *loadout.profession;
+        let light = profession == 3;
+        let primary = match (*loadout.points).get(0) {
+            Option::Some(entry) => {
+                let (attribute, _) = *entry.unbox();
+                attribute
+            },
+            Option::None => 0,
+        };
+        let primary_rank = Oracle::rank(*loadout.points, held, primary);
 
-    // Maxima and regeneration, signed, with DS-2's floors.
-    let health = 100 + 20 * (level - 1) + Oracle::health(held);
-    let base_energy: i32 = ProfessionTrait::energy(profession).into();
-    let wellspring = if light {
-        WELLSPRING_ENERGY_PER_RANK * primary_rank.into()
-    } else {
-        0
-    };
-    let light_energy = if light {
-        LIGHT_ENERGY
-    } else {
-        0
-    };
-    let energy = base_energy
-        + wellspring
-        + light_energy
-        + Oracle::total(held, id::MAX_ENERGY);
-    let base_regen: i32 = ProfessionTrait::energy_regen(profession).into();
-    let light_regen = if light {
-        LIGHT_ENERGY_REGEN
-    } else {
-        0
-    };
-    let energy_regen = base_regen + light_regen + Oracle::total(held, id::ENERGY_REGEN);
-    BuildAssert::assert_floors(health, energy, energy_regen);
-    let health_regen = 10 + Oracle::total(held, id::HEALTH_REGEN);
-
-    // Armor against each type: the class's innate, then saturated (FX-23).
-    let mut armor_vs: Array<u8> = array![];
-    for t in 1..10_u8 {
-        let innate = if profession == 1 && t <= damage::BLUNT {
-            HEAVY_VS_PHYSICAL
-        } else if profession == 2 && t >= damage::FIRE && t <= damage::EARTH {
-            MEDIUM_VS_ELEMENTAL
+        // Maxima and regeneration, signed, with DS-2's floors.
+        let health = 100 + 20 * (level - 1) + Oracle::health(held);
+        let base_energy: i32 = ProfessionTrait::energy(profession).into();
+        let wellspring = if light {
+            WELLSPRING_ENERGY_PER_RANK * primary_rank.into()
         } else {
             0
         };
-        let sum: u32 = innate + fit(Oracle::total_param(held, id::ARMOR_VS, t));
-        armor_vs.append(saturate(sum, MAX_ARMOR_VS).try_into().unwrap());
-    }
+        let light_energy = if light {
+            LIGHT_ENERGY
+        } else {
+            0
+        };
+        let energy = base_energy + wellspring + light_energy + Oracle::total(held, id::MAX_ENERGY);
+        let base_regen: i32 = ProfessionTrait::energy_regen(profession).into();
+        let light_regen = if light {
+            LIGHT_ENERGY_REGEN
+        } else {
+            0
+        };
+        let energy_regen = base_regen + light_regen + Oracle::total(held, id::ENERGY_REGEN);
+        BuildAssert::assert_floors(health, energy, energy_regen);
+        let health_regen = 10 + Oracle::total(held, id::HEALTH_REGEN);
 
-    // Ranks of the bar's attributes, 4 bits each.
-    let mut ranks: u64 = 0;
-    let mut shift: u64 = 1;
-    for attribute in loadout.bar_attributes.span() {
-        ranks += Oracle::rank(*loadout.points, held, *attribute).into() * shift;
-        shift *= 16;
-    }
-    let ranks: u32 = ranks.try_into().unwrap();
-
-    // The weapon (DS-4, DS-9).
-    let mut weapon_damage: u32 = (*loadout.weapon_damage).into();
-    if *loadout.personalised {
-        weapon_damage = weapon_damage * PERSONALISED_DAMAGE_PERCENT / 100;
-    }
-    let strength: u16 = STRENGTH_PER_RANK
-        * Oracle::rank(*loadout.points, held, *loadout.weapon_attribute).into();
-    let cap: u16 = (*loadout.strength_cap).into();
-    let strength = if strength > cap {
-        cap
-    } else {
-        strength
-    };
-    let mut damage_type = *loadout.damage_type;
-    let mut replaced = false;
-    for h in held {
-        if *h.passive.id == id::DAMAGE_TYPE {
-            damage_type = *h.passive.param;
-            replaced = true;
+        // Armor against each type: the class's innate, then saturated (FX-23).
+        let mut armor_vs: Array<u8> = array![];
+        for t in 1..10_u8 {
+            let innate = if profession == 1 && t <= damage::BLUNT {
+                HEAVY_VS_PHYSICAL
+            } else if profession == 2 && t >= damage::FIRE && t <= damage::EARTH {
+                MEDIUM_VS_ELEMENTAL
+            } else {
+                0
+            };
+            let sum: u32 = innate + fit(Oracle::total_param(held, id::ARMOR_VS, t));
+            armor_vs.append(saturate(sum, MAX_ARMOR_VS).try_into().unwrap());
         }
-    }
 
-    // Quick-cast pairs: the attribute's build-local index (D-157 A).
-    let mut pairs: Array<QuickCast> = array![];
-    for h in held {
-        if *h.passive.id == id::QUICK_CAST_EVERY_N {
-            let mut index: u32 = 16;
-            let mut k: u32 = 0;
-            for (attribute, _) in *loadout.points {
-                if *attribute == *h.passive.param && index == 16 {
-                    index = k;
+        // Ranks of the bar's attributes, 4 bits each.
+        let mut ranks: u64 = 0;
+        let mut shift: u64 = 1;
+        for attribute in loadout.bar_attributes.span() {
+            ranks += Oracle::rank(*loadout.points, held, *attribute).into() * shift;
+            shift *= 16;
+        }
+        let ranks: u32 = ranks.try_into().unwrap();
+
+        // The weapon (DS-4, DS-9).
+        let mut weapon_damage: u32 = (*loadout.weapon_damage).into();
+        if *loadout.personalised {
+            weapon_damage = weapon_damage * PERSONALISED_DAMAGE_PERCENT / 100;
+        }
+        let strength: u16 = STRENGTH_PER_RANK
+            * Oracle::rank(*loadout.points, held, *loadout.weapon_attribute).into();
+        let cap: u16 = (*loadout.strength_cap).into();
+        let strength = if strength > cap {
+            cap
+        } else {
+            strength
+        };
+        let mut damage_type = *loadout.damage_type;
+        let mut replaced = false;
+        for h in held {
+            if *h.passive.id == id::DAMAGE_TYPE {
+                damage_type = *h.passive.param;
+                replaced = true;
+            }
+        }
+
+        // Quick-cast pairs: the attribute's build-local index (D-157 A).
+        let mut pairs: Array<QuickCast> = array![];
+        for h in held {
+            if *h.passive.id == id::QUICK_CAST_EVERY_N {
+                let mut index: u32 = 16;
+                let mut k: u32 = 0;
+                for (attribute, _) in *loadout.points {
+                    if *attribute == *h.passive.param && index == 16 {
+                        index = k;
+                    }
+                    k += 1;
                 }
-                k += 1;
+                pairs
+                    .append(
+                        QuickCast {
+                            attribute: index.try_into().unwrap(),
+                            every: fit((*h.passive.max).into()),
+                        },
+                    );
             }
-            pairs
-                .append(
-                    QuickCast {
-                        attribute: index.try_into().unwrap(),
-                        every: fit((*h.passive.max).into()),
-                    },
-                );
         }
-    }
-    while pairs.len() < 2 {
-        pairs.append(Default::default());
-    }
+        while pairs.len() < 2 {
+            pairs.append(Default::default());
+        }
 
-    let mut every: u8 = 0;
-    for h in held {
-        if *h.passive.id == id::ADRENALINE_EVERY_N {
-            let n: u8 = fit((*h.passive.max).into());
-            if every == 0 || n < every {
-                every = n;
+        let mut every: u8 = 0;
+        for h in held {
+            if *h.passive.id == id::ADRENALINE_EVERY_N {
+                let n: u8 = fit((*h.passive.max).into());
+                if every == 0 || n < every {
+                    every = n;
+                }
             }
         }
-    }
-    let mut halving = false;
-    for h in held {
-        if *h.passive.id == id::HALVE_FIRST_HEAVY_HIT {
-            halving = true;
+        let mut halving = false;
+        for h in held {
+            if *h.passive.id == id::HALVE_FIRST_HEAVY_HIT {
+                halving = true;
+            }
         }
-    }
-    let mut conditions: Array<Passive> = array![];
-    for h in held {
-        conditions.append(*h.passive);
-    }
-    let (condition, condition_duration) = MemberKitTrait::condition_duration(conditions.span());
-    let rating: i32 = (*loadout.rating).into();
-    let d = |guard: u8, class: u8| -> i8 {
-        fit(Oracle::total_scoped(held, id::DAMAGE_PERCENT, guard, class))
-    };
-    let p = |class: u8| -> u8 {
-        fit(Oracle::total_scoped(held, id::PENETRATION, guard::ALWAYS, class))
-    };
-    let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = [
-        *armor_vs[0], *armor_vs[1], *armor_vs[2], *armor_vs[3], *armor_vs[4], *armor_vs[5],
-        *armor_vs[6], *armor_vs[7], *armor_vs[8],
-    ];
-    Snapshot {
-        stats: MemberStats {
-            max_health: fit(health),
-            max_energy: fit(energy),
-            energy_regen: fit(energy_regen),
-            health_regen: fit(health_regen),
-            armor_vs: [v1, v2, v3, v4, v5, v6, v7, v8, v9],
-            level: *loadout.level,
-            profession,
-            primary_rank,
-            weapon: *loadout.weapon,
-            weapon_damage: weapon_damage.try_into().expect(errors::OVERFLOW),
-            weapon_ticks: *loadout.weapon_ticks,
-            weapon_range: *loadout.weapon_range,
-            weapon_strength: strength.try_into().unwrap(),
-            ranks,
-            damage_type,
-            requirement_met: *loadout.requirement_met,
-            set_bonuses: *loadout.set_bonuses,
-        },
-        bar: MemberBar {
-            skills: *loadout.skills,
-            elite_slot: *loadout.elite_slot,
-            damage: [
-                d(guard::ALWAYS, HIT_WEAPON), d(guard::ALWAYS, HIT_ATTACK_SKILL),
-                d(guard::ALWAYS, HIT_SPELL), d(guard::ABOVE_HALF, HIT_WEAPON),
-                d(guard::ABOVE_HALF, HIT_ATTACK_SKILL), d(guard::ABOVE_HALF, HIT_SPELL),
-            ],
-            penetration: [p(HIT_WEAPON), p(HIT_ATTACK_SKILL), p(HIT_SPELL)],
-            quick_cast: [*pairs[0], *pairs[1]],
-            armor: fit(rating + Oracle::total_scoped(held, id::ARMOR, guard::ALWAYS, 0)),
-        },
-        kit: MemberKit {
-            belt: *loadout.belt,
-            life_steal: fit(Oracle::total(held, id::LIFE_STEAL_ON_HIT)),
-            energy_on_hit: fit(Oracle::total(held, id::ENERGY_ON_HIT)),
-            condition,
-            condition_duration,
-            enchantment_duration: saturate(
-                fit(Oracle::total(held, id::ENCHANT_DURATION)), MAX_DURATION_BONUS_PERCENT,
-            )
-                .try_into()
-                .unwrap(),
-            double_adrenaline_every: every,
-            // Freed (DS-3): the final maximum is `max_health`.
-            health_bonus: 0,
-            armor_stance: fit(
-                Oracle::total_scoped(held, id::ARMOR, guard::IN_STANCE, HIT_WEAPON),
-            ),
-            armor_enchanted: fit(
-                Oracle::total_scoped(held, id::ARMOR, guard::ENCHANTED, HIT_WEAPON),
-            ),
-            knockdown: saturate(fit(Oracle::total(held, id::KNOCKDOWN_FLAT)), MAX_KNOCKDOWN)
-                .try_into()
-                .unwrap(),
-            halving,
-        },
-        belt_counts: *loadout.belt_counts,
-    }
+        let mut conditions: Array<Passive> = array![];
+        for h in held {
+            conditions.append(*h.passive);
+        }
+        let (condition, condition_duration) = MemberKitTrait::condition_duration(conditions.span());
+        let rating: i32 = (*loadout.rating).into();
+        let d = |guard: u8, class: u8| -> i8 {
+            fit(Oracle::total_scoped(held, id::DAMAGE_PERCENT, guard, class))
+        };
+        let p = |class: u8| -> u8 {
+            fit(Oracle::total_scoped(held, id::PENETRATION, guard::ALWAYS, class))
+        };
+        let [v1, v2, v3, v4, v5, v6, v7, v8, v9] = [
+            *armor_vs[0], *armor_vs[1], *armor_vs[2], *armor_vs[3], *armor_vs[4], *armor_vs[5],
+            *armor_vs[6], *armor_vs[7], *armor_vs[8],
+        ];
+        Snapshot {
+            stats: MemberStats {
+                max_health: fit(health),
+                max_energy: fit(energy),
+                energy_regen: fit(energy_regen),
+                health_regen: fit(health_regen),
+                armor_vs: [v1, v2, v3, v4, v5, v6, v7, v8, v9],
+                level: *loadout.level,
+                profession,
+                primary_rank,
+                weapon: *loadout.weapon,
+                weapon_damage: weapon_damage.try_into().expect(errors::OVERFLOW),
+                weapon_ticks: *loadout.weapon_ticks,
+                weapon_range: *loadout.weapon_range,
+                weapon_strength: strength.try_into().unwrap(),
+                ranks,
+                damage_type,
+                requirement_met: *loadout.requirement_met,
+                set_bonuses: *loadout.set_bonuses,
+            },
+            bar: MemberBar {
+                skills: *loadout.skills,
+                elite_slot: *loadout.elite_slot,
+                damage: [
+                    d(guard::ALWAYS, HIT_WEAPON), d(guard::ALWAYS, HIT_ATTACK_SKILL),
+                    d(guard::ALWAYS, HIT_SPELL), d(guard::ABOVE_HALF, HIT_WEAPON),
+                    d(guard::ABOVE_HALF, HIT_ATTACK_SKILL), d(guard::ABOVE_HALF, HIT_SPELL),
+                ],
+                penetration: [p(HIT_WEAPON), p(HIT_ATTACK_SKILL), p(HIT_SPELL)],
+                quick_cast: [*pairs[0], *pairs[1]],
+                armor: fit(rating + Oracle::total_scoped(held, id::ARMOR, guard::ALWAYS, 0)),
+            },
+            kit: MemberKit {
+                belt: *loadout.belt,
+                life_steal: fit(Oracle::total(held, id::LIFE_STEAL_ON_HIT)),
+                energy_on_hit: fit(Oracle::total(held, id::ENERGY_ON_HIT)),
+                condition,
+                condition_duration,
+                enchantment_duration: saturate(
+                    fit(Oracle::total(held, id::ENCHANT_DURATION)), MAX_DURATION_BONUS_PERCENT,
+                )
+                    .try_into()
+                    .unwrap(),
+                double_adrenaline_every: every,
+                // Freed (DS-3): the final maximum is `max_health`.
+                health_bonus: 0,
+                armor_stance: fit(
+                    Oracle::total_scoped(held, id::ARMOR, guard::IN_STANCE, HIT_WEAPON),
+                ),
+                armor_enchanted: fit(
+                    Oracle::total_scoped(held, id::ARMOR, guard::ENCHANTED, HIT_WEAPON),
+                ),
+                knockdown: saturate(fit(Oracle::total(held, id::KNOCKDOWN_FLAT)), MAX_KNOCKDOWN)
+                    .try_into()
+                    .unwrap(),
+                halving,
+            },
+            belt_counts: *loadout.belt_counts,
+        }
     }
 
     /// Attribute ids of the fixtures (content's global ids, D-157 A): the primary first.
@@ -1772,26 +1772,77 @@ mod tests {
     #[available_gas(l2_gas: 3694067)] // ceil(1.05 × 3518159 measured)
     fn test_lanes_against_the_oracle() {
         let all = array![
-            held(scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::WEAPON, -18), Source::Prefix, 0, 1),
+            held(
+                scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::WEAPON, -18),
+                Source::Prefix,
+                0,
+                1,
+            ),
             cost(scoped(id::PENETRATION, guard::ALWAYS, scope::WEAPON, 36), Source::Prefix, 0, 1),
-            held(scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ATTACK_SKILL, 18), Source::Suffix, 1, 2),
+            held(
+                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ATTACK_SKILL, 18),
+                Source::Suffix,
+                1,
+                2,
+            ),
             cost(passive(id::MAX_ENERGY, 0, -5), Source::Suffix, 1, 2),
-            held(scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::SPELL, -18), Source::Suffix, 2, 3),
+            held(
+                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::SPELL, -18), Source::Suffix, 2, 3,
+            ),
             cost(passive(id::HEALTH_REGEN, 0, -1), Source::Suffix, 2, 3),
-            held(scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 18), Source::Inscription, 3, 4),
-            cost(scoped(id::PENETRATION, guard::ALWAYS, scope::SPELL, 36), Source::Inscription, 3, 4),
-            held(scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, -18), Source::Inscription, 4, 5),
+            held(
+                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 18),
+                Source::Inscription,
+                3,
+                4,
+            ),
+            cost(
+                scoped(id::PENETRATION, guard::ALWAYS, scope::SPELL, 36), Source::Inscription, 3, 4,
+            ),
+            held(
+                scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, -18),
+                Source::Inscription,
+                4,
+                5,
+            ),
             cost(passive(id::ENERGY_REGEN, 0, -1), Source::Inscription, 4, 5),
-            held(PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 18, 18), Source::Insignia, 5, 6),
-            cost(PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, -18, -18), Source::Insignia, 5, 6),
-            held(PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, -255), Source::Insignia, 6, 7),
+            held(
+                PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 18, 18),
+                Source::Insignia,
+                5,
+                6,
+            ),
+            cost(
+                PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, -18, -18),
+                Source::Insignia,
+                5,
+                6,
+            ),
+            held(
+                PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, -255),
+                Source::Insignia,
+                6,
+                7,
+            ),
             cost(passive(id::ENCHANT_DURATION, 0, 20), Source::Insignia, 6, 7),
             held(passive(id::ARMOR_VS, damage::SLASHING, 7), Source::Rune, 10, 8),
-            cost(PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, -255), Source::Rune, 10, 8),
+            cost(
+                PassiveTrait::new(id::ARMOR, 0, guard::ALWAYS, 0, -255, -255), Source::Rune, 10, 8,
+            ),
             held(passive(id::ARMOR_VS, damage::HOLY, 7), Source::Rune, 11, 9),
             cost(passive(id::MAX_HEALTH, 0, -75), Source::Rune, 11, 9),
-            held(scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::SPELL, 18), Source::SetBonus, 15, 0),
-            held(PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, 18, 18), Source::SetBonus, 16, 0),
+            held(
+                scoped(id::DAMAGE_PERCENT, guard::ABOVE_HALF, scope::SPELL, 18),
+                Source::SetBonus,
+                15,
+                0,
+            ),
+            held(
+                PassiveTrait::new(id::ARMOR, 0, guard::ENCHANTED, 0, 18, 18),
+                Source::SetBonus,
+                16,
+                0,
+            ),
         ];
         let snapshot = flatten(@loadout(1, 20), all.span());
         // Lanes: [weapon, attack skill, spell] always, then above half.
@@ -1846,9 +1897,9 @@ mod tests {
         SnapshotBuildTrait::build(@loadout(1, 1), all.span());
     }
 
-    // §6 test 4 (DS-5): enchantment 340 → 50 (17 sources at 20), knock-down 4 → 3, armor against
-    // a type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration 65,534
-    // → 50: `test_capacity::test_same_condition_capped`.
+    // §6 test 4 (DS-5): enchantment 340 → 50 (17 sources at 20), knock-down 4 → 3, armor
+    // against a type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration
+    // 65,534 → 50: `test_capacity::test_same_condition_capped`.
     #[test]
     #[available_gas(l2_gas: 11256097)] // ceil(1.05 × 10720092 measured)
     fn test_saturation() {
@@ -2073,7 +2124,8 @@ mod tests {
         assert(pack_stats(level) == 0x10000000000000000 + LIVE, 'level at bit 64');
         let ranks = MemberStats { ranks: 1, ..Default::default() };
         assert(pack_stats(ranks) == TWO_128 + LIVE, 'ranks at bit 128');
-        // design/19 §7.2: `ARMOR_VS` types 1–2 at bits 48, 54; types 3–9 at 200 + 6 (type − 3).
+        // design/19 §7.2: `ARMOR_VS` types 1–2 at bits 48, 54; types 3–9 at 200 + 6 (type −
+        // 3).
         let vs = MemberStats { armor_vs: [1, 1, 0, 0, 0, 0, 0, 0, 0], ..Default::default() };
         assert(pack_stats(vs) == 0x1000000000000 + 0x40000000000000 + LIVE, 'vs 1-2 at 48, 54');
         let vs = MemberStats { armor_vs: [0, 0, 1, 0, 0, 0, 0, 0, 1], ..Default::default() };
@@ -2090,7 +2142,9 @@ mod tests {
             skills: [1, 2, 3, 4, 5, 6, 7, 0xFFFF], elite_slot: 255, ..Fixture::empty_bar(),
         };
         assert(unpack_bar(pack_bar(bar)) == bar, 'bar round trip');
-        let bar = MemberBar { skills: [0, 0, 0, 0, 0, 0, 0, 1], elite_slot: 0, ..Fixture::empty_bar() };
+        let bar = MemberBar {
+            skills: [0, 0, 0, 0, 0, 0, 0, 1], elite_slot: 0, ..Fixture::empty_bar(),
+        };
         assert(pack_bar(bar) == 0x10000000000000000000000000000 + LIVE, 'skill 7 at bit 112');
         let kit = MemberKit {
             belt: [1, 2, 3, 0xFFFFFFFF],
@@ -2115,7 +2169,9 @@ mod tests {
     #[available_gas(l2_gas: 148985)] // ceil(1.05 × 141890 measured)
     fn test_task_page_layout() {
         let full = TaskEntry { task: 0xFFFFFFFF, kind: 0xFF, param: 0xFFFF };
-        let page = TaskPage { entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full] };
+        let page = TaskPage {
+            entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full],
+        };
         assert(unpack_task_page(pack_task_page(page)) == page, 'round trip');
         let second = TaskPage {
             entries: [
@@ -2143,9 +2199,9 @@ mod tests {
         }
     }
 
-    // design/19 §7.2 (FX-24): the bar's high limb holds the elite slot 128, the damage sums 136–183
-    // (signed), the penetration sums 184–207, the quick-cast pairs 208–231 and the unguarded armor
-    // 232–247 (signed); each round-trips at both ends and sits at its bit.
+    // design/19 §7.2 (FX-24): the bar's high limb holds the elite slot 128, the damage sums
+    // 136–183 (signed), the penetration sums 184–207, the quick-cast pairs 208–231 and the
+    // unguarded armor 232–247 (signed); each round-trips at both ends and sits at its bit.
     #[test]
     #[available_gas(l2_gas: 838415)] // ceil(1.05 × 798490 measured)
     fn test_bar_passives_layout() {
@@ -2154,7 +2210,9 @@ mod tests {
             elite_slot: 255,
             damage: [127, -128, 126, -126, 1, -1],
             penetration: [255, 0, 252],
-            quick_cast: [QuickCast { attribute: 15, every: 255 }, QuickCast { attribute: 1, every: 5 }],
+            quick_cast: [
+                QuickCast { attribute: 15, every: 255 }, QuickCast { attribute: 1, every: 5 },
+            ],
             armor: -MAX_UNGUARDED_ARMOR,
         };
         assert(unpack_bar(pack_bar(top)) == top, 'top round trip');
@@ -2167,14 +2225,16 @@ mod tests {
         let two_136: felt252 = TWO_128 * 0x100;
         assert(bit(MemberBar { damage: [1, 0, 0, 0, 0, 0], ..empty }) == two_136, 'damage at 136');
         assert(
-            bit(MemberBar { damage: [-1, 0, 0, 0, 0, 0], ..empty }) == two_136 * 0xFF, 'signed damage',
+            bit(MemberBar { damage: [-1, 0, 0, 0, 0, 0], ..empty }) == two_136 * 0xFF,
+            'signed damage',
         );
         let two_184: felt252 = TWO_128 * 0x100000000000000;
         assert(bit(MemberBar { penetration: [1, 0, 0], ..empty }) == two_184, 'penetration at 184');
         let two_208: felt252 = TWO_128 * 0x100000000000000000000;
         let one = QuickCast { attribute: 1, every: 0 };
         assert(
-            bit(MemberBar { quick_cast: [one, Default::default()], ..empty }) == two_208, 'qc at 208',
+            bit(MemberBar { quick_cast: [one, Default::default()], ..empty }) == two_208,
+            'qc at 208',
         );
         let two_232: felt252 = TWO_128 * 0x100000000000000000000000000;
         assert(bit(MemberBar { armor: 1, ..empty }) == two_232, 'armor at 232');
@@ -2211,8 +2271,8 @@ mod tests {
         pack_stats(MemberStats { armor_vs: [0, 0, 0, 0, 0, 0, 0, 0, 64], ..Default::default() });
     }
 
-    // The kit's high limb (design/19 §7.2): 75 bits, each field at its bit; the narrow ones refused
-    // when wider.
+    // The kit's high limb (design/19 §7.2): 75 bits, each field at its bit; the narrow ones
+    // refused when wider.
     #[test]
     #[available_gas(l2_gas: 646905)] // ceil(1.05 × 616100 measured)
     fn test_kit_passives_layout() {
@@ -2223,14 +2283,28 @@ mod tests {
         assert(bit(MemberKit { life_steal: 1, ..k }) == TWO_128, 'life steal at 128');
         assert(bit(MemberKit { energy_on_hit: 1, ..k }) == TWO_128 * 0x100, 'energy at 136');
         assert(bit(MemberKit { condition: 1, ..k }) == TWO_128 * 0x10000, 'condition at 144');
-        assert(bit(MemberKit { condition_duration: 1, ..k }) == TWO_128 * 0x100000, 'cond % at 148');
-        assert(bit(MemberKit { enchantment_duration: 1, ..k }) == TWO_128 * 0x4000000, 'ench at 154');
-        assert(bit(MemberKit { double_adrenaline_every: 1, ..k }) == TWO_128 * 0x100000000, 'N at 160');
-        assert(bit(MemberKit { armor_stance: 1, ..k }) == TWO_128 * 0x100000000000000, 'stance 184');
+        assert(
+            bit(MemberKit { condition_duration: 1, ..k }) == TWO_128 * 0x100000, 'cond % at 148',
+        );
+        assert(
+            bit(MemberKit { enchantment_duration: 1, ..k }) == TWO_128 * 0x4000000, 'ench at 154',
+        );
+        assert(
+            bit(MemberKit { double_adrenaline_every: 1, ..k }) == TWO_128 * 0x100000000, 'N at 160',
+        );
+        assert(
+            bit(MemberKit { armor_stance: 1, ..k }) == TWO_128 * 0x100000000000000, 'stance 184',
+        );
         assert(bit(MemberKit { armor_stance: -1, ..k }) == TWO_128 * 0xFF00000000000000, 'signed');
-        assert(bit(MemberKit { armor_enchanted: 1, ..k }) == TWO_128 * 0x10000000000000000, 'ench 192');
-        assert(bit(MemberKit { knockdown: 1, ..k }) == TWO_128 * 0x1000000000000000000, 'kd at 200');
-        assert(bit(MemberKit { halving: true, ..k }) == TWO_128 * 0x4000000000000000000, 'halving 202');
+        assert(
+            bit(MemberKit { armor_enchanted: 1, ..k }) == TWO_128 * 0x10000000000000000, 'ench 192',
+        );
+        assert(
+            bit(MemberKit { knockdown: 1, ..k }) == TWO_128 * 0x1000000000000000000, 'kd at 200',
+        );
+        assert(
+            bit(MemberKit { halving: true, ..k }) == TWO_128 * 0x4000000000000000000, 'halving 202',
+        );
         let top = MemberKit {
             belt: [0xFFFFFFFF; 4],
             life_steal: 0xFF,
@@ -2273,7 +2347,8 @@ mod tests {
         pack_kit(MemberKit { condition: 16, ..Default::default() });
     }
 
-    // ---- the flattening's cost (docs/CAIRO.md §2: a benchmark on the worst case) ----------------
+    // ---- the flattening's cost (docs/CAIRO.md §2: a benchmark on the worst case)
+    // ----------------
 
     /// The widest build design/20 §1.2 counts, each passive on one of the flattening's costliest
     /// paths: 17 sources, 32 passives. The held slots: a damage percent on all hits (two-level
@@ -2289,11 +2364,27 @@ mod tests {
             let s = *source;
             let modifier: u32 = 100 + i.into();
             if s == Source::Prefix || s == Source::Suffix || s == Source::Inscription {
-                all.append(held(scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 1), s, i, modifier));
+                all
+                    .append(
+                        held(
+                            scoped(id::DAMAGE_PERCENT, guard::ALWAYS, scope::ALL, 1),
+                            s,
+                            i,
+                            modifier,
+                        ),
+                    );
                 all.append(cost(passive(id::ENERGY_REGEN, 0, 0), s, i, modifier));
             } else if s == Source::Insignia {
                 all.append(held(passive(id::ENCHANT_DURATION, 0, 1), s, i, modifier));
-                all.append(cost(PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 1, 1), s, i, modifier));
+                all
+                    .append(
+                        cost(
+                            PassiveTrait::new(id::ARMOR, 0, guard::IN_STANCE, 0, 1, 1),
+                            s,
+                            i,
+                            modifier,
+                        ),
+                    );
             } else if s == Source::Rune {
                 all.append(held(passive(id::MAX_HEALTH, 0, 1), s, i, modifier));
                 all.append(cost(passive(id::ATTRIBUTE, OTHER, 1), s, i, modifier));

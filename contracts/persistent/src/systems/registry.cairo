@@ -88,8 +88,8 @@ pub mod Registry {
     use grimworld_logic::models::item::{ItemAssert, ItemRecord};
     use grimworld_logic::models::location::INDEX_BOUND;
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
-    use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::outline::CHUNK_SET;
+    use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
@@ -228,8 +228,8 @@ pub mod Registry {
             assert(live == 1, errors::NOT_LIVE);
         }
 
-        /// The content's checks of one record (D-166; design/20 §1.3–§1.5, §5), made once, when
-        /// the administrator writes it, so that no player's call makes them again:
+        /// The content's checks of one record (D-166; design/20 §1.3–§1.5, §5), made once,
+        /// when the administrator writes it, so that no player's call makes them again:
         /// - `MODIFIER` (a prefix, a suffix, an inscription, an insignia, a rune):
         ///   `ModifierAssert::assert_legal`, its passives legal on its slot type (DS-4), their sum
         ///   within design/20's per-source bounds (DS-1, DS-5), an insignia's health within its

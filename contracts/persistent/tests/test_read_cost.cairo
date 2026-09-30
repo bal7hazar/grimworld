@@ -267,7 +267,7 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
         v12: 20,
         target: grimworld_logic::types::effect::target::SELF,
         shape: grimworld_logic::types::effect::shape::SINGLE,
-        ..Default::default()
+        ..Default::default(),
     };
     let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, heal, 3, 20).pack();
     for id in 1..5_u32 {
@@ -279,7 +279,7 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 79748918)] // ceil(1.05 × 75951350 measured)
 fn test_content_read_probe_alone() {
     let (probe, registry) = content_setup();
@@ -289,7 +289,7 @@ fn test_content_read_probe_alone() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 84041475)] // ceil(1.05 × 80039500 measured)
 fn test_content_read_worst() {
     let (probe, registry) = content_setup();
@@ -299,7 +299,7 @@ fn test_content_read_worst() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 81556755)] // ceil(1.05 × 77673100 measured)
 fn test_content_read_representative() {
     let (probe, registry) = content_setup();

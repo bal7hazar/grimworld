@@ -22,6 +22,7 @@ use grimworld_logic::models::modifier::{
     ModifierRecord, ModifierTrait, errors as modifier_errors, slot as modifier_slot,
 };
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
+use grimworld_logic::packing::LIVE;
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{
     Entry, EntryTrait, errors as entry_errors, filter, kind, shape, target,
@@ -29,7 +30,6 @@ use grimworld_logic::types::effect::{
 use grimworld_logic::types::passive::{
     Passive, PassiveTrait, Source, errors as passive_errors, id as passive_id,
 };
-use grimworld_logic::packing::LIVE;
 use grimworld_persistent::systems::registry::errors::{
     NOT_ADMIN, NOT_LIVE, NOT_NEXT, NO_PARENT, OUTLINE_CHUNK, PART_COUNT, TOO_MANY, ZERO_ADMIN,
     ZERO_ID,
@@ -226,7 +226,7 @@ fn test_set_record_quiver_ids() {
 // --- set_record: its refusals (AC-1) ------------------------------------------------------------
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 1466693)] // ceil(1.05 × 1396850 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
@@ -238,7 +238,7 @@ fn test_set_record_refused_to_others() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 2151293)] // ceil(1.05 × 2048850 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
@@ -268,7 +268,7 @@ fn test_set_record_unknown_kind_refused() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 2909928)] // ceil(1.05 × 2771360 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
@@ -288,7 +288,7 @@ fn test_set_record_not_live_refused() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 1511832)] // ceil(1.05 × 1439840 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
@@ -517,7 +517,8 @@ fn test_gas_bundle_32() {
     assert(v == 5 && records.len() == 96, '32 records');
 }
 
-// --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1) -------------------
+// --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1)
+// -------------------
 //
 // Every per-source bound of design/20 that belongs to one record is checked once, when the
 // administrator writes it: at its bound a record is accepted, one unit beyond it is refused.
@@ -532,8 +533,12 @@ fn fixed(id: u8, param: u8, value: i16) -> Passive {
 fn source_record(passive: Passive, source: Source) -> (u8, Span<felt252>) {
     let none: Passive = Default::default();
     match source {
-        Source::Prefix => (MODIFIER, ModifierTrait::new(modifier_slot::PREFIX, passive, none).pack()),
-        Source::Suffix => (MODIFIER, ModifierTrait::new(modifier_slot::SUFFIX, passive, none).pack()),
+        Source::Prefix => (
+            MODIFIER, ModifierTrait::new(modifier_slot::PREFIX, passive, none).pack(),
+        ),
+        Source::Suffix => (
+            MODIFIER, ModifierTrait::new(modifier_slot::SUFFIX, passive, none).pack(),
+        ),
         Source::Inscription => (
             MODIFIER, ModifierTrait::new(modifier_slot::INSCRIPTION, passive, none).pack(),
         ),
@@ -541,7 +546,9 @@ fn source_record(passive: Passive, source: Source) -> (u8, Span<felt252>) {
             MODIFIER, ModifierTrait::insignia(base_slot::CHEST, passive, none).pack(),
         ),
         Source::Rune => (MODIFIER, ModifierTrait::new(modifier_slot::RUNE, passive, none).pack()),
-        Source::SetBonus => (ARMOR_SET, ArmorSetTrait::new([1, 2, 3, 4, 5], [passive, none]).pack()),
+        Source::SetBonus => (
+            ARMOR_SET, ArmorSetTrait::new([1, 2, 3, 4, 5], [passive, none]).pack(),
+        ),
     }
 }
 
@@ -605,7 +612,9 @@ fn test_set_record_per_source_bounds() {
         let refused = try_write(r, kind, record);
         assert(refused.is_err(), 'below lo accepted');
         let message = *refused.unwrap_err().at(0);
-        assert(message == passive_errors::SOURCE_BOUND || message == passive_errors::VALUE, message);
+        assert(
+            message == passive_errors::SOURCE_BOUND || message == passive_errors::VALUE, message,
+        );
     }
     // A modifier's benefit and cost on one statistic are summed: +50 and −75 on a rune pass, +30
     // and +30 on a prefix are refused.
@@ -636,9 +645,11 @@ fn test_set_record_per_source_bounds() {
 fn test_set_record_sources_refused() {
     let r = Fixture::deploy();
     let refused = array![
-        (passive_id::ENERGY_COST, 1, Source::Prefix), (passive_id::ENERGY_COST, 1, Source::SetBonus),
+        (passive_id::ENERGY_COST, 1, Source::Prefix),
+        (passive_id::ENERGY_COST, 1, Source::SetBonus),
         (passive_id::BASE_DAMAGE_PERCENT, 0, Source::Rune),
-        (passive_id::RATING_PERCENT, 0, Source::Insignia), (passive_id::ATTRIBUTE, 13, Source::Prefix),
+        (passive_id::RATING_PERCENT, 0, Source::Insignia),
+        (passive_id::ATTRIBUTE, 13, Source::Prefix),
         (passive_id::LIFE_STEAL_ON_HIT, 0, Source::SetBonus),
         (passive_id::ENERGY_ON_HIT, 0, Source::Rune), (passive_id::MAX_ENERGY, 0, Source::Insignia),
         (passive_id::QUICK_CAST_EVERY_N, 13, Source::Suffix),
@@ -733,8 +744,10 @@ fn test_set_record_caste_bounds() {
     // Health 1,001 % (bit 16), health regeneration 21 (bit 32), weapon damage 256 (bit 52),
     // energy regeneration 11 (bit 88), flee 101 (bit 96); tier 0.
     let beyond = array![
-        (0x10000, caste_errors::HEALTH), (0x100000000, caste_errors::HEALTH_REGEN), (0x10000000000000, caste_errors::WEAPON_DAMAGE),
-        (0x10000000000000000000000, caste_errors::ENERGY_REGEN), (0x1000000000000000000000000, caste_errors::FLEE), (-6, caste_errors::TIER),
+        (0x10000, caste_errors::HEALTH), (0x100000000, caste_errors::HEALTH_REGEN),
+        (0x10000000000000, caste_errors::WEAPON_DAMAGE),
+        (0x10000000000000000000000, caste_errors::ENERGY_REGEN),
+        (0x1000000000000000000000000, caste_errors::FLEE), (-6, caste_errors::TIER),
     ];
     for (delta, message) in beyond {
         assert_refused(try_write(r, CASTE, raised(at_bounds, delta)), message);
@@ -751,9 +764,12 @@ fn test_set_record_carriers() {
     let bonus = EntryTrait::new(
         kind::ATTACK_BONUS, 0, 5, 5, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
     );
-    assert_accepted(try_write(r, SKILL, skill_of(4, [bonus, Default::default(), Default::default()])));
+    assert_accepted(
+        try_write(r, SKILL, skill_of(4, [bonus, Default::default(), Default::default()])),
+    );
     assert_refused(
-        try_write(r, SKILL, skill_of(4, [bonus, bonus, Default::default()])), entry_errors::TWO_ATTACK_BONUSES,
+        try_write(r, SKILL, skill_of(4, [bonus, bonus, Default::default()])),
+        entry_errors::TWO_ATTACK_BONUSES,
     );
     let heal = EntryTrait::new(
         kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, 0, 0, 0,

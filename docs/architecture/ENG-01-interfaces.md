@@ -134,6 +134,27 @@ The call costs about 22 to 28 C (§2.3's C = 117,910): most of it is calldata, t
 (4 felts each, in and out), the kills and the content's sheets (about 330 felts), not the syscall.
 The tick's figures per tick, and how each term of the bound is reached, are in §9.2.
 
+**The snapshot's flattening and `Hub` (CBT-02c, M; D-166).** design/20's per-source bounds are
+checked once, by `Registry.set_record` (§3.5), and the flattening (`SnapshotBuildTrait::build`) is
+linear in the passives: one pass sums them in 16-bit lanes, one takes those not summed. Wired into
+`set_build` and `enter` it still passes this section's 50 %, so **the wiring is held back** (as
+CBT-02b's was) and **no production snapshot is written**; moving the flattening into a library
+class needs `set_contracts` to change, the project manager's decision (D-166 (b)). The wired state
+is commit `4ca5802` of CBT-02c's branch. CASM felts of `Hub`, the rest of it unchanged:
+
+| `Hub` with | CASM felts | Share |
+|---|---:|---:|
+| no flattening (this commit) | 35,084 | 42.83 % |
+| CBT-02b's flattening, quadratic in the passives | 65,398 | 79.83 % |
+| CBT-02c's first linear version (one pass, a branch a statistic) | 54,297 | 66.28 % |
+| **CBT-02c's flattening (lanes), wired** | **50,091** | **61.15 %** |
+| the wiring with a flattening that only copies the loadout (a floor, not a rule) | 37,848 | 46.20 % |
+| … and the first pass (sums, counts) with DS-2's floors, nothing else | 42,123 | 51.42 % |
+
+The last two rows are probes: the reads and the held list of the wiring take `Hub` to about 46 %,
+and the first pass with the floors alone passes 50 %, so no arrangement of the rest fits. With the
+content's checks `Registry` is 23,296 felts, **28.44 %** (5,234 and 6.39 % without them).
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -523,7 +544,17 @@ felts; id 0; a part 0 without `LIVE` or with a bit above it; for a sequential ki
 neither existing (≤ `last_id`) nor `last_id + 1`; for `QUOTAS`, a location (`id`) that does not
 exist; for `OUTLINE`, a chunk that is neither below 225 nor 255, or a location that does not exist;
 for `SHOP`, a hub (`id / 16`, a location) that does not exist (existence only, not its type).
-`TASK` and `QUEST` take any non-zero id (D-145). `set_admin` refuses a caller other than `admin`,
+`TASK` and `QUEST` take any non-zero id (D-145). **The content's checks** (CBT-02c, D-166), after
+the part count, id and `LIVE` and before the allocation, the record unpacked as its model: a
+`MODIFIER` is `ModifierAssert::assert_legal` (its passives legal and allowed on its slot type, DS-4;
+their sum within design/20 §1.3's per-source bounds, DS-1 and DS-5; an insignia's health within its
+piece's 15 / 10 / 5, DS-23); an `ARMOR_SET`, `ArmorSetAssert::assert_legal` (each bonus on a set
+bonus, within its bounds); a `SKILL` and an `ITEM`, their `assert_legal` (a legal carrier, one
+`ATTACK_BONUS` at most, DS-20; a potion's entry unscaled); a `CASTE`, `CasteAssert::assert_legal`
+(DS-18, DS-29) and the adrenaline of each skill it names that the registry holds, at most 63 strikes
+(DS-18, reading ≤ 4 `SKILL` records). A record past its bound is refused, a new one and a rewrite
+alike; the administrator pays the checks once, no player's call makes them again. Every other kind
+has no bound of design/20. `set_admin` refuses a caller other than `admin`,
 then the zero address (`'admin is zero'`). **A change
 is told part by part**: each part is compared with the stored felt, only the parts that differ are
 written, and the version is raised once if any did; a rewrite of the same values writes nothing. A
@@ -1239,6 +1270,12 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `decline_trade`, `cancel_trade` | closed | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 2 | TradeClosed ×1 |
 | `Registry.set_record` (3 parts) | written | `R.content_version` 1 (first); `R.last_id` 1 (first); `R.record` 3 (first) | 5 / 0 | 0 / 5 | 6 | — |
 | admin setters, `upgrade` | set | `A.address` 4 (old) | 0 / 4 | 0 / 4 | 4 | — |
+
+`Registry.set_record`'s content checks (§3.5, CBT-02c) write nothing; a `CASTE` also reads the
+skills it names, at most 4 × (1 + 2) = 12 slots. `set_build` and `enter` keep the write sets above:
+the flattening's wiring, which would add their reads of each worn item's `ItemMods` (≤ 7) and the
+distinct `MODIFIER` records worn (≤ 15, in the `bundle` call they already make), is held back
+(§1.3).
 
 **Views** (no transaction; reads bound what a node's call must allow):
 
