@@ -394,7 +394,8 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
-#[available_gas(l2_gas: 25835093)] // ceil(1.05 × 24604850 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 25874279)] // ceil(1.05 × 24642170 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
     let id = adventurer(world);
@@ -407,7 +408,8 @@ fn test_start_hub_from_the_registry() {
 }
 
 #[test]
-#[available_gas(l2_gas: 29622663)] // ceil(1.05 × 28212060 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 29661849)] // ceil(1.05 × 28249380 measured)
 fn test_start_hub_refusals() {
     // No region 1 in the registry.
     let class = declare("Registry").unwrap().contract_class();
@@ -436,7 +438,7 @@ fn test_start_hub_refusals() {
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 37953090)] // ceil(1.05 × 36145800 measured)
+#[available_gas(l2_gas: 37992276)] // ceil(1.05 × 36183120 measured)
 fn test_enter() {
     let world = setup();
     let id = adventurer(world);
@@ -476,7 +478,7 @@ fn test_enter() {
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 36384537)] // ceil(1.05 × 34651940 measured)
+#[available_gas(l2_gas: 36423723)] // ceil(1.05 × 34689260 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
     let id = adventurer(world);
@@ -510,7 +512,7 @@ fn test_enter_reserves_the_belt() {
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 33053916)] // ceil(1.05 × 31479920 measured)
+#[available_gas(l2_gas: 33093102)] // ceil(1.05 × 31517240 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
     let id = adventurer(world);
@@ -527,7 +529,7 @@ fn test_enter_one_debit_per_item() {
 
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 46068341)] // ceil(1.05 × 43874610 measured)
+#[available_gas(l2_gas: 46107527)] // ceil(1.05 × 43911930 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -566,7 +568,8 @@ fn test_enter_refusals() {
 // CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
-#[available_gas(l2_gas: 44386650)] // ceil(1.05 × 42273000 measured)
+// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+#[available_gas(l2_gas: 45650493)] // ceil(1.05 × 43476660 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -622,7 +625,7 @@ fn test_enter_after_set_build() {
 
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 34800840)] // ceil(1.05 × 33143657 measured)
+#[available_gas(l2_gas: 34840026)] // ceil(1.05 × 33180977 measured)
 fn test_travel() {
     let world = setup();
     let id = adventurer(world);
@@ -689,7 +692,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 36997453)] // ceil(1.05 × 35235669 measured)
+#[available_gas(l2_gas: 37036639)] // ceil(1.05 × 35272989 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -731,7 +734,7 @@ fn test_report_returned_through_a_hub_gate() {
 // return (D-141, E-15).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 38333718)] // ceil(1.05 × 36508302 measured)
+#[available_gas(l2_gas: 38372904)] // ceil(1.05 × 36545622 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -765,7 +768,7 @@ fn test_report_to_the_last_hub() {
 // carries). Writes: `place`.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 37332069)] // ceil(1.05 × 35554351 measured)
+#[available_gas(l2_gas: 37371255)] // ceil(1.05 × 35591671 measured)
 fn test_report_moved() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -798,7 +801,7 @@ fn test_report_moved() {
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 36795342)] // ceil(1.05 × 35043182 measured)
+#[available_gas(l2_gas: 36834528)] // ceil(1.05 × 35080502 measured)
 fn test_report_open() {
     let world = setup();
     let id = adventurer(world);
@@ -835,7 +838,7 @@ fn test_report_open() {
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 37355246)] // ceil(1.05 × 35576424 measured)
+#[available_gas(l2_gas: 37394432)] // ceil(1.05 × 35613744 measured)
 fn test_report_refusals() {
     let world = setup();
     let id = adventurer(world);

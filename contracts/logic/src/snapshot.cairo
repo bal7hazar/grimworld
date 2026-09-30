@@ -1899,7 +1899,7 @@ mod tests {
 
     // §6 test 4 (DS-5): enchantment 340 → 50 (17 sources at 20), knock-down 4 → 3, armor
     // against a type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration
-    // 65,534 → 50: `test_capacity::test_same_condition_capped`.
+    // 65,534 → 50: `test_same_condition_capped`, below.
     #[test]
     #[available_gas(l2_gas: 11256097)] // ceil(1.05 × 10720092 measured)
     fn test_saturation() {
@@ -2098,7 +2098,7 @@ mod tests {
 
     #[test]
     // gas: raised, CBT-01: nine armors by damage type (FX-23, FX-24)
-    #[available_gas(l2_gas: 579516)] // ceil(1.05 × 551920 measured)
+    #[available_gas(l2_gas: 581606)] // ceil(1.05 × 553910 measured)
     fn test_stats_layout() {
         let stats = MemberStats {
             max_health: 0xFFFF,
@@ -2448,5 +2448,36 @@ mod tests {
     fn test_cost_oracle_empty() {
         let snapshot = oracle(@loadout(3, 20), array![].span());
         assert(snapshot.stats.max_health == 480, 'no passive');
+    }
+
+    // CBT-9, DS-5 (design/20 §6 test 4): `MemberKitTrait::condition_duration` sums wide, then
+    // saturates at 50: envelope A's 65,534 gives 50 (the builder's sum, without the validators
+    // that now forbid it). Moved from `test_capacity` (D-167, CBT-02c fix loop 1).
+    #[test]
+    #[available_gas(l2_gas: 40961)] // ceil(1.05 × 39010 measured)
+    fn test_same_condition_capped() {
+        let wide = passive(id::CONDITION_DURATION, condition::POISON, 32767);
+        assert(
+            MemberKitTrait::condition_duration(
+                array![wide, wide].span(),
+            ) == (condition::POISON, 50),
+            '65,534 saturated',
+        );
+        // None held: no condition.
+        assert(MemberKitTrait::condition_duration(array![].span()) == (0, 0), 'none');
+    }
+
+    // CBT-9: two conditions are still refused, by the builder as by the validators.
+    #[test]
+    #[should_panic(expected: 'snapshot: two conditions')]
+    #[available_gas(l2_gas: 31143)] // ceil(1.05 × 29660 measured)
+    fn test_two_conditions_builder_refused() {
+        MemberKitTrait::condition_duration(
+            array![
+                passive(id::CONDITION_DURATION, condition::BLEEDING, 33),
+                passive(id::CONDITION_DURATION, condition::POISON, 10),
+            ]
+                .span(),
+        );
     }
 }
