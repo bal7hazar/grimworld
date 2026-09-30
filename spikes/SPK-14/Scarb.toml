@@ -1,0 +1,27 @@
+[package]
+name = "spk14"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.19"
+
+[cairo]
+sierra-replace-ids = true
+
+[dependencies]
+starknet = "2.19"
+# The map library by git at a named commit (SPK-14's brief: main on 2026-09-30), never a copy.
+hexx = { git = "https://github.com/bal7hazar/hexx-cairo", rev = "93639f2c17e3" }
+
+[dev-dependencies]
+snforge_std = "0.61"
+assert_macros = "2.19"
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+# The oracle tests (every offset of the assembly, tile by tile) run many Cairo steps.
+[tool.snforge]
+max_n_steps = 200000000
