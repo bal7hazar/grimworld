@@ -51,4 +51,25 @@ and `personalise`, `lift_modifier`, `set_modifier` must mark stale on a worn ent
 
 ## Decision
 
-Pending.
+**D-169**, `[Fable 5.1]` project manager, 2026-09-30, under D-128: the recommendation, both parts,
+as **CBT-02f** before the first deployment that stores snapshots.
+
+1. **(a) A rules epoch**: `Hub` counts the changes of the flattening class through `set_contracts`;
+   the epoch is stored in the kit word's free bits and checked at `enter`: a rules change stales every
+   snapshot, as a content change does. A procedure (b) that can be forgotten is not a rule; (c) lets
+   two players enter the same day under different rules.
+2. **(b) A counter of the flattening's input kinds**, written by `set_record` on those kinds only
+   (the lot lists them: `MODIFIER`, `BASE`, `ARMOR_SET` and whichever the flattening reads), returned
+   by `Registry.bundle` beside the content version and stored in the snapshot instead of it: only a
+   change to an input of the flattening stales snapshots. The added field of `bundle` is a change of
+   a frozen interface, decided here: nothing is deployed, and ENG-01b's rule holds (interfaces may
+   change under their name until a build's first deployment). A nerfed modifier reaches every player
+   at their next `enter`, as (c) would not.
+
+CBT-02e merges as it stands once its fix loop, audits and Codex review pass; CBT-02f measures
+`enter`'s added read against D-158's 5.25M.
+
+**What would reverse it**: the counter's kinds proving hard to bound (the flattening reading kinds
+that change daily), in which case (a) of question 2, one `set_build` per player per update, is the
+fallback, priced on the player's day.
+
