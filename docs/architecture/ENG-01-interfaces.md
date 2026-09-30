@@ -1089,8 +1089,8 @@ about 98,420 (ENG-06). Each further member (M-3 allows 8) adds 157,443 to a tick
 
 The executor (CBT-03 to CBT-05), the goblins' AI and the flood (ENG-07), the window, the storage
 writes and the transaction's floor are not in these figures. After CBT-02d the upper bound's
-make-up per tick inside a batch of 10: the tick 1.40 M (its 8 conclusions about 0.75 M over the
-awake set's own work); load and store 1.06 M, of which decoding and re-encoding the goblins of the
+make-up per tick inside a batch of 10: the tick 1.40 M (S, 0.63 M, and its 7 conclusions and
+lapse, 0.77 M); load and store 1.06 M, of which decoding and re-encoding the goblins of the
 array that no step touches about 0.85 M (a goblin's load about 71,000, its store about 21,000,
 scratch measure); the call 0.33 M; the content 0.58 M. **The overrun is reported, not accepted**
 (D-161). The flattening's wiring into `Hub` goes with CBT-02c (D-166: its checks at registration,
