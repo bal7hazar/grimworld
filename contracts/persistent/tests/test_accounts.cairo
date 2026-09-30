@@ -364,7 +364,7 @@ fn test_stored_words() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 15613154)] // ceil(1.05 × 14869670 measured)
+#[available_gas(l2_gas: 15620766)] // ceil(1.05 × 14876920 measured)
 fn test_register() {
     let (hub, _) = setup();
     let keys = watched();
@@ -390,7 +390,7 @@ fn test_register() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 9477321)] // ceil(1.05 × 9026020 measured)
+#[available_gas(l2_gas: 9485039)] // ceil(1.05 × 9033370 measured)
 fn test_register_twice_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -402,7 +402,7 @@ fn test_register_twice_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 25001949)] // ceil(1.05 × 23811380 measured)
+#[available_gas(l2_gas: 25009562)] // ceil(1.05 × 23818630 measured)
 fn test_create_adventurer() {
     let (hub, _) = setup();
     let hub_ = act(hub, ALICE);
@@ -477,7 +477,7 @@ fn test_playable_professions() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 7919615)] // ceil(1.05 × 7542490 measured)
+#[available_gas(l2_gas: 7927227)] // ceil(1.05 × 7549740 measured)
 fn test_create_without_account_refused() {
     let (hub, _) = setup();
     #[feature("safe_dispatcher")]
@@ -486,7 +486,7 @@ fn test_create_without_account_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 9642066)] // ceil(1.05 × 9182920 measured)
+#[available_gas(l2_gas: 9649679)] // ceil(1.05 × 9190170 measured)
 fn test_create_empty_name_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -496,7 +496,7 @@ fn test_create_empty_name_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 9640638)] // ceil(1.05 × 9181560 measured)
+#[available_gas(l2_gas: 9648251)] // ceil(1.05 × 9188810 measured)
 fn test_create_bad_profession_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -508,7 +508,7 @@ fn test_create_bad_profession_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 20330426)] // ceil(1.05 × 19362310 measured)
+#[available_gas(l2_gas: 20338038)] // ceil(1.05 × 19369560 measured)
 fn test_create_no_free_slot_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -520,7 +520,7 @@ fn test_create_no_free_slot_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 29386791)] // ceil(1.05 × 27987420 measured)
+#[available_gas(l2_gas: 29394404)] // ceil(1.05 × 27994670 measured)
 fn test_delete_frees_the_slot_and_marks_the_record() {
     let (hub, _) = setup();
     let (_, ids) = with_adventurers(hub, ALICE, 3);
@@ -557,7 +557,7 @@ fn test_delete_frees_the_slot_and_marks_the_record() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 22208109)] // ceil(1.05 × 21150580 measured)
+#[available_gas(l2_gas: 22215722)] // ceil(1.05 × 21157830 measured)
 fn test_delete_the_last_listed() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -574,7 +574,7 @@ fn test_delete_the_last_listed() {
 /// ENG-01 §9.3's worst case: the hole and the last id on two pages (an account of eight).
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 42845576)] // ceil(1.05 × 40805310 measured)
+#[available_gas(l2_gas: 42853188)] // ceil(1.05 × 40812560 measured)
 fn test_delete_across_pages() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -601,7 +601,7 @@ fn test_delete_across_pages() {
 /// The MVP's worst deletion: 3 slots, the 2nd of 3 (two entries inspected, one page written).
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 25006643)] // ceil(1.05 × 23815850 measured)
+#[available_gas(l2_gas: 25014255)] // ceil(1.05 × 23823100 measured)
 fn test_delete_worst_three_slots() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -621,7 +621,7 @@ fn test_delete_worst_three_slots() {
 /// hole on page 0, the last id on page 1).
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 42901856)] // ceil(1.05 × 40858910 measured)
+#[available_gas(l2_gas: 42909468)] // ceil(1.05 × 40866160 measured)
 fn test_delete_worst_two_pages() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -646,7 +646,7 @@ fn test_delete_worst_two_pages() {
 /// first), so the lane falls by the difference; the page stays correctly packed.
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 25431326)] // ceil(1.05 × 24220310 measured)
+#[available_gas(l2_gas: 25438938)] // ceil(1.05 × 24227560 measured)
 fn test_delete_negative_delta() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -667,7 +667,7 @@ fn test_delete_negative_delta() {
 /// 0 untouched; then deltas across pages, positive and negative.
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 51892229)] // ceil(1.05 × 49421170 measured)
+#[available_gas(l2_gas: 51899841)] // ceil(1.05 × 49428420 measured)
 fn test_delete_within_the_final_page() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -703,7 +703,7 @@ fn test_delete_within_the_final_page() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13971920)] // ceil(1.05 × 13306590 measured)
+#[available_gas(l2_gas: 13979532)] // ceil(1.05 × 13313840 measured)
 fn test_helper_no_adventurer() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -715,7 +715,7 @@ fn test_helper_no_adventurer() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 19526766)] // ceil(1.05 × 18596920 measured)
+#[available_gas(l2_gas: 19534379)] // ceil(1.05 × 18604170 measured)
 fn test_helper_not_owner() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -728,7 +728,7 @@ fn test_helper_not_owner() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 17794298)] // ceil(1.05 × 16946950 measured)
+#[available_gas(l2_gas: 17801910)] // ceil(1.05 × 16954200 measured)
 fn test_helper_deleted() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 2);
@@ -741,7 +741,7 @@ fn test_helper_deleted() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13559616)] // ceil(1.05 × 12913920 measured)
+#[available_gas(l2_gas: 13567229)] // ceil(1.05 × 12921170 measured)
 fn test_helper_not_in_a_hub() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -754,7 +754,7 @@ fn test_helper_not_in_a_hub() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13638461)] // ceil(1.05 × 12989010 measured)
+#[available_gas(l2_gas: 13646073)] // ceil(1.05 × 12996260 measured)
 fn test_delete_pack_balances_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -765,7 +765,7 @@ fn test_delete_pack_balances_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13977558)] // ceil(1.05 × 13311960 measured)
+#[available_gas(l2_gas: 13985171)] // ceil(1.05 × 13319210 measured)
 fn test_delete_pack_equipment_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -777,7 +777,7 @@ fn test_delete_pack_equipment_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13553600)] // ceil(1.05 × 12908190 measured)
+#[available_gas(l2_gas: 13561212)] // ceil(1.05 × 12915440 measured)
 fn test_delete_equipped_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -789,7 +789,7 @@ fn test_delete_equipped_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13952894)] // ceil(1.05 × 13288470 measured)
+#[available_gas(l2_gas: 13960506)] // ceil(1.05 × 13295720 measured)
 fn test_delete_pack_gold_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -802,7 +802,7 @@ fn test_delete_pack_gold_refused() {
 /// A pack emptied again (its lanes, pages and gold kept `LIVE` at 0) does not stop deletion.
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 14598633)] // ceil(1.05 × 13903460 measured)
+#[available_gas(l2_gas: 14606246)] // ceil(1.05 × 13910710 measured)
 fn test_delete_after_the_pack_was_emptied() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -818,7 +818,7 @@ fn test_delete_after_the_pack_was_emptied() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 28750407)] // ceil(1.05 × 27381340 measured)
+#[available_gas(l2_gas: 28758020)] // ceil(1.05 × 27388590 measured)
 fn test_set_account_owner() {
     let (hub, double) = setup();
     with_adventurers(hub, ALICE, 2);
@@ -854,7 +854,7 @@ fn test_set_account_owner() {
 /// ENG-01 §9.3 and §10's worst case: seven adventurers inside, each one's controller moved.
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 44839358)] // ceil(1.05 × 42704150 measured)
+#[available_gas(l2_gas: 44846970)] // ceil(1.05 × 42711400 measured)
 fn test_set_account_owner_seven_inside() {
     let (hub, double) = setup();
     act(hub, ALICE).register();
@@ -894,7 +894,7 @@ fn test_set_account_owner_seven_inside() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 22159788)] // ceil(1.05 × 21104560 measured)
+#[available_gas(l2_gas: 22167401)] // ceil(1.05 × 21111810 measured)
 fn test_set_account_owner_only_those_inside() {
     let (hub, double) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -911,7 +911,7 @@ fn test_set_account_owner_only_those_inside() {
 /// owner word, both `account_of` entries).
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 22481393)] // ceil(1.05 × 21410850 measured)
+#[available_gas(l2_gas: 22489005)] // ceil(1.05 × 21418100 measured)
 fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
     let (hub, _) = setup();
     let class = declare("RefusingInstances").unwrap().contract_class();
@@ -936,7 +936,7 @@ fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13692515)] // ceil(1.05 × 13040490 measured)
+#[available_gas(l2_gas: 13700127)] // ceil(1.05 × 13047740 measured)
 fn test_set_account_owner_wrong_caller_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -948,7 +948,7 @@ fn test_set_account_owner_wrong_caller_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 15414861)] // ceil(1.05 × 14680820 measured)
+#[available_gas(l2_gas: 15422474)] // ceil(1.05 × 14688070 measured)
 fn test_set_account_owner_to_an_account_holder_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -961,7 +961,7 @@ fn test_set_account_owner_to_an_account_holder_refused() {
 
 #[test]
 // gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13350351)] // ceil(1.05 × 12714620 measured)
+#[available_gas(l2_gas: 13357964)] // ceil(1.05 × 12721870 measured)
 fn test_set_account_owner_to_zero_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);

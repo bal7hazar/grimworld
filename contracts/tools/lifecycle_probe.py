@@ -111,8 +111,11 @@ def gate(source, destination, anchor, entry, kind):
 
 
 def item(klass):
-    """An `ITEM` of region 1, value 1: class only (the potion's entry is the content pipeline's)."""
-    return [klass + (1 << 8) + (1 << 32) + LIVE]
+    """An `ITEM` of region 1, value 1. A potion's entry heals its holder, 20 at every rank
+    (`HEAL`, `SELF`, `SINGLE`): `Registry.set_record` refuses a potion without a legal entry
+    (D-166, `ItemAssert::assert_legal`)."""
+    entry = 3 + (20 << 16) + (20 << 32) + (1 << 88) if klass == POTION else 0
+    return [klass + (1 << 8) + (1 << 32) + (entry << 128) + LIVE]
 
 
 # `set_build`'s words, without `LIVE` (ENG-01 §3.3): an empty bar (elite slot 255, bit 168), and a

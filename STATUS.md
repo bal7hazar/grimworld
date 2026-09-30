@@ -1,14 +1,17 @@
 # Status — game track
 
-**2026-09-30 16:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-09-30 22:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 ## Resumed 2026-09-30 (D-162: the standard roles of Nexus)
 
 Audits and reviews go through `nexus audit` and `nexus review`; VPS implementers still through
-`scripts/agent.sh`. **CBT-02 merged** ([#182](https://github.com/bal7hazar/grimworld/pull/182), D-163);
-**CBT-02b** launching ([brief](docs/briefs/CBT-02b-tick-cost.md)). ENG-05 and ENG-02 wait for `hexx` rc.1.
+`scripts/agent.sh`. **CBT-02** ([#182](https://github.com/bal7hazar/grimworld/pull/182)), **CBT-02b**
+([#196](https://github.com/bal7hazar/grimworld/pull/196)) and **SPK-14** ([#202](https://github.com/bal7hazar/grimworld/pull/202))
+and **CBT-02c** ([#206](https://github.com/bal7hazar/grimworld/pull/206), unwired, D-168) merged.
+**CBT-02d** running; **CBT-02e** ([brief](docs/briefs/CBT-02e-stored-snapshot.md)) launching. ENG-05 and
+ENG-02 wait for `hexx` rc.1.
 A nexus auditor resumed on a new revision could not fetch it (its sandbox refused `FETCH_HEAD`): a new
 auditor per revision is started instead (reported to the owner here, as the standard asks).
 
@@ -33,15 +36,19 @@ project manager to choose (see *Next*).
 
 **A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
 part of a worst tick is **1.06–1.11 M** (window, flood at 15 layers, 8 walkers; LIB-05 M1-T9b), which
-leaves about 0.4 M for the game's logic and storage; CBT-02's pipeline measures **1.01 M representative,
-1.39 M worst** (content included). A worst tick is about 2.5 M before the executor, the AI and the
-writes. S1 above does not yet count this: it rests on ENG-01's per-tick estimate. The levers are for
-decision ([file](docs/decisions/2026-09-29-cbt-02-tick-cost.md)).
+leaves about 0.4 M for the game's logic and storage. CBT-02b proved the tick's bound term by term:
+**≤ 8,750,367** for the tick alone, **≤ 15,197,058** a tick inside a batch (load, store, content);
+representative **1,161,750**. S1 above does not yet count this: it rests on ENG-01's per-tick estimate.
+The remaining levers (the goblins' hot fields, a content index) are CBT-02d's (D-166); ENG-07 derives
+the batch weight from the worst tick.
 
 ## What moved
 
 | | |
 |---|---|
+| **CBT-02c** | [#206](https://github.com/bal7hazar/grimworld/pull/206): design/20's per-record bounds at registration; the flattening linear, unwired (`Hub` 61.15 % wired); CBT-02e stores the snapshot (D-168) |
+| **CBT-02b** | [#196](https://github.com/bal7hazar/grimworld/pull/196): levers (a) and (b); the worst tick proved term by term, escalated not accepted; the Hub wiring moved to CBT-02c and CBT-02e (D-166, D-168) |
+| **SPK-14** | [#202](https://github.com/bal7hazar/grimworld/pull/202): hexagonal chunks measured against 15 × 15; recommendation keep 15 × 15, the owner decides (D-165) |
 | **CBT-08a** | [#170](https://github.com/bal7hazar/grimworld/pull/170): `set_build`; items carry their base's slot and hands; worst case about 3.80M, its target (D-158) |
 | **CBT-01** | [#165](https://github.com/bal7hazar/grimworld/pull/165): design/19's data frozen as code; questions A–I decided (D-157) |
 | **DES-04** | [#139](https://github.com/bal7hazar/grimworld/pull/139): design/19, the effect catalogue and resolution order (D-155) |
@@ -53,19 +60,19 @@ decision ([file](docs/decisions/2026-09-29-cbt-02-tick-cost.md)).
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| — | | none running |
+| CBT-02d the tick's remaining levers | Opus 5.5 (scripts/agent.sh) | running since 21:37 |
+| CBT-02e stored snapshot | Opus 5.5 (scripts/agent.sh) | launching |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-See **Pause 2026-09-29** above: CBT-02's re-audit, then its merge; then CBT-02b. Since 17:30:
-DES-06 merged (design/20, D-160); CBT-02 built (D-159) and its cost decided (D-161); the map library's
-share of a worst tick recorded (1.06–1.11 M, S1's section below).
+CBT-02d's and CBT-02e's audits (cost, quality) and
+review; then ENG-R1's brief (D-167), its first lot shown to the owner.
 
 ## Decisions needed
 
-None open. Answered today: D-141 to D-158.
+None open. Answered since 2026-09-29: D-141 to D-168.
 
 ## Build notes (D-154)
 
