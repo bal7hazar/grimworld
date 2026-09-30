@@ -41,3 +41,18 @@ digger (the map generator, SPK-7's figures, ENG-05) can flake.
 SPK-13 finding the cause in our code or our cache (then it is a fix, not a compiler report); the
 flake reaching the game's CI often enough to stall merges (then budgets get a stated tolerance on
 the paths through the digger, decided on SPK-13's figures).
+
+## D-164 (2026-09-30): the gate when the drift blocks a merge
+
+`hexx-cairo` #49 (M1-T2): CI built `HexxGenerators` at 27,101 Sierra felts on both attempts, the
+committed snapshot and two clean local builds of the same commit give 27,092; CASM equal; the sixth
+occurrence, always the same second value; the pull request does not touch the class.
+
+**Option (B)**, `[Fable 5.1]` project manager, under D-128: the class-size snapshot records **the two
+observed builds** of that class, both exact (27,092 and 27,101 Sierra felts, CASM 49,375), each with
+the commit and the run that observed it; **any third value fails**. It is a narrow exception, not a
+tolerance; no merge with a red check; no rule of repeated re-runs (a re-run that always gives the
+same other value proves nothing). It is reverted to one value when SPK-13 explains the difference.
+**A fact for SPK-13**: the CI runner always gives one value and the local machine always the other:
+the difference follows the build environment (compiler binary, cache, platform), not chance; SPK-13
+compares the CI runner's toolchain with the VPS's and the Mac's.
