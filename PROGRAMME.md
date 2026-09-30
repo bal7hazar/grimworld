@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-168 | The snapshot flattened once at `set_build` and stored with the adventurer (CBT-02e); `enter` copies it | Project manager |
 | D-167 | `quiver_quest` 0.2.0 accepted by the owner; unit tests beside their code, every Cairo library | Owner |
 | D-166 | The flattening's bounds checked at registration (CBT-02c); CBT-02d's levers before ENG-07; the batch's weight from the proved worst tick | Project manager |
 | D-165 | SPK-14: hexagonal chunks of 251 tiles studied before ENG-05; the shape is the owner's decision on the report | Project manager |
