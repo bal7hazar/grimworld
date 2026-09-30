@@ -3040,3 +3040,407 @@ fn test_cost_library_baseline_all_dead() {
     let words = world.store();
     assert(words.killed.len() == 100, 'each goblin once');
 }
+
+// ---------------------------------------------------------------------------------------------
+// CBT-02d's parity table (AC-1): the pipeline's results on the existing fixtures, hashed (Poseidon
+// over the words the pipeline leaves, the clock, the kills and the defeat, and the hooks the rules
+// recorded). The hashes were taken on the representation before CBT-02d (every goblin in one array
+// of 23-felt structs, the content looked up by id at every load) and pin the new one's results:
+// the same states, the same rules, the same words.
+
+fn digest(world: World, extra: Span<felt252>) -> felt252 {
+    let mut out = array![];
+    world.store().serialize(ref out);
+    out.append_span(extra);
+    core::poseidon::poseidon_hash_span(out.span())
+}
+
+fn script_digest(world: World, rules: Script) -> felt252 {
+    let mut extra = array![];
+    rules.acts.serialize(ref extra);
+    rules.resolved.serialize(ref extra);
+    digest(world, extra.span())
+}
+
+fn scripted(mut world: World, content: @Content, ticks: u8) -> felt252 {
+    let mut rules: Script = Default::default();
+    TickTrait::run(ref world, content, ticks, ref rules);
+    script_digest(world, rules)
+}
+
+/// The worked examples and the rules' tests, their states and rules as those tests build them.
+fn parity_examples() -> Array<felt252> {
+    let content = Fixture::content();
+    let mut out = array![];
+    // §10.3, the degeneration.
+    let mut spec = Fixture::spec();
+    spec.conditions = [77, 72, 0, 0];
+    let world = Fixture::world(69, array![Fixture::member(spec)], array![Fixture::goblin(17, HOB)]);
+    out.append(scripted(world, @content, 6));
+    // §10.1, a burning goblin.
+    let mut goblin = Fixture::goblin(24, HOB);
+    goblin.health = 87;
+    goblin.burning = 44;
+    out.append(scripted(Fixture::only(41, goblin), @content, 4));
+    // §10.2, an interrupt.
+    let caste = Fixture::caste(HOB, 1);
+    let mut goblin = Fixture::goblin(40, HOB);
+    goblin.start(0, 0, 3, 50);
+    goblin.knocked = 53;
+    goblin.interrupt(52, @caste, @content);
+    out.append(scripted(Fixture::only(51, goblin), @content, 3));
+    // §10.5, a lapse: frozen four ticks, then awake.
+    let mut goblin = Fixture::goblin(30, HOB);
+    goblin.start(0, 0, 3, 100);
+    goblin.awake = false;
+    goblin.health = 50;
+    goblin.bleeding = 105;
+    let mut world = Fixture::only(102, goblin);
+    run(ref world, 4);
+    let mut goblin = *world.goblins.at(0);
+    goblin.awake = true;
+    world.set_goblin(0, goblin);
+    out.append(scripted(world, @content, 1));
+    let mut goblin = Fixture::goblin(30, HOB);
+    goblin.start(0, 0, 3, 100);
+    goblin.set_recharge(0, 200);
+    out.append(scripted(Fixture::only(106, goblin), @content, 1));
+    // §10.9, an activated attack's cost.
+    let mut goblin = Fixture::goblin(9, RUNT);
+    goblin.recover(2, 50);
+    out.append(scripted(Fixture::only(50, goblin), @content, 2));
+    let mut goblin = Fixture::goblin(9, RUNT);
+    goblin.start(1, 0, 1, 50);
+    out.append(scripted(Fixture::only(50, goblin), @content, 2));
+    let k3 = Content {
+        castes: array![Fixture::caste(HOB, 1), Fixture::caste(RUNT, 3)].span(), ..content,
+    };
+    let mut goblin = Fixture::goblin(9, RUNT);
+    goblin.start(1, 0, 1, 50);
+    out.append(scripted(Fixture::only(50, goblin), @k3, 3));
+    // §10.1 and §10.6, a member's activation.
+    let mut member = Fixture::member(Fixture::spec());
+    member.start(1, 57, 2, 40);
+    out.append(scripted(Fixture::world(40, array![member], array![]), @content, 2));
+    // §5.8, regeneration.
+    let mut skills = array![
+        SkillSheet {
+            id: 1,
+            kind: skill_kind::SPELL,
+            adrenaline: 0,
+            activation: 0,
+            recharge: 0,
+            regen0: 2,
+            regen12: 6,
+        },
+    ];
+    for id in 2..9_u16 {
+        skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
+    }
+    let regen = Content {
+        skills: skills.span(),
+        potions: array![PotionSheet { id: 101, regen: 3 }].span(),
+        castes: array![].span(),
+    };
+    let mut spec = Fixture::spec();
+    spec
+        .effects =
+            [(1, false, 10, 12), (1, true, MAX_CLOCK, 0), (1, false, 4, 12), (0, false, 0, 0)];
+    spec.energy = 55;
+    spec.health_regen = 1;
+    spec.energy_regen = 4;
+    let member = MemberTrait::load(Fixture::member_words(spec), @regen);
+    out.append(scripted(Fixture::world(4, array![member], array![]), @regen, 2));
+    let mut spec = Fixture::spec();
+    spec.health = 479;
+    spec.health_regen = 10;
+    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
+    // Step 3's extremes.
+    let mut spec = Fixture::spec();
+    spec.health_regen = -10;
+    spec.effect_regen = [-10; 4];
+    spec.effects = [(1, false, 99, 0); 4];
+    spec.conditions = [99, 99, 99, 0];
+    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
+    let mut spec = Fixture::spec();
+    spec.health = 300;
+    spec.health_regen = 10;
+    spec.effect_regen = [10; 4];
+    spec.effects = [(1, false, 99, 0); 4];
+    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
+    // Adrenaline decay.
+    let mut spec = Fixture::spec();
+    spec.adrenaline = 5;
+    let mut alerted = Fixture::goblin(8, HOB);
+    alerted.ai = ai::ALERTED;
+    alerted.adrenaline = 1;
+    let mut frozen_engaged = Fixture::goblin(9, HOB);
+    frozen_engaged.awake = false;
+    let world = Fixture::world(0, array![Fixture::member(spec)], array![alerted, frozen_engaged]);
+    out.append(scripted(world, @content, 2));
+    let mut engaged = Fixture::goblin(8, HOB);
+    engaged.adrenaline = 4;
+    let world = Fixture::world(0, array![Fixture::member(spec)], array![engaged]);
+    out.append(scripted(world, @content, 1));
+    // Deaths in step 3, then the executor's kill.
+    let mut a = Fixture::goblin(8, HOB);
+    a.health = 10;
+    a.burning = 5;
+    let mut b = Fixture::goblin(12, HOB);
+    b.health = 14;
+    b.burning = 5;
+    b.bleeding = 5;
+    let mut c = Fixture::goblin(20, HOB);
+    c.energy = 29;
+    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], array![a, b, c]);
+    run(ref world, 2);
+    world.kill(2);
+    world.kill(2);
+    out.append(digest(world, array![].span()));
+    // Defeat, in step 3 and in step 2.
+    let mut spec = Fixture::spec();
+    spec.health = 6;
+    spec.conditions = [9, 9, 9, 0];
+    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 3));
+    let mut a = Fixture::goblin(8, HOB);
+    a.health = 50;
+    a.bleeding = 9;
+    let b = Fixture::goblin(9, HOB);
+    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], array![a, b]);
+    let mut rules: Script = Default::default();
+    rules.kill_member_at = 1;
+    TickTrait::run(ref world, @content, 2, ref rules);
+    out.append(script_digest(world, rules));
+    // Who acts.
+    let mut knocked = Fixture::goblin(8, HOB);
+    knocked.knocked = 1;
+    let mut activating = Fixture::goblin(9, HOB);
+    activating.start(0, 0, 3, 0);
+    let mut recovering = Fixture::goblin(10, HOB);
+    recovering.recover(3, 0);
+    let mut frozen = Fixture::goblin(11, HOB);
+    frozen.awake = false;
+    let mut dead = Fixture::goblin(12, HOB);
+    dead.ai = ai::DEAD;
+    let goblins = array![
+        knocked, activating, recovering, frozen, dead, Fixture::goblin(13, HOB),
+        Fixture::goblin(14, RUNT),
+    ];
+    let world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
+    out.append(scripted(world, @content, 2));
+    // The flags.
+    let mut spec = Fixture::spec();
+    spec.flags = flag::TURNED + flag::INSTANT + flag::HIT + flag::HALVED;
+    out.append(scripted(Fixture::world(0, array![Fixture::member(spec)], array![]), @content, 1));
+    // The awake set, then a tick.
+    let mut goblins = array![];
+    for entity in 8..19_u16 {
+        let mut goblin = Fixture::goblin(entity, HOB);
+        goblin.awake = false;
+        if entity == 8 {
+            goblin.ai = ai::ASLEEP;
+        } else if entity == 9 {
+            goblin.ai = ai::DEAD;
+        }
+        goblins.append(goblin);
+    }
+    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
+    TickTrait::awake(ref world, array![1, 1, 5, 3, 3, 9, 2, 3, 4, 3, 6].span());
+    out.append(scripted(world, @content, 2));
+    // The member down before the tick.
+    let mut spec = Fixture::spec();
+    spec.health = 0;
+    let mut goblin = Fixture::goblin(8, HOB);
+    goblin.bleeding = 99;
+    let world = Fixture::world(49, array![Fixture::member(spec)], array![goblin]);
+    out.append(scripted(world, @content, 3));
+    out
+}
+
+/// The benchmarks' states: the representative batch, CBT-02's heavy tick, `Busy`'s batch, the
+/// load's costliest words, the kills, two members, the awake selection over 100 candidates.
+fn parity_states() -> Array<felt252> {
+    let mut out = array![];
+    let (world, content) = representative();
+    out.append(scripted(world, @content, 10));
+    let (world, content) = worst_state(true, 3);
+    out.append(scripted(world, @content, 1));
+    let (world, content) = worst_of(true, 3, 8);
+    out.append(scripted(world, @content, 1));
+    let (mut world, content) = worst_state(false, 1);
+    let mut rules: Busy = Default::default();
+    TickTrait::run(ref world, @content, 10, ref rules);
+    out.append(digest(world, array![].span()));
+    let (words, content) = load_words(1);
+    out.append(scripted(words.load(@content), @content, 1));
+    let (words, content) = worst_words_kills();
+    out.append(scripted(words.load(@content), @content, 1));
+    let (words, content) = worst_words_two();
+    out.append(scripted(words.load(@content), @content, 1));
+    let (mut world, distances) = candidates();
+    TickTrait::awake(ref world, distances);
+    out.append(scripted(world, @worst_content(3), 2));
+    out
+}
+
+fn term_digest(branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32) -> felt252 {
+    let (world, content) = term_world(branches, at, survive, k, members);
+    scripted(world, @content, 1)
+}
+
+/// The weapon cost of a branch's content: 1 for a conclusion clearing the field, else 3.
+fn k_of(branch: u8) -> u8 {
+    if branch == B_CONCLUDE_CLEAR {
+        1
+    } else {
+        3
+    }
+}
+
+/// Every branch of step 1 taken by one awake goblin; the base, with one and two members; a
+/// survivor.
+fn parity_terms_one() -> Array<felt252> {
+    let mut out = array![];
+    out.append(term_digest(array![].span(), array![].span(), false, 1, 1));
+    out.append(term_digest(array![].span(), array![].span(), false, 1, 2));
+    for branch in 1..11_u8 {
+        out.append(term_digest(all_of(branch, 1), at_end(1), false, k_of(branch), 1));
+    }
+    out.append(term_digest(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), true, 3, 1));
+    out
+}
+
+/// Every branch taken by eight awake goblins.
+fn parity_terms_eight() -> Array<felt252> {
+    let mut out = array![];
+    for branch in 1..11_u8 {
+        out.append(term_digest(all_of(branch, 8), at_end(8), false, k_of(branch), 1));
+    }
+    out
+}
+
+/// The mixes of branches, the costliest at three placements.
+fn parity_terms_mixed() -> Array<felt252> {
+    let mut out = array![];
+    let mix = seven_then(B_CONCLUDE_CLEAR, B_LAPSE);
+    out.append(term_digest(mix, at_end(8), false, 1, 1));
+    out.append(term_digest(mix, at_start(8), false, 1, 1));
+    out.append(term_digest(mix, at_spread(), false, 1, 1));
+    out.append(term_digest(seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), at_end(8), false, 1, 1));
+    out.append(term_digest(seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), at_end(8), false, 1, 1));
+    out.append(term_digest(seven_then(B_ACTIVATING, B_LAPSE), at_end(8), false, 3, 1));
+    let first = array![
+        B_LAPSE, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
+        B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
+    ];
+    out.append(term_digest(first.span(), at_end(8), false, 1, 1));
+    out
+}
+
+/// Each case's hash against the one the representation before CBT-02d gave.
+fn check(digests: Span<felt252>, expected: Span<felt252>) {
+    assert(digests.len() == expected.len(), 'parity: the cases');
+    let mut i = 0;
+    for digest in digests {
+        if *digest != *expected[i] {
+            println!("parity: case {} differs", i);
+        }
+        assert(*digest == *expected[i], 'parity: a result moved');
+        i += 1;
+    }
+}
+
+#[test]
+fn test_parity_examples() {
+    let expected = array![
+        1241239600139814297445332189267579437395556034260927953445438187785428878731,
+        491717564647083686894055142658152103720224761551139940084970406250512277846,
+        3279354350096061797672110377414646121550019867768224401483363015248632403870,
+        83824577866241555736452047896067232811119888308199248696069757999218338843,
+        3181341630533443102889018483946007907540995978223971023322942914042873787001,
+        2586313296703552823193594313852174495102426775065760629887616998179214029507,
+        2282094649473355371114114019674337843111945168566928552033171932999753110715,
+        903416554857088170097693242839874924587443961869280753302820931050691423178,
+        36816074613476127739194688687361647858952182761094686373073532436844626909,
+        578299332572586597861253641443536109702505773854295383591492880389142847899,
+        2256981156959556821140546821485115600311245454586228425009447030319208542273,
+        2002548036566857385627003582764042318200407604042384761949088270124994837581,
+        1687685766588233095728758727432648551106488922145377264927484828051984820318,
+        607213395876240693311469384551087878148168016217732081155760531034260965242,
+        891777736309743493325478634454341459091768690012685325243590989484595176054,
+        2933140010559893209433732273596883974226591012891511291573945804947483340308,
+        3569151246204370127189098609633852058304810835945494873622362819867673589044,
+        3172806269214616740873881451656776072551644801186086110487524010356007479437,
+        2538373200902374196645501793894615009434001110123875393181816749730969080654,
+        1574109686732086378521569676370240047520439259817296123398255027621323721654,
+        2092477404879913529660556085007281953094978727880571781133569368787650641652,
+        377493575383891479358179621635677024782546422683899913320429701904083862605,
+    ];
+    check(parity_examples().span(), expected.span());
+}
+
+#[test]
+fn test_parity_states() {
+    let expected = array![
+        66295114118071479459692970620146523881576091136849489442811860794139663220,
+        818192087882419130412640452740579700817728367218241546515805066039749692743,
+        2906164216761644532907114827085773083743798371616189745023773186502236529649,
+        2613397554918266076825081268910489855062313516592916183374861504364664828908,
+        2298920669945134706615672635496912081439368038756335941565106089387303402734,
+        697695773267079789808853862635067569637746281765491970940063751435004344342,
+        753256446473327071213823043884469167763738236257836741801423926569548893429,
+        2167237727178921241778715351040650571144958650522743856062303552623326371335,
+    ];
+    check(parity_states().span(), expected.span());
+}
+
+#[test]
+fn test_parity_terms_one() {
+    let expected = array![
+        88087899950557960678794964014890056200459421389235559457401630463246604284,
+        3579561893237392100038923530669381334989704862963200918198113192795527606886,
+        2567228037492565523363386772544580452948188342943467954539007093421866396459,
+        2912085704647302411354154677808699324450637052819509186428231974860872925057,
+        433728905142926763847193419405653048457548304248634131207632820686103497468,
+        2033346563660364008792322982179064364376401217183603600798956396365900579134,
+        1249100349568056774094539997767552458500908577533013347860470997306826367504,
+        2033346563660364008792322982179064364376401217183603600798956396365900579134,
+        891191391904939947100891592741596371153250298472982675948188109234020004337,
+        3112680036695512405674054925354465360586176898873616806369648439981786239926,
+        1672640494903947382382267510994679190517231905690503933633620198094781814072,
+        630241381706957817328858465464406209916783855088746342540356238819133309139,
+        1134850821367488419383656841196072864013414594968230892252060344947998097459,
+    ];
+    check(parity_terms_one().span(), expected.span());
+}
+
+#[test]
+fn test_parity_terms_eight() {
+    let expected = array![
+        2121333299619063147913285746205207917883134567401573317101663845783484896436,
+        599268691462812653467081228824803315194703295356781843380239879958356481493,
+        121588814585967634366285767176815376419103130041297977422131092009062460392,
+        2910551669979255134056396293675564154868246984207346922499563435233818195554,
+        2891821211414996803827012556194696439884861292227313665264508143637619802305,
+        2910551669979255134056396293675564154868246984207346922499563435233818195554,
+        1609730803116411593211745486417407844307954119460764620517071958157052486672,
+        1816821286769248378503520828288867372310126870686729059281766238675924149260,
+        200890224080408962118036520475000037907869055607390301074377674017660260183,
+        3004372021678339891596254004570985572933057602128654812115063414994757262309,
+    ];
+    check(parity_terms_eight().span(), expected.span());
+}
+
+#[test]
+fn test_parity_terms_mixed() {
+    let expected = array![
+        27992153565252449929902520995596670114029068624090995673201924444728575957,
+        3106687891589951335204801563655212505762174296790971771797177050293919044653,
+        2793289906036307173993654288333319208163955455842056704257748431531148475402,
+        829081272877034207383686717374503514167686565867885275763425410260734276763,
+        409805861387747913415738105721913034229628692213750613121443509321194602875,
+        2873271243383038176927594926366083624367330016323570349714795423920882569300,
+        1893901237981330943186718663857116933347588528450890899926102793009466032819,
+    ];
+    check(parity_terms_mixed().span(), expected.span());
+}
