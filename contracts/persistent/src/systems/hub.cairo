@@ -148,6 +148,7 @@ pub trait IHubAdmin<T> {
         instances: ContractAddress,
         market: ContractAddress,
         fate: ContractAddress,
+        flatten: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
     fn upgrade(ref self: T, class_hash: ClassHash);
@@ -156,8 +157,9 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{GATE, ITEM, REGION, SKILL, exists};
+    use grimworld_logic::content::{GATE, ITEM, MODIFIER, REGION, SKILL, exists};
     use grimworld_logic::interface::{
+        IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher,
         IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IRegistryReadDispatcher,
         IRegistryReadDispatcherTrait, IResults, Results, facts,
     };
@@ -167,7 +169,7 @@ pub mod Hub {
     use grimworld_logic::models::skill::SkillTrait;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::ProfessionAssert;
-    use grimworld_logic::snapshot::SnapshotTrait;
+    use grimworld_logic::snapshot::{SnapshotTrait, Worn};
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
@@ -184,12 +186,16 @@ pub mod Hub {
     };
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerCoreTrait, AdventurerPlaceTrait, BELT_WORD,
-        BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, CORE_WORD, EMPTY_LANES,
+        BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, BuildTrait, CORE_WORD, EMPTY_LANES,
         EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE, PLACE_WORD,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
-        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, RiftBoard,
+        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, ItemMods, ItemModsTrait,
+        PERSONALISED, RiftBoard,
+    };
+    use crate::models::snapshot::{
+        BAR_WORD, KIT_WORD, STATS_WORD, StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait,
     };
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
@@ -203,6 +209,9 @@ pub mod Hub {
         pub instances: ContractAddress,
         pub market: ContractAddress,
         pub fate: ContractAddress,
+        /// `FlattenLibrary`'s class hash (ENG-01 §1.3, D-168): `set_build` calls it by
+        /// `library_call`.
+        pub flatten: ClassHash,
         pub next_account: Counter,
         pub next_adventurer: Counter,
         pub next_item: Counter,
@@ -232,6 +241,9 @@ pub mod Hub {
         /// `(account, page)`: equipment entities in the vault, seven per page (25 per pane).
         pub vaults: Map<(u32, u8), Lanes32>,
         pub rift_boards: Map<u32, RiftBoard>,
+        /// Three slots each, by adventurer id: the snapshot `set_build` flattened, which `enter`
+        /// copies (D-168; `models::snapshot`).
+        pub snapshots: Map<u32, StoredSnapshot>,
     }
 
     #[event]
@@ -451,11 +463,15 @@ pub mod Hub {
         /// count (the reserve `enter` debits). The equipment: each entity in the adventurer's
         /// pack, wearable, worn in its lane's slot, no off-hand beside a weapon held in both
         /// hands: the slot and the hands are the item's own, copied from its `BASE` at creation
-        /// (D-158), so no base is read. Reads: the ownership check's 3 words, the known-skills
-        /// pages of the bar, the pack pages of the belt's items (at most 4), each equipped
-        /// entity's `ItemBase` (at most 7); one `Registry.bundle` call for the skills and the
-        /// belt's items (at most 12 records, none when both are empty). Writes (ENG-01 §9.3):
-        /// `build`, `belt`, `equipped`, overwritten, the words sent plus `LIVE`.
+        /// (D-158), so no base is read. Then the snapshot's flattening (D-160, CBT-02b) with
+        /// every check of design/20's capacity proof: DS-2's floors, DS-23's insignia pieces, the
+        /// counts and per-source bounds of the modifiers worn. Reads: the ownership check's 3
+        /// words, the known-skills pages of the bar, the pack pages of the belt's items (at most
+        /// 4), each equipped entity's `ItemBase` and `ItemMods` (at most 7 each); one
+        /// `Registry.bundle` call for the skills, the belt's items and the distinct modifiers worn
+        /// (at most 12 + 15 = 27 records for a build design/20 §1.2 allows, none when all are
+        /// empty; more than `MAX_READ` is refused by the registry). Writes (ENG-01 §9.3): `build`,
+        /// `belt`, `equipped`, overwritten, the words sent plus `LIVE`.
         fn set_build(
             ref self: ContractState,
             adventurer_id: u32,
@@ -532,90 +548,111 @@ pub mod Hub {
                     .word(0);
                 BeltAssert::assert_held(BalanceTrait::amount(word, lane), count);
             }
+            let (bases, worn, modifiers, personalised) = self.equipment(entities);
             let mut two_handed = false;
-            for lane in 0..7_u32 {
-                let entity = *entities[lane];
-                if entity == 0 {
-                    continue;
-                }
-                let word = self.items.entry(entity).as_ptr().__storage_pointer_address__.word(0);
-                let item: ItemBase = StorePacking::unpack(word);
+            for (lane, item) in bases.span() {
                 item.assert_wearable(adventurer_id);
-                EquippedAssert::assert_slot(item.slot, lane);
-                if lane == 0 {
+                EquippedAssert::assert_slot(*item.slot, *lane);
+                if *lane == 0 {
                     two_handed = item.is_two_handed();
                 }
             }
             EquippedAssert::assert_hands(two_handed, *entities[1]);
-
-            if requests.len() != 0 {
-                let (_, parts) = IRegistryReadDispatcher { contract_address: self.registry.read() }
-                    .bundle(requests.span());
-                let mut at: u32 = 0;
-                let mut elite = NO_ELITE;
-                let mut slot: u8 = 0;
-                let mut k: u32 = 0;
-                for skill in value.bar.span() {
-                    if *skill != 0 {
-                        let part = *parts[at];
-                        let (profession, is_elite) = SkillTrait::profile(part);
-                        BuildAssert::assert_skill(
-                            *known[k], part != 0, profession, primary, secondary,
-                        );
-                        if is_elite {
-                            BuildAssert::assert_one_elite(elite);
-                            elite = slot;
-                        }
-                        at += 2;
-                        k += 1;
-                    }
-                    slot += 1;
-                }
-                value.assert_elite_slot(elite);
-                for _ in skills..belt_items {
-                    let part = *parts[at];
-                    BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
-                    at += 1;
-                }
-            } else {
-                value.assert_elite_slot(NO_ELITE);
+            for id in modifiers.span() {
+                requests.append((MODIFIER, (*id).into()));
             }
+
+            // One registry call, even for an empty build: the content version the snapshot is
+            // computed under (D-168 2).
+            let (version, parts) = IRegistryReadDispatcher {
+                contract_address: self.registry.read(),
+            }
+                .bundle(requests.span());
+            let mut at: u32 = 0;
+            let mut elite = NO_ELITE;
+            let mut slot: u8 = 0;
+            let mut k: u32 = 0;
+            for skill in value.bar.span() {
+                if *skill != 0 {
+                    let part = *parts[at];
+                    let (profession, is_elite) = SkillTrait::profile(part);
+                    BuildAssert::assert_skill(*known[k], part != 0, profession, primary, secondary);
+                    if is_elite {
+                        BuildAssert::assert_one_elite(elite);
+                        elite = slot;
+                    }
+                    at += 2;
+                    k += 1;
+                }
+                slot += 1;
+            }
+            value.assert_elite_slot(elite);
+            for _ in skills..belt_items {
+                let part = *parts[at];
+                BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
+                at += 1;
+            }
+
+            // The snapshot's flattening, once, in `FlattenLibrary` (D-168), with every check of
+            // design/20's capacity proof (D-160): a build it refuses is refused here.
+            let loadout = value.loadout(level, primary, personalised, items, counts);
+            let (stats, bar, kit) = IFlattenLibraryLibraryDispatcher {
+                class_hash: self.flatten.read(),
+            }
+                .words(loadout, worn.span(), modifiers.span(), parts.slice(at, parts.len() - at));
 
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             base.set_word(BUILD_WORD, build_word);
             base.set_word(BELT_WORD, belt_word);
             base.set_word(EQUIPPED_WORD, equipped_word);
+            let snapshot = self.snapshots.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            snapshot.set_word(STATS_WORD, stats);
+            snapshot.set_word(BAR_WORD, bar);
+            snapshot.set_word(KIT_WORD, StoredSnapshotTrait::seal(kit, version));
         }
         /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
-        /// ownership check, the gate from the registry and its requirements, the belt's reserve
-        /// debited from the pack, the snapshot, then `Instances.create`, which makes the entry
-        /// draw. Every check comes before the call: a refusal reverts, drawing nothing and
-        /// changing nothing. Writes (ENG-01 §9.3): the pack pages of the belt's items (at most
-        /// 4, overwritten), `core` when a pack lane falls to 0, `place`. Calls: `Registry.record`
-        /// (the gate), `Instances.create`. Task ids: none until quiver's quests are embedded
-        /// (E-14).
+        /// ownership check, the gate from the registry and its requirements, the stored snapshot
+        /// checked fresh, the belt's reserve debited from the pack, then `Instances.create`, which
+        /// makes the entry draw. Every check comes before the call: a refusal reverts, drawing
+        /// nothing and changing nothing. The snapshot is the one `set_build` flattened and stored
+        /// (D-168), copied, never recomputed: refused when there is none (`snapshot: missing`) or
+        /// when it is stale (`snapshot: stale`): marked, of another content version than the
+        /// registry's, or of another level than the adventurer's; the client sends `set_build`
+        /// first. Reads besides the ownership check: the snapshot's 3 words, `belt`, the pack
+        /// pages of the belt's items. Writes (ENG-01 §9.3): the pack pages of the belt's items (at
+        /// most 4, overwritten), `core` when a pack lane falls to 0, `place`. Calls:
+        /// `Registry.bundle` (the gate and the content version), `Instances.create`. Task ids:
+        /// none until quiver's quests are embedded (E-14).
         fn enter(ref self: ContractState, adventurer_id: u32, gate: u16) -> InstanceId {
             let (_, core, place) = self.owned_in_hub(adventurer_id);
             let (_, hub, _, _) = AdventurerPlaceTrait::fields(place);
-            let (_, level, rank, profession) = AdventurerCoreTrait::profile(core);
-            let parts = IRegistryReadDispatcher { contract_address: self.registry.read() }
-                .record(GATE, gate.into());
+            let (_, level, rank, _) = AdventurerCoreTrait::profile(core);
+            let (version, parts) = IRegistryReadDispatcher {
+                contract_address: self.registry.read(),
+            }
+                .bundle(array![(GATE, gate.into())].span());
             assert(exists(parts), gate_errors::NONE);
             let record: Gate = GateRecord::unpack(parts);
             record.assert_enterable(hub, rank);
 
+            let stored = self.snapshots.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+            let kit = stored.word(KIT_WORD);
+            StoredSnapshotAssert::assert_fresh(kit, version);
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             let (items, counts) = BeltTrait::read(base.word(BELT_WORD));
+            let snapshot = SnapshotTrait::from_words(
+                stored.word(STATS_WORD),
+                stored.word(BAR_WORD),
+                StoredSnapshotTrait::kit(kit, version),
+                counts,
+            );
+            StoredSnapshotAssert::assert_level(snapshot.stats.level, level);
+
             let reserve = BalanceTrait::merge(items, counts);
             let (_, emptied) = self.change_pack(adventurer_id, reserve.span(), false);
             if emptied != 0 {
                 base.set_word(CORE_WORD, AdventurerCoreTrait::with_pack_lanes(core, 0, emptied));
             }
-            let build: Build = StorePacking::unpack(base.word(BUILD_WORD));
-            let snapshot = SnapshotTrait::new(
-                level, profession, build.bar, build.elite_slot, items, counts,
-            );
-
             let instance = IInstanceEntryDispatcher { contract_address: self.instances.read() }
                 .create(adventurer_id, get_caller_address(), gate, snapshot, array![].span());
             base.set_word(PLACE_WORD, AdventurerPlaceTrait::entered(place, instance));
@@ -898,20 +935,23 @@ pub mod Hub {
         fn version(self: @ContractState) -> felt252 {
             VERSION
         }
-        /// The registered contracts, the randomness provider among them: configuration, never a
-        /// constant of the code (ADR-0001, ADR-0002). Administrator only.
+        /// The registered contracts, the randomness provider among them, and `FlattenLibrary`'s
+        /// class hash (D-168): configuration, never a constant of the code (ADR-0001, ADR-0002,
+        /// ENG-01 §1.3). Administrator only.
         fn set_contracts(
             ref self: ContractState,
             registry: ContractAddress,
             instances: ContractAddress,
             market: ContractAddress,
             fate: ContractAddress,
+            flatten: ClassHash,
         ) {
             assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
             self.registry.write(registry);
             self.instances.write(instances);
             self.market.write(market);
             self.fate.write(fate);
+            self.flatten.write(flatten);
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
@@ -955,6 +995,50 @@ pub mod Hub {
                 account_id, status, place, owner, get_caller_address(),
             );
             (account_id, core, place)
+        }
+
+        /// The items worn (`entities`, `equipped`'s lanes): each one's lane and `ItemBase`, for
+        /// the equipment's checks, and as the flattening reads it (`Worn`, with its `ItemMods`:
+        /// two reads an item); the distinct modifier ids they hold in the order met; whether the
+        /// weapon is personalised (`ItemBase.flags`). Bound: 7 lanes, 5 modifiers an item.
+        fn equipment(
+            self: @ContractState, entities: Span<u32>,
+        ) -> (Array<(u32, ItemBase)>, Array<Worn>, Array<u16>, bool) {
+            let mut bases = array![];
+            let mut worn = array![];
+            let mut modifiers: Array<u16> = array![];
+            let mut personalised = false;
+            for lane in 0..7_u32 {
+                let entity = *entities[lane];
+                if entity == 0 {
+                    continue;
+                }
+                let base = self.items.entry(entity).as_ptr().__storage_pointer_address__;
+                let item: ItemBase = StorePacking::unpack(base.word(0));
+                let mods: ItemMods = StorePacking::unpack(base.word(1));
+                let item_worn = mods.worn(lane.try_into().unwrap(), item.slot);
+                for id in item_worn.ids.span() {
+                    let id = *id;
+                    if id == 0 {
+                        continue;
+                    }
+                    let mut seen = false;
+                    for other in modifiers.span() {
+                        if *other == id {
+                            seen = true;
+                        }
+                    }
+                    if !seen {
+                        modifiers.append(id);
+                    }
+                }
+                if lane == 0 {
+                    personalised = item.flags & PERSONALISED != 0;
+                }
+                bases.append((lane, item));
+                worn.append(item_worn);
+            }
+            (bases, worn, modifiers, personalised)
         }
 
         /// Region 1's town (D-144), read from the registry: one `record` call. Refuses when the
@@ -1125,6 +1209,16 @@ mod layout_tests {
                 state.rift_boards.entry(7).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("rift_boards"), array![7].span()),
             'rift_boards',
+        );
+        assert(
+            address_of(
+                state.snapshots.entry(9).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("snapshots"), array![9].span()),
+            'snapshots',
+        );
+        assert(
+            address_of(state.flatten.as_ptr().__storage_pointer_address__) == selector!("flatten"),
+            'flatten',
         );
     }
 }

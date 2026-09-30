@@ -11,3 +11,5 @@ pub mod balance;
 pub mod item;
 /// Lots and trades.
 pub mod market;
+/// The snapshot stored with the adventurer (D-168).
+pub mod snapshot;

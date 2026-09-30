@@ -7,6 +7,7 @@ use grimworld_logic::packing::{
     P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join,
     low_field, split, u16_at, u32_at,
 };
+use grimworld_logic::snapshot::Worn;
 use super::account::PACK;
 
 /// `ItemBase.hands` sits at bit 124.
@@ -189,6 +190,22 @@ pub impl ItemModsStorePacking of starknet::storage_access::StorePacking<ItemMods
             rest = next;
         }
         ItemMods { mods: [*out[0], *out[1], *out[2], *out[3], *out[4]] }
+    }
+}
+
+#[generate_trait]
+pub impl ItemModsImpl of ItemModsTrait {
+    /// The item as the flattening reads it (`grimworld_logic::snapshot::Worn`): its lane of
+    /// `equipped`, its slot, each modifier's id (0 for an empty slot) and rolled value, in
+    /// `ItemMods`' order.
+    fn worn(self: @ItemMods, lane: u8, slot: u8) -> Worn {
+        let [a, b, c, d, e] = *self.mods;
+        Worn {
+            lane,
+            slot,
+            ids: [a.id, b.id, c.id, d.id, e.id],
+            values: [a.value, b.value, c.value, d.value, e.value],
+        }
     }
 }
 

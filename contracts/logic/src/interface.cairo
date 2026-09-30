@@ -2,7 +2,7 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::ContractAddress;
-use crate::snapshot::{Snapshot, TaskEntry};
+use crate::snapshot::{Loadout, Snapshot, TaskEntry, Worn};
 use crate::types::tick::Content;
 use crate::types::world::Words;
 use crate::types::{InstanceId, Outcome};
@@ -116,4 +116,17 @@ pub trait ITickLibrary<T> {
     /// Runs `ticks` world ticks over the stored `words` with the batch's `content`, stopping after
     /// a tick that defeated the adventurer; returns the words.
     fn run(self: @T, words: Words, content: Content, ticks: u8) -> Words;
+}
+
+/// The snapshot's flattening as a library class (ENG-01 §1.3, D-168): `Hub.set_build` calls it
+/// through `IFlattenLibraryLibraryDispatcher`, the class hash being its configuration.
+#[starknet::interface]
+pub trait IFlattenLibrary<T> {
+    /// The snapshot's three packed words (`MemberStats`, `MemberBar`, `MemberKit`) of `loadout`
+    /// and the items `worn`, whose distinct modifier `ids` have the `MODIFIER` `records`, one
+    /// part each, in the same order (`SnapshotBuildTrait::words`); refuses what the flattening
+    /// refuses.
+    fn words(
+        self: @T, loadout: Loadout, worn: Span<Worn>, ids: Span<u16>, records: Span<felt252>,
+    ) -> (felt252, felt252, felt252);
 }
