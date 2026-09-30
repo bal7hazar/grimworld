@@ -260,7 +260,16 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
     for id in 1..6_u32 {
         admin.set_record(CASTE, id, caste);
     }
-    let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, Default::default(), 3, 20).pack();
+    // A potion heals its holder, the legal carrier the registry requires (D-166).
+    let heal = grimworld_logic::types::effect::Entry {
+        kind: grimworld_logic::types::effect::kind::HEAL,
+        v0: 20,
+        v12: 20,
+        target: grimworld_logic::types::effect::target::SELF,
+        shape: grimworld_logic::types::effect::shape::SINGLE,
+        ..Default::default()
+    };
+    let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, heal, 3, 20).pack();
     for id in 1..5_u32 {
         admin.set_record(ITEM, id, potion);
     }

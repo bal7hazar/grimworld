@@ -615,10 +615,20 @@ fn test_enter_after_set_build() {
         } else {
             item_class::INGREDIENT
         };
-        admin
-            .set_record(
-                ITEM, item, ItemTrait::new(class, 1, 0, 1, 0, Default::default(), 0, 0).pack(),
-            );
+        // A potion heals its holder, the legal carrier the registry requires (D-166).
+        let entry = if class == item_class::POTION {
+            grimworld_logic::types::effect::Entry {
+                kind: grimworld_logic::types::effect::kind::HEAL,
+                v0: 20,
+                v12: 20,
+                target: grimworld_logic::types::effect::target::SELF,
+                shape: grimworld_logic::types::effect::shape::SINGLE,
+                ..Default::default()
+            }
+        } else {
+            Default::default()
+        };
+        admin.set_record(ITEM, item, ItemTrait::new(class, 1, 0, 1, 0, entry, 0, 0).pack());
     }
     admin
         .set_record(
