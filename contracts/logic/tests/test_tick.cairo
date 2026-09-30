@@ -2015,6 +2015,123 @@ fn test_cost_term_mix_lapse_first() {
     );
 }
 
+// CBT-02d: the model at 8 awake goblins (REPORT.md, ENG-01 §9.2) against more states. Each state
+// is the awake set's 8 branches, in the set's order (`C` a conclusion clearing the field, `A`
+// activating, `L` a lapse, `R` a recovery over).
+fn term_mix(branches: Array<u8>) {
+    term_tick(branches.span(), at_end(8), false, 1, 1);
+}
+
+const C: u8 = B_CONCLUDE_CLEAR;
+const A: u8 = B_ACTIVATING;
+const L: u8 = B_LAPSE;
+const R: u8 = B_RECOVERY_END;
+
+// A conclusion first in the set, the others activating.
+#[test]
+#[available_gas(l2_gas: 19467227)] // ceil(1.05 × 18540216 measured)
+fn test_cost_term_set_c_first() {
+    term_mix(array![C, A, A, A, A, A, A, A]);
+}
+
+// A conclusion in the middle of the set.
+#[test]
+#[available_gas(l2_gas: 19470209)] // ceil(1.05 × 18543056 measured)
+fn test_cost_term_set_c_middle() {
+    term_mix(array![A, A, A, C, A, A, A, A]);
+}
+
+// A conclusion last in the set.
+#[test]
+#[available_gas(l2_gas: 19470209)] // ceil(1.05 × 18543056 measured)
+fn test_cost_term_set_c_last() {
+    term_mix(array![A, A, A, A, A, A, A, C]);
+}
+
+// An activating goblin first, 7 conclusions after it.
+#[test]
+#[available_gas(l2_gas: 20068917)] // ceil(1.05 × 19113254 measured)
+fn test_cost_term_set_a_then_c() {
+    term_mix(array![A, C, C, C, C, C, C, C]);
+}
+
+// Two conclusions, then activating goblins.
+#[test]
+#[available_gas(l2_gas: 19565846)] // ceil(1.05 × 18634139 measured)
+fn test_cost_term_set_cc_first() {
+    term_mix(array![C, C, A, A, A, A, A, A]);
+}
+
+// Six conclusions, then two lapses (two writes left for the end of step 1).
+#[test]
+#[available_gas(l2_gas: 20143208)] // ceil(1.05 × 19184007 measured)
+fn test_cost_term_set_c6_ll() {
+    term_mix(array![C, C, C, C, C, C, L, L]);
+}
+
+// Six conclusions, an activating goblin, a lapse.
+#[test]
+#[available_gas(l2_gas: 20084615)] // ceil(1.05 × 19128204 measured)
+fn test_cost_term_set_c6_al() {
+    term_mix(array![C, C, C, C, C, C, A, L]);
+}
+
+// Six conclusions, a lapse, an activating goblin.
+#[test]
+#[available_gas(l2_gas: 20084615)] // ceil(1.05 × 19128204 measured)
+fn test_cost_term_set_c6_la() {
+    term_mix(array![C, C, C, C, C, C, L, A]);
+}
+
+// Six conclusions, a recovery over, a lapse.
+#[test]
+#[available_gas(l2_gas: 20100515)] // ceil(1.05 × 19143347 measured)
+fn test_cost_term_set_c6_rl() {
+    term_mix(array![C, C, C, C, C, C, R, L]);
+}
+
+// A lapse between two conclusions: its write goes with the next conclusion's.
+#[test]
+#[available_gas(l2_gas: 20137842)] // ceil(1.05 × 19178897 measured)
+fn test_cost_term_set_c_l_c6() {
+    term_mix(array![C, L, C, C, C, C, C, C]);
+}
+
+// A recovery over between two conclusions.
+#[test]
+#[available_gas(l2_gas: 20095149)] // ceil(1.05 × 19138237 measured)
+fn test_cost_term_set_c_r_c6() {
+    term_mix(array![C, R, C, C, C, C, C, C]);
+}
+
+// Two lapses between two conclusions: both writes go with the next conclusion's.
+#[test]
+#[available_gas(l2_gas: 20097816)] // ceil(1.05 × 19140777 measured)
+fn test_cost_term_set_c_ll_c5() {
+    term_mix(array![C, L, L, C, C, C, C, C]);
+}
+
+// A lapse first, the others activating.
+#[test]
+#[available_gas(l2_gas: 19488889)] // ceil(1.05 × 18560846 measured)
+fn test_cost_term_set_l_first() {
+    term_mix(array![L, A, A, A, A, A, A, A]);
+}
+
+// A lapse in the middle, the others activating.
+#[test]
+#[available_gas(l2_gas: 19488889)] // ceil(1.05 × 18560846 measured)
+fn test_cost_term_set_l_middle() {
+    term_mix(array![A, A, A, L, A, A, A, A]);
+}
+
+// Two lapses last, the others activating.
+#[test]
+#[available_gas(l2_gas: 19547482)] // ceil(1.05 × 18616649 measured)
+fn test_cost_term_set_a6_ll() {
+    term_mix(array![A, A, A, A, A, A, L, L]);
+}
+
 // COST-1a: load and store, once per call, on their costliest paths (CBT-02d: through the index).
 // The index: every list at its bound (38 skills, 5 castes, 4 potions), each caste's kit finding
 // its four skills and raising its cap at each (costs 1 to 4 strikes); the cap's clamp at 252 is
