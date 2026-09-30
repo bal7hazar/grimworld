@@ -1198,6 +1198,17 @@ pub struct Snapshot {
     pub belt_counts: [u8; 4],
 }
 
+/// The snapshot as `Hub.enter` hands it to `Instances.create` (D-168): the three words as
+/// `SnapshotBuildTrait::words` packed them (`MemberStats`, `MemberBar`, `MemberKit`, `LIVE` set),
+/// which `Hub.set_build` stored and `Instances` stores as they are, and the belt's counts.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct SnapshotWords {
+    pub stats: felt252,
+    pub bar: felt252,
+    pub kit: felt252,
+    pub belt_counts: [u8; 4],
+}
+
 /// Health at level 1, and what each level above adds (design/03, *Base stats*).
 pub const BASE_HEALTH: u16 = 100;
 pub const HEALTH_PER_LEVEL: u16 = 20;
@@ -1209,7 +1220,7 @@ pub impl SnapshotImpl of SnapshotTrait {
     /// The snapshot of an adventurer without equipment, from its level and primary profession
     /// (ENG-06): health, energy, regeneration and armor (design/03); its bar, elite slot and belt
     /// copied; what equipment, attribute ranks and set bonuses add, 0. The tests' snapshot:
-    /// `Hub.enter` copies the one `set_build` stored (`from_words`, D-168).
+    /// `Hub.enter` copies the one `set_build` stored (D-168).
     fn new(
         level: u8,
         profession: u8,
@@ -1244,13 +1255,13 @@ pub impl SnapshotImpl of SnapshotTrait {
         }
     }
 
-    /// The snapshot of the three packed words `SnapshotBuildTrait::words` gave (D-168) and the
-    /// belt's counts.
-    fn from_words(
-        stats: felt252, bar: felt252, kit: felt252, belt_counts: [u8; 4],
-    ) -> Snapshot {
-        Snapshot {
-            stats: unpack_stats(stats), bar: unpack_bar(bar), kit: unpack_kit(kit), belt_counts,
+    /// The snapshot as `Instances.create` receives it: its three words packed.
+    fn words(self: @Snapshot) -> SnapshotWords {
+        SnapshotWords {
+            stats: pack_stats(*self.stats),
+            bar: pack_bar(*self.bar),
+            kit: pack_kit(*self.kit),
+            belt_counts: *self.belt_counts,
         }
     }
 }

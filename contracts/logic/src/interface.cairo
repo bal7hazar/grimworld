@@ -2,7 +2,7 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::ContractAddress;
-use crate::snapshot::{Loadout, Snapshot, TaskEntry, Worn};
+use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::tick::Content;
 use crate::types::world::Words;
 use crate::types::{InstanceId, Outcome};
@@ -69,7 +69,8 @@ pub trait IResults<T> {
 pub trait IInstanceEntry<T> {
     /// Creates an instance of the gate's destination at sequence 0, with the entry draw (Fate),
     /// in the adventurer's reusable slot; returns its id. Every member word is written for the new
-    /// generation at clock 0: state from the snapshot (the belt's counts from the reserve); timers
+    /// generation at clock 0: the snapshot's three words as `Hub` stored them (D-168), state from
+    /// them (the belt's counts from the reserve); timers
     /// empty: `act_slot` 255 (no activation) and every deadline 0, stored `LIVE + 255`; effects and
     /// recharges empty, stored `LIVE` (F-12, F-14). Nothing of a previous instance carries (F-12).
     fn create(
@@ -77,7 +78,7 @@ pub trait IInstanceEntry<T> {
         adventurer_id: u32,
         controller: ContractAddress,
         gate: u16,
-        snapshot: Snapshot,
+        snapshot: SnapshotWords,
         tasks: Span<TaskEntry>,
     ) -> InstanceId;
     /// The account that controls an adventurer changed owner (ADR-0005, A-7) while it is inside.

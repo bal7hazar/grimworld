@@ -169,7 +169,7 @@ pub mod Hub {
     use grimworld_logic::models::skill::SkillTrait;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::ProfessionAssert;
-    use grimworld_logic::snapshot::{SnapshotTrait, Worn};
+    use grimworld_logic::snapshot::{SnapshotWords, Worn};
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
@@ -640,13 +640,14 @@ pub mod Hub {
             StoredSnapshotAssert::assert_fresh(kit, version);
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             let (items, counts) = BeltTrait::read(base.word(BELT_WORD));
-            let snapshot = SnapshotTrait::from_words(
-                stored.word(STATS_WORD),
-                stored.word(BAR_WORD),
-                StoredSnapshotTrait::kit(kit, version),
-                counts,
-            );
-            StoredSnapshotAssert::assert_level(snapshot.stats.level, level);
+            let stats = stored.word(STATS_WORD);
+            StoredSnapshotAssert::assert_level(stats, level);
+            let snapshot = SnapshotWords {
+                stats,
+                bar: stored.word(BAR_WORD),
+                kit: StoredSnapshotTrait::kit(kit, version),
+                belt_counts: counts,
+            };
 
             let reserve = BalanceTrait::merge(items, counts);
             let (_, emptied) = self.change_pack(adventurer_id, reserve.span(), false);

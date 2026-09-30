@@ -161,7 +161,7 @@ pub mod Instances {
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
-    use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
+    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::{
         InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
     };
@@ -506,7 +506,7 @@ pub mod Instances {
             adventurer_id: u32,
             controller: ContractAddress,
             gate: u16,
-            snapshot: Snapshot,
+            snapshot: SnapshotWords,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
             assert(get_caller_address() == self.hub.read(), errors::NOT_HUB);
@@ -530,11 +530,15 @@ pub mod Instances {
                 next.try_into().unwrap()
             };
             self.write_tasks(slot, tasks);
+            // The snapshot's words as `Hub` stored them (D-168): packed by the flattening, so
+            // written as they are, `bar` and `kit` in the two slots after `stats`.
             let member = self.members.entry((slot, 0));
-            member.stats.write(snapshot.stats);
-            member.bar.write(snapshot.bar);
-            member.kit.write(snapshot.kit);
+            let words = member.as_ptr().__storage_pointer_address__;
+            words.set_word(STATS_WORD, snapshot.stats);
+            words.set_word(STATS_WORD + 1, snapshot.bar);
+            words.set_word(STATS_WORD + 2, snapshot.kit);
             member.controller.write(controller);
+            let (max_health, max_energy) = MemberStateTrait::maxima(snapshot.stats);
             let previous = self.headers.entry(slot).read().generation;
             self
                 .begin(
@@ -545,8 +549,8 @@ pub mod Instances {
                     @record,
                     @location,
                     tasks.len().try_into().unwrap(),
-                    snapshot.stats.max_health,
-                    snapshot.stats.max_energy,
+                    max_health,
+                    max_energy,
                     snapshot.belt_counts,
                 )
         }

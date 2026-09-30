@@ -10,6 +10,8 @@
 //! `Hub.enter` refuses a missing one, and a stale one: marked, of another content version, or of
 //! another level than the adventurer's (D-168 2).
 
+use grimworld_logic::packing::{P64, byte_at, split};
+
 /// Offsets of the words of `StoredSnapshot` from its address.
 pub const STATS_WORD: u8 = 0;
 pub const BAR_WORD: u8 = 1;
@@ -17,10 +19,9 @@ pub const KIT_WORD: u8 = 2;
 
 /// `2^208`: the content version's unit in the kit word (bits 208–239).
 const VERSION_UNIT: felt252 = 0x10000000000000000000000000000000000000000000000000000;
-/// `2^80`: the kit word's high limb above it is the state (version, stale mark, `LIVE`).
+/// `2^80`: the kit word's high limb above it, `LIVE` removed, is the state (the version, the
+/// stale mark).
 const STATE_SHIFT: u128 = 0x100000000000000000000;
-/// `LIVE` in the state (bit 250 − 208).
-const STATE_LIVE: u128 = 0x40000000000;
 
 /// The kit word of a snapshot marked stale (bit 240, `LIVE`): an entrypoint that changes an input
 /// of the flattening and does not recompute writes it, in one write, without reading (D-168 2).
@@ -61,25 +62,26 @@ pub impl StoredSnapshotImpl of StoredSnapshotTrait {
 #[generate_trait]
 pub impl StoredSnapshotAssert of StoredSnapshotAssertTrait {
     /// The stored kit word is a snapshot (`MISSING`) of the registry's content `version`, not
-    /// marked stale (`STALE`). One conversion and one division.
+    /// marked stale (`STALE`). One split and one division.
     fn assert_fresh(word: felt252, version: u32) {
         assert(word != 0, errors::MISSING);
-        let wide: u256 = word.into();
-        let state = wide.high / STATE_SHIFT;
-        assert(state == STATE_LIVE + version.into(), errors::STALE);
+        let (_, high) = split(word);
+        assert(high / STATE_SHIFT == version.into(), errors::STALE);
     }
 
-    /// The snapshot was computed at the adventurer's `level` (a level up changes it, GLD-01).
+    /// The stored stats word was computed at the adventurer's `level` (`MemberStats.level`, bits
+    /// 64–71): a level up (GLD-01) leaves the snapshot stale without marking it.
     #[inline(always)]
-    fn assert_level(snapshot: u8, level: u8) {
-        assert(snapshot == level, errors::STALE);
+    fn assert_level(stats: felt252, level: u8) {
+        let (low, _) = split(stats);
+        assert(byte_at(low, P64) == level, errors::STALE);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use grimworld_logic::packing::LIVE;
-    use grimworld_logic::snapshot::{MemberKit, pack_kit, unpack_kit};
+    use grimworld_logic::snapshot::{MemberKit, MemberStats, pack_kit, pack_stats, unpack_kit};
     use super::{STALE_MARK, StoredSnapshotAssert, StoredSnapshotTrait, errors};
 
     fn kit() -> felt252 {
@@ -140,7 +142,9 @@ mod tests {
     #[available_gas(l2_gas: 40000)]
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_level_refused() {
-        StoredSnapshotAssert::assert_level(3, 4);
+        let stats = pack_stats(MemberStats { level: 3, ..Default::default() });
+        StoredSnapshotAssert::assert_level(stats, 3);
+        StoredSnapshotAssert::assert_level(stats, 4);
     }
 
     // The stale mark is `LIVE` and bit 240 alone.
