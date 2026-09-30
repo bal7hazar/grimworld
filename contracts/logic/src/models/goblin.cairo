@@ -13,7 +13,7 @@ use crate::packing::{
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::tick::{
     CasteSheet, CasteSheetTrait, Content, ContentTrait, Held, MAX_GOBLIN_ADRENALINE, REGEN_OFFSET,
-    SkillSheetTrait, ai, errors,
+    SkillSheetTrait, ai,
 };
 
 pub use super::index::{Goblin, GoblinWords};
@@ -34,6 +34,20 @@ const P118: u128 = 0x400000000000000000000000000000;
 const F108: felt252 = 0x1000000000000000000000000000;
 const F240: felt252 = 0x1000000000000000000000000000000000000000000000000000000000000;
 const F246: felt252 = 0x40000000000000000000000000000000000000000000000000000000000000;
+
+pub mod errors {
+    /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
+    pub const REGEN: felt252 = 'goblin: regeneration above i8';
+}
+
+#[generate_trait]
+pub impl GoblinAssert of GoblinAssertTrait {
+    /// An effect's `REGENERATION` pips fit an `i8` (design/19 §3.1 bounds the kind to ±10).
+    #[inline(always)]
+    fn assert_pips(pips: i32) {
+        assert(pips >= -128 && pips <= 127, errors::REGEN);
+    }
+}
 
 #[generate_trait]
 pub impl GoblinImpl of GoblinTrait {
@@ -109,6 +123,7 @@ pub impl GoblinImpl of GoblinTrait {
         if cap > MAX_GOBLIN_ADRENALINE.into() {
             cap = MAX_GOBLIN_ADRENALINE.into();
         }
+        GoblinAssert::assert_pips(effect_regen);
         Goblin {
             entity: words.entity,
             awake: words.awake,
@@ -125,7 +140,7 @@ pub impl GoblinImpl of GoblinTrait {
             burning,
             knocked,
             effect_deadline,
-            effect_regen: effect_regen.try_into().expect(errors::REGEN),
+            effect_regen: effect_regen.try_into().unwrap(),
             max_health: sheet.max_health(level).try_into().unwrap(),
             health_regen: (regen - REGEN_OFFSET).try_into().unwrap(),
             max_energy: *sheet.energy * 3,
@@ -394,6 +409,7 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
             return;
         }
         let pips: i32 = content.skill(held.carrier).regen(held.rank);
+        GoblinAssert::assert_pips(pips);
         self.set_effect(held, pips.try_into().unwrap());
     }
 

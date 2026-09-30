@@ -135,7 +135,6 @@ pub mod errors {
     pub const NO_SKILL: felt252 = 'tick: skill not in content';
     pub const NO_CASTE: felt252 = 'tick: caste not in content';
     pub const NO_POTION: felt252 = 'tick: potion not in content';
-    pub const REGEN: felt252 = 'tick: regeneration above i8';
 }
 
 

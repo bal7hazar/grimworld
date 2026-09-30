@@ -986,16 +986,16 @@ storage: the words come in with the library call (§1.3) and go out with it. Its
 tests' fixtures (CBT-02 fix loops 1 and 2, AUD-182-7, COST-1), against the expedition's target of **1,469,435 L2
 gas a tick inside a batch** (cost-budget §2, D-159; the overrun is decided by D-161):
 
-| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | Worst, by construction (`worst_state`: the goblin array at `MAX_GOBLINS` = 100, 8 awake; every awake goblin concluding an activation into a recovery at the end of 38 skills, every step-3 term active, none Engaged; the member concluding, 4 effects, 3 conditions) |
+| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | **Upper bound from per-term maxima** (CBT-02 fix loop 3; not a reached maximum: each term measured at its maximum apart, then summed, every lookup charged as a full scan; the goblin array at `MAX_GOBLINS` = 100, 8 awake) |
 |---|---:|---:|
-| The pipeline, one tick | 629,417 | 12,413,893 (2,333,623 with only the 8 awake goblins in the array) |
-| The pipeline, a batch of 10 ticks, per tick | 633,824 (a trace: the goblins stay idle) | 11,961,927 (`Busy`: every goblin alternately resolving and acting, the member resolving, every tick) |
-| Load and store, once per call | — | 59,823,300 (101 actors, each with a retained effect) |
-| The library call, once per call | — | 2,578,020 |
-| **Through one library call, 10 ticks, per tick** | **960,751** | 18,202,059 (the sustained pipeline + load, store and the call over 10) |
+| The pipeline, one tick | 628,617 | ≤ 12,618,207: base 3,884,803 + the member's lookup 65,100 + 8 × the costliest branch (a lapse, 1,083,413) + 1,000 for the goblins' interaction. Measured states under it: 8 lapses 12,552,207; the audit's permutation 12,425,803 |
+| The pipeline, a batch of 10 ticks, per tick | 633,024 (a trace: the goblins stay idle) | ≤ 12,618,207, every tick under the tick's bound (`Busy` measures 11,961,127) |
+| Load and store, once per call | — | ≤ 62,118,160: measured 59,921,060 + every lookup as a full scan 2,017,600 + the member's effect branch 179,500 |
+| The library call, once per call | — | 2,578,020 (every count at its maximum) |
+| **Through one library call, 10 ticks, per tick** | **961,079** | ≤ 19,087,825 |
 | The content, once per batch (D-145: 54,000 a record, 98,000 a call), read into sheets at 42,710 a record: 19 / 47 records | 193,549 | 474,137 |
-| **The tick's share, per tick** | **1,154,300** | **18,676,196** |
-| The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,263,890 |
+| **The tick's share, per tick** | **1,154,628** | **≤ 19,561,962** |
+| The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,264,890 (every scan updating its minimum at every element) |
 
 Most of the worst case is the array's bound: each write to a goblin rebuilds the array of 100
 (lever (a) of CBT-02's report, CBT-02b by D-161). The executor (CBT-03 to CBT-05), the goblins' AI

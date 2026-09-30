@@ -146,7 +146,7 @@ pub impl TickImpl of TickTrait {
 
     /// One world tick, steps 0 to 5 (design/19 §5.1).
     fn tick<R, +Rules<R>, +Drop<R>>(ref world: World, content: @Content, ref rules: R) {
-        assert(world.goblins.len() <= MAX_GOBLINS, errors::GOBLINS);
+        world.assert_goblins();
         // The adventurer at 0 before the tick (in the action phase: a trap on its move, §5.11):
         // the tick stops at once, before the clock advances or any actor runs; step 5's defeat
         // and objectives run (FX-8, §5.13; AUD-182-5). The caller applies the action and then
@@ -330,7 +330,7 @@ pub impl TickImpl of TickTrait {
     /// computed on the window by the caller), ties by lowest entity id. Fixed for the tick.
     fn awake(ref world: World, distances: Span<u16>) {
         let count = world.goblins.len();
-        assert(distances.len() == count, errors::DISTANCES);
+        world.assert_distances(distances);
         // Each candidate's key, `distance × 2^16 + entity`, is unique: select the 8 smallest.
         let mut keys: Array<u32> = array![];
         let mut i = 0;
@@ -427,3 +427,18 @@ pub impl WorldImpl of WorldTrait {
 }
 // Free functions below: the arithmetic of one quantity, shared by members and goblins; no type
 // owns it (docs/CAIRO.md §7).
+
+#[generate_trait]
+pub impl WorldAssert of WorldAssertTrait {
+    /// The goblins a tick holds are at most `MAX_GOBLINS`, so their indexes fit step 1's mask.
+    #[inline(always)]
+    fn assert_goblins(self: @World) {
+        assert(self.goblins.len() <= MAX_GOBLINS, errors::GOBLINS);
+    }
+
+    /// One distance a goblin, in the order of `World.goblins`.
+    #[inline(always)]
+    fn assert_distances(self: @World, distances: Span<u16>) {
+        assert(distances.len() == self.goblins.len(), errors::DISTANCES);
+    }
+}

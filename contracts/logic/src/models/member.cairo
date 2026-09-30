@@ -12,7 +12,7 @@ use crate::packing::{
 };
 use crate::types::combat::{condition, skill_kind};
 use crate::types::tick::{
-    Content, ContentTrait, ENERGY_THIRDS, Held, NO_SLOT, REGEN_OFFSET, SkillSheetTrait, errors,
+    Content, ContentTrait, ENERGY_THIRDS, Held, NO_SLOT, REGEN_OFFSET, SkillSheetTrait,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -33,6 +33,20 @@ const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
 const F192: felt252 = 0x1000000000000000000000000000000000000000000000000;
 const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
 const F112: felt252 = 0x10000000000000000000000000000;
+
+pub mod errors {
+    /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
+    pub const REGEN: felt252 = 'member: regeneration above i8';
+}
+
+#[generate_trait]
+pub impl MemberAssert of MemberAssertTrait {
+    /// An effect's `REGENERATION` pips fit an `i8` (design/19 §3.1 bounds the kind to ±10).
+    #[inline(always)]
+    fn assert_pips(pips: i32) {
+        assert(pips >= -128 && pips <= 127, errors::REGEN);
+    }
+}
 
 #[generate_trait]
 pub impl MemberImpl of MemberTrait {
@@ -135,7 +149,8 @@ pub impl MemberImpl of MemberTrait {
             } else {
                 content.skill(carrier).regen(field(limb, shift * P52, 0x10).try_into().unwrap())
             };
-            regen.append(pips.try_into().expect(errors::REGEN));
+            MemberAssert::assert_pips(pips);
+            regen.append(pips.try_into().unwrap());
         }
         // The bar's highest adrenaline cost, in quarters (§5.12).
         let (bar, _) = split(words.bar);
@@ -530,6 +545,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         } else {
             content.skill(held.carrier).regen(held.rank)
         };
+        MemberAssert::assert_pips(pips);
         self.set_effect(slot, held, pips.try_into().unwrap());
     }
 
