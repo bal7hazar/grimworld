@@ -1,10 +1,14 @@
 // CBT-02: the world tick's pipeline (design/02 *The tick*, design/19 §5). The worked examples of
 // design/19 §10 whose steps are the pipeline's (10.1's step 3, 10.2, 10.3, 10.5, 10.6, 10.9),
-// every rule of the steps one by one, determinism, and the cost of a tick on representative and
-// worst states, against the expedition's target of 1,469,435 L2 gas a tick inside a batch
-// (docs/architecture/cost-budget.md §2, D-159). The words are built here from ENG-01's offsets;
-// the ephemeral package's `test_tick_words` pins `load` and `store` against its packers.
+// every rule of the steps one by one, determinism, and the cost of a tick on measured scenarios
+// and at its upper bound (CBT-02b, below), against the expedition's target of 1,469,435 L2 gas a
+// tick inside a batch (docs/architecture/cost-budget.md §2, D-159). The words are built here from
+// ENG-01's offsets; the ephemeral package's `test_tick_words` pins `load` and `store` against its
+// packers. COST-3 (CBT-02b): "worst" in a fixture's or a test's name is the name of a measured
+// scenario, not a claim that no state costs more; "upper bound" is kept for the derived result
+// (REPORT.md, ENG-01 §9.2).
 use grimworld_logic::content::Record;
+use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::goblin::{
@@ -419,7 +423,7 @@ fn test_example_activated_attack_cost() {
 // 200 with activation 2 (after the quick-cast bonus) and interrupted in step 2 of 201 recharges
 // from 201.
 #[test]
-#[available_gas(l2_gas: 15570467)] // ceil(1.05 × 14829016 measured)
+#[available_gas(l2_gas: 15553205)] // ceil(1.05 × 14812576 measured)
 fn test_example_member_activation() {
     let content = Fixture::content();
     let mut member = Fixture::member(Fixture::spec());
@@ -515,7 +519,7 @@ fn test_regeneration() {
 // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
 // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
 #[test]
-#[available_gas(l2_gas: 11567441)] // ceil(1.05 × 11016610 measured)
+#[available_gas(l2_gas: 11246141)] // ceil(1.05 × 10710610 measured)
 fn test_load_store() {
     let mut spec = Fixture::spec();
     spec.conditions = [11, 12, 13, 14];
@@ -862,18 +866,17 @@ fn worst_content(k: u8) -> Content {
     Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
 }
 
-/// The worst state of a tick, by construction (AUD-182-7), every actor loaded from its words so
-/// that the derived fields agree with the stored ones:
+/// CBT-02's heavy scenario of a tick (AUD-182-7), a measured state, not a maximum (COST-3: the
+/// upper bound is CBT-02b's, below), every actor loaded from its words so that the derived fields
+/// agree with the stored ones:
 /// - the goblin array at its bound, `MAX_GOBLINS` = 100 (every pass is linear in it), 8 of them
 ///   awake (design/02), the 92 others frozen; every one of the 100 holds a retained effect, so
 ///   `load` looks up its skill (at the list's end) and scales it for each (COST-1);
-/// - each awake goblin takes step 1's costliest branch, its activation concluding (a recovery with
-///   `k = 3 ≥ n + 2`: the conclusion's every write) at the end of the content's lists, the array
-///   rebuilt;
+/// - each awake goblin concludes its activation (a recovery with `k = 3 ≥ n + 2`) at the end of
+///   the content's lists, the array rebuilt;
 /// - step 3 with every term: the 3 degenerating conditions and a regenerating effect on each awake
 ///   goblin; on the member, its 3 conditions, 4 regenerating effects (2 potions) and its own
-///   activation concluding; no goblin Engaged, so the Engaged scan runs the whole array and every
-///   actor takes the decay branch;
+///   activation concluding; no goblin Engaged, so the Engaged scan runs the whole awake set;
 /// - with `dying`, every awake goblin dies in step 3 (8 kills recorded) and the member too (step
 ///   5's defeat rewrites the members).
 /// With `dying` false and `k = 1`, the state `Busy` keeps busy over a batch (no death, no
@@ -916,7 +919,7 @@ fn worst_of(dying: bool, k: u8, count: u16) -> (World, Content) {
     (Fixture::world(49, array![member], goblins), content)
 }
 
-/// The worst single tick's state as the words `Instances` would pass.
+/// `worst_state`'s scenario as the words `Instances` would pass.
 fn worst_words() -> (Words, Content) {
     let (world, content) = worst_state(true, 3);
     (world.store(), content)
@@ -940,7 +943,7 @@ fn representative() -> (World, Content) {
 
 // Determinism (AC-2): the same state gives the same world, over 10 busy ticks.
 #[test]
-#[available_gas(l2_gas: 356621832)] // ceil(1.05 × 339639840 measured)
+#[available_gas(l2_gas: 291918732)] // ceil(1.05 × 278017840 measured)
 fn test_deterministic() {
     let (mut a, content) = worst_state(false, 1);
     let (mut b, _) = worst_state(false, 1);
@@ -953,21 +956,21 @@ fn test_deterministic() {
 
 // The fixtures' own cost, subtracted from the benchmarks below.
 #[test]
-#[available_gas(l2_gas: 60716996)] // ceil(1.05 × 57825710 measured)
+#[available_gas(l2_gas: 58639760)] // ceil(1.05 × 55847390 measured)
 fn test_cost_fixture_worst() {
     let (world, content) = worst_state(true, 3);
     assert(world.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 60717615)] // ceil(1.05 × 57826300 measured)
+#[available_gas(l2_gas: 58640379)] // ceil(1.05 × 55847980 measured)
 fn test_cost_fixture_worst_batch() {
     let (world, content) = worst_state(false, 1);
     assert(world.goblins.len() == 100 && content.skills.len() == 38, 'worst');
 }
 
 #[test]
-#[available_gas(l2_gas: 67736393)] // ceil(1.05 × 64510850 measured)
+#[available_gas(l2_gas: 60727884)] // ceil(1.05 × 57836080 measured)
 fn test_cost_fixture_worst_words() {
     let (words, content) = worst_words();
     assert(words.goblins.len() == 100 && content.skills.len() == 38, 'worst');
@@ -1001,7 +1004,7 @@ fn test_cost_batch_representative() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7888136)] // ceil(1.05 × 7512510 measured)
+#[available_gas(l2_gas: 7460355)] // ceil(1.05 × 7105100 measured)
 fn test_cost_fixture_representative_words() {
     let (world, content) = representative();
     let words = world.store();
@@ -1010,7 +1013,7 @@ fn test_cost_fixture_representative_words() {
 
 // A batch's 10 representative ticks through one library call: load, ticks, store, the call.
 #[test]
-#[available_gas(l2_gas: 17987057)] // ceil(1.05 × 17130530 measured)
+#[available_gas(l2_gas: 17140946)] // ceil(1.05 × 16324710 measured)
 fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1020,7 +1023,7 @@ fn test_cost_library_call_batch_representative() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7899171)] // ceil(1.05 × 7523020 measured)
+#[available_gas(l2_gas: 7471391)] // ceil(1.05 × 7115610 measured)
 fn test_cost_library_baseline_representative() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (world, _content) = representative();
@@ -1028,9 +1031,10 @@ fn test_cost_library_baseline_representative() {
     assert(words.clock == 49, 'declared');
 }
 
-// Cost: the worst single tick, by construction (`worst_state`), the pipeline alone.
+// Cost: one tick of `worst_state`'s scenario, the pipeline alone: a measured state under the upper
+// bound (CBT-02b, below), not the bound.
 #[test]
-#[available_gas(l2_gas: 73751584)] // ceil(1.05 × 70239603 measured)
+#[available_gas(l2_gas: 67784318)] // ceil(1.05 × 64556493 measured)
 fn test_cost_tick_worst() {
     let (mut world, content) = worst_state(true, 3);
     let mut rules = Idle {};
@@ -1044,14 +1048,14 @@ fn test_cost_tick_worst() {
 // The same construction with only the 8 awake goblins in the array (no frozen candidate): what
 // the array's bound adds is the difference with `test_cost_tick_worst`.
 #[test]
-#[available_gas(l2_gas: 9890381)] // ceil(1.05 × 9419410 measured)
+#[available_gas(l2_gas: 9658205)] // ceil(1.05 × 9198290 measured)
 fn test_cost_fixture_worst_8() {
     let (world, _) = worst_of(true, 3, 8);
     assert(world.goblins.len() == 8, 'eight');
 }
 
 #[test]
-#[available_gas(l2_gas: 12340685)] // ceil(1.05 × 11753033 measured)
+#[available_gas(l2_gas: 12020887)] // ceil(1.05 × 11448463 measured)
 fn test_cost_tick_worst_8() {
     let (mut world, content) = worst_of(true, 3, 8);
     let mut rules = Idle {};
@@ -1059,10 +1063,11 @@ fn test_cost_tick_worst_8() {
     assert(world.killed.len() == 8 && world.defeated, 'every death');
 }
 
-// Cost: the worst 10-tick batch (weight 10) the pipeline's steps allow, `Busy` keeping every awake
-// goblin and the member resolving or acting at every tick.
+// Cost: a busy 10-tick batch (weight 10), `Busy` keeping every awake goblin and the member
+// resolving or acting at every tick: a measured scenario; every tick of a batch is under the tick's
+// upper bound (CBT-02b, below).
 #[test]
-#[available_gas(l2_gas: 186412097)] // ceil(1.05 × 177535330 measured)
+#[available_gas(l2_gas: 145237523)] // ceil(1.05 × 138321450 measured)
 fn test_cost_batch_worst() {
     let (mut world, content) = worst_state(false, 1);
     let mut rules: Busy = Default::default();
@@ -1070,11 +1075,12 @@ fn test_cost_batch_worst() {
     assert(world.clock == 59 && !world.defeated, 'ten ticks');
 }
 
-// Cost, once per call: loading the worst state's 101 actors from their words and storing them back.
+// Cost, once per call: loading `worst_words`' 101 actors from their words and storing them back
+// (a measured scenario; load and store's upper bound is `test_cost_load_bound`'s, CBT-02b).
 // The round trip returns exactly the words it was given (quality 4): every member and goblin word,
 // the clock, the kills. Its baseline builds the same two fixtures.
 #[test]
-#[available_gas(l2_gas: 198274545)] // ceil(1.05 × 188832900 measured)
+#[available_gas(l2_gas: 177249020)] // ceil(1.05 × 168808590 measured)
 fn test_cost_load_store_worst() {
     let (words, content) = worst_words();
     let (expected, _) = worst_words();
@@ -1084,7 +1090,7 @@ fn test_cost_load_store_worst() {
 }
 
 #[test]
-#[available_gas(l2_gas: 135460080)] // ceil(1.05 × 129009600 measured)
+#[available_gas(l2_gas: 121443063)] // ceil(1.05 × 115660060 measured)
 fn test_cost_fixture_worst_words_twice() {
     let (words, content) = worst_words();
     let (expected, _) = worst_words();
@@ -1109,7 +1115,7 @@ fn candidates() -> (World, Span<u16>) {
 // COST-1: the awake set's selection (§5.2) at the candidate bound, `MAX_GOBLINS` = 100: the 8
 // nearest are the array's last 8.
 #[test]
-#[available_gas(l2_gas: 50299179)] // ceil(1.05 × 47903980 measured)
+#[available_gas(l2_gas: 48294729)] // ceil(1.05 × 45994980 measured)
 fn test_cost_awake_100() {
     let (mut world, distances) = candidates();
     TickTrait::awake(ref world, distances);
@@ -1117,17 +1123,18 @@ fn test_cost_awake_100() {
 }
 
 #[test]
-#[available_gas(l2_gas: 45822095)] // ceil(1.05 × 43640090 measured)
+#[available_gas(l2_gas: 43816595)] // ceil(1.05 × 41730090 measured)
 fn test_cost_fixture_candidates() {
     let (world, distances) = candidates();
     assert(world.goblins.len() == 100 && distances.len() == 100, 'candidates');
 }
 
 // Cost of the library call (AC-3): the baseline declares the class and runs the call's body (load,
-// the worst tick, store) in the test's own code; the next test runs it through `library_call`.
+// one tick of `worst_state`'s scenario, store) in the test's own code; the next test runs it
+// through `library_call`.
 // The difference is the call: its syscall and the words and content through calldata and back.
 #[test]
-#[available_gas(l2_gas: 143182372)] // ceil(1.05 × 136364163 measured)
+#[available_gas(l2_gas: 125276522)] // ceil(1.05 × 119310973 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (words, content) = worst_words();
@@ -1139,7 +1146,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 145889293)] // ceil(1.05 × 138942183 measured)
+#[available_gas(l2_gas: 127983443)] // ceil(1.05 × 121888993 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1150,9 +1157,9 @@ fn test_cost_library_call() {
 
 // Ten ticks through one library call over the busy state: the class runs its own rules (`Idle`
 // until CBT-05 and ENG-07), so after the opening tick the goblins fall quiet. A trace of the call
-// at the array's bound, not a worst case (that is `test_cost_batch_worst`).
+// at the array's bound, not a bound (the tick's is CBT-02b's, below).
 #[test]
-#[available_gas(l2_gas: 183951653)] // ceil(1.05 × 175192050 measured)
+#[available_gas(l2_gas: 153660906)] // ceil(1.05 × 146343720 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1162,7 +1169,7 @@ fn test_cost_library_call_batch() {
 }
 
 #[test]
-#[available_gas(l2_gas: 67745454)] // ceil(1.05 × 64519480 measured)
+#[available_gas(l2_gas: 60736946)] // ceil(1.05 × 57844710 measured)
 fn test_cost_library_baseline_batch() {
     let _class = declare("TickLibrary").unwrap().contract_class();
     let (world, _content) = worst_state(false, 1);
@@ -1172,7 +1179,7 @@ fn test_cost_library_baseline_batch() {
 
 // The library call runs the pipeline: the same words as a direct run.
 #[test]
-#[available_gas(l2_gas: 289465960)] // ceil(1.05 × 275681866 measured)
+#[available_gas(l2_gas: 253654261)] // ceil(1.05 × 241575486 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1189,7 +1196,7 @@ fn test_library_matches_pipeline() {
 // the fully unpacked record, their oracle: a regeneration in entry 1 or 2, falling with rank or
 // negative, none; a potion with and without one; a caste.
 #[test]
-#[available_gas(l2_gas: 1382420)] // ceil(1.05 × 1316590 measured)
+#[available_gas(l2_gas: 1359740)] // ceil(1.05 × 1294990 measured)
 fn test_sheets_read_oracle() {
     let (skill, caste) = records();
     let unpacked: Skill = Record::<Skill>::unpack(skill);
@@ -1233,7 +1240,7 @@ fn test_cost_sheets_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 436475)] // ceil(1.05 × 415690 measured)
+#[available_gas(l2_gas: 424284)] // ceil(1.05 × 404080 measured)
 fn test_cost_sheets() {
     let (skill, caste) = records();
     let sheet = SkillSheetTrait::read(5, skill);
@@ -1295,7 +1302,7 @@ fn records() -> (Span<felt252>, Span<felt252>) {
 // its move, in the action phase) stops it at once: the clock does not advance, no goblin acts,
 // nothing regenerates, and step 5's defeat and objectives run.
 #[test]
-#[available_gas(l2_gas: 5276681)] // ceil(1.05 × 5025410 measured)
+#[available_gas(l2_gas: 5276576)] // ceil(1.05 × 5025310 measured)
 fn test_member_down_before_the_tick() {
     let mut spec = Fixture::spec();
     spec.health = 0;
@@ -1315,7 +1322,7 @@ fn test_member_down_before_the_tick() {
 // likewise; Crippled lives in the words; a cure at 76 gives 75; an absent condition is untouched;
 // a dead goblin takes nothing.
 #[test]
-#[available_gas(l2_gas: 6009192)] // ceil(1.05 × 5723040 measured)
+#[available_gas(l2_gas: 5877764)] // ceil(1.05 × 5597870 measured)
 fn test_conditions_refresh_and_cure() {
     let mut member = Fixture::member(Fixture::spec());
     member.inflict(condition::BLEEDING, 70, 8);
@@ -1380,7 +1387,7 @@ fn held(carrier: u16, potion: bool, deadline: u32, rank: u8) -> Held {
 // clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot: Warcry in
 // slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
 #[test]
-#[available_gas(l2_gas: 7772394)] // ceil(1.05 × 7402280 measured)
+#[available_gas(l2_gas: 7546266)] // ceil(1.05 × 7186920 measured)
 fn test_hold_eviction_and_stance() {
     let content = hold_content();
     let mut spec = Fixture::spec();
@@ -1405,7 +1412,7 @@ fn test_hold_eviction_and_stance() {
 // AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new one
 // on a tie; two belt slots holding the same potion item are one carrier.
 #[test]
-#[available_gas(l2_gas: 7633878)] // ceil(1.05 × 7270360 measured)
+#[available_gas(l2_gas: 7417326)] // ceil(1.05 × 7064120 measured)
 fn test_hold_refresh() {
     let content = hold_content();
     let mut spec = Fixture::spec();
@@ -1438,7 +1445,7 @@ fn test_hold_refresh() {
 // (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline cost (6
 // strikes: 24 quarters); a goblin's at its caste's, at most 252.
 #[test]
-#[available_gas(l2_gas: 6291138)] // ceil(1.05 × 5991560 measured)
+#[available_gas(l2_gas: 6104333)] // ceil(1.05 × 5813650 measured)
 fn test_adrenaline_gain() {
     let mut skills = array![];
     for id in 1..9_u16 {
@@ -1493,7 +1500,7 @@ fn test_adrenaline_gain() {
 
 // AUD-182-9: the words' decoders are the entities' own (`MemberTrait::hot`, `GoblinTrait::hot`).
 #[test]
-#[available_gas(l2_gas: 5279222)] // ceil(1.05 × 5027830 measured)
+#[available_gas(l2_gas: 5241800)] // ceil(1.05 × 4992190 measured)
 fn test_hot_decoders() {
     let mut spec = Fixture::spec();
     spec.conditions = [11, 12, 13, 14];
@@ -1512,13 +1519,12 @@ fn test_hot_decoders() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// COST-1 (fix loop 3): the upper bound of a tick, from per-term maxima (REPORT.md, *Fix loop 3*).
-// A lookup's cost grows with the record's position, and step 1's branches differ by a few
-// operations, so no single fixture is proved the maximum. Instead each term is measured at its
-// maximum, apart: the cost of one more comparison in each content list; the tick with no awake
-// goblin (the base: the member at its worst, the 100-goblin array); each branch a single awake
-// goblin can take, its lookups at the end of their lists, dying and surviving. The bound adds
-// them: base + 8 × the costliest branch + every lookup charged as a full scan.
+// COST-1 (CBT-02's fix loop 3, kept by CBT-02b): the terms of a tick's cost, each measured apart.
+// A lookup's cost grows with the record's position: one more comparison in each content list. The
+// base: the tick with no awake goblin (the member concluding and dying, the 100-goblin array).
+// Each branch of step 1 a single awake goblin can take, its lookups at the end of their lists,
+// dying and surviving. CBT-02b adds the branches and the eight-goblin states it lacked, and sums
+// the terms into the upper bound (below; REPORT.md).
 
 /// Step 1's branches of one awake goblin (design/19 §5.2).
 const B_NONE: u8 = 0;
@@ -1625,7 +1631,7 @@ fn branch_fixture(branch: u8, dying: bool, member_dying: bool) {
 
 // Each branch is the one named (not a cost test).
 #[test]
-#[available_gas(l2_gas: 330452414)] // ceil(1.05 × 314716584 measured)
+#[available_gas(l2_gas: 310127490)] // ceil(1.05 × 295359514 measured)
 fn test_branch_worlds_take_their_branch() {
     let content = branch_content(3);
     let mut rules: Script = Default::default();
@@ -1648,9 +1654,9 @@ fn test_branch_worlds_take_their_branch() {
     assert(*world.goblins.at(99).act_slot == activation::NONE, 'cleared');
 }
 
-// The additivity the bound assumes, checked at its maximum: 8 goblins all lapsing, dying.
+// 8 goblins all lapsing, dying: a lapse's term with eight goblins (CBT-02b's per-goblin terms).
 #[test]
-#[available_gas(l2_gas: 73956695)] // ceil(1.05 × 70434947 measured)
+#[available_gas(l2_gas: 63418863)] // ceil(1.05 × 60398917 measured)
 fn test_cost_bound_eight_lapses() {
     let (mut world, content) = branch_world_n(B_LAPSE, true, true, 8);
     let mut rules = Idle {};
@@ -1659,116 +1665,116 @@ fn test_cost_bound_eight_lapses() {
 }
 
 #[test]
-#[available_gas(l2_gas: 60776877)] // ceil(1.05 × 57882740 measured)
+#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
 fn test_cost_bound_eight_lapses_fixture() {
     let (world, content) = branch_world_n(B_LAPSE, true, true, 8);
     assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
 }
 
 #[test]
-#[available_gas(l2_gas: 64847101)] // ceil(1.05 × 61759143 measured)
+#[available_gas(l2_gas: 59741665)] // ceil(1.05 × 56896823 measured)
 fn test_cost_bound_base() {
     branch_tick(B_NONE, false, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_base_fixture() {
     branch_fixture(B_NONE, false, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 64837157)] // ceil(1.05 × 61749673 measured)
+#[available_gas(l2_gas: 59731721)] // ceil(1.05 × 56887353 measured)
 fn test_cost_bound_base_member_alive() {
     branch_tick(B_NONE, false, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_base_member_alive_fixture() {
     branch_fixture(B_NONE, false, false);
 }
 
 #[test]
-#[available_gas(l2_gas: 65970307)] // ceil(1.05 × 62828863 measured)
+#[available_gas(l2_gas: 61970059)] // ceil(1.05 × 59019103 measured)
 fn test_cost_bound_conclude_recover() {
     branch_tick(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_conclude_recover_fixture() {
     branch_fixture(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 65970097)] // ceil(1.05 × 62828663 measured)
+#[available_gas(l2_gas: 61969849)] // ceil(1.05 × 59018903 measured)
 fn test_cost_bound_conclude_recover_alive() {
     branch_tick(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_conclude_recover_alive_fixture() {
     branch_fixture(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 65971223)] // ceil(1.05 × 62829736 measured)
+#[available_gas(l2_gas: 61971080)] // ceil(1.05 × 59020076 measured)
 fn test_cost_bound_conclude_clear() {
     branch_tick(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_conclude_clear_fixture() {
     branch_fixture(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 65984684)] // ceil(1.05 × 62842556 measured)
+#[available_gas(l2_gas: 61980194)] // ceil(1.05 × 59028756 measured)
 fn test_cost_bound_lapse() {
     branch_tick(B_LAPSE, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_lapse_fixture() {
     branch_fixture(B_LAPSE, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 65836046)] // ceil(1.05 × 62700996 measured)
+#[available_gas(l2_gas: 61834685)] // ceil(1.05 × 58890176 measured)
 fn test_cost_bound_recovery_end() {
     branch_tick(B_RECOVERY_END, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_recovery_end_fixture() {
     branch_fixture(B_RECOVERY_END, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 64870736)] // ceil(1.05 × 61781653 measured)
+#[available_gas(l2_gas: 61184186)] // ceil(1.05 × 58270653 measured)
 fn test_cost_bound_activating() {
     branch_tick(B_ACTIVATING, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_activating_fixture() {
     branch_fixture(B_ACTIVATING, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 64877984)] // ceil(1.05 × 61788556 measured)
+#[available_gas(l2_gas: 61191119)] // ceil(1.05 × 58277256 measured)
 fn test_cost_bound_free() {
     branch_tick(B_FREE, true, true);
 }
 
 #[test]
-#[available_gas(l2_gas: 60768057)] // ceil(1.05 × 57874340 measured)
+#[available_gas(l2_gas: 58588173)] // ceil(1.05 × 55798260 measured)
 fn test_cost_bound_free_fixture() {
     branch_fixture(B_FREE, true, true);
 }
@@ -1833,7 +1839,7 @@ fn member_effect_words(potions: bool) -> MemberWords {
 }
 
 #[test]
-#[available_gas(l2_gas: 5903856)] // ceil(1.05 × 5622720 measured)
+#[available_gas(l2_gas: 5814396)] // ceil(1.05 × 5537520 measured)
 fn test_cost_load_member_skills() {
     let content = branch_content(3);
     let words = member_effect_words(false);
@@ -1843,7 +1849,7 @@ fn test_cost_load_member_skills() {
 }
 
 #[test]
-#[available_gas(l2_gas: 5550363)] // ceil(1.05 × 5286060 measured)
+#[available_gas(l2_gas: 5488455)] // ceil(1.05 × 5227100 measured)
 fn test_cost_load_member_potions() {
     let content = branch_content(3);
     let words = member_effect_words(true);
@@ -1869,7 +1875,7 @@ fn test_cost_load_member_potions_fixture() {
 }
 
 // The audit's permutation (skills 40 and 42 exchanged, so every conclusion's lookup goes 2 further)
-// measured against the bound, which it must stay under (REPORT.md).
+// measured under the tick's upper bound (CBT-02b, REPORT.md).
 fn permuted(content: Content) -> Content {
     let mut skills = array![];
     for sheet in content.skills {
@@ -1885,7 +1891,7 @@ fn permuted(content: Content) -> Content {
 }
 
 #[test]
-#[available_gas(l2_gas: 74249263)] // ceil(1.05 × 70713583 measured)
+#[available_gas(l2_gas: 68181386)] // ceil(1.05 × 64934653 measured)
 fn test_cost_tick_worst_permuted() {
     let (mut world, content) = worst_state(true, 3);
     let content = permuted(content);
@@ -1895,7 +1901,7 @@ fn test_cost_tick_worst_permuted() {
 }
 
 #[test]
-#[available_gas(l2_gas: 61202169)] // ceil(1.05 × 58287780 measured)
+#[available_gas(l2_gas: 59022285)] // ceil(1.05 × 56211700 measured)
 fn test_cost_fixture_worst_permuted() {
     let (world, content) = worst_state(true, 3);
     let content = permuted(content);
@@ -1937,4 +1943,1008 @@ fn test_member_assert_pips() {
 #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
 fn test_goblin_assert_pips() {
     GoblinAssert::assert_pips(-129);
+}
+
+// ---------------------------------------------------------------------------------------------
+// CBT-02b (D-163; COST-1a to COST-1c): the tick's upper bound, proved term by term.
+//
+// **What can vary.** Sierra charges a function that has no loop and calls none the gas of its
+// costliest path, whatever path runs: a branch there cannot change the cost. A function with a
+// loop, or calling one, pays the path it takes. A tick's cost, load and store's, and the sheets'
+// therefore vary only with their loops: how many times each runs, which path each iteration
+// takes, and how far each lookup scans its list. The tests below
+// - show the first rule on every arithmetic branch the audits named (`test_cost_path_*`: one
+//   goblin's and one member's step 3 on every path, `store`, `line`; each group measures the same);
+// - measure each loop's iterations on their costliest paths, at the counts' bounds: the tick's
+//   step 1 branches with 1 and 8 awake goblins (`test_cost_bound_*`), load and store
+//   (`test_cost_load_bound`), the sheets (`test_cost_sheet_*`), the library call's lists
+//   (`test_cost_library_*`).
+// REPORT.md and ENG-01 §9.2 sum them.
+
+/// Keeps a value from the compiler's constant folding, so that the path under test runs.
+#[inline(never)]
+fn opaque<T, +Drop<T>>(value: T) -> T {
+    value
+}
+
+/// One goblin's step 3 (`GoblinTickTrait::regenerate`, no loop): its three degenerating
+/// conditions to `until`, its effect's pips until `effect_until`, its regeneration, health, energy,
+/// AI state and adrenaline; max health 280, max energy 30, energy regeneration 1, tick 50.
+fn regenerate_goblin(
+    until: u32,
+    effect: i8,
+    effect_until: u32,
+    regen: i8,
+    health: u16,
+    energy: u8,
+    state: u8,
+    adrenaline: u8,
+) -> u16 {
+    let mut goblin = opaque(Fixture::goblin(8, HOB));
+    goblin.bleeding = opaque(until);
+    goblin.poison = opaque(until);
+    goblin.burning = opaque(until);
+    goblin.effect_regen = opaque(effect);
+    goblin.effect_deadline = opaque(effect_until);
+    goblin.health_regen = opaque(regen);
+    goblin.health = opaque(health);
+    goblin.energy = opaque(energy);
+    goblin.ai = opaque(state);
+    goblin.adrenaline = opaque(adrenaline);
+    goblin.regenerate(opaque(50));
+    goblin.health
+}
+
+/// One member's step 3 (`MemberTickTrait::regenerate`, no loop): its conditions to `until`, its
+/// four effects' pips until `effect_until`, its regeneration, health, energy, whether the awake
+/// set is engaged and its adrenaline; max health 480, max energy 60 thirds, regeneration 2.
+fn regenerate_member(
+    until: u32,
+    effect: i8,
+    effect_until: u32,
+    regen: i8,
+    health: u16,
+    energy: u16,
+    engaged: bool,
+    adrenaline: u16,
+) -> u16 {
+    let mut member = opaque(Fixture::member(Fixture::spec()));
+    member.bleeding = opaque(until);
+    member.poison = opaque(until);
+    member.burning = opaque(until);
+    member.effect_regen = opaque([effect; 4]);
+    member.effect_deadlines = opaque([effect_until; 4]);
+    member.health_regen = opaque(regen);
+    member.health = opaque(health);
+    member.energy = opaque(energy);
+    member.adrenaline = opaque(adrenaline);
+    member.regenerate(opaque(50), opaque(engaged));
+    member.health
+}
+
+// COST-1a: every path of one goblin's step 3 costs the same.
+
+// A goblin's step 3, the pips below −10 (clamped), health lost.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_below() {
+    assert(regenerate_goblin(99, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the same, health to 0.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_below_dead() {
+    assert(regenerate_goblin(99, 2, 99, 0, 15, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the pips in −10…−1.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_down() {
+    assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the same, health to 0.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_down_dead() {
+    assert(regenerate_goblin(99, 2, 99, 5, 10, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the pips in 0…10.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_up() {
+    assert(regenerate_goblin(0, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the same, health to its max.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_up_full() {
+    assert(regenerate_goblin(0, 2, 99, 0, 278, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the pips above 10 (clamped).
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_above() {
+    assert(regenerate_goblin(0, 10, 99, 10, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, the same, health to its max.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_above_full() {
+    assert(regenerate_goblin(0, 10, 99, 10, 270, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, no effect pips.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_effect_zero() {
+    assert(regenerate_goblin(99, 0, 99, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, an effect over.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_effect_over() {
+    assert(regenerate_goblin(99, 2, 40, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, energy to its max.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_energy_capped() {
+    assert(regenerate_goblin(99, 2, 99, 5, 100, 30, ai::ALERTED, 5) <= 280, 'health');
+}
+
+// A goblin's step 3, no adrenaline to decay.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_adrenaline_zero() {
+    assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 0) <= 280, 'health');
+}
+
+// A goblin's step 3, Engaged: no decay.
+#[test]
+#[available_gas(l2_gas: 332042)] // ceil(1.05 × 316230 measured)
+fn test_cost_path_goblin_engaged() {
+    assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ENGAGED, 5) <= 280, 'health');
+}
+
+// COST-1a: every path of one member's step 3 costs the same.
+
+// A member's step 3, the pips below −10 (clamped), health lost.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_below() {
+    assert(regenerate_member(99, 2, 99, -10, 100, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the same, health to 0.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_below_dead() {
+    assert(regenerate_member(99, 2, 99, -10, 15, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the pips in −10…−1.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_down() {
+    assert(regenerate_member(99, 2, 99, -2, 100, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the same, health to 0.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_down_dead() {
+    assert(regenerate_member(99, 2, 99, -2, 10, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the pips in 0…10.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_up() {
+    assert(regenerate_member(0, 2, 99, 0, 100, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the same, health to its max.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_up_full() {
+    assert(regenerate_member(0, 2, 99, 0, 478, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the pips above 10 (clamped).
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_above() {
+    assert(regenerate_member(0, 3, 99, 5, 100, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the same, health to its max.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_above_full() {
+    assert(regenerate_member(0, 3, 99, 5, 475, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, no effect pips (the effects' block skipped).
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_effects_zero() {
+    assert(regenerate_member(99, 0, 99, 6, 100, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, the effects over.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_effects_over() {
+    assert(regenerate_member(99, 2, 40, 6, 100, 30, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, energy to its max.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_energy_capped() {
+    assert(regenerate_member(99, 2, 99, -2, 100, 59, false, 5) <= 480, 'health');
+}
+
+// A member's step 3, no adrenaline to decay.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_adrenaline_zero() {
+    assert(regenerate_member(99, 2, 99, -2, 100, 30, false, 0) <= 480, 'health');
+}
+
+// A member's step 3, in combat: no decay.
+#[test]
+#[available_gas(l2_gas: 4930149)] // ceil(1.05 × 4695380 measured)
+fn test_cost_path_member_engaged() {
+    assert(regenerate_member(99, 2, 99, -2, 100, 30, true, 5) <= 480, 'health');
+}
+
+// `store` has no loop: a goblin's and a member's words cost the same written back unchanged or
+// changed in every hot field.
+fn store_goblin(state: u8, health: u16, small: u8, slot: u8, deadline: u32) -> felt252 {
+    let mut goblin = opaque(Fixture::goblin(9, RUNT));
+    goblin.ai = opaque(state);
+    goblin.health = opaque(health);
+    goblin.energy = opaque(small);
+    goblin.adrenaline = opaque(small);
+    goblin.act_slot = opaque(slot);
+    goblin.act_target = opaque(small.into());
+    goblin.act_deadline = opaque(deadline);
+    goblin.bleeding = opaque(deadline);
+    goblin.poison = opaque(deadline);
+    goblin.burning = opaque(deadline);
+    goblin.knocked = opaque(deadline);
+    goblin.effect_deadline = opaque(deadline);
+    goblin.store().state
+}
+
+fn store_member(
+    state: u8, health: u16, energy: u16, small: u16, slot: u8, deadline: u32,
+) -> MemberWords {
+    let mut member = opaque(Fixture::member(Fixture::spec()));
+    member.status = opaque(state);
+    member.health = opaque(health);
+    member.energy = opaque(energy);
+    member.adrenaline = opaque(small);
+    member.flags = opaque(small.try_into().unwrap());
+    member.act_slot = opaque(slot);
+    member.act_target = opaque(small);
+    member.act_tile = opaque(small.try_into().unwrap());
+    member.act_deadline = opaque(deadline);
+    member.bleeding = opaque(deadline);
+    member.poison = opaque(deadline);
+    member.burning = opaque(deadline);
+    member.knocked = opaque(deadline);
+    member.store()
+}
+
+#[test]
+#[available_gas(l2_gas: 612108)] // ceil(1.05 × 582960 measured)
+fn test_cost_path_goblin_store_same() {
+    let words = Fixture::goblin(9, RUNT).state;
+    assert(store_goblin(ai::ENGAGED, 100, 0, activation::NONE, 0) == words, 'same');
+}
+
+#[test]
+#[available_gas(l2_gas: 612108)] // ceil(1.05 × 582960 measured)
+fn test_cost_path_goblin_store_changed() {
+    let words = Fixture::goblin(9, RUNT).state;
+    assert(store_goblin(ai::DEAD, 0, 3, activation::RECOVERING, 60) != words, 'changed');
+}
+
+#[test]
+#[available_gas(l2_gas: 9784131)] // ceil(1.05 × 9318220 measured)
+fn test_cost_path_member_store_same() {
+    let words = Fixture::member_words(Fixture::spec());
+    assert(store_member(status::INSIDE, 400, 30, 0, NO_SLOT, 0).state == words.state, 'same');
+}
+
+#[test]
+#[available_gas(l2_gas: 9784131)] // ceil(1.05 × 9318220 measured)
+fn test_cost_path_member_store_changed() {
+    let words = Fixture::member_words(Fixture::spec());
+    assert(store_member(status::DOWN, 0, 3, 3, 4, 60).state != words.state, 'changed');
+}
+
+// `EntryTrait::line` has no loop: an effect's pips at a rank cost the same rising or falling
+// (the signed division's branches).
+#[test]
+#[available_gas(l2_gas: 22701)] // ceil(1.05 × 21620 measured)
+fn test_cost_path_line_rising() {
+    assert(EntryTrait::line(opaque(2), opaque(6), opaque(8)) == 4, 'rising');
+}
+
+#[test]
+#[available_gas(l2_gas: 22701)] // ceil(1.05 × 21620 measured)
+fn test_cost_path_line_falling() {
+    assert(EntryTrait::line(opaque(6), opaque(-10), opaque(9)) == -6, 'falling');
+}
+
+// COST-1a: step 1's branches, each taken by 1 and by 8 awake goblins in the 100-goblin array, every
+// goblin dying in step 3, the member concluding and dying (`branch_world_n`). CBT-02's single-
+// goblin tests (`test_cost_bound_*` above) give the branches it named; these add the four it did
+// not, and the eight-goblin states. Per goblin, `(T(8) − T(1)) / 7`; what a tick pays once (step
+// 3's rebuild, step 1's last one) is `T(1) − base −` that.
+
+/// Step 1's branches CBT-02 did not measure: a lapse whose later recharge is kept, a recovery that
+/// runs on, an awake goblin already dead, a free goblin knocked down.
+const B_LAPSE_KEEP: u8 = 7;
+const B_RECOVERING: u8 = 8;
+const B_DEAD: u8 = 9;
+const B_KNOCKED: u8 = 10;
+
+const B184: felt252 = 0x10000000000000000000000000000000000000000000000;
+
+/// `branch_world_n(branch, true, true, n)` for every branch: the last `n` of the 100 goblins take
+/// it and die in step 3, the member concludes bar slot 7 and dies.
+fn bound_world(branch: u8, n: u16) -> (World, Content) {
+    if branch < B_LAPSE_KEEP {
+        return branch_world_n(branch, true, true, n);
+    }
+    let content = branch_content(3);
+    let mut spec = Fixture::spec();
+    spec.health = 7;
+    spec.conditions = [99, 99, 99, 0];
+    spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
+    let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
+    member.start(7, 8, 1, 49);
+    let mut goblins = array![];
+    let mut i: u16 = 0;
+    while i < 100 - n {
+        goblins.append(GoblinTrait::load(goblin_words(8 + i, false, 280, 0, 99), @content));
+        i += 1;
+    }
+    while i < 100 {
+        let mut words = if branch == B_LAPSE_KEEP {
+            goblin_words_at(8 + i, true, 1, 3, 45, 99)
+        } else if branch == B_RECOVERING {
+            goblin_words_at(8 + i, true, 1, activation::RECOVERING, 55, 99)
+        } else {
+            goblin_words_at(8 + i, true, 1, activation::NONE, 0, 99)
+        };
+        if branch == B_LAPSE_KEEP {
+            // Slot 3's recharge at 100, later than the lapse's 45 + 20 − 1.
+            words.state += 100 * B212;
+        } else if branch == B_DEAD {
+            words.state += (ai::DEAD - ai::ALERTED).into() * B24;
+        } else if branch == B_KNOCKED {
+            words.timers += 60 * B184;
+        }
+        goblins.append(GoblinTrait::load(words, @content));
+        i += 1;
+    }
+    (Fixture::world(49, array![member], goblins), content)
+}
+
+fn bound_tick(branch: u8, n: u16) {
+    let (mut world, content) = bound_world(branch, n);
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @content, ref rules);
+    assert(world.clock == 50 && world.defeated, 'one tick');
+}
+
+fn bound_fixture(branch: u8, n: u16) {
+    let (world, content) = bound_world(branch, n);
+    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
+}
+
+// One goblin: a lapse, the later recharge kept.
+#[test]
+#[available_gas(l2_gas: 62015254)] // ceil(1.05 × 59062146 measured)
+fn test_cost_bound_lapse_keep() {
+    bound_tick(B_LAPSE_KEEP, 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 58640306)] // ceil(1.05 × 55847910 measured)
+fn test_cost_bound_lapse_keep_fixture() {
+    bound_fixture(B_LAPSE_KEEP, 1);
+}
+
+// One goblin: a recovery running on.
+#[test]
+#[available_gas(l2_gas: 61238923)] // ceil(1.05 × 58322783 measured)
+fn test_cost_bound_recovering() {
+    bound_tick(B_RECOVERING, 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 58641314)] // ceil(1.05 × 55848870 measured)
+fn test_cost_bound_recovering_fixture() {
+    bound_fixture(B_RECOVERING, 1);
+}
+
+// One goblin: an awake goblin already dead.
+#[test]
+#[available_gas(l2_gas: 61217324)] // ceil(1.05 × 58302213 measured)
+fn test_cost_bound_dead() {
+    bound_tick(B_DEAD, 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 58640925)] // ceil(1.05 × 55848500 measured)
+fn test_cost_bound_dead_fixture() {
+    bound_fixture(B_DEAD, 1);
+}
+
+// One goblin: a free goblin knocked down.
+#[test]
+#[available_gas(l2_gas: 61239028)] // ceil(1.05 × 58322883 measured)
+fn test_cost_bound_knocked() {
+    bound_tick(B_KNOCKED, 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 58641314)] // ceil(1.05 × 55848870 measured)
+fn test_cost_bound_knocked_fixture() {
+    bound_fixture(B_KNOCKED, 1);
+}
+
+// Eight goblins: concluding into a recovery.
+#[test]
+#[available_gas(l2_gas: 67774973)] // ceil(1.05 × 64547593 measured)
+fn test_cost_bound_eight_conclude_recover() {
+    bound_tick(B_CONCLUDE_RECOVER, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
+fn test_cost_bound_eight_conclude_recover_fixture() {
+    bound_fixture(B_CONCLUDE_RECOVER, 8);
+}
+
+// Eight goblins: concluding, the field cleared.
+#[test]
+#[available_gas(l2_gas: 67783146)] // ceil(1.05 × 64555377 measured)
+fn test_cost_bound_eight_conclude_clear() {
+    bound_tick(B_CONCLUDE_CLEAR, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
+fn test_cost_bound_eight_conclude_clear_fixture() {
+    bound_fixture(B_CONCLUDE_CLEAR, 8);
+}
+
+// Eight goblins: a recovery over.
+#[test]
+#[available_gas(l2_gas: 62255967)] // ceil(1.05 × 59291397 measured)
+fn test_cost_bound_eight_recovery_end() {
+    bound_tick(B_RECOVERY_END, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
+fn test_cost_bound_eight_recovery_end_fixture() {
+    bound_fixture(B_RECOVERY_END, 8);
+}
+
+// Eight goblins: activating, busy.
+#[test]
+#[available_gas(l2_gas: 61487993)] // ceil(1.05 × 58559993 measured)
+fn test_cost_bound_eight_activating() {
+    bound_tick(B_ACTIVATING, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
+fn test_cost_bound_eight_activating_fixture() {
+    bound_fixture(B_ACTIVATING, 8);
+}
+
+// Eight goblins: free, acting in step 2.
+#[test]
+#[available_gas(l2_gas: 61543458)] // ceil(1.05 × 58612817 measured)
+fn test_cost_bound_eight_free() {
+    bound_tick(B_FREE, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
+fn test_cost_bound_eight_free_fixture() {
+    bound_fixture(B_FREE, 8);
+}
+
+// Eight goblins: a lapse, the later recharge kept.
+#[test]
+#[available_gas(l2_gas: 63325854)] // ceil(1.05 × 60310337 measured)
+fn test_cost_bound_eight_lapse_keep() {
+    bound_tick(B_LAPSE_KEEP, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58649640)] // ceil(1.05 × 55856800 measured)
+fn test_cost_bound_eight_lapse_keep_fixture() {
+    bound_fixture(B_LAPSE_KEEP, 8);
+}
+
+// Eight goblins: a recovery running on.
+#[test]
+#[available_gas(l2_gas: 61551224)] // ceil(1.05 × 58620213 measured)
+fn test_cost_bound_eight_recovering() {
+    bound_tick(B_RECOVERING, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58657704)] // ceil(1.05 × 55864480 measured)
+fn test_cost_bound_eight_recovering_fixture() {
+    bound_fixture(B_RECOVERING, 8);
+}
+
+// Eight goblins: awake and already dead.
+#[test]
+#[available_gas(l2_gas: 61378436)] // ceil(1.05 × 58455653 measured)
+fn test_cost_bound_eight_dead() {
+    bound_tick(B_DEAD, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58654596)] // ceil(1.05 × 55861520 measured)
+fn test_cost_bound_eight_dead_fixture() {
+    bound_fixture(B_DEAD, 8);
+}
+
+// Eight goblins: free and knocked down.
+#[test]
+#[available_gas(l2_gas: 61552064)] // ceil(1.05 × 58621013 measured)
+fn test_cost_bound_eight_knocked() {
+    bound_tick(B_KNOCKED, 8);
+}
+
+#[test]
+#[available_gas(l2_gas: 58657704)] // ceil(1.05 × 55864480 measured)
+fn test_cost_bound_eight_knocked_fixture() {
+    bound_fixture(B_KNOCKED, 8);
+}
+
+// COST-1a: load and store, once per call, on their costliest paths. A goblin's load: its caste
+// (the last), its effect (skill 43, the last), its four caste skills each looked up and each
+// raising its adrenaline cap (costs 1 to 4 strikes); the cap's clamp at 252 is not reachable
+// (DS-18: a caste skill costs at most 63 strikes, `CasteAssert::assert_skills`). The member's:
+// its four effects on the skill path (the content's last four skills; the potion path costs less,
+// `test_cost_load_member_*`), its bar's eight skills each raising its cap (costs 1 to 8). `store`
+// has no loop (`test_cost_path_*_store_*`). The lookups not at their list's end are charged as
+// full scans in REPORT.md.
+
+/// `branch_content(3)` with increasing adrenaline costs: the bar's skills 1–8 cost 1–8 strikes,
+/// caste 5's skills 40–43 cost 1–4, so that every step of an adrenaline cap's loop raises it.
+fn load_content() -> Content {
+    let content = branch_content(3);
+    let mut skills = array![];
+    for sheet in content.skills {
+        let mut sheet = *sheet;
+        if sheet.id <= 8 {
+            sheet.adrenaline = sheet.id.try_into().unwrap();
+        } else if sheet.id >= 40 {
+            sheet.adrenaline = (sheet.id - 39).try_into().unwrap();
+        }
+        skills.append(sheet);
+    }
+    Content { skills: skills.span(), ..content }
+}
+
+/// The words of load's costliest paths: `members` members with the content's last four skills as
+/// their effects and their bar 1–8; 100 goblins of caste 5, each holding skill 43, the last 8
+/// awake.
+fn load_words(members: u32) -> (Words, Content) {
+    let content = load_content();
+    let mut all = array![];
+    for _ in 0..members {
+        all.append(member_effect_words(false));
+    }
+    let mut goblins = array![];
+    let mut i: u16 = 0;
+    while i < 100 {
+        goblins.append(goblin_words(8 + i, i >= 92, 280, 0, 99));
+        i += 1;
+    }
+    (Words { clock: 49, members: all, goblins, killed: array![], defeated: false }, content)
+}
+
+// Load and store of the costliest words, the round trip checked.
+#[test]
+#[available_gas(l2_gas: 67779149)] // ceil(1.05 × 64551570 measured)
+fn test_cost_load_bound() {
+    let (words, content) = load_words(1);
+    let (expected, _) = load_words(1);
+    let world = words.load(@content);
+    assert(world.store() == expected, 'round trip');
+}
+
+#[test]
+#[available_gas(l2_gas: 11639208)] // ceil(1.05 × 11084960 measured)
+fn test_cost_load_bound_fixture() {
+    let (words, content) = load_words(1);
+    let (expected, _) = load_words(1);
+    assert(words.goblins.len() == expected.goblins.len() && content.skills.len() == 38, 'twice');
+}
+
+// The same with two members (M-3): what each member adds.
+#[test]
+#[available_gas(l2_gas: 78180365)] // ceil(1.05 × 74457490 measured)
+fn test_cost_load_bound_two_members() {
+    let (words, content) = load_words(2);
+    let (expected, _) = load_words(2);
+    let world = words.load(@content);
+    assert(world.store() == expected, 'round trip');
+}
+
+#[test]
+#[available_gas(l2_gas: 21366093)] // ceil(1.05 × 20348660 measured)
+fn test_cost_load_bound_two_members_fixture() {
+    let (words, content) = load_words(2);
+    let (expected, _) = load_words(2);
+    assert(words.goblins.len() == expected.goblins.len() && content.skills.len() == 38, 'twice');
+}
+
+// COST-1c: a sheet read from its record's parts, per record kind, on every path of its loop.
+// `SkillSheetTrait::read` scans the entries until the `REGENERATION` one or an empty one.
+// `PotionSheetTrait::read` and `CasteSheetTrait::read` have no loop.
+
+/// A `SKILL`'s two parts (`models::skill` layout): a spell's header and three entries of `kinds`,
+/// each holding `v0` and `v12` where a `REGENERATION` holds them.
+fn skill_parts(kinds: [u8; 3], v0: i16, v12: i16) -> Span<felt252> {
+    let [a, b, c] = kinds;
+    let line: felt252 = (SignedTrait::bits16(v0) * 0x10000 + SignedTrait::bits16(v12) * 0x100000000)
+        .into();
+    let header: felt252 = skill_kind::SPELL.into() * 0x10000
+        + 2 * 0x100000000
+        + 1 * 0x10000000000
+        + 12 * 0x100000000000000;
+    let first = LIVE + header + (a.into() + line) * B128;
+    let second = LIVE + b.into() + line + (c.into() + line) * B128;
+    opaque(array![first, second].span())
+}
+
+fn read_skill(kinds: [u8; 3], v0: i16, v12: i16) -> i16 {
+    let sheet = SkillSheetTrait::read(opaque(5), skill_parts(kinds, v0, v12));
+    assert(sheet.recharge == 12 && sheet.activation == 1, 'header');
+    sheet.regen0
+}
+
+// A skill's sheet, its `REGENERATION`: the first entry.
+#[test]
+#[available_gas(l2_gas: 59231)] // ceil(1.05 × 56410 measured)
+fn test_cost_sheet_skill_regen_first() {
+    assert(read_skill([kind::REGENERATION, kind::DAMAGE, kind::DAMAGE], 2, 6) == 2, 'regen');
+}
+
+// A skill's sheet, its `REGENERATION`: the second.
+#[test]
+#[available_gas(l2_gas: 62643)] // ceil(1.05 × 59660 measured)
+fn test_cost_sheet_skill_regen_second() {
+    assert(read_skill([kind::DAMAGE, kind::REGENERATION, kind::DAMAGE], 2, 6) == 2, 'regen');
+}
+
+// A skill's sheet, its `REGENERATION`: the third.
+#[test]
+#[available_gas(l2_gas: 66056)] // ceil(1.05 × 62910 measured)
+fn test_cost_sheet_skill_regen_third() {
+    assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6) == 2, 'regen');
+}
+
+// A skill's sheet, its `REGENERATION`: the third, negative.
+#[test]
+#[available_gas(l2_gas: 67358)] // ceil(1.05 × 64150 measured)
+fn test_cost_sheet_skill_regen_third_negative() {
+    assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], -3, -10) == -3, 'regen');
+}
+
+// A skill's sheet, its `REGENERATION`: none of three entries.
+#[test]
+#[available_gas(l2_gas: 58527)] // ceil(1.05 × 55740 measured)
+fn test_cost_sheet_skill_none() {
+    assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::DAMAGE], 2, 6) == 0, 'regen');
+}
+
+// A skill's sheet, its `REGENERATION`: an empty second entry.
+#[test]
+#[available_gas(l2_gas: 53256)] // ceil(1.05 × 50720 measured)
+fn test_cost_sheet_skill_damage_then_empty() {
+    assert(read_skill([kind::DAMAGE, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
+}
+
+// A skill's sheet, its `REGENERATION`: no entry.
+#[test]
+#[available_gas(l2_gas: 49634)] // ceil(1.05 × 47270 measured)
+fn test_cost_sheet_skill_empty() {
+    assert(read_skill([kind::EMPTY, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
+}
+
+#[test]
+#[available_gas(l2_gas: 25148)] // ceil(1.05 × 23950 measured)
+fn test_cost_sheet_skill_fixture() {
+    assert(skill_parts([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6).len() == 2, 'parts');
+}
+
+/// A potion's part (`models::item` layout): its entry of `entry_kind` in the high limb, holding
+/// `v0`.
+fn potion_parts(entry_kind: u8, v0: i16) -> Span<felt252> {
+    let entry: felt252 = entry_kind.into() + (SignedTrait::bits16(v0) * 0x10000).into();
+    opaque(array![LIVE + 3 + entry * B128].span())
+}
+
+// A potion's sheet: a `REGENERATION`, positive or negative, or another entry.
+#[test]
+#[available_gas(l2_gas: 32624)] // ceil(1.05 × 31070 measured)
+fn test_cost_sheet_potion_regen() {
+    assert(PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, 3)).regen == 3, 'regen');
+}
+
+#[test]
+#[available_gas(l2_gas: 32624)] // ceil(1.05 × 31070 measured)
+fn test_cost_sheet_potion_regen_negative() {
+    assert(
+        PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, -3)).regen == -3, 'regen',
+    );
+}
+
+#[test]
+#[available_gas(l2_gas: 32414)] // ceil(1.05 × 30870 measured)
+fn test_cost_sheet_potion_damage() {
+    assert(PotionSheetTrait::read(opaque(7), potion_parts(kind::DAMAGE, 3)).regen == 0, 'none');
+}
+
+#[test]
+#[available_gas(l2_gas: 20654)] // ceil(1.05 × 19670 measured)
+fn test_cost_sheet_potion_fixture() {
+    assert(potion_parts(kind::REGENERATION, 3).len() == 1, 'parts');
+}
+
+// A caste's sheet (no loop).
+#[test]
+#[available_gas(l2_gas: 383387)] // ceil(1.05 × 365130 measured)
+fn test_cost_sheet_caste() {
+    let (_, caste) = records();
+    assert(CasteSheetTrait::read(opaque(1), opaque(caste)).weapon_ticks == 2, 'caste');
+}
+
+#[test]
+#[available_gas(l2_gas: 353063)] // ceil(1.05 × 336250 measured)
+fn test_cost_sheet_caste_fixture() {
+    let (_, caste) = records();
+    assert(opaque(caste).len() == 2, 'parts');
+}
+
+// COST-1b: the library call with every list at its bound. `killed` crosses the call both ways: the
+// kills of the action phase come in, step 3's are added. Each goblin dies once, so the list holds
+// at most `MAX_GOBLINS` entries each way; here the 92 frozen goblins came in dead (their words
+// dead), and the 8 awake die: 92 in, 100 out.
+
+/// `worst_words` with the 92 frozen goblins killed in the action phase.
+fn worst_words_kills() -> (Words, Content) {
+    let (words, content) = worst_words();
+    let mut goblins = array![];
+    let mut killed = array![];
+    for goblin in words.goblins.span() {
+        let mut goblin = *goblin;
+        if !goblin.awake {
+            goblin.state += (ai::DEAD - ai::ALERTED).into() * B24;
+            killed.append(goblin.entity);
+        }
+        goblins.append(goblin);
+    }
+    (Words { goblins, killed, ..words }, content)
+}
+
+#[test]
+#[available_gas(l2_gas: 129089482)] // ceil(1.05 × 122942363 measured)
+fn test_cost_library_call_kills() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (words, content) = worst_words_kills();
+    let words = library.run(words, content, 1);
+    assert(words.killed.len() == 100, 'every goblin once');
+}
+
+#[test]
+#[available_gas(l2_gas: 125632210)] // ceil(1.05 × 119649723 measured)
+fn test_cost_library_baseline_kills() {
+    let _class = declare("TickLibrary").unwrap().contract_class();
+    let (words, content) = worst_words_kills();
+    let mut world = words.load(@content);
+    let mut rules = Idle {};
+    TickTrait::run(ref world, @content, 1, ref rules);
+    let words = world.store();
+    assert(words.killed.len() == 100, 'every goblin once');
+}
+
+/// `worst_words` with its member twice (M-3: members 0–7).
+fn worst_words_two() -> (Words, Content) {
+    let (words, content) = worst_words();
+    let member = *words.members.at(0);
+    (Words { members: array![member, member], ..words }, content)
+}
+
+#[test]
+#[available_gas(l2_gas: 128579227)] // ceil(1.05 × 122456406 measured)
+fn test_cost_library_call_two_members() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (words, content) = worst_words_two();
+    let words = library.run(words, content, 1);
+    assert(words.members.len() == 2, 'two members');
+}
+
+#[test]
+#[available_gas(l2_gas: 125853427)] // ceil(1.05 × 119860406 measured)
+fn test_cost_library_baseline_two_members() {
+    let _class = declare("TickLibrary").unwrap().contract_class();
+    let (words, content) = worst_words_two();
+    let mut world = words.load(@content);
+    let mut rules = Idle {};
+    TickTrait::run(ref world, @content, 1, ref rules);
+    let words = world.store();
+    assert(words.members.len() == 2, 'two members');
+}
+
+// The tick's base with two members: what each member adds to it.
+fn base_two_members() -> (World, Content) {
+    let (world, content) = branch_world(B_NONE, false, true);
+    let member = *world.members.at(0);
+    (World { members: array![member, member], ..world }, content)
+}
+
+#[test]
+#[available_gas(l2_gas: 59939582)] // ceil(1.05 × 57085316 measured)
+fn test_cost_bound_base_two_members() {
+    let (mut world, content) = base_two_members();
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @content, ref rules);
+    assert(world.clock == 50 && world.defeated, 'one tick');
+}
+
+#[test]
+#[available_gas(l2_gas: 58603787)] // ceil(1.05 × 55813130 measured)
+fn test_cost_bound_base_two_members_fixture() {
+    let (world, content) = base_two_members();
+    assert(world.members.len() == 2 && content.skills.len() == 38, 'fixture');
+}
+
+// More than 8 awake goblins is not a state of the game (design/02): the tick refuses it.
+#[test]
+#[should_panic(expected: 'tick: more than 8 awake')]
+#[available_gas(l2_gas: 7768355)] // ceil(1.05 × 7398433 measured)
+fn test_world_assert_awake() {
+    let mut goblins = array![];
+    let mut i: u16 = 0;
+    while i < 9 {
+        goblins.append(Fixture::goblin(8 + i, HOB));
+        i += 1;
+    }
+    let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
+    run(ref world, 1);
+}
+
+// The costliest mix of step 1's branches, which the terms above give (REPORT.md): 7 conclusions
+// (the field cleared, the costliest conclusion) and a lapse last, whose write the end of step 1
+// puts in the array in a rebuild of its own; every goblin dying, the member concluding and dying.
+// The awake goblins at the array's end, or at its start.
+fn mixed_world(first: bool) -> (World, Content) {
+    let content = branch_content(1);
+    let mut spec = Fixture::spec();
+    spec.health = 7;
+    spec.conditions = [99, 99, 99, 0];
+    spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
+    let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
+    member.start(7, 8, 1, 49);
+    let from: u16 = if first {
+        0
+    } else {
+        92
+    };
+    let mut goblins = array![];
+    let mut i: u16 = 0;
+    while i < 100 {
+        let words = if i < from || i >= from + 8 {
+            goblin_words(8 + i, false, 280, 0, 99)
+        } else if i < from + 7 {
+            goblin_words_at(8 + i, true, 1, 3, 50, 99)
+        } else {
+            goblin_words_at(8 + i, true, 1, 3, 45, 99)
+        };
+        goblins.append(GoblinTrait::load(words, @content));
+        i += 1;
+    }
+    (Fixture::world(49, array![member], goblins), content)
+}
+
+#[test]
+#[available_gas(l2_gas: 67959819)] // ceil(1.05 × 64723637 measured)
+fn test_cost_bound_mixed_last() {
+    let (mut world, content) = mixed_world(false);
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @content, ref rules);
+    assert(world.killed.len() == 8 && world.defeated, 'every death');
+    assert(world.goblins.at(99).recharge(3) == 45 + 20 - 1, 'the lapse last');
+}
+
+#[test]
+#[available_gas(l2_gas: 58752173)] // ceil(1.05 × 55954450 measured)
+fn test_cost_bound_mixed_last_fixture() {
+    let (world, content) = mixed_world(false);
+    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+#[available_gas(l2_gas: 68041383)] // ceil(1.05 × 64801317 measured)
+fn test_cost_bound_mixed_first() {
+    let (mut world, content) = mixed_world(true);
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @content, ref rules);
+    assert(world.killed.len() == 8 && world.defeated, 'every death');
+    assert(world.goblins.at(7).recharge(3) == 45 + 20 - 1, 'the lapse last');
+}
+
+#[test]
+#[available_gas(l2_gas: 58833747)] // ceil(1.05 × 56032140 measured)
+fn test_cost_bound_mixed_first_fixture() {
+    let (world, content) = mixed_world(true);
+    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
+}
+
+/// `worst_words` with every goblin killed in the action phase: 100 kills in, 100 out, the most the
+/// list holds (each goblin once).
+fn worst_words_all_dead() -> (Words, Content) {
+    let (words, content) = worst_words();
+    let mut goblins = array![];
+    let mut killed = array![];
+    for goblin in words.goblins.span() {
+        let mut goblin = *goblin;
+        goblin.state += (ai::DEAD - ai::ALERTED).into() * B24;
+        killed.append(goblin.entity);
+        goblins.append(goblin);
+    }
+    (Words { goblins, killed, ..words }, content)
+}
+
+#[test]
+#[available_gas(l2_gas: 122644834)] // ceil(1.05 × 116804603 measured)
+fn test_cost_library_call_all_dead() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (words, content) = worst_words_all_dead();
+    let words = library.run(words, content, 1);
+    assert(words.killed.len() == 100, 'each goblin once');
+}
+
+#[test]
+#[available_gas(l2_gas: 119154970)] // ceil(1.05 × 113480923 measured)
+fn test_cost_library_baseline_all_dead() {
+    let _class = declare("TickLibrary").unwrap().contract_class();
+    let (words, content) = worst_words_all_dead();
+    let mut world = words.load(@content);
+    let mut rules = Idle {};
+    TickTrait::run(ref world, @content, 1, ref rules);
+    let words = world.store();
+    assert(words.killed.len() == 100, 'each goblin once');
 }

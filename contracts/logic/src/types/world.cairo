@@ -118,6 +118,7 @@ pub const MAX_AWAKE: u32 = 8;
 pub mod errors {
     pub const GOBLINS: felt252 = 'tick: too many goblins';
     pub const DISTANCES: felt252 = 'tick: one distance a goblin';
+    pub const AWAKE: felt252 = 'tick: more than 8 awake';
 }
 
 /// What the pipeline leaves to the lots after it: each hook is called at its point of the order.
@@ -269,6 +270,7 @@ pub impl TickImpl of TickTrait {
             i += 1;
         }
         world.flush(pending);
+        WorldAssert::assert_awake(@awake);
         (false, awake.span(), resolved)
     }
 
@@ -472,5 +474,12 @@ pub impl WorldAssert of WorldAssertTrait {
     #[inline(always)]
     fn assert_distances(self: @World, distances: Span<u16>) {
         assert(distances.len() == self.goblins.len(), errors::DISTANCES);
+    }
+
+    /// The awake set holds at most `MAX_AWAKE` goblins (design/02; CBT-02b: the tick's upper
+    /// bound counts 8 awake goblins, and a larger set is refused, not priced).
+    #[inline(always)]
+    fn assert_awake(awake: @Array<u32>) {
+        assert(awake.len() <= MAX_AWAKE, errors::AWAKE);
     }
 }

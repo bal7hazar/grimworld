@@ -102,7 +102,7 @@ impl FeltsImpl of Felts {
 // --- set_record: what it writes -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 4625891)] // ceil(1.05 × 4405610 measured)
+#[available_gas(l2_gas: 4622111)] // ceil(1.05 × 4402010 measured)
 fn test_set_record_new_sequential() {
     let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -117,7 +117,7 @@ fn test_set_record_new_sequential() {
 
 // An existing record's values change (design/01 rule 2: ids are append-only, values are not).
 #[test]
-#[available_gas(l2_gas: 4697784)] // ceil(1.05 × 4474080 measured)
+#[available_gas(l2_gas: 4692597)] // ceil(1.05 × 4469140 measured)
 fn test_set_record_existing_changes() {
     let r = Fixture::deploy();
     r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
@@ -130,7 +130,7 @@ fn test_set_record_existing_changes() {
 
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 7421957)] // ceil(1.05 × 7068530 measured)
+#[available_gas(l2_gas: 7418513)] // ceil(1.05 × 7065250 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = Fixture::deploy();
@@ -156,7 +156,7 @@ fn test_set_record_composite_needs_parent() {
 // `QUOTAS` is keyed by its location's id (D-145): one record per location, refused while that
 // location does not exist; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 5606297)] // ceil(1.05 × 5339330 measured)
+#[available_gas(l2_gas: 5602769)] // ceil(1.05 × 5335970 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy();
@@ -176,7 +176,7 @@ fn test_set_record_quotas_keyed_by_location() {
 
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
-#[available_gas(l2_gas: 4401033)] // ceil(1.05 × 4191460 measured)
+#[available_gas(l2_gas: 4399353)] // ceil(1.05 × 4189860 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
     let r = Fixture::deploy();
@@ -205,7 +205,7 @@ fn test_set_record_quiver_ids() {
 // --- set_record: its refusals (AC-1) ------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1325867)] // ceil(1.05 × 1262730 measured)
+#[available_gas(l2_gas: 1323158)] // ceil(1.05 × 1260150 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
     let r = Fixture::deploy();
@@ -216,7 +216,7 @@ fn test_set_record_refused_to_others() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1728983)] // ceil(1.05 × 1646650 measured)
+#[available_gas(l2_gas: 1720688)] // ceil(1.05 × 1638750 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
     let r = Fixture::deploy();
@@ -245,7 +245,7 @@ fn test_set_record_unknown_kind_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2206134)] // ceil(1.05 × 2101080 measured)
+#[available_gas(l2_gas: 2192253)] // ceil(1.05 × 2087860 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = Fixture::deploy();
@@ -264,7 +264,7 @@ fn test_set_record_not_live_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1230348)] // ceil(1.05 × 1171760 measured)
+#[available_gas(l2_gas: 1224762)] // ceil(1.05 × 1166440 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
     let r = Fixture::deploy();
@@ -276,7 +276,7 @@ fn test_set_record_id_zero_refused() {
 
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
-#[available_gas(l2_gas: 3397013)] // ceil(1.05 × 3235250 measured)
+#[available_gas(l2_gas: 3376863)] // ceil(1.05 × 3216060 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();
@@ -293,7 +293,7 @@ fn test_set_record_not_next_refused() {
 // --- the content version (AC-2) -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 8781182)] // ceil(1.05 × 8363030 measured)
+#[available_gas(l2_gas: 8770787)] // ceil(1.05 × 8353130 measured)
 fn test_version_rises_per_changed_record() {
     let r = Fixture::deploy();
     assert(r.version() == 0, '0 at deployment');
@@ -322,7 +322,7 @@ fn test_version_rises_per_changed_record() {
 }
 
 #[test]
-#[available_gas(l2_gas: 7483413)] // ceil(1.05 × 7127060 measured)
+#[available_gas(l2_gas: 7476966)] // ceil(1.05 × 7120920 measured)
 fn test_bundle_version_and_order() {
     let r = Fixture::deploy();
     r.admin.set_record(REGION, 1, Felts::one(1));
@@ -344,7 +344,7 @@ fn test_bundle_version_and_order() {
 
 // A record never written reads as `parts(kind)` zeros: part 0 is 0, the record does not exist.
 #[test]
-#[available_gas(l2_gas: 3090528)] // ceil(1.05 × 2943360 measured)
+#[available_gas(l2_gas: 3088848)] // ceil(1.05 × 2941760 measured)
 fn test_missing_record_reads_zeros() {
     let r = Fixture::deploy();
     assert(r.read.record(BOOK, 1) == array![0, 0, 0].span(), 'record');
@@ -381,7 +381,7 @@ fn test_reads_bounded() {
 
 // The role moves: the new administrator writes, the former one no longer can.
 #[test]
-#[available_gas(l2_gas: 3188903)] // ceil(1.05 × 3037050 measured)
+#[available_gas(l2_gas: 3184262)] // ceil(1.05 × 3032630 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_hands_over() {
     let r = Fixture::deploy();
@@ -396,7 +396,7 @@ fn test_set_admin_hands_over() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2854383)] // ceil(1.05 × 2718460 measured)
+#[available_gas(l2_gas: 2852703)] // ceil(1.05 × 2716860 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_refused() {
     let r = Fixture::deploy();
@@ -430,7 +430,7 @@ fn test_gas_deploy() {
 // `set_record` of a new 3-part record: 3 record slots, `last_id` and the version, all new
 // (ENG-01 §10: 5 N / 0 O).
 #[test]
-#[available_gas(l2_gas: 3359706)] // ceil(1.05 × 3199720 measured)
+#[available_gas(l2_gas: 3358026)] // ceil(1.05 × 3198120 measured)
 fn test_gas_set_record_new() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -439,7 +439,7 @@ fn test_gas_set_record_new() {
 // `set_record` changing a 3-part record: its 3 parts and the version overwritten (ENG-01 §10:
 // 0 N / 5 O, which counts `last_id` too; a changed record does not write it).
 #[test]
-#[available_gas(l2_gas: 3866909)] // ceil(1.05 × 3682770 measured)
+#[available_gas(l2_gas: 3863822)] // ceil(1.05 × 3679830 measured)
 fn test_gas_set_record_changed() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -448,7 +448,7 @@ fn test_gas_set_record_changed() {
 
 // `set_record` of the same values: 3 reads, nothing written, the version kept.
 #[test]
-#[available_gas(l2_gas: 3653843)] // ceil(1.05 × 3479850 measured)
+#[available_gas(l2_gas: 3650756)] // ceil(1.05 × 3476910 measured)
 fn test_gas_set_record_unchanged() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));

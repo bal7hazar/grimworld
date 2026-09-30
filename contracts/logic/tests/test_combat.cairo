@@ -461,7 +461,7 @@ fn test_passive_post_mvp_refused() {
 
 // §7.2: `SKILL`, 2 parts: the header in part 0's low limb, entries 1–3 in the three others.
 #[test]
-#[available_gas(l2_gas: 1739115)] // ceil(1.05 × 1656300 measured)
+#[available_gas(l2_gas: 1736847)] // ceil(1.05 × 1654140 measured)
 fn test_skill_round_trip() {
     let top = Fixture::entry_max();
     let skill = SkillTrait::new(
@@ -656,7 +656,7 @@ fn test_skill_seal_of_capture_refused() {
 
 // §7.2: `ITEM`, 1 part; a potion carries one entry, a bomb its range and strength.
 #[test]
-#[available_gas(l2_gas: 487925)] // ceil(1.05 × 464690 measured)
+#[available_gas(l2_gas: 487757)] // ceil(1.05 × 464530 measured)
 fn test_item_round_trip() {
     let top = ItemTrait::new(
         0xFF, 0xFFFF, 0xFF, 0xFFFFFFFF, 0xFF, Fixture::entry_max(), 0xFF, 0xFF,
