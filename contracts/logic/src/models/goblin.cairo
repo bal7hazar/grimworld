@@ -468,7 +468,7 @@ mod tests {
     // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank; its
     // caste's position and cap, its kit's.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 908639)] // ceil(1.05 × 865370 measured)
     fn test_goblin_load() {
         let caste = CasteSheet {
             id: 3,
@@ -503,7 +503,7 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 1072145)] // ceil(1.05 × 1021090 measured)
     fn test_goblin_load_store() {
         let content = Fixture::content();
         // Caste 2, level 10.
@@ -528,7 +528,7 @@ mod tests {
     // A caste skill missing from the content is refused when a goblin of the caste loads.
     #[test]
     #[should_panic(expected: 'tick: skill not in content')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 454724)] // ceil(1.05 × 433070 measured)
     fn test_goblin_load_missing_skill() {
         let content = Content {
             skills: array![Fixture::skill(24, skill_kind::ATTACK, 3, 10)].span(),
@@ -544,7 +544,7 @@ mod tests {
 
     // AUD-182-9: the words' decoder is the goblin's own (`GoblinTrait::hot`).
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 341334)] // ceil(1.05 × 325080 measured)
     fn test_goblin_hot() {
         let goblin = Fixture::goblin(8, RUNT);
         let (state_ai, health, _, _, caste, slot, _, _, _, _, _, _, _, level, _, _) =
@@ -558,7 +558,7 @@ mod tests {
     // AUD-182-6, conditions (§5.7, FX-6): a dead goblin takes nothing; Crippled lives in the
     // words.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 613484)] // ceil(1.05 × 584270 measured)
     fn test_goblin_conditions() {
         let mut dead = Fixture::goblin(8, HOB);
         dead.ai = ai::DEAD;
@@ -572,7 +572,7 @@ mod tests {
 
     // AUD-182-6, a goblin's one slot (FX-30, FX-13): refreshed by its carrier, replaced by another.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 707606)] // ceil(1.05 × 673910 measured)
     fn test_goblin_hold() {
         let sheets = Fixture::hold_content().sheets();
         let mut goblin = Fixture::goblin(8, HOB);
@@ -587,7 +587,7 @@ mod tests {
     // AUD-182-6, adrenaline (§5.12, FX-12): a goblin's gains capped at its caste's, at most 252;
     // a dead goblin gains nothing.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 486182)] // ceil(1.05 × 463030 measured)
     fn test_goblin_adrenaline_gain() {
         let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);
         heavy.adrenaline = 63;
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'goblin: regeneration above i8')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
     fn test_goblin_assert_pips() {
         GoblinAssert::assert_pips(-129);
     }

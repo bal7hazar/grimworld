@@ -709,7 +709,7 @@ mod tests {
     // regeneration 0. Ticks 70–72 lose 14 each (−7 pips), ticks 73–75 lose 6 (−3): 60 in
     // all.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7052311)] // ceil(1.05 × 6716486 measured)
     fn test_example_condition_degeneration() {
         let mut spec = Fixture::spec();
         spec.conditions = [77, 72, 0, 0];
@@ -725,7 +725,7 @@ mod tests {
     // design/19 §10.1, step 3 of ticks 42–44: goblin 24 Burning to 44, health regeneration 0,
     // goes 87 → 73 → 59 → 45; tick 45 changes nothing.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 6979502)] // ceil(1.05 × 6647144 measured)
     fn test_example_burning_goblin() {
         let mut goblin = Fixture::goblin(24, HOB);
         goblin.health = 87;
@@ -744,7 +744,7 @@ mod tests {
     // the field goes to none, R = 61. It skips ticks 52 and 53, acts at 54; the smash is usable in
     // step 2 of tick 62 (T > R).
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 6564445)] // ceil(1.05 × 6251852 measured)
     fn test_example_interrupt() {
         let sheets = Fixture::sheets();
         let mut goblin = Fixture::goblin(40, HOB);
@@ -772,7 +772,7 @@ mod tests {
     // recharge 10); it is frozen from tick 103 to 106 and nothing of it changes; awake at 107, its
     // activation has lapsed at 103: none, R = 112, and it acts in step 2 of 107.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 12586638)] // ceil(1.05 × 11987274 measured)
     fn test_example_lapse() {
         let mut goblin = Fixture::goblin(30, HOB);
         goblin.start(0, 0, 3, 100);
@@ -808,7 +808,7 @@ mod tests {
     // in 51, has no recovery (k < n + 2) and acts at 52; with k = 3 it recovers to B = 52 and acts
     // at 53.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 18097699)] // ceil(1.05 × 17235903 measured)
     fn test_example_activated_attack_cost() {
         let sheets = Fixture::sheets();
         // Plain attack, k = 2.
@@ -850,7 +850,7 @@ mod tests {
     // clock 200 with activation 2 (after the quick-cast bonus) and interrupted in step 2 of 201
     // recharges from 201.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 15851731)] // ceil(1.05 × 15096886 measured)
     fn test_example_member_activation() {
         let sheets = Fixture::sheets();
         let mut member = Fixture::member(Fixture::spec());
@@ -893,7 +893,7 @@ mod tests {
     // energy in thirds up to its max. `MemberTrait::load` derives an effect's pips once: a skill's
     // at its rank, a potion's through its belt slot.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 11014867)] // ceil(1.05 × 10490349 measured)
     fn test_regeneration() {
         // Skill 1 regenerates 2…6 pips; the bar's other skills (2–8) are read for its
         // adrenaline cap.
@@ -950,7 +950,7 @@ mod tests {
     // overflow and clamps to ±10: −10 (the field at 0), four −10 effects and the three
     // conditions give −64, 20 health lost; +10 and four +10 effects give +50, 20 health gained.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 10693312)] // ceil(1.05 × 10184106 measured)
     fn test_regeneration_extremes() {
         let mut spec = Fixture::spec();
         spec.health_regen = -10;
@@ -974,7 +974,7 @@ mod tests {
     // loses 1 quarter strike a tick, floored at 0; a goblin not Engaged too; an Engaged one keeps
     // it.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 11949282)] // ceil(1.05 × 11380268 measured)
     fn test_adrenaline_decay() {
         let mut spec = Fixture::spec();
         spec.adrenaline = 5;
@@ -1001,7 +1001,7 @@ mod tests {
     // §5.13: goblins at 0 in step 3 die after every actor of the step, in id order; a dead goblin
     // is no longer touched. Goblin energy regenerates in thirds up to the caste's.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7270828)] // ceil(1.05 × 6924598 measured)
     fn test_deaths_in_step_3() {
         let mut a = Fixture::goblin(8, HOB);
         a.health = 10;
@@ -1033,7 +1033,7 @@ mod tests {
     // §5.13, FX-8: the adventurer at 0 in step 3 is down at step 5 and the run stops; at 0 in step
     // 2 the tick stops at once (no later act, no step 3) and step 5 still runs.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 11384414)] // ceil(1.05 × 10842299 measured)
     fn test_defeat() {
         let mut spec = Fixture::spec();
         spec.health = 6;
@@ -1060,7 +1060,7 @@ mod tests {
     // Step 2 (§5.2): a knocked-down goblin, a busy one (activating, recovering), a frozen one and
     // a dead one do not act; the others act in ascending id order.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7903895)] // ceil(1.05 × 7527519 measured)
     fn test_who_acts() {
         let mut knocked = Fixture::goblin(8, HOB);
         knocked.knocked = 1;
@@ -1084,7 +1084,7 @@ mod tests {
 
     // Step 0: the flags "since the last tick" and "hit this tick" clear; `HALVED` stays.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 5353922)] // ceil(1.05 × 5098973 measured)
     fn test_flags_cleared() {
         let mut spec = Fixture::spec();
         spec.flags = flag::TURNED + flag::INSTANT + flag::HIT + flag::HALVED;
@@ -1097,7 +1097,7 @@ mod tests {
     // lowest id; an asleep or dead goblin never. The set is formed apart, and a goblin of the set
     // it replaces is read at its current value.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 9350502)] // ceil(1.05 × 8905240 measured)
     fn test_awake_set() {
         let mut goblins = array![];
         for entity in 8..19_u16 {
@@ -1133,7 +1133,7 @@ mod tests {
     // trap on its move, in the action phase) stops it at once: the clock does not advance, no
     // goblin acts, nothing regenerates, and step 5's defeat and objectives run.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 5556390)] // ceil(1.05 × 5291800 measured)
     fn test_member_down_before_the_tick() {
         let mut spec = Fixture::spec();
         spec.health = 0;
@@ -1152,7 +1152,7 @@ mod tests {
     // awake goblin stays in the set, a write to a frozen one in the array; a changed flag forms the
     // set again; the words put every goblin back in its place.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7158092)] // ceil(1.05 × 6817230 measured)
     fn test_awake_set_apart() {
         let mut frozen = Fixture::goblin(8, HOB);
         frozen.awake = false;
@@ -1193,7 +1193,7 @@ mod tests {
     // The checks are the Assert impls', with their errors.
     #[test]
     #[should_panic(expected: 'tick: too many goblins')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 29906058)] // ceil(1.05 × 28481960 measured)
     fn test_world_assert_goblins() {
         let mut goblins = array![];
         let mut i: u16 = 0;
@@ -1209,7 +1209,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'tick: one distance a goblin')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 319599)] // ceil(1.05 × 304380 measured)
     fn test_world_assert_distances() {
         let world = Fixture::world(0, array![], array![Fixture::goblin(8, HOB)]);
         world.assert_distances(array![].span());
@@ -1233,7 +1233,7 @@ mod tests {
     // the goblins' turn (CBT-02d, #196's review). The world made of them.
     #[test]
     #[should_panic(expected: 'tick: more than 8 awake')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7648032)] // ceil(1.05 × 7283840 measured)
     fn test_world_assert_awake() {
         let mut goblins = array![];
         let mut i: u16 = 0;
@@ -1248,7 +1248,7 @@ mod tests {
     // The same through the library call's load.
     #[test]
     #[should_panic(expected: 'tick: more than 8 awake')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 8850807)] // ceil(1.05 × 8429340 measured)
     fn test_world_assert_awake_loaded() {
         let (members, goblins) = nine_awake();
         let words = Words { clock: 0, members, goblins, killed: array![], defeated: false };
@@ -1262,7 +1262,7 @@ mod tests {
     // step 1: refused in step 0, before step 1 can return on the defeat.
     #[test]
     #[should_panic(expected: 'tick: more than 8 awake')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 9296011)] // ceil(1.05 × 8853343 measured)
     fn test_world_assert_awake_perceived() {
         let (members, goblins) = nine_awake();
         let mut goblins = goblins;
@@ -1282,7 +1282,7 @@ mod tests {
     // Without the ninth, the same tick stops on the defeat in step 1: the member's resolution
     // takes it to 0 (the state the two tests above refuse).
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 8977000)] // ceil(1.05 × 8549523 measured)
     fn test_defeat_in_step_1_with_eight_awake() {
         let (members, mut goblins) = nine_awake();
         let _ = goblins.pop_front();

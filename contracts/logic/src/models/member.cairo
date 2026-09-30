@@ -660,7 +660,7 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 10879155)] // ceil(1.05 × 10361100 measured)
     fn test_member_load_store() {
         let mut spec = Fixture::spec();
         spec.conditions = [11, 12, 13, 14];
@@ -683,7 +683,7 @@ mod tests {
     // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
     // none.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 5897325)] // ceil(1.05 × 5616500 measured)
     fn test_member_bar_positions() {
         let mut words = Fixture::member_words(Fixture::spec());
         // Bar slot 7 empty, slot 0 skill 8: the content lists 8 first.
@@ -707,7 +707,7 @@ mod tests {
 
     // AUD-182-9: the words' decoder is the member's own (`MemberTrait::hot`).
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 4915208)] // ceil(1.05 × 4681150 measured)
     fn test_member_hot() {
         let mut spec = Fixture::spec();
         spec.conditions = [11, 12, 13, 14];
@@ -724,7 +724,7 @@ mod tests {
     // Knocked down likewise; Crippled lives in the words; a cure at 76 gives 75; an absent
     // condition is untouched.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 5504720)] // ceil(1.05 × 5242590 measured)
     fn test_member_conditions() {
         let mut member = Fixture::member(Fixture::spec());
         member.inflict(condition::BLEEDING, 70, 8);
@@ -751,7 +751,7 @@ mod tests {
     // at clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot:
     // Warcry in slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7817145)] // ceil(1.05 × 7444900 measured)
     fn test_hold_eviction_and_stance() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -777,7 +777,7 @@ mod tests {
     // AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new
     // one on a tie; two belt slots holding the same potion item are one carrier.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 7307717)] // ceil(1.05 × 6959730 measured)
     fn test_hold_refresh() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -804,7 +804,7 @@ mod tests {
     // hit (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline
     // cost (6 strikes: 24 quarters).
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 5683388)] // ceil(1.05 × 5412750 measured)
     fn test_member_adrenaline_gain() {
         let mut skills = array![];
         for id in 1..9_u16 {
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'member: regeneration above i8')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
     fn test_member_assert_pips() {
         MemberAssert::assert_pips(128);
     }

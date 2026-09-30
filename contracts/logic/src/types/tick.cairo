@@ -503,7 +503,7 @@ mod tests {
     // of the fully unpacked record, their oracle: a regeneration in entry 1 or 2, falling with rank
     // or negative, none; a potion with and without one; a caste.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 1175822)] // ceil(1.05 × 1119830 measured)
     fn test_sheets_read_oracle() {
         let regen = EntryTrait::new(
             kind::REGENERATION, 0, 2, 6, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
@@ -583,7 +583,7 @@ mod tests {
     // CBT-02d: the index finds every record's position, of each kind apart (a skill, a caste and a
     // potion may share an id); of two records with one id, the first, as a scan finds it.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 470411)] // ceil(1.05 × 448010 measured)
     fn test_index_positions() {
         let mut twin = Fixture::skill(3, skill_kind::SHOUT, 0, 1);
         twin.recharge = 99;
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'tick: skill not in content')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 324230)] // ceil(1.05 × 308790 measured)
     fn test_index_no_skill() {
         let (_, mut index) = Fixture::content().index();
         index.skill(9);
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'tick: caste not in content')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 324230)] // ceil(1.05 × 308790 measured)
     fn test_index_no_caste() {
         let (_, mut index) = Fixture::content().index();
         index.caste(3);
@@ -626,7 +626,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'tick: potion not in content')]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 324230)] // ceil(1.05 × 308790 measured)
     fn test_index_no_potion() {
         let (_, mut index) = Fixture::content().index();
         index.potion(100);
@@ -636,7 +636,7 @@ mod tests {
     // `MISSING` for one the content lacks) and its goblins' adrenaline cap, their highest cost in
     // quarters, at most 252.
     #[test]
-    #[available_gas(l2_gas: 999999999)]
+    #[available_gas(l2_gas: 174836)] // ceil(1.05 × 166510 measured)
     fn test_kits() {
         let mut costly = Fixture::skill(24, skill_kind::ATTACK, 3, 10);
         costly.adrenaline = 5;
