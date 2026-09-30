@@ -986,7 +986,7 @@ storage: the words come in with the library call (§1.3) and go out with it. Its
 tests' fixtures (CBT-02 fix loops 1 and 2, AUD-182-7, COST-1), against the expedition's target of **1,469,435 L2
 gas a tick inside a batch** (cost-budget §2, D-159; the overrun is decided by D-161):
 
-| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | **Upper bound from per-term maxima** (CBT-02 fix loop 3; not a reached maximum: each term measured at its maximum apart, then summed, every lookup charged as a full scan; the goblin array at `MAX_GOBLINS` = 100, 8 awake) |
+| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | **An upper bound, not yet proved per term** (D-163; CBT-02b proves it: COST-1a–c) (CBT-02 fix loop 3; not a reached maximum: each term measured at its maximum apart, then summed, every lookup charged as a full scan; the goblin array at `MAX_GOBLINS` = 100, 8 awake) |
 |---|---:|---:|
 | The pipeline, one tick | 628,617 | ≤ 12,618,207: base 3,884,803 + the member's lookup 65,100 + 8 × the costliest branch (a lapse, 1,083,413) + 1,000 for the goblins' interaction. Measured states under it: 8 lapses 12,552,207; the audit's permutation 12,425,803 |
 | The pipeline, a batch of 10 ticks, per tick | 633,024 (a trace: the goblins stay idle) | ≤ 12,618,207, every tick under the tick's bound (`Busy` measures 11,961,127) |
