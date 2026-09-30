@@ -12,3 +12,4 @@ locate: rounding and at most one translation find the chunk of every tile of 256
 worst class: origin tile (8, 2), bit 25: 32 pieces over 4 chunks
 most chunks over the classes: 6; among those, origin tile (15, 11), bit 185: 28 pieces
 chunks per window over the 251 classes: {3: 50, 4: 173, 5: 26, 6: 2}
+revealed: a 225 x 225 location touches 226 to 241 chunks over the 251 placements of the lattice; placed at chunk (0, 0) bit 0, 227 chunks, b 0..15, a runs per b (b, a_min, a_max, first bit): [(0, 0, 13, 0), (1, 0, 13, 14), (2, 0, 14, 28), (3, 1, 14, 43), (4, 1, 15, 57), (5, 2, 15, 72), (6, 2, 16, 86), (7, 3, 16, 101), (8, 3, 16, 115), (9, 4, 17, 129), (10, 4, 17, 143), (11, 5, 18, 157), (12, 5, 18, 171), (13, 6, 19, 185), (14, 6, 19, 199), (15, 7, 20, 213)]

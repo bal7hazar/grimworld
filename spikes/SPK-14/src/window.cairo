@@ -63,6 +63,110 @@ pub impl HexWindowImpl of HexWindowTrait {
         (*self.a + da, *self.b + db - 1)
     }
 
+    /// Assemble one layer of the window, the counterpart of the library's
+    /// `AssemblyTrait::assemble` (no ring, no map): what ENG-01's tick assembles, its terrain, the
+    /// occupancy being derived from the actors (ENG-01 §3.2). The same walk as `window`, one layer
+    /// (fix loop 2).
+    /// # Arguments
+    /// * `chunks` - The layer of the chunks, by slot; `None` for a void chunk
+    /// * `origin` - The origin
+    /// # Returns
+    /// * The layer of the window, 15 x 16
+    fn assemble(chunks: [Option<felt252>; 12], origin: @HexOrigin) -> felt252 {
+        let terrain = HexWindowInternal::limbs(chunks);
+        let terrain = terrain.span();
+        let mut grid: felt252 = 0;
+        // [Compute] The walk: (slot, q, r) is the window's left tile on row j
+        let mut slot = ORIGIN_SLOT;
+        let mut q = *origin.q;
+        let mut r = *origin.r;
+        let mut j: u8 = 0;
+        let mut row: u8 = 0;
+        while j != HEIGHT {
+            // [Compute] The runs of this row, West to East in the index
+            let mut s = slot;
+            let mut cr = r;
+            let mut done: u8 = 0;
+            // The first run starts at the left tile, the next ones at the start of their row
+            let mut fresh = false;
+            loop {
+                let (first, top, bottom) = *ROW.span()[cr.into()];
+                let (cq, start) = if fresh {
+                    (bottom, first)
+                } else {
+                    (q, first + q - bottom)
+                };
+                let available = top - cq + 1;
+                let left = WIDTH - done;
+                let n = if available < left {
+                    available
+                } else {
+                    left
+                };
+                let end = start + n;
+                let target = row + done;
+                let (t_low, t_high) = *terrain[s.into()];
+                if cr < 8 {
+                    // Rows 0-7 lie in the low limb (bits 0-115)
+                    let mask = *BELOW128.span()[end.into()] - *BELOW128.span()[start.into()];
+                    let shift = HexWindowInternal::shift(target, start);
+                    let (t, _, _) = Bits::bitwise(t_low, mask);
+                    grid += t.into() * shift;
+                } else if cr > 8 {
+                    // Rows 9-16 lie in the high limb (bits 135-250): 2^128 folded in the shift
+                    let from = start - 128;
+                    let mask = *BELOW128.span()[(end - 128).into()] - *BELOW128.span()[from.into()];
+                    let shift = HexWindowInternal::shift(target, from);
+                    let (t, _, _) = Bits::bitwise(t_high, mask);
+                    grid += t.into() * shift;
+                } else {
+                    // Row 8 (bits 116-134) straddles the limbs
+                    let mask_low = *BELOW_LOW.span()[end.into()] - *BELOW_LOW.span()[start.into()];
+                    let mask_high = *BELOW_HIGH.span()[end.into()]
+                        - *BELOW_HIGH.span()[start.into()];
+                    let shift = HexWindowInternal::shift(target, start);
+                    grid += HexWindowInternal::piece(t_low, t_high, mask_low, mask_high) * shift;
+                }
+                done += n;
+                if done == WIDTH {
+                    break;
+                }
+                // [Compute] The next chunk East: through q = 18 up to row 8 (+T_R), else
+                // through q + r = 26 (+(T_U + T_R))
+                if cr <= 8 {
+                    s += 1;
+                    cr += 8;
+                } else {
+                    s += 5;
+                    cr -= 9;
+                }
+                fresh = true;
+            }
+            // [Compute] The next left tile: (q, r + 1) from an even row, (q - 1, r + 1) from an
+            // odd one; out of the chunk through q + r = 26, the North row or q = 0
+            let (_, odd) = DivRem::div_rem(j, 2);
+            if q + r + 1 - odd > 26 {
+                slot += 5;
+                q = q - odd - 10;
+                r = r - 8;
+            } else if r == 16 {
+                slot += 4;
+                q = q + 9 - odd;
+                r = 0;
+            } else if q < odd {
+                slot -= 1;
+                q = q + 19 - odd;
+                r = r - 7;
+            } else {
+                q -= odd;
+                r += 1;
+            }
+            j += 1;
+            row += WIDTH;
+        }
+        grid
+    }
+
     /// Assemble both layers of the window.
     /// # Arguments
     /// * `terrain`, `occupied` - The layers of the chunks, by slot; `None` for a chunk that is
@@ -387,6 +491,8 @@ mod tests {
             let (map, got) = HexWindowTrait::window(t, o, @origin, 0);
             assert!(map.grid == grid, "terrain, bit {}", bit);
             assert!(got == occ, "occupied, bit {}", bit);
+            // One layer (fix loop 2): the occupied layer has no ring, as `assemble` returns
+            assert!(HexWindowTrait::assemble(o, @origin) == occ, "one layer, bit {}", bit);
             // The table-driven variant, on the classes whose table is generated
             assert!(HexChunkTrait::index(origin.q, origin.r) == bit);
             if bit == 25 || bit == 185 {
@@ -415,25 +521,25 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 4384564794)] // ceil(1.05 × 4175775994 measured)
+    #[available_gas(l2_gas: 4434784565)] // ceil(1.05 × 4223604347 measured)
     fn test_window_matches_plain_0_to_63() {
         check_classes(0, 63);
     }
 
     #[test]
-    #[available_gas(l2_gas: 4383420292)] // ceil(1.05 × 4174685992 measured)
+    #[available_gas(l2_gas: 4432914779)] // ceil(1.05 × 4221823599 measured)
     fn test_window_matches_plain_63_to_126() {
         check_classes(63, 126);
     }
 
     #[test]
-    #[available_gas(l2_gas: 4383629110)] // ceil(1.05 × 4174884866 measured)
+    #[available_gas(l2_gas: 4433072284)] // ceil(1.05 × 4221973603 measured)
     fn test_window_matches_plain_126_to_189() {
         check_classes(126, 189);
     }
 
     #[test]
-    #[available_gas(l2_gas: 4314719838)] // ceil(1.05 × 4109256988 measured)
+    #[available_gas(l2_gas: 4364382674)] // ceil(1.05 × 4156554927 measured)
     fn test_window_matches_plain_189_to_251() {
         check_classes(189, 251);
     }

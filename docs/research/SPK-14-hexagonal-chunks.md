@@ -289,8 +289,23 @@ Rectangle: SPK-7's `generate_chunk`, unchanged but for its library (`hexx` inste
   - *D-136:* unchanged, with up to 6 chunks to test.
 - **How many chunks one move can reveal: up to 3, as today.** A sight of radius 6 touches at
   most 4 chunks (G, `check_sight`, every tile of a chunk), the adventurer's among them.
-- **The revealed set** stays one felt: chunks indexed `15 b + a` on lattice coordinates below 15.
-  For a location of about 100 × 100 tiles that holds (E: 7 steps of `T_R`, 6 of `T_U`, plus skew).
+- **The revealed set stays one felt, but not as `15 b + a`** (fix loop 2, review 1: the first
+  version proposed `15 b + a`, which does not cover ENG-01's largest location). ENG-01 §3.2
+  allows 225 × 225 tiles.
+  - **Chunk count** (G, `check_revealed`): over the 251 placements of the lattice under such a
+    location, it touches **226 to 241 chunks**, always fewer than 250.
+  - **The placement proposed:** the location's tile (0, 0) is bit 0 of chunk (0, 0). The location
+    then touches **227 chunks**, with `b` from 0 to 15. Each row `b` is one contiguous run of
+    `a`, 14 or 15 chunks from `a_min[b]` (0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7).
+  - **The index:** `bit = FIRST_B[b] + a − A_MIN[b]`, two 16-entry tables (`FIRST_B`: 0, 14, 28,
+    43, 57, 72, 86, 101, 115, 129, 143, 157, 171, 185, 199, 213). The chunks of any smaller
+    location with the same origin are a subset.
+  - **Bits:** 0–226 hold chunks, 227–249 are free, and 250 stays `LIVE`.
+  - **Cost: 0 new slots.** The rectangle's `15 cy + cx` becomes two table lookups, about 2,000 to
+    2,700 L2 gas at the measured unit costs (E).
+  - **What moves with it:** a chunk's index is below 227, so the `chunks[(slot, c)]` key and
+    `OUTLINE`'s `location × 256 + chunk` still fit. Goblin entity ids `8 + 16 × chunk + k` reach
+    3,633 instead of 3,601, still a `u16`.
 - **Chunks for the same area:** 251 tiles against 225, **10.4 % fewer chunks and reveals** in a
   location's interior (G). A rectangular outline cut into hexagons wastes more partial chunks at
   its border (not counted).
@@ -300,11 +315,16 @@ Rectangle: SPK-7's `generate_chunk`, unchanged but for its library (`hexx` inste
 SPK-7's worst reveal, 3 chunks in a cave with no neighbour known, was **5,919,680** on the local
 node (C).
 
-| Estimate (E) | L2 gas |
-|---|---:|
-| Its generation part, hexagon | about **+1.8 M**: 3 × (1,033,617 − 436,014), the drawn cave, a sum of measurements in memory |
-| The same reveal, hexagon | about **7.7 M** |
-| Storage | Unchanged: 2 new slots a chunk (ENG-01) |
+Its storage is SPK-7's layout: one new `Terrain` slot a chunk, and the revealed bitmap. Fix loop 2
+(review 3) keeps each estimate on one basis:
+
+| Estimate (E) | Rectangle | Hexagon |
+|---|---:|---:|
+| **On SPK-7's layout** (1 new slot a chunk): SPK-7's transaction, the hexagon adding its extra generation, 3 × (1,033,617 − 436,014) = 1,792,809 (the drawn cave, in memory) | 5,919,680 (C) | about **7.71 M** |
+| **On ENG-01's layout** (2 new slots a chunk, `Terrain` and `Features`): the row above plus one more new slot per chunk, 3 × 453,524 = 1,360,572 (ENG-01 §10's N, C), for both shapes | about **7.28 M** | about **9.07 M** |
+
+On either basis, the difference between the shapes is the generation's, about 1.79 M for this
+reveal. Storage is the same for both shapes on a given layout.
 
 ## 5. What it changes
 
@@ -312,9 +332,9 @@ node (C).
 |---|---|---|
 | **ADR-0006** | §1 (chunk 15 × 15 → hexagon 251; `(x/15, y/15)` → lattice rounding); §3 (six neighbours, sides of 9 and 11, the copy maps, corners' new reason); §4 (up to 6 chunks, per-row pieces); "Measured" | Large |
 | **D-120** | The 15 × 16 window stays. Its argument ("shares the chunk's width, which makes assembly a one-dimensional shift") no longer holds | Medium |
-| **ENG-01 §3.2** | `Terrain` bits 0–250, `LIVE` = corner 250; edges to `Features` 240–245 or derived; tile → chunk by `locate` | Small (layout text, packers, tests) |
-| **ENG-01 §3.5** | `OUTLINE` masks 0–250, bit 250 set by the writer; `SET_PIECE` likewise; the chunk set on lattice coordinates | Small |
-| **ENG-01 §9–§10** | Up to 12 slot reads a tick instead of 8; the tick's assembly 876,310 instead of 64,234 in memory | Small in text, a cost at every tick with goblins awake |
+| **ENG-01 §3.2** | `Terrain` bits 0–250, `LIVE` = corner 250; edges to `Features` 240–245 or derived; tile → chunk by `locate`; `revealed` indexed by two 16-entry tables (§4.3), one felt, 0 slots; entity ids up to 3,633 | Small (layout text, packers, tests) |
+| **ENG-01 §3.5** | `OUTLINE` masks 0–250, bit 250 set by the writer; `SET_PIECE` likewise; the chunk set (and `revealed`, §3.2) indexed `FIRST_B[b] + a − A_MIN[b]` on lattice coordinates (§4.3), 227 chunks for 225 × 225 tiles | Small |
+| **ENG-01 §9–§10** | Up to 12 slot reads a tick instead of 8; the tick's one-layer assembly 766,712 instead of 39,434 in memory | Small in text, a cost at every tick with goblins awake |
 | **Library N-3** (done, 64,234) | A second assembly: a walk of row runs over up to 6 chunks (this spike's `window.cairo`, 876,310), its oracle and budgets | Large |
 | **Library N-4** (done) | `grid & mask` works on any layout; its tests and the ring semantics (D-23) move to the hexagon's ring | Small |
 | **Library N-1, N-2** (not started) | A board type the library does not have: two half-boards with a sync, or boards beyond one felt, plus a packer; six sides with gathers | Large, and before they start (D-165's timing) |
@@ -331,7 +351,8 @@ node (C).
 |---|---|---|
 | Tiles a felt | 225 (26 bits: edges, `LIVE`) | 251 (`LIVE` is a wall corner) |
 | Chunks for the same area | 1 | 0.896 (G) |
-| **Per tick: assembly in memory** | **64,234** (M) | **876,310** (M), 13.6× for the walk; 268,428 (M), 4.2×, grouped pieces precomputed, class with the most pieces |
+| Assembly against N-3, both layers, in memory | **64,234** (M) | **876,310** (M), 13.6× for the walk; 268,428 (M), 4.2×, grouped pieces precomputed, class with the most pieces |
+| **Per tick: the one layer ENG-01's tick assembles** (terrain), in memory | **39,434** (M) | **766,712** (M), 19.4×, the walk, class with the most runs |
 | Per tick: chunks overlapped, slot reads | 2 or 4; 8 (ENG-01) | 3 to 6 (G); 12 |
 | Tile → chunk (`origin`) | 3,730 (M) | 56,910 (M) |
 | **Per reveal: generation a chunk** | **0.40–0.44 M** (M) | **0.97–1.15 M** (M), 2.2–2.8× |
@@ -341,10 +362,28 @@ node (C).
 | Work to switch | — | §5: three large items, five medium |
 
 **Keep the 15 × 15 rectangle.** Every tick with goblins awake pays for the hexagon's gain (26
-bits, about 10 % fewer chunks): **+812,076 L2 gas in memory for the assembly** (M, difference of
-two measurements) and 4 more slot reads. At SPK-7's prices (C) that is about **$0.00073 a tick**
-(E, a conversion). It would add about 27 % to SPK-7's worst tick, 2,960,960 (E, a sum). Every
-reveal pays **0.52–0.74 M more per chunk** (M, differences of measurements). The library would need a board type it does not have
+bits, about 10 % fewer chunks).
+
+*The tick* (fix loop 2, review 2: the first version applied the two-layer difference, 812,076, to
+the tick). ENG-01's tick assembles one layer, the terrain: occupancy is not stored but derived
+from the actors (§3.2), and that derivation does not depend on the chunk's shape.
+
+| On one layer | L2 gas |
+|---|---:|
+| Rectangle, the library's `AssemblyTrait::assemble` (M) | 39,434 |
+| Hexagon, the same walk on one layer, `HexWindowTrait::assemble`, on the class with the most runs (M) | 766,712 |
+| Hexagon, on the 6-chunk class (M) | 695,533 |
+| **The difference, the hexagon's cost per tick in memory** (M, a difference of two measurements) | **+727,278** |
+
+- The ring and the `HexMap` the tick then builds are the same for both shapes, and cancel. The
+  grouped variant was measured on two layers only.
+- The hexagon also reads 4 more slots.
+- At SPK-7's prices (C) the difference is about **$0.00066 a tick** (E, a conversion).
+- Against D-166's proved worst tick of 15.1 M on ENG-01's layout (C), it is about **+4.8 %**
+  (E, a ratio).
+
+*The reveal:* every reveal pays **0.52–0.74 M more per chunk** (M, differences of
+measurements). The library would need a board type it does not have
 before N-1 and N-2. The free `LIVE` bit is real; the rectangle already spends its 26 spare bits
 on the edges and `LIVE` at no cost.
 
@@ -364,8 +403,10 @@ itself a lattice-aligned hexagon would take whole chunks. But the window follows
 **Measured against estimated:**
 - Measured here (M): the window's assembly (the walk, row runs precomputed, grouped pieces precomputed) and `origin`; both generators; the
   unit costs; the tests of the bijection, the window and generation.
-- Cited (C): SPK-7's figures and prices, ENG-01's slot prices.
+- Measured here (M, fix loop 2): the one-layer assembly of both shapes, the tick's basis.
+- Computed (G, fix loop 2): the revealed set's layout for a 225 × 225 location.
+- Cited (C): SPK-7's figures and prices, ENG-01's slot prices, D-166's proved worst tick.
 - Estimated (E):
-  - the reveal as a transaction (§4.4);
-  - the tick's money and its share of SPK-7's tick;
-  - the lattice range of a 100 × 100 location.
+  - the reveal as a transaction, on SPK-7's layout and on ENG-01's (§4.4);
+  - the tick's money and its share of D-166's worst tick;
+  - the cost of the revealed index's lookups.

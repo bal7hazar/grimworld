@@ -368,6 +368,32 @@ def worst_class():
     return oq, orow
 
 
+def check_revealed():
+    """Fix loop 2 (review 1): the revealed set of ENG-01's largest location, 225 x 225 tiles. With
+    the location's tile (0, 0) on bit 0 of chunk (0, 0), the chunks it touches have b in 0..15,
+    each row b a contiguous run of a: `bit = FIRST_B[b] + a - A_MIN[b]` indexes them in one felt.
+    Over every placement of the lattice the count stays below 250 (bit 250 is `LIVE`)."""
+    counts = []
+    for t in range(AREA):
+        oq, orr = tile(t)
+        chunks = {locate(q + oq, r + orr)[:2]
+                  for q, r in (axial(x, y) for y in range(225) for x in range(225))}
+        counts.append(len(chunks))
+        if (oq, orr) == (8, 0):
+            placed = chunks
+    assert max(counts) < 250, max(counts)
+    rows, first = [], 0
+    for b in sorted({b for _, b in placed}):
+        run = sorted(a for a, bb in placed if bb == b)
+        assert run == list(range(run[0], run[-1] + 1)), b
+        rows.append((b, run[0], run[-1], first))
+        first += len(run)
+    assert [b for b, _, _, _ in rows] == list(range(16)) and first == len(placed) == 227
+    print(f"revealed: a 225 x 225 location touches {min(counts)} to {max(counts)} chunks over the"
+          f" {AREA} placements of the lattice; placed at chunk (0, 0) bit 0, {len(placed)} chunks,"
+          f" b 0..15, a runs per b (b, a_min, a_max, first bit): {rows}")
+
+
 def main():
     check_shape()
     check_tiling()
@@ -378,6 +404,7 @@ def main():
     check_plan()
     check_locate()
     worst_class()
+    check_revealed()
 
 
 if __name__ == "__main__":

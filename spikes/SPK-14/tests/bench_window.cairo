@@ -297,6 +297,62 @@ fn bench_grouped_window_most_twice() {
     assert!(map.grid != 0 && occupied != 0);
 }
 
+// One layer (fix loop 2): what ENG-01's tick assembles, its terrain; the library's `assemble`
+// against the hexagon's one-layer walk, the same classes
+
+#[test]
+#[inline(never)]
+#[available_gas(l2_gas: 78188)] // ceil(1.05 × 74464 measured)
+fn bench_rect_layer_once() {
+    let bench = Inputs::get();
+    let Origin { cx: _, cy: _, ox, oy } = bench.origin;
+    assert!(AssemblyTrait::assemble(bench.terrain, ox, oy, true) != 0);
+}
+
+#[test]
+#[inline(never)]
+#[available_gas(l2_gas: 119593)] // ceil(1.05 × 113898 measured)
+fn bench_rect_layer_twice() {
+    let bench = Inputs::get();
+    let Origin { cx: _, cy: _, ox, oy } = bench.origin;
+    assert!(AssemblyTrait::assemble(bench.terrain, ox, oy, true) != 0);
+    assert!(AssemblyTrait::assemble(bench.occupied, ox, oy, true) != 0);
+}
+
+#[test]
+#[inline(never)]
+#[available_gas(l2_gas: 838575)] // ceil(1.05 × 798642 measured)
+fn bench_hex_layer_once() {
+    let bench = Inputs::get();
+    assert!(HexWindowTrait::assemble(bench.hex_terrain, @bench.hex_origin) != 0);
+}
+
+#[test]
+#[inline(never)]
+#[available_gas(l2_gas: 1643622)] // ceil(1.05 × 1565354 measured)
+fn bench_hex_layer_twice() {
+    let bench = Inputs::get();
+    assert!(HexWindowTrait::assemble(bench.hex_terrain, @bench.hex_origin) != 0);
+    assert!(HexWindowTrait::assemble(bench.hex_occupied, @bench.hex_origin) != 0);
+}
+
+#[test]
+#[inline(never)]
+#[available_gas(l2_gas: 763837)] // ceil(1.05 × 727463 measured)
+fn bench_hex_layer_six_once() {
+    let bench = Inputs::get();
+    assert!(HexWindowTrait::assemble(bench.six_terrain, @bench.six_origin) != 0);
+}
+
+#[test]
+#[inline(never)]
+#[available_gas(l2_gas: 1494146)] // ceil(1.05 × 1422996 measured)
+fn bench_hex_layer_six_twice() {
+    let bench = Inputs::get();
+    assert!(HexWindowTrait::assemble(bench.six_terrain, @bench.six_origin) != 0);
+    assert!(HexWindowTrait::assemble(bench.six_occupied, @bench.six_origin) != 0);
+}
+
 // The origin: a tile to its chunk
 
 #[test]

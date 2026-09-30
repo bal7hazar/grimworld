@@ -19,9 +19,12 @@
 | `bench_grouped_window` | 193,584 | 193,584 |
 | `bench_grouped_window_most` | 268,428 | 268,428 |
 | `bench_grouped_window_six` | 223,362 | 223,362 |
+| `bench_hex_layer` | 766,712 | 766,712 |
+| `bench_hex_layer_six` | 695,533 | 695,533 |
 | `bench_hex_origin` | 56,910 | 56,910 |
 | `bench_hex_window` | 876,310 | 876,310 |
 | `bench_hex_window_six` | 799,152 | 799,152 |
+| `bench_rect_layer` | 39,434 | 39,434 |
 | `bench_rect_origin` | 3,730 | 3,730 |
 | `bench_rect_window` | 64,234 | 64,234 |
 | `bench_table_window` | 318,044 | 318,044 |
