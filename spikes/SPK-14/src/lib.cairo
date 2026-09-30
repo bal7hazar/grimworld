@@ -8,5 +8,7 @@ pub mod hexgen;
 pub mod pieces;
 pub mod rect;
 pub mod tables;
+#[cfg(test)]
+pub mod testing;
 pub mod types;
 pub mod window;

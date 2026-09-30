@@ -1,4 +1,4 @@
-//! Plain, obviously correct helpers of the oracles.
+//! Plain, obviously correct helpers of the oracles, for the unit tests of every module (D-167).
 
 use core::poseidon::hades_permutation;
 use hexx::board::bits::Bits;

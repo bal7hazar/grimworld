@@ -20,20 +20,21 @@ for path in sys.argv[1:]:
             measured[m.group(1)] = max(measured.get(m.group(1), 0), int(m.group(2)))
 
 done = set()
-for path in sorted(glob.glob(os.path.join(HERE, "tests", "*.cairo"))):
+paths = glob.glob(os.path.join(HERE, "tests", "*.cairo")) + glob.glob(os.path.join(HERE, "src", "*.cairo"))
+for path in sorted(paths):
     source = open(path).read()
 
     def budget(match):
-        attributes, name = match.group(1), match.group(2)
+        indent, attributes, name = match.group(1), match.group(2), match.group(3)
         if name not in measured:
             return match.group(0)
         done.add(name)
         value = measured[name]
         kept = "".join(line + "\n" for line in attributes.splitlines() if "available_gas" not in line)
-        return (f"#[test]\n{kept}#[available_gas(l2_gas: {math.ceil(1.05 * value)})]"
-                f" // ceil(1.05 × {value} measured)\nfn {name}(")
+        return (f"{indent}#[test]\n{kept}{indent}#[available_gas(l2_gas: {math.ceil(1.05 * value)})]"
+                f" // ceil(1.05 × {value} measured)\n{indent}fn {name}(")
 
-    source = re.sub(r"#\[test\]\n((?:(?:#\[|//)[^\n]*\n)*)fn (\w+)\(", budget, source)
+    source = re.sub(r"( *)#\[test\]\n((?: *(?:#\[|//)[^\n]*\n)*) *fn (\w+)\(", budget, source)
     open(path, "w").write(source)
 
 missing = sorted(set(measured) - done)
