@@ -9,7 +9,7 @@ use grimworld_logic::packing::LIVE;
 use grimworld_logic::professions::ProfessionTrait;
 
 #[test]
-#[available_gas(l2_gas: 82425)] // ceil(1.05 × 78500 measured)
+#[available_gas(l2_gas: 81669)] // ceil(1.05 × 77780 measured)
 fn test_base_round_trip() {
     let maul = BaseTrait::new(slot::WEAPON, 2);
     assert(Record::unpack(maul.pack()) == maul, 'round trip');
@@ -58,7 +58,7 @@ fn test_base_armor_hands_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2320049)] // ceil(1.05 × 2209570 measured)
+#[available_gas(l2_gas: 2311985)] // ceil(1.05 × 2201890 measured)
 fn test_skill_profile_and_item_class() {
     for profession in array![1_u8, 6, 0xFF] {
         for elite in array![false, true] {

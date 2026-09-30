@@ -6,8 +6,17 @@
 //!   overwrite (ENG-01, *Reuse, measured*);
 //! - bits 251 and up do not exist (a felt is below 2^251 + 17·2^192 + 1).
 //!
-//! `u256` is used only to split a felt into its two limbs (written reason: the cheapest split on
-//! Cairo 2.19; ENG-02 may replace it by `u252` from `origami_hexmap`).
+//! `u256` is used only to split a felt into its two limbs (written reason: the `felt252 → u256`
+//! conversion, `u128s_from_felt252`, is the only range proof of a full felt on Cairo 2.19;
+//! `origami_hexmap`'s `u252` splits the same way).
+//!
+//! What a split costs (CBT-02b, lever (b); snforge, per word): the conversion about 1,700 L2 gas;
+//! removing `LIVE` by a comparison and a subtraction 1,340 more (`split` before CBT-02b), by one
+//! overflowing subtraction 1,070 (`split`), by a field subtraction before the conversion 100
+//! (`limbs`, for a word known to carry `LIVE`). A field read by two divisions (`field`) costs about
+//! 2,600; the decoders of hot words read their fields in one pass of divisions, one a field.
+
+use core::num::traits::OverflowingSub;
 
 /// Bit 250, set in every stored record: a stored slot is never 0.
 pub const LIVE: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
@@ -16,16 +25,27 @@ pub const LIVE_HIGH: u128 = 0x4000000000000000000000000000000;
 /// 2^128.
 pub const TWO_POW_128: felt252 = 0x100000000000000000000000000000000;
 
-/// The two limbs of a stored record, `LIVE` removed from the high one.
+/// The two limbs of a word, `LIVE` removed from the high one if it is set: any word, a slot never
+/// written (0) included. One overflowing subtraction decides and removes `LIVE`.
 #[inline(always)]
 pub fn split(word: felt252) -> (u128, u128) {
     let wide: u256 = word.into();
-    let high = if wide.high >= LIVE_HIGH {
-        wide.high - LIVE_HIGH
+    let (high, borrow) = OverflowingSub::overflowing_sub(wide.high, LIVE_HIGH);
+    if borrow {
+        (wide.low, wide.high)
     } else {
-        wide.high
-    };
-    (wide.low, high)
+        (wide.low, high)
+    }
+}
+
+/// The two limbs of a stored record, which carries `LIVE` (rule 2 above: every record the game
+/// writes, and every registry part), `LIVE` removed as a field subtraction before the conversion.
+/// A word without `LIVE` (a slot never written) must go through `split`: here it would decode as
+/// another value.
+#[inline(always)]
+pub fn limbs(word: felt252) -> (u128, u128) {
+    let wide: u256 = (word - LIVE).into();
+    (wide.low, wide.high)
 }
 
 /// A stored record from its two limbs, `LIVE` set. `high` must be below 2^122: a field that
@@ -34,6 +54,15 @@ pub fn split(word: felt252) -> (u128, u128) {
 pub fn join(low: u128, high: u128) -> felt252 {
     assert(high < LIVE_HIGH, 'packing: high limb overflow');
     low.into() + high.into() * TWO_POW_128 + LIVE
+}
+
+/// The low field of `rest`, of width `2^width = size`, which it removes: a limb read field after
+/// field from its low bits costs one division a field (`field` costs two).
+#[inline(always)]
+pub fn peel(ref rest: u128, size: NonZero<u128>) -> u128 {
+    let (above, value) = DivRem::div_rem(rest, size);
+    rest = above;
+    value
 }
 
 /// Refuses a value wider than its field (`size = 2^width`): a packer checks every field narrower
@@ -75,6 +104,18 @@ pub fn low_field(limb: u128, size: NonZero<u128>) -> u128 {
     let (_, value) = DivRem::div_rem(limb, size);
     value
 }
+
+// The same powers as divisors, for `peel` (a table).
+pub const N2: NonZero<u128> = 0x2;
+pub const N4: NonZero<u128> = 0x10;
+pub const N6: NonZero<u128> = 0x40;
+pub const N7: NonZero<u128> = 0x80;
+pub const N8: NonZero<u128> = 0x100;
+pub const N16: NonZero<u128> = 0x10000;
+pub const N24: NonZero<u128> = 0x1000000;
+pub const N28: NonZero<u128> = 0x10000000;
+pub const N32: NonZero<u128> = 0x100000000;
+pub const N56: NonZero<u128> = 0x100000000000000;
 
 // Powers of two used by the layouts (a table, docs/CAIRO.md §3).
 pub const P4: u128 = 0x10;

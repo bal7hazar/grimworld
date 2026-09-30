@@ -23,7 +23,7 @@ fn test_pow2_and_bits() {
 
 // Bit `skill % 250` of page `skill / 250`, in both limbs.
 #[test]
-#[available_gas(l2_gas: 172305)] // ceil(1.05 × 164100 measured)
+#[available_gas(l2_gas: 168903)] // ceil(1.05 × 160860 measured)
 fn test_known_skills_bits() {
     assert(KnownSkillsTrait::at(0) == (0, 0), '0');
     assert(KnownSkillsTrait::at(249) == (0, 249), '249');

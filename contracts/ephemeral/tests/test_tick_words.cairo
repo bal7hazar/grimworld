@@ -130,7 +130,7 @@ fn test_tick_constants() {
 // regeneration, the effects' deadlines and pips; `store` writes the changed fields where the
 // unpackers read them, and every other field of the four words is kept.
 #[test]
-#[available_gas(l2_gas: 1441104)] // ceil(1.05 × 1372480 measured)
+#[available_gas(l2_gas: 1292036)] // ceil(1.05 × 1230510 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
     let content = content();
@@ -199,7 +199,7 @@ fn test_tick_words_member() {
 // AUD-182-1: a potion's effect regenerates from each of the four belt slots, slot 0 included (its
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
-#[available_gas(l2_gas: 3342321)] // ceil(1.05 × 3183162 measured)
+#[available_gas(l2_gas: 3128415)] // ceil(1.05 × 2979442 measured)
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
         PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
@@ -245,7 +245,7 @@ fn test_potion_regeneration_every_belt_slot() {
 
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
-#[available_gas(l2_gas: 632436)] // ceil(1.05 × 602320 measured)
+#[available_gas(l2_gas: 510678)] // ceil(1.05 × 486360 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {
         x: 200,

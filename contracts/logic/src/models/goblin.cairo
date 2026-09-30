@@ -7,9 +7,7 @@
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
 use crate::helpers::tick::{TickAssert, TickMathTrait};
-use crate::packing::{
-    P112, P16, P24, P28, P32, P52, P56, P64, P8, P80, P84, field, low_field, split,
-};
+use crate::packing::{N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P84, field, limbs, peel};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::tick::{
     CasteSheet, CasteSheetTrait, Content, ContentTrait, Held, MAX_GOBLIN_ADRENALINE, REGEN_OFFSET,
@@ -20,18 +18,20 @@ pub use super::index::{Goblin, GoblinWords};
 
 const F8: felt252 = 0x100;
 const F24: felt252 = 0x1000000;
+const F28: felt252 = 0x10000000;
 const F32: felt252 = 0x100000000;
-const F48: felt252 = 0x1000000000000;
 const F52: felt252 = 0x10000000000000;
-const F56: felt252 = 0x100000000000000;
 const F80: felt252 = 0x100000000000000000000;
 const F128: felt252 = 0x100000000000000000000000000000000;
 const F156: felt252 = 0x1000000000000000000000000000000000000000;
 const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
 const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
-const P108: u128 = 0x1000000000000000000000000000;
-const P118: u128 = 0x400000000000000000000000000000;
+const N112: NonZero<u128> = 0x10000000000000000000000000000;
 const F108: felt252 = 0x1000000000000000000000000000;
+/// The hot regions `store` rewrites: `GoblinState` 24–63 (AI state … adrenaline) and
+/// `GoblinTimers` 0–107 (the activation, bleeding, poison).
+const N40: NonZero<u128> = 0x10000000000;
+const N108: NonZero<u128> = 0x1000000000000000000000000000;
 const F240: felt252 = 0x1000000000000000000000000000000000000000000000000000000000000;
 const F246: felt252 = 0x40000000000000000000000000000000000000000000000000000000000000;
 
@@ -52,29 +52,52 @@ pub impl GoblinAssert of GoblinAssertTrait {
 #[generate_trait]
 pub impl GoblinImpl of GoblinTrait {
     /// The hot fields of a goblin's words, in `Goblin`'s order (ai … effect deadline), and its
-    /// level and effect `(skill, rank)`.
+    /// level and effect `(skill, rank)`. Each limb is read in one pass from its low bits, one
+    /// division a field (CBT-02b, lever (b)).
     fn hot(
         state: felt252, timers: felt252,
     ) -> (u8, u16, u8, u8, u16, u8, u16, u32, u32, u32, u32, u32, u32, u8, u16, u8) {
-        let (low, _) = split(state);
-        let (tlow, thigh) = split(timers);
+        let (low, _) = limbs(state);
+        // Bits 0–23 (position, facing) are not read.
+        let (mut rest, _) = DivRem::div_rem(low, N24);
+        let ai = peel(ref rest, N8);
+        let health = peel(ref rest, N16);
+        let energy = peel(ref rest, N8);
+        let adrenaline = peel(ref rest, N8);
+        let caste = peel(ref rest, N16);
+        let level = peel(ref rest, N8);
+        let (tlow, thigh) = limbs(timers);
+        let mut rest = tlow;
+        let act_slot = peel(ref rest, N8);
+        let act_target = peel(ref rest, N16);
+        let act_deadline = peel(ref rest, N28);
+        let bleeding = peel(ref rest, N28);
+        let poison = peel(ref rest, N28);
+        let effect = peel(ref rest, N16);
+        let mut rest = thigh;
+        let burning = peel(ref rest, N28);
+        let _crippled = peel(ref rest, N28);
+        let knocked = peel(ref rest, N28);
+        let effect_deadline = peel(ref rest, N28);
+        let _charges = peel(ref rest, N6);
+        // What is left is the rank, bits 246–249: `LIVE` is removed and nothing lies above.
         (
-            field(low, P24, P8).try_into().unwrap(),
-            field(low, P32, P16).try_into().unwrap(),
-            field(low, 0x1000000000000, P8).try_into().unwrap(),
-            field(low, P56, P8).try_into().unwrap(),
-            field(low, P64, P16).try_into().unwrap(),
-            low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
-            field(tlow, P8, P16).try_into().unwrap(),
-            field(tlow, P24, P28).try_into().unwrap(),
-            field(tlow, P52, P28).try_into().unwrap(),
-            field(tlow, P80, P28).try_into().unwrap(),
-            low_field(thigh, P28.try_into().unwrap()).try_into().unwrap(),
-            field(thigh, P56, P28).try_into().unwrap(),
-            field(thigh, P84, P28).try_into().unwrap(),
-            field(low, P80, P8).try_into().unwrap(),
-            field(tlow, P108, P16).try_into().unwrap(),
-            field(thigh, P118, 0x10).try_into().unwrap(),
+            ai.try_into().unwrap(),
+            health.try_into().unwrap(),
+            energy.try_into().unwrap(),
+            adrenaline.try_into().unwrap(),
+            caste.try_into().unwrap(),
+            act_slot.try_into().unwrap(),
+            act_target.try_into().unwrap(),
+            act_deadline.try_into().unwrap(),
+            bleeding.try_into().unwrap(),
+            poison.try_into().unwrap(),
+            burning.try_into().unwrap(),
+            knocked.try_into().unwrap(),
+            effect_deadline.try_into().unwrap(),
+            level.try_into().unwrap(),
+            effect.try_into().unwrap(),
+            rest.try_into().unwrap(),
         )
     }
 
@@ -152,43 +175,33 @@ pub impl GoblinImpl of GoblinTrait {
     }
 
     /// Its words, the hot fields written back (its effect's skill, charges and rank are the
-    /// executor's to write).
+    /// executor's to write). The hot fields lie in four regions of the words; each region is
+    /// rewritten whole, by the difference between its new value and the one the words hold
+    /// (CBT-02b, lever (b): six divisions, where a field at a time took twenty-six).
     fn store(self: @Goblin) -> GoblinWords {
-        let (
-            ai,
-            health,
-            energy,
-            adrenaline,
-            _,
-            act_slot,
-            act_target,
-            act_deadline,
-            bleeding,
-            poison,
-            burning,
-            knocked,
-            effect_deadline,
-            _,
-            _,
-            _,
-        ) =
-            Self::hot(
-            *self.state, *self.timers,
-        );
-        let state = *self.state
-            + TickMathTrait::delta(ai.into(), (*self.ai).into(), F24)
-            + TickMathTrait::delta(health.into(), (*self.health).into(), F32)
-            + TickMathTrait::delta(energy.into(), (*self.energy).into(), F48)
-            + TickMathTrait::delta(adrenaline.into(), (*self.adrenaline).into(), F56);
+        let (low, _) = limbs(*self.state);
+        let (above, _) = DivRem::div_rem(low, N24);
+        let (_, old) = DivRem::div_rem(above, N40);
+        let new: felt252 = (*self.ai).into()
+            + (*self.health).into() * F8
+            + (*self.energy).into() * F24
+            + (*self.adrenaline).into() * F32;
+        let state = *self.state + (new - old.into()) * F24;
+        let (tlow, thigh) = limbs(*self.timers);
+        let (_, old_low) = DivRem::div_rem(tlow, N108);
+        let new_low: felt252 = (*self.act_slot).into()
+            + (*self.act_target).into() * F8
+            + (*self.act_deadline).into() * F24
+            + (*self.bleeding).into() * F52
+            + (*self.poison).into() * F80;
+        let (above, old_burning) = DivRem::div_rem(thigh, N28);
+        let (above, _) = DivRem::div_rem(above, N28);
+        let (_, old_tail) = DivRem::div_rem(above, N56);
+        let new_tail: felt252 = (*self.knocked).into() + (*self.effect_deadline).into() * F28;
         let timers = *self.timers
-            + TickMathTrait::delta(act_slot.into(), (*self.act_slot).into(), 1)
-            + TickMathTrait::delta(act_target.into(), (*self.act_target).into(), F8)
-            + TickMathTrait::delta(act_deadline.into(), (*self.act_deadline).into(), F24)
-            + TickMathTrait::delta(bleeding.into(), (*self.bleeding).into(), F52)
-            + TickMathTrait::delta(poison.into(), (*self.poison).into(), F80)
-            + TickMathTrait::delta(burning.into(), (*self.burning).into(), F128)
-            + TickMathTrait::delta(knocked.into(), (*self.knocked).into(), F184)
-            + TickMathTrait::delta(effect_deadline.into(), (*self.effect_deadline).into(), F212);
+            + (new_low - old_low.into())
+            + ((*self.burning).into() - old_burning.into()) * F128
+            + (new_tail - old_tail.into()) * F184;
         GoblinWords { entity: *self.entity, awake: *self.awake, state, timers }
     }
 
@@ -200,7 +213,7 @@ pub impl GoblinImpl of GoblinTrait {
 
     /// The recharge deadline of caste skill 0–3.
     fn recharge(self: @Goblin, slot: u8) -> u32 {
-        let (_, high) = split(*self.state);
+        let (_, high) = limbs(*self.state);
         field(high, *[1, P28, P56, P84].span()[slot.into()], P28).try_into().unwrap()
     }
 
@@ -216,7 +229,7 @@ pub impl GoblinImpl of GoblinTrait {
 pub impl GoblinWordsImpl of GoblinWordsTrait {
     /// Crippled's deadline (`GoblinTimers` bits 156–183).
     fn crippled(self: @Goblin) -> u32 {
-        let (_, high) = split(*self.timers);
+        let (_, high) = limbs(*self.timers);
         field(high, P28, P28).try_into().unwrap()
     }
 
@@ -227,13 +240,16 @@ pub impl GoblinWordsImpl of GoblinWordsTrait {
 
     /// Its one held effect (a skill; a goblin holds no potion); its deadline is the hot field.
     fn effect_of(self: @Goblin) -> Held {
-        let (low, high) = split(*self.timers);
+        let (low, high) = limbs(*self.timers);
+        let (tail, _) = DivRem::div_rem(high, N112);
+        // Bits 240–245 the charges, 246–249 the rank: nothing lies above it once `LIVE` is off.
+        let (rank, charges) = DivRem::div_rem(tail, N6);
         Held {
             carrier: field(low, P108, P16).try_into().unwrap(),
             potion: false,
-            charges: field(high, P112, 0x40).try_into().unwrap(),
+            charges: charges.try_into().unwrap(),
             deadline: *self.effect_deadline,
-            rank: field(high, P118, 0x10).try_into().unwrap(),
+            rank: rank.try_into().unwrap(),
         }
     }
 

@@ -28,7 +28,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 335066)] // ceil(1.05 × 319110 measured)
+#[available_gas(l2_gas: 333554)] // ceil(1.05 × 317670 measured)
 fn test_account_and_adventurer_layout() {
     let record = AccountRecord {
         slots: 3, adventurers: 2, highest_rank: 9, vault_panes: 4, lots: 20,
@@ -80,7 +80,7 @@ fn test_account_and_adventurer_layout() {
 
 #[test]
 // gas: raised, D-158: `ItemBase` gains slot and hands, packed and unpacked in the round trip
-#[available_gas(l2_gas: 367584)] // ceil(1.05 × 350080 measured)
+#[available_gas(l2_gas: 363636)] // ceil(1.05 × 346320 measured)
 fn test_item_grimoire_rift_layout() {
     let base = ItemBase {
         base: 0xFFFF,
@@ -130,7 +130,7 @@ fn test_item_grimoire_rift_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 207449)] // ceil(1.05 × 197570 measured)
+#[available_gas(l2_gas: 205937)] // ceil(1.05 × 196130 measured)
 fn test_market_layout() {
     let lot = Lot {
         price: 0xFFFFFFFFFFFFFFFF,
@@ -203,7 +203,7 @@ fn test_pairs_overflow_refused() {
 // CBT-08a, D-158: `ItemBase.slot` at bit 120 and `hands` at 124, 4 bits each, copied from the
 // `BASE` record by the constructor every creator of an item calls.
 #[test]
-#[available_gas(l2_gas: 189693)] // ceil(1.05 × 180660 measured)
+#[available_gas(l2_gas: 189315)] // ceil(1.05 × 180300 measured)
 fn test_item_slot_and_hands() {
     let one = ItemBase { slot: 1, ..Default::default() };
     assert(

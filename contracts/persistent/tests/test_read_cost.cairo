@@ -6,8 +6,12 @@
 // `get_available_gas` around it (printed), and the whole tests differ only by it. ENG-06's report
 // derives the call's share and the read's share from these figures.
 use core::testing::get_available_gas;
-use grimworld_logic::content::GATE;
+use grimworld_logic::content::{CASTE, GATE, ITEM, SKILL};
+use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind};
+use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
+use grimworld_logic::types::combat::weapon;
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
 };
@@ -90,7 +94,7 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-#[available_gas(l2_gas: 8664621)] // ceil(1.05 × 8252020 measured)
+#[available_gas(l2_gas: 8649417)] // ceil(1.05 × 8237540 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -99,7 +103,7 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8804723)] // ceil(1.05 × 8385450 measured)
+#[available_gas(l2_gas: 8789519)] // ceil(1.05 × 8370970 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -108,7 +112,7 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8875209)] // ceil(1.05 × 8452580 measured)
+#[available_gas(l2_gas: 8860005)] // ceil(1.05 × 8438100 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -117,7 +121,7 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8931930)] // ceil(1.05 × 8506600 measured)
+#[available_gas(l2_gas: 8916726)] // ceil(1.05 × 8492120 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -126,7 +130,7 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9272256)] // ceil(1.05 × 8830720 measured)
+#[available_gas(l2_gas: 9257052)] // ceil(1.05 × 8816240 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -135,7 +139,7 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9008864)] // ceil(1.05 × 8579870 measured)
+#[available_gas(l2_gas: 8993660)] // ceil(1.05 × 8565390 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -144,7 +148,7 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 9976229)] // ceil(1.05 × 9501170 measured)
+#[available_gas(l2_gas: 9961025)] // ceil(1.05 × 9486690 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
     let gas = get_available_gas();
@@ -153,7 +157,7 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8705466)] // ceil(1.05 × 8290920 measured)
+#[available_gas(l2_gas: 8690262)] // ceil(1.05 × 8276440 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
     let gas = get_available_gas();
@@ -162,10 +166,132 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8902163)] // ceil(1.05 × 8478250 measured)
+#[available_gas(l2_gas: 8886959)] // ceil(1.05 × 8463770 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
     let gas = get_available_gas();
     probe.local(8);
     println!("read cost, 8 local reads: {}", gas - get_available_gas());
+}
+
+// CBT-02b fix loop 1 (COST-READS): the tick's content read as ENG-07 will read it, the real record
+// mix in `bundle` calls of at most `MAX_READ` records: skills and castes of two parts, potions of
+// one. The MVP's worst content (design/19 §7.2: 38 skills, 5 castes, 4 potions: 47 records, 90
+// parts, 2 calls) and the representative one (16 skills, 2 castes, 1 potion: 19 records, 37 parts,
+// 1 call). Every test has the same setup (a registry holding 38 skills, 5 castes, 4 potions, the
+// probe); the probe's one call is measured with `get_available_gas` around it (printed), the
+// probe alone subtracted.
+
+#[starknet::interface]
+pub trait IContentProbe<T> {
+    /// Nothing: the price of calling the probe itself.
+    fn nothing(self: @T, registry: ContractAddress);
+    /// Skills `1 ..= skills`, castes `1 ..= castes`, potions (items) `1 ..= potions`, in `bundle`
+    /// calls of at most `MAX_READ` records; the parts read.
+    fn content(self: @T, registry: ContractAddress, skills: u32, castes: u32, potions: u32) -> u32;
+}
+
+#[starknet::contract]
+mod ContentProbe {
+    use grimworld_logic::content::{CASTE, ITEM, MAX_READ, SKILL};
+    use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
+    use starknet::ContractAddress;
+
+    #[storage]
+    struct Storage {}
+
+    #[abi(embed_v0)]
+    impl ProbeImpl of super::IContentProbe<ContractState> {
+        fn nothing(self: @ContractState, registry: ContractAddress) {}
+        fn content(
+            self: @ContractState, registry: ContractAddress, skills: u32, castes: u32, potions: u32,
+        ) -> u32 {
+            let mut requests: Array<(u8, u32)> = array![];
+            for id in 1..skills + 1 {
+                requests.append((SKILL, id));
+            }
+            for id in 1..castes + 1 {
+                requests.append((CASTE, id));
+            }
+            for id in 1..potions + 1 {
+                requests.append((ITEM, id));
+            }
+            let registry = IRegistryReadDispatcher { contract_address: registry };
+            let requests = requests.span();
+            let mut read = 0;
+            let mut from = 0;
+            while from < requests.len() {
+                let count = core::cmp::min(MAX_READ, requests.len() - from);
+                let (_, parts) = registry.bundle(requests.slice(from, count));
+                read += parts.len();
+                from += count;
+            }
+            read
+        }
+    }
+}
+
+fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
+    let class = declare("Registry").unwrap().contract_class();
+    let (registry, _) = class.deploy(@array![ADMIN]).unwrap();
+    start_cheat_caller_address(registry, ADMIN.try_into().unwrap());
+    let admin = IRegistryAdminDispatcher { contract_address: registry };
+    let skill = SkillTrait::new(1, 1, 1, 5, 0, 1, 8, 1, 1, false, [Default::default(); 3]).pack();
+    for id in 1..39_u32 {
+        admin.set_record(SKILL, id, skill);
+    }
+    let caste = CasteTrait::new(
+        4,
+        1,
+        150,
+        10,
+        40,
+        [0; 9],
+        WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1),
+        10,
+        1,
+        [1, 2, 3, 4],
+        12,
+        30,
+        0,
+        false,
+    )
+        .pack();
+    for id in 1..6_u32 {
+        admin.set_record(CASTE, id, caste);
+    }
+    let potion = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, Default::default(), 3, 20).pack();
+    for id in 1..5_u32 {
+        admin.set_record(ITEM, id, potion);
+    }
+    let class = declare("ContentProbe").unwrap().contract_class();
+    let (probe, _) = class.deploy(@array![]).unwrap();
+    (IContentProbeDispatcher { contract_address: probe }, registry)
+}
+
+#[test]
+#[available_gas(l2_gas: 61626464)] // ceil(1.05 × 58691870 measured)
+fn test_content_read_probe_alone() {
+    let (probe, registry) = content_setup();
+    let gas = get_available_gas();
+    probe.nothing(registry);
+    println!("content read, the probe alone: {}", gas - get_available_gas());
+}
+
+#[test]
+#[available_gas(l2_gas: 65919021)] // ceil(1.05 × 62780020 measured)
+fn test_content_read_worst() {
+    let (probe, registry) = content_setup();
+    let gas = get_available_gas();
+    assert(probe.content(registry, 38, 5, 4) == 90, '90 parts');
+    println!("content read, 38 skills 5 castes 4 potions: {}", gas - get_available_gas());
+}
+
+#[test]
+#[available_gas(l2_gas: 63434301)] // ceil(1.05 × 60413620 measured)
+fn test_content_read_representative() {
+    let (probe, registry) = content_setup();
+    let gas = get_available_gas();
+    assert(probe.content(registry, 16, 2, 1) == 37, '37 parts');
+    println!("content read, 16 skills 2 castes 1 potion: {}", gas - get_available_gas());
 }

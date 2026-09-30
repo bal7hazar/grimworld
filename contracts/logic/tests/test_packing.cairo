@@ -16,7 +16,7 @@ use starknet::storage_access::StorePacking;
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
 #[test]
-#[available_gas(l2_gas: 117023)] // ceil(1.05 × 111450 measured)
+#[available_gas(l2_gas: 116267)] // ceil(1.05 × 110730 measured)
 fn test_lanes32() {
     let lanes = Lanes32 { lanes: [1, 2, 3, 0xFFFFFFFF, 5, 6, 0xFFFFFFFF] };
     let word = pack_lanes32(lanes);
@@ -28,7 +28,7 @@ fn test_lanes32() {
 }
 
 #[test]
-#[available_gas(l2_gas: 451889)] // ceil(1.05 × 430370 measured)
+#[available_gas(l2_gas: 451511)] // ceil(1.05 × 430010 measured)
 fn test_lanes16() {
     let lanes = Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 0xFFFF, 9, 10, 11, 12, 13, 14, 0xFFFF] };
     assert(unpack_lanes16(pack_lanes16(lanes)) == lanes, 'round trip');
@@ -39,7 +39,7 @@ fn test_lanes16() {
 }
 
 #[test]
-#[available_gas(l2_gas: 21599)] // ceil(1.05 × 20570 measured)
+#[available_gas(l2_gas: 21221)] // ceil(1.05 × 20210 measured)
 fn test_bitmap() {
     let top: felt252 = 0x200000000000000000000000000000000000000000000000000000000000000; // 2^249
     let bitmap = Bitmap { bits: top + 1 };
@@ -87,7 +87,7 @@ fn test_stats_layout() {
 
 #[test]
 // gas: raised, CBT-01: design/19's passives in the bar and the kit (FX-24)
-#[available_gas(l2_gas: 398969)] // ceil(1.05 × 379970 measured)
+#[available_gas(l2_gas: 398213)] // ceil(1.05 × 379250 measured)
 fn test_bar_and_kit_layout() {
     let bar = MemberBar {
         skills: [1, 2, 3, 4, 5, 6, 7, 0xFFFF], elite_slot: 255, ..Fixture::empty_bar(),
@@ -115,7 +115,7 @@ fn test_bar_and_kit_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 149363)] // ceil(1.05 × 142250 measured)
+#[available_gas(l2_gas: 148985)] // ceil(1.05 × 141890 measured)
 fn test_task_page_layout() {
     let full = TaskEntry { task: 0xFFFFFFFF, kind: 0xFF, param: 0xFFFF };
     let page = TaskPage { entries: [full, TaskEntry { task: 1, kind: 2, param: 3 }, full, full] };
@@ -145,7 +145,7 @@ fn test_identifiers() {
 // Fix loop 1: a counter is never 0 in storage (F-4); a high limb that would reach LIVE, or a
 // bitmap above bit 249, is refused (F-9).
 #[test]
-#[available_gas(l2_gas: 19278)] // ceil(1.05 × 18360 measured)
+#[available_gas(l2_gas: 18900)] // ceil(1.05 × 18000 measured)
 fn test_counter_never_zero() {
     let zero = StorePacking::<Counter, felt252>::pack(Counter { value: 0 });
     assert(zero == LIVE, 'zero is LIVE');
@@ -189,7 +189,7 @@ impl FixtureImpl of Fixture {
 // (signed), the penetration sums 184–207, the quick-cast pairs 208–231 and the unguarded armor
 // 232–247 (signed); each round-trips at both ends and sits at its bit.
 #[test]
-#[available_gas(l2_gas: 839171)] // ceil(1.05 × 799210 measured)
+#[available_gas(l2_gas: 838415)] // ceil(1.05 × 798490 measured)
 fn test_bar_passives_layout() {
     let top = MemberBar {
         skills: [0xFFFF; 8],
@@ -256,7 +256,7 @@ fn test_stats_armor_vs_refused() {
 // The kit's high limb (design/19 §7.2): 75 bits, each field at its bit; the narrow ones refused
 // when wider.
 #[test]
-#[available_gas(l2_gas: 647283)] // ceil(1.05 × 616460 measured)
+#[available_gas(l2_gas: 646905)] // ceil(1.05 × 616100 measured)
 fn test_kit_passives_layout() {
     let bit = |kit: MemberKit| -> felt252 {
         pack_kit(kit) - LIVE

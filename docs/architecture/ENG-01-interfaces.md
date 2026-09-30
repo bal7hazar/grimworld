@@ -123,15 +123,16 @@ and a `CASTE` a tick reads); it loads each actor's hot fields once, runs the tic
 words with the hot fields written back as deltas. `Instances` calls it through
 `ITickLibraryLibraryDispatcher { class_hash }`, once per invocation.
 
-| Measure (snforge, `contracts/logic/tests/test_tick.cairo`) | L2 gas |
+| Measure (snforge, `contracts/logic/tests/test_tick.cairo`; CBT-02b) | L2 gas |
 |---|---:|
-| `TickLibrary`'s class: 489,493 bytes of Sierra, **19,950 CASM felts, 24.35 %** of the nearer limit (fix loop 1) | — |
-| The call itself on the worst state (100 goblins, the member, 38 skills, 5 castes, 4 potions): its syscall and the words and content through calldata and back (`test_cost_library_call` − `test_cost_library_baseline`) | **2,578,020** |
-| Loading and storing the worst state's 101 actors, once per call (`test_cost_load_store_worst` − its fixture) | 59,823,300 |
+| `TickLibrary`'s class: 491,811 bytes of Sierra, **19,923 CASM felts, 24.32 %** of the nearer limit | — |
+| The call itself, every list at its bound (100 goblins, the member, 38 skills, 5 castes, 4 potions, 100 kills in and 100 out): its syscall and the words and content through calldata and back (`test_cost_library_call_all_dead` − `test_cost_library_baseline_all_dead`) | **3,323,680** |
+| The same with no kill in and 8 out (`test_cost_library_call` − `test_cost_library_baseline`) | 2,578,020 |
+| Loading and storing 101 actors on their costliest paths, once per call (`test_cost_load_bound` − its fixture), every lookup charged as a full scan: an upper bound (§9.2) | ≤ 55,363,190 |
 
-The call costs about 22 C (§2.3's C = 117,910): most of it is calldata, the 100 goblins' words
-(4 felts each, in and out) and the content's sheets (about 330 felts), not the syscall. The tick's
-figures per tick are in §9.2.
+The call costs about 22 to 28 C (§2.3's C = 117,910): most of it is calldata, the 100 goblins' words
+(4 felts each, in and out), the kills and the content's sheets (about 330 felts), not the syscall.
+The tick's figures per tick, and how each term of the bound is reached, are in §9.2.
 
 ---
 
@@ -978,29 +979,70 @@ revealed, because `Σ (1 + 2 cᵢ) ≤ 10`):
 Without a cap on goblins, a batch's writes are bounded only by 280 goblin words: 8.98 M at O
 initialised, 127 M at N cold. **E-16** proposes the cap, **E-1** the weight of a cold goblin key.
 
-**A tick's figures (CBT-02, M).** The tick's pipeline (`grimworld_logic::types::world`, steps 0 to 5 of
-design/19 §5.1, with the executor, the AI, perception and the objectives left as hooks for CBT-05
-and ENG-07) writes **no word the rows above do not already count**: of a member, the state, the
-timers and the recharges; of a goblin in the awake set, its two words. It reads nothing from
-storage: the words come in with the library call (§1.3) and go out with it. Its cost, net of the
-tests' fixtures (CBT-02 fix loops 1 and 2, AUD-182-7, COST-1), against the expedition's target of **1,469,435 L2
-gas a tick inside a batch** (cost-budget §2, D-159; the overrun is decided by D-161):
+**A tick's figures (CBT-02, CBT-02b, M).** The tick's pipeline (`grimworld_logic::types::world`,
+steps 0 to 5 of design/19 §5.1, with the executor, the AI, perception and the objectives left as
+hooks for CBT-05 and ENG-07) writes **no word the rows above do not already count**: of a member,
+the state, the timers and the recharges; of a goblin in the awake set, its two words. It reads
+nothing from storage: the words come in with the library call (§1.3) and go out with it. Its cost,
+after CBT-02b's levers (a) and (b) (D-161), against the expedition's target of **1,469,435 L2 gas
+a tick inside a batch** (cost-budget §2, D-159; the overrun is decided by D-161). The MVP's
+counts: one member, at most `MAX_GOBLINS` = 100 goblins of which at most 8 awake (the tick refuses
+more, `WorldAssert::assert_awake`), content of 38 skills, 5 castes and 4 potions (design/19 §7.2,
+`C = 5`, `T = 10`).
 
-| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | **An upper bound, not yet proved per term** (D-163; CBT-02b proves it: COST-1a–c) (CBT-02 fix loop 3; not a reached maximum: each term measured at its maximum apart, then summed, every lookup charged as a full scan; the goblin array at `MAX_GOBLINS` = 100, 8 awake) |
+| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | **Upper bound, proved term by term** (CBT-02b, D-163: below) |
 |---|---:|---:|
-| The pipeline, one tick | 628,617 | ≤ 12,618,207: base 3,884,803 + the member's lookup 65,100 + 8 × the costliest branch (a lapse, 1,083,413) + 1,000 for the goblins' interaction. Measured states under it: 8 lapses 12,552,207; the audit's permutation 12,425,803 |
-| The pipeline, a batch of 10 ticks, per tick | 633,024 (a trace: the goblins stay idle) | ≤ 12,618,207, every tick under the tick's bound (`Busy` measures 11,961,127) |
-| Load and store, once per call | — | ≤ 62,118,160: measured 59,921,060 + every lookup as a full scan 2,017,600 + the member's effect branch 179,500 |
-| The library call, once per call | — | 2,578,020 (every count at its maximum) |
-| **Through one library call, 10 ticks, per tick** | **961,079** | ≤ 19,087,825 |
-| The content, once per batch (D-145: 54,000 a record, 98,000 a call), read into sheets at 42,710 a record: 19 / 47 records | 193,549 | 474,137 |
-| **The tick's share, per tick** | **1,154,628** | **≤ 19,561,962** |
+| The pipeline, one tick | 651,867 | **≤ 8,750,367**: the costliest state, measured, 8,685,267 + the member's lookup charged as a full scan, 65,100 |
+| The pipeline, a batch of 10 ticks, per tick | 656,274 (a trace: the goblins stay idle) | ≤ 8,750,367, every tick under the tick's bound (`Busy` measures 8,247,347) |
+| Load and store, once per call | — | ≤ 55,363,190: measured on their costliest paths 53,466,610 (with the round trip's comparison) + every lookup not at its list's end charged as a full scan 1,896,580 |
+| The library call, once per call | — | 3,323,680, every list at its bound (100 kills in and out) |
+| **Through one library call, 10 ticks, per tick** | **920,910** | **≤ 14,619,054** |
+| The content, once per batch: its reads, the real record mix in `bundle` calls of at most 32 records (`test_read_cost::test_content_read_*`: 19 records and 37 parts in 1 call, 1,696,040; 47 records and 90 parts in 2 calls, 4,062,440), and its sheets at each record kind's costliest path (a skill 40,200, a potion 11,400, a caste 28,880) | 240,840 | 578,004 |
+| **The tick's share, per tick** | **1,161,750 (79.1 %)** | **≤ 15,197,058 (10.3 ×)** |
 | The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,264,890 (every scan updating its minimum at every element) |
 
-Most of the worst case is the array's bound: each write to a goblin rebuilds the array of 100
-(lever (a) of CBT-02's report, CBT-02b by D-161). The executor (CBT-03 to CBT-05), the goblins' AI
-and the flood (ENG-07), the window, the storage writes and the transaction's floor are not in these
-figures.
+**How the bound is proved (COST-1a to COST-1c; fix loop 1: COST-BOUND, COST-READS).** Sierra
+charges a function that has no loop, and calls none, its costliest path whatever path runs; a
+function with a loop pays the path it takes. Measured: every path of a goblin's and of a member's
+step 3 (the clamps, the conditions, the effects, the energy cap, adrenaline decay), of `store` and
+of `EntryTrait::line` costs the same (`test_cost_path_*`). A cost can therefore vary only with the
+loops: how many times each runs (the counts above), which path each iteration takes, and how far
+each lookup scans (2,170 a skill, 2,470 a caste, 1,670 a potion, `test_cost_scan_*`). Every state
+below is built by one builder and measured the same way, the tick alone (`get_available_gas`
+around it, `test_cost_term_*`), and each test checks that every awake goblin took its branch:
+
+| Term | Value | Measured by |
+|---|---:|---|
+| N, the base: the member concluding bar slot 7 and dying (step 5's defeat), the 100-goblin array scanned, none awake | 1,027,653 | `term_none` (the same with either content) |
+| R3, step 3's rebuild of the array, once a tick with an awake goblin | 1,333,870 | the non-writing branches at 1 goblin, all consistent |
+| F, the end of step 1's rebuild, once a tick when step 1's last write is not a conclusion's | 603,540 | the lapses and a recovery over at 1 goblin |
+| d, each awake goblin's branch, dying: a conclusion clearing the field (with its own rebuild for the executor) | 789,383 | `term_eight_conclude_clear` − `term_one_conclude_clear`, / 7 (an integer) |
+| … the other branches | into a recovery 788,410; lapse 194,523; lapse keeping a later recharge 177,043; recovery over 55,943; free 46,563; knocked down 40,360; recovering 40,260; activating 39,960; dead 20,060; dying costs 200 more than surviving | the 1 and 8 goblin tests of each |
+| The member's lookup at the list's end (it scans to position 8 of 38) | 65,100 | charged: 30 × 2,170 (every lookup cannot be at its list's end at once) |
+
+**The tick is exactly `N + R3·[a goblin awake] + F·[step 1's last write not a conclusion] + Σ d`.**
+It predicts every mixed state to the unit: 7 conclusions and a lapse last 8,685,267; 7 conclusions
+and an activating goblin 7,927,164; 7 conclusions and a recovery over 8,546,687; 7 activating and
+a lapse 3,439,306; a lapse first and 7 conclusions 8,081,727. The awake goblins' positions change
+nothing: the costliest mix measures the same at the array's end, its start and spread across it. Its
+maximum over every assignment of branches is therefore `N + R3 + max(8 d_clear, 7 d_clear + F +
+d_lapse)` = **8,685,267, reached** (`term_mix_clear_lapse`). Load and store: every goblin looks up
+its caste and its effect at their lists' ends and raises its adrenaline cap at each of its 4
+skills; the member takes the skill path on its 4 effects (the potion path costs less) and raises
+its cap at each of its 8 bar skills; the cap's clamp at 252 is not reachable (DS-18); `store` has no
+loop. The sheets: a skill's costliest path is its `REGENERATION` in the third entry, negative
+(`test_cost_sheet_*`); a potion's and a caste's have no loop. The content's reads assume ENG-07
+reads the batch's records in the fewest `bundle` calls (2 for 47 records); each further call costs
+about 98,420 (ENG-06). Each further member (M-3 allows 8) adds 172,603 + 65,100 to a tick,
+642,220 + 594,580 to load and store, and 17,980 to the call.
+
+The executor (CBT-03 to CBT-05), the goblins' AI and the flood (ENG-07), the window, the storage
+writes and the transaction's floor are not in these figures. Most of the bound is the goblin array:
+each conclusion rebuilds its 100 goblins of 23 felts (about 600,000) for the executor's hook, and
+load's lookups scan the content (about 410,000 a goblin at the lists' ends). **These copies and
+lookups go with CBT-02d (D-166): the goblin array's hot fields apart and a content index.** The
+flattening's wiring into `Hub` goes with CBT-02c (D-166: its checks at registration, then a linear
+flattening).
 
 **One action that cannot be split** (fix loops 2 and 3, F-2). The cap and the cold weight bound a
 batch of several actions, but a single action runs all its ticks: a 3-tick action (a 3-tick skill;

@@ -8,7 +8,8 @@
 
 use crate::helpers::tick::{TickAssert, TickMathTrait};
 use crate::packing::{
-    P112, P16, P24, P28, P32, P52, P56, P64, P8, P80, P84, P96, field, low_field, split,
+    N16, N2, N28, N32, N56, N7, N8, P112, P16, P24, P28, P32, P52, P56, P64, P8, P80, P84, P96,
+    field, limbs, peel,
 };
 use crate::types::combat::{condition, skill_kind};
 use crate::types::tick::{
@@ -21,9 +22,9 @@ const F8: felt252 = 0x100;
 const F24: felt252 = 0x1000000;
 const F28: felt252 = 0x10000000;
 const F32: felt252 = 0x100000000;
+const F40: felt252 = 0x10000000000;
 const F56: felt252 = 0x100000000000000;
 const F64: felt252 = 0x10000000000000000;
-const F80: felt252 = 0x100000000000000000000;
 const F84: felt252 = 0x1000000000000000000000;
 const F96: felt252 = 0x1000000000000000000000000;
 const F128: felt252 = 0x100000000000000000000000000000000;
@@ -87,24 +88,45 @@ pub impl MemberImpl of MemberTrait {
         }
     }
 
-    /// The hot fields of a member's words, in `Member`'s order (status … knocked).
+    /// The hot fields of a member's words, in `Member`'s order (status … knocked). Each limb is
+    /// read in one pass from its low bits, one division a field (CBT-02b, lever (b)).
     fn hot(words: @MemberWords) -> (u8, u16, u16, u16, u8, u8, u16, u8, u32, u32, u32, u32, u32) {
-        let (low, high) = split(*words.state);
-        let (tlow, thigh) = split(*words.timers);
+        let (low, high) = limbs(*words.state);
+        // Bits 0–55 (the adventurer, position, facing) are not read.
+        let (mut rest, _) = DivRem::div_rem(low, N56);
+        let status = peel(ref rest, N8);
+        let health = peel(ref rest, N16);
+        let energy = peel(ref rest, N16);
+        let adrenaline = peel(ref rest, N16);
+        let (above, _) = DivRem::div_rem(high, N32);
+        let (_, flags) = DivRem::div_rem(above, N8);
+        let (tlow, thigh) = limbs(*words.timers);
+        let mut rest = tlow;
+        let act_slot = peel(ref rest, N8);
+        let act_target = peel(ref rest, N16);
+        let act_tile = peel(ref rest, N8);
+        let act_deadline = peel(ref rest, N32);
+        let bleeding = peel(ref rest, N32);
+        // What is left is poison, bits 96–127, the limb's top.
+        let poison = rest;
+        let mut rest = thigh;
+        let burning = peel(ref rest, N32);
+        let _crippled = peel(ref rest, N32);
+        let knocked = peel(ref rest, N32);
         (
-            field(low, P56, P8).try_into().unwrap(),
-            field(low, P64, P16).try_into().unwrap(),
-            field(low, P80, P16).try_into().unwrap(),
-            field(low, P96, P16).try_into().unwrap(),
-            field(high, P32, P8).try_into().unwrap(),
-            low_field(tlow, P8.try_into().unwrap()).try_into().unwrap(),
-            field(tlow, P8, P16).try_into().unwrap(),
-            field(tlow, P24, P8).try_into().unwrap(),
-            field(tlow, P32, P32).try_into().unwrap(),
-            field(tlow, P64, P32).try_into().unwrap(),
-            field(tlow, P96, P32).try_into().unwrap(),
-            low_field(thigh, P32.try_into().unwrap()).try_into().unwrap(),
-            field(thigh, P64, P32).try_into().unwrap(),
+            status.try_into().unwrap(),
+            health.try_into().unwrap(),
+            energy.try_into().unwrap(),
+            adrenaline.try_into().unwrap(),
+            flags.try_into().unwrap(),
+            act_slot.try_into().unwrap(),
+            act_target.try_into().unwrap(),
+            act_tile.try_into().unwrap(),
+            act_deadline.try_into().unwrap(),
+            bleeding.try_into().unwrap(),
+            poison.try_into().unwrap(),
+            burning.try_into().unwrap(),
+            knocked.try_into().unwrap(),
         )
     }
 
@@ -130,35 +152,48 @@ pub impl MemberImpl of MemberTrait {
             Self::hot(
             @words,
         );
-        let (low, _) = split(words.stats);
-        let health_regen: i32 = field(low, P32, P8).try_into().unwrap();
-        let (elow, ehigh) = split(words.effects);
-        let (belt, _) = split(words.kit);
+        let (mut stats, _) = limbs(words.stats);
+        let max_health = peel(ref stats, N16);
+        let max_energy = peel(ref stats, N8);
+        let energy_regen = peel(ref stats, N8);
+        let health_regen: i32 = peel(ref stats, N8).try_into().unwrap();
+        let (elow, ehigh) = limbs(words.effects);
+        // The four effects of 56 bits at 0 and 56 of each limb.
+        let (above, first) = DivRem::div_rem(elow, N56);
+        let (_, second) = DivRem::div_rem(above, N56);
+        let (above, third) = DivRem::div_rem(ehigh, N56);
+        let (_, fourth) = DivRem::div_rem(above, N56);
+        let (belt, _) = limbs(words.kit);
         let mut deadlines: Array<u32> = array![];
         let mut regen: Array<i8> = array![];
-        for (limb, shift) in array![(elow, 1), (elow, P56), (ehigh, 1), (ehigh, P56)] {
-            let carrier: u16 = field(limb, shift, P16).try_into().unwrap();
-            deadlines.append(field(limb, shift * P24, P28).try_into().unwrap());
+        for effect in array![first, second, third, fourth] {
+            let mut rest = effect;
+            let carrier: u16 = peel(ref rest, N16).try_into().unwrap();
+            // The charges and the free bit 22.
+            let _ = peel(ref rest, N7);
+            let potion = peel(ref rest, N2);
+            deadlines.append(peel(ref rest, N28).try_into().unwrap());
+            // What is left is the rank, bits 52–55 of the effect.
+            let rank: u8 = rest.try_into().unwrap();
             // The potion tag first: with it, the carrier is a belt slot 0–3, slot 0 included
             // (ENG-01 §3.2; AUD-182-1). Without it, skill 0 is an empty slot.
-            let pips: i32 = if field(limb, shift * 0x800000, 2) == 1 {
+            let pips: i32 = if potion == 1 {
                 let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
                 (*content.potion(id.try_into().unwrap()).regen).into()
             } else if carrier == 0 {
                 0
             } else {
-                content.skill(carrier).regen(field(limb, shift * P52, 0x10).try_into().unwrap())
+                content.skill(carrier).regen(rank)
             };
             MemberAssert::assert_pips(pips);
             regen.append(pips.try_into().unwrap());
         }
         // The bar's highest adrenaline cost, in quarters (§5.12).
-        let (bar, _) = split(words.bar);
+        let (bar, _) = limbs(words.bar);
         let mut cap: u16 = 0;
         let mut rest = bar;
         for _ in 0..8_u8 {
-            let (next, skill) = DivRem::div_rem(rest, P16.try_into().unwrap());
-            rest = next;
+            let skill = peel(ref rest, N16);
             if skill != 0 {
                 let cost: u16 = (*content.skill(skill.try_into().unwrap()).adrenaline).into() * 4;
                 if cost > cap {
@@ -182,57 +217,53 @@ pub impl MemberImpl of MemberTrait {
             knocked,
             effect_deadlines: [*deadlines[0], *deadlines[1], *deadlines[2], *deadlines[3]],
             effect_regen: [*regen[0], *regen[1], *regen[2], *regen[3]],
-            max_health: low_field(low, P16.try_into().unwrap()).try_into().unwrap(),
-            max_energy: field(low, P16, P8).try_into().unwrap() * ENERGY_THIRDS,
+            max_health: max_health.try_into().unwrap(),
+            max_energy: max_energy.try_into().unwrap() * ENERGY_THIRDS,
             health_regen: (health_regen - REGEN_OFFSET).try_into().unwrap(),
-            energy_regen: field(low, P24, P8).try_into().unwrap(),
+            energy_regen: energy_regen.try_into().unwrap(),
             adrenaline_cap: cap,
             words,
         }
     }
 
-    /// Its words, the hot fields written back (the effects word is the executor's to write).
+    /// Its words, the hot fields written back (the effects word is the executor's to write). The
+    /// hot fields lie in five regions of the words; each is rewritten whole, by the difference
+    /// between its new value and the one the words hold (CBT-02b, lever (b): seven divisions,
+    /// where a field at a time took twenty-six). `MemberTimers`' low limb is hot throughout.
     fn store(self: @Member) -> MemberWords {
-        let (
-            status,
-            health,
-            energy,
-            adrenaline,
-            flags,
-            act_slot,
-            act_target,
-            act_tile,
-            act_deadline,
-            bleeding,
-            poison,
-            burning,
-            knocked,
-        ) =
-            Self::hot(
-            self.words,
-        );
         let words = *self.words;
+        let (low, high) = limbs(words.state);
+        let (above, _) = DivRem::div_rem(low, N56);
+        let (_, old) = DivRem::div_rem(above, N56);
+        let new: felt252 = (*self.status).into()
+            + (*self.health).into() * F8
+            + (*self.energy).into() * F24
+            + (*self.adrenaline).into() * F40;
+        let (above, _) = DivRem::div_rem(high, N32);
+        let (_, old_flags) = DivRem::div_rem(above, N8);
         let state = words.state
-            + TickMathTrait::delta(status.into(), (*self.status).into(), F56)
-            + TickMathTrait::delta(health.into(), (*self.health).into(), F64)
-            + TickMathTrait::delta(energy.into(), (*self.energy).into(), F80)
-            + TickMathTrait::delta(adrenaline.into(), (*self.adrenaline).into(), F96)
-            + TickMathTrait::delta(flags.into(), (*self.flags).into(), F160);
+            + (new - old.into()) * F56
+            + ((*self.flags).into() - old_flags.into()) * F160;
+        let (tlow, thigh) = limbs(words.timers);
+        let new_low: felt252 = (*self.act_slot).into()
+            + (*self.act_target).into() * F8
+            + (*self.act_tile).into() * F24
+            + (*self.act_deadline).into() * F32
+            + (*self.bleeding).into() * F64
+            + (*self.poison).into() * F96;
+        let (above, old_burning) = DivRem::div_rem(thigh, N32);
+        let (above, _) = DivRem::div_rem(above, N32);
+        let (_, old_knocked) = DivRem::div_rem(above, N32);
         let timers = words.timers
-            + TickMathTrait::delta(act_slot.into(), (*self.act_slot).into(), 1)
-            + TickMathTrait::delta(act_target.into(), (*self.act_target).into(), F8)
-            + TickMathTrait::delta(act_tile.into(), (*self.act_tile).into(), F24)
-            + TickMathTrait::delta(act_deadline.into(), (*self.act_deadline).into(), F32)
-            + TickMathTrait::delta(bleeding.into(), (*self.bleeding).into(), F64)
-            + TickMathTrait::delta(poison.into(), (*self.poison).into(), F96)
-            + TickMathTrait::delta(burning.into(), (*self.burning).into(), F128)
-            + TickMathTrait::delta(knocked.into(), (*self.knocked).into(), F192);
+            + (new_low - tlow.into())
+            + ((*self.burning).into() - old_burning.into()) * F128
+            + ((*self.knocked).into() - old_knocked.into()) * F192;
         MemberWords { state, timers, ..words }
     }
 
     /// The recharge deadline of bar slot 0–7.
     fn recharge(self: @Member, slot: u8) -> u32 {
-        let (low, high) = split(*self.words.recharges);
+        let (low, high) = limbs(*self.words.recharges);
         let (upper, shift, _) = Self::recharge_at(slot);
         let limb = if upper {
             high
@@ -251,7 +282,7 @@ pub impl MemberImpl of MemberTrait {
     /// The skill id of bar slot 0–7 (`MemberBar`).
     #[inline(always)]
     fn skill(self: @Member, slot: u8) -> u16 {
-        let (low, _) = split(*self.words.bar);
+        let (low, _) = limbs(*self.words.bar);
         let shift = *[1, P16, P32, 0x1000000000000, P64, P80, P96, P112].span()[slot.into()];
         field(low, shift, P16).try_into().unwrap()
     }
@@ -263,7 +294,7 @@ pub impl MemberImpl of MemberTrait {
 pub impl MemberWordsImpl of MemberWordsTrait {
     /// Crippled's deadline (`MemberTimers` bits 160–191).
     fn crippled(self: @Member) -> u32 {
-        let (_, high) = split(*self.words.timers);
+        let (_, high) = limbs(*self.words.timers);
         field(high, P32, P32).try_into().unwrap()
     }
 
@@ -274,7 +305,7 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// The `hits` counter (`MemberState` bits 112–119, design/19 §5.12).
     fn hits(self: @Member) -> u8 {
-        let (low, _) = split(*self.words.state);
+        let (low, _) = limbs(*self.words.state);
         field(low, P112, P8).try_into().unwrap()
     }
 
@@ -285,19 +316,19 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 
     /// `ADRENALINE_EVERY_N`'s lowest N (`MemberKit` bits 160–167); 0 for none.
     fn double_every(self: @Member) -> u8 {
-        let (_, high) = split(*self.words.kit);
+        let (_, high) = limbs(*self.words.kit);
         field(high, P32, P8).try_into().unwrap()
     }
 
     /// The potion item of belt slot 0–3 (`MemberKit` bits `32 slot`).
     fn belt_item(self: @Member, slot: u16) -> u32 {
-        let (low, _) = split(*self.words.kit);
+        let (low, _) = limbs(*self.words.kit);
         field(low, *[1, P32, P64, P96].span()[slot.into()], P32).try_into().unwrap()
     }
 
     /// The held effect of slot 0–3, as the word stores it.
     fn effect_of(self: @Member, slot: u8) -> Held {
-        let (low, high) = split(*self.words.effects);
+        let (low, high) = limbs(*self.words.effects);
         let (upper, shift, _) = MemberTrait::effect_at(slot);
         let limb = if upper {
             high

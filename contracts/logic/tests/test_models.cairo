@@ -46,7 +46,7 @@ impl FixtureImpl of Fixture {
 }
 
 #[test]
-#[available_gas(l2_gas: 91854)] // ceil(1.05 × 87480 measured)
+#[available_gas(l2_gas: 91098)] // ceil(1.05 × 86760 measured)
 fn test_region_round_trip() {
     let region = RegionTrait::new(0xFFFF, 2, 0xFFFF, 'Fifteen letters');
     assert(Record::unpack(region.pack()) == region, 'round trip');
@@ -66,7 +66,7 @@ fn test_region_name_too_long() {
 }
 
 #[test]
-#[available_gas(l2_gas: 765020)] // ceil(1.05 × 728590 measured)
+#[available_gas(l2_gas: 763508)] // ceil(1.05 × 727150 measured)
 fn test_location_round_trip() {
     let top = Fixture::location_max();
     let parts = top.pack();
@@ -129,7 +129,7 @@ fn test_location_entry_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 210420)] // ceil(1.05 × 200400 measured)
+#[available_gas(l2_gas: 209664)] // ceil(1.05 × 199680 measured)
 fn test_gate_round_trip() {
     let top = Fixture::gate_max();
     assert(Record::<Gate>::unpack(top.pack()) == top, 'round trip');
@@ -180,7 +180,7 @@ fn test_gate_entry_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 31269)] // ceil(1.05 × 29780 measured)
+#[available_gas(l2_gas: 30513)] // ceil(1.05 × 29060 measured)
 fn test_outline_round_trip() {
     // All 225 bits set: 128 in the low limb, 97 in the high one.
     let full = OutlineTrait::new(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, 0x1FFFFFFFFFFFFFFFFFFFFFFFF);
