@@ -509,8 +509,8 @@ pub fn saturate(sum: u32, cap: u32) -> u32 {
 
 // The production flattening (design/19 §4, §7.2; design/20 §1, D-160): the build and the
 // passives it holds into the snapshot's three words, every restriction of design/20's capacity
-// proof checked first. Built before any production snapshot (D-160); `set_build` and `enter` wire
-// it (persistent package: escalated in CBT-02's report).
+// proof checked first. Built before any production snapshot (D-160); `Hub.set_build` runs it so
+// that its checks refuse a build there, and `Hub.enter` builds its snapshot through it (CBT-02b).
 
 /// Armor against a type saturates at 63 (6 bits, FX-23).
 pub const MAX_ARMOR_VS: u32 = 63;
@@ -1119,11 +1119,11 @@ pub const NO_HEALTH_REGEN: u8 = 10;
 
 #[generate_trait]
 pub impl SnapshotImpl of SnapshotTrait {
-    /// The snapshot of an adventurer at entry, from what its models hold today (ENG-06): its
-    /// level and primary profession give health, energy, regeneration and armor (design/03); its
-    /// bar, elite slot and belt are copied. What equipment, attribute ranks and set bonuses would
-    /// add is 0: no entrypoint can yet equip an item or spend a point (`set_build` is a later
-    /// lot's), and design/15's formulas are that lot's.
+    /// ENG-06's snapshot of an adventurer at entry, from its level and primary profession
+    /// (health, energy, regeneration and armor, design/03) and its bar, elite slot and belt,
+    /// equipment adding nothing. `Hub.enter` no longer uses it: since CBT-02b it builds the
+    /// snapshot through the flattening (`SnapshotBuildTrait::build`, D-160); the ephemeral
+    /// package's tests use it as a plain snapshot.
     fn new(
         level: u8,
         profession: u8,

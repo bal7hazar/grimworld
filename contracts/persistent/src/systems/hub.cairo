@@ -156,18 +156,20 @@ pub trait IHubAdmin<T> {
 #[starknet::contract]
 pub mod Hub {
     use core::num::traits::Zero;
-    use grimworld_logic::content::{GATE, ITEM, REGION, SKILL, exists};
+    use grimworld_logic::content::{GATE, ITEM, MODIFIER, REGION, SKILL, exists};
     use grimworld_logic::interface::{
         IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IRegistryReadDispatcher,
         IRegistryReadDispatcherTrait, IResults, Results, facts,
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord, errors as gate_errors};
+    use grimworld_logic::models::index::Modifier;
     use grimworld_logic::models::item::ItemTrait;
+    use grimworld_logic::models::modifier::ModifierRecord;
     use grimworld_logic::models::region::{Region, RegionRecord};
     use grimworld_logic::models::skill::SkillTrait;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
     use grimworld_logic::professions::ProfessionAssert;
-    use grimworld_logic::snapshot::SnapshotTrait;
+    use grimworld_logic::snapshot::{HeldPassive, SnapshotBuildTrait};
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
         Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
@@ -184,12 +186,13 @@ pub mod Hub {
     };
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerCoreTrait, AdventurerPlaceTrait, BELT_WORD,
-        BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, CORE_WORD, EMPTY_LANES,
+        BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, BuildTrait, CORE_WORD, EMPTY_LANES,
         EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE, PLACE_WORD,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
-        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, RiftBoard,
+        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, ItemMods, ItemModsAssert,
+        ItemModsTrait, PERSONALISED, RiftBoard,
     };
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
@@ -451,11 +454,15 @@ pub mod Hub {
         /// count (the reserve `enter` debits). The equipment: each entity in the adventurer's
         /// pack, wearable, worn in its lane's slot, no off-hand beside a weapon held in both
         /// hands: the slot and the hands are the item's own, copied from its `BASE` at creation
-        /// (D-158), so no base is read. Reads: the ownership check's 3 words, the known-skills
-        /// pages of the bar, the pack pages of the belt's items (at most 4), each equipped
-        /// entity's `ItemBase` (at most 7); one `Registry.bundle` call for the skills and the
-        /// belt's items (at most 12 records, none when both are empty). Writes (ENG-01 §9.3):
-        /// `build`, `belt`, `equipped`, overwritten, the words sent plus `LIVE`.
+        /// (D-158), so no base is read. Then the snapshot's flattening (D-160, CBT-02b) with
+        /// every check of design/20's capacity proof: DS-2's floors, DS-23's insignia pieces, the
+        /// counts and per-source bounds of the modifiers worn. Reads: the ownership check's 3
+        /// words, the known-skills pages of the bar, the pack pages of the belt's items (at most
+        /// 4), each equipped entity's `ItemBase` and `ItemMods` (at most 7 each); one
+        /// `Registry.bundle` call for the skills, the belt's items and the distinct modifiers worn
+        /// (at most 12 + 15 = 27 records for a build design/20 §1.2 allows, none when all are
+        /// empty; more than `MAX_READ` is refused by the registry). Writes (ENG-01 §9.3): `build`,
+        /// `belt`, `equipped`, overwritten, the words sent plus `LIVE`.
         fn set_build(
             ref self: ContractState,
             adventurer_id: u32,
@@ -532,22 +539,21 @@ pub mod Hub {
                     .word(0);
                 BeltAssert::assert_held(BalanceTrait::amount(word, lane), count);
             }
+            let (worn, modifiers, personalised) = self.equipment(entities);
             let mut two_handed = false;
-            for lane in 0..7_u32 {
-                let entity = *entities[lane];
-                if entity == 0 {
-                    continue;
-                }
-                let word = self.items.entry(entity).as_ptr().__storage_pointer_address__.word(0);
-                let item: ItemBase = StorePacking::unpack(word);
+            for (lane, item, _) in worn.span() {
                 item.assert_wearable(adventurer_id);
-                EquippedAssert::assert_slot(item.slot, lane);
-                if lane == 0 {
+                EquippedAssert::assert_slot(*item.slot, *lane);
+                if *lane == 0 {
                     two_handed = item.is_two_handed();
                 }
             }
             EquippedAssert::assert_hands(two_handed, *entities[1]);
+            for id in modifiers.span() {
+                requests.append((MODIFIER, (*id).into()));
+            }
 
+            let mut records = array![];
             if requests.len() != 0 {
                 let (_, parts) = IRegistryReadDispatcher { contract_address: self.registry.read() }
                     .bundle(requests.span());
@@ -577,9 +583,17 @@ pub mod Hub {
                     BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
                     at += 1;
                 }
+                records = InternalTrait::modifiers(parts.slice(at, parts.len() - at));
             } else {
                 value.assert_elite_slot(NO_ELITE);
             }
+
+            // The snapshot's flattening with every check of design/20's capacity proof (D-160):
+            // DS-2's floors refuse the build here, so that `enter`, which flattens the same build,
+            // never does (design/20 §6 test 3).
+            let held = InternalTrait::held(worn.span(), modifiers.span(), records.span());
+            let loadout = value.loadout(level, primary, personalised, items, counts);
+            SnapshotBuildTrait::build(@loadout, held.span());
 
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             base.set_word(BUILD_WORD, build_word);
@@ -590,10 +604,12 @@ pub mod Hub {
         /// ownership check, the gate from the registry and its requirements, the belt's reserve
         /// debited from the pack, the snapshot, then `Instances.create`, which makes the entry
         /// draw. Every check comes before the call: a refusal reverts, drawing nothing and
-        /// changing nothing. Writes (ENG-01 §9.3): the pack pages of the belt's items (at most
-        /// 4, overwritten), `core` when a pack lane falls to 0, `place`. Calls: `Registry.record`
-        /// (the gate), `Instances.create`. Task ids: none until quiver's quests are embedded
-        /// (E-14).
+        /// changing nothing. The snapshot is the flattening's (D-160, CBT-02b) of the build
+        /// `set_build` checked, so its checks pass here. Writes (ENG-01 §9.3): the pack pages of
+        /// the belt's items (at most 4, overwritten), `core` when a pack lane falls to 0, `place`.
+        /// Reads besides: `equipped`, each worn item's `ItemBase` and `ItemMods`. Calls:
+        /// `Registry.record` (the gate), `Registry.bundle` (the modifiers worn, when there are
+        /// any), `Instances.create`. Task ids: none until quiver's quests are embedded (E-14).
         fn enter(ref self: ContractState, adventurer_id: u32, gate: u16) -> InstanceId {
             let (_, core, place) = self.owned_in_hub(adventurer_id);
             let (_, hub, _, _) = AdventurerPlaceTrait::fields(place);
@@ -611,10 +627,25 @@ pub mod Hub {
             if emptied != 0 {
                 base.set_word(CORE_WORD, AdventurerCoreTrait::with_pack_lanes(core, 0, emptied));
             }
+            // The snapshot through the flattening (D-160), from the build `set_build` checked:
+            // the equipment's modifiers read in one registry call, none without a modifier.
             let build: Build = StorePacking::unpack(base.word(BUILD_WORD));
-            let snapshot = SnapshotTrait::new(
-                level, profession, build.bar, build.elite_slot, items, counts,
-            );
+            let entities = unpack_lanes32(base.word(EQUIPPED_WORD)).lanes.span();
+            let (worn, modifiers, personalised) = self.equipment(entities);
+            let records = if modifiers.len() == 0 {
+                array![]
+            } else {
+                let mut requests: Array<(u8, u32)> = array![];
+                for id in modifiers.span() {
+                    requests.append((MODIFIER, (*id).into()));
+                }
+                let (_, parts) = IRegistryReadDispatcher { contract_address: self.registry.read() }
+                    .bundle(requests.span());
+                InternalTrait::modifiers(parts)
+            };
+            let held = InternalTrait::held(worn.span(), modifiers.span(), records.span());
+            let loadout = build.loadout(level, profession, personalised, items, counts);
+            let snapshot = SnapshotBuildTrait::build(@loadout, held.span());
 
             let instance = IInstanceEntryDispatcher { contract_address: self.instances.read() }
                 .create(adventurer_id, get_caller_address(), gate, snapshot, array![].span());
@@ -955,6 +986,70 @@ pub mod Hub {
                 account_id, status, place, owner, get_caller_address(),
             );
             (account_id, core, place)
+        }
+
+        /// The items worn (`entities`, `equipped`'s lanes): each one's lane, `ItemBase` and
+        /// `ItemMods` (two reads an item), the distinct modifier ids they hold in the order met,
+        /// and whether the weapon is personalised (`ItemBase.flags`). Bound: 7 lanes, 5 modifiers
+        /// an item.
+        fn equipment(
+            self: @ContractState, entities: Span<u32>,
+        ) -> (Array<(u32, ItemBase, ItemMods)>, Array<u16>, bool) {
+            let mut worn = array![];
+            let mut modifiers: Array<u16> = array![];
+            let mut personalised = false;
+            for lane in 0..7_u32 {
+                let entity = *entities[lane];
+                if entity == 0 {
+                    continue;
+                }
+                let base = self.items.entry(entity).as_ptr().__storage_pointer_address__;
+                let item: ItemBase = StorePacking::unpack(base.word(0));
+                let mods: ItemMods = StorePacking::unpack(base.word(1));
+                for id in mods.ids().span() {
+                    let id = *id;
+                    if id == 0 {
+                        continue;
+                    }
+                    let mut seen = false;
+                    for other in modifiers.span() {
+                        if *other == id {
+                            seen = true;
+                        }
+                    }
+                    if !seen {
+                        modifiers.append(id);
+                    }
+                }
+                if lane == 0 {
+                    personalised = item.flags & PERSONALISED != 0;
+                }
+                worn.append((lane, item, mods));
+            }
+            (worn, modifiers, personalised)
+        }
+
+        /// The `MODIFIER` records of a registry answer, one part each; a modifier the registry
+        /// does not hold is refused.
+        fn modifiers(parts: Span<felt252>) -> Array<Modifier> {
+            let mut records = array![];
+            for part in parts {
+                ItemModsAssert::assert_exists(*part);
+                records.append(ModifierRecord::unpack(array![*part].span()));
+            }
+            records
+        }
+
+        /// The passives the worn items hold (`ItemModsTrait::held`), five instances a lane.
+        fn held(
+            worn: Span<(u32, ItemBase, ItemMods)>, ids: Span<u16>, records: Span<Modifier>,
+        ) -> Array<HeldPassive> {
+            let mut held = array![];
+            for (lane, item, mods) in worn {
+                let first: u8 = (*lane * 5).try_into().unwrap();
+                mods.held(item, first, ids, records, ref held);
+            }
+            held
         }
 
         /// Region 1's town (D-144), read from the registry: one `record` call. Refuses when the
