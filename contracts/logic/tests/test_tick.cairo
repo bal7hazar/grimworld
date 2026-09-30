@@ -661,6 +661,245 @@ fn test_cost_fixture_candidates() {
     assert(world.goblin_count() == 100 && distances.len() == 100, 'candidates');
 }
 
+// CBT-02d fix loop 1 (COST-2): the selection from a prior awake set of 8, so that both of its
+// passes walk the set's runs. The prior set at the array's start, its end or spread across it;
+// the distances either fall along the array (the costliest order of the scans: the 8 nearest are
+// the last 8) or rise (the 8 nearest are the first 8), or put the spread set nearest. The
+// selection is measured alone (printed "gas awake") and checked to keep or replace the set.
+
+/// `candidates()` with the goblins at `prior` flagged awake, and distances `order`: 0 falling, 1
+/// rising, 2 the `prior` goblins nearest (the others falling).
+fn awake_state(prior: Span<u16>, order: u8) -> (World, Span<u16>) {
+    let (sheets, mut index) = worst_content(3).index();
+    let mut goblins = array![];
+    let mut distances = array![];
+    let mut i: u16 = 0;
+    while i < 100 {
+        let mut awake = false;
+        for p in prior {
+            if *p == i {
+                awake = true;
+            }
+        }
+        let words = goblin_words(8 + i, awake, 280, 0, 0);
+        goblins.append(GoblinTrait::load(words, ref index, @sheets));
+        let distance = if order == 1 {
+            100 + i
+        } else if order == 2 && awake {
+            1 + i / 16
+        } else {
+            200 - i
+        };
+        distances.append(distance);
+        i += 1;
+    }
+    (Fixture::world(49, array![], goblins), distances.span())
+}
+
+/// The selection over `awake_state(prior, order)`, measured alone; then the set is `expected`.
+fn awake_tick(prior: Span<u16>, order: u8, expected: Span<u16>) {
+    let (mut world, distances) = awake_state(prior, order);
+    assert(world.woken().len() == prior.len(), 'the prior set');
+    let before = get_available_gas();
+    TickTrait::awake(ref world, distances);
+    println!("gas awake: {}", before - get_available_gas());
+    let mut woken = array![];
+    for index in expected {
+        woken.append((*index).into());
+    }
+    assert(world.woken() == woken.span(), 'the new set');
+}
+
+// No prior set: the scans' costliest order (`test_cost_awake_100`'s state, measured alone).
+#[test]
+#[available_gas(l2_gas: 13392435)] // ceil(1.05 × 12754700 measured)
+fn test_cost_awake_none() {
+    awake_tick(array![].span(), 0, at_end(8));
+}
+
+// The prior set at the array's end, kept.
+#[test]
+#[available_gas(l2_gas: 15148623)] // ceil(1.05 × 14427260 measured)
+fn test_cost_awake_end_kept() {
+    awake_tick(at_end(8), 0, at_end(8));
+}
+
+// The prior set at the array's start, replaced by the last 8.
+#[test]
+#[available_gas(l2_gas: 15147699)] // ceil(1.05 × 14426380 measured)
+fn test_cost_awake_start_replaced() {
+    awake_tick(at_start(8), 0, at_end(8));
+}
+
+// The prior set spread across the array, replaced by the last 8.
+#[test]
+#[available_gas(l2_gas: 15130731)] // ceil(1.05 × 14410220 measured)
+fn test_cost_awake_spread_replaced() {
+    awake_tick(at_spread(), 0, at_end(8));
+}
+
+// The prior set at the array's start, kept (the distances rising).
+#[test]
+#[available_gas(l2_gas: 15095756)] // ceil(1.05 × 14376910 measured)
+fn test_cost_awake_start_kept() {
+    awake_tick(at_start(8), 1, at_start(8));
+}
+
+// The prior set at the array's end, replaced by the first 8 (the distances rising).
+#[test]
+#[available_gas(l2_gas: 15094832)] // ceil(1.05 × 14376030 measured)
+fn test_cost_awake_end_replaced() {
+    awake_tick(at_end(8), 1, at_start(8));
+}
+
+// The prior set spread across the array, kept (nearest).
+#[test]
+#[available_gas(l2_gas: 15124610)] // ceil(1.05 × 14404390 measured)
+fn test_cost_awake_spread_kept() {
+    awake_tick(at_spread(), 2, at_spread());
+}
+
+// CBT-02d fix loop 1 (COST-1): what a figure measured inside a test misses, and `TickTrait::run`'s
+// own loop.
+//
+// **A call measured alone misses its straight-line part.** Sierra charges a function's code
+// outside its loops when its caller withdraws gas, before the call runs; `get_available_gas` around
+// the call sees only what the callee's loops withdraw, and the refunds of its cheaper branches.
+// So `TickTrait::tick` measured alone (the "gas tick" figures of the terms) is short of the truth
+// by one constant for each monomorphization, the costliest straight-line path of `tick<R>`,
+// whatever the state. The pairs below measure it as snforge's totals, two tests that differ by the
+// call alone and check nothing: `tick<Acts>` on two term states (the bound's rules), `tick<Idle>`
+// on the representative state (the batch's rules).
+//
+// **`run`'s loop.** Each of its iterations checks `k < ticks && !world.defeated`, calls `tick` and
+// counts; the run's last check ends it. Measured with the pairs too: ten ticks through `run`,
+// against the same ten ticks each measured alone plus the constant above.
+
+// The costliest state of the bound, its fixture alone.
+#[test]
+#[available_gas(l2_gas: 18249504)] // ceil(1.05 × 17380480 measured)
+fn test_cost_pair_term_fixture() {
+    let (_world, _sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
+}
+
+// The same, and its tick with the bound's rules.
+#[test]
+#[available_gas(l2_gas: 19799091)] // ceil(1.05 × 18856277 measured)
+fn test_cost_pair_term_tick() {
+    let (mut world, sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
+    let mut rules: Acts = Default::default();
+    TickTrait::tick(ref world, @sheets, ref rules);
+}
+
+// The state of 8 activating goblins, its fixture alone.
+#[test]
+#[available_gas(l2_gas: 18250943)] // ceil(1.05 × 17381850 measured)
+fn test_cost_pair_activating_fixture() {
+    let (_world, _sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
+}
+
+// The same, and its tick with the bound's rules.
+#[test]
+#[available_gas(l2_gas: 18992341)] // ceil(1.05 × 18087943 measured)
+fn test_cost_pair_activating_tick() {
+    let (mut world, sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
+    let mut rules: Acts = Default::default();
+    TickTrait::tick(ref world, @sheets, ref rules);
+}
+
+// The representative state, its fixture alone.
+#[test]
+#[available_gas(l2_gas: 7592403)] // ceil(1.05 × 7230860 measured)
+fn test_cost_pair_representative_fixture() {
+    let (_world, _sheets) = representative();
+}
+
+// The same, and one tick with the lot's rules.
+#[test]
+#[available_gas(l2_gas: 8260274)] // ceil(1.05 × 7866927 measured)
+fn test_cost_pair_representative_tick() {
+    let (mut world, sheets) = representative();
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @sheets, ref rules);
+}
+
+// The same, and one tick through `run`.
+#[test]
+#[available_gas(l2_gas: 8271026)] // ceil(1.05 × 7877167 measured)
+fn test_cost_pair_representative_run_one() {
+    let (mut world, sheets) = representative();
+    let mut rules = Idle {};
+    TickTrait::run(ref world, @sheets, 1, ref rules);
+}
+
+// The same, and ten ticks through `run`.
+#[test]
+#[available_gas(l2_gas: 14319050)] // ceil(1.05 × 13637190 measured)
+fn test_cost_pair_representative_run_ten() {
+    let (mut world, sheets) = representative();
+    let mut rules = Idle {};
+    TickTrait::run(ref world, @sheets, 10, ref rules);
+}
+
+// The awake selection's straight-line part, the same way: the costliest prior set (at the array's
+// start, kept) and none.
+#[test]
+#[available_gas(l2_gas: 10068114)] // ceil(1.05 × 9588680 measured)
+fn test_cost_pair_awake_start_kept_fixture() {
+    let (_world, _distances) = awake_state(at_start(8), 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 14964800)] // ceil(1.05 × 14252190 measured)
+fn test_cost_pair_awake_start_kept() {
+    let (mut world, distances) = awake_state(at_start(8), 1);
+    TickTrait::awake(ref world, distances);
+}
+
+#[test]
+#[available_gas(l2_gas: 8435679)] // ceil(1.05 × 8033980 measured)
+fn test_cost_pair_awake_none_fixture() {
+    let (_world, _distances) = awake_state(array![].span(), 0);
+}
+
+#[test]
+#[available_gas(l2_gas: 13261763)] // ceil(1.05 × 12630250 measured)
+fn test_cost_pair_awake_none() {
+    let (mut world, distances) = awake_state(array![].span(), 0);
+    TickTrait::awake(ref world, distances);
+}
+
+// `Busy`'s first tick (8 conclusions and the member's), for `tick<Busy>`'s straight-line part.
+#[test]
+#[available_gas(l2_gas: 14115339)] // ceil(1.05 × 13443180 measured)
+fn test_cost_pair_busy_fixture() {
+    let (_world, _sheets) = worst_state(false, 1);
+}
+
+#[test]
+#[available_gas(l2_gas: 15661650)] // ceil(1.05 × 14915857 measured)
+fn test_cost_pair_busy_tick() {
+    let (mut world, sheets) = worst_state(false, 1);
+    let mut rules: Busy = Default::default();
+    TickTrait::tick(ref world, @sheets, ref rules);
+}
+
+// The ten ticks of the run above, each measured alone ("gas representative tick").
+#[test]
+#[available_gas(l2_gas: 15258107)] // ceil(1.05 × 14531530 measured)
+fn test_cost_run_ticks_alone() {
+    let (mut world, sheets) = representative();
+    let mut rules = Idle {};
+    let mut k = 0;
+    while k < 10_u8 {
+        let before = get_available_gas();
+        TickTrait::tick(ref world, @sheets, ref rules);
+        println!("gas representative tick {}: {}", k, before - get_available_gas());
+        k += 1;
+    }
+    assert(world.clock == 59, 'ten ticks');
+}
+
 // Cost of the library call (AC-3): the baseline declares the class and runs the call's body (load,
 // one tick of `worst_state`'s scenario, store) in the test's own code; the next test runs it
 // through `library_call`.
@@ -1575,7 +1814,10 @@ fn test_cost_path_line_falling() {
 // goblin free in step 2 acted there (CBT-02d: the rules record the acts, `Acts`). REPORT.md and
 // ENG-01 §9.2 derive the terms and the bound from these figures. Since CBT-02d the steps read and
 // write the awake set alone, so a rebuild's cost follows the set's size, not the array's: the terms
-// are taken at the set's bound, 8 (the "eight" states against each other and the mixes).
+// are taken at the set's bound, 8 (the "eight" states against each other and the mixes). CBT-02d
+// fix loop 1: "gas tick" is the tick measured alone, short of the truth by `tick<Acts>`'s
+// straight-line part, one constant (79,540, `test_cost_pair_*` below): the differences between
+// states are exact, and the bound adds the constant.
 
 /// Step 1's branches CBT-02 did not measure: a lapse whose later recharge is kept, a recovery that
 /// runs on, an awake goblin already dead, a free goblin knocked down.
@@ -1802,11 +2044,25 @@ fn test_cost_term_none_k3() {
     term_tick(array![].span(), array![].span(), false, 3, 1);
 }
 
-// The base with two members (M-3): what a member adds.
+// The base with two members (M-3): what the second member adds.
 #[test]
 #[available_gas(l2_gas: 14913335)] // ceil(1.05 × 14203176 measured)
 fn test_cost_term_none_two_members() {
     term_tick(array![].span(), array![].span(), false, 1, 2);
+}
+
+// CBT-02d fix loop 1 (COST-3): the base with four and eight members (M-3 allows 8). Each member's
+// conclusion rebuilds the members' array, so a member adds more the more there are.
+#[test]
+#[available_gas(l2_gas: 15317718)] // ceil(1.05 × 14588302 measured)
+fn test_cost_term_none_four_members() {
+    term_tick(array![].span(), array![].span(), false, 1, 4);
+}
+
+#[test]
+#[available_gas(l2_gas: 16339359)] // ceil(1.05 × 15561294 measured)
+fn test_cost_term_none_eight_members() {
+    term_tick(array![].span(), array![].span(), false, 1, 8);
 }
 
 // One goblin: concluding into a recovery.
