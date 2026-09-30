@@ -71,23 +71,58 @@ def piece_tables():
                 pieces.append((slot, 1, 0, run >> 128, pow(2, target - start + 128, P)))
             else:
                 pieces.append((slot, 2, run % LIMB, run >> 128, pow(2, target - start, P)))
-    # One const of all 7,824 pieces (39,120 felts) does not compile: Scarb 2.19.4 stops on
-    # "Type size computation failed ... size overflow". Only the benchmark's classes are written
+    # One const of all 7,824 pieces (39,120 felts), the monolithic table attempted, does not
+    # compile: Scarb 2.19.4 stops on "Type size computation failed ... size overflow". Only the
+    # benchmark's classes are written
     out = []
     for bit in BENCH_CLASSES:
         offset, count = at[bit]
-        rows = pieces[offset:offset + count]
-        out.append(f"/// The window's pieces of origin class {bit}: "
-                   f"`(slot, kind, mask_low, mask_high, shift)`.\n"
-                   f"pub const PIECES_{bit}: [(u8, u8, u128, u128, felt252); {count}] = [\n"
-                   + "".join(f"    ({s}, {k}, {hex(ml)}, {hex(mh)}, {felt(sh)}),\n"
-                             for s, k, ml, mh, sh in rows)
-                   + "];\n")
+        out.append(piece_const(f"PIECES_{bit}", f"The window's row runs of origin class {bit}",
+                               pieces[offset:offset + count]))
+    # Fix loop 1 (audit finding 1): runs of one chunk moved by the same shift share one piece,
+    # their masks joined (the grouping of the audit of PR 202)
+    counts = []
+    for i in range(AREA):
+        grouped = grouped_pieces(plan(*tile(i)))
+        counts.append(len(grouped))
+        if i in GROUPED_CLASSES:
+            out.append(piece_const(f"GROUPED_{i}", f"The window's grouped pieces of origin class {i}",
+                                   grouped))
+    print(f"grouped pieces per class: max {max(counts)} (class {counts.index(max(counts))}),"
+          f" min {min(counts)}, classes 25 and 185: {counts[25]}, {counts[185]};"
+          f" distribution {dict(sorted((c, counts.count(c)) for c in set(counts)))}")
     return out, len(pieces)
+
+
+def grouped_pieces(found):
+    """The runs of one chunk moved by the same shift joined into one piece, in first-seen order."""
+    groups = {}
+    for (da, db), start, n, target in found:
+        key = (4 * da + db + 1, target - start)
+        groups[key] = groups.get(key, 0) | (((1 << n) - 1) << start)
+    out = []
+    for (slot, delta), run in groups.items():
+        if run < LIMB:
+            out.append((slot, 0, run, 0, pow(2, delta, P)))
+        elif run % LIMB == 0:
+            out.append((slot, 1, 0, run >> 128, pow(2, delta + 128, P)))
+        else:
+            out.append((slot, 2, run % LIMB, run >> 128, pow(2, delta, P)))
+    return out
+
+
+def piece_const(name, doc, rows):
+    return (f"/// {doc}: `(slot, kind, mask_low, mask_high, shift)`.\n"
+            f"pub const {name}: [(u8, u8, u128, u128, felt252); {len(rows)}] = [\n"
+            + "".join(f"    ({s}, {k}, {hex(ml)}, {hex(mh)}, {felt(sh)}),\n"
+                      for s, k, ml, mh, sh in rows)
+            + "];\n")
 
 
 # The benchmark's classes: the most pieces (bit 25), the most chunks (bit 185)
 BENCH_CLASSES = (25, 185)
+# Grouped: the same two, and the class with the most grouped pieces (65: 26)
+GROUPED_CLASSES = (25, 65, 185)
 
 
 def main():

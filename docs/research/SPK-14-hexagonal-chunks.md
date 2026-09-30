@@ -23,10 +23,10 @@ window came out at 876,310, where the draft estimated 0.25–0.6 M.
 |---|---|
 | 1. Shape and indexing | 17 rows of **11 to 19** tiles (G). **The widest row is 19, not D-165's 27**: the hexagon widens by half a tile on each side per row. Bits go row by row from the South through two 17-entry tables; bits 0 and 250 are corners. The chunks tile the plane on the lattice `(−9, 17)`, `(19, −8)` (determinant 251). The bijection onto 0–250 is tested (M, `test_index_is_a_bijection`) |
 | 2. Storage words | **0 new slots, `LIVE` kept.** Bit 250 is a corner tile, and corners are always wall (D-134), so in ENG-01's `Terrain` (1 = wall) bit 250 is always 1: it is `LIVE`. The 6 edge bits go to `Features` 240–245, or are derived from the ring. `OUTLINE` and `SET_PIECE` set bit 250, a corner no rule reads |
-| 3. Window | **Up to 6 chunks** (G; 3, 4, 5, 6 chunks for 50, 173, 26 and 2 of the 251 origin classes), against 2 or 4. **The one-shift assembly does not survive**: a window row takes 1 to 3 runs, up to **32 pieces** a layer (G) against 4. Measured: **876,310** in memory (M) against N-3's **64,234** (M, re-measured here, equal to the library's), **13.6 times**. With every piece precomputed per class, **318,044** (M, 5.0×), but that table holds 7,824 pieces, which does not compile as one constant. Tested against a direct construction on all 251 classes (M) |
+| 3. Window | **Up to 6 chunks** (G; 3, 4, 5, 6 chunks for 50, 173, 26 and 2 of the 251 origin classes), against 2 or 4. **The one-shift assembly does not survive**: a window row takes 1 to 3 runs, up to **32 pieces** a layer (G) against 4. Measured: **876,310** in memory (M) against N-3's **64,234** (M, re-measured here, equal to the library's), **13.6 times**. Grouped pieces precomputed per class (fix loop 1): 193,584 to **268,428** (M, 3.0× to 4.2×, the latter on the class with the most pieces); none reaches 2× (E, §3.2). The classes were chosen by count; these are maxima among the classes measured. Tested against a direct construction on all 251 classes (M) |
 | 4. Reveal and generation | A 251-tile chunk generated with margins costs **0.97–1.15 M** (M) against the rectangle's **0.40–0.44 M** (M, SPK-7's generator on the same basis): **2.2 to 2.8 times**. No constant-stride layout holds the hexagon in a felt (307 bits at least, G), so it is generated on two half-boards and packed. Sight touches **up to 4 chunks**, so a move reveals up to 3 (G), as today. Corners stay wall, for a new reason |
 | 5. What it changes | ADR-0006, D-120's reasoning, ENG-01 §3.2/§3.5, the library's N-3 (rewritten), N-1/N-2 (a board type the library does not have), ENG-05, ENG-07, TOOL-01, CLI-02 and the client (§5) |
-| 6. Recommendation | **Keep the 15 × 15 rectangle.** Both reversal thresholds fail, now on measurements: the assembly at 13.6× N-3 (5.0× for a table that cannot ship), against about 2×; generation at 2.2–2.8×, against SPK-7's range. The hexagon's gains are 26 bits a felt, about 10 % fewer chunks, and `LIVE` for free |
+| 6. Recommendation | **Keep the 15 × 15 rectangle.** Both reversal thresholds fail, now on measurements: the assembly at 13.6× N-3 for the walk, 4.2× for grouped precomputed pieces on the class with the most of them (E: no class under 2× with any real fixed part), against about 2×; generation at 2.2–2.8×, against SPK-7's range. The hexagon's gains are 26 bits a felt, about 10 % fewer chunks, and `LIVE` for free |
 
 ## 1. The shape and its indexing (G, M)
 
@@ -111,16 +111,23 @@ most** a layer, against 4.
 ### 3.2 Measured (M)
 
 Every assembly returns what N-3's `window` returns: two layers, the ring of the terrain as wall, a
-`HexMap`. The rectangle is the library's own code on the library's own worst case (4 chunks,
-`ox = oy = 7`), re-measured in this package.
+`HexMap`. The rectangle is the library's own code on the case the library benchmarks as its worst
+(4 chunks, `ox = oy = 7`), re-measured in this package. **The hexagon's classes were chosen by
+count, not by gas** (fix loop 1, audit finding 2): the class with the most row runs (bit 25), a
+class with the most chunks (bit 185), the class with the most grouped pieces (bit 65). Branches and
+shifts differ between classes, so these are **the maxima among the classes measured**, not a
+proven maximum over all 251.
 
 | Assembly, both layers | L2 gas | Against N-3 | Test |
 |---|---:|---:|---|
 | **Rectangle, N-3** (`AssemblyTrait::window`) | **64,234** | 1 | `bench_rect_window_*` |
 | **Hexagon, the walk**, the class with the most pieces (origin bit 25: 32 runs, 4 chunks) | **876,310** | **13.6** | `bench_hex_window_*` |
 | Hexagon, the walk, a class with 6 chunks (bit 185: 28 runs) | 799,152 | 12.4 | `bench_hex_window_six_*` |
-| Hexagon, every piece precomputed for the class, bit 25 | 318,044 | 5.0 | `bench_table_window_*` |
-| Hexagon, every piece precomputed, bit 185 | 289,880 | 4.5 | `bench_table_window_six_*` |
+| Hexagon, every row run precomputed for the class, bit 25 (32 runs) | 318,044 | 5.0 | `bench_table_window_*` |
+| Hexagon, every row run precomputed, bit 185 (28 runs) | 289,880 | 4.5 | `bench_table_window_six_*` |
+| Hexagon, **grouped** pieces precomputed, bit 25 (17 pieces) | 193,584 | 3.0 | `bench_grouped_window_*` |
+| Hexagon, grouped, bit 185 (20 pieces, 6 chunks) | 223,362 | 3.5 | `bench_grouped_window_six_*` |
+| Hexagon, grouped, **bit 65, the most grouped pieces of all classes** (26) | **268,428** | **4.2** | `bench_grouped_window_most_*` |
 
 - **The walk** (`HexWindowTrait::window`) follows the window's left column up through the chunks,
   row by row: a bounded loop of 16 rows and at most 3 runs each. Per run:
@@ -130,12 +137,23 @@ Every assembly returns what N-3's `window` returns: two layers, the ring of the 
   - one field product by a power of two or its inverse.
 
   A first version, with 10 lookups a run, measured 1,024,170. The one above has about 6.
-- **The table variant** (`HexWindowTableTrait::window`) is the floor of the per-piece work: each
-  piece's slot, mask and shift precomputed, one lookup a piece. It is **not a design that
-  ships**: all 251 classes hold **7,824 pieces**, 39,120 felts of constants (G). As one constant
-  the compiler refuses it: "Type size computation failed … size overflow" on Scarb 2.19.4. It is
-  also 48 % of the 81,920-felt CASM limit (ENG-01 §1.3) before any code. Here it is generated for
-  the two benchmark classes only.
+- **The row-run table variant** (`HexWindowTableTrait::window` on `PIECES_<class>`) precomputes
+  each run's slot, mask and shift: one lookup a run. It is **not a floor** (fix loop 1, audit
+  finding 1: the first version of this note said it was). Its table was generated only for the
+  benchmark classes. All 251 classes hold **7,824 runs**, 39,120 felts of constants (G). The
+  monolithic table attempted does not compile ("Type size computation failed … size overflow",
+  Scarb 2.19.4), and it would be 48 % of the 81,920-felt CASM limit (ENG-01 §1.3) as data. That
+  says nothing about other table designs.
+- **Grouped pieces** (fix loop 1, the audit's grouping): runs of one chunk that move by the same
+  shift are joined into one piece, one mask. The same function runs on `GROUPED_<class>`,
+  generated by `gen_tables.py` and checked against the direct construction on the three classes
+  generated. Over all 251 classes (G, `gen_tables.py`):
+
+  | Grouped pieces | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | Classes | 2 | 30 | 22 | 22 | 12 | 56 | 48 | 10 | 23 | 13 | 4 | 2 |
+
+  That is 5,010 pieces over all classes; a table of them was not tried.
 - **Unit costs** (M, `test_micro`, per iteration):
 
   | Operation | L2 gas |
@@ -143,12 +161,35 @@ Every assembly returns what N-3's `window` returns: two layers, the ring of the 
   | A table lookup | 1,005–1,370 |
   | A loop iteration | 1,895 |
 
-  32 runs at about 6 lookups and 2 ANDs each account for the walk's figure. No trick removes the
-  runs themselves, only their bookkeeping.
+  32 runs at about 6 lookups and 2 ANDs each account for the walk's figure.
+- **The lower bound the grouping supports** (E, fix loop 1). The three grouped measurements lie
+  on a line: 8,316 a piece (bit 25 to bit 65: 74,844 for 9 more pieces), plus a fixed part of
+  about 52,212 (the chunks' limbs, the ring, the `HexMap`). Bit 185, predicted 218,532, measured
+  223,362, with two more chunks to convert.
+
+  | Case (E unless marked) | L2 gas | Against N-3 |
+  |---|---:|---:|
+  | The class with the fewest grouped pieces (15) | about 177,000 | 2.8 |
+  | Its per-piece work alone, no fixed part at all (15 × 8,316) | 124,740 | 1.94 |
+  | The class with the most grouped pieces (26), measured (M) | 268,428 | 4.2 |
+  | Its per-piece work alone (26 × 8,316) | 216,216 | 3.4 |
+
+  **No grouped variant meets the reversal threshold (about 2× N-3, 128,468).** The window is
+  assembled for whatever class the adventurer's position gives, so the threshold must hold for
+  the class with the most pieces: 4.2× measured there. Even its per-piece work alone, with no
+  fixed part, is 3.4×.
+
+  Only the best class's per-piece work, with a fixed part of zero, would come under 2× (1.94×).
+  N-3's own 64,234 includes such a fixed part, so that case is not a real assembly.
+
+  The grouping is the audit's, not a proven minimum. A design with fewer pieces than distinct
+  (chunk, shift) pairs would need something other than one mask and one product a piece, and none
+  was found.
 - **Correctness** (M): `test_window_matches_plain_*` builds the window tile by tile from the
   definition of the hexagon, for all 251 origin classes with random chunks in all 12 slots, both
-  layers, and compares it with the walk. On the two benchmark classes it compares the table
-  variant too. It also checks that `origin` puts an adventurer on an odd or an even row into the
+  layers, and compares it with the walk. On the classes whose tables are generated it compares
+  the row-run and the grouped table variants too. It also checks that `origin` puts an
+  adventurer on an odd or an even row into the
   right class. `test_window_void_chunks_are_wall` covers void chunks (D-134, D-136: `None`, no
   read).
 
@@ -202,9 +243,15 @@ Rectangle: SPK-7's `generate_chunk`, unchanged but for its library (`hexx` inste
 | Hexagon ÷ rectangle, drawn | 2.28 | 2.30 | 2.37 | 2.17 |
 | Hexagon ÷ rectangle, copied | 2.79 | 2.84 | 2.65 | 2.67 |
 
+- **Coverage** (fix loop 1, audit finding 2): one word (`'SECOND'`) per biome, with all sides
+  drawn and all sides copied. The flood's length depends on the generated connectivity, so other
+  words and side mixes cost other amounts. The figures are **the maxima among the fixtures
+  measured**, not a proven maximum.
 - **The rectangle re-measures inside SPK-7's 0.39–0.45 M** (C: SPK-7 §2.1, 390,352–447,462, on
-  another library and by baseline differences). Worst: 444,774 (ruin, drawn).
-- **The hexagon's worst is 1,146,507** (meadow, copied): **2.58 times** the rectangle's worst.
+  another library and by baseline differences). The most among the fixtures measured: 444,774
+  (ruin, drawn).
+- **The hexagon's most among the fixtures measured is 1,146,507** (meadow, copied): **2.58
+  times** the rectangle's. Fixture by fixture, the ratio is 2.17 to 2.84.
 - **Where the extra goes:**
   - two half-boards, so the automaton's two passes and the flood's layers are done twice, with a
     sync after each;
@@ -284,7 +331,7 @@ node (C).
 |---|---|---|
 | Tiles a felt | 225 (26 bits: edges, `LIVE`) | 251 (`LIVE` is a wall corner) |
 | Chunks for the same area | 1 | 0.896 (G) |
-| **Per tick: assembly in memory** | **64,234** (M) | **876,310** (M), 13.6×; floor 318,044 with a table that cannot ship |
+| **Per tick: assembly in memory** | **64,234** (M) | **876,310** (M), 13.6× for the walk; 268,428 (M), 4.2×, grouped pieces precomputed, class with the most pieces |
 | Per tick: chunks overlapped, slot reads | 2 or 4; 8 (ENG-01) | 3 to 6 (G); 12 |
 | Tile → chunk (`origin`) | 3,730 (M) | 56,910 (M) |
 | **Per reveal: generation a chunk** | **0.40–0.44 M** (M) | **0.97–1.15 M** (M), 2.2–2.8× |
@@ -305,7 +352,7 @@ on the edges and `LIVE` at no cost.
 
 | # | Threshold | Now |
 |---|---|---|
-| 1 | A hexagonal assembly within about **2× N-3's 64,234** | **Not met**: 13.6× measured for the walk; even the unshippable table is 5.0× |
+| 1 | A hexagonal assembly within about **2× N-3's 64,234** | **Not met**: 13.6× measured for the walk. Grouped precomputed pieces: 4.2× measured on the class with the most pieces; the grouping's bound (E, §3.2) stays above 2× for every class once any fixed part is counted |
 | 2 | A hexagonal generation within **SPK-7's 0.39–0.45 M** | **Not met**: 0.97–1.15 M measured |
 | 3 | A reason beyond cost: the look of hexagonal chunks, rounder exploration | The owner's to weigh; this study does not |
 | 4 | D-165's premise of 27 tiles at the widest | The real 19 changes nothing above, but it is why a window row crosses up to 3 chunks: the hexagon is wider than the window |
@@ -315,7 +362,7 @@ itself a lattice-aligned hexagon would take whole chunks. But the window follows
 (D-120), so its origin is almost never a lattice point, and that is not this study's board.
 
 **Measured against estimated:**
-- Measured here (M): the window's assembly, both variants, and `origin`; both generators; the
+- Measured here (M): the window's assembly (the walk, row runs precomputed, grouped pieces precomputed) and `origin`; both generators; the
   unit costs; the tests of the bijection, the window and generation.
 - Cited (C): SPK-7's figures and prices, ENG-01's slot prices.
 - Estimated (E):

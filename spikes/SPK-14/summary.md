@@ -16,6 +16,9 @@
 | `bench_generate_rect_meadow_open` | 435,136 | 435,136 |
 | `bench_generate_rect_ruin_copy` | 420,078 | 420,078 |
 | `bench_generate_rect_ruin_open` | 444,774 | 444,774 |
+| `bench_grouped_window` | 193,584 | 193,584 |
+| `bench_grouped_window_most` | 268,428 | 268,428 |
+| `bench_grouped_window_six` | 223,362 | 223,362 |
 | `bench_hex_origin` | 56,910 | 56,910 |
 | `bench_hex_window` | 876,310 | 876,310 |
 | `bench_hex_window_six` | 799,152 | 799,152 |

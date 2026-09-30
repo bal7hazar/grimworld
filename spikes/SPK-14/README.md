@@ -7,7 +7,7 @@ A Scarb package on the repository's toolchain (Scarb 2.19.4, snforge 0.61.0), wi
 | File | What |
 |---|---|
 | `src/hexchunk.cairo` | The 9-9-11 chunk: `index` (tile → bit), `tile` (bit → tile), `locate` (tile → chunk, lattice rounding) |
-| `src/window.cairo` | `HexWindowTrait::window`: the 15 × 16 window from up to 6 hexagonal chunks, a walk of row runs; `HexWindowTableTrait::window`: the same with every piece precomputed (the floor); `origin` |
+| `src/window.cairo` | `HexWindowTrait::window`: the 15 × 16 window from up to 6 hexagonal chunks, a walk of row runs; `HexWindowTableTrait::window`: the same with precomputed pieces, row runs (`PIECES_<class>`) or grouped (`GROUPED_<class>`, fix loop 1); `origin` |
 | `src/hexgen.cairo` | `HexChunkGenTrait::generate`: a hexagonal chunk's generation with margins, on two half-boards of stride 19, packed at the end |
 | `src/rect.cairo` | SPK-7's `generate_chunk` on `hexx`, the rectangle on the same basis |
 | `src/automaton.cairo`, `src/types.cairo` | SPK-7's rule, biomes and sides, shared |
