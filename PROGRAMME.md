@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-167 | `quiver_quest` 0.2.0 accepted by the owner; unit tests beside their code, every Cairo library | Owner |
 | D-166 | The flattening's bounds checked at registration (CBT-02c); CBT-02d's levers before ENG-07; the batch's weight from the proved worst tick | Project manager |
 | D-165 | SPK-14: hexagonal chunks of 251 tiles studied before ENG-05; the shape is the owner's decision on the report | Project manager |
 | D-164 | The compile drift: a gate with the two observed builds, exact; no red merge | Project manager |
@@ -93,7 +94,7 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 
 **At the pause**:
 0. The chunk shape, on SPK-14's report (D-165): hexagonal chunks of 251 tiles or the 15 × 15 rectangles.
-1. **The verdict on `quiver_quest` 0.2.0** (ARC-07a, `bal7hazar/quiver` at `24fb49e`: `packages/quest/src/store.cairo`, `models/`, `README.md`), including whether the action events (`QuestProgressed`, `QuestCompleted`, `QuestClaimed`, `QuestRetired`) become optional too. ARC-07b and ENG-R1 wait for it.
+1. ~~The verdict on `quiver_quest` 0.2.0~~ given (D-167); next: the mapping Arcade → quiver to read, then ENG-R1's first lot and ARC-07b.
 2. **D-152 confirmed**: the phone tests at the end, no Android for now (a text sent later said the contrary, the one of D-151; D-152 is kept).
 3. On SPK-12's report: whether ADR-0001 (L2 only) is reopened for client-side proving.
 4. An upstream issue on the compiler, when SPK-13 has a minimal case.

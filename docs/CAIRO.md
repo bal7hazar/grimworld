@@ -40,6 +40,7 @@ saves nothing measurable is not made.
 | Reports carry them | `REPORT.md` has a gas table: before, after, budget, for everything the lot touched |
 | Raising a budget | Needs a reason, written as `// gas: raised, <reason>` above the attribute (checked by `scripts/gas_budgets.py`) and in the pull request, and the orchestrator's agreement, given at review from the `raised` notes of the gas table. Lowering one needs nothing |
 | Oracles | An optimised algorithm is tested against a plain, obviously correct version kept in the tests (a scalar flood against the bit-parallel one) |
+| **Where a test lives** (owner, 2026-09-30, D-167) | The unit tests of a module are **in that module's file**, under `#[cfg(test)] mod tests`, so that whoever changes the code sees its tests. Only what needs a deployed contract or several packages (integration, an entrypoint's gas benchmark, a parity table) is in `tests/`. A test kept apart for a performance reason says so above it |
 
 ## 3. Order of preference
 
