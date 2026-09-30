@@ -467,3 +467,182 @@ pub impl SheetsImpl of SheetsTrait {
         self.skills[*kit.skills.span()[slot.into()]]
     }
 }
+
+/// The content's unit tests (CBT-02, CBT-02d; D-167): the sheets read from their records, the
+/// index and the kits.
+#[cfg(test)]
+mod tests {
+    use crate::content::Record;
+    use crate::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
+    use crate::models::index::{Caste, Item, Skill};
+    use crate::models::item::{ItemRecord, ItemTrait, class as item_class};
+    use crate::models::skill::{SkillRecord, SkillTrait};
+    use crate::types::combat::{skill_kind, weapon};
+    use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
+    use crate::types::world::fixtures::{Fixture, SMASH};
+    use super::{
+        ABSENT, CasteSheetTrait, Content, ContentTrait, IndexTrait, Kit, MISSING, PotionSheet,
+        PotionSheetTrait, SkillSheetTrait,
+    };
+
+    // The sheets read from a record's parts (only the fields the tick reads) agree with the sheets
+    // of the fully unpacked record, their oracle: a regeneration in entry 1 or 2, falling with rank
+    // or negative, none; a potion with and without one; a caste.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_sheets_read_oracle() {
+        let regen = EntryTrait::new(
+            kind::REGENERATION, 0, 2, 6, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        let skill = SkillTrait::new(
+            1,
+            1,
+            skill_kind::SPELL,
+            10,
+            0,
+            1,
+            12,
+            0,
+            target::SELF,
+            false,
+            [regen, Default::default(), Default::default()],
+        );
+        let caste = CasteTrait::new(
+            4,
+            1,
+            150,
+            10,
+            40,
+            [0; 9],
+            WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1),
+            10,
+            1,
+            [SMASH, 25, 26, 27],
+            12,
+            30,
+            0,
+            false,
+        );
+        let parts = Record::<Skill>::pack(@skill);
+        assert(SkillSheetTrait::read(5, parts) == SkillSheetTrait::new(5, @skill), 'skill');
+        let parts = Record::<Caste>::pack(@caste);
+        assert(CasteSheetTrait::read(1, parts) == CasteSheetTrait::new(1, @caste), 'caste');
+        let damage = EntryTrait::new(
+            kind::DAMAGE, 4, 10, 40, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        );
+        let decay = EntryTrait::new(
+            kind::REGENERATION, 0, 4, -10, 5, 5, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        );
+        let none: Entry = Default::default();
+        for entries in array![[damage, decay, none], [damage, none, none]] {
+            let skill = SkillTrait::new(
+                1, 1, skill_kind::HEX, 10, 0, 2, 20, 5, target::FOE, false, entries,
+            );
+            let parts = Record::<Skill>::pack(@skill);
+            let read = SkillSheetTrait::read(9, parts);
+            assert(read == SkillSheetTrait::new(9, @skill), 'skill entries');
+        }
+        let tonic = EntryTrait::new(
+            kind::REGENERATION,
+            0,
+            -3,
+            -3,
+            8,
+            8,
+            0,
+            target::SELF,
+            shape::SINGLE,
+            filter::ALLIES,
+            0,
+            0,
+        );
+        let bomb = EntryTrait::new(
+            kind::DAMAGE, 4, 30, 30, 0, 0, 0, target::TILE, shape::DISC_1, filter::FOES, 0, 0,
+        );
+        for entry in array![tonic, bomb] {
+            let item = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 3, 20);
+            let parts = Record::<Item>::pack(@item);
+            assert(PotionSheetTrait::read(7, parts) == PotionSheetTrait::new(7, @item), 'potion');
+        }
+    }
+
+    // CBT-02d: the index finds every record's position, of each kind apart (a skill, a caste and a
+    // potion may share an id); of two records with one id, the first, as a scan finds it.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_index_positions() {
+        let mut twin = Fixture::skill(3, skill_kind::SHOUT, 0, 1);
+        twin.recharge = 99;
+        let mut skills = array![];
+        for id in 1..9_u16 {
+            skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
+        }
+        skills.append(twin);
+        let content = Content {
+            skills: skills.span(),
+            potions: array![PotionSheet { id: 2, regen: 1 }, PotionSheet { id: 70000, regen: 2 }]
+                .span(),
+            castes: array![].span(),
+        };
+        let (sheets, mut index) = content.index();
+        assert(index.skill(1) == 0 && index.skill(8) == 7, 'skills');
+        assert(index.skill(3) == 2 && *sheets.skills[index.skill(3)].recharge == 10, 'the first');
+        assert(index.potion(2) == 0 && index.potion(70000) == 1, 'potions');
+        let content = Fixture::content();
+        let (_, mut index) = content.index();
+        assert(index.caste(1) == 0 && index.caste(2) == 1, 'castes');
+        assert(index.skill(24) == 8 && index.skill(31) == 15, 'caste skills');
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: skill not in content')]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_index_no_skill() {
+        let (_, mut index) = Fixture::content().index();
+        index.skill(9);
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: caste not in content')]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_index_no_caste() {
+        let (_, mut index) = Fixture::content().index();
+        index.caste(3);
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: potion not in content')]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_index_no_potion() {
+        let (_, mut index) = Fixture::content().index();
+        index.potion(100);
+    }
+
+    // CBT-02d: each caste's kit, derived once: its skills' positions (`ABSENT` for an empty slot,
+    // `MISSING` for one the content lacks) and its goblins' adrenaline cap, their highest cost in
+    // quarters, at most 252.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_kits() {
+        let mut costly = Fixture::skill(24, skill_kind::ATTACK, 3, 10);
+        costly.adrenaline = 5;
+        let mut heavy = Fixture::skill(30, skill_kind::ATTACK, 0, 0);
+        heavy.adrenaline = 63;
+        let mut hob = Fixture::caste(1, 1);
+        hob.skills = [25, 24, 0, 26];
+        let mut runt = Fixture::caste(2, 1);
+        runt.skills = [30, 99, 0, 0];
+        let content = Content {
+            skills: array![
+                Fixture::skill(26, skill_kind::SHOUT, 0, 20), costly,
+                Fixture::skill(25, skill_kind::SPELL, 2, 8), heavy,
+            ]
+                .span(),
+            potions: array![].span(),
+            castes: array![hob, runt].span(),
+        };
+        let sheets = content.sheets();
+        assert(*sheets.kits[0] == Kit { skills: [2, 1, ABSENT, 0], cap: 20 }, 'hob');
+        assert(*sheets.kits[1] == Kit { skills: [3, MISSING, ABSENT, ABSENT], cap: 252 }, 'runt');
+    }
+}

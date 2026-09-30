@@ -14,9 +14,7 @@ use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibrar
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
 use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, GoblinWords};
 use grimworld_logic::models::index::{Caste, Skill};
-use grimworld_logic::models::member::{
-    Member, MemberTickTrait, MemberTrait, MemberWords,
-};
+use grimworld_logic::models::member::{Member, MemberTickTrait, MemberTrait, MemberWords};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
@@ -1156,8 +1154,9 @@ fn test_cost_load_member_potions_fixture() {
     assert(words.state != 0 && sheets.skills.len() == 38, 'fixture');
 }
 
-// The audit's permutation (skills 40 and 42 exchanged: before CBT-02d every conclusion's lookup went
-// 2 further; through the kits' positions it costs the same) measured under the tick's upper bound.
+// The audit's permutation (skills 40 and 42 exchanged: before CBT-02d every conclusion's lookup
+// went 2 further; through the kits' positions it costs the same) measured under the tick's upper
+// bound.
 fn permuted(content: Content) -> Content {
     let mut skills = array![];
     for sheet in content.skills {

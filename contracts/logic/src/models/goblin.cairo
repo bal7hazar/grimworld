@@ -451,3 +451,175 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
         }
     }
 }
+
+/// A goblin's unit tests (CBT-02, CBT-02d; D-167): its load and store, its decoder, its lifecycle
+/// rules, its checks.
+#[cfg(test)]
+mod tests {
+    use crate::types::combat::{activation, condition, skill_kind};
+    use crate::types::tick::{CasteSheet, Content, ContentTrait, SkillSheet, ai};
+    use crate::types::world::fixtures::{Fixture, HOB, LIVE, RUNT, SMASH, activation_of, two};
+    use super::{
+        GoblinAssert, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait, GoblinWords,
+        GoblinWordsTrait,
+    };
+
+    // A goblin's derived fields: max health from the adventurer's formula times its caste's
+    // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank; its
+    // caste's position and cap, its kit's.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_load() {
+        let caste = CasteSheet {
+            id: 3,
+            health: 150,
+            health_regen: 12,
+            energy: 20,
+            energy_regen: 2,
+            weapon_ticks: 2,
+            skills: [SMASH, 0, 0, 0],
+        };
+        let mut smash = Fixture::skill(SMASH, skill_kind::SPELL, 0, 0);
+        smash.regen0 = 1;
+        smash.regen12 = 4;
+        smash.adrenaline = 5;
+        let content = Content {
+            skills: array![Fixture::skill(1, skill_kind::SPELL, 0, 0), smash].span(),
+            potions: array![].span(),
+            castes: array![Fixture::caste(HOB, 1), caste].span(),
+        };
+        // Level 20, caste 3; its effect is skill 24 at rank 8: 1 + 3 × 8 / 12 = 3.
+        let state = LIVE + 3 * two(64) + 20 * two(80);
+        let timers = LIVE + 255 + SMASH.into() * two(108) + 8 * two(246);
+        let goblin = Fixture::load_goblin(
+            GoblinWords { entity: 77, awake: false, state, timers }, @content,
+        );
+        assert(goblin.max_health == 720 && goblin.health_regen == 2, 'health');
+        assert(goblin.max_energy == 60 && goblin.energy_regen == 2, 'energy');
+        assert(goblin.effect_regen == 3 && !goblin.awake, 'effect');
+        assert(goblin.caste_at == 1 && goblin.adrenaline_cap == 20, 'its kit');
+    }
+
+    // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
+    // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_load_store() {
+        let content = Fixture::content();
+        // Caste 2, level 10.
+        let goblin = Fixture::goblin(9, RUNT);
+        let words = GoblinWords {
+            entity: 9, awake: true, state: goblin.state, timers: goblin.timers,
+        };
+        let loaded = Fixture::load_goblin(words, @content);
+        assert(loaded == goblin, 'goblin load');
+        let mut changed = loaded;
+        changed.health = 3;
+        changed.poison = 88;
+        changed.effect_deadline = 90;
+        changed.start(2, 8, 2, 70);
+        changed.set_recharge(3, 500);
+        let back = Fixture::load_goblin(changed.store(), @content);
+        assert(back.state == changed.store().state, 'goblin state');
+        assert(back.health == 3 && back.poison == 88 && back.effect_deadline == 90, 'fields');
+        assert(activation_of(@back) == (2, 8, 72) && back.recharge(3) == 500, 'goblin timers');
+    }
+
+    // A caste skill missing from the content is refused when a goblin of the caste loads.
+    #[test]
+    #[should_panic(expected: 'tick: skill not in content')]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_load_missing_skill() {
+        let content = Content {
+            skills: array![Fixture::skill(24, skill_kind::ATTACK, 3, 10)].span(),
+            potions: array![].span(),
+            castes: array![Fixture::caste(HOB, 1)].span(),
+        };
+        let goblin = Fixture::goblin(9, HOB);
+        let words = GoblinWords {
+            entity: 9, awake: true, state: goblin.state, timers: goblin.timers,
+        };
+        Fixture::load_goblin(words, @content);
+    }
+
+    // AUD-182-9: the words' decoder is the goblin's own (`GoblinTrait::hot`).
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_hot() {
+        let goblin = Fixture::goblin(8, RUNT);
+        let (state_ai, health, _, _, caste, slot, _, _, _, _, _, _, _, level, _, _) =
+            GoblinTrait::hot(
+            goblin.state, goblin.timers,
+        );
+        assert(state_ai == ai::ENGAGED && health == 100 && caste == RUNT, 'goblin');
+        assert(slot == activation::NONE && level == 10, 'goblin timers');
+    }
+
+    // AUD-182-6, conditions (§5.7, FX-6): a dead goblin takes nothing; Crippled lives in the
+    // words.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_conditions() {
+        let mut dead = Fixture::goblin(8, HOB);
+        dead.ai = ai::DEAD;
+        dead.inflict(condition::POISON, 10, 5);
+        assert(dead.poison == 0, 'a dead goblin takes nothing');
+        let mut goblin = Fixture::goblin(9, HOB);
+        goblin.inflict(condition::CRIPPLED, 10, 5);
+        goblin.inflict(condition::POISON, 10, 5);
+        assert(goblin.crippled() == 14 && goblin.poison == 14, 'goblin conditions');
+    }
+
+    // AUD-182-6, a goblin's one slot (FX-30, FX-13): refreshed by its carrier, replaced by another.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_hold() {
+        let sheets = Fixture::hold_content().sheets();
+        let mut goblin = Fixture::goblin(8, HOB);
+        goblin.hold(Fixture::held(11, false, 50, 3), 40, @sheets);
+        goblin.hold(Fixture::held(11, false, 45, 3), 40, @sheets);
+        assert(goblin.effect_of().deadline == 50, 'goblin keeps the later');
+        goblin.hold(Fixture::held(15, false, 44, 12), 40, @sheets);
+        let replaced = goblin.effect_of() == Fixture::held(15, false, 44, 12);
+        assert(replaced && goblin.effect_regen == 1, 'replaced');
+    }
+
+    // AUD-182-6, adrenaline (§5.12, FX-12): a goblin's gains capped at its caste's, at most 252;
+    // a dead goblin gains nothing.
+    #[test]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_adrenaline_gain() {
+        let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);
+        heavy.adrenaline = 63;
+        let skills: Array<SkillSheet> = array![
+            Fixture::skill(24, skill_kind::ATTACK, 1, 10), heavy,
+            Fixture::skill(26, skill_kind::SPELL, 1, 10),
+            Fixture::skill(27, skill_kind::SHOUT, 0, 10),
+        ];
+        let content = Content {
+            skills: skills.span(),
+            potions: array![].span(),
+            castes: array![Fixture::caste(HOB, 1)].span(),
+        };
+        // Caste 1, whose skill 25 costs 63 strikes: its cap is the field's 252.
+        let words = GoblinWords {
+            entity: 8, awake: true, state: Fixture::goblin(8, HOB).state, timers: LIVE + 255,
+        };
+        let mut goblin = Fixture::load_goblin(words, @content);
+        assert(goblin.adrenaline_cap == 252, 'goblin cap 252');
+        goblin.adrenaline = 250;
+        goblin.land_weapon_hit();
+        assert(goblin.adrenaline == 252, 'goblin capped');
+        goblin.ai = ai::DEAD;
+        goblin.adrenaline = 0;
+        goblin.take_hit();
+        assert(goblin.adrenaline == 0, 'dead: nothing');
+    }
+
+    #[test]
+    #[should_panic(expected: 'goblin: regeneration above i8')]
+    #[available_gas(l2_gas: 999999999)]
+    fn test_goblin_assert_pips() {
+        GoblinAssert::assert_pips(-129);
+    }
+}
