@@ -1,345 +1,150 @@
 # Operating procedures
 
-Binding for every session and agent working on Grim World. [CONTEXT.md](CONTEXT.md) says
-*what* we build and why, [PLAN.md](PLAN.md) *in which order*; this file says *how*.
+What is specific to Grim World, **added to the standard roles of Nexus** (the owner's transition
+of 2026-09-30, D-162). The standard holds the rest: the rules everyone inherits, the acts reserved
+for the owner, the rules of a session in Claude Desktop (titles, messages, deciding, check-ins,
+handover), and the roles of the Overseer, of the project manager, of the orchestrators and of the
+agents of tasks. This file never restates it; where it would contradict it, the standard wins.
 
-Conventions are those of the owner's other programmes (provable-physics stack), adapted to
-a single repository. What differs is said explicitly.
+[CONTEXT.md](CONTEXT.md) says *what* we build and why, [PLAN.md](PLAN.md) *in which order*; this
+file says *how, here*.
 
-## 1. Roles and the chain of command
+## 1. The project in the organisation
 
 ```
-owner (bal7hazar)
-  └─ project-manager session (Claude App, Fable/Opus)       owns the plan, status, decisions, arbitration
-       └─ orchestrator session(s) (Claude App, Opus or Fable, by the project manager's judgement)
-            │                                               own briefs, worktrees, reviews, merges
-            ├─ sub-agents: claude CLI (Opus 5.5 / Sonnet 5.5 / Fable 5.1, by difficulty) execution
-            └─ auditors:   codex CLI (gpt-6-astra, gpt-6-sol, gpt-6-luna, by kind of task)   audits, when needed
+owner
+  └─ Overseer
+       └─ project manager of grimworld                 PLAN, PROGRAMME, CONTEXT, the decision log
+            ├─ orchestrator of the game                bal7hazar/grimworld: contracts, client, content
+            ├─ orchestrator of the map library (LIB)   bal7hazar/hexx-cairo
+            ├─ orchestrator of quiver (ARC)            bal7hazar/quiver
+            └─ orchestrator of the client visual (CV)  bal7hazar/grimworld, on the owner's Mac
+                 └─ agents of tasks: implementers, auditors, reviewers
 ```
-
-- The **owner** decides on vision, scope, design decisions (`D-xx`), releases and
-  mainnet. Speaks French.
-- The **project manager** owns `PLAN.md`, `PROGRAMME.md`, `CONTEXT.md` and the decision log.
-  `STATUS.md` is the live state of the game track and is rewritten by the game
-  orchestrator; nobody else writes it.
-  It **creates the orchestrator sessions** in the Claude App and chooses their model
-  (Opus or Fable) according to the difficulty of what they will orchestrate. It gives
-  them their objectives, answers their questions, arbitrates, prepares the owner's
-  decisions and records the answers. It never implements. It **merges its own
-  pull requests** (documents it owns: plan, status, context, decisions, orchestrator
-  mandates) without asking the owner (owner's rule, 2026-09-28); it never merges a
-  task's pull request, which is the orchestrator's act. Orchestrator sessions are
-  created as session suggestions that the owner starts with one click.
-- An **orchestrator** answers to the project manager. It turns objectives into briefs,
-  launches and resumes sub-agents, reviews their reports and pull requests, orders audits,
-  merges. It **never implements anything large itself**.
-- A **sub-agent** owns one task, one worktree, one branch, one pull request, one
-  `REPORT.md`. It never merges and never touches a shared file: it escalates in its report
-  instead. A sub-agent that meets an ambiguity in the design stops and reports it; it does
-  not invent a rule.
-- **Separation of duties.** The agent that wrote something never audits it. Auditors
-  receive the deliverable and the specification, not the implementer's reasoning.
-
-Orchestrators planned:
-
-| Orchestrator | Repository | Owns |
-|---|---|---|
-| **Game** | This one | Contracts, client, content. Split later into several if tracks run in parallel with separate write sets |
-| **Hexmap** | The map library's | Track LIB of the plan: analysis of `hexx`, port, releases on scarbs.xyz |
-
-An orchestrator learns what another did from that other's repository (`main`, changelog,
-published versions). Needs flow through the project manager, never sideways.
-
-### Project manager and orchestrators
 
 | | |
 |---|---|
-| Creating an orchestrator | The project manager opens a session in the Claude App on the repository, with a first message that names the track, the objectives, the documents to read and the model policy |
-| Talking to it | Cross-session messages: first line = the subject; body = the path of a file in the repository and the decision or result expected. Anything longer than a few lines is a committed file, not a message |
-| Hearing from it | The repository is the interface: merged pull requests, `STATUS.md`, archived reports. A message back only when a decision is needed |
-| Silence is not agreement | The project manager checks the repository at its next check-in |
-| Titles | Session titles and every background task carry the model in brackets |
+| Documents the project manager owns | `PLAN.md`, `PROGRAMME.md`, `CONTEXT.md` (§6, the decision log), `docs/decisions/`, the orchestrators' mandates `docs/briefs/ORCH-*.md` |
+| The live state of a track | Its `STATUS.md` (the game: `STATUS.md`; track CV: `docs/status/client-visual.md`; the library and `quiver`: their own `STATUS.md`), dated, rewritten by its orchestrator at every check-in; nobody else writes it |
+| Decisions | `D-nn`, one file each in `docs/decisions/`, a row in CONTEXT §6. The owner decides vision, scope, design and releases; the project manager decides the rest by its own recommendation (D-128) and the owner reverses. `PENDING-*.md` holds a question for the owner or the project manager |
+| Cross-track needs | Through the project manager, never sideways: the game writes `docs/needs/hexmap.md` and `docs/needs/arcade.md`; a track answers by releases and a changelog |
+| The owner's other programmes | Not this project's: relay the owner's instructions only |
 
-## 2. Model and account policy
+An orchestrator never implements anything large itself. A sub-agent owns one task, one worktree,
+one branch, one pull request, one `REPORT.md`; it never merges and never touches a shared file: it
+escalates in its report. An agent that meets an ambiguity in the design stops and reports it; it
+does not invent a rule. **Separation of duties**: the agent that wrote something never audits or
+reviews it; auditors receive the deliverable and the specification, not the implementer's
+reasoning.
 
-| level | runs on | models |
+## 2. Models by kind of task
+
+| Kind of task | Model | Notes |
 |---|---|---|
-| project manager | Claude App session | Fable 5.1 or Opus 5.5 |
-| orchestrator | Claude App session, created by the project manager | **Opus 5.5 or Fable 5.1**, chosen by the project manager |
-| sub-agents (execution) | `claude -p …` launched by an orchestrator through the launcher (§4) | **Sonnet 5.5** (`claude-sonnet-5-5`, title `[Sonnet 5.5]`; it replaces Sonnet 5 for every new launch since 2026-09-28, verified on the VPS from the CLI itself; an agent already running or resumed keeps the model it started on until its task closes) for mechanical, well-framed tasks (seed data, bindings, scaffolding); **Opus 5.5** for design, game logic, algorithms, debugging; **Fable 5.1** for the hardest problems. The brief states the model and, for Fable, why |
-| audits and second opinions | `codex exec …`, **when needed** | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, chosen **by the kind of task** (table below); **never for implementation** |
+| Mechanical, well-framed implementation (seed data, bindings, scaffolding, tables) | **Sonnet 5.5** | The project's default implementer in Nexus |
+| Design, game logic, algorithms, debugging, contracts | **Opus 5.5** | |
+| The hardest problems | **Fable 5.1** | The brief says why |
+| Security of what holds or moves value; randomness; access control | `[GPT-6-Astra]`, high or xhigh | Codex, always |
+| Determinism and parity; cost of an algorithm; a contested design decision | `[GPT-6-Astra]`, high | Codex |
+| Routine review of a lot; code quality; the organisation lens (CAIRO.md §8); the launcher | `[GPT-6-Sol]`, medium or high | Codex |
+| Content validation; consistency of documents | `[GPT-6-Luna]`, medium | Codex |
+| Design conformance | Opus 5.5 | `claude`, fresh context, a different agent from the implementer |
+| The review of every pull request before its merge | Codex, the project's reviewer | `nexus review` (§6) |
 
-### Models, as verified
+The project's registry in Nexus (`projects/grimworld.json` of `bal7hazar/nexus`) names the provider
+and the model of each role and lens; this table agrees with it, and the registry is changed first
+when the table must change. An orchestrator session runs on Opus 5.5 or Fable 5.1, chosen by the
+project manager for the difficulty of the track.
 
-Verified on 2026-09-28 on the owner's Mac, from the CLIs themselves (`codex-cli` 0.156.1,
-its model list fetched that day; `claude` 2.1.281). **To verify again on the VPS before
-the first launch**: a model list belongs to an account and a date.
+Model ids for the `claude` CLI: `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1` (or the
+aliases `opus`, `sonnet`, `fable`). An agent already running keeps the model it started on until its
+task closes; the model that ran is read from the log or from `nexus status`, never assumed.
 
-| CLI | Model id | Described by the CLI as | Reasoning levels |
-|---|---|---|---|
-| codex | `gpt-6-astra` | Frontier intelligence for the most demanding work | low … ultra |
-| codex | `gpt-6-sol` | Workhorse model for coding and everyday work | low … ultra |
-| codex | `gpt-6-luna` | Fast and affordable model for easier tasks | low … max |
-| codex | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | Older models | — |
-| codex | `gpt-5.5` | Legacy | low … xhigh |
-| claude | `fable`, `opus`, `sonnet` (aliases), or a full name | — | — |
+## 3. The machines and the budgets
 
-| Kind of audit | Model | Reasoning |
+Implementation runs on the VPS (8 vCPU, 31 GB, shared with the owner's other projects) and, for what
+needs a browser or the Mac, on the owner's Mac (12 cores, 64 GB). Nexus reads both
+(`nexus resources`, `nexus accounts`).
+
+| | VPS | Mac |
 |---|---|---|
-| Security of what holds or moves value; randomness; access control | `gpt-6-astra` | high or xhigh |
-| Determinism and parity; cost of an algorithm; a contested design decision | `gpt-6-astra` | high |
-| Routine review of a merged lot; code quality | `gpt-6-sol` | medium or high |
-| Content validation, consistency of documents | `gpt-6-luna` | medium |
+| Grim World agents at a time, audits and reviews included | **3** (D-118), whichever launcher started them | **5** (owner, 2026-09-29) |
+| Caps per track, inside the total | game 2, map library 1, `quiver` 1: the caps add to 4, **the game comes first** through `~/orchestrator/waiting/game` (touched by the game orchestrator while it has launches ready and fewer than 2 running; the other tracks launch nothing while it is under 30 minutes old) | track CV and the tasks lent to it (D-149) |
+| Load thresholds before a launch | no new agent while the 5-minute load is above 12 (1.5 × the cores) or available memory is under 8 GB | the same at 18 and 8 GB |
+| Heavy builds | one at a time: `scripts/lock.sh` takes `/tmp/grimworld-build.lock` then the machine-wide `~/orchestrator/heavy-build.lock`; `scarb` and `snforge` on PATH are the machine's shims, which take the latter by themselves | Nexus's `--class heavy`, one per machine |
+| Accounts | agents on **claude-b7r** (`claude auth status` before a launcher's first launch); Nexus chooses the account of what it starts | the app's configuration stays the owner's; agents on `~/.claude-b7r` (`CLAUDE_CONFIG_DIR`) |
 
-Launch form: `codex exec -m <model> -c model_reasoning_effort=<level> -s read-only "<prompt pointing at the brief>"`.
-An auditor never needs to write in the repository: its report is its answer, saved by the
-launcher.
+A running agent is never stopped for load. The budget was measured by FND-03 (memory does not bind;
+CPU and the shared heavy lock do) and is measured again when the contracts' test build passes 6 GB
+or when a phase runs client and contract agents together. Nexus and the project's launcher do not
+count each other's agents: before any launch, read `nexus resources` and `scripts/agent.sh slots`.
 
-Title prefixes use the display name: `[GPT-6-Astra]`, `[GPT-6-Sol]`, `[GPT-6-Luna]`.
+## 4. Starting the agents of a task
 
-When an audit by codex is needed:
+**Which launcher.** Until this file names `nexus` for a track, the implementers of the VPS tracks
+(game, LIB, ARC) are started by the project's launcher, `scripts/agent.sh` (copied in the library
+and in `quiver`, synced from the commit the CHANGELOG marks as "launcher reference"). **Reviews,
+audits and every agent of track CV go through `nexus`** (`nexus review`, `nexus audit`,
+`nexus run --require browser`; skill `nexus-agents`). Never the same task by both.
 
-| Always | When the orchestrator judges it useful | Not needed |
-|---|---|---|
-| Anything that holds or moves value: trade, auction house, inventory settlement | A contested design or numeric decision | Documentation |
-| Randomness and its providers | An algorithm whose gas figure looks too good or too bad | Seed data, once validated by the content suite |
-| Access control and ownership | A lot that went through three fix loops | Interface work |
-| Chunk reveal and the simulation window (determinism, cost) | | |
+The contract is the standard's: a committed brief in `docs/briefs/<ID>-<slug>.md` with
+[docs/briefs/COMMON.md](docs/briefs/COMMON.md) for the rules every brief inherits, a fresh worktree on
+a branch cut from `origin/main`, a log, a `REPORT.md` at the worktree root, a pull request opened by
+the agent with its checks green, never merged by the agent, resumed and never relaunched. Task ids and
+briefs follow the [brief template](docs/briefs/COMMON.md) (agent title with its model, goal, context,
+scope with its **allowlist**, interfaces, acceptance criteria, verification, report).
 
-- **Never use the in-session Agent tool for implementation work**: it burns the session's
-  own quota. Short read-only research through the Agent tool is fine.
-- Model ids for the `claude` CLI: `--model claude-opus-5-5`, `--model sonnet`,
-  `--model claude-fable-5-1`, or the aliases `opus`, `sonnet`, `fable`.
-- The `claude` CLI must be logged in as **claude-b7r** on whichever machine runs the
-  agents, so that sub-agents do not spend the session's quota: check with
-  `claude auth status` before the first launch, and stop if it shows another account.
-  On 2026-09-28 the CLI of the owner's Mac was logged in as **bal7hazar**, not claude-b7r:
-  no sub-agent is to be launched from that machine until this is changed.
-
-### Task titles carry the model (owner's rule)
-
-Every background task, monitor or agent launch is described with **the model actually
-used as a prefix, in square brackets**:
-
-```
-[Opus 5.5] ENG-05 room generator
-[Sonnet 5] CNT-01 seed data
-[GPT-6-Astra] Audit ENG-07 security
-[Fable 5.1] Wait until ENG-05's CI is green        (a task not tied to an agent carries the session's model)
-```
-
-The same prefix is used in launcher log lines, in the header of `REPORT.md` and in the
-audit verdicts listed in the pull request, so that any result can be traced to the model
-that produced it. The tag is never omitted and never guessed.
-
-## 3. The machine: what every launch must respect
-
-> **Scope of the launcher** (project manager, 2026-09-29): `scripts/agent.sh` protects against
-> **accidental** over-launch (two orchestrators racing, a miscount, a stale record, a crash) and fails
-> closed when it cannot tell. It does **not** protect against a process of the same Unix user that
-> acts on purpose (such a process can already start work outside any launcher). A finding that needs
-> a deliberate act by that user is a **note**, not a blocker or a major. Every audit of the launcher
-> is briefed with this scope.
-
-Ideation happened on the owner's Mac. **Implementation runs on the VPS**: a new
-project-manager session (account bal7hazar) is bootstrapped with
-[docs/briefs/PM-vps-bootstrap.md](docs/briefs/PM-vps-bootstrap.md) and creates the first
-orchestrator. Task FND-03 ported the launcher (`scripts/agent.sh`) and the build locks
-(`scripts/lock.sh`) of the owner's other programmes. The rules:
-
-- **Agents do not run as children of the session.** A restart of the desktop app must not
-  kill them (transient systemd user units on Linux; an equivalent detached launch on
-  macOS). One exception on this VPS: **codex auditors** are detached with `setsid` inside
-  the desktop app's cgroup, because their read-only sandbox (bubblewrap) needs an
-  unprivileged user namespace, which the kernel refuses to systemd user units
-  (`kernel.apparmor_restrict_unprivileged_userns=1`) and allows to the app's processes. An
-  app restart kills a running audit, which is then resumed. Running codex without its
-  sandbox is not an option.
-- **Foreground only.** A headless agent dies when its turn ends with a background command:
-  every launch prompt says "foreground only; your turn ends when `REPORT.md` is written".
-  Sonnet needs it repeated in the prompt itself; expect to resume a Sonnet agent once.
-- **Never relaunch from scratch** an interrupted agent (out of memory, 529, rate limit, end
-  of turn): resume it with its context (`claude --continue -p "<follow-up>"` in the same
-  worktree, or `codex exec resume <session-id>`); uncommitted work is in the worktree.
-- **Local checks are package-scoped; the pull-request CI is the full gate.** Agents run
-  the tests of what they touched, push early and fix from CI. They never run the whole
-  workspace locally.
-- **Concurrency budget**: **3 Grim World agents at a time**, beside the agents of the
-  owner's other programmes on the same machine (about 6 machine-wide). Before launching:
-  `systemctl --user list-units --type=service --state=running`, `free -g`, `uptime`.
-  **Split between the three tracks** (project manager, 2026-09-28, revised the same day
-  after the game was left without an agent): the total of 3 holds whatever the track, audits
-  by codex included.
-
-  | Track | Cap | |
-  |---|---|---|
-  | Game | 2 | It is on the path to every gate of the plan |
-  | Map library | 1 | |
-  | `quiver` | 1 | |
-
-  The caps add up to 4 and the total is 3: **the game comes first**. When the game has
-  launches ready and fewer than 2 agents running, its orchestrator keeps the file
-  `~/orchestrator/waiting/game` present (touched again at each check-in, removed when it has
-  2 agents running or nothing ready). The library and `quiver` launch nothing new while that
-  file exists and is less than 30 minutes old. An agent that runs is never stopped to free
-  a slot. A launcher enforces its track's cap and the marker from the reference that follows
-  this rule; until then the orchestrators apply them by hand before each launch.
-  **Thresholds** (project manager, 2026-09-28): no new agent while the 5-minute load
-  average is above 12 (1.5 × the 8 cores) or available memory is under 8 GB; wait and
-  check again. A running agent is never stopped for load. `scripts/agent.sh` enforces
-  both thresholds, fixed in the script, and the budget **as slots**: files in
-  `~/orchestrator/slots/`, `total-1`…`total-3` for the budget of 3 and `game-1`, `game-2`,
-  `lib-1`, `quiver-1` for the caps per track (game 2, map library 1, quiver 1). A launch or resume
-  takes one free total slot and one free slot of its own track (`TRACK` in the launcher), or
-  refuses (exit 4, before any worktree is created). The agent's inner shell takes the two locks itself
-  (`flock -w 5` each, on descriptors its children inherit, then `slots-acquired` in its run file
-  `logs/<task>.run`, apart from the agent's output, which the launcher waits for, stopping the agent if it never comes), so the kernel frees them when that shell and
-  the CLI it waits for have ended, however they end: nothing is counted by reading processes, pid
-  files or units. A process a CLI leaves behind after it exits, having closed those descriptors, is
-  not counted (COMMON forbids leaving processes). The slot directory is read-only (mode 555) and a
-  slot file is never created by a probe: a slot cannot be removed or replaced by a new file while it
-  is held (a lock protects a file, not its name); `scripts/agent.sh slots-init` creates missing slot
-  files only, under the launch lock and only while every slot is free, and is needed once on a new
-  machine (a missing slot directory refuses). Any slot of a list that cannot be read or locked
-  refuses the launch, even if another is free. **Residual**: the directory and its files belong to
-  the Unix user the agents run as, so a deliberate `chmod` by that user can still expose the names;
-  only another owner (root) would close it, which is the owner's (same class as §4's accepted
-  residual). The
-  launcher waits until the agent holds its slots before it returns, under the shared launch lock
-  `~/orchestrator/agent-launch.lock`, so two launchers cannot take the same slot; **the launchers
-  of the map library and of `quiver` are copies of this one** (their own `TRACK`, the same slots
-  and lock), synced from the commit the CHANGELOG marks as "launcher reference". On the other
-  tracks, the game's waiting marker (`~/orchestrator/waiting/game`, less than 30 minutes old)
-  refuses a launch. `scripts/agent.sh thresholds` tells whether a launch may proceed now, and
-  `scripts/agent.sh slots` (or `status`) who holds each slot; the name written in a slot file is
-  for display only.
-  The `implement` profile denies the direct agent-launch commands (the launcher, `claude`,
-  `codex`, `systemd-run`); as for every rule of a profile (§4), code an agent runs could
-  still start one.
-- **The machine is shared** with the owner's other programmes. A session or an agent
-  **deletes and kills only what it created, named exactly**: a path it made itself
-  (`mktemp -d` under its own scratchpad or worktree, never directly under `/tmp`), a process
-  whose pid it recorded, a unit it started. Never a wildcard outside its own directory
-  (`rm -rf /tmp/tmp.*`), never a kill by pattern (`pkill -f`, `killall`), never a
-  `git clean` or a `git worktree prune` in another track's checkout. Incident of 2026-09-29,
-  00:02 UTC: a test cleanup of the game orchestrator ran `rm -rf /tmp/tmp.*`; no damage was
-  found in the agents running then, and none can be excluded for the other programmes.
-- **Heavy builds are serialised** through two locks, taken in this order by
-  `scripts/lock.sh`: the project lock `/tmp/grimworld-build.lock` (one heavy Grim World
-  command at a time), then the machine-wide `~/orchestrator/heavy-build.lock` shared with the
-  owner's other programmes. `scarb` and `snforge` on PATH are the machine's shims
-  (`~/.local/bin`), which take the machine-wide lock by themselves; `lock.sh` takes it for
-  `sozo` builds and for `--heavy` runs.
-
-**Concurrency, measured (FND-03, 2026-09-28).** The VPS has 8 vCPU and 31 GB of memory with
-8 GB of swap; the user slice where every agent runs is capped at 24 GB (`MemoryMax`, 22 GB
-`MemoryHigh`) and 600 % CPU, and the launcher caps each agent unit at 20 GB. A `claude` agent
-process holds about 0.3 GB. SPK-5 has not landed, so the build measured is an empty Dojo
-project (Dojo 1.8.0, one model, one system, scarb 2.19.4): `scarb build` peaks at **1.4 GB**
-resident and compiles in 11 s. Load was 2.4 to 7 with four or five agents of the other
-programmes running. Three Grim World agents therefore cost about 1 GB plus one build at a
-time, since builds are serialised: memory does not bind. CPU and the shared heavy lock do,
-and they are shared with the other programmes, whose Cairo test builds peak at 13 to 19 GB.
-**The budget stays at 3**, to be measured again when the contracts' test build passes 6 GB
-or when a phase runs client and contract agents together.
-
-## 4. Launching, monitoring and closing a sub-agent
-
-The contract, identical to the owner's other repositories: a **committed brief** in
-`docs/briefs/`, a **fresh worktree** on a branch cut from `origin/main`, a **log file**, a
-**`REPORT.md`** at the worktree root, a **pull request opened by the agent with CI green**,
-never merged by the agent.
+**The launcher** (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher by FND-03):
 
 | step | how |
 |---|---|
-| brief | `docs/briefs/<ID>-<slug>.md`, with `docs/briefs/COMMON.md` for the rules shared by all briefs |
-| worktree | `git worktree add --no-track .claude/worktrees/cli-<task> -b <branch> origin/main`, or `--branch <branch>` at launch |
 | launch | `scripts/agent.sh [--with-assets] [--branch <branch>] <task> <claude\|codex> <model> new "Read docs/briefs/<ID>-<slug>.md and docs/briefs/COMMON.md, then execute the task." <profile>` |
-| status | `scripts/agent.sh status`; log `.claude/worktrees/logs/<task>.log`, each run ending with `exit=<status>` |
-| wait | `scripts/agent.sh wait <task>`, as a background command titled with the model |
-| resume | `scripts/agent.sh <task> claude <model> resume "<follow-up>"` (same profile as the launch); codex: `scripts/agent.sh <task> codex <model> resume "<follow-up>" audit "$(scripts/agent.sh sid <task>)"` |
-| close | read `REPORT.md` and the log; review the pull request (scope = allowlist, deviations, cost table); run the required audits (§6); `gh pr merge --squash` (no `--delete-branch`); archive the report in `docs/reports/`; `git worktree remove --force`; delete the branch; update `PLAN.md`, `STATUS.md` and the changelog on `main` |
+| status, slots | `scripts/agent.sh status`, `scripts/agent.sh slots`; log `.claude/worktrees/logs/<task>.log`, each run ending with `exit=<status>` |
+| wait | `scripts/agent.sh wait <task>`, a background command titled with the agent's model, one per agent |
+| resume | `scripts/agent.sh <task> claude <model> resume "<follow-up>"`; codex: `… resume "<follow-up>" audit "$(scripts/agent.sh sid <task>)"` |
+| close | read `REPORT.md` and the log; review the pull request; the audits of §6 and the Codex review; merge (§7); archive the report in `docs/reports/`; `git worktree remove --force`; delete the branch; update `PLAN.md`, `STATUS.md`, the changelog |
 
-The launcher (`scripts/agent.sh`, ported from the owner's `glam-cairo` launcher) starts each
-`claude` agent as a transient systemd user unit `grimworld-<task>-<hhmmss>` whose description
-carries the model tag (`[Sonnet 5] SPK-5 new (implement)`), outside the session's cgroup, with
-no fallback: without a systemd user manager the agents cannot be counted and nothing is launched; `codex` is always detached with `setsid` (§3). It maps the model to its tag and refuses a model it has no tag for.
-It appends the foreground rule to every prompt. `--dry-run` prints the command and launches
-nothing. `--with-assets` initialises the `assets` submodule in the task's worktree; by default
-it is not initialised.
+- Each `claude` agent is a transient systemd user unit `grimworld-<task>-<hhmmss>` outside the
+  session's cgroup, its description carrying the model tag; **without a systemd user manager nothing
+  is launched**. If a launch fails with "no systemd user manager" while the manager runs, the
+  session's bus lost it: `export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus` at the top
+  of the launch queue. `codex` auditors are detached with `setsid` inside the app's cgroup (their
+  sandbox needs an unprivileged user namespace the kernel refuses to user units); an app restart kills
+  a running audit, which is then resumed.
+- **Foreground only**: a headless agent dies when its turn ends with a background command; every
+  prompt says so (Sonnet needs it repeated; expect to resume a Sonnet agent once).
+- **Local checks are package-scoped; the pull-request CI is the full gate.** Agents never run the
+  whole workspace locally.
+- The budget is held **as slots**: files in `~/orchestrator/slots/` (`total-1`…`total-3`, `game-1`,
+  `game-2`, `lib-1`, `quiver-1`), locked by the agent's own shell (`flock`), freed by the kernel when it
+  ends; the directory is read-only and `scripts/agent.sh slots-init` creates missing slot files once on
+  a new machine. A launch waits until the agent holds its slots, under `~/orchestrator/agent-launch.lock`.
+- `--with-assets` initialises the `assets` submodule in the task's worktree; by default it is not.
+- **Profiles**, committed in `scripts/profiles/<profile>.txt`, passed as `--permission-mode acceptEdits
+  --allowedTools … --disallowedTools …`; `--dangerously-skip-permissions` is never used. They are
+  guard-rails against mistakes, not a sandbox: an interpreter or a project script an agent runs can do
+  what the user can. What holds whatever an agent runs: no secret in the agent's environment (the
+  launcher empties the Sepolia account and the registry token unless §7 grants them), the CI checks,
+  the protection of `main` when it comes (D-121: not for now).
 
-A launch with `--dangerously-skip-permissions` is not used. Profiles grant an explicit tool
-allowlist, committed in `scripts/profiles/<profile>.txt` and passed as
-`--permission-mode acceptEdits --allowedTools … --disallowedTools …`. What this gives, as
-tested on 2026-09-28: every profile may edit files and run common file commands (`mkdir`,
-`touch`) **inside its own worktree**, which is disposable; a write outside it is refused; a
-command matching a deny rule is refused; any other command not allowed (`python3`, `curl`,
-`node`, `git commit` in `research`) is refused, since nobody is there to approve it.
+  | Profile | Grants | For |
+  |---|---|---|
+  | `research` | Read, search, the web, read-only shell, `gh pr view`; writes in the worktree | Spikes that only read and report |
+  | `audit` | `research`, plus builds and tests through `scripts/lock.sh` | Auditors that reproduce a finding or a figure |
+  | `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `pnpm`, `asdf install`), `scripts/`, `tools/`, `spikes/`, Rust builds with the installed toolchains, `sncast` against the local node only, `starknet-devnet`, `git`, `git push -u origin HEAD`, `gh pr create`. Denied as commands: rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree, the launcher, `claude`, `codex`, `systemd-run`, `scarb publish` | Implementation tasks |
 
-The profiles are **guard-rails against mistakes, not a sandbox**. Denied actions are refused
-when typed as commands, but an interpreter, a test or a project script that a profile allows
-can do anything the user can. What holds whatever an agent runs is elsewhere: no secret in
-the agent's environment (units get the user manager's environment, the detached codex a
-whitelist; the session's own variables never reach an agent), the CI checks (asset files,
-the `assets` pointer), and the protection of `main` on GitHub. **Residual, accepted**: the
-agent runs as the same Unix user, so the credential files of that user (`gh`, `codex`,
-`claude`, the Scarb registry) are readable by code it runs; test networks only and nothing of
-value in the MVP keep that exposure small. **The Scarb registry token** is defined in
-the user-level Claude settings: every claude agent runs with it emptied (the launcher's
-`--settings` override), and the profiles deny the typed forms (reading `~/.claude`, printing
-the variable, listing the environment, `scarb publish`); an interpreter an agent runs (`python3`,
-`node`) could still read the settings file and publish. Closing that needs the credential out
-of the agents' reach at the level of the operating system (another Unix user for agents, or
-the token kept outside the files of this user): the owner's decision.
+  Codex runs only with `audit`, in its `read-only` sandbox; its report is saved in
+  `.claude/worktrees/logs/<task>.last.md`.
 
-| Profile | Grants | For |
-|---|---|---|
-| `research` | Read, search, the web, read-only shell and `gh pr view`; writes in the worktree | Spikes that only read and report |
-| `audit` | `research`, plus builds and tests through `scripts/lock.sh` | Auditors that reproduce a finding or a gas figure |
-| `implement` | `audit`, plus the toolchain (`scarb`, `snforge`, `sozo`, `katana`, `torii`, `pnpm`, `asdf install`), the project's `scripts/`, `tools/` and `spikes/`, Rust builds with the toolchains already installed (`cargo build/test/run`, `cargo install --root spikes/…`; no `rustup` change, no absolute (quoted or not), home or parent path, no `--config` or `--target-dir`; cargo's shared download caches are written), `sncast` against the local node only (an explicit local `--url`; accepted residual: a second `--url` or a configuration file can change the endpoint, and no funded key for a public network is in the agent's environment), `starknet-devnet`, file commands, `git`, pushing as `git push -u origin HEAD` or `git push` only, and `gh pr create`. Denied as commands: rebase, `--no-verify`, `gh pr merge`, `git submodule`, `git add assets`, the stash, `git config`, global toolchain changes, deletion outside the worktree | Implementation tasks |
-
-Codex runs only with `audit`, in its `read-only` sandbox; its last message, the audit
-report, is saved in `.claude/worktrees/logs/<task>.last.md`.
-
-### Brief template
-
-```markdown
-# <TASK-ID> — <title>
-
-## Agent
-Title: `[<Model>] <TASK-ID> <short description>` · Profile: research | implement | audit
-
-## Goal
-One paragraph: what exists after this task that did not exist before.
-
-## Context
-- Design references: docs/design/<file>#<section>
-- ADRs: …
-- Depends on: <TASK-IDs already merged>
-
-## Scope
-- In: …
-- Out: … (name the tempting adjacent work that is not part of this task)
-- Allowlist: the files and folders this task may write. Anything else is an escalation.
-
-## Interfaces
-Models, entrypoints, events or components this task creates or changes, with signatures.
-
-## Acceptance criteria
-- [ ] AC-1 … (observable and testable)
-
-## Verification
-Exact commands to run and what they must show.
-
-## Report
-`REPORT.md`: summary, files changed, commands run with their real output, cost table,
-deviations from the brief, escalations, open questions.
-```
-
-`COMMON.md` carries what every brief inherits: foreground only, package-scoped checks,
-conventional commits, the multiplayer constraints M-1…M-6, the determinism rules, the two
-domains (persistent / ephemeral), the glossary, and for every Cairo task the engineering
-rules of [docs/CAIRO.md](docs/CAIRO.md).
+- **The launcher is frozen** (project manager, 2026-09-29) until the gate of Phase 0 (FND-07): it
+  changes only for a finding that lets an agent over-launch, publish, spend or read a secret, or a task
+  that cannot run without it. Its scope: it guards against **accidental** over-launch and fails closed;
+  it does not guard against a deliberate act of the same Unix user (a finding that needs one is a note).
+  Every audit of the launcher is briefed with this scope; its passing `[GPT-6-Sol]` audit marks the
+  commit "launcher reference" in the CHANGELOG.
+- **Residuals accepted by the owner**: the agents run as the same Unix user, so its credential files
+  (`gh`, `codex`, `claude`, the Scarb registry token in `~/.claude/settings.json`, mode 600) are
+  readable by code an agent runs; test networks only and nothing of value in the MVP keep it small.
 
 ## 5. Sources of truth
 
@@ -347,19 +152,21 @@ rules of [docs/CAIRO.md](docs/CAIRO.md).
 |---|---|---|
 | Game rules | `docs/design/*` | The code is wrong, or a design change is proposed first |
 | Technical decisions | `docs/architecture/ADR-*` | Same |
-| Decisions and their history | `docs/decisions/` (one file per decision; `PENDING-*.md` for the owner's open questions), indexed in `CONTEXT.md` | — |
+| Decisions and their history | `docs/decisions/`, indexed in `CONTEXT.md` §6 | — |
 | Scope, order | `PLAN.md` | — |
-| Live state of a track | The track's `STATUS.md`, dated, rewritten by its orchestrator at every check-in | — |
-| State of the programme | `PROGRAMME.md`, by the project manager: tracks, decisions, what waits for the owner | — |
+| Live state of a track | Its `STATUS.md` | — |
+| State of the programme | `PROGRAMME.md` | — |
 | Research | `docs/research/` | — |
 | Numbers (balance) | Registries' seed data | Design docs give initial values; seed data wins once it exists |
-| Cairo engineering rules | [docs/CAIRO.md](docs/CAIRO.md) | The code is wrong |
-| Cost budgets | `docs/BUDGETS.md` (from Phase 0), fed by the gas figures of the tests | A lot exceeding a budget does not merge without an owner decision |
+| Cairo engineering rules, the organisation of Cairo code (D-143) | [docs/CAIRO.md](docs/CAIRO.md) | The code is wrong |
+| Cost budgets | [docs/architecture/cost-budget.md](docs/architecture/cost-budget.md), `docs/BUDGETS.md` from the gas figures of the tests; the expedition's running estimate in `STATUS.md` (D-158) | A lot exceeding a budget does not merge without a decision (D-144: the orchestrator up to +10 %, the project manager beyond or on the expedition's path) |
 
-**Design changes are made in the document first**, in the same pull request as the code
-that needs them.
+**Design changes are made in the document first**, in the same pull request as the code that needs
+them. **Game results are API**: a change that alters the outcome of any action for the same state
+and input moves the shared test vectors, is announced in the changelog, and the client simulation is
+updated in the same lot.
 
-## 6. Audits
+## 6. Audits and the review
 
 ### Required lenses per task type
 
@@ -369,29 +176,35 @@ that needs them.
 | Contract: registry / seed data | ● | | | | ● | ● |
 | Client: simulation (mirrors chain logic) | ● | | ● | | ● | |
 | Client: interface | ● | | | | ● | |
-| Tooling / CI | | ● | | | ● | |
+| Tooling / CI, the launcher | | ● | | | ● | |
 | Documentation / design | ● | | | | | |
-
-### Lenses
+| Every Cairo lot since D-143 | + the **organisation lens** (docs/CAIRO.md §8) | | | | | |
 
 | Lens | Question | Key checks |
 |---|---|---|
 | **Design conformance** | Does it implement the documented rules, all of them and only them? | Every rule maps to code and to a test; no undocumented behaviour; M-1…M-6; two domains |
-| **Security** | Can a player gain something the rules do not allow? | Access control; ownership; state machine cannot be skipped (act in a hub, loot twice, act in a closed instance); overflow; randomness cannot be predicted, replayed or re-rolled; registry permissions |
+| **Security** | Can a player gain something the rules do not allow? | Access control; ownership; state machine cannot be skipped; overflow; randomness cannot be predicted, replayed or re-rolled; registry permissions |
 | **Determinism & parity** | Do chain and client compute the same result? | No block data inside an instance; fixed iteration and tie-break orders; shared vectors pass on both sides |
-| **Cost** | Does it fit the budget, and is it as cheap as it can be? | Gas of every test against its budget; worst case per entrypoint (8 awake goblins, longest queue); storage writes per action; packing; the order of preference of `docs/CAIRO.md` (arithmetic, then bitwise, then loops); no `u256` without a written reason |
+| **Cost** | Does it fit the budget, and is it as cheap as it can be? | Gas of every test against its budget; worst case per entrypoint; storage writes per action; packing; docs/CAIRO.md's order of preference; no `u256` without a written reason |
 | **Code quality** | Would the next agent understand and extend it? | Repository patterns; no dead code; meaningful tests; glossary names |
-| **Content validation** | Is the data playable? | Gates reachable; tables non-empty; ranges consistent; recipes ≤ pairs per signature; ids never reused |
+| **Organisation** | Is the code in the owner's shape? | docs/CAIRO.md §7–§8 |
+| **Content validation** | Is the data playable? | Gates reachable; tables non-empty; ranges consistent; ids never reused |
 
-### Who audits
+Codex is always asked for anything that holds or moves value, randomness and its providers, access
+control and ownership, chunk reveal and the simulation window; when the orchestrator judges it useful
+for a contested design or numeric decision, a gas figure that looks too good or too bad, a lot after
+three fix loops; not for documentation, validated seed data or interface work. A phase gate is audited
+on the whole phase by both providers; an external audit precedes mainnet.
 
-| Audit | Executor |
-|---|---|
-| Design, quality, content, cost | `claude` CLI, a different agent from the implementer, fresh context |
-| **Security, determinism** | `claude` CLI **and**, for lots that touch value or randomness, `codex` CLI as an independent second opinion on another vendor's model |
-| Phase gate, pre-mainnet | Both, on the whole phase; plus an **external audit** before mainnet |
+### The review by Codex
 
-### Severity
+**Every pull request is reviewed by Codex before it is merged** (owner, 2026-09-29): `nexus review`
+when the checks are green, read by the one who merges. The two cases of a merge without a review are
+the standard's (Codex unavailable; nothing that runs changed, or a few lines of one's own covered by
+the checks), never for a change touching value, access, secrets, a published interface or a result
+others depend on; such a merge is recorded in the changelog with `Codex review: none — <reason>`.
+
+### Severity, evidence, fix loops
 
 | Severity | Meaning | Blocks the merge |
 |---|---|---|
@@ -400,124 +213,67 @@ that needs them.
 | `minor` | Quality, clarity, non-critical cost | Yes, unless deferred by the orchestrator with a PLAN entry |
 | `note` | Observation | No |
 
-A finding needs **evidence**: a failing scenario, a test, or a quoted rule. The
-orchestrator verifies a finding before sending it to a fix; auditors can be wrong. The fix
-is done by **resuming the implementer**, not by a new agent. After three fix loops on the
-same lot, the orchestrator stops and escalates **to the project manager**, who decides (a
-last loop limited to named findings, a merge with the findings carried as open points, or
-a restructured task) and reports to the owner. The owner is asked only when the cause is a
-question of design or scope.
+A finding needs **evidence**: a failing scenario, a test, or a quoted rule; the orchestrator verifies
+it before sending it to a fix. The fix is done by **resuming the implementer**. After **three fix
+loops** on the same lot the orchestrator stops and escalates to the project manager, who decides (a
+last loop limited to named findings, a merge with the findings carried as open points, or a
+restructured task) and reports to the owner; never a merge with a known major in anything that will be
+published. Audit reports follow the template of COMMON.md (`# [<Model>] Audit — <TASK-ID> — <lens>`,
+verdict, findings table, coverage).
 
-### Audit report template
+## 7. Merge, release, publication
 
-```markdown
-# [<Model>] Audit — <TASK-ID> — <lens>
+- **A task's pull request merges** on: every check completed and green (`gh pr checks <n>`, the
+  number always named, chained on `&&`); the orchestrator's review of `REPORT.md`; the required audits
+  without open `blocker` or `major`; the Codex review; the file list of the pull request inside the
+  task's allowlist. **Squash merge by the orchestrator**, `gh pr merge <n> --squash`, never a bare
+  `gh pr merge`. `main` is not protected (D-121), so nothing else stops a merge on pending checks.
+- Branches: `<type>/<task-id>-<slug>` for tasks, `orch/` for an orchestrator's own, `pm/` for the
+  project manager's, `cv/` for track CV. One pull request per task; a pull request that cannot be
+  reviewed in one sitting is split at the brief stage. Conventional commits; trailer
+  `Co-Authored-By: Claude <Model> <noreply@anthropic.com>` with the model's display name.
+- Tasks run in parallel only if their **allowlists do not overlap**; interfaces shared by parallel
+  tasks are frozen first in a dedicated task. CI stays under about 10 minutes.
+- **Never**: force-push on shared branches; commit secrets or keys; skip hooks; commit any asset file or
+  anything derived from one **in this repository** (D-73: the pack lives in the private repository
+  `tiny-swords`, the submodule `assets`; agents never commit in it nor move its pointer; the CI refuses
+  a pull request that moves it; nothing of the pack, screenshots included, is posted on GitHub).
+- **Deployments**: the orchestrator deploys to **Sepolia** autonomously with the owner's account, the
+  variables `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS`, `STARKNET_PRIVATE_KEY`
+  of the machine's user-level settings, used by name. The launcher empties them unless the task is
+  launched with `--with-sepolia`, which it refuses unless the brief, as committed on `origin/main`,
+  holds `> Sepolia account: granted (launch with `--with-sepolia`).` and names the profile. A task that
+  sends transactions measures instead of looping, reports how many it sent and their cost, and every
+  script that sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**.
+  Every release goes to Sepolia first; every deployment records the class hash it declared and the
+  commit (D-154). Mainnet is the owner's (D-116).
+- **Publications on scarbs.xyz are delegated to the project manager, in the owner's name** (D-132).
+  No sub-agent publishes, ever. The orchestrator asks with a committed
+  `docs/decisions/PENDING-publish-<package>-<version>.md` (package, version, commit, what changed,
+  what the consumer must do). The project manager checks, **itself, in a clean clone**: the commit on
+  `main` with every check completed and green; the audits and the Codex review closed without blocker
+  or major; the changelog and the version agree; the gas tables are those of the commit; `scarb
+  package` from a clean checkout and its sha256; the name and the version free on the registry; no test
+  dependency as a regular one; a change of numeric results at least a minor version, announced. The go
+  is written in the file with the commit it holds for. The orchestrator's session publishes from a
+  clean checkout, tags and releases after the registry shows the version; the project manager reads
+  the registry, records the publication in `docs/decisions/` and reports to the owner. A release
+  candidate is a publication; a refusal says what is missing.
 
-## Verdict
-PASS | PASS WITH FINDINGS | FAIL
+## 8. Phase gates and the definition of done
 
-## Findings
-| # | Severity | Location | Finding | Evidence / failing scenario | Suggested fix |
+A phase closes when all its tasks are merged; its exit criterion (PLAN) is **demonstrated, not
+asserted**; a cross-cutting audit (security and design lenses) has run on the whole phase; documents
+are reconciled; the owner has signed off.
 
-## Coverage
-What was reviewed, what was not, and why.
-```
+A task is done when its acceptance criteria are met, each covered by a test; CI is green; the
+required audits and the Codex review have no open `blocker` or `major` and deferred `minor` have a
+PLAN entry; the documents are updated in the same pull request; `REPORT.md` is archived; `PLAN.md`
+and `STATUS.md` are updated.
 
-## 7. Merge, release and quality rules
+## 9. The project manager's report
 
-- Merge only on **green CI** plus the orchestrator's review of `REPORT.md` and the
-  required audits without open `blocker` or `major`. Squash merge, by the orchestrator.
-- Conventional commits; trailer `Co-Authored-By: Claude <Model> <noreply@anthropic.com>`,
-  with the model's display name, for example `Claude Fable 5.1` or `Claude Opus 5.5`.
-- Branch name `<type>/<task-id>-<slug>`. One pull request per task. A pull request that
-  cannot be reviewed in one sitting is split at the brief stage.
-- **Game results are API.** A change that alters the outcome of any action for the same
-  state and input moves the shared test vectors; it is announced in the changelog and the
-  client simulation is updated in the same lot.
-- **Deployments**: the orchestrator deploys to **Sepolia autonomously**, with the
-  credentials found in the session's settings environment; they are never printed, copied
-  into a file or passed to a sub-agent's brief. They are the variables
-  `STARKNET_NETWORK`, `STARKNET_RPC_URL`, `STARKNET_ACCOUNT_ADDRESS` and
-  `STARKNET_PRIVATE_KEY` of the machine's user-level settings (provided by the owner on
-  2026-09-28; checked by name). The claude CLI would give them to every agent it starts;
-  `scripts/agent.sh` empties them unless the task is launched with `--with-sepolia`, which it
-  refuses unless the brief `docs/briefs/<task>-*.md`, as committed on `origin/main`, holds the
-  line `> Sepolia account: granted (launch with `--with-sepolia`).` and names the profile of the launch. The grant is
-  recorded (`logs/<task>.sepolia`); a resume keeps the account only when passed the option
-  again, and the launcher says so when it is not. The same-user settings file stays readable by
-  code an agent runs, and by a typed command that spells its path another way: the typed denies
-  of the profiles are tripwires, not a boundary (§4, residual accepted by the owner, 2026-09-28). A task that sends transactions to Sepolia uses them **by
-  name**, never prints, logs or writes a value, sets a usual `User-Agent` header, measures
-  instead of looping and reports how many transactions it sent and their cost, and every script that
-  sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**. Every release goes to Sepolia first.
-  **Mainnet deployments and mainnet registry writes need an explicit go from the owner,
-  each time** (D-116).
-- **Publications** (owner's rule, 2026-09-28, D-132). A publication on scarbs.xyz cannot
-  be undone. **No sub-agent publishes, ever**: its profile denies it and its brief says so.
-  An orchestrator publishes only after a go of the project manager, who decides in the
-  owner's name and reports to the owner afterwards.
-
-  | Step | |
-  |---|---|
-  | The orchestrator asks | A committed file `docs/decisions/PENDING-publish-<package>-<version>.md`: package, version, commit, what changed since the last version, what the consumer must do |
-  | The project manager checks, itself | The commit is on `main` with every check of CI completed and green; the required audits are closed without blocker or major; the changelog and the version agree; the gas tables are those of that commit; `scarb package` succeeds from a clean checkout of that commit; the name and the version are free on the registry; the package declares no test dependency as a regular one; a change of numeric results is a minor version at least and is announced |
-  | The go | Written in the file, with the commit it holds for. It holds for that commit and that version only |
-  | The publication | By the orchestrator's session, not by an agent, from a clean checkout of that commit; tag and release after the registry shows the version |
-  | After | The project manager reads the registry, records the publication in `docs/decisions/` and reports to the owner |
-
-  A release candidate is a publication. A refusal says what is missing.
-- CI stays under ~10 minutes: split test packages before they grow.
-- Never: force-push on shared branches; commit secrets or keys; skip hooks; commit
-  any asset file, or anything derived from one, **in this repository** (D-73). Assets
-  live in the private repository `tiny-swords`, attached here as the submodule `assets`.
-  Agents never commit in the submodule and never move its pointer: changing the assets is
-  the owner's or the orchestrator's act, by a commit of its own on `main` that moves the
-  pointer and nothing else. The CI refuses any pull request that moves it, since a pull
-  request's branch or label cannot prove who made it.
-- Tasks run in parallel only if their **allowlists do not overlap**. Interfaces shared by
-  parallel tasks are frozen first in a dedicated task.
-
-## 8. Phase gates
-
-A phase closes when: all its tasks are merged; its exit criterion (PLAN) is
-**demonstrated, not asserted**; a cross-cutting audit (security and design lenses) has run
-on the whole phase; documents are reconciled; the owner has signed off.
-
-## 9. Definition of done
-
-- [ ] Acceptance criteria met, each covered by a test.
-- [ ] CI green.
-- [ ] Required audits: no open `blocker` or `major`; deferred `minor` have a PLAN entry.
-- [ ] Documents updated in the same pull request.
-- [ ] `REPORT.md` archived; `PLAN.md` and `STATUS.md` updated.
-
-## 10. The check-in loop (project manager and orchestrators)
-
-At every check-in (owner's request or scheduled wake-up), without spending more than a few
-minutes of context:
-
-1. `git fetch -q && git log --oneline origin/main -5`, `gh pr list`, `gh issue list`: what
-   moved.
-2. Running agents and machine load.
-3. Rewrite `STATUS.md` (dated); update `docs/decisions/PENDING-*`.
-4. Decide what to launch next within the concurrency budget.
-5. Orchestrators report to the project manager through the repository; the project manager
-   reports to the owner **in French**: what moved, what is blocked, what they must decide.
-
-**The project manager decides** (owner's rule, 2026-09-28, D-128): when it has a
-recommendation it follows it, writes it in `docs/decisions/` and in the documents concerned,
-and reports it to the owner afterwards, with the reason and what would reverse it. It does
-not ask first, so that nothing waits. The owner reverses what it disagrees with.
-
-What stays the owner's act, asked before and never assumed:
-
-| | |
-|---|---|
-| Mainnet | Every deployment and every registry write (D-116) |
-| What cannot be undone outside the repositories | A store submission, deleting a repository. **Publishing a package on scarbs.xyz is decided by the project manager in the owner's name** (D-132, §7) |
-| Money | Any spending beyond the sponsored fees of test networks |
-| Accounts and secrets | Providing credentials, logging a CLI in or out, settings of the machine or of GitHub that touch security |
-
-## 11. Language
-
-Chat with the owner in French; every document, brief, commit and pull request in English.
+The progress report to the owner and to the Overseer is the standard's table (task or group, state,
+who with its model, since, next), built from `nexus progress --project grimworld` and the plan, with
+what is blocked and what the reader must decide below it; `PROGRAMME.md` holds it between check-ins.
+The owner is addressed in French; everything committed is in English.

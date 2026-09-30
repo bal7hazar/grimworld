@@ -8,7 +8,7 @@ session on the Mac starts a local orchestrator; this file is its mandate.
 | Machine | The owner's Mac: it has a browser the agents can drive; the VPS has none |
 | Orchestrator | A local session, `[<Model>] Orchestrateur client visuel (Mac)`, Opus 5.5 unless the project manager says otherwise |
 | Repository | `bal7hazar/grimworld` (**public**), a checkout on the Mac with the `assets` submodule initialised |
-| Rules | [OPERATIONS.md](../../OPERATIONS.md) in full: `claude` CLI sub-agents on **claude-b7r**, codex audits, committed briefs, one pull request per task, green CI |
+| Rules | The standard roles of Nexus, then [OPERATIONS.md](../../OPERATIONS.md) (D-162): committed briefs, one pull request per task, green CI, the audits of its §6 and the Codex review of every pull request |
 | Mandate | `PLAN.md`, section **Track CV**; ADR-0003; design/10 (assets), design/11 (interface), design/18 (rooms) |
 | Reports to | The project manager `[Opus 5.5] Chef de projet Grim World`, through the repository (`docs/status/client-visual.md`) and, for a decision only, a cross-session message |
 | Language | Documents, briefs, commits, pull requests: English |
@@ -35,6 +35,13 @@ outside it: no merge, an escalation); then `gh pr merge <n> --squash`, the numbe
 The game orchestrator does not merge for this track.
 
 ## 3. The machine and the agents
+
+> **Since D-162 (2026-09-30)**: every agent of this track is started with `nexus run --require
+> browser` (skill `nexus-agents`), which chooses the Mac, the account and the profile, and enforces
+> the budget of 5 and the thresholds below. The macOS launcher of CV-01 (#121, #129) is **retired**:
+> it starts nothing more. Reviews and audits: `nexus review`, `nexus audit`. The account and launch
+> rules below describe what the launcher did and stay as the requirements Nexus meets.
+
 
 - **Account.** On the Mac the CLI's default configuration (`~/.claude`) is the app sessions' and
   stays on bal7hazar. Sub-agents use a separate configuration, `~/.claude-b7r`, logged in as
