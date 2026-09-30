@@ -310,7 +310,7 @@ fn test_two_insignias_on_a_piece_refused() {
 // COST-2, the record (DS-23): an insignia names its piece; its health is within the piece's bound;
 // the slot types that are not insignias name none; the piece round-trips in the record.
 #[test]
-#[available_gas(l2_gas: 275846)] // ceil(1.05 × 262710 measured)
+#[available_gas(l2_gas: 275468)] // ceil(1.05 × 262350 measured)
 fn test_insignia_record_piece() {
     let legs = ModifierTrait::insignia(
         base_slot::LEGS, passive(id::MAX_HEALTH, 0, 10), Default::default(),
@@ -647,7 +647,7 @@ fn skill_of(adrenaline: u8) -> Skill {
 // §6 test 6: `m` = 1,000 at level 255 gives 51,800 (a `u16` of `GoblinState`); energy 85 is 255
 // thirds (a `u8`); a skill of 63 strikes is usable. It packs.
 #[test]
-#[available_gas(l2_gas: 236355)] // ceil(1.05 × 225100 measured)
+#[available_gas(l2_gas: 226191)] // ceil(1.05 × 215420 measured)
 fn test_caste_at_bounds() {
     let caste = caste_at_bounds();
     caste.assert_legal();

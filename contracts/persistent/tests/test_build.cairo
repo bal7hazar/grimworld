@@ -318,7 +318,7 @@ const WORST_CASE_CALL: u128 = 3108768;
 // a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
 // pieces worn. Writes: `build`, `belt`, `equipped`, overwritten, each the word sent plus `LIVE`.
 #[test]
-#[available_gas(l2_gas: 69352586)] // ceil(1.05 × 66050081 measured)
+#[available_gas(l2_gas: 69272912)] // ceil(1.05 × 65974201 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -360,7 +360,7 @@ fn test_set_build_worst_case() {
 
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
-#[available_gas(l2_gas: 72215799)] // ceil(1.05 × 68776951 measured)
+#[available_gas(l2_gas: 72127578)] // ceil(1.05 × 68692931 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -382,7 +382,7 @@ fn test_set_build_parts() {
 
 // An empty build: no registry call, the words of a new adventurer back.
 #[test]
-#[available_gas(l2_gas: 70166021)] // ceil(1.05 × 66824781 measured)
+#[available_gas(l2_gas: 70083554)] // ceil(1.05 × 66746241 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -407,7 +407,7 @@ fn test_set_build_empty() {
 // -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 69144674)] // ceil(1.05 × 65852070 measured)
+#[available_gas(l2_gas: 69065987)] // ceil(1.05 × 65777130 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -431,7 +431,7 @@ fn test_set_build_ownership_refusals() {
 // A bit outside the fields: 164-167 and 176 up in `build`, 160 up in `belt`, 224 up in
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
-#[available_gas(l2_gas: 71721689)] // ceil(1.05 × 68306370 measured)
+#[available_gas(l2_gas: 71632040)] // ceil(1.05 × 68220990 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -462,7 +462,7 @@ fn test_set_build_layout_refusals() {
 // -------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 69093024)] // ceil(1.05 × 65802880 measured)
+#[available_gas(l2_gas: 69014694)] // ceil(1.05 × 65728280 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -473,7 +473,7 @@ fn test_bar_duplicate_refused() {
 
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
-#[available_gas(l2_gas: 72550895)] // ceil(1.05 × 69096090 measured)
+#[available_gas(l2_gas: 72464900)] // ceil(1.05 × 69014190 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -491,7 +491,7 @@ fn test_bar_known_and_registered() {
 
 // Of the primary or the secondary profession (design/03).
 #[test]
-#[available_gas(l2_gas: 69911846)] // ceil(1.05 × 66582710 measured)
+#[available_gas(l2_gas: 69832739)] // ceil(1.05 × 66507370 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -506,7 +506,7 @@ fn test_bar_profession() {
 
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
-#[available_gas(l2_gas: 72976827)] // ceil(1.05 × 69501740 measured)
+#[available_gas(l2_gas: 72887682)] // ceil(1.05 × 69416840 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -528,7 +528,7 @@ fn test_bar_elite() {
 
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
-#[available_gas(l2_gas: 70998743)] // ceil(1.05 × 67617850 measured)
+#[available_gas(l2_gas: 70914239)] // ceil(1.05 × 67537370 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -546,7 +546,7 @@ fn test_attributes_rank_and_points() {
 
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
-#[available_gas(l2_gas: 78610025)] // ceil(1.05 × 74866690 measured)
+#[available_gas(l2_gas: 78502337)] // ceil(1.05 × 74764130 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -576,7 +576,7 @@ fn test_attributes_points_by_level() {
 // The build-local indices (D-157 A): 0-4 the primary's, 5-8 the secondary's without its primary
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
-#[available_gas(l2_gas: 75458439)] // ceil(1.05 × 71865180 measured)
+#[available_gas(l2_gas: 75373547)] // ceil(1.05 × 71784330 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -601,7 +601,7 @@ fn test_attributes_indices() {
 // ------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 71007552)] // ceil(1.05 × 67626240 measured)
+#[available_gas(l2_gas: 70926492)] // ceil(1.05 × 67549040 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -620,7 +620,7 @@ fn test_belt_items() {
 
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
-#[available_gas(l2_gas: 71467032)] // ceil(1.05 × 68063840 measured)
+#[available_gas(l2_gas: 71385594)] // ceil(1.05 × 67986280 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -637,7 +637,7 @@ fn test_belt_counts_within_the_pack() {
 // -------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 74225198)] // ceil(1.05 × 70690664 measured)
+#[available_gas(l2_gas: 74132924)] // ceil(1.05 × 70602784 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -654,7 +654,7 @@ fn test_equipment_owned_and_wearable() {
 
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
-#[available_gas(l2_gas: 72857597)] // ceil(1.05 × 69388187 measured)
+#[available_gas(l2_gas: 72770090)] // ceil(1.05 × 69304847 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);

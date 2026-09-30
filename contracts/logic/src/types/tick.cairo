@@ -24,7 +24,7 @@
 use crate::helpers::signed::SignedTrait;
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
-use crate::packing::{P16, P32, P40, P56, P72, P8, P80, P88, field, low_field, split};
+use crate::packing::{N16, N32, N4, N8, limbs, peel};
 use crate::types::effect::{EntryTrait, kind};
 
 /// Adrenaline lost a tick out of combat, in quarter strikes (design/19 §5.8, FX-12): a code
@@ -166,27 +166,38 @@ pub impl SkillSheetImpl of SkillSheetTrait {
     /// header's kind, activation and recharge, and the entries' kinds until the `REGENERATION`
     /// one or an empty entry. `new` on the unpacked record is its oracle.
     fn read(id: u16, parts: Span<felt252>) -> SkillSheet {
-        let (header, first) = split(*parts[0]);
-        let (second, third) = split(*parts[1]);
+        let (header, first) = limbs(*parts[0]);
+        let (second, third) = limbs(*parts[1]);
         let mut regen0 = 0;
         let mut regen12 = 0;
         for entry in array![first, second, third] {
-            let entry_kind = low_field(entry, P8.try_into().unwrap());
+            let mut rest = entry;
+            let entry_kind = peel(ref rest, N8);
             if entry_kind == kind::EMPTY.into() {
                 break;
             }
             if entry_kind == kind::REGENERATION.into() {
-                regen0 = SignedTrait::from16(field(entry, P16, P16));
-                regen12 = SignedTrait::from16(field(entry, P32, P16));
+                // Bits 8–15, then `v0` and `v12`.
+                let _ = peel(ref rest, N8);
+                regen0 = SignedTrait::from16(peel(ref rest, N16));
+                regen12 = SignedTrait::from16(peel(ref rest, N16));
                 break;
             }
         }
+        // The header: profession and attribute 0–15, kind, energy, adrenaline, activation,
+        // recharge.
+        let (mut rest, _) = DivRem::div_rem(header, N16);
+        let kind = peel(ref rest, N8);
+        let _energy = peel(ref rest, N8);
+        let adrenaline = peel(ref rest, N8);
+        let activation = peel(ref rest, N16);
+        let recharge = peel(ref rest, N16);
         SkillSheet {
             id,
-            kind: field(header, P16, P8).try_into().unwrap(),
-            adrenaline: field(header, P32, P8).try_into().unwrap(),
-            activation: field(header, P40, P16).try_into().unwrap(),
-            recharge: field(header, P56, P16).try_into().unwrap(),
+            kind: kind.try_into().unwrap(),
+            adrenaline: adrenaline.try_into().unwrap(),
+            activation: activation.try_into().unwrap(),
+            recharge: recharge.try_into().unwrap(),
             regen0,
             regen12,
         }
@@ -213,9 +224,11 @@ pub impl PotionSheetImpl of PotionSheetTrait {
     /// The sheet of potion `id` read from its record's part (`models::item` layout: the entry in
     /// the high limb); `new` on the unpacked record is its oracle.
     fn read(id: u32, parts: Span<felt252>) -> PotionSheet {
-        let (_, entry) = split(*parts[0]);
-        let regen = if low_field(entry, P8.try_into().unwrap()) == kind::REGENERATION.into() {
-            SignedTrait::from16(field(entry, P16, P16))
+        let (_, entry) = limbs(*parts[0]);
+        let mut rest = entry;
+        let regen = if peel(ref rest, N8) == kind::REGENERATION.into() {
+            let _ = peel(ref rest, N8);
+            SignedTrait::from16(peel(ref rest, N16))
         } else {
             0
         };
@@ -240,20 +253,34 @@ pub impl CasteSheetImpl of CasteSheetTrait {
     /// The sheet of caste `id` read from its record's 2 parts (`models::caste` layout: the
     /// weapon's ticks at bit 72); `new` on the unpacked record is its oracle.
     fn read(id: u16, parts: Span<felt252>) -> CasteSheet {
-        let (low, _) = split(*parts[0]);
-        let (skills, _) = split(*parts[1]);
+        let (low, _) = limbs(*parts[0]);
+        let (skills, _) = limbs(*parts[1]);
+        // Tier and AI profile 0–15, the health multiplier, its regeneration; the armor and the
+        // weapon's class, damage and type 40–71; its ticks, its range; energy and its
+        // regeneration.
+        let (mut rest, _) = DivRem::div_rem(low, N16);
+        let health = peel(ref rest, N16);
+        let health_regen = peel(ref rest, N8);
+        let _ = peel(ref rest, N32);
+        let weapon_ticks = peel(ref rest, N4);
+        let _range = peel(ref rest, N4);
+        let energy = peel(ref rest, N8);
+        let energy_regen = peel(ref rest, N8);
+        let mut rest = skills;
+        let first = peel(ref rest, N16);
+        let second = peel(ref rest, N16);
+        let third = peel(ref rest, N16);
+        let fourth = peel(ref rest, N16);
         CasteSheet {
             id,
-            health: field(low, P16, P16).try_into().unwrap(),
-            health_regen: field(low, P32, P8).try_into().unwrap(),
-            energy: field(low, P80, P8).try_into().unwrap(),
-            energy_regen: field(low, P88, P8).try_into().unwrap(),
-            weapon_ticks: field(low, P72, 0x10).try_into().unwrap(),
+            health: health.try_into().unwrap(),
+            health_regen: health_regen.try_into().unwrap(),
+            energy: energy.try_into().unwrap(),
+            energy_regen: energy_regen.try_into().unwrap(),
+            weapon_ticks: weapon_ticks.try_into().unwrap(),
             skills: [
-                low_field(skills, P16.try_into().unwrap()).try_into().unwrap(),
-                field(skills, P16, P16).try_into().unwrap(),
-                field(skills, P32, P16).try_into().unwrap(),
-                field(skills, 0x1000000000000, P16).try_into().unwrap(),
+                first.try_into().unwrap(), second.try_into().unwrap(), third.try_into().unwrap(),
+                fourth.try_into().unwrap(),
             ],
         }
     }

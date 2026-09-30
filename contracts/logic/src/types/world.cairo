@@ -23,6 +23,20 @@
 //! 5. defeat, then the objectives (`Rules::objectives`: ENG-07).
 //! A member at 0 before the tick, or in steps 1–2, stops it there: step 5 still runs (FX-8,
 //! §5.13).
+//!
+//! **Fewer copies of the goblins (CBT-02b, lever (a)).** `World.goblins` is an array, so writing
+//! one goblin copies all of them (about 6,000 L2 gas a goblin: 600,000 at `MAX_GOBLINS`); before
+//! CBT-02b each write did (900,000 at `MAX_GOBLINS`), and each step read the whole array. The
+//! pipeline now
+//! - reads the awake set once a tick, in step 1's pass (it is fixed for the tick once perception
+//!   has run, §5.2): steps 2 and 3 read the awake goblins alone;
+//! - keeps the goblins step 1 changes as **pending writes** (`Pending`) and puts them in the array
+//!   in **one rebuild** (`WorldTrait::flush`) before the executor runs (a hook sees the world as it
+//!   is) and when the step ends;
+//! - marks the goblins that resolved in step 1 by their position in the awake set;
+//! - rebuilds the array in step 3 only if a goblin is awake.
+//! A tick thus rebuilds the array at most once per activation resolved, once at the end of step 1
+//! if it left writes, and once in step 3.
 
 use crate::models::goblin::{GoblinTickTrait, GoblinTrait};
 use crate::models::index::{Goblin, GoblinWords, Member, MemberWords};
@@ -51,6 +65,10 @@ pub struct World {
     pub killed: Array<u16>,
     pub defeated: bool,
 }
+
+/// The goblins a step changed and has not yet put in `World.goblins` (lever (a)): `(index, new
+/// value)`, by ascending index, each index once.
+pub type Pending = Array<(u32, Goblin)>;
 
 /// An actor of the world, by its index in `World.members` or `World.goblins`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -100,6 +118,7 @@ pub const MAX_AWAKE: u32 = 8;
 pub mod errors {
     pub const GOBLINS: felt252 = 'tick: too many goblins';
     pub const DISTANCES: felt252 = 'tick: one distance a goblin';
+    pub const AWAKE: felt252 = 'tick: more than 8 awake';
 }
 
 /// What the pipeline leaves to the lots after it: each hook is called at its point of the order.
@@ -161,10 +180,10 @@ pub impl TickImpl of TickTrait {
         Self::clear_flags(ref world);
         rules.perceive(ref world);
         // Steps 1 and 2; the adventurer at 0 stops the tick at once (FX-8).
-        let (stopped, resolved) = Self::conclude(ref world, content, ref rules);
-        if !stopped && !Self::act(ref world, content, resolved, ref rules) {
+        let (stopped, awake, resolved) = Self::conclude(ref world, content, ref rules);
+        if !stopped && !Self::act(ref world, content, awake, resolved, ref rules) {
             // Step 3.
-            Self::regenerate(ref world);
+            Self::regenerate(ref world, awake);
         }
         // Step 4 writes nothing. Step 5.
         Self::check(ref world);
@@ -183,10 +202,14 @@ pub impl TickImpl of TickTrait {
     }
 
     /// Step 1: members' activations due, then awake goblins', ascending id. Returns whether the
-    /// adventurer reached 0 and the mask of the goblins that resolved (bit = 2^index).
+    /// adventurer reached 0, the awake set (the awake goblins' indexes, ascending: fixed for the
+    /// tick once perception has run, §5.2, so steps 2 and 3 visit it alone) and the mask of the
+    /// goblins that resolved (bit `2^k` for the `k`-th of the awake set).
+    /// The goblins step 1 changes are pending writes, put in the array in one rebuild before the
+    /// executor runs (it sees the world as it is) and when the step ends (lever (a)).
     fn conclude<R, +Rules<R>, +Drop<R>>(
         ref world: World, content: @Content, ref rules: R,
-    ) -> (bool, u128) {
+    ) -> (bool, Span<u32>, u128) {
         let t = world.clock;
         let count = world.members.len();
         let mut i = 0;
@@ -201,18 +224,21 @@ pub impl TickImpl of TickTrait {
                 world.set_member(i, member);
                 rules.resolve(ref world, content, Actor::Member(i), slot, target);
                 if world.is_down() {
-                    return (true, 0);
+                    return (true, array![].span(), 0);
                 }
             }
             i += 1;
         }
-        let count = world.goblins.len();
+        let mut awake: Array<u32> = array![];
+        let mut pending: Pending = array![];
         let mut resolved: u128 = 0;
         let mut bit: u128 = 1;
+        let count = world.goblins.len();
         let mut i = 0;
         while i < count {
             let goblin = world.goblins.at(i);
             if *goblin.awake {
+                awake.append(i);
                 let slot = *goblin.act_slot;
                 let deadline = *goblin.act_deadline;
                 if slot <= activation::LAST_SLOT {
@@ -221,43 +247,45 @@ pub impl TickImpl of TickTrait {
                         let caste = content.caste(goblin.caste);
                         if deadline == t {
                             let (slot, target) = goblin.conclude(caste, content);
-                            world.set_goblin(i, goblin);
+                            pending.append((i, goblin));
+                            world.flush(pending);
+                            pending = array![];
                             resolved += bit;
                             rules.resolve(ref world, content, Actor::Goblin(i), slot, target);
                             if world.is_down() {
-                                return (true, resolved);
+                                return (true, awake.span(), resolved);
                             }
                         } else {
                             goblin.lapse(caste, content);
-                            world.set_goblin(i, goblin);
+                            pending.append((i, goblin));
                         }
                     }
                 } else if slot == activation::RECOVERING && deadline < t {
                     let mut goblin = *goblin;
                     goblin.clear();
-                    world.set_goblin(i, goblin);
+                    pending.append((i, goblin));
                 }
+                bit *= 2;
             }
             i += 1;
-            bit *= 2;
         }
-        (false, resolved)
+        world.flush(pending);
+        WorldAssert::assert_awake(@awake);
+        (false, awake.span(), resolved)
     }
 
-    /// Step 2: every awake goblin, ascending id, that is alive, not busy (activating or
-    /// recovering), not knocked down, and did not resolve in step 1 (§5.2). Returns whether the
-    /// adventurer reached 0.
+    /// Step 2: every goblin of the awake set, ascending id, that is alive, not busy (activating
+    /// or recovering), not knocked down, and did not resolve in step 1 (§5.2). Returns whether
+    /// the adventurer reached 0.
     fn act<R, +Rules<R>, +Drop<R>>(
-        ref world: World, content: @Content, resolved: u128, ref rules: R,
+        ref world: World, content: @Content, awake: Span<u32>, resolved: u128, ref rules: R,
     ) -> bool {
         let t = world.clock;
-        let count = world.goblins.len();
         let mut bit: u128 = 1;
-        let mut i = 0;
-        while i < count {
+        for index in awake {
+            let i = *index;
             let goblin = world.goblins.at(i);
-            if *goblin.awake
-                && *goblin.act_slot == activation::NONE
+            if *goblin.act_slot == activation::NONE
                 && *goblin.knocked < t
                 && goblin.is_alive()
                 && resolved & bit == 0 {
@@ -266,7 +294,6 @@ pub impl TickImpl of TickTrait {
                     return true;
                 }
             }
-            i += 1;
             bit *= 2;
         }
         false
@@ -274,12 +301,13 @@ pub impl TickImpl of TickTrait {
 
     /// Step 3 (§5.8): members, then awake goblins, ascending id. Out of combat is, for a member,
     /// no goblin of the tick's awake set Engaged; for a goblin, not Engaged. A goblin at 0 dies
-    /// after every actor of the step, in id order.
-    fn regenerate(ref world: World) {
+    /// after every actor of the step, in id order. The goblins are written in one rebuild, none
+    /// without an awake goblin.
+    fn regenerate(ref world: World, awake: Span<u32>) {
         let t = world.clock;
         let mut engaged = false;
-        for goblin in world.goblins.span() {
-            if *goblin.awake && *goblin.ai == ai::ENGAGED {
+        for index in awake {
+            if *world.goblins.at(*index).ai == ai::ENGAGED {
                 engaged = true;
                 break;
             }
@@ -293,6 +321,9 @@ pub impl TickImpl of TickTrait {
             members.append(member);
         }
         world.members = members;
+        if awake.len() == 0 {
+            return;
+        }
         let mut goblins = array![];
         for goblin in world.goblins.span() {
             let mut goblin = *goblin;
@@ -385,31 +416,34 @@ pub impl WorldImpl of WorldTrait {
     }
 
     fn set_member(ref self: World, index: u32, member: Member) {
-        let mut members = array![];
-        let mut i = 0;
-        for current in self.members.span() {
-            members.append(if i == index {
-                member
-            } else {
-                *current
-            });
-            i += 1;
-        }
-        self.members = members;
+        let members = self.members.span();
+        let mut rebuilt = array![];
+        rebuilt.append_span(members.slice(0, index));
+        rebuilt.append(member);
+        rebuilt.append_span(members.slice(index + 1, members.len() - index - 1));
+        self.members = rebuilt;
     }
 
     fn set_goblin(ref self: World, index: u32, goblin: Goblin) {
-        let mut goblins = array![];
-        let mut i = 0;
-        for current in self.goblins.span() {
-            goblins.append(if i == index {
-                goblin
-            } else {
-                *current
-            });
-            i += 1;
+        self.flush(array![(index, goblin)]);
+    }
+
+    /// Puts the pending writes in `World.goblins`, in one rebuild of the array: its unchanged runs
+    /// are copied whole between the writes (lever (a)). Nothing without a write.
+    fn flush(ref self: World, pending: Pending) {
+        if pending.len() == 0 {
+            return;
         }
-        self.goblins = goblins;
+        let goblins = self.goblins.span();
+        let mut rebuilt: Array<Goblin> = array![];
+        let mut from = 0;
+        for (index, goblin) in pending {
+            rebuilt.append_span(goblins.slice(from, index - from));
+            rebuilt.append(goblin);
+            from = index + 1;
+        }
+        rebuilt.append_span(goblins.slice(from, goblins.len() - from));
+        self.goblins = rebuilt;
     }
 
     /// A goblin at 0 dies at once (§5.13): health 0, dead (its remains), out of the awake set's
@@ -440,5 +474,12 @@ pub impl WorldAssert of WorldAssertTrait {
     #[inline(always)]
     fn assert_distances(self: @World, distances: Span<u16>) {
         assert(distances.len() == self.goblins.len(), errors::DISTANCES);
+    }
+
+    /// The awake set holds at most `MAX_AWAKE` goblins (design/02; CBT-02b: the tick's upper
+    /// bound counts 8 awake goblins, and a larger set is refused, not priced).
+    #[inline(always)]
+    fn assert_awake(awake: @Array<u32>) {
+        assert(awake.len() <= MAX_AWAKE, errors::AWAKE);
     }
 }

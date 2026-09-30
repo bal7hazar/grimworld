@@ -27,7 +27,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 467513)] // ceil(1.05 × 445250 measured)
+#[available_gas(l2_gas: 466379)] // ceil(1.05 × 444170 measured)
 fn test_placement_and_header_layout() {
     let placement = Placement { slot: 0xFFFFFFFF, generation: 0xFFFFFFFF, member: 7, inside: 1 };
     let word = StorePacking::<Placement, felt252>::pack(placement);
@@ -71,7 +71,7 @@ fn test_placement_and_header_layout() {
 
 #[test]
 // gas: raised, CBT-01: design/19 section 7.2's fields in the words
-#[available_gas(l2_gas: 585680)] // ceil(1.05 × 557790 measured)
+#[available_gas(l2_gas: 583748)] // ceil(1.05 × 555950 measured)
 fn test_member_layout() {
     let state = MemberState {
         adventurer: 0xFFFFFFFF,
@@ -131,7 +131,7 @@ fn test_member_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 374850)] // ceil(1.05 × 357000 measured)
+#[available_gas(l2_gas: 374094)] // ceil(1.05 × 356280 measured)
 fn test_chunk_layout() {
     // Every tile a wall, every edge open: bit 228 is the last one used.
     let all: felt252 = 0x200000000000000000000000000000000000000000000000000000000 - 1;
@@ -164,7 +164,7 @@ fn test_chunk_layout() {
 
 #[test]
 // gas: raised, CBT-01: design/19 section 7.2's fields in the words
-#[available_gas(l2_gas: 362387)] // ceil(1.05 × 345130 measured)
+#[available_gas(l2_gas: 361631)] // ceil(1.05 × 344410 measured)
 fn test_goblin_layout() {
     let state = GoblinState {
         x: 224,
@@ -217,7 +217,7 @@ fn test_goblin_layout() {
 // Fix loop 1, F-9: every field narrower than its Cairo type is refused when too wide, at its
 // boundary; nothing spills into a neighbouring lane.
 #[test]
-#[available_gas(l2_gas: 337250)] // ceil(1.05 × 321190 measured)
+#[available_gas(l2_gas: 336494)] // ceil(1.05 × 320470 measured)
 fn test_deadline_boundaries() {
     let max: u32 = 0xFFFFFFF;
     assert(
@@ -322,7 +322,7 @@ fn test_empty_timers_packed() {
 // slot: charges 0–63 at slot bit 16, the potion tag at 23, the rank at 52. `GoblinTimers`: the
 // effect's charges at 240 and rank at 246. The empty words keep their packed values.
 #[test]
-#[available_gas(l2_gas: 740040)] // ceil(1.05 × 704800 measured)
+#[available_gas(l2_gas: 739662)] // ceil(1.05 × 704440 measured)
 fn test_combat_fields_layout() {
     let casts = MemberState { casts_2: 1, ..Default::default() };
     let two_168: felt252 = TWO_128 * 0x10000000000;

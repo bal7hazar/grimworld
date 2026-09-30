@@ -13,7 +13,7 @@ fn pack_place(place: AdventurerPlace) -> felt252 {
 }
 
 #[test]
-#[available_gas(l2_gas: 2680404)] // ceil(1.05 × 2552765 measured)
+#[available_gas(l2_gas: 2668749)] // ceil(1.05 × 2541665 measured)
 fn test_place_words() {
     let start = AdventurerPlace { instance: 0, hub: 5, last_hub: 5, inside: 0, unlocked: 0x20 };
     let word = AdventurerPlaceTrait::new(5);
@@ -58,7 +58,7 @@ fn test_place_hub_above_63_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 181598)] // ceil(1.05 × 172950 measured)
+#[available_gas(l2_gas: 180842)] // ceil(1.05 × 172230 measured)
 fn test_core_words() {
     let core = AdventurerCore {
         account: 3,
@@ -79,7 +79,7 @@ fn test_core_words() {
 
 #[test]
 #[should_panic(expected: 'experience overflow')]
-#[available_gas(l2_gas: 78288)] // ceil(1.05 × 74560 measured)
+#[available_gas(l2_gas: 77910)] // ceil(1.05 × 74200 measured)
 fn test_experience_overflow_refused() {
     let word: felt252 = StorePacking::pack(
         AdventurerCore { experience: 100, ..Default::default() },
@@ -88,7 +88,7 @@ fn test_experience_overflow_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 90479)] // ceil(1.05 × 86170 measured)
+#[available_gas(l2_gas: 89723)] // ceil(1.05 × 85450 measured)
 fn test_belt_word() {
     let counts: u32 = 0xFF + 0x2 * 0x100 + 0x3 * 0x10000 + 0x80 * 0x1000000;
     let belt = Lanes32 { lanes: [0xFFFFFFFF, 2, 3, 0x12345678, counts, 0, 0] };
@@ -128,7 +128,7 @@ fn test_balance_pages() {
 
 #[test]
 #[should_panic(expected: 'balance: not enough')]
-#[available_gas(l2_gas: 47355)] // ceil(1.05 × 45100 measured)
+#[available_gas(l2_gas: 46977)] // ceil(1.05 × 44740 measured)
 fn test_debit_too_much_refused() {
     let word: felt252 = StorePacking::pack(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] });
     BalanceTrait::debit(word, 2, 4);
@@ -136,7 +136,7 @@ fn test_debit_too_much_refused() {
 
 #[test]
 #[should_panic(expected: 'balance: overflow')]
-#[available_gas(l2_gas: 47670)] // ceil(1.05 × 45400 measured)
+#[available_gas(l2_gas: 47292)] // ceil(1.05 × 45040 measured)
 fn test_credit_overflow_refused() {
     let word: felt252 = StorePacking::pack(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 0xFFFFFFFF] });
     BalanceTrait::credit(word, 6, 1);
