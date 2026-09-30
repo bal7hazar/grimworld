@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-163 | CBT-02 merged, its cost-bound findings carried to CBT-02b | Project manager |
 | D-162 | The standard roles of Nexus: OPERATIONS.md reduced to the project's specifics; Codex reviews every pull request; track CV on `nexus` | Owner |
 | D-161 | The worst tick is above its target (about 2.1M to 2.5M against 1.47M): CBT-02b now; SPK-12 on client-side proving, on the Mac | Project manager |
 | D-160 | DES-06's 33 questions decided; strength capped by level | Project manager |
