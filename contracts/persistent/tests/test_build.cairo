@@ -26,7 +26,8 @@ use grimworld_persistent::models::adventurer::errors::{
 };
 use grimworld_persistent::models::adventurer::{AdventurerCore, NO_ELITE};
 use grimworld_persistent::models::item::errors::{
-    A_COMPONENT, INSIGNIA_PIECE, NOT_IN_PACK, NO_MODIFIER, UNIDENTIFIED,
+    A_COMPONENT, INSIGNIA_PIECE, NOT_IN_PACK, NO_MODIFIER, SLOT_TYPE, UNIDENTIFIED,
+    VALUE as MODIFIER_VALUE,
 };
 use grimworld_persistent::models::item::{COMPONENT, IDENTIFIED, ItemBaseTrait, ItemMods, Modifier};
 use grimworld_persistent::systems::hub::{
@@ -415,7 +416,7 @@ const WORST_CASE_CALL: u128 = 18328496;
 // plus `LIVE`.
 #[test]
 // gas: raised, CBT-02b: set_build flattens the build (D-160), reading the equipment's modifiers
-#[available_gas(l2_gas: 103844643)] // ceil(1.05 × 98899660 measured)
+#[available_gas(l2_gas: 103410230)] // ceil(1.05 × 98485933 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -458,7 +459,8 @@ fn test_set_build_worst_case() {
 
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
-#[available_gas(l2_gas: 72127578)] // ceil(1.05 × 68692931 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 80563241)] // ceil(1.05 × 76726896 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -480,7 +482,8 @@ fn test_set_build_parts() {
 
 // An empty build: no registry call, the words of a new adventurer back.
 #[test]
-#[available_gas(l2_gas: 70083554)] // ceil(1.05 × 66746241 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 77803499)] // ceil(1.05 × 74098570 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -505,7 +508,8 @@ fn test_set_build_empty() {
 // -----------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 69065987)] // ceil(1.05 × 65777130 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 76170313)] // ceil(1.05 × 72543155 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -529,7 +533,8 @@ fn test_set_build_ownership_refusals() {
 // A bit outside the fields: 164-167 and 176 up in `build`, 160 up in `belt`, 224 up in
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
-#[available_gas(l2_gas: 71632040)] // ceil(1.05 × 68220990 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 79094381)] // ceil(1.05 × 75327981 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -560,7 +565,8 @@ fn test_set_build_layout_refusals() {
 // -------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 69014694)] // ceil(1.05 × 65728280 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 75766456)] // ceil(1.05 × 72158529 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -571,7 +577,8 @@ fn test_bar_duplicate_refused() {
 
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
-#[available_gas(l2_gas: 72464900)] // ceil(1.05 × 69014190 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 79871031)] // ceil(1.05 × 76067648 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -589,7 +596,8 @@ fn test_bar_known_and_registered() {
 
 // Of the primary or the secondary profession (design/03).
 #[test]
-#[available_gas(l2_gas: 69832739)] // ceil(1.05 × 66507370 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 76543655)] // ceil(1.05 × 72898719 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -604,7 +612,8 @@ fn test_bar_profession() {
 
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
-#[available_gas(l2_gas: 72887682)] // ceil(1.05 × 69416840 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 79397321)] // ceil(1.05 × 75616496 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -626,7 +635,8 @@ fn test_bar_elite() {
 
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
-#[available_gas(l2_gas: 70914239)] // ceil(1.05 × 67537370 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 78552707)] // ceil(1.05 × 74812101 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -645,7 +655,7 @@ fn test_attributes_rank_and_points() {
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
 // gas: raised, CBT-02b: set_build flattens the build (D-160), reading the equipment's modifiers
-#[available_gas(l2_gas: 82870137)] // ceil(1.05 × 78923940 measured)
+#[available_gas(l2_gas: 88633572)] // ceil(1.05 × 84412925 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -675,7 +685,8 @@ fn test_attributes_points_by_level() {
 // The build-local indices (D-157 A): 0-4 the primary's, 5-8 the secondary's without its primary
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
-#[available_gas(l2_gas: 75373547)] // ceil(1.05 × 71784330 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 83194641)] // ceil(1.05 × 79232991 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -700,7 +711,8 @@ fn test_attributes_indices() {
 // ------------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 70926492)] // ceil(1.05 × 67549040 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 77973027)] // ceil(1.05 × 74260025 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -719,7 +731,8 @@ fn test_belt_items() {
 
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
-#[available_gas(l2_gas: 71385594)] // ceil(1.05 × 67986280 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 78674973)] // ceil(1.05 × 74928545 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -736,7 +749,8 @@ fn test_belt_counts_within_the_pack() {
 // -------------------------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 74132924)] // ceil(1.05 × 70602784 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 83123147)] // ceil(1.05 × 79164901 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -753,7 +767,8 @@ fn test_equipment_owned_and_wearable() {
 
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
-#[available_gas(l2_gas: 72770090)] // ceil(1.05 × 69304847 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 81667835)] // ceil(1.05 × 77778890 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -774,7 +789,8 @@ fn test_equipment_slots_and_hands() {
 // floors. A level 1 Vanguard's 100 health: one rune costing 75 leaves 25, accepted; two leave
 // −50, refused (costs count on every rune, FX-43).
 #[test]
-#[available_gas(l2_gas: 87136726)] // ceil(1.05 × 82987358 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 96588056)] // ceil(1.05 × 91988624 measured)
 fn test_set_build_floor_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -789,7 +805,8 @@ fn test_set_build_floor_refused() {
 // DS-23 (D-160): an insignia is worn on the piece its record names; one made for the chest is
 // refused on the legs.
 #[test]
-#[available_gas(l2_gas: 86333410)] // ceil(1.05 × 82222295 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 96204866)] // ceil(1.05 × 91623681 measured)
 fn test_set_build_insignia_piece_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -804,7 +821,8 @@ fn test_set_build_insignia_piece_refused() {
 // The flattening's checks of the whole build (design/20 §1.2, DS-1): six runes are more than an
 // adventurer holds, refused.
 #[test]
-#[available_gas(l2_gas: 94565666)] // ceil(1.05 × 90062539 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 100745815)] // ceil(1.05 × 95948395 measured)
 fn test_set_build_sixth_rune_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -821,7 +839,8 @@ fn test_set_build_sixth_rune_refused() {
 
 // A modifier the registry does not hold is refused.
 #[test]
-#[available_gas(l2_gas: 83436577)] // ceil(1.05 × 79463406 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 93722254)] // ceil(1.05 × 89259289 measured)
 fn test_set_build_unknown_modifier_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -829,4 +848,25 @@ fn test_set_build_unknown_modifier_refused() {
     fine_items(world, id);
     put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (18, 1)]);
     refused(try_set(world, id, empty(), 0, chest(103)), NO_MODIFIER);
+}
+
+// CBT-02c (D-166): the registry checked each record's bounds, so a worn modifier must be what its
+// record allows: in the slot of its record's type (a rune, 11, in the insignia's slot is refused),
+// its benefit at a value of its record's range (armor against fire 1…7: 7 accepted, 8 and 0
+// refused).
+#[test]
+#[available_gas(l2_gas: 99052817)] // ceil(1.05 × 94336016 measured)
+fn test_set_build_modifier_slot_and_value_refused() {
+    let world = setup();
+    let id = adventurer(world, VANGUARD);
+    modifiers(world);
+    fine_items(world, id);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (11, 7), (0, 0)]);
+    refused(try_set(world, id, empty(), 0, chest(103)), SLOT_TYPE);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (11, 8)]);
+    refused(try_set(world, id, empty(), 0, chest(103)), MODIFIER_VALUE);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (11, 0)]);
+    refused(try_set(world, id, empty(), 0, chest(103)), MODIFIER_VALUE);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (11, 7)]);
+    accepted(try_set(world, id, empty(), 0, chest(103)));
 }

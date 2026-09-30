@@ -564,7 +564,7 @@ fn test_enter_one_debit_per_item() {
 
 #[test]
 // gas: raised, CBT-02b: enter builds the snapshot through the flattening (D-160)
-#[available_gas(l2_gas: 49606211)] // ceil(1.05 × 47244010 measured)
+#[available_gas(l2_gas: 49060112)] // ceil(1.05 × 46723916 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -603,7 +603,8 @@ fn test_enter_refusals() {
 // CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
-#[available_gas(l2_gas: 44386650)] // ceil(1.05 × 42273000 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 46626572)] // ceil(1.05 × 44406259 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -660,7 +661,7 @@ fn test_enter_after_set_build() {
 // and a rune (+5 armor against fire, no cost). The snapshot is the flattening's, passives numbered
 // by lane and slot (`ItemModsTrait::held`): 110 health.
 #[test]
-#[available_gas(l2_gas: 37577291)] // ceil(1.05 × 35787896 measured)
+#[available_gas(l2_gas: 36754119)] // ceil(1.05 × 35003922 measured)
 fn test_enter_snapshot_flattened() {
     let world = setup();
     let id = adventurer(world);
@@ -1078,7 +1079,7 @@ fn widest_equipment(world: World, id: u32) {
 // `enter`'s worst case (D-158; CBT-02b): the belt's four items on four pages, and the widest
 // equipment, whose 15 modifiers the flattening reads (one `bundle` call) and flattens.
 #[test]
-#[available_gas(l2_gas: 71430574)] // ceil(1.05 × 68029118 measured)
+#[available_gas(l2_gas: 64490036)] // ceil(1.05 × 61419081 measured)
 fn test_enter_worst_case() {
     let world = setup();
     let id = adventurer(world);

@@ -279,7 +279,8 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-#[available_gas(l2_gas: 61626464)] // ceil(1.05 × 58691870 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 79748918)] // ceil(1.05 × 75951350 measured)
 fn test_content_read_probe_alone() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();
@@ -288,7 +289,8 @@ fn test_content_read_probe_alone() {
 }
 
 #[test]
-#[available_gas(l2_gas: 65919021)] // ceil(1.05 × 62780020 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 84041475)] // ceil(1.05 × 80039500 measured)
 fn test_content_read_worst() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();
@@ -297,7 +299,8 @@ fn test_content_read_worst() {
 }
 
 #[test]
-#[available_gas(l2_gas: 63434301)] // ceil(1.05 × 60413620 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 81556755)] // ceil(1.05 × 77673100 measured)
 fn test_content_read_representative() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();

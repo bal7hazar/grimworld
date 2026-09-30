@@ -1,12 +1,33 @@
 // ENG-03: `Registry` stores content as data (ENG-01 §3.5). The administrator writes records with
-// `set_record`, which enforces the part count, `LIVE` in part 0, and the allocation of ids
+// `set_record`, which enforces the part count, `LIVE` in part 0, the content's checks of design/20
+// (D-166: a record past its per-source bound is refused), and the allocation of ids
 // (sequential: `last_id + 1`; composite: the parent exists); every changed record raises the
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
-use grimworld_logic::content::{BOOK, GATE, LOCATION, OUTLINE, QUEST, QUOTAS, REGION, SHOP, TASK};
+use grimworld_logic::content::{
+    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS, REGION, SHOP,
+    SKILL, TASK,
+};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
     IRegistryReadSafeDispatcherTrait,
+};
+use grimworld_logic::models::armor_set::{ArmorSetRecord, ArmorSetTrait};
+use grimworld_logic::models::base::slot as base_slot;
+use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait, errors as caste_errors};
+use grimworld_logic::models::item::{
+    ItemRecord, ItemTrait, class as item_class, errors as item_errors,
+};
+use grimworld_logic::models::modifier::{
+    ModifierRecord, ModifierTrait, errors as modifier_errors, slot as modifier_slot,
+};
+use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
+use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
+use grimworld_logic::types::effect::{
+    Entry, EntryTrait, errors as entry_errors, filter, kind, shape, target,
+};
+use grimworld_logic::types::passive::{
+    Passive, PassiveTrait, Source, errors as passive_errors, id as passive_id,
 };
 use grimworld_logic::packing::LIVE;
 use grimworld_persistent::systems::registry::errors::{
@@ -205,7 +226,8 @@ fn test_set_record_quiver_ids() {
 // --- set_record: its refusals (AC-1) ------------------------------------------------------------
 
 #[test]
-#[available_gas(l2_gas: 1323158)] // ceil(1.05 × 1260150 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 1466693)] // ceil(1.05 × 1396850 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
     let r = Fixture::deploy();
@@ -216,7 +238,8 @@ fn test_set_record_refused_to_others() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1720688)] // ceil(1.05 × 1638750 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 2151293)] // ceil(1.05 × 2048850 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
     let r = Fixture::deploy();
@@ -245,7 +268,8 @@ fn test_set_record_unknown_kind_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2192253)] // ceil(1.05 × 2087860 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 2909928)] // ceil(1.05 × 2771360 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = Fixture::deploy();
@@ -264,7 +288,8 @@ fn test_set_record_not_live_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1224762)] // ceil(1.05 × 1166440 measured)
+// gas: raised, D-166: the Registry's class holds the content's checks (a larger deploy) and set_record checks each record (CBT-02c)
+#[available_gas(l2_gas: 1511832)] // ceil(1.05 × 1439840 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
     let r = Fixture::deploy();
@@ -490,4 +515,253 @@ fn test_gas_bundle_32() {
     let requests = r.books(32);
     let (v, records) = r.read.bundle(requests.span());
     assert(v == 5 && records.len() == 96, '32 records');
+}
+
+// --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1) -------------------
+//
+// Every per-source bound of design/20 that belongs to one record is checked once, when the
+// administrator writes it: at its bound a record is accepted, one unit beyond it is refused.
+
+/// A passive of fixed value `value` (a cost's shape; a benefit at one value).
+fn fixed(id: u8, param: u8, value: i16) -> Passive {
+    PassiveTrait::new(id, param, 0, 0, value, value)
+}
+
+/// The record that makes `passive` one source of `source`: a modifier of that slot type (an
+/// insignia made for the chest), or a set's first bonus.
+fn source_record(passive: Passive, source: Source) -> (u8, Span<felt252>) {
+    let none: Passive = Default::default();
+    match source {
+        Source::Prefix => (MODIFIER, ModifierTrait::new(modifier_slot::PREFIX, passive, none).pack()),
+        Source::Suffix => (MODIFIER, ModifierTrait::new(modifier_slot::SUFFIX, passive, none).pack()),
+        Source::Inscription => (
+            MODIFIER, ModifierTrait::new(modifier_slot::INSCRIPTION, passive, none).pack(),
+        ),
+        Source::Insignia => (
+            MODIFIER, ModifierTrait::insignia(base_slot::CHEST, passive, none).pack(),
+        ),
+        Source::Rune => (MODIFIER, ModifierTrait::new(modifier_slot::RUNE, passive, none).pack()),
+        Source::SetBonus => (ARMOR_SET, ArmorSetTrait::new([1, 2, 3, 4, 5], [passive, none]).pack()),
+    }
+}
+
+/// Writes the record at the next id of its kind; `Ok` when accepted (the id is then taken).
+#[feature("safe_dispatcher")]
+fn try_write(r: Registry, kind: u8, record: Span<felt252>) -> Result<(), Array<felt252>> {
+    let id = r.admin.last_id(kind) + 1;
+    r.safe.set_record(kind, id, record)
+}
+
+fn assert_accepted(result: Result<(), Array<felt252>>) {
+    match result {
+        Result::Ok(()) => {},
+        Result::Err(data) => core::panic_with_felt252(*data.at(0)),
+    }
+}
+
+fn assert_refused(result: Result<(), Array<felt252>>, message: felt252) {
+    match result {
+        Result::Ok(()) => core::panic_with_felt252('should be refused'),
+        Result::Err(data) => assert(*data.at(0) == message, *data.at(0)),
+    }
+}
+
+// design/20 §1.3's rows under envelope B (DS-1, DS-5, DS-7): for each, a record at `lo` and at
+// `hi` is accepted, one at `hi + 1` is refused with the per-source bound, and one at `lo − 1` is
+// refused (by the bound, or by the passive's own range where that is non-negative).
+#[test]
+#[available_gas(l2_gas: 68214605)] // ceil(1.05 × 64966290 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_per_source_bounds() {
+    let r = Fixture::deploy();
+    // (id, param, source, lo, hi)
+    let rows = array![
+        (passive_id::MAX_HEALTH, 0, Source::Prefix, 0_i16, 30_i16),
+        (passive_id::MAX_HEALTH, 0, Source::Insignia, 0, 15),
+        (passive_id::MAX_HEALTH, 0, Source::Rune, -75, 50),
+        (passive_id::MAX_HEALTH, 0, Source::SetBonus, -75, 50),
+        (passive_id::MAX_ENERGY, 0, Source::Suffix, -5, 5),
+        (passive_id::MAX_ENERGY, 0, Source::SetBonus, -5, 5),
+        (passive_id::ENERGY_REGEN, 0, Source::Inscription, -1, 0),
+        (passive_id::ENERGY_REGEN, 0, Source::SetBonus, -1, 1),
+        (passive_id::HEALTH_REGEN, 0, Source::Prefix, -1, 0),
+        (passive_id::HEALTH_REGEN, 0, Source::SetBonus, -1, 1),
+        (passive_id::ARMOR_VS, damage::FIRE, Source::Rune, 0, 7),
+        (passive_id::ATTRIBUTE, 13, Source::Rune, 1, 3),
+        (passive_id::LIFE_STEAL_ON_HIT, 0, Source::Suffix, 0, 5),
+        (passive_id::ENERGY_ON_HIT, 0, Source::Prefix, 0, 1),
+        (passive_id::CONDITION_DURATION, condition::POISON, Source::Prefix, 0, 33),
+        (passive_id::ENCHANT_DURATION, 0, Source::Insignia, 0, 20),
+        (passive_id::KNOCKDOWN_FLAT, 0, Source::SetBonus, 0, 1),
+    ];
+    for (id, param, source, lo, hi) in rows {
+        let (kind, record) = source_record(fixed(id, param, lo), source);
+        assert_accepted(try_write(r, kind, record));
+        let (kind, record) = source_record(fixed(id, param, hi), source);
+        assert_accepted(try_write(r, kind, record));
+        let (kind, record) = source_record(fixed(id, param, hi + 1), source);
+        assert_refused(try_write(r, kind, record), passive_errors::SOURCE_BOUND);
+        let (kind, record) = source_record(fixed(id, param, lo - 1), source);
+        let refused = try_write(r, kind, record);
+        assert(refused.is_err(), 'below lo accepted');
+        let message = *refused.unwrap_err().at(0);
+        assert(message == passive_errors::SOURCE_BOUND || message == passive_errors::VALUE, message);
+    }
+    // A modifier's benefit and cost on one statistic are summed: +50 and −75 on a rune pass, +30
+    // and +30 on a prefix are refused.
+    let rune = ModifierTrait::new(
+        modifier_slot::RUNE,
+        fixed(passive_id::MAX_HEALTH, 0, 50),
+        fixed(passive_id::MAX_HEALTH, 0, -75),
+    );
+    assert_accepted(try_write(r, MODIFIER, rune.pack()));
+    let prefix = ModifierTrait::new(
+        modifier_slot::PREFIX,
+        fixed(passive_id::MAX_HEALTH, 0, 30),
+        fixed(passive_id::MAX_HEALTH, 0, 30),
+    );
+    assert_refused(try_write(r, MODIFIER, prefix.pack()), passive_errors::SOURCE_BOUND);
+    // A benefit's range, not only its top: 10…31 on a prefix is refused.
+    let wide = PassiveTrait::new(passive_id::MAX_HEALTH, 0, 0, 0, 10, 31);
+    let (kind, record) = source_record(wide, Source::Prefix);
+    assert_refused(try_write(r, kind, record), passive_errors::SOURCE_BOUND);
+    // An existing record rewritten past its bound is refused as a new one is.
+    let (_, record) = source_record(fixed(passive_id::MAX_HEALTH, 0, 31), Source::Prefix);
+    assert_refused(r.safe.set_record(MODIFIER, 1, record), passive_errors::SOURCE_BOUND);
+}
+
+// DS-4 and design/19 §7.2: the passives a source may not hold are refused on it.
+#[test]
+#[available_gas(l2_gas: 8023880)] // ceil(1.05 × 7641790 measured)
+fn test_set_record_sources_refused() {
+    let r = Fixture::deploy();
+    let refused = array![
+        (passive_id::ENERGY_COST, 1, Source::Prefix), (passive_id::ENERGY_COST, 1, Source::SetBonus),
+        (passive_id::BASE_DAMAGE_PERCENT, 0, Source::Rune),
+        (passive_id::RATING_PERCENT, 0, Source::Insignia), (passive_id::ATTRIBUTE, 13, Source::Prefix),
+        (passive_id::LIFE_STEAL_ON_HIT, 0, Source::SetBonus),
+        (passive_id::ENERGY_ON_HIT, 0, Source::Rune), (passive_id::MAX_ENERGY, 0, Source::Insignia),
+        (passive_id::QUICK_CAST_EVERY_N, 13, Source::Suffix),
+        (passive_id::DAMAGE_TYPE, damage::FIRE, Source::Suffix),
+        (passive_id::CONDITION_DURATION, condition::POISON, Source::Inscription),
+    ];
+    for (id, param, source) in refused {
+        let value = if id == passive_id::ENERGY_COST || id == passive_id::DAMAGE_TYPE {
+            0
+        } else {
+            1
+        };
+        let (kind, record) = source_record(fixed(id, param, value), source);
+        assert_refused(try_write(r, kind, record), passive_errors::SOURCE);
+    }
+    // One source adds to a hit's sum no more than one passive may (§7.2): +18 and +1 on weapon
+    // hits.
+    let damage = ModifierTrait::new(
+        modifier_slot::PREFIX,
+        PassiveTrait::new(passive_id::DAMAGE_PERCENT, 0, 0, 0, 18, 18),
+        PassiveTrait::new(passive_id::DAMAGE_PERCENT, 0, 0, 0, 1, 1),
+    );
+    assert_refused(try_write(r, MODIFIER, damage.pack()), passive_errors::CONTRIBUTION);
+    assert(r.admin.last_id(MODIFIER) == 0 && r.admin.last_id(ARMOR_SET) == 0, 'none written');
+}
+
+// DS-23: an insignia names its piece, and its health is within the piece's 15 / 10 / 5.
+#[test]
+#[available_gas(l2_gas: 6826586)] // ceil(1.05 × 6501510 measured)
+fn test_set_record_insignia_pieces() {
+    let r = Fixture::deploy();
+    let none: Passive = Default::default();
+    let health = |value: i16| fixed(passive_id::MAX_HEALTH, 0, value);
+    let legs = ModifierTrait::insignia(base_slot::LEGS, health(10), none);
+    assert_accepted(try_write(r, MODIFIER, legs.pack()));
+    let legs = ModifierTrait::insignia(base_slot::LEGS, health(11), none);
+    assert_refused(try_write(r, MODIFIER, legs.pack()), modifier_errors::PIECE_HEALTH);
+    let head = ModifierTrait::insignia(base_slot::HEAD, health(5), none);
+    assert_accepted(try_write(r, MODIFIER, head.pack()));
+    let feet = ModifierTrait::insignia(base_slot::FEET, health(3), health(3));
+    assert_refused(try_write(r, MODIFIER, feet.pack()), modifier_errors::PIECE_HEALTH);
+    let nowhere = ModifierTrait::new(modifier_slot::INSIGNIA, health(5), none);
+    assert_refused(try_write(r, MODIFIER, nowhere.pack()), modifier_errors::PIECE);
+    let weapon = ModifierTrait::insignia(base_slot::WEAPON, health(5), none);
+    assert_refused(try_write(r, MODIFIER, weapon.pack()), modifier_errors::PIECE);
+}
+
+/// A caste at design/20's bounds (DS-18, DS-29): multiplier 1,000 %, energy 85, regeneration 10
+/// pips, weapon damage 255, flee 100, health regeneration 20; its first skill `skill`.
+fn caste_at_bounds(skill: u16) -> Span<felt252> {
+    CasteTrait::new(
+        6,
+        1,
+        1000,
+        20,
+        40,
+        [0; 9],
+        WeaponTrait::new(weapon::MAUL, 255, damage::BLUNT, 2, 1),
+        85,
+        10,
+        [skill, 0, 0, 0],
+        15,
+        100,
+        0,
+        false,
+    )
+        .pack()
+}
+
+/// `record` with `delta` added to part 0: a field raised past what `pack` accepts, as a
+/// hand-made record would carry it.
+fn raised(record: Span<felt252>, delta: felt252) -> Span<felt252> {
+    array![*record[0] + delta, *record[1]].span()
+}
+
+fn skill_of(adrenaline: u8, entries: [Entry; 3]) -> Span<felt252> {
+    SkillTrait::new(1, 1, skill_kind::ATTACK, 0, adrenaline, 1, 5, 1, target::FOE, false, entries)
+        .pack()
+}
+
+// DS-18, DS-29: a caste record at its bounds is accepted; one unit beyond any is refused; the
+// skills it names are at most 63 strikes (across records).
+#[test]
+#[available_gas(l2_gas: 12296225)] // ceil(1.05 × 11710690 measured)
+fn test_set_record_caste_bounds() {
+    let r = Fixture::deploy();
+    assert_accepted(try_write(r, SKILL, skill_of(63, [Default::default(); 3])));
+    assert_accepted(try_write(r, SKILL, skill_of(64, [Default::default(); 3])));
+    assert_accepted(try_write(r, CASTE, caste_at_bounds(1)));
+    assert_refused(try_write(r, CASTE, caste_at_bounds(2)), caste_errors::SKILL_ADRENALINE);
+    let at_bounds = caste_at_bounds(1);
+    // Health 1,001 % (bit 16), health regeneration 21 (bit 32), weapon damage 256 (bit 52),
+    // energy regeneration 11 (bit 88), flee 101 (bit 96); tier 0.
+    let beyond = array![
+        (0x10000, caste_errors::HEALTH), (0x100000000, caste_errors::HEALTH_REGEN), (0x10000000000000, caste_errors::WEAPON_DAMAGE),
+        (0x10000000000000000000000, caste_errors::ENERGY_REGEN), (0x1000000000000000000000000, caste_errors::FLEE), (-6, caste_errors::TIER),
+    ];
+    for (delta, message) in beyond {
+        assert_refused(try_write(r, CASTE, raised(at_bounds, delta)), message);
+    }
+    assert(r.admin.last_id(CASTE) == 1, 'one caste written');
+}
+
+// DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a
+// legal, unscaled carrier (design/19 §5.14).
+#[test]
+#[available_gas(l2_gas: 7757873)] // ceil(1.05 × 7388450 measured)
+fn test_set_record_carriers() {
+    let r = Fixture::deploy();
+    let bonus = EntryTrait::new(
+        kind::ATTACK_BONUS, 0, 5, 5, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    assert_accepted(try_write(r, SKILL, skill_of(4, [bonus, Default::default(), Default::default()])));
+    assert_refused(
+        try_write(r, SKILL, skill_of(4, [bonus, bonus, Default::default()])), entry_errors::TWO_ATTACK_BONUSES,
+    );
+    let heal = EntryTrait::new(
+        kind::HEAL, 0, 20, 20, 0, 0, 0, target::SELF, shape::SINGLE, 0, 0, 0,
+    );
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_accepted(try_write(r, ITEM, potion(heal)));
+    assert_refused(try_write(r, ITEM, potion(Default::default())), item_errors::NO_ENTRY);
+    assert_refused(try_write(r, ITEM, potion(Entry { v12: 40, ..heal })), entry_errors::NOT_SCALED);
+    let ingredient = ItemTrait::new(item_class::INGREDIENT, 1, 1, 1, 0, heal, 0, 0).pack();
+    assert_refused(try_write(r, ITEM, ingredient), item_errors::NOT_POTION);
 }
