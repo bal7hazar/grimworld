@@ -1,10 +1,10 @@
 // CBT-02e (D-168): the snapshot's flattening as a library class. `FlattenLibrary.words` through a
 // `library_call` is `SnapshotBuildTrait::words`, whose unit tests are in `snapshot.cairo`; here,
 // what needs the declared class: the call's result and its cost on the widest equipment design/20
-// §1.2 counts (the benchmark of `Hub.set_build`'s flattening, D-158 (c)), and design/20 §6 test 2's
-// extremal builds as far as items and a loadout hold them (fix loop 1): the library's words equal
-// the direct flattening's, the field its extremum; what the item model cannot hold yet is said at
-// each test.
+// §1.2 counts (the benchmark of `Hub.set_build`'s flattening, D-158 (c)), and design/20 §6 test
+// 2's extremal builds as far as items and a loadout hold them (fix loop 1): the library's words
+// equal the direct flattening's, the field its extremum; what the item model cannot hold yet is
+// said at each test.
 use core::testing::get_available_gas;
 use grimworld_logic::interface::{IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher};
 use grimworld_logic::models::base::slot as base_slot;
@@ -160,7 +160,10 @@ fn held_slots(value: u8) -> Array<Worn> {
             values: [value, value, value, 0, 0],
         },
         Worn {
-            lane: 1, slot: base_slot::OFF_HAND, ids: [0, 4, 5, 0, 0], values: [0, value, value, 0, 0],
+            lane: 1,
+            slot: base_slot::OFF_HAND,
+            ids: [0, 4, 5, 0, 0],
+            values: [0, value, value, 0, 0],
         },
     ]
 }
@@ -219,7 +222,7 @@ fn through_the_library(
 // 250 = 920. design/20's 1,020 adds two +50 set bonuses, which no item holds: armor sets are not
 // laid out in the loadout (`set_bonuses` 0, `BuildTrait::loadout`).
 #[test]
-#[available_gas(l2_gas: 30000000)]
+#[available_gas(l2_gas: 6741154)] // ceil(1.05 × 6420146 measured)
 fn test_extremal_max_health_through_the_library() {
     let none: Passive = Default::default();
     let mut records = held_records(PassiveTrait::new(id::MAX_HEALTH, 0, 0, 0, 1, 30));
@@ -259,7 +262,7 @@ fn test_extremal_max_health_through_the_library() {
 // armor, the five held slots at +5: 30 + 45 + 20 + 25 = 120. design/20's 130 adds two +5 set
 // bonuses, which no item holds (as above).
 #[test]
-#[available_gas(l2_gas: 30000000)]
+#[available_gas(l2_gas: 3468188)] // ceil(1.05 × 3303036 measured)
 fn test_extremal_max_energy_through_the_library() {
     let none: Passive = Default::default();
     let mut records = held_records(PassiveTrait::new(id::MAX_ENERGY, 0, 0, 0, 1, 5));
@@ -282,7 +285,7 @@ fn test_extremal_max_energy_through_the_library() {
 // down. The loadout carries it; `set_build` cannot yet, since `BASE` lays out no weapon statistics
 // (D-158): its loadout's weapon damage is 0.
 #[test]
-#[available_gas(l2_gas: 10000000)]
+#[available_gas(l2_gas: 1539832)] // ceil(1.05 × 1466506 measured)
 fn test_extremal_weapon_damage_through_the_library() {
     let loadout = Loadout {
         weapon_damage: 27, requirement_met: 1, personalised: true, ..bare(20, 1),
@@ -298,7 +301,7 @@ fn test_extremal_weapon_damage_through_the_library() {
 // build-local indices and the global ids runes name are not numbered (D-157 A), so its loadout
 // has no point.
 #[test]
-#[available_gas(l2_gas: 20000000)]
+#[available_gas(l2_gas: 2144338)] // ceil(1.05 × 2042226 measured)
 fn test_extremal_ranks_through_the_library() {
     let attribute = PassiveTrait::new(id::ATTRIBUTE, PRIMARY, 0, 0, 1, 3);
     let rune = ModifierTrait::new(modifier_slot::RUNE, attribute, Default::default());

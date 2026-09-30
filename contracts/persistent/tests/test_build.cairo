@@ -999,7 +999,7 @@ fn test_set_build_stores_the_extremal_max_health() {
 // (`test_extremal_max_energy_through_the_library`: 120); the set bonuses' 10 no item holds. The
 // words stored are the flattening's.
 #[test]
-#[available_gas(l2_gas: 150000000)]
+#[available_gas(l2_gas: 89807589)] // ceil(1.05 × 85531037 measured)
 fn test_set_build_stores_the_extremal_max_energy() {
     let world = setup();
     let id = adventurer(world, ARCANIST);

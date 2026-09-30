@@ -2,9 +2,7 @@
 //! takes over every access (D-143), it holds the typed access of the models that no word
 //! arithmetic of `Hub` reads: the stored snapshot (CBT-02e, D-168).
 
-use starknet::storage::{
-    Mutable, StoragePath, StoragePointerReadAccess, StoragePointerWriteAccess,
-};
+use starknet::storage::{Mutable, StoragePath, StoragePointerReadAccess, StoragePointerWriteAccess};
 use crate::models::snapshot::StoredSnapshot;
 
 #[generate_trait]

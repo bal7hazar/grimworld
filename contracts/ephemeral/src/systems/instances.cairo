@@ -162,7 +162,6 @@ pub mod Instances {
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
-    use crate::store::StoreTrait;
     use grimworld_logic::types::{
         InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
     };
@@ -186,6 +185,7 @@ pub mod Instances {
         DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member, MemberState,
         MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD, errors as member_errors,
     };
+    use crate::store::StoreTrait;
     use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
 
     /// Task entries on a stored page (`TaskPage`).

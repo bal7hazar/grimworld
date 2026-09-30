@@ -12,7 +12,8 @@ a location transition is reachable without `play` (ENG-07). Then one transaction
   create_adventurer (x3)               D-144: the start hub read from the registry
   set_build, empty, first              CBT-02e (D-168): the snapshot flattened by `FlattenLibrary`,
                                        its three words new (the first write's premium)
-  set_build, empty, again              the three words overwritten
+  set_build, empty, again              the three words written with the values they hold
+  set_build, counts / slots swapped    fix loop 1: one snapshot word (the kit) overwritten
   enter, first entry (cold)            a new slot: the slot's keys written for the first time
   leave to a hub (gate 2)              Returned, the town reached
   enter, later entry (initialised)     the slot reused, generation 2
@@ -267,7 +268,7 @@ invoke("create_adventurer, initialised (third)", hub, "create_adventurer", short
 # creates an item yet).
 invoke("set_build, empty, first (the snapshot's 3 words new)", hub, "set_build", 1, EMPTY_BUILD, 0,
        0)
-invoke("set_build, empty, again (the snapshot's 3 words overwritten)", hub, "set_build", 1,
+invoke("set_build, empty, again (the snapshot's 3 words rewritten unchanged)", hub, "set_build", 1,
        EMPTY_BUILD, 0, 0)
 for adventurer in (2, 3):
     invoke("set_build, empty", hub, "set_build", adventurer, EMPTY_BUILD, 0, 0, record=False)
@@ -306,6 +307,21 @@ belted = entered(invoke("enter, later entry, the belt's worst case (4 pages, eac
 invoke("leave to a hub, the belt credited back (4 pages)", instances, "leave", belted, 2, 0, 2)
 belted = entered(invoke("enter, later entry, the belt's worst case (again)", hub, "enter", 2, 1))
 invoke("travel_back, the belt credited back (4 pages)", instances, "travel_back", belted, 2, 0)
+
+# CBT-02e fix loop 1 (AC-5): a snapshot word's overwrite on the node. Three `set_build` of
+# adventurer 2 with the same reads and the same computation (two potions, pages 0 and 1): the
+# belt's counts changed (the belt word overwritten; the snapshot's words written with the values
+# they hold, no change), the belt's two slots swapped (the belt word and the kit word overwritten:
+# the kit names the belt's items), the same again (no state change). The kit word's overwrite is
+# the second less the first.
+invoke("set_build, two potions (setup)", hub, "set_build", 2, EMPTY_BUILD,
+       belt((1, 8, 0, 0), (1, 1, 0, 0)), 0, record=False)
+invoke("set_build, the belt's counts changed (belt overwritten, snapshot unchanged)", hub,
+       "set_build", 2, EMPTY_BUILD, belt((1, 8, 0, 0), (1, 2, 0, 0)), 0)
+invoke("set_build, the belt's slots swapped (belt and the snapshot's kit word overwritten)", hub,
+       "set_build", 2, EMPTY_BUILD, belt((8, 1, 0, 0), (2, 1, 0, 0)), 0)
+invoke("set_build, the same again (no state change)", hub, "set_build", 2, EMPTY_BUILD,
+       belt((8, 1, 0, 0), (2, 1, 0, 0)), 0)
 
 # set_account_owner with k adventurers inside, k = 0 to 3, the real set_controller (D-144).
 # Accounts 2, 3 and 4 are players 3, 1 and 2's; adventurers 4 to 7 theirs.

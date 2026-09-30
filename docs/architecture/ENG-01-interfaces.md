@@ -170,9 +170,9 @@ neither `Hub` nor `Instances` unpacks or packs a snapshot word. CASM felts (`cla
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| **`Hub`** (the wiring, the snapshot stored, the flattening out) | **36,572** | **44.64 %** |
+| **`Hub`** (the wiring, the snapshot stored through the store, the flattening out; fix loop 1) | **36,629** | **44.71 %** |
 | `FlattenLibrary` | 22,098 | 26.98 % |
-| `Instances` (`create` writes the words as stored: its packers of the snapshot gone) | 23,760 | 29.00 % |
+| `Instances` (`create` writes the words as stored, through the store: its packers of the snapshot gone) | 23,795 | 29.05 % |
 | `Hub` with the flattening out but `enter` unpacking the stored words into a `Snapshot` (a probe) | 41,885 | 51.13 % |
 
 The last row is why `create` receives the packed words: the three unpackers alone were 4,684 felts
@@ -485,7 +485,8 @@ Layouts (`contracts/persistent/src/models/`), every one with `LIVE`:
   member (`LIVE` set), and in the kit word's free bits the snapshot's state: the registry's
   **content version** it was computed under at 208–239, the **stale mark** at 240. Written by
   `set_build` only (3 words: new at an adventurer's first `set_build`, about 468,667 each on the
-  node, 1,406,000 the three; overwritten after); read by `enter`, which refuses a slot never written
+  node, 1,406,000 the three; overwritten after, **40,000 a word** on the node, measured on the kit
+  word, about 120,000 the three, E); read by `enter`, which refuses a slot never written
   (`snapshot: missing`) and a stale snapshot (`snapshot: stale`): the mark set, a content version
   other than the registry's (`Registry.bundle` returns it with the gate, no extra call), or
   `MemberStats.level` other than the adventurer's. An entrypoint that changes an input of the
@@ -811,7 +812,8 @@ elsewhere.
 ### 4.2 The calls between contracts (`grimworld_logic::interface`)
 
 ```
-IInstanceEntry (Instances; Hub only):  create(...) -> u64,  set_controller(adventurer_id, controller)
+IInstanceEntry (Instances; Hub only):  create(adventurer_id, controller, gate, snapshot: SnapshotWords, tasks) -> u64,
+                                       set_controller(adventurer_id, controller)
 IResults (Hub; Instances only):        report(results: Results),  barter(adventurer_id, collector) -> bool
 IRegistryRead (Registry):              record, records, bundle -> (version: u32, records), content_version -> u32
 IFate (provider):                      fate(domain) -> felt252
@@ -930,9 +932,12 @@ defeat and no reveal: about 1.1 M, 2.6 % of the bound (E-17). A typical fight ba
 **At entry** (`Hub.enter` → `Instances.create`, one transaction): the hub checks the gate's
 requirements, locks the build (the adventurer is `inside`: `set_build`, services and trade refuse
 it), and passes:
-- `Snapshot { stats: MemberStats, bar: MemberBar, kit: MemberKit, belt_counts }`: everything a tick
-  needs of the adventurer, computed from its level, attributes, equipment and belt (design/03,
-  design/15); stored as the member's words 4–6 and the belt counts of word 0;
+- `SnapshotWords { stats, bar, kit, belt_counts }` (CBT-02e, D-168): everything a tick needs of
+  the adventurer, the three words `MemberStats`, `MemberBar` and `MemberKit` **packed** as
+  `FlattenLibrary` flattened them at `set_build` from its level, attributes, equipment and belt
+  (design/03, design/15) and `Hub` stored them (§3.3), the kit without its content version; the
+  belt's counts from the reserve `enter` debits. `create` stores the words as they are as the
+  member's words 4–6 (no packing), and the belt counts in word 0;
 - `controller`: the account's owner (M-6);
 - `tasks`: at most 16 `TaskEntry` (D-131): the held quests' and contract's tasks and the titles in
   progress, each with the criterion the instance can check alone (a caste, a landmark, a location).
@@ -1492,13 +1497,15 @@ snforge for what the node cannot build yet). `enter` copies the stored snapshot:
 | `enter`, a later entry, no belt | 4,513,259 | **3,713,259** | 4,100,000 |
 | `enter`, the adventurer's first (a new slot) | 10,299,259 | **9,259,259** | §10 stands |
 | `set_build`, an empty build, the adventurer's first (the snapshot's 3 words new) | — | **4,428,059** | — |
-| `set_build`, an empty build, overwriting | — | **3,022,059** | — |
+| `set_build`, an empty build, the snapshot's words rewritten unchanged | — | **3,022,059** | — |
+| a snapshot word overwritten (fix loop 1: `set_build` of two potions with the belt's slots swapped, belt and kit words overwritten, 3,342,059, less the same with the counts changed, the belt word alone, 3,302,059) | — | **40,000** | — |
 | `set_build`, the worst case (8 skills, 4 potions, 7 pieces holding 15 modifiers), the call, snforge | 2,960,731 | **8,097,073** | **8,501,927**, its measure (D-158 (c), D-168) |
 
 `set_build`'s worst case cannot run on the node yet (no entrypoint creates an item or teaches a
-skill); its transaction is about **9.17 M (E)** overwriting and **10.57 M (E)** at an adventurer's
-first `set_build` (the snforge call + the node's excess over snforge on the empty build, 1,068,596,
-+ the three new words, 1,406,000). It is a hub action, off the expedition's path; `enter`, on it, is
+skill); its transaction is about **9.29 M (E)** overwriting and **10.57 M (E)** at an adventurer's
+first `set_build`. The derivation: the snforge call, plus the node's excess over snforge on the
+empty build, which is 1,068,596 with the words rewritten unchanged. Overwriting adds the three
+words, 3 × 40,000; a first `set_build` adds the three new words, 1,406,000. It is a hub action, off the expedition's path; `enter`, on it, is
 cheaper than before by about 0.8 M (no flattening, no snapshot built, 3 felts through `create`
 instead of 63, no repacking in `Instances`).
 

@@ -194,9 +194,7 @@ pub mod Hub {
         Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, ItemMods, ItemModsTrait,
         PERSONALISED, RiftBoard,
     };
-    use crate::models::snapshot::{
-        StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait,
-    };
+    use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
     use crate::store::StoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
@@ -607,7 +605,8 @@ pub mod Hub {
             base.set_word(BELT_WORD, belt_word);
             base.set_word(EQUIPPED_WORD, equipped_word);
             StoreTrait::set_snapshot(
-                self.snapshots.entry(adventurer_id), StoredSnapshotTrait::new(stats, bar, kit, version),
+                self.snapshots.entry(adventurer_id),
+                StoredSnapshotTrait::new(stats, bar, kit, version),
             );
         }
         /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
