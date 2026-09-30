@@ -1,7 +1,7 @@
-//! SPK-14: hexagonal chunks of 251 tiles (D-165).
-//!
-//! Empty. The Cairo part (the indexing, the window's assembly from hexagonal chunks, a chunk's
-//! generation, each against an oracle and measured twice) was not written: this lot's launch
-//! profile (`research`) refused `scarb` and `snforge`, so nothing could be compiled or measured.
-//! What it would contain is listed in docs/research/SPK-14-hexagonal-chunks.md §7. The package
-//! manifest reads the map library by git at commit 93639f2c17e3, as the brief asks.
+//! SPK-14: hexagonal chunks of 251 tiles (D-165), measured against the rectangle of SPK-7 and of
+//! the map library's N-3 (`hexx` at 93639f2c17e3). Results:
+//! docs/research/SPK-14-hexagonal-chunks.md.
+
+pub mod hexchunk;
+pub mod tables;
+pub mod window;

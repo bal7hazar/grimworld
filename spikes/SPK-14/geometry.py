@@ -212,6 +212,162 @@ def check_shift_steps():
     print("shift step between consecutive rows (0 = shared piece):", steps)
 
 
+def enter(slot, q, r):
+    """The tile (q, r) of chunk `slot` (relative lattice (da, db)), brought into its own chunk
+    when a step of the window's left column or of a row left the hexagon: one translation."""
+    da, db = slot
+    if inside(q, r):
+        return slot, q, r
+    moves = [
+        ("+T_U", (1, 0), (9, -17)),
+        ("-T_R", (0, -1), (19, -8)),
+        ("-(T_U+T_R)", (-1, -1), (10, 9)),
+        ("+(T_U+T_R)", (1, 1), (-10, -9)),
+        ("+T_R", (0, 1), (-19, 8)),
+        ("-T_U", (-1, 0), (-9, 17)),
+    ]
+    found = [(name, (da + sa, db + sb), q + mq, r + mr) for name, (sa, sb), (mq, mr) in moves
+             if inside(q + mq, r + mr)]
+    assert len(found) == 1, (q, r, found)
+    name, slot, q, r = found[0]
+    ENTERED[name] = ENTERED.get(name, 0) + 1
+    return slot, q, r
+
+
+ENTERED = {}
+
+
+def plan(oq, orow):
+    """The pieces of the window whose origin tile is local (oq, orow) of the origin chunk, as the
+    Cairo walk computes them: per window row, 1 or 2 runs `(slot, chunk bit, count, window bit)`.
+    The origin's global row is even, so the left column steps (q, r + 1) from an even window row
+    and (q - 1, r + 1) from an odd one."""
+    pieces = []
+    slot, q, r = (0, 0), oq, orow
+    for j in range(16):
+        s, cq, cr, done, count = slot, q, r, 0, 0
+        while done < 15:
+            n = min(hi(cr) - cq + 1, 15 - done)
+            pieces.append((s, STARTS[cr] + cq - lo(cr), n, 15 * j + done))
+            done += n
+            count += 1
+            if done < 15:
+                # The Cairo rule East of a row: through q = 18 up to row 8, else q + r = 26
+                expected = enter(s, hi(cr) + 1, cr)
+                if cr <= 8:
+                    s, cr = (s[0], s[1] + 1), cr + 8
+                else:
+                    s, cr = (s[0] + 1, s[1] + 1), cr - 9
+                cq = lo(cr)
+                assert (s, cq, cr) == expected, (oq, orow, j)
+        SEGMENTS[count] = SEGMENTS.get(count, 0) + 1
+        q, r = q - (j % 2), r + 1
+        # The Cairo rule of the left column: q + r = 26 first, then the North row, then q = 0
+        expected = enter(slot, q, r)
+        if q + r > 26:
+            slot, q, r = (slot[0] + 1, slot[1] + 1), q - 10, r - 9
+        elif r > 16:
+            slot, q, r = (slot[0] + 1, slot[1]), q + 9, r - 17
+        elif q < 0:
+            slot, q, r = (slot[0], slot[1] - 1), q + 19, r - 8
+        assert (slot, q, r) == expected, (oq, orow, j)
+    return pieces
+
+
+SEGMENTS = {}
+
+
+def check_plan():
+    """The walk against a direct construction, every origin class: each window tile read from
+    the chunk that holds it (`chunk_of`), on random chunk contents."""
+    import random
+
+    rng = random.Random(14)
+    slots = set()
+    worst = 0
+    for i in range(AREA):
+        oq, orow = tile(i)
+        # The origin chunk anchored at (a + 4)·T_U + 3·T_R: its row 17 (a + 4) - 24 has the
+        # parity of a = orow mod 2, so the origin's global row is even; y stays positive
+        a = orow % 2
+        aq, ar = (a + 4) * T_U[0] + 3 * T_R[0], (a + 4) * T_U[1] + 3 * T_R[1]
+        gx, gy = offset(aq + oq, ar + orow)
+        assert gy % 2 == 0, (i, gy)
+        base = (a + 4, 3)  # the anchor (0, 0) itself lies outside the hexagon
+        contents = {}
+        expected = 0
+        for j in range(16):
+            for k in range(15):
+                ca, cb, bit = chunk_of(*axial(gx + k, gy + j))
+                key = (ca - base[0], cb - base[1])
+                contents.setdefault(key, rng.getrandbits(AREA))
+                if contents[key] >> bit & 1:
+                    expected |= 1 << (15 * j + k)
+        got = 0
+        pieces = plan(oq, orow)
+        worst = max(worst, len(pieces))
+        for slot, cbit, n, wbit in pieces:
+            slots.add(slot)
+            run = contents[slot] >> cbit & ((1 << n) - 1)
+            got |= run << wbit
+        assert got == expected, i
+    print(f"plan: the walk equals the direct construction on all {AREA} origin classes;"
+          f" at most {worst} pieces; slots {sorted(slots)}")
+    print(f"plan: runs per window row {dict(sorted(SEGMENTS.items()))};"
+          f" chunk changes {dict(sorted(ENTERED.items()))}")
+    return sorted(slots)
+
+
+def round_div(n):
+    """`n / 251` rounded to the nearest, as the Cairo computes it (on a shifted non-negative)."""
+    return (n + 125 + AREA * 64) // AREA - 64
+
+
+def locate(q, r):
+    """The Cairo `chunk_of`: rounded lattice coordinates, then at most one translation."""
+    a = round_div(8 * (q - 9) + 19 * (r - 8))
+    b = round_div(17 * (q - 9) + 9 * (r - 8))
+    lq, lr = q - a * T_U[0] - b * T_R[0], r - a * T_U[1] - b * T_R[1]
+    (da, db), lq, lr = enter((0, 0), lq, lr)
+    return a + da, b + db, lq, lr
+
+
+def check_locate():
+    fixed = 0
+    for y in range(0, 256):
+        for x in range(0, 256):
+            q, r = axial(x, y)
+            a, b, lq, lr = locate(q, r)
+            assert chunk_of(q, r) == (a, b, index(lq, lr)), (x, y)
+            fixed += (lq, lr) != (q - a * T_U[0] - b * T_R[0], r - a * T_U[1] - b * T_R[1])
+    print("locate: rounding and at most one translation find the chunk of every tile of 256 x 256")
+
+
+def worst_class():
+    """The origin class with the most pieces, then the most chunks: the benchmark's case."""
+    best = None
+    for i in range(AREA):
+        oq, orow = tile(i)
+        pieces = plan(oq, orow)
+        chunks = len({p[0] for p in pieces})
+        key = (len(pieces), chunks, -i)
+        if best is None or key > best[0]:
+            best = (key, oq, orow, i)
+    (count, chunks, _), oq, orow, i = best
+    print(f"worst class: origin tile ({oq}, {orow}), bit {i}: {count} pieces over {chunks} chunks")
+    six = max(len({p[0] for p in plan(*tile(i))}) for i in range(AREA))
+    most = max((len(plan(*tile(i))), i) for i in range(AREA)
+               if len({p[0] for p in plan(*tile(i))}) == six)
+    print(f"most chunks over the classes: {six}; among those, origin tile {tile(most[1])},"
+          f" bit {most[1]}: {most[0]} pieces")
+    counts = {}
+    for i in range(AREA):
+        n = len({p[0] for p in plan(*tile(i))})
+        counts[n] = counts.get(n, 0) + 1
+    print(f"chunks per window over the 251 classes: {dict(sorted(counts.items()))}")
+    return oq, orow
+
+
 def main():
     check_shape()
     check_tiling()
@@ -219,6 +375,9 @@ def main():
     check_sight()
     check_linear_layouts()
     check_shift_steps()
+    check_plan()
+    check_locate()
+    worst_class()
 
 
 if __name__ == "__main__":
