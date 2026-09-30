@@ -6,13 +6,17 @@
 // yet produce (known skills, pack balances, equipment entities, a level, a rank, a secondary
 // profession) is set with `store`.
 use core::testing::get_available_gas;
-use grimworld_logic::content::{ITEM, LOCATION, REGION, SKILL};
+use grimworld_logic::content::{ITEM, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
+use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
+use grimworld_logic::snapshot::errors::{MAX_HEALTH, SOURCE_COUNT};
+use grimworld_logic::types::combat::damage;
+use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
 use grimworld_persistent::models::account::{PACK, VAULT, owner_key};
 use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, BELT_LAYOUT, BELT_NOT_IN_PACK, BUILD_LAYOUT, COUNT_WITHOUT_ITEM,
@@ -21,8 +25,10 @@ use grimworld_persistent::models::adventurer::errors::{
     SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
 };
 use grimworld_persistent::models::adventurer::{AdventurerCore, NO_ELITE};
-use grimworld_persistent::models::item::errors::{A_COMPONENT, NOT_IN_PACK, UNIDENTIFIED};
-use grimworld_persistent::models::item::{COMPONENT, IDENTIFIED, ItemBaseTrait};
+use grimworld_persistent::models::item::errors::{
+    A_COMPONENT, INSIGNIA_PIECE, NOT_IN_PACK, NO_MODIFIER, UNIDENTIFIED,
+};
+use grimworld_persistent::models::item::{COMPONENT, IDENTIFIED, ItemBaseTrait, ItemMods, Modifier};
 use grimworld_persistent::systems::hub::{
     IHubDispatcher, IHubDispatcherTrait, IHubSafeDispatcher, IHubSafeDispatcherTrait,
 };
@@ -223,6 +229,78 @@ fn put_item(world: World, entity: u32, base: u16, rarity: u8, flags: u8, kind: u
     write(world.hub, key, StorePacking::pack(item));
 }
 
+/// The `MODIFIER` records of the flattening's tests (design/19 §4, within design/20's per-source
+/// bounds): 1–3 a prefix, a suffix and an inscription (life steal 1…5 on a hit, costing 7 armor
+/// against cold); 4–5 a suffix and an inscription likewise; 6–10 insignias made for the chest,
+/// the legs, the head, the hands and the feet, 11–15 runes (armor against fire 1…7, costing 7
+/// against cold); 16 a rune costing 75 health (DS-2's floor); 17 an insignia made for the chest.
+fn modifiers(world: World) {
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    let admin = IRegistryAdminDispatcher { contract_address: world.registry };
+    let cold = PassiveTrait::new(passive_id::ARMOR_VS, damage::COLD, 0, 0, 7, 7);
+    let steal = PassiveTrait::new(passive_id::LIFE_STEAL_ON_HIT, 0, 0, 0, 1, 5);
+    let fire = PassiveTrait::new(passive_id::ARMOR_VS, damage::FIRE, 0, 0, 1, 7);
+    let held = [
+        modifier_slot::PREFIX, modifier_slot::SUFFIX, modifier_slot::INSCRIPTION,
+        modifier_slot::SUFFIX, modifier_slot::INSCRIPTION,
+    ];
+    let mut id: u32 = 1;
+    for slot in held.span() {
+        admin.set_record(MODIFIER, id, ModifierTrait::new(*slot, steal, cold).pack());
+        id += 1;
+    }
+    for piece in 3..8_u8 {
+        admin.set_record(MODIFIER, id, ModifierTrait::insignia(piece, fire, cold).pack());
+        id += 1;
+    }
+    for _ in 0..5_u8 {
+        admin.set_record(MODIFIER, id, ModifierTrait::new(modifier_slot::RUNE, fire, cold).pack());
+        id += 1;
+    }
+    let health: Passive = PassiveTrait::new(passive_id::MAX_HEALTH, 0, 0, 0, -75, -75);
+    admin.set_record(MODIFIER, 16, ModifierTrait::new(modifier_slot::RUNE, fire, health).pack());
+    admin.set_record(MODIFIER, 17, ModifierTrait::insignia(3, fire, cold).pack());
+}
+
+/// The `ItemMods` of `entity`, as identification and the enchanter write it: each slot's
+/// `(modifier, value)`, in the order prefix, suffix, inscription, insignia, rune.
+fn put_mods(world: World, entity: u32, mods: [(u16, u8); 5]) {
+    let key = map_entry_address(selector!("items"), array![entity.into()].span()) + 1;
+    let [(a, x), (b, y), (c, z), (d, v), (e, w)] = mods;
+    let lanes = [
+        Modifier { id: a, value: x }, Modifier { id: b, value: y }, Modifier { id: c, value: z },
+        Modifier { id: d, value: v }, Modifier { id: e, value: w },
+    ];
+    write(world.hub, key, StorePacking::pack(ItemMods { mods: lanes }));
+}
+
+/// Items 101–107 made fine and identified, so that they hold modifiers (design/15: a common item
+/// has none).
+fn fine_items(world: World, id: u32) {
+    for i in 0..7_u32 {
+        let base: u16 = if i == 0 {
+            1
+        } else {
+            (i + 2).try_into().unwrap()
+        };
+        put_item(world, 101 + i, base, 1, IDENTIFIED, PACK, id);
+    }
+}
+
+/// The widest equipment design/20 §1.2 counts: the sword's prefix, suffix and inscription, the
+/// shield's suffix and inscription, each piece's insignia and rune: 15 modifiers, 30 passives.
+fn widest_equipment(world: World, id: u32) {
+    modifiers(world);
+    fine_items(world, id);
+    put_mods(world, 101, [(1, 5), (2, 5), (3, 5), (0, 0), (0, 0)]);
+    put_mods(world, 102, [(0, 0), (4, 5), (5, 5), (0, 0), (0, 0)]);
+    let mut k: u16 = 0;
+    while k < 5 {
+        put_mods(world, 103 + k.into(), [(0, 0), (0, 0), (0, 0), (6 + k, 7), (11 + k, 7)]);
+        k += 1;
+    }
+}
+
 /// Alice's account and one adventurer of `profession`: adventurer 1; Bob's Vanguard: 2. Alice
 /// knows skills 1 to 12, holds 3 of each potion, and has the entities above.
 fn adventurer(world: World, profession: u8) -> u32 {
@@ -310,19 +388,25 @@ fn try_set(
 // ---- the worst case, stored as sent
 // --------------------------------------------------------------
 
-/// The budget of the `set_build` call alone in its worst case (D-158): ceil(1.05 × 2,960,731
-/// measured), snforge, `get_available_gas` around the dispatcher call.
-const WORST_CASE_CALL: u128 = 3108768;
+/// The budget of the `set_build` call alone in its worst case (D-158): ceil(1.05 × 17,455,710
+/// measured), snforge, `get_available_gas` around the dispatcher call. Raised from 3,108,768
+/// (2,960,731 measured): CBT-02b wires the flattening into `set_build` (D-160), and the worst case
+/// now holds the 15 modifiers design/20 §1.2 counts. Above D-158's target: reported, not accepted.
+const WORST_CASE_CALL: u128 = 18328496;
 
 // The worst case of ENG-01 §9.3 and §10: 8 skills (an elite in slot 3), every attribute point of
 // a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
-// pieces worn. Writes: `build`, `belt`, `equipped`, overwritten, each the word sent plus `LIVE`.
+// pieces worn, holding the 15 modifiers design/20 §1.2 counts (CBT-02b: `set_build` reads them and
+// flattens the build, D-160). Writes: `build`, `belt`, `equipped`, overwritten, each the word sent
+// plus `LIVE`.
 #[test]
-#[available_gas(l2_gas: 69272912)] // ceil(1.05 × 65974201 measured)
+// gas: raised, CBT-02b: set_build flattens the build (D-160), reading the equipment's modifiers
+#[available_gas(l2_gas: 103844643)] // ceil(1.05 × 98899660 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
     set_profile(world, id, 20, 2, 0);
+    widest_equipment(world, id);
     let words = (
         build([1, 2, 3, ELITE, 5, 6, 7, 8], [12, 12, 3, 0, 0, 0, 0, 0, 0], 3),
         belt([1, 8, 15, 22], [3, 3, 3, 3]),
@@ -546,7 +630,8 @@ fn test_attributes_rank_and_points() {
 
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
-#[available_gas(l2_gas: 78502337)] // ceil(1.05 × 74764130 measured)
+// gas: raised, CBT-02b: set_build flattens the build (D-160), reading the equipment's modifiers
+#[available_gas(l2_gas: 82870137)] // ceil(1.05 × 78923940 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -667,4 +752,67 @@ fn test_equipment_slots_and_hands() {
     refused(try_set(world, id, empty(), 0, equipped([MAUL, 102, 0, 0, 0, 0, 0])), TWO_HANDS);
     // An off-hand alone is worn.
     accepted(try_set(world, id, empty(), 0, equipped([0, 102, 0, 0, 0, 0, 0])));
+}
+
+// ---- the flattening (D-160, CBT-02b) --------------------------------------------------------
+
+// DS-2 (D-160, design/20 §6 test 3): `set_build` flattens the build and refuses it below the
+// floors. A level 1 Vanguard's 100 health: one rune costing 75 leaves 25, accepted; two leave
+// −50, refused (costs count on every rune, FX-43).
+#[test]
+#[available_gas(l2_gas: 87136726)] // ceil(1.05 × 82987358 measured)
+fn test_set_build_floor_refused() {
+    let world = setup();
+    let id = adventurer(world, VANGUARD);
+    modifiers(world);
+    fine_items(world, id);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (16, 1)]);
+    put_mods(world, 104, [(0, 0), (0, 0), (0, 0), (0, 0), (16, 1)]);
+    accepted(try_set(world, id, empty(), 0, chest(103)));
+    refused(try_set(world, id, empty(), 0, equipped([0, 0, 103, 104, 0, 0, 0])), MAX_HEALTH);
+}
+
+// DS-23 (D-160): an insignia is worn on the piece its record names; one made for the chest is
+// refused on the legs.
+#[test]
+#[available_gas(l2_gas: 86333410)] // ceil(1.05 × 82222295 measured)
+fn test_set_build_insignia_piece_refused() {
+    let world = setup();
+    let id = adventurer(world, VANGUARD);
+    modifiers(world);
+    fine_items(world, id);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (17, 3), (0, 0)]);
+    put_mods(world, 104, [(0, 0), (0, 0), (0, 0), (17, 3), (0, 0)]);
+    accepted(try_set(world, id, empty(), 0, chest(103)));
+    refused(try_set(world, id, empty(), 0, equipped([0, 0, 0, 104, 0, 0, 0])), INSIGNIA_PIECE);
+}
+
+// The flattening's checks of the whole build (design/20 §1.2, DS-1): six runes are more than an
+// adventurer holds, refused.
+#[test]
+#[available_gas(l2_gas: 94565666)] // ceil(1.05 × 90062539 measured)
+fn test_set_build_sixth_rune_refused() {
+    let world = setup();
+    let id = adventurer(world, VANGUARD);
+    modifiers(world);
+    fine_items(world, id);
+    for entity in 101..107_u32 {
+        put_mods(world, entity, [(0, 0), (0, 0), (0, 0), (0, 0), (11, 7)]);
+    }
+    accepted(try_set(world, id, empty(), 0, equipped([0, 102, 103, 104, 105, 106, 0])));
+    refused(
+        try_set(world, id, empty(), 0, equipped([101, 102, 103, 104, 105, 106, 0])), SOURCE_COUNT,
+    );
+}
+
+// A modifier the registry does not hold is refused.
+#[test]
+#[available_gas(l2_gas: 83436577)] // ceil(1.05 × 79463406 measured)
+fn test_set_build_unknown_modifier_refused() {
+    let world = setup();
+    let id = adventurer(world, VANGUARD);
+    modifiers(world);
+    fine_items(world, id);
+    put_mods(world, 103, [(0, 0), (0, 0), (0, 0), (0, 0), (18, 1)]);
+    refused(try_set(world, id, empty(), 0, chest(103)), NO_MODIFIER);
 }
