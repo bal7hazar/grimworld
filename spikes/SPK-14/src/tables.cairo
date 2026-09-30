@@ -223,3 +223,227 @@ pub const WINDOW_INTERIOR_LOW: u128 = 0xfe7ffcfff9fff3ffe7ffcfff9fff0000;
 
 /// The interior of the 15 x 16 window, high limb.
 pub const WINDOW_INTERIOR_HIGH: u128 = 0xfff9fff3ffe7ffcfff9fff3f;
+
+/// Interior of a 15 x 15 chunk, 13 x 13.
+pub const RECT_INTERIOR: felt252 = 0x1fff3ffe7ffcfff9fff3ffe7ffcfff9fff3ffe7ffcfff9fff0000;
+
+/// Row 7 and column 7 of the interior.
+pub const RECT_SPINE: felt252 = 0x4000800100020004000807ffc02000400080010002000400000;
+
+/// Ring column x = 0, corners excluded.
+pub const RECT_COL_EAST: felt252 = 0x8001000200040008001000200040008001000200040008000;
+
+/// Ring column x = 14, corners excluded.
+pub const RECT_COL_WEST: felt252 = 0x20004000800100020004000800100020004000800100020000000;
+
+/// Ring row y = 0, corners excluded.
+pub const RECT_ROW_SOUTH: felt252 = 0x3ffe;
+
+/// Ring row y = 14, corners excluded.
+pub const RECT_ROW_NORTH: felt252 = 0xfff80000000000000000000000000000000000000000000000000000;
+
+/// Rows of a chunk on even global rows: `[0]` even start, `[1]` odd (the parity flag).
+pub const RECT_EVEN: [felt252; 2] = [
+    0x1fffc0007fff0001fffc0007fff0001fffc0007fff0001fffc0007fff,
+    0x3fff8000fffe0003fff8000fffe0003fff8000fffe0003fff8000,
+];
+
+/// Rows 0 and 1 of a chunk.
+pub const RECT_LOW30: u128 = 0x3fffffff;
+
+/// 2^(W - 1).
+pub const RECT_UP: felt252 = 0x4000;
+
+/// 2^-(W + 1).
+pub const RECT_DOWN: felt252 = 0x7fff80000000010ffef00000000000000000000000000000000000000000001;
+
+/// From an opening at x = 0 to x = 1..6 of its row.
+pub const RECT_LINE_EAST: felt252 = 0x7e;
+
+/// From an opening at x = 14 to x = 8..13 of its row.
+pub const RECT_LINE_WEST: felt252 =
+    0x20000000000000440000000000000000000000000000000000000000000001;
+
+/// From an opening at y = 0 to y = 1..6 of its column.
+pub const RECT_LINE_SOUTH: felt252 = 0x40008001000200040008000;
+
+/// From an opening at y = 14 to y = 8..13 of its column.
+pub const RECT_LINE_NORTH: felt252 =
+    0x7ffefffdfffc0107fdcffb9ff77feeffddffbc0000000000000000000000001;
+
+/// Interior tiles of half S (rows 0-9).
+pub const S_INTERIOR: u256 = u256 {
+    low: 0xffe1fff83ffe07ff80ffe01ff8000000, high: 0xffff3fffe7fff8f,
+};
+
+/// Interior tiles of half N (rows 7-16).
+pub const N_INTERIOR: u256 = u256 { low: 0x7ff81fff07ffe1fffc7fff9ffff3fffc, high: 0x7fe01ffc0 };
+
+/// The spine in S: row 8, q = 9 and q + r = 17 through the centre (9, 8).
+pub const S_SPINE: u256 = u256 { low: 0x28000900022000840020800810000000, high: 0x1803fffe00c000 };
+
+/// The spine in N.
+pub const N_SPINE: u256 = u256 { low: 0x8400110002400050000c01ffff00600, high: 0x204004100 };
+
+/// 2^-18.
+pub const INV_18: felt252 = 0x7fffe0000000010fffbc0000000000000000000000000000000000000000001;
+
+/// 2^-19.
+pub const INV_19: felt252 = 0x7ffff0000000010fffde0000000000000000000000000000000000000000001;
+
+/// The centre (9, 8) in S.
+pub const S_CENTRE: u8 = 0xa1;
+
+/// The centre (9, 8) in N.
+pub const N_CENTRE: u8 = 0x1c;
+
+/// The first row of a half.
+pub const LOW19: u128 = 0x7ffff;
+
+/// From (q, 0) to (q, 1..7): up 7 rows.
+pub const LINE_UP: felt252 = 0x2000040000800010000200004000080000;
+
+/// From (q, 16) to (q, 15..9): down 7 rows.
+pub const LINE_DOWN: felt252 = 0x7fffeffffe0000cfffd5fffabfff57ffeafffddfffbbfff7800000000000001;
+
+/// From q = 18 or q + r = 26 to the 8 tiles of lower q, to the spine.
+pub const LINE_LOWER_Q: felt252 = 0x8000000000000110000000000000000000000000000000000000000000001;
+
+/// From q = 0 or q + r = 8 to the 8 tiles of higher q, to the spine.
+pub const LINE_HIGHER_Q: felt252 = 0x1fe;
+
+/// Rows 7-8 of S.
+pub const S_ROWS78: u256 = u256 { low: 0x0, high: 0x7ffffffffe0 };
+
+/// Rows 7-8 of N.
+pub const N_ROWS78: u256 = u256 { low: 0x3fffffffff, high: 0x0 };
+
+/// Row 9 of S.
+pub const S_ROW9: u256 = u256 { low: 0x0, high: 0x3ffff80000000000 };
+
+/// Row 9 of N.
+pub const N_ROW9: u256 = u256 { low: 0x1ffffc000000000, high: 0x0 };
+
+/// 2^133: N to S.
+pub const SYNC_UP: felt252 = 0x2000000000000000000000000000000000;
+
+/// 2^-133: S to N.
+pub const SYNC_DOWN: felt252 = 0x800000000000010ffffffffffffffffffbfffffffffffff7800000000000001;
+
+/// Side minus_u: the half bits of its non-corner tiles.
+pub const SIDE_MINUS_U: [u8; 9] = [0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11];
+
+/// Side plus_u: the half bits of its non-corner tiles.
+pub const SIDE_PLUS_U: [u8; 9] = [0xac, 0xad, 0xae, 0xaf, 0xb0, 0xb1, 0xb2, 0xb3, 0xb4];
+
+/// Side plus_r: the half bits of its non-corner tiles.
+pub const SIDE_PLUS_R: [u8; 7] = [0x25, 0x38, 0x4b, 0x5e, 0x71, 0x84, 0x97];
+
+/// Side minus_r: the half bits of its non-corner tiles.
+pub const SIDE_MINUS_R: [u8; 7] = [0x26, 0x39, 0x4c, 0x5f, 0x72, 0x85, 0x98];
+
+/// Side plus_ur: the half bits of its non-corner tiles.
+pub const SIDE_PLUS_UR: [u8; 7] = [0x37, 0x49, 0x5b, 0x6d, 0x7f, 0x91, 0xa3];
+
+/// Side minus_ur: the half bits of its non-corner tiles.
+pub const SIDE_MINUS_UR: [u8; 7] = [0x1a, 0x2c, 0x3e, 0x50, 0x62, 0x74, 0x86];
+
+/// The neighbour -T_U's facing side (its row 16), dense.
+pub const COPY_MINUS_U_MASK: u256 = u256 { low: 0x0, high: 0x3fe0000000000000000000000000000 };
+
+/// Its row 16 onto our row 0 in S.
+pub const COPY_MINUS_U_SHIFT: felt252 = 0x8800000000000120fffffffffffffffffffffffffffffffff80000;
+
+/// The neighbour +T_U's facing side (its row 0), dense.
+pub const COPY_PLUS_U_MASK: u256 = u256 { low: 0x3fe, high: 0x0 };
+
+/// Its row 0 onto our row 16 in N.
+pub const COPY_PLUS_U_SHIFT: felt252 = 0x8000000000000000000000000000000000000000000;
+
+/// Side plus_r copied: (the neighbour's dense bit, our half bit).
+pub const GATHER_PLUS_R: [(u8, u8); 7] = [
+    (135, 37), (153, 56), (170, 75), (186, 94), (201, 113), (215, 132), (228, 151),
+];
+
+/// Side minus_r copied: (the neighbour's dense bit, our half bit).
+pub const GATHER_MINUS_R: [(u8, u8); 7] = [
+    (22, 38), (35, 57), (49, 76), (64, 95), (80, 114), (97, 133), (115, 152),
+];
+
+/// Side plus_ur copied: (the neighbour's dense bit, our half bit).
+pub const GATHER_PLUS_UR: [(u8, u8); 7] = [
+    (11, 55), (23, 73), (36, 91), (50, 109), (65, 127), (81, 145), (98, 163),
+];
+
+/// Side minus_ur copied: (the neighbour's dense bit, our half bit).
+pub const GATHER_MINUS_UR: [(u8, u8); 7] = [
+    (152, 26), (169, 44), (185, 62), (200, 80), (214, 98), (227, 116), (239, 134),
+];
+
+/// Packing: per row `(mask_low, mask_high, shift)` from its half (S rows 0-8, N 9-16).
+pub const PACK: [(u128, u128, felt252); 17] = [
+    (0x7ff00, 0x0, 0x7f8000000000010ef0000000000000000000000000000000000000000000001),
+    (0x3ffc000000, 0x0, 0x7fff00000000010ffde00000000000000000000000000000000000000000001),
+    (0x1fff00000000000, 0x0, 0x7ffffc000000010ffff78000000000000000000000000000000000000000001),
+    (0xfffc000000000000000, 0x0, 0x7fffffe00000010fffffbc00000000000000000000000000000000000000001),
+    (
+        0x7fff00000000000000000000,
+        0x0,
+        0x7ffffffe0000010ffffffbc0000000000000000000000000000000000000001,
+    ),
+    (
+        0x3fffc000000000000000000000000,
+        0x0,
+        0x7fffffffc000010fffffff78000000000000000000000000000000000000001,
+    ),
+    (
+        0xfff00000000000000000000000000000,
+        0x1f,
+        0x7ffffffff000010fffffffde000000000000000000000000000000000000001,
+    ),
+    (0x0, 0xffffc0, 0x7ffffffff800010fffffffef000000000000000000000000000000000000001),
+    (0x0, 0x7ffff000000, 0x7ffffffff800010fffffffef000000000000000000000000000000000000001),
+    (0xffffc000000000, 0x0, 0x2000000000000000000000000),
+    (0x3fffe00000000000000, 0x0, 0x1000000000000000000000000),
+    (0xffff0000000000000000000, 0x0, 0x400000000000000000000000),
+    (0x3fff800000000000000000000000, 0x0, 0x80000000000000000000000),
+    (0xfffc0000000000000000000000000000, 0x0, 0x8000000000000000000000),
+    (0x0, 0x3ffe0, 0x400000000000000000000), (0x0, 0xfff000000, 0x10000000000000000000),
+    (0x0, 0x3ff80000000000, 0x200000000000000000),
+];
+
+/// Side minus_u: its non-corner tiles, dense.
+pub const DENSE_MINUS_U: [u8; 9] = [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
+
+/// Side minus_u: the neighbour's facing tiles, dense (its frame).
+pub const FACING_MINUS_U: [u8; 9] = [0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9];
+
+/// Side plus_u: its non-corner tiles, dense.
+pub const DENSE_PLUS_U: [u8; 9] = [0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9];
+
+/// Side plus_u: the neighbour's facing tiles, dense (its frame).
+pub const FACING_PLUS_U: [u8; 9] = [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9];
+
+/// Side plus_r: its non-corner tiles, dense.
+pub const DENSE_PLUS_R: [u8; 7] = [0x16, 0x23, 0x31, 0x40, 0x50, 0x61, 0x73];
+
+/// Side plus_r: the neighbour's facing tiles, dense (its frame).
+pub const FACING_PLUS_R: [u8; 7] = [0x87, 0x99, 0xaa, 0xba, 0xc9, 0xd7, 0xe4];
+
+/// Side minus_r: its non-corner tiles, dense.
+pub const DENSE_MINUS_R: [u8; 7] = [0x87, 0x99, 0xaa, 0xba, 0xc9, 0xd7, 0xe4];
+
+/// Side minus_r: the neighbour's facing tiles, dense (its frame).
+pub const FACING_MINUS_R: [u8; 7] = [0x16, 0x23, 0x31, 0x40, 0x50, 0x61, 0x73];
+
+/// Side plus_ur: its non-corner tiles, dense.
+pub const DENSE_PLUS_UR: [u8; 7] = [0x98, 0xa9, 0xb9, 0xc8, 0xd6, 0xe3, 0xef];
+
+/// Side plus_ur: the neighbour's facing tiles, dense (its frame).
+pub const FACING_PLUS_UR: [u8; 7] = [0xb, 0x17, 0x24, 0x32, 0x41, 0x51, 0x62];
+
+/// Side minus_ur: its non-corner tiles, dense.
+pub const DENSE_MINUS_UR: [u8; 7] = [0xb, 0x17, 0x24, 0x32, 0x41, 0x51, 0x62];
+
+/// Side minus_ur: the neighbour's facing tiles, dense (its frame).
+pub const FACING_MINUS_UR: [u8; 7] = [0x98, 0xa9, 0xb9, 0xc8, 0xd6, 0xe3, 0xef];
