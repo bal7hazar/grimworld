@@ -13,6 +13,13 @@ pub const LAST_TIER: u8 = 6;
 pub const MAX_ENERGY: u8 = 85;
 /// Health regeneration is stored + 10: 0–20 for −10…+10 pips.
 pub const MAX_HEALTH_REGEN: u8 = 20;
+/// design/20 DS-18 (D-160): the health multiplier, percent; energy regeneration, pips; weapon
+/// damage; the flee threshold, percent; a skill's adrenaline, strikes.
+pub const MAX_HEALTH_PERCENT: u16 = 1000;
+pub const MAX_ENERGY_REGEN: u8 = 10;
+pub const MAX_WEAPON_DAMAGE: u16 = 255;
+pub const MAX_FLEE: u8 = 100;
+pub const MAX_SKILL_ADRENALINE: u8 = 63;
 
 const P6: u128 = 0x40;
 const P18: u128 = 0x40000;
@@ -28,6 +35,11 @@ pub mod errors {
     pub const ARMOR_VS: felt252 = 'caste: armor vs above 63';
     pub const RANK: felt252 = 'caste: rank';
     pub const ENERGY: felt252 = 'caste: energy above 85';
+    pub const HEALTH: felt252 = 'caste: health above 1000 %';
+    pub const ENERGY_REGEN: felt252 = 'caste: energy regen above 10';
+    pub const WEAPON_DAMAGE: felt252 = 'caste: weapon damage above 255';
+    pub const FLEE: felt252 = 'caste: flee above 100';
+    pub const SKILL_ADRENALINE: felt252 = 'caste: skill adrenaline';
     // The content pipeline's checks (`assert_legal`).
     pub const TIER: felt252 = 'caste: tier';
     pub const HEALTH_REGEN: felt252 = 'caste: health regen';
@@ -117,7 +129,10 @@ pub impl CasteImpl of CasteTrait {
 
 #[generate_trait]
 pub impl CasteAssert of CasteAssertTrait {
-    /// Every field fits its layout: armor per type 6 bits, rank 4 bits, energy at most 85.
+    /// Every field fits its layout: armor per type 6 bits, rank 4 bits, energy at most 85; and,
+    /// checked at `pack` since design/20's capacity proof rests on them (D-160): health
+    /// regeneration 0–20, −10…+10 pips (DS-29), a health multiplier ≤ 1,000 %, energy
+    /// regeneration ≤ 10 pips, weapon damage ≤ 255 and a flee threshold ≤ 100 % (DS-18).
     #[inline(always)]
     fn assert_valid(self: @Caste) {
         for vs in self.armor_vs.span() {
@@ -125,14 +140,27 @@ pub impl CasteAssert of CasteAssertTrait {
         }
         assert(*self.rank < 16, errors::RANK);
         assert(*self.energy <= MAX_ENERGY, errors::ENERGY);
+        assert(*self.health_regen <= MAX_HEALTH_REGEN, errors::HEALTH_REGEN);
+        assert(*self.health <= MAX_HEALTH_PERCENT, errors::HEALTH);
+        assert(*self.energy_regen <= MAX_ENERGY_REGEN, errors::ENERGY_REGEN);
+        assert(*self.weapon.damage <= MAX_WEAPON_DAMAGE, errors::WEAPON_DAMAGE);
+        assert(*self.flee <= MAX_FLEE, errors::FLEE);
     }
 
-    /// The content pipeline's checks: tier 1–6, health regeneration 0–20 (−10…+10 pips), a
-    /// weapon of a class and a damage type that exist.
+    /// DS-18 across records: the adrenaline cost of each skill the caste names is at most 63
+    /// strikes (a goblin's field holds 252 quarters, design/19 §5.12), or it could never be used.
+    /// `skills` are the records of the caste's skill ids.
+    fn assert_skills(skills: Span<super::index::Skill>) {
+        for skill in skills {
+            assert(*skill.adrenaline <= MAX_SKILL_ADRENALINE, errors::SKILL_ADRENALINE);
+        }
+    }
+
+    /// The content pipeline's checks: `assert_valid`, tier 1–6, a weapon of a class and a damage
+    /// type that exist.
     fn assert_legal(self: @Caste) {
         self.assert_valid();
         assert(*self.tier >= 1 && *self.tier <= LAST_TIER, errors::TIER);
-        assert(*self.health_regen <= MAX_HEALTH_REGEN, errors::HEALTH_REGEN);
         let class = *self.weapon.class;
         assert(class >= weapon::SWORD && class <= weapon::LAST, errors::WEAPON_CLASS);
         let kind = *self.weapon.damage_type;

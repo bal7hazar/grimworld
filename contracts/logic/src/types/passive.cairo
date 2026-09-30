@@ -89,6 +89,62 @@ pub mod errors {
     pub const FIXED: felt252 = 'passive: cost not fixed';
     pub const SOURCE: felt252 = 'passive: not on this source';
     pub const CONTRIBUTION: felt252 = 'passive: source adds too much';
+    pub const SOURCE_BOUND: felt252 = 'passive: per-source bound';
+}
+
+/// The per-source bounds of design/20 §1.3 (DS-1, D-160), `[lo, hi]` for what one source adds to
+/// a statistic; `None` where the row gives none (the statistic is bounded otherwise, or is not
+/// held by that source: `PassiveTrait::allows`). Initial content bounds; BAL-01 sets values under
+/// them. A free function: a constant table by passive and source, which a trait would not make
+/// clearer (docs/CAIRO.md §7).
+/// - Row 1, max health: held slots 0…+30, an insignia ≤ 15 (the chest's; the piece's own, 15 /
+/// 10
+///   / 5, needs the insignia record to name its piece: DS-23, CNT-01), a rune and a set bonus
+///   −75…+50.
+/// - Rows 2–4: max energy −5…+5 (held, set bonus); energy regeneration and health
+/// regeneration
+///   −1…0 on a held slot, −1…+1 on a set bonus.
+/// - Row 7: armor against a type 0…+7, any source. Row 8: an attribute +1…+3, runes only.
+/// - Rows 13, 14: life steal 0…+5, energy on hit 0…+1, held slots only.
+/// - Rows 15–17 (DS-5's content bounds): condition duration ≤ 33 (a prefix), enchantment
+///   duration ≤ 20, knock-down ≤ 1; the flattening saturates the sums anyway (50, 50, 3).
+pub fn source_bound(id: u8, source: Source) -> Option<(i32, i32)> {
+    let held_slot = source == Source::Prefix
+        || source == Source::Suffix
+        || source == Source::Inscription;
+    if id == id::MAX_HEALTH {
+        if held_slot {
+            Option::Some((0, 30))
+        } else if source == Source::Insignia {
+            Option::Some((0, 15))
+        } else {
+            Option::Some((-75, 50))
+        }
+    } else if id == id::MAX_ENERGY {
+        Option::Some((-5, 5))
+    } else if id == id::ENERGY_REGEN || id == id::HEALTH_REGEN {
+        if held_slot {
+            Option::Some((-1, 0))
+        } else {
+            Option::Some((-1, 1))
+        }
+    } else if id == id::ARMOR_VS {
+        Option::Some((0, 7))
+    } else if id == id::ATTRIBUTE {
+        Option::Some((1, 3))
+    } else if id == id::LIFE_STEAL_ON_HIT {
+        Option::Some((0, 5))
+    } else if id == id::ENERGY_ON_HIT {
+        Option::Some((0, 1))
+    } else if id == id::CONDITION_DURATION {
+        Option::Some((0, 33))
+    } else if id == id::ENCHANT_DURATION {
+        Option::Some((0, 20))
+    } else if id == id::KNOCKDOWN_FLAT {
+        Option::Some((0, 1))
+    } else {
+        Option::None
+    }
 }
 
 /// Where a passive is held (design/15, design/19 §4, §7.2): one of an item's five modifier slot
@@ -206,6 +262,40 @@ pub impl PassiveImpl of PassiveTrait {
                 && *self.param != *other.param)
     }
 
+    /// Whether the passives one source holds stay within design/20 §1.3's per-source bounds
+    /// (`source_bound`): for each bounded passive present, the range its source adds to its
+    /// statistic (same id, same param) lies within the row's `[lo, hi]`.
+    ///
+    /// Each passive alone lies within `[lo, hi]` too (AUD-182-2, -3): the flattening counts a
+    /// health rune's benefit once per modifier id and takes the highest attribute rune, so a
+    /// benefit and a cost that cancel within the bound must not be able to escape it separately.
+    /// With both, any selection of one benefit and every cost of `n` sources lies within
+    /// `n × [lo, hi]`, the envelope design/20 §1.3 sums (`test_build::test_capacity_proof`).
+    fn fits_source(passives: Span<Passive>, source: Source) -> bool {
+        for passive in passives {
+            let id = *passive.id;
+            if let Option::Some((lo, hi)) = source_bound(id, source) {
+                let min: i32 = (*passive.min).into();
+                let max: i32 = (*passive.max).into();
+                if min < lo || max > hi {
+                    return false;
+                }
+                let mut low: i32 = 0;
+                let mut high: i32 = 0;
+                for other in passives {
+                    if *other.id == id && *other.param == *passive.param {
+                        low += (*other.min).into();
+                        high += (*other.max).into();
+                    }
+                }
+                if low < lo || high > hi {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     /// The range `(low, high)` that the passives of one source add to the sum of `id` and
     /// `guard` for hits of `class` (every class for a passive without a scope).
     fn contribution(passives: Span<Passive>, id: u8, guard: u8, class: u8) -> (i32, i32) {
@@ -224,30 +314,40 @@ pub impl PassiveImpl of PassiveTrait {
     /// - `DAMAGE_PERCENT`, `PENETRATION`: "only the held items' slot types and set bonuses"
     ///   (prefix, suffix, inscription; the 7 × 18 and 7 × 36 bounds);
     /// - guarded `ARMOR`: "only in an insignia slot … or a set bonus";
-    /// - `QUICK_CAST_EVERY_N`: "held only on the weapon and the off-hand": their slot types
-    ///   (prefix, suffix, inscription). "The pipeline gives it one slot type": which one the
-    ///   document does not say, so every quick-cast modifier of the content shares one
-    ///   (`ModifierAssert::assert_catalogue`), whichever it is (escalated);
+    /// - `QUICK_CAST_EVERY_N`: the inscription (design/20 §1.8, D-157 B, D-160): "everything
+    ///   held", the weapon and the off-hand, so at most the field's 2 pairs;
     /// - `CONDITION_DURATION`: "one prefix, on the weapon only";
-    /// - `DAMAGE_TYPE`: "a `DAMAGE_TYPE` modifier on the weapon, the only slot type the pipeline
-    ///   gives it": a weapon's slot type (prefix, suffix, inscription), one for the whole content
-    ///   (`assert_catalogue`); which one, and the weapon-only rule for a suffix or an
-    ///   inscription, which the off-hand also has, are escalated;
+    /// - `DAMAGE_TYPE`: the prefix (design/20 §1.8, D-157 C, D-160): the only slot type that
+    /// exists
+    ///   only on weapons, so no item-context check is needed;
     /// - `RATING_PERCENT`: personalisation only, never a record: §7.2's armor bound counts it
     ///   apart from the 37 `ARMOR` passives (F-21);
+    /// - design/20 §1.3 (D-160): `ENERGY_COST` and `BASE_DAMAGE_PERCENT` on no record (DS-4:
+    ///   *Fieldcraft* and personalisation only); `ATTRIBUTE` on runes only (DS-4);
+    ///   `LIFE_STEAL_ON_HIT`, `ENERGY_ON_HIT` on held slots only (rows 13, 14); `MAX_ENERGY`,
+    ///   `ENERGY_REGEN`, `HEALTH_REGEN` on held slots and set bonuses (rows 2–4: insignias and
+    ///   runes add 0);
     /// - every other passive: any source.
     fn allows(self: @Passive, source: Source) -> bool {
         let id = *self.id;
         let held_slot = source == Source::Prefix
             || source == Source::Suffix
             || source == Source::Inscription;
-        if id == id::DAMAGE_PERCENT || id == id::PENETRATION {
+        if id == id::ENERGY_COST || id == id::BASE_DAMAGE_PERCENT {
+            false
+        } else if id == id::ATTRIBUTE {
+            source == Source::Rune
+        } else if id == id::LIFE_STEAL_ON_HIT || id == id::ENERGY_ON_HIT {
+            held_slot
+        } else if id == id::MAX_ENERGY || id == id::ENERGY_REGEN || id == id::HEALTH_REGEN {
+            held_slot || source == Source::SetBonus
+        } else if id == id::DAMAGE_PERCENT || id == id::PENETRATION {
             held_slot || source == Source::SetBonus
         } else if id == id::ARMOR && *self.guard != guard::ALWAYS {
             source == Source::Insignia || source == Source::SetBonus
-        } else if id == id::QUICK_CAST_EVERY_N || id == id::DAMAGE_TYPE {
-            held_slot
-        } else if id == id::CONDITION_DURATION {
+        } else if id == id::QUICK_CAST_EVERY_N {
+            source == Source::Inscription
+        } else if id == id::DAMAGE_TYPE || id == id::CONDITION_DURATION {
             source == Source::Prefix
         } else if id == id::RATING_PERCENT {
             false
@@ -369,6 +469,14 @@ pub impl PassiveAssert of PassiveAssertTrait {
         }
         within(id::ARMOR, guard::IN_STANCE, HIT_WEAPON, -guarded, guarded);
         within(id::ARMOR, guard::ENCHANTED, HIT_WEAPON, -guarded, guarded);
+    }
+
+    /// The per-source bounds of design/20 §1.3 (DS-1, D-160; envelope B): the passives one source
+    /// holds (a modifier's benefit and cost, a set bonus alone) add to each bounded statistic
+    /// (per param for `ARMOR_VS`, `ATTRIBUTE` and `CONDITION_DURATION`) no more than its row
+    /// allows. `PassiveTrait::fits_source` is the predicate.
+    fn assert_source_bounds(passives: Span<Passive>, source: Source) {
+        assert(PassiveTrait::fits_source(passives, source), errors::SOURCE_BOUND);
     }
 
     /// A cost is fixed: `min = max` (design/15, Q-4).

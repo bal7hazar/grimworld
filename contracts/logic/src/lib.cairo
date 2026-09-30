@@ -24,7 +24,7 @@ pub mod packing;
 pub mod professions;
 /// The snapshot of an adventurer taken at entry, and the tasks an instance reports.
 pub mod snapshot;
-/// The rules of a tick: state in, state out.
-pub mod tick;
+/// The library classes (ENG-01 §1.3): the tick's, `TickLibrary`.
+pub mod systems;
 /// Identifiers, bounds and enums shared by the two domains.
 pub mod types;

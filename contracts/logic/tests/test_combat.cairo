@@ -118,20 +118,23 @@ impl FixtureImpl of Fixture {
         PassiveTrait::new(0xFF, 0xFF, 7, 3, -32768, 32767)
     }
 
+    /// Every field at its widest that packs: the layout's width, or design/20's bound where
+    /// `assert_valid` checks one (DS-18: health 1,000 %, energy regeneration 10, weapon damage
+    /// 255, flee 100; DS-29: health regeneration 20).
     fn caste_max() -> Caste {
         CasteTrait::new(
             0xFF,
             0xFF,
-            0xFFFF,
-            0xFF,
+            1000,
+            20,
             0xFF,
             [63, 1, 2, 3, 4, 5, 6, 7, 63],
-            WeaponTrait::new(15, 0xFFFF, 15, 15, 15),
+            WeaponTrait::new(15, 255, 15, 15, 15),
             85,
-            0xFF,
+            10,
             [0xFFFF, 2, 3, 0xFFFF],
             15,
-            0xFF,
+            100,
             0xFFFF,
             true,
         )
@@ -509,7 +512,7 @@ fn test_skill_target_refused() {
 
 // §5.14: design/03's starter skills, as design/19 §8 writes them, are legal carriers.
 #[test]
-#[available_gas(l2_gas: 1723712)] // ceil(1.05 × 1641630 measured)
+#[available_gas(l2_gas: 1698512)] // ceil(1.05 × 1617630 measured)
 fn test_legal_carriers() {
     Fixture::cinder_ring().assert_legal();
     Fixture::snare().assert_legal();
@@ -535,7 +538,7 @@ fn test_legal_carriers() {
 
 #[test]
 #[should_panic(expected: 'carrier: gap')]
-#[available_gas(l2_gas: 243138)] // ceil(1.05 × 231560 measured)
+#[available_gas(l2_gas: 239988)] // ceil(1.05 × 228560 measured)
 fn test_carrier_gap_refused() {
     let [a, b, _] = Fixture::cinder_ring().entries;
     Fixture::skill(skill_kind::SPELL, [a, Default::default(), b]).assert_legal();
@@ -543,7 +546,7 @@ fn test_carrier_gap_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two hits')]
-#[available_gas(l2_gas: 182049)] // ceil(1.05 × 173380 measured)
+#[available_gas(l2_gas: 179949)] // ceil(1.05 × 171380 measured)
 fn test_carrier_two_hits_refused() {
     let hit = Fixture::damage(damage::FIRE, 1, 2);
     Fixture::skill(skill_kind::SPELL, [hit, hit, Default::default()]).assert_legal();
@@ -551,7 +554,7 @@ fn test_carrier_two_hits_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two hits')]
-#[available_gas(l2_gas: 94395)] // ceil(1.05 × 89900 measured)
+#[available_gas(l2_gas: 93345)] // ceil(1.05 × 88900 measured)
 fn test_carrier_attack_with_damage_refused() {
     let hit = Fixture::damage(damage::SLASHING, 1, 2);
     Fixture::skill(skill_kind::ATTACK, [hit, Default::default(), Default::default()])
@@ -560,7 +563,7 @@ fn test_carrier_attack_with_damage_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: damage not first')]
-#[available_gas(l2_gas: 181755)] // ceil(1.05 × 173100 measured)
+#[available_gas(l2_gas: 179655)] // ceil(1.05 × 171100 measured)
 fn test_carrier_damage_not_first_refused() {
     let [hit, burn, _] = Fixture::cinder_ring().entries;
     Fixture::skill(skill_kind::SPELL, [burn, hit, Default::default()]).assert_legal();
@@ -568,7 +571,7 @@ fn test_carrier_damage_not_first_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two holding entries')]
-#[available_gas(l2_gas: 181052)] // ceil(1.05 × 172430 measured)
+#[available_gas(l2_gas: 178952)] // ceil(1.05 × 170430 measured)
 fn test_carrier_two_holding_refused() {
     let armor = Entry { v0: 5, v12: 5, d0: 8, d12: 20, ..Fixture::on_self(kind::ARMOR) };
     let move = Entry { d0: 5, d12: 5, ..Fixture::on_self(kind::MOVEMENT) };
@@ -577,7 +580,7 @@ fn test_carrier_two_holding_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier without hit')]
-#[available_gas(l2_gas: 230255)] // ceil(1.05 × 219290 measured)
+#[available_gas(l2_gas: 227105)] // ceil(1.05 × 216290 measured)
 fn test_carrier_modifier_without_hit_refused() {
     let [_, pierce, _] = Fixture::static_lash().entries;
     Fixture::skill(skill_kind::SPELL, [pierce, Default::default(), Default::default()])
@@ -586,7 +589,7 @@ fn test_carrier_modifier_without_hit_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 245669)] // ceil(1.05 × 233970 measured)
+#[available_gas(l2_gas: 242519)] // ceil(1.05 × 230970 measured)
 fn test_carrier_modifier_on_another_set_refused() {
     let [hit, pierce, _] = Fixture::static_lash().entries;
     let wide = Entry { shape: shape::RING_1, ..pierce };
@@ -595,7 +598,7 @@ fn test_carrier_modifier_on_another_set_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: attack bonus')]
-#[available_gas(l2_gas: 181241)] // ceil(1.05 × 172610 measured)
+#[available_gas(l2_gas: 179141)] // ceil(1.05 × 170610 measured)
 fn test_carrier_attack_bonus_in_a_spell_refused() {
     let [bonus, _, _] = Fixture::cleave().entries;
     let hit = Fixture::damage(damage::FIRE, 1, 2);
@@ -604,7 +607,7 @@ fn test_carrier_attack_bonus_in_a_spell_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: attack entry')]
-#[available_gas(l2_gas: 81134)] // ceil(1.05 × 77270 measured)
+#[available_gas(l2_gas: 80084)] // ceil(1.05 × 76270 measured)
 fn test_carrier_attack_entry_on_self_refused() {
     let heal = Entry { v0: 1, v12: 1, ..Fixture::on_self(kind::HEAL) };
     Fixture::skill(skill_kind::ATTACK, [heal, Default::default(), Default::default()])
@@ -613,7 +616,7 @@ fn test_carrier_attack_entry_on_self_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: trap entry')]
-#[available_gas(l2_gas: 165648)] // ceil(1.05 × 157760 measured)
+#[available_gas(l2_gas: 163548)] // ceil(1.05 × 155760 measured)
 fn test_carrier_trap_not_first_refused() {
     let [trap, hit, cripple] = Fixture::snare().entries;
     Fixture::skill(skill_kind::TRAP, [hit, trap, cripple]).assert_legal();
@@ -621,7 +624,7 @@ fn test_carrier_trap_not_first_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: trap payload')]
-#[available_gas(l2_gas: 238287)] // ceil(1.05 × 226940 measured)
+#[available_gas(l2_gas: 235137)] // ceil(1.05 × 223940 measured)
 fn test_carrier_trap_payload_on_self_refused() {
     let [trap, hit, _] = Fixture::snare().entries;
     let heal = Entry { v0: 1, v12: 1, ..Fixture::on_self(kind::HEAL) };
@@ -630,7 +633,7 @@ fn test_carrier_trap_payload_on_self_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: disc 1 not a potion')]
-#[available_gas(l2_gas: 110513)] // ceil(1.05 × 105250 measured)
+#[available_gas(l2_gas: 109463)] // ceil(1.05 × 104250 measured)
 fn test_carrier_disc_1_in_a_skill_refused() {
     let hit = Entry { shape: shape::DISC_1, ..Fixture::damage(damage::FIRE, 1, 2) };
     Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()]).assert_legal();
@@ -638,7 +641,7 @@ fn test_carrier_disc_1_in_a_skill_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: area after the MVP')]
-#[available_gas(l2_gas: 93702)] // ceil(1.05 × 89240 measured)
+#[available_gas(l2_gas: 92652)] // ceil(1.05 × 88240 measured)
 fn test_carrier_disc_2_refused() {
     let hit = Entry { shape: shape::DISC_2, ..Fixture::damage(damage::FIRE, 1, 2) };
     Fixture::skill(skill_kind::SPELL, [hit, Default::default(), Default::default()]).assert_legal();
@@ -653,7 +656,7 @@ fn test_skill_seal_of_capture_refused() {
 
 // §7.2: `ITEM`, 1 part; a potion carries one entry, a bomb its range and strength.
 #[test]
-#[available_gas(l2_gas: 488975)] // ceil(1.05 × 465690 measured)
+#[available_gas(l2_gas: 487925)] // ceil(1.05 × 464690 measured)
 fn test_item_round_trip() {
     let top = ItemTrait::new(
         0xFF, 0xFFFF, 0xFF, 0xFFFFFFFF, 0xFF, Fixture::entry_max(), 0xFF, 0xFF,
@@ -688,7 +691,7 @@ fn test_item_round_trip() {
 
 #[test]
 #[should_panic(expected: 'entry: scales')]
-#[available_gas(l2_gas: 84378)] // ceil(1.05 × 80360 measured)
+#[available_gas(l2_gas: 83328)] // ceil(1.05 × 79360 measured)
 fn test_item_scaled_potion_refused() {
     let heal = Entry { v0: 10, v12: 20, ..Fixture::on_self(kind::HEAL) };
     ItemTrait::new(class::POTION, 1, 1, 1, 0, heal, 0, 0).assert_legal();
@@ -704,7 +707,8 @@ fn test_item_entry_not_a_potion_refused() {
 
 // §4, §7.2: `MODIFIER`, 1 part: slot type low, benefit and cost high.
 #[test]
-#[available_gas(l2_gas: 300458)] // ceil(1.05 × 286150 measured)
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
+#[available_gas(l2_gas: 340631)] // ceil(1.05 × 324410 measured)
 fn test_modifier_round_trip() {
     let top = ModifierTrait::new(0xFF, Fixture::passive_max(), Fixture::passive_max());
     let packed = top.pack();
@@ -742,7 +746,8 @@ fn test_modifier_slot_refused() {
 
 // §7.2: `ARMOR_SET`, 1 part: 5 piece bases low, 2 bonuses high.
 #[test]
-#[available_gas(l2_gas: 233678)] // ceil(1.05 × 222550 measured)
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
+#[available_gas(l2_gas: 264506)] // ceil(1.05 × 251910 measured)
 fn test_armor_set_round_trip() {
     let top = ArmorSetTrait::new(
         [0xFFFF, 2, 3, 4, 0xFFFF], [Fixture::passive_max(), Fixture::passive_max()],

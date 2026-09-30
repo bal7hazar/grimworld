@@ -3,6 +3,7 @@
 // is a record the code at b5bce2d accepted; the other tests are the boundaries still accepted, and
 // the snapshot's capacity derived from the sources the validators allow.
 use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetTrait};
+use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::item::{ItemAssert, ItemTrait, class};
 use grimworld_logic::models::modifier::{ModifierAssert, ModifierTrait, slot};
 use grimworld_logic::models::skill::{SkillAssert, SkillTrait};
@@ -32,8 +33,13 @@ impl FixtureImpl of Fixture {
     }
 
     /// A modifier of `benefit` on `slot`, without a cost.
+    /// `benefit` on a modifier of `slot`; an insignia is made for the chest (DS-23).
     fn on(slot: u8, benefit: Passive) {
-        ModifierTrait::new(slot, benefit, Default::default()).assert_legal();
+        if slot == slot::INSIGNIA {
+            ModifierTrait::insignia(base_slot::CHEST, benefit, Default::default()).assert_legal();
+        } else {
+            ModifierTrait::new(slot, benefit, Default::default()).assert_legal();
+        }
     }
 
     fn preparation(d0: u16, d12: u16, charges: u8) -> Entry {
@@ -274,7 +280,8 @@ fn test_cost_on_a_forbidden_source_refused() {
 // A counted statistic held twice by one modifier would count one source twice.
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 45224)] // ceil(1.05 × 43070 measured)
+// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
+#[available_gas(l2_gas: 51030)] // ceil(1.05 × 48600 measured)
 fn test_damage_percent_as_benefit_and_cost_refused() {
     let drawback = Fixture::passive(id::DAMAGE_PERCENT, 0, 18);
     ModifierTrait::new(slot::INSCRIPTION, Fixture::damage(), drawback).assert_legal();
@@ -282,7 +289,8 @@ fn test_damage_percent_as_benefit_and_cost_refused() {
 
 // CBT-2: the sources design/19 allows are accepted.
 #[test]
-#[available_gas(l2_gas: 1239231)] // ceil(1.05 × 1180220 measured)
+// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
+#[available_gas(l2_gas: 1523907)] // ceil(1.05 × 1451340 measured)
 fn test_sources_accepted() {
     Fixture::on(slot::PREFIX, Fixture::damage());
     Fixture::on(slot::SUFFIX, Fixture::damage());
@@ -297,10 +305,9 @@ fn test_sources_accepted() {
     // "+15 % damage, −5 energy" (design/15): a counted benefit with an uncounted cost.
     let energy = Fixture::passive(id::MAX_ENERGY, 0, -5);
     ModifierTrait::new(slot::INSCRIPTION, Fixture::damage(), energy).assert_legal();
-    // Hob-breaker: the stance insignia's armor as a bonus, knock-down 1 + 2 = 3 ticks.
+    // Hob-breaker: the stance insignia's armor as a bonus, knock-down +1 a bonus (DS-5: ≤ 1).
     let one = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 1);
-    let two = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 2);
-    ArmorSetTrait::new([1, 2, 3, 4, 5], [one, two]).assert_legal();
+    ArmorSetTrait::new([1, 2, 3, 4, 5], [one, one]).assert_legal();
     ArmorSetTrait::new([1, 2, 3, 4, 5], [Fixture::damage(), Fixture::stance_armor()])
         .assert_legal();
 }
@@ -308,7 +315,7 @@ fn test_sources_accepted() {
 // CBT-3: an attack's hit modifier takes the attacked foe: `FOES`.
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 94196)] // ceil(1.05 × 89710 measured)
+#[available_gas(l2_gas: 93146)] // ceil(1.05 × 88710 measured)
 fn test_attack_bonus_on_allies_refused() {
     let bonus = Fixture::modifier_on_foe(kind::ATTACK_BONUS);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..bonus });
@@ -316,14 +323,14 @@ fn test_attack_bonus_on_allies_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 94395)] // ceil(1.05 × 89900 measured)
+#[available_gas(l2_gas: 93345)] // ceil(1.05 × 88900 measured)
 fn test_attack_hit_penetration_on_allies_refused() {
     let pierce = Fixture::modifier_on_foe(kind::HIT_PENETRATION);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..pierce });
 }
 
 #[test]
-#[available_gas(l2_gas: 409679)] // ceil(1.05 × 390170 measured)
+#[available_gas(l2_gas: 403379)] // ceil(1.05 × 384170 measured)
 fn test_attack_modifiers_on_foes_accepted() {
     Fixture::attack_with(Fixture::modifier_on_foe(kind::ATTACK_BONUS));
     Fixture::attack_with(Fixture::modifier_on_foe(kind::HIT_PENETRATION));

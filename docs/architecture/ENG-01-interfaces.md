@@ -112,6 +112,27 @@ for later lots: **a class that passes 50 % of a limit is split before it grows f
 their size is unknown (ARC). Running `class_sizes.py` in CI is the orchestrator's step in
 `.github/` (§11, E-10).
 
+**The tick's library class (CBT-02, M).** `TickLibrary`, in `grimworld_logic`
+(`contracts/logic/src/systems/tick.cairo`; the package's manifest declares `[lib]` and
+`[[target.starknet-contract]]`, since a contract target replaces the default library target). Its
+one entrypoint, `ITickLibrary::run(words, content, ticks) -> words` (`grimworld_logic::interface`),
+takes the stored words of the members and of the goblins the ticks may touch (`types::world::Words`:
+a member's 4 words of play and its 3 snapshot words, a goblin's 2, the clock, the kills so far),
+and the batch's content as sheets (`types::tick::Content`: the few fields of a `SKILL`, an `ITEM`
+and a `CASTE` a tick reads); it loads each actor's hot fields once, runs the ticks, and returns the
+words with the hot fields written back as deltas. `Instances` calls it through
+`ITickLibraryLibraryDispatcher { class_hash }`, once per invocation.
+
+| Measure (snforge, `contracts/logic/tests/test_tick.cairo`) | L2 gas |
+|---|---:|
+| `TickLibrary`'s class: 489,493 bytes of Sierra, **19,950 CASM felts, 24.35 %** of the nearer limit (fix loop 1) | — |
+| The call itself on the worst state (100 goblins, the member, 38 skills, 5 castes, 4 potions): its syscall and the words and content through calldata and back (`test_cost_library_call` − `test_cost_library_baseline`) | **2,578,020** |
+| Loading and storing the worst state's 101 actors, once per call (`test_cost_load_store_worst` − its fixture) | 59,823,300 |
+
+The call costs about 22 C (§2.3's C = 117,910): most of it is calldata, the 100 goblins' words
+(4 felts each, in and out) and the content's sheets (about 330 felts), not the syscall. The tick's
+figures per tick are in §9.2.
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -956,6 +977,30 @@ revealed, because `Σ (1 + 2 cᵢ) ≤ 10`):
 
 Without a cap on goblins, a batch's writes are bounded only by 280 goblin words: 8.98 M at O
 initialised, 127 M at N cold. **E-16** proposes the cap, **E-1** the weight of a cold goblin key.
+
+**A tick's figures (CBT-02, M).** The tick's pipeline (`grimworld_logic::types::world`, steps 0 to 5 of
+design/19 §5.1, with the executor, the AI, perception and the objectives left as hooks for CBT-05
+and ENG-07) writes **no word the rows above do not already count**: of a member, the state, the
+timers and the recharges; of a goblin in the awake set, its two words. It reads nothing from
+storage: the words come in with the library call (§1.3) and go out with it. Its cost, net of the
+tests' fixtures (CBT-02 fix loops 1 and 2, AUD-182-7, COST-1), against the expedition's target of **1,469,435 L2
+gas a tick inside a batch** (cost-budget §2, D-159; the overrun is decided by D-161):
+
+| Measure | Representative (8 awake goblins fighting; the member with a condition and an effect; 2 castes) | **Upper bound from per-term maxima** (CBT-02 fix loop 3; not a reached maximum: each term measured at its maximum apart, then summed, every lookup charged as a full scan; the goblin array at `MAX_GOBLINS` = 100, 8 awake) |
+|---|---:|---:|
+| The pipeline, one tick | 628,617 | ≤ 12,618,207: base 3,884,803 + the member's lookup 65,100 + 8 × the costliest branch (a lapse, 1,083,413) + 1,000 for the goblins' interaction. Measured states under it: 8 lapses 12,552,207; the audit's permutation 12,425,803 |
+| The pipeline, a batch of 10 ticks, per tick | 633,024 (a trace: the goblins stay idle) | ≤ 12,618,207, every tick under the tick's bound (`Busy` measures 11,961,127) |
+| Load and store, once per call | — | ≤ 62,118,160: measured 59,921,060 + every lookup as a full scan 2,017,600 + the member's effect branch 179,500 |
+| The library call, once per call | — | 2,578,020 (every count at its maximum) |
+| **Through one library call, 10 ticks, per tick** | **961,079** | ≤ 19,087,825 |
+| The content, once per batch (D-145: 54,000 a record, 98,000 a call), read into sheets at 42,710 a record: 19 / 47 records | 193,549 | 474,137 |
+| **The tick's share, per tick** | **1,154,628** | **≤ 19,561,962** |
+| The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,264,890 (every scan updating its minimum at every element) |
+
+Most of the worst case is the array's bound: each write to a goblin rebuilds the array of 100
+(lever (a) of CBT-02's report, CBT-02b by D-161). The executor (CBT-03 to CBT-05), the goblins' AI
+and the flood (ENG-07), the window, the storage writes and the transaction's floor are not in these
+figures.
 
 **One action that cannot be split** (fix loops 2 and 3, F-2). The cap and the cold weight bound a
 batch of several actions, but a single action runs all its ticks: a 3-tick action (a 3-tick skill;

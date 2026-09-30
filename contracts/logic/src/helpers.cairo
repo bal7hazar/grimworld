@@ -4,3 +4,5 @@ pub mod exp2;
 pub mod exp2_table;
 /// Signed fields in two's complement: `i8` and `i16` (design/19 §2.1, §7.2).
 pub mod signed;
+/// The arithmetic a world tick shares between members and goblins (CBT-02).
+pub mod tick;
