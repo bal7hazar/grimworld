@@ -7,6 +7,7 @@
 // packers. COST-3 (CBT-02b): "worst" in a fixture's or a test's name is the name of a measured
 // scenario, not a claim that no state costs more; "upper bound" is kept for the derived result
 // (REPORT.md, ENG-01 §9.2).
+use core::testing::get_available_gas;
 use grimworld_logic::content::Record;
 use grimworld_logic::helpers::signed::SignedTrait;
 use grimworld_logic::interface::{ITickLibraryDispatcherTrait, ITickLibraryLibraryDispatcher};
@@ -1956,7 +1957,8 @@ fn test_goblin_assert_pips() {
 // - show the first rule on every arithmetic branch the audits named (`test_cost_path_*`: one
 //   goblin's and one member's step 3 on every path, `store`, `line`; each group measures the same);
 // - measure each loop's iterations on their costliest paths, at the counts' bounds: the tick's
-//   step 1 branches with 1 and 8 awake goblins (`test_cost_bound_*`), load and store
+//   step 1 branches with 0, 1 and 8 awake goblins and their mixes (`test_cost_term_*`, the tick
+//   alone measured in the test), load and store
 //   (`test_cost_load_bound`), the sheets (`test_cost_sheet_*`), the library call's lists
 //   (`test_cost_library_*`).
 // REPORT.md and ENG-01 §9.2 sum them.
@@ -2289,11 +2291,12 @@ fn test_cost_path_line_falling() {
     assert(EntryTrait::line(opaque(6), opaque(-10), opaque(9)) == -6, 'falling');
 }
 
-// COST-1a: step 1's branches, each taken by 1 and by 8 awake goblins in the 100-goblin array, every
-// goblin dying in step 3, the member concluding and dying (`branch_world_n`). CBT-02's single-
-// goblin tests (`test_cost_bound_*` above) give the branches it named; these add the four it did
-// not, and the eight-goblin states. Per goblin, `(T(8) − T(1)) / 7`; what a tick pays once (step
-// 3's rebuild, step 1's last one) is `T(1) − base −` that.
+// COST-BOUND (CBT-02b fix loop 1): step 1's branches, taken by 0, 1 and 8 awake goblins of the
+// 100-goblin array, and their mixes, every state built by one builder (`term_world`) and measured
+// the same way: the tick alone, `get_available_gas` around `TickTrait::tick` (printed "gas tick"),
+// so that neither a fixture nor the checks after the tick enter a figure. Each test then checks
+// that every awake goblin took its named branch and died in step 3 (quality 3). REPORT.md and
+// ENG-01 §9.2 derive the terms and the bound from these figures.
 
 /// Step 1's branches CBT-02 did not measure: a lapse whose later recharge is kept, a recovery that
 /// runs on, an awake goblin already dead, a free goblin knocked down.
@@ -2304,226 +2307,402 @@ const B_KNOCKED: u8 = 10;
 
 const B184: felt252 = 0x10000000000000000000000000000000000000000000000;
 
-/// `branch_world_n(branch, true, true, n)` for every branch: the last `n` of the 100 goblins take
-/// it and die in step 3, the member concludes bar slot 7 and dies.
-fn bound_world(branch: u8, n: u16) -> (World, Content) {
-    if branch < B_LAPSE_KEEP {
-        return branch_world_n(branch, true, true, n);
+/// The words of an awake goblin taking `branch` in the tick of 50 (the clock at 49): at 1 health,
+/// dying in step 3 (at 280 with `survive`); its activation field, a later recharge kept, dead,
+/// knocked down, as the branch needs.
+fn term_words(entity: u16, branch: u8, survive: bool) -> GoblinWords {
+    let health = if survive {
+        280
+    } else {
+        1
+    };
+    let (slot, due) = if branch == B_CONCLUDE_RECOVER || branch == B_CONCLUDE_CLEAR {
+        (3, 50)
+    } else if branch == B_LAPSE || branch == B_LAPSE_KEEP {
+        (3, 45)
+    } else if branch == B_RECOVERY_END {
+        (activation::RECOVERING, 48)
+    } else if branch == B_ACTIVATING {
+        (3, 55)
+    } else if branch == B_RECOVERING {
+        (activation::RECOVERING, 55)
+    } else {
+        (activation::NONE, 0)
+    };
+    let mut words = goblin_words_at(entity, true, health, slot, due, 99);
+    if branch == B_LAPSE_KEEP {
+        // Slot 3's recharge at 100, later than the lapse's 45 + 20 − 1.
+        words.state += 100 * B212;
+    } else if branch == B_DEAD {
+        words.state += (ai::DEAD - ai::ALERTED).into() * B24;
+    } else if branch == B_KNOCKED {
+        words.timers += 60 * B184;
     }
-    let content = branch_content(3);
+    words
+}
+
+/// The 100-goblin array, each frozen goblin holding a retained effect; the awake ones at indexes
+/// `at`, taking `branches`; the member concluding bar slot 7 and dying (step 5's defeat);
+/// `members` copies of it (M-3); the content `branch_content(k)`: `k = 3` for a conclusion into a
+/// recovery, 1 for one clearing the field (no other branch reads `k`).
+fn term_world(
+    branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32,
+) -> (World, Content) {
+    let content = branch_content(k);
     let mut spec = Fixture::spec();
     spec.health = 7;
     spec.conditions = [99, 99, 99, 0];
     spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
     let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
     member.start(7, 8, 1, 49);
+    let mut all = array![];
+    for _ in 0..members {
+        all.append(member);
+    }
     let mut goblins = array![];
     let mut i: u16 = 0;
-    while i < 100 - n {
-        goblins.append(GoblinTrait::load(goblin_words(8 + i, false, 280, 0, 99), @content));
-        i += 1;
-    }
     while i < 100 {
-        let mut words = if branch == B_LAPSE_KEEP {
-            goblin_words_at(8 + i, true, 1, 3, 45, 99)
-        } else if branch == B_RECOVERING {
-            goblin_words_at(8 + i, true, 1, activation::RECOVERING, 55, 99)
-        } else {
-            goblin_words_at(8 + i, true, 1, activation::NONE, 0, 99)
-        };
-        if branch == B_LAPSE_KEEP {
-            // Slot 3's recharge at 100, later than the lapse's 45 + 20 − 1.
-            words.state += 100 * B212;
-        } else if branch == B_DEAD {
-            words.state += (ai::DEAD - ai::ALERTED).into() * B24;
-        } else if branch == B_KNOCKED {
-            words.timers += 60 * B184;
+        let mut words = goblin_words(8 + i, false, 280, 0, 99);
+        let mut k = 0;
+        while k < at.len() {
+            if *at[k] == i {
+                words = term_words(8 + i, *branches[k], survive);
+            }
+            k += 1;
         }
         goblins.append(GoblinTrait::load(words, @content));
         i += 1;
     }
-    (Fixture::world(49, array![member], goblins), content)
+    (Fixture::world(49, all, goblins), content)
 }
 
-fn bound_tick(branch: u8, n: u16) {
-    let (mut world, content) = bound_world(branch, n);
+/// The indexes of `n` awake goblins: at the array's end, at its start, or spread across it.
+fn at_end(n: u16) -> Span<u16> {
+    let mut at = array![];
+    let mut i = 100 - n;
+    while i < 100 {
+        at.append(i);
+        i += 1;
+    }
+    at.span()
+}
+
+fn at_start(n: u16) -> Span<u16> {
+    let mut at = array![];
+    let mut i = 0;
+    while i < n {
+        at.append(i);
+        i += 1;
+    }
+    at.span()
+}
+
+fn at_spread() -> Span<u16> {
+    array![5, 17, 29, 41, 53, 65, 77, 89].span()
+}
+
+/// `n` times `branch`.
+fn all_of(branch: u8, n: u32) -> Span<u8> {
+    let mut branches = array![];
+    for _ in 0..n {
+        branches.append(branch);
+    }
+    branches.span()
+}
+
+/// Seven times `first`, then `last`.
+fn seven_then(first: u8, last: u8) -> Span<u8> {
+    let mut branches = array![];
+    for _ in 0..7_u8 {
+        branches.append(first);
+    }
+    branches.append(last);
+    branches.span()
+}
+
+/// What `branch` leaves on a goblin after the tick of 50: `(activation slot, its deadline, slot
+/// 3's recharge)` (skill 43, activation 1, recharge 20: a conclusion at 50 recharges to 69, a lapse
+/// dated 45 to 64; a recovery of `k = 3` runs to 51).
+fn after(branch: u8) -> (u8, u32, u32) {
+    if branch == B_CONCLUDE_RECOVER {
+        (activation::RECOVERING, 51, 69)
+    } else if branch == B_CONCLUDE_CLEAR {
+        (activation::NONE, 0, 69)
+    } else if branch == B_LAPSE {
+        (activation::NONE, 0, 64)
+    } else if branch == B_LAPSE_KEEP {
+        (activation::NONE, 0, 100)
+    } else if branch == B_ACTIVATING {
+        (3, 55, 0)
+    } else if branch == B_RECOVERING {
+        (activation::RECOVERING, 55, 0)
+    } else {
+        (activation::NONE, 0, 0)
+    }
+}
+
+/// One tick of `term_world`, measured alone and printed; then every awake goblin is checked to
+/// have taken its branch (its field, its deadline, its recharge) and died in step 3 (survived with
+/// `survive`), an awake goblin already dead to be untouched, a knocked-down one to stay so, the
+/// kills to be those deaths, the member down.
+fn term_tick(branches: Span<u8>, at: Span<u16>, survive: bool, k: u8, members: u32) -> u128 {
+    let (mut world, content) = term_world(branches, at, survive, k, members);
     let mut rules = Idle {};
+    let before = get_available_gas();
     TickTrait::tick(ref world, @content, ref rules);
-    assert(world.clock == 50 && world.defeated, 'one tick');
+    let used = before - get_available_gas();
+    println!("gas tick: {}", used);
+    let mut deaths = 0;
+    let mut i = 0;
+    while i < branches.len() {
+        let branch = *branches[i];
+        let goblin = world.goblins.at((*at[i]).into());
+        let (slot, deadline, recharge) = after(branch);
+        assert(*goblin.act_slot == slot && *goblin.act_deadline == deadline, 'branch: field');
+        assert(goblin.recharge(3) == recharge, 'branch: recharge');
+        if branch == B_DEAD {
+            assert(*goblin.ai == ai::DEAD && *goblin.health == 1, 'branch: dead untouched');
+        } else if survive {
+            assert(goblin.is_alive() && *goblin.health > 1, 'branch: survived');
+        } else {
+            assert(*goblin.ai == ai::DEAD && *goblin.health == 0, 'branch: died in step 3');
+            deaths += 1;
+        }
+        if branch == B_KNOCKED {
+            assert(*goblin.knocked == 60, 'branch: knocked down');
+        }
+        i += 1;
+    }
+    assert(world.killed.len() == deaths, 'branch: the deaths');
+    assert(world.defeated && *world.members.at(0).status == status::DOWN, 'branch: member down');
+    used
 }
 
-fn bound_fixture(branch: u8, n: u16) {
-    let (world, content) = bound_world(branch, n);
-    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
-}
-
-// One goblin: a lapse, the later recharge kept.
+// No goblin awake: the base (the member concluding and dying, the array scanned).
 #[test]
-#[available_gas(l2_gas: 62015254)] // ceil(1.05 × 59062146 measured)
-fn test_cost_bound_lapse_keep() {
-    bound_tick(B_LAPSE_KEEP, 1);
+#[available_gas(l2_gas: 60220339)] // ceil(1.05 × 57352703 measured)
+fn test_cost_term_none() {
+    term_tick(array![].span(), array![].span(), false, 1, 1);
 }
 
+// The same with the content of a conclusion into a recovery: `k` changes nothing else.
 #[test]
-#[available_gas(l2_gas: 58640306)] // ceil(1.05 × 55847910 measured)
-fn test_cost_bound_lapse_keep_fixture() {
-    bound_fixture(B_LAPSE_KEEP, 1);
+#[available_gas(l2_gas: 60220339)] // ceil(1.05 × 57352703 measured)
+fn test_cost_term_none_k3() {
+    term_tick(array![].span(), array![].span(), false, 3, 1);
 }
 
-// One goblin: a recovery running on.
+// The base with two members (M-3): what a member adds.
 #[test]
-#[available_gas(l2_gas: 61238923)] // ceil(1.05 × 58322783 measured)
-fn test_cost_bound_recovering() {
-    bound_tick(B_RECOVERING, 1);
+#[available_gas(l2_gas: 60409940)] // ceil(1.05 × 57533276 measured)
+fn test_cost_term_none_two_members() {
+    term_tick(array![].span(), array![].span(), false, 1, 2);
 }
 
+// One goblin: concluding into a recovery.
 #[test]
-#[available_gas(l2_gas: 58641314)] // ceil(1.05 × 55848870 measured)
-fn test_cost_bound_recovering_fixture() {
-    bound_fixture(B_RECOVERING, 1);
-}
-
-// One goblin: an awake goblin already dead.
-#[test]
-#[available_gas(l2_gas: 61217324)] // ceil(1.05 × 58302213 measured)
-fn test_cost_bound_dead() {
-    bound_tick(B_DEAD, 1);
-}
-
-#[test]
-#[available_gas(l2_gas: 58640925)] // ceil(1.05 × 55848500 measured)
-fn test_cost_bound_dead_fixture() {
-    bound_fixture(B_DEAD, 1);
-}
-
-// One goblin: a free goblin knocked down.
-#[test]
-#[available_gas(l2_gas: 61239028)] // ceil(1.05 × 58322883 measured)
-fn test_cost_bound_knocked() {
-    bound_tick(B_KNOCKED, 1);
-}
-
-#[test]
-#[available_gas(l2_gas: 58641314)] // ceil(1.05 × 55848870 measured)
-fn test_cost_bound_knocked_fixture() {
-    bound_fixture(B_KNOCKED, 1);
+#[available_gas(l2_gas: 62950244)] // ceil(1.05 × 59952613 measured)
+fn test_cost_term_one_conclude_recover() {
+    term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), false, 3, 1);
 }
 
 // Eight goblins: concluding into a recovery.
 #[test]
-#[available_gas(l2_gas: 67774973)] // ceil(1.05 × 64547593 measured)
-fn test_cost_bound_eight_conclude_recover() {
-    bound_tick(B_CONCLUDE_RECOVER, 8);
+#[available_gas(l2_gas: 72215213)] // ceil(1.05 × 68776393 measured)
+fn test_cost_term_eight_conclude_recover() {
+    term_tick(all_of(B_CONCLUDE_RECOVER, 8), at_end(8), false, 3, 1);
 }
 
+// One goblin: concluding, the field cleared.
 #[test]
-#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
-fn test_cost_bound_eight_conclude_recover_fixture() {
-    bound_fixture(B_CONCLUDE_RECOVER, 8);
+#[available_gas(l2_gas: 62951570)] // ceil(1.05 × 59953876 measured)
+fn test_cost_term_one_conclude_clear() {
+    term_tick(all_of(B_CONCLUDE_CLEAR, 1), at_end(1), false, 1, 1);
 }
 
 // Eight goblins: concluding, the field cleared.
 #[test]
-#[available_gas(l2_gas: 67783146)] // ceil(1.05 × 64555377 measured)
-fn test_cost_bound_eight_conclude_clear() {
-    bound_tick(B_CONCLUDE_CLEAR, 8);
+#[available_gas(l2_gas: 72225822)] // ceil(1.05 × 68786497 measured)
+fn test_cost_term_eight_conclude_clear() {
+    term_tick(all_of(B_CONCLUDE_CLEAR, 8), at_end(8), false, 1, 1);
 }
 
+// One goblin: a lapse.
 #[test]
-#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
-fn test_cost_bound_eight_conclude_clear_fixture() {
-    bound_fixture(B_CONCLUDE_CLEAR, 8);
+#[available_gas(l2_gas: 62960884)] // ceil(1.05 × 59962746 measured)
+fn test_cost_term_one_lapse() {
+    term_tick(all_of(B_LAPSE, 1), at_end(1), false, 1, 1);
 }
 
-// Eight goblins: a recovery over.
+// Eight goblins: a lapse.
 #[test]
-#[available_gas(l2_gas: 62255967)] // ceil(1.05 × 59291397 measured)
-fn test_cost_bound_eight_recovery_end() {
-    bound_tick(B_RECOVERY_END, 8);
+#[available_gas(l2_gas: 67864311)] // ceil(1.05 × 64632677 measured)
+fn test_cost_term_eight_lapse() {
+    term_tick(all_of(B_LAPSE, 8), at_end(8), false, 1, 1);
 }
 
+// One goblin: a lapse, the later recharge kept.
 #[test]
-#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
-fn test_cost_bound_eight_recovery_end_fixture() {
-    bound_fixture(B_RECOVERY_END, 8);
-}
-
-// Eight goblins: activating, busy.
-#[test]
-#[available_gas(l2_gas: 61487993)] // ceil(1.05 × 58559993 measured)
-fn test_cost_bound_eight_activating() {
-    bound_tick(B_ACTIVATING, 8);
-}
-
-#[test]
-#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
-fn test_cost_bound_eight_activating_fixture() {
-    bound_fixture(B_ACTIVATING, 8);
-}
-
-// Eight goblins: free, acting in step 2.
-#[test]
-#[available_gas(l2_gas: 61543458)] // ceil(1.05 × 58612817 measured)
-fn test_cost_bound_eight_free() {
-    bound_tick(B_FREE, 8);
-}
-
-#[test]
-#[available_gas(l2_gas: 58596993)] // ceil(1.05 × 55806660 measured)
-fn test_cost_bound_eight_free_fixture() {
-    bound_fixture(B_FREE, 8);
+#[available_gas(l2_gas: 62942729)] // ceil(1.05 × 59945456 measured)
+fn test_cost_term_one_lapse_keep() {
+    term_tick(all_of(B_LAPSE_KEEP, 1), at_end(1), false, 1, 1);
 }
 
 // Eight goblins: a lapse, the later recharge kept.
 #[test]
-#[available_gas(l2_gas: 63325854)] // ceil(1.05 × 60310337 measured)
-fn test_cost_bound_eight_lapse_keep() {
-    bound_tick(B_LAPSE_KEEP, 8);
+#[available_gas(l2_gas: 67719075)] // ceil(1.05 × 64494357 measured)
+fn test_cost_term_eight_lapse_keep() {
+    term_tick(all_of(B_LAPSE_KEEP, 8), at_end(8), false, 1, 1);
 }
 
+// One goblin: a recovery over.
 #[test]
-#[available_gas(l2_gas: 58649640)] // ceil(1.05 × 55856800 measured)
-fn test_cost_bound_eight_lapse_keep_fixture() {
-    bound_fixture(B_LAPSE_KEEP, 8);
+#[available_gas(l2_gas: 62815763)] // ceil(1.05 × 59824536 measured)
+fn test_cost_term_one_recovery_end() {
+    term_tick(all_of(B_RECOVERY_END, 1), at_end(1), false, 1, 1);
+}
+
+// Eight goblins: a recovery over.
+#[test]
+#[available_gas(l2_gas: 66703347)] // ceil(1.05 × 63526997 measured)
+fn test_cost_term_eight_recovery_end() {
+    term_tick(all_of(B_RECOVERY_END, 8), at_end(8), false, 1, 1);
+}
+
+// One goblin: activating, busy.
+#[test]
+#[available_gas(l2_gas: 62165275)] // ceil(1.05 × 59205023 measured)
+fn test_cost_term_one_activating() {
+    term_tick(all_of(B_ACTIVATING, 1), at_end(1), false, 1, 1);
+}
+
+// Eight goblins: activating, busy.
+#[test]
+#[available_gas(l2_gas: 65935457)] // ceil(1.05 × 62795673 measured)
+fn test_cost_term_eight_activating() {
+    term_tick(all_of(B_ACTIVATING, 8), at_end(8), false, 1, 1);
+}
+
+// One goblin: a recovery running on.
+#[test]
+#[available_gas(l2_gas: 62165684)] // ceil(1.05 × 59205413 measured)
+fn test_cost_term_one_recovering() {
+    term_tick(all_of(B_RECOVERING, 1), at_end(1), false, 1, 1);
 }
 
 // Eight goblins: a recovery running on.
 #[test]
-#[available_gas(l2_gas: 61551224)] // ceil(1.05 × 58620213 measured)
-fn test_cost_bound_eight_recovering() {
-    bound_tick(B_RECOVERING, 8);
+#[available_gas(l2_gas: 65938733)] // ceil(1.05 × 62798793 measured)
+fn test_cost_term_eight_recovering() {
+    term_tick(all_of(B_RECOVERING, 8), at_end(8), false, 1, 1);
 }
 
+// One goblin: free, acting in step 2.
 #[test]
-#[available_gas(l2_gas: 58657704)] // ceil(1.05 × 55864480 measured)
-fn test_cost_bound_eight_recovering_fixture() {
-    bound_fixture(B_RECOVERING, 8);
+#[available_gas(l2_gas: 62172197)] // ceil(1.05 × 59211616 measured)
+fn test_cost_term_one_free() {
+    term_tick(all_of(B_FREE, 1), at_end(1), false, 1, 1);
+}
+
+// Eight goblins: free, acting in step 2.
+#[test]
+#[available_gas(l2_gas: 65990838)] // ceil(1.05 × 62848417 measured)
+fn test_cost_term_eight_free() {
+    term_tick(all_of(B_FREE, 8), at_end(8), false, 1, 1);
+}
+
+// One goblin: free but knocked down.
+#[test]
+#[available_gas(l2_gas: 62165884)] // ceil(1.05 × 59205603 measured)
+fn test_cost_term_one_knocked() {
+    term_tick(all_of(B_KNOCKED, 1), at_end(1), false, 1, 1);
+}
+
+// Eight goblins: free but knocked down.
+#[test]
+#[available_gas(l2_gas: 65940329)] // ceil(1.05 × 62800313 measured)
+fn test_cost_term_eight_knocked() {
+    term_tick(all_of(B_KNOCKED, 8), at_end(8), false, 1, 1);
+}
+
+// One goblin: awake and already dead.
+#[test]
+#[available_gas(l2_gas: 62144159)] // ceil(1.05 × 59184913 measured)
+fn test_cost_term_one_dead() {
+    term_tick(all_of(B_DEAD, 1), at_end(1), false, 1, 1);
 }
 
 // Eight goblins: awake and already dead.
 #[test]
-#[available_gas(l2_gas: 61378436)] // ceil(1.05 × 58455653 measured)
-fn test_cost_bound_eight_dead() {
-    bound_tick(B_DEAD, 8);
+#[available_gas(l2_gas: 65766533)] // ceil(1.05 × 62634793 measured)
+fn test_cost_term_eight_dead() {
+    term_tick(all_of(B_DEAD, 8), at_end(8), false, 1, 1);
 }
 
+// One goblin concluding into a recovery, surviving step 3.
 #[test]
-#[available_gas(l2_gas: 58654596)] // ceil(1.05 × 55861520 measured)
-fn test_cost_bound_eight_dead_fixture() {
-    bound_fixture(B_DEAD, 8);
+#[available_gas(l2_gas: 62950538)] // ceil(1.05 × 59952893 measured)
+fn test_cost_term_one_conclude_recover_surviving() {
+    term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), true, 3, 1);
 }
 
-// Eight goblins: free and knocked down.
+// The costliest mix: 7 conclusions, then a lapse whose write the end of step 1 rebuilds.
 #[test]
-#[available_gas(l2_gas: 61552064)] // ceil(1.05 × 58621013 measured)
-fn test_cost_bound_eight_knocked() {
-    bound_tick(B_KNOCKED, 8);
+#[available_gas(l2_gas: 72233697)] // ceil(1.05 × 68793997 measured)
+fn test_cost_term_mix_clear_lapse() {
+    term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_end(8), false, 1, 1);
 }
 
+// The same, the awake goblins at the array's start.
 #[test]
-#[available_gas(l2_gas: 58657704)] // ceil(1.05 × 55864480 measured)
-fn test_cost_bound_eight_knocked_fixture() {
-    bound_fixture(B_KNOCKED, 8);
+#[available_gas(l2_gas: 72232259)] // ceil(1.05 × 68792627 measured)
+fn test_cost_term_mix_clear_lapse_start() {
+    term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_start(8), false, 1, 1);
+}
+
+// The same, the awake goblins spread across the array.
+#[test]
+#[available_gas(l2_gas: 72216488)] // ceil(1.05 × 68777607 measured)
+fn test_cost_term_mix_clear_lapse_spread() {
+    term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_spread(), false, 1, 1);
+}
+
+// Swap: 7 conclusions, then an activating goblin.
+#[test]
+#[available_gas(l2_gas: 71438088)] // ceil(1.05 × 68036274 measured)
+fn test_cost_term_mix_clear_activating() {
+    term_tick(seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), at_end(8), false, 1, 1);
+}
+
+// Swap: 7 conclusions, then a recovery over.
+#[test]
+#[available_gas(l2_gas: 72088577)] // ceil(1.05 × 68655787 measured)
+fn test_cost_term_mix_clear_recovery_end() {
+    term_tick(seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), at_end(8), false, 1, 1);
+}
+
+// Swap: 7 activating goblins, then a lapse.
+#[test]
+#[available_gas(l2_gas: 66729628)] // ceil(1.05 × 63552026 measured)
+fn test_cost_term_mix_activating_lapse() {
+    term_tick(seven_then(B_ACTIVATING, B_LAPSE), at_end(8), false, 1, 1);
+}
+
+// A lapse first, then 7 conclusions: its write goes with the first conclusion's rebuild.
+#[test]
+#[available_gas(l2_gas: 71586183)] // ceil(1.05 × 68177317 measured)
+fn test_cost_term_mix_lapse_first() {
+    term_tick(
+        array![
+            B_LAPSE, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
+            B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR, B_CONCLUDE_CLEAR,
+        ]
+            .span(),
+        at_end(8),
+        false,
+        1,
+        1,
+    );
 }
 
 // COST-1a: load and store, once per call, on their costliest paths. A goblin's load: its caste
@@ -2810,29 +2989,6 @@ fn test_cost_library_baseline_two_members() {
     assert(words.members.len() == 2, 'two members');
 }
 
-// The tick's base with two members: what each member adds to it.
-fn base_two_members() -> (World, Content) {
-    let (world, content) = branch_world(B_NONE, false, true);
-    let member = *world.members.at(0);
-    (World { members: array![member, member], ..world }, content)
-}
-
-#[test]
-#[available_gas(l2_gas: 59939582)] // ceil(1.05 × 57085316 measured)
-fn test_cost_bound_base_two_members() {
-    let (mut world, content) = base_two_members();
-    let mut rules = Idle {};
-    TickTrait::tick(ref world, @content, ref rules);
-    assert(world.clock == 50 && world.defeated, 'one tick');
-}
-
-#[test]
-#[available_gas(l2_gas: 58603787)] // ceil(1.05 × 55813130 measured)
-fn test_cost_bound_base_two_members_fixture() {
-    let (world, content) = base_two_members();
-    assert(world.members.len() == 2 && content.skills.len() == 38, 'fixture');
-}
-
 // More than 8 awake goblins is not a state of the game (design/02): the tick refuses it.
 #[test]
 #[should_panic(expected: 'tick: more than 8 awake')]
@@ -2846,73 +3002,6 @@ fn test_world_assert_awake() {
     }
     let mut world = Fixture::world(0, array![Fixture::member(Fixture::spec())], goblins);
     run(ref world, 1);
-}
-
-// The costliest mix of step 1's branches, which the terms above give (REPORT.md): 7 conclusions
-// (the field cleared, the costliest conclusion) and a lapse last, whose write the end of step 1
-// puts in the array in a rebuild of its own; every goblin dying, the member concluding and dying.
-// The awake goblins at the array's end, or at its start.
-fn mixed_world(first: bool) -> (World, Content) {
-    let content = branch_content(1);
-    let mut spec = Fixture::spec();
-    spec.health = 7;
-    spec.conditions = [99, 99, 99, 0];
-    spec.effects = [(7, false, 99, 12), (8, false, 99, 12), (2, true, 99, 0), (3, true, 99, 0)];
-    let mut member = MemberTrait::load(Fixture::member_words(spec), @content);
-    member.start(7, 8, 1, 49);
-    let from: u16 = if first {
-        0
-    } else {
-        92
-    };
-    let mut goblins = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        let words = if i < from || i >= from + 8 {
-            goblin_words(8 + i, false, 280, 0, 99)
-        } else if i < from + 7 {
-            goblin_words_at(8 + i, true, 1, 3, 50, 99)
-        } else {
-            goblin_words_at(8 + i, true, 1, 3, 45, 99)
-        };
-        goblins.append(GoblinTrait::load(words, @content));
-        i += 1;
-    }
-    (Fixture::world(49, array![member], goblins), content)
-}
-
-#[test]
-#[available_gas(l2_gas: 67959819)] // ceil(1.05 × 64723637 measured)
-fn test_cost_bound_mixed_last() {
-    let (mut world, content) = mixed_world(false);
-    let mut rules = Idle {};
-    TickTrait::tick(ref world, @content, ref rules);
-    assert(world.killed.len() == 8 && world.defeated, 'every death');
-    assert(world.goblins.at(99).recharge(3) == 45 + 20 - 1, 'the lapse last');
-}
-
-#[test]
-#[available_gas(l2_gas: 58752173)] // ceil(1.05 × 55954450 measured)
-fn test_cost_bound_mixed_last_fixture() {
-    let (world, content) = mixed_world(false);
-    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 68041383)] // ceil(1.05 × 64801317 measured)
-fn test_cost_bound_mixed_first() {
-    let (mut world, content) = mixed_world(true);
-    let mut rules = Idle {};
-    TickTrait::tick(ref world, @content, ref rules);
-    assert(world.killed.len() == 8 && world.defeated, 'every death');
-    assert(world.goblins.at(7).recharge(3) == 45 + 20 - 1, 'the lapse last');
-}
-
-#[test]
-#[available_gas(l2_gas: 58833747)] // ceil(1.05 × 56032140 measured)
-fn test_cost_bound_mixed_first_fixture() {
-    let (world, content) = mixed_world(true);
-    assert(world.clock == 49 && content.skills.len() == 38, 'fixture');
 }
 
 /// `worst_words` with every goblin killed in the action phase: 100 kills in, 100 out, the most the
