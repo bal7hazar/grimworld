@@ -1,18 +1,33 @@
 # Programme
 
-**2026-09-29, 09:40 UTC** — written by the project manager `[Opus 5.5] Chef de projet Grim World`, before handing over to a fresh session ([handoff](docs/briefs/PM-handoff-2026-09-29.md)).
-Rewritten at each of its check-ins. The live state of each track is in the track's own
-`STATUS.md`; this file says where the programme is, what was decided and what waits for the
-owner.
+**2026-09-29, 19:40 UTC: PAUSED** by the owner for the app account's weekly quota (95 %; reset
+**2026-09-30 14:00 UTC**). Written by the project manager `[Opus 5.5] Chef de projet Grim World`
+(session `local_3ab2583a`), which took over at 09:45 UTC ([handoff](docs/briefs/PM-handoff-2026-09-29.md)).
+The live state of each track is in its own status file, each rewritten at the pause with a
+section *Pause 2026-09-29* (every open task: branch, pull request, commit, state, resume command,
+next step). This file says where the programme is, what was decided and what waits for the owner.
+
+## The pause
+
+Each orchestrator launches nothing new, lets its running agents and audits finish, writes its
+*Pause* section, merges it and ends its turn. Nothing resumes before the owner's or the project
+manager's message after the reset.
+
+**The project manager's first steps at the reset**
+1. `get_usage`; `git fetch`; read the four status files' *Pause* sections and `gh pr list` of the
+   three repositories; the machine (`systemctl --user list-units`, load).
+2. Wake the orchestrators (one message each, their session ids in the handoff; track CV through the
+   owner) with the next step their *Pause* section names.
+3. Ask the owner again what waits for the owner (below).
 
 ## Tracks
 
-| Track | Repository | Orchestrator (model verified) | Where it is | Next stop |
+| Track | Repository | Orchestrator (model verified) | Where it is at the pause | Next |
 |---|---|---|---|---|
-| Game | `bal7hazar/grimworld` | `[Opus 5.5]` | Phase 0, 18 tasks done. **ENG-01 is merged: the interfaces, storage layouts and events of the five contracts are frozen**, designed against the cost budget. SPK-4 done: the client mirrors the rules in TypeScript. Next: ENG-01b (accounting), FND-05 (providers), then the engine tasks of Phase 1 | Gate of Phase 0 |
-| Map library (LIB) | `bal7hazar/hexx-cairo` | `[Opus 5.5]` | Milestone L-M1. Running: M1-T1a, the take-over of the engine. Waiting for its slot: the audits of M1-T1a and of LIB-04b | First release candidate of `hexx` 0.1.0: a publication, asked of the project manager |
-| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` | ARC-06 merged and reviewed by the owner (D-147). Next: ARC-07, both packages rewritten as 0.2.0 without `logic/`, tracking chosen by the consumer | ARC-07's first lot shown to the owner |
-| Client visual (CV) | `bal7hazar/grimworld` (`client/app`, `tools/art`) | A local orchestrator on the owner's Mac (D-146) | Opened 2026-09-29: ART-02, CLI-03a, SPK-6a | The sandbox shown to the owner |
+| Game | `bal7hazar/grimworld` | `[Opus 5.5]` `local_06f24ad6` | Phase 1. Merged today: ENG-06, DES-04, CBT-01, FND-08, FND-09, CBT-08a, DES-06's decisions (D-148 to D-160). **CBT-02** (the tick) running or in audit, its cost escalated (D-161). S1 estimated at **$0.585** before the tick | CBT-02's merge, then **CBT-02b**; DES-06's last pass; ENG-02 on `hexx` rc.1, ENG-05 on rc.2; ENG-R1 after ARC-07 |
+| Map library (LIB) | `bal7hazar/hexx-cairo` | `[Opus 5.5]` `local_2e7bf177` | L-M1: N-3, N-8 merged and measured (1.06M to 1.11M of a worst tick). M1-T4b (N-4) running | M1-T2 → M1-T3 → M1-T6 → **rc.1** (ENG-02) → M1-T7 → M1-T8 → **rc.2** (ENG-05) → M1-T5 → 0.1.0; each candidate a publication request (D-132; the owner confirms the delegation in that session first) |
+| Packages (ARC) | `bal7hazar/quiver` | `[Opus 5.5]` `local_a86e4778` | ARC-07a merged: `quiver_quest` 0.2.0 on the pattern (no `logic/`, tracking chosen by the consumer) | **The owner's verdict on ARC-07a**, then ARC-07b (`quiver_achievement` 0.2.0) |
+| Client visual (CV) | `bal7hazar/grimworld` (`client/app`, `tools/art`, lent tasks) | A local orchestrator on the owner's Mac (D-146), relayed by the owner | ART-02, CLI-03a, SPK-6a, CV-01 (launcher), IDX-01a (unblocked by #148); lent: IDX-01, SPK-13 (non-reproducible builds, D-154), SPK-12 (client-side proving, D-161) | Its `docs/status/client-visual.md` |
 
 Budget: 3 agents at a time across the three tracks, audits included (D-118); caps: game 2,
 map library 1, `quiver` 1; the game comes first through a waiting marker (OPERATIONS §3).
@@ -38,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-162 | The standard roles of Nexus: OPERATIONS.md reduced to the project's specifics; Codex reviews every pull request; track CV on `nexus` | Owner |
 | D-161 | The worst tick is above its target (about 2.1M to 2.5M against 1.47M): CBT-02b now; SPK-12 on client-side proving, on the Mac | Project manager |
 | D-160 | DES-06's 33 questions decided; strength capped by level | Project manager |
 | D-159 | CBT-02 next with the tick's cost as its budget; DES-06 beside it. S1 at $0.585 (E) | Project manager |
@@ -70,6 +86,12 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 [CONTEXT.md](CONTEXT.md) §6.
 
 ## Waiting for the owner
+
+**At the pause**:
+1. **The verdict on `quiver_quest` 0.2.0** (ARC-07a, `bal7hazar/quiver` at `24fb49e`: `packages/quest/src/store.cairo`, `models/`, `README.md`), including whether the action events (`QuestProgressed`, `QuestCompleted`, `QuestClaimed`, `QuestRetired`) become optional too. ARC-07b and ENG-R1 wait for it.
+2. **D-152 confirmed**: the phone tests at the end, no Android for now (a text sent later said the contrary, the one of D-151; D-152 is kept).
+3. On SPK-12's report: whether ADR-0001 (L2 only) is reopened for client-side proving.
+4. An upstream issue on the compiler, when SPK-13 has a minimal case.
 
 **The owner's review of the next iterations of code on the pattern of D-143**: the reference model of ARC-06, then the first lots of ARC-07 and ENG-R1, until nothing is left to say; autonomy after that.
 

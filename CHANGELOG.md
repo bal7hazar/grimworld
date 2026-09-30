@@ -3,6 +3,10 @@
 What changed in the repository, newest first, one entry per merged task. Game results are
 API (OPERATIONS §7): any change to the outcome of an action is announced here.
 
+## 2026-09-30
+
+- **OPERATIONS.md aligned with the standard roles of Nexus** (D-162): only the project's specifics remain; every pull request is reviewed by Codex before its merge; track CV's agents through `nexus`, its macOS launcher retired. Codex review: none — documents only.
+
 ## 2026-09-29
 
 - **DES-06 caste sheets and per-source bounds** ([#179](https://github.com/bal7hazar/grimworld/pull/179), D-159, D-160): **design/20**, the bound each source (the build, each equipment slot, runes, potions, conditions, effects, passives) can add to every statistic of design/19 §7, signed where it subtracts, and the totals checked against the snapshot's fields (D-157 G: the capacity proof, complete once its restrictions exist, before any production snapshot); the sheets of all eleven castes in CBT-01's `CASTE` shape, with initial values, skills, priority lists and bosses (phases after the MVP); 33 rules decided (D-160; weapon strength capped by level, design/04). `[GPT-6-Astra]` PASS after two fix loops and a final pass ([report](docs/reports/DES-06-caste-sheets.md), [audit](docs/reports/DES-06-audit-gpt-6-astra.md)).
