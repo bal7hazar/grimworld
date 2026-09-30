@@ -465,7 +465,7 @@ const WORST_CASE_CALL: u128 = 8501927;
 // snapshot's three words, new at the adventurer's first `set_build`, then overwritten (the second
 // call). The words stored are the flattening's (AC-1).
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 120038756)] // ceil(1.05 × 114322624 measured)
 fn test_set_build_worst_case() {
     let world = setup();
@@ -517,7 +517,7 @@ fn test_set_build_worst_case() {
 
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 86078618)] // ceil(1.05 × 81979636 measured)
 fn test_set_build_parts() {
     let world = setup();
@@ -541,7 +541,7 @@ fn test_set_build_parts() {
 // An empty build: one registry call (the content version, D-168), no record; the words of a new
 // adventurer back, and the snapshot of a level 20 Vanguard without equipment.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 82105517)] // ceil(1.05 × 78195730 measured)
 fn test_set_build_empty() {
     let world = setup();
@@ -571,7 +571,7 @@ fn test_set_build_empty() {
 // -----------------------------------------------------------------
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 79103875)] // ceil(1.05 × 75337023 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
@@ -596,7 +596,7 @@ fn test_set_build_ownership_refusals() {
 // A bit outside the fields: 164-167 and 176 up in `build`, 160 up in `belt`, 224 up in
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 81890680)] // ceil(1.05 × 77991123 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
@@ -640,7 +640,7 @@ fn test_bar_duplicate_refused() {
 
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 83235061)] // ceil(1.05 × 79271486 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
@@ -675,7 +675,7 @@ fn test_bar_profession() {
 
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 83108764)] // ceil(1.05 × 79151203 measured)
 fn test_bar_elite() {
     let world = setup();
@@ -698,7 +698,7 @@ fn test_bar_elite() {
 
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 82253752)] // ceil(1.05 × 78336906 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
@@ -717,7 +717,7 @@ fn test_attributes_rank_and_points() {
 
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 97211525)] // ceil(1.05 × 92582404 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
@@ -748,7 +748,7 @@ fn test_attributes_points_by_level() {
 // The build-local indices (D-157 A): 0-4 the primary's, 5-8 the secondary's without its primary
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 89065472)] // ceil(1.05 × 84824259 measured)
 fn test_attributes_indices() {
     let world = setup();
@@ -794,7 +794,7 @@ fn test_belt_items() {
 
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 82103696)] // ceil(1.05 × 78193996 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
@@ -812,7 +812,7 @@ fn test_belt_counts_within_the_pack() {
 // -------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 86750370)] // ceil(1.05 × 82619400 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
@@ -830,7 +830,7 @@ fn test_equipment_owned_and_wearable() {
 
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
 #[available_gas(l2_gas: 86393641)] // ceil(1.05 × 82279658 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();

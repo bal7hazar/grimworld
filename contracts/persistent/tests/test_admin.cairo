@@ -33,6 +33,7 @@ fn stored(hub: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252,
 }
 
 #[test]
+// gas: raised, CBT-02e: set_contracts takes FlattenLibrary's class hash (D-168)
 #[available_gas(l2_gas: 4939893)] // ceil(1.05 × 4704660 measured)
 fn test_hub_set_contracts_by_admin() {
     let hub = deploy_hub();
@@ -68,6 +69,7 @@ fn test_hub_set_contracts_refused_to_others() {
 
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
+// gas: raised, CBT-02e: set_contracts takes FlattenLibrary's class hash (D-168)
 #[available_gas(l2_gas: 5636138)] // ceil(1.05 × 5367750 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_hands_over() {

@@ -475,7 +475,7 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // pages new (19 − 2: the entry chunk's 2 words are ENG-05's reveal), `next_slot` overwritten.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 33505692)] // ceil(1.05 × 31910182 measured)
+#[available_gas(l2_gas: 33377602)] // ceil(1.05 × 31788192 measured)
 fn test_create_first_entry() {
     let world = setup();
     let keys = watched();
@@ -579,7 +579,7 @@ fn test_create_first_entry() {
 // The same with no task: no task page is written (17 − 4 = 13 new).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 29322149)] // ceil(1.05 × 27925856 measured)
+#[available_gas(l2_gas: 29194060)] // ceil(1.05 × 27803866 measured)
 fn test_create_without_tasks() {
     let world = setup();
     let keys = watched();
@@ -594,7 +594,7 @@ fn test_create_without_tasks() {
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 46688798)] // ceil(1.05 × 44465521 measured)
+#[available_gas(l2_gas: 46304529)] // ceil(1.05 × 44099551 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -617,7 +617,7 @@ fn test_create_reuses_the_slot() {
 
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 35319959)] // ceil(1.05 × 33638056 measured)
+#[available_gas(l2_gas: 34678724)] // ceil(1.05 × 33027356 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -642,7 +642,7 @@ fn test_create_refusals() {
 // A sealed destination sets the header's flag (design/17).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 27297046)] // ceil(1.05 × 25997186 measured)
+#[available_gas(l2_gas: 27168956)] // ceil(1.05 × 25875196 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -710,7 +710,7 @@ fn fill_slot(world: World) {
 // it, through the view and through the stored words its gates reach.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 48354698)] // ceil(1.05 × 46052093 measured)
+#[available_gas(l2_gas: 48105554)] // ceil(1.05 × 45814813 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -829,7 +829,7 @@ fn test_generation_isolation() {
 // overwritten; `InstanceClosed`; one report).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 35015533)] // ceil(1.05 × 33348126 measured)
+#[available_gas(l2_gas: 34887443)] // ceil(1.05 × 33226136 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -879,7 +879,7 @@ fn test_leave_to_a_hub() {
 // entry chunk's 2 words are ENG-05's).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 41312142)] // ceil(1.05 × 39344897 measured)
+#[available_gas(l2_gas: 41184053)] // ceil(1.05 × 39222907 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -993,7 +993,7 @@ fn test_leave_to_a_location() {
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 33239429)] // ceil(1.05 × 31656599 measured)
+#[available_gas(l2_gas: 33111340)] // ceil(1.05 × 31534609 measured)
 fn test_travel_back() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1049,7 +1049,7 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 34850494)] // ceil(1.05 × 33190946 measured)
+#[available_gas(l2_gas: 34722404)] // ceil(1.05 × 33068956 measured)
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1064,7 +1064,7 @@ fn test_refused_sequence() {
 // An id of an earlier generation, and an instance already closed.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 40314367)] // ceil(1.05 × 38394635 measured)
+#[available_gas(l2_gas: 40058188)] // ceil(1.05 × 38150655 measured)
 fn test_refused_closed() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1078,7 +1078,7 @@ fn test_refused_closed() {
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 42508014)] // ceil(1.05 × 40483822 measured)
+#[available_gas(l2_gas: 42251835)] // ceil(1.05 × 40239842 measured)
 fn test_refused_absent() {
     let world = setup();
     create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1094,7 +1094,7 @@ fn test_refused_absent() {
 // reachable"), before any draw.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 61627940)] // ceil(1.05 × 58693276 measured)
+#[available_gas(l2_gas: 61499851)] // ceil(1.05 × 58571286 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1111,7 +1111,7 @@ fn test_refused_gate() {
 // A sealed Red Rift: no travel back (design/17).
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 30697138)] // ceil(1.05 × 29235369 measured)
+#[available_gas(l2_gas: 30569048)] // ceil(1.05 × 29113379 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1121,7 +1121,7 @@ fn test_refused_sealed() {
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 29555478)] // ceil(1.05 × 28148074 measured)
+#[available_gas(l2_gas: 29427389)] // ceil(1.05 × 28026084 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1138,7 +1138,7 @@ fn test_not_controller() {
 
 #[test]
 // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 34757554)] // ceil(1.05 × 33102432 measured)
+#[available_gas(l2_gas: 34629465)] // ceil(1.05 × 32980442 measured)
 fn test_set_controller() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };

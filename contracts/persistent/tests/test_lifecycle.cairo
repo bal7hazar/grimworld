@@ -418,7 +418,7 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 28109519)] // ceil(1.05 × 26770970 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
@@ -461,7 +461,7 @@ fn test_start_hub_refusals() {
 // level 1, a Vanguard's 20 energy, 2 pips, armor 80), the owner as controller, no task yet (E-14);
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 41223725)] // ceil(1.05 × 39260690 measured)
 fn test_enter() {
     let world = setup();
@@ -505,7 +505,7 @@ fn test_enter() {
 // The belt's reserve, the worst case (ENG-01 §6, §9.3): four items on four pages, each lane
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 38761643)] // ceil(1.05 × 36915850 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
@@ -542,7 +542,7 @@ fn test_enter_reserves_the_belt() {
 // Two slots of the same item are one debit of their sum (ENG-01 §6); a lane left non-zero keeps
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 34983470)] // ceil(1.05 × 33317590 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
@@ -599,7 +599,7 @@ fn test_enter_refusals() {
 // CBT-08a: the belt `set_build` stores is the one `enter` reserves; the bar and the elite slot
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 48653234)] // ceil(1.05 × 46336413 measured)
 fn test_enter_after_set_build() {
     let world = setup();
@@ -730,7 +730,7 @@ fn test_enter_refuses_a_stale_snapshot() {
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 36730394)] // ceil(1.05 × 34981327 measured)
 fn test_travel() {
     let world = setup();
@@ -798,7 +798,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // Returned through a hub gate: the hub reached and unlocked, the belt's unused counts back in the
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 39359218)] // ceil(1.05 × 37484969 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
@@ -840,7 +840,7 @@ fn test_report_returned_through_a_hub_gate() {
 // Travel back and defeat: `hub` 0 is the last hub (D-04); on defeat the belt comes back as on
 // return (D-141, E-15).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 40350610)] // ceil(1.05 × 38429152 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
@@ -874,7 +874,7 @@ fn test_report_to_the_last_hub() {
 // Through a gate to a location: still inside, in the next instance; nothing credited (the reserve
 // carries). Writes: `place`.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
+// gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
 #[available_gas(l2_gas: 39693834)] // ceil(1.05 × 37803651 measured)
 fn test_report_moved() {
     let world = setup();
