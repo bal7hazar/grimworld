@@ -28,8 +28,8 @@ const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
 const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
 const N112: NonZero<u128> = 0x10000000000000000000000000000;
 const F108: felt252 = 0x1000000000000000000000000000;
-/// The hot regions `store` rewrites: `GoblinState` 24–63 (AI state … adrenaline), `GoblinTimers`
-/// 0–107 (the activation, bleeding, poison).
+/// The hot regions `store` rewrites: `GoblinState` 24–63 (AI state … adrenaline) and
+/// `GoblinTimers` 0–107 (the activation, bleeding, poison).
 const N40: NonZero<u128> = 0x10000000000;
 const N108: NonZero<u128> = 0x1000000000000000000000000000;
 const F240: felt252 = 0x1000000000000000000000000000000000000000000000000000000000000;

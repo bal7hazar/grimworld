@@ -2697,14 +2697,17 @@ fn potion_parts(entry_kind: u8, v0: i16) -> Span<felt252> {
 #[test]
 #[available_gas(l2_gas: 32624)] // ceil(1.05 × 31070 measured)
 fn test_cost_sheet_potion_regen() {
-    assert(PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, 3)).regen == 3, 'regen');
+    assert(
+        PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, 3)).regen == 3, 'regen',
+    );
 }
 
 #[test]
 #[available_gas(l2_gas: 32624)] // ceil(1.05 × 31070 measured)
 fn test_cost_sheet_potion_regen_negative() {
     assert(
-        PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, -3)).regen == -3, 'regen',
+        PotionSheetTrait::read(opaque(7), potion_parts(kind::REGENERATION, -3)).regen == -3,
+        'regen',
     );
 }
 
