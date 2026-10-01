@@ -13,3 +13,5 @@ pub mod item;
 pub mod market;
 /// The snapshot stored with the adventurer (D-168).
 pub mod snapshot;
+/// The registry's content and inputs versions (D-141, D-169).
+pub mod versions;
