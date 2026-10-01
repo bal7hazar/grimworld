@@ -5,9 +5,11 @@
 //! - `contracts/logic/src/types/infliction.cairo`: `Infliction`, `InflictionTrait::duration`,
 //!   whole (its tests left out);
 //! - `contracts/logic/src/models/member.cairo`: `MemberTrait::is_alive`,
-//!   `MemberWordsTrait::infliction`, `MemberConditionTrait` (`apply` and the predicates);
-//! - `contracts/logic/src/models/goblin.cairo`: `GoblinConditionTrait` (`apply` and the
-//! predicates);
+//!   `MemberWordsTrait::infliction`, and `MemberConditionTrait` whole (`apply`, `holds`,
+//!   `can_act`, `takes_critical`, `can_defend`, `move_ticks`);
+//! - `contracts/logic/src/models/goblin.cairo`: of `GoblinConditionTrait`, `apply`,
+//!   `takes_critical` and `can_defend` only (its `holds`, `can_act` and `move_ticks` are not
+//!   copied: no benchmark here calls them; CBT-04's predicate figure, 11,250, is cited);
 //! - `contracts/logic/src/helpers/tick.cairo`: `TickMathTrait::held`, `move_ticks`, and
 //!   `types/tick.cairo`'s `CRIPPLED_MOVE_TICKS`.
 //! The bodies are unchanged; only the traits' names gather what the branch spread over its

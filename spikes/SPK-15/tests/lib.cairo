@@ -4,5 +4,6 @@
 mod bench_application;
 mod bench_design;
 mod bench_executor;
+mod bench_perception;
 mod bench_words;
 mod fixtures;

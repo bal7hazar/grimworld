@@ -11,7 +11,7 @@ use grimworld_logic::models::goblin::{
 };
 use grimworld_logic::models::member::{Member, MemberLifecycleTrait, MemberTickTrait};
 use grimworld_logic::types::combat::condition;
-use grimworld_logic::types::tick::Sheets;
+use grimworld_logic::types::tick::{Sheets, ai};
 use spk15::application::{
     Afflictions, AfflictionsTrait, GoblinApplicationTrait, MemberApplicationTrait,
 };
@@ -317,7 +317,7 @@ fn test_alternatives_match_cbt04_member() {
 }
 
 #[test]
-#[available_gas(l2_gas: 11101944)] // ceil(1.05 × 10573280 measured)
+#[available_gas(l2_gas: 26356502)] // ceil(1.05 × 25101430 measured)
 fn test_alternatives_match_cbt04_goblin() {
     let sheets = Fixture::sheets();
     let source = rending();
@@ -325,17 +325,30 @@ fn test_alternatives_match_cbt04_goblin() {
         condition::BLEEDING, condition::POISON, condition::BURNING, condition::CRIPPLED,
         condition::KNOCKED_DOWN,
     ];
+    // Fix loop 1, note 8: every condition at the values 1, 20 and 0 (clamped to 1), alive and dead.
     for c in conditions.span() {
-        let (mut expected, _) = goblin_state();
-        expected.apply(*c, 20, @source, 52, @sheets);
-        let (mut in_place, _) = goblin_state();
-        in_place.apply_in_place(*c, 20, @source, 52, @sheets);
-        assert(in_place == expected, 'in place');
-        let (mut gathered_goblin, _) = goblin_state();
-        let mut gathered: Afflictions = Default::default();
-        gathered.add(*c, 20, @source, 52);
-        gathered.flush_goblin(ref gathered_goblin, @sheets);
-        assert(gathered_goblin == expected, 'gathered');
+        for v in array![1_i32, 20, 0].span() {
+            for dead in array![false, true].span() {
+                let (mut base, _) = goblin_state();
+                if *dead {
+                    base.ai = ai::DEAD;
+                    base.health = 0;
+                }
+                let mut expected = base;
+                expected.apply(*c, *v, @source, 52, @sheets);
+                let mut in_place = base;
+                in_place.apply_in_place(*c, *v, @source, 52, @sheets);
+                assert(in_place == expected, 'in place');
+                let mut gathered_goblin = base;
+                let mut gathered: Afflictions = Default::default();
+                gathered.add(*c, *v, @source, 52);
+                gathered.flush_goblin(ref gathered_goblin, @sheets);
+                assert(gathered_goblin == expected, 'gathered');
+                if *dead {
+                    assert(expected == base, 'dead: nothing');
+                }
+            }
+        }
     }
     let (goblin, _) = goblin_state();
     assert(goblin.crippled() == 0, 'fixture');

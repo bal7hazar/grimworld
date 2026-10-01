@@ -20,7 +20,9 @@ use grimworld_logic::types::world::{World, WorldTrait};
 use crate::cbt03a::{Arc, Hit, HitOutcome, HitTarget, HitTrait};
 use crate::cbt04::{Cbt04GoblinTrait, Cbt04MemberTrait, Infliction};
 
-/// The member's defence terms a hit on it reads (§5.5 step 3, §5.6), gathered once.
+/// The member's defence terms a hit on it reads (§5.5 step 3, §5.6), gathered once a tick and
+/// updated whenever the executor holds, spends or ends an effect (fix loop 1, finding 3): a blocked
+/// hit spends a `BLOCK` charge (`GuardTrait::spend`), so the next hit of the tick sees it.
 #[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Guard {
     pub armor: i16,
@@ -28,8 +30,56 @@ pub struct Guard {
     pub stance: i8,
     pub enchanted: i8,
     pub vs: u8,
+    /// Each effect slot's charges while it lasts (0 for an ended or empty slot).
+    pub charges: [u8; 4],
+    /// The most charges a held effect has, and its slot (the lowest on a tie): the charge a block
+    /// spends.
     pub block: u8,
+    pub block_slot: u8,
     pub evade: bool,
+}
+
+#[generate_trait]
+pub impl GuardImpl of GuardTrait {
+    /// The most charges among `charges` and its slot, the lowest on a tie.
+    #[inline(always)]
+    fn strongest(charges: [u8; 4]) -> (u8, u8) {
+        let [c0, c1, c2, c3] = charges;
+        let mut block = c0;
+        let mut slot = 0;
+        if c1 > block {
+            block = c1;
+            slot = 1;
+        }
+        if c2 > block {
+            block = c2;
+            slot = 2;
+        }
+        if c3 > block {
+            block = c3;
+            slot = 3;
+        }
+        (block, slot)
+    }
+
+    /// A blocked hit spent one charge of `block_slot`.
+    fn spend(ref self: Guard) {
+        let [c0, c1, c2, c3] = self.charges;
+        let s = self.block_slot;
+        let charges = if s == 0 {
+            [c0 - 1, c1, c2, c3]
+        } else if s == 1 {
+            [c0, c1 - 1, c2, c3]
+        } else if s == 2 {
+            [c0, c1, c2 - 1, c3]
+        } else {
+            [c0, c1, c2, c3 - 1]
+        };
+        let (block, slot) = Self::strongest(charges);
+        self.charges = charges;
+        self.block = block;
+        self.block_slot = slot;
+    }
 }
 
 #[generate_trait]
@@ -62,7 +112,7 @@ pub impl GatherImpl of GatherTrait {
         (hit, target)
     }
 
-    /// The same, the member's defence terms given (`guard`, read once a tick).
+    /// The same, the member's defence terms given (`guard`, read once a tick, kept current).
     fn goblin_on_member_guarded(
         goblin: @Goblin,
         member: @Member,
@@ -93,23 +143,26 @@ pub impl GatherImpl of GatherTrait {
     }
 
     /// The member's defence terms a hit reads from its words and its four effect slots: they
-    /// change only when the executor holds, spends or ends an effect, so a tick may read them once.
+    /// change only when the executor holds, spends or ends an effect, so a tick may read them once
+    /// and update them at each such write (`GuardTrait::spend` for a block).
     fn guard(member: @Member, t: u32) -> Guard {
         let (armor, stance, enchanted, vs) = Self::member_armor(member);
         let mut effects: u16 = 0;
-        let mut block: u8 = 0;
+        let mut live: Array<u8> = array![];
         let mut evade = false;
         for slot in 0..4_u8 {
             let held = member.effect_of(slot);
             if held.deadline >= t {
                 effects += held.rank.into();
-                if held.charges > block {
-                    block = held.charges;
-                }
+                live.append(held.charges);
                 evade = evade || held.potion;
+            } else {
+                live.append(0);
             }
         }
-        Guard { armor, effects, stance, enchanted, vs, block, evade }
+        let charges = [*live[0], *live[1], *live[2], *live[3]];
+        let (block, block_slot) = GuardTrait::strongest(charges);
+        Guard { armor, effects, stance, enchanted, vs, charges, block, block_slot, evade }
     }
 
     /// The member as a hit's target: its guard and its state.
@@ -201,10 +254,18 @@ pub impl GatherImpl of GatherTrait {
 
 #[generate_trait]
 pub impl OutcomeImpl of OutcomeTrait {
-    /// A landed hit on the member (§5.5 steps 5–8): its health, its adrenaline for the hit
-    /// taken, the source's for the hit landed; a blocked hit spends a charge (left to the effect's
-    /// writer, not priced).
-    fn on_member(ref member: Member, ref source: Goblin, outcome: HitOutcome) {
+    /// A hit on the member (§5.5 steps 5–8): landed, its health, its adrenaline for the hit
+    /// taken, the source's for the hit landed; blocked, one charge of the effect in `slot` spent
+    /// (the guard's `block_slot`), written in the member's effect word.
+    fn on_member(ref member: Member, ref source: Goblin, outcome: HitOutcome, slot: u8) {
+        if outcome == HitOutcome::Blocked {
+            let mut held = member.effect_of(slot);
+            held.charges -= 1;
+            let [r0, r1, r2, r3] = member.effect_regen;
+            let pips = *[r0, r1, r2, r3].span()[slot.into()];
+            member.set_effect(slot, held, pips);
+            return;
+        }
         if let HitOutcome::Landed(landed) = outcome {
             member
                 .health =
@@ -244,27 +305,32 @@ pub impl ExecutorImpl of ExecutorTrait {
     fn goblin_hit(ref world: World, index: u32, t: u32, sheets: @Sheets) -> HitOutcome {
         let mut goblin = world.goblin(index);
         let mut member = world.member(0);
-        let (hit, target) = GatherTrait::goblin_on_member(
-            @goblin, @member, Arc::FrontSide, true, t, sheets,
+        let guard = GatherTrait::guard(@member, t);
+        let (hit, target) = GatherTrait::goblin_on_member_guarded(
+            @goblin, @member, @guard, Arc::FrontSide, true, t, sheets,
         );
         let outcome = hit.resolve(@target);
-        OutcomeTrait::on_member(ref member, ref goblin, outcome);
+        OutcomeTrait::on_member(ref member, ref goblin, outcome, guard.block_slot);
         world.set_member(0, member);
         world.set_goblin(index, goblin);
         outcome
     }
 
-    /// The same hit, the member's guard read before (once a tick, `GatherTrait::guard`).
+    /// The same hit, the member's guard read before (once a tick, `GatherTrait::guard`) and
+    /// updated here when the hit is blocked.
     fn goblin_hit_guarded(
-        ref world: World, index: u32, guard: @Guard, t: u32, sheets: @Sheets,
+        ref world: World, index: u32, ref guard: Guard, t: u32, sheets: @Sheets,
     ) -> HitOutcome {
         let mut goblin = world.goblin(index);
         let mut member = world.member(0);
         let (hit, target) = GatherTrait::goblin_on_member_guarded(
-            @goblin, @member, guard, Arc::FrontSide, true, t, sheets,
+            @goblin, @member, @guard, Arc::FrontSide, true, t, sheets,
         );
         let outcome = hit.resolve(@target);
-        OutcomeTrait::on_member(ref member, ref goblin, outcome);
+        OutcomeTrait::on_member(ref member, ref goblin, outcome, guard.block_slot);
+        if outcome == HitOutcome::Blocked {
+            guard.spend();
+        }
         world.set_member(0, member);
         world.set_goblin(index, goblin);
         outcome

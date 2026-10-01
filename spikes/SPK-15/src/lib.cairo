@@ -13,4 +13,5 @@ pub mod application;
 pub mod cbt03a;
 pub mod cbt04;
 pub mod executor;
+pub mod perception;
 pub mod words;

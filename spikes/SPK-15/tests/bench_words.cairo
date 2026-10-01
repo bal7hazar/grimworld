@@ -4,20 +4,13 @@
 //   main's `WordsTrait::load` + `WorldStoreTrait::store` against `LazyTrait::load` + `store`, each
 //   checking the round trip returns the words it was given; and on the representative words (8
 //   goblins, all awake);
-// - perception (`awake`, ENG-07's step 0) over 100 candidates: main's `TickTrait::awake` on loaded
-//   goblins against `LazyTrait::awake` on words, the set formed from none (8 goblins woken: each is
-//   decoded) and kept (the usual tick);
+// - perception (ENG-07's step 0) is measured in `bench_perception.cairo` (fix loop 1);
 // - a hook touching a frozen goblin (§9.2: up to 6 an action): main's `goblin` + `set_goblin` (the
 //   100-goblin array rebuilt) against `LazyTrait::goblin` + `set_frozen`.
-use grimworld_logic::models::goblin::{GoblinTrait, GoblinWords};
-use grimworld_logic::types::tick::{ContentTrait, Index, Sheets};
-use grimworld_logic::types::world::{
-    TickTrait, Words, WordsTrait, World, WorldStoreTrait, WorldTrait,
-};
-use spk15::words::{Lazy, LazyTrait, SelectionTrait};
-use crate::fixtures::{
-    goblin_words, load_content, load_words, opaque, representative, worst_content,
-};
+use grimworld_logic::types::tick::ContentTrait;
+use grimworld_logic::types::world::{Words, WordsTrait, WorldStoreTrait, WorldTrait};
+use spk15::words::{LazyTrait, SelectionTrait};
+use crate::fixtures::{load_content, load_words, opaque, representative};
 
 // ---------------------------------------------------------------------------------------------
 // The content's index, once a call (lever 4): the dictionary of positions and the castes' kits,
@@ -98,150 +91,6 @@ fn test_pair_words_representative_lazy() {
     let (expected, _) = representative_words();
     let (lazy, _sheets, _index) = LazyTrait::lazy_load(words, @content);
     assert(lazy.lazy_store() == expected, 'round trip');
-}
-
-// ---------------------------------------------------------------------------------------------
-// Perception over 100 candidates: every one Alerted and alive, at distances falling along the
-// array (main's `candidates`), so that each of the 8 scans updates its minimum at every element.
-
-fn candidate_words(prior: bool) -> Array<GoblinWords> {
-    let mut words = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        words.append(goblin_words(8 + i, prior && i >= 92, 280, 0, 0));
-        i += 1;
-    }
-    words
-}
-
-fn distances() -> Span<u16> {
-    let mut distances = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        distances.append(200 - i);
-        i += 1;
-    }
-    distances.span()
-}
-
-/// Main's world of 100 loaded goblins, the last 8 awake with `prior`.
-fn main_candidates(prior: bool) -> (World, Span<u16>) {
-    let (sheets, mut index) = worst_content(3).index();
-    let mut goblins = array![];
-    for words in candidate_words(prior) {
-        goblins.append(GoblinTrait::load(words, ref index, @sheets));
-    }
-    (WorldTrait::new(49, array![], goblins, array![], false), distances())
-}
-
-/// The lazy world of the same words, its index kept.
-fn lazy_candidates(prior: bool) -> (Lazy, Sheets, Index, Span<u16>) {
-    let words = Words {
-        clock: 49,
-        members: array![],
-        goblins: candidate_words(prior),
-        killed: array![],
-        defeated: false,
-    };
-    let content = worst_content(3);
-    let (lazy, sheets, index) = LazyTrait::lazy_load(words, @content);
-    (lazy, sheets, index, distances())
-}
-
-#[test]
-#[available_gas(l2_gas: 8510502)] // ceil(1.05 × 8105240 measured)
-fn test_awake_main_fixture() {
-    let (world, distances) = main_candidates(false);
-    assert(world.goblin_count() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 13338098)] // ceil(1.05 × 12702950 measured)
-fn test_pair_awake_main_formed() {
-    let (mut world, distances) = main_candidates(false);
-    TickTrait::awake(ref world, distances);
-    assert(world.goblin_count() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 8574930)] // ceil(1.05 × 8166600 measured)
-fn test_awake_main_kept_fixture() {
-    let (world, distances) = main_candidates(true);
-    assert(world.goblin_count() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 13465095)] // ceil(1.05 × 12823900 measured)
-fn test_pair_awake_main_kept() {
-    let (mut world, distances) = main_candidates(true);
-    TickTrait::awake(ref world, distances);
-    assert(world.goblin_count() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 2455425)] // ceil(1.05 × 2338500 measured)
-fn test_awake_lazy_fixture() {
-    let (lazy, _sheets, _index, distances) = lazy_candidates(false);
-    assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 8121068)] // ceil(1.05 × 7734350 measured)
-fn test_pair_awake_lazy_formed() {
-    let (mut lazy, sheets, mut index, distances) = lazy_candidates(false);
-    lazy.awake(distances, ref index, @sheets);
-    assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 2999063)] // ceil(1.05 × 2856250 measured)
-fn test_awake_lazy_kept_fixture() {
-    let (lazy, _sheets, _index, distances) = lazy_candidates(true);
-    assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 8314383)] // ceil(1.05 × 7918460 measured)
-fn test_pair_awake_lazy_kept() {
-    let (mut lazy, sheets, mut index, distances) = lazy_candidates(true);
-    lazy.awake(distances, ref index, @sheets);
-    assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
-}
-
-// Both selections choose the same set, the same flags, the same values (not a cost test).
-#[test]
-#[available_gas(l2_gas: 59630634)] // ceil(1.05 × 56791080 measured)
-fn test_awake_lazy_matches_main() {
-    for prior in array![false, true] {
-        let (mut world, distances) = main_candidates(prior);
-        TickTrait::awake(ref world, distances);
-        let (mut lazy, sheets, mut index, _) = lazy_candidates(prior);
-        lazy.awake(distances, ref index, @sheets);
-        assert(lazy.woken == world.woken(), 'the same set');
-        let mut k = 0;
-        for i in lazy.woken {
-            assert(*lazy.awake[k] == world.goblin(*i), 'the same values');
-            k += 1;
-        }
-        let mut i = 0;
-        while i < 100 {
-            assert(*lazy.words[i].awake == world.goblin(i).awake, 'the same flags');
-            i += 1;
-        }
-    }
-    // A goblin put to sleep is encoded back: the 8 nearest change.
-    let (mut lazy, sheets, mut index, _) = lazy_candidates(true);
-    let mut far = array![];
-    let mut i: u16 = 0;
-    while i < 100 {
-        far.append(100 + i);
-        i += 1;
-    }
-    lazy.awake(far.span(), ref index, @sheets);
-    assert(lazy.woken == array![0, 1, 2, 3, 4, 5, 6, 7].span(), 'replaced');
-    let stored = lazy.lazy_store();
-    assert(!*stored.goblins[99].awake && *stored.goblins[0].awake, 'flags stored');
-    assert(*stored.goblins[99].state == *candidate_words(true)[99].state, 'asleep: its words');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -353,38 +202,4 @@ fn test_selection_agrees() {
         assert(SelectionTrait::scan(case) == SelectionTrait::single(case), 'the same selection');
     }
     assert(SelectionTrait::single(few.span()) == (4, 140 * 0x10000 + 98), 'fewer than 8');
-}
-
-// The lazy world's single-pass perception, from the AI states kept at load.
-#[test]
-#[available_gas(l2_gas: 6200030)] // ceil(1.05 × 5904790 measured)
-fn test_pair_awake_single_formed() {
-    let (mut lazy, sheets, mut index, distances) = lazy_candidates(false);
-    lazy.awake_single(distances, ref index, @sheets);
-    assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 6425097)] // ceil(1.05 × 6119140 measured)
-fn test_pair_awake_single_kept() {
-    let (mut lazy, sheets, mut index, distances) = lazy_candidates(true);
-    lazy.awake_single(distances, ref index, @sheets);
-    assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
-}
-
-#[test]
-#[available_gas(l2_gas: 39966308)] // ceil(1.05 × 38063150 measured)
-fn test_awake_single_matches_main() {
-    for prior in array![false, true] {
-        let (mut world, distances) = main_candidates(prior);
-        TickTrait::awake(ref world, distances);
-        let (mut lazy, sheets, mut index, _) = lazy_candidates(prior);
-        lazy.awake_single(distances, ref index, @sheets);
-        assert(lazy.woken == world.woken(), 'the same set');
-        let mut k = 0;
-        for i in lazy.woken {
-            assert(*lazy.awake[k] == world.goblin(*i), 'the same values');
-            k += 1;
-        }
-    }
 }

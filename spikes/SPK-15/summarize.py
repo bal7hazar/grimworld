@@ -14,12 +14,6 @@ BASES = {
     "test_pair_goblin_": "test_goblin_base",
     "test_pair_words_bound_": "test_words_bound_fixture",
     "test_pair_words_representative_": "test_words_representative_fixture",
-    "test_pair_awake_main_formed": "test_awake_main_fixture",
-    "test_pair_awake_main_kept": "test_awake_main_kept_fixture",
-    "test_pair_awake_lazy_formed": "test_awake_lazy_fixture",
-    "test_pair_awake_lazy_kept": "test_awake_lazy_kept_fixture",
-    "test_pair_awake_single_formed": "test_awake_lazy_fixture",
-    "test_pair_awake_single_kept": "test_awake_lazy_kept_fixture",
     "test_pair_touch_main": "test_touch_main_fixture",
     "test_pair_touch_lazy": "test_touch_lazy_fixture",
     "test_pair_selection_": "test_selection_fixture",
@@ -43,7 +37,16 @@ BASES = {
 }
 
 
+STATES = ("formed", "kept_end", "kept_start", "replaced")
+
+
 def base_of(name):
+    # Perception (fix loop 1): `test_pair_perc_<rep>[_<selection>]_<state>` against
+    # `test_perc_<rep>_<state>_fixture`.
+    if name.startswith("test_pair_perc_"):
+        rep = name[len("test_pair_perc_"):].split("_")[0]
+        state = next(s for s in STATES if name.endswith("_" + s))
+        return f"test_perc_{rep}_{state}_fixture"
     # The longest matching prefix names the base.
     best = None
     for prefix, base in BASES.items():

@@ -10,7 +10,7 @@
 // - a `CONDITION` entry on the member and on an awake goblin, read and written back;
 // - an entry decoded from its 97 bits (the executor reads a carrier's entries).
 use grimworld_logic::models::goblin::Goblin;
-use grimworld_logic::models::member::Member;
+use grimworld_logic::models::member::{Member, MemberWordsTrait};
 use grimworld_logic::types::combat::condition;
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::tick::Sheets;
@@ -79,7 +79,7 @@ fn test_executor_gather_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14437706)] // ceil(1.05 × 13750196 measured)
+#[available_gas(l2_gas: 14441612)] // ceil(1.05 × 13753916 measured)
 fn test_pair_executor_gather() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -96,7 +96,7 @@ fn test_pair_executor_gather() {
 
 // The same inputs, resolved (CBT-03a's hit alone, on these inputs).
 #[test]
-#[available_gas(l2_gas: 14476178)] // ceil(1.05 × 13786836 measured)
+#[available_gas(l2_gas: 14480084)] // ceil(1.05 × 13790556 measured)
 fn test_pair_executor_gather_resolve() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -111,7 +111,7 @@ fn test_pair_executor_gather_resolve() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14625530)] // ceil(1.05 × 13929076 measured)
+#[available_gas(l2_gas: 14694914)] // ceil(1.05 × 13995156 measured)
 fn test_pair_executor_goblin_hit() {
     let (mut world, sheets) = state();
     let outcome = ExecutorTrait::goblin_hit(ref world, opaque(99), opaque(50), @sheets);
@@ -126,6 +126,21 @@ fn test_pair_executor_bomb_each() {
     let (mut world, sheets) = state();
     let targets = array![92, 93, 94, 95, 96, 97, 98].span();
     let kills = ExecutorTrait::bomb_each(
+        ref world, opaque(targets), opaque(condition::BURNING), opaque(3), opaque(50), @sheets,
+    );
+    opaque(kills);
+    opaque(@world);
+    opaque(@sheets);
+}
+
+// The same bomb on 3 targets (D2′, fix loop 1 note 7): the difference with 7 is 4 targets' own
+// part; the rest (one rebuild, the member's round trip, the kit's read) is the bomb's fixed part.
+#[test]
+#[available_gas(l2_gas: 15108492)] // ceil(1.05 × 14389040 measured)
+fn test_pair_executor_bomb_flushed_3() {
+    let (mut world, sheets) = state();
+    let targets = array![0, 1, 2].span();
+    let kills = ExecutorTrait::bomb_flushed(
         ref world, opaque(targets), opaque(condition::BURNING), opaque(3), opaque(50), @sheets,
     );
     opaque(kills);
@@ -233,7 +248,7 @@ fn test_pair_executor_entry() {
 
 // The outcome is a hit that lands (the gather builds legal inputs): not a cost test.
 #[test]
-#[available_gas(l2_gas: 14624102)] // ceil(1.05 × 13927716 measured)
+#[available_gas(l2_gas: 14693486)] // ceil(1.05 × 13993796 measured)
 fn test_executor_goblin_hit_lands() {
     let (mut world, sheets) = worst_state(false, 3);
     let before = world.member(0).health;
@@ -250,7 +265,7 @@ fn test_executor_goblin_hit_lands() {
 // The member's guard (its defence terms) read once a tick, not at each hit.
 
 #[test]
-#[available_gas(l2_gas: 14414390)] // ceil(1.05 × 13727990 measured)
+#[available_gas(l2_gas: 14419346)] // ceil(1.05 × 13732710 measured)
 fn test_pair_executor_guard() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -270,7 +285,7 @@ fn guarded_state() -> (World, Sheets, Goblin, Member, Guard) {
 }
 
 #[test]
-#[available_gas(l2_gas: 14428670)] // ceil(1.05 × 13741590 measured)
+#[available_gas(l2_gas: 14435201)] // ceil(1.05 × 13747810 measured)
 fn test_executor_guarded_fixture() {
     let (world, sheets, goblin, member, guard) = guarded_state();
     opaque(@world);
@@ -281,7 +296,7 @@ fn test_executor_guarded_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14453572)] // ceil(1.05 × 13765306 measured)
+#[available_gas(l2_gas: 14460628)] // ceil(1.05 × 13772026 measured)
 fn test_pair_executor_gather_guarded() {
     let (world, sheets, goblin, member, guard) = guarded_state();
     let (hit, target) = GatherTrait::goblin_on_member_guarded(
@@ -297,7 +312,7 @@ fn test_pair_executor_gather_guarded() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14363748)] // ceil(1.05 × 13679760 measured)
+#[available_gas(l2_gas: 14369229)] // ceil(1.05 × 13684980 measured)
 fn test_executor_hit_guarded_fixture() {
     let (world, sheets) = state();
     let guard = opaque(GatherTrait::guard(@world.member(0), 50));
@@ -307,12 +322,12 @@ fn test_executor_hit_guarded_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14631284)] // ceil(1.05 × 13934556 measured)
+#[available_gas(l2_gas: 14708186)] // ceil(1.05 × 14007796 measured)
 fn test_pair_executor_goblin_hit_guarded() {
     let (mut world, sheets) = state();
-    let guard = opaque(GatherTrait::guard(@world.member(0), 50));
+    let mut guard = opaque(GatherTrait::guard(@world.member(0), 50));
     let outcome = ExecutorTrait::goblin_hit_guarded(
-        ref world, opaque(99), @guard, opaque(50), @sheets,
+        ref world, opaque(99), ref guard, opaque(50), @sheets,
     );
     opaque(outcome);
     opaque(guard);
@@ -322,12 +337,60 @@ fn test_pair_executor_goblin_hit_guarded() {
 
 // The guarded hit leaves the world the unguarded one leaves (not a cost test).
 #[test]
-#[available_gas(l2_gas: 30863094)] // ceil(1.05 × 29393422 measured)
+#[available_gas(l2_gas: 31008540)] // ceil(1.05 × 29531942 measured)
 fn test_executor_guarded_agrees() {
     let (mut a, sheets) = worst_state(false, 3);
     let (mut b, _) = worst_state(false, 3);
-    let guard = GatherTrait::guard(@b.member(0), 50);
+    let mut guard = GatherTrait::guard(@b.member(0), 50);
     let x = ExecutorTrait::goblin_hit(ref a, 98, 50, @sheets);
-    let y = ExecutorTrait::goblin_hit_guarded(ref b, 98, @guard, 50, @sheets);
+    let y = ExecutorTrait::goblin_hit_guarded(ref b, 98, ref guard, 50, @sheets);
     assert(x == y && a == b, 'the same hit');
+}
+
+/// `worst_state`'s world, the member holding a `BLOCK` of 1 charge in effect slot 0 and no potion
+/// (an `EVADE` in this estimate's model), so that a blocked hit is followed by one that lands.
+fn blocking() -> (World, Sheets) {
+    let (mut world, sheets) = worst_state(false, 3);
+    let mut member = world.member(0);
+    let mut held = member.effect_of(0);
+    held.charges = 1;
+    member.set_effect(0, held, 0);
+    member.set_effect(2, Default::default(), 0);
+    member.set_effect(3, Default::default(), 0);
+    world.set_member(0, member);
+    (world, sheets)
+}
+
+// Fix loop 1, finding 3: two goblins hit the member from the front in one tick; the first is
+// blocked and spends the one charge, the second lands. Read once and updated at the block, the
+// guard gives the outcomes the guard read at each hit gives, and the same world; read once and not
+// updated, the second hit would be blocked too.
+#[test]
+#[available_gas(l2_gas: 32511098)] // ceil(1.05 × 30962950 measured)
+fn test_executor_guard_two_hits() {
+    let (mut each, sheets) = blocking();
+    let (mut once, _) = blocking();
+    let a1 = ExecutorTrait::goblin_hit(ref each, 98, 50, @sheets);
+    let b1 = ExecutorTrait::goblin_hit(ref each, 99, 50, @sheets);
+    let mut guard = GatherTrait::guard(@once.member(0), 50);
+    assert(guard.block == 1 && guard.block_slot == 0, 'one charge');
+    let stale = guard;
+    let a2 = ExecutorTrait::goblin_hit_guarded(ref once, 98, ref guard, 50, @sheets);
+    assert(guard.block == 0, 'the guard spent it');
+    let b2 = ExecutorTrait::goblin_hit_guarded(ref once, 99, ref guard, 50, @sheets);
+    assert(a1 == HitOutcome::Blocked && a2 == HitOutcome::Blocked, 'A blocked');
+    match b1 {
+        HitOutcome::Landed(_) => {},
+        _ => core::panic_with_felt252('B lands'),
+    }
+    assert(b2 == b1, 'B the same');
+    assert(each == once, 'the same world');
+    assert(each.member(0).effect_of(0).charges == 0, 'the charge spent');
+    // The guard not updated: B, at the same state, would be blocked.
+    let goblin = once.goblin(99);
+    let member = once.member(0);
+    let (hit, target) = GatherTrait::goblin_on_member_guarded(
+        @goblin, @member, @stale, Arc::FrontSide, true, 50, @sheets,
+    );
+    assert(hit.resolve(@target) == HitOutcome::Blocked, 'a stale guard blocks B');
 }
