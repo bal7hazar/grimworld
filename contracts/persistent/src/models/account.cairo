@@ -3,7 +3,7 @@
 //! personal by adventurer id (design/03, D-33).
 
 use core::num::traits::Zero;
-use grimworld_logic::packing::{Lanes32, P16, P24, P32, P8, byte_at, join, low_field, split};
+use grimworld_logic::packing::{P16, P24, P32, P8, byte_at, join, low_field, split};
 use starknet::ContractAddress;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
@@ -99,8 +99,6 @@ pub mod errors {
     /// The swap removal did not meet the adventurer in its account's list: an invariant, not a
     /// player's refusal (the ownership check comes first).
     pub const NOT_LISTED: felt252 = 'not in the account list';
-    /// A lane of a `Lanes32` page is 0 to 6.
-    pub const LANE_ABOVE_6: felt252 = 'lane above 6';
 }
 
 /// `AccountRecord` as stored, one word: the paths read its two counts and change one by an
@@ -172,59 +170,13 @@ pub impl AccountAssert of AccountAssertTrait {
     }
 }
 
-/// A page of `account_adventurers` (a `Lanes32` of adventurer ids); `unit` serves the lanes of
-/// balance pages too (`models::balance`).
+/// The list `account_adventurers`: seven ids a page (`models::lanes::StoredLanes`).
 #[generate_trait]
 pub impl AdventurerListImpl of AdventurerListTrait {
     /// `(page, lane)` of the list's `index`-th id.
     #[inline(always)]
     fn at(index: u8) -> (u8, u8) {
         DivRem::div_rem(index, IDS_PER_PAGE.try_into().unwrap())
-    }
-
-    /// What one unit of lane `lane` (0 to 6) adds to a stored page: a table (docs/CAIRO.md §3).
-    fn unit(lane: u8) -> felt252 {
-        match lane {
-            0 => 0x1,
-            1 => 0x100000000,
-            2 => 0x10000000000000000,
-            3 => 0x1000000000000000000000000,
-            4 => 0x100000000000000000000000000000000,
-            5 => 0x10000000000000000000000000000000000000000,
-            6 => 0x1000000000000000000000000000000000000000000000000,
-            _ => AdventurerListAssert::lane_above_6(),
-        }
-    }
-
-    /// Lane `lane` (0 to 6).
-    fn get(self: @Lanes32, lane: u8) -> u32 {
-        let [a, b, c, d, e, f, g] = *self.lanes;
-        match lane {
-            0 => a,
-            1 => b,
-            2 => c,
-            3 => d,
-            4 => e,
-            5 => f,
-            6 => g,
-            _ => AdventurerListAssert::lane_above_6(),
-        }
-    }
-
-    /// The page with lane `lane` (0 to 6) set to `value`.
-    fn set(self: @Lanes32, lane: u8, value: u32) -> Lanes32 {
-        let [a, b, c, d, e, f, g] = *self.lanes;
-        let lanes = match lane {
-            0 => [value, b, c, d, e, f, g],
-            1 => [a, value, c, d, e, f, g],
-            2 => [a, b, value, d, e, f, g],
-            3 => [a, b, c, value, e, f, g],
-            4 => [a, b, c, d, value, f, g],
-            5 => [a, b, c, d, e, value, g],
-            6 => [a, b, c, d, e, f, value],
-            _ => AdventurerListAssert::lane_above_6(),
-        };
-        Lanes32 { lanes }
     }
 }
 
@@ -236,19 +188,13 @@ pub impl AdventurerListAssert of AdventurerListAssertTrait {
     fn assert_listed(index: u8, last: u8) {
         assert(index != last, errors::NOT_LISTED);
     }
-
-    /// The refusal of a lane above 6: the last arm of a match on a lane, which never returns.
-    fn lane_above_6() -> core::never {
-        core::panic_with_felt252(errors::LANE_ABOVE_6)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::Lanes32;
     use starknet::storage_access::StorePacking;
     use super::{
-        AccountRecord, AdventurerListAssert, AdventurerListTrait, OwnerTrait, START_SLOTS,
+        Account, AccountRecord, AdventurerListAssert, AdventurerListTrait, OwnerTrait, START_SLOTS,
         StoredRecord, StoredRecordTrait, VAULT,
     };
 
@@ -269,6 +215,7 @@ mod tests {
         let one_less = AccountRecord { adventurers: 4, ..more };
         assert(stored.without_adventurer().word == StorePacking::pack(one_less), 'one less');
         assert(StorePacking::<AccountRecord, felt252>::unpack(stored.word) == more, 'record trip');
+        assert(starknet::Store::<Account>::size() == 2, 'account: 2 slots');
     }
 
     #[test]
@@ -277,28 +224,11 @@ mod tests {
         assert(OwnerTrait::key(VAULT, 7) == 2 * 0x100000000 + 7, 'owner key');
     }
 
-    // Each lane's unit, `get` and `set`, against the packer.
     #[test]
-    #[available_gas(l2_gas: 266816)] // ceil(1.05 × 254110 measured)
-    fn test_list_lanes() {
-        let page = Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] };
-        let word: felt252 = StorePacking::pack(page);
-        for lane in 0..7_u8 {
-            let expected = page.set(lane, 0xFFFFFFFF);
-            let changed = word
-                + (0xFFFFFFFF - page.get(lane)).into() * AdventurerListTrait::unit(lane);
-            assert(changed == StorePacking::pack(expected), 'lane unit');
-            assert(expected.get(lane) == 0xFFFFFFFF, 'set then get');
-        }
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    fn test_list_at() {
         assert(AdventurerListTrait::at(0) == (0, 0), 'first');
         assert(AdventurerListTrait::at(13) == (1, 6), 'fourteenth');
-    }
-
-    #[test]
-    #[should_panic(expected: 'lane above 6')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
-    fn test_lane_above_6_refused() {
-        Lanes32 { lanes: [0; 7] }.get(7);
     }
 
     #[test]

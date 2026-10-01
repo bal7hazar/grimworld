@@ -1,13 +1,11 @@
-//! Balances (design/07: everything counted, not slotted): pages of seven `u32` lanes (`Lanes32`)
-//! under `(owner key, page)`, item `7 page + lane` (docs/architecture/ENG-01-interfaces.md, *Hub
-//! storage*). The store (`HubStore::get_balance`, `HubStore::change_balances`) reads and writes a
-//! page as its stored word, changed lane by lane by the arithmetic below, since a page holds seven
-//! balances and a path changes one or two of them: unpacking and packing the page is what it saves
-//! (docs/CAIRO.md §1; ENG-04's audit F-5 keeps packed arithmetic where it is justified). A page
-//! never written reads 0 and is written with `LIVE`.
+//! Balances (design/07: everything counted, not slotted): pages of seven `u32` lanes under
+//! `(owner key, page)`, item `7 page + lane` (docs/architecture/ENG-01-interfaces.md, *Hub
+//! storage*). A page is read and written as its stored model (`models::lanes::StoredLanes`), the
+//! lanes a change touches read and changed one by one: a path changes one or two of a page's seven
+//! balances, so decoding the page is what it saves (docs/CAIRO.md §1). A page never written reads
+//! 0 and is written with `LIVE`.
 
-use grimworld_logic::packing::{LIVE, P32, P64, P96, low_field, split, u32_at};
-use super::account::{AdventurerListAssert, AdventurerListTrait};
+use super::lanes::{StoredLanes, StoredLanesTrait};
 
 /// Items on a page: lane `item % 7` of page `item / 7`.
 pub const ITEMS_PER_PAGE: u32 = 7;
@@ -28,40 +26,65 @@ pub impl BalanceImpl of BalanceTrait {
         (page, lane.try_into().unwrap())
     }
 
-    /// The balance in lane `lane` (0 to 6) of a stored page.
-    fn amount(page: felt252, lane: u8) -> u32 {
-        let (low, high) = split(page);
-        match lane {
-            0 => low_field(low, P32.try_into().unwrap()).try_into().unwrap(),
-            1 => u32_at(low, P32),
-            2 => u32_at(low, P64),
-            3 => u32_at(low, P96),
-            4 => low_field(high, P32.try_into().unwrap()).try_into().unwrap(),
-            5 => u32_at(high, P32),
-            6 => u32_at(high, P64),
-            _ => AdventurerListAssert::lane_above_6(),
-        }
-    }
-
-    /// The stored page with `amount` more in `lane`; `LIVE` set on a page never written. Returns
-    /// the page and whether the lane was empty before (a pack lane filled, `pack_lanes`).
-    fn credit(page: felt252, lane: u8, amount: u32) -> (felt252, bool) {
-        let before = Self::amount(page, lane);
+    /// The page with `amount` more in `lane`, refused past a `u32`. Returns the page and whether
+    /// the lane was empty before (a pack lane filled, `pack_lanes`).
+    fn credit(page: StoredLanes, lane: u8, amount: u32) -> (StoredLanes, bool) {
+        let before = page.get(lane);
         BalanceAssert::assert_credit(before, amount);
-        let base = if page == 0 {
-            LIVE
-        } else {
-            page
-        };
-        (base + amount.into() * AdventurerListTrait::unit(lane), before == 0 && amount != 0)
+        (page.added(lane, amount), before == 0 && amount != 0)
     }
 
-    /// The stored page with `amount` less in `lane`, refused if the lane holds less. Returns the
-    /// page and whether the lane is empty after (a pack lane emptied).
-    fn debit(page: felt252, lane: u8, amount: u32) -> (felt252, bool) {
-        let before = Self::amount(page, lane);
+    /// The page with `amount` less in `lane`, refused if the lane holds less. Returns the page
+    /// and whether the lane is empty after (a pack lane emptied).
+    fn debit(page: StoredLanes, lane: u8, amount: u32) -> (StoredLanes, bool) {
+        let before = page.get(lane);
         BalanceAssert::assert_debit(before, amount);
-        (page - amount.into() * AdventurerListTrait::unit(lane), before != 0 && before == amount)
+        (page.removed(lane, amount), before != 0 && before == amount)
+    }
+
+    /// Page `page` with every change of `changes` that falls on it, from the `first`-th on (the
+    /// earlier ones fall on other pages), credited (`credit`) or debited, in their order. Returns
+    /// the page, and the lanes filled and emptied. Bound: the changes, at most 12 (ENG-01 §4.5).
+    fn apply(
+        page: StoredLanes, at: u32, changes: Span<(u32, u32)>, first: u32, credit: bool,
+    ) -> (StoredLanes, u16, u16) {
+        let (mut page, mut filled, mut emptied) = (page, 0_u16, 0_u16);
+        for j in first..changes.len() {
+            let (item, amount) = *changes[j];
+            let (item_page, lane) = Self::at(item);
+            if item_page != at {
+                continue;
+            }
+            if credit {
+                let (next, lane_filled) = Self::credit(page, lane, amount);
+                page = next;
+                if lane_filled {
+                    filled += 1;
+                }
+            } else {
+                let (next, lane_emptied) = Self::debit(page, lane, amount);
+                page = next;
+                if lane_emptied {
+                    emptied += 1;
+                }
+            }
+        }
+        (page, filled, emptied)
+    }
+
+    /// Whether the `i`-th change is the first of `changes` on its page: the pages to read, once
+    /// each, in the order of their first change.
+    fn first_on_page(changes: Span<(u32, u32)>, i: u32) -> bool {
+        let (item, _) = *changes[i];
+        let (page, _) = Self::at(item);
+        for j in 0..i {
+            let (earlier, _) = *changes[j];
+            let (earlier_page, _) = Self::at(earlier);
+            if earlier_page == page {
+                return false;
+            }
+        }
+        true
     }
 
     /// The belt's slots as balance changes: one `(item, count)` per distinct item, the counts of
@@ -111,61 +134,67 @@ pub impl BalanceAssert of BalanceAssertTrait {
 // docs/CAIRO.md §2).
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::{LIVE, Lanes32};
+    use grimworld_logic::packing::Lanes32;
     use starknet::storage_access::StorePacking;
     use super::BalanceTrait;
+    use super::super::lanes::StoredLanes;
+
+    fn stored(page: Lanes32) -> StoredLanes {
+        StoredLanes { word: StorePacking::pack(page) }
+    }
 
     #[test]
-    #[available_gas(l2_gas: 297843)] // ceil(1.05 × 283660 measured)
+    #[available_gas(l2_gas: 180590)] // ceil(1.05 × 171990 measured)
     fn test_balance_pages() {
         assert(BalanceTrait::at(0) == (0, 0) && BalanceTrait::at(13) == (1, 6), 'at');
         assert(BalanceTrait::at(0xFFFFFFFF) == (0x24924924, 3), 'at the top');
         let page = Lanes32 { lanes: [1, 0xFFFFFFFF, 3, 0, 5, 6, 0xFFFFFFFE] };
-        let word: felt252 = StorePacking::pack(page);
-        for lane in 0..7_u8 {
-            assert(BalanceTrait::amount(word, lane) == *page.lanes.span()[lane.into()], 'amount');
-        }
+        let word = stored(page);
         // A credit on a page never written sets `LIVE`, and fills its lane.
-        let (credited, filled) = BalanceTrait::credit(0, 4, 9);
-        assert(
-            credited == StorePacking::pack(Lanes32 { lanes: [0, 0, 0, 0, 9, 0, 0] }), 'fresh page',
-        );
+        let (credited, filled) = BalanceTrait::credit(StoredLanes { word: 0 }, 4, 9);
+        assert(credited == stored(Lanes32 { lanes: [0, 0, 0, 0, 9, 0, 0] }), 'fresh page');
         assert(filled, 'filled');
         let (credited, filled) = BalanceTrait::credit(word, 6, 1);
         let expected = Lanes32 { lanes: [1, 0xFFFFFFFF, 3, 0, 5, 6, 0xFFFFFFFF] };
-        assert(credited == StorePacking::pack(expected) && !filled, 'credit to the top');
+        assert(credited == stored(expected) && !filled, 'credit to the top');
         let (debited, emptied) = BalanceTrait::debit(word, 0, 1);
         let expected = Lanes32 { lanes: [0, 0xFFFFFFFF, 3, 0, 5, 6, 0xFFFFFFFE] };
-        assert(debited == StorePacking::pack(expected) && emptied, 'debit to 0');
+        assert(debited == stored(expected) && emptied, 'debit to 0');
         let (debited, emptied) = BalanceTrait::debit(word, 1, 5);
         let expected = Lanes32 { lanes: [1, 0xFFFFFFFA, 3, 0, 5, 6, 0xFFFFFFFE] };
-        assert(debited == StorePacking::pack(expected) && !emptied, 'partial debit');
+        assert(debited == stored(expected) && !emptied, 'partial debit');
         let (unchanged, emptied) = BalanceTrait::debit(word, 3, 0);
         assert(unchanged == word && !emptied, 'nothing debited');
-        assert(StorePacking::pack(Lanes32 { lanes: [0; 7] }) == LIVE, 'an empty page is live');
+    }
+
+    // A page's changes applied together, the other pages' skipped; the first change of a page.
+    #[test]
+    #[available_gas(l2_gas: 149111)] // ceil(1.05 × 142010 measured)
+    fn test_apply() {
+        let changes = array![(1, 3), (8, 2), (1, 4), (15, 0)].span();
+        let (page, filled, emptied) = BalanceTrait::apply(
+            StoredLanes { word: 0 }, 0, changes, 0, true,
+        );
+        assert(page == stored(Lanes32 { lanes: [0, 7, 0, 0, 0, 0, 0] }), 'page 0');
+        assert((filled, emptied) == (1, 0), 'one filled');
+        let (page, _, emptied) = BalanceTrait::apply(page, 0, array![(1, 7)].span(), 0, false);
+        assert(page == stored(Lanes32 { lanes: [0; 7] }) && emptied == 1, 'emptied');
+        assert(BalanceTrait::first_on_page(changes, 1), 'page 1 first');
+        assert(!BalanceTrait::first_on_page(changes, 2), 'page 0 again');
     }
 
     #[test]
     #[should_panic(expected: 'balance: not enough')]
     #[available_gas(l2_gas: 46977)] // ceil(1.05 × 44740 measured)
     fn test_debit_too_much_refused() {
-        let word: felt252 = StorePacking::pack(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] });
-        BalanceTrait::debit(word, 2, 4);
+        BalanceTrait::debit(stored(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] }), 2, 4);
     }
 
     #[test]
     #[should_panic(expected: 'balance: overflow')]
     #[available_gas(l2_gas: 47292)] // ceil(1.05 × 45040 measured)
     fn test_credit_overflow_refused() {
-        let word: felt252 = StorePacking::pack(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 0xFFFFFFFF] });
-        BalanceTrait::credit(word, 6, 1);
-    }
-
-    #[test]
-    #[should_panic(expected: 'lane above 6')]
-    #[available_gas(l2_gas: 18039)] // ceil(1.05 × 17180 measured)
-    fn test_balance_lane_above_6_refused() {
-        BalanceTrait::amount(0, 7);
+        BalanceTrait::credit(stored(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 0xFFFFFFFF] }), 6, 1);
     }
 
     // The belt's slots merged: one change per distinct item, counts summed, empty slots skipped.

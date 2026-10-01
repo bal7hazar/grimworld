@@ -184,16 +184,14 @@ pub trait IHubAdmin<T> {
 
 #[starknet::contract]
 pub mod Hub {
-    use grimworld_logic::content::{GATE, MODIFIER, REGION, exists};
+    use grimworld_logic::content::{GATE, REGION, exists};
     use grimworld_logic::interface::{
         IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher, IInstanceEntryDispatcher,
         IInstanceEntryDispatcherTrait, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
-        IResults, Results, facts,
+        IResults, Results,
     };
     use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord};
-    use grimworld_logic::models::item::ItemTrait;
     use grimworld_logic::models::region::{Region, RegionRecord};
-    use grimworld_logic::models::skill::SkillTrait;
     use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
     use grimworld_logic::professions::ProfessionAssert;
     use grimworld_logic::types::{InstanceId, Outcome};
@@ -205,12 +203,12 @@ pub mod Hub {
     use crate::models::account::{Account, AccountAssert, OwnerTrait, StoredRecordTrait};
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
-        BuildTrait, EquippedAssert, NO_ELITE, StoredBuildTrait, StoredCore, StoredCoreTrait,
-        StoredPlace, StoredPlaceTrait,
+        BuildTrait, EquippedAssert, StoredBuildTrait, StoredCore, StoredCoreTrait, StoredPlace,
+        StoredPlaceTrait,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
-        Equipment, Gold, Grimoire, Item, ItemBaseAssert, ItemBaseTrait, RiftBoard,
+        Equipment, EquipmentTrait, Gold, GoldTrait, Grimoire, Item, RiftBoard,
     };
     use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
@@ -364,8 +362,8 @@ pub mod Hub {
             let (_, _, pack_lanes) = core.fields();
             AdventurerAssert::assert_emptied(
                 pack_lanes,
-                self.holds_equipment(adventurer_id),
-                self.wears_equipment(adventurer_id),
+                @self.get_pack_page(adventurer_id, 0),
+                @self.get_equipped(adventurer_id),
                 @self.get_gold(OwnerTrait::pack(adventurer_id)),
             );
             let record = self.get_account_record(account_id);
@@ -422,19 +420,9 @@ pub mod Hub {
             for (item, count) in BalanceTrait::merge(items, counts) {
                 BeltAssert::assert_held(self.get_balance(pack, item), count);
             }
-            let Equipment { bases, worn, modifiers, personalised } = self.get_equipment(entities);
-            let mut two_handed = false;
-            for (lane, item) in bases.span() {
-                item.assert_wearable(adventurer_id);
-                EquippedAssert::assert_slot(*item.slot, *lane);
-                if *lane == 0 {
-                    two_handed = item.is_two_handed();
-                }
-            }
-            EquippedAssert::assert_hands(two_handed, *entities[1]);
-            for id in modifiers.span() {
-                requests.append((MODIFIER, (*id).into()));
-            }
+            let equipment = self.get_equipment(entities);
+            EquippedAssert::assert_worn(@equipment, adventurer_id, entities);
+            equipment.request(ref requests);
 
             // One registry call, even for an empty build: the inputs version the snapshot is
             // computed under (D-168 2, D-169).
@@ -442,33 +430,12 @@ pub mod Hub {
                 contract_address: self.get_registry(),
             }
                 .bundle(requests.span());
-            let mut at: u32 = 0;
-            let mut elite = NO_ELITE;
-            let mut slot: u8 = 0;
-            let mut k: u32 = 0;
-            for skill in value.bar.span() {
-                if *skill != 0 {
-                    let part = *parts[at];
-                    let (profession, is_elite) = SkillTrait::profile(part);
-                    BuildAssert::assert_skill(*known[k], part != 0, profession, primary, secondary);
-                    if is_elite {
-                        BuildAssert::assert_one_elite(elite);
-                        elite = slot;
-                    }
-                    at += 2;
-                    k += 1;
-                }
-                slot += 1;
-            }
-            value.assert_elite_slot(elite);
-            for _ in skills..belt_items {
-                let part = *parts[at];
-                BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
-                at += 1;
-            }
+            let at = value.assert_bar(parts, known.span(), primary, secondary);
+            let at = BeltAssert::assert_potions(parts, at, belt_items - skills);
 
             // The snapshot's flattening, once, in `FlattenLibrary` (D-168), with every check of
             // design/20's capacity proof (D-160): a build it refuses is refused here.
+            let Equipment { bases: _, worn, modifiers, personalised } = equipment;
             let loadout = value.loadout(level, primary, personalised, items, counts);
             let (stats, bar, kit) = IFlattenLibraryLibraryDispatcher {
                 class_hash: self.get_flatten(),
@@ -510,7 +477,7 @@ pub mod Hub {
             let epoch = StoredSnapshotTrait::epoch(inputs, self.get_rules_epoch().value);
             StoredSnapshotAssert::assert_fresh(stored.kit, epoch);
             StoredSnapshotAssert::assert_level(stored.stats, level);
-            let (items, counts) = self.get_belt(adventurer_id);
+            let (items, counts) = BeltTrait::read(@self.get_belt(adventurer_id));
             let snapshot = stored.words(epoch, counts);
 
             let reserve = BalanceTrait::merge(items, counts);
@@ -677,15 +644,13 @@ pub mod Hub {
             let place = self.get_place(adventurer_id);
             AdventurerAssert::assert_in_instance(@place, results.instance_id);
 
-            let mut credit = if results.closes() {
-                let (items, _) = self.get_belt(adventurer_id);
-                BalanceTrait::merge(items, results.belt)
+            let belt = if results.closes() {
+                let (items, _) = BeltTrait::read(@self.get_belt(adventurer_id));
+                items
             } else {
-                array![]
+                [0; 4]
             };
-            for balance in results.balances {
-                credit.append(*balance);
-            }
+            let credit = results.credit(belt);
             let pack = OwnerTrait::pack(adventurer_id);
             let (filled, _) = self.change_balances(pack, credit.span(), true);
             if filled != 0 || results.experience != 0 {
@@ -693,8 +658,7 @@ pub mod Hub {
                 self.set_core(adventurer_id, core.with_experience(results.experience));
             }
             if results.gold != 0 {
-                let gold = self.get_gold(pack);
-                self.set_gold(pack, Gold { amount: gold.amount + results.gold });
+                self.set_gold(pack, self.get_gold(pack).credited(results.gold));
             }
             if results.experience != 0 {
                 for other in results.contributors.slice(1, results.contributors.len() - 1) {
@@ -707,17 +671,9 @@ pub mod Hub {
                 Outcome::Open => {},
                 Outcome::Moved => self.set_place(adventurer_id, place.moved(results.next)),
                 _ => {
-                    let (_, _, last_hub, _) = place.fields();
-                    let hub = if results.hub != 0 {
-                        results.hub
-                    } else {
-                        last_hub
-                    };
-                    let mut located = place.located(hub);
-                    if results.facts & facts::HUB_REACHED != 0 {
-                        located = located.unlocked(results.location);
-                    }
-                    self.set_place(adventurer_id, located);
+                    let hub = place.return_hub(results.hub);
+                    let returned = place.returned(hub, results.reaches_hub(), results.location);
+                    self.set_place(adventurer_id, returned);
                     self.emit(AdventurerLocated { hub, adventurer: adventurer_id });
                 },
             }

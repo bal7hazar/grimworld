@@ -3,17 +3,19 @@
 
 use grimworld_logic::content::{ITEM, SKILL};
 use grimworld_logic::models::gate::errors as gate_errors;
-use grimworld_logic::models::item::class as item_class;
+use grimworld_logic::models::item::{ItemTrait, class as item_class};
+use grimworld_logic::models::skill::SkillTrait;
 use grimworld_logic::packing::{
     Bitmap, LIVE, Lanes32, P104, P112, P12, P120, P16, P24, P32, P36, P4, P40, P48, P56, P64, P8,
-    P80, P96, byte_at, field, fits, join, low_field, split, u16_at, u32_at, unpack_lanes32,
+    P80, P96, byte_at, field, fits, join, low_field, split, u16_at, u32_at,
 };
 use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::Loadout;
 use starknet::ContractAddress;
 use starknet::storage_access::StorePacking;
 use crate::helpers::BitTrait;
-use super::item::Gold;
+use super::item::{Equipment, Gold, ItemBaseAssert, ItemBaseTrait};
+use super::lanes::{StoredLanes, StoredLanesTrait};
 
 /// `AdventurerCore.status`: an adventurer is never zeroed; deletion marks it (design/03, D-33).
 pub const ACTIVE: u8 = 0;
@@ -101,13 +103,14 @@ pub struct StoredPlace {
     pub word: felt252,
 }
 
-/// The three words `set_build` writes (`build`, `belt`, `equipped`), as sent with `LIVE` added,
-/// each checked for its layout (`StoredBuildTrait::new`): written as they are, without a packer.
+/// The three words `set_build` writes, as sent with `LIVE` added, each checked for its layout
+/// (`StoredBuildTrait::new`) and written as it is, without a packer: the `Build` word, the belt
+/// and the equipment worn as stored pages (`models::lanes::StoredLanes`).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct StoredBuild {
     pub build: felt252,
-    pub belt: felt252,
-    pub equipped: felt252,
+    pub belt: StoredLanes,
+    pub equipped: StoredLanes,
 }
 
 const LEVEL_ONE: felt252 = 0x1000000000000000000000000;
@@ -119,8 +122,6 @@ const PACK_LANES_UNIT: felt252 = 0x100000000000000000000000000000000000000000000
 const EXPERIENCE_UNIT: felt252 = 0x100000000;
 /// The stored `Build` of a new adventurer: an empty bar, no attribute rank, `NO_ELITE`.
 pub const NEW_BUILD: felt252 = 0x4000000000000000000ff000000000000000000000000000000000000000000;
-/// A stored `Lanes32` with every lane 0 (the belt and the equipment of a new adventurer).
-pub const EMPTY_LANES: felt252 = LIVE;
 
 #[generate_trait]
 pub impl StoredCoreImpl of StoredCoreTrait {
@@ -224,6 +225,27 @@ pub impl StoredPlaceImpl of StoredPlaceTrait {
         StoredPlace { word: join(hub.into() * P64 + hub.into() * P80, high) }
     }
 
+    /// The hub a report closing the presence sends it to: the one reported, else its last hub
+    /// (D-04).
+    fn return_hub(self: @StoredPlace, reported: u16) -> u16 {
+        if reported != 0 {
+            return reported;
+        }
+        let (_, _, last_hub, _) = self.fields();
+        last_hub
+    }
+
+    /// Back in `hub`, which is also its last hub; `location` unlocked when the report says a hub
+    /// was reached (design/01: reaching a hub gate unlocks the hub).
+    fn returned(self: StoredPlace, hub: u16, reached: bool, location: u16) -> StoredPlace {
+        let located = self.located(hub);
+        if reached {
+            located.unlocked(location)
+        } else {
+            located
+        }
+    }
+
     /// `hub` unlocked for map travel (design/01: reaching a hub gate unlocks the hub).
     fn unlocked(self: StoredPlace, hub: u16) -> StoredPlace {
         let (low, high) = split(self.word);
@@ -315,8 +337,8 @@ pub impl StoredBuildImpl of StoredBuildTrait {
     fn new(build: felt252, belt: felt252, equipped: felt252) -> StoredBuild {
         StoredBuild {
             build: BuildAssert::assert_layout(build),
-            belt: BeltAssert::assert_layout(belt),
-            equipped: EquippedAssert::assert_layout(equipped),
+            belt: StoredLanes { word: BeltAssert::assert_layout(belt) },
+            equipped: StoredLanes { word: EquippedAssert::assert_layout(equipped) },
         }
     }
 
@@ -329,13 +351,13 @@ pub impl StoredBuildImpl of StoredBuildTrait {
     /// The belt's `(items, counts)`.
     #[inline(always)]
     fn belt(self: @StoredBuild) -> ([u32; 4], [u8; 4]) {
-        BeltTrait::read(*self.belt)
+        BeltTrait::read(self.belt)
     }
 
     /// The entities worn, by lane.
     #[inline(always)]
     fn equipped(self: @StoredBuild) -> Lanes32 {
-        unpack_lanes32(*self.equipped)
+        self.equipped.ids()
     }
 }
 
@@ -348,7 +370,9 @@ pub impl AdventurerImpl of AdventurerTrait {
         (
             StoredCoreTrait::new(account, profession),
             StoredPlaceTrait::new(hub),
-            StoredBuild { build: NEW_BUILD, belt: EMPTY_LANES, equipped: EMPTY_LANES },
+            StoredBuild {
+                build: NEW_BUILD, belt: StoredLanesTrait::new(), equipped: StoredLanesTrait::new(),
+            },
         )
     }
 }
@@ -358,9 +382,9 @@ pub impl AdventurerImpl of AdventurerTrait {
 /// not all needed.
 #[generate_trait]
 pub impl BeltImpl of BeltTrait {
-    /// `(items, counts)` of a stored belt word.
-    fn read(belt: felt252) -> ([u32; 4], [u8; 4]) {
-        let (low, high) = split(belt);
+    /// `(items, counts)` of a stored belt, its two limbs decoded in one pass.
+    fn read(belt: @StoredLanes) -> ([u32; 4], [u8; 4]) {
+        let (low, high) = split(*belt.word);
         let s32: NonZero<u128> = P32.try_into().unwrap();
         let (low, a) = DivRem::div_rem(low, s32);
         let (low, b) = DivRem::div_rem(low, s32);
@@ -573,6 +597,35 @@ pub impl BuildAssert of BuildAssertTrait {
     fn assert_elite_slot(self: @Build, found: u8) {
         assert(*self.elite_slot == found, errors::ELITE_SLOT);
     }
+
+    /// The bar against the registry's parts (`Registry.bundle`, two parts a skill, in the order of
+    /// `BuildTrait::request`) and what the adventurer knows (`known`, one a skill): each skill with
+    /// `assert_skill`, at most one elite, and `elite_slot` naming it, in that order. Returns how
+    /// many parts the bar took. Bound: 8 slots.
+    fn assert_bar(
+        self: @Build, parts: Span<felt252>, known: Span<bool>, primary: u8, secondary: u8,
+    ) -> u32 {
+        let mut at: u32 = 0;
+        let mut elite = NO_ELITE;
+        let mut slot: u8 = 0;
+        let mut k: u32 = 0;
+        for skill in self.bar.span() {
+            if *skill != 0 {
+                let part = *parts[at];
+                let (profession, is_elite) = SkillTrait::profile(part);
+                Self::assert_skill(*known[k], part != 0, profession, primary, secondary);
+                if is_elite {
+                    Self::assert_one_elite(elite);
+                    elite = slot;
+                }
+                at += 2;
+                k += 1;
+            }
+            slot += 1;
+        }
+        self.assert_elite_slot(elite);
+        at
+    }
 }
 
 /// `known_skills` pages (ENG-01 §3.3): bit `skill % 250` of page `skill / 250`.
@@ -618,6 +671,16 @@ pub impl BeltAssert of BeltAssertTrait {
         assert(exists && class == item_class::POTION, errors::NOT_A_POTION);
     }
 
+    /// The belt's `count` distinct items against their parts, one each from `at` on
+    /// (`BeltTrait::request`'s order): each a potion. Returns the part after them.
+    fn assert_potions(parts: Span<felt252>, at: u32, count: u32) -> u32 {
+        for i in at..at + count {
+            let part = *parts[i];
+            Self::assert_potion(part != 0, ItemTrait::class_of(part));
+        }
+        at + count
+    }
+
     /// The pack holds what the belt carries of an item (`held`), the slots of one item summed.
     fn assert_held(held: u32, count: u32) {
         assert(held >= count, errors::BELT_NOT_IN_PACK);
@@ -659,6 +722,21 @@ pub impl EquippedAssert of EquippedAssertTrait {
     fn assert_hands(two_handed: bool, off_hand: u32) {
         assert(!two_handed || off_hand == 0, errors::TWO_HANDS);
     }
+
+    /// The items worn (`HubStore::get_equipment`), in lane order: each wearable by the adventurer
+    /// and in its lane's slot; then no off-hand (`entities`' lane 1) beside a weapon held in both
+    /// hands.
+    fn assert_worn(equipment: @Equipment, adventurer_id: u32, entities: Span<u32>) {
+        let mut two_handed = false;
+        for (lane, item) in equipment.bases.span() {
+            item.assert_wearable(adventurer_id);
+            Self::assert_slot(*item.slot, *lane);
+            if *lane == 0 {
+                two_handed = item.is_two_handed();
+            }
+        }
+        Self::assert_hands(two_handed, *entities[1]);
+    }
 }
 
 #[generate_trait]
@@ -686,13 +764,14 @@ pub impl AdventurerAssert of AdventurerAssertTrait {
     }
 
     /// "Its inventory emptied" (design/03, D-33), each from one slot: the pack's balance lanes
-    /// (`core.pack_lanes`), page 0 of its equipment list (compact: empty when page 0 is,
-    /// `HubStore::holds_equipment`), what it wears (`HubStore::wears_equipment`), its gold. A slot
-    /// never written reads empty.
-    fn assert_emptied(pack_lanes: u16, holds_equipment: bool, wears_equipment: bool, gold: @Gold) {
+    /// (`core.pack_lanes`), page 0 of its equipment list (compact: empty when page 0 is), what it
+    /// wears, its gold. A slot never written reads empty.
+    fn assert_emptied(
+        pack_lanes: u16, pack_page: @StoredLanes, equipped: @StoredLanes, gold: @Gold,
+    ) {
         assert(pack_lanes == 0, errors::PACK_HOLDS_ITEMS);
-        assert(!holds_equipment, errors::PACK_HOLDS_EQUIPMENT);
-        assert(!wears_equipment, errors::WEARS_EQUIPMENT);
+        assert(pack_page.is_empty(), errors::PACK_HOLDS_EQUIPMENT);
+        assert(equipped.is_empty(), errors::WEARS_EQUIPMENT);
         assert(*gold.amount == 0, errors::PACK_HOLDS_GOLD);
     }
 
@@ -706,7 +785,7 @@ pub impl AdventurerAssert of AdventurerAssertTrait {
         assert(exists, gate_errors::NONE);
     }
 
-    /// Experience stays within a `u32` (`AdventurerCoreTrait::with_experience`).
+    /// Experience stays within a `u32` (`StoredCoreTrait::with_experience`).
     fn assert_experience(experience: u32, amount: u32) {
         let total: u64 = experience.into() + amount.into();
         assert(total <= 0xFFFFFFFF, errors::EXPERIENCE_OVERFLOW);
@@ -892,10 +971,11 @@ pub struct Adventurer {
 mod tests {
     use grimworld_logic::packing::{Bitmap, LIVE, Lanes32};
     use starknet::storage_access::StorePacking;
+    use super::super::lanes::StoredLanes;
     use super::{
-        ACTIVE, AdventurerCore, AdventurerPlace, AdventurerTrait, BeltTrait, Build, BuildTrait,
-        DELETED, EMPTY_LANES, KnownSkillsTrait, NEW_BUILD, NO_ELITE, StoredBuildTrait, StoredCore,
-        StoredCoreTrait, StoredPlace, StoredPlaceTrait,
+        ACTIVE, AdventurerCore, AdventurerPlace, AdventurerTrait, BeltAssert, BeltTrait, Build,
+        BuildAssert, BuildTrait, DELETED, KnownSkillsTrait, NEW_BUILD, NO_ELITE, StoredBuildTrait,
+        StoredCore, StoredCoreTrait, StoredPlace, StoredPlaceTrait,
     };
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
@@ -911,7 +991,7 @@ mod tests {
 
     // The words of a new adventurer against the packers (ENG-04's `test_stored_words`).
     #[test]
-    #[available_gas(l2_gas: 145845)] // ceil(1.05 × 138900 measured)
+    #[available_gas(l2_gas: 146160)] // ceil(1.05 × 139200 measured)
     fn test_new_adventurer_words() {
         let (new_core, new_place, build) = AdventurerTrait::new(0xFFFFFFFF, ARCANIST, 5);
         let expected = AdventurerCore {
@@ -930,8 +1010,7 @@ mod tests {
         let empty = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
         assert(build.build == NEW_BUILD && NEW_BUILD == StorePacking::pack(empty), 'new build');
         let no_lanes: felt252 = StorePacking::pack(Lanes32 { lanes: [0; 7] });
-        assert(build.belt == EMPTY_LANES && build.equipped == EMPTY_LANES, 'no belt, nothing worn');
-        assert(EMPTY_LANES == no_lanes, 'empty lanes');
+        assert(build.belt.word == no_lanes && build.equipped.word == no_lanes, 'no belt, nothing');
     }
 
     // The core's fields, the deletion mark, pack lanes and experience, against the packer.
@@ -1053,6 +1132,7 @@ mod tests {
         };
         let word = stored_core(full).word;
         assert(StorePacking::<AdventurerCore, felt252>::unpack(word) == full, 'core trip');
+        assert(starknet::Store::<super::Adventurer>::size() == 6, 'adventurer: 6 slots');
         let rank = AdventurerCore { rank: 1, ..Default::default() };
         assert(stored_core(rank).word == 0x100000000000000000000000000 + LIVE, 'rank at bit 104');
 
@@ -1100,8 +1180,10 @@ mod tests {
         let equipped_word: felt252 = StorePacking::pack(equipped);
         let sent = StoredBuildTrait::new(build_word - LIVE, belt_word - LIVE, equipped_word - LIVE);
         assert(sent.build == build_word && sent.build() == build, 'build');
-        assert(sent.belt == belt_word && sent.belt() == ([8, 15, 0, 0], [0xFF, 2, 0, 0]), 'belt');
-        assert(sent.equipped == equipped_word && sent.equipped() == equipped, 'equipped');
+        assert(
+            sent.belt.word == belt_word && sent.belt() == ([8, 15, 0, 0], [0xFF, 2, 0, 0]), 'belt',
+        );
+        assert(sent.equipped.word == equipped_word && sent.equipped() == equipped, 'equipped');
     }
 
     #[test]
@@ -1109,13 +1191,49 @@ mod tests {
     fn test_belt_word() {
         let counts: u32 = 0xFF + 0x2 * 0x100 + 0x3 * 0x10000 + 0x80 * 0x1000000;
         let belt = Lanes32 { lanes: [0xFFFFFFFF, 2, 3, 0x12345678, counts, 0, 0] };
-        let (items, amounts) = BeltTrait::read(StorePacking::pack(belt));
+        let (items, amounts) = BeltTrait::read(@StoredLanes { word: StorePacking::pack(belt) });
         assert(items == [0xFFFFFFFF, 2, 3, 0x12345678], 'items');
         assert(amounts == [0xFF, 2, 3, 0x80], 'counts');
-        assert(BeltTrait::read(0) == ([0; 4], [0; 4]), 'never written');
+        assert(BeltTrait::read(@StoredLanes { word: 0 }) == ([0; 4], [0; 4]), 'never written');
         let mut requests = array![];
         BeltTrait::request([4, 9, 4, 0], ref requests);
         assert(requests == array![(11, 4), (11, 9)], 'distinct items');
+    }
+
+    // The report's return: the hub reported, else the last one; unlocked when a hub was reached.
+    #[test]
+    #[available_gas(l2_gas: 110666)] // ceil(1.05 × 105396 measured)
+    fn test_place_returned() {
+        let inside = stored_place(
+            AdventurerPlace { instance: 9, hub: 0, last_hub: 5, inside: 1, unlocked: 0x20 },
+        );
+        assert(inside.return_hub(0) == 5 && inside.return_hub(7) == 7, 'return hub');
+        assert(inside.returned(5, false, 3) == inside.located(5), 'located');
+        assert(inside.returned(7, true, 3) == inside.located(7).unlocked(3), 'reached');
+    }
+
+    // The bar against its parts (two a skill), the elite, the potions (one part an item).
+    #[test]
+    #[available_gas(l2_gas: 35501)] // ceil(1.05 × 33810 measured)
+    fn test_assert_bar_and_potions() {
+        let empty = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
+        assert(empty.assert_bar(array![].span(), array![].span(), 1, 0) == 0, 'empty bar');
+        assert(BeltAssert::assert_potions(array![].span(), 0, 0) == 0, 'no potion');
+    }
+
+    #[test]
+    #[should_panic(expected: 'build: skill not known')]
+    #[available_gas(l2_gas: 27731)] // ceil(1.05 × 26410 measured)
+    fn test_assert_bar_unknown_refused() {
+        let bar = Build { bar: [4, 0, 0, 0, 0, 0, 0, 0], attributes: 0, elite_slot: NO_ELITE };
+        bar.assert_bar(array![0, 0].span(), array![false].span(), 1, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: 'belt: not a potion')]
+    #[available_gas(l2_gas: 24665)] // ceil(1.05 × 23490 measured)
+    fn test_assert_potions_refused() {
+        BeltAssert::assert_potions(array![0, 0, 0].span(), 2, 1);
     }
 
     // CBT-08a: bit `skill % 250` of page `skill / 250`, in both limbs.

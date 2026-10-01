@@ -14,10 +14,12 @@
 //! fields of, or changes one field of, are read and written as **stored models** (`StoredCore`,
 //! `StoredPlace`, `StoredRecord`, `StoredBuild`): the word as stored, typed, its fields read and
 //! changed by the arithmetic their models pin against the packers (ENG-04's audit F-5: "preserving
-//! packed arithmetic where justified"; the measured costs are in `models::adventurer`). The
-//! balance pages and the account list's insertion and swap removal change lanes of a stored page
-//! the same way, here. A slot never written reads 0 as a stored word, which the views return as
-//! such (`IHubViews::account`, `IHubViews::adventurer`, frozen by ENG-01).
+//! packed arithmetic where justified"; the measured costs are in `models::adventurer`). The pages
+//! of `Lanes32` changed or checked a lane at a time (the account list on write, the balances, the
+//! pack's equipment page, what an adventurer wears, its belt) are read and written as
+//! `StoredLanes` (`models::lanes`): the store holds no arithmetic, only reads, writes and the
+//! order of them. A slot never written reads 0 as a stored word, which the views return as such
+//! (`IHubViews::account`, `IHubViews::adventurer`, frozen by ENG-01).
 //!
 //! **Tracking** (docs/CAIRO.md §7, D-149): a tracked model implements `Tracked`, which fixes at
 //! compile time the one event its `set_x` emits on every write. **No model of `Hub` is tracked**:
@@ -29,7 +31,7 @@
 //!
 //! **`Registry`'s storage** is ENG-R1b's: `StoreTrait` keeps its two path methods until then.
 
-use grimworld_logic::packing::{Bitmap, Counter, LIVE, Lanes32, unpack_lanes32};
+use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
 use starknet::storage::{
     Mutable, StorageAsPointer, StoragePath, StoragePathEntry, StoragePointerReadAccess,
     StoragePointerWriteAccess,
@@ -37,11 +39,10 @@ use starknet::storage::{
 use starknet::storage_access::{StorageBaseAddress, Store};
 use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
 use crate::models::account::{AdventurerListAssert, AdventurerListTrait, StoredRecord};
-use crate::models::adventurer::{
-    BeltTrait, KnownSkillsTrait, StoredBuild, StoredCore, StoredPlace, WORDS,
-};
+use crate::models::adventurer::{KnownSkillsTrait, StoredBuild, StoredCore, StoredPlace, WORDS};
 use crate::models::balance::BalanceTrait;
 use crate::models::item::{Equipment, EquipmentTrait, Gold};
+use crate::models::lanes::{LanesTrait, StoredLanes, StoredLanesTrait};
 use crate::models::rules_epoch::RulesEpoch;
 use crate::models::snapshot::StoredSnapshot;
 use crate::models::versions::Versions;
@@ -235,17 +236,13 @@ pub impl HubStoreImpl of HubStoreTrait {
     /// written without reading the page.
     fn add_adventurer_id(ref self: HubState, account_id: u32, count: u8, adventurer_id: u32) {
         let (page, lane) = AdventurerListTrait::at(count);
-        let list = self
-            .account_adventurers
-            .entry((account_id, page))
-            .as_ptr()
-            .__storage_pointer_address__;
+        let entry = self.list_page(account_id, page);
         let ids = if lane == 0 {
-            LIVE
+            StoredLanesTrait::new()
         } else {
-            list.word(0)
+            StoredLanes { word: entry.word(0) }
         };
-        list.set_word(0, ids + adventurer_id.into() * AdventurerListTrait::unit(lane))
+        entry.set_word(0, ids.added(lane, adventurer_id).word)
     }
 
     /// Removes `adventurer_id` from a list of `count` ids by a swap: the last id moves into its
@@ -256,48 +253,38 @@ pub impl HubStoreImpl of HubStoreTrait {
     fn remove_adventurer_id(ref self: HubState, account_id: u32, count: u8, adventurer_id: u32) {
         let last = count - 1;
         let (last_page, last_lane) = AdventurerListTrait::at(last);
-        let last_list = self
-            .account_adventurers
-            .entry((account_id, last_page))
-            .as_ptr()
-            .__storage_pointer_address__;
-        let last_word = last_list.word(0);
-        let last_ids = unpack_lanes32(last_word);
+        let last_entry = self.list_page(account_id, last_page);
+        let last_stored = StoredLanes { word: last_entry.word(0) };
+        let last_ids = last_stored.ids();
         let last_id = last_ids.get(last_lane);
-        let mut last_new = last_word - last_id.into() * AdventurerListTrait::unit(last_lane);
+        let mut last_new = last_stored.removed(last_lane, last_id);
         if last_id != adventurer_id {
-            let moved: felt252 = last_id.into() - adventurer_id.into();
             let mut i: u8 = 0;
             let mut ids = last_ids;
-            let mut list = last_list;
-            let mut list_word = last_word;
+            let mut entry = last_entry;
+            let mut stored = last_stored;
             loop {
                 AdventurerListAssert::assert_listed(i, last);
                 let (page, lane) = AdventurerListTrait::at(i);
                 if lane == 0 && page != last_page {
-                    list = self
-                        .account_adventurers
-                        .entry((account_id, page))
-                        .as_ptr()
-                        .__storage_pointer_address__;
-                    list_word = list.word(0);
-                    ids = unpack_lanes32(list_word);
+                    entry = self.list_page(account_id, page);
+                    stored = StoredLanes { word: entry.word(0) };
+                    ids = stored.ids();
                 } else if lane == 0 {
                     ids = last_ids;
                 }
                 if ids.get(lane) == adventurer_id {
-                    let delta = moved * AdventurerListTrait::unit(lane);
                     if page == last_page {
-                        last_new += delta;
+                        last_new = last_new.replaced(lane, adventurer_id, last_id);
                     } else {
-                        list.set_word(0, list_word + delta);
+                        entry.set_word(0, stored.replaced(lane, adventurer_id, last_id).word);
                     }
                     break;
                 }
                 i += 1;
             }
         }
-        last_list.set_word(0, last_new)
+        last_entry.set_word(0, last_new.word)
     }
 
     // Adventurers: `adventurers[id]`, six slots (core, place, build, belt, equipped, name).
@@ -316,8 +303,8 @@ pub impl HubStoreImpl of HubStoreTrait {
         base.set_word(CORE, core.word);
         base.set_word(PLACE, place.word);
         base.set_word(BUILD, build.build);
-        base.set_word(BELT, build.belt);
-        base.set_word(EQUIPPED, build.equipped);
+        base.set_word(BELT, build.belt.word);
+        base.set_word(EQUIPPED, build.equipped.word);
         base.set_word(NAME, name);
     }
 
@@ -361,16 +348,16 @@ pub impl HubStoreImpl of HubStoreTrait {
         self.set_adventurer_word(adventurer_id, PLACE, place.word)
     }
 
-    /// The belt's `(items, counts)`, one read: the four items and their counts of the seven lanes.
+    /// The belt as stored, one read (`BeltTrait::read` decodes its items and counts).
     #[inline(always)]
-    fn get_belt(self: @HubState, adventurer_id: u32) -> ([u32; 4], [u8; 4]) {
-        BeltTrait::read(self.adventurer_word(adventurer_id, BELT))
+    fn get_belt(self: @HubState, adventurer_id: u32) -> StoredLanes {
+        StoredLanes { word: self.adventurer_word(adventurer_id, BELT) }
     }
 
-    /// Whether it wears anything: `equipped` holds an entity (a word other than 0 or `LIVE`).
+    /// What it wears as stored, one read.
     #[inline(always)]
-    fn wears_equipment(self: @HubState, adventurer_id: u32) -> bool {
-        !WordTrait::is_empty(self.adventurer_word(adventurer_id, EQUIPPED))
+    fn get_equipped(self: @HubState, adventurer_id: u32) -> StoredLanes {
+        StoredLanes { word: self.adventurer_word(adventurer_id, EQUIPPED) }
     }
 
     /// The build in design/03's sense, `set_build`'s three slots: the bar and the attributes, the
@@ -378,8 +365,8 @@ pub impl HubStoreImpl of HubStoreTrait {
     fn set_adventurer_build(ref self: HubState, adventurer_id: u32, build: StoredBuild) {
         let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
         base.set_word(BUILD, build.build);
-        base.set_word(BELT, build.belt);
-        base.set_word(EQUIPPED, build.equipped);
+        base.set_word(BELT, build.belt.word);
+        base.set_word(EQUIPPED, build.equipped.word);
     }
 
     // Known skills: `known_skills[(adventurer, page)]`, a `Bitmap` of 250 skill ids. Untracked
@@ -413,61 +400,35 @@ pub impl HubStoreImpl of HubStoreTrait {
 
     // Balances: `balances[(owner key, page)]`, a `Lanes32` of seven `u32`. Untracked
 
-    /// The balance of `item` held by `owner`: one lane of one page, read as its stored word
-    /// (`BalanceTrait::amount`), the six other lanes not decoded.
+    /// The balance of `item` held by `owner`: one lane of its page as stored, the six other lanes
+    /// not decoded.
     fn get_balance(self: @HubState, owner: felt252, item: u32) -> u32 {
         let (page, lane) = BalanceTrait::at(item);
-        let word = self.balances.entry((owner, page)).as_ptr().__storage_pointer_address__.word(0);
-        BalanceTrait::amount(word, lane)
+        StoredLanes { word: self.balance_page(owner, page).word(0) }.get(lane)
     }
 
-    /// Credits (`credit`) or debits the balances of `owner` by `(item, amount)` changes, each page
-    /// read once and written once, however many changes it holds (at most 12: a belt of 4 and 8
-    /// balances, ENG-01 §4.5), in the order of each page's first change; the pages as stored words
-    /// changed by `BalanceTrait`'s arithmetic. Returns `(lanes filled, lanes emptied)` for
-    /// `core.pack_lanes`. Refuses a debit the owner cannot pay.
+    /// Credits (`credit`) or debits the balances of `owner` by `(item, amount)` changes: each page
+    /// read once, changed by all its changes (`BalanceTrait::apply`) and written once, in the order
+    /// of each page's first change (at most 12 changes: a belt of 4 and 8 balances, ENG-01 §4.5).
+    /// Returns `(lanes filled, lanes emptied)` for `core.pack_lanes`. Refuses a debit the owner
+    /// cannot pay.
     fn change_balances(
         ref self: HubState, owner: felt252, changes: Span<(u32, u32)>, credit: bool,
     ) -> (u16, u16) {
         let (mut filled, mut emptied) = (0_u16, 0_u16);
-        let count = changes.len();
-        for i in 0..count {
-            let (item, _) = *changes[i];
-            let (page, _) = BalanceTrait::at(item);
-            let mut first = true;
-            for j in 0..i {
-                let (earlier, _) = *changes[j];
-                let (earlier_page, _) = BalanceTrait::at(earlier);
-                if earlier_page == page {
-                    first = false;
-                }
-            }
-            if !first {
+        for i in 0..changes.len() {
+            if !BalanceTrait::first_on_page(changes, i) {
                 continue;
             }
-            let entry = self.balances.entry((owner, page)).as_ptr().__storage_pointer_address__;
-            let mut word = entry.word(0);
-            for j in i..count {
-                let (other, amount) = *changes[j];
-                let (other_page, lane) = BalanceTrait::at(other);
-                if other_page != page {
-                    continue;
-                }
-                if credit {
-                    let (next, lane_filled) = BalanceTrait::credit(word, lane, amount);
-                    word = next;
-                    if lane_filled {
-                        filled += 1;
-                    }
-                } else {
-                    let (next, lane_emptied) = BalanceTrait::debit(word, lane, amount);
-                    word = next;
-                    if lane_emptied {
-                        emptied += 1;
-                    }
-                }
-            }
-            entry.set_word(0, word);
+            let (item, _) = *changes[i];
+            let (page, _) = BalanceTrait::at(item);
+            let entry = self.balance_page(owner, page);
+            let (stored, page_filled, page_emptied) = BalanceTrait::apply(
+                StoredLanes { word: entry.word(0) }, page, changes, i, credit,
+            );
+            entry.set_word(0, stored.word);
+            filled += page_filled;
+            emptied += page_emptied;
         }
         (filled, emptied)
     }
@@ -487,12 +448,11 @@ pub impl HubStoreImpl of HubStoreTrait {
     // Equipment: `items[entity]`, two slots (base, mods); `packs[(adventurer, page)]`, a
     // `Lanes32` of entities. Untracked
 
-    /// Whether its pack holds equipment: page 0 of the compact list holds an entity (a word other
-    /// than 0 or `LIVE`).
+    /// Page `page` of the equipment in its pack as stored, one read.
     #[inline(always)]
-    fn holds_equipment(self: @HubState, adventurer_id: u32) -> bool {
-        let page = self.packs.entry((adventurer_id, 0)).as_ptr().__storage_pointer_address__;
-        !WordTrait::is_empty(page.word(0))
+    fn get_pack_page(self: @HubState, adventurer_id: u32, page: u8) -> StoredLanes {
+        let entry = self.packs.entry((adventurer_id, page)).as_ptr().__storage_pointer_address__;
+        StoredLanes { word: entry.word(0) }
     }
 
     /// The items worn, `entities` being `equipped`'s lanes: each non-empty lane's item read (two
@@ -565,16 +525,26 @@ impl AdventurerWordImpl of AdventurerWordTrait {
     }
 }
 
-/// One stored word of a record, read or written as stored, without unpacking (see the module's
-/// doc).
+/// The addresses of the pages the store reads and writes as stored words.
 #[generate_trait]
-impl WordImpl of WordTrait {
-    /// A word whose fields are all 0: never written (0), or `LIVE` alone.
+impl PageImpl of PageTrait {
+    /// Page `page` of the account's list of adventurers.
     #[inline(always)]
-    fn is_empty(word: felt252) -> bool {
-        word == 0 || word == LIVE
+    fn list_page(self: @HubState, account_id: u32, page: u8) -> StorageBaseAddress {
+        self.account_adventurers.entry((account_id, page)).as_ptr().__storage_pointer_address__
     }
 
+    /// Page `page` of the owner's balances.
+    #[inline(always)]
+    fn balance_page(self: @HubState, owner: felt252, page: u32) -> StorageBaseAddress {
+        self.balances.entry((owner, page)).as_ptr().__storage_pointer_address__
+    }
+}
+
+/// One stored word of a record, read or written as stored: what a stored model holds (see the
+/// module's doc).
+#[generate_trait]
+impl WordImpl of WordTrait {
     /// Word `offset` of the record at `self`.
     #[inline(always)]
     fn word(self: StorageBaseAddress, offset: u8) -> felt252 {
@@ -720,6 +690,7 @@ mod tests {
     use grimworld_logic::packing::LIVE;
     use crate::models::account::StoredRecordTrait;
     use crate::models::adventurer::AdventurerTrait;
+    use crate::models::lanes::StoredLanesTrait;
     use crate::systems::hub::Hub;
     use super::HubStoreTrait;
 
@@ -734,7 +705,7 @@ mod tests {
     // Nine ids on two pages; removals of a hole on the first page, of the last id, of a hole on
     // the final page.
     #[test]
-    #[available_gas(l2_gas: 3068762)] // ceil(1.05 × 2922630 measured)
+    #[available_gas(l2_gas: 3074358)] // ceil(1.05 × 2927960 measured)
     fn test_list_insert_and_swap_removal() {
         let mut state = Hub::contract_state_for_testing();
         for i in 0..9_u8 {
@@ -755,7 +726,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not in the account list')]
-    #[available_gas(l2_gas: 701831)] // ceil(1.05 × 668410 measured)
+    #[available_gas(l2_gas: 704036)] // ceil(1.05 × 670510 measured)
     fn test_remove_not_listed_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.add_adventurer_id(1, 0, 11);
@@ -765,7 +736,7 @@ mod tests {
 
     // A page read once and written once whatever its changes; lanes filled and emptied counted.
     #[test]
-    #[available_gas(l2_gas: 2143523)] // ceil(1.05 × 2041450 measured)
+    #[available_gas(l2_gas: 2152490)] // ceil(1.05 × 2049990 measured)
     fn test_change_balances() {
         let mut state = Hub::contract_state_for_testing();
         let owner = 0x100000005;
@@ -782,7 +753,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'balance: not enough')]
-    #[available_gas(l2_gas: 98280)] // ceil(1.05 × 93600 measured)
+    #[available_gas(l2_gas: 101724)] // ceil(1.05 × 96880 measured)
     fn test_change_balances_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.change_balances(0x100000005, array![(1, 1)].span(), false);
@@ -790,7 +761,7 @@ mod tests {
 
     // The views' words as stored: 0 where nothing was written, the stored models otherwise.
     #[test]
-    #[available_gas(l2_gas: 3814020)] // ceil(1.05 × 3632400 measured)
+    #[available_gas(l2_gas: 3838937)] // ceil(1.05 × 3656130 measured)
     fn test_words_as_stored() {
         let mut state = Hub::contract_state_for_testing();
         assert(state.get_adventurer_words(5) == array![0, 0, 0, 0, 0, 0].span(), 'never created');
@@ -798,9 +769,11 @@ mod tests {
         let (core, place, build) = AdventurerTrait::new(3, 1, 2);
         state.set_adventurer(5, core, place, build, 'Brenna');
         let words = array![core.word, place.word, build.build, LIVE, LIVE, 'Brenna'];
+        assert(build.belt.word == LIVE && build.equipped.word == LIVE, 'empty pages');
         assert(state.get_adventurer_words(5) == words.span(), 'six words');
         assert(state.get_core(5) == core && state.get_place(5) == place, 'core, place');
-        assert(!state.wears_equipment(5) && !state.holds_equipment(5), 'nothing');
+        assert(state.get_equipped(5).is_empty() && state.get_pack_page(5, 0).is_empty(), 'nothing');
+        assert(state.get_belt(5) == build.belt, 'belt');
         state.set_account_record(3, StoredRecordTrait::new());
         assert(state.get_account_record(3) == StoredRecordTrait::new(), 'record');
     }

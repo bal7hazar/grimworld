@@ -8,6 +8,7 @@
 
 use grimworld_logic::interface::{Results, facts};
 use grimworld_logic::types::{MAX_MEMBERS, Outcome};
+use crate::models::balance::BalanceTrait;
 
 /// Balances one report carries at most (ENG-01 §4.5).
 pub const MAX_BALANCES: u32 = 8;
@@ -28,6 +29,27 @@ pub impl ResultsImpl of ResultsTrait {
     #[inline(always)]
     fn closes(self: @Results) -> bool {
         *self.outcome == Outcome::Returned || *self.outcome == Outcome::Defeated
+    }
+
+    /// Whether it reports a hub reached (`facts::HUB_REACHED`): the hub is unlocked.
+    #[inline(always)]
+    fn reaches_hub(self: @Results) -> bool {
+        *self.facts & facts::HUB_REACHED != 0
+    }
+
+    /// What it credits to the pack, as balance changes: the belt's reserve when it closes the
+    /// presence (`belt`, the belt's items: one change per distinct item, D-141, E-15), then its
+    /// balances, in their order.
+    fn credit(self: @Results, belt: [u32; 4]) -> Array<(u32, u32)> {
+        let mut credit = if self.closes() {
+            BalanceTrait::merge(belt, *self.belt)
+        } else {
+            array![]
+        };
+        for balance in *self.balances {
+            credit.append(*balance);
+        }
+        credit
     }
 }
 

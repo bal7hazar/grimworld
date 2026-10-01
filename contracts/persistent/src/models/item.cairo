@@ -2,6 +2,7 @@
 //! grimoire (design/07) and the Rift board (design/17). Layouts:
 //! docs/architecture/ENG-01-interfaces.md, *Hub storage*.
 
+use grimworld_logic::content::MODIFIER;
 use grimworld_logic::models::base::Base;
 use grimworld_logic::packing::{
     P104, P120, P16, P24, P32, P4, P40, P48, P56, P64, P72, P80, P88, byte_at, field, fits, join,
@@ -261,6 +262,14 @@ pub impl EquipmentImpl of EquipmentTrait {
         self.bases.append((lane, item.base));
         self.worn.append(item_worn);
     }
+
+    /// The distinct modifiers worn as `Registry.bundle` requests (`MODIFIER`), appended to
+    /// `requests` in the order met.
+    fn request(self: @Equipment, ref requests: Array<(u8, u32)>) {
+        for id in self.modifiers.span() {
+            requests.append((MODIFIER, (*id).into()));
+        }
+    }
 }
 
 /// The state of one adventurer's discovery in one book (design/07).
@@ -329,6 +338,15 @@ pub struct Gold {
     pub amount: u64,
 }
 
+#[generate_trait]
+pub impl GoldImpl of GoldTrait {
+    /// `amount` more (a report's gold); past a `u64` the addition refuses, as before.
+    #[inline(always)]
+    fn credited(self: Gold, amount: u64) -> Gold {
+        Gold { amount: self.amount + amount }
+    }
+}
+
 pub impl GoldStorePacking of starknet::storage_access::StorePacking<Gold, felt252> {
     fn pack(value: Gold) -> felt252 {
         join(value.amount.into(), 0)
@@ -382,13 +400,14 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
 // read for `set_build`.
 #[cfg(test)]
 mod tests {
+    use grimworld_logic::content::MODIFIER;
     use grimworld_logic::models::base::{BaseTrait, slot};
     use grimworld_logic::packing::LIVE;
     use starknet::storage_access::StorePacking;
     use super::super::account::PACK;
     use super::{
-        Equipment, EquipmentTrait, Gold, GrimoireState, IDENTIFIED, Item, ItemBase, ItemBaseTrait,
-        ItemMods, Modifier, PERSONALISED, Pairs, RiftBoard,
+        Equipment, EquipmentTrait, Gold, GoldTrait, Grimoire, GrimoireState, IDENTIFIED, Item,
+        ItemBase, ItemBaseTrait, ItemMods, Modifier, PERSONALISED, Pairs, RiftBoard,
     };
 
     #[test]
@@ -435,6 +454,11 @@ mod tests {
         let word = StorePacking::<Gold, felt252>::pack(gold);
         assert(StorePacking::<Gold, felt252>::unpack(word) == gold, 'gold trip');
         assert(StorePacking::<Gold, felt252>::pack(Gold { amount: 0 }) == LIVE, 'no gold is not 0');
+
+        assert(GoldTrait::credited(gold, 0) == gold, 'credited 0');
+        assert(Gold { amount: 2 }.credited(5) == Gold { amount: 7 }, 'credited');
+        assert(starknet::Store::<Item>::size() == 2, 'item: 2 slots');
+        assert(starknet::Store::<Grimoire>::size() == 3, 'grimoire: 3 slots');
 
         let board = RiftBoard { day: 20725, cleared: 0x1F, rifts: [1, 2, 3, 4, 0xFFFF] };
         let word = StorePacking::<RiftBoard, felt252>::pack(board);
@@ -507,7 +531,7 @@ mod tests {
     // The items worn as `set_build` reads them: lanes and bases in lane order, the distinct
     // modifiers in the order met, the weapon's personalisation.
     #[test]
-    #[available_gas(l2_gas: 109666)] // ceil(1.05 × 104443 measured)
+    #[available_gas(l2_gas: 158945)] // ceil(1.05 × 151376 measured)
     fn test_equipment() {
         let none = Modifier { id: 0, value: 0 };
         let weapon = Item {
@@ -536,5 +560,10 @@ mod tests {
         assert(modifiers == array![4, 9, 2], 'distinct modifiers');
         assert(personalised, 'personalised');
         assert(!EquipmentTrait::new().personalised, 'nothing worn');
+        let mut equipment = EquipmentTrait::new();
+        equipment.add(0, weapon);
+        let mut requests = array![(9, 1)];
+        equipment.request(ref requests);
+        assert(requests == array![(9, 1), (MODIFIER, 4), (MODIFIER, 9)], 'modifier requests');
     }
 }

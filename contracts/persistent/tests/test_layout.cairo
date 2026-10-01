@@ -1,11 +1,11 @@
-// The storage records of `Hub` and `Market` are what docs/architecture/ENG-01-interfaces.md says:
-// each record's size in slots, the bit offsets of `Market`'s packed records, LIVE included, and the
-// market key. The bit offsets of `Hub`'s records are checked in their models' tests (ENG-R1a,
-// D-167), the variables' names and keys in `store::layout_tests` and `Market`'s `layout_tests`.
+// The storage records of `Market` are what docs/architecture/ENG-01-interfaces.md says: each
+// record's size in slots, the bit offsets of its packed records, LIVE included, and the market
+// key. Here, not in `models::market`, until ENG-R1b moves `Market`'s tests beside its models
+// (D-167:
+// a lot moves the tests of the modules it touches; ENG-R1a does not touch `models::market`). The
+// records of `Hub` are checked in their models' tests (ENG-R1a), the variables' names and keys in
+// `store::layout_tests` and `Market`'s `layout_tests`.
 use grimworld_logic::packing::LIVE;
-use grimworld_persistent::models::account::Account;
-use grimworld_persistent::models::adventurer::Adventurer;
-use grimworld_persistent::models::item::{Grimoire, Item};
 use grimworld_persistent::models::market::{
     BALANCE, EQUIPMENT, Lot, SellerPage, Trade, TradeHead, TradeMoney, market_key,
 };
@@ -16,10 +16,6 @@ const TWO_128: felt252 = 0x100000000000000000000000000000000;
 #[test]
 #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_record_sizes() {
-    assert(starknet::Store::<Account>::size() == 2, 'account: 2 slots');
-    assert(starknet::Store::<Adventurer>::size() == 6, 'adventurer: 6 slots');
-    assert(starknet::Store::<Item>::size() == 2, 'item: 2 slots');
-    assert(starknet::Store::<Grimoire>::size() == 3, 'grimoire: 3 slots');
     assert(starknet::Store::<Trade>::size() == 5, 'trade: 5 slots');
     assert(starknet::Store::<Lot>::size() == 1, 'lot: 1 slot');
 }

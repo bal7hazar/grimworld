@@ -9,6 +9,8 @@ pub mod adventurer;
 pub mod balance;
 /// Equipment entities, grimoires, gold, Rift boards.
 pub mod item;
+/// Pages of seven `u32` lanes, and their stored word.
+pub mod lanes;
 /// Lots and trades.
 pub mod market;
 /// `Hub`'s rules epoch (D-169).
