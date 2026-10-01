@@ -42,6 +42,11 @@ holding effects through §5.7) in §5.14's order, moves the counters and adrenal
   `DAMAGE`/`ATTACK_BONUS` to the kind's bounds before building a `Hit` (CBT-03a, §6); one copy of the
   weapon-strength rule (CBT-03a's `HitTrait::weapon_strength` or the snapshot's); §10.7's guard read once
   (FX-40) tested here (CBT-03a).
+- **D-179** (`docs/decisions/2026-10-01-cbt-03a-hit-questions.md`): CBT-03a's readings 1–4 confirmed as
+  frozen; **5 decided: a sleeping target neither blocks nor evades its first hit**. Make it here (one line,
+  `&& !asleep` in `HitTrait`'s evasion, `types/hit.cairo`), regenerate `vectors/hit.jsonl`, and announce the
+  moved vectors in the report for the CHANGELOG. The executor clears `asleep` when the target notices
+  (§5.5 step 9), so only the first hit gains from it.
 - **Geometry is ENG-02's** (`grimworld_logic::types::window`, `WindowTrait` on `hexx` 0.1.0-rc.1, its
   signature frozen in ENG-02's report: line of sight, reach, the arc a hit arrives from, the front tile,
   facing, a shape's tiles clipped to the window). **Use it directly**; its tests build windows, so no stub
