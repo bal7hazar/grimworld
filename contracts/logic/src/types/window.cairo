@@ -11,16 +11,19 @@
 //! **The rules** (design/04 *Ranges*, *Line of sight*, *Facing and arcs*; design/19 §2.3, §5.3
 //! step 3, §5.5 step 1, §5.6):
 //! - `sight`: a fixed integer hex line between the two tiles; walls block, actors do not (an actor
-//!   is not in the window's walls); the two ends are not tested. When the line passes exactly
-//!   between two tiles, the lower tile index is taken. `hexx`'s line (N-5) has this rule: element
-//!   `i` of the line is the tile nearest `A + (i / N)(B − A)`, at a tie the smaller row, and on
-//!   the same row the smaller column (`LineTrait::line`, `HexTrait::line_to`); the tests hold it
-//!   against an oracle written from design/04's sentence alone (`Oracle::line`). The arc and the
-//!   facing read only the line's first step, computed in constant time by the same rule
-//!   (`WindowInternal::step`), held against the same oracle.
-//! - `reach`: the target of an action within its range (design/04's table, `range`: touch 1, ranged
-//!   6) and in sight. Adjacent tiles have no tile between them: touch is never blocked. A radius
-//!   that needs no sight (alert, earshot) is a `distance`.
+//!   is not in the window's walls), a wall at either end included (fix loop 1; the project
+//!   manager confirms the edges in docs/decisions/2026-10-01-eng-02-escalations.md). When the line
+//!   passes exactly between two tiles, the lower tile index is taken. `hexx`'s line (N-5) has this
+//!   rule: element `i` of the line is the tile nearest `A + (i / N)(B − A)`, at a tie the smaller
+//!   row, and on the same row the smaller column (`LineTrait::line`, `HexTrait::line_to`); the
+//!   tests hold it against an oracle written from design/04's sentence alone (`Oracle::line`). The
+//!   arc and the facing read only the line's first step, computed in constant time by the same
+//!   rule (`WindowInternal::step`), held against the same oracle.
+//! - `reach`: the target of an action within its range (design/04's table, `range`: touch 1,
+//!   ranged 6) and in sight, at every range: design/04 requires sight for ranged 6, and adjacent
+//!   tiles have no tile between them, so for touch it only refuses a wall at an end. No MVP target
+//!   has a range of 2 to 5; such a range would need sight too. A radius that needs no sight
+//!   (alert, earshot) is a `distance`.
 //! - `arc`: the arc of the target's facing in which the hit arrives: the source's tile when
 //!   adjacent, at range the tile the line of sight arrives from (the tile of the line next to the
 //!   target), in `d` front, `d ± 1` front-side, `d ± 2` rear-side, `d + 3` back.
@@ -28,6 +31,8 @@
 //! - `facing`: the facing an action turns to (§5.3 step 3): toward the moved-to tile or the
 //! target;
 //!   a target not adjacent, the direction of the first step of the hex line.
+//! - The arguments come in one order: the acting tile, then the other tile, then a facing
+//!   (`arc(source, target, facing)`, `front(source, target, facing)`, `facing(from, to, facing)`).
 //! - `shape`: a shape's tiles from a centre (§2.3: `SINGLE`, `RING_1`, `DISC_1`, `DISC_2`,
 //!   `DISC_3`, by hex distance), as a bitmap of the window: bit `p` is the tile `p`, so its order
 //!   is ascending tile index, the order of the executor's actor list (§5.14 step 4). A tile
@@ -37,21 +42,29 @@
 //! **Edges (D-140).** A rule never panics on a legal action:
 //! - a position outside the window (240 and up): no sight, no reach, no arc, not in front, the
 //!   facing unchanged, an empty shape;
-//! - the same tile: in sight (no tile between), no arc (a hit never comes from the target's own
-//!   tile: two actors never share one), not in front, the facing unchanged, a shape as any other;
+//! - the same tile: in sight unless it is a wall (no tile between), no arc (a hit never comes from
+//!   the target's own tile: two actors never share one), not in front, the facing unchanged, a
+//!   shape as any other;
 //! - a line that leaves the window between two of its tiles (at a tie on a row of the edge, the
 //!   lower index may be the column `−1`): no sight, as a wall (`hexx` D-27). Sight has radius 6
 //!   around the adventurer and the window's ring is 7 tiles away (design/02): a line between two
 //!   tiles within 6 of the adventurer never leaves the window. The arc and the facing need only
 //!   the line's first step, a direction, which needs no board: they are defined there too;
-//! - a wall at an end of the line: not tested (an actor never stands on a wall).
+//! - a wall at either end of the line: no sight (an actor never stands on a wall; a tile target can
+//!   be one).
 //! A facing above 5 or a shape id outside 1–5 is a stored value the pipeline refuses: asserted.
+//!
+//! **`u256`** is used only to split a bitmap of the window into its two limbs (written reason, as
+//! `packing`'s: a `felt252` has no bitwise operation, and the `felt252 → u256` conversion is the
+//! split and its range proof; `hexx`'s `Bits` takes the limbs): in `sight`, `shape`, `tiles` and
+//! `WindowAssert::assert_valid_open`. No `u256` arithmetic.
 //!
 //! **Cost** (ENG-01 §9.2, this lot's row): one call is the difference between the snforge totals
 //! of `tests::test_cost_*_twice` and `_once` (its inputs opaque to the compiler; each figure holds
-//! about 2,440 of the benchmark's own, three opaque inputs and the check). `sight` 19,726 (`hexx`'s
-//! table path, any pair within 6); `reach` 32,176; `arc` 25,140 adjacent, 25,240 at range or on
-//! the window's ring (the line's first step in constant time); `front` 11,850; `facing` 22,500
+//! 2,440 of the benchmark's own, three opaque inputs and the check, `test_cost_overhead_*`).
+//! `sight` 22,176 (`hexx`'s table path, any pair within 6, both ends tested); `reach` 34,216;
+//! `distance` 14,890; `arc` 25,140 adjacent, 25,240 at range or on the window's ring (the line's
+//! first step in constant time); `front` 11,850; `facing` 22,500
 //! on every path; `shape` `DISC_1` 14,656 away from the window's ring, 69,926 on it, `DISC_3`
 //! 137,106; `tiles` of 7 tiles 57,151.
 
@@ -150,18 +163,19 @@ pub impl WindowImpl of WindowTrait {
         WindowInternal::length(WindowInternal::delta(from, to))
     }
 
-    /// Whether `from` sees `to`: every tile strictly between them on the line is walkable, at a tie
-    /// the lower tile index (design/04). False when either is outside the window or the line leaves
-    /// it.
+    /// Whether `from` sees `to`: both ends and every tile strictly between them on the line are
+    /// walkable, at a tie the lower tile index (design/04). False when either is outside the window
+    /// or the line leaves it.
     fn sight(self: @Window, from: u8, to: u8) -> bool {
         if !(Self::inside(from) && Self::inside(to)) {
             return false;
         }
-        WindowInternal::map(*self.open).line_of_sight(from, to)
+        WindowInternal::seen(*self.open, from, to)
     }
 
-    /// Whether `to` is within `range` of `from` and in its sight (design/04: ranged 6 requires line
-    /// of sight; touch, at 1, has no tile between).
+    /// Whether `to` is within `range` of `from` and in its sight. Sight is checked at every range:
+    /// design/04 requires it for ranged 6; at touch, 1, no tile lies between the two, so it refuses
+    /// only a wall at an end; no MVP target has a range of 2 to 5, and one would need sight too.
     fn reach(self: @Window, from: u8, to: u8, range: u8) -> bool {
         if !(Self::inside(from) && Self::inside(to)) {
             return false;
@@ -169,7 +183,7 @@ pub impl WindowImpl of WindowTrait {
         if WindowInternal::length(WindowInternal::delta(from, to)) > range {
             return false;
         }
-        WindowInternal::map(*self.open).line_of_sight(from, to)
+        WindowInternal::seen(*self.open, from, to)
     }
 
     /// The arc of the target's facing a hit from `source` arrives from (§5.5 step 1): the source's
@@ -193,7 +207,7 @@ pub impl WindowImpl of WindowTrait {
     }
 
     /// Whether `target` stands on the front tile of `source` facing `facing` (§5.6, Blind).
-    fn front(source: u8, facing: u8, target: u8) -> bool {
+    fn front(source: u8, target: u8, facing: u8) -> bool {
         let facing = WindowAssert::facing(facing);
         if !(Self::inside(source) && Self::inside(target)) {
             return false;
@@ -233,12 +247,14 @@ pub impl WindowImpl of WindowTrait {
         } else {
             core::panic_with_felt252(errors::SHAPE)
         };
+        // `u256`: the two limbs of the bitmaps for the bitwise builtin (module documentation)
         let tiles: u256 = tiles.into();
         Bits::to_felt(Bits::and(tiles, (*self.open).into()))
     }
 
     /// The positions of a bitmap of the window, ascending.
     fn tiles(mask: felt252) -> Span<u8> {
+        // `u256`: the two limbs of the bitmap, each walked on its own (module documentation)
         let wide: u256 = mask.into();
         let mut tiles: Array<u8> = array![];
         WindowInternal::limb(ref tiles, wide.low, 0);
@@ -253,6 +269,27 @@ impl WindowInternal of WindowInternalTrait {
     #[inline(always)]
     fn map(open: felt252) -> HexMap {
         HexMap { width: WIDTH, height: HEIGHT, grid: open, seed: 0 }
+    }
+
+    /// Whether the line `from`–`to` (`hexx`'s `LineTrait::line`, the tiles strictly between) and
+    /// both its ends are walkable: `M & open == M` for `M` the line and the ends. `false` when the
+    /// line leaves the window.
+    #[inline(always)]
+    fn seen(open: felt252, from: u8, to: u8) -> bool {
+        match Self::map(open).line(from, to) {
+            Some(between) => {
+                let ends = if from == to {
+                    Bits::pow(from)
+                } else {
+                    Bits::pow(from) + Bits::pow(to)
+                };
+                // `u256`: the two limbs of the bitmaps for the bitwise builtin (module
+                // documentation)
+                let tiles: u256 = (between + ends).into();
+                Bits::and(tiles, open.into()) == tiles
+            },
+            None => false,
+        }
     }
 
     /// `(q + 7, r)` of a tile, `q = x − ⌊y/2⌋`, `r = y` (`GeometryTrait::to_axial`), shifted
@@ -377,8 +414,8 @@ impl WindowInternal of WindowInternalTrait {
     /// row segment per row `y' = y + dr`. With `q = x − ⌊y/2⌋` (`GeometryTrait::to_axial`),
     /// the tiles of the row at distance at most `R` have `dq` in `[max(−R, −R − dr), min(R, R
     /// − dr)]`, that is the columns `x + dq + ⌊y'/2⌋ − ⌊y/2⌋`. Computed on `u8` shifted
-    /// by `R` and `2R` (no negative value): row `k = dr + R` in `0..=2R`, columns `+ 2R`. At most 7
-    /// rows.
+    /// by `R` and `2R`
+    /// (no negative value): row `k = dr + R` in `0..=2R`, columns `+ 2R`. At most 7 rows.
     fn disc(centre: u8, radius: u8) -> felt252 {
         let (y, x) = DivRem::div_rem(centre, FIFTEEN);
         let (half, _) = DivRem::div_rem(y, TWO);
@@ -446,6 +483,7 @@ impl WindowInternal of WindowInternalTrait {
 pub impl WindowAssert of WindowAssertTrait {
     /// No bit at or above 240.
     fn assert_valid_open(open: felt252) {
+        // `u256`: the split of the felt is its range proof (module documentation)
         let wide: u256 = open.into();
         assert(wide.high < HIGH_LIMIT, errors::OPEN);
     }
@@ -478,22 +516,167 @@ mod tests {
     /// Every tile walkable: `2^240 − 1`.
     const OPEN: felt252 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    /// The position of `(x, y)`.
-    fn at(x: u8, y: u8) -> u8 {
-        y * WIDTH + x
-    }
-
-    fn open() -> Window {
-        WindowTrait::new(OPEN)
-    }
-
-    /// The window with walls on `walls`.
-    fn walled(walls: Span<u8>) -> Window {
-        let mut open = OPEN;
-        for wall in walls {
-            open -= hexx::board::bits::Bits::pow(*wall);
+    /// The helpers of the tests: positions, windows, the oracle checks, the benchmarks' inputs
+    /// and the vector table's printing (scoped, CAIRO §7).
+    #[generate_trait]
+    impl Fixture of FixtureTrait {
+        /// The position of `(x, y)`.
+        fn at(x: u8, y: u8) -> u8 {
+            y * WIDTH + x
         }
-        WindowTrait::new(open)
+
+        fn open() -> Window {
+            WindowTrait::new(OPEN)
+        }
+
+        /// The window with walls on `walls`.
+        fn walled(walls: Span<u8>) -> Window {
+            let mut open = OPEN;
+            for wall in walls {
+                open -= hexx::board::bits::Bits::pow(*wall);
+            }
+            WindowTrait::new(open)
+        }
+
+        /// The oracle's line as a bitmap.
+        fn mask(tiles: Span<u8>) -> felt252 {
+            let mut mask: felt252 = 0;
+            for tile in tiles {
+                mask += hexx::board::bits::Bits::pow(*tile);
+            }
+            mask
+        }
+
+        /// Every pair from `from` to the tiles within 6: `hexx`'s line is the oracle's, both
+        /// ways; the arc at range is the arc of the oracle's last tile, for each facing; the facing
+        /// toward the target is the direction of the oracle's first tile.
+        fn check_from(from: u8) {
+            let map = HexMap { width: WIDTH, height: HEIGHT, grid: OPEN, seed: 0 };
+            let mut to: u8 = 0;
+            while to != SIZE {
+                let n = Oracle::distance(from, to);
+                assert!(WindowTrait::distance(from, to).into() == n, "distance {} {}", from, to);
+                if n >= 2 && n <= 6 {
+                    match Oracle::line(from, to) {
+                        Some(tiles) => {
+                            let tiles = tiles.span();
+                            assert!(
+                                map.line(from, to) == Some(Self::mask(tiles)),
+                                "line {} {}",
+                                from,
+                                to,
+                            );
+                            assert!(
+                                map.line(to, from) == Some(Self::mask(tiles)),
+                                "back {} {}",
+                                from,
+                                to,
+                            );
+                            let last = *tiles.at(tiles.len() - 1);
+                            let first = *tiles.at(0);
+                            let into = Oracle::direction(to, last);
+                            let mut facing: u8 = 0;
+                            while facing != 6 {
+                                let arc = WindowTrait::arc(from, to, facing);
+                                assert!(
+                                    arc == Some(Oracle::arc(into, facing)), "arc {} {}", from, to,
+                                );
+                                facing += 1;
+                            }
+                            let turned = WindowTrait::facing(from, to, 0);
+                            assert!(
+                                turned == Oracle::direction(from, first), "facing {} {}", from, to,
+                            );
+                        },
+                        None => {
+                            assert!(map.line(from, to).is_none(), "out {} {}", from, to);
+                            assert!(!Self::open().sight(from, to), "sight out {} {}", from, to);
+                        },
+                    }
+                }
+                to += 1;
+            }
+        }
+
+        /// Each shape against the oracle disc, at every tile of the window (corners and edges
+        /// included): clipped to the window. Split in six for snforge's step limit.
+        fn check_shapes(first: u8, last: u8) {
+            let window = Self::open();
+            let mut centre: u8 = first;
+            while centre != last {
+                let one = Oracle::disc(centre, 1);
+                let point = hexx::board::bits::Bits::pow(centre);
+                assert!(window.shape(shape::SINGLE, centre) == point);
+                assert!(window.shape(shape::DISC_1, centre) == one, "disc 1 {}", centre);
+                assert!(window.shape(shape::RING_1, centre) == one - point, "ring {}", centre);
+                assert!(
+                    window.shape(shape::DISC_2, centre) == Oracle::disc(centre, 2), "{}", centre,
+                );
+                assert!(
+                    window.shape(shape::DISC_3, centre) == Oracle::disc(centre, 3), "{}", centre,
+                );
+                centre += 1;
+            }
+        }
+
+        /// A window with a few walls away from the lines measured, opaque to the compiler: a
+        /// constant input would be folded at compile time (`hexx`'s benchmarks, `Inputs::get`).
+        #[inline(never)]
+        fn bench() -> Window {
+            Self::walled(array![Self::at(1, 1), Self::at(13, 14), Self::at(2, 12)].span())
+        }
+
+        /// A value the compiler cannot fold.
+        #[inline(never)]
+        fn opaque(value: u8) -> u8 {
+            value
+        }
+
+        /// The window of the vectors: walls on both sides of the centre and on a tie's tile.
+        fn fixture() -> Window {
+            Self::walled(
+                array![
+                    Self::at(9, 8), Self::at(6, 9), Self::at(5, 6), Self::at(8, 11),
+                    Self::at(10, 5), Self::at(4, 10), Self::at(11, 9),
+                ]
+                    .span(),
+            )
+        }
+
+        fn hex(felts: Span<felt252>) -> ByteArray {
+            let mut out: ByteArray = "[";
+            let mut first = true;
+            for felt in felts {
+                if !first {
+                    out.append(@",");
+                }
+                first = false;
+                let wide: u256 = (*felt).into();
+                out.append(@format!("\"0x{:x}\"", wide));
+            }
+            out.append(@"]");
+            out
+        }
+
+        /// Prints one vector and adds it to the digest.
+        fn emit(
+            ref digest: Array<felt252>,
+            ref id: u32,
+            name: ByteArray,
+            case: Span<felt252>,
+            ok: Span<felt252>,
+        ) {
+            println!(
+                "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}",
+                id,
+                name,
+                Self::hex(case),
+                Self::hex(ok),
+            );
+            digest.append(core::poseidon::poseidon_hash_span(case));
+            digest.append(core::poseidon::poseidon_hash_span(ok));
+            id += 1;
+        }
     }
 
     // ---- Oracles, written from the design's sentences ------------------------------------------
@@ -582,7 +765,7 @@ mod tests {
                     return None;
                 }
                 let (x, y): (u8, u8) = (x.try_into().unwrap(), y.try_into().unwrap());
-                tiles.append(at(x, y));
+                tiles.append(Fixture::at(x, y));
                 i += 1;
             }
             Some(tiles)
@@ -630,152 +813,152 @@ mod tests {
         }
     }
 
-    /// The oracle's line as a bitmap.
-    fn mask(tiles: Span<u8>) -> felt252 {
-        let mut mask: felt252 = 0;
-        for tile in tiles {
-            mask += hexx::board::bits::Bits::pow(*tile);
-        }
-        mask
-    }
-
-    /// Every pair from `from` to the tiles within 6: `hexx`'s line is the oracle's, both
-    /// ways; the arc at range is the arc of the oracle's last tile, for each facing; the facing
-    /// toward the target is the direction of the oracle's first tile.
-    fn check_from(from: u8) {
-        let map = HexMap { width: WIDTH, height: HEIGHT, grid: OPEN, seed: 0 };
-        let mut to: u8 = 0;
-        while to != SIZE {
-            let n = Oracle::distance(from, to);
-            assert!(WindowTrait::distance(from, to).into() == n, "distance {} {}", from, to);
-            if n >= 2 && n <= 6 {
-                match Oracle::line(from, to) {
-                    Some(tiles) => {
-                        let tiles = tiles.span();
-                        assert!(map.line(from, to) == Some(mask(tiles)), "line {} {}", from, to);
-                        assert!(map.line(to, from) == Some(mask(tiles)), "back {} {}", from, to);
-                        let last = *tiles.at(tiles.len() - 1);
-                        let first = *tiles.at(0);
-                        let into = Oracle::direction(to, last);
-                        let mut facing: u8 = 0;
-                        while facing != 6 {
-                            let arc = WindowTrait::arc(from, to, facing);
-                            assert!(arc == Some(Oracle::arc(into, facing)), "arc {} {}", from, to);
-                            facing += 1;
-                        }
-                        let turned = WindowTrait::facing(from, to, 0);
-                        assert!(turned == Oracle::direction(from, first), "facing {} {}", from, to);
-                    },
-                    None => {
-                        assert!(map.line(from, to).is_none(), "out {} {}", from, to);
-                        assert!(!open().sight(from, to), "sight out {} {}", from, to);
-                    },
-                }
-            }
-            to += 1;
-        }
-    }
-
     // ---- Line of sight -----------------------------------------------------------------------
 
     /// AC-2: `hexx`'s line is design/04's, ties included, from both row parities at the centre.
     #[test]
     #[available_gas(l2_gas: 251973246)] // ceil(1.05 × 239974520 measured)
     fn test_line_against_oracle_centre() {
-        check_from(at(7, 7));
-        check_from(at(7, 8));
+        Fixture::check_from(Fixture::at(7, 7));
+        Fixture::check_from(Fixture::at(7, 8));
     }
 
     /// The same at the window's corners and edges, where a line can leave it.
     #[test]
-    #[available_gas(l2_gas: 469602893)] // ceil(1.05 × 447240850 measured)
+    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
+    #[available_gas(l2_gas: 469606389)] // ceil(1.05 × 447244180 measured)
     fn test_line_against_oracle_edges() {
-        check_from(at(0, 0));
-        check_from(at(14, 15));
-        check_from(at(0, 8));
-        check_from(at(14, 7));
-        check_from(at(7, 0));
-        check_from(at(7, 15));
-        check_from(at(1, 1));
-        check_from(at(13, 14));
+        Fixture::check_from(Fixture::at(0, 0));
+        Fixture::check_from(Fixture::at(14, 15));
+        Fixture::check_from(Fixture::at(0, 8));
+        Fixture::check_from(Fixture::at(14, 7));
+        Fixture::check_from(Fixture::at(7, 0));
+        Fixture::check_from(Fixture::at(7, 15));
+        Fixture::check_from(Fixture::at(1, 1));
+        Fixture::check_from(Fixture::at(13, 14));
     }
 
     /// The tie cases of the line: a point exactly between two tiles takes the lower index.
     #[test]
-    #[available_gas(l2_gas: 1274314)] // ceil(1.05 × 1213632 measured)
+    #[available_gas(l2_gas: 1269274)] // ceil(1.05 × 1208832 measured)
     fn test_line_ties() {
         let map = HexMap { width: WIDTH, height: HEIGHT, grid: OPEN, seed: 0 };
         // Two rows up, same column on an even row: between (7, 9) 142 and (6, 9) 141, 141
-        assert!(map.line(at(7, 8), at(7, 10)) == Some(Bits::pow(at(6, 9))));
+        assert!(
+            map.line(Fixture::at(7, 8), Fixture::at(7, 10)) == Some(Bits::pow(Fixture::at(6, 9))),
+        );
         // From an odd row: (7, 7) → (7, 9) passes between (8, 8) 128 and (7, 8) 127, 127
-        assert!(map.line(at(7, 7), at(7, 9)) == Some(Bits::pow(at(7, 8))));
+        assert!(
+            map.line(Fixture::at(7, 7), Fixture::at(7, 9)) == Some(Bits::pow(Fixture::at(7, 8))),
+        );
         // Δq = 2, Δr = −1, (7, 8) → (8, 7): between (8, 8) 128 and (7, 7) 112, the row below
-        assert!(map.line(at(7, 8), at(8, 7)) == Some(Bits::pow(at(7, 7))));
+        assert!(
+            map.line(Fixture::at(7, 8), Fixture::at(8, 7)) == Some(Bits::pow(Fixture::at(7, 7))),
+        );
         // The reverse direction takes the same tile (the rule does not depend on the order)
-        assert!(map.line(at(8, 7), at(7, 8)) == Some(Bits::pow(at(7, 7))));
+        assert!(
+            map.line(Fixture::at(8, 7), Fixture::at(7, 8)) == Some(Bits::pow(Fixture::at(7, 7))),
+        );
         // Δq = 1, Δr = 1, (7, 8) → (8, 9): between (8, 8) 128 and (7, 9) 142, row 8
-        assert!(map.line(at(7, 8), at(8, 9)) == Some(Bits::pow(at(8, 8))));
+        assert!(
+            map.line(Fixture::at(7, 8), Fixture::at(8, 9)) == Some(Bits::pow(Fixture::at(8, 8))),
+        );
         // Distance 4 along a tie axis: two ties, each to the lower index (the oracle's tiles)
-        let tiles = Oracle::line(at(7, 8), at(7, 12)).unwrap();
-        assert!(map.line(at(7, 8), at(7, 12)) == Some(mask(tiles.span())));
-        assert!(tiles.span() == array![at(6, 9), at(7, 10), at(6, 11)].span());
+        let tiles = Oracle::line(Fixture::at(7, 8), Fixture::at(7, 12)).unwrap();
+        assert!(
+            map.line(Fixture::at(7, 8), Fixture::at(7, 12)) == Some(Fixture::mask(tiles.span())),
+        );
+        assert!(
+            tiles
+                .span() == array![Fixture::at(6, 9), Fixture::at(7, 10), Fixture::at(6, 11)]
+                .span(),
+        );
         // Distance 6 along a tie axis: three ties
-        let tiles = Oracle::line(at(7, 2), at(7, 8)).unwrap();
-        assert!(map.line(at(7, 2), at(7, 8)) == Some(mask(tiles.span())));
+        let tiles = Oracle::line(Fixture::at(7, 2), Fixture::at(7, 8)).unwrap();
+        assert!(
+            map.line(Fixture::at(7, 2), Fixture::at(7, 8)) == Some(Fixture::mask(tiles.span())),
+        );
         assert!(tiles.len() == 5);
         // A wall on the tile the tie takes blocks; a wall on the other tile does not
-        assert!(!walled(array![at(6, 9)].span()).sight(at(7, 8), at(7, 10)));
-        assert!(walled(array![at(7, 9)].span()).sight(at(7, 8), at(7, 10)));
+        assert!(
+            !Fixture::walled(array![Fixture::at(6, 9)].span())
+                .sight(Fixture::at(7, 8), Fixture::at(7, 10)),
+        );
+        assert!(
+            Fixture::walled(array![Fixture::at(7, 9)].span())
+                .sight(Fixture::at(7, 8), Fixture::at(7, 10)),
+        );
         // At the window's East edge the lower index is the column −1: the line leaves the window
-        assert!(map.line(at(0, 0), at(0, 2)).is_none());
-        assert!(!open().sight(at(0, 0), at(0, 2)));
+        assert!(map.line(Fixture::at(0, 0), Fixture::at(0, 2)).is_none());
+        assert!(!Fixture::open().sight(Fixture::at(0, 0), Fixture::at(0, 2)));
     }
 
     /// Walls block, the ends are not tested, actors are not walls; the same tile and adjacent
     /// tiles always see each other; a position outside the window sees nothing.
     #[test]
-    #[available_gas(l2_gas: 239312)] // ceil(1.05 × 227916 measured)
+    #[available_gas(l2_gas: 128453)] // ceil(1.05 × 122336 measured)
     fn test_sight() {
-        let window = walled(array![at(9, 8)].span());
+        let window = Fixture::walled(array![Fixture::at(9, 8)].span());
         // (7, 8) → (11, 8): the row, through (9, 8)
-        assert!(!window.sight(at(7, 8), at(11, 8)));
-        assert!(!window.sight(at(11, 8), at(7, 8)));
-        assert!(open().sight(at(7, 8), at(11, 8)));
-        // The wall at an end
-        assert!(window.sight(at(9, 8), at(12, 8)));
-        assert!(window.sight(at(6, 8), at(9, 8)));
+        assert!(!window.sight(Fixture::at(7, 8), Fixture::at(11, 8)));
+        assert!(!window.sight(Fixture::at(11, 8), Fixture::at(7, 8)));
+        assert!(Fixture::open().sight(Fixture::at(7, 8), Fixture::at(11, 8)));
         // Adjacent to the wall, the same tile
-        assert!(window.sight(at(8, 8), at(10, 8)) == false);
-        assert!(window.sight(at(8, 8), at(8, 9)));
-        assert!(window.sight(at(9, 8), at(9, 8)));
-        assert!(window.sight(at(7, 8), at(7, 8)));
+        assert!(window.sight(Fixture::at(8, 8), Fixture::at(10, 8)) == false);
+        assert!(window.sight(Fixture::at(8, 8), Fixture::at(8, 9)));
+        assert!(window.sight(Fixture::at(7, 8), Fixture::at(7, 8)));
         // Outside the window
-        assert!(!open().sight(SIZE, at(7, 8)));
-        assert!(!open().sight(at(7, 8), 255));
-        // A window of walls: adjacent tiles still see each other, nothing further
+        assert!(!Fixture::open().sight(SIZE, Fixture::at(7, 8)));
+        assert!(!Fixture::open().sight(Fixture::at(7, 8), 255));
+    }
+
+    /// Fix loop 1 (the project manager's call, docs/decisions/2026-10-01-eng-02-escalations.md):
+    /// a wall at either end of the line blocks the sight, at range, adjacent and on the same tile.
+    #[test]
+    #[available_gas(l2_gas: 235503)] // ceil(1.05 × 224288 measured)
+    fn test_sight_wall_at_an_end() {
+        let window = Fixture::walled(array![Fixture::at(9, 8)].span());
+        // At range, the wall at `to` and at `from`, both orders
+        assert!(!window.sight(Fixture::at(6, 8), Fixture::at(9, 8)));
+        assert!(!window.sight(Fixture::at(9, 8), Fixture::at(6, 8)));
+        assert!(!window.sight(Fixture::at(9, 8), Fixture::at(12, 8)));
+        assert!(!window.sight(Fixture::at(12, 8), Fixture::at(9, 8)));
+        // Adjacent, and the same tile
+        assert!(!window.sight(Fixture::at(8, 8), Fixture::at(9, 8)));
+        assert!(!window.sight(Fixture::at(9, 8), Fixture::at(8, 8)));
+        assert!(!window.sight(Fixture::at(9, 8), Fixture::at(9, 8)));
+        // So `reach`: a touch on a wall is not in reach
+        assert!(!window.reach(Fixture::at(8, 8), Fixture::at(9, 8), range::TOUCH));
+        assert!(!window.reach(Fixture::at(9, 8), Fixture::at(8, 8), range::TOUCH));
+        // Two neighbours of the wall, adjacent to each other, still see each other
+        assert!(window.sight(Fixture::at(8, 8), Fixture::at(8, 9)));
+        // A window of walls: nothing sees, not even a tile itself
         let closed = WindowTrait::new(0);
-        assert!(closed.sight(at(7, 8), at(8, 8)));
-        assert!(!closed.sight(at(7, 8), at(9, 8)));
+        assert!(!closed.sight(Fixture::at(7, 8), Fixture::at(8, 8)));
+        assert!(!closed.sight(Fixture::at(7, 8), Fixture::at(7, 8)));
+        assert!(!closed.sight(Fixture::at(7, 8), Fixture::at(9, 8)));
     }
 
     /// design/04's ranges: within the range and in sight.
     #[test]
-    #[available_gas(l2_gas: 130778)] // ceil(1.05 × 124550 measured)
+    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
+    #[available_gas(l2_gas: 135005)] // ceil(1.05 × 128576 measured)
     fn test_reach() {
-        let window = walled(array![at(9, 8)].span());
-        assert!(window.reach(at(7, 8), at(8, 8), range::TOUCH));
-        assert!(!window.reach(at(7, 8), at(10, 8), range::TOUCH));
-        assert!(open().reach(at(7, 8), at(13, 8), range::RANGED));
-        assert!(!open().reach(at(7, 8), at(14, 8), range::RANGED));
-        assert!(!window.reach(at(7, 8), at(11, 8), range::RANGED));
+        let window = Fixture::walled(array![Fixture::at(9, 8)].span());
+        assert!(window.reach(Fixture::at(7, 8), Fixture::at(8, 8), range::TOUCH));
+        assert!(!window.reach(Fixture::at(7, 8), Fixture::at(10, 8), range::TOUCH));
+        assert!(Fixture::open().reach(Fixture::at(7, 8), Fixture::at(13, 8), range::RANGED));
+        assert!(!Fixture::open().reach(Fixture::at(7, 8), Fixture::at(14, 8), range::RANGED));
+        assert!(!window.reach(Fixture::at(7, 8), Fixture::at(11, 8), range::RANGED));
         // A wall next to the attacker does not stop a touch: no tile between
-        assert!(window.reach(at(8, 8), at(9, 8), range::TOUCH));
-        assert!(open().reach(at(7, 8), at(7, 8), range::TOUCH));
-        assert!(!open().reach(at(7, 8), SIZE, range::RANGED));
-        assert!(!open().reach(SIZE, at(7, 8), range::RANGED));
+        assert!(window.reach(Fixture::at(8, 8), Fixture::at(8, 9), range::TOUCH));
+        assert!(window.reach(Fixture::at(10, 8), Fixture::at(10, 9), range::TOUCH));
+        assert!(Fixture::open().reach(Fixture::at(7, 8), Fixture::at(7, 8), range::TOUCH));
+        assert!(!Fixture::open().reach(Fixture::at(7, 8), SIZE, range::RANGED));
+        assert!(!Fixture::open().reach(SIZE, Fixture::at(7, 8), range::RANGED));
         // A radius without sight (alert, earshot) is a distance
-        assert!(WindowTrait::distance(at(0, 0), at(8, 0)) <= range::EARSHOT);
-        assert!(WindowTrait::distance(at(0, 0), at(9, 0)) > range::EARSHOT);
+        assert!(WindowTrait::distance(Fixture::at(0, 0), Fixture::at(8, 0)) <= range::EARSHOT);
+        assert!(WindowTrait::distance(Fixture::at(0, 0), Fixture::at(9, 0)) > range::EARSHOT);
         assert!(range::NEARBY == 2 && range::AREA == 3 && range::ALERT == 5);
     }
 
@@ -786,7 +969,7 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 2316920)] // ceil(1.05 × 2206590 measured)
     fn test_arc_melee() {
-        let targets: [u8; 2] = [at(7, 7), at(7, 8)];
+        let targets: [u8; 2] = [Fixture::at(7, 7), Fixture::at(7, 8)];
         for target in targets.span() {
             let target = *target;
             let mut d: u8 = 0;
@@ -803,11 +986,11 @@ mod tests {
             }
         }
         // East-facing target at (7, 8): from (6, 8) the front, from (8, 8) the back
-        assert!(WindowTrait::arc(at(6, 8), at(7, 8), 0) == Some(Arc::Front));
-        assert!(WindowTrait::arc(at(8, 8), at(7, 8), 0) == Some(Arc::Back));
+        assert!(WindowTrait::arc(Fixture::at(6, 8), Fixture::at(7, 8), 0) == Some(Arc::Front));
+        assert!(WindowTrait::arc(Fixture::at(8, 8), Fixture::at(7, 8), 0) == Some(Arc::Back));
         // North-East (6, 9) front-side, North-West (7, 9) rear-side
-        assert!(WindowTrait::arc(at(6, 9), at(7, 8), 0) == Some(Arc::FrontSide));
-        assert!(WindowTrait::arc(at(7, 9), at(7, 8), 0) == Some(Arc::RearSide));
+        assert!(WindowTrait::arc(Fixture::at(6, 9), Fixture::at(7, 8), 0) == Some(Arc::FrontSide));
+        assert!(WindowTrait::arc(Fixture::at(7, 9), Fixture::at(7, 8), 0) == Some(Arc::RearSide));
     }
 
     /// At range, the arc of the tile the line of sight arrives from: from straight East the front,
@@ -816,30 +999,30 @@ mod tests {
     #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_arc_ranged() {
         // Target (7, 8) facing East (0); the line from (2, 8) arrives from (6, 8), East
-        assert!(WindowTrait::arc(at(2, 8), at(7, 8), 0) == Some(Arc::Front));
-        assert!(WindowTrait::arc(at(13, 8), at(7, 8), 0) == Some(Arc::Back));
-        assert!(WindowTrait::arc(at(13, 8), at(7, 8), 3) == Some(Arc::Front));
+        assert!(WindowTrait::arc(Fixture::at(2, 8), Fixture::at(7, 8), 0) == Some(Arc::Front));
+        assert!(WindowTrait::arc(Fixture::at(13, 8), Fixture::at(7, 8), 0) == Some(Arc::Back));
+        assert!(WindowTrait::arc(Fixture::at(13, 8), Fixture::at(7, 8), 3) == Some(Arc::Front));
         // (7, 10) → (7, 8) passes the tie at (6, 9), North-East of the target: front-side when
         // facing East, front when facing North-East; the other tile (7, 9) would be North-West
-        assert!(WindowTrait::arc(at(7, 10), at(7, 8), 1) == Some(Arc::Front));
-        assert!(WindowTrait::arc(at(7, 10), at(7, 8), 0) == Some(Arc::FrontSide));
-        assert!(WindowTrait::arc(at(7, 10), at(7, 8), 2) == Some(Arc::FrontSide));
-        assert!(WindowTrait::arc(at(7, 10), at(7, 8), 4) == Some(Arc::Back));
+        assert!(WindowTrait::arc(Fixture::at(7, 10), Fixture::at(7, 8), 1) == Some(Arc::Front));
+        assert!(WindowTrait::arc(Fixture::at(7, 10), Fixture::at(7, 8), 0) == Some(Arc::FrontSide));
+        assert!(WindowTrait::arc(Fixture::at(7, 10), Fixture::at(7, 8), 2) == Some(Arc::FrontSide));
+        assert!(WindowTrait::arc(Fixture::at(7, 10), Fixture::at(7, 8), 4) == Some(Arc::Back));
         // A wall on the line does not change the arc (the caller checks sight)
         // The edges: the same tile, outside, a line leaving the window
-        assert!(WindowTrait::arc(at(7, 8), at(7, 8), 0).is_none());
-        assert!(WindowTrait::arc(SIZE, at(7, 8), 0).is_none());
-        assert!(WindowTrait::arc(at(7, 8), 250, 0).is_none());
+        assert!(WindowTrait::arc(Fixture::at(7, 8), Fixture::at(7, 8), 0).is_none());
+        assert!(WindowTrait::arc(SIZE, Fixture::at(7, 8), 0).is_none());
+        assert!(WindowTrait::arc(Fixture::at(7, 8), 250, 0).is_none());
         // A line leaving the window (no sight, so no hit): the arc of its first step from the
         // target, the column −1 at (−1, 1), North-East of (0, 0)
-        assert!(WindowTrait::arc(at(0, 2), at(0, 0), 1) == Some(Arc::Front));
+        assert!(WindowTrait::arc(Fixture::at(0, 2), Fixture::at(0, 0), 1) == Some(Arc::Front));
     }
 
     /// "On the front tile": only the neighbour in the facing's direction.
     #[test]
     #[available_gas(l2_gas: 1678005)] // ceil(1.05 × 1598100 measured)
     fn test_front() {
-        let sources: [u8; 2] = [at(7, 7), at(7, 8)];
+        let sources: [u8; 2] = [Fixture::at(7, 7), Fixture::at(7, 8)];
         for source in sources.span() {
             let source = *source;
             let mut facing: u8 = 0;
@@ -848,18 +1031,18 @@ mod tests {
                 while d != 6 {
                     let target = LayoutTrait::neighbor(WIDTH, HEIGHT, source, d.try_into().unwrap())
                         .unwrap();
-                    assert!(WindowTrait::front(source, facing, target) == (d == facing));
+                    assert!(WindowTrait::front(source, target, facing) == (d == facing));
                     d += 1;
                 }
                 facing += 1;
             }
             // Two tiles away in the facing's direction is not the front tile; nor the same tile
-            assert!(!WindowTrait::front(source, 0, source - 2));
-            assert!(!WindowTrait::front(source, 0, source));
+            assert!(!WindowTrait::front(source, source - 2, 0));
+            assert!(!WindowTrait::front(source, source, 0));
         }
         // At the edge the front tile is outside the window: nothing is on it
-        assert!(!WindowTrait::front(at(0, 8), 0, at(14, 7)));
-        assert!(!WindowTrait::front(SIZE, 0, at(7, 8)));
+        assert!(!WindowTrait::front(Fixture::at(0, 8), Fixture::at(14, 7), 0));
+        assert!(!WindowTrait::front(SIZE, Fixture::at(7, 8), 0));
     }
 
     /// §5.3 step 3: toward the moved-to tile, toward an adjacent target, toward the first step of
@@ -868,7 +1051,7 @@ mod tests {
     #[available_gas(l2_gas: 410729)] // ceil(1.05 × 391170 measured)
     fn test_facing() {
         // Each neighbour gives its direction, from both row parities
-        let froms: [u8; 2] = [at(7, 7), at(7, 8)];
+        let froms: [u8; 2] = [Fixture::at(7, 7), Fixture::at(7, 8)];
         for from in froms.span() {
             let from = *from;
             let mut d: u8 = 0;
@@ -879,122 +1062,107 @@ mod tests {
             }
         }
         // Straight West along the row
-        assert!(WindowTrait::facing(at(7, 8), at(12, 8), 0) == 3);
+        assert!(WindowTrait::facing(Fixture::at(7, 8), Fixture::at(12, 8), 0) == 3);
         // Across a tie: (7, 8) → (7, 10), the first step is (6, 9), North-East
-        assert!(WindowTrait::facing(at(7, 8), at(7, 10), 4) == 1);
+        assert!(WindowTrait::facing(Fixture::at(7, 8), Fixture::at(7, 10), 4) == 1);
         // The other way: (7, 10) → (7, 8), the first step is (6, 9), South-East of (7, 10)
-        assert!(WindowTrait::facing(at(7, 10), at(7, 8), 4) == 5);
+        assert!(WindowTrait::facing(Fixture::at(7, 10), Fixture::at(7, 8), 4) == 5);
         // The same tile, outside: unchanged
-        assert!(WindowTrait::facing(at(7, 8), at(7, 8), 4) == 4);
-        assert!(WindowTrait::facing(at(7, 8), SIZE, 2) == 2);
+        assert!(WindowTrait::facing(Fixture::at(7, 8), Fixture::at(7, 8), 4) == 4);
+        assert!(WindowTrait::facing(Fixture::at(7, 8), SIZE, 2) == 2);
         // A line leaving the window: the first step of the unbounded line, toward the column −1
         // ((0, 0) → (0, 2): the tie takes (−1, 1), North-East of (0, 0))
-        assert!(WindowTrait::facing(at(0, 0), at(0, 2), 3) == 1);
+        assert!(WindowTrait::facing(Fixture::at(0, 0), Fixture::at(0, 2), 3) == 1);
         // Back: (0, 2) → (0, 0) takes (−1, 1), South-East of (0, 2)
-        assert!(WindowTrait::facing(at(0, 2), at(0, 0), 3) == 5);
+        assert!(WindowTrait::facing(Fixture::at(0, 2), Fixture::at(0, 0), 3) == 5);
     }
 
     #[test]
     #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
     #[should_panic(expected: 'window: facing')]
     fn test_facing_invalid() {
-        WindowTrait::facing(at(7, 8), at(8, 8), 6);
+        WindowTrait::facing(Fixture::at(7, 8), Fixture::at(8, 8), 6);
     }
 
     #[test]
     #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
     #[should_panic(expected: 'window: facing')]
     fn test_arc_facing_invalid() {
-        let _ = WindowTrait::arc(at(8, 8), at(7, 8), 7);
+        let _ = WindowTrait::arc(Fixture::at(8, 8), Fixture::at(7, 8), 7);
     }
 
     // ---- Shapes ------------------------------------------------------------------------------
 
-    /// Each shape against the oracle disc, at every tile of the window (corners and edges
-    /// included): clipped to the window. Split in six for snforge's step limit.
-    fn check_shapes(first: u8, last: u8) {
-        let window = open();
-        let mut centre: u8 = first;
-        while centre != last {
-            let one = Oracle::disc(centre, 1);
-            let point = hexx::board::bits::Bits::pow(centre);
-            assert!(window.shape(shape::SINGLE, centre) == point);
-            assert!(window.shape(shape::DISC_1, centre) == one, "disc 1 {}", centre);
-            assert!(window.shape(shape::RING_1, centre) == one - point, "ring {}", centre);
-            assert!(window.shape(shape::DISC_2, centre) == Oracle::disc(centre, 2), "{}", centre);
-            assert!(window.shape(shape::DISC_3, centre) == Oracle::disc(centre, 3), "{}", centre);
-            centre += 1;
-        }
-    }
-
     #[test]
     #[available_gas(l2_gas: 919413590)] // ceil(1.05 × 875631990 measured)
     fn test_shapes_every_centre_0() {
-        check_shapes(0, 40);
+        Fixture::check_shapes(0, 40);
     }
 
     #[test]
     #[available_gas(l2_gas: 920791494)] // ceil(1.05 × 876944280 measured)
     fn test_shapes_every_centre_1() {
-        check_shapes(40, 80);
+        Fixture::check_shapes(40, 80);
     }
 
     #[test]
     #[available_gas(l2_gas: 920856447)] // ceil(1.05 × 877006140 measured)
     fn test_shapes_every_centre_2() {
-        check_shapes(80, 120);
+        Fixture::check_shapes(80, 120);
     }
 
     #[test]
     #[available_gas(l2_gas: 920936982)] // ceil(1.05 × 877082840 measured)
     fn test_shapes_every_centre_3() {
-        check_shapes(120, 160);
+        Fixture::check_shapes(120, 160);
     }
 
     #[test]
     #[available_gas(l2_gas: 920940216)] // ceil(1.05 × 877085920 measured)
     fn test_shapes_every_centre_4() {
-        check_shapes(160, 200);
+        Fixture::check_shapes(160, 200);
     }
 
     #[test]
     #[available_gas(l2_gas: 919416677)] // ceil(1.05 × 875634930 measured)
     fn test_shapes_every_centre_5() {
-        check_shapes(200, 240);
+        Fixture::check_shapes(200, 240);
     }
 
     /// Counts in the open, at the corners and edges; walls skipped; the centre a wall.
     #[test]
     #[available_gas(l2_gas: 1463088)] // ceil(1.05 × 1393417 measured)
     fn test_shapes_edges() {
-        let window = open();
+        let window = Fixture::open();
         let count = |mask: felt252| WindowTrait::tiles(mask).len();
-        assert!(count(window.shape(shape::SINGLE, at(7, 8))) == 1);
-        assert!(count(window.shape(shape::RING_1, at(7, 8))) == 6);
-        assert!(count(window.shape(shape::DISC_1, at(7, 8))) == 7);
-        assert!(count(window.shape(shape::DISC_2, at(7, 8))) == 19);
-        assert!(count(window.shape(shape::DISC_3, at(7, 8))) == 37);
+        assert!(count(window.shape(shape::SINGLE, Fixture::at(7, 8))) == 1);
+        assert!(count(window.shape(shape::RING_1, Fixture::at(7, 8))) == 6);
+        assert!(count(window.shape(shape::DISC_1, Fixture::at(7, 8))) == 7);
+        assert!(count(window.shape(shape::DISC_2, Fixture::at(7, 8))) == 19);
+        assert!(count(window.shape(shape::DISC_3, Fixture::at(7, 8))) == 37);
         // The corner (0, 0): East and the row below are outside
         assert!(
             WindowTrait::tiles(
-                window.shape(shape::DISC_1, at(0, 0)),
-            ) == array![at(0, 0), at(1, 0), at(0, 1)]
+                window.shape(shape::DISC_1, Fixture::at(0, 0)),
+            ) == array![Fixture::at(0, 0), Fixture::at(1, 0), Fixture::at(0, 1)]
                 .span(),
         );
-        assert!(count(window.shape(shape::RING_1, at(14, 15))) == 2);
-        assert!(count(window.shape(shape::DISC_1, at(14, 0))) == 4);
-        assert!(count(window.shape(shape::DISC_1, at(0, 15))) == 4);
-        assert!(count(window.shape(shape::DISC_3, at(0, 0))) == 12);
-        assert!(count(window.shape(shape::DISC_1, at(0, 8))) == 4);
+        assert!(count(window.shape(shape::RING_1, Fixture::at(14, 15))) == 2);
+        assert!(count(window.shape(shape::DISC_1, Fixture::at(14, 0))) == 4);
+        assert!(count(window.shape(shape::DISC_1, Fixture::at(0, 15))) == 4);
+        assert!(count(window.shape(shape::DISC_3, Fixture::at(0, 0))) == 12);
+        assert!(count(window.shape(shape::DISC_1, Fixture::at(0, 8))) == 4);
         // Walls hold no actor
-        let walls = walled(array![at(8, 8), at(6, 9), at(7, 8)].span());
+        let walls = Fixture::walled(
+            array![Fixture::at(8, 8), Fixture::at(6, 9), Fixture::at(7, 8)].span(),
+        );
         assert!(
             WindowTrait::tiles(
-                walls.shape(shape::DISC_1, at(7, 8)),
-            ) == array![at(6, 7), at(7, 7), at(6, 8), at(7, 9)]
+                walls.shape(shape::DISC_1, Fixture::at(7, 8)),
+            ) == array![Fixture::at(6, 7), Fixture::at(7, 7), Fixture::at(6, 8), Fixture::at(7, 9)]
                 .span(),
         );
-        assert!(walls.shape(shape::SINGLE, at(7, 8)) == 0);
+        assert!(walls.shape(shape::SINGLE, Fixture::at(7, 8)) == 0);
         // A centre outside the window: nothing
         assert!(window.shape(shape::DISC_3, SIZE) == 0);
         assert!(window.shape(shape::SINGLE, 255) == 0);
@@ -1004,14 +1172,14 @@ mod tests {
     #[available_gas(l2_gas: 18816)] // ceil(1.05 × 17920 measured)
     #[should_panic(expected: 'window: shape')]
     fn test_shape_invalid() {
-        open().shape(6, at(7, 8));
+        Fixture::open().shape(6, Fixture::at(7, 8));
     }
 
     #[test]
     #[available_gas(l2_gas: 18816)] // ceil(1.05 × 17920 measured)
     #[should_panic(expected: 'window: shape')]
     fn test_shape_zero() {
-        open().shape(0, at(7, 8));
+        Fixture::open().shape(0, Fixture::at(7, 8));
     }
 
     #[test]
@@ -1048,77 +1216,123 @@ mod tests {
     // target on the window's ring, a bomb's `DISC_1` away from the edges. Kept with the module's
     // tests: they need nothing deployed.
 
-    /// A window with a few walls away from the lines measured, opaque to the compiler: a constant
-    /// input would be folded at compile time (`hexx`'s benchmarks, `Inputs::get`).
-    #[inline(never)]
-    fn bench() -> Window {
-        walled(array![at(1, 1), at(13, 14), at(2, 12)].span())
-    }
-
-    /// A value the compiler cannot fold.
-    #[inline(never)]
-    fn opaque(value: u8) -> u8 {
-        value
-    }
-
     #[test]
-    #[available_gas(l2_gas: 50974)] // ceil(1.05 × 48546 measured)
+    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
+    #[available_gas(l2_gas: 54050)] // ceil(1.05 × 51476 measured)
     fn test_cost_sight_once() {
-        let window = bench();
-        assert!(window.sight(opaque(at(7, 2)), opaque(at(7, 8))));
+        let window = Fixture::bench();
+        assert!(
+            window.sight(Fixture::opaque(Fixture::at(7, 2)), Fixture::opaque(Fixture::at(7, 8))),
+        );
     }
 
     #[test]
-    #[available_gas(l2_gas: 71686)] // ceil(1.05 × 68272 measured)
+    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
+    #[available_gas(l2_gas: 77335)] // ceil(1.05 × 73652 measured)
     fn test_cost_sight_twice() {
-        let window = bench();
-        assert!(window.sight(opaque(at(7, 2)), opaque(at(7, 8))));
-        assert!(window.sight(opaque(at(7, 8)), opaque(at(7, 2))));
+        let window = Fixture::bench();
+        assert!(
+            window.sight(Fixture::opaque(Fixture::at(7, 2)), Fixture::opaque(Fixture::at(7, 8))),
+        );
+        assert!(
+            window.sight(Fixture::opaque(Fixture::at(7, 8)), Fixture::opaque(Fixture::at(7, 2))),
+        );
     }
 
     #[test]
-    #[available_gas(l2_gas: 64456)] // ceil(1.05 × 61386 measured)
+    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
+    #[available_gas(l2_gas: 66598)] // ceil(1.05 × 63426 measured)
     fn test_cost_reach_once() {
-        let window = bench();
-        assert!(window.reach(opaque(at(7, 2)), opaque(at(7, 8)), opaque(range::RANGED)));
+        let window = Fixture::bench();
+        assert!(
+            window
+                .reach(
+                    Fixture::opaque(Fixture::at(7, 2)),
+                    Fixture::opaque(Fixture::at(7, 8)),
+                    Fixture::opaque(range::RANGED),
+                ),
+        );
     }
 
     #[test]
-    #[available_gas(l2_gas: 98241)] // ceil(1.05 × 93562 measured)
+    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
+    #[available_gas(l2_gas: 102525)] // ceil(1.05 × 97642 measured)
     fn test_cost_reach_twice() {
-        let window = bench();
-        assert!(window.reach(opaque(at(7, 2)), opaque(at(7, 8)), opaque(range::RANGED)));
-        assert!(window.reach(opaque(at(7, 8)), opaque(at(7, 2)), opaque(range::RANGED)));
+        let window = Fixture::bench();
+        assert!(
+            window
+                .reach(
+                    Fixture::opaque(Fixture::at(7, 2)),
+                    Fixture::opaque(Fixture::at(7, 8)),
+                    Fixture::opaque(range::RANGED),
+                ),
+        );
+        assert!(
+            window
+                .reach(
+                    Fixture::opaque(Fixture::at(7, 8)),
+                    Fixture::opaque(Fixture::at(7, 2)),
+                    Fixture::opaque(range::RANGED),
+                ),
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 41874)] // ceil(1.05 × 39880 measured)
     fn test_cost_arc_melee_once() {
-        assert!(WindowTrait::arc(opaque(at(8, 8)), opaque(at(7, 8)), opaque(0)) == Some(Arc::Back));
+        assert!(
+            WindowTrait::arc(
+                Fixture::opaque(Fixture::at(8, 8)),
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(0),
+            ) == Some(Arc::Back),
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 68271)] // ceil(1.05 × 65020 measured)
     fn test_cost_arc_melee_twice() {
-        assert!(WindowTrait::arc(opaque(at(8, 8)), opaque(at(7, 8)), opaque(0)) == Some(Arc::Back));
         assert!(
-            WindowTrait::arc(opaque(at(7, 8)), opaque(at(8, 8)), opaque(0)) == Some(Arc::Front),
+            WindowTrait::arc(
+                Fixture::opaque(Fixture::at(8, 8)),
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(0),
+            ) == Some(Arc::Back),
+        );
+        assert!(
+            WindowTrait::arc(
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(Fixture::at(8, 8)),
+                Fixture::opaque(0),
+            ) == Some(Arc::Front),
         );
     }
 
     #[test]
     #[available_gas(l2_gas: 41874)] // ceil(1.05 × 39880 measured)
     fn test_cost_arc_ranged_once() {
-        let arc = WindowTrait::arc(opaque(at(7, 2)), opaque(at(7, 8)), opaque(0));
+        let arc = WindowTrait::arc(
+            Fixture::opaque(Fixture::at(7, 2)),
+            Fixture::opaque(Fixture::at(7, 8)),
+            Fixture::opaque(0),
+        );
         assert!(arc == Some(Arc::FrontSide));
     }
 
     #[test]
     #[available_gas(l2_gas: 68376)] // ceil(1.05 × 65120 measured)
     fn test_cost_arc_ranged_twice() {
-        let arc = WindowTrait::arc(opaque(at(7, 2)), opaque(at(7, 8)), opaque(0));
+        let arc = WindowTrait::arc(
+            Fixture::opaque(Fixture::at(7, 2)),
+            Fixture::opaque(Fixture::at(7, 8)),
+            Fixture::opaque(0),
+        );
         assert!(arc == Some(Arc::FrontSide));
-        let arc = WindowTrait::arc(opaque(at(7, 8)), opaque(at(7, 2)), opaque(0));
+        let arc = WindowTrait::arc(
+            Fixture::opaque(Fixture::at(7, 8)),
+            Fixture::opaque(Fixture::at(7, 2)),
+            Fixture::opaque(0),
+        );
         assert!(arc == Some(Arc::FrontSide));
     }
 
@@ -1127,185 +1341,293 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 41874)] // ceil(1.05 × 39880 measured)
     fn test_cost_arc_ring_once() {
-        let arc = WindowTrait::arc(opaque(at(7, 9)), opaque(at(7, 15)), opaque(0));
+        let arc = WindowTrait::arc(
+            Fixture::opaque(Fixture::at(7, 9)),
+            Fixture::opaque(Fixture::at(7, 15)),
+            Fixture::opaque(0),
+        );
         assert!(arc == Some(Arc::FrontSide));
     }
 
     #[test]
     #[available_gas(l2_gas: 68376)] // ceil(1.05 × 65120 measured)
     fn test_cost_arc_ring_twice() {
-        let arc = WindowTrait::arc(opaque(at(7, 9)), opaque(at(7, 15)), opaque(0));
+        let arc = WindowTrait::arc(
+            Fixture::opaque(Fixture::at(7, 9)),
+            Fixture::opaque(Fixture::at(7, 15)),
+            Fixture::opaque(0),
+        );
         assert!(arc == Some(Arc::FrontSide));
-        let arc = WindowTrait::arc(opaque(at(7, 9)), opaque(at(7, 15)), opaque(3));
+        let arc = WindowTrait::arc(
+            Fixture::opaque(Fixture::at(7, 9)),
+            Fixture::opaque(Fixture::at(7, 15)),
+            Fixture::opaque(3),
+        );
         assert!(arc == Some(Arc::RearSide));
+    }
+
+    /// The benchmark's own share of a call: three opaque inputs and the check, measured alone.
+    #[test]
+    #[available_gas(l2_gas: 17934)] // ceil(1.05 × 17080 measured)
+    fn test_cost_overhead_once() {
+        assert!(Fixture::opaque(1) + Fixture::opaque(2) + Fixture::opaque(3) == 6);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 20496)] // ceil(1.05 × 19520 measured)
+    fn test_cost_overhead_twice() {
+        assert!(Fixture::opaque(1) + Fixture::opaque(2) + Fixture::opaque(3) == 6);
+        assert!(Fixture::opaque(3) + Fixture::opaque(2) + Fixture::opaque(1) == 6);
+    }
+
+    /// `distance` at range 6 (the hit's `melee` input, CBT-05a): one cost on every path.
+    #[test]
+    #[available_gas(l2_gas: 31007)] // ceil(1.05 × 29530 measured)
+    fn test_cost_distance_once() {
+        let distance = WindowTrait::distance(
+            Fixture::opaque(Fixture::at(7, 2)), Fixture::opaque(Fixture::at(7, 8)),
+        );
+        assert!(distance == Fixture::opaque(6));
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 46641)] // ceil(1.05 × 44420 measured)
+    fn test_cost_distance_twice() {
+        let distance = WindowTrait::distance(
+            Fixture::opaque(Fixture::at(7, 2)), Fixture::opaque(Fixture::at(7, 8)),
+        );
+        assert!(distance == Fixture::opaque(6));
+        let distance = WindowTrait::distance(
+            Fixture::opaque(Fixture::at(7, 8)), Fixture::opaque(Fixture::at(7, 2)),
+        );
+        assert!(distance == Fixture::opaque(6));
     }
 
     #[test]
     #[available_gas(l2_gas: 27815)] // ceil(1.05 × 26490 measured)
     fn test_cost_front_once() {
-        assert!(WindowTrait::front(opaque(at(7, 8)), opaque(1), opaque(at(6, 9))));
+        assert!(
+            WindowTrait::front(
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(Fixture::at(6, 9)),
+                Fixture::opaque(1),
+            ),
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 40257)] // ceil(1.05 × 38340 measured)
     fn test_cost_front_twice() {
-        assert!(WindowTrait::front(opaque(at(7, 8)), opaque(1), opaque(at(6, 9))));
-        assert!(WindowTrait::front(opaque(at(6, 9)), opaque(4), opaque(at(7, 8))));
+        assert!(
+            WindowTrait::front(
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(Fixture::at(6, 9)),
+                Fixture::opaque(1),
+            ),
+        );
+        assert!(
+            WindowTrait::front(
+                Fixture::opaque(Fixture::at(6, 9)),
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(4),
+            ),
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 38997)] // ceil(1.05 × 37140 measured)
     fn test_cost_facing_melee_once() {
-        assert!(WindowTrait::facing(opaque(at(7, 8)), opaque(at(6, 9)), opaque(0)) == 1);
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(Fixture::at(6, 9)),
+                Fixture::opaque(0),
+            ) == 1,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 62622)] // ceil(1.05 × 59640 measured)
     fn test_cost_facing_melee_twice() {
-        assert!(WindowTrait::facing(opaque(at(7, 8)), opaque(at(6, 9)), opaque(0)) == 1);
-        assert!(WindowTrait::facing(opaque(at(6, 9)), opaque(at(7, 8)), opaque(0)) == 4);
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(Fixture::at(6, 9)),
+                Fixture::opaque(0),
+            ) == 1,
+        );
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(6, 9)),
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(0),
+            ) == 4,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 38997)] // ceil(1.05 × 37140 measured)
     fn test_cost_facing_ranged_once() {
-        assert!(WindowTrait::facing(opaque(at(7, 2)), opaque(at(7, 8)), opaque(0)) == 1);
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(7, 2)),
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(0),
+            ) == 1,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 62622)] // ceil(1.05 × 59640 measured)
     fn test_cost_facing_ranged_twice() {
-        assert!(WindowTrait::facing(opaque(at(7, 2)), opaque(at(7, 8)), opaque(0)) == 1);
-        assert!(WindowTrait::facing(opaque(at(7, 8)), opaque(at(7, 2)), opaque(0)) == 5);
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(7, 2)),
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(0),
+            ) == 1,
+        );
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(7, 8)),
+                Fixture::opaque(Fixture::at(7, 2)),
+                Fixture::opaque(0),
+            ) == 5,
+        );
     }
 
     /// The fallback of a line that leaves the window: the unbounded line.
     #[test]
     #[available_gas(l2_gas: 38997)] // ceil(1.05 × 37140 measured)
     fn test_cost_facing_outside_once() {
-        assert!(WindowTrait::facing(opaque(at(0, 0)), opaque(at(0, 2)), opaque(3)) == 1);
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(0, 0)),
+                Fixture::opaque(Fixture::at(0, 2)),
+                Fixture::opaque(3),
+            ) == 1,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 62622)] // ceil(1.05 × 59640 measured)
     fn test_cost_facing_outside_twice() {
-        assert!(WindowTrait::facing(opaque(at(0, 0)), opaque(at(0, 2)), opaque(3)) == 1);
-        assert!(WindowTrait::facing(opaque(at(0, 2)), opaque(at(0, 0)), opaque(3)) == 5);
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(0, 0)),
+                Fixture::opaque(Fixture::at(0, 2)),
+                Fixture::opaque(3),
+            ) == 1,
+        );
+        assert!(
+            WindowTrait::facing(
+                Fixture::opaque(Fixture::at(0, 2)),
+                Fixture::opaque(Fixture::at(0, 0)),
+                Fixture::opaque(3),
+            ) == 5,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 46154)] // ceil(1.05 × 43956 measured)
     fn test_cost_shape_disc_1_once() {
-        let window = bench();
-        assert!(window.shape(opaque(shape::DISC_1), opaque(at(7, 8))) != 0);
+        let window = Fixture::bench();
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 8))) != 0,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 61543)] // ceil(1.05 × 58612 measured)
     fn test_cost_shape_disc_1_twice() {
-        let window = bench();
-        assert!(window.shape(opaque(shape::DISC_1), opaque(at(7, 8))) != 0);
-        assert!(window.shape(opaque(shape::DISC_1), opaque(at(7, 7))) != 0);
+        let window = Fixture::bench();
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 8))) != 0,
+        );
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 7))) != 0,
+        );
     }
 
     /// A bomb's `DISC_1` on the window's ring: the rows of `disc`.
     #[test]
     #[available_gas(l2_gas: 90160)] // ceil(1.05 × 85866 measured)
     fn test_cost_shape_disc_1_ring_once() {
-        let window = bench();
-        assert!(window.shape(opaque(shape::DISC_1), opaque(at(7, 15))) != 0);
+        let window = Fixture::bench();
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 15))) != 0,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 163582)] // ceil(1.05 × 155792 measured)
     fn test_cost_shape_disc_1_ring_twice() {
-        let window = bench();
-        assert!(window.shape(opaque(shape::DISC_1), opaque(at(7, 15))) != 0);
-        assert!(window.shape(opaque(shape::DISC_1), opaque(at(0, 7))) != 0);
+        let window = Fixture::bench();
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 15))) != 0,
+        );
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(0, 7))) != 0,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 174727)] // ceil(1.05 × 166406 measured)
     fn test_cost_shape_disc_3_once() {
-        let window = bench();
-        assert!(window.shape(opaque(shape::DISC_3), opaque(at(7, 8))) != 0);
+        let window = Fixture::bench();
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_3), Fixture::opaque(Fixture::at(7, 8))) != 0,
+        );
     }
 
     #[test]
     #[available_gas(l2_gas: 318688)] // ceil(1.05 × 303512 measured)
     fn test_cost_shape_disc_3_twice() {
-        let window = bench();
-        assert!(window.shape(opaque(shape::DISC_3), opaque(at(7, 8))) != 0);
-        assert!(window.shape(opaque(shape::DISC_3), opaque(at(7, 7))) != 0);
+        let window = Fixture::bench();
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_3), Fixture::opaque(Fixture::at(7, 8))) != 0,
+        );
+        assert!(
+            window.shape(Fixture::opaque(shape::DISC_3), Fixture::opaque(Fixture::at(7, 7))) != 0,
+        );
     }
 
     /// The seven tiles of a `DISC_1`, listed.
     #[test]
     #[available_gas(l2_gas: 105942)] // ceil(1.05 × 100897 measured)
     fn test_cost_tiles_7_once() {
-        let disc = bench().shape(opaque(shape::DISC_1), opaque(at(7, 8)));
+        let disc = Fixture::bench()
+            .shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 8)));
         assert!(WindowTrait::tiles(disc).len() == 7);
     }
 
     #[test]
     #[available_gas(l2_gas: 165951)] // ceil(1.05 × 158048 measured)
     fn test_cost_tiles_7_twice() {
-        let disc = bench().shape(opaque(shape::DISC_1), opaque(at(7, 8)));
+        let disc = Fixture::bench()
+            .shape(Fixture::opaque(shape::DISC_1), Fixture::opaque(Fixture::at(7, 8)));
         assert!(WindowTrait::tiles(disc).len() == 7);
         assert!(WindowTrait::tiles(disc).len() == 7);
     }
 
     // ---- The vector table for the TypeScript mirror (D-140, SPK-4) ---------------------------
 
-    /// The window of the vectors: walls on both sides of the centre and on a tie's tile.
-    fn fixture() -> Window {
-        walled(
-            array![at(9, 8), at(6, 9), at(5, 6), at(8, 11), at(10, 5), at(4, 10), at(11, 9)].span(),
-        )
-    }
-
-    fn hex(felts: Span<felt252>) -> ByteArray {
-        let mut out: ByteArray = "[";
-        let mut first = true;
-        for felt in felts {
-            if !first {
-                out.append(@",");
-            }
-            first = false;
-            let wide: u256 = (*felt).into();
-            out.append(@format!("\"0x{:x}\"", wide));
-        }
-        out.append(@"]");
-        out
-    }
-
-    /// Prints one vector and adds it to the digest.
-    fn emit(
-        ref digest: Array<felt252>,
-        ref id: u32,
-        name: ByteArray,
-        case: Span<felt252>,
-        ok: Span<felt252>,
-    ) {
-        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
-        digest.append(core::poseidon::poseidon_hash_span(case));
-        digest.append(core::poseidon::poseidon_hash_span(ok));
-        id += 1;
-    }
-
-    // AC-4: the vector table, printed one JSON line per case (`{"id", "fn", "case", "ok"}`), and
-    // a digest of every case and outcome: a change to a rule or to the cases fails here until
-    // `contracts/logic/vectors/window.jsonl` is regenerated (`vectors/README.md`).
+    // AC-4: the vector table, printed one JSON line per case (`{"id", "fn", "case", "ok"}`), in two
+    // parts, each with a digest of its cases and outcomes: a change to a rule or to the cases fails
+    // here until `contracts/logic/vectors/window.jsonl` is regenerated, and
+    // `vectors/check.py` fails while the committed file differs from what these print
+    // (`vectors/README.md`).
     #[test]
-    #[available_gas(l2_gas: 1236927329)] // ceil(1.05 × 1178026027 measured)
+    // gas: raised, more cases (an odd-row arc target) and sight tests both ends (fix loop 1)
+    #[available_gas(l2_gas: 1247739509)] // ceil(1.05 × 1188323341 measured)
     fn test_vectors() {
-        let window = fixture();
+        let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
         // `sight` and `reach` (range 6): from both row parities to every tile within 7, and the
         // edges (outside, a line leaving the window, the same tile)
         let mut pairs: Array<(u8, u8)> = array![];
-        let froms: [u8; 2] = [at(7, 8), at(7, 7)];
+        let froms: [u8; 2] = [Fixture::at(7, 8), Fixture::at(7, 7)];
         for from in froms.span() {
             let mut to: u8 = 0;
             while to != SIZE {
@@ -1315,47 +1637,63 @@ mod tests {
                 to += 1;
             }
         }
-        pairs.append((at(0, 0), at(0, 2)));
-        pairs.append((at(0, 2), at(0, 0)));
-        pairs.append((at(14, 15), at(14, 13)));
-        pairs.append((SIZE, at(7, 8)));
-        pairs.append((at(7, 8), 255));
+        pairs.append((Fixture::at(0, 0), Fixture::at(0, 2)));
+        pairs.append((Fixture::at(0, 2), Fixture::at(0, 0)));
+        pairs.append((Fixture::at(14, 15), Fixture::at(14, 13)));
+        pairs.append((SIZE, Fixture::at(7, 8)));
+        pairs.append((Fixture::at(7, 8), 255));
         for (from, to) in pairs.span() {
             let (from, to) = (*from, *to);
             let case = array![window.open, from.into(), to.into()];
             let ok = array![window.sight(from, to).into()];
-            emit(ref digest, ref id, "sight", case.span(), ok.span());
+            Fixture::emit(ref digest, ref id, "sight", case.span(), ok.span());
             let case = array![window.open, from.into(), to.into(), range::RANGED.into()];
             let ok = array![window.reach(from, to, range::RANGED).into()];
-            emit(ref digest, ref id, "reach", case.span(), ok.span());
+            Fixture::emit(ref digest, ref id, "reach", case.span(), ok.span());
         }
-        // `arc` and `facing`: every source within 6 of the target (7, 8), the facing turning with
-        // the source; the edges
+        // `arc` and `facing`: every source within 6 of the targets (7, 8), an even row, and (7, 7),
+        // an odd one, the facing turning with the source; the edges
         let mut triples: Array<(u8, u8, u8)> = array![];
         let mut k: u8 = 0;
-        let mut source: u8 = 0;
-        while source != SIZE {
-            if WindowTrait::distance(source, at(7, 8)) <= 6 {
-                triples.append((source, at(7, 8), k % 6));
-                k += 1;
+        let targets: [u8; 2] = [Fixture::at(7, 8), Fixture::at(7, 7)];
+        for target in targets.span() {
+            let mut source: u8 = 0;
+            while source != SIZE {
+                if WindowTrait::distance(source, *target) <= 6 {
+                    triples.append((source, *target, k % 6));
+                    k += 1;
+                }
+                source += 1;
             }
-            source += 1;
         }
-        triples.append((at(0, 2), at(0, 0), 0));
-        triples.append((at(0, 0), at(0, 2), 3));
-        triples.append((SIZE, at(7, 8), 1));
-        triples.append((at(7, 8), at(7, 15), 2));
+        triples.append((Fixture::at(0, 2), Fixture::at(0, 0), 0));
+        triples.append((Fixture::at(0, 0), Fixture::at(0, 2), 3));
+        triples.append((SIZE, Fixture::at(7, 8), 1));
+        triples.append((Fixture::at(7, 8), Fixture::at(7, 15), 2));
         for (source, target, facing) in triples.span() {
             let (source, target, facing) = (*source, *target, *facing);
             let case = array![source.into(), target.into(), facing.into()];
             let mut ok: Array<felt252> = array![];
             WindowTrait::arc(source, target, facing).serialize(ref ok);
-            emit(ref digest, ref id, "arc", case.span(), ok.span());
+            Fixture::emit(ref digest, ref id, "arc", case.span(), ok.span());
             let ok = array![WindowTrait::facing(source, target, facing).into()];
-            emit(ref digest, ref id, "facing", case.span(), ok.span());
+            Fixture::emit(ref digest, ref id, "facing", case.span(), ok.span());
         }
+        let digest = core::poseidon::poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(id == PART_1, 'vectors: part 1 moved');
+        assert(digest == DIGEST_0, 'vectors moved: regenerate');
+    }
+
+    /// The table's second part, its ids following the first's (snforge's step limit splits it).
+    #[test]
+    #[available_gas(l2_gas: 436176898)] // ceil(1.05 × 415406569 measured)
+    fn test_vectors_1() {
+        let window = Fixture::fixture();
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = PART_1;
         // `front`: every neighbour and facing, at the centre and on the edge
-        let sources: [u8; 2] = [at(7, 8), at(0, 7)];
+        let sources: [u8; 2] = [Fixture::at(7, 8), Fixture::at(0, 7)];
         for source in sources.span() {
             let mut facing: u8 = 0;
             while facing != 6 {
@@ -1366,33 +1704,50 @@ mod tests {
                         Some(target) => target,
                         None => *source - 1,
                     };
-                    let case = array![(*source).into(), facing.into(), target.into()];
-                    let ok = array![WindowTrait::front(*source, facing, target).into()];
-                    emit(ref digest, ref id, "front", case.span(), ok.span());
+                    let case = array![(*source).into(), target.into(), facing.into()];
+                    let ok = array![WindowTrait::front(*source, target, facing).into()];
+                    Fixture::emit(ref digest, ref id, "front", case.span(), ok.span());
                     d += 1;
                 }
                 facing += 1;
             }
         }
+        // `distance`: from the centre (an odd and an even row) and a corner to every tile of the
+        // window
+        let froms: [u8; 3] = [Fixture::at(7, 7), Fixture::at(7, 8), Fixture::at(0, 0)];
+        for from in froms.span() {
+            let mut to: u8 = 0;
+            while to != SIZE {
+                let case = array![(*from).into(), to.into()];
+                let ok = array![WindowTrait::distance(*from, to).into()];
+                Fixture::emit(ref digest, ref id, "distance", case.span(), ok.span());
+                to += 1;
+            }
+        }
         // `shape`: each shape at the corners, the edges, the centre and next to walls
         let centres: [u8; 11] = [
-            at(0, 0), at(14, 0), at(0, 15), at(14, 15), at(0, 8), at(14, 7), at(7, 0), at(7, 15),
-            at(7, 8), at(8, 8), at(1, 1),
+            Fixture::at(0, 0), Fixture::at(14, 0), Fixture::at(0, 15), Fixture::at(14, 15),
+            Fixture::at(0, 8), Fixture::at(14, 7), Fixture::at(7, 0), Fixture::at(7, 15),
+            Fixture::at(7, 8), Fixture::at(8, 8), Fixture::at(1, 1),
         ];
         let mut id_shape: u8 = shape::SINGLE;
         while id_shape <= shape::DISC_3 {
             for centre in centres.span() {
                 let case = array![window.open, id_shape.into(), (*centre).into()];
                 let ok = array![window.shape(id_shape, *centre)];
-                emit(ref digest, ref id, "shape", case.span(), ok.span());
+                Fixture::emit(ref digest, ref id, "shape", case.span(), ok.span());
             }
             id_shape += 1;
         }
         let digest = core::poseidon::poseidon_hash_span(digest.span());
         println!("digest {}", digest);
-        assert(digest == DIGEST, 'vectors moved: regenerate');
+        assert(digest == DIGEST_1, 'vectors moved: regenerate');
     }
 
-    const DIGEST: felt252 =
-        1283461057461396595697948945270057094381193406987776564841180296965294379408;
+    /// The cases of the first part; the second's first id.
+    const PART_1: u32 = 1202;
+    const DIGEST_0: felt252 =
+        3295838030679513177150551323473459113002556617374071973637681149869059861050;
+    const DIGEST_1: felt252 =
+        3385673577494068376525079887132901649283752946077370510692189650253878253083;
 }
