@@ -49,8 +49,8 @@
 //! **Cost** (ENG-01 §9.2, this lot's row): one call is the difference between the snforge totals
 //! of `tests::test_cost_*_twice` and `_once` (its inputs opaque to the compiler; each figure holds
 //! about 2,440 of the benchmark's own, three opaque inputs and the check). `sight` 19,726 (`hexx`'s
-//! table path, any pair within 6); `reach` 32,176; `arc` 25,240 on every path (adjacent, at range,
-//! a target on the ring: the line's first step in constant time); `front` 11,850; `facing` 22,500
+//! table path, any pair within 6); `reach` 32,176; `arc` 25,140 adjacent, 25,240 at range or on
+//! the window's ring (the line's first step in constant time); `front` 11,850; `facing` 22,500
 //! on every path; `shape` `DISC_1` 14,656 away from the window's ring, 69,926 on it, `DISC_3`
 //! 137,106; `tiles` of 7 tiles 57,151.
 
