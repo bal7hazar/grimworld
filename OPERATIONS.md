@@ -49,7 +49,8 @@ reasoning.
 | Routine review of a lot; code quality; the organisation lens (CAIRO.md §8); the launcher | `[GPT-6-Sol]`, medium or high | Codex |
 | Content validation; consistency of documents | `[GPT-6-Luna]`, medium | Codex |
 | Design conformance | Opus 5.5 | `claude`, fresh context, a different agent from the implementer |
-| The review of every pull request before its merge | Codex, the project's reviewer | `nexus review` (§6) |
+| The review of every pull request before its merge | Codex, the project's reviewer; **Claude Sonnet while Codex has no quota** (D-175) | `nexus review` (§6) |
+| Any audit while Codex has no quota | **Claude Opus 5.5** (D-175): nobody waits for Codex; Nexus falls back by itself (R2) | `nexus audit` |
 
 The project's registry in Nexus (`projects/grimworld.json` of `bal7hazar/nexus`) names the provider
 and the model of each role and lens; this table agrees with it, and the registry is changed first
@@ -197,6 +198,10 @@ three fix loops; not for documentation, validated seed data or interface work. A
 on the whole phase by both providers; an external audit precedes mainnet.
 
 ### The review by Codex
+
+> **While Codex has no quota** (owner, 2026-10-01, D-175): the review is made by Claude Sonnet and
+> every audit by Claude Opus 5.5, through the same `nexus review` and `nexus audit`, which fall back by
+> themselves; nothing below waits for Codex's reset.
 
 **Every pull request is reviewed by Codex before it is merged** (owner, 2026-09-29): `nexus review`
 when the checks are green, read by the one who merges. The two cases of a merge without a review are
