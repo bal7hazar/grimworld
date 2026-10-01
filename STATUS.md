@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-10-01 02:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 03:40 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -13,7 +13,9 @@ and **CBT-02c** ([#206](https://github.com/bal7hazar/grimworld/pull/206), unwire
 **CBT-02e** ([#212](https://github.com/bal7hazar/grimworld/pull/212)) merged: the snapshot is stored at
 `set_build` (D-168). **CBT-02d** ([#211](https://github.com/bal7hazar/grimworld/pull/211)) merged: the worst tick
 2.35× its target, carried to ENG-07. **CBT-02f** ([#219](https://github.com/bal7hazar/grimworld/pull/219), D-169) merged.
-**ENG-R1a** (`Hub` on the pattern, D-167) running, its report shown to the owner. ENG-05 and
+**ENG-R1a** ([#221](https://github.com/bal7hazar/grimworld/pull/221), `Hub` on the pattern, D-167) built, CI green;
+its reading list sent to the project manager for the owner. **Codex is unavailable (quota) since about
+03:30**: ENG-R1a's two audits are queued on it, and it merges only after them and Codex's review. ENG-05 and
 ENG-02 wait for `hexx` rc.1.
 A nexus auditor resumed on a new revision could not fetch it (its sandbox refused `FETCH_HEAD`): a new
 auditor per revision is started instead (reported to the owner here, as the standard asks).
@@ -68,7 +70,7 @@ the bound) and the batch weight are ENG-07's.
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| ENG-R1a `Hub` on the pattern | Opus 5.5 (scripts/agent.sh) | running since 02:14 |
+| ENG-R1a quality audit, security and cost audit | GPT-6-Sol, GPT-6-Astra (nexus audit) | queued: Codex out of quota |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
