@@ -17,9 +17,9 @@ D-176's single-threaded build pin **applied or dropped as SPK-13's result says**
 
 ## Context
 - **D-180** and **D-176** (`docs/decisions/`; SPK-13: the compiler's `withdraw_gas` placement follows rayon's
-  thread order; `RAYON_NUM_THREADS=1` gives one build). **SPK-13's result on 2.20.1** decides the pin: if the
-  drift persists on 2.20.1, FND-10's scope is yours (below); if not, write so and drop it. Ask the orchestrator
-  for the result if it is not in `docs/decisions/` or PLAN when you start.
+  thread order; `RAYON_NUM_THREADS=1` gives one build). **SPK-13's result on 2.20.1** (VPS, 20 clean builds):
+  **the drift remains** (a 12/8 split, 20 distinct files); with `RAYON_NUM_THREADS=1`, 6 of 6 identical. **The
+  pin stays: FND-10's scope is yours** (below).
 - **The toolchain today**: `.tool-versions` (scarb 2.19.4, starknet-foundry 0.61.0, starknet-devnet 0.10.0),
   `scripts/setup-toolchain.sh` (installs the repository's pins into asdf's data directory; never global: no
   `asdf set -u`, never `~/.tool-versions`, which is only read; the incident file it cites), `.github/workflows/ci.yml`
@@ -50,7 +50,7 @@ D-176's single-threaded build pin **applied or dropped as SPK-13's result says**
   - **The local node**: `scripts/with-node.sh` with the lifecycle probe (`contracts/tools/lifecycle_probe.py
     --expect contracts/tools/lifecycle-stream-before.json`): the classes declare and the stream holds. If
     starknet-devnet 0.10.0 refuses the new classes, find the version that accepts them and pin it.
-  - **The build pin (FND-10's scope, if SPK-13 keeps it)**: `RAYON_NUM_THREADS=1` on CI's cairo jobs,
+  - **The build pin (FND-10's scope; SPK-13 keeps it)**: `RAYON_NUM_THREADS=1` on CI's cairo jobs,
     `gas_budgets.py`'s runs and the scripts that declare; a CI check that 3 clean builds give one class hash; the
     slowdown measured.
   - **The documents that name 2.19**: ADR-0007's version line, CAIRO.md's, COMMON.md's, setup notes.
@@ -67,7 +67,7 @@ D-176's single-threaded build pin **applied or dropped as SPK-13's result says**
 - [ ] AC-2 Every budget and class size re-measured and written down; the cause stated once; the cost
       budget's rows listed apart with their moves.
 - [ ] AC-3 The local node accepts the classes; the lifecycle probe's stream equal.
-- [ ] AC-4 The build pin applied (and the 3-build check) or dropped, on SPK-13's result, said in the report.
+- [ ] AC-4 The build pin applied everywhere the game measures or declares, and the 3-build check in CI.
 - [ ] AC-5 Nothing global touched; `indexer/emitter/` untouched, its needs named.
 
 ## Audits
