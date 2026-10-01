@@ -13,7 +13,8 @@ use crate::packing::{
 };
 use crate::types::combat::{condition, skill_kind};
 use crate::types::tick::{
-    Content, ContentTrait, ENERGY_THIRDS, Held, NO_SLOT, REGEN_OFFSET, SkillSheetTrait,
+    ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SheetsTrait,
+    SkillSheet, SkillSheetTrait, status,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -34,6 +35,9 @@ const F184: felt252 = 0x10000000000000000000000000000000000000000000000;
 const F192: felt252 = 0x1000000000000000000000000000000000000000000000000;
 const F212: felt252 = 0x100000000000000000000000000000000000000000000000000000;
 const F112: felt252 = 0x10000000000000000000000000000;
+/// `Member.bar_at`'s lanes: bar slot `s`'s position at bits `16 s` (CBT-02d: one `u128`, where
+/// eight `u32` made each copy of a member 7 felts longer).
+const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
 
 pub mod errors {
     /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
@@ -132,8 +136,9 @@ pub impl MemberImpl of MemberTrait {
 
     /// A member from its words, with what it derives once: the maxima and regeneration of
     /// `MemberStats`, each held effect's deadline and `REGENERATION` pips (a skill's at the slot's
-    /// rank, a potion's through the belt of `MemberKit`).
-    fn load(words: MemberWords, content: @Content) -> Member {
+    /// rank, a potion's through the belt of `MemberKit`), its bar's positions in the content and
+    /// its adrenaline cap (CBT-02d: the index reads each id once).
+    fn load(words: MemberWords, ref index: Index, sheets: @Sheets) -> Member {
         let (
             status,
             health,
@@ -179,11 +184,11 @@ pub impl MemberImpl of MemberTrait {
             // (ENG-01 §3.2; AUD-182-1). Without it, skill 0 is an empty slot.
             let pips: i32 = if potion == 1 {
                 let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
-                (*content.potion(id.try_into().unwrap()).regen).into()
+                (*(*sheets.potions)[index.potion(id.try_into().unwrap())].regen).into()
             } else if carrier == 0 {
                 0
             } else {
-                content.skill(carrier).regen(rank)
+                (*sheets.skills)[index.skill(carrier)].regen(rank)
             };
             MemberAssert::assert_pips(pips);
             regen.append(pips.try_into().unwrap());
@@ -192,13 +197,18 @@ pub impl MemberImpl of MemberTrait {
         let (bar, _) = limbs(words.bar);
         let mut cap: u16 = 0;
         let mut rest = bar;
-        for _ in 0..8_u8 {
+        let mut bar_at: u128 = 0;
+        for shift in BAR_LANES.span() {
             let skill = peel(ref rest, N16);
-            if skill != 0 {
-                let cost: u16 = (*content.skill(skill.try_into().unwrap()).adrenaline).into() * 4;
-                if cost > cap {
-                    cap = cost;
-                }
+            if skill == 0 {
+                bar_at += ABSENT_LANE * *shift;
+                continue;
+            }
+            let at = index.skill(skill.try_into().unwrap());
+            bar_at += at.into() * *shift;
+            let cost: u16 = (*(*sheets.skills)[at].adrenaline).into() * 4;
+            if cost > cap {
+                cap = cost;
             }
         }
         Member {
@@ -222,6 +232,7 @@ pub impl MemberImpl of MemberTrait {
             health_regen: (health_regen - REGEN_OFFSET).try_into().unwrap(),
             energy_regen: energy_regen.try_into().unwrap(),
             adrenaline_cap: cap,
+            bar_at,
             words,
         }
     }
@@ -279,12 +290,35 @@ pub impl MemberImpl of MemberTrait {
         self.words.recharges += TickMathTrait::delta(old.into(), deadline.into(), shift);
     }
 
+    /// 1 if the member is inside at 0 health (the adventurer at 0, FX-8), else 0: what it adds
+    /// to the world's count of members down.
+    #[inline(always)]
+    fn downs(self: @Member) -> u32 {
+        if *self.status == status::INSIDE && *self.health == 0 {
+            1
+        } else {
+            0
+        }
+    }
+
     /// The skill id of bar slot 0–7 (`MemberBar`).
     #[inline(always)]
     fn skill(self: @Member, slot: u8) -> u16 {
         let (low, _) = limbs(*self.words.bar);
         let shift = *[1, P16, P32, 0x1000000000000, P64, P80, P96, P112].span()[slot.into()];
         field(low, shift, P16).try_into().unwrap()
+    }
+
+    /// The position in the content of bar slot 0–7's skill (`ABSENT_LANE` for an empty slot).
+    #[inline(always)]
+    fn position(self: @Member, slot: u8) -> u128 {
+        field(*self.bar_at, *BAR_LANES.span()[slot.into()], P16)
+    }
+
+    /// The sheet of bar slot 0–7's skill, at its position (CBT-02d).
+    #[inline(always)]
+    fn sheet(self: @Member, slot: u8, sheets: @Sheets) -> @SkillSheet {
+        (*sheets.skills)[self.position(slot).try_into().unwrap()]
     }
 }
 
@@ -390,17 +424,17 @@ pub impl MemberTickImpl of MemberTickTrait {
 
     /// An instant skill of the bar's `slot` used in the action phase at clock `c`: its recharge
     /// counts from `t₀ = c + 1` (§5.1).
-    fn use_instant(ref self: Member, slot: u8, c: u32, content: @Content) {
-        let r = *content.skill(self.skill(slot)).recharge;
+    fn use_instant(ref self: Member, slot: u8, c: u32, sheets: @Sheets) {
+        let r = *self.sheet(slot, sheets).recharge;
         self.set_recharge(slot, TickMathTrait::recharge_deadline(c + 1, r));
     }
 
     /// Step 1 at `A`: the activation ends; its recharge counts from `A` (FX-2); returns its slot
     /// and target for the executor.
-    fn conclude(ref self: Member, content: @Content) -> (u8, u16) {
+    fn conclude(ref self: Member, sheets: @Sheets) -> (u8, u16) {
         let slot = self.act_slot;
         let target = self.act_target;
-        let r = *content.skill(self.skill(slot)).recharge;
+        let r = *self.sheet(slot, sheets).recharge;
         self.set_recharge(slot, TickMathTrait::recharge_deadline(self.act_deadline, r));
         self.clear();
         (slot, target)
@@ -408,11 +442,11 @@ pub impl MemberTickImpl of MemberTickTrait {
 
     /// Interrupted at `t₀` (§5.9: `c + 1` in the action phase, `T` in a tick): no effect, the
     /// recharge counts from `t₀` (FX-2). Nothing without an activation.
-    fn interrupt(ref self: Member, t0: u32, content: @Content) {
+    fn interrupt(ref self: Member, t0: u32, sheets: @Sheets) {
         if self.act_slot == NO_SLOT {
             return;
         }
-        let r = *content.skill(self.skill(self.act_slot)).recharge;
+        let r = *self.sheet(self.act_slot, sheets).recharge;
         self.set_recharge(self.act_slot, TickMathTrait::recharge_deadline(t0, r));
         self.clear();
     }
@@ -509,7 +543,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
     /// 4. else eviction: the earliest deadline, ties the lowest slot (FX-13).
     /// An effect ends by its deadline: one whose charges reach 0 is ended by the executor with a
     /// deadline of `t − 1`.
-    fn hold(ref self: Member, held: Held, stance: bool, t: u32, content: @Content) -> u8 {
+    fn hold(ref self: Member, held: Held, stance: bool, t: u32, sheets: @Sheets) -> u8 {
         let item = if held.potion {
             self.belt_item(held.carrier)
         } else {
@@ -527,7 +561,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
                 };
                 if same {
                     if held.deadline >= old.deadline {
-                        self.put(slot, held, item, content);
+                        self.put(slot, held, item, sheets);
                     }
                     return slot;
                 }
@@ -542,8 +576,8 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
                 if old.deadline >= t
                     && !old.potion
                     && old.carrier != 0
-                    && *content.skill(old.carrier).kind == skill_kind::STANCE {
-                    self.put(slot, held, item, content);
+                    && *sheets.skill(old.carrier).kind == skill_kind::STANCE {
+                    self.put(slot, held, item, sheets);
                     return slot;
                 }
                 slot += 1;
@@ -556,7 +590,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         while slot < 4 {
             let deadline = self.effect_of(slot).deadline;
             if deadline < t {
-                self.put(slot, held, item, content);
+                self.put(slot, held, item, sheets);
                 return slot;
             }
             if deadline < earliest_deadline {
@@ -565,16 +599,16 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
             }
             slot += 1;
         }
-        self.put(earliest, held, item, content);
+        self.put(earliest, held, item, sheets);
         earliest
     }
 
     /// Writes `held` in `slot` with its pips: a potion's through its item, a skill's at its rank.
-    fn put(ref self: Member, slot: u8, held: Held, item: u32, content: @Content) {
+    fn put(ref self: Member, slot: u8, held: Held, item: u32, sheets: @Sheets) {
         let pips: i32 = if held.potion {
-            (*content.potion(item).regen).into()
+            (*sheets.potion(item).regen).into()
         } else {
-            content.skill(held.carrier).regen(held.rank)
+            sheets.skill(held.carrier).regen(held.rank)
         };
         MemberAssert::assert_pips(pips);
         self.set_effect(slot, held, pips.try_into().unwrap());
@@ -611,5 +645,201 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         if self.health > 0 {
             self.gain_adrenaline(1);
         }
+    }
+}
+
+/// A member's unit tests (CBT-02, CBT-02d; D-167): its load and store, its decoder, its lifecycle
+/// rules, its checks.
+#[cfg(test)]
+mod tests {
+    use crate::types::combat::{condition, skill_kind};
+    use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, flag, status};
+    use crate::types::world::fixtures::{Fixture, LIVE, two};
+    use super::{MemberAssert, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWordsTrait};
+
+    // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
+    // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
+    #[test]
+    #[available_gas(l2_gas: 10879155)] // ceil(1.05 × 10361100 measured)
+    fn test_member_load_store() {
+        let mut spec = Fixture::spec();
+        spec.conditions = [11, 12, 13, 14];
+        spec.adrenaline = 7;
+        spec.flags = flag::HALVED;
+        let words = Fixture::member_words(spec);
+        let content = Fixture::content();
+        let member = Fixture::load_member(words, @content);
+        assert(member == Fixture::member(spec), 'load reads the words');
+        assert(member.store() == words, 'round trip');
+        let mut member = member;
+        member.health = 1;
+        member.knocked = 99;
+        member.start(3, 17, 2, 70);
+        let words = member.store();
+        let again = Fixture::load_member(words, @content);
+        assert(again == super::Member { words, ..member }, 'store writes the fields');
+    }
+
+    // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
+    // none.
+    #[test]
+    #[available_gas(l2_gas: 5897325)] // ceil(1.05 × 5616500 measured)
+    fn test_member_bar_positions() {
+        let mut words = Fixture::member_words(Fixture::spec());
+        // Bar slot 7 empty, slot 0 skill 8: the content lists 8 first.
+        words.bar = LIVE + 8 + 2 * two(16) + 3 * two(32) + 4 * two(48) + 5 * two(64);
+        words.bar += 6 * two(80) + 7 * two(96);
+        let mut skills = array![Fixture::skill(8, skill_kind::SPELL, 1, 10)];
+        for id in 1..8_u16 {
+            skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
+        }
+        let content = Content {
+            skills: skills.span(), potions: array![].span(), castes: array![].span(),
+        };
+        let member = Fixture::load_member(words, @content);
+        let mut positions = array![];
+        for slot in 0..8_u8 {
+            positions.append(member.position(slot));
+        }
+        assert(positions == array![0, 2, 3, 4, 5, 6, 7, ABSENT_LANE], 'positions');
+        assert(*member.sheet(0, @content.sheets()).id == 8, 'its sheet');
+    }
+
+    // AUD-182-9: the words' decoder is the member's own (`MemberTrait::hot`).
+    #[test]
+    #[available_gas(l2_gas: 4915208)] // ceil(1.05 × 4681150 measured)
+    fn test_member_hot() {
+        let mut spec = Fixture::spec();
+        spec.conditions = [11, 12, 13, 14];
+        let words = Fixture::member_words(spec);
+        let (status, health, _, _, _, slot, _, _, _, bleeding, _, _, knocked) = MemberTrait::hot(
+            @words,
+        );
+        assert(status == status::INSIDE && health == 400 && slot == NO_SLOT, 'member');
+        assert(bleeding == 11 && knocked == 14, 'member timers');
+    }
+
+    // AUD-182-6, conditions (§5.7, FX-6, FX-31; design/19 §10.3): Bleeding to 77, inflicted again
+    // at 74 for 8 ticks, refreshes to 81; for 2 ticks, keeps 77 (`max`, not a replacement);
+    // Knocked down likewise; Crippled lives in the words; a cure at 76 gives 75; an absent
+    // condition is untouched.
+    #[test]
+    #[available_gas(l2_gas: 5504720)] // ceil(1.05 × 5242590 measured)
+    fn test_member_conditions() {
+        let mut member = Fixture::member(Fixture::spec());
+        member.inflict(condition::BLEEDING, 70, 8);
+        assert(member.bleeding == 77, 'D = 70 + 8 - 1');
+        member.inflict(condition::BLEEDING, 74, 2);
+        assert(member.bleeding == 77, 'max keeps 77');
+        member.inflict(condition::BLEEDING, 74, 8);
+        assert(member.bleeding == 81, 'refreshed to 81');
+        member.inflict(condition::KNOCKED_DOWN, 52, 2);
+        member.inflict(condition::KNOCKED_DOWN, 52, 1);
+        assert(member.knocked == 53, 'knock-down refreshed');
+        member.inflict(condition::CRIPPLED, 60, 3);
+        assert(member.crippled() == 62, 'crippled in the words');
+        let words = member.store();
+        let again = Fixture::load_member(words, @Fixture::content());
+        assert(again.crippled() == 62 && again.bleeding == 81, 'stored');
+        member.cure(condition::BLEEDING, 76);
+        assert(member.bleeding == 75, 'cured: D = 75');
+        member.cure(condition::POISON, 76);
+        assert(member.poison == 0, 'absent: nothing');
+    }
+
+    // AUD-182-6, held effects (§5.7; design/19 §10.4): four effects held and no stance; Sidestep
+    // at clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot:
+    // Warcry in slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
+    #[test]
+    #[available_gas(l2_gas: 7817145)] // ceil(1.05 × 7444900 measured)
+    fn test_hold_eviction_and_stance() {
+        let content = Fixture::hold_content();
+        let sheets = content.sheets();
+        let mut spec = Fixture::spec();
+        spec
+            .effects =
+                [(11, false, 90, 12), (12, false, 85, 12), (13, false, 85, 12), (3, true, 100, 0)];
+        let mut member = Fixture::load_member(Fixture::member_words(spec), @content);
+        let slot = member.hold(Fixture::held(14, false, 86, 12), true, 81, @sheets);
+        assert(slot == 1 && member.effect_of(1) == Fixture::held(14, false, 86, 12), 'evicted');
+        let slot = member.hold(Fixture::held(15, false, 90, 12), true, 83, @sheets);
+        assert(slot == 1 && member.effect_of(1).carrier == 15, 'stance replaces stance');
+        assert(member.effect_regen == [0, 1, 0, 4], 'pips follow');
+        assert(member.effect_deadlines == [90, 90, 85, 100], 'deadlines follow');
+        // A free slot (a deadline passed) is taken before any eviction, the lowest first.
+        let slot = member.hold(Fixture::held(12, false, 95, 12), false, 86, @sheets);
+        assert(slot == 2, 'lowest free slot');
+        // The words round-trip what was held.
+        let again = Fixture::load_member(member.store(), @content);
+        assert(again.effect_of(2) == Fixture::held(12, false, 95, 12), 'stored');
+    }
+
+    // AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new
+    // one on a tie; two belt slots holding the same potion item are one carrier.
+    #[test]
+    #[available_gas(l2_gas: 7307717)] // ceil(1.05 × 6959730 measured)
+    fn test_hold_refresh() {
+        let content = Fixture::hold_content();
+        let sheets = content.sheets();
+        let mut spec = Fixture::spec();
+        spec.effects = [(11, false, 90, 4), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+        let mut member = Fixture::load_member(Fixture::member_words(spec), @content);
+        member.hold(Fixture::held(11, false, 88, 12), false, 81, @sheets);
+        assert(member.effect_of(0) == Fixture::held(11, false, 90, 4), 'earlier: kept');
+        member.hold(Fixture::held(11, false, 90, 12), false, 81, @sheets);
+        assert(member.effect_of(0) == Fixture::held(11, false, 90, 12), 'tie: the new one');
+        member.hold(Fixture::held(11, false, 95, 7), false, 81, @sheets);
+        assert(member.effect_of(0) == Fixture::held(11, false, 95, 7), 'later: replaced whole');
+        // Belt slots 0 and 2 hold one item: one carrier.
+        let mut words = member.store();
+        words.kit = LIVE + 100 + 101 * two(32) + 100 * two(64) + 103 * two(96);
+        let mut member = Fixture::load_member(words, @content);
+        let first = member.hold(Fixture::held(0, true, 99, 0), false, 81, @sheets);
+        let second = member.hold(Fixture::held(2, true, 120, 0), false, 81, @sheets);
+        assert(first == 1 && second == 1, 'same potion, same slot');
+        assert(member.effect_of(1) == Fixture::held(2, true, 120, 0), 'later potion kept');
+    }
+
+    // AUD-182-6, adrenaline gain (§5.12, FX-12): 4 quarters a weapon hit landed, 8 on every N-th
+    // hit (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline
+    // cost (6 strikes: 24 quarters).
+    #[test]
+    #[available_gas(l2_gas: 5683388)] // ceil(1.05 × 5412750 measured)
+    fn test_member_adrenaline_gain() {
+        let mut skills = array![];
+        for id in 1..9_u16 {
+            let mut sheet = Fixture::skill(id, skill_kind::ATTACK, 0, 0);
+            sheet.adrenaline = if id == 2 {
+                6
+            } else {
+                0
+            };
+            skills.append(sheet);
+        }
+        let content = Content {
+            skills: skills.span(), potions: array![].span(), castes: array![].span(),
+        };
+        let mut words = Fixture::member_words(Fixture::spec());
+        // `ADRENALINE_EVERY_N` = 3 in the kit (bits 160–167).
+        words.kit += 3 * two(160);
+        let mut member = Fixture::load_member(words, @content);
+        assert(member.adrenaline_cap == 24, 'cap: 6 strikes');
+        member.land_weapon_hit();
+        member.land_weapon_hit();
+        assert(member.adrenaline == 8 && member.hits() == 2, 'two hits: 8');
+        member.land_weapon_hit();
+        assert(member.adrenaline == 16 && member.hits() == 0, 'third doubled, reset');
+        member.take_hit();
+        assert(member.adrenaline == 17, 'a hit taken: 1');
+        member.land_weapon_hit();
+        member.land_weapon_hit();
+        assert(member.adrenaline == 24, 'capped at 24');
+    }
+
+    #[test]
+    #[should_panic(expected: 'member: regeneration above i8')]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    fn test_member_assert_pips() {
+        MemberAssert::assert_pips(128);
     }
 }
