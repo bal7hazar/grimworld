@@ -131,7 +131,7 @@ write_env() {
     echo "scarb binary sha256: $(sha256 "$scarb_bin")"
     echo "scarb cache path (default): $(scarb cache path 2>/dev/null || echo '?')"
     echo "CPUs: $(ncpu)"
-    echo "RAYON_NUM_THREADS in the environment: ${RAYON_NUM_THREADS:-unset}; --threads: ${threads:-none}"
+    echo "RAYON_NUM_THREADS in the environment: ${RAYON_NUM_THREADS:-unset}; --threads of the last run: ${threads:-none} (each row records its own threads)"
     if [ "$lock" = 1 ]; then echo "build lock: scripts/lock.sh (flock: $(command -v flock))"
     else echo "build lock: none (no flock on this machine); scarb runs directly"; fi
     echo "starkli: $(starkli --version 2>/dev/null || echo 'absent (class hashes by class_hash.py)')"
