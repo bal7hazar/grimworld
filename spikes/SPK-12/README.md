@@ -12,7 +12,7 @@ holds what produced them.
 | `tests/test_segment.cairo` | Segments chain by their hashes (two halves give the whole), busy ends at the defeat, unknown rules refused, and the L2 gas of the runs `prove.py` counts in steps |
 | `prove/setup.sh` | stwo-cairo at `467d5c6` with slingfall's two patches (copied verbatim from `github.com/bal7hazar/slingfall` at `d401cf2`, unchanged at `f8810c5`), built in the ignored `prove/vendor/` |
 | `prove/prove.py` | Writes and builds the executables' package (`prove/out/exec/`, ignored: an executable needs `enable-gas = false`, which `snforge test` refuses), runs `scarb execute` for the steps, proves with `run_and_prove` (`canonical_small`, binary, `--verify`), checks with `verify` |
-| `prove-output-*.txt` | The proving runs' tables, as printed (never a proof file) |
+| `prove/collect.py`, `prove-output.txt` | The proving runs' tables with their commands, as printed (never a proof file) |
 | `cost.py`, `cost-output.txt` | The cost model, batches against one proof a segment |
 | `snforge-test-output-*.txt` | Two clean runs of the tests |
 
@@ -21,7 +21,8 @@ holds what produced them.
 ```sh
 scarb --manifest-path spikes/SPK-12/Scarb.toml build
 (cd spikes/SPK-12 && snforge test)
-spikes/SPK-12/prove/setup.sh --native            # ~50 min cold on the Mac
+spikes/SPK-12/prove/setup.sh --native            # most of an hour cold on the Mac
+python3 spikes/SPK-12/prove/collect.py           # the runs' tables -> prove-output.txt
 python3 spikes/SPK-12/prove/prove.py --runs 2 --out spikes/SPK-12/prove/out/run \
   --case representative:1 --case worst:1 --case representative:10 --case busy:10
 python3 spikes/SPK-12/cost.py

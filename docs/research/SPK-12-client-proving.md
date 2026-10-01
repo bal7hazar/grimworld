@@ -13,8 +13,21 @@ arithmetic from M, **E** estimated on a stated assumption.
 
 ## Summary
 
-PROVING_SUMMARY
-
+- **The tick proves on the Mac, and is cheap in Cairo steps.** Today's tick library, run as a
+  standalone executable on CBT-02's states and proved with Stwo (`canonical_small`, verified, two runs
+  each): one representative tick 22,918 steps, **one worst tick 128,172 steps in 23–26 s** (a 1-tick segment, the load and store of its 101
+  actors included), **CBT-02's
+  busy batch of 10 ticks 247,686 steps in 25–26 s, 3.7 GiB, a proof of 1.1 MB** (M). Most of a tick's
+  L2 gas is storage: its computation is about 120 L2 gas a step, and a representative tick about
+  5.3 k steps (M).
+- **A floor dominates.** Any segment under ~0.5 M steps takes about **14 s and 3.6 GiB** on the Mac
+  (37 s and 3.0 GiB on one thread); above it, about 12–13 s and 1.5 GiB per million steps (M, D).
+  `canonical_small` stops at 2^20 range checks, **2,600 representative ticks (13.8 M steps) in
+  164–184 s and 21 GiB**; `canonical_without_pedersen` proved 4,500 ticks (23.8 M steps) in 314–344 s
+  (M).
+- **A phone (E):** 19–47 s a segment at the floor on the owner's iPhone 14, but the prover's 3.0–3.6 GiB
+  floor is at or above what an iOS app may hold: **as built, it does not fit**. Thirteen proofs an
+  expedition would take 2.7–6.7 % of the battery, against SPK-6's 8 % for 30 minutes of play.
 - **The cost.** One proof is a flat **75,000,000 L2 gas** (the protocol's charge, M by slingfall on the
   devnet), about **$0.066**, whatever it holds. An L2 batch of 10 ticks costs about 22 M in S1 (D from
   STATUS's 663 M). So **proofs win only when a segment is long or its ticks are heavy**: the break-even
@@ -27,8 +40,8 @@ PROVING_SUMMARY
   verdict on S1 turns on that number (E).
 - **A fight-heavy expedition is where proofs win**: 300 worst ticks, each an invocation alone under
   D-172, cost **$12.1 batched as it stands ($9.5 after SPK-15's levers) against $0.95 proved** (E): a
-  worst tick fills a third of a 75 M proof's worth of L2 gas by itself, and a proof holds 46 to 66 of
-  them under the virtual transaction's cap.
+  worst tick sent alone costs 36–46 M, about half of a proved segment's 79.5 M, and one proof holds 46
+  to 66 of them under the virtual transaction's cap.
 - **What blocks option D today is not the cost but the prover.** SNIP-36 verifies proofs of a
   *virtual Starknet transaction* run by the virtual OS, not of a standalone program. **No prover
   answers PROOF2 today** (slingfall SN1 §5), the virtual-OS prover is a server backend, and nobody has
@@ -43,7 +56,8 @@ PROVING_SUMMARY
 
 A *segment* is the run of deterministic actions between two moments that need the chain: design/02's
 *What a batch holds, and what ends one*, with the batch's own limits (weight 10, 16 goblins, 5 seconds,
-two batches ahead) removed, since a proof is not bounded by a transaction's gas (§2).
+two batches ahead) removed: a proof is bounded by its virtual transaction's 1.1e9 L2 gas, not by a
+batch's 40 M (§2).
 
 | Boundary (design/02) | Why it needs the chain | What the next segment takes from L2 |
 |---|---|---|
@@ -73,9 +87,9 @@ model takes three readings (E), one instance per location, ticks spread evenly:
 | every other action is a draw or a gate | 20 | 4 | 25 | 12 |
 
 The distribution is not even in play: a segment is usually an approach, a fight and the walk to the
-remains, ended by the loot (design/02's *the end of a fight* trigger exists for that reason). A fight of
-100 fight actions spread over ~10 loots is about 10 fight actions and 10–20 moves a segment, which is
-the central reading. Exploration without a fight gives the long segments (no draw), fights with many
+remains, ended by the loot (design/02's *the end of a fight* trigger exists for that reason). S1's 100
+fight actions spread over ~10 loots are about 10 fight actions and 10–20 moves a segment: the central
+reading. Exploration without a fight gives the long segments (no draw), fights with many
 drops the short ones.
 
 ### A co-op expedition (D-80)
@@ -142,7 +156,8 @@ What the table assumes, and what would move it:
 
 - the protocol's 75 M a proof is SNIP-36's published fee for a 500 KB proof (130 L2 gas a byte + 10 M,
   slingfall research 01b) and is **flat on the devnet whatever the size** (M, slingfall W3). If mainnet
-  priced the bytes of a smaller proof, a segment would cost less: §3's proofs are PROOF_BYTES_RANGE;
+  priced the bytes of a smaller proof, a segment would cost less: §3's standalone proofs are
+  1.08–1.26 MB, above SNIP-36's 500 KB example, so no saving is in sight;
 - the fight-heavy batched figure follows D-172 (a worst tick runs alone); it is the bound of a
   pathological expedition, not a forecast. ENG-07's representative *fight* tick will place real fights
   between the two ends;
@@ -150,11 +165,155 @@ What the table assumes, and what would move it:
 
 ## 3. Proving on the Mac (AC-3)
 
-PROVING_SECTION
+### What was proved
+
+`spikes/SPK-12/src/segment.cairo`: a **segment** of world ticks, from the stored words to the stored
+words, exactly as `TickLibrary.run` does it (`Words::load`, `TickTrait::run`, `World::store`), on
+`grimworld_logic` by path (main at `e9b8cef`). Its arguments are private (the words, the content, the
+rules, the tick count); its public output is a binding header `[IN_HASH, CONTENT_HASH, rules, ticks,
+OUT_HASH, clock, defeated]`, the hashes Poseidon over the felts, as slingfall's chunk binding does. Its
+tests show that two segments of 5 ticks chain by their hashes and give the 10-tick segment's words
+(`test_segments_chain`).
+
+The states are CBT-02's, copied with their source (`contracts/logic/tests/test_tick.cairo` at
+`2a8304d`): **representative** (the member with one condition and one effect, 8 awake goblins, rules
+`Idle`), **worst** (`worst_state(true, 3)`: 100 goblins, 8 awake, everything concludes and dies, one
+tick), **busy** (`worst_state(false, 1)` under CBT-02's `Busy` rules: every actor acts or resolves at
+every tick, until the member falls at clock 89, 40 ticks).
+
+**What is not in it**: CBT-04's conditions, CBT-03a's hit, CBT-05's executor, ENG-07's perception and
+AI, the map library. The tick proved is today's library class, which runs the pipeline with `Idle`
+rules; §3's last table estimates the full tick from SPK-15's L2 gas.
+
+### Commands
+
+```sh
+spikes/SPK-12/prove/setup.sh --native   # stwo-cairo 467d5c6 + slingfall's two patches (most of an hour cold, not timed)
+python3 spikes/SPK-12/prove/prove.py --runs 2 --out spikes/SPK-12/prove/out/run1 \
+  --case representative:1 --case worst:1 --case representative:10 --case busy:10
+python3 spikes/SPK-12/prove/collect.py  # every run's table -> spikes/SPK-12/prove-output.txt
+```
+
+Each proof is one `run_and_prove --program_type executable --params_json params.canonical_small.json
+--proof-format binary --verify`, then the separate `verify --proof_format binary`, whose
+`VERIFICATION_OUTPUT` must equal the header `scarb execute` printed. Machine: the Mac, arm64, 12 cores,
+64 GB (the chip's name could not be read: `sysctl` is refused to this run's profile).
+
+### Measurements (M, two runs each)
+
+| Segment | Cairo steps | Range checks | Wall time (s) | Peak RSS (GiB) | Proof bytes | Result |
+|---|--:|--:|--:|--:|--:|---|
+| representative, 1 tick | 22,918 | 2,309 | 14.77 / 13.69 | 3.60 / 3.65 | 1,090,994 | verified, output = header |
+| **worst, 1 tick** | 128,172 | 17,659 | 23.46 / 25.93 | 3.71 / 3.61 | 1,098,531 | verified |
+| representative, 10 ticks (a batch) | 70,663 | 5,927 | 18.09 / 17.00 | 3.68 / 3.60 | 1,076,280 | verified |
+| **busy, 10 ticks** (CBT-02's busy batch) | 247,686 | 23,253 | 26.13 / 25.39 | 3.74 / 3.74 | 1,095,396 | verified |
+| busy, 40 ticks (to the defeat) | 423,740 | 33,300 | 26.90 / 30.61 | 3.83 / 3.82 | 1,112,747 | verified |
+| representative, 100 ticks | 547,353 | 41,547 | 19.74 / 18.94 | 3.88 / 3.84 | 1,081,389 | verified |
+| representative, 1,000 ticks | 5,311,440 | 396,159 | 84.95 / 81.53 | 10.97 / 9.88 | 1,161,597 | verified |
+| representative, 2,000 ticks | 10,604,956 | 790,175 | 145.93 / 151.33 | 19.22 / 19.44 | 1,221,292 | verified |
+| **representative, 2,600 ticks**: the largest under `canonical_small` | 13,781,143 | 1,026,587 | 164.33 / 183.73 | 21.03 / 20.57 | 1,202,257 | verified |
+| representative, 2,700 ticks, `canonical_small` | 14,310,443 | 1,065,987 | 66.64 / 71.45 | 13.63 / 13.65 | — | **stops**: a component over 2^20 rows (the range checks) |
+| representative, 2,700 ticks, `canonical_without_pedersen` | 14,310,443 | 1,065,987 | 194.44 / 196.69 | 24.11 / 22.85 | 1,213,225 | verified |
+| **representative, 4,500 ticks**, `canonical_without_pedersen` | 23,838,746 | 1,775,215 | 344.10 / 313.53 | 23.50 / 33.56 | 1,255,743 | verified |
+
+Threads (`RAYON_NUM_THREADS`), `canonical_small`:
+
+| Segment | 1 thread: s, GiB | 6 threads: s, GiB | all 12: s (above) |
+|---|---|---|---|
+| representative, 1 tick | 37.40 / 37.53, 2.97 | 14.27 / 14.25, 3.56 | 14.77 / 13.69 |
+| busy, 40 ticks | 70.77 / 78.11, 3.68 / 3.65 | 25.08 / 24.90, 3.88 / 3.89 | 26.90 / 30.61 |
+| representative, 1,000 ticks | — | 78.05 / 76.93, 10.67 / 10.45 | 84.95 / 81.53 |
+
+- **The proofs are deterministic**: both runs of every case wrote the same bytes (sha256 equal), under
+  one program hash, `0x3da0c2f599c5e5e34476eaca84e7b426e5daf157ce42eac1d87a3c8ca07a454`.
+- **A floor dominates small segments**: about **14 s and 3.6 GiB** for any segment under ~0.5 M steps
+  (37 s and 3.0 GiB on one thread). `canonical_small`'s preprocessed columns are proved whatever the
+  trace; in the log of a 1-tick proof, `prove_cairo` takes 11.0 s, 8.0 s of it proving the STARKs.
+- **Above the floor**, from 0.55 M to 13.8 M steps: about **12–13 s and 1.5 GiB per million steps** (D, the
+  fit of the rows above; slingfall research 05 found 1.5 GiB per million too). Memory grows by powers
+  of two, and the RSS of the same run varies (23.5 and 33.6 GiB at 4,500 ticks).
+- **Where proving stops**: `canonical_small` at **2^20 range checks**, here about 2,630 representative
+  ticks (13.8 M steps); `canonical_without_pedersen` goes on, and 4,500 ticks (23.8 M steps) fit in
+  23.5–33.6 GiB. A larger segment was not tried: it would pass the run's 10-minute command limit
+  before the Mac's memory.
+- **The proof is 1.08–1.26 MB**, growing slowly with the trace, ~1.1 MB for every segment S1 would
+  produce. Verification: 0.19–0.58 s.
+- **Six threads are as fast as twelve.** The other cores add nothing, as slingfall found on its
+  runners.
+
+### Steps and L2 gas: what the full tick would cost to prove (D, E)
+
+The same runs measured in snforge (`test_cost_run_ticks`, L2 gas of `run` alone; two clean runs
+equal) against `scarb execute`'s steps, net of the 0-tick run:
+
+| Run | L2 gas (snforge, M) | Cairo steps (M) | L2 gas a step (D) |
+|---|--:|--:|--:|
+| representative, 100 ticks − 0 | 64,036,490 | 529,871 | **121** |
+| busy, 10 ticks − 0 | 15,268,560 | 132,336 | **115** |
+| busy, 40 ticks − 0 | 35,901,316 | 308,390 | **116** |
+
+So a tick's **computation** is about 115–121 L2 gas a Cairo step (slingfall's virtual transactions:
+111–150). Taking **every** L2 gas of SPK-15's worst tick as computation (an upper bound, since its
+hooks' 6 writes, 4.05 M, are storage), the full worst tick is **at most about 181 k steps** (20,873,867
+/ 115) and its per-call part 171 k (E). A central S1 segment of 23 such ticks is then about **4.3 M
+steps**, which proves in about **70 s and 10 GiB on the Mac** (D from the fit above). A segment of 23
+representative ticks of today's library is about 140 k steps: the floor, about 14 s and 3.6 GiB (M).
 
 ## 4. A phone (AC-4, part 1)
 
-PHONE_SECTION
+Nothing was run on a phone. Every figure below is **E**, from the Mac's M figures and these
+assumptions:
+
+| # | Assumption | Basis |
+|---|---|---|
+| A1 | The reference phone is the owner's **iPhone 14** (D-151): A15, 2 performance and 4 efficiency cores, 6 GB of RAM | Apple's published specification |
+| A2 | One A15 performance core runs this prover at **0.5–0.8×** one of the Mac's cores | Not measured; the Mac's chip could not be named (`sysctl` refused) |
+| A3 | The A15's six cores give **1.8–2.5×** one core (the Mac's six threads gave 2.6× on the floor, 3.0× on busy:40, M) | Two performance cores and four slower ones |
+| A4 | An iOS app may hold about **3 GB** on a 6 GB phone before the system ends it | Apple publishes no figure; the `increased-memory-limit` entitlement raises it by an unpublished amount |
+| A5 | The phone draws about **5 W** under full multi-core load; its battery holds about **12.7 Wh** | Not measured; Apple publishes the battery's capacity, not the SoC's power |
+
+**Time.** The phone ≈ the Mac's one-thread time ÷ A2 ÷ A3, that is 1.3–3.3× the Mac's six-thread time
+on these runs:
+
+| Segment | Mac, 6 threads (M) | Phone (E) |
+|---|--:|--:|
+| Any segment under ~0.5 M steps (the floor): S1's central segment of today's tick, ~140 k steps | 14.3 s | **19–47 s** |
+| busy, 40 ticks (0.42 M steps) | 25.0 s | 33–83 s |
+| A central S1 segment of 23 full worst ticks, ~4.3 M steps (§3, E) | ~65 s (D) | 85–215 s |
+
+**Memory.** The prover's floor is **3.0 GiB on one thread and 3.6 GiB on six** (M): at or above A4's
+3 GB before the trace adds anything. **stwo-cairo's standalone prover as built here does not fit an
+iPhone 14 app** (E). A 4.3 M-step segment would need about 10 GiB (D). To fit, the prover would need a
+smaller preprocessed trace than `canonical_small` (its fixed columns make the floor) or a prover built
+for phones; neither exists for Cairo programs as found below.
+
+**Battery and heat** (A5, E): a floor proof of 19–47 s at 5 W is 95–235 J, **0.2–0.5 % of the battery**.
+S1's central reading proves 13 segments: **2.7–6.7 % an expedition for proving alone**, against SPK-6's
+threshold of **8 % over 30 minutes of play, rendering included** (ADR-0003). A fight-heavy segment of
+85–215 s at full load is 0.9–2.4 % each. ADR-0003's power rules ask for no permanent work and near-zero
+use at idle; a proof is a burst of 20 s to 3 min at full load before every loot, and its heat against
+"no thermal throttling after 30 minutes" is untested: SPK-6.1's protocol would have to include it.
+
+**What the phone uploads**: one proof of **1.08–1.26 MB** a segment (M), deterministic, plus the
+transaction. SNIP-36 prices a proof by its bytes in its published fee (130 L2 gas a byte + 10 M; the
+devnet charged a flat 75 M, slingfall W3): a phone's proof of a virtual transaction is of the same
+order, unmeasured.
+
+**These figures are a lower bound.** The phone would prove a SNIP-36 virtual transaction (§5): the
+virtual OS around the same code (the account's validation, the syscalls, the virtual block's
+commitments) adds steps nobody has measured, and the virtual-OS prover is not stwo-cairo's
+`run_and_prove`.
+
+**A prover in the browser or in the Capacitor shell, as found on 2026-10-01:**
+
+| What | Proves | Where it runs | Status |
+|---|---|---|---|
+| stwo-cairo `run_and_prove` (this spike) | Cairo standalone executables | Native, measured on arm64 macOS | iOS and Android builds not tried; a Rust library in a Capacitor plugin is plausible, unverified |
+| SNIP-36 virtual-OS prover (`starknet-innovation/snip-36-prover-backend`, via slingfall research 01) | Virtual Starknet transactions | A server: slingfall plans a ≥ 32 GB prover box for it (its PLAN, E2) | No phone or browser build found; no prover answers PROOF2 today (slingfall SN1 §5) |
+| `AbdelStark/stwo-wasm-demo` | Stwo (not Cairo): a Fibonacci example | Browser, WebAssembly | A demo |
+| FibRace (KKRT Labs and Hyli, September 2025; arXiv 2510.14693) | **Cairo M**, KKRT's own VM on Stwo: Fibonacci up to n = 100,000 | A native mobile app, 1,420 device models, 2,195,488 proofs | Most phones under 5 s; stable from 3 GB of RAM. **A different VM**: Cairo (CASM) programs such as ours do not run on it |
+| stwo-cairo-ts (via slingfall research 01) | Cairo executables | Browser, Wasm64 | Needs Memory64 and the COOP/COEP headers; RAM-bound; not verified here |
+| Cairo Playground, "Prove & Verify" (cairo-lang.org) | Cairo programs, with Stwo | Not stated (browser or server) | Its page does not say where the proof is made |
 
 ## 5. Verification on the chain (AC-4, part 2)
 
@@ -213,8 +372,8 @@ the co-op design accepts a leader.
   made before sequencing and cannot contain a draw it could not choose (ADR-0001 option D's own
   "no same-transaction VRF"). The order is therefore **segment proved → submitted and accepted → the
   Fate action on the committed state → the next segment proved from the state after the draw**.
-- **Latency.** Before every Fate action the player waits for: the proof of the segment (§4: seconds on
-  the Mac's standalone figure, an unmeasured multiple of it for the virtual transaction on a phone),
+- **Latency.** Before every Fate action the player waits for: the proof of the segment (§4: 19–47 s on
+  the phone for the standalone floor, E, a lower bound for the virtual transaction),
   its submission and inclusion (≈ 1.3 s to pre-confirmed, p50, SPK-1), then the Fate action itself (the
   same as today). A SNIP-36 proof must also be built on a base block **at least 10 blocks old** (≈ 17 s
   at 1.7 s a block): harmless if the segment's input comes as calldata bound to the commitment
