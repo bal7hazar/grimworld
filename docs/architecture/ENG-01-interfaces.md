@@ -1109,7 +1109,25 @@ which at most 8 awake (a larger set is refused where it is formed, before any ti
 | **Through one library call, 10 ticks, per tick** | 920,910 → **824,811** | ≤ 14,619,054 → **≤ 2,869,868** |
 | The content, once per batch: its reads, the real record mix in `bundle` calls of at most 32 records (`test_read_cost::test_content_read_*`: 19 records and 37 parts in 1 call, 1,696,040; 47 records and 90 parts in 2 calls, 4,062,440), and its sheets at each record kind's costliest path (a skill 40,200, a potion 11,400, a caste 28,880); unchanged by CBT-02d | 240,840 | 578,004 |
 | **The tick's share, per tick** | 1,161,750 (79.1 %) → **1,065,651 (72.5 %)** | ≤ 15,197,058 (10.3 ×) → **≤ 3,447,872 (2.35 ×)** |
+| **CBT-04, the conditions' rules, per tick** (below): 23 applications (16 on the member, 7 on goblins) and 9 hits' and moves' predicates, on the actors' values (the executor's writes of them are CBT-05's) | — | **+ 2,368,590**: 16 × 108,100 + 7 × 76,820 + 9 × 11,250; with the tick's share, **≤ 5,816,462 (3.96 ×)** |
 | The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,264,890 → **4,663,510** (fix loop 1, COST-2: the maximum over a prior set of 8 at the array's start, its end and spread across it, kept and replaced, and none, with the distances falling, rising and the set nearest, `test_cost_awake_*` + the selection's straight-line part, 27,550, `test_cost_pair_awake_*`; the costliest, the set at the start kept. It forms the set apart in the pass that writes the flags) |
+
+**The conditions' row (CBT-04).** Each rule is loop-free, so Sierra charges its costliest path
+whatever path runs; each is measured as a pair, snforge's totals of two tests that differ by the
+call alone (`models::member::tests::test_cost_member_*`, `models::goblin::tests::test_cost_goblin_*`,
+less their `*_condition_base`): an application (`apply`, a `CONDITION` or `ON_ATTACK_CONDITION`
+through the source's `Infliction`, the knock-down's interrupt included) **108,100** on a member (its
+kit's passives read in the words) and **76,820** on a goblin; a cure 36,650 and 32,320; the
+predicates CBT-03a's hit and ENG-07's moves take (`can_act`, `takes_critical`, `can_defend`,
+`move_ticks`) 11,250 and 9,880 together. How many a tick makes, from design/19 §8's MVP sources and
+the bounds above: the member's one carrier a tick (its action's or its activation's) reaches at most
+7 goblins (a bomb, `DISC_1` in a 1-tick action, FX-35; Cinder Ring 6; an attack skill 1 plus 4
+`ON_ATTACK_CONDITION` effects is 5 on one goblin); each of the 8 awake goblins resolves or acts once
+(§5.1), at most one `CONDITION` entry and its one held effect's `ON_ATTACK_CONDITION` on the member:
+16; one weapon hit or move each, 9 predicate sets. A cure costs less than an application and is
+counted as one. **Beyond the MVP's content** the legal carriers (§5.14: 3 entries, `RING_1`'s 6
+actors) allow 9 × 18 = 162 applications a tick, ≤ 12,546,090 at a goblin's cost; content that
+reaches it is BAL-01's and CNT-01's to refuse or price.
 
 **How the bound is proved (COST-1a to COST-1c; CBT-02b fix loop 1; CBT-02d).** Sierra charges a
 function that has no loop, and calls none, its costliest path whatever path runs; a function with a
