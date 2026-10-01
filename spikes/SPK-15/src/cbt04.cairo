@@ -1,11 +1,13 @@
-//! CBT-04's conditions' rules, copied for measurement (SPK-15's brief: never by editing the branch).
+//! CBT-04's conditions' rules, copied for measurement (SPK-15's brief: never by editing the
+//! branch).
 //!
 //! Sources, branch `feat/cbt-04-conditions` at commit `b5f4069` (PR #228):
 //! - `contracts/logic/src/types/infliction.cairo`: `Infliction`, `InflictionTrait::duration`,
 //!   whole (its tests left out);
 //! - `contracts/logic/src/models/member.cairo`: `MemberTrait::is_alive`,
 //!   `MemberWordsTrait::infliction`, `MemberConditionTrait` (`apply` and the predicates);
-//! - `contracts/logic/src/models/goblin.cairo`: `GoblinConditionTrait` (`apply` and the predicates);
+//! - `contracts/logic/src/models/goblin.cairo`: `GoblinConditionTrait` (`apply` and the
+//! predicates);
 //! - `contracts/logic/src/helpers/tick.cairo`: `TickMathTrait::held`, `move_ticks`, and
 //!   `types/tick.cairo`'s `CRIPPLED_MOVE_TICKS`.
 //! The bodies are unchanged; only the traits' names gather what the branch spread over its

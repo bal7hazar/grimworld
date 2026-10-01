@@ -1,6 +1,7 @@
-//! SPK-15 (D-171): the tick's cost levers, measured before CBT-05. A spike: nothing here merges into
-//! the contracts. The benchmarks are in `tests/`, as pairs of tests that differ by the measured call
-//! alone (CBT-02d's lesson: a call measured with `get_available_gas` misses its straight-line part).
+//! SPK-15 (D-171): the tick's cost levers, measured before CBT-05. A spike: nothing here merges
+//! into the contracts. The benchmarks are in `tests/`, as pairs of tests that differ by the
+//! measured call alone (CBT-02d's lesson: a call measured with `get_available_gas` misses its
+//! straight-line part).
 //!
 //! - `cbt04`, `cbt03a`: CBT-04's and CBT-03a's functions, copied from their branches (not merged);
 //! - `words`: lever 1, the frozen goblins kept as their words until a step or a hook touches them;

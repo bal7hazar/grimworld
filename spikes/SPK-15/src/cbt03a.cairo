@@ -16,7 +16,6 @@ pub enum Arc {
     RearSide,
     Back,
 }
-
 use grimworld_logic::helpers::exp2::{Exp2, SHIFT};
 use grimworld_logic::snapshot::STRENGTH_PER_RANK;
 use grimworld_logic::types::combat::{HitClass, weapon};
