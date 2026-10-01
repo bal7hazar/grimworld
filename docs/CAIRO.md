@@ -40,6 +40,7 @@ saves nothing measurable is not made.
 | Reports carry them | `REPORT.md` has a gas table: before, after, budget, for everything the lot touched |
 | Raising a budget | Needs a reason, written as `// gas: raised, <reason>` above the attribute (checked by `scripts/gas_budgets.py`) and in the pull request, and the orchestrator's agreement, given at review from the `raised` notes of the gas table. Lowering one needs nothing |
 | Oracles | An optimised algorithm is tested against a plain, obviously correct version kept in the tests (a scalar flood against the bit-parallel one) |
+| **Measured and declared builds are single-threaded** (D-176) | Scarb 2.19's compiler picks a call-graph cycle's `withdraw_gas` placement by intern-id order, which depends on rayon's thread order: every build whose gas, class size or class hash is measured, snapshotted, packaged or declared runs with `RAYON_NUM_THREADS=1` (CI gates, release checks, `scarb package`, `declare`) |
 | **Where a test lives** (owner, 2026-09-30, D-167) | The unit tests of a module are **in that module's file**, under `#[cfg(test)] mod tests`, so that whoever changes the code sees its tests. Only what needs a deployed contract or several packages (integration, an entrypoint's gas benchmark, a parity table) is in `tests/`. A test kept apart for a performance reason says so above it |
 
 ## 3. Order of preference
@@ -64,14 +65,14 @@ For any computation, try in this order and stop at the first that works:
 | Rule | |
 |---|---|
 | **No `u256`** by default | Its operations are costly. A use needs a written reason in the code and in the report |
-| **`u252` from `origami_hexmap`** for bitmaps and packed values | One felt, with arithmetic, bitwise operations, ordering and storage packing |
-| Boards of 128 tiles or fewer | The single-limb path of the library, about a third cheaper per step |
+| **`felt252` bitmaps through `hexx`'s `Bits`** for boards and packed values (D-174; `u252` of `origami_hexmap` until ENG-02) | One felt, with the bitwise operations, ordering and storage packing of `hexx` 0.1.0-rc.1 and later; `u256` only where a board passes 252 bits, with the written reason of the first rule |
+| Boards of 128 tiles or fewer | The single-limb path of `hexx`, about a third cheaper per step |
 | Smallest integer that holds the value | `u8` positions, `u16` health, `u32` identifiers |
 | Packing | Several small fields in one felt, by explicit packing; layout documented next to the model |
 | Signed values | Only where the rule needs them |
 
-A chunk is 15 × 15 = 225 tiles and therefore fits a `u252`; the design chose that size
-for this reason (ADR-0006).
+A chunk is 15 × 15 = 225 tiles and therefore fits one felt; the design chose that size for this
+reason (ADR-0006, confirmed by the owner on SPK-14, D-165).
 
 ## 5. Storage
 

@@ -38,8 +38,9 @@ GW1 ranges are mapped to hex distances.
 | Earshot | 8 | Shouts, pack alert propagation |
 
 Line of sight uses a fixed integer hex line between the two tiles; walls block, actors do
-not. When the line passes exactly between two tiles, the lower tile index is taken. This
-function is not part of `origami_hexmap` and is ours to write.
+not. When the line passes exactly between two tiles, the lower tile index is taken; a wall at
+either end blocks the sight (D-174). The line is `hexx`'s (N-5), checked against this rule by
+ENG-02 (`types::window`).
 
 ## Weapons
 

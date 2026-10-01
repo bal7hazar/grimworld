@@ -56,3 +56,50 @@ same other value proves nothing). It is reverted to one value when SPK-13 explai
 **A fact for SPK-13**: the CI runner always gives one value and the local machine always the other:
 the difference follows the build environment (compiler binary, cache, platform), not chance; SPK-13
 compares the CI runner's toolchain with the VPS's and the Mac's.
+
+## D-164 extended to the gas gate (2026-10-01)
+
+Twice on 2026-10-01, in CI runs on changes with no Cairo code (`hexx-cairo` #61 run 36809041479,
+#70 run 36836722836), the same 40 rows of `Digger::dig` and the facade's `open_with_*` measured
++0.22 % to +1.94 % against `gas/takeover_tests.snap`: the same second build the VPS gives; other
+runs give the snapshot exactly. **Decision** (`[Fable 5.1]` project manager, under D-128): the same
+rule as the class-size gate. A file `gas/takeover_tests.builds` holds, per row, the exact second
+observed value, cited by the run that observed it; the gate accepts the snapshot's value or that
+exact value, nothing in between, and any third value fails. A new line needs the project manager's
+decision; the file goes when SPK-13 finds the cause. Task **LIB-04d** (Sonnet 5.5). No tolerance:
+the two builds are two programs, both measured exactly.
+
+## D-176 (2026-10-01): the cause, found by SPK-13; the pin
+
+SPK-13 (track CV, on the Mac; `spikes/SPK-13`, branch `spike/spk-13-compiler-determinism`, #252) read
+the two Sierra programs of one commit: identical type, libfunc and function declarations; they
+differ only by **which function of a call-graph cycle receives the `withdraw_gas` check**. The
+compiler picks the cycle's representative by the lowest salsa intern id (`cairo-lang-lowering`,
+`lowered_scc_representative`); ids are assigned first-come, and with several rayon threads the
+parallel warm-up interns a cycle's functions in thread order. Measured on the Mac on
+`HexxGenerators` (`hexx-cairo` `310b5f1`): 10 clean builds on 12 threads gave three values (27,092 /
+27,101 / 27,101 Sierra felts, CASM 49,375 / 49,375 / 49,427, three class hashes); with
+`RAYON_NUM_THREADS=1`, 10 of 10 identical. A minimal program reproduces it (`spikes/SPK-13/minimal`).
+It is the toolchain, not our code, cache or platform: each environment's thread count gives its own
+stable order, hence "always one value per environment" (D-164's fact).
+
+**Decision** (`[Fable 5.1]` project manager, under D-128):
+
+1. **Every build whose output is measured or declared runs the Cairo compiler single-threaded**:
+   `RAYON_NUM_THREADS=1` on the CI jobs that measure gas or class size, on the release checks, on
+   `scarb package`, and on every `declare` to a network; a rule of docs/CAIRO.md §2 for the three
+   repositories. The slowdown is measured by the lot that pins and written in its report; if a CI
+   job passes 10 minutes because of it, the pin applies to the measured build only, decided then.
+2. **The two-value gates of D-164 are lifted once the pin is in**: the snapshots are taken again
+   single-threaded (one value each, which may differ from today's), `bytecode.builds` and the planned
+   `gas/takeover_tests.builds` go. **LIB-04d becomes the pin** in `hexx-cairo` (its CI, release check
+   and gates, then the re-snapshot), still on Sonnet 5.5; **FND-10** does the same in `grimworld`
+   (CI's cairo jobs, `scripts/gas_budgets.py`'s runs, the release and deployment scripts, with a CI
+   check of 3 clean builds giving one class hash); `quiver`'s orchestrator does it in its CI (ARC-09).
+3. SPK-13 finishes: its REPORT, the VPS run of its script (the orchestrator's), the cross-check
+   that CI's value and the VPS's value both become the single-threaded one.
+4. **The issue to `starkware-libs/cairo`** is drafted (`spikes/SPK-13/issue-draft.md`); filing it
+   is the owner's go (D-154 §3), asked now.
+
+**What would reverse it**: the pin not giving one value in CI across 10 builds (then the cause is
+not complete and D-164's gates stay).

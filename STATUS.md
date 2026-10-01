@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-10-01 04:10 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 09:50 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -43,13 +43,21 @@ service), FND-09 (`with-node.sh` on macOS) all done; the tick's cost and the sto
 | CBT-02f (D-169) | `enter` checks the flattening epoch: +40,000, once an expedition | +0.04 M |
 | **Now** | | **≈ 663 M ≈ $0.584** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
 
+**The worst tick against S1** (D-171): S1 above prices ENG-01's per-tick estimate. The worst tick inside a
+batch now measures **≈ 6,510,212** (CBT-02d's 3,447,872 + CBT-04's 2,368,590 + CBT-03a's 693,750),
+**4.43×** the 1,469,435 an average tick may cost; the representative tick, before the rules' writes,
+1,065,651. SPK-15 measures the levers, each with its gain on the worst tick and on S1.
+
 **A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
 part of a worst tick is **1.06–1.11 M** (window, flood at 15 layers, 8 walkers; LIB-05 M1-T9b), which
 leaves about 0.4 M for the game's logic and storage. After CBT-02d, proved term by term: **≤ 1,480,363**
 the pipeline, **≤ 3,447,872** a tick inside a batch (load, store, the call, content), **2.35×** the
 target (CBT-02b: 10.3×); representative **1,065,651** (72.5 %). S1 above does not yet count this: it
 rests on ENG-01's per-tick estimate. The next lever (frozen goblins kept as words, ~0.85 M a tick at
-the bound) and the batch weight are ENG-07's.
+the bound) and the batch weight are ENG-07's. **The rules now landing raise it** (each lot's per-tick line, measured, at the MVP's content):
+CBT-04 (#228, conditions) +2,368,590 (up to 16 applications on the member at 108,100 each, 7 on goblins);
+CBT-03a (#229, one hit) +650,440 (14 hits at 46,460; being re-derived with the bomb's 7, FX-35). With
+both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's executor writes the actors.
 
 ## What moved
 
@@ -70,9 +78,19 @@ the bound) and the batch weight are ENG-07's.
 
 ## Orchestrators and agents
 
-| Game agent | Model (ran) | State |
+| Lot (PR) | Built by | Waiting for |
 |---|---|---|
-| ENG-R1a quality audit, security and cost audit | GPT-6-Sol, GPT-6-Astra (nexus audit) | `blocked_quota` until 2026-10-04 13:36 UTC |
+| ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221), `45ff32b`) | Opus 5.5 | Codex: quality and security audits; the review; the owner's reading (D-167) |
+| CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228), `b5f4069`) | Opus 5.5 | Codex: quality and cost audits; then L2 (D-172) in its fix loop; the review |
+| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229), `36bf2ba`) | Opus 5.5 | Codex: quality and cost audits; its review passed on the Claude fallback (findings for its next loop, PLAN) |
+| SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234), `0f4b571`) | Opus 5.5 | Codex: cost audit (D-172 decided on its figures) |
+| ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246), `91196c3`) | Opus 5.5 | Codex: quality and cost audits; the review |
+
+**No game agent runs.** Codex is out until **2026-10-04 13:36 UTC**: every lot above passed its Claude-side
+lens (D-170) and its fix loops; its Codex audits are queued at its current head. Merge order at the reset:
+ENG-R1a, CBT-04, CBT-03a, ENG-02, SPK-15; then CBT-05a (D-172's L3), which calls CBT-03a, CBT-04 and
+ENG-02. ENG-R1b waits for the owner's reading of ENG-R1a; ENG-05 for `hexx` rc.2 (the owner kept 15 × 15
+chunks, D-165).
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
