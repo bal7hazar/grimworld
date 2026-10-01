@@ -203,8 +203,7 @@ pub mod Hub {
     use crate::models::account::{Account, AccountAssert, OwnerTrait, StoredRecordTrait};
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
-        BuildTrait, EquippedAssert, StoredBuildTrait, StoredCore, StoredCoreTrait, StoredPlace,
-        StoredPlaceTrait,
+        BuildTrait, EquippedAssert,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
@@ -212,6 +211,9 @@ pub mod Hub {
     };
     use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
+    use crate::models::stored_build::StoredBuildTrait;
+    use crate::models::stored_core::{StoredCore, StoredCoreTrait};
+    use crate::models::stored_place::{StoredPlace, StoredPlaceTrait};
     use crate::store::HubStoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{HubAssert, NOT_IMPLEMENTED, START_REGION, VERSION};
@@ -413,9 +415,7 @@ pub mod Hub {
             // the distinct modifiers worn.
             let known = self.knows_skills(adventurer_id, value.bar.span());
             let mut requests = value.request();
-            let skills = requests.len();
-            BeltTrait::request(items, ref requests);
-            let belt_items = requests.len();
+            let potions = BeltTrait::request(items, ref requests);
             let pack = OwnerTrait::pack(adventurer_id);
             for (item, count) in BalanceTrait::merge(items, counts) {
                 BeltAssert::assert_held(self.get_balance(pack, item), count);
@@ -431,7 +431,7 @@ pub mod Hub {
             }
                 .bundle(requests.span());
             let at = value.assert_bar(parts, known.span(), primary, secondary);
-            let at = BeltAssert::assert_potions(parts, at, belt_items - skills);
+            let modifier_parts = BeltAssert::assert_potions(parts, at, potions);
 
             // The snapshot's flattening, once, in `FlattenLibrary` (D-168), with every check of
             // design/20's capacity proof (D-160): a build it refuses is refused here.
@@ -440,7 +440,7 @@ pub mod Hub {
             let (stats, bar, kit) = IFlattenLibraryLibraryDispatcher {
                 class_hash: self.get_flatten(),
             }
-                .words(loadout, worn.span(), modifiers.span(), parts.slice(at, parts.len() - at));
+                .words(loadout, worn.span(), modifiers.span(), modifier_parts);
 
             self.set_adventurer_build(adventurer_id, sent);
             let epoch = StoredSnapshotTrait::epoch(inputs, self.get_rules_epoch().value);

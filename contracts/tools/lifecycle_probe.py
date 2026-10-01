@@ -49,7 +49,10 @@ storage writes (key, value) and every event of `Hub` (keys and data) and of `Ins
 selector alone: its draws follow the transaction hashes, which follow the addresses), in emission
 order; then every key of `Hub`'s storage with its last value. The deployed addresses and
 `FlattenLibrary`'s class hash in a value are replaced by their names, so that two runs of different
-classes compare. With `--expect <file>` it compares its stream with that file's and exits 1
+classes compare. `lifecycle-stream-before.json`, recorded on `main`'s code before ENG-R1a, is the
+stream the indexer reads and the storage `Hub` keeps: ENG-R1b and every later lot that touches
+`Hub`'s storage or events run `--expect` against it, and a change of it is a change of ENG-01's
+frozen events or layout (D-149). With `--expect <file>` it compares its stream with that file's and exits 1
 on the first difference.
 """
 import json

@@ -17,5 +17,11 @@ pub mod market;
 pub mod rules_epoch;
 /// The snapshot stored with the adventurer (D-168).
 pub mod snapshot;
+/// The words `set_build` writes, as stored.
+pub mod stored_build;
+/// An adventurer's core, as stored.
+pub mod stored_core;
+/// An adventurer's place, as stored.
+pub mod stored_place;
 /// The registry's content and inputs versions (D-141, D-169).
 pub mod versions;

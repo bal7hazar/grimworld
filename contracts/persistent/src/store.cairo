@@ -21,13 +21,23 @@
 //! order of them. A slot never written reads 0 as a stored word, which the views return as such
 //! (`IHubViews::account`, `IHubViews::adventurer`, frozen by ENG-01).
 //!
-//! **Tracking** (docs/CAIRO.md §7, D-149): a tracked model implements `Tracked`, which fixes at
-//! compile time the one event its `set_x` emits on every write. **No model of `Hub` is tracked**:
-//! the indexer reads ENG-01's events (D-149), and none of them matches the writes of one model.
-//! `AdventurerLocated` is the nearest: it follows a write of `AdventurerPlace`, but not every one
-//! (creation and a move to the next instance write the place and emit nothing, D-03), so the
-//! systems keep emitting it where they did, after the write. `TitleDisplayed` is emitted and never
-//! stored (T-1). So every `set_x` here is the write alone, and none emits.
+//! **Tracking** (docs/CAIRO.md §7, D-147, D-149): **no model of `Hub` is tracked, so no `set_x`
+//! here emits**. The indexer reads ENG-01's events, frozen (D-149), and none of them matches the
+//! writes of one model: `AdventurerLocated` is the nearest, but it follows only some writes of
+//! `AdventurerPlace` (creation and a move to the next instance write the place and emit nothing,
+//! D-03), so the systems keep emitting it where they did, after the write; `TitleDisplayed` is
+//! emitted and never stored (T-1). The lot that tracks a model adds quiver's mechanism
+//! (`quiver_quest` 0.2.0's store): a trait `Tracked<M> { type Event; fn event(self: @M) -> Event }`
+//! implemented by the tracked model alone, a consumer's constant per tracked model, and in that
+//! model's `set_x` the write followed by `if Tracking::X { self.emit(Tracked::event(@x)) }`, with
+//! a test per tracked model that its write emits and per untracked model that it does not. No
+//! such trait is declared here until a model implements it: an empty one would record nothing a
+//! build or a test could check.
+//!
+//! **Layers**: the store is implemented on `Hub`'s state, so it depends on `systems::hub`, which
+//! depends on it, as `quiver_quest`'s store on its component's state; it serves `Hub` alone. The
+//! test of `Hub`'s storage addresses (`layout_tests`) is here because the store is what reads and
+//! writes them.
 //!
 //! **`Registry`'s storage** is ENG-R1b's: `StoreTrait` keeps its two path methods until then.
 
@@ -39,27 +49,22 @@ use starknet::storage::{
 use starknet::storage_access::{StorageBaseAddress, Store};
 use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
 use crate::models::account::{AdventurerListAssert, AdventurerListTrait, StoredRecord};
-use crate::models::adventurer::{KnownSkillsTrait, StoredBuild, StoredCore, StoredPlace, WORDS};
+use crate::models::adventurer::{KnownSkillsTrait, WORDS};
 use crate::models::balance::BalanceTrait;
 use crate::models::item::{Equipment, EquipmentTrait, Gold};
 use crate::models::lanes::{LanesTrait, StoredLanes, StoredLanesTrait};
 use crate::models::rules_epoch::RulesEpoch;
 use crate::models::snapshot::StoredSnapshot;
+use crate::models::stored_build::StoredBuild;
+use crate::models::stored_core::StoredCore;
+use crate::models::stored_place::StoredPlace;
 use crate::models::versions::Versions;
 use crate::systems::hub::Hub::ContractState as HubState;
-
-/// A model the indexer tracks: `Event` is what its `set_x` emits on every write, with the model's
-/// keys and new values. The list of the impls of this trait is the list of tracked models (D-130):
-/// empty for `Hub` (see the module's doc).
-pub trait Tracked<M> {
-    type Event;
-    fn event(self: @M) -> Self::Event;
-}
 
 #[generate_trait]
 pub impl HubStoreImpl of HubStoreTrait {
     // Configuration: one slot each (`models::rules_epoch` says why no model gathers them).
-    // Untracked
+    //
 
     /// The constructor's writes: the administrator, the four registered contracts, the three id
     /// counters at 1 (`flatten` and the rules epoch stay 0 until `set_contracts`).
@@ -134,7 +139,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         self.rules_epoch.write(epoch)
     }
 
-    // Id counters (`Counter`, kept with `LIVE`). Untracked
+    // Id counters (`Counter`, kept with `LIVE`)
 
     /// A new account's id: `next_account` read, then written one more.
     #[inline(always)]
@@ -152,7 +157,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         next.try_into().unwrap()
     }
 
-    // Accounts: `account_of[owner]`, then `accounts[id]`, two slots (owner, record). Untracked
+    // Accounts: `account_of[owner]`, then `accounts[id]`, two slots (owner, record)
 
     /// The account `owner` holds; 0 for none.
     #[inline(always)]
@@ -212,7 +217,7 @@ pub impl HubStoreImpl of HubStoreTrait {
     }
 
     // The account's list of adventurers: `account_adventurers[(account, page)]`, a `Lanes32` of
-    // seven ids, its length `AccountRecord.adventurers` (`models::account`). Untracked
+    // seven ids, its length `AccountRecord.adventurers` (`models::account`)
 
     /// The first `count` ids of the list, in order: each page read once. Bound: the account's
     /// adventurers, at most its slots.
@@ -255,7 +260,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         let (last_page, last_lane) = AdventurerListTrait::at(last);
         let last_entry = self.list_page(account_id, last_page);
         let last_stored = StoredLanes { word: last_entry.word(0) };
-        let last_ids = last_stored.ids();
+        let last_ids = last_stored.decoded();
         let last_id = last_ids.get(last_lane);
         let mut last_new = last_stored.removed(last_lane, last_id);
         if last_id != adventurer_id {
@@ -269,7 +274,7 @@ pub impl HubStoreImpl of HubStoreTrait {
                 if lane == 0 && page != last_page {
                     entry = self.list_page(account_id, page);
                     stored = StoredLanes { word: entry.word(0) };
-                    ids = stored.ids();
+                    ids = stored.decoded();
                 } else if lane == 0 {
                     ids = last_ids;
                 }
@@ -288,7 +293,7 @@ pub impl HubStoreImpl of HubStoreTrait {
     }
 
     // Adventurers: `adventurers[id]`, six slots (core, place, build, belt, equipped, name).
-    // Untracked (`AdventurerLocated` stays the systems', see the module's doc)
+    //
 
     /// Writes the six slots of a new adventurer (`AdventurerTrait::new`), in their order.
     fn set_adventurer(
@@ -369,7 +374,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         base.set_word(EQUIPPED, build.equipped.word);
     }
 
-    // Known skills: `known_skills[(adventurer, page)]`, a `Bitmap` of 250 skill ids. Untracked
+    // Known skills: `known_skills[(adventurer, page)]`, a `Bitmap` of 250 skill ids
 
     #[inline(always)]
     fn get_known_skills(self: @HubState, adventurer_id: u32, page: u8) -> Bitmap {
@@ -398,7 +403,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         known
     }
 
-    // Balances: `balances[(owner key, page)]`, a `Lanes32` of seven `u32`. Untracked
+    // Balances: `balances[(owner key, page)]`, a `Lanes32` of seven `u32`
 
     /// The balance of `item` held by `owner`: one lane of its page as stored, the six other lanes
     /// not decoded.
@@ -433,7 +438,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         (filled, emptied)
     }
 
-    // Gold: `gold[owner key]`. Untracked
+    // Gold: `gold[owner key]`
 
     #[inline(always)]
     fn get_gold(self: @HubState, owner: felt252) -> Gold {
@@ -446,7 +451,7 @@ pub impl HubStoreImpl of HubStoreTrait {
     }
 
     // Equipment: `items[entity]`, two slots (base, mods); `packs[(adventurer, page)]`, a
-    // `Lanes32` of entities. Untracked
+    // `Lanes32` of entities
 
     /// Page `page` of the equipment in its pack as stored, one read.
     #[inline(always)]
@@ -468,7 +473,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         equipment
     }
 
-    // The snapshot `set_build` flattened: `snapshots[adventurer]`, three slots (D-168). Untracked
+    // The snapshot `set_build` flattened: `snapshots[adventurer]`, three slots (D-168)
 
     /// A slot never written reads 0 (`StoredSnapshotAssert::assert_fresh`).
     #[inline(always)]
@@ -491,7 +496,7 @@ pub impl StoreImpl of StoreTrait {
         path.read()
     }
 
-    /// Writes `Registry.versions` (`set_record`, a changed record). Untracked: no event.
+    /// Writes `Registry.versions` (`set_record`, a changed record).
     #[inline(always)]
     fn set_versions(path: StoragePath<Mutable<Versions>>, versions: Versions) {
         path.write(versions)
@@ -687,10 +692,15 @@ mod layout_tests {
 /// swap removal, the balance pages, the words the views return as stored.
 #[cfg(test)]
 mod tests {
-    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::packing::{LIVE, Lanes32};
+    use starknet::storage::{StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::storage_access::StorePacking;
     use crate::models::account::StoredRecordTrait;
-    use crate::models::adventurer::AdventurerTrait;
+    use crate::models::adventurer::{
+        Adventurer, AdventurerCore, AdventurerPlace, AdventurerTrait, Build,
+    };
     use crate::models::lanes::StoredLanesTrait;
+    use crate::models::stored_build::StoredBuildTrait;
     use crate::systems::hub::Hub;
     use super::HubStoreTrait;
 
@@ -757,6 +767,53 @@ mod tests {
     fn test_change_balances_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.change_balances(0x100000005, array![(1, 1)].span(), false);
+    }
+
+    // The store's word offsets (`CORE` to `NAME`) against the derived `Store` of `Adventurer`: an
+    // adventurer written through the typed path reads back through the store's words, and one
+    // written through the store reads back through the typed path.
+    #[test]
+    #[available_gas(l2_gas: 7189907)] // ceil(1.05 × 6847530 measured)
+    fn test_adventurer_offsets() {
+        let mut state = Hub::contract_state_for_testing();
+        let adventurer = Adventurer {
+            core: AdventurerCore { account: 3, experience: 77, level: 4, ..Default::default() },
+            place: AdventurerPlace { instance: 9, hub: 0, last_hub: 2, inside: 1, unlocked: 6 },
+            build: Build { bar: [1, 2, 0, 0, 0, 0, 0, 0], attributes: 0x21, elite_slot: 1 },
+            belt: Lanes32 { lanes: [8, 15, 0, 0, 0x0201, 0, 0] },
+            equipped: Lanes32 { lanes: [11, 0, 12, 0, 0, 0, 0] },
+            name: 'Cedric',
+        };
+        state.adventurers.entry(5).write(adventurer);
+        let core: felt252 = StorePacking::pack(adventurer.core);
+        let place: felt252 = StorePacking::pack(adventurer.place);
+        let build: felt252 = StorePacking::pack(adventurer.build);
+        let belt: felt252 = StorePacking::pack(adventurer.belt);
+        let equipped: felt252 = StorePacking::pack(adventurer.equipped);
+        assert(state.get_core(5).word == core, 'core');
+        assert(state.get_place(5).word == place, 'place');
+        assert(state.get_core_place(5) == (state.get_core(5), state.get_place(5)), 'core, place');
+        assert(state.get_belt(5).word == belt, 'belt');
+        assert(state.get_equipped(5).word == equipped, 'equipped');
+        let words = array![core, place, build, belt, equipped, 'Cedric'];
+        assert(state.get_adventurer_words(5) == words.span(), 'six words');
+
+        let (new_core, new_place, new_build) = AdventurerTrait::new(3, 1, 2);
+        state.set_adventurer(6, new_core, new_place, new_build, 'Brenna');
+        let read = state.adventurers.entry(6).read();
+        assert(StorePacking::pack(read.core) == new_core.word, 'typed core');
+        assert(StorePacking::pack(read.place) == new_place.word, 'typed place');
+        assert(StorePacking::pack(read.build) == new_build.build, 'typed build');
+        assert(StorePacking::pack(read.belt) == new_build.belt.word, 'typed belt');
+        assert(StorePacking::pack(read.equipped) == new_build.equipped.word, 'typed equipped');
+        assert(read.name == 'Brenna', 'typed name');
+        state
+            .set_adventurer_build(
+                6, StoredBuildTrait::new(build - LIVE, belt - LIVE, equipped - LIVE),
+            );
+        let read = state.adventurers.entry(6).read();
+        assert(read.build == adventurer.build && read.belt == adventurer.belt, 'typed set_build');
+        assert(read.equipped == adventurer.equipped, 'typed equipped after');
     }
 
     // The views' words as stored: 0 where nothing was written, the stored models otherwise.

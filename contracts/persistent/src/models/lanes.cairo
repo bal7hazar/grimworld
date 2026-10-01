@@ -106,7 +106,7 @@ pub impl StoredLanesImpl of StoredLanesTrait {
 
     /// Every lane, decoded once: what a scan over the page reads.
     #[inline(always)]
-    fn ids(self: @StoredLanes) -> Lanes32 {
+    fn decoded(self: @StoredLanes) -> Lanes32 {
         unpack_lanes32(*self.word)
     }
 
@@ -189,7 +189,7 @@ mod tests {
         for lane in 0..7_u8 {
             assert(word.get(lane) == page.get(lane), 'get');
         }
-        assert(word.ids() == page, 'ids');
+        assert(word.decoded() == page, 'decoded');
         // An addition to a page never written sets `LIVE`.
         let fresh = StoredLanes { word: 0 }.added(4, 9);
         assert(fresh == stored(Lanes32 { lanes: [0, 0, 0, 0, 9, 0, 0] }), 'fresh page');

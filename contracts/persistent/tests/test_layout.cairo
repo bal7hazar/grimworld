@@ -1,8 +1,7 @@
 // The storage records of `Market` are what docs/architecture/ENG-01-interfaces.md says: each
-// record's size in slots, the bit offsets of its packed records, LIVE included, and the market
-// key. Here, not in `models::market`, until ENG-R1b moves `Market`'s tests beside its models
-// (D-167:
-// a lot moves the tests of the modules it touches; ENG-R1a does not touch `models::market`). The
+// record's size in slots, the bit offsets of its packed records, LIVE included, and the market key.
+// Here, not in `models::market`, until ENG-R1b moves `Market`'s tests beside its models (D-167: a
+// lot moves the tests of the modules it touches, and ENG-R1a does not touch `models::market`). The
 // records of `Hub` are checked in their models' tests (ENG-R1a), the variables' names and keys in
 // `store::layout_tests` and `Market`'s `layout_tests`.
 use grimworld_logic::packing::LIVE;

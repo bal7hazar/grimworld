@@ -32,13 +32,13 @@ use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, EXPERIENCE_OVERFLOW, HUB_ABOVE_63, NOT_IN_HUB, NOT_ITS_INSTANCE, NOT_OWNER,
     NOT_UNLOCKED, NO_ADVENTURER, NO_START_REGION,
 };
-use grimworld_persistent::models::adventurer::{
-    AdventurerCore, AdventurerPlace, NEW_BUILD, StoredPlaceTrait,
-};
+use grimworld_persistent::models::adventurer::{AdventurerCore, AdventurerPlace};
 use grimworld_persistent::models::balance::errors::NOT_ENOUGH;
 use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::models::snapshot::errors::{MISSING, STALE};
 use grimworld_persistent::models::snapshot::{RULES_EPOCHS, STALE_MARK, StoredSnapshotTrait};
+use grimworld_persistent::models::stored_build::NEW_BUILD;
+use grimworld_persistent::models::stored_place::StoredPlaceTrait;
 use grimworld_persistent::systems::hub::Hub::Event;
 use grimworld_persistent::systems::hub::{
     IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
@@ -609,7 +609,7 @@ fn test_enter_refusals() {
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 49507987)] // ceil(1.05 × 47150463 measured)
+#[available_gas(l2_gas: 49512502)] // ceil(1.05 × 47154763 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -679,7 +679,7 @@ const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
 // changing nothing; after `set_build`, it enters.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 37511548)] // ceil(1.05 × 35725283 measured)
+#[available_gas(l2_gas: 37513543)] // ceil(1.05 × 35727183 measured)
 fn test_enter_refuses_a_missing_snapshot() {
     let world = setup();
     let hub = act(world, ALICE);
@@ -703,7 +703,7 @@ fn test_enter_refuses_a_missing_snapshot() {
 // staleness table write). The snapshot finally copied is the level-2 one.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 47456853)] // ceil(1.05 × 45197002 measured)
+#[available_gas(l2_gas: 47464833)] // ceil(1.05 × 45204602 measured)
 fn test_enter_refuses_a_stale_snapshot() {
     let world = setup();
     let id = adventurer(world);
@@ -784,7 +784,7 @@ fn rules_of(world: World) -> felt252 {
 // `set_build`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 52555642)] // ceil(1.05 × 50052992 measured)
+#[available_gas(l2_gas: 52563622)] // ceil(1.05 × 50060592 measured)
 fn test_enter_refuses_after_an_input_rewritten() {
     let world = setup();
     let id = adventurer(world);
@@ -812,7 +812,7 @@ fn test_enter_refuses_after_an_input_rewritten() {
 // `set_build` stored before them, without a second `set_build`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 45725236)] // ceil(1.05 × 43547843 measured)
+#[available_gas(l2_gas: 45727231)] // ceil(1.05 × 43549743 measured)
 fn test_enter_after_other_records_changed() {
     let world = setup();
     let id = adventurer(world);
@@ -837,7 +837,7 @@ fn test_enter_after_other_records_changed() {
 // class clears it; the same class set again raises nothing and stales nothing.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 41674055)] // ceil(1.05 × 39689576 measured)
+#[available_gas(l2_gas: 41678045)] // ceil(1.05 × 39693376 measured)
 fn test_enter_refuses_after_a_new_rules_class() {
     let world = setup();
     let id = adventurer(world);
@@ -866,7 +866,7 @@ fn test_enter_refuses_after_a_new_rules_class() {
 // to 0, and a snapshot flattened at 511 is stale under 0; `set_build` clears it.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 39989992)] // ceil(1.05 × 38085706 measured)
+#[available_gas(l2_gas: 39993982)] // ceil(1.05 × 38089506 measured)
 fn test_enter_after_the_rules_epoch_wraps() {
     let world = setup();
     let id = adventurer(world);
@@ -901,7 +901,7 @@ fn set_registry(world: World, registry: ContractAddress) {
 // the adventurer enters.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 41188493)] // ceil(1.05 × 39227136 measured)
+#[available_gas(l2_gas: 41192483)] // ceil(1.05 × 39230936 measured)
 fn test_enter_refuses_after_a_new_registry() {
     let world = setup();
     let id = adventurer(world);
@@ -927,7 +927,7 @@ fn test_enter_refuses_after_a_new_registry() {
 // times since `set_build`. An administrator-only path (ENG-01 §3.3).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 337524551)] // ceil(1.05 × 321451953 measured)
+#[available_gas(l2_gas: 337526546)] // ceil(1.05 × 321453853 measured)
 fn test_rules_epoch_full_cycle_reads_fresh() {
     let world = setup();
     let id = adventurer(world);
