@@ -22,26 +22,30 @@ python3 spikes/SPK-15/set_budgets.py spikes/SPK-15/snforge-test-output-{1,2}.txt
   measured call alone (`test_pair_*` against its `*_base` or `*_fixture`; `summarize.py` names each
   pair's base). CBT-02d showed that `get_available_gas` around a call misses its straight-line part.
 - **Two clean builds** (D-154): `scarb clean`, then `snforge test`, twice
-  (`snforge-test-output-1.txt`, `-2.txt`). Every one of the 61 pairs is equal to the unit in both
-  (`pairs.txt`). Build-to-build drift seen on the way: the build before the last six tests were added
-  measured the pairs that read words, write the world or build the index 1,060 to 1,460 higher (main's
-  load and store 10,571,730 against 10,570,470); the figures here are the final build's.
+  (`snforge-test-output-1.txt`, `-2.txt`). Every one of the 76 pairs is equal to the unit in both
+  (`pairs.txt`, fix loop 1's build). Build-to-build drift seen on the way: an earlier build measured
+  the pairs that read words, write the world or build the index 1,060 to 1,460 higher (main's load and
+  store 10,571,730 against 10,570,470); the figures here are the last build's.
 - **Checks.** Main's figures reproduce: CBT-04's member application 108,100 and goblin application
   76,820 to the unit; main's load and store at the bound 10,570,470 (CBT-02d: 10,570,470); the
   representative tick 636,067 (CBT-02d: 636,067); the costliest tick at 8 awake 1,477,717 (CBT-02d:
-  1,475,797, +1,920, the drift above); perception's selection 4,597,710 from no set (CBT-02d:
-  4,596,270). Every alternative is checked against the code it replaces (`test_alternatives_match_*`,
-  `test_awake_*_matches_main`, `test_selection_agrees`, `test_executor_*_agree`).
+  1,475,797, +1,920, the drift above); perception's selection at its maximum 4,663,690 (ENG-01:
+  4,663,510), and the spike's verbatim copy of it (`src/perception.cairo`) 4,660,390. Every alternative
+  is checked against the code it replaces (`test_alternatives_match_*`, `test_perc_agree_*`,
+  `test_selection_agrees`, `test_executor_*_agree`, `test_executor_guard_two_hits`).
 - **Sources copied** (the branches are not merged; never edited): `src/cbt04.cairo` from
-  `feat/cbt-04-conditions` at `b5f4069` (`types/infliction.cairo`, the member's and goblin's
-  `apply` and predicates, `TickMathTrait::held`, `move_ticks`); `src/cbt03a.cairo` from
+  `feat/cbt-04-conditions` at `b5f4069` (`types/infliction.cairo`; the member's `is_alive`,
+  `infliction` and its `MemberConditionTrait` whole; of the goblin's `GoblinConditionTrait`, `apply`,
+  `takes_critical` and `can_defend` only; `TickMathTrait::held`, `move_ticks`); `src/cbt03a.cairo` from
   `feat/cbt-03a-hit` at `36bf2ba` (`types/hit.cairo` above its tests, and `Arc`). Their bodies are
   unchanged but for `scarb fmt` and the `use` lines. `tests/fixtures.cairo` copies main's
-  `contracts/logic/tests/test_tick.cairo` fixtures at `d4b5cdc`.
+  `contracts/logic/tests/test_tick.cairo` fixtures at `d4b5cdc`; `src/perception.cairo` copies main's
+  `TickTrait::awake` from `contracts/logic/src/types/world.cairo` at `d4b5cdc`.
 - **Counts of a worst tick** are CBT-04's and CBT-03a's (ENG-01 §9.2): 8 goblin carriers (a hit and
   2 applications on the member each), the member's one carrier (7 goblins hit, 7 applications), 9
   predicate sets; a goblin carrier reads at most 4 entries (its skill's 3, its held effect's 1), the
-  member's at most 7.
+  member's at most 7; hooks write at most 6 frozen goblins an action (ENG-01 §9.2), counted as 6 in a
+  worst tick (an action of one tick).
 - **S1** counts 300 ticks (SPK-1 §5's expedition: every action near goblins runs one tick).
   "S1 (representative)" is the representative tick's saving × 300; "S1 if every tick were the worst"
   is the worst tick's × 300, a ceiling, not an estimate. Dollars at cost-budget.md §2: 1 M L2 gas =
@@ -56,11 +60,16 @@ python3 spikes/SPK-15/set_budgets.py spikes/SPK-15/snforge-test-output-{1,2}.txt
 | At CBT-02b's costliest words (100 goblins, 8 awake), a call | Main | Kept as words | Saved |
 |---|---:|---:|---:|
 | Load and store | 10,570,470 | 3,128,940 | 7,441,530 (**744,153 a tick** at 10 ticks a call) |
-| A frozen goblin a hook touches (read, written back) | 674,470 | 477,720 | 196,750 each (§9.2: ≤ 6 an action) |
+| A frozen goblin a hook touches (read, written back) | 674,470 | 477,720 | 196,750 each; 6 a worst tick: 1,180,500 |
 | The representative words (8 goblins, all awake) | 1,292,290 | 1,324,840 | −32,550 (a cost: 3,255 a tick) |
 
 - `lazy_load` decodes the members and the awake set only, and keeps each goblin's AI state (one
   field of its words) for perception; `lazy_store` copies every frozen word unchanged.
+- **Perception with L1 alone** (main's 8 scans over words) is dearer, not cheaper: a goblin it wakes
+  is decoded, one it puts to sleep encoded, and each frozen key read from its words. Worst of four
+  states: **5,528,370** (replaced) against main's 4,663,690: **+864,680** (lever 4, below).
+- **L1 alone, everything counted: −1,059,973 a worst tick** (load and store −744,153, perception
+  +864,680, the hooks' 6 frozen writes −1,180,500); **+120,527 (a cost) without the hooks' writes**.
 - **What changes:** `load`'s contract with perception. Perception (ENG-07's step 0) reads the frozen
   goblins' AI states, not `Goblin` values; a goblin it wakes is decoded then, one it puts to sleep
   encoded. The content's `Index` lives for the whole call (a goblin can be decoded at any hook).
@@ -106,113 +115,166 @@ python3 spikes/SPK-15/set_budgets.py spikes/SPK-15/snforge-test-output-{1,2}.txt
 | Measured on CBT-02's heavy state (100 goblins, 8 awake) | L2 gas |
 |---|---:|
 | An actor read from the world and written back: the member · an awake goblin · a frozen goblin | 32,930 · 114,670 · 674,470 |
-| A goblin's hit on the member: the inputs gathered (4 effect slots decoded) · gathered with the member's guard given · the guard | 245,596 · 23,716 · 223,390 |
-| A goblin's weapon hit end to end (read, gather, CBT-03a's `resolve`, outcome, write back) · the same with the guard read before | 475,576 · 254,796 |
+| A goblin's hit on the member: the inputs gathered (4 effect slots decoded) · gathered with the member's guard given · the guard (each slot's charges kept) | 245,596 · 24,216 · 228,110 |
+| A goblin's weapon hit end to end (read, gather, CBT-03a's `resolve`, the outcome with a blocked hit's charge spent, write back) · the same with the guard read before and updated at a block | 541,656 · 322,816 |
+| A bomb on 3 awake goblins, written together (D2′'s slope: 273,945 a target, 113,705 fixed) | 935,540 |
 | A bomb on 7 awake goblins (hit, `CONDITION`, kill), each goblin written after its own · the 7 written together (`flush`) | 2,479,950 · 2,031,320 |
 | A `CONDITION` on the member, read and written · on an awake goblin | 125,010 · 191,770 |
 | An entry decoded from its 97 bits | 30,920 |
 
-- **The executor as CBT-05 would write it naively (E):** 8 goblin hits at 475,576 less the hit
+- **The executor as CBT-05 would write it naively (E):** 8 goblin hits at 541,656 less the hit
   (46,250), the bomb's 2,479,950 less its 7 hits and 7 applications and the kit, 39 entries decoded
-  at 30,920: **6,239,928 a tick**, on top of every line above.
-- **Levered (E):** the member's guard read once a tick (its defence terms change only when the
-  executor holds, spends or ends an effect), a carrier's goblins written in one rebuild, the
-  content's entries decoded once a call with the sheets (118 entries, 364,856 a tick):
-  **3,407,424 a tick (−2,832,504)**. The guarded hit leaves the world the unguarded one leaves.
+  at 30,920: **6,768,568 a tick**, on top of every line above. (Fix loop 1: a blocked hit now spends
+  its charge, a path Sierra charges every hit: +66,080 a hit.)
+- **Levered (E):** the member's guard read once a tick **and updated whenever the executor holds,
+  spends or ends an effect** (fix loop 1, finding 3: a guard read once and never updated would block
+  a second hit with a charge the first spent; `GuardTrait::spend` updates it at a block, and
+  `test_executor_guard_two_hits` checks A blocked, B landing, against the guard read at each hit), a
+  carrier's goblins written in one rebuild, the content's entries decoded once a call with the sheets
+  (118 entries, 364,856 a tick): **3,956,304 a tick (−2,812,264)**.
 - **What dominates what remains:** writing an awake goblin back rebuilds the awake set's 8 goblins
   of 24 felts (114,670); a lighter value (its derived fields apart) and step 2's own writes kept
   pending to one rebuild (the bomb's flush saves 64,090 a goblin) are the next levers. Not measured.
 
-### Lever 4 — perception and the content's index
+### Lever 4 — perception's selection, alone and with lever 1 (`src/perception.cairo`, `src/words.cairo`)
 
-- **Perception is not in the 6.51 M.** ENG-07's step 0 selects the awake set every tick: over 100
-  candidates main's selection costs **4,657,300** (the set kept; 4,597,710 formed). Its 8 scans of
-  the keys cost 2,562,050 of it; one pass costs 1,071,130 (`SelectionTrait::single`, the same set).
-  With the frozen goblins' AI states kept at load (lever 1): **3,566,290** at worst (formed; kept
-  3,264,270), **−1,091,010 a tick**.
-- **The content's index** (once a call): 557,210, 55,721 a tick; it is inside load and store above.
-  With lever 1 it serves the member and at most 8 goblins (and perception's wakings).
+Perception is not in the 6.51 M: ENG-07's step 0 selects the awake set every tick. Over 100
+candidates, by state (D; `tests/bench_perception.cairo`; the worst of each row is the figure used):
+
+| Representation and selection | Formed | Kept (end) | Kept (start, distances rising) | Replaced (8 out, 8 in) | Worst |
+|---|---:|---:|---:|---:|---:|
+| main (`TickTrait::awake`), as it stands | 4,596,450 | 4,656,050 | 4,663,690 | 4,655,170 | **4,663,690** |
+| its verbatim copy (`awake_scan`), a check | 4,593,150 | 4,652,750 | 4,660,390 | 4,651,870 | 4,660,390 |
+| **L4 alone**: main's goblins, one pass (`awake_single`) | 3,101,190 | 3,160,790 | 2,582,390 | 3,159,910 | **3,160,790** |
+| **L1 alone**: words, main's 8 scans (`LazyTrait::awake`) | 5,397,410 | 5,063,770 | 4,972,970 | 5,528,370 | **5,528,370** |
+| **L1 and L4**: words, one pass, AI states kept at load | 3,567,850 | 3,264,450 | 2,587,610 | 3,729,050 | **3,729,050** |
+
+- **L4 does not need L1.** The one pass (1,071,130 against the 8 scans' 2,562,050 alone) works on
+  main's decoded goblins: **−1,502,900 a worst tick, alone**, no frozen interface touched.
+- **L1 makes perception dearer** (+864,680 with main's 8 scans; +568,260 with the one pass): its
+  wakings decode and its sleeps encode. The earlier table credited L4 with what L1 and L4 save
+  together and charged L1 nothing for perception; this table prices each alone and together.
+- **The content's index** (once a call): 557,210, 55,721 a tick; inside load and store.
 
 ## The table
 
-Per tick, inside a batch of 10. Each saving is against the line it acts on, after the levers above
-it in the table (the design levers after all engineering levers).
+Per worst tick inside a batch of 10, each engineering lever priced on **everything counted** (the
+brief's basis, CBT-05's executor, ENG-07's perception, the map library, the hooks' writes to frozen
+goblins); L1 and L4 alone, the one given the other, and together. The design levers are priced after
+all four engineering levers. Generated by `levers.py` (`levers-output.md`).
 
 | Lever | Kind | Worst tick | Representative tick | S1 (representative × 300) | S1 if every tick were the worst | Cost in code | Frozen interfaces | Lots |
 |---|---|---:|---:|---:|---:|---|---|---|
-| CBT-04's line re-measured (the member's kit read once a carrier, not once an application) | measure | −254,580 | 0 | 0 | −76.4 M ($0.067) | none | none | CBT-04 (its ENG-01 row) |
-| **L1** frozen goblins kept as words | engineering | **−744,153** | +3,255 (a cost) | +1.0 M (+$0.001) | −223.2 M ($0.197) | `load`, `store`, perception over words; the index kept for the call | `load`'s contract with perception; no stored layout | ENG-07 |
-| **L2** an application in place, by condition | engineering | **−773,960** | 0 | 0 | −232.2 M ($0.205) | one inlined function a condition kind | none (CBT-04's results kept) | CBT-04's fix loop or CBT-05 |
-| **L3** the executor: the guard once a tick, a carrier's goblins flushed once, entries with the sheets | engineering | **−2,832,504** (E) | 0 | 0 | −849.8 M ($0.749) | CBT-05's design | the call's content (`Sheets` gains the entries) | CBT-05 |
-| **L4** perception: one pass, AI states kept at load | engineering | **−1,091,010** | not measured | — | −327.3 M ($0.288) | the selection; the AI states (with L1) | none | ENG-07 |
-| D1 awake 8 → 6 | design | −1,310,246 (E) | −127,866 | −38.4 M ($0.034) | −393.1 M ($0.346) | a constant | `MAX_AWAKE` | ENG-07; design/02, D-133, D-141 |
-| D1 awake 8 → 4 | design | −2,571,132 (E) | −255,732 | −76.7 M ($0.068) | −771.3 M ($0.680) | a constant | `MAX_AWAKE` | ENG-07; design/02, D-133, D-141 |
-| D2 one condition application on the member a goblin carrier | design | −442,240 (E) | 0 | 0 | −132.7 M ($0.117) | a check in the executor | none | CBT-05; design/19 §5.14, §8 |
-| D2′ a carrier's targets 7 → 3 (FX-35's bomb) | design | −1,034,204 (E) | 0 | 0 | −310.3 M ($0.273) | content | none | CNT-01; design/19 §9, FX-35 |
-| D3 window 4 → 2 chunks, flood 15 → 10 layers | design | −390,467 (E) | −145,847 (E) | −43.8 M ($0.039) | −117.1 M ($0.103) | the window's constants | `MAX_GOBLINS` (ENG-01 §9.2) | ENG-07, LIB-05; design/18 |
-| D4 20 ticks a batch instead of 10 | design | −611,678 (E) | −212,473 (E) | −63.7 M ($0.056) | −183.5 M ($0.162) | a constant | the batch's 40 M (ENG-01 §10.1) | ENG-07; design/02 |
+| CBT-04's line re-measured (the member's kit read once a carrier, not once an application) | measure | −254,580 | 0 | 0 | −76.4 M (−$0.067) | none | none | CBT-04 |
+| **L1 alone**: frozen goblins kept as words, perception's 8 scans over words | engineering | −1,059,973 | +3,255 | +1.0 M (+$0.001) | −318.0 M (−$0.280) | `load`, `store`, perception over words; the index kept for the call | **`load`'s contract with perception** (ENG-07) | ENG-07 |
+| **L2** an application in place, by condition | engineering | −773,960 | 0 | 0 | −232.2 M (−$0.205) | one inlined function a condition kind | none | CBT-04's fix loop or CBT-05 |
+| **L3** the executor: the guard once a tick and updated at every effect write, a carrier's goblins flushed once, entries with the sheets | engineering | −2,812,264 | 0 | 0 | −843.7 M (−$0.743) | CBT-05's design | the call's content (`Sheets` gains the entries) | CBT-05 |
+| **L4 alone**: perception's one-pass selection on main's goblins | engineering | −1,502,900 | not measured | — | −450.9 M (−$0.397) | the selection | none | ENG-07 |
+| L1 given L4 (L1 and L4 together less L4 alone) | engineering | −1,356,393 | +3,255 | +1.0 M (+$0.001) | −406.9 M (−$0.358) | as L1 | as L1 | ENG-07 |
+| L1 and L4 together | engineering | −2,859,293 | not measured | — | −857.8 M (−$0.756) | both | as L1 | ENG-07 |
+| D1 awake 8 → 6 | design | −1,446,286 | −127,866 | −38.4 M (−$0.034) | −433.9 M (−$0.382) | a constant | `MAX_AWAKE` | ENG-07; design/02, D-133, D-141 |
+| D1 awake 8 → 4 | design | −2,843,212 | −255,732 | −76.7 M (−$0.068) | −853.0 M (−$0.751) | a constant | `MAX_AWAKE` | ENG-07; design/02, D-133, D-141 |
+| D2 one application on the member a goblin carrier | design | −442,240 | 0 | 0 | −132.7 M (−$0.117) | a check in the executor | none | CBT-05; design/19 §5.14, §8 |
+| D2′ a carrier's targets 7 → 3 (FX-35's bomb) | design | −1,095,780 | 0 | 0 | −328.7 M (−$0.290) | content | none | CNT-01; design/19 §9, FX-35 |
+| D3 window 4 → 2 chunks, flood 15 → 10 layers | design | −390,467 | −145,847 | −43.8 M (−$0.039) | −117.1 M (−$0.103) | the window's constants | `MAX_GOBLINS` | ENG-07, LIB-05; design/18 |
+| D4 20 ticks a batch instead of 10 (average case only: at the worst no batch holds 10 ticks) | design | not applicable | −212,473 | −63.7 M (−$0.056) | — | a constant | the batch's 40 M (ENG-01 §10.1) | ENG-07; design/02 |
 
 How the E figures are made:
+- **L3:** the executor's parts measured (above), assembled by the counts of a worst tick.
 - **D1:** the costliest tick measured at 8, 6 and 4 awake (1,477,717; 1,090,071; 751,785), plus each
-  goblin carrier fewer (2 applications at 55,280, its predicates 11,250, its guarded hit 254,796:
-  376,606), plus each walker fewer (the map library's 8 walkers, (1,106,666 − 64,234 − 364,878) / 8 =
-  84,694, C). The representative figures are measured (636,067; 508,201; 380,335).
-- **D2:** 8 applications fewer at 55,280. **D2′:** 4 targets fewer at 258,551 each (a hit 46,250, an
-  application 47,900, the flushed bomb's own overhead a target 164,401).
+  goblin carrier fewer (2 applications at 55,280, its predicates 11,250, its guarded hit 322,816:
+  444,626), plus each walker fewer (the map library's 8 walkers, (1,106,666 − 64,234 − 364,878) / 8 =
+  84,694, C). The representative figures are measured (636,067; 508,201; 380,335). **With 4 awake, a
+  7-target bomb reaches 3 frozen goblins** (fix loop 1, note 10): each is a hook's frozen write
+  (477,720 with L1, 674,470 without) where an awake target costs 273,945, about +611,325 with L1 (E)
+  if the bomb keeps its 7 targets; D2′ (3 targets) removes the interaction.
+- **D2:** 8 applications fewer at 55,280 (4 fewer at 4 awake). **D2′:** 4 targets fewer at 273,945
+  each, measured as the 7- and 3-target bombs' difference; the bomb's fixed part (one rebuild, the
+  member's round trip, the kit's read), 113,705, stays.
 - **D3:** 20 goblins fewer in the call at 15,200 a call (lever 1's slope), half the 4-chunk assembly
   (64,234, C), 5 flood layers at 22,746 (C), 20 candidates fewer at the single pass's 10,711 a key.
-- **D4:** the per-call part (load and store with lever 1, 3,128,940; the call, 3,324,580, C; the
-  content, 5,780,040, C) spread over 20 ticks instead of 10; the representative's from CBT-02d's
-  184,105 and 240,840 a tick. Fewer ticks a batch raises every tick's share (5 ticks: +1,223,356);
-  it is what keeps a worst batch under the transaction's 40 M, not a saving.
+- **D4:** the representative's per-call part (CBT-02d's 184,105 and 240,840 a tick) over 20 ticks.
+  **Not applicable at the worst**: no batch holds even 10 worst ticks (below).
 
 ## The worst tick, everything counted
 
-| Per tick, worst inside a batch of 10 | As it stands | With L1–L4 |
+| Per worst tick, inside a batch of 10 | As it stands | With L1–L4 |
 |---|---:|---:|
-| CBT-02d's bound (the tick, load and store, the call, the content) | 3,447,872 (C) | 2,703,719 |
-| CBT-04's line | 2,114,010 (re-measured; 2,368,590 cited) | 1,340,050 |
-| CBT-03a's line | 693,750 (C) | 693,750 |
-| **The brief's basis** | **6,255,632 (4.26×)**; 6,510,212 cited | **4,737,519 (3.22×)** |
-| CBT-05's executor | 6,239,928 (E) | 3,407,424 (E) |
-| ENG-07's perception over 100 candidates | 4,657,300 | 3,566,290 |
-| The map library (LIB-05 M1-T9b) | 1,106,666 (C) | 1,106,666 |
-| **Everything counted** | **18,259,526 (12.43×)** | **12,817,899 (8.72×)** |
+| The brief's basis (CBT-02d's 3,447,872, C; CBT-04's line re-measured, 2,114,010; CBT-03a's 693,750, C) | 6,255,632 (4.26×); 6,510,212 cited | 4,737,519 (3.22×) |
+| CBT-05's executor (E) | 6,768,568 | 3,956,304 |
+| ENG-07's perception over 100 candidates (worst of four states) | 4,663,690 | 3,729,050 |
+| The map library (LIB-05 M1-T9b, C) | 1,106,666 | 1,106,666 |
+| The hooks' writes to 6 frozen goblins (ENG-01 §9.2's count, C; each D) | 4,046,820 | 2,866,320 |
+| **Everything counted** | **22,841,376 (15.54×)** | **16,395,859 (11.16×)** |
 
-With every design lever on top (4 awake, one application on the member a carrier, 3 targets a
-carrier, the smaller window and flood, 20 ticks a batch; D2 counted at 4 carriers, −221,120):
-**about 7.99 M a tick (5.44×), E.** No combination measured here brings the worst tick to 1.47 M.
+- **With L2, L3 and L4 only** (no frozen interface changed): 17,752,252 (12.08×).
+- **With the design levers on top** (4 awake, one application on the member a carrier, 3 targets a
+  carrier, the smaller window and flood; D2 counted at 4 carriers; D4 excluded): **11,845,280 a
+  worst tick (8.06×), E.** No combination priced here brings the worst tick to 1.47 M.
+
+**A worst batch against 40 M** (fix loop 1, finding 2). The per-call part (load and store, the
+call, the content: 12,233,560 with L1, 19,675,090 without) is paid once a batch, and the batch writes
+its own keys (ENG-01 §10.1's 64: about 4,436,950, E, its 47,336,950 less 10 ticks at 4.29 M). A
+worst tick without its per-call share then costs 20,873,867 as it stands, 15,172,503 after L1–L4,
+10,621,924 with the design levers too. **A 40 M batch holds 0 worst ticks as it stands, 1 after
+L1–L4, 2 with the design levers** (37.9 M). The batch-of-10 basis of every per-tick figure above is
+therefore not reachable at the worst; it is the basis CBT-02d and the brief price ticks on.
 
 ## Recommendation
 
-**Engineering levers, for the project manager — all four, in this order of gain:**
-1. **L3, CBT-05's executor** (−2.83 M a worst tick): brief CBT-05 with the member's guard read once a
-   tick, a carrier's goblins written in one rebuild, and the skills' entries decoded once a call into
-   the sheets. Without them CBT-05 alone adds about 6.24 M a worst tick.
-2. **L4, perception's one-pass selection** (−1.09 M; with L1's AI states): ENG-07's step 0.
+**Engineering levers, for the project manager, in this order of gain on everything counted:**
+1. **L3, CBT-05's executor** (−2.81 M, E): brief CBT-05 with the member's guard read once a tick and
+   **updated whenever the executor holds, spends or ends an effect**, a carrier's goblins written in
+   one rebuild, and the skills' entries decoded once a call into the sheets. Without them CBT-05 adds
+   about 6.77 M a worst tick. It changes the call's content (`Sheets` gains the entries).
+2. **L4, perception's one-pass selection** (−1.50 M), on main's representation: ENG-07's step 0. **No
+   frozen interface changes.**
 3. **L2, applications in place by condition** (−0.77 M), and CBT-04's line corrected to 2,114,010
-   (−0.25 M, a measure, not a change): CBT-04's fix loop or CBT-05.
-4. **L1, the frozen goblins kept as words** (−0.74 M a worst tick, +3,255 on the representative):
-   with ENG-07, since it changes `load`'s contract with perception.
+   (−0.25 M, a measure): CBT-04's fix loop or CBT-05. No frozen interface changes.
+4. **L1, the frozen goblins kept as words: −1.36 M once L4 is in, of which −1.18 M is the 6 hooks'
+   writes to frozen goblins a worst tick; −0.18 M without them.** **The only lever that changes a
+   frozen interface** (`load`'s contract with perception, ENG-07). Alone it saves −1.06 M with the
+   hooks and costs +0.12 M without them. It is worth deciding after ENG-07 says how many frozen
+   goblins its hooks write in a tick.
 
-Together they take the brief's basis from 6.26 M to 4.74 M (3.22×) and the tick with everything
-counted from about 18.3 M to 12.8 M (8.72×).
+L2, L3 and L4 together take everything counted from 22.84 M to 17.75 M (12.08×); with L1, 16.40 M
+(11.16×).
 
-**What remains for the owner's design levers.** At the worst tick the gap is about 11.3 M after the
-engineering levers; the design levers priced here close about 4.8 M of it (to about 8.0 M, 5.44×).
-**The worst tick will not reach 1.47 M by these levers.** On the representative tick they matter
-less: the levers above save almost nothing there (the representative tick has no hit, no
-application, and its 8 goblins are all awake), while the design levers save 0.13–0.26 M (D1), 0.15 M
-(D3) and 0.21 M (D4). S1 rests on the average tick, which nobody has yet measured with the rules: a
-representative fight tick (its hits, its applications, its perception) is ENG-07's to define, and
-S1's gap should be judged on it, with SPK-12 (client-side proving) beside it. The worst tick matters
-for the batch's 40 M: at 12.8 M a tick, a worst batch holds 3 ticks, not 10.
+**What remains for the owner's design levers.** After the engineering levers the worst tick is about
+14.9 M above its target; the design levers priced here close about 4.6 M of it (to about 11.8 M,
+8.06×, E). **The worst tick will not reach 1.47 M by these levers, and a 40 M batch holds 1 worst tick
+after the engineering levers, 2 with the design levers.** On the representative tick the engineering
+levers save almost nothing (it has no hit, no application, no frozen goblin); the design levers save
+0.13–0.26 M (D1), 0.15 M (D3) and, in the average case, 0.21 M (D4). S1 rests on the average tick,
+which nobody has yet measured with the rules: a representative fight tick is ENG-07's to define, and
+S1's gap should be judged on it, with SPK-12 (client-side proving) beside it.
 
 ## Not measured
 
-- Perception on the representative tick (8 candidates), and from a prior set wholly replaced (8
-  goblins decoded and 8 encoded) with lever 1.
+- Perception on the representative tick (8 candidates).
 - A goblin's application split by condition (its in-place figure, 47,900, is its knock-down's path).
 - A lighter awake goblin value, and step 2's writes kept pending: named under lever 3.
 - The library call's cost per goblin in the call (its words through calldata): D3 counts only load
   and store.
+- The guard's update when an effect is held or ends (only the block's spend is implemented and
+  checked); its cost is a field write, against the 228,110 of reading the guard again.
+
+## History
+
+- **2026-10-01, the lot** (`92779d3`): the levers measured, the table, the recommendation.
+- **2026-10-01, fix loop 1** (Claude-side cost and method audit, `[Opus 5.5]`, FAIL: one major, four
+  minors, five notes):
+  1. major: L1 and L4 priced alone, together and each given the other, everything counted;
+     perception measured on main's representation with one pass (`src/perception.cairo`, main's
+     `TickTrait::awake` copied verbatim); L4 needs no L1 and no frozen interface; the order of the
+     recommendation changed (L4 before L1; L1 the only frozen-interface change);
+  2. the batch: the per-call part once a batch and ENG-01 §10.1's writes: 1 worst tick a batch after
+     L1–L4, 2 with the design levers; D4 out of every worst-tick combination;
+  3. the guard updated at every effect write; a blocked hit spends its charge; the two-hit test;
+  4. perception's four states on every representation, the worst of each; main's 4,663,690
+     (ENG-01: 4,663,510);
+  5. the hooks' 6 writes to frozen goblins counted in everything counted;
+  6–10. the stale 3,264,270 gone (the table now reads from `levers-output.md`); D2′'s per-target part
+     measured apart from its fixed part; the goblin's alternatives checked at three values and dead,
+     the one-pass selection's flags and replaced case checked; `cbt04.cairo`'s header names what it
+     copied; D1's interaction with a 7-target bomb stated.
