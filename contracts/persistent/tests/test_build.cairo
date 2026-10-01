@@ -863,7 +863,7 @@ fn test_equipment_slots_and_hands() {
 // floors. A level 1 Vanguard's 100 health: one rune costing 75 leaves 25, accepted; two leave
 // −50, refused (costs count on every rune, FX-43).
 #[test]
-#[available_gas(l2_gas: 101096304)] // ceil(1.05 × 96282194 measured)
+#[available_gas(l2_gas: 100288592)] // ceil(1.05 × 95515354 measured)
 fn test_set_build_floor_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -878,7 +878,7 @@ fn test_set_build_floor_refused() {
 // DS-23 (D-160): an insignia is worn on the piece its record names; one made for the chest is
 // refused on the legs.
 #[test]
-#[available_gas(l2_gas: 100681856)] // ceil(1.05 × 95887481 measured)
+#[available_gas(l2_gas: 99874143)] // ceil(1.05 × 95120641 measured)
 fn test_set_build_insignia_piece_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -893,7 +893,7 @@ fn test_set_build_insignia_piece_refused() {
 // The flattening's checks of the whole build (design/20 §1.2, DS-1): six runes are more than an
 // adventurer holds, refused.
 #[test]
-#[available_gas(l2_gas: 105502452)] // ceil(1.05 × 100478525 measured)
+#[available_gas(l2_gas: 104694739)] // ceil(1.05 × 99711685 measured)
 fn test_set_build_sixth_rune_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -910,7 +910,7 @@ fn test_set_build_sixth_rune_refused() {
 
 // A modifier the registry does not hold is refused.
 #[test]
-#[available_gas(l2_gas: 96232888)] // ceil(1.05 × 91650369 measured)
+#[available_gas(l2_gas: 95454313)] // ceil(1.05 × 90910079 measured)
 fn test_set_build_unknown_modifier_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -925,7 +925,7 @@ fn test_set_build_unknown_modifier_refused() {
 // its benefit at a value of its record's range (armor against fire 1…7: 7 accepted, 8 and 0
 // refused).
 #[test]
-#[available_gas(l2_gas: 104688944)] // ceil(1.05 × 99703756 measured)
+#[available_gas(l2_gas: 103839883)] // ceil(1.05 × 98899956 measured)
 fn test_set_build_modifier_slot_and_value_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -946,7 +946,7 @@ fn test_set_build_modifier_slot_and_value_refused() {
 // pieces (DS-23), five +50 health runes of distinct ids. 480 + 150 + 40 + 250 = 920 (the set
 // bonuses of the envelope's 1,020 are not laid out yet). The words stored are the flattening's.
 #[test]
-#[available_gas(l2_gas: 107257586)] // ceil(1.05 × 102150081 measured)
+#[available_gas(l2_gas: 106239569)] // ceil(1.05 × 101252061 measured)
 fn test_set_build_stores_the_extremal_max_health() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -1007,7 +1007,7 @@ fn test_set_build_stores_the_extremal_max_health() {
 // (`test_extremal_max_energy_through_the_library`: 120); the set bonuses' 10 no item holds. The
 // words stored are the flattening's.
 #[test]
-#[available_gas(l2_gas: 90708269)] // ceil(1.05 × 86388827 measured)
+#[available_gas(l2_gas: 89807589)] // ceil(1.05 × 85531037 measured)
 fn test_set_build_stores_the_extremal_max_energy() {
     let world = setup();
     let id = adventurer(world, ARCANIST);

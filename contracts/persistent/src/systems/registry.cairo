@@ -526,8 +526,9 @@ mod version_cost_tests {
         let _ = @state;
     }
 
-    // `bundle`'s part of the version: one read of one slot.
+    // `bundle`'s part of the versions: one read of one slot, unpacked into the two (D-169).
     #[test]
+    // gas: raised, CBT-02f: the slot holds the content and inputs versions, unpacked at the read
     #[available_gas(l2_gas: 39785)] // ceil(1.05 × 37890 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
@@ -536,7 +537,7 @@ mod version_cost_tests {
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
     #[test]
-    #[available_gas(l2_gas: 510678)] // ceil(1.05 × 486360 measured)
+    #[available_gas(l2_gas: 507066)] // ceil(1.05 × 482920 measured)
     fn test_version_cost_raise() {
         let mut state = Registry::contract_state_for_testing();
         state.raise_versions(false);
@@ -562,7 +563,7 @@ mod version_cost_tests {
 
     // Every raise after the first: the slot holds a version, the write overwrites it.
     #[test]
-    #[available_gas(l2_gas: 519435)] // ceil(1.05 × 494700 measured)
+    #[available_gas(l2_gas: 514647)] // ceil(1.05 × 490140 measured)
     fn test_version_cost_raise_again() {
         let mut state = Registry::contract_state_for_testing();
         store(test_address(), selector!("versions"), array![7].span());

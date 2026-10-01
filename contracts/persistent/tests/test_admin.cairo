@@ -50,7 +50,7 @@ fn test_hub_set_contracts_by_admin() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4372809)] // ceil(1.05 × 4164580 measured)
+#[available_gas(l2_gas: 4311605)] // ceil(1.05 × 4128320 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_contracts_refused_to_others() {
     let hub = deploy_hub();
@@ -103,7 +103,7 @@ fn test_hub_set_admin_hands_over() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4587587)] // ceil(1.05 × 4369130 measured)
+#[available_gas(l2_gas: 4577906)] // ceil(1.05 × 4369130 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_refused() {
     let hub = deploy_hub();

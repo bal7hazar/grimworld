@@ -80,7 +80,7 @@ fn test_fate_anyone_gets_only_their_domain() {
 // The game reaches the provider through its configuration: the address the administrator set in
 // `Hub` is the provider called.
 #[test]
-#[available_gas(l2_gas: 4965562)] // ceil(1.05 × 4729106 measured)
+#[available_gas(l2_gas: 4941989)] // ceil(1.05 × 4754436 measured)
 fn test_fate_at_the_configured_address() {
     let fate = deploy_fate();
     let class = declare("Hub").unwrap().contract_class();

@@ -678,7 +678,7 @@ const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
 // CBT-02e (D-168 2): `enter` refuses an adventurer whose snapshot `set_build` never stored,
 // changing nothing; after `set_build`, it enters.
 #[test]
-#[available_gas(l2_gas: 37426750)] // ceil(1.05 × 35644523 measured)
+#[available_gas(l2_gas: 36752650)] // ceil(1.05 × 35021863 measured)
 fn test_enter_refuses_a_missing_snapshot() {
     let world = setup();
     let hub = act(world, ALICE);
@@ -701,7 +701,7 @@ fn test_enter_refuses_a_missing_snapshot() {
 // written here with `store`), and the stale mark (what the entrypoints of the report's staleness
 // table write). The snapshot finally copied is the level-2 one.
 #[test]
-#[available_gas(l2_gas: 47252995)] // ceil(1.05 × 45002852 measured)
+#[available_gas(l2_gas: 45249921)] // ceil(1.05 × 43136242 measured)
 fn test_enter_refuses_a_stale_snapshot() {
     let world = setup();
     let id = adventurer(world);

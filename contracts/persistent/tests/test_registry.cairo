@@ -265,7 +265,7 @@ fn test_set_record_part_count_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1270479)] // ceil(1.05 × 1209980 measured)
+#[available_gas(l2_gas: 1270458)] // ceil(1.05 × 1209960 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {
     let r = Fixture::deploy();
@@ -453,7 +453,7 @@ fn test_missing_record_reads_zeros() {
 }
 
 #[test]
-#[available_gas(l2_gas: 5071920)] // ceil(1.05 × 4830400 measured)
+#[available_gas(l2_gas: 5061326)] // ceil(1.05 × 4820310 measured)
 #[feature("safe_dispatcher")]
 fn test_reads_bounded() {
     let r = Fixture::deploy();
@@ -567,7 +567,7 @@ fn test_gas_records_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2785220)] // ceil(1.05 × 2652590 measured)
+#[available_gas(l2_gas: 2778710)] // ceil(1.05 × 2646390 measured)
 fn test_gas_bundle_1() {
     let r = Fixture::deploy();
     let requests = r.books(1);
@@ -576,7 +576,7 @@ fn test_gas_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 15864398)] // ceil(1.05 × 15108950 measured)
+#[available_gas(l2_gas: 15857888)] // ceil(1.05 × 15102750 measured)
 fn test_gas_bundle_10() {
     let r = Fixture::deploy();
     let requests = r.books(10);
@@ -586,7 +586,7 @@ fn test_gas_bundle_10() {
 
 // The bound: 32 records of 3 parts, 96 slots and the version (ENG-01 §9.3: at most 97 reads).
 #[test]
-#[available_gas(l2_gas: 47835722)] // ceil(1.05 × 45557830 measured)
+#[available_gas(l2_gas: 47829212)] // ceil(1.05 × 45551630 measured)
 fn test_gas_bundle_32() {
     let r = Fixture::deploy();
     let requests = r.books(32);
@@ -654,7 +654,7 @@ fn assert_refused(result: Result<(), Array<felt252>>, message: felt252) {
 // `hi` is accepted, one at `hi + 1` is refused with the per-source bound, and one at `lo − 1` is
 // refused (by the bound, or by the passive's own range where that is non-negative).
 #[test]
-#[available_gas(l2_gas: 75581730)] // ceil(1.05 × 71982600 measured)
+#[available_gas(l2_gas: 75201063)] // ceil(1.05 × 71620060 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_per_source_bounds() {
     let r = Fixture::deploy();
@@ -718,7 +718,7 @@ fn test_set_record_per_source_bounds() {
 
 // DS-4 and design/19 §7.2: the passives a source may not hold are refused on it.
 #[test]
-#[available_gas(l2_gas: 10311788)] // ceil(1.05 × 9820750 measured)
+#[available_gas(l2_gas: 10241606)] // ceil(1.05 × 9753910 measured)
 fn test_set_record_sources_refused() {
     let r = Fixture::deploy();
     let refused = array![
@@ -755,7 +755,7 @@ fn test_set_record_sources_refused() {
 
 // DS-23: an insignia names its piece, and its health is within the piece's 15 / 10 / 5.
 #[test]
-#[available_gas(l2_gas: 7607093)] // ceil(1.05 × 7244850 measured)
+#[available_gas(l2_gas: 7574312)] // ceil(1.05 × 7213630 measured)
 fn test_set_record_insignia_pieces() {
     let r = Fixture::deploy();
     let none: Passive = Default::default();
@@ -816,7 +816,7 @@ fn skill_of(adrenaline: u8, entries: [Entry; 3]) -> Span<felt252> {
 // DS-18, DS-29: a caste record at its bounds is accepted; one unit beyond any is refused; the
 // skills it names are at most 63 strikes (across records).
 #[test]
-#[available_gas(l2_gas: 16067772)] // ceil(1.05 × 15302640 measured)
+#[available_gas(l2_gas: 16001055)] // ceil(1.05 × 15239100 measured)
 fn test_set_record_caste_bounds() {
     let r = Fixture::deploy();
     assert_accepted(try_write(r, SKILL, skill_of(63, [Default::default(); 3])));
@@ -845,7 +845,7 @@ fn test_set_record_caste_bounds() {
 // DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a
 // legal, unscaled carrier (design/19 §5.14).
 #[test]
-#[available_gas(l2_gas: 8567559)] // ceil(1.05 × 8159580 measured)
+#[available_gas(l2_gas: 8534778)] // ceil(1.05 × 8128360 measured)
 fn test_set_record_carriers() {
     let r = Fixture::deploy();
     let bonus = EntryTrait::new(
@@ -875,7 +875,7 @@ fn test_set_record_carriers() {
 // accepted; then rewritten from 63 to 64, refused. The skill first at 64: the caste naming it is
 // refused (`test_set_record_caste_bounds`). A skill no caste names takes 64.
 #[test]
-#[available_gas(l2_gas: 11686626)] // ceil(1.05 × 11130120 measured)
+#[available_gas(l2_gas: 11654675)] // ceil(1.05 × 11099690 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_caste_skills_either_order() {
     let r = Fixture::deploy();
@@ -894,7 +894,7 @@ fn test_set_record_caste_skills_either_order() {
 // naming skill 2 instead, skill 1 is released (64 accepted) and skill 2 bound. Two castes naming
 // one skill: it stays bound until neither does.
 #[test]
-#[available_gas(l2_gas: 20254080)] // ceil(1.05 × 19289600 measured)
+#[available_gas(l2_gas: 20179499)] // ceil(1.05 × 19218570 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_caste_rewrite_moves_the_bound() {
     let r = Fixture::deploy();

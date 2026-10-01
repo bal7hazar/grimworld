@@ -99,7 +99,7 @@ fn test_belt_word() {
 }
 
 #[test]
-#[available_gas(l2_gas: 297843)] // ceil(1.05 × 283660 measured)
+#[available_gas(l2_gas: 292026)] // ceil(1.05 × 283660 measured)
 fn test_balance_pages() {
     assert(BalanceTrait::at(0) == (0, 0) && BalanceTrait::at(13) == (1, 6), 'at');
     assert(BalanceTrait::at(0xFFFFFFFF) == (0x24924924, 3), 'at the top');

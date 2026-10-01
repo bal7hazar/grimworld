@@ -534,7 +534,7 @@ row("`decline_trade`, `cancel_trade`", B("closed", 100_000, ["hub.seller"], 2, e
                                          Keys().add(("M.trade", "t", "head"), "old")))
 row("`Registry.set_record` (3 parts)", B("written", 50_000, [], 6, {}, Keys()
     .many([("R.record", p) for p in range(3)], "first").add(("R.last_id", "kind"), "first")
-    .add(("R.content_version",), "first"), "the content version rises by one (D-141, E-5): 0 at deployment, so its first write is new"))
+    .add(("R.versions",), "first"), "the content version rises by one (D-141, E-5), the inputs version with it in the same slot for a rewritten input of the flattening (D-169): 0 at deployment, so its first write is new"))
 row("admin setters, `upgrade`", B("set", 100_000, [], 4, {}, Keys().many([("A.address", i) for i in range(4)], "old")))
 
 
