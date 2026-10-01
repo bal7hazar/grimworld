@@ -47,3 +47,13 @@ and before the library starts N-1 and N-2; rc.1 (line of sight, arcs) is unaffec
 
 The study finding the window's assembly or the reveal materially dearer, or the felt's last bits
 costing more than the 26 bits a rectangle leaves free.
+
+## Closed, 2026-10-01 (owner)
+
+SPK-14 ([#202](https://github.com/bal7hazar/grimworld/pull/202), `docs/research/SPK-14-hexagonal-chunks.md`)
+measured the hexagon of 251 tiles against the rectangle: the storage works (bit 250 is a corner, always
+wall, and serves as `LIVE`; 0 new slots), but the window's assembly costs 4.2× to 13.6× N-3's 64,234,
+a chunk's generation 2.2× to 2.8× SPK-7's, and a window overlaps up to 6 chunks. Both reversal
+thresholds above fail on measurements. **The owner's decision: the chunks stay 15 × 15 rectangles;
+cost efficiency is the priority.** ADR-0006 and D-120 stand; the library's N-1 and N-2 (rc.2) and
+ENG-05 proceed on rectangles; the bit-250 note stays in the study for a later reopening.

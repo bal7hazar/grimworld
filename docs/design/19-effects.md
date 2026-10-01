@@ -617,6 +617,10 @@ list is empty does nothing but its carrier-level effects; its costs stay paid.
 | A target illegal at resolution | nothing, costs paid |
 | A carrier with no actor | carrier-level effects only |
 | An area near the window's edge | clipped |
+| Geometry: source and target on the same tile | no arc; facing unchanged (ENG-02, D-174) |
+| Geometry: a position outside the window | no sight, no arc, facing unchanged, an empty shape (ENG-02, D-174) |
+| Geometry: a line that leaves the window | no sight; the arc and the facing still use its first step (ENG-02, D-174) |
+| Geometry: a wall at either end of the line | blocks the sight (D-174) |
 | A block at 0 charges; an oil at 0 charges | ended |
 | A charge-only effect never used | lasts until the instance closes |
 | A stance while one is held; slots full; equal deadlines | §5.7 |
