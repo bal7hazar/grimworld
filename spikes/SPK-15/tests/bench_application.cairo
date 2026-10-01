@@ -317,7 +317,7 @@ fn test_alternatives_match_cbt04_member() {
 }
 
 #[test]
-#[available_gas(l2_gas: 11102049)] // ceil(1.05 × 10573380 measured)
+#[available_gas(l2_gas: 11101944)] // ceil(1.05 × 10573280 measured)
 fn test_alternatives_match_cbt04_goblin() {
     let sheets = Fixture::sheets();
     let source = rending();

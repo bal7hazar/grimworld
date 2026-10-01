@@ -24,7 +24,7 @@ use crate::fixtures::{
 // on load's content (38 skills, 5 castes, 4 potions), its dictionary squashed at the end.
 
 #[test]
-#[available_gas(l2_gas: 556647)] // ceil(1.05 × 530140 measured)
+#[available_gas(l2_gas: 557760)] // ceil(1.05 × 531200 measured)
 fn test_index_fixture() {
     let content = opaque(load_content());
     opaque(content);
@@ -43,7 +43,7 @@ fn test_pair_index() {
 // Load and store, the costliest words.
 
 #[test]
-#[available_gas(l2_gas: 11735808)] // ceil(1.05 × 11176960 measured)
+#[available_gas(l2_gas: 11737026)] // ceil(1.05 × 11178120 measured)
 fn test_words_bound_fixture() {
     let (words, content) = load_words(1);
     let (expected, _) = load_words(1);
@@ -51,7 +51,7 @@ fn test_words_bound_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 22836125)] // ceil(1.05 × 21748690 measured)
+#[available_gas(l2_gas: 22836020)] // ceil(1.05 × 21748590 measured)
 fn test_pair_words_bound_main() {
     let (words, content) = load_words(1);
     let (expected, _) = load_words(1);
@@ -60,7 +60,7 @@ fn test_pair_words_bound_main() {
 }
 
 #[test]
-#[available_gas(l2_gas: 15022518)] // ceil(1.05 × 14307160 measured)
+#[available_gas(l2_gas: 15022413)] // ceil(1.05 × 14307060 measured)
 fn test_pair_words_bound_lazy() {
     let (words, content) = load_words(1);
     let (expected, _) = load_words(1);
@@ -75,7 +75,7 @@ fn representative_words() -> (Words, grimworld_logic::types::tick::Content) {
 }
 
 #[test]
-#[available_gas(l2_gas: 15655122)] // ceil(1.05 × 14909640 measured)
+#[available_gas(l2_gas: 15656550)] // ceil(1.05 × 14911000 measured)
 fn test_words_representative_fixture() {
     let (words, content) = representative_words();
     let (expected, _) = representative_words();
@@ -83,7 +83,7 @@ fn test_words_representative_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 17013560)] // ceil(1.05 × 16203390 measured)
+#[available_gas(l2_gas: 17013455)] // ceil(1.05 × 16203290 measured)
 fn test_pair_words_representative_main() {
     let (words, content) = representative_words();
     let (expected, _) = representative_words();
@@ -92,7 +92,7 @@ fn test_pair_words_representative_main() {
 }
 
 #[test]
-#[available_gas(l2_gas: 17047737)] // ceil(1.05 × 16235940 measured)
+#[available_gas(l2_gas: 17047632)] // ceil(1.05 × 16235840 measured)
 fn test_pair_words_representative_lazy() {
     let (words, content) = representative_words();
     let (expected, _) = representative_words();
@@ -194,7 +194,7 @@ fn test_pair_awake_lazy_formed() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2997614)] // ceil(1.05 × 2854870 measured)
+#[available_gas(l2_gas: 2999063)] // ceil(1.05 × 2856250 measured)
 fn test_awake_lazy_kept_fixture() {
     let (lazy, _sheets, _index, distances) = lazy_candidates(true);
     assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
@@ -248,7 +248,7 @@ fn test_awake_lazy_matches_main() {
 // A hook touching a frozen goblin (index 10 of 100), its health changed.
 
 #[test]
-#[available_gas(l2_gas: 14289167)] // ceil(1.05 × 13608730 measured)
+#[available_gas(l2_gas: 14290343)] // ceil(1.05 × 13609850 measured)
 fn test_touch_main_fixture() {
     let (words, content) = load_words(1);
     let (world, sheets) = WordsTrait::load(words, @content);
@@ -330,7 +330,7 @@ fn test_pair_selection_single() {
 // Both selections agree: the costliest order, rising, none eligible, fewer than 8, a mix (not a
 // cost test).
 #[test]
-#[available_gas(l2_gas: 15164405)] // ceil(1.05 × 14442290 measured)
+#[available_gas(l2_gas: 15164300)] // ceil(1.05 × 14442190 measured)
 fn test_selection_agrees() {
     let none: u32 = 0xFFFFFFFF;
     let mut rising = array![];

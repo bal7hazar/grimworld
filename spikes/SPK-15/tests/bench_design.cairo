@@ -7,11 +7,11 @@
 //   window's 40 and the roster's 60): load and store at 100, 60 and 40 goblins, main's and with
 //   the frozen goblins kept as words.
 use grimworld_logic::models::goblin::GoblinWords;
-use grimworld_logic::types::tick::Content;
-use grimworld_logic::types::world::{TickTrait, Words, WordsTrait, WorldStoreTrait};
+use grimworld_logic::types::tick::{Content, Sheets};
+use grimworld_logic::types::world::{Idle, TickTrait, Words, WordsTrait, World, WorldStoreTrait};
 use spk15::words::LazyTrait;
 use crate::fixtures::{
-    Acts, C, L, at_end, goblin_words, load_content, member_effect_words, term_world,
+    Acts, C, Fixture, L, at_end, goblin_words, load_content, member_effect_words, term_world,
 };
 
 /// `n − 1` conclusions clearing the field, then a lapse.
@@ -126,7 +126,7 @@ fn window_lazy(count: u16) {
 }
 
 #[test]
-#[available_gas(l2_gas: 11827431)] // ceil(1.05 × 11264220 measured)
+#[available_gas(l2_gas: 11828649)] // ceil(1.05 × 11265380 measured)
 fn test_design_window_100_fixture() {
     window_fixture(100);
 }
@@ -144,7 +144,7 @@ fn test_pair_design_window_100_lazy() {
 }
 
 #[test]
-#[available_gas(l2_gas: 11428431)] // ceil(1.05 × 10884220 measured)
+#[available_gas(l2_gas: 11429649)] // ceil(1.05 × 10885380 measured)
 fn test_design_window_60_fixture() {
     window_fixture(60);
 }
@@ -162,7 +162,7 @@ fn test_pair_design_window_60_lazy() {
 }
 
 #[test]
-#[available_gas(l2_gas: 11228931)] // ceil(1.05 × 10694220 measured)
+#[available_gas(l2_gas: 11230149)] // ceil(1.05 × 10695380 measured)
 fn test_design_window_40_fixture() {
     window_fixture(40);
 }
@@ -177,4 +177,68 @@ fn test_pair_design_window_40_main() {
 #[available_gas(l2_gas: 13558125)] // ceil(1.05 × 12912500 measured)
 fn test_pair_design_window_40_lazy() {
     window_lazy(40);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The representative tick (CBT-02's: the member with one condition and one effect, goblins of 2
+// castes fighting, `Idle`) with 8, 6 and 4 goblins awake: the awake count's lever on it.
+
+fn representative_of(n: u16) -> (World, Sheets) {
+    let mut spec = Fixture::spec();
+    spec.conditions = [99, 0, 0, 0];
+    spec.effects = [(5, false, 99, 8), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+    let member = Fixture::member(spec);
+    let mut goblins = array![];
+    let mut k: u16 = 0;
+    while k < n {
+        goblins.append(Fixture::goblin(8 + 16 * k, 1 + k % 2));
+        k += 1;
+    }
+    (Fixture::world(49, array![member], goblins), Fixture::sheets())
+}
+
+fn representative_fixture(n: u16) {
+    let (_world, _sheets) = representative_of(n);
+}
+
+fn representative_tick(n: u16) {
+    let (mut world, sheets) = representative_of(n);
+    let mut rules = Idle {};
+    TickTrait::tick(ref world, @sheets, ref rules);
+}
+
+#[test]
+#[available_gas(l2_gas: 7593632)] // ceil(1.05 × 7232030 measured)
+fn test_design_representative_8_fixture() {
+    representative_fixture(8);
+}
+
+#[test]
+#[available_gas(l2_gas: 8261502)] // ceil(1.05 × 7868097 measured)
+fn test_pair_design_representative_8() {
+    representative_tick(8);
+}
+
+#[test]
+#[available_gas(l2_gas: 6997463)] // ceil(1.05 × 6664250 measured)
+fn test_design_representative_6_fixture() {
+    representative_fixture(6);
+}
+
+#[test]
+#[available_gas(l2_gas: 7531074)] // ceil(1.05 × 7172451 measured)
+fn test_pair_design_representative_6() {
+    representative_tick(6);
+}
+
+#[test]
+#[available_gas(l2_gas: 6401294)] // ceil(1.05 × 6096470 measured)
+fn test_design_representative_4_fixture() {
+    representative_fixture(4);
+}
+
+#[test]
+#[available_gas(l2_gas: 6800646)] // ceil(1.05 × 6476805 measured)
+fn test_pair_design_representative_4() {
+    representative_tick(4);
 }

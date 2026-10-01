@@ -26,7 +26,7 @@ fn state() -> (World, Sheets) {
 }
 
 #[test]
-#[available_gas(l2_gas: 14124999)] // ceil(1.05 × 13452380 measured)
+#[available_gas(l2_gas: 14126175)] // ceil(1.05 × 13453500 measured)
 fn test_executor_fixture() {
     let (world, sheets) = state();
     opaque(@world);
