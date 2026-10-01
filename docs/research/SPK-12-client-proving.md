@@ -21,17 +21,18 @@ arithmetic from M, **E** estimated on a stated assumption.
   L2 gas is storage: its computation is about 120 L2 gas a step, and a representative tick about
   5.3 k steps (M).
 - **A floor dominates.** Any segment under ~0.5 M steps takes about **14 s and 3.6 GiB** on the Mac
-  (37 s and 3.0 GiB on one thread); above it, about 12–13 s and 1.5 GiB per million steps (M, D).
+  (37 s and 3.0 GiB on one thread); above it, about 11–14 s and 1.5 GiB per million steps (M, D).
   `canonical_small` stops at 2^20 range checks, **2,600 representative ticks (13.8 M steps) in
   164–184 s and 21 GiB**; `canonical_without_pedersen` proved 4,500 ticks (23.8 M steps) in 314–344 s
   (M).
-- **A phone (E):** 19–47 s a segment at the floor on the owner's iPhone 14, but the prover's 3.0–3.6 GiB
+- **A phone (E):** 19–42 s a segment at the floor on the owner's iPhone 14, but the prover's 3.0–3.6 GiB
   floor is at or above what an iOS app may hold: **as built, it does not fit**. Thirteen proofs an
-  expedition would take 2.7–6.7 % of the battery, against SPK-6's 8 % for 30 minutes of play.
+  expedition would take 2.7–5.9 % of the battery at the floor, and 12–32 % on a fight-heavy
+  expedition, against SPK-6's 8 % for 30 minutes of play.
 - **The cost.** One proof is a flat **75,000,000 L2 gas** (the protocol's charge, M by slingfall on the
   devnet), about **$0.066**, whatever it holds. An L2 batch of 10 ticks costs about 22 M in S1 (D from
   STATUS's 663 M). So **proofs win only when a segment is long or its ticks are heavy**: the break-even
-  is **about 37 ticks a segment** at S1's average batched tick, **55** at the representative tick's
+  is **about 39 ticks a segment** at S1's average batched tick, **55** at the representative tick's
   target, and **2–3** at SPK-15's worst tick (E, `cost.py`).
 - **S1 is cut short by its Fate actions.** Its segments end at every loot, chest, vein and gate. With 10
   Fate actions and 2 gates, S1 has 13 segments of about 23 ticks, and proofs cost **$0.95 against
@@ -66,12 +67,15 @@ batch's 40 M (§2).
 | `travel_back`, `leave` | Closes the instance; the results interface writes the persistent domain (ADR-0001) | — |
 | Defeat | The instance closes | — |
 
-**Reveals are not boundaries.** The brief cites D-64, "every chunk generated at reveal from a fresh
-random word". The owner's later D-111 (owner review 3, ADR-0006 option C) replaced it: a chunk is
-computed from the **entry draw and the adventurer's irreversible actions**, and "a move that reveals
-chunks" rides in a batch (design/02). So a reveal stays inside a segment and asks nothing of L2; the
-entry word is a public input of every segment of its instance (§6.2). The brief's premise is noted
-under *Deviations* of the report; nothing in the analysis depends on D-64.
+**Reveals are not boundaries: a deviation from the brief.** The brief cites D-64, "every chunk
+generated at reveal from a fresh random word", and asks for the fresh word of each reveal as a
+boundary. The owner's later **D-111** ([owner review 3](../decisions/2026-09-28-owner-review-3.md):
+"one draw at entry, then a value built from the adventurer's irreversible actions"; ADR-0006 option C)
+replaced it: a chunk is computed from the **entry draw and the adventurer's irreversible actions**, and
+"a move that reveals chunks" rides in a batch (design/02). **This note therefore models reveals inside
+segments, under D-111, and not as boundaries under D-64**: a reveal asks nothing of L2, and the entry
+word is a public input of every segment of its instance (§6.2). Nothing in the analysis depends on
+D-64. The task's report, archived as `docs/reports/SPK-12-client-proving.md`, lists the same deviation.
 
 ### S1 cut into segments
 
@@ -147,10 +151,14 @@ least
 
 | Batched cost of a tick | L2 gas | Ticks a segment |
 |---|--:|--:|
-| S1's average, 663 M less `enter` and `leave` over 300 ticks | 2,187,122 | **37** |
+| S1's average: 663 M less `enter`, `leave`, the central reading's 10 Fate actions and 2 gates (36.3 M), over 300 ticks | 2,066,003 | **39** |
 | The representative tick at the expedition's target (cost-budget §2) | 1,469,435 | **55** |
 | A worst tick alone, as it stands (SPK-15) | 45,802,846 | **2** |
 | A worst tick alone, with L1–L4 | 35,943,656 | **3** |
+
+S1's row (fix loop 1) takes the transactions that are not batches out of the 663 M before dividing:
+with them left in, the average tick was 2,187,122 and the break-even 37 ticks, a lower bound. With
+fewer Fate actions the row moves little (F = 5, G = 0: 2,138,789, 38 ticks).
 
 What the table assumes, and what would move it:
 
@@ -229,7 +237,7 @@ Threads (`RAYON_NUM_THREADS`), `canonical_small`:
 - **A floor dominates small segments**: about **14 s and 3.6 GiB** for any segment under ~0.5 M steps
   (37 s and 3.0 GiB on one thread). `canonical_small`'s preprocessed columns are proved whatever the
   trace; in the log of a 1-tick proof, `prove_cairo` takes 11.0 s, 8.0 s of it proving the STARKs.
-- **Above the floor**, from 0.55 M to 13.8 M steps: about **12–13 s and 1.5 GiB per million steps** (D, the
+- **Above the floor**, from 0.55 M to 13.8 M steps: about **11–14 s and 1.5 GiB per million steps** (D, the
   fit of the rows above; slingfall research 05 found 1.5 GiB per million too). Memory grows by powers
   of two, and the RSS of the same run varies (23.5 and 33.6 GiB at 4,500 ticks).
 - **Where proving stops**: `canonical_small` at **2^20 range checks**, here about 2,630 representative
@@ -272,14 +280,23 @@ assumptions:
 | A4 | An iOS app may hold about **3 GB** on a 6 GB phone before the system ends it | Apple publishes no figure; the `increased-memory-limit` entitlement raises it by an unpublished amount |
 | A5 | The phone draws about **5 W** under full multi-core load; its battery holds about **12.7 Wh** | Not measured; Apple publishes the battery's capacity, not the SoC's power |
 
-**Time.** The phone ≈ the Mac's one-thread time ÷ A2 ÷ A3, that is 1.3–3.3× the Mac's six-thread time
-on these runs:
+**Time.** The formula (fix loop 1), computed by `cost.py` (`cost-output.txt`, *The phone*):
 
-| Segment | Mac, 6 threads (M) | Phone (E) |
+```
+phone time = T1 / (A2 × A3)
+  T1  the Mac's one-thread time (M, prove-output.txt run8)
+  low  = T1 (shortest run) / (0.8 × 2.5) = T1 / 2.0
+  high = T1 (longest run)  / (0.5 × 1.8) = T1 / 0.9
+```
+
+Where only six threads were run, T1 = the six-thread time × the measured one-thread over six-thread
+ratio, 2.62 (the floor, 37.40 / 14.27) to 3.14 (busy:40, 78.11 / 24.90).
+
+| Segment | T1, Mac one thread | Phone (E) |
 |---|--:|--:|
-| Any segment under ~0.5 M steps (the floor): S1's central segment of today's tick, ~140 k steps | 14.3 s | **19–47 s** |
-| busy, 40 ticks (0.42 M steps) | 25.0 s | 33–83 s |
-| A central S1 segment of 23 full worst ticks, ~4.3 M steps (§3, E) | ~65 s (D) | 85–215 s |
+| Any segment under ~0.5 M steps (the floor): S1's central segment of today's tick, ~140 k steps | 37.40–37.53 s (M) | **19–42 s** |
+| busy, 40 ticks (0.42 M steps) | 70.77–78.11 s (M) | 35–87 s |
+| A central S1 segment of 23 full worst ticks, ~4.3 M steps (§3, E) | 170–204 s (E: ~65 s on six threads, D, × 2.62–3.14) | 85–227 s |
 
 **Memory.** The prover's floor is **3.0 GiB on one thread and 3.6 GiB on six** (M): at or above A4's
 3 GB before the trace adds anything. **stwo-cairo's standalone prover as built here does not fit an
@@ -287,11 +304,12 @@ iPhone 14 app** (E). A 4.3 M-step segment would need about 10 GiB (D). To fit, t
 smaller preprocessed trace than `canonical_small` (its fixed columns make the floor) or a prover built
 for phones; neither exists for Cairo programs as found below.
 
-**Battery and heat** (A5, E): a floor proof of 19–47 s at 5 W is 95–235 J, **0.2–0.5 % of the battery**.
-S1's central reading proves 13 segments: **2.7–6.7 % an expedition for proving alone**, against SPK-6's
-threshold of **8 % over 30 minutes of play, rendering included** (ADR-0003). A fight-heavy segment of
-85–215 s at full load is 0.9–2.4 % each. ADR-0003's power rules ask for no permanent work and near-zero
-use at idle; a proof is a burst of 20 s to 3 min at full load before every loot, and its heat against
+**Battery and heat** (A5, E: energy = phone time × 5 W, over 12.7 Wh): a floor proof of 19–42 s is
+**0.20–0.46 % of the battery**. S1's central reading proves 13 segments: **2.7–5.9 % an expedition for
+proving alone**, against SPK-6's threshold of **8 % over 30 minutes of play, rendering included**
+(ADR-0003). A fight-heavy segment of 85–227 s is 0.93–2.48 % each, so **a fight-heavy expedition's 13
+proofs take 12–32 % of the battery**: over SPK-6's 8 % by proving alone. ADR-0003's power rules ask for no permanent work and near-zero
+use at idle; a proof is a burst of 20 s to 4 min at full load before every loot, and its heat against
 "no thermal throttling after 30 minutes" is untested: SPK-6.1's protocol would have to include it.
 
 **What the phone uploads**: one proof of **1.08–1.26 MB** a segment (M), deterministic, plus the
@@ -372,7 +390,7 @@ the co-op design accepts a leader.
   made before sequencing and cannot contain a draw it could not choose (ADR-0001 option D's own
   "no same-transaction VRF"). The order is therefore **segment proved → submitted and accepted → the
   Fate action on the committed state → the next segment proved from the state after the draw**.
-- **Latency.** Before every Fate action the player waits for: the proof of the segment (§4: 19–47 s on
+- **Latency.** Before every Fate action the player waits for: the proof of the segment (§4: 19–42 s on
   the phone for the standalone floor, E, a lower bound for the virtual transaction),
   its submission and inclusion (≈ 1.3 s to pre-confirmed, p50, SPK-1), then the Fate action itself (the
   same as today). A SNIP-36 proof must also be built on a base block **at least 10 blocks old** (≈ 17 s
@@ -422,7 +440,9 @@ Why:
    1.62× more proved; proofs win S1 only if it has 5 or fewer Fate actions and no gate (E). S1's
    problem is the per-tick cost of fights, which ENG-07's representative fight tick will measure.
 2. **Heavy fights are where proofs win, by an order of magnitude** (0.08× to 0.10× on the fight-heavy
-   expedition, E). They are D-172's open case: a worst tick runs alone at 36–46 M.
+   expedition, E). They are D-172's open case: a worst tick runs alone at 36–46 M. **But the phone pays
+   for it**: a fight-heavy expedition's 13 proofs of 85–227 s each take **12–32 % of the battery** (§4,
+   E), against SPK-6's 8 % for 30 minutes of play; the saving on the chain is spent on the device.
 3. **The path is not open yet.** No prover answers PROOF2 today; a virtual transaction's proving time is
    measured by nobody; no Stwo virtual-OS prover runs on a phone (§4); SNIP-36 phase 1 is verified by
    consensus only, and its proofs are not kept permanently in blocks (slingfall research 01b).
@@ -432,7 +452,7 @@ Why:
 **What would reverse it** (any one):
 
 - ENG-07's representative fight tick, measured inside a batch, keeps S1 above $0.50 after the
-  engineering levers, **and** S1's Fate actions are few enough that its segments pass about 37 ticks;
+  engineering levers, **and** S1's Fate actions are few enough that its segments pass about 39 ticks;
 - fights at D-172's worst case turn out frequent in playtest (the worst tick alone costs 36–46 M, so
   ~2 such ticks a segment already favour a proof);
 - a SNIP-36 prover of virtual transactions runs on the reference phone within §4's bounds.

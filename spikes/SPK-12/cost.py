@@ -107,9 +107,12 @@ def main() -> None:
 
     print("\n## Break-even: ticks a segment above which one proof costs less than the same ticks "
           "batched\n")
-    s1_tick = (S1_BATCHES - ENTER - LEAVE) / S1_TICKS
+    # S1's ticks alone: 663 M less the transactions that are not batches in the central reading
+    # (enter, leave, 10 Fate actions, 2 gates), over 300 ticks (fix loop 1, finding 2).
+    s1_tick = (S1_BATCHES - shared(10, 2)) / S1_TICKS
     rows = [
-        ("S1's average tick, batched (663 M less enter and leave, over 300 ticks; E)", s1_tick),
+        ("S1's average tick, batched (663 M less enter, leave, 10 Fate actions and 2 gates, over "
+         "300 ticks; E)", s1_tick),
         ("the representative tick at the expedition's target (cost-budget §2; E)", TARGET_TICK),
     ]
     for name, (per_call, per_tick, writes) in WORST.items():
@@ -118,6 +121,41 @@ def main() -> None:
     print("|---|--:|--:|")
     for name, c in rows:
         print(f"| {name} | {c:,.0f} | {ceil(SEGMENT_SETTLE / c)} |")
+    phone()
+
+
+# --- The phone (docs/research/SPK-12-client-proving.md §4), E ------------------------------------
+# phone time = T1 / (A2 x A3): T1 the Mac's one-thread time (M, prove-output.txt run8), A2 an A15
+# performance core against one Mac core, A3 the A15's six cores against one.
+A2 = (0.5, 0.8)
+A3 = (1.8, 2.5)
+# The Mac's one-thread over six-thread time, measured on the floor (37.4-37.5 / 14.25-14.27) and on
+# busy:40 (70.77-78.11 / 24.90-25.08): used to get T1 where only six threads were run.
+T1_OVER_T6 = (37.40 / 14.27, 78.11 / 24.90)
+WATTS = 5.0  # A5, not measured
+BATTERY_J = 12.7 * 3600  # A5: about 12.7 Wh
+SEGMENTS = 13  # the central reading
+
+
+def phone() -> None:
+    print("\n## The phone (E): time = T1 / (A2 x A3), A2 = 0.5-0.8, A3 = 1.8-2.5; energy at 5 W "
+          "of a 12.7 Wh battery\n")
+    print("| segment | T1, Mac one thread | phone time | battery a proof | 13 proofs |")
+    print("|---|--:|--:|--:|--:|")
+    cases = [
+        ("the floor (representative:1), M", (37.40, 37.53)),
+        ("busy:40, M", (70.77, 78.11)),
+        # No one-thread run: T1 = the Mac's six-thread time (~65 s, D from representative:1000's
+        # 76.93-78.05 s at 5.31 M steps, scaled to 4.3 M) x T1_OVER_T6.
+        ("23 full worst ticks, ~4.3 M steps (T1 = 65 s x 2.6-3.1, E)",
+         (65 * T1_OVER_T6[0], 65 * T1_OVER_T6[1])),
+    ]
+    for name, (t1_lo, t1_hi) in cases:
+        lo, hi = t1_lo / (A2[1] * A3[1]), t1_hi / (A2[0] * A3[0])
+        b_lo, b_hi = lo * WATTS / BATTERY_J, hi * WATTS / BATTERY_J
+        print(f"| {name} | {t1_lo:.1f}-{t1_hi:.1f} s | {lo:.0f}-{hi:.0f} s | "
+              f"{100 * b_lo:.2f}-{100 * b_hi:.2f} % | {100 * SEGMENTS * b_lo:.1f}-"
+              f"{100 * SEGMENTS * b_hi:.1f} % |")
 
 
 if __name__ == "__main__":
