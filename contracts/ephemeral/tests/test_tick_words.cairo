@@ -13,9 +13,9 @@ use grimworld_logic::models::member::{MemberTrait, MemberWords};
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::combat::activation;
 use grimworld_logic::types::tick::{
-    CasteSheet, Content, PotionSheet, SkillSheet, ai, flag as tick_flag, status,
+    CasteSheet, Content, ContentTrait, PotionSheet, SkillSheet, ai, flag as tick_flag, status,
 };
-use grimworld_logic::types::world::{Idle, TickTrait, World};
+use grimworld_logic::types::world::{Idle, TickTrait, WorldTrait};
 use starknet::storage_access::StorePacking;
 
 /// The member's bar is 301, 300, 7–12: `load` reads each skill's adrenaline cost (its cap).
@@ -130,11 +130,12 @@ fn test_tick_constants() {
 // regeneration, the effects' deadlines and pips; `store` writes the changed fields where the
 // unpackers read them, and every other field of the four words is kept.
 #[test]
-#[available_gas(l2_gas: 1292036)] // ceil(1.05 × 1230510 measured)
+// gas: raised, the load reads through the content's index, built first (CBT-02d)
+#[available_gas(l2_gas: 1384488)] // ceil(1.05 × 1318560 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
-    let content = content();
-    let mut member = MemberTrait::load(words, @content);
+    let (sheets, mut index) = content().index();
+    let mut member = MemberTrait::load(words, ref index, @sheets);
     assert(member.status == INSIDE && member.health == 321, 'state');
     assert(member.energy == 44 && member.adrenaline == 17 && member.flags == state.flags, 'state');
     assert(member.act_slot == 6 && member.act_target == 0x1234 && member.act_tile == 1, 'act');
@@ -199,7 +200,7 @@ fn test_tick_words_member() {
 // AUD-182-1: a potion's effect regenerates from each of the four belt slots, slot 0 included (its
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
-#[available_gas(l2_gas: 3128415)] // ceil(1.05 × 2979442 measured)
+#[available_gas(l2_gas: 3128415)] // ceil(1.05 × 2979442 measured), kept: 3007552 now
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
         PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
@@ -208,6 +209,7 @@ fn test_potion_regeneration_every_belt_slot() {
     let content = Content {
         skills: bar_skills().span(), potions: potions.span(), castes: array![].span(),
     };
+    let (sheets, mut index) = content.index();
     let (state, _, _, recharges, words) = member_words();
     let timers = MemberTimers { act_slot: NO_SLOT, ..Default::default() };
     let kit = MemberKit { belt: [4000, 4001, 4002, 4003], ..Default::default() };
@@ -225,27 +227,22 @@ fn test_potion_regeneration_every_belt_slot() {
             kit: StorePacking::pack(kit),
             ..words,
         };
-        let member = MemberTrait::load(words, @content);
+        let member = MemberTrait::load(words, ref index, @sheets);
         let pips: i8 = (slot + 1).try_into().unwrap();
         assert(member.effect_regen == [pips, 0, 0, 0], 'belt slot pips');
-        let mut world = World {
-            clock: 10,
-            members: array![member],
-            goblins: array![],
-            killed: array![],
-            defeated: false,
-        };
+        let mut world = WorldTrait::new(10, array![member], array![], array![], false);
         let mut rules = Idle {};
-        TickTrait::run(ref world, @content, 1, ref rules);
+        TickTrait::run(ref world, @sheets, 1, ref rules);
         // Health regeneration +2 pips (stored 12) and the potion's.
         let expected: u16 = state.health + 2 * (2 + slot + 1);
-        assert(*world.members.at(0).health == expected, 'belt slot regenerates');
+        assert(world.member(0).health == expected, 'belt slot regenerates');
     }
 }
 
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
-#[available_gas(l2_gas: 510678)] // ceil(1.05 × 486360 measured)
+// gas: raised, the load reads through the content's index, built first (CBT-02d)
+#[available_gas(l2_gas: 613851)] // ceil(1.05 × 584620 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {
         x: 200,
@@ -283,8 +280,8 @@ fn test_tick_words_goblin() {
         state: StorePacking::pack(state),
         timers: StorePacking::pack(timers),
     };
-    let content = content();
-    let mut goblin = GoblinTrait::load(words, @content);
+    let (sheets, mut index) = content().index();
+    let mut goblin = GoblinTrait::load(words, ref index, @sheets);
     assert(goblin.entity == 3593 && goblin.awake && goblin.ai == ALERTED, 'identity');
     assert(goblin.health == 250 && goblin.energy == 100 && goblin.adrenaline == 252, 'state');
     assert(goblin.caste == 12 && goblin.act_slot == 1 && goblin.act_target == 0xBEEF, 'act');

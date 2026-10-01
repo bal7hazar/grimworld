@@ -21,6 +21,7 @@
 //! regeneration, and each held effect's `REGENERATION` pips at its rank. The executor (CBT-05)
 //! sets an effect's pips and deadline when it holds one.
 
+use core::dict::{Felt252Dict, Felt252DictTrait};
 use crate::helpers::signed::SignedTrait;
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
@@ -123,7 +124,7 @@ pub struct CasteSheet {
 }
 
 /// The content of a batch, read once (D-145): the skills of the bars, of the goblins' castes and
-/// of held effects; the belt's potions; the goblins' castes.
+/// of held effects; the belt's potions; the goblins' castes. What crosses the library call.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Content {
     pub skills: Span<SkillSheet>,
@@ -131,10 +132,55 @@ pub struct Content {
     pub castes: Span<CasteSheet>,
 }
 
+/// A position in a list of `Sheets` that holds nothing: an empty skill slot.
+pub const ABSENT: u32 = 0xFFFFFFFF;
+/// The same in a 16-bit lane (`Member.bar_at`). A skill's position fits one: the content holds at
+/// most `MAX_SKILLS` skills (`IndexTrait::new`).
+pub const ABSENT_LANE: u128 = 0xFFFF;
+/// Skill ids are `u16`: a content of more skills than that holds the same id twice, and only the
+/// first is ever read.
+pub const MAX_SKILLS: u32 = 0xFFFF;
+
+/// What a caste's goblins read in the ticks, derived once per call (CBT-02d): each skill's position
+/// in `Sheets.skills` (`ABSENT` for an empty slot), their highest adrenaline cost in quarters, at
+/// most the field's 252 (design/19 §5.12), and the weapon's tick cost `k` (FX-15), so that a
+/// conclusion reads the kit alone.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct Kit {
+    pub skills: [u32; 4],
+    pub cap: u8,
+    pub weapon_ticks: u8,
+}
+
+/// The content as the ticks read it (CBT-02d): its sheets, and each caste's `Kit` in the order of
+/// `castes`. An actor holds the positions of its records (`Goblin.caste_at`, `Member.bar_at`),
+/// found once, at its load, through the `Index`; the ticks read a record at its position.
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct Sheets {
+    pub skills: Span<SkillSheet>,
+    pub potions: Span<PotionSheet>,
+    pub castes: Span<CasteSheet>,
+    pub kits: Span<Kit>,
+}
+
+/// The content's positions by id, built once per call (CBT-02d): one dictionary, read once for
+/// each id an actor's words hold at its load, then dropped. A read costs the same wherever the
+/// record lies, where a lookup scanned its list (up to 38 comparisons for a skill).
+#[derive(Destruct)]
+pub struct Index {
+    /// A record's position + 1 by its key (0: not in the content). Keys: a skill's id; a caste's,
+    /// + `CASTE_KEY`; a potion's, + `POTION_KEY`.
+    positions: Felt252Dict<u32>,
+}
+
+const CASTE_KEY: felt252 = 0x10000;
+const POTION_KEY: felt252 = 0x100000000;
+
 pub mod errors {
     pub const NO_SKILL: felt252 = 'tick: skill not in content';
     pub const NO_CASTE: felt252 = 'tick: caste not in content';
     pub const NO_POTION: felt252 = 'tick: potion not in content';
+    pub const SKILLS: felt252 = 'tick: more skills than ids';
 }
 
 
@@ -296,9 +342,121 @@ pub impl CasteSheetImpl of CasteSheetTrait {
 
 #[generate_trait]
 pub impl ContentImpl of ContentTrait {
-    /// The sheet of skill `id`. The content holds every skill the batch can need (design/19 §7.2,
-    /// the registry reads), so a missing one is the caller's error.
-    fn skill(self: @Content, id: u16) -> @SkillSheet {
+    /// The call's sheets and the index its loads read (CBT-02d): the index built once, each
+    /// caste's kit derived once from it.
+    fn index(self: @Content) -> (Sheets, Index) {
+        let mut index = IndexTrait::new(self);
+        let mut kits = array![];
+        for caste in *self.castes {
+            kits.append(index.kit(caste, *self.skills));
+        }
+        let sheets = Sheets {
+            skills: *self.skills, potions: *self.potions, castes: *self.castes, kits: kits.span(),
+        };
+        (sheets, index)
+    }
+
+    /// The call's sheets alone, the index dropped.
+    fn sheets(self: @Content) -> Sheets {
+        let (sheets, _) = self.index();
+        sheets
+    }
+}
+
+#[generate_trait]
+pub impl IndexImpl of IndexTrait {
+    /// Every record's position, keyed by its id. The lists are read from their ends, so that of two
+    /// records with one id the first is kept, as a scan finds it.
+    fn new(content: @Content) -> Index {
+        assert(content.skills.len() <= MAX_SKILLS, errors::SKILLS);
+        let mut positions: Felt252Dict<u32> = Default::default();
+        let mut skills = *content.skills;
+        let mut at = skills.len();
+        while let Some(sheet) = skills.pop_back() {
+            positions.insert((*sheet.id).into(), at);
+            at -= 1;
+        }
+        let mut castes = *content.castes;
+        let mut at = castes.len();
+        while let Some(sheet) = castes.pop_back() {
+            positions.insert((*sheet.id).into() + CASTE_KEY, at);
+            at -= 1;
+        }
+        let mut potions = *content.potions;
+        let mut at = potions.len();
+        while let Some(sheet) = potions.pop_back() {
+            positions.insert((*sheet.id).into() + POTION_KEY, at);
+            at -= 1;
+        }
+        Index { positions }
+    }
+
+    /// The position of skill `id`. The content holds every skill the batch can need (design/19
+    /// §7.2, the registry reads), so a missing one is the caller's error.
+    fn skill(ref self: Index, id: u16) -> u32 {
+        let key: felt252 = id.into();
+        let at = Felt252DictTrait::get(ref self.positions, key);
+        assert(at != 0, errors::NO_SKILL);
+        at - 1
+    }
+
+    fn caste(ref self: Index, id: u16) -> u32 {
+        let key: felt252 = id.into();
+        let at = Felt252DictTrait::get(ref self.positions, key + CASTE_KEY);
+        assert(at != 0, errors::NO_CASTE);
+        at - 1
+    }
+
+    fn potion(ref self: Index, id: u32) -> u32 {
+        let key: felt252 = id.into();
+        let at = Felt252DictTrait::get(ref self.positions, key + POTION_KEY);
+        assert(at != 0, errors::NO_POTION);
+        at - 1
+    }
+
+    /// A caste's kit: its skills' positions and its goblins' adrenaline cap, their skills' highest
+    /// cost in quarters, at most 252 (§5.12; DS-18 bounds a caste skill at 63 strikes). A skill
+    /// missing from the content is refused when a goblin of the caste loads (`GoblinTrait::load`),
+    /// not here: a caste no goblin of the call holds reads nothing.
+    fn kit(ref self: Index, caste: @CasteSheet, skills: Span<SkillSheet>) -> Kit {
+        let mut at: Array<u32> = array![];
+        let mut cap: u16 = 0;
+        for id in caste.skills.span() {
+            if *id == 0 {
+                at.append(ABSENT);
+                continue;
+            }
+            let key: felt252 = (*id).into();
+            let position = Felt252DictTrait::get(ref self.positions, key);
+            if position == 0 {
+                at.append(MISSING);
+                continue;
+            }
+            at.append(position - 1);
+            let cost: u16 = (*skills[position - 1].adrenaline).into() * 4;
+            if cost > cap {
+                cap = cost;
+            }
+        }
+        if cap > MAX_GOBLIN_ADRENALINE.into() {
+            cap = MAX_GOBLIN_ADRENALINE.into();
+        }
+        Kit {
+            skills: [*at[0], *at[1], *at[2], *at[3]],
+            cap: cap.try_into().unwrap(),
+            weapon_ticks: *caste.weapon_ticks,
+        }
+    }
+}
+
+/// A caste skill the content does not hold (`IndexTrait::kit`).
+pub const MISSING: u32 = 0xFFFFFFFE;
+
+#[generate_trait]
+pub impl SheetsImpl of SheetsTrait {
+    /// The sheet of skill `id`, by a scan: for the executor's rules, which hold a carrier's id
+    /// (`hold`, `put`, a stance), not the pipeline's.
+    fn skill(self: @Sheets, id: u16) -> @SkillSheet {
         for sheet in *self.skills {
             if *sheet.id == id {
                 return sheet;
@@ -307,7 +465,7 @@ pub impl ContentImpl of ContentTrait {
         core::panic_with_felt252(errors::NO_SKILL)
     }
 
-    fn potion(self: @Content, id: u32) -> @PotionSheet {
+    fn potion(self: @Sheets, id: u32) -> @PotionSheet {
         for sheet in *self.potions {
             if *sheet.id == id {
                 return sheet;
@@ -316,12 +474,190 @@ pub impl ContentImpl of ContentTrait {
         core::panic_with_felt252(errors::NO_POTION)
     }
 
-    fn caste(self: @Content, id: u16) -> @CasteSheet {
-        for sheet in *self.castes {
-            if *sheet.id == id {
-                return sheet;
-            }
+    /// The sheet of skill `slot` of the caste at `caste_at`, through its kit.
+    #[inline(always)]
+    fn caste_skill(self: @Sheets, caste_at: u32, slot: u8) -> @SkillSheet {
+        let kit = self.kits[caste_at];
+        self.skills[*kit.skills.span()[slot.into()]]
+    }
+}
+
+/// The content's unit tests (CBT-02, CBT-02d; D-167): the sheets read from their records, the
+/// index and the kits.
+#[cfg(test)]
+mod tests {
+    use crate::content::Record;
+    use crate::models::caste::{CasteRecord, CasteTrait, WeaponTrait};
+    use crate::models::index::{Caste, Item, Skill};
+    use crate::models::item::{ItemRecord, ItemTrait, class as item_class};
+    use crate::models::skill::{SkillRecord, SkillTrait};
+    use crate::types::combat::{skill_kind, weapon};
+    use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
+    use crate::types::world::fixtures::{Fixture, SMASH};
+    use super::{
+        ABSENT, CasteSheetTrait, Content, ContentTrait, IndexTrait, Kit, MISSING, PotionSheet,
+        PotionSheetTrait, SkillSheetTrait,
+    };
+
+    // The sheets read from a record's parts (only the fields the tick reads) agree with the sheets
+    // of the fully unpacked record, their oracle: a regeneration in entry 1 or 2, falling with rank
+    // or negative, none; a potion with and without one; a caste.
+    #[test]
+    #[available_gas(l2_gas: 1175822)] // ceil(1.05 × 1119830 measured)
+    fn test_sheets_read_oracle() {
+        let regen = EntryTrait::new(
+            kind::REGENERATION, 0, 2, 6, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        let skill = SkillTrait::new(
+            1,
+            1,
+            skill_kind::SPELL,
+            10,
+            0,
+            1,
+            12,
+            0,
+            target::SELF,
+            false,
+            [regen, Default::default(), Default::default()],
+        );
+        let caste = CasteTrait::new(
+            4,
+            1,
+            150,
+            10,
+            40,
+            [0; 9],
+            WeaponTrait::new(weapon::MAUL, 30, 3, 2, 1),
+            10,
+            1,
+            [SMASH, 25, 26, 27],
+            12,
+            30,
+            0,
+            false,
+        );
+        let parts = Record::<Skill>::pack(@skill);
+        assert(SkillSheetTrait::read(5, parts) == SkillSheetTrait::new(5, @skill), 'skill');
+        let parts = Record::<Caste>::pack(@caste);
+        assert(CasteSheetTrait::read(1, parts) == CasteSheetTrait::new(1, @caste), 'caste');
+        let damage = EntryTrait::new(
+            kind::DAMAGE, 4, 10, 40, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        );
+        let decay = EntryTrait::new(
+            kind::REGENERATION, 0, 4, -10, 5, 5, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+        );
+        let none: Entry = Default::default();
+        for entries in array![[damage, decay, none], [damage, none, none]] {
+            let skill = SkillTrait::new(
+                1, 1, skill_kind::HEX, 10, 0, 2, 20, 5, target::FOE, false, entries,
+            );
+            let parts = Record::<Skill>::pack(@skill);
+            let read = SkillSheetTrait::read(9, parts);
+            assert(read == SkillSheetTrait::new(9, @skill), 'skill entries');
         }
-        core::panic_with_felt252(errors::NO_CASTE)
+        let tonic = EntryTrait::new(
+            kind::REGENERATION,
+            0,
+            -3,
+            -3,
+            8,
+            8,
+            0,
+            target::SELF,
+            shape::SINGLE,
+            filter::ALLIES,
+            0,
+            0,
+        );
+        let bomb = EntryTrait::new(
+            kind::DAMAGE, 4, 30, 30, 0, 0, 0, target::TILE, shape::DISC_1, filter::FOES, 0, 0,
+        );
+        for entry in array![tonic, bomb] {
+            let item = ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 3, 20);
+            let parts = Record::<Item>::pack(@item);
+            assert(PotionSheetTrait::read(7, parts) == PotionSheetTrait::new(7, @item), 'potion');
+        }
+    }
+
+    // CBT-02d: the index finds every record's position, of each kind apart (a skill, a caste and a
+    // potion may share an id); of two records with one id, the first, as a scan finds it.
+    #[test]
+    #[available_gas(l2_gas: 470411)] // ceil(1.05 × 448010 measured)
+    fn test_index_positions() {
+        let mut twin = Fixture::skill(3, skill_kind::SHOUT, 0, 1);
+        twin.recharge = 99;
+        let mut skills = array![];
+        for id in 1..9_u16 {
+            skills.append(Fixture::skill(id, skill_kind::SPELL, 1, 10));
+        }
+        skills.append(twin);
+        let content = Content {
+            skills: skills.span(),
+            potions: array![PotionSheet { id: 2, regen: 1 }, PotionSheet { id: 70000, regen: 2 }]
+                .span(),
+            castes: array![].span(),
+        };
+        let (sheets, mut index) = content.index();
+        assert(index.skill(1) == 0 && index.skill(8) == 7, 'skills');
+        assert(index.skill(3) == 2 && *sheets.skills[index.skill(3)].recharge == 10, 'the first');
+        assert(index.potion(2) == 0 && index.potion(70000) == 1, 'potions');
+        let content = Fixture::content();
+        let (_, mut index) = content.index();
+        assert(index.caste(1) == 0 && index.caste(2) == 1, 'castes');
+        assert(index.skill(24) == 8 && index.skill(31) == 15, 'caste skills');
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: skill not in content')]
+    #[available_gas(l2_gas: 324230)] // ceil(1.05 × 308790 measured)
+    fn test_index_no_skill() {
+        let (_, mut index) = Fixture::content().index();
+        index.skill(9);
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: caste not in content')]
+    #[available_gas(l2_gas: 324230)] // ceil(1.05 × 308790 measured)
+    fn test_index_no_caste() {
+        let (_, mut index) = Fixture::content().index();
+        index.caste(3);
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: potion not in content')]
+    #[available_gas(l2_gas: 324230)] // ceil(1.05 × 308790 measured)
+    fn test_index_no_potion() {
+        let (_, mut index) = Fixture::content().index();
+        index.potion(100);
+    }
+
+    // CBT-02d: each caste's kit, derived once: its skills' positions (`ABSENT` for an empty slot,
+    // `MISSING` for one the content lacks) and its goblins' adrenaline cap, their highest cost in
+    // quarters, at most 252.
+    #[test]
+    #[available_gas(l2_gas: 174836)] // ceil(1.05 × 166510 measured)
+    fn test_kits() {
+        let mut costly = Fixture::skill(24, skill_kind::ATTACK, 3, 10);
+        costly.adrenaline = 5;
+        let mut heavy = Fixture::skill(30, skill_kind::ATTACK, 0, 0);
+        heavy.adrenaline = 63;
+        let mut hob = Fixture::caste(1, 1);
+        hob.skills = [25, 24, 0, 26];
+        let mut runt = Fixture::caste(2, 1);
+        runt.skills = [30, 99, 0, 0];
+        let content = Content {
+            skills: array![
+                Fixture::skill(26, skill_kind::SHOUT, 0, 20), costly,
+                Fixture::skill(25, skill_kind::SPELL, 2, 8), heavy,
+            ]
+                .span(),
+            potions: array![].span(),
+            castes: array![hob, runt].span(),
+        };
+        let sheets = content.sheets();
+        let hob = Kit { skills: [2, 1, ABSENT, 0], cap: 20, weapon_ticks: 1 };
+        let runt = Kit { skills: [3, MISSING, ABSENT, ABSENT], cap: 252, weapon_ticks: 1 };
+        assert(*sheets.kits[0] == hob && *sheets.kits[1] == runt, 'kits');
     }
 }
