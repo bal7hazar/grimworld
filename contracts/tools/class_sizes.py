@@ -33,9 +33,15 @@ def main():
                        if not m.endswith(".test.starknet_artifacts.json"))
     if not manifests:
         sys.exit("class_sizes: no artifacts; build the workspace first")
-    rows, failed = [], False
+    rows, failed, seen = [], False, set()
     for manifest in manifests:
         for contract in json.load(open(manifest))["contracts"]:
+            # A library class a package's tests declare (`build-external-contracts`: `Hub`'s
+            # `FlattenLibrary`, CBT-02e) is in that package's artifacts too: listed once.
+            key = (contract["package_name"], contract["contract_name"])
+            if key in seen:
+                continue
+            seen.add(key)
             artifacts = contract["artifacts"]
             sierra_path = os.path.join(TARGET, artifacts["sierra"])
             casm_path = os.path.join(TARGET, artifacts["casm"])

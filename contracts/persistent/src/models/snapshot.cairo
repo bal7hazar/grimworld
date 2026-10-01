@@ -1,0 +1,172 @@
+//! The snapshot stored with the adventurer (D-168): the flattening's three packed words
+//! (`MemberStats`, `MemberBar`, `MemberKit`, `grimworld_logic::snapshot`), computed once by
+//! `Hub.set_build` through `FlattenLibrary` and copied by `Hub.enter` to `Instances` (ADR-0001:
+//! the ephemeral domain reads a snapshot taken at entry, here the stored one). Three slots under
+//! the adventurer's id: docs/architecture/ENG-01-interfaces.md, *Hub storage*.
+//!
+//! The kit word carries the snapshot's state in bits the kit leaves free (its high limb ends at
+//! bit 202): the registry's content version it was computed under at bits 208–239, the stale
+//! mark at bit 240, `LIVE` at 250 (set by the packers). A slot never written is 0: no snapshot.
+//! `Hub.enter` refuses a missing one, and a stale one: marked, of another content version, or of
+//! another level than the adventurer's (D-168 2).
+
+use grimworld_logic::packing::{P64, byte_at, split};
+use grimworld_logic::snapshot::SnapshotWords;
+
+/// `2^208`: the content version's unit in the kit word (bits 208–239).
+const VERSION_UNIT: felt252 = 0x10000000000000000000000000000000000000000000000000000;
+/// `2^80`: the kit word's high limb above it, `LIVE` removed, is the state (the version, the
+/// stale mark).
+const STATE_SHIFT: u128 = 0x100000000000000000000;
+
+/// The kit word of a snapshot marked stale (bit 240, `LIVE`): an entrypoint that changes an input
+/// of the flattening and does not recompute writes it, in one write, without reading (D-168 2).
+pub const STALE_MARK: felt252 = 0x401000000000000000000000000000000000000000000000000000000000000;
+
+pub mod errors {
+    /// No snapshot: `set_build` was never called for the adventurer.
+    pub const MISSING: felt252 = 'snapshot: missing';
+    /// The snapshot is marked stale, of another content version, or of another level: the client
+    /// sends `set_build` first (D-168 2).
+    pub const STALE: felt252 = 'snapshot: stale';
+}
+
+/// Three consecutive slots under the adventurer's id, the words as stored.
+#[derive(Copy, Drop, Serde, starknet::Store)]
+pub struct StoredSnapshot {
+    pub stats: felt252,
+    pub bar: felt252,
+    pub kit: felt252,
+}
+
+#[generate_trait]
+pub impl StoredSnapshotImpl of StoredSnapshotTrait {
+    /// The snapshot `set_build` stores: the flattening's three packed words, the kit sealed with
+    /// the content `version` it was computed under.
+    #[inline(always)]
+    fn new(stats: felt252, bar: felt252, kit: felt252, version: u32) -> StoredSnapshot {
+        StoredSnapshot { stats, bar, kit: Self::seal(kit, version) }
+    }
+
+    /// What `Instances.create` receives of a snapshot `StoredSnapshotAssert::assert_fresh`
+    /// accepted at `version`: the three words as packed, and the belt's counts.
+    #[inline(always)]
+    fn words(self: @StoredSnapshot, version: u32, belt_counts: [u8; 4]) -> SnapshotWords {
+        SnapshotWords {
+            stats: *self.stats, bar: *self.bar, kit: Self::kit(*self.kit, version), belt_counts,
+        }
+    }
+
+    /// The stored kit word: the packed kit (`LIVE` set) and the content `version` it was computed
+    /// under.
+    #[inline(always)]
+    fn seal(kit: felt252, version: u32) -> felt252 {
+        kit + version.into() * VERSION_UNIT
+    }
+
+    /// The packed kit of a stored kit word `StoredSnapshotAssert::assert_fresh` accepted.
+    #[inline(always)]
+    fn kit(word: felt252, version: u32) -> felt252 {
+        word - version.into() * VERSION_UNIT
+    }
+}
+
+#[generate_trait]
+pub impl StoredSnapshotAssert of StoredSnapshotAssertTrait {
+    /// The stored kit word is a snapshot (`MISSING`) of the registry's content `version`, not
+    /// marked stale (`STALE`). One split and one division.
+    fn assert_fresh(word: felt252, version: u32) {
+        assert(word != 0, errors::MISSING);
+        let (_, high) = split(word);
+        assert(high / STATE_SHIFT == version.into(), errors::STALE);
+    }
+
+    /// The stored stats word was computed at the adventurer's `level` (`MemberStats.level`, bits
+    /// 64–71): a level up (GLD-01) leaves the snapshot stale without marking it.
+    #[inline(always)]
+    fn assert_level(stats: felt252, level: u8) {
+        let (low, _) = split(stats);
+        assert(byte_at(low, P64) == level, errors::STALE);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::LIVE;
+    use grimworld_logic::snapshot::{MemberKit, MemberStats, pack_kit, pack_stats, unpack_kit};
+    use super::{STALE_MARK, StoredSnapshotAssert, StoredSnapshotTrait, errors};
+
+    fn kit() -> felt252 {
+        pack_kit(
+            MemberKit {
+                belt: [0xffffffff; 4],
+                life_steal: 255,
+                energy_on_hit: 255,
+                condition: 15,
+                condition_duration: 63,
+                enchantment_duration: 63,
+                double_adrenaline_every: 255,
+                health_bonus: 0xffff,
+                armor_stance: -1,
+                armor_enchanted: -1,
+                knockdown: 3,
+                halving: true,
+            },
+        )
+    }
+
+    // Sealed with the widest kit and version, the kit comes back whole, and the state reads.
+    #[test]
+    #[available_gas(l2_gas: 304731)] // ceil(1.05 × 290220 measured)
+    fn test_seal_round_trip() {
+        let version = 0xffffffff;
+        let word = StoredSnapshotTrait::seal(kit(), version);
+        StoredSnapshotAssert::assert_fresh(word, version);
+        let back = StoredSnapshotTrait::kit(word, version);
+        assert(back == kit(), 'kit');
+        assert(unpack_kit(back) == unpack_kit(kit()), 'unpacked');
+        let word = StoredSnapshotTrait::seal(kit(), 0);
+        StoredSnapshotAssert::assert_fresh(word, 0);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[should_panic(expected: 'snapshot: missing')]
+    fn test_missing_refused() {
+        StoredSnapshotAssert::assert_fresh(0, 0);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 20685)] // ceil(1.05 × 19700 measured)
+    #[should_panic(expected: 'snapshot: stale')]
+    fn test_stale_mark_refused() {
+        StoredSnapshotAssert::assert_fresh(STALE_MARK, 0);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 70539)] // ceil(1.05 × 67180 measured)
+    #[should_panic(expected: 'snapshot: stale')]
+    fn test_other_version_refused() {
+        StoredSnapshotAssert::assert_fresh(StoredSnapshotTrait::seal(kit(), 4), 5);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 127985)] // ceil(1.05 × 121890 measured)
+    #[should_panic(expected: 'snapshot: stale')]
+    fn test_other_level_refused() {
+        let stats = pack_stats(MemberStats { level: 3, ..Default::default() });
+        StoredSnapshotAssert::assert_level(stats, 3);
+        StoredSnapshotAssert::assert_level(stats, 4);
+    }
+
+    // The stale mark is `LIVE` and bit 240 alone.
+    #[test]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    fn test_stale_mark_bits() {
+        assert(
+            STALE_MARK == LIVE + 0x1000000000000000000000000000000000000000000000000000000000000,
+            'mark',
+        );
+        assert(errors::STALE != errors::MISSING, 'errors');
+    }
+}

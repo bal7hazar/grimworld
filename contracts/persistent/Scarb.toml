@@ -19,6 +19,8 @@ assert_macros.workspace = true
 [[target.starknet-contract]]
 sierra = true
 casm = true
+# CBT-02e (D-168): `Hub.set_build` calls `FlattenLibrary` by `library_call`; its tests declare it.
+build-external-contracts = ["grimworld_logic::systems::flatten::FlattenLibrary"]
 
 [scripts]
 test.workspace = true

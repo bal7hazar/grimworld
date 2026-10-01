@@ -161,7 +161,7 @@ pub mod Instances {
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
-    use grimworld_logic::snapshot::{Snapshot, TaskEntry, TaskPage};
+    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::{
         InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
     };
@@ -185,6 +185,7 @@ pub mod Instances {
         DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member, MemberState,
         MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD, errors as member_errors,
     };
+    use crate::store::StoreTrait;
     use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
 
     /// Task entries on a stored page (`TaskPage`).
@@ -506,7 +507,7 @@ pub mod Instances {
             adventurer_id: u32,
             controller: ContractAddress,
             gate: u16,
-            snapshot: Snapshot,
+            snapshot: SnapshotWords,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
             assert(get_caller_address() == self.hub.read(), errors::NOT_HUB);
@@ -530,11 +531,11 @@ pub mod Instances {
                 next.try_into().unwrap()
             };
             self.write_tasks(slot, tasks);
+            // The snapshot's words as `Hub` stored them (D-168), written as they are.
             let member = self.members.entry((slot, 0));
-            member.stats.write(snapshot.stats);
-            member.bar.write(snapshot.bar);
-            member.kit.write(snapshot.kit);
+            StoreTrait::set_snapshot(member, @snapshot);
             member.controller.write(controller);
+            let (max_health, max_energy) = MemberStateTrait::maxima(snapshot.stats);
             let previous = self.headers.entry(slot).read().generation;
             self
                 .begin(
@@ -545,8 +546,8 @@ pub mod Instances {
                     @record,
                     @location,
                     tasks.len().try_into().unwrap(),
-                    snapshot.stats.max_health,
-                    snapshot.stats.max_energy,
+                    max_health,
+                    max_energy,
                     snapshot.belt_counts,
                 )
         }

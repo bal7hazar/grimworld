@@ -10,6 +10,10 @@ probe gate, 6: zone -> the dungeon's first floor, a link anchored on the zone's 
 a location transition is reachable without `play` (ENG-07). Then one transaction per case:
 
   create_adventurer (x3)               D-144: the start hub read from the registry
+  set_build, empty, first              CBT-02e (D-168): the snapshot flattened by `FlattenLibrary`,
+                                       its three words new (the first write's premium)
+  set_build, empty, again              the three words written with the values they hold
+  set_build, counts / slots swapped    fix loop 1: one snapshot word (the kit) overwritten
   enter, first entry (cold)            a new slot: the slot's keys written for the first time
   leave to a hub (gate 2)              Returned, the town reached
   enter, later entry (initialised)     the slot reused, generation 2
@@ -23,7 +27,10 @@ a location transition is reachable without `play` (ENG-07). Then one transaction
   leave to a hub / travel_back         the 4 pages credited back by the closing report
   set_account_owner, 0 to 3 inside     the real `Instances.set_controller`, from other accounts
 
-Adventurer 1 carries no belt; adventurer 2 carries the belt's worst case. Its pack is filled by one
+Declares `FlattenLibrary` (grimworld_logic) and registers its class hash with `Hub.set_contracts`
+(D-168): `enter` copies the snapshot `set_build` stored and refuses a missing one, so every
+adventurer's `set_build` comes before its first `enter`. Adventurer 1 carries no belt; adventurer 2
+carries the belt's worst case. Its pack is filled by one
 `report` the administrator sends while the hub names it as `instances` (no entrypoint fills a pack
 yet), then the real `Instances` is registered again. The bar and the equipment stay empty on the
 node: no entrypoint teaches a skill or creates an equipment entity yet (the snforge tests measure
@@ -182,8 +189,10 @@ def deploy(package, class_hash, *calldata):
 registry = deploy("persistent", declare("persistent", "Registry"), ADDRESS)
 fate = deploy("persistent", declare("persistent", "TxHashFate"))
 hub = deploy("persistent", declare("persistent", "Hub"), ADDRESS, registry, 3, 4, fate)
+flatten = declare("logic", "FlattenLibrary")
 instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub, registry, fate)
-emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances})
+emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
+      "flatten_class": flatten})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 
 
@@ -229,7 +238,8 @@ def entered(receipt):
     raise RuntimeError("no InstanceEntered")
 
 
-invoke("Hub.set_contracts", hub, "set_contracts", registry, instances, 4, fate, record=False)
+invoke("Hub.set_contracts", hub, "set_contracts", registry, instances, 4, fate, flatten,
+       record=False)
 records = [(REGION, 1, region(1, 0, 1, "Test Region")),
            (LOCATION, 1, location(1, 0, 0, 0, 0, 0, 0)),
            (LOCATION, 2, location(3, 3, 0, 0, 0, 0, 105)),
@@ -253,6 +263,16 @@ invoke("create_adventurer, cold (D-144: the start hub from the registry)", hub,
 invoke("create_adventurer, initialised", hub, "create_adventurer", short("Brenna"), 2)
 invoke("create_adventurer, initialised (third)", hub, "create_adventurer", short("Cedric"), 3)
 
+# CBT-02e (D-168): the snapshot stored by `set_build`, new at an adventurer's first, then
+# overwritten; an empty build, the equipment's flattening being the snforge tests' (no entrypoint
+# creates an item yet).
+invoke("set_build, empty, first (the snapshot's 3 words new)", hub, "set_build", 1, EMPTY_BUILD, 0,
+       0)
+invoke("set_build, empty, again (the snapshot's 3 words rewritten unchanged)", hub, "set_build", 1,
+       EMPTY_BUILD, 0, 0)
+for adventurer in (2, 3):
+    invoke("set_build, empty", hub, "set_build", adventurer, EMPTY_BUILD, 0, 0, record=False)
+
 first = entered(invoke("enter, first entry (cold: a new slot)", hub, "enter", 1, 1))
 invoke("leave to a hub (gate 2: Returned, the town reached)", instances, "leave", first, 1, 0, 2)
 second = entered(invoke("enter, later entry (initialised: the slot reused)", hub, "enter", 1, 1))
@@ -273,12 +293,12 @@ invoke("leave refused (sequence 7 against 0: Refused)", instances, "leave", fift
 setup_in = entered(invoke("enter (adventurer 2, to fill its pack)", hub, "enter", 2, 1,
                           record=False))
 invoke("Hub.set_contracts (instances: the administrator)", hub, "set_contracts", registry,
-       ADDRESS, 4, fate, record=False)
+       ADDRESS, 4, fate, flatten, record=False)
 invoke("report (Open: 3 of each potion into the pack)", hub, "report",
        setup_in, 1, 2, 0, 0, 4, *[f for item in POTIONS for f in (item, 3)], 0, 0, 0, 0,
        OPEN, 0, 0, 0, 0, 0, 0, record=False)
 invoke("Hub.set_contracts (instances back)", hub, "set_contracts", registry, instances, 4, fate,
-       record=False)
+       flatten, record=False)
 invoke("leave to a hub", instances, "leave", setup_in, 2, 0, 2, record=False)
 invoke("set_build, 4 potions on 4 pack pages (empty bar, no equipment)", hub, "set_build", 2,
        EMPTY_BUILD, belt(POTIONS, (3, 3, 3, 3)), 0)
@@ -288,6 +308,21 @@ invoke("leave to a hub, the belt credited back (4 pages)", instances, "leave", b
 belted = entered(invoke("enter, later entry, the belt's worst case (again)", hub, "enter", 2, 1))
 invoke("travel_back, the belt credited back (4 pages)", instances, "travel_back", belted, 2, 0)
 
+# CBT-02e fix loop 1 (AC-5): a snapshot word's overwrite on the node. Three `set_build` of
+# adventurer 2 with the same reads and the same computation (two potions, pages 0 and 1): the
+# belt's counts changed (the belt word overwritten; the snapshot's words written with the values
+# they hold, no change), the belt's two slots swapped (the belt word and the kit word overwritten:
+# the kit names the belt's items), the same again (no state change). The kit word's overwrite is
+# the second less the first.
+invoke("set_build, two potions (setup)", hub, "set_build", 2, EMPTY_BUILD,
+       belt((1, 8, 0, 0), (1, 1, 0, 0)), 0, record=False)
+invoke("set_build, the belt's counts changed (belt overwritten, snapshot unchanged)", hub,
+       "set_build", 2, EMPTY_BUILD, belt((1, 8, 0, 0), (1, 2, 0, 0)), 0)
+invoke("set_build, the belt's slots swapped (belt and the snapshot's kit word overwritten)", hub,
+       "set_build", 2, EMPTY_BUILD, belt((8, 1, 0, 0), (2, 1, 0, 0)), 0)
+invoke("set_build, the same again (no state change)", hub, "set_build", 2, EMPTY_BUILD,
+       belt((8, 1, 0, 0), (2, 1, 0, 0)), 0)
+
 # set_account_owner with k adventurers inside, k = 0 to 3, the real set_controller (D-144).
 # Accounts 2, 3 and 4 are players 3, 1 and 2's; adventurers 4 to 7 theirs.
 next_adventurer = 4
@@ -296,6 +331,8 @@ for k, player in ((0, 3), (1, 1), (2, 2)):
     ids = []
     for n in range(max(k, 1)):
         invoke("create_adventurer", hub, "create_adventurer", short(f"P{player}A{n}"), 1,
+               player=player, record=False)
+        invoke("set_build, empty", hub, "set_build", next_adventurer, EMPTY_BUILD, 0, 0,
                player=player, record=False)
         ids.append(next_adventurer)
         next_adventurer += 1

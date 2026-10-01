@@ -92,6 +92,7 @@ fn test_fate_at_the_configured_address() {
             3.try_into().unwrap(),
             4.try_into().unwrap(),
             fate.contract_address,
+            0.try_into().unwrap(),
         );
     let configured: ContractAddress = (*load(hub, selector!("fate"), 1).at(0)).try_into().unwrap();
     assert(configured == fate.contract_address, 'configured');
