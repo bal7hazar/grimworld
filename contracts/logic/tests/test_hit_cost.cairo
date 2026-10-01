@@ -61,7 +61,7 @@ fn costliest() -> (Hit, HitTarget) {
 
 // The pair's base: the inputs built, no hit.
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_cost_pair_hit_none() {
     let (hit, target) = costliest();
     assert(hit.base == MAX_BASE && target.halve, 'inputs');
@@ -69,7 +69,7 @@ fn test_cost_pair_hit_none() {
 
 // The pair's other half: the same, and one hit on the costliest path.
 #[test]
-#[available_gas(l2_gas: 1000000)]
+#[available_gas(l2_gas: 63189)] // ceil(1.05 × 60180 measured)
 fn test_cost_pair_hit_one() {
     let (hit, target) = costliest();
     assert(hit.base == MAX_BASE && target.halve, 'inputs');
@@ -111,7 +111,7 @@ fn each(hit: @Hit, target: @HitTarget) -> u128 {
 
 // A tick's most hits, 14, on the costliest path.
 #[test]
-#[available_gas(l2_gas: 2000000)]
+#[available_gas(l2_gas: 1081395)] // ceil(1.05 × 1029900 measured)
 fn test_cost_hits_per_tick() {
     let (hit, target) = costliest();
     let (used, landed) = hits(@hit, @target, HITS_PER_TICK);
@@ -122,7 +122,7 @@ fn test_cost_hits_per_tick() {
 // Every path is charged the same (the claim above, checked): a blocked hit, an evaded one, a missed
 // one, a spell and a bomb cost what a landed weapon hit costs.
 #[test]
-#[available_gas(l2_gas: 2000000)]
+#[available_gas(l2_gas: 1960602)] // ceil(1.05 × 1867240 measured)
 fn test_cost_hit_paths() {
     let (hit, target) = costliest();
     let landed = each(@hit, @target);
