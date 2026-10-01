@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024_07"
 cairo-version = "2.19"
 
-# Kept out of any workspace (as SPK-15): a spike, built and tested on its own.
-[workspace]
-
 [dependencies]
 starknet = "2.19"
 # The game's shared package by path, main's code at the spike's base (e9b8cef), as SPK-15 does.
