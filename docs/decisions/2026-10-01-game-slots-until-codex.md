@@ -30,4 +30,14 @@ Merges at the reset in the order ENG-R1a, CBT-04, CBT-03a.
 
 ## Decision
 
-Pending.
+**D-170**, `[Fable 5.1]` project manager, 2026-10-01, under D-128: **(a)**. CBT-04 (the five
+conditions of the MVP) and CBT-03a (damage, armor, critical, D-140; arc and flank as inputs until
+ENG-02) start now, in disjoint files, on CBT-02's tick as CBT-02d left it; on the pattern of CAIRO.md
+§7 and the test rule of §2 (D-167). Their claude-side lenses run meanwhile; their Codex audits and
+reviews queue for the reset of 2026-10-04 13:36 UTC (or earlier, if the owner repairs the account);
+they merge after ENG-R1a, so that the pattern's first lot on the game lands first. Each brief carries
+the per-tick budget of CBT-02d's re-proved bound (3,447,872 a tick inside a batch, 2.35× the target,
+reported and not accepted: ENG-07 derives the batch's weight, D-166) and states what it adds to it.
+
+**What would reverse it**: `hexx` rc.1 landing first (then ENG-02 takes a slot back).
+
