@@ -1,0 +1,23 @@
+   Compiling test(spk12_unittest) spk12 v0.1.0 (/Users/bal7hazar/nexus-workspaces/worktrees/grimworld/impl-spk-12/spikes/SPK-12/Scarb.toml)
+   Compiling test(spk12_integrationtest) spk12_integrationtest v0.1.0 (/Users/bal7hazar/nexus-workspaces/worktrees/grimworld/impl-spk-12/spikes/SPK-12/Scarb.toml)
+warn: external contracts not found for selectors: `spk12::*`
+    Finished `dev` profile target(s) in 24 seconds
+
+
+Collected 4 test(s) from spk12 package
+Running 0 test(s) from src/
+Running 4 test(s) from tests/
+[PASS] spk12_integrationtest::test_segment::test_unknown_rules (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~8943293)
+gas run representative 0: 1150340
+gas run representative 1: 1805347
+gas run representative 10: 7567300
+[PASS] spk12_integrationtest::test_segment::test_segments_chain (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~39455805)
+[PASS] spk12_integrationtest::test_segment::test_busy_stops_at_defeat (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~65595048)
+gas run representative 100: 65186830
+gas run busy 0: 10087850
+gas run busy 1: 11579567
+gas run busy 10: 25356410
+gas run busy 40: 45989166
+[PASS] spk12_integrationtest::test_segment::test_cost_run_ticks (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~199885660)
+Tests: 4 passed, 0 failed, 0 ignored, 0 filtered out
+
