@@ -58,8 +58,19 @@ pub const PACK: u8 = 1;
 pub const VAULT: u8 = 2;
 pub const ESCROW: u8 = 3;
 
-pub fn owner_key(kind: u8, id: u32) -> felt252 {
-    kind.into() * 0x100000000 + id.into()
+/// The owner key of balances and gold (`kind × 2^32 + id`).
+#[generate_trait]
+pub impl OwnerImpl of OwnerTrait {
+    #[inline(always)]
+    fn key(kind: u8, id: u32) -> felt252 {
+        kind.into() * 0x100000000 + id.into()
+    }
+
+    /// The owner key of an adventurer's pack.
+    #[inline(always)]
+    fn pack(adventurer_id: u32) -> felt252 {
+        Self::key(PACK, adventurer_id)
+    }
 }
 
 /// Adventurer slots of a new account (design/03, D-33: three; more can be bought).
@@ -67,17 +78,9 @@ pub const START_SLOTS: u8 = 3;
 
 /// `account_adventurers` is a compact list of adventurer ids, seven per page (`Lanes32`), its
 /// length `AccountRecord.adventurers`: an append writes lane `n % 7` of page `n / 7`; a removal
-/// moves the last id into the hole and clears the last lane. A page once written keeps `LIVE`.
+/// moves the last id into the hole and clears the last lane (`HubStore::add_adventurer_id`,
+/// `HubStore::remove_adventurer_id`). A page once written keeps `LIVE`.
 pub const IDS_PER_PAGE: u8 = 7;
-
-/// Offset of `record` in `Account`, for a read of the stored word.
-pub const RECORD_WORD: u8 = 1;
-
-/// The stored `AccountRecord` of a new account: `START_SLOTS` slots, nothing else, `LIVE`
-/// (pinned against the packer by `test_stored_words`).
-pub const NEW_RECORD: felt252 = 0x400000000000000000000000000000000000000000000000000000000000003;
-/// One more adventurer, added to a stored `AccountRecord` (its field at bit 8).
-pub const ONE_ADVENTURER: felt252 = 0x100;
 
 /// The refusals of accounts (ENG-04).
 pub mod errors {
@@ -93,27 +96,51 @@ pub mod errors {
     pub const OWNER_HAS_ACCOUNT: felt252 = 'owner has an account';
     /// `set_account_owner` to the zero address would leave the account to nobody.
     pub const ZERO_OWNER: felt252 = 'owner is zero';
+    /// The swap removal did not meet the adventurer in its account's list: an invariant, not a
+    /// player's refusal (the ownership check comes first).
+    pub const NOT_LISTED: felt252 = 'not in the account list';
+    /// A lane of a `Lanes32` page is 0 to 6.
+    pub const LANE_ABOVE_6: felt252 = 'lane above 6';
 }
 
-/// A stored `AccountRecord` changed by arithmetic, without the packer: each function is pinned
-/// against the packer by `test_stored_words` (the packer is the oracle, docs/CAIRO.md §2). They
-/// take and return the stored word, since unpacking and packing the record is what they save.
+/// `AccountRecord` as stored, one word: the paths read its two counts and change one by an
+/// addition, where the packer decodes and encodes five fields (about 20,000 and 18,000 l2 gas,
+/// measured in ENG-R1a). Each method is pinned against the packer in the tests (the oracle,
+/// docs/CAIRO.md §2). Only the store reads and writes it.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+pub struct StoredRecord {
+    pub word: felt252,
+}
+
+/// The stored `AccountRecord` of a new account: `START_SLOTS` slots, nothing else, `LIVE`.
+const NEW_RECORD: felt252 = 0x400000000000000000000000000000000000000000000000000000000000003;
+/// One more adventurer, added to a stored `AccountRecord` (its field at bit 8).
+const ONE_ADVENTURER: felt252 = 0x100;
+
 #[generate_trait]
-pub impl AccountRecordImpl of AccountRecordTrait {
-    /// `(slots, adventurers)` of a stored record, without unpacking the other fields.
-    fn counts(record: felt252) -> (u8, u8) {
-        let (low, _) = split(record);
+pub impl StoredRecordImpl of StoredRecordTrait {
+    /// The record of a new account.
+    #[inline(always)]
+    fn new() -> StoredRecord {
+        StoredRecord { word: NEW_RECORD }
+    }
+
+    /// `(slots, adventurers)`, without decoding the other fields.
+    fn counts(self: @StoredRecord) -> (u8, u8) {
+        let (low, _) = split(*self.word);
         (low_field(low, P8.try_into().unwrap()).try_into().unwrap(), byte_at(low, P8))
     }
 
-    /// The stored record with one adventurer more (its field at bit 8; below `slots` ≤ 255).
-    fn with_adventurer(record: felt252) -> felt252 {
-        record + ONE_ADVENTURER
+    /// One adventurer more (fewer than its slots ≤ 255: `AccountAssert::assert_free_slot`).
+    #[inline(always)]
+    fn with_adventurer(self: StoredRecord) -> StoredRecord {
+        StoredRecord { word: self.word + ONE_ADVENTURER }
     }
 
-    /// The stored record with one adventurer less (it has at least one).
-    fn without_adventurer(record: felt252) -> felt252 {
-        record - ONE_ADVENTURER
+    /// One adventurer less (it has at least one).
+    #[inline(always)]
+    fn without_adventurer(self: StoredRecord) -> StoredRecord {
+        StoredRecord { word: self.word - ONE_ADVENTURER }
     }
 }
 
@@ -145,9 +172,16 @@ pub impl AccountAssert of AccountAssertTrait {
     }
 }
 
-/// A page of `account_adventurers` (a `Lanes32` of adventurer ids).
+/// A page of `account_adventurers` (a `Lanes32` of adventurer ids); `unit` serves the lanes of
+/// balance pages too (`models::balance`).
 #[generate_trait]
 pub impl AdventurerListImpl of AdventurerListTrait {
+    /// `(page, lane)` of the list's `index`-th id.
+    #[inline(always)]
+    fn at(index: u8) -> (u8, u8) {
+        DivRem::div_rem(index, IDS_PER_PAGE.try_into().unwrap())
+    }
+
     /// What one unit of lane `lane` (0 to 6) adds to a stored page: a table (docs/CAIRO.md §3).
     fn unit(lane: u8) -> felt252 {
         match lane {
@@ -158,7 +192,7 @@ pub impl AdventurerListImpl of AdventurerListTrait {
             4 => 0x100000000000000000000000000000000,
             5 => 0x10000000000000000000000000000000000000000,
             6 => 0x1000000000000000000000000000000000000000000000000,
-            _ => core::panic_with_felt252('lane above 6'),
+            _ => AdventurerListAssert::lane_above_6(),
         }
     }
 
@@ -173,7 +207,7 @@ pub impl AdventurerListImpl of AdventurerListTrait {
             4 => e,
             5 => f,
             6 => g,
-            _ => core::panic_with_felt252('lane above 6'),
+            _ => AdventurerListAssert::lane_above_6(),
         }
     }
 
@@ -188,8 +222,89 @@ pub impl AdventurerListImpl of AdventurerListTrait {
             4 => [a, b, c, d, value, f, g],
             5 => [a, b, c, d, e, value, g],
             6 => [a, b, c, d, e, f, value],
-            _ => core::panic_with_felt252('lane above 6'),
+            _ => AdventurerListAssert::lane_above_6(),
         };
         Lanes32 { lanes }
+    }
+}
+
+/// The list's refusals (ENG-04 audit F-6), each evaluated where it was before.
+#[generate_trait]
+pub impl AdventurerListAssert of AdventurerListAssertTrait {
+    /// The swap removal's scan has not reached the list's last id without meeting the adventurer.
+    #[inline(always)]
+    fn assert_listed(index: u8, last: u8) {
+        assert(index != last, errors::NOT_LISTED);
+    }
+
+    /// The refusal of a lane above 6: the last arm of a match on a lane, which never returns.
+    fn lane_above_6() -> core::never {
+        core::panic_with_felt252(errors::LANE_ABOVE_6)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::Lanes32;
+    use starknet::storage_access::StorePacking;
+    use super::{
+        AccountRecord, AdventurerListAssert, AdventurerListTrait, OwnerTrait, START_SLOTS,
+        StoredRecord, StoredRecordTrait, VAULT,
+    };
+
+    // The stored record of a new account, its counts, one adventurer more or less, against the
+    // packer.
+    #[test]
+    #[available_gas(l2_gas: 121244)] // ceil(1.05 × 115470 measured)
+    fn test_record_words() {
+        let new = AccountRecord { slots: START_SLOTS, ..Default::default() };
+        assert(StoredRecordTrait::new().word == StorePacking::pack(new), 'new');
+        let more = AccountRecord {
+            slots: 9, adventurers: 5, highest_rank: 4, vault_panes: 2, lots: 7,
+        };
+        let stored = StoredRecord { word: StorePacking::pack(more) };
+        assert(stored.counts() == (9, 5), 'slots and count');
+        let one_more = AccountRecord { adventurers: 6, ..more };
+        assert(stored.with_adventurer().word == StorePacking::pack(one_more), 'one more');
+        let one_less = AccountRecord { adventurers: 4, ..more };
+        assert(stored.without_adventurer().word == StorePacking::pack(one_less), 'one less');
+        assert(StorePacking::<AccountRecord, felt252>::unpack(stored.word) == more, 'record trip');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    fn test_owner_key() {
+        assert(OwnerTrait::key(VAULT, 7) == 2 * 0x100000000 + 7, 'owner key');
+    }
+
+    // Each lane's unit, `get` and `set`, against the packer.
+    #[test]
+    #[available_gas(l2_gas: 266816)] // ceil(1.05 × 254110 measured)
+    fn test_list_lanes() {
+        let page = Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] };
+        let word: felt252 = StorePacking::pack(page);
+        for lane in 0..7_u8 {
+            let expected = page.set(lane, 0xFFFFFFFF);
+            let changed = word
+                + (0xFFFFFFFF - page.get(lane)).into() * AdventurerListTrait::unit(lane);
+            assert(changed == StorePacking::pack(expected), 'lane unit');
+            assert(expected.get(lane) == 0xFFFFFFFF, 'set then get');
+        }
+        assert(AdventurerListTrait::at(0) == (0, 0), 'first');
+        assert(AdventurerListTrait::at(13) == (1, 6), 'fourteenth');
+    }
+
+    #[test]
+    #[should_panic(expected: 'lane above 6')]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    fn test_lane_above_6_refused() {
+        Lanes32 { lanes: [0; 7] }.get(7);
+    }
+
+    #[test]
+    #[should_panic(expected: 'not in the account list')]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    fn test_not_listed_refused() {
+        AdventurerListAssert::assert_listed(3, 3);
     }
 }

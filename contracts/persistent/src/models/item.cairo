@@ -216,6 +216,53 @@ pub struct Item {
     pub mods: ItemMods,
 }
 
+/// The items an adventurer wears, as `set_build` checks them and the flattening reads them: each
+/// one's lane and `ItemBase`, for the equipment's checks; each as the flattening reads it (`Worn`,
+/// with its `ItemMods`); the distinct modifier ids they hold, in the order met; whether the weapon
+/// is personalised (`ItemBase.flags`). Filled one item at a time as the store reads them
+/// (`HubStore::get_equipment`), so that no item is copied. Bound: 7 lanes, 5 modifiers an item.
+#[derive(Drop)]
+pub struct Equipment {
+    pub bases: Array<(u32, ItemBase)>,
+    pub worn: Array<Worn>,
+    pub modifiers: Array<u16>,
+    pub personalised: bool,
+}
+
+#[generate_trait]
+pub impl EquipmentImpl of EquipmentTrait {
+    #[inline(always)]
+    fn new() -> Equipment {
+        Equipment { bases: array![], worn: array![], modifiers: array![], personalised: false }
+    }
+
+    /// The item worn in `lane`, the lanes added in their order.
+    #[inline(always)]
+    fn add(ref self: Equipment, lane: u32, item: Item) {
+        let item_worn = item.mods.worn(lane.try_into().unwrap(), item.base.slot);
+        for id in item_worn.ids.span() {
+            let id = *id;
+            if id == 0 {
+                continue;
+            }
+            let mut seen = false;
+            for other in self.modifiers.span() {
+                if *other == id {
+                    seen = true;
+                }
+            }
+            if !seen {
+                self.modifiers.append(id);
+            }
+        }
+        if lane == 0 {
+            self.personalised = item.base.flags & PERSONALISED != 0;
+        }
+        self.bases.append((lane, item.base));
+        self.worn.append(item_worn);
+    }
+}
+
 /// The state of one adventurer's discovery in one book (design/07).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct GrimoireState {
@@ -328,5 +375,166 @@ pub impl RiftBoardStorePacking of starknet::storage_access::StorePacking<RiftBoa
                 u16_at(low, P104),
             ],
         }
+    }
+}
+
+// The item's, the grimoire's, gold's and the Rift board's layouts (ENG-01 §3.3); the equipment
+// read for `set_build`.
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::models::base::{BaseTrait, slot};
+    use grimworld_logic::packing::LIVE;
+    use starknet::storage_access::StorePacking;
+    use super::super::account::PACK;
+    use super::{
+        Equipment, EquipmentTrait, Gold, GrimoireState, IDENTIFIED, Item, ItemBase, ItemBaseTrait,
+        ItemMods, Modifier, PERSONALISED, Pairs, RiftBoard,
+    };
+
+    #[test]
+    #[available_gas(l2_gas: 363636)] // ceil(1.05 × 346320 measured)
+    fn test_item_grimoire_rift_layout() {
+        let base = ItemBase {
+            base: 0xFFFF,
+            requirement: 9,
+            rarity: 4,
+            level: 28,
+            flags: 15,
+            look: 0xFFFF,
+            set: 0xFFFF,
+            owner_kind: 3,
+            owner: 0xFFFFFFFF,
+            slot: 15,
+            hands: 15,
+        };
+        let word = StorePacking::<ItemBase, felt252>::pack(base);
+        assert(StorePacking::<ItemBase, felt252>::unpack(word) == base, 'base trip');
+        let owner = ItemBase { owner: 1, ..Default::default() };
+        assert(
+            StorePacking::<ItemBase, felt252>::pack(owner) == 0x10000000000000000000000 + LIVE,
+            'owner at bit 88',
+        );
+
+        let full = Modifier { id: 0xFFFF, value: 0xFF };
+        let mods = ItemMods { mods: [full, Modifier { id: 1, value: 2 }, full, full, full] };
+        let word = StorePacking::<ItemMods, felt252>::pack(mods);
+        assert(StorePacking::<ItemMods, felt252>::unpack(word) == mods, 'mods trip');
+
+        let state = GrimoireState {
+            known: 0xFFFF, remaining: 0xFFFFFFFFFFFF, hints: 0xFFFFFFFFFFFFFFFF,
+        };
+        let word = StorePacking::<GrimoireState, felt252>::pack(state);
+        assert(StorePacking::<GrimoireState, felt252>::unpack(word) == state, 'grimoire trip');
+        let pairs = Pairs {
+            low: 0x1FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, high: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
+        };
+        let word = StorePacking::<Pairs, felt252>::pack(pairs);
+        assert(StorePacking::<Pairs, felt252>::unpack(word) == pairs, 'pairs trip');
+
+        let gold = Gold { amount: 0xFFFFFFFFFFFFFFFF };
+        let word = StorePacking::<Gold, felt252>::pack(gold);
+        assert(StorePacking::<Gold, felt252>::unpack(word) == gold, 'gold trip');
+        assert(StorePacking::<Gold, felt252>::pack(Gold { amount: 0 }) == LIVE, 'no gold is not 0');
+
+        let board = RiftBoard { day: 20725, cleared: 0x1F, rifts: [1, 2, 3, 4, 0xFFFF] };
+        let word = StorePacking::<RiftBoard, felt252>::pack(board);
+        assert(StorePacking::<RiftBoard, felt252>::unpack(word) == board, 'rift trip');
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: pairs 25-48 overflow')]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    fn test_pairs_overflow_refused() {
+        StorePacking::<
+            Pairs, felt252,
+        >::pack(Pairs { low: 0, high: 0x1000000000000000000000000000000 });
+    }
+
+    // CBT-08a, D-158: `ItemBase.slot` at bit 120 and `hands` at 124, 4 bits each, copied from the
+    // `BASE` record by the constructor every creator of an item calls.
+    #[test]
+    #[available_gas(l2_gas: 189315)] // ceil(1.05 × 180300 measured)
+    fn test_item_slot_and_hands() {
+        let one = ItemBase { slot: 1, ..Default::default() };
+        assert(
+            StorePacking::<ItemBase, felt252>::pack(one) == 0x1000000000000000000000000000000
+                + LIVE,
+            'slot at bit 120',
+        );
+        let two = ItemBase { hands: 1, ..Default::default() };
+        assert(
+            StorePacking::<ItemBase, felt252>::pack(two) == 0x10000000000000000000000000000000
+                + LIVE,
+            'hands at bit 124',
+        );
+        let maul = BaseTrait::new(slot::WEAPON, 2);
+        let item = ItemBaseTrait::new(7, @maul, 9, 1, 20, IDENTIFIED, 3, 0, PACK, 5);
+        let expected = ItemBase {
+            base: 7,
+            requirement: 9,
+            rarity: 1,
+            level: 20,
+            flags: IDENTIFIED,
+            look: 3,
+            set: 0,
+            owner_kind: PACK,
+            owner: 5,
+            slot: slot::WEAPON,
+            hands: 2,
+        };
+        assert(item == expected, 'copied from the base');
+        assert(item.is_two_handed(), 'two hands');
+        let feet = ItemBaseTrait::new(8, @BaseTrait::new(slot::FEET, 0), 0, 0, 1, 0, 0, 0, PACK, 5);
+        assert(feet.slot == slot::FEET && feet.hands == 0 && !feet.is_two_handed(), 'feet');
+        let word = StorePacking::<ItemBase, felt252>::pack(item);
+        assert(StorePacking::<ItemBase, felt252>::unpack(word) == item, 'round trip');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[should_panic(expected: 'packing: slot above 4 b')]
+    fn test_item_slot_too_wide() {
+        StorePacking::<ItemBase, felt252>::pack(ItemBase { slot: 16, ..Default::default() });
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[should_panic(expected: 'packing: hands above 4 b')]
+    fn test_item_hands_too_wide() {
+        StorePacking::<ItemBase, felt252>::pack(ItemBase { hands: 16, ..Default::default() });
+    }
+
+    // The items worn as `set_build` reads them: lanes and bases in lane order, the distinct
+    // modifiers in the order met, the weapon's personalisation.
+    #[test]
+    #[available_gas(l2_gas: 109666)] // ceil(1.05 × 104443 measured)
+    fn test_equipment() {
+        let none = Modifier { id: 0, value: 0 };
+        let weapon = Item {
+            base: ItemBase { slot: 1, flags: PERSONALISED, ..Default::default() },
+            mods: ItemMods {
+                mods: [
+                    Modifier { id: 4, value: 1 }, Modifier { id: 9, value: 2 }, none, none, none,
+                ],
+            },
+        };
+        let feet = Item {
+            base: ItemBase { slot: 7, ..Default::default() },
+            mods: ItemMods {
+                mods: [
+                    Modifier { id: 9, value: 3 }, none, none, none, Modifier { id: 2, value: 1 },
+                ],
+            },
+        };
+        let mut equipment = EquipmentTrait::new();
+        equipment.add(0, weapon);
+        equipment.add(6, feet);
+        let Equipment { bases, worn, modifiers, personalised } = equipment;
+        assert(bases == array![(0, weapon.base), (6, feet.base)], 'bases');
+        assert(worn.len() == 2 && *worn[1].lane == 6 && *worn[1].slot == 7, 'worn');
+        assert(*worn[1].values.span()[0] == 3, 'values');
+        assert(modifiers == array![4, 9, 2], 'distinct modifiers');
+        assert(personalised, 'personalised');
+        assert(!EquipmentTrait::new().personalised, 'nothing worn');
     }
 }
