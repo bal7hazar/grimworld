@@ -32,6 +32,8 @@ HANDOFF = "GRIMWORLD_ART_VENV"    # set before handing off to .venv/bin/python: 
 METHODS = ("area", "area-blend", "nearest")
 SPREAD = 6                  # px: an idle whose frames span more than this gets a warning
 WORD = "sla" + "yer"        # the manga's name: never written nor printed (D-73, design/10)
+STILL_ROLE = "building"     # the role of a `[[still]]`: a single image, no animation (CLI-03c)
+STILL_ANIM = "still"        # its one animation of one frame, the name the client draws
 USAGE = """usage: tools/art/build.py [--check] [--resample=area|area-blend|nearest]
        tools/art/build.py --fingerprint     fingerprints of the existing out/, no build
        tools/art/build.py --pack-heights    visible heights of the pack's own units
@@ -270,7 +272,7 @@ def main(opts):
     manifest = tomllib.loads((HERE / "manifest.toml").read_text())
     s = manifest["settings"]
     method = opts["resample"] or s["resample"]
-    problems = scale.validate_manifest(manifest, METHODS)
+    problems = scale.validate_manifest(manifest, METHODS) + still_problems(manifest)
     if problems:
         raise SystemExit("manifest.toml:\n  " + "\n  ".join(problems))
     specs = {sp["name"]: manifest["height"][sp["name"]] for sp in manifest["sprite"]}
@@ -308,9 +310,19 @@ def main(opts):
     except SystemExit:
         print_scale(report)
         raise
+    report["stills"] = {}
+    for st in manifest.get("still", []):
+        sprite = still_sprite(st, ASSETS / st["file"], s["cell_margin"])
+        sprites.append(sprite)
+        origins[st["name"]] = st["origin"]
+        report["stills"][st["name"]] = {
+            "role": st["role"], "origin": st["origin"],
+            "cell": [sprite["cell_w"], sprite["cell_h"]], "baseline": sprite["baseline"],
+        }
     index = atlas.pack(sprites, s, OUT)
     for name, info in index["sprites"].items():
-        report["sprites"][name]["page"] = f'atlas-{info["page"]}'
+        entry = report["sprites"].get(name) or report["stills"][name]
+        entry["page"] = f'atlas-{info["page"]}'
     pages = [json.loads((OUT / p["json"]).read_text()) for p in index["pages"]]
     verify(pages, index, sprites, s)
     (OUT / "sprites.json").write_text(json.dumps(index, indent=1) + "\n")
@@ -322,6 +334,39 @@ def main(opts):
     if opts["check"]:
         sys.stdout.flush()
         pixi_check()
+
+
+def still_problems(manifest):
+    """The `[[still]]` entries of the manifest (CLI-03c): each a building, a single PNG of the pack,
+    named once and not as a sprite. Returns the list of problems."""
+    sprites = {sp["name"] for sp in manifest.get("sprite", [])}
+    problems, seen = [], set()
+    for st in manifest.get("still", []):
+        name = st.get("name")
+        if not name:
+            problems.append(f"a [[still]] has no name: {st!r}")
+            continue
+        if name in sprites or name in seen:
+            problems.append(f"[[still]] {name!r}: the name is used twice")
+        seen.add(name)
+        if st.get("role") != STILL_ROLE:
+            problems.append(f"[[still]] {name}: role {st.get('role')!r}, not {STILL_ROLE!r}")
+        if not str(st.get("file", "")).endswith(".png"):
+            problems.append(f"[[still]] {name}: file {st.get('file')!r} is not a PNG")
+        if not st.get("origin"):
+            problems.append(f"[[still]] {name}: no origin")
+    return problems
+
+
+def still_sprite(st, path, margin):
+    """A still as the atlas packs it: one cell at native size, its base on the baseline
+    (`clean.still`), and one animation, `still`, of one frame. The frame rate is 1 and the
+    animation does not loop: nothing in it ever changes, and the client draws it once."""
+    from artpipe import clean
+    cell_w, cell_h, baseline, cells = clean.place([clean.still(path)], margin)
+    return {"name": st["name"], "role": st["role"], "cell_w": cell_w, "cell_h": cell_h,
+            "baseline": baseline,
+            "anims": [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": cells}]}
 
 
 def scale_sprite(name, anims, cells, cell_w, baseline, spec, method, s):
@@ -467,6 +512,9 @@ def print_report(report):
     for name, r in report["sprites"].items():
         frames = sum(r["animations"].values())
         print(f"{name:<11}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{frames:<8}"
+              f"{r['page']}")
+    for name, r in report.get("stills", {}).items():
+        print(f"{name:<11}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'still':<8}"
               f"{r['page']}")
     print_scale(report)
     fingerprint.report(OUT)
