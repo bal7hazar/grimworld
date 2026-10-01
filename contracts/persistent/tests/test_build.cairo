@@ -8,7 +8,7 @@
 // `FlattenLibrary` and stores the snapshot's words; its worst case holds the 15 modifiers design/20
 // §1.2 counts.
 use core::testing::get_available_gas;
-use grimworld_logic::content::{ITEM, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
@@ -41,7 +41,7 @@ use grimworld_persistent::systems::hub::{
     IHubSafeDispatcher, IHubSafeDispatcherTrait,
 };
 use grimworld_persistent::systems::registry::{
-    IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
+    IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait, Inputs,
 };
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, load, map_entry_address,
@@ -359,9 +359,18 @@ fn flattened(
         requests.append((MODIFIER, (*modifier).into()));
     }
     let registry = IRegistryReadDispatcher { contract_address: world.registry };
-    let (version, parts) = registry.bundle(requests.span());
+    let (_, _, parts) = registry.bundle(requests.span());
     let (stats, bar, kit) = SnapshotBuildTrait::words(@loadout, worn.span(), ids, parts);
-    (stats, bar, StoredSnapshotTrait::seal(kit, version))
+    (stats, bar, StoredSnapshotTrait::seal(kit, epoch(world)))
+}
+
+/// The flattening epoch a snapshot stored now is sealed with (D-169): the registry's inputs
+/// version and `Hub`'s rules epoch.
+fn epoch(world: World) -> u64 {
+    let registry = IRegistryReadDispatcher { contract_address: world.registry };
+    let (_, inputs, _) = registry.bundle(array![].span());
+    let rules: u16 = read(world.hub, selector!("rules_epoch")).try_into().unwrap();
+    StoredSnapshotTrait::epoch(inputs, rules)
 }
 
 /// Alice's account and one adventurer of `profession`: adventurer 1; Bob's Vanguard: 2. Alice
@@ -466,7 +475,7 @@ const WORST_CASE_CALL: u128 = 8501927;
 // call). The words stored are the flattening's (AC-1).
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 120038756)] // ceil(1.05 × 114322624 measured)
+#[available_gas(l2_gas: 120038756)] // ceil(1.05 × 114395344 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -520,7 +529,7 @@ fn test_set_build_worst_case() {
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 86078618)] // ceil(1.05 × 81979636 measured)
+#[available_gas(l2_gas: 86078618)] // ceil(1.05 × 81984436 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -544,7 +553,7 @@ fn test_set_build_parts() {
 // adventurer back, and the snapshot of a level 20 Vanguard without equipment.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 82105517)] // ceil(1.05 × 78195730 measured)
+#[available_gas(l2_gas: 82105517)] // ceil(1.05 × 78198130 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -565,8 +574,7 @@ fn test_set_build_empty() {
     assert(read(world.hub, adventurer_word(id, 4)) == LIVE, 'equipped');
     let (stats, _, kit) = stored_snapshot(world, id);
     assert(unpack_stats(stats).max_health == 480, 'level 20 health');
-    let version = IRegistryReadDispatcher { contract_address: world.registry }.content_version();
-    assert(unpack_kit(StoredSnapshotTrait::kit(kit, version)).belt == [0; 4], 'no belt');
+    assert(unpack_kit(StoredSnapshotTrait::kit(kit, epoch(world))).belt == [0; 4], 'no belt');
 }
 
 // ---- who, where, and the layouts
@@ -574,7 +582,7 @@ fn test_set_build_empty() {
 
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 79103875)] // ceil(1.05 × 75337023 measured)
+#[available_gas(l2_gas: 79103875)] // ceil(1.05 × 75343063 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -599,7 +607,7 @@ fn test_set_build_ownership_refusals() {
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 81890680)] // ceil(1.05 × 77991123 measured)
+#[available_gas(l2_gas: 81890680)] // ceil(1.05 × 77999583 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -630,8 +638,8 @@ fn test_set_build_layout_refusals() {
 // -------------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 75255054)] // ceil(1.05 × 71671480 measured)
+// gas: raised, CBT-02f: set_build reads the rules epoch (D-169); Hub and Registry deploy dearer
+#[available_gas(l2_gas: 79397885)] // ceil(1.05 × 75617033 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -643,7 +651,7 @@ fn test_bar_duplicate_refused() {
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 83235061)] // ceil(1.05 × 79271486 measured)
+#[available_gas(l2_gas: 83235061)] // ceil(1.05 × 79278726 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -661,8 +669,8 @@ fn test_bar_known_and_registered() {
 
 // Of the primary or the secondary profession (design/03).
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 76073099)] // ceil(1.05 × 72450570 measured)
+// gas: raised, CBT-02f: set_build reads the rules epoch (D-169); Hub and Registry deploy dearer
+#[available_gas(l2_gas: 80181406)] // ceil(1.05 × 76363243 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -678,7 +686,7 @@ fn test_bar_profession() {
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 83108764)] // ceil(1.05 × 79151203 measured)
+#[available_gas(l2_gas: 83108764)] // ceil(1.05 × 79158453 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -701,7 +709,7 @@ fn test_bar_elite() {
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 82253752)] // ceil(1.05 × 78336906 measured)
+#[available_gas(l2_gas: 82253752)] // ceil(1.05 × 78345356 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -720,7 +728,7 @@ fn test_attributes_rank_and_points() {
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 97211525)] // ceil(1.05 × 92582404 measured)
+#[available_gas(l2_gas: 97211525)] // ceil(1.05 × 92600474 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -751,7 +759,7 @@ fn test_attributes_points_by_level() {
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 89065472)] // ceil(1.05 × 84824259 measured)
+#[available_gas(l2_gas: 89065472)] // ceil(1.05 × 84832699 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -776,8 +784,8 @@ fn test_attributes_indices() {
 // ------------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 77166852)] // ceil(1.05 × 73492240 measured)
+// gas: raised, CBT-02f: set_build reads the rules epoch (D-169); Hub and Registry deploy dearer
+#[available_gas(l2_gas: 81515168)] // ceil(1.05 × 77633493 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -797,7 +805,7 @@ fn test_belt_items() {
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 82103696)] // ceil(1.05 × 78193996 measured)
+#[available_gas(l2_gas: 82103696)] // ceil(1.05 × 78200026 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -815,7 +823,7 @@ fn test_belt_counts_within_the_pack() {
 
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 86750370)] // ceil(1.05 × 82619400 measured)
+#[available_gas(l2_gas: 86750370)] // ceil(1.05 × 82630270 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -833,7 +841,7 @@ fn test_equipment_owned_and_wearable() {
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 86393641)] // ceil(1.05 × 82279658 measured)
+#[available_gas(l2_gas: 86393641)] // ceil(1.05 × 82288098 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -855,7 +863,7 @@ fn test_equipment_slots_and_hands() {
 // floors. A level 1 Vanguard's 100 health: one rune costing 75 leaves 25, accepted; two leave
 // −50, refused (costs count on every rune, FX-43).
 #[test]
-#[available_gas(l2_gas: 100288592)] // ceil(1.05 × 95512944 measured)
+#[available_gas(l2_gas: 100288592)] // ceil(1.05 × 95515354 measured)
 fn test_set_build_floor_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -870,7 +878,7 @@ fn test_set_build_floor_refused() {
 // DS-23 (D-160): an insignia is worn on the piece its record names; one made for the chest is
 // refused on the legs.
 #[test]
-#[available_gas(l2_gas: 99874143)] // ceil(1.05 × 95118231 measured)
+#[available_gas(l2_gas: 99874143)] // ceil(1.05 × 95120641 measured)
 fn test_set_build_insignia_piece_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -885,7 +893,7 @@ fn test_set_build_insignia_piece_refused() {
 // The flattening's checks of the whole build (design/20 §1.2, DS-1): six runes are more than an
 // adventurer holds, refused.
 #[test]
-#[available_gas(l2_gas: 104694739)] // ceil(1.05 × 99709275 measured)
+#[available_gas(l2_gas: 104694739)] // ceil(1.05 × 99711685 measured)
 fn test_set_build_sixth_rune_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -902,7 +910,7 @@ fn test_set_build_sixth_rune_refused() {
 
 // A modifier the registry does not hold is refused.
 #[test]
-#[available_gas(l2_gas: 95454313)] // ceil(1.05 × 90908869 measured)
+#[available_gas(l2_gas: 95454313)] // ceil(1.05 × 90910079 measured)
 fn test_set_build_unknown_modifier_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -917,7 +925,7 @@ fn test_set_build_unknown_modifier_refused() {
 // its benefit at a value of its record's range (armor against fire 1…7: 7 accepted, 8 and 0
 // refused).
 #[test]
-#[available_gas(l2_gas: 103839883)] // ceil(1.05 × 98895126 measured)
+#[available_gas(l2_gas: 103839883)] // ceil(1.05 × 98899956 measured)
 fn test_set_build_modifier_slot_and_value_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -938,7 +946,7 @@ fn test_set_build_modifier_slot_and_value_refused() {
 // pieces (DS-23), five +50 health runes of distinct ids. 480 + 150 + 40 + 250 = 920 (the set
 // bonuses of the envelope's 1,020 are not laid out yet). The words stored are the flattening's.
 #[test]
-#[available_gas(l2_gas: 106239569)] // ceil(1.05 × 101180541 measured)
+#[available_gas(l2_gas: 106239569)] // ceil(1.05 × 101252061 measured)
 fn test_set_build_stores_the_extremal_max_health() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -1029,4 +1037,108 @@ fn test_set_build_stores_the_extremal_max_energy() {
     assert(stored == expected, 'the flattening stored');
     let (stats, _, _) = stored;
     assert(unpack_stats(stats).max_energy == 75, 'max energy 75');
+}
+
+// ---- the flattening's input kinds, as `set_build` asks for them (D-169, CBT-02f fix loop 1)
+// ----------------------------------------------------------
+
+/// A registry in front of the real one, for `test_set_build_requests_the_input_kinds`: it answers
+/// every read by forwarding it, and records the kinds of the records each `bundle` call asks for,
+/// one bit per kind, in the slot `kinds`. `bundle` is a view of the interface; it records through
+/// the storage syscall, which Starknet runs in a call that is not static (`Hub`'s `bundle` call is
+/// an ordinary call).
+#[starknet::contract]
+mod RecordingRegistry {
+    use grimworld_logic::interface::{
+        IRegistryRead, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
+    };
+    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::storage_access::{storage_address_from_base, storage_base_address_from_felt252};
+    use starknet::syscalls::{storage_read_syscall, storage_write_syscall};
+    use starknet::{ContractAddress, SyscallResultTrait};
+
+    #[storage]
+    struct Storage {
+        registry: ContractAddress,
+    }
+
+    #[constructor]
+    fn constructor(ref self: ContractState, registry: ContractAddress) {
+        self.registry.write(registry);
+    }
+
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        fn real(self: @ContractState) -> IRegistryReadDispatcher {
+            IRegistryReadDispatcher { contract_address: self.registry.read() }
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl ReadImpl of IRegistryRead<ContractState> {
+        fn record(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
+            self.real().record(kind, id)
+        }
+        fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
+            self.real().records(kind, ids)
+        }
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, u32, Span<felt252>) {
+            let address = storage_address_from_base(
+                storage_base_address_from_felt252(selector!("kinds")),
+            );
+            let mut kinds: u256 = storage_read_syscall(0, address).unwrap_syscall().into();
+            for request in requests {
+                let (kind, _) = *request;
+                let mut bit: u256 = 1;
+                for _ in 0..kind {
+                    bit *= 2;
+                }
+                kinds = kinds | bit;
+            }
+            storage_write_syscall(0, address, kinds.try_into().unwrap()).unwrap_syscall();
+            self.real().bundle(requests)
+        }
+        fn content_version(self: @ContractState) -> u32 {
+            self.real().content_version()
+        }
+    }
+}
+
+// D-169 (fix loop 1, quality 3): the kinds `Registry` counts as the flattening's inputs
+// (`Inputs::includes`) are exactly the kinds `set_build` asks the registry for, recorded in front
+// of the registry on the worst case of ENG-01 §9.3 (8 skills, 4 potions, 7 pieces holding 15
+// modifiers), which asks for every kind `set_build` can ask for. A lot that makes `set_build` read
+// another kind fails here until `Inputs::includes` names it.
+#[test]
+#[available_gas(l2_gas: 115333224)] // ceil(1.05 × 109841165 measured)
+fn test_set_build_requests_the_input_kinds() {
+    let world = setup();
+    let class = declare("RecordingRegistry").unwrap().contract_class();
+    let (recorder, _) = class.deploy(@array![world.registry.into()]).unwrap();
+    let flatten = read(world.hub, selector!("flatten"));
+    start_cheat_caller_address(world.hub, addr(ADMIN));
+    IHubAdminDispatcher { contract_address: world.hub }
+        .set_contracts(recorder, addr(3), addr(4), addr(5), flatten.try_into().unwrap());
+    let id = adventurer(world, VANGUARD);
+    set_profile(world, id, 20, 2, 0);
+    widest_equipment(world, id);
+    // `create_adventurer` reads its region with `record`, not `bundle`: nothing recorded yet.
+    assert(read(recorder, selector!("kinds")) == 0, 'nothing before set_build');
+    act(world, ALICE)
+        .set_build(
+            id,
+            build([1, 2, 3, ELITE, 5, 6, 7, 8], [12, 12, 3, 0, 0, 0, 0, 0, 0], 3),
+            belt([1, 8, 15, 22], [3, 3, 3, 3]),
+            equipped([101, 102, 103, 104, 105, 106, 107]),
+        );
+    let requested: u256 = read(recorder, selector!("kinds")).into();
+    let mut accepted: u256 = 0;
+    let mut bit: u256 = 2;
+    for kind in 1..LAST_KIND + 1 {
+        if Inputs::includes(kind) {
+            accepted += bit;
+        }
+        bit *= 2;
+    }
+    assert(requested == accepted, 'requested kinds != inputs');
 }

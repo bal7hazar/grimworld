@@ -9,7 +9,7 @@
 // node probe `contracts/tools/lifecycle_probe.py` runs both). Write sets are counted over the keys
 // a test watches (`load` before and after).
 use core::testing::get_available_gas;
-use grimworld_logic::content::{GATE, ITEM, LOCATION, REGION, SKILL};
+use grimworld_logic::content::{GATE, ITEM, LOCATION, MODIFIER, QUEST, REGION, SKILL};
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IResultsDispatcher,
     IResultsDispatcherTrait, IResultsSafeDispatcher, IResultsSafeDispatcherTrait, Results, facts,
@@ -19,10 +19,12 @@ use grimworld_logic::models::gate::{
 };
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class as item_class};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
+use grimworld_logic::models::modifier::{ModifierRecord, ModifierTrait, slot as modifier_slot};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::{LIVE, Lanes16, Lanes32};
 use grimworld_logic::snapshot::{SnapshotTrait, SnapshotWords, unpack_bar, unpack_kit, unpack_stats};
+use grimworld_logic::types::passive::{PassiveTrait, id as passive_id};
 use grimworld_logic::types::{Outcome, instance_id};
 use grimworld_persistent::events::AdventurerLocated;
 use grimworld_persistent::models::account::{PACK, owner_key};
@@ -36,7 +38,7 @@ use grimworld_persistent::models::adventurer::{
 use grimworld_persistent::models::balance::errors::NOT_ENOUGH;
 use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::models::snapshot::errors::{MISSING, STALE};
-use grimworld_persistent::models::snapshot::{STALE_MARK, StoredSnapshotTrait};
+use grimworld_persistent::models::snapshot::{RULES_EPOCHS, STALE_MARK, StoredSnapshotTrait};
 use grimworld_persistent::systems::hub::Hub::Event;
 use grimworld_persistent::systems::hub::{
     IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
@@ -257,16 +259,24 @@ fn adventurer(world: World) -> u32 {
 }
 
 /// The snapshot of `id` as `set_build` stores it (D-168): a level 1 Vanguard's without equipment
-/// (`SnapshotTrait::new`), its kit naming the belt's `items`, sealed with the registry's content
-/// version. Returns its words.
+/// (`SnapshotTrait::new`), its kit naming the belt's `items`, sealed with the flattening epoch
+/// (`epoch`). Returns its words.
 fn put_snapshot(world: World, id: u32, items: [u32; 4]) -> SnapshotWords {
     let words = SnapshotTrait::new(1, VANGUARD, [0; 8], 255, items, [0; 4]).words();
-    let version = IRegistryReadDispatcher { contract_address: world.registry }.content_version();
     let key = snapshot_key(id);
     write(world.hub, key, words.stats);
     write(world.hub, key + 1, words.bar);
-    write(world.hub, key + 2, StoredSnapshotTrait::seal(words.kit, version));
+    write(world.hub, key + 2, StoredSnapshotTrait::seal(words.kit, epoch(world)));
     words
+}
+
+/// The flattening epoch a snapshot stored now is sealed with (D-169): the registry's inputs
+/// version and `Hub`'s rules epoch.
+fn epoch(world: World) -> u64 {
+    let registry = IRegistryReadDispatcher { contract_address: world.registry };
+    let (_, inputs, _) = registry.bundle(array![].span());
+    let rules: u16 = read(world.hub, selector!("rules_epoch")).try_into().unwrap();
+    StoredSnapshotTrait::epoch(inputs, rules)
 }
 
 fn refused<T, +Drop<T>>(result: Result<T, Array<felt252>>, message: felt252) {
@@ -432,7 +442,7 @@ fn test_start_hub_from_the_registry() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 29714013)] // ceil(1.05 × 28299060 measured)
+#[available_gas(l2_gas: 29714013)] // ceil(1.05 × 28760650 measured)
 fn test_start_hub_refusals() {
     // No region 1 in the registry.
     let class = declare("Registry").unwrap().contract_class();
@@ -461,7 +471,7 @@ fn test_start_hub_refusals() {
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 41223725)] // ceil(1.05 × 39260690 measured)
+#[available_gas(l2_gas: 41223725)] // ceil(1.05 × 39262690 measured)
 fn test_enter() {
     let world = setup();
     let id = adventurer(world);
@@ -505,7 +515,7 @@ fn test_enter() {
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 38761643)] // ceil(1.05 × 36915850 measured)
+#[available_gas(l2_gas: 38761643)] // ceil(1.05 × 36916850 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
     let id = adventurer(world);
@@ -542,7 +552,7 @@ fn test_enter_reserves_the_belt() {
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 34983470)] // ceil(1.05 × 33317590 measured)
+#[available_gas(l2_gas: 34983470)] // ceil(1.05 × 33318590 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
     let id = adventurer(world);
@@ -558,8 +568,8 @@ fn test_enter_one_debit_per_item() {
 }
 
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 46159691)] // ceil(1.05 × 43961610 measured)
+// gas: raised, CBT-02f: enter reads the rules epoch (D-169); Hub and Registry deploy dearer
+#[available_gas(l2_gas: 48621080)] // ceil(1.05 × 46305790 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -599,7 +609,7 @@ fn test_enter_refusals() {
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 48653234)] // ceil(1.05 × 46336413 measured)
+#[available_gas(l2_gas: 48653234)] // ceil(1.05 × 46339823 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -651,11 +661,10 @@ fn test_enter_after_set_build() {
     assert(bar.skills == [0, 1, 0, 0, 0, 0, 0, 0] && bar.elite_slot == 1, 'bar');
     // The words `set_build` stored, copied (D-168).
     let key = snapshot_key(id);
-    let version = IRegistryReadDispatcher { contract_address: world.registry }.content_version();
     let stored = SnapshotWords {
         stats: read(world.hub, key),
         bar: read(world.hub, key + 1),
-        kit: StoredSnapshotTrait::kit(read(world.hub, key + 2), version),
+        kit: StoredSnapshotTrait::kit(read(world.hub, key + 2), epoch(world)),
         belt_counts: [0, 3, 0, 0],
     };
     assert(snapshot == stored, 'the stored words');
@@ -669,7 +678,7 @@ const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
 // CBT-02e (D-168 2): `enter` refuses an adventurer whose snapshot `set_build` never stored,
 // changing nothing; after `set_build`, it enters.
 #[test]
-#[available_gas(l2_gas: 36752650)] // ceil(1.05 × 35002523 measured)
+#[available_gas(l2_gas: 36752650)] // ceil(1.05 × 35021863 measured)
 fn test_enter_refuses_a_missing_snapshot() {
     let world = setup();
     let hub = act(world, ALICE);
@@ -688,20 +697,20 @@ fn test_enter_refuses_a_missing_snapshot() {
 }
 
 // D-168 2: every way a stored snapshot goes stale is refused by `enter`, and `set_build` clears
-// it: a record the administrator changed (the content version moves), a level up (GLD-01's, written
-// here with `store`), and the stale mark (what the entrypoints of the report's staleness table
-// write). The snapshot finally copied is the level-2 one.
+// it: a record the flattening reads changed (the inputs version moves, D-169), a level up
+// (GLD-01's, written here with `store`), and the stale mark (what the entrypoints of the report's
+// staleness table write). The snapshot finally copied is the level-2 one.
 #[test]
-#[available_gas(l2_gas: 45249921)] // ceil(1.05 × 43095162 measured)
+#[available_gas(l2_gas: 45249921)] // ceil(1.05 × 43136242 measured)
 fn test_enter_refuses_a_stale_snapshot() {
     let world = setup();
     let id = adventurer(world);
+    let admin = registry_admin(world);
+    admin.set_record(ITEM, 1, ingredient_of(1));
     act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
 
-    // A record changed after `set_build`.
-    start_cheat_caller_address(world.registry, addr(ADMIN));
-    IRegistryAdminDispatcher { contract_address: world.registry }
-        .set_record(GATE, 8, gate(TOWN, ZONE, gate_kind::HUB, 0, 0));
+    // A record the flattening reads changed after `set_build`.
+    admin.set_record(ITEM, 1, ingredient_of(2));
     #[feature("safe_dispatcher")]
     refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
     act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
@@ -728,11 +737,213 @@ fn test_enter_refuses_a_stale_snapshot() {
     assert(unpack_stats(snapshot.stats).max_health == 120, '100 + 20');
 }
 
+fn registry_admin(world: World) -> IRegistryAdminDispatcher {
+    start_cheat_caller_address(world.registry, addr(ADMIN));
+    IRegistryAdminDispatcher { contract_address: world.registry }
+}
+
+/// An ingredient worth `value`: an `ITEM` record.
+fn ingredient_of(value: u32) -> Span<felt252> {
+    ItemTrait::new(item_class::INGREDIENT, 1, 0, value, 0, Default::default(), 0, 0).pack()
+}
+
+/// A Vanguard skill of `adrenaline`: a `SKILL` record.
+fn skill_of(adrenaline: u8) -> Span<felt252> {
+    SkillTrait::new(VANGUARD, 1, 1, 5, adrenaline, 1, 8, 1, 1, false, [Default::default(); 3])
+        .pack()
+}
+
+/// A prefix of `value` maximum health: a `MODIFIER` record.
+fn prefix_of(value: i16) -> Span<felt252> {
+    let benefit = PassiveTrait::new(passive_id::MAX_HEALTH, 0, 0, 0, value, value);
+    ModifierTrait::new(modifier_slot::PREFIX, benefit, Default::default()).pack()
+}
+
+/// `Hub.set_contracts` as the administrator: the registered contracts as `setup` left them, and
+/// `flatten` as the flattening's class.
+fn set_flatten(world: World, flatten: felt252) {
+    start_cheat_caller_address(world.hub, addr(ADMIN));
+    IHubAdminDispatcher { contract_address: world.hub }
+        .set_contracts(
+            world.registry, world.instances, addr(4), addr(5), flatten.try_into().unwrap(),
+        );
+}
+
+fn flatten_of(world: World) -> felt252 {
+    read(world.hub, selector!("flatten"))
+}
+
+fn rules_of(world: World) -> felt252 {
+    read(world.hub, selector!("rules_epoch"))
+}
+
+// D-169 (AC-1): a rewrite of each kind the flattening reads (`SKILL`, `ITEM`, `MODIFIER`) stales
+// the stored snapshot, and `set_build` clears it. The records were new before the first
+// `set_build`.
+#[test]
+#[available_gas(l2_gas: 52373331)] // ceil(1.05 × 49879362 measured)
+fn test_enter_refuses_after_an_input_rewritten() {
+    let world = setup();
+    let id = adventurer(world);
+    let admin = registry_admin(world);
+    admin.set_record(SKILL, 1, skill_of(4));
+    admin.set_record(ITEM, 1, ingredient_of(1));
+    admin.set_record(MODIFIER, 1, prefix_of(10));
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    let rewrites = array![
+        (SKILL, skill_of(5)), (ITEM, ingredient_of(2)), (MODIFIER, prefix_of(20)),
+    ];
+    for (kind, record) in rewrites {
+        admin.set_record(kind, 1, record);
+        #[feature("safe_dispatcher")]
+        refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+        act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    }
+    assert(created(world).count == 0, 'nothing created');
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered after set_build');
+}
+
+// D-169 (AC-1): records the flattening does not read, new or rewritten (a gate, a quest, a
+// location), and new ids of the kinds it reads, stale nothing: `enter` copies the snapshot
+// `set_build` stored before them, without a second `set_build`.
+#[test]
+#[available_gas(l2_gas: 45673964)] // ceil(1.05 × 43499013 measured)
+fn test_enter_after_other_records_changed() {
+    let world = setup();
+    let id = adventurer(world);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    let stored = read(world.hub, snapshot_key(id) + 2);
+    let admin = registry_admin(world);
+    admin.set_record(GATE, 8, gate(TOWN, ZONE, gate_kind::HUB, 0, 0));
+    admin.set_record(GATE, 7, gate(TOWN, 3, gate_kind::LINK, 1, 0));
+    admin.set_record(QUEST, 9, array![LIVE + 1, 2].span());
+    admin.set_record(LOCATION, 5, location(location_kind::ZONE, 3, 105));
+    admin.set_record(LOCATION, 4, location(location_kind::OUTPOST, 1, 0));
+    admin.set_record(SKILL, 1, skill_of(4));
+    admin.set_record(ITEM, 1, ingredient_of(1));
+    admin.set_record(MODIFIER, 1, prefix_of(10));
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered');
+    assert(read(world.hub, snapshot_key(id) + 2) == stored, 'the same snapshot');
+}
+
+// D-169 (AC-2): `set_contracts` with another flattening class raises the rules epoch and stales
+// the stored snapshot; setting the class back raises it again (still stale); `set_build` under the
+// class clears it; the same class set again raises nothing and stales nothing.
+#[test]
+#[available_gas(l2_gas: 41562398)] // ceil(1.05 × 39583236 measured)
+fn test_enter_refuses_after_a_new_rules_class() {
+    let world = setup();
+    let id = adventurer(world);
+    let flatten = flatten_of(world);
+    assert(rules_of(world) == 1, 'the first class: 1');
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+
+    set_flatten(world, flatten + 1);
+    assert(rules_of(world) == 2, 'another class: +1');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    set_flatten(world, flatten);
+    assert(rules_of(world) == 3, 'back: +1');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+
+    set_flatten(world, flatten);
+    assert(rules_of(world) == 3, 'the same class: +0');
+    assert(created(world).count == 0, 'nothing created');
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered');
+}
+
+// D-169 (AC-2): the rules epoch's wrap. At 511, the highest of its 9 bits, a new class takes it
+// to 0, and a snapshot flattened at 511 is stale under 0; `set_build` clears it.
+#[test]
+#[available_gas(l2_gas: 39891890)] // ceil(1.05 × 37992276 measured)
+fn test_enter_after_the_rules_epoch_wraps() {
+    let world = setup();
+    let id = adventurer(world);
+    let flatten = flatten_of(world);
+    write(world.hub, selector!("rules_epoch"), (RULES_EPOCHS - 1).into());
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    set_flatten(world, flatten + 1);
+    assert(rules_of(world) == 0, '511 wraps to 0');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    set_flatten(world, flatten);
+    assert(rules_of(world) == 1, '0 to 1');
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered');
+}
+
+/// `Hub.set_contracts` as the administrator, with `registry` as the registry and the rest as
+/// `setup` left them.
+fn set_registry(world: World, registry: ContractAddress) {
+    start_cheat_caller_address(world.hub, addr(ADMIN));
+    IHubAdminDispatcher { contract_address: world.hub }
+        .set_contracts(
+            registry, world.instances, addr(4), addr(5), flatten_of(world).try_into().unwrap(),
+        );
+}
+
+// D-169 (fix loop 1, security note 2): `set_contracts` with another registry raises the rules
+// epoch, as another class does, and stales the stored snapshot; setting the registry back raises
+// it again (still stale: the gate is read from the registry first, so the refusal is seen with
+// the original one); the same registry and class set again raise nothing, and after `set_build`
+// the adventurer enters.
+#[test]
+#[available_gas(l2_gas: 41088817)] // ceil(1.05 × 39132206 measured)
+fn test_enter_refuses_after_a_new_registry() {
+    let world = setup();
+    let id = adventurer(world);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    assert(rules_of(world) == 1, 'the first configuration: 1');
+    let (other, _) = declare("Registry").unwrap().contract_class().deploy(@array![ADMIN]).unwrap();
+    set_registry(world, other);
+    assert(rules_of(world) == 2, 'another registry: +1');
+    set_registry(world, world.registry);
+    assert(rules_of(world) == 3, 'back: +1');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    set_registry(world, world.registry);
+    assert(rules_of(world) == 3, 'the same two: +0');
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered');
+}
+
+// D-169 (fix loop 1, security note 1): the limitation of the 9-bit epoch, shown. A snapshot
+// flattened at epoch 1 is stale after one change of the class, and still stale after 511; after
+// exactly 512 changes the epoch is 1 again and `enter` accepts it, though the class changed 512
+// times since `set_build`. An administrator-only path (ENG-01 §3.3).
+#[test]
+#[available_gas(l2_gas: 336642919)] // ceil(1.05 × 320612303 measured)
+fn test_rules_epoch_full_cycle_reads_fresh() {
+    let world = setup();
+    let id = adventurer(world);
+    let flatten = flatten_of(world);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    assert(rules_of(world) == 1, 'flattened at 1');
+    for change in 1..RULES_EPOCHS + 1 {
+        set_flatten(world, flatten + (change % 2).into());
+        if change == 1 || change == RULES_EPOCHS - 1 {
+            #[feature("safe_dispatcher")]
+            refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+        }
+    }
+    assert(rules_of(world) == 1, '512 changes: 1 again');
+    assert(flatten_of(world) == flatten, 'the original class');
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'accepted after 512');
+}
+
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 36730394)] // ceil(1.05 × 34981327 measured)
+#[available_gas(l2_gas: 36730394)] // ceil(1.05 × 34982327 measured)
 fn test_travel() {
     let world = setup();
     let id = adventurer(world);
@@ -800,7 +1011,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 39359218)] // ceil(1.05 × 37484969 measured)
+#[available_gas(l2_gas: 39359218)] // ceil(1.05 × 37485969 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -842,7 +1053,7 @@ fn test_report_returned_through_a_hub_gate() {
 // return (D-141, E-15).
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 40350610)] // ceil(1.05 × 38429152 measured)
+#[available_gas(l2_gas: 40350610)] // ceil(1.05 × 38431152 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -876,7 +1087,7 @@ fn test_report_to_the_last_hub() {
 // carries). Writes: `place`.
 #[test]
 // gas: raised, CBT-02e: FlattenLibrary declared and a snapshot stored before enter (D-168)
-#[available_gas(l2_gas: 39693834)] // ceil(1.05 × 37803651 measured)
+#[available_gas(l2_gas: 39693834)] // ceil(1.05 × 37804651 measured)
 fn test_report_moved() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -908,8 +1119,8 @@ fn test_report_moved() {
 // What the models hold today is applied: experience to every contributor, gold and balances to the
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 36886692)] // ceil(1.05 × 35130182 measured)
+// gas: raised, CBT-02f: enter reads the rules epoch (D-169); Hub and Registry deploy dearer
+#[available_gas(l2_gas: 39384925)] // ceil(1.05 × 37509452 measured)
 fn test_report_open() {
     let world = setup();
     let id = adventurer(world);
@@ -945,8 +1156,8 @@ fn test_report_open() {
 
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
-// gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-#[available_gas(l2_gas: 37446596)] // ceil(1.05 × 35663424 measured)
+// gas: raised, CBT-02f: enter reads the rules epoch (D-169); Hub and Registry deploy dearer
+#[available_gas(l2_gas: 39944829)] // ceil(1.05 × 38042694 measured)
 fn test_report_refusals() {
     let world = setup();
     let id = adventurer(world);

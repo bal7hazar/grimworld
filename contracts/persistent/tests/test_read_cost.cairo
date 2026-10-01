@@ -55,7 +55,7 @@ mod ReadProbe {
             for id in 1..count + 1 {
                 requests.append((GATE, id));
             }
-            let (_, parts) = IRegistryReadDispatcher { contract_address: registry }
+            let (_, _, parts) = IRegistryReadDispatcher { contract_address: registry }
                 .bundle(requests.span());
             parts.len()
         }
@@ -231,7 +231,7 @@ mod ContentProbe {
             let mut from = 0;
             while from < requests.len() {
                 let count = core::cmp::min(MAX_READ, requests.len() - from);
-                let (_, parts) = registry.bundle(requests.slice(from, count));
+                let (_, _, parts) = registry.bundle(requests.slice(from, count));
                 read += parts.len();
                 from += count;
             }

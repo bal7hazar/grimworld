@@ -11,5 +11,9 @@ pub mod balance;
 pub mod item;
 /// Lots and trades.
 pub mod market;
+/// `Hub`'s rules epoch (D-169).
+pub mod rules_epoch;
 /// The snapshot stored with the adventurer (D-168).
 pub mod snapshot;
+/// The registry's content and inputs versions (D-141, D-169).
+pub mod versions;

@@ -172,7 +172,7 @@ pub mod Hub {
     use grimworld_logic::snapshot::Worn;
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
-        Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
+        Map, StorageAsPath, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::storage_access::{StorageBaseAddress, Store, StorePacking};
@@ -194,6 +194,7 @@ pub mod Hub {
         Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, ItemMods, ItemModsTrait,
         PERSONALISED, RiftBoard,
     };
+    use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
     use crate::store::StoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
@@ -211,6 +212,10 @@ pub mod Hub {
         /// `FlattenLibrary`'s class hash (ENG-01 §1.3, D-168): `set_build` calls it by
         /// `library_call`.
         pub flatten: ClassHash,
+        /// The rules epoch (D-169, `models::rules_epoch`): how many times `set_contracts` changed
+        /// `flatten` or `registry`, modulo 512 (9 bits of the stored kit word); 0 at deployment. A
+        /// stored snapshot carries the one it was flattened under, and `enter` refuses another.
+        pub rules_epoch: RulesEpoch,
         pub next_account: Counter,
         pub next_adventurer: Counter,
         pub next_item: Counter,
@@ -561,9 +566,9 @@ pub mod Hub {
                 requests.append((MODIFIER, (*id).into()));
             }
 
-            // One registry call, even for an empty build: the content version the snapshot is
-            // computed under (D-168 2).
-            let (version, parts) = IRegistryReadDispatcher {
+            // One registry call, even for an empty build: the inputs version the snapshot is
+            // computed under (D-168 2, D-169).
+            let (_, inputs, parts) = IRegistryReadDispatcher {
                 contract_address: self.registry.read(),
             }
                 .bundle(requests.span());
@@ -606,7 +611,9 @@ pub mod Hub {
             base.set_word(EQUIPPED_WORD, equipped_word);
             StoreTrait::set_snapshot(
                 self.snapshots.entry(adventurer_id),
-                StoredSnapshotTrait::new(stats, bar, kit, version),
+                StoredSnapshotTrait::new(
+                    stats, bar, kit, StoredSnapshotTrait::epoch(inputs, self.rules().value),
+                ),
             );
         }
         /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
@@ -615,18 +622,19 @@ pub mod Hub {
         /// makes the entry draw. Every check comes before the call: a refusal reverts, drawing
         /// nothing and changing nothing. The snapshot is the one `set_build` flattened and stored
         /// (D-168), copied, never recomputed: refused when there is none (`snapshot: missing`) or
-        /// when it is stale (`snapshot: stale`): marked, of another content version than the
-        /// registry's, or of another level than the adventurer's; the client sends `set_build`
-        /// first. Reads besides the ownership check: the snapshot's 3 words, `belt`, the pack
-        /// pages of the belt's items. Writes (ENG-01 §9.3): the pack pages of the belt's items (at
-        /// most 4, overwritten), `core` when a pack lane falls to 0, `place`. Calls:
-        /// `Registry.bundle` (the gate and the content version), `Instances.create`. Task ids:
-        /// none until quiver's quests are embedded (E-14).
+        /// when it is stale (`snapshot: stale`): marked, of another flattening epoch (the
+        /// registry's inputs version and the rules epoch, D-169), or of another level than the
+        /// adventurer's; the client sends `set_build` first. Reads besides the ownership check:
+        /// `rules_epoch`, the snapshot's 3 words, `belt`, the pack pages of the belt's items.
+        /// Writes (ENG-01 §9.3): the pack pages of the belt's items (at most 4, overwritten),
+        /// `core` when a pack lane falls to 0, `place`. Calls: `Registry.bundle` (the gate and the
+        /// inputs version), `Instances.create`. Task ids: none until quiver's quests are embedded
+        /// (E-14).
         fn enter(ref self: ContractState, adventurer_id: u32, gate: u16) -> InstanceId {
             let (_, core, place) = self.owned_in_hub(adventurer_id);
             let (_, hub, _, _) = AdventurerPlaceTrait::fields(place);
             let (_, level, rank, _) = AdventurerCoreTrait::profile(core);
-            let (version, parts) = IRegistryReadDispatcher {
+            let (_, inputs, parts) = IRegistryReadDispatcher {
                 contract_address: self.registry.read(),
             }
                 .bundle(array![(GATE, gate.into())].span());
@@ -635,11 +643,12 @@ pub mod Hub {
             record.assert_enterable(hub, rank);
 
             let stored = StoreTrait::get_snapshot(self.snapshots.entry(adventurer_id));
-            StoredSnapshotAssert::assert_fresh(stored.kit, version);
+            let epoch = StoredSnapshotTrait::epoch(inputs, self.rules().value);
+            StoredSnapshotAssert::assert_fresh(stored.kit, epoch);
             StoredSnapshotAssert::assert_level(stored.stats, level);
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
             let (items, counts) = BeltTrait::read(base.word(BELT_WORD));
-            let snapshot = stored.words(version, counts);
+            let snapshot = stored.words(epoch, counts);
 
             let reserve = BalanceTrait::merge(items, counts);
             let (_, emptied) = self.change_pack(adventurer_id, reserve.span(), false);
@@ -930,7 +939,9 @@ pub mod Hub {
         }
         /// The registered contracts, the randomness provider among them, and `FlattenLibrary`'s
         /// class hash (D-168): configuration, never a constant of the code (ADR-0001, ADR-0002,
-        /// ENG-01 §1.3). Administrator only.
+        /// ENG-01 §1.3). A class hash or a registry other than the stored ones raises the rules
+        /// epoch (D-169: the configuration the flattening depends on), which stales every stored
+        /// snapshot; the same two leave it. Administrator only.
         fn set_contracts(
             ref self: ContractState,
             registry: ContractAddress,
@@ -940,11 +951,21 @@ pub mod Hub {
             flatten: ClassHash,
         ) {
             assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
+            let state = @self;
+            let moves = RulesEpochTrait::moves(
+                flatten,
+                StoreTrait::get_class_hash(state.flatten.as_path()),
+                registry,
+                StoreTrait::get_address(state.registry.as_path()),
+            );
             self.registry.write(registry);
             self.instances.write(instances);
             self.market.write(market);
             self.fate.write(fate);
             self.flatten.write(flatten);
+            if moves {
+                StoreTrait::set_rules_epoch(self.rules_epoch.as_path(), self.rules().next());
+            }
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
@@ -974,6 +995,12 @@ pub mod Hub {
 
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
+        /// The rules epoch, through the store (D-169): one read.
+        #[inline(always)]
+        fn rules(self: @ContractState) -> RulesEpoch {
+            StoreTrait::get_rules_epoch(self.rules_epoch.as_path())
+        }
+
         /// The check of every entrypoint that names an adventurer (ADR-0007, *Access control*;
         /// ENG-01 §1.2): three reads (`core`, the account's owner, `place`), then
         /// `AdventurerAssert::assert_owned_in_hub`, one refusal per case. Returns `(account id,
@@ -1213,6 +1240,12 @@ mod layout_tests {
         assert(
             address_of(state.flatten.as_ptr().__storage_pointer_address__) == selector!("flatten"),
             'flatten',
+        );
+        assert(
+            address_of(
+                state.rules_epoch.as_ptr().__storage_pointer_address__,
+            ) == selector!("rules_epoch"),
+            'rules_epoch',
         );
     }
 }

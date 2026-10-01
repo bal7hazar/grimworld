@@ -5,8 +5,8 @@
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
 use grimworld_logic::content::{
-    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS, REGION, SHOP,
-    SKILL, TASK,
+    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS,
+    REGION, SHOP, SKILL, TASK, is_sequential, parts,
 };
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
@@ -79,8 +79,14 @@ impl RegistryFixture of Fixture {
         self.read.content_version()
     }
 
-    /// `count` 3-part records (`BOOK`, the widest kind) written straight into storage, and the
-    /// version 5.
+    /// The inputs version (D-169), as `bundle` returns it.
+    fn inputs(self: Registry) -> u32 {
+        let (_, inputs, _) = self.read.bundle(array![].span());
+        inputs
+    }
+
+    /// `count` 3-part records (`BOOK`, the widest kind) written straight into storage, the content
+    /// version 5 and the inputs version 7.
     fn books(self: Registry, count: u32) -> Array<(u8, u32)> {
         let mut requests: Array<(u8, u32)> = array![];
         for id in 1..count + 1 {
@@ -95,7 +101,7 @@ impl RegistryFixture of Fixture {
             }
             requests.append((BOOK, id));
         }
-        store(self.address, selector!("content_version"), array![5].span());
+        store(self.address, selector!("versions"), array![5 + 7 * 0x100000000].span());
         requests
     }
 }
@@ -362,18 +368,74 @@ fn test_bundle_version_and_order() {
     r.admin.set_record(REGION, 1, Felts::one(1));
     r.admin.set_record(LOCATION, 1, Felts::two(2, 3));
     r.admin.set_record(BOOK, 1, Felts::three(4, 5, 6));
-    let (v, records) = r
+    let (v, inputs, records) = r
         .read
         .bundle(array![(BOOK, 1), (REGION, 1), (LOCATION, 2), (LOCATION, 1)].span());
-    assert(v == 3, 'version');
+    assert(v == 3 && inputs == 0, 'version');
     // In the order asked; location 2 is missing: two zeros.
     let expected = array![Felts::live(4), 5, 6, Felts::live(1), 0, 0, Felts::live(2), 3];
     assert(records == expected.span(), 'records in order');
     r.admin.set_record(REGION, 1, Felts::one(7));
-    let (v, records) = r.read.bundle(array![(REGION, 1)].span());
+    let (v, _, records) = r.read.bundle(array![(REGION, 1)].span());
     assert(v == 4 && records == Felts::one(7), 'after a change');
-    let (v, records) = r.read.bundle(array![].span());
+    let (v, _, records) = r.read.bundle(array![].span());
     assert(v == 4 && records.len() == 0, 'no request');
+}
+
+/// An ingredient worth `value`: an `ITEM` record, not a potion.
+fn ingredient_of(value: u32) -> Span<felt252> {
+    ItemTrait::new(item_class::INGREDIENT, 1, 0, value, 0, Default::default(), 0, 0).pack()
+}
+
+/// A prefix of `value` maximum health: a `MODIFIER` record.
+fn prefix_of(value: i16) -> Span<felt252> {
+    let (_, record) = source_record(fixed(passive_id::MAX_HEALTH, 0, value), Source::Prefix);
+    record
+}
+
+// D-169: the inputs version rises only for a changed record of a kind the flattening reads
+// (`SKILL`, `ITEM`, `MODIFIER`) that existed before: a rewrite of each moves it by one, an
+// identical rewrite and a new id do not; no record of another kind moves it, new or rewritten.
+// The content version rises for every changed record, as before.
+#[test]
+#[available_gas(l2_gas: 24290270)] // ceil(1.05 × 23133590 measured)
+fn test_inputs_version_per_kind() {
+    let r = Fixture::deploy();
+    let none: [Entry; 3] = [Default::default(); 3];
+    // New ids of the input kinds: the content version moves, the inputs version does not.
+    r.admin.set_record(SKILL, 1, skill_of(4, none));
+    r.admin.set_record(ITEM, 1, ingredient_of(1));
+    r.admin.set_record(MODIFIER, 1, prefix_of(10));
+    assert(r.version() == 3 && r.inputs() == 0, 'new inputs: +0');
+    // Rewrites of each input kind: +1 each; identical rewrites: +0.
+    r.admin.set_record(SKILL, 1, skill_of(5, none));
+    assert(r.version() == 4 && r.inputs() == 1, 'skill rewritten: +1');
+    r.admin.set_record(SKILL, 1, skill_of(5, none));
+    assert(r.version() == 4 && r.inputs() == 1, 'same skill: +0');
+    r.admin.set_record(ITEM, 1, ingredient_of(2));
+    assert(r.version() == 5 && r.inputs() == 2, 'item rewritten: +1');
+    r.admin.set_record(ITEM, 1, ingredient_of(2));
+    assert(r.version() == 5 && r.inputs() == 2, 'same item: +0');
+    r.admin.set_record(MODIFIER, 1, prefix_of(20));
+    assert(r.version() == 6 && r.inputs() == 3, 'modifier rewritten: +1');
+    r.admin.set_record(MODIFIER, 1, prefix_of(20));
+    assert(r.version() == 6 && r.inputs() == 3, 'same modifier: +0');
+    // Other kinds, new and rewritten, sequential and composite: the inputs version stays.
+    r.admin.set_record(LOCATION, 1, Felts::two(1, 2));
+    r.admin.set_record(LOCATION, 1, Felts::two(3, 4));
+    r.admin.set_record(GATE, 1, Felts::one(1));
+    r.admin.set_record(GATE, 1, Felts::one(2));
+    r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
+    r.admin.set_record(BOOK, 1, Felts::three(4, 5, 6));
+    r.admin.set_record(QUEST, 9, Felts::two(1, 2));
+    r.admin.set_record(QUEST, 9, Felts::two(3, 4));
+    r.admin.set_record(SHOP, 16 + 1, Felts::two(1, 2));
+    r.admin.set_record(SHOP, 16 + 1, Felts::two(3, 4));
+    let (_, set) = source_record(fixed(passive_id::MAX_HEALTH, 0, 10), Source::SetBonus);
+    r.admin.set_record(ARMOR_SET, 1, set);
+    let (_, set) = source_record(fixed(passive_id::MAX_HEALTH, 0, 20), Source::SetBonus);
+    r.admin.set_record(ARMOR_SET, 1, set);
+    assert(r.version() == 18 && r.inputs() == 3, 'other kinds: +0');
 }
 
 // A record never written reads as `parts(kind)` zeros: part 0 is 0, the record does not exist.
@@ -402,7 +464,7 @@ fn test_reads_bounded() {
         requests.append((REGION, i));
     }
     assert(r.read.records(REGION, ids.span()).len() == 32, '32 records');
-    let (_, records) = r.read.bundle(requests.span());
+    let (_, _, records) = r.read.bundle(requests.span());
     assert(records.len() == 32, '32 requests');
     ids.append(33);
     requests.append((REGION, 33));
@@ -509,8 +571,8 @@ fn test_gas_records_1() {
 fn test_gas_bundle_1() {
     let r = Fixture::deploy();
     let requests = r.books(1);
-    let (v, records) = r.read.bundle(requests.span());
-    assert(v == 5 && records.len() == 3, '1 record');
+    let (v, inputs, records) = r.read.bundle(requests.span());
+    assert(v == 5 && inputs == 7 && records.len() == 3, '1 record');
 }
 
 #[test]
@@ -518,8 +580,8 @@ fn test_gas_bundle_1() {
 fn test_gas_bundle_10() {
     let r = Fixture::deploy();
     let requests = r.books(10);
-    let (v, records) = r.read.bundle(requests.span());
-    assert(v == 5 && records.len() == 30, '10 records');
+    let (v, inputs, records) = r.read.bundle(requests.span());
+    assert(v == 5 && inputs == 7 && records.len() == 30, '10 records');
 }
 
 // The bound: 32 records of 3 parts, 96 slots and the version (ENG-01 §9.3: at most 97 reads).
@@ -528,8 +590,67 @@ fn test_gas_bundle_10() {
 fn test_gas_bundle_32() {
     let r = Fixture::deploy();
     let requests = r.books(32);
-    let (v, records) = r.read.bundle(requests.span());
-    assert(v == 5 && records.len() == 96, '32 records');
+    let (v, inputs, records) = r.read.bundle(requests.span());
+    assert(v == 5 && inputs == 7 && records.len() == 96, '32 records');
+}
+
+/// A record of `kind` without bounds of design/20: `parts(kind)` felts, `value` in each, `LIVE` in
+/// part 0. `CASTE` and `ARMOR_SET`, which the registry checks, take a legal record of `value`.
+fn plain_of(kind: u8, value: felt252) -> Span<felt252> {
+    if kind == CASTE {
+        return caste_at_bounds(value.try_into().unwrap());
+    }
+    if kind == ARMOR_SET {
+        let bonus = fixed(passive_id::MAX_HEALTH, 0, value.try_into().unwrap());
+        let (_, record) = source_record(bonus, Source::SetBonus);
+        return record;
+    }
+    let mut out = array![LIVE + value];
+    for _ in 1..parts(kind) {
+        out.append(value);
+    }
+    out.span()
+}
+
+/// The id a new record of `kind` takes: the next one of a sequential kind; for a composite kind,
+/// one under location 1 (`QUOTAS` its own id, `OUTLINE` its chunk set, `SHOP` its service 1) or
+/// a quiver id (`TASK`, `QUEST`).
+fn next_id(r: Registry, kind: u8) -> u32 {
+    if is_sequential(kind) {
+        r.admin.last_id(kind) + 1
+    } else if kind == QUOTAS {
+        1
+    } else if kind == OUTLINE {
+        256 + 255
+    } else if kind == SHOP {
+        16 + 1
+    } else {
+        9
+    }
+}
+
+// D-169 (fix loop 1, quality 2): every one of the 22 kinds that is not an input of the
+// flattening, written new and then changed, leaves the inputs version where it was, while the
+// content version rises twice for each. Kinds in order, so that `LOCATION` 1 exists before the
+// composite kinds that name it.
+#[test]
+#[available_gas(l2_gas: 52691457)] // ceil(1.05 × 50182340 measured)
+fn test_inputs_version_every_other_kind() {
+    let r = Fixture::deploy();
+    let mut others: u32 = 0;
+    for kind in 1..LAST_KIND + 1 {
+        if kind == SKILL || kind == ITEM || kind == MODIFIER {
+            continue;
+        }
+        let id = next_id(r, kind);
+        let before = r.version();
+        r.admin.set_record(kind, id, plain_of(kind, 1));
+        r.admin.set_record(kind, id, plain_of(kind, 2));
+        assert(r.version() == before + 2, 'new and changed: +2');
+        assert(r.inputs() == 0, 'inputs version unchanged');
+        others += 1;
+    }
+    assert(others == 22, 'the 22 other kinds');
 }
 
 // --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1)

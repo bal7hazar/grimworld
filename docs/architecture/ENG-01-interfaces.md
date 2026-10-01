@@ -430,6 +430,7 @@ Design/02 bounds awake goblins (8), not displaced ones; E-2.
 |---|---|---:|---|
 | `admin`, `registry`, `instances`, `market`, `fate` | — | 5 | addresses |
 | `flatten` | — | 1 | `ClassHash` of `FlattenLibrary` (D-168, §1.3), set by `set_contracts` |
+| `rules_epoch` | — | 1 | `RulesEpoch` (`models/rules_epoch.cairo`; the value 0 to 511 as the felt, the layout of a `u16`): the **rules epoch** (D-169, CBT-02f), raised by `set_contracts` when it changes `flatten` or `registry`, the configuration the flattening depends on (511 wraps to 0), not when it sets the same two; 0 at deployment. Read and written through the store (`StoreTrait::get_rules_epoch`, `set_rules_epoch`) |
 | `next_account`, `next_adventurer`, `next_item` | — | 3 | `Counter` |
 | `account_of` | owner address | 1 | account id |
 | `accounts` | account `u32` | 2 | `Account { owner, record: AccountRecord }` |
@@ -482,16 +483,26 @@ Layouts (`contracts/persistent/src/models/`), every one with `LIVE`:
 - `Gold`: amount 0–63. `RiftBoard`: day 0–31 · cleared 32–39 · 5 identities of 16 bits at 40–119.
 - `StoredSnapshot` (`models/snapshot.cairo`, D-168, CBT-02e): the flattening's three words as
   `FlattenLibrary` packed them, `MemberStats`, `MemberBar` and `MemberKit` in the layouts of §3.2's
-  member (`LIVE` set), and in the kit word's free bits the snapshot's state: the registry's
-  **content version** it was computed under at 208–239, the **stale mark** at 240. Written by
+  member (`LIVE` set), and in the kit word's free bits the snapshot's state, the **flattening
+  epoch** it was computed under (D-169, CBT-02f): the registry's **inputs version** at 208–239
+  (§3.5) and `Hub`'s **rules epoch** at 241–249; the **stale mark** at 240 between them. Written by
   `set_build` only (3 words: new at an adventurer's first `set_build`, about 468,667 each on the
   node, 1,406,000 the three; overwritten after, **40,000 a word** on the node, measured on the kit
   word, about 120,000 the three, E); read by `enter`, which refuses a slot never written
-  (`snapshot: missing`) and a stale snapshot (`snapshot: stale`): the mark set, a content version
-  other than the registry's (`Registry.bundle` returns it with the gate, no extra call), or
-  `MemberStats.level` other than the adventurer's. An entrypoint that changes an input of the
-  flattening without recomputing it writes `STALE_MARK` (`LIVE` and bit 240) to the kit word: one
-  write, no read (D-168 2; the entrypoints are listed in CBT-02e's report).
+  (`snapshot: missing`) and a stale snapshot (`snapshot: stale`): the mark set, an inputs version
+  other than the registry's (`Registry.bundle` returns it with the gate, no extra call), a rules
+  epoch other than `rules_epoch` (one read), or `MemberStats.level` other than the adventurer's.
+  The inputs version, the mark and the rules epoch are compared in one division of the kit word's
+  high limb. An entrypoint that changes an input of the flattening without recomputing it writes
+  `STALE_MARK` (`LIVE` and bit 240) to the kit word: one write, no read (D-168 2; the entrypoints
+  are listed in CBT-02e's report and CBT-02f's). **A limitation, the rules epoch's wrap** (CBT-02f
+  fix loop 1): the epoch has 9 bits and repeats after 512 changes. A snapshot left without
+  `set_build` through **exactly 512** (or any multiple of 512) changes of the flattening's
+  configuration (its class or the registry), with no change of an input in between, reads fresh
+  again and `enter` accepts it, though it was flattened under another configuration
+  (`test_rules_epoch_full_cycle_reads_fresh` shows it); anything short of that is refused. Only
+  the administrator reaches this path (`set_contracts`), 512 times between two `set_build`s of one
+  adventurer; it is accepted as it stands.
 
 Quests and achievements are **quiver's components** (D-131, D-135), embedded by ARC: their storage
 is the package's ("every record in one storage slot"), at most **4 held quests** per adventurer.
@@ -519,7 +530,9 @@ a boss item: `2^41 + base`.
 ### 3.5 `Registry` storage and shapes (scope 6)
 
 `records: Map<(kind u8, id u32, part u8), felt252>`, `last_ids: Map<kind, Counter>`,
-`content_version: u32` (ENG-01b, D-141), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
+`versions: Versions` (one slot: the content version at bits 0–31, ENG-01b, D-141; the inputs
+version at 32–63, D-169, CBT-02f; `models/versions.cairo`, read and written through the store,
+`StoreTrait::get_versions`, `set_versions`), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
 `CASTE` records name each skill; layout-tested). A record is
 `parts(kind)` felts (`grimworld_logic::content`); values may change (design/01 rules 1–2). Pillar 6
 and S-6: a zone or a quest is data.
@@ -569,13 +582,27 @@ and S-6: a zone or a quest is data.
 | `COUNTER` | 25 | 1 | what sets the bits of a title's "distinct" counter |
 
 Reads: `record(kind, id)`, `records(kind, ids)`, and **`bundle(requests) -> (version: u32,
-records)`**: every record an invocation needs in **one call** (C ≈ 0.12–0.14 M), whatever the kinds.
+inputs: u32, records)`**: every record an invocation needs in **one call** (C ≈ 0.12–0.14 M),
+whatever the kinds.
 
 **The content version** (ENG-01b, D-141, E-5). The registry's content carries a version, a `u32`
-in the storage variable `content_version` (one slot, 0 at deployment), raised by one, automatically, by every
+in the low 32 bits of the storage variable `versions` (one slot, 0 at deployment), raised by one, automatically, by every
 changed record (`set_record`; no admin setter; ENG-03 writes and tests the atomic update, ENG-01b freezes the field). `bundle`
 returns it first, in the call every invocation already makes: no further call. `play` compares it
 with the version its batch was computed under (§4.1).
+
+**The inputs version** (D-169, CBT-02f; `bundle`'s second field, a change of the frozen interface
+decided by D-169). A `u32` in the same slot (bits 32–63), raised by one, in the same write as the
+content version, by a changed record of a kind the snapshot's flattening reads, **`SKILL`, `ITEM`
+and `MODIFIER`** (`Inputs::includes`): the kinds of `Hub.set_build`'s one `bundle` call (the bar's
+skills: profession and elite; the belt's items: a potion; the worn modifiers: flattened into the
+words). `BASE` is not read (its slot and hands are copied into the item at creation, D-158), nor
+`ARMOR_SET` (no set bonus is laid out); a lot that makes `set_build` read another kind adds it.
+**A new id raises the inputs version not**: `set_build` refuses a missing skill, potion or modifier,
+ids are never reused and part 0 never returns to 0, so no stored snapshot names an id written after
+it. An identical rewrite raises neither version. `Hub.set_build` seals the snapshot with it and
+`Hub.enter` compares it (§3.3): a new gate, quest, shop, location or caste stales no snapshot; a
+rewritten skill, item or modifier stales them all.
 
 **The writer's checks** (ENG-03, `systems/registry.cairo`). `set_record` refuses, in this order: a
 caller other than `admin` (`'not admin'`); an unknown kind; a record of other than `parts(kind)`
@@ -667,9 +694,11 @@ Tests: `logic/tests/test_combat.cairo`.
 
 | What | L2 gas | Source |
 |---|---:|---|
-| `bundle`'s read of the version | **20,010** (execution) | `bundle` of one record 140,800 against `records` of the same record 120,790 (`--gas-report`); 21,550 between the two whole tests; the read alone 20,930 (`test_version_cost_read` less its baseline) |
-| `set_record`'s raise, the first in the registry's life (a new slot) | 469,200 | `test_version_cost_raise` less `test_version_cost_baseline` |
-| `set_record`'s raise, every later one (read, add, overwrite) | **67,200** | `test_version_cost_raise_again` less `test_version_cost_stored_baseline` |
+| `bundle`'s read of the version | **20,010** (execution, ENG-03) | `bundle` of one record 140,800 against `records` of the same record 120,790 (`--gas-report`); 21,550 between the two whole tests; the read alone 20,930 (`test_version_cost_read` less its baseline) |
+| `bundle`'s read of the two versions (CBT-02f: one slot, unpacked) | **24,170** | `test_version_cost_read` (37,890) less its baseline (13,720): +3,240 for the unpacking, no second read |
+| `set_record`'s raise, the first in the registry's life (a new slot) | 472,640 (469,200 before CBT-02f) | `test_version_cost_raise` less `test_version_cost_baseline` |
+| The same, a rewritten input of the flattening (both versions raised, D-169) | 474,060 | `test_version_cost_raise_input` less the baseline: **+1,420** over a raise of the content version alone, the same one write |
+| `set_record`'s raise, every later one (read, add, overwrite) | **71,760** (67,200 before CBT-02f) | `test_version_cost_raise_again` less `test_version_cost_stored_baseline` |
 | The compare in `play`, `open`, `mine`, `barter` | not measured apart | two `u32` compared once an invocation; the version's calldata felt is 5,120 (FND-04) |
 
 Several records changed in one transaction overwrite the version's slot once in the state diff.
@@ -1352,13 +1381,17 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `confirm_trade` | the swap (7 + 7 items, 2 + 2 balances, gold) | `H.core` 2 (old); `H.gold` 2 (first); `H.item` 14 (old); `H.pack_list` 8 (first/old); `H.pack_page` 8 (first/old); `M.trade` 1 (old) | 8 / 27 | 0 / 35 | 3 | TradeClosed ×1 |
 | `confirm_trade` | the first confirmation | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 3 | — |
 | `decline_trade`, `cancel_trade` | closed | `M.trade` 1 (old) | 0 / 1 | 0 / 1 | 2 | TradeClosed ×1 |
-| `Registry.set_record` (3 parts) | written | `R.content_version` 1 (first); `R.last_id` 1 (first); `R.record` 3 (first) | 5 / 0 | 0 / 5 | 6 | — |
+| `Registry.set_record` (3 parts) | written | `R.last_id` 1 (first); `R.record` 3 (first); `R.versions` 1 (first) | 5 / 0 | 0 / 5 | 6 | — |
 | admin setters, `upgrade` | set | `A.address` 4 (old) | 0 / 4 | 0 / 4 | 4 | — |
 
 `Registry.set_record`'s content checks (§3.5, CBT-02c) write nothing but, for a `CASTE`, the
 counts of `caste_skills` that change (≤ 8 keys, `first` or `old`); a `CASTE` also reads the skills
 it names (≤ 4 × (1 + 2) = 12 slots), its stored record (2) and the counts (≤ 8); a `SKILL` above 63
-strikes reads its count (1).
+strikes reads its count (1). A rewritten `SKILL`, `ITEM` or `MODIFIER` raises the inputs version
+in the same slot and the same write as the content version (`R.versions`, D-169): no further key.
+`Hub.set_contracts` reads `flatten` and `registry` to compare them (2 reads, through the store) and
+writes `H.rules_epoch` too (one more key, new the first time) when it changes either, and not when
+both are the same (CBT-02f); the row above prices the four addresses.
 
 **The stored snapshot (CBT-02e, D-168).** `set_build` flattens the build once, through
 `FlattenLibrary` (§1.3: one library call), and writes the snapshot's three words (`H.snapshot`,
@@ -1366,9 +1399,10 @@ strikes reads its count (1).
 node (about 468,667 each, D-168's "about 453,524" measured), **overwritten** after. It reads besides
 each worn item's `ItemMods` (≤ 7, beside its `ItemBase`) and asks the `bundle` it already makes for
 the distinct `MODIFIER` records worn (≤ 15; the call is now made for an empty build too: it returns
-the content version the snapshot is sealed with). `enter` writes nothing more: it reads the three
-words (and `Registry.bundle` instead of `record` for the gate, which returns the content version in
-the same call), checks them fresh, and hands them to `Instances.create` as they are
+the inputs version the snapshot is sealed with, D-169), and reads `rules_epoch` (1). `enter` writes
+nothing more: it reads the three words and `rules_epoch` (CBT-02f: 1 read, +40,000 L2 gas on the
+node), and `Registry.bundle` instead of `record` for the gate, which returns the inputs version in
+the same call, checks them fresh, and hands them to `Instances.create` as they are
 (`SnapshotWords`), which writes them to the member's `stats`, `bar` and `kit` without packing (its
 eight member words unchanged).
 
@@ -1385,7 +1419,7 @@ eight member words unchanged).
 | `Hub.adventurer`, `account`, `item`, `grimoire`, `rift_board`, `gold`, `account_of`, `known_skills` | fixed | ≤ 6, ≤ 3 + 1 page, 2, 3, 1, 1, 1, ≤ 1 page (skill ids < 250 in the MVP) |
 | `Hub.quests` | ≤ 4 held | quiver's |
 | `Market.lot`, `lot_count`, `open_lot_count`, `trade_count`, `trade`, `lots_of` | `lots_of` ≤ 7 pages | 1, 1, 1, 1, 5, ≤ 7 |
-| `Registry.record`, `records`, `bundle` | `records` and `bundle` ≤ 32 records | ≤ 3 × 32 = 96; `bundle` also reads `content_version`: **≤ 97** |
+| `Registry.record`, `records`, `bundle` | `records` and `bundle` ≤ 32 records | ≤ 3 × 32 = 96; `bundle` also reads `versions` (both versions, one slot): **≤ 97** |
 | `Registry.content_version` | the content version alone | 1 |
 | `Registry.last_id` | one kind | 1 |
 | `version` (`Instances`, `Hub`, `Market`, `Registry`) | a constant of the class | 0 |
@@ -1526,21 +1560,23 @@ inside 3,893,819 (D). Calls: `enter` 5 (the gate read by `Hub`, then the gate an
 are read by two calls (D-148 (a)). The entry chunk's two keys move from `enter` to ENG-05's reveal.
 
 **Measured by CBT-02e** (D-168; the node's receipts net of 189,141, `contracts/tools/lifecycle_probe.py`;
-snforge for what the node cannot build yet). `enter` copies the stored snapshot:
+snforge for what the node cannot build yet). `enter` copies the stored snapshot. **CBT-02f** (D-169)
+adds one storage read to `enter` and to `set_build`, the rules epoch (+40,000 on the node each; the
+inputs version comes in the `bundle` call they already make, from the slot it already read):
 
-| Entrypoint | Before (D-158) | CBT-02e | Target |
-|---|---:|---:|---:|
-| `enter`, a later entry, the belt's worst case (4 pages) | 5,233,259 | **4,473,259** | 5,250,000 (D-158) |
-| `enter`, a later entry, no belt | 4,513,259 | **3,713,259** | 4,100,000 |
-| `enter`, the adventurer's first (a new slot) | 10,299,259 | **9,259,259** | §10 stands |
-| `set_build`, an empty build, the adventurer's first (the snapshot's 3 words new) | — | **4,428,059** | — |
-| `set_build`, an empty build, the snapshot's words rewritten unchanged | — | **3,022,059** | — |
-| a snapshot word overwritten (fix loop 1: `set_build` of two potions with the belt's slots swapped, belt and kit words overwritten, 3,342,059, less the same with the counts changed, the belt word alone, 3,302,059) | — | **40,000** | — |
-| `set_build`, the worst case (8 skills, 4 potions, 7 pieces holding 15 modifiers), the call, snforge | 2,960,731 | **8,097,073** | **8,501,927**, its measure (D-158 (c), D-168) |
+| Entrypoint | Before (D-158) | CBT-02e | CBT-02f | Target |
+|---|---:|---:|---:|---:|
+| `enter`, a later entry, the belt's worst case (4 pages) | 5,233,259 | 4,473,259 | **4,513,259** | 5,250,000 (D-158) |
+| `enter`, a later entry, no belt | 4,513,259 | 3,713,259 | **3,753,259** | 4,100,000 |
+| `enter`, the adventurer's first (a new slot) | 10,299,259 | 9,259,259 | **9,299,259** | §10 stands |
+| `set_build`, an empty build, the adventurer's first (the snapshot's 3 words new) | — | 4,428,059 | **4,468,059** | — |
+| `set_build`, an empty build, the snapshot's words rewritten unchanged | — | 3,022,059 | **3,062,059** | — |
+| a snapshot word overwritten (fix loop 1: `set_build` of two potions with the belt's slots swapped, belt and kit words overwritten, 3,342,059, less the same with the counts changed, the belt word alone, 3,302,059) | — | **40,000** | 40,000 | — |
+| `set_build`, the worst case (8 skills, 4 potions, 7 pieces holding 15 modifiers), the call, snforge | 2,960,731 | 8,097,073 | **8,124,823** | **8,501,927**, its measure (D-158 (c), D-168) |
 
 `set_build`'s worst case cannot run on the node yet (no entrypoint creates an item or teaches a
 skill); its transaction is about **9.29 M (E)** overwriting and **10.57 M (E)** at an adventurer's
-first `set_build`. The derivation: the snforge call, plus the node's excess over snforge on the
+first `set_build` (CBT-02e; CBT-02f adds about 0.04 M to each). The derivation: the snforge call, plus the node's excess over snforge on the
 empty build, which is 1,068,596 with the words rewritten unchanged. Overwriting adds the three
 words, 3 × 40,000; a first `set_build` adds the three new words, 1,406,000. It is a hub action, off the expedition's path; `enter`, on it, is
 cheaper than before by about 0.8 M (no flattening, no snapshot built, 3 felts through `create`

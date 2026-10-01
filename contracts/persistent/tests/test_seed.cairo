@@ -391,8 +391,10 @@ fn test_seed_written_and_read_back() {
     assert(written.requests.len() == 13, '13 records');
     assert(written.felts.len() == 17, '17 slots');
     let read = IRegistryReadDispatcher { contract_address: registry };
-    let (version, felts) = read.bundle(written.requests.span());
+    let (version, inputs, felts) = read.bundle(written.requests.span());
     assert(version == 13, 'one version a record');
+    // Every record is new: no stored snapshot can name it (D-169).
+    assert(inputs == 0, 'no input rewritten');
     assert(felts == written.felts.span(), 'read back as written');
     let admin = IRegistryAdminDispatcher { contract_address: registry };
     assert(admin.last_id(REGION) == 1, 'one region');

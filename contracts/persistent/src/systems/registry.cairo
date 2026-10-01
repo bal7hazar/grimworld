@@ -7,6 +7,7 @@
 //! reader tells a missing record (a written record has `LIVE` in part 0).
 
 use core::pedersen::pedersen;
+use grimworld_logic::content::{ITEM, MODIFIER, SKILL};
 use starknet::storage_access::{
     StorageAddress, storage_address_from_base, storage_base_address_from_felt252,
 };
@@ -39,7 +40,9 @@ pub trait IRegistryAdmin<T> {
     /// new id must be `last_id + 1` (append-only, design/01 rule 2); a composite kind's id must
     /// name an existing parent (`content::is_sequential`). An existing id's values may change.
     /// Every changed record raises the content version by one (D-141, E-5): a batch computed under
-    /// the earlier content is then refused by `play` (`Stop::Version`).
+    /// the earlier content is then refused by `play` (`Stop::Version`). A changed record of a kind
+    /// the flattening reads that existed before (`Inputs::includes`) also raises the inputs
+    /// version (D-169): the snapshots stored under the earlier one are then refused by `enter`.
     fn set_record(ref self: T, kind: u8, id: u32, record: Span<felt252>);
     /// The highest id of a sequential kind; 0 for a composite kind.
     fn last_id(self: @T, kind: u8) -> u32;
@@ -75,6 +78,30 @@ pub impl PartsImpl of Parts {
     }
 }
 
+/// The record kinds the snapshot's flattening reads (D-169): a changed record of one of them
+/// raises the inputs version, which stales every stored snapshot. They are the kinds of
+/// `Hub.set_build`'s one `bundle` call, whose records decide the stored words or their acceptance:
+/// - `SKILL`: each bar skill's profession and elite flag (`BuildAssert::assert_skill`,
+///   `assert_one_elite`);
+/// - `ITEM`: each belt item's class, a potion (`BeltAssert::assert_potion`);
+/// - `MODIFIER`: each worn modifier's slot type, benefit, cost, source and piece, flattened into
+///   the words (`WornTrait::held`).
+/// No other kind is read: `BASE`'s slot and hands are copied into the item at its creation
+/// (D-158), and `Build::loadout` lays out no weapon statistic and no set bonus, so neither `BASE`
+/// nor `ARMOR_SET` is read; the level is the adventurer's, the profession's values are constants
+/// (`ProfessionTrait`). A lot that makes `set_build` read another kind adds it here.
+///
+/// A **new** id of these kinds raises nothing: `set_build` refuses a missing skill, potion or
+/// modifier (`NO_SKILL`, `NOT_A_POTION`, `NO_MODIFIER`), ids are never reused and part 0
+/// never returns to 0 (`LIVE`), so no stored snapshot names an id written after it.
+#[generate_trait]
+pub impl InputsImpl of Inputs {
+    #[inline(always)]
+    fn includes(kind: u8) -> bool {
+        kind == SKILL || kind == ITEM || kind == MODIFIER
+    }
+}
+
 #[starknet::contract]
 pub mod Registry {
     use core::num::traits::Zero;
@@ -94,11 +121,13 @@ pub mod Registry {
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
-        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        Map, StorageAsPath, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::{ClassHash, ContractAddress, get_caller_address};
-    use super::{NOT_IMPLEMENTED, Parts, VERSION, errors};
+    use crate::models::versions::{Versions, VersionsTrait};
+    use crate::store::StoreTrait;
+    use super::{Inputs, NOT_IMPLEMENTED, Parts, VERSION, errors};
 
     #[storage]
     pub struct Storage {
@@ -107,9 +136,10 @@ pub mod Registry {
         pub records: Map<(u8, u32, u8), felt252>,
         /// Highest id of each sequential kind (`content::is_sequential`); 0 for composite kinds.
         pub last_ids: Map<u8, Counter>,
-        /// The content version (D-141, E-5): 0 at deployment, raised by one by every
-        /// changed record (`set_record`, automatically, no admin setter); returned by `bundle`.
-        pub content_version: u32,
+        /// The content version (D-141, E-5) and the inputs version (D-169), one slot
+        /// (`models::versions`): 0 at deployment, raised by `set_record`, automatically, no admin
+        /// setter; returned by `bundle`.
+        pub versions: Versions,
         /// How many `CASTE` records name each skill id (a caste naming it twice counts twice):
         /// while it is not 0, the skill is refused above 63 strikes (DS-18 across records, in
         /// either order of writes; CBT-02c fix loop 2).
@@ -139,17 +169,18 @@ pub mod Registry {
             }
             out.span()
         }
-        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, Span<felt252>) {
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, u32, Span<felt252>) {
             RegistryAssert::assert_bound(requests.len());
             let mut out: Array<felt252> = array![];
             for request in requests {
                 let (kind, id) = *request;
                 self.read_into(kind, id, parts(kind), ref out);
             }
-            (self.content_version.read(), out.span())
+            let versions = self.stored_versions();
+            (versions.content, versions.inputs, out.span())
         }
         fn content_version(self: @ContractState) -> u32 {
-            self.content_version.read()
+            self.stored_versions().content
         }
     }
 
@@ -159,8 +190,9 @@ pub mod Registry {
             VERSION
         }
         /// A change is told by comparing each part with the stored felt: only the parts that
-        /// differ are written, and the version is raised once if any did. A rewrite of the same
-        /// values writes nothing and leaves the version as it was.
+        /// differ are written, and the versions are raised once if any did, in one write. A
+        /// rewrite of the same values writes nothing and leaves both versions as they were. A new
+        /// id raises the content version only: no stored snapshot can name it (`Inputs`).
         fn set_record(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) {
             self.assert_admin();
             RegistryAssert::assert_record(kind, id, record);
@@ -181,7 +213,7 @@ pub mod Registry {
                         part += 1;
                     }
                     self.last_ids.write(kind, Counter { value: id_wide });
-                    self.raise_version();
+                    self.raise_versions(false);
                     return;
                 }
                 RegistryAssert::assert_existing(id_wide, last);
@@ -190,7 +222,7 @@ pub mod Registry {
             }
             self.name_skills(kind, id, record);
             if self.update(kind, id, record) {
-                self.raise_version();
+                self.raise_versions(Inputs::includes(kind));
             }
         }
         fn last_id(self: @ContractState, kind: u8) -> u32 {
@@ -389,10 +421,19 @@ pub mod Registry {
             }
             changed
         }
-        /// The content version, raised by one (D-141): one read and one write of one slot.
+        /// The content version raised by one (D-141), and the inputs version with it when the
+        /// record changed is an `input` of the flattening (D-169): one read and one write of one
+        /// slot.
         #[inline(always)]
-        fn raise_version(ref self: ContractState) {
-            self.content_version.write(self.content_version.read() + 1);
+        fn raise_versions(ref self: ContractState, input: bool) {
+            let versions = self.stored_versions().raised(input);
+            StoreTrait::set_versions(self.versions.as_path(), versions);
+        }
+
+        /// The content and inputs versions, through the store: one read.
+        #[inline(always)]
+        fn stored_versions(self: @ContractState) -> Versions {
+            StoreTrait::get_versions(self.versions.as_path())
         }
     }
 }
@@ -429,9 +470,9 @@ mod layout_tests {
         );
         assert(
             address_of(
-                state.content_version.as_ptr().__storage_pointer_address__,
-            ) == selector!("content_version"),
-            'content_version',
+                state.versions.as_ptr().__storage_pointer_address__,
+            ) == selector!("versions"),
+            'versions',
         );
         assert(
             address_of(
@@ -460,13 +501,30 @@ mod layout_tests {
     }
 }
 
+/// The flattening's input kinds (D-169): `SKILL`, `ITEM` and `MODIFIER`, and none of the 22 others.
+/// This guards the current list only (a change of it must change this test); that the list is what
+/// `Hub.set_build` asks the registry for is `test_build::test_set_build_requests_the_input_kinds`.
+#[cfg(test)]
+mod inputs_tests {
+    use grimworld_logic::content::{ITEM, LAST_KIND, MODIFIER, SKILL};
+    use super::Inputs;
+
+    #[test]
+    #[available_gas(l2_gas: 112350)] // ceil(1.05 × 107000 measured)
+    fn test_flattening_inputs() {
+        for kind in 1..LAST_KIND + 1 {
+            let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;
+            assert(Inputs::includes(kind) == expected, 'input kinds');
+        }
+    }
+}
+
 /// The content version's own cost, apart from everything else (ENG-03, for ENG-06 and ENG-07):
 /// the same state, with and without the version's read, and with and without its raise. The cost
 /// is the difference between a probe and its baseline (see GAS.md).
 #[cfg(test)]
 mod version_cost_tests {
     use snforge_std::{store, test_address};
-    use starknet::storage::StoragePointerReadAccess;
     use super::Registry;
     use super::Registry::InternalTrait;
 
@@ -477,12 +535,13 @@ mod version_cost_tests {
         let _ = @state;
     }
 
-    // `bundle`'s part of the version: one read of one slot.
+    // `bundle`'s part of the versions: one read of one slot, unpacked into the two (D-169).
     #[test]
-    #[available_gas(l2_gas: 36383)] // ceil(1.05 × 34650 measured)
+    // gas: raised, CBT-02f: the slot holds the content and inputs versions, unpacked at the read
+    #[available_gas(l2_gas: 39785)] // ceil(1.05 × 37890 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
-        assert(state.content_version.read() == 0, 'version 0');
+        assert(state.stored_versions().content == 0, 'version 0');
     }
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
@@ -490,7 +549,16 @@ mod version_cost_tests {
     #[available_gas(l2_gas: 507066)] // ceil(1.05 × 482920 measured)
     fn test_version_cost_raise() {
         let mut state = Registry::contract_state_for_testing();
-        state.raise_version();
+        state.raise_versions(false);
+    }
+
+    // `set_record`'s part when the changed record is an input of the flattening (D-169): both
+    // versions raised in the same write; against `test_version_cost_raise`, the added cost.
+    #[test]
+    #[available_gas(l2_gas: 512169)] // ceil(1.05 × 487780 measured)
+    fn test_version_cost_raise_input() {
+        let mut state = Registry::contract_state_for_testing();
+        state.raise_versions(true);
     }
 
     // The baseline of the next one: a version already written.
@@ -498,7 +566,7 @@ mod version_cost_tests {
     #[available_gas(l2_gas: 444087)] // ceil(1.05 × 422940 measured)
     fn test_version_cost_stored_baseline() {
         let state = Registry::contract_state_for_testing();
-        store(test_address(), selector!("content_version"), array![7].span());
+        store(test_address(), selector!("versions"), array![7].span());
         let _ = @state;
     }
 
@@ -507,8 +575,8 @@ mod version_cost_tests {
     #[available_gas(l2_gas: 514647)] // ceil(1.05 × 490140 measured)
     fn test_version_cost_raise_again() {
         let mut state = Registry::contract_state_for_testing();
-        store(test_address(), selector!("content_version"), array![7].span());
-        state.raise_version();
+        store(test_address(), selector!("versions"), array![7].span());
+        state.raise_versions(false);
     }
 }
 
