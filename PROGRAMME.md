@@ -61,7 +61,7 @@ of the same Unix user.
 | D-168 | The snapshot flattened once at `set_build` and stored with the adventurer (CBT-02e); `enter` copies it | Project manager |
 | D-167 | `quiver_quest` 0.2.0 accepted by the owner; unit tests beside their code, every Cairo library | Owner |
 | D-166 | The flattening's bounds checked at registration (CBT-02c); CBT-02d's levers before ENG-07; the batch's weight from the proved worst tick | Project manager |
-| D-165 | SPK-14: hexagonal chunks of 251 tiles studied before ENG-05; the shape is the owner's decision on the report | Project manager |
+| D-165 | Hexagonal chunks of 251 tiles studied (SPK-14); **the chunks stay 15 × 15**, cost efficiency first | Owner |
 | D-164 | The compile drift: a gate with the two observed builds, exact; no red merge | Project manager |
 | D-163 | CBT-02 merged, its cost-bound findings carried to CBT-02b | Project manager |
 | D-162 | The standard roles of Nexus: OPERATIONS.md reduced to the project's specifics; Codex reviews every pull request; track CV on `nexus` | Owner |
@@ -100,7 +100,6 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 
 **At the pause**:
 0a. **The expedition's cost (SPK-15, D-172)**: a worst tick everything counted is 22.8M, 16.4M with the engineering levers, about 11.8M with the design levers too, against 1.47M; the design levers (fewer awake goblins, a bomb's targets) recommended *not now*, judged on ENG-07's representative fight tick; the threshold of $0.50 on L2 alone is not reachable for a fight-heavy expedition: SPK-12 (client-side proving) is the structural answer, and reopening ADR-0001 or restating the threshold with the business model is the owner's.
-0. The chunk shape, on SPK-14's report (D-165): hexagonal chunks of 251 tiles or the 15 × 15 rectangles.
 1. ~~The verdict on `quiver_quest` 0.2.0~~ given (D-167); next: the mapping Arcade → quiver to read, then ENG-R1's first lot and ARC-07b.
 2. **D-152 confirmed**: the phone tests at the end, no Android for now (a text sent later said the contrary, the one of D-151; D-152 is kept).
 3. On SPK-12's report: whether ADR-0001 (L2 only) is reopened for client-side proving.
