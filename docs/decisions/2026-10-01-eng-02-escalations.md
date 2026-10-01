@@ -53,4 +53,17 @@ ENG-02's fix loop.
 
 ## Decision
 
-Pending.
+**D-174**, `[Fable 5.1]` project manager, 2026-10-01, under D-128: both recommendations.
+
+1. **docs/CAIRO.md §4** names `hexx`: boards and packed values are `felt252` bitmaps through `hexx`'s
+   `Bits`, `u256` only where a board passes 252 bits (with the written reason the first rule asks),
+   the single-limb path of `hexx` for boards of 128 tiles or fewer. Done in this decision's pull
+   request; the orchestrator updates COMMON.md, design/02 and design/04 in ENG-02's lot.
+2. **The four geometry edges, written into design/19 §6** by ENG-02's lot: the same tile has no arc;
+   a tile outside the window gives false or empty; a line that leaves the window gives no sight;
+   **a wall at either end blocks sight** (an actor never stands on a wall, and an unrevealed chunk is
+   wall, D-136: the rule costs nothing and closes the case the same way).
+
+**What would reverse it**: a design need to target a wall tile (a lever on a wall, a trap in it):
+then the end-tile rule is revisited for that action, not for sight.
+

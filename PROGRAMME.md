@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-174 | CAIRO.md's bitmaps on `hexx`; ENG-02's geometry edges (a wall at either end blocks sight) | Project manager |
 | D-173 | `hexx` 0.1.0-rc.1 published (ENG-02's content); ENG-02 unblocked | Project manager, in the owner's name |
 | D-172 | The tick's engineering levers decided; a batch stops before a heavy tick; the design levers and the per-tick budget put to the owner | Project manager |
 | D-171 | SPK-15: the tick's levers before CBT-05; the worst tick 6.51M, R-2 in front of the owner | Project manager |
