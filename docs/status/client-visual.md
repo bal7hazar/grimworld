@@ -1,6 +1,6 @@
 # Status — track CV (the client's visual work, on the owner's Mac)
 
-**2026-10-01 08:30 UTC** — written by the orchestrator of track CV,
+**2026-10-01 08:45 UTC** — written by the orchestrator of track CV,
 `[Fable 5.1] Orchestrateur CV (client visuel)`, a session on the VPS created by the project manager on
 2026-10-01 to replace the Mac's orchestrator, silent since the pause of 2026-09-29. Mandate:
 [ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146, amended by D-149, D-151, D-152, D-153,
@@ -25,6 +25,7 @@ as the project manager asked.
 |---|---|---|---|
 | SPK-12 | **Client-side proving against L2 batches** (D-161, D-172): the segment model of S1, the cost side by side, the tick proved on the Mac with Stwo as `slingfall` does, a phone estimated, verification, the design consequences, a recommendation for the owner; [brief](../briefs/SPK-12-client-proving.md) | Opus 5.5 | **Blocked**: agent `grimworld/impl-spk-12` created 08:18:39 UTC with no account resolved (`account: null`, pool `workers`); its job waits on `no_provider` ("no approved machine has this provider and account"); `nexus continue` gave a second job with the same wait; `nexus retire` is forbidden to this session's token; a second `nexus run` is refused while the agent exists. The owner's to repair (retire the agent, or repair the dispatch); the brief is on `main`, nothing else is needed |
 | SPK-13 | **Builds of the same sources that differ** (D-154, D-164): reproduce N times on the library at `310b5f1` and on `contracts/`, diff the Sierra, minimise, tell the toolchain, the platform and the cache apart; the VPS run is the orchestrator's with the spike's script; a draft upstream issue as a file; [brief](../briefs/SPK-13-compiler-determinism.md) | Opus 5.5 | **Running** on the Mac, `grimworld/impl-spk-13`, account claude-b7r, since 08:18:51 UTC; branch `spike/spk-13-compiler-determinism` |
+| CLI-03a check | **The owner's test of Playwright on the Mac through Nexus** (project manager, 2026-10-01): a verification run of the merged sandbox, no implementation; Playwright launched Chrome 154 headless, every browser-checkable criterion of CLI-03a passed at 375 × 812 and 1440 × 900, four commands refused by the profile (a compound command, two `ls` outside the worktree, `lsof`), no wait, no defect, nothing committed | Opus 5.5 | Done 08:34 UTC, `grimworld/impl-cli-03a`; [report](../reports/CLI-03a-browser-check.md); told to the project manager |
 | CV-01 | The Mac launcher, `scripts/mac/agent.sh` (retired by D-162: `nexus` starts the track's agents) | Opus 5.5 | Done, [#121](https://github.com/bal7hazar/grimworld/pull/121); [report](../reports/CV-01-mac-launcher.md), [audit](../reports/CV-01-audit-gpt-6-sol.md) |
 | CV-02 | The launcher's budget of 5, load 18, the pinned Node (D-149) | Sonnet 5.5 | Done, [#129](https://github.com/bal7hazar/grimworld/pull/129); [report](../reports/CV-02-launcher-budget.md), [audit](../reports/CV-02-audit-gpt-6-sol.md) |
 | ART-02 | The atlas: Python 3.12 or 3.13 with hashed pins, integer pipeline, pixel fingerprint | Opus 5.5 | Done, [#134](https://github.com/bal7hazar/grimworld/pull/134); [report](../reports/ART-02-atlas-scale.md), audits [quality](../reports/ART-02-audit-quality.md), [`[GPT-6-Sol]`](../reports/ART-02-audit-gpt-6-sol.md). Open: the Linux fingerprint (below) |
@@ -38,8 +39,8 @@ as the project manager asked.
 
 ## Agents on the Mac
 
-Budget 5 (owner), held by Nexus. At 08:30 UTC: `grimworld/impl-spk-13` (Opus 5.5, build class) of
-this track; `grimworld/review-arc-07b` (Fable 5.1, the review of quiver's ARC-07b, not this track's).
+Budget 5 (owner), held by Nexus. At 08:45 UTC: `grimworld/impl-spk-13` (Opus 5.5, build class) of
+this track; `grimworld/impl-cli-03a` ended 08:34 UTC (browser class); `grimworld/review-arc-07b` (Fable 5.1, the review of quiver's ARC-07b, not this track's).
 Load 3.9, free memory 46 GB (`nexus resources`, 08:19 UTC). Accounts (`nexus accounts --refresh`,
 08:19 UTC): claude-b7r at 16 % of its week (resets 10-03 05:59 UTC), 4 % of its Fable week; Codex
 unavailable (quota) until 2026-10-04 13:36 UTC.
