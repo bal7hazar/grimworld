@@ -697,9 +697,9 @@ fn test_enter_refuses_a_missing_snapshot() {
 }
 
 // D-168 2: every way a stored snapshot goes stale is refused by `enter`, and `set_build` clears
-// it: a record the flattening reads changed (the inputs version moves, D-169), a level up (GLD-01's,
-// written here with `store`), and the stale mark (what the entrypoints of the report's staleness
-// table write). The snapshot finally copied is the level-2 one.
+// it: a record the flattening reads changed (the inputs version moves, D-169), a level up
+// (GLD-01's, written here with `store`), and the stale mark (what the entrypoints of the report's
+// staleness table write). The snapshot finally copied is the level-2 one.
 #[test]
 #[available_gas(l2_gas: 45249921)] // ceil(1.05 × 43136242 measured)
 fn test_enter_refuses_a_stale_snapshot() {
@@ -790,7 +790,9 @@ fn test_enter_refuses_after_an_input_rewritten() {
     admin.set_record(ITEM, 1, ingredient_of(1));
     admin.set_record(MODIFIER, 1, prefix_of(10));
     act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
-    let rewrites = array![(SKILL, skill_of(5)), (ITEM, ingredient_of(2)), (MODIFIER, prefix_of(20))];
+    let rewrites = array![
+        (SKILL, skill_of(5)), (ITEM, ingredient_of(2)), (MODIFIER, prefix_of(20)),
+    ];
     for (kind, record) in rewrites {
         admin.set_record(kind, 1, record);
         #[feature("safe_dispatcher")]

@@ -6,11 +6,11 @@
 //!
 //! The kit word carries the snapshot's state in bits the kit leaves free (its high limb ends at
 //! bit 202): the **flattening epoch** it was computed under (D-169), which is the registry's inputs
-//! version at bits 208–239 (`Registry.bundle`, `models::versions`) and `Hub`'s rules epoch at bits
-//! 241–249; the stale mark at bit 240; `LIVE` at 250 (set by the packers). A slot never written is
-//! 0: no snapshot. `Hub.enter` refuses a missing one, and a stale one: marked, of another
-//! flattening epoch (a record the flattening reads changed, or the flattening's class), or of
-//! another level than the adventurer's (D-168 2).
+//! version at bits 208–239 (`Registry.bundle`, `models::versions`) and `Hub`'s rules epoch at
+//! bits 241–249; the stale mark at bit 240; `LIVE` at 250 (set by the packers). A slot never
+//! written is 0: no snapshot. `Hub.enter` refuses a missing one, and a stale one: marked, of
+//! another flattening epoch (a record the flattening reads changed, or the flattening's class), or
+//! of another level than the adventurer's (D-168 2).
 
 use grimworld_logic::packing::{P64, byte_at, split};
 use grimworld_logic::snapshot::SnapshotWords;

@@ -5,8 +5,8 @@
 //! (`models::snapshot`). `Registry.bundle` returns both, read in one storage read; `set_record`
 //! raises both in one write.
 //!
-//! Layout: the content version at bits 0–31, the inputs version at bits 32–63; no `LIVE`, a slot
-//! never written reads both at 0 (deployment). Each refuses its overflow past `u32`, like the
+//! Layout: the content version at bits 0–31, the inputs version at bits 32–63; no `LIVE`, a
+//! slot never written reads both at 0 (deployment). Each refuses its overflow past `u32`, like the
 //! content version alone did (4,294,967,295 changed records).
 
 use grimworld_logic::packing::P32;

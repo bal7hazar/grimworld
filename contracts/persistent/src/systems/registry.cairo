@@ -120,12 +120,12 @@ pub mod Registry {
     use grimworld_logic::models::outline::CHUNK_SET;
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
-    use crate::models::versions::{Versions, VersionsTrait};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::{ClassHash, ContractAddress, get_caller_address};
+    use crate::models::versions::{Versions, VersionsTrait};
     use super::{Inputs, NOT_IMPLEMENTED, Parts, VERSION, errors};
 
     #[storage]

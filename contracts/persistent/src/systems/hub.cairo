@@ -938,8 +938,8 @@ pub mod Hub {
         }
         /// The registered contracts, the randomness provider among them, and `FlattenLibrary`'s
         /// class hash (D-168): configuration, never a constant of the code (ADR-0001, ADR-0002,
-        /// ENG-01 §1.3). A class hash other than the stored one raises the rules epoch (D-169), which
-        /// stales every stored snapshot; the same one leaves it. Administrator only.
+        /// ENG-01 §1.3). A class hash other than the stored one raises the rules epoch (D-169),
+        /// which stales every stored snapshot; the same one leaves it. Administrator only.
         fn set_contracts(
             ref self: ContractState,
             registry: ContractAddress,

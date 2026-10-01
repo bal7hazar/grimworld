@@ -82,9 +82,7 @@ mod RegistryDouble {
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
             core::panic_with_felt252('double: records')
         }
-        fn bundle(
-            self: @ContractState, requests: Span<(u8, u32)>,
-        ) -> (u32, u32, Span<felt252>) {
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, u32, Span<felt252>) {
             core::panic_with_felt252('double: bundle')
         }
         fn content_version(self: @ContractState) -> u32 {
