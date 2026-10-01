@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-10-01 05:30 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 06:00 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -43,6 +43,11 @@ service), FND-09 (`with-node.sh` on macOS) all done; the tick's cost and the sto
 | CBT-02f (D-169) | `enter` checks the flattening epoch: +40,000, once an expedition | +0.04 M |
 | **Now** | | **≈ 663 M ≈ $0.584** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
 
+**The worst tick against S1** (D-171): S1 above prices ENG-01's per-tick estimate. The worst tick inside a
+batch now measures **≈ 6,510,212** (CBT-02d's 3,447,872 + CBT-04's 2,368,590 + CBT-03a's 693,750),
+**4.43×** the 1,469,435 an average tick may cost; the representative tick, before the rules' writes,
+1,065,651. SPK-15 measures the levers, each with its gain on the worst tick and on S1.
+
 **A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
 part of a worst tick is **1.06–1.11 M** (window, flood at 15 layers, 8 walkers; LIB-05 M1-T9b), which
 leaves about 0.4 M for the game's logic and storage. After CBT-02d, proved term by term: **≤ 1,480,363**
@@ -76,7 +81,8 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 | Game agent | Model (ran) | State |
 |---|---|---|
 | ENG-R1a quality audit, security and cost audit | GPT-6-Sol, GPT-6-Astra (nexus audit) | `blocked_quota` until 2026-10-04 13:36 UTC |
-| CBT-04 conditions, CBT-03a hit | Opus 5.5 (scripts/agent.sh) | fix loops after the Claude-side quality lens (D-170); Codex audits queued |
+| CBT-04 conditions, CBT-03a hit | GPT-6-Sol, GPT-6-Astra (nexus audit) | Codex audits queued at their heads after their Claude-side fix loops (D-170) |
+| SPK-15 the tick's cost levers | Opus 5.5 (scripts/agent.sh) | launching (D-171) |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
