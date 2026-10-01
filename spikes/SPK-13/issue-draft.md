@@ -32,19 +32,86 @@ stable.
 
 - Scarb 2.19.4 (b45b74c03 2026-07-21), Cairo 2.19.4, Sierra 1.9.3
 - `lowered_scc_representative` is unchanged on `main` (read 2026-10-01)
-- Seen on aarch64-apple-darwin (12 CPUs) and on x86_64 Linux (GitHub `ubuntu-latest`, 4 vCPUs)
+- Seen on aarch64-apple-darwin (12 CPUs); the two main values of the larger contract below were
+  also produced on x86_64 Linux (GitHub `ubuntu-latest` and a Linux server), with the same sizes
 
 ### Minimal program
 
-MINIMAL_PROGRAM
+One package, one file. `Scarb.toml`:
+
+```toml
+[package]
+name = "spk13_minimal"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.19"
+
+[cairo]
+sierra-replace-ids = true
+```
+
+`src/lib.cairo`:
+
+```cairo
+pub fn ping(n: u32) -> u32 {
+    if n == 0 {
+        return 0;
+    }
+    b::pong(n - 1)
+}
+
+pub mod b {
+    pub fn pong(n: u32) -> u32 {
+        if n == 0 {
+            return 1;
+        }
+        super::ping(n - 1)
+    }
+}
+```
+
+Two mutually recursive functions **in two modules**. With both functions in the root module, 20
+clean builds out of 20 gave the same program: the parallel diagnostics warm-up runs one task per
+module, so the two functions must be lowered by different tasks for the race to exist.
 
 ### Steps to reproduce
 
-MINIMAL_STEPS
+On a machine with several cores (rayon's default: one thread per CPU), from the package's folder:
+
+```sh
+for i in $(seq 20); do
+  scarb clean && scarb build >/dev/null
+  shasum -a 256 target/dev/spk13_minimal.sierra.json
+done
+```
+
+The JSON file differs on every build, partly because it writes the numeric intern id beside each
+debug name. To see which builds differ as programs, print each one as Sierra text with its names
+(`cairo_lang_sierra::program::VersionedProgram::into_v1()`, `DebugInfo::populate`, `Display`) and
+compare which of `ping` and `pong` calls `withdraw_gas`. Then the control:
+
+```sh
+for i in $(seq 10); do
+  scarb clean && RAYON_NUM_THREADS=1 scarb build >/dev/null
+  shasum -a 256 target/dev/spk13_minimal.sierra.json
+done
+```
 
 ### Observed
 
-MINIMAL_OUTPUT
+On Apple silicon (aarch64-apple-darwin, 12 CPUs), Scarb 2.19.4 (Cairo 2.19.4):
+
+| Threads | Builds | Program A: `withdraw_gas` in `ping` | Program B: `withdraw_gas` in `pong` |
+|---|--:|--:|--:|
+| default (12) | 20 | 9 | 11 |
+| default (12), an earlier series under load | 20 | 16 | 4 |
+| `RAYON_NUM_THREADS=1` | 10 | 10 (one file, byte for byte) | 0 |
+
+Both programs have the same types, libfuncs and function declarations (90 statements each). In A,
+`ping` starts with `withdraw_gas([0], [1]) { fallthrough(...) ... }` and calls the out-of-gas
+panic (`panic_with_const_felt252::<375233589013918064796019>`, "Out of gas") and `pong` does not;
+in B it is the other way round (`ping` 33 statements, `pong` 43, and the reverse). The order of
+the type and libfunc declarations differs with it.
 
 On a larger contract (≈ 98 functions, a few call cycles through loops), the class built by
 10 clean builds on 12 threads took **three** values: 27,092 / 27,101 / 27,101 Sierra felts, with
