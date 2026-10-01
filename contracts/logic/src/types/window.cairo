@@ -1,7 +1,7 @@
 //! The game's geometry on the window (ENG-02, D-173): the board of a tick (design/02, 15 columns ×
 //! 16 rows, assembled at each tick by ENG-07, never stored), and what the rules ask of it, on
-//! `hexx` 0.1.0-rc.1. A value type with its behaviour, as `World`: it sits in `types/` (CAIRO.md §7,
-//! D-147). This trait is frozen: the executor (CBT-05a) consumes it.
+//! `hexx` 0.1.0-rc.1. A value type with its behaviour, as `World`: it sits in `types/` (CAIRO.md
+//! §7, D-147). This trait is frozen: the executor (CBT-05a) consumes it.
 //!
 //! **Positions.** A tile of the window is its position `15 y + x` (`hexx`'s layout: pointy-top,
 //! odd-r offset, `+1` is West, `+15` is North; `x` below 15, `y` below 16), the window's own index,
@@ -13,10 +13,10 @@
 //! - `sight`: a fixed integer hex line between the two tiles; walls block, actors do not (an actor
 //!   is not in the window's walls); the two ends are not tested. When the line passes exactly
 //!   between two tiles, the lower tile index is taken. `hexx`'s line (N-5) has this rule: element
-//!   `i` of the line is the tile nearest `A + (i / N)(B − A)`, at a tie the smaller row, and on the
-//!   same row the smaller column (`LineTrait::line`, `HexTrait::line_to`); the tests hold it against
-//!   an oracle written from design/04's sentence alone (`Oracle::line`). The arc and the facing
-//!   read only the line's first step, computed in constant time by the same rule
+//!   `i` of the line is the tile nearest `A + (i / N)(B − A)`, at a tie the smaller row, and on
+//!   the same row the smaller column (`LineTrait::line`, `HexTrait::line_to`); the tests hold it
+//!   against an oracle written from design/04's sentence alone (`Oracle::line`). The arc and the
+//!   facing read only the line's first step, computed in constant time by the same rule
 //!   (`WindowInternal::step`), held against the same oracle.
 //! - `reach`: the target of an action within its range (design/04's table, `range`: touch 1, ranged
 //!   6) and in sight. Adjacent tiles have no tile between them: touch is never blocked. A radius
@@ -25,13 +25,14 @@
 //!   adjacent, at range the tile the line of sight arrives from (the tile of the line next to the
 //!   target), in `d` front, `d ± 1` front-side, `d ± 2` rear-side, `d + 3` back.
 //! - `front`: whether the target stands on the source's front tile (Blind's miss, §5.6).
-//! - `facing`: the facing an action turns to (§5.3 step 3): toward the moved-to tile or the target;
+//! - `facing`: the facing an action turns to (§5.3 step 3): toward the moved-to tile or the
+//! target;
 //!   a target not adjacent, the direction of the first step of the hex line.
 //! - `shape`: a shape's tiles from a centre (§2.3: `SINGLE`, `RING_1`, `DISC_1`, `DISC_2`,
-//!   `DISC_3`, by hex distance), as a bitmap of the window: bit `p` is the tile `p`, so its order is
-//!   ascending tile index, the order of the executor's actor list (§5.14 step 4). A tile outside the
-//!   window is skipped; a wall holds no actor and is skipped. `tiles` lists a bitmap's positions in
-//!   that order.
+//!   `DISC_3`, by hex distance), as a bitmap of the window: bit `p` is the tile `p`, so its order
+//!   is ascending tile index, the order of the executor's actor list (§5.14 step 4). A tile
+//!   outside the window is skipped; a wall holds no actor and is skipped. `tiles` lists a bitmap's
+//!   positions in that order.
 //!
 //! **Edges (D-140).** A rule never panics on a legal action:
 //! - a position outside the window (240 and up): no sight, no reach, no arc, not in front, the
@@ -212,7 +213,8 @@ pub impl WindowImpl of WindowTrait {
     }
 
     /// The tiles of a shape (`effect::shape`) centred on `centre`, clipped to the window and to its
-    /// walls: bit `p` for the tile `p`, ascending tile index. Empty for a centre outside the window.
+    /// walls: bit `p` for the tile `p`, ascending tile index. Empty for a centre outside the
+    /// window.
     fn shape(self: @Window, shape: u8, centre: u8) -> felt252 {
         if !Self::inside(centre) {
             WindowAssert::assert_valid_shape(shape);
@@ -253,8 +255,8 @@ impl WindowInternal of WindowInternalTrait {
         HexMap { width: WIDTH, height: HEIGHT, grid: open, seed: 0 }
     }
 
-    /// `(q + 7, r)` of a tile, `q = x − ⌊y/2⌋`, `r = y` (`GeometryTrait::to_axial`), shifted so
-    /// that it is never negative: one division by 30 gives `⌊y/2⌋` and the column.
+    /// `(q + 7, r)` of a tile, `q = x − ⌊y/2⌋`, `r = y` (`GeometryTrait::to_axial`), shifted
+    /// so that it is never negative: one division by 30 gives `⌊y/2⌋` and the column.
     #[inline(always)]
     fn axial(position: u8) -> (u8, u8) {
         let (pair, rest) = DivRem::div_rem(position, THIRTY);
@@ -353,9 +355,9 @@ impl WindowInternal of WindowInternalTrait {
     }
 
     /// The tiles of `DISC_1` (`with_centre` 1) or `RING_1` (0): for an interior centre (columns
-    /// 1–13, rows 1–14) one product, `2^c × (M + with_centre)`, `M` the field sum of the relative
-    /// offsets of the centre's row parity (`hexx`'s `neighbor_mask` on the width 15, its constant
-    /// written out); on the window's ring, the rows of `disc`.
+    /// 1–13, rows 1–14) one product, `2^c × (M + with_centre)`, `M` the field sum of the
+    /// relative offsets of the centre's row parity (`hexx`'s `neighbor_mask` on the width 15, its
+    /// constant written out); on the window's ring, the rows of `disc`.
     #[inline(always)]
     fn neighbours(centre: u8, with_centre: felt252) -> felt252 {
         let (y, x) = DivRem::div_rem(centre, FIFTEEN);
@@ -372,10 +374,11 @@ impl WindowInternal of WindowInternalTrait {
     }
 
     /// The tiles within `radius` (1 to 3) of `centre` (hex distance), clipped to the window: one
-    /// row segment per row `y' = y + dr`. With `q = x − ⌊y/2⌋` (`GeometryTrait::to_axial`), the
-    /// tiles of the row at distance at most `R` have `dq` in `[max(−R, −R − dr), min(R, R − dr)]`,
-    /// that is the columns `x + dq + ⌊y'/2⌋ − ⌊y/2⌋`. Computed on `u8` shifted by `R` and `2R` (no
-    /// negative value): row `k = dr + R` in `0..=2R`, columns `+ 2R`. At most 7 rows.
+    /// row segment per row `y' = y + dr`. With `q = x − ⌊y/2⌋` (`GeometryTrait::to_axial`),
+    /// the tiles of the row at distance at most `R` have `dq` in `[max(−R, −R − dr), min(R, R
+    /// − dr)]`, that is the columns `x + dq + ⌊y'/2⌋ − ⌊y/2⌋`. Computed on `u8` shifted
+    /// by `R` and `2R` (no negative value): row `k = dr + R` in `0..=2R`, columns `+ 2R`. At most 7
+    /// rows.
     fn disc(centre: u8, radius: u8) -> felt252 {
         let (y, x) = DivRem::div_rem(centre, FIFTEEN);
         let (half, _) = DivRem::div_rem(y, TWO);
@@ -497,7 +500,8 @@ mod tests {
 
     #[generate_trait]
     impl Oracle of OracleTrait {
-        /// `(q, r)` of a tile, `q = x − ⌊y/2⌋` (any integer column, `−1` and `15` included).
+        /// `(q, r)` of a tile, `q = x − ⌊y/2⌋` (any integer column, `−1` and `15`
+        /// included).
         fn axial(x: i32, y: i32) -> (i32, i32) {
             (x - Self::floor(y, 2), y)
         }
@@ -538,10 +542,10 @@ mod tests {
 
         /// design/04's line, by its sentence: element `i` of `N` is the tile nearest the point
         /// `A + (i / N)(B − A)` (the tile whose hexagon holds it: in cube coordinates
-        /// `max(|Δq − Δr|, |Δr − Δs|, |Δs − Δq|) ≤ 1`); when the point lies exactly between two
-        /// tiles, the lower tile index (the smaller row, then the smaller column). Returns the
-        /// tiles strictly between the ends in order, `None` when a chosen tile is outside the
-        /// window.
+        /// `max(|Δq − Δr|, |Δr − Δs|, |Δs − Δq|) ≤ 1`); when the point lies exactly
+        /// between two tiles, the lower tile index (the smaller row, then the smaller column).
+        /// Returns the tiles strictly between the ends in order, `None` when a chosen tile is
+        /// outside the window.
         fn line(from: u8, to: u8) -> Option<Array<u8>> {
             let n = Self::distance(from, to);
             let (qa, ra) = Self::axial((from % WIDTH).into(), (from / WIDTH).into());
@@ -554,7 +558,8 @@ mod tests {
                 let pr = n * ra + i * (rb - ra);
                 let ps = -pq - pr;
                 let (q0, r0) = (Self::floor(pq, n), Self::floor(pr, n));
-                // Candidates in ascending index: rows, then columns (`x = q + ⌊r/2⌋` grows with q)
+                // Candidates in ascending index: rows, then columns (`x = q + ⌊r/2⌋` grows with
+                // q)
                 let mut chosen: Option<(i32, i32)> = None;
                 let mut r = r0 - 1;
                 while r <= r0 + 2 && chosen.is_none() {
@@ -841,9 +846,7 @@ mod tests {
             while facing != 6 {
                 let mut d: u8 = 0;
                 while d != 6 {
-                    let target = LayoutTrait::neighbor(
-                        WIDTH, HEIGHT, source, d.try_into().unwrap(),
-                    )
+                    let target = LayoutTrait::neighbor(WIDTH, HEIGHT, source, d.try_into().unwrap())
                         .unwrap();
                     assert!(WindowTrait::front(source, facing, target) == (d == facing));
                     d += 1;
@@ -870,8 +873,7 @@ mod tests {
             let from = *from;
             let mut d: u8 = 0;
             while d != 6 {
-                let to = LayoutTrait::neighbor(WIDTH, HEIGHT, from, d.try_into().unwrap())
-                    .unwrap();
+                let to = LayoutTrait::neighbor(WIDTH, HEIGHT, from, d.try_into().unwrap()).unwrap();
                 assert!(WindowTrait::facing(from, to, (d + 3) % 6) == d);
                 d += 1;
             }
@@ -974,9 +976,9 @@ mod tests {
         assert!(count(window.shape(shape::DISC_3, at(7, 8))) == 37);
         // The corner (0, 0): East and the row below are outside
         assert!(
-            WindowTrait::tiles(window.shape(shape::DISC_1, at(0, 0))) == array![
-                at(0, 0), at(1, 0), at(0, 1),
-            ]
+            WindowTrait::tiles(
+                window.shape(shape::DISC_1, at(0, 0)),
+            ) == array![at(0, 0), at(1, 0), at(0, 1)]
                 .span(),
         );
         assert!(count(window.shape(shape::RING_1, at(14, 15))) == 2);
@@ -987,9 +989,9 @@ mod tests {
         // Walls hold no actor
         let walls = walled(array![at(8, 8), at(6, 9), at(7, 8)].span());
         assert!(
-            WindowTrait::tiles(walls.shape(shape::DISC_1, at(7, 8))) == array![
-                at(6, 7), at(7, 7), at(6, 8), at(7, 9),
-            ]
+            WindowTrait::tiles(
+                walls.shape(shape::DISC_1, at(7, 8)),
+            ) == array![at(6, 7), at(7, 7), at(6, 8), at(7, 9)]
                 .span(),
         );
         assert!(walls.shape(shape::SINGLE, at(7, 8)) == 0);
@@ -1279,7 +1281,10 @@ mod tests {
 
     /// Prints one vector and adds it to the digest.
     fn emit(
-        ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>,
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        case: Span<felt252>,
         ok: Span<felt252>,
     ) {
         println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
@@ -1356,9 +1361,8 @@ mod tests {
             while facing != 6 {
                 let mut d: u8 = 0;
                 while d != 6 {
-                    let target = match LayoutTrait::neighbor(
-                        WIDTH, HEIGHT, *source, d.try_into().unwrap(),
-                    ) {
+                    let target =
+                        match LayoutTrait::neighbor(WIDTH, HEIGHT, *source, d.try_into().unwrap()) {
                         Some(target) => target,
                         None => *source - 1,
                     };
