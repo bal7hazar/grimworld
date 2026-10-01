@@ -342,7 +342,8 @@ pub impl ExecutorImpl of ExecutorTrait {
         ref world: World, targets: Span<u32>, condition: u8, v: i32, t: u32, sheets: @Sheets,
     ) -> u32 {
         let mut member = world.member(0);
-        let source: Infliction = member.infliction();
+        // The spike's copy of CBT-04 (`cbt04`), named: CBT-04 also gives `MemberWordsTrait` one.
+        let source: Infliction = Cbt04MemberTrait::infliction(@member);
         let mut kills = 0;
         for index in targets {
             let mut goblin = world.goblin(*index);
@@ -369,7 +370,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         ref world: World, targets: Span<u32>, condition: u8, v: i32, t: u32, sheets: @Sheets,
     ) -> u32 {
         let mut member = world.member(0);
-        let source: Infliction = member.infliction();
+        let source: Infliction = Cbt04MemberTrait::infliction(@member);
         let woken = world.woken();
         let mut pending = array![];
         let mut kills = 0;
