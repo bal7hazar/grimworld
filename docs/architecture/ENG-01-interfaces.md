@@ -155,6 +155,30 @@ The last two rows are probes: the reads and the held list of the wiring take `Hu
 and the first pass with the floors alone passes 50 %, so no arrangement of the rest fits. With the
 content's checks `Registry` is 24,608 felts, **30.04 %** (with the skills' counts of fix loop 2) (5,234 and 6.39 % without them).
 
+**The flattening's library class (CBT-02e, M; D-168).** `FlattenLibrary`, in `grimworld_logic`
+(`contracts/logic/src/systems/flatten.cairo`), declared as its own class; its one entrypoint,
+`IFlattenLibrary::words(loadout, worn, ids, records) -> (stats, bar, kit)`
+(`grimworld_logic::interface`), takes the build's records as `Hub.set_build` read them (the
+`Loadout`; each worn item's lane, slot and `ItemMods` as `snapshot::Worn`; the distinct modifier
+ids and their `MODIFIER` parts, one each) and returns the snapshot's three words packed
+(`SnapshotBuildTrait::words`: the passives the items hold, `WornTrait::held`, with every check of
+the items, then the flattening). `Hub` holds its class hash as configuration (`flatten`, set by
+`set_contracts`, §3.3) and calls it through `IFlattenLibraryLibraryDispatcher { class_hash }` **at
+`set_build` only**; it stores the words with the adventurer (`snapshots`, §3.3), and `enter` copies
+them to `Instances.create` as they are (`SnapshotWords`: the three words and the belt's counts), so
+neither `Hub` nor `Instances` unpacks or packs a snapshot word. CASM felts (`class_sizes.py`):
+
+| Class | CASM felts | Share |
+|---|---:|---:|
+| **`Hub`** (the wiring, the snapshot stored through the store, the flattening out; fix loop 1) | **36,629** | **44.71 %** |
+| `FlattenLibrary` | 22,098 | 26.98 % |
+| `Instances` (`create` writes the words as stored, through the store: its packers of the snapshot gone) | 23,795 | 29.05 % |
+| `Hub` with the flattening out but `enter` unpacking the stored words into a `Snapshot` (a probe) | 41,885 | 51.13 % |
+
+The last row is why `create` receives the packed words: the three unpackers alone were 4,684 felts
+of `Hub`. The call: 3,183,138 L2 gas on the widest equipment design/20 §1.2 counts (15 modifiers, 30
+passives), 745,553 without equipment (`contracts/logic/tests/test_flatten.cairo`, the call alone).
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -405,6 +429,7 @@ Design/02 bounds awake goblins (8), not displaced ones; E-2.
 | Variable | Key | Slots | Record |
 |---|---|---:|---|
 | `admin`, `registry`, `instances`, `market`, `fate` | — | 5 | addresses |
+| `flatten` | — | 1 | `ClassHash` of `FlattenLibrary` (D-168, §1.3), set by `set_contracts` |
 | `next_account`, `next_adventurer`, `next_item` | — | 3 | `Counter` |
 | `account_of` | owner address | 1 | account id |
 | `accounts` | account `u32` | 2 | `Account { owner, record: AccountRecord }` |
@@ -419,6 +444,7 @@ Design/02 bounds awake goblins (8), not displaced ones; E-2.
 | `packs` | (adventurer, page) | 1 | `Lanes32` of equipment entities (20 + 5 per bag: ≤ 4 pages) |
 | `vaults` | (account, page) | 1 | `Lanes32` of equipment entities (25 per pane: 4 pages a pane) |
 | `rift_boards` | account | 1 | `RiftBoard` |
+| `snapshots` | adventurer `u32` | **3** | `StoredSnapshot { stats, bar, kit }`: the snapshot `set_build` flattened (D-168) |
 
 The **owner key** of balances and gold is `kind × 2^32 + id`: 1 an adventurer's pack, 2 an
 account's vault, 3 escrow (one owner, id 0: the market; the lot says what it holds). An item balance
@@ -454,6 +480,18 @@ Layouts (`contracts/persistent/src/models/`), every one with `LIVE`:
   bits at 64–127. `Pairs`: 5 bits a pair (tried, recipe + 1), pairs 0–24 in the low limb, 25–48 in
   the high one: a book of 10 ingredients (45 pairs) in one felt; 11 or 12 need `pairs_more`.
 - `Gold`: amount 0–63. `RiftBoard`: day 0–31 · cleared 32–39 · 5 identities of 16 bits at 40–119.
+- `StoredSnapshot` (`models/snapshot.cairo`, D-168, CBT-02e): the flattening's three words as
+  `FlattenLibrary` packed them, `MemberStats`, `MemberBar` and `MemberKit` in the layouts of §3.2's
+  member (`LIVE` set), and in the kit word's free bits the snapshot's state: the registry's
+  **content version** it was computed under at 208–239, the **stale mark** at 240. Written by
+  `set_build` only (3 words: new at an adventurer's first `set_build`, about 468,667 each on the
+  node, 1,406,000 the three; overwritten after, **40,000 a word** on the node, measured on the kit
+  word, about 120,000 the three, E); read by `enter`, which refuses a slot never written
+  (`snapshot: missing`) and a stale snapshot (`snapshot: stale`): the mark set, a content version
+  other than the registry's (`Registry.bundle` returns it with the gate, no extra call), or
+  `MemberStats.level` other than the adventurer's. An entrypoint that changes an input of the
+  flattening without recomputing it writes `STALE_MARK` (`LIVE` and bit 240) to the kit word: one
+  write, no read (D-168 2; the entrypoints are listed in CBT-02e's report).
 
 Quests and achievements are **quiver's components** (D-131, D-135), embedded by ARC: their storage
 is the package's ("every record in one storage slot"), at most **4 held quests** per adventurer.
@@ -774,7 +812,8 @@ elsewhere.
 ### 4.2 The calls between contracts (`grimworld_logic::interface`)
 
 ```
-IInstanceEntry (Instances; Hub only):  create(...) -> u64,  set_controller(adventurer_id, controller)
+IInstanceEntry (Instances; Hub only):  create(adventurer_id, controller, gate, snapshot: SnapshotWords, tasks) -> u64,
+                                       set_controller(adventurer_id, controller)
 IResults (Hub; Instances only):        report(results: Results),  barter(adventurer_id, collector) -> bool
 IRegistryRead (Registry):              record, records, bundle -> (version: u32, records), content_version -> u32
 IFate (provider):                      fate(domain) -> felt252
@@ -893,9 +932,12 @@ defeat and no reveal: about 1.1 M, 2.6 % of the bound (E-17). A typical fight ba
 **At entry** (`Hub.enter` → `Instances.create`, one transaction): the hub checks the gate's
 requirements, locks the build (the adventurer is `inside`: `set_build`, services and trade refuse
 it), and passes:
-- `Snapshot { stats: MemberStats, bar: MemberBar, kit: MemberKit, belt_counts }`: everything a tick
-  needs of the adventurer, computed from its level, attributes, equipment and belt (design/03,
-  design/15); stored as the member's words 4–6 and the belt counts of word 0;
+- `SnapshotWords { stats, bar, kit, belt_counts }` (CBT-02e, D-168): everything a tick needs of
+  the adventurer, the three words `MemberStats`, `MemberBar` and `MemberKit` **packed** as
+  `FlattenLibrary` flattened them at `set_build` from its level, attributes, equipment and belt
+  (design/03, design/15) and `Hub` stored them (§3.3), the kit without its content version; the
+  belt's counts from the reserve `enter` debits. `create` stores the words as they are as the
+  member's words 4–6 (no packing), and the belt counts in word 0;
 - `controller`: the account's owner (M-6);
 - `tasks`: at most 16 `TaskEntry` (D-131): the held quests' and contract's tasks and the titles in
   progress, each with the criterion the instance can check alone (a caste, a landmark, a location).
@@ -1277,7 +1319,7 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 | `set_account_owner`, 7 adventurers inside | changed | `H.account` 1 (old); `H.account_of` 2 (new/old); `I.member` 7 (old) | 1 / 9 | 1 / 9 | 2 | — |
 | `create_adventurer` | created | `H.account` 1 (old); `H.acct_list` 1 (first); `H.adventurer` 6 (new); `H.next_adventurer` 1 (old) | 7 / 2 | 6 / 3 | 2 | — |
 | `delete_adventurer` | deleted | `H.account` 1 (old); `H.acct_list` 2 (old); `H.core` 1 (old) | 0 / 4 | 0 / 4 | 1 | — |
-| `set_build` | set | `H.belt` 1 (old); `H.build` 1 (old); `H.equipped` 1 (old) | 0 / 3 | 0 / 3 | 4 | — |
+| `set_build` | set | `H.belt` 1 (old); `H.build` 1 (old); `H.equipped` 1 (old); `H.snapshot` 3 (first) | 3 / 3 | 0 / 6 | 4 | — |
 | `travel` | travelled | `H.place` 1 (old) | 0 / 1 | 0 / 1 | 2 | AdventurerLocated ×1 |
 | `display_title` | displayed | none | 0 / 0 | 0 / 0 | 3 | TitleDisplayed ×1 |
 | `accept_quest` | accepted | `H.known` 1 (first); `H.quiver` 1 (first) | 2 / 0 | 0 / 2 | 2 | — |
@@ -1316,10 +1358,19 @@ that can complete an objective (a burning Rift Heart dying), so each branch (com
 `Registry.set_record`'s content checks (§3.5, CBT-02c) write nothing but, for a `CASTE`, the
 counts of `caste_skills` that change (≤ 8 keys, `first` or `old`); a `CASTE` also reads the skills
 it names (≤ 4 × (1 + 2) = 12 slots), its stored record (2) and the counts (≤ 8); a `SKILL` above 63
-strikes reads its count (1). `set_build` and `enter` keep the write sets above:
-the flattening's wiring, which would add their reads of each worn item's `ItemMods` (≤ 7) and the
-distinct `MODIFIER` records worn (≤ 15, in the `bundle` call they already make), is held back
-(§1.3).
+strikes reads its count (1).
+
+**The stored snapshot (CBT-02e, D-168).** `set_build` flattens the build once, through
+`FlattenLibrary` (§1.3: one library call), and writes the snapshot's three words (`H.snapshot`,
+§3.3): **new** (`first`) at an adventurer's first `set_build`, 1,406,000 L2 gas the three on the
+node (about 468,667 each, D-168's "about 453,524" measured), **overwritten** after. It reads besides
+each worn item's `ItemMods` (≤ 7, beside its `ItemBase`) and asks the `bundle` it already makes for
+the distinct `MODIFIER` records worn (≤ 15; the call is now made for an empty build too: it returns
+the content version the snapshot is sealed with). `enter` writes nothing more: it reads the three
+words (and `Registry.bundle` instead of `record` for the gate, which returns the content version in
+the same call), checks them fresh, and hands them to `Instances.create` as they are
+(`SnapshotWords`), which writes them to the member's `stats`, `bar` and `kit` without packing (its
+eight member words unchanged).
 
 **Views** (no transaction; reads bound what a node's call must allow):
 
@@ -1473,6 +1524,27 @@ without a belt, 4,100,000; `leave` to a hub and `travel_back` 2,350,000; `set_ac
 inside 3,893,819 (D). Calls: `enter` 5 (the gate read by `Hub`, then the gate and its destination by
 `Instances.create`), `leave` 2 to a hub and 4 to a location: a gate names its location, so the two
 are read by two calls (D-148 (a)). The entry chunk's two keys move from `enter` to ENG-05's reveal.
+
+**Measured by CBT-02e** (D-168; the node's receipts net of 189,141, `contracts/tools/lifecycle_probe.py`;
+snforge for what the node cannot build yet). `enter` copies the stored snapshot:
+
+| Entrypoint | Before (D-158) | CBT-02e | Target |
+|---|---:|---:|---:|
+| `enter`, a later entry, the belt's worst case (4 pages) | 5,233,259 | **4,473,259** | 5,250,000 (D-158) |
+| `enter`, a later entry, no belt | 4,513,259 | **3,713,259** | 4,100,000 |
+| `enter`, the adventurer's first (a new slot) | 10,299,259 | **9,259,259** | §10 stands |
+| `set_build`, an empty build, the adventurer's first (the snapshot's 3 words new) | — | **4,428,059** | — |
+| `set_build`, an empty build, the snapshot's words rewritten unchanged | — | **3,022,059** | — |
+| a snapshot word overwritten (fix loop 1: `set_build` of two potions with the belt's slots swapped, belt and kit words overwritten, 3,342,059, less the same with the counts changed, the belt word alone, 3,302,059) | — | **40,000** | — |
+| `set_build`, the worst case (8 skills, 4 potions, 7 pieces holding 15 modifiers), the call, snforge | 2,960,731 | **8,097,073** | **8,501,927**, its measure (D-158 (c), D-168) |
+
+`set_build`'s worst case cannot run on the node yet (no entrypoint creates an item or teaches a
+skill); its transaction is about **9.29 M (E)** overwriting and **10.57 M (E)** at an adventurer's
+first `set_build`. The derivation: the snforge call, plus the node's excess over snforge on the
+empty build, which is 1,068,596 with the words rewritten unchanged. Overwriting adds the three
+words, 3 × 40,000; a first `set_build` adds the three new words, 1,406,000. It is a hub action, off the expedition's path; `enter`, on it, is
+cheaper than before by about 0.8 M (no flattening, no snapshot built, 3 felts through `create`
+instead of 63, no repacking in `Instances`).
 
 ### 10.1 The 40 M bound of design/02, in slots and gas (OP-2, CB-3)
 

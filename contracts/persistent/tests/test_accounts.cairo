@@ -51,7 +51,7 @@ pub trait IDoubleViews<T> {
 #[starknet::contract]
 mod InstancesDouble {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::snapshot::{Snapshot, TaskEntry};
+    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
     use grimworld_logic::types::InstanceId;
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
@@ -76,7 +76,7 @@ mod InstancesDouble {
             adventurer_id: u32,
             controller: ContractAddress,
             gate: u16,
-            snapshot: Snapshot,
+            snapshot: SnapshotWords,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
             core::panic_with_felt252('double: no create')
@@ -101,7 +101,7 @@ mod InstancesDouble {
 #[starknet::contract]
 mod RefusingInstances {
     use grimworld_logic::interface::IInstanceEntry;
-    use grimworld_logic::snapshot::{Snapshot, TaskEntry};
+    use grimworld_logic::snapshot::{SnapshotWords, TaskEntry};
     use grimworld_logic::types::InstanceId;
     use starknet::ContractAddress;
 
@@ -115,7 +115,7 @@ mod RefusingInstances {
             adventurer_id: u32,
             controller: ContractAddress,
             gate: u16,
-            snapshot: Snapshot,
+            snapshot: SnapshotWords,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
             core::panic_with_felt252('double: no create')
@@ -163,7 +163,8 @@ fn setup() -> (ContractAddress, ContractAddress) {
     let class = declare("InstancesDouble").unwrap().contract_class();
     let (double, _) = class.deploy(@array![hub.into()]).unwrap();
     start_cheat_caller_address(hub, addr(ADMIN));
-    IHubAdminDispatcher { contract_address: hub }.set_contracts(registry, double, addr(4), addr(5));
+    IHubAdminDispatcher { contract_address: hub }
+        .set_contracts(registry, double, addr(4), addr(5), 0.try_into().unwrap());
     (hub, double)
 }
 
@@ -919,7 +920,7 @@ fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
     start_cheat_caller_address(hub, addr(ADMIN));
     let registry = read(hub, selector!("registry")).try_into().unwrap();
     IHubAdminDispatcher { contract_address: hub }
-        .set_contracts(registry, refusing, addr(4), addr(5));
+        .set_contracts(registry, refusing, addr(4), addr(5), 0.try_into().unwrap());
     with_adventurers(hub, ALICE, 2);
     put_inside(hub, 2);
     let keys = watched();
