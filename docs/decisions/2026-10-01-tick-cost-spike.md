@@ -40,4 +40,21 @@ for ENG-02 if `hexx` lands.
 
 ## Decision
 
-Pending.
+**D-171**, `[Fable 5.1]` project manager, 2026-10-01, under D-128: **(a)**. SPK-15 takes one game
+slot, in `spikes/SPK-15/` only (Opus 5.5, research with measurements; `[GPT-6-Astra]` on cost when
+Codex returns), and measures, before CBT-05 is briefed: the frozen goblins kept as words (about
+0.85M), what a condition's 108,100 on the member is made of, the executor's overhead. Its report
+**tells the engineering levers (no rule changes) from the design levers** (fewer goblins awake, fewer
+conditions, a smaller window), each with its gain on the worst tick and on S1, so that the owner
+decides the design ones and the project manager the others. The other slot stays for ENG-R1b (on the
+owner's reading of ENG-R1a) or ENG-02 (on `hexx` rc.1).
+
+**The expedition's cost (R-2)**: the worst tick is about 6.51M with CBT-04's and CBT-03a's lines,
+4.43× the target of 1.47M, before CBT-05's executor; S1's running estimate in STATUS follows it.
+The threshold of $0.50 for 300 actions (D-129) is not reachable by engineering alone at this
+figure: the owner is told, and SPK-12 (client-side proving, D-161, on the Mac) and the design levers
+of SPK-15 are the two answers in front of the owner.
+
+**What would reverse it**: SPK-15 finding the executor cheap and the goblins' words recovering most
+of the 6.51M (then CBT-05 is briefed on its figures and R-2 is decided after ENG-07, as D-161 said).
+
