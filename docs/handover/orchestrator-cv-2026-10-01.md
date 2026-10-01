@@ -1,6 +1,6 @@
 # Handover — orchestrator of track CV, 2026-10-01
 
-Written at **15:40 UTC on 2026-10-01** by `[Opus 5.5] Orchestrateur CV (client visuel)`, under the
+Written at **15:40 UTC on 2026-10-01**, updated at 15:55 UTC after SPK-13 ended, by `[Opus 5.5] Orchestrateur CV (client visuel)`, under the
 owner's **soft stop** of 2026-10-01 (through the Overseer and the project manager). The session ran on
 Fable 5.1 until about 14:00 UTC, then on Opus 5.5 under the owner's rule for orchestrators. Its context
 is not full. The note exists because the owner stopped the day: the successor takes over when the
@@ -17,14 +17,14 @@ owner resumes.
 | Status you own | [docs/status/client-visual.md](../status/client-visual.md), rewritten at each check-in |
 | Branches | `cv/` for your own documents; tasks on the branch their brief names |
 
-## State at 15:40 UTC
+## State at 15:55 UTC
 
 `nexus progress --project grimworld` for this track:
 
 | Agent | State | Machine, model | Since |
 |---|---|---|---|
-| `grimworld/impl-spk-13` | **running** (job `job_0mupoddhpf8f302a727`): watching #252's CI after pushing its Scarb 2.20.1 result | Mac, claude-opus-5-5 | 15:14:30 |
-| `grimworld/impl-spk-12` | **queued** (`no_room`, job `job_0mupm5sha900295fef8`): fix loop 1 of #257; it starts by itself when SPK-13 frees the Mac (it is a `heavy` job and takes the whole offer) | Mac, claude-opus-5-5 | asked 14:12:36 |
+| `grimworld/impl-spk-13` | **succeeded**, report written (job `job_0mupoddhpf8f302a727`); #252 CI green at `58af26d` | Mac, claude-opus-5-5 | ended 15:40:04 |
+| `grimworld/impl-spk-12` | **running** (job `job_0mupm5sha900295fef8`): fix loop 1 of #257, started by itself when SPK-13 freed the Mac (a `heavy` job: it takes the whole offer) | Mac, claude-opus-5-5 | 15:40:06 |
 | `grimworld/impl-cli-03c` | succeeded, merged | Mac, claude-opus-5-5 | 15:16:09 |
 | `grimworld/impl-cli-03a` | succeeded (the browser check) | Mac, claude-opus-5-5 | 08:34:44 |
 | `grimworld/review-spk-12` | succeeded, PASS WITH FINDINGS (four minors, one note) | VPS, claude-sonnet-5-5 | 14:12:14 |
@@ -38,9 +38,9 @@ allowed to end.
 
 | PR | Branch | Head | State |
 |---|---|---|---|
-| [#252](https://github.com/bal7hazar/grimworld/pull/252) SPK-13 | `spike/spk-13-compiler-determinism` | `58af26d` | **Open, not merged.** The agent is finishing it. Its review has not been asked |
-| [#257](https://github.com/bal7hazar/grimworld/pull/257) SPK-12 | `spike/spk-12-client-proving` | `24832b9` (reviewed) | **Open, not merged.** The review's findings were sent to the implementer (fix loop 1, queued) |
-| [#272](https://github.com/bal7hazar/grimworld/pull/272) status and CLI-03c's archived reports | `cv/close-cli-03c` | — | Documents only. A merge command was armed before the stop. If it is still open, merge it as documents (OPERATIONS §6, the standard's second case) |
+| [#252](https://github.com/bal7hazar/grimworld/pull/252) SPK-13 | `spike/spk-13-compiler-determinism` | `58af26d` | **Open, not merged** (soft stop). The agent has ended, its report is written and CI is green. Its review has not been asked |
+| [#257](https://github.com/bal7hazar/grimworld/pull/257) SPK-12 | `spike/spk-12-client-proving` | `24832b9` (reviewed) | **Open, not merged.** The review's findings were sent to the implementer: fix loop 1, running since 15:40:06 |
+| [#272](https://github.com/bal7hazar/grimworld/pull/272) status and CLI-03c's archived reports | `cv/close-cli-03c` | — | **Merged** as `65d1ebd` (documents; armed before the stop) |
 
 ## Each open task
 
@@ -80,8 +80,18 @@ allowed to end.
     `git worktree remove --force` once the tables are in #252.
 - **The issue draft** (`spikes/SPK-13/issue-draft.md`): its placeholders are filled (`3ec437d`).
   **It is not filed.** It waits for the owner's go (D-154 §3, D-180). It names both versions tested.
+- **The agent's report** (`nexus report grimworld/impl-spk-13`, ended 15:40:04), two facts beyond the above:
+  - **The game's contracts are not affected today**: 23 builds of `contracts/` gave one program per
+    artefact (10 classes, 33 test classes, 2 Sierra programs, 6 compiled test files), and CI matches
+    the Mac's class sizes.
+  - **D-164's premise of "one value per environment" does not hold**: the Mac gave both values of
+    `HexxGenerators` and a **third** (27,101 Sierra / 49,427 CASM felts) from one binary and one cache;
+    the library's own record shows CI giving both. The single-thread pin (D-176) is the remedy, not a
+    record of two values. Tell the project manager with the report.
+  - On 2.20.1 on the Mac, 12 builds put the check 6 times in `ping` and 6 in `pong`, 12 distinct
+    files; on 1 thread identical. The draft names both versions and stays for the owner.
 - **To close it**:
-  1. When the agent ends, read `nexus report grimworld/impl-spk-13`.
+  1. Read the report whole (`nexus report grimworld/impl-spk-13`) and archive it in `docs/reports/`.
   2. Commit the VPS tables to #252, as the orchestrator, after the agent's last push.
   3. `nexus review` (it falls back to Claude Sonnet while Codex has no quota). No audit (D-177: the
      measurements and the pin carry it).
@@ -194,12 +204,11 @@ Pending, with this orchestrator's recommendation:
 ## Next, in order, when the owner resumes
 
 1. Check-in: `nexus progress --project grimworld`, `nexus resources`, `nexus accounts`, `gh pr list`.
-2. Merge #272 if still open (documents).
-3. SPK-13: report, VPS tables into #252, review, merge, archive.
-4. SPK-12: when fix loop 1 ends, a new review, merge, archive, the result to the project manager.
-5. CLI-03d after the owner's test of CLI-03c.
-6. ART-02's Linux fingerprint.
-7. CLI-02 when lent (after ENG-02), and the Capacitor shell before Phase 6.
+2. SPK-13: archive its report, the VPS tables into #252, review, merge; the two facts above to the project manager.
+3. SPK-12: when fix loop 1 ends (running at 15:55), a new review on its new head, merge, archive, the result to the project manager.
+4. CLI-03d after the owner's test of CLI-03c.
+5. ART-02's Linux fingerprint.
+6. CLI-02 when lent (after ENG-02), and the Capacitor shell before Phase 6.
 
 ## Rules of the day to carry
 
