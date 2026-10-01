@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-172 | The tick's engineering levers decided; a batch stops before a heavy tick; the design levers and the per-tick budget put to the owner | Project manager |
 | D-171 | SPK-15: the tick's levers before CBT-05; the worst tick 6.51M, R-2 in front of the owner | Project manager |
 | D-170 | CBT-04 and CBT-03a while Codex is out; merged after ENG-R1a | Project manager |
 | D-169 | A snapshot stales on a rules epoch or a flattening-input change, not on any content update (CBT-02f) | Project manager |
@@ -97,6 +98,7 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 ## Waiting for the owner
 
 **At the pause**:
+0a. **The expedition's cost (SPK-15, D-172)**: a worst tick everything counted is 22.8M, 16.4M with the engineering levers, about 11.8M with the design levers too, against 1.47M; the design levers (fewer awake goblins, a bomb's targets) recommended *not now*, judged on ENG-07's representative fight tick; the threshold of $0.50 on L2 alone is not reachable for a fight-heavy expedition: SPK-12 (client-side proving) is the structural answer, and reopening ADR-0001 or restating the threshold with the business model is the owner's.
 0. The chunk shape, on SPK-14's report (D-165): hexagonal chunks of 251 tiles or the 15 × 15 rectangles.
 1. ~~The verdict on `quiver_quest` 0.2.0~~ given (D-167); next: the mapping Arcade → quiver to read, then ENG-R1's first lot and ARC-07b.
 2. **D-152 confirmed**: the phone tests at the end, no Android for now (a text sent later said the contrary, the one of D-151; D-152 is kept).
