@@ -12,6 +12,7 @@ import type { SpriteLibrary } from "../render/sprites";
 import type { Tile } from "../render/view";
 import { fixtureNamed } from "./fixtures";
 import { SandboxSession, type WalkInfo } from "./session";
+import type { SandboxWorld } from "./world";
 
 /** What the debug panel shows. */
 export interface SandboxInfo {
@@ -37,6 +38,8 @@ export interface SandboxInfo {
 
 export interface SandboxOptions {
   readonly fixture: string | null;
+  /** A world to open instead of the fixture: the instance of the loop (CLI-03c). */
+  readonly world?: SandboxWorld;
   readonly idle: boolean;
   readonly scale: ScaleMode;
   readonly zoom: ZoomSettings;
@@ -65,7 +68,8 @@ export class SandboxController {
     private readonly renderer: Renderer,
     options: SandboxOptions,
   ) {
-    this.session = new SandboxSession(fixtureNamed(options.fixture), renderer, browserHost(), {
+    const world = options.world ?? fixtureNamed(options.fixture);
+    this.session = new SandboxSession(world, renderer, browserHost(), {
       playOnTap: options.playOnTap,
       stepMs: options.stepMs,
       onChange: () => {
@@ -269,6 +273,12 @@ export class SandboxController {
     this.notify();
   }
 
+  /** Where the adventurer stands: the loop reads it after every change (a hub gate's anchor). */
+  adventurerTile(): Tile | null {
+    const { world } = this.session.state;
+    return world.actors.find((a) => a.id === world.adventurerId)?.tile ?? null;
+  }
+
   info(): SandboxInfo {
     const names = new Set<string>();
     const state = this.session.state;
@@ -289,8 +299,7 @@ export class SandboxController {
       tickersRunning: pixiTickersRunning(this.app),
       feet: this.renderer.feetFraction(),
       playOnTap: this.session.playOnTap(),
-      adventurerTile:
-        state.world.actors.find((a) => a.id === state.world.adventurerId)?.tile ?? null,
+      adventurerTile: this.adventurerTile(),
       cameraTile: pixelToTile(this.renderer.cameraState().camera.centre),
     };
   }
