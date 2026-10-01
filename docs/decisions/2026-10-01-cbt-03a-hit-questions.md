@@ -23,4 +23,18 @@ when the target notices (§5.5 step 9), so only the first hit gains from it.
 
 ## Decision
 
-Pending.
+**D-179**, `[Fable 5.1]` project manager, 2026-10-01, under D-128 (readings of design/04 and design/19;
+the owner may reverse any one: it moves vectors, not an interface).
+
+1. **Confirmed**: a knocked-down or sleeping target hit from a front arc takes the critical alone,
+   without the axe's +25 % (the two bonuses do not stack: one hit, one best class).
+2. **Confirmed**: a sleeping target takes a critical from any arc.
+3. **Confirmed**: block before evasion.
+4. **Confirmed**: FX-19 (*Hob-breaker*) halves a killing blow as any other.
+5. **Decided**: a sleeping target **neither blocks nor evades its first hit**; it is asleep. One
+   line in CBT-05a; the vector that evades today moves with it, announced in the changelog (game
+   results are API).
+
+**What would reverse it**: the owner's reading of a rule; the fun gate finding sleeping goblins too
+easy a prey (then 5 becomes "evades at half chance", a content number).
+
