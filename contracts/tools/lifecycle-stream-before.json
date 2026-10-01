@@ -1,0 +1,1987 @@
+{
+ "transactions": [
+  {
+   "label": "Hub.set_contracts",
+   "function": "set_contracts",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x36df9d06808417dd5418f1affa340f30b2c975d7bae1d6ce5bcd85c10200d99",
+     "instances"
+    ],
+    [
+     "0x36e6e68277be471f8db8c01f68aea0c9a7eb43a30b5e3c2f43d234b0f7615e7",
+     "flatten_class"
+    ],
+    [
+     "0x474ecbf47e13749f7f88bbe99e6e1a0e39091b4feb622ae1cdb18f92f891b7",
+     "0x1"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_record 1 1",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 2 1",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 2 2",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 2 3",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 2 4",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 4 1",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 4 2",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 4 3",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 4 4",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 4 5",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 4 6",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 1",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 2",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 3",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 4",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 5",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 6",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 7",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 8",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 9",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 10",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 11",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 12",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 13",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 14",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 15",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 16",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 17",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 18",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 19",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 20",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 21",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_record 11 22",
+   "function": "set_record",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "register",
+   "function": "register",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c5",
+     "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+    ],
+    [
+     "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c6",
+     "0x400000000000000000000000000000000000000000000000000000000000003"
+    ],
+    [
+     "0x296027568aba72894b7cd5a2d46f42841f9f26270dff396b17bd7c474f3c6e0",
+     "0x400000000000000000000000000000000000000000000000000000000000002"
+    ],
+    [
+     "0x46d259103aacf81683234cd0804e62280257bed4cbbbcaa1f5a176ecfd973ec",
+     "0x1"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer, cold (D-144: the start hub from the registry)",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c6",
+     "0x400000000000000000000000000000000000000000000000000000000000103"
+    ],
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0a",
+     "0x400000000000000000000000000000000010001000000000000000000000001"
+    ],
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0c",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0d",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0e",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0f",
+     "0x416c64726963"
+    ],
+    [
+     "0x58d9d31b73f12a627eef0b4529904f6124d0531809d79e19461d314bac9730",
+     "0x400000000000000000000000000000000000000000000000000000000000001"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000002"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer, initialised",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c6",
+     "0x400000000000000000000000000000000000000000000000000000000000203"
+    ],
+    [
+     "0x58d9d31b73f12a627eef0b4529904f6124d0531809d79e19461d314bac9730",
+     "0x400000000000000000000000000000000000000000000000000000200000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+     "0x400000000000000000000000000000000020001000000000000000000000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5d",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5e",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5f",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d60",
+     "0x4272656e6e61"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000003"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer, initialised (third)",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c6",
+     "0x400000000000000000000000000000000000000000000000000000000000303"
+    ],
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f51502557e",
+     "0x400000000000000000000000000000000030001000000000000000000000001"
+    ],
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f51502557f",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025580",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025581",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025582",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025583",
+     "0x436564726963"
+    ],
+    [
+     "0x58d9d31b73f12a627eef0b4529904f6124d0531809d79e19461d314bac9730",
+     "0x400000000000000000000000000000000000000000000030000000200000001"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000004"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty, first (the snapshot's 3 words new)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x420553dc1e04f6d55dd1c0d535a85e75592bbe845b8a6f7b840f2a8e60533b5",
+     "0x400000000001400000000000000000000000000000001010514000a02140064"
+    ],
+    [
+     "0x420553dc1e04f6d55dd1c0d535a85e75592bbe845b8a6f7b840f2a8e60533b6",
+     "0x40050000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0x420553dc1e04f6d55dd1c0d535a85e75592bbe845b8a6f7b840f2a8e60533b7",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty, again (the snapshot's 3 words rewritten unchanged)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "set_build, empty",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49255",
+     "0x400001e79e78000000000000000000000000000000002010000000a03190064"
+    ],
+    [
+     "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49256",
+     "0x40046000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49257",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x3a54afa53fd7a6bcf7f29ee1ce5a41e82ad3700be1ac64ab9878f050d723000",
+     "0x400000000000000000000000000000000000000000003010000000a05320064"
+    ],
+    [
+     "0x3a54afa53fd7a6bcf7f29ee1ce5a41e82ad3700be1ac64ab9878f050d723001",
+     "0x4003c000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0x3a54afa53fd7a6bcf7f29ee1ce5a41e82ad3700be1ac64ab9878f050d723002",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "enter, first entry (cold: a new slot)",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000001000100000000000100000001"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x1"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "leave to a hub (gate 2: Returned, the town reached)",
+   "function": "leave",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x1"
+     ],
+     "data": [
+      "0x1"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "enter, later entry (initialised: the slot reused)",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000001000100000000000100000002"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x1"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "leave to a location (gate 6: Moved, the next instance, its draw)",
+   "function": "leave",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000001000100000000000100000003"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    }
+   ]
+  },
+  {
+   "label": "leave to a location again (gate 4: back to the zone)",
+   "function": "leave",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000001000100000000000100000004"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    }
+   ]
+  },
+  {
+   "label": "travel_back (Returned to the last hub)",
+   "function": "travel_back",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x1"
+     ],
+     "data": [
+      "0x1"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "travel (to the start town)",
+   "function": "travel",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": [
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x1"
+     ],
+     "data": [
+      "0x1"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "enter, later entry (again)",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+     "0x400000000000000000000000000000200000001000100000000000100000005"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x1"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "leave refused (sequence 7 against 0: Refused)",
+   "function": "leave",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x27151584410c955b5fc59a7da0641cb31dbd8c5a0f231b3fe1dcd3b96d0328e"
+    }
+   ]
+  },
+  {
+   "label": "enter (adventurer 2, to fill its pack)",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000001000100000000000200000001"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "Hub.set_contracts (instances: the administrator)",
+   "function": "set_contracts",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x36df9d06808417dd5418f1affa340f30b2c975d7bae1d6ce5bcd85c10200d99",
+     "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "report (Open: 3 of each potion into the pack)",
+   "function": "report",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x2f0984b2ccb52c1ff24ebb7cdd2a0baaaee68a44523e0308ddc9f248453d1f1",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+     "0x400000000000000040000000000000000020001000000000000000000000001"
+    ],
+    [
+     "0x6a3e87efd4361136d3fc116a8b549d405369d0e9d98f4c2a2faa5e4199c0232",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "Hub.set_contracts (instances back)",
+   "function": "set_contracts",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x36df9d06808417dd5418f1affa340f30b2c975d7bae1d6ce5bcd85c10200d99",
+     "instances"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "leave to a hub",
+   "function": "leave",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x1"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "set_build, 4 potions on 4 pack pages (empty bar, no equipment)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49257",
+     "0x4020000000000000000000000000000000000160000000f0000000800000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5e",
+     "0x4000000000000000000000003030303000000160000000f0000000800000001"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "enter, later entry, the belt's worst case (4 pages, each lane emptied)",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x2f0984b2ccb52c1ff24ebb7cdd2a0baaaee68a44523e0308ddc9f248453d1f1",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+     "0x400000000000000000000000000000000020001000000000000000000000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000001000100000000000200000002"
+    ],
+    [
+     "0x6a3e87efd4361136d3fc116a8b549d405369d0e9d98f4c2a2faa5e4199c0232",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "leave to a hub, the belt credited back (4 pages)",
+   "function": "leave",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x2f0984b2ccb52c1ff24ebb7cdd2a0baaaee68a44523e0308ddc9f248453d1f1",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+     "0x400000000000000040000000000000000020001000000000000000000000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x6a3e87efd4361136d3fc116a8b549d405369d0e9d98f4c2a2faa5e4199c0232",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x1"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "enter, later entry, the belt's worst case (again)",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x2f0984b2ccb52c1ff24ebb7cdd2a0baaaee68a44523e0308ddc9f248453d1f1",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+     "0x400000000000000000000000000000000020001000000000000000000000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000001000100000000000200000003"
+    ],
+    [
+     "0x6a3e87efd4361136d3fc116a8b549d405369d0e9d98f4c2a2faa5e4199c0232",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "travel_back, the belt credited back (4 pages)",
+   "function": "travel_back",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x2f0984b2ccb52c1ff24ebb7cdd2a0baaaee68a44523e0308ddc9f248453d1f1",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+     "0x400000000000000040000000000000000020001000000000000000000000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x6a3e87efd4361136d3fc116a8b549d405369d0e9d98f4c2a2faa5e4199c0232",
+     "0x400000000000000000000000000000000000000000000000000000300000000"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x9bc680e05fe8ff80e30b61548c6af8921d7e7f115164652d117d6b74916128"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x1"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "set_build, two potions (setup)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49257",
+     "0x402000000000000000000000000000000000000000000000000000800000001"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5e",
+     "0x400000000000000000000000000010100000000000000000000000800000001"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, the belt's counts changed (belt overwritten, snapshot unchanged)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5e",
+     "0x400000000000000000000000000020100000000000000000000000800000001"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, the belt's slots swapped (belt and the snapshot's kit word overwritten)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49257",
+     "0x402000000000000000000000000000000000000000000000000000100000008"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5e",
+     "0x400000000000000000000000000010200000000000000000000000100000008"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, the same again (no state change)",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [],
+   "events": []
+  },
+  {
+   "label": "register (account of player 3)",
+   "function": "register",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1ccba1f341667ee3b61e5f69ba94391272d6dc7dacde31749dcdd96d13c1c",
+     "0x2"
+    ],
+    [
+     "0x250b4081079e5782c7d438d73391b353da9e9c75e8e5db84ebb74c17f996875",
+     "0x4f348398f859a55a0c80b1446c5fdc37edb3a8478a32f10764659fc241027d3"
+    ],
+    [
+     "0x250b4081079e5782c7d438d73391b353da9e9c75e8e5db84ebb74c17f996876",
+     "0x400000000000000000000000000000000000000000000000000000000000003"
+    ],
+    [
+     "0x296027568aba72894b7cd5a2d46f42841f9f26270dff396b17bd7c474f3c6e0",
+     "0x400000000000000000000000000000000000000000000000000000000000003"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x250b4081079e5782c7d438d73391b353da9e9c75e8e5db84ebb74c17f996876",
+     "0x400000000000000000000000000000000000000000000000000000000000103"
+    ],
+    [
+     "0x3458564e75a8a5d129c7ee4ac8ca02930a8ce40156a491fa8af9c7be4690999",
+     "0x400000000000000000000000000000000000000000000000000000000000004"
+    ],
+    [
+     "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f17217",
+     "0x400000000000000000000000000000000010001000000000000000000000002"
+    ],
+    [
+     "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f17218",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f17219",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f1721a",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f1721b",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f1721c",
+     "0x50334130"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000005"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1d9da96b15fa967c937e8c6737c9c4919ddd3e456609f82866d26dd0c69ff6c",
+     "0x400000000001400000000000000000000000000000001010514000a02140064"
+    ],
+    [
+     "0x1d9da96b15fa967c937e8c6737c9c4919ddd3e456609f82866d26dd0c69ff6d",
+     "0x40050000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0x1d9da96b15fa967c937e8c6737c9c4919ddd3e456609f82866d26dd0c69ff6e",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_account_owner, 0 inside",
+   "function": "set_account_owner",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x1ccba1f341667ee3b61e5f69ba94391272d6dc7dacde31749dcdd96d13c1c",
+     "0x0"
+    ],
+    [
+     "0x250b4081079e5782c7d438d73391b353da9e9c75e8e5db84ebb74c17f996875",
+     "0x1003"
+    ],
+    [
+     "0x7f32778aef68c30b08bfcbb25db9aac695a07a0e4b63ecff98fe874cdacf87",
+     "0x2"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "register (account of player 1)",
+   "function": "register",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x296027568aba72894b7cd5a2d46f42841f9f26270dff396b17bd7c474f3c6e0",
+     "0x400000000000000000000000000000000000000000000000000000000000004"
+    ],
+    [
+     "0x2ee75d9ec0ccafc4cf91894da54e24c1ad618e6f8dfa0df3f8eae6aebbb3086",
+     "0x3"
+    ],
+    [
+     "0xc8c837ef74f7cb87a9691ef7d85cd352df28f5d48927c1ef223207a305f73f",
+     "0x78662e7352d062084b0010068b99288486c2d8b914f6e2a55ce945f8792c8b1"
+    ],
+    [
+     "0xc8c837ef74f7cb87a9691ef7d85cd352df28f5d48927c1ef223207a305f740",
+     "0x400000000000000000000000000000000000000000000000000000000000003"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x3921ab535292c4f02cab6f82729b5c2d3fc930500e2787eaf082a48bfc68b1f",
+     "0x400000000000000000000000000000000000000000000000000000000000005"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000006"
+    ],
+    [
+     "0xc8c837ef74f7cb87a9691ef7d85cd352df28f5d48927c1ef223207a305f740",
+     "0x400000000000000000000000000000000000000000000000000000000000103"
+    ],
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb721",
+     "0x400000000000000000000000000000000010001000000000000000000000003"
+    ],
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb722",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb723",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb724",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb725",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb726",
+     "0x50314130"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x7bc2310bed5252d08aa3040b2beeed7da42558076e135ae7ca078162ccb80f4",
+     "0x400000000001400000000000000000000000000000001010514000a02140064"
+    ],
+    [
+     "0x7bc2310bed5252d08aa3040b2beeed7da42558076e135ae7ca078162ccb80f5",
+     "0x40050000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0x7bc2310bed5252d08aa3040b2beeed7da42558076e135ae7ca078162ccb80f6",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "enter",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb722",
+     "0x400000000000000000000000000000200000001000100000000000300000001"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x5"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "set_account_owner, 1 inside",
+   "function": "set_account_owner",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x2ee75d9ec0ccafc4cf91894da54e24c1ad618e6f8dfa0df3f8eae6aebbb3086",
+     "0x0"
+    ],
+    [
+     "0x6b2d7ffaca78a924a15f1237c3174636daf30cae69bc017a8b8fad7032083f0",
+     "0x3"
+    ],
+    [
+     "0xc8c837ef74f7cb87a9691ef7d85cd352df28f5d48927c1ef223207a305f73f",
+     "0x1001"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "register (account of player 2)",
+   "function": "register",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3e",
+     "0x49dfb8ce986e21d354ac93ea65e6a11f639c1934ea253e5ff14ca62eca0f38e"
+    ],
+    [
+     "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3f",
+     "0x400000000000000000000000000000000000000000000000000000000000003"
+    ],
+    [
+     "0x296027568aba72894b7cd5a2d46f42841f9f26270dff396b17bd7c474f3c6e0",
+     "0x400000000000000000000000000000000000000000000000000000000000005"
+    ],
+    [
+     "0x74c549b9b7d8aae111b4e0173cac0ce776cc25c12fb5ce88d024f72154832d8",
+     "0x4"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x14d08c624cc7553f3df2b54342c62f769741f4d57cb6a098e016a82e6188520",
+     "0x400000000000000000000000000000000000000000000000000000000000006"
+    ],
+    [
+     "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3f",
+     "0x400000000000000000000000000000000000000000000000000000000000103"
+    ],
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971457",
+     "0x400000000000000000000000000000000010001000000000000000000000004"
+    ],
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971458",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971459",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d5497145a",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d5497145b",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d5497145c",
+     "0x50324130"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000007"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0xe1f0d06396f97078d12b70a08683958bb01ec7f04f0fee66bf264cf8a6d82c",
+     "0x400000000001400000000000000000000000000000001010514000a02140064"
+    ],
+    [
+     "0xe1f0d06396f97078d12b70a08683958bb01ec7f04f0fee66bf264cf8a6d82d",
+     "0x40050000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0xe1f0d06396f97078d12b70a08683958bb01ec7f04f0fee66bf264cf8a6d82e",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "create_adventurer",
+   "function": "create_adventurer",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x14d08c624cc7553f3df2b54342c62f769741f4d57cb6a098e016a82e6188520",
+     "0x400000000000000000000000000000000000000000000000000000700000006"
+    ],
+    [
+     "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3f",
+     "0x400000000000000000000000000000000000000000000000000000000000203"
+    ],
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d72",
+     "0x400000000000000000000000000000000010001000000000000000000000004"
+    ],
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d73",
+     "0x400000000000000000000000000000200000000000100010000000000000000"
+    ],
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d74",
+     "0x4000000000000000000ff000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d75",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d76",
+     "0x400000000000000000000000000000000000000000000000000000000000000"
+    ],
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d77",
+     "0x50324131"
+    ],
+    [
+     "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+     "0x400000000000000000000000000000000000000000000000000000000000008"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "set_build, empty",
+   "function": "set_build",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x690b3c0740bdbe2753e6747fecc2bde7aba288a554f4a9fcf419685da1826e5",
+     "0x400000000001400000000000000000000000000000001010514000a02140064"
+    ],
+    [
+     "0x690b3c0740bdbe2753e6747fecc2bde7aba288a554f4a9fcf419685da1826e6",
+     "0x40050000000000000000000000000ff00000000000000000000000000000000"
+    ],
+    [
+     "0x690b3c0740bdbe2753e6747fecc2bde7aba288a554f4a9fcf419685da1826e7",
+     "0x402000000000000000000000000000000000000000000000000000000000000"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "enter",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971458",
+     "0x400000000000000000000000000000200000001000100000000000400000001"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x6"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "enter",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d73",
+     "0x400000000000000000000000000000200000001000100000000000500000001"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x7"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "set_account_owner, 2 inside",
+   "function": "set_account_owner",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3e",
+     "0x1002"
+    ],
+    [
+     "0x4b1a504c52555c4eea2092fb3edfc9ad786acafb4f52432b66125b33cca4cbd",
+     "0x4"
+    ],
+    [
+     "0x74c549b9b7d8aae111b4e0173cac0ce776cc25c12fb5ce88d024f72154832d8",
+     "0x0"
+    ]
+   ],
+   "events": []
+  },
+  {
+   "label": "enter",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+     "0x400000000000000000000000000000000000000000000000000000200000000"
+    ],
+    [
+     "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+     "0x400000000000000000000000000000000000000000000000000000100000000"
+    ],
+    [
+     "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+     "0x400000000000000000000000000000200000001000100000000000200000004"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x2"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "enter",
+   "function": "enter",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f51502557f",
+     "0x400000000000000000000000000000200000001000100000000000600000001"
+    ]
+   ],
+   "events": [
+    {
+     "from": "instances",
+     "name": "0x35509e7b3841e86fdd34936a47543bce79160f0f9a56df7a37adf5d44edd42a"
+    },
+    {
+     "from": "hub",
+     "keys": [
+      "0x287bd595bac47ca586e0bcdc58cd4f9e3025abdf7030ca3b7e4beb2a81211c7",
+      "0x0"
+     ],
+     "data": [
+      "0x3"
+     ]
+    }
+   ]
+  },
+  {
+   "label": "set_account_owner, 3 inside",
+   "function": "set_account_owner",
+   "status": "SUCCEEDED",
+   "writes": [
+    [
+     "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c5",
+     "0x2000"
+    ],
+    [
+     "0x2ec96dd12abb9504a423152c35d9eac6a6533f438bc28d74fd700c65f2bf19a",
+     "0x1"
+    ],
+    [
+     "0x46d259103aacf81683234cd0804e62280257bed4cbbbcaa1f5a176ecfd973ec",
+     "0x0"
+    ]
+   ],
+   "events": []
+  }
+ ],
+ "storage": [
+  [
+   "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c5",
+   "0x2000"
+  ],
+  [
+   "0x116547ba14e932997f63d030603b933df679ad51d6a8f7459cfbdef83c385c6",
+   "0x400000000000000000000000000000000000000000000000000000000000303"
+  ],
+  [
+   "0x14d08c624cc7553f3df2b54342c62f769741f4d57cb6a098e016a82e6188520",
+   "0x400000000000000000000000000000000000000000000000000000700000006"
+  ],
+  [
+   "0x1adaede68d344519025e2ff574650cd99d3830fe6d274c7a7843cdc00e17938",
+   "registry"
+  ],
+  [
+   "0x1ccba1f341667ee3b61e5f69ba94391272d6dc7dacde31749dcdd96d13c1c",
+   "0x0"
+  ],
+  [
+   "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49255",
+   "0x400001e79e78000000000000000000000000000000002010000000a03190064"
+  ],
+  [
+   "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49256",
+   "0x40046000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0x1d23a80636e8f18825fe523e9db6f09501545634443d2c9613680715ff49257",
+   "0x402000000000000000000000000000000000000000000000000000100000008"
+  ],
+  [
+   "0x1d9da96b15fa967c937e8c6737c9c4919ddd3e456609f82866d26dd0c69ff6c",
+   "0x400000000001400000000000000000000000000000001010514000a02140064"
+  ],
+  [
+   "0x1d9da96b15fa967c937e8c6737c9c4919ddd3e456609f82866d26dd0c69ff6d",
+   "0x40050000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0x1d9da96b15fa967c937e8c6737c9c4919ddd3e456609f82866d26dd0c69ff6e",
+   "0x402000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x238ea1274613fac36b931b349d9b5306ecf3f14fa2ce9cc047d01aeaab46a5c",
+   "0x400000000000000000000000000000000000000000000000000000000000001"
+  ],
+  [
+   "0x23ec0bb4210edd5cba85afd05127efcd2fc6a781bfed49188da1081670b22d8",
+   "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+  ],
+  [
+   "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3e",
+   "0x1002"
+  ],
+  [
+   "0x23f07e2eaee04cd399ca23998c7e6173d218cc1415e43be6b20dc27d83e3f3f",
+   "0x400000000000000000000000000000000000000000000000000000000000203"
+  ],
+  [
+   "0x250b4081079e5782c7d438d73391b353da9e9c75e8e5db84ebb74c17f996875",
+   "0x1003"
+  ],
+  [
+   "0x250b4081079e5782c7d438d73391b353da9e9c75e8e5db84ebb74c17f996876",
+   "0x400000000000000000000000000000000000000000000000000000000000103"
+  ],
+  [
+   "0x296027568aba72894b7cd5a2d46f42841f9f26270dff396b17bd7c474f3c6e0",
+   "0x400000000000000000000000000000000000000000000000000000000000005"
+  ],
+  [
+   "0x2ec96dd12abb9504a423152c35d9eac6a6533f438bc28d74fd700c65f2bf19a",
+   "0x1"
+  ],
+  [
+   "0x2ee75d9ec0ccafc4cf91894da54e24c1ad618e6f8dfa0df3f8eae6aebbb3086",
+   "0x0"
+  ],
+  [
+   "0x2f0984b2ccb52c1ff24ebb7cdd2a0baaaee68a44523e0308ddc9f248453d1f1",
+   "0x400000000000000000000000000000000000000000000000000000300000000"
+  ],
+  [
+   "0x30c03c00f28794ed025bc6e5d673a2b25a4d57bee4659f5f3530e0bb63f9de1",
+   "0x400000000000000000000000000000000000000000000000000000200000000"
+  ],
+  [
+   "0x330951df380b6b10da747e1167dd8e40bf8604c88c75b245dc172767f3b7320",
+   "0x4"
+  ],
+  [
+   "0x3458564e75a8a5d129c7ee4ac8ca02930a8ce40156a491fa8af9c7be4690999",
+   "0x400000000000000000000000000000000000000000000000000000000000004"
+  ],
+  [
+   "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f51502557e",
+   "0x400000000000000000000000000000000030001000000000000000000000001"
+  ],
+  [
+   "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f51502557f",
+   "0x400000000000000000000000000000200000001000100000000000600000001"
+  ],
+  [
+   "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025580",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025581",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025582",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x355290d93dc480535d4d9f143c1e3a66dff996ed9184dcd3e03f3f515025583",
+   "0x436564726963"
+  ],
+  [
+   "0x36df9d06808417dd5418f1affa340f30b2c975d7bae1d6ce5bcd85c10200d99",
+   "instances"
+  ],
+  [
+   "0x36e6e68277be471f8db8c01f68aea0c9a7eb43a30b5e3c2f43d234b0f7615e7",
+   "flatten_class"
+  ],
+  [
+   "0x3921ab535292c4f02cab6f82729b5c2d3fc930500e2787eaf082a48bfc68b1f",
+   "0x400000000000000000000000000000000000000000000000000000000000005"
+  ],
+  [
+   "0x3a54afa53fd7a6bcf7f29ee1ce5a41e82ad3700be1ac64ab9878f050d723000",
+   "0x400000000000000000000000000000000000000000003010000000a05320064"
+  ],
+  [
+   "0x3a54afa53fd7a6bcf7f29ee1ce5a41e82ad3700be1ac64ab9878f050d723001",
+   "0x4003c000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0x3a54afa53fd7a6bcf7f29ee1ce5a41e82ad3700be1ac64ab9878f050d723002",
+   "0x402000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x420553dc1e04f6d55dd1c0d535a85e75592bbe845b8a6f7b840f2a8e60533b5",
+   "0x400000000001400000000000000000000000000000001010514000a02140064"
+  ],
+  [
+   "0x420553dc1e04f6d55dd1c0d535a85e75592bbe845b8a6f7b840f2a8e60533b6",
+   "0x40050000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0x420553dc1e04f6d55dd1c0d535a85e75592bbe845b8a6f7b840f2a8e60533b7",
+   "0x402000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x452a33e44f2e9bf96b833e4ee6e1b7d7e6ae7330e3638ec95ac7e094ce19a31",
+   "0x400000000000000000000000000000000000000000000000000000100000000"
+  ],
+  [
+   "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f17217",
+   "0x400000000000000000000000000000000010001000000000000000000000002"
+  ],
+  [
+   "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f17218",
+   "0x400000000000000000000000000000200000000000100010000000000000000"
+  ],
+  [
+   "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f17219",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f1721a",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f1721b",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x4593e89e1910cda9a1f32ed9d538ead08a353f6267827fb6d499465b1f1721c",
+   "0x50334130"
+  ],
+  [
+   "0x46d259103aacf81683234cd0804e62280257bed4cbbbcaa1f5a176ecfd973ec",
+   "0x0"
+  ],
+  [
+   "0x474ecbf47e13749f7f88bbe99e6e1a0e39091b4feb622ae1cdb18f92f891b7",
+   "0x1"
+  ],
+  [
+   "0x4b1a504c52555c4eea2092fb3edfc9ad786acafb4f52432b66125b33cca4cbd",
+   "0x4"
+  ],
+  [
+   "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0a",
+   "0x400000000000000000000000000000000010001000000000000000000000001"
+  ],
+  [
+   "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0b",
+   "0x400000000000000000000000000000200000001000100000000000100000005"
+  ],
+  [
+   "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0c",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0d",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0e",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x4b4d01e212d6ef1e559e758d62dba4484624745e8c0e2bdd5cb9bfedbd2ae0f",
+   "0x416c64726963"
+  ],
+  [
+   "0x58d9d31b73f12a627eef0b4529904f6124d0531809d79e19461d314bac9730",
+   "0x400000000000000000000000000000000000000000000030000000200000001"
+  ],
+  [
+   "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971457",
+   "0x400000000000000000000000000000000010001000000000000000000000004"
+  ],
+  [
+   "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971458",
+   "0x400000000000000000000000000000200000001000100000000000400000001"
+  ],
+  [
+   "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d54971459",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d5497145a",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d5497145b",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x58ef1b789195771d67f3102aa00d48b71030e95d82841afbe5ea71d5497145c",
+   "0x50324130"
+  ],
+  [
+   "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5b",
+   "0x400000000000000040000000000000000020001000000000000000000000001"
+  ],
+  [
+   "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5c",
+   "0x400000000000000000000000000000200000001000100000000000200000004"
+  ],
+  [
+   "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5d",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5e",
+   "0x400000000000000000000000000010200000000000000000000000100000008"
+  ],
+  [
+   "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d5f",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x5c3be1104442de4b30668d993cd9431fcd75861fc6bd29e9ec10e209fd76d60",
+   "0x4272656e6e61"
+  ],
+  [
+   "0x690b3c0740bdbe2753e6747fecc2bde7aba288a554f4a9fcf419685da1826e5",
+   "0x400000000001400000000000000000000000000000001010514000a02140064"
+  ],
+  [
+   "0x690b3c0740bdbe2753e6747fecc2bde7aba288a554f4a9fcf419685da1826e6",
+   "0x40050000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0x690b3c0740bdbe2753e6747fecc2bde7aba288a554f4a9fcf419685da1826e7",
+   "0x402000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x6a3e87efd4361136d3fc116a8b549d405369d0e9d98f4c2a2faa5e4199c0232",
+   "0x400000000000000000000000000000000000000000000000000000300000000"
+  ],
+  [
+   "0x6b2d7ffaca78a924a15f1237c3174636daf30cae69bc017a8b8fad7032083f0",
+   "0x3"
+  ],
+  [
+   "0x74c549b9b7d8aae111b4e0173cac0ce776cc25c12fb5ce88d024f72154832d8",
+   "0x0"
+  ],
+  [
+   "0x7bc2310bed5252d08aa3040b2beeed7da42558076e135ae7ca078162ccb80f4",
+   "0x400000000001400000000000000000000000000000001010514000a02140064"
+  ],
+  [
+   "0x7bc2310bed5252d08aa3040b2beeed7da42558076e135ae7ca078162ccb80f5",
+   "0x40050000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0x7bc2310bed5252d08aa3040b2beeed7da42558076e135ae7ca078162ccb80f6",
+   "0x402000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d72",
+   "0x400000000000000000000000000000000010001000000000000000000000004"
+  ],
+  [
+   "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d73",
+   "0x400000000000000000000000000000200000001000100000000000500000001"
+  ],
+  [
+   "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d74",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d75",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d76",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0x7d724daaa7edd69c89657da0cb61e13dfee94449089646c5225283250c84d77",
+   "0x50324131"
+  ],
+  [
+   "0x7f32778aef68c30b08bfcbb25db9aac695a07a0e4b63ecff98fe874cdacf87",
+   "0x2"
+  ],
+  [
+   "0xa6eb136a67a0665f04f6710d9633af3c2dad154493a9ba6f930cd6f9139a25",
+   "0x400000000000000000000000000000000000000000000000000000000000008"
+  ],
+  [
+   "0xc8c837ef74f7cb87a9691ef7d85cd352df28f5d48927c1ef223207a305f73f",
+   "0x1001"
+  ],
+  [
+   "0xc8c837ef74f7cb87a9691ef7d85cd352df28f5d48927c1ef223207a305f740",
+   "0x400000000000000000000000000000000000000000000000000000000000103"
+  ],
+  [
+   "0xcc92b2ada460d999cfd40ebcd46fdc2d6d34fcca5e6c15986a00b79b97ab00",
+   "fate"
+  ],
+  [
+   "0xe1f0d06396f97078d12b70a08683958bb01ec7f04f0fee66bf264cf8a6d82c",
+   "0x400000000001400000000000000000000000000000001010514000a02140064"
+  ],
+  [
+   "0xe1f0d06396f97078d12b70a08683958bb01ec7f04f0fee66bf264cf8a6d82d",
+   "0x40050000000000000000000000000ff00000000000000000000000000000000"
+  ],
+  [
+   "0xe1f0d06396f97078d12b70a08683958bb01ec7f04f0fee66bf264cf8a6d82e",
+   "0x402000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb721",
+   "0x400000000000000000000000000000000010001000000000000000000000003"
+  ],
+  [
+   "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb722",
+   "0x400000000000000000000000000000200000001000100000000000300000001"
+  ],
+  [
+   "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb723",
+   "0x4000000000000000000ff000000000000000000000000000000000000000000"
+  ],
+  [
+   "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb724",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb725",
+   "0x400000000000000000000000000000000000000000000000000000000000000"
+  ],
+  [
+   "0xe73e02a38baef205ee995915510508593bdd316b6ecd8141d053baffb726",
+   "0x50314130"
+  ]
+ ]
+}
