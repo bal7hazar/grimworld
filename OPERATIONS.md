@@ -54,8 +54,9 @@ reasoning.
 
 The project's registry in Nexus (`projects/grimworld.json` of `bal7hazar/nexus`) names the provider
 and the model of each role and lens; this table agrees with it, and the registry is changed first
-when the table must change. An orchestrator session runs on Opus 5.5 or Fable 5.1, chosen by the
-project manager for the difficulty of the track.
+when the table must change. **Every orchestrator session runs on Opus 5.5** (owner, 2026-10-01: only
+the project managers and the Overseer stay on Fable 5.1, to save Fable's quota); a chip proposing
+an orchestrator says Opus 5.5 in its title.
 
 Model ids for the `claude` CLI: `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1` (or the
 aliases `opus`, `sonnet`, `fable`). An agent already running keeps the model it started on until its
