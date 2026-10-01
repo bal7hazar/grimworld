@@ -64,14 +64,14 @@ For any computation, try in this order and stop at the first that works:
 | Rule | |
 |---|---|
 | **No `u256`** by default | Its operations are costly. A use needs a written reason in the code and in the report |
-| **`u252` from `origami_hexmap`** for bitmaps and packed values | One felt, with arithmetic, bitwise operations, ordering and storage packing |
-| Boards of 128 tiles or fewer | The single-limb path of the library, about a third cheaper per step |
+| **`felt252` bitmaps through `hexx`'s `Bits`** for boards and packed values (D-174; `u252` of `origami_hexmap` until ENG-02) | One felt, with the bitwise operations, ordering and storage packing of `hexx` 0.1.0-rc.1 and later; `u256` only where a board passes 252 bits, with the written reason of the first rule |
+| Boards of 128 tiles or fewer | The single-limb path of `hexx`, about a third cheaper per step |
 | Smallest integer that holds the value | `u8` positions, `u16` health, `u32` identifiers |
 | Packing | Several small fields in one felt, by explicit packing; layout documented next to the model |
 | Signed values | Only where the rule needs them |
 
-A chunk is 15 × 15 = 225 tiles and therefore fits a `u252`; the design chose that size
-for this reason (ADR-0006).
+A chunk is 15 × 15 = 225 tiles and therefore fits one felt; the design chose that size for this
+reason (ADR-0006, confirmed by the owner on SPK-14, D-165).
 
 ## 5. Storage
 
