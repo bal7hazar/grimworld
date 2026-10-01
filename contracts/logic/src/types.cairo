@@ -10,6 +10,8 @@ pub mod effect;
 pub mod passive;
 /// The state and content a world tick reads and writes (CBT-02).
 pub mod tick;
+/// The game's geometry on the window: sight, reach, arcs, facing, shapes (ENG-02).
+pub mod window;
 /// The world of a tick's library call, and the pipeline (CBT-02).
 pub mod world;
 
