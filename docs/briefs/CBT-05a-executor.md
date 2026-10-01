@@ -1,8 +1,8 @@
 # CBT-05a — The executor: one layer owns a carrier's entries
 
 > CBT-05's first part (PLAN row CBT-05; D-172 puts SPK-15's lever L3 into it). **Launched after CBT-03a
-> (#229, the hit) and CBT-04 (#228, the conditions) merge** (they wait for Codex, 2026-10-04 13:36 UTC):
-> it calls both. CBT-05b (the action's costs, §5.3, and traps, §5.11) follows it.
+> (#229, the hit), CBT-04 (#228, the conditions) and ENG-02 (#246, the geometry) merge** (they wait for
+> Codex, 2026-10-04 13:36 UTC): it calls all three. CBT-05b (the action's costs, §5.3, and traps, §5.11) follows it.
 
 ## Agent
 Title: `[Opus 5.5] CBT-05a executor` · Profile: implement · Branch: `feat/cbt-05a-executor`
@@ -42,10 +42,12 @@ holding effects through §5.7) in §5.14's order, moves the counters and adrenal
   `DAMAGE`/`ATTACK_BONUS` to the kind's bounds before building a `Hit` (CBT-03a, §6); one copy of the
   weapon-strength rule (CBT-03a's `HitTrait::weapon_strength` or the snapshot's); §10.7's guard read once
   (FX-40) tested here (CBT-03a).
-- **Geometry is ENG-02's** (line of sight, arcs on `hexx`), waiting for the map library. The executor
-  takes it through a **trait** (the arc a hit arrives from, whether the target is on the source's front
-  tile, a shape's tiles from a centre clipped to the window): a stub in this lot's tests, the real one
-  from ENG-02 and CBT-03b. Name the trait and freeze its signature in the report.
+- **Geometry is ENG-02's** (`grimworld_logic::types::window`, `WindowTrait` on `hexx` 0.1.0-rc.1, its
+  signature frozen in ENG-02's report: line of sight, reach, the arc a hit arrives from, the front tile,
+  facing, a shape's tiles clipped to the window). **Use it directly**; its tests build windows, so no stub
+  is needed. CBT-03b (wiring the arc into the hit) is this lot's call to it. ENG-02 measured a weapon
+  hit's geometry above the hit itself (PLAN, CBT-05): a combined `reach`-and-`arc` call is yours to add
+  if it pays, in `types/window.cairo`.
 - **The cost**: CBT-02d's bound (≤ 3,447,872 a tick inside a batch), CBT-04's line (2,114,010
   re-measured, SPK-15), CBT-03a's (+693,750); ENG-01 §9.2. `TickLibrary` must stay under 50 % of the class
   limit (ENG-01 §1.3): if the executor pushes it over, stop and report (a second library class is the
@@ -72,9 +74,8 @@ holding effects through §5.7) in §5.14's order, moves the counters and adrenal
   - **The per-tick budget line**: the executor's worst a tick (its derivation from design/19 and ENG-01:
     the member's carrier, 8 goblins' carriers), stated against the bound and written into ENG-01 §9.2.
 - Out: the action's legality and costs, facing, quick cast (§5.3, CBT-05b); traps' placement and
-  trigger (§5.11, CBT-05b); the AI choosing a goblin's carrier (ENG-07); geometry (ENG-02, CBT-03b);
-  perception (ENG-07, with L4).
-- Allowlist: `contracts/logic/src/**` (new files welcome); `contracts/persistent/src/systems/registry.cairo`
+  trigger (§5.11, CBT-05b); the AI choosing a goblin's carrier (ENG-07); perception (ENG-07, with L4).
+- Allowlist: `contracts/logic/src/**` (new files welcome; `types/window.cairo` for a combined call only); `contracts/persistent/src/systems/registry.cairo`
   for the validators' refusals only; the packages' tests; `docs/architecture/ENG-01-interfaces.md` §9.2;
   `GAS.md` and `docs/BUDGETS.md` as generated. Anything else is an escalation.
 
@@ -84,7 +85,7 @@ holding effects through §5.7) in §5.14's order, moves the counters and adrenal
       worked examples named above reproduced to the unit.
 - [ ] AC-3 L3's three parts built and measured (test pairs) against the naive executor; the guard updated
       at every effect write, with the two-hit test.
-- [ ] AC-4 The geometry trait named, its signature frozen, stubbed in tests.
+- [ ] AC-4 Every hit's arc, front tile and every shape's tiles come from ENG-02's `WindowTrait`; nothing of CBT-03b left.
 - [ ] AC-5 The carried items above, each done or answered.
 - [ ] AC-6 The per-tick budget line in the report and ENG-01 §9.2; `TickLibrary` under 50 % or the stop.
 - [ ] AC-7 D-143; unit tests in their modules (D-167); CI green; `gas_budgets.py --check`; `class_sizes.py`.
