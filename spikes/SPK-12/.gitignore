@@ -1,0 +1,5 @@
+# stwo-cairo's clone and build (setup.sh), the proofs and logs of prove.py: never committed.
+prove/vendor/
+prove/out/
+target/
+.snfoundry_cache/

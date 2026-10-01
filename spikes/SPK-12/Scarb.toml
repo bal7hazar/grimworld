@@ -1,0 +1,33 @@
+[package]
+name = "spk12"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.19"
+
+# Kept out of any workspace (as SPK-15): a spike, built and tested on its own.
+[workspace]
+
+[dependencies]
+starknet = "2.19"
+# The game's shared package by path, main's code at the spike's base (e9b8cef), as SPK-15 does.
+grimworld_logic = { path = "../../contracts/logic" }
+
+[dev-dependencies]
+snforge_std = "0.61"
+assert_macros = "2.19"
+
+# The library and its tests only. An executable target needs `enable-gas = false`, which
+# `snforge test` refuses, and CI runs both on every tracked manifest: `prove/prove.py` writes the
+# executables' package (`segment`, `fixture`) into the ignored `prove/out/exec/`, calling this one.
+
+[cairo]
+sierra-replace-ids = true
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+[tool.snforge]
+max_n_steps = 400000000
