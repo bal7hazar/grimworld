@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-171 | SPK-15: the tick's levers before CBT-05; the worst tick 6.51M, R-2 in front of the owner | Project manager |
 | D-170 | CBT-04 and CBT-03a while Codex is out; merged after ENG-R1a | Project manager |
 | D-169 | A snapshot stales on a rules epoch or a flattening-input change, not on any content update (CBT-02f) | Project manager |
 | D-168 | The snapshot flattened once at `set_build` and stored with the adventurer (CBT-02e); `enter` copies it | Project manager |
@@ -115,7 +116,7 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 
 | Risk | State |
 |---|---|
-| The cost of an expedition (R-2) | **Likely** (D-161): S1 estimated at $0.585 before the tick; a worst tick with the map about 2.1M to 2.5M against 1.47M. Levers: CBT-02b, then ENG-07's (compact sheets, packed calldata), then design; SPK-12 studies client-side proving. Reopening ADR-0001 would be the owner's |
+| The cost of an expedition (R-2) | **Likely, worsening** (D-171): the worst tick about 6.51M with conditions and damage (4.43× the 1.47M target), before the executor; S1 above $0.585. Engineering levers measured by SPK-15 (D-171) and ENG-07's batch; the design levers and the threshold itself are the owner's; SPK-12 (client-side proving) on the Mac is the other answer |
 | Sessions and agents share one machine and one user with the owner's other programmes | Incident of 2026-09-29, 00:02 UTC: a wildcard deletion in `/tmp` by the game orchestrator; no damage found. Rule in OPERATIONS §3: delete and kill only what you created, by exact path and pid |
 | Secrets reach every agent of the machine | The launchers empty them in their agents; the settings file is restricted to its owner; the residual is accepted |
 | Audits that need four passes (LIB-03, LIB-04, SPK-2) | Tasks cut smaller; the rule of three loops applied by the project manager |
