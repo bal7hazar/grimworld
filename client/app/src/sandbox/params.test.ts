@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_FEET, DEFAULT_ZOOM, STEP_MS } from "../render/renderer";
-import { readAcross, readFeet, readParams } from "./params";
+import { OUTPOST, TOWN } from "./fixtures/region";
+import { ENTRY_MS, readAcross, readFeet, readParams } from "./params";
 
 describe("URL parameters", () => {
   it("reads the fixture, idle, panel and scale", () => {
     expect(readParams("?fixture=cave&idle=0&panel=1&scale=sharp")).toEqual({
       fixture: "cave",
+      hub: null,
+      entryMs: ENTRY_MS,
       idle: false,
       panel: true,
       scale: "sharp",
@@ -47,5 +50,18 @@ describe("URL parameters", () => {
     expect(readFeet(1)).toBe(1);
     expect(readParams("?step=10").stepMs).toBe(STEP_MS);
     expect(readParams("?confirm=0").playOnTap).toBe(true);
+  });
+
+  it("opens the loop on a hub (CLI-03c); rooms keep `fixture`", () => {
+    expect(readParams("?hub=town").hub).toBe(TOWN);
+    expect(readParams("?hub=outpost").hub).toBe(OUTPOST);
+    expect(readParams("?loop=1").hub).toBe(TOWN);
+    for (const hub of ["", "nowhere", "constructor", "toString", "1"]) {
+      expect(readParams(`?hub=${hub}`).hub, hub).toBeNull();
+    }
+    expect(readParams("?fixture=zone")).toMatchObject({ fixture: "zone", hub: null });
+    expect(readParams("?hub=town&entry=0").entryMs).toBe(0);
+    expect(readParams("?entry=-5").entryMs).toBe(ENTRY_MS);
+    expect(readParams("?entry=99999").entryMs).toBe(ENTRY_MS);
   });
 });

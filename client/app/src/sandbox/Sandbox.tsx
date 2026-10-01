@@ -1,29 +1,60 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import type { ZoomSettings } from "../render/renderer";
 import { SCALE_MODES, readScaleMode } from "../render/scaling";
+import type { Tile } from "../render/view";
 import { SandboxController, type SandboxInfo } from "./controller";
 import { FIXTURES } from "./fixtures";
 import { FEET_RANGE } from "../render/renderer";
+import { Loop } from "./loop/Loop";
 import { ACROSS_RANGE, readAcross, readFeet, readParams } from "./params";
 import type { WalkInfo } from "./session";
+import type { SandboxWorld } from "./world";
 
 /**
- * The rendering sandbox (CLI-03a): the map on the whole viewport, a button back to the adventurer,
- * and a debug panel. URL parameters: see `params.ts`.
+ * The sandbox: a room (CLI-03a, `?fixture=`), or the loop of hubs and instances on fixed data
+ * (CLI-03c, `?hub=`, `?loop=1`). URL parameters: see `params.ts`.
  */
 export function Sandbox() {
+  const [params] = useState(() => readParams(window.location.search));
+  if (params.hub !== null) {
+    return <Loop hub={params.hub} entryMs={params.entryMs} scale={params.scale} />;
+  }
+  return (
+    <div style={styles.page}>
+      <RoomSandbox />
+    </div>
+  );
+}
+
+/**
+ * The rendering sandbox (CLI-03a): the map on the whole of its box, a button back to the
+ * adventurer, and a debug panel. In the loop it opens on `world` (the instance), reports where
+ * the adventurer stands after every change (`onTile`), and carries the loop's controls
+ * (`children`) over the map.
+ */
+export function RoomSandbox({
+  world,
+  onTile,
+  children,
+}: {
+  world?: SandboxWorld;
+  onTile?: (tile: Tile | null) => void;
+  children?: ReactNode;
+} = {}) {
   const host = useRef<HTMLDivElement>(null);
   const [controller, setController] = useState<SandboxController | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => readParams(window.location.search).panel);
   const [info, setInfo] = useState<SandboxInfo | null>(null);
   const [walk, setWalk] = useState<WalkInfo | null>(null);
+  const tileListener = useRef(onTile);
+  tileListener.current = onTile;
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
     let alive = true;
     let mounted: SandboxController | null = null;
-    SandboxController.mount(element, readParams(window.location.search))
+    SandboxController.mount(element, { ...readParams(window.location.search), world })
       .then((c) => {
         if (!alive) return c.destroy();
         mounted = c;
@@ -34,6 +65,7 @@ export function Sandbox() {
       alive = false;
       mounted?.destroy();
     };
+    // The world is the one the room opened on: a new world is a new room (the loop's key).
   }, []);
 
   useEffect(() => {
@@ -44,7 +76,10 @@ export function Sandbox() {
 
   useEffect(() => {
     if (!controller) return;
-    controller.listenToWalk(setWalk);
+    controller.listenToWalk((next) => {
+      setWalk(next);
+      tileListener.current?.(controller.adventurerTile());
+    });
     return () => controller.listenToWalk(null);
   }, [controller]);
 
@@ -62,7 +97,10 @@ export function Sandbox() {
       <button style={styles.toggle} onClick={() => setPanelOpen((open) => !open)}>
         {panelOpen ? "× debug" : "debug"}
       </button>
-      {panelOpen && controller && info && <DebugPanel controller={controller} info={info} />}
+      {panelOpen && controller && info && (
+        <DebugPanel controller={controller} info={info} fixtures={!world} />
+      )}
+      {children}
     </div>
   );
 }
@@ -93,19 +131,30 @@ function WalkCounter({ controller, walk }: { controller: SandboxController; walk
   );
 }
 
-function DebugPanel({ controller, info }: { controller: SandboxController; info: SandboxInfo }) {
+function DebugPanel({
+  controller,
+  info,
+  fixtures,
+}: {
+  controller: SandboxController;
+  info: SandboxInfo;
+  /** The fixture can be changed (not in the loop's instance, whose world is the gate's). */
+  fixtures: boolean;
+}) {
   const zoom = info.zoom;
   const setZoom = (patch: Partial<ZoomSettings>) => controller.setZoom({ ...zoom, ...patch });
   return (
     <div style={styles.panel}>
-      <label style={styles.row}>
-        fixture{" "}
-        <select value={info.fixture} onChange={(e) => controller.setFixture(e.target.value)}>
-          {Object.keys(FIXTURES).map((name) => (
-            <option key={name}>{name}</option>
-          ))}
-        </select>
-      </label>
+      {fixtures && (
+        <label style={styles.row}>
+          fixture{" "}
+          <select value={info.fixture} onChange={(e) => controller.setFixture(e.target.value)}>
+            {Object.keys(FIXTURES).map((name) => (
+              <option key={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+      )}
       <div style={styles.note}>{info.description}</div>
       <label style={styles.row}>
         default zoom: tiles across{" "}
@@ -239,7 +288,8 @@ function DebugPanel({ controller, info }: { controller: SandboxController; info:
 }
 
 const styles: Record<string, CSSProperties> = {
-  root: { position: "fixed", inset: 0, overflow: "hidden", background: "#0b0b0e" },
+  page: { position: "fixed", inset: 0 },
+  root: { position: "absolute", inset: 0, overflow: "hidden", background: "#0b0b0e" },
   canvas: { position: "absolute", inset: 0, touchAction: "none" },
   centre: {
     position: "absolute",

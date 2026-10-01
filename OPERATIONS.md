@@ -76,6 +76,12 @@ needs a browser or the Mac, on the owner's Mac (12 cores, 64 GB). Nexus reads bo
 | Heavy builds | one at a time: `scripts/lock.sh` takes `/tmp/grimworld-build.lock` then the machine-wide `~/orchestrator/heavy-build.lock`; `scarb` and `snforge` on PATH are the machine's shims, which take the latter by themselves | Nexus's `--class heavy`, one per machine |
 | Accounts | agents on **claude-b7r** (`claude auth status` before a launcher's first launch); Nexus chooses the account of what it starts | the app's configuration stays the owner's; agents on `~/.claude-b7r` (`CLAUDE_CONFIG_DIR`) |
 
+**Toolchain versions are the agents' to install** (owner, 2026-10-01): a task that needs a Scarb,
+starknet-foundry or other version installs it with `asdf install`, user-local, without moving the
+machine's default (`.tool-versions` selects per repository), and says so in its report; nobody asks
+the owner. New Scarb and starknet-foundry releases are watched (the Overseer's watch, D-180) and each
+lands as a migration task per repository, with its budgets and snapshots re-measured.
+
 A running agent is never stopped for load. The budget was measured by FND-03 (memory does not bind;
 CPU and the shared heavy lock do) and is measured again when the contracts' test build passes 6 GB
 or when a phase runs client and contract agents together. Nexus and the project's launcher do not

@@ -242,3 +242,57 @@ origin = "original Monk strips, blue"
   file = "Heal.png"
   fps = 12
   loop = false
+
+# ---------------------------------------------------------------- buildings (hubs, CLI-03c)
+# Stills: the pack's buildings are single images, not strips. Each is one frame at native size,
+# anchored at its base and its horizontal centre (artpipe/clean.py `still`), packed as one
+# animation `still` of one frame. `file` is the path in the pack. One colour set, Blue, until the
+# owner chooses (D-178).
+
+[[still]]
+name = "castle"
+role = "building"
+file = "Buildings/Blue Buildings/Castle.png"
+origin = "Castle, blue"
+
+[[still]]
+name = "barracks"
+role = "building"
+file = "Buildings/Blue Buildings/Barracks.png"
+origin = "Barracks, blue"
+
+[[still]]
+name = "archery"
+role = "building"
+file = "Buildings/Blue Buildings/Archery.png"
+origin = "Archery, blue"
+
+[[still]]
+name = "monastery"
+role = "building"
+file = "Buildings/Blue Buildings/Monastery.png"
+origin = "Monastery, blue"
+
+[[still]]
+name = "tower"
+role = "building"
+file = "Buildings/Blue Buildings/Tower.png"
+origin = "Tower, blue"
+
+[[still]]
+name = "house1"
+role = "building"
+file = "Buildings/Blue Buildings/House1.png"
+origin = "House1, blue"
+
+[[still]]
+name = "house2"
+role = "building"
+file = "Buildings/Blue Buildings/House2.png"
+origin = "House2, blue"
+
+[[still]]
+name = "house3"
+role = "building"
+file = "Buildings/Blue Buildings/House3.png"
+origin = "House3, blue"
