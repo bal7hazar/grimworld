@@ -76,42 +76,79 @@ module, so the two functions must be lowered by different tasks for the race to 
 
 ### Steps to reproduce
 
-On a machine with several cores (rayon's default: one thread per CPU), from the package's folder:
+On a machine with several cores (rayon's default: one thread per CPU), in the package's folder,
+save as `reproduce.sh` (Python 3 standard library only). For each clean build it prints the
+sha256 of the Sierra file and the function(s) holding a `withdraw_gas` invocation, found by
+comparing each invocation's statement index with each function's entry point:
 
 ```sh
-for i in $(seq 20); do
-  scarb clean && scarb build >/dev/null
-  shasum -a 256 target/dev/spk13_minimal.sierra.json
+#!/usr/bin/env bash
+# reproduce.sh N [threads]
+set -euo pipefail
+for _ in $(seq "$1"); do
+  scarb clean
+  if [ -n "${2:-}" ]; then RAYON_NUM_THREADS=$2 scarb build >/dev/null; else scarb build >/dev/null; fi
+  python3 - <<'PY'
+import hashlib, json
+raw = open("target/dev/spk13_minimal.sierra.json", "rb").read()
+p = json.loads(raw)
+wg = {l["id"]["id"] for l in p["libfunc_declarations"] if l["long_id"]["generic_id"] == "withdraw_gas"}
+funcs = sorted((f["entry_point"], f["id"]["debug_name"]) for f in p["funcs"])
+at = [i for i, s in enumerate(p["statements"])
+      if "Invocation" in s and s["Invocation"]["libfunc_id"]["id"] in wg]
+holders = [max(f for f in funcs if f[0] <= i)[1] for i in at]
+print(hashlib.sha256(raw).hexdigest()[:16], "withdraw_gas in:", ", ".join(holders))
+PY
 done
 ```
 
-The JSON file differs on every build, partly because it writes the numeric intern id beside each
-debug name. To see which builds differ as programs, print each one as Sierra text with its names
-(`cairo_lang_sierra::program::VersionedProgram::into_v1()`, `DebugInfo::populate`, `Display`) and
-compare which of `ping` and `pong` calls `withdraw_gas`. Then the control:
-
 ```sh
-for i in $(seq 10); do
-  scarb clean && RAYON_NUM_THREADS=1 scarb build >/dev/null
-  shasum -a 256 target/dev/spk13_minimal.sierra.json
-done
+./reproduce.sh 12      # default thread count
+./reproduce.sh 6 1     # RAYON_NUM_THREADS=1
 ```
 
 ### Observed
 
-On Apple silicon (aarch64-apple-darwin, 12 CPUs), Scarb 2.19.4 (Cairo 2.19.4):
+On Apple silicon (aarch64-apple-darwin, 12 CPUs), Scarb 2.19.4 (b45b74c03 2026-07-21), Cairo
+2.19.4, Sierra 1.9.3. `./reproduce.sh 12` (Scarb's `Removing`/`Cleaning` lines left out):
 
-| Threads | Builds | Program A: `withdraw_gas` in `ping` | Program B: `withdraw_gas` in `pong` |
-|---|--:|--:|--:|
-| default (12) | 20 | 9 | 11 |
-| default (12), an earlier series under load | 20 | 16 | 4 |
-| `RAYON_NUM_THREADS=1` | 10 | 10 (one file, byte for byte) | 0 |
+```
+cc84d4998d887ef7 withdraw_gas in: spk13_minimal::ping
+4ea841fa598a9432 withdraw_gas in: spk13_minimal::b::pong
+d56f79567e6181b3 withdraw_gas in: spk13_minimal::ping
+55e726f6e626198b withdraw_gas in: spk13_minimal::b::pong
+4001df20512a533f withdraw_gas in: spk13_minimal::b::pong
+2cf990d2848e8002 withdraw_gas in: spk13_minimal::b::pong
+0b5c625c397d5859 withdraw_gas in: spk13_minimal::ping
+9ada092d9c5b5cae withdraw_gas in: spk13_minimal::b::pong
+83f73d1ca1e02da7 withdraw_gas in: spk13_minimal::ping
+7f4f5b6776edff14 withdraw_gas in: spk13_minimal::ping
+8907b7064d85d4af withdraw_gas in: spk13_minimal::b::pong
+b5422d51771a6269 withdraw_gas in: spk13_minimal::b::pong
+```
 
-Both programs have the same types, libfuncs and function declarations (90 statements each). In A,
-`ping` starts with `withdraw_gas([0], [1]) { fallthrough(...) ... }` and calls the out-of-gas
-panic (`panic_with_const_felt252::<375233589013918064796019>`, "Out of gas") and `pong` does not;
-in B it is the other way round (`ping` 33 statements, `pong` 43, and the reverse). The order of
-the type and libfunc declarations differs with it.
+`./reproduce.sh 6 1`:
+
+```
+12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
+12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
+12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
+12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
+12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
+12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
+```
+
+On several threads the gas check moves between `ping` and `pong` from one build to the next (5 and
+7 builds here), and the file differs on every build (it also writes the numeric intern id beside
+each debug name). On one thread the file is identical, byte for byte. Earlier series on the same
+machine: 9 / 11 out of 20 builds, and 16 / 4 out of 20 while another build loaded the machine;
+`RAYON_NUM_THREADS=1`, 10 out of 10 identical.
+
+The two programs (check in `ping`, check in `pong`) have the same types, libfuncs and function
+declarations, 90 statements each, printed as Sierra text with their names. The function that
+holds the check begins with `withdraw_gas([0], [1]) { fallthrough(...) ... }`, calls the out-of-gas
+panic (`panic_with_const_felt252::<375233589013918064796019>`, "Out of gas") and has 43
+statements; the other has 33. The order of the type and libfunc declarations differs with it.
 
 On a larger contract (≈ 98 functions, a few call cycles through loops), the class built by
 10 clean builds on 12 threads took **three** values: 27,092 / 27,101 / 27,101 Sierra felts, with
