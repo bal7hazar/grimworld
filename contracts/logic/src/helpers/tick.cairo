@@ -8,6 +8,8 @@ use crate::types::tick::{ADRENALINE_DECAY, CRIPPLED_MOVE_TICKS, HEALTH_PER_PIP, 
 pub mod errors {
     pub const CONDITION: felt252 = 'tick: condition not stored';
     pub const DURATION: felt252 = 'tick: duration below 1';
+    /// Knocked down goes through `knock`, conditions 1–4 through `apply` (SPK-15's L2, D-172).
+    pub const KNOCK: felt252 = 'tick: knock-down is knock';
 }
 
 #[generate_trait]
@@ -26,6 +28,7 @@ pub impl TickMathImpl of TickMathTrait {
     }
 
     /// A cure at `t0` over `old`: `t0 − 1` if the condition is held at `t0`, else unchanged.
+    /// `t0 ≥ 1`: every caller's `t0` is `c + 1` or a tick `T ≥ 1` (§5.1), never 0.
     #[inline(always)]
     fn cured(old: u32, t0: u32) -> u32 {
         if old >= t0 {
@@ -175,10 +178,9 @@ pub impl TickAssert of TickAssertTrait {
 mod tests {
     use super::{TickAssert, TickMathTrait};
 
-    // §3.2's rows 1–3 (§5.8 step 1): −3 Bleeding, −4 Poison, −7 Burning, summed when
-    // stacked (§5.7: different conditions stack); held through `t = D`, not after (a condition of
-    // `d`
-    // ticks degenerates `d` times, §5.1).
+    // §3.2's rows 1–3 (§5.8 step 1): −3 Bleeding, −4 Poison, −7 Burning, summed
+    // when stacked (§5.7: different conditions stack); held through `t = D`, not
+    // after (a condition of `d` ticks degenerates `d` times, §5.1).
     #[test]
     #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_degeneration_pips() {

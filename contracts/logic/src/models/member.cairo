@@ -6,7 +6,7 @@
 //! layouts are the ephemeral package's, which owns the storage; the offsets below are ENG-01's
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
-use crate::helpers::tick::{TickAssert, TickMathTrait};
+use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::packing::{
     N16, N2, N28, N32, N56, N7, N8, P112, P16, P20, P24, P28, P32, P52, P56, P64, P72, P8, P80, P84,
     P96, field, limbs, peel,
@@ -674,20 +674,47 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
 /// is the tick the rule acts at: `c + 1` in the action phase at clock `c`, `T` in a tick (§5.1).
 #[generate_trait]
 pub impl MemberConditionImpl of MemberConditionTrait {
-    /// A `CONDITION` entry (or an `ON_ATTACK_CONDITION`'s) applied at `t0`: condition 1–5 for
+    /// A `CONDITION` entry (or an `ON_ATTACK_CONDITION`'s) applied at `t0`: condition 1–4 for
     /// the value `v`, through the source's `Infliction` (`effective_duration`), refreshed by
-    /// `max` (FX-6, FX-31); nothing on a member not alive. Knocked down interrupts its activation
-    /// (§5.9): energy stays paid, the recharge counts from `t0`, no effect (FX-2, FX-4).
-    fn apply(
-        ref self: Member, condition: u8, v: i32, source: @Infliction, t0: u32, sheets: @Sheets,
-    ) {
+    /// `max` (FX-6); nothing on a member not alive. Knocked down is `knock`'s: the executor
+    /// dispatches on the entry's condition (SPK-15's L2, D-172). Written in place: one branch
+    /// writes the condition's field, Crippled's word read once; no call but the inlined ones, so
+    /// no application pays the knock-down's interrupt (a function without a loop is charged its
+    /// costliest path).
+    fn apply(ref self: Member, condition: u8, v: i32, source: @Infliction, t0: u32) {
         if !self.is_alive() {
             return;
         }
-        self.inflict(condition, t0, source.duration(condition, v));
-        if condition == condition::KNOCKED_DOWN {
-            self.interrupt(t0, sheets);
+        let d = source.duration(condition, v);
+        if condition == condition::BLEEDING {
+            self.bleeding = TickMathTrait::refreshed(self.bleeding, t0, d);
+        } else if condition == condition::POISON {
+            self.poison = TickMathTrait::refreshed(self.poison, t0, d);
+        } else if condition == condition::BURNING {
+            self.burning = TickMathTrait::refreshed(self.burning, t0, d);
+        } else {
+            assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
+            // `MemberWordsTrait::crippled`, read here: bits 160–191 of `MemberTimers`.
+            let (_, high) = limbs(self.words.timers);
+            let old: u32 = field(high, P32, P32).try_into().unwrap();
+            let new = TickMathTrait::refreshed(old, t0, d);
+            self.words.timers += TickMathTrait::delta(old.into(), new.into(), F160);
         }
+    }
+
+    /// Knocked down for the value `v` at `t0` (its `CONDITION` entry, or an
+    /// `ON_ATTACK_CONDITION`'s), through the source's `Infliction` (`KNOCKDOWN_FLAT`), refreshed
+    /// by `max` (FX-31); nothing on a member not alive. It interrupts the activation (§5.9):
+    /// energy stays paid, the recharge counts from `t0`, no effect (FX-2, FX-4). A knock-down
+    /// that does not lengthen a held one interrupts too; it finds no activation (a knocked-down
+    /// member's only action is Wait, FX-7, and the first knock-down interrupted the activation).
+    fn knock(ref self: Member, v: i32, source: @Infliction, t0: u32, sheets: @Sheets) {
+        if !self.is_alive() {
+            return;
+        }
+        let d = source.duration(condition::KNOCKED_DOWN, v);
+        self.knocked = TickMathTrait::refreshed(self.knocked, t0, d);
+        self.interrupt(t0, sheets);
     }
 
     /// Condition 1–5 held at `t0` (`t0 ≤ D`).
@@ -727,8 +754,8 @@ pub impl MemberConditionImpl of MemberConditionTrait {
 #[cfg(test)]
 mod tests {
     use crate::types::combat::{condition, skill_kind};
-    use crate::types::infliction::Infliction;
-    use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, flag, status};
+    use crate::types::infliction::{Infliction, InflictionTrait};
+    use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, Sheets, flag, status};
     use crate::types::world::fixtures::{Fixture, LIVE, opaque, two};
     use super::{
         Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberTickTrait,
@@ -748,7 +775,7 @@ mod tests {
     // Skullring's Knocked down 2 takes the flat +1 (D = 12); every condition 1–5 lands in its
     // field and survives the words.
     #[test]
-    #[available_gas(l2_gas: 7169883)] // ceil(1.05 × 6828460 measured)
+    #[available_gas(l2_gas: 7120292)] // ceil(1.05 × 6781230 measured)
     fn test_member_apply() {
         let sheets = Fixture::sheets();
         let mut member = rending();
@@ -757,11 +784,11 @@ mod tests {
             source == Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 },
             'kit read',
         );
-        member.apply(condition::BLEEDING, 20, @source, 10, @sheets);
-        member.apply(condition::POISON, 20, @source, 10, @sheets);
-        member.apply(condition::BURNING, 3, @source, 10, @sheets);
-        member.apply(condition::CRIPPLED, 4, @source, 10, @sheets);
-        member.apply(condition::KNOCKED_DOWN, 2, @source, 10, @sheets);
+        member.apply(condition::BLEEDING, 20, @source, 10);
+        member.apply(condition::POISON, 20, @source, 10);
+        member.apply(condition::BURNING, 3, @source, 10);
+        member.apply(condition::CRIPPLED, 4, @source, 10);
+        member.knock(2, @source, 10, @sheets);
         assert(member.bleeding == 35 && member.poison == 29 && member.burning == 12, 'pips');
         assert(member.crippled() == 13 && member.knocked == 12, 'crippled, knocked');
         let again = Fixture::load_member(member.store(), @Fixture::content());
@@ -778,17 +805,17 @@ mod tests {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
         let mut member = Fixture::member(Fixture::spec());
-        member.apply(condition::POISON, 8, @none, 70, @sheets);
-        member.apply(condition::POISON, 8, @none, 70, @sheets);
+        member.apply(condition::POISON, 8, @none, 70);
+        member.apply(condition::POISON, 8, @none, 70);
         assert(member.poison == 77, 'equal: kept');
-        member.apply(condition::POISON, 2, @none, 74, @sheets);
+        member.apply(condition::POISON, 2, @none, 74);
         assert(member.poison == 77, 'smaller: kept');
-        member.apply(condition::POISON, 0, @none, 77, @sheets);
+        member.apply(condition::POISON, 0, @none, 77);
         assert(member.poison == 77, '0 is 1 tick, not a cure');
-        member.apply(condition::KNOCKED_DOWN, 2, @none, 52, @sheets);
-        member.apply(condition::KNOCKED_DOWN, 1, @none, 53, @sheets);
+        member.knock(2, @none, 52, @sheets);
+        member.knock(1, @none, 53, @sheets);
         assert(member.knocked == 53, 'knock-down: max');
-        member.apply(condition::KNOCKED_DOWN, 3, @none, 53, @sheets);
+        member.knock(3, @none, 53, @sheets);
         assert(member.knocked == 55, 'knock-down refreshed');
         let before = member;
         member.cure(condition::BURNING, 60);
@@ -804,11 +831,11 @@ mod tests {
         let none: Infliction = Default::default();
         let mut member = Fixture::member(Fixture::spec());
         member.health = 0;
-        member.apply(condition::BLEEDING, 5, @none, 10, @sheets);
+        member.apply(condition::BLEEDING, 5, @none, 10);
         assert(member.bleeding == 0, 'at 0: nothing');
         member.health = 10;
         member.status = status::DOWN;
-        member.apply(condition::KNOCKED_DOWN, 5, @none, 10, @sheets);
+        member.knock(5, @none, 10, @sheets);
         assert(member.knocked == 0, 'down: nothing');
     }
 
@@ -824,12 +851,12 @@ mod tests {
         let mut member = Fixture::member(Fixture::spec());
         member.start(2, 9, 2, 200);
         assert(member.act_deadline == 202, 'A = 202');
-        member.apply(condition::KNOCKED_DOWN, 2, @none, 201, @sheets);
+        member.knock(2, @none, 201, @sheets);
         assert(member.act_slot == NO_SLOT && member.act_deadline == 0, 'interrupted');
         assert(member.recharge(2) == 210 && member.energy == 30, 'R = 210, energy paid');
         assert(member.knocked == 202, 'D = 202');
         let mut idle = Fixture::member(Fixture::spec());
-        idle.apply(condition::KNOCKED_DOWN, 2, @none, 201, @sheets);
+        idle.knock(2, @none, 201, @sheets);
         let mut expected = Fixture::member(Fixture::spec());
         expected.knocked = 202;
         assert(idle == expected, 'no activation: deadline only');
@@ -862,10 +889,98 @@ mod tests {
         assert(member.move_ticks(61 + 1, true) == 1, 'movement: 1');
     }
 
-    // The cost of the rules (CBT-04, AC-4), by pairs: each test differs from
+    /// CBT-04's application before SPK-15's L2 (fix loop 2, D-172), kept as the oracle of the
+    /// in-place `apply` and `knock` (docs/CAIRO.md §2): the lifecycle's `inflict`, then the
+    /// interrupt on a knock-down.
+    fn oracle(
+        ref member: Member, condition: u8, v: i32, source: @Infliction, t0: u32, sheets: @Sheets,
+    ) {
+        if !member.is_alive() {
+            return;
+        }
+        member.inflict(condition, t0, source.duration(condition, v));
+        if condition == condition::KNOCKED_DOWN {
+            member.interrupt(t0, sheets);
+        }
+    }
+
+    // L2's equivalence (fix loop 2): `apply` (conditions 1–4) and `knock` give the oracle's
+    // member on every condition, at the values 1, 20, 0 (clamped to 1) and 40,000 (clamped to
+    // 32,767), with "Rending" and without a passive, activating or not, a condition held to be
+    // kept or raised, alive or not (at 0 health, down).
+    #[test]
+    #[available_gas(l2_gas: 36589623)] // ceil(1.05 × 34847260 measured)
+    fn test_member_apply_matches_oracle() {
+        let sheets = Fixture::sheets();
+        let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
+        let none: Infliction = Default::default();
+        let (activating, _) = condition_cost_state();
+        let mut held = Fixture::member(Fixture::spec());
+        held.poison = 230;
+        held.knocked = 230;
+        held.set_crippled(230);
+        let mut zero = activating;
+        zero.health = 0;
+        let mut down = activating;
+        down.status = status::DOWN;
+        let states = array![activating, held, zero, down];
+        let conditions = array![
+            condition::BLEEDING, condition::POISON, condition::BURNING, condition::CRIPPLED,
+            condition::KNOCKED_DOWN,
+        ];
+        for state in states.span() {
+            for c in conditions.span() {
+                for v in array![1_i32, 20, 0, 40000].span() {
+                    for source in array![rending, none].span() {
+                        let mut expected = *state;
+                        oracle(ref expected, *c, *v, source, 201, @sheets);
+                        let mut member = *state;
+                        if *c == condition::KNOCKED_DOWN {
+                            member.knock(*v, source, 201, @sheets);
+                        } else {
+                            member.apply(*c, *v, source, 201);
+                        }
+                        assert(member == expected, 'as the oracle');
+                    }
+                }
+            }
+        }
+    }
+
+    // `apply` refuses Knocked down: the executor sends it to `knock` (a dispatch error, not a
+    // legal action's outcome).
+    #[test]
+    #[should_panic(expected: 'tick: knock-down is knock')]
+    #[available_gas(l2_gas: 4893830)] // ceil(1.05 × 4660790 measured)
+    fn test_member_apply_knockdown_refused() {
+        let mut member = Fixture::member(Fixture::spec());
+        let none: Infliction = Default::default();
+        member.apply(condition::KNOCKED_DOWN, 2, @none, 10);
+    }
+
+    // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
+    // interrupts, and finds nothing to interrupt (a knocked-down member's only action is Wait).
+    #[test]
+    #[available_gas(l2_gas: 5251134)] // ceil(1.05 × 5001080 measured)
+    fn test_member_knock_refresh_not_longer() {
+        let sheets = Fixture::sheets();
+        let none: Infliction = Default::default();
+        let mut member = Fixture::member(Fixture::spec());
+        member.knocked = 60;
+        let before = member;
+        member.knock(2, @none, 55, @sheets);
+        assert(member == before, 'nothing: kept, no activation');
+    }
+
+    // The cost of the rules (CBT-04, AC-4; fix loop 2), by pairs: each test differs from
     // `test_cost_member_condition_base` by its call alone, so the difference of snforge's totals
-    // is the call's cost. The costliest path: a knock-down interrupting an activation.
-    fn condition_cost_state() -> (Member, crate::types::tick::Sheets) {
+    // is the call's cost. An application's source is given (an executor reads a member's kit
+    // once a carrier, `test_cost_member_infliction`, and a goblin source has none). `knock`'s
+    // costliest path is an interrupt of an activation; `apply`'s is Crippled's word. The other
+    // paths, measured to show that each function is charged one cost whatever path runs: a
+    // knock-down on a member without an activation that does not lengthen a held one, and an
+    // application on a member not alive.
+    fn condition_cost_state() -> (Member, Sheets) {
         let mut member = opaque(Fixture::member(Fixture::spec()));
         member.start(opaque(2), 9, 2, opaque(200));
         member.bleeding = opaque(205);
@@ -879,21 +994,100 @@ mod tests {
         opaque(member);
     }
 
+    // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 5336289)] // ceil(1.05 × 5082180 measured)
-    fn test_cost_member_apply_knockdown() {
-        let (mut member, sheets) = condition_cost_state();
-        let source = opaque(member.infliction());
-        member.apply(opaque(condition::KNOCKED_DOWN), opaque(2), @source, opaque(201), @sheets);
+    #[available_gas(l2_gas: 5223624)] // ceil(1.05 × 4974880 measured)
+    fn test_cost_member_source_base() {
+        let (member, _sheets) = condition_cost_state();
+        let _source: Infliction = opaque(Default::default());
         opaque(member);
     }
 
     #[test]
-    #[available_gas(l2_gas: 5336289)] // ceil(1.05 × 5082180 measured)
-    fn test_cost_member_apply_crippled() {
+    #[available_gas(l2_gas: 5242755)] // ceil(1.05 × 4993100 measured)
+    fn test_cost_member_infliction() {
+        let (member, _sheets) = condition_cost_state();
+        opaque(member.infliction());
+        opaque(member);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5281532)] // ceil(1.05 × 5030030 measured)
+    fn test_cost_member_knock() {
         let (mut member, sheets) = condition_cost_state();
-        let source = opaque(member.infliction());
-        member.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(201), @sheets);
+        let source: Infliction = opaque(Default::default());
+        member.knock(opaque(2), @source, opaque(201), @sheets);
+        opaque(member);
+    }
+
+    // The other paths' bases: no activation and a longer knock-down held; at 0 health.
+    #[test]
+    #[available_gas(l2_gas: 5225220)] // ceil(1.05 × 4976400 measured)
+    fn test_cost_member_idle_base() {
+        let (mut member, _sheets) = condition_cost_state();
+        member.clear();
+        member.knocked = opaque(230);
+        let _source: Infliction = opaque(Default::default());
+        opaque(member);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5224044)] // ceil(1.05 × 4975280 measured)
+    fn test_cost_member_zero_base() {
+        let (mut member, _sheets) = condition_cost_state();
+        member.health = opaque(0);
+        let _source: Infliction = opaque(Default::default());
+        opaque(member);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5281952)] // ceil(1.05 × 5030430 measured)
+    fn test_cost_member_knock_idle() {
+        let (mut member, sheets) = condition_cost_state();
+        member.clear();
+        member.knocked = opaque(230);
+        let source: Infliction = opaque(Default::default());
+        member.knock(opaque(2), @source, opaque(201), @sheets);
+        opaque(member);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5257550)] // ceil(1.05 × 5007190 measured)
+    fn test_cost_member_apply_crippled() {
+        let (mut member, _sheets) = condition_cost_state();
+        let source: Infliction = opaque(Default::default());
+        member.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(201));
+        opaque(member);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5257550)] // ceil(1.05 × 5007190 measured)
+    fn test_cost_member_apply_bleeding() {
+        let (mut member, _sheets) = condition_cost_state();
+        let source: Infliction = opaque(Default::default());
+        member.apply(opaque(condition::BLEEDING), opaque(20), @source, opaque(201));
+        opaque(member);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 5257970)] // ceil(1.05 × 5007590 measured)
+    fn test_cost_member_apply_not_alive() {
+        let (mut member, _sheets) = condition_cost_state();
+        member.health = opaque(0);
+        let source: Infliction = opaque(Default::default());
+        member.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(201));
+        opaque(member);
+    }
+
+    // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
+    #[test]
+    #[available_gas(l2_gas: 5318334)] // ceil(1.05 × 5065080 measured)
+    fn test_cost_member_oracle() {
+        let (mut member, sheets) = condition_cost_state();
+        let source: Infliction = opaque(Default::default());
+        oracle(
+            ref member, opaque(condition::KNOCKED_DOWN), opaque(2), @source, opaque(201), @sheets,
+        );
         opaque(member);
     }
 

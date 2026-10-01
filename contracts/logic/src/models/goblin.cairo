@@ -6,7 +6,7 @@
 //! layouts are the ephemeral package's, which owns the storage; the offsets below are ENG-01's
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
-use crate::helpers::tick::{TickAssert, TickMathTrait};
+use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::packing::{N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P84, field, limbs, peel};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
@@ -464,20 +464,44 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
 /// (§5.1). Its source's `Infliction` is the inflicting source's: a member's kit, or none.
 #[generate_trait]
 pub impl GoblinConditionImpl of GoblinConditionTrait {
-    /// A `CONDITION` entry (or an `ON_ATTACK_CONDITION`'s) applied at `t0`: condition 1–5 for
+    /// A `CONDITION` entry (or an `ON_ATTACK_CONDITION`'s) applied at `t0`: condition 1–4 for
     /// the value `v`, through the source's `Infliction` (`effective_duration`), refreshed by
-    /// `max` (FX-6, FX-31); a dead goblin takes nothing. Knocked down interrupts its activation
-    /// (§5.9): its field goes to none, the recharge counts from `t0`; a recovery is kept.
-    fn apply(
-        ref self: Goblin, condition: u8, v: i32, source: @Infliction, t0: u32, sheets: @Sheets,
-    ) {
+    /// `max` (FX-6); a dead goblin takes nothing. Knocked down is `knock`'s: the executor
+    /// dispatches on the entry's condition (SPK-15's L2, D-172). Written in place, as the
+    /// member's: one branch writes the condition's field, Crippled's word read once.
+    fn apply(ref self: Goblin, condition: u8, v: i32, source: @Infliction, t0: u32) {
         if !self.is_alive() {
             return;
         }
-        self.inflict(condition, t0, source.duration(condition, v));
-        if condition == condition::KNOCKED_DOWN {
-            self.interrupt(t0, sheets);
+        let d = source.duration(condition, v);
+        if condition == condition::BLEEDING {
+            self.bleeding = TickMathTrait::refreshed(self.bleeding, t0, d);
+        } else if condition == condition::POISON {
+            self.poison = TickMathTrait::refreshed(self.poison, t0, d);
+        } else if condition == condition::BURNING {
+            self.burning = TickMathTrait::refreshed(self.burning, t0, d);
+        } else {
+            assert(condition == condition::CRIPPLED, tick_errors::KNOCK);
+            // `GoblinWordsTrait::crippled`, read here: bits 156–183 of `GoblinTimers`.
+            let (_, high) = limbs(self.timers);
+            let old: u32 = field(high, P28, P28).try_into().unwrap();
+            let new = TickMathTrait::refreshed(old, t0, d);
+            self.timers += TickMathTrait::delta(old.into(), new.into(), F156);
         }
+    }
+
+    /// Knocked down for the value `v` at `t0`, through the source's `Infliction`
+    /// (`KNOCKDOWN_FLAT`), refreshed by `max` (FX-31); a dead goblin takes nothing. It interrupts
+    /// the activation (§5.9): its field goes to none, the recharge counts from `t0`; a recovery
+    /// is kept. A knock-down that does not lengthen a held one interrupts too; it finds no
+    /// activation (a knocked-down goblin skips step 2, and the first knock-down interrupted it).
+    fn knock(ref self: Goblin, v: i32, source: @Infliction, t0: u32, sheets: @Sheets) {
+        if !self.is_alive() {
+            return;
+        }
+        let d = source.duration(condition::KNOCKED_DOWN, v);
+        self.knocked = TickMathTrait::refreshed(self.knocked, t0, d);
+        self.interrupt(t0, sheets);
     }
 
     /// Condition 1–5 held at `t0` (`t0 ≤ D`).
@@ -519,7 +543,7 @@ pub impl GoblinConditionImpl of GoblinConditionTrait {
 #[cfg(test)]
 mod tests {
     use crate::types::combat::{activation, condition, skill_kind};
-    use crate::types::infliction::Infliction;
+    use crate::types::infliction::{Infliction, InflictionTrait};
     use crate::types::tick::{CasteSheet, Content, ContentTrait, Sheets, SkillSheet, ai};
     use crate::types::world::TickTrait;
     use crate::types::world::fixtures::{
@@ -534,17 +558,17 @@ mod tests {
     // member's kit lengthens its own condition and the knock-down (Bleeding 20 +33 %: 26 ticks,
     // D = 35; Knocked down 2 + 1: D = 12); no passive, the value itself.
     #[test]
-    #[available_gas(l2_gas: 1090058)] // ceil(1.05 × 1038150 measured)
+    #[available_gas(l2_gas: 1068638)] // ceil(1.05 × 1017750 measured)
     fn test_goblin_apply() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
         let none: Infliction = Default::default();
         let mut goblin = Fixture::goblin(9, HOB);
-        goblin.apply(condition::BLEEDING, 20, @rending, 10, @sheets);
-        goblin.apply(condition::POISON, 20, @rending, 10, @sheets);
-        goblin.apply(condition::BURNING, 3, @none, 10, @sheets);
-        goblin.apply(condition::CRIPPLED, 4, @none, 10, @sheets);
-        goblin.apply(condition::KNOCKED_DOWN, 2, @rending, 10, @sheets);
+        goblin.apply(condition::BLEEDING, 20, @rending, 10);
+        goblin.apply(condition::POISON, 20, @rending, 10);
+        goblin.apply(condition::BURNING, 3, @none, 10);
+        goblin.apply(condition::CRIPPLED, 4, @none, 10);
+        goblin.knock(2, @rending, 10, @sheets);
         assert(goblin.bleeding == 35 && goblin.poison == 29 && goblin.burning == 12, 'pips');
         assert(goblin.crippled() == 13 && goblin.knocked == 12, 'crippled, knocked');
         let words = goblin.store();
@@ -557,16 +581,16 @@ mod tests {
     // a cure gives `t0 − 1`, an absent condition's cure nothing; a dead goblin takes nothing,
     // neither a condition nor a cure.
     #[test]
-    #[available_gas(l2_gas: 931518)] // ceil(1.05 × 887160 measured)
+    #[available_gas(l2_gas: 928389)] // ceil(1.05 × 884180 measured)
     fn test_goblin_apply_refresh_cure() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
         let mut goblin = Fixture::goblin(9, HOB);
-        goblin.apply(condition::BURNING, 3, @none, 42, @sheets);
-        goblin.apply(condition::BURNING, 3, @none, 42, @sheets);
-        goblin.apply(condition::BURNING, 1, @none, 43, @sheets);
+        goblin.apply(condition::BURNING, 3, @none, 42);
+        goblin.apply(condition::BURNING, 3, @none, 42);
+        goblin.apply(condition::BURNING, 1, @none, 43);
         assert(goblin.burning == 44, 'equal, smaller: kept');
-        goblin.apply(condition::BURNING, 5, @none, 43, @sheets);
+        goblin.apply(condition::BURNING, 5, @none, 43);
         assert(goblin.burning == 47, 'larger: refreshed');
         goblin.cure(condition::BURNING, 45);
         assert(goblin.burning == 44, 'cured: t0 - 1');
@@ -578,7 +602,7 @@ mod tests {
         dead.poison = 60;
         dead.ai = ai::DEAD;
         let remains = dead;
-        dead.apply(condition::KNOCKED_DOWN, 2, @none, 50, @sheets);
+        dead.knock(2, @none, 50, @sheets);
         dead.cure(condition::POISON, 50);
         assert(dead == remains, 'dead: nothing');
     }
@@ -587,19 +611,19 @@ mod tests {
     // at clock 51 knocks the Hobgoblin down for 2 ticks, t0 = 52: D = 53, the field none, R =
     // 52 + 10 − 1 = 61. A recovering goblin knocked down keeps its recovery (not an activation).
     #[test]
-    #[available_gas(l2_gas: 968394)] // ceil(1.05 × 922280 measured)
+    #[available_gas(l2_gas: 944360)] // ceil(1.05 × 899390 measured)
     fn test_goblin_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
         let mut goblin = Fixture::goblin(40, HOB);
         goblin.start(0, 0, 3, 50);
-        goblin.apply(condition::KNOCKED_DOWN, 2, @none, 52, @sheets);
+        goblin.knock(2, @none, 52, @sheets);
         assert(goblin.knocked == 53, 'D = 53');
         assert(activation_of(@goblin) == (activation::NONE, 0, 0), 'field none');
         assert(goblin.recharge(0) == 61, 'R = 61');
         let mut recovering = Fixture::goblin(41, HOB);
         recovering.recover(3, 60);
-        recovering.apply(condition::KNOCKED_DOWN, 2, @none, 61, @sheets);
+        recovering.knock(2, @none, 61, @sheets);
         assert(activation_of(@recovering) == (activation::RECOVERING, 0, 62), 'recovery kept');
     }
 
@@ -637,9 +661,90 @@ mod tests {
         assert(goblin.move_ticks(62, true) == 1, 'movement: 1');
     }
 
-    // The cost of the rules (CBT-04, AC-4), by pairs: each test differs from
-    // `test_cost_goblin_condition_base` by its call alone, so the difference of snforge's totals
-    // is the call's cost. The costliest path: a knock-down interrupting an activation.
+    /// CBT-04's application before SPK-15's L2 (fix loop 2, D-172), kept as the oracle of the
+    /// in-place `apply` and `knock` (docs/CAIRO.md §2).
+    fn oracle(
+        ref goblin: Goblin, condition: u8, v: i32, source: @Infliction, t0: u32, sheets: @Sheets,
+    ) {
+        if !goblin.is_alive() {
+            return;
+        }
+        goblin.inflict(condition, t0, source.duration(condition, v));
+        if condition == condition::KNOCKED_DOWN {
+            goblin.interrupt(t0, sheets);
+        }
+    }
+
+    // L2's equivalence (fix loop 2): `apply` (conditions 1–4) and `knock` give the oracle's
+    // goblin on every condition, at the values 1, 20, 0 and 40,000, with "Rending" and without,
+    // activating, recovering, a condition held to be kept or raised, and dead.
+    #[test]
+    #[available_gas(l2_gas: 23396016)] // ceil(1.05 × 22281920 measured)
+    fn test_goblin_apply_matches_oracle() {
+        let sheets = Fixture::sheets();
+        let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
+        let none: Infliction = Default::default();
+        let (activating, _) = condition_cost_state();
+        let mut recovering = Fixture::goblin(41, HOB);
+        recovering.recover(3, 50);
+        let mut held = Fixture::goblin(42, HOB);
+        held.poison = 80;
+        held.knocked = 80;
+        held.set_crippled(80);
+        let mut dead = activating;
+        dead.ai = ai::DEAD;
+        dead.health = 0;
+        let states = array![activating, recovering, held, dead];
+        let conditions = array![
+            condition::BLEEDING, condition::POISON, condition::BURNING, condition::CRIPPLED,
+            condition::KNOCKED_DOWN,
+        ];
+        for state in states.span() {
+            for c in conditions.span() {
+                for v in array![1_i32, 20, 0, 40000].span() {
+                    for source in array![rending, none].span() {
+                        let mut expected = *state;
+                        oracle(ref expected, *c, *v, source, 52, @sheets);
+                        let mut goblin = *state;
+                        if *c == condition::KNOCKED_DOWN {
+                            goblin.knock(*v, source, 52, @sheets);
+                        } else {
+                            goblin.apply(*c, *v, source, 52);
+                        }
+                        assert(goblin == expected, 'as the oracle');
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected: 'tick: knock-down is knock')]
+    #[available_gas(l2_gas: 298988)] // ceil(1.05 × 284750 measured)
+    fn test_goblin_apply_knockdown_refused() {
+        let mut goblin = Fixture::goblin(9, HOB);
+        let none: Infliction = Default::default();
+        goblin.apply(condition::KNOCKED_DOWN, 2, @none, 10);
+    }
+
+    // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
+    // interrupts, and finds nothing to interrupt (a knocked-down goblin skips step 2).
+    #[test]
+    #[available_gas(l2_gas: 649121)] // ceil(1.05 × 618210 measured)
+    fn test_goblin_knock_refresh_not_longer() {
+        let sheets = Fixture::sheets();
+        let none: Infliction = Default::default();
+        let mut goblin = Fixture::goblin(9, HOB);
+        goblin.knocked = 60;
+        let before = goblin;
+        goblin.knock(2, @none, 55, @sheets);
+        assert(goblin == before, 'nothing: kept, no activation');
+    }
+
+    // The cost of the rules (CBT-04, AC-4; fix loop 2), by pairs: each test differs from its base
+    // by its call alone, so the difference of snforge's totals is the call's cost. `knock`'s
+    // costliest path is an interrupt of an activation; `apply`'s is Crippled's word. The other
+    // paths show that each function is charged one cost whatever path runs.
     fn condition_cost_state() -> (Goblin, Sheets) {
         let mut goblin = opaque(Fixture::goblin(40, HOB));
         goblin.start(opaque(0), 0, 3, opaque(50));
@@ -654,21 +759,92 @@ mod tests {
         opaque(goblin);
     }
 
+    // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 701904)] // ceil(1.05 × 668480 measured)
-    fn test_cost_goblin_apply_knockdown() {
-        let (mut goblin, sheets) = condition_cost_state();
-        let source: Infliction = opaque(Default::default());
-        goblin.apply(opaque(condition::KNOCKED_DOWN), opaque(2), @source, opaque(52), @sheets);
+    #[available_gas(l2_gas: 622083)] // ceil(1.05 × 592460 measured)
+    fn test_cost_goblin_source_base() {
+        let (goblin, _sheets) = condition_cost_state();
+        let _source: Infliction = opaque(Default::default());
+        opaque(goblin);
+    }
+
+    // The other paths' bases: no activation and a longer knock-down held; dead.
+    #[test]
+    #[available_gas(l2_gas: 622503)] // ceil(1.05 × 592860 measured)
+    fn test_cost_goblin_idle_base() {
+        let (mut goblin, _sheets) = condition_cost_state();
+        goblin.clear();
+        goblin.knocked = opaque(80);
+        let _source: Infliction = opaque(Default::default());
         opaque(goblin);
     }
 
     #[test]
-    #[available_gas(l2_gas: 701904)] // ceil(1.05 × 668480 measured)
-    fn test_cost_goblin_apply_crippled() {
+    #[available_gas(l2_gas: 622503)] // ceil(1.05 × 592860 measured)
+    fn test_cost_goblin_dead_base() {
+        let (mut goblin, _sheets) = condition_cost_state();
+        goblin.ai = opaque(ai::DEAD);
+        let _source: Infliction = opaque(Default::default());
+        opaque(goblin);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 669648)] // ceil(1.05 × 637760 measured)
+    fn test_cost_goblin_knock() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
-        goblin.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(52), @sheets);
+        goblin.knock(opaque(2), @source, opaque(52), @sheets);
+        opaque(goblin);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 670068)] // ceil(1.05 × 638160 measured)
+    fn test_cost_goblin_knock_idle() {
+        let (mut goblin, sheets) = condition_cost_state();
+        goblin.clear();
+        goblin.knocked = opaque(80);
+        let source: Infliction = opaque(Default::default());
+        goblin.knock(opaque(2), @source, opaque(52), @sheets);
+        opaque(goblin);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 652754)] // ceil(1.05 × 621670 measured)
+    fn test_cost_goblin_apply_crippled() {
+        let (mut goblin, _sheets) = condition_cost_state();
+        let source: Infliction = opaque(Default::default());
+        goblin.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(52));
+        opaque(goblin);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 652754)] // ceil(1.05 × 621670 measured)
+    fn test_cost_goblin_apply_bleeding() {
+        let (mut goblin, _sheets) = condition_cost_state();
+        let source: Infliction = opaque(Default::default());
+        goblin.apply(opaque(condition::BLEEDING), opaque(20), @source, opaque(52));
+        opaque(goblin);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 653174)] // ceil(1.05 × 622070 measured)
+    fn test_cost_goblin_apply_dead() {
+        let (mut goblin, _sheets) = condition_cost_state();
+        goblin.ai = opaque(ai::DEAD);
+        let source: Infliction = opaque(Default::default());
+        goblin.apply(opaque(condition::CRIPPLED), opaque(20), @source, opaque(52));
+        opaque(goblin);
+    }
+
+    // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
+    #[test]
+    #[available_gas(l2_gas: 701904)] // ceil(1.05 × 668480 measured)
+    fn test_cost_goblin_oracle() {
+        let (mut goblin, sheets) = condition_cost_state();
+        let source: Infliction = opaque(Default::default());
+        oracle(
+            ref goblin, opaque(condition::KNOCKED_DOWN), opaque(2), @source, opaque(52), @sheets,
+        );
         opaque(goblin);
     }
 

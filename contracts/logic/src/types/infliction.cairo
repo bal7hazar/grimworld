@@ -24,7 +24,9 @@ pub impl InflictionImpl of InflictionTrait {
     /// `ON_ATTACK_CONDITION`'s, at the source's rank): `v` clamped to its kind's bounds 1…32,767
     /// (§6: at play, a value outside them is clamped), then `effective_duration` with the percent
     /// if the source's `CONDITION_DURATION` names this condition and the flat ticks if it is
-    /// Knocked down (§5.7). Never panics: the base stays below `MAX_BASE_DURATION`.
+    /// Knocked down (§5.7). Never panics: the base stays below `MAX_BASE_DURATION`. Inlined in
+    /// each application (SPK-15's L2, D-172).
+    #[inline(always)]
     fn duration(self: @Infliction, condition: u8, v: i32) -> u32 {
         let base: u32 = if v < 1 {
             1
@@ -68,10 +70,9 @@ mod tests {
         assert(rending.duration(condition::CRIPPLED, 2) == 2, 'flat: knock-down only');
     }
 
-    // §6: a value outside its kind's bounds is clamped (0 → 1, a negative → 1, 40,000 →
-    // 32,767);
-    // the bonuses at their caps (50 %, 3 ticks) above them; the widest stays at 49,153, below
-    // `MAX_DURATION`.
+    // §6: a value outside its kind's bounds is clamped (0 → 1, a negative → 1,
+    // 40,000 → 32,767); the bonuses at their caps (50 %, 3 ticks) above them; the
+    // widest stays at 49,153, below `MAX_DURATION`.
     #[test]
     #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_infliction_duration_edges() {

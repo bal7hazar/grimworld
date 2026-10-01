@@ -784,7 +784,7 @@ mod tests {
                 if *t == world.clock {
                     let mut member = *world.members.at(0);
                     let source: Infliction = Default::default();
-                    member.apply(condition::BLEEDING, *v, @source, world.clock, sheets);
+                    member.apply(condition::BLEEDING, *v, @source, world.clock);
                     world.set_member(0, member);
                 }
             }
@@ -827,7 +827,7 @@ mod tests {
     // degeneration that tick; Field Dressing, started at clock 75, resolves in step 1 of tick 76
     // and cures: D = 75, nothing lost at 76. 60 lost in all.
     #[test]
-    #[available_gas(l2_gas: 7690518)] // ceil(1.05 × 7324302 measured)
+    #[available_gas(l2_gas: 7517877)] // ceil(1.05 × 7159882 measured)
     fn test_example_condition_refreshed() {
         let (health, bleeding) = dressing(array![(70, 8), (74, 8)].span());
         assert(health == array![386, 372, 358, 352, 346, 340, 340], 'health 70-76');
@@ -837,7 +837,7 @@ mod tests {
     // The variant: Bleeding 2 at tick 74 keeps 77 by `max` (replacing would give 75, FX-6); the
     // health lost is the same, and the cure at 76 gives 75.
     #[test]
-    #[available_gas(l2_gas: 7690518)] // ceil(1.05 × 7324302 measured)
+    #[available_gas(l2_gas: 7517877)] // ceil(1.05 × 7159882 measured)
     fn test_example_condition_refreshed_variant() {
         let (health, bleeding) = dressing(array![(70, 8), (74, 2)].span());
         assert(health == array![386, 372, 358, 352, 346, 340, 340], 'health 70-76');
