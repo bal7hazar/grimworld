@@ -56,3 +56,15 @@ same other value proves nothing). It is reverted to one value when SPK-13 explai
 **A fact for SPK-13**: the CI runner always gives one value and the local machine always the other:
 the difference follows the build environment (compiler binary, cache, platform), not chance; SPK-13
 compares the CI runner's toolchain with the VPS's and the Mac's.
+
+## D-164 extended to the gas gate (2026-10-01)
+
+Twice on 2026-10-01, in CI runs on changes with no Cairo code (`hexx-cairo` #61 run 36809041479,
+#70 run 36836722836), the same 40 rows of `Digger::dig` and the facade's `open_with_*` measured
++0.22 % to +1.94 % against `gas/takeover_tests.snap`: the same second build the VPS gives; other
+runs give the snapshot exactly. **Decision** (`[Fable 5.1]` project manager, under D-128): the same
+rule as the class-size gate. A file `gas/takeover_tests.builds` holds, per row, the exact second
+observed value, cited by the run that observed it; the gate accepts the snapshot's value or that
+exact value, nothing in between, and any third value fails. A new line needs the project manager's
+decision; the file goes when SPK-13 finds the cause. Task **LIB-04d** (Sonnet 5.5). No tolerance:
+the two builds are two programs, both measured exactly.
