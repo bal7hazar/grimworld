@@ -6,7 +6,6 @@ then checked again by the separate `verify` binary, which prints the program has
 output the proof commits to.
 
   spikes/SPK-12/prove/setup.sh --native                 # once: build run_and_prove and verify
-  scarb --manifest-path spikes/SPK-12/Scarb.toml build  # the executables
   python3 spikes/SPK-12/prove/prove.py --runs 2 --out spikes/SPK-12/prove/out/run1 \
       --case representative:1 --case worst:1 --case representative:10 --case busy:10 ...
   python3 spikes/SPK-12/prove/prove.py --steps-only --case busy:100   # scarb execute alone
@@ -15,7 +14,8 @@ A case is `<scenario>:<ticks>`; scenarios are CBT-02's (`segment::fixture`): `re
 representative tick, the pipeline alone), `worst` (`worst_state(true, 3)`: one tick, everything
 dies), `busy` (`worst_state(false, 1)` under the `Busy` rules: CBT-02's busy batch).
 
-For each case: `scarb execute` of `segment` gives the Cairo steps, the builtins and the header (the
+The script first writes and builds the executables' package (`write_exec`, in the ignored
+`prove/out/exec/`). For each case: `scarb execute` of `segment` gives the Cairo steps, the builtins and the header (the
 public output); then, per run, `run_and_prove` under `measure` (wall time, the child's peak RSS),
 the proof's bytes and sha256, `verify` (exit 0, and its VERIFICATION_OUTPUT's output equal to the
 header). Proofs stay in `--out` (git-ignored); `results.json` and `results.txt` hold the figures.
@@ -124,12 +124,13 @@ def scarb_execute(name: str, args: list[int], args_path: Path) -> tuple[list[int
     return felts, resources
 
 
-def measure(cmd: list[str], log: Path) -> dict:
+def measure(cmd: list[str], log: Path, threads: int | None = None) -> dict:
     """Runs `cmd` (stdout and stderr to `log`): exit, wall (s), the child's peak RSS in bytes
-    (`ru_maxrss`: bytes on macOS, KiB on Linux)."""
+    (`ru_maxrss`: bytes on macOS, KiB on Linux). `threads` sets `RAYON_NUM_THREADS`."""
+    env = {**os.environ, **({"RAYON_NUM_THREADS": str(threads)} if threads else {})}
     t0 = time.time()
     with open(log, "w") as f:
-        p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
         _, status, ru = os.wait4(p.pid, 0)
     wall = time.time() - t0
     scale = 1 if sys.platform == "darwin" else 1024
@@ -141,7 +142,8 @@ def gib(n: int | None) -> str:
     return "?" if n is None else f"{n / 2**30:.2f}"
 
 
-def prove_case(case: str, runs: int, out: Path, steps_only: bool, params: Path = PARAMS) -> dict:
+def prove_case(case: str, runs: int, out: Path, steps_only: bool, params: Path = PARAMS,
+               threads: int | None = None) -> dict:
     scenario, ticks = case.split(":")
     ticks = int(ticks)
     fixture, _ = scarb_execute("fixture", [SCENARIOS[scenario]], out / f"{scenario}.fixture-args.json")
@@ -166,7 +168,7 @@ def prove_case(case: str, runs: int, out: Path, steps_only: bool, params: Path =
                "--program_type", "executable", "--program_arguments_file", str(args_path),
                "--params_json", str(params), "--proof_path", str(proof),
                "--proof-format", "binary", "--verify"]
-        m = measure(cmd, log)
+        m = measure(cmd, log, threads)
         text = log.read_text(errors="replace")
         steps = [int(s) for s in STEPS_RE.findall(text)]
         r = {"run": run, **m, "prover_steps": steps[-1] if steps else None,
@@ -216,6 +218,8 @@ def main() -> int:
     ap.add_argument("--params", type=Path, default=PARAMS,
                     help="prover parameters (default canonical_small; params.canonical_without_pedersen.json "
                          "for a trace over canonical_small's 2^20 rows)")
+    ap.add_argument("--threads", type=int, default=None,
+                    help="RAYON_NUM_THREADS for run_and_prove (default: every core)")
     a = ap.parse_args()
     params = a.params.resolve()
     a.out.mkdir(parents=True, exist_ok=True)
@@ -226,10 +230,12 @@ def main() -> int:
     print(f"machine: {machine}", flush=True)
     results = []
     for case in a.case:
-        results.append(prove_case(case, a.runs, a.out, a.steps_only, params))
+        results.append(prove_case(case, a.runs, a.out, a.steps_only, params, a.threads))
         (a.out / "results.json").write_text(json.dumps(
-            {"machine": machine, "params": params.name, "results": results}, indent=1))
-    text = f"machine: {machine}\nparams: {params.name}\n\n{table(results)}\n"
+            {"machine": machine, "params": params.name, "threads": a.threads, "results": results},
+            indent=1))
+    text = (f"machine: {machine}\nparams: {params.name}\nthreads: {a.threads or 'all'}\n\n"
+            f"{table(results)}\n")
     (a.out / "results.txt").write_text(text)
     print("\n" + text)
     return 0
