@@ -42,7 +42,6 @@ function reduce(model: LoopModel, event: LoopEvent): LoopModel {
   if (state === model.state) return model;
   const entered = state.screen.kind === "instance" && model.state.screen.kind !== "instance";
   const quiet = event.kind === "moved";
-  if (!quiet) console.debug("[loop]", event.kind, "→", state.screen.kind, "·", state.said);
   return {
     state,
     log: quiet ? model.log : [...model.log.slice(-40), state.said],
@@ -68,6 +67,10 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
     [],
   );
   const { screen } = model.state;
+  // Logged once a line is in the log (not in the reducer, which React may run twice).
+  useEffect(() => {
+    console.debug("[loop]", model.state.screen.kind, "·", model.log.at(-1));
+  }, [model.log, model.state.screen.kind]);
 
   let content: ReactNode;
   switch (screen.kind) {

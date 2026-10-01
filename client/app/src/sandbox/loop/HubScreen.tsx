@@ -1,4 +1,11 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { Application } from "pixi.js";
 import type { LoopIntent } from "../../input/intent";
 import {
@@ -40,21 +47,23 @@ export function HubScreen({
         <span style={ui.title}>{view.name}</span>
         <span style={ui.gold}>gold {view.gold.toLocaleString("en-GB").replace(",", " ")}</span>
       </header>
-      <Illustration view={view} scale={scale} dispatch={dispatch} />
-      {figure && (
-        <div style={styles.inspect} role="dialog" aria-label="Adventurer">
-          <span>
-            <b>{figure.name}</b> · {figure.profession}, level {figure.level}
-          </span>
-          <button
-            style={{ ...ui.button, ...ui.quiet }}
-            onClick={() => dispatch({ kind: "back" })}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <Illustration view={view} scale={scale} dispatch={dispatch}>
+        {/* Over the illustration's foot, so that opening it moves no tap target. */}
+        {figure && (
+          <div style={styles.inspect} role="dialog" aria-label="Adventurer">
+            <span>
+              <b>{figure.name}</b> · {figure.profession}, level {figure.level}
+            </span>
+            <button
+              style={{ ...ui.button, ...ui.quiet }}
+              onClick={() => dispatch({ kind: "back" })}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </Illustration>
       <nav style={ui.grid} aria-label="Services">
         {view.services.map((target) => (
           <button
@@ -76,15 +85,30 @@ function Illustration({
   view,
   scale,
   dispatch,
+  children,
 }: {
   view: HubView;
   scale: ScaleMode;
   dispatch: (intent: LoopIntent) => void;
+  children?: ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size | null>(null);
-  const [renderer, setRenderer] = useState<HubRenderer | null>(null);
+  const [drawn, setDrawn] = useState<{ app: Application; renderer: HubRenderer } | null>(null);
   const [atlas, setAtlas] = useState<"loading" | "loaded" | "none" | "failed">("loading");
+  const renderer = drawn?.renderer ?? null;
+
+  // The zone's size, before the first paint and on every change: the tap targets need no canvas.
+  useLayoutEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    const measure = () =>
+      setSize({ width: element.clientWidth || 1, height: element.clientHeight || 1 });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const element = host.current;
@@ -92,7 +116,6 @@ function Illustration({
     let alive = true;
     let app: Application | null = null;
     let mounted: HubRenderer | null = null;
-    let observer: ResizeObserver | null = null;
     createPixiSurface(element, scale)
       .then(({ app: created, surface }) => {
         app = created;
@@ -104,16 +127,7 @@ function Illustration({
             element.dataset.tickers = String(pixiTickersRunning(created));
           },
         });
-        const resize = () => {
-          const zone = { width: element.clientWidth || 1, height: element.clientHeight || 1 };
-          created.renderer.resize(zone.width, zone.height);
-          mounted?.resize(zone);
-          setSize(zone);
-        };
-        resize();
-        observer = new ResizeObserver(resize);
-        observer.observe(element);
-        setRenderer(mounted);
+        setDrawn({ app: created, renderer: mounted });
         return loadAtlas().then((library) => {
           if (!alive) return;
           setAtlas(library ? "loaded" : "none");
@@ -126,11 +140,17 @@ function Illustration({
       });
     return () => {
       alive = false;
-      observer?.disconnect();
+      setDrawn(null);
       mounted?.destroy();
       app?.destroy(true);
     };
   }, [scale]);
+
+  useEffect(() => {
+    if (!drawn || !size) return;
+    drawn.app.renderer.resize(size.width, size.height);
+    drawn.renderer.resize(size);
+  }, [drawn, size]);
 
   useEffect(() => {
     renderer?.setView(view);
@@ -164,6 +184,7 @@ function Illustration({
             aria-label={`Adventurer ${figure.name}`}
           />
         ))}
+      {children}
     </div>
   );
 }
@@ -205,12 +226,17 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   inspect: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
     padding: "4px 12px",
-    background: "#1b1b22",
-    borderTop: "1px solid #2a2a33",
+    borderRadius: 8,
+    background: "rgba(27,27,34,0.94)",
+    border: "1px solid #2a2a33",
   },
 };
