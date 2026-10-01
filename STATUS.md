@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-10-01 09:50 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 14:15 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -78,19 +78,20 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 
 ## Orchestrators and agents
 
-| Lot (PR) | Built by | Waiting for |
-|---|---|---|
-| ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221), `45ff32b`) | Opus 5.5 | Codex: quality and security audits; the review; the owner's reading (D-167) |
-| CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228), `b5f4069`) | Opus 5.5 | Codex: quality and cost audits; then L2 (D-172) in its fix loop; the review |
-| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229), `36bf2ba`) | Opus 5.5 | Codex: quality and cost audits; its review passed on the Claude fallback (findings for its next loop, PLAN) |
-| SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234), `0f4b571`) | Opus 5.5 | Codex: cost audit (D-172 decided on its figures) |
-| ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246), `91196c3`) | Opus 5.5 | Codex: quality and cost audits; the review |
+| Lot (PR) | Built by | Now | Gate (D-177) |
+|---|---|---|---|
+| ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | fix loop 2 (the Sonnet run's minors, PLAN's deferrals) | **one organisation audit** (a large refactoring the owner reads), Claude Opus 5.5; the review; the owner's reading |
+| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | fix loop 2 (small text fixes) | the review (Claude Sonnet) and the checks |
+| ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246)) | Opus 5.5 | fix loop 2 queued (merge `main`: D-174) | the review and the checks |
+| CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228)) | Opus 5.5 | fix loop 2 queued (D-172's L2) | the review and the checks |
+| SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234)) | Opus 5.5 | ready | the review and the checks |
 
-**No game agent runs.** Codex is out until **2026-10-04 13:36 UTC**: every lot above passed its Claude-side
-lens (D-170) and its fix loops; its Codex audits are queued at its current head. Merge order at the reset:
-ENG-R1a, CBT-04, CBT-03a, ENG-02, SPK-15; then CBT-05a (D-172's L3), which calls CBT-03a, CBT-04 and
-ENG-02. ENG-R1b waits for the owner's reading of ENG-R1a; ENG-05 for `hexx` rc.2 (the owner kept 15 × 15
-chunks, D-165).
+**D-177 (owner, 2026-10-01)**: the review is the routine gate; an audit is the exception. **Audits
+stopped: 0 queued or running** (the nine Codex audits had ended `blocked_quota`, the nine Claude Sonnet runs
+had finished: both stay in the record as additions); **8 planned Opus audits dropped** (CBT-04, CBT-03a and
+ENG-02 two each, SPK-15 one, ENG-R1a's security and cost). Merge order: ENG-R1a, CBT-04, CBT-03a, ENG-02,
+SPK-15; then CBT-05a. Then FND-10 (one deterministic build, D-176) on a free slot. ENG-R1b waits for the
+owner's reading of ENG-R1a; ENG-05 for `hexx` rc.2.
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
