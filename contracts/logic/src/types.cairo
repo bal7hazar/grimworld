@@ -6,6 +6,8 @@
 pub mod combat;
 /// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
 pub mod effect;
+/// One hit: block, evasion, armor, damage (design/19 §5.5 steps 1–4, §5.6, CBT-03a).
+pub mod hit;
 /// Passive effects (design/19 §4, CBT-01).
 pub mod passive;
 /// The state and content a world tick reads and writes (CBT-02).
