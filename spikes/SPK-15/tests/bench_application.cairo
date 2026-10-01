@@ -36,6 +36,7 @@ fn goblin_state() -> (Goblin, Sheets) {
 // The member: CBT-04's 108,100 reproduced, then taken apart.
 
 #[test]
+#[available_gas(l2_gas: 5222784)] // ceil(1.05 × 4974080 measured)
 fn test_member_base() {
     let (member, _sheets) = member_state();
     opaque(member);
@@ -44,6 +45,7 @@ fn test_member_base() {
 // CBT-04's pair (`test_cost_member_apply_knockdown`): the source's `Infliction` read from the
 // member's kit, then `apply`.
 #[test]
+#[available_gas(l2_gas: 5336289)] // ceil(1.05 × 5082180 measured)
 fn test_pair_member_cbt04_apply() {
     let (mut member, sheets) = member_state();
     let source = opaque(member.infliction());
@@ -53,6 +55,7 @@ fn test_pair_member_cbt04_apply() {
 
 // The same with a source given (the kit read once a carrier, not once an application).
 #[test]
+#[available_gas(l2_gas: 5318334)] // ceil(1.05 × 5065080 measured)
 fn test_pair_member_cbt04_apply_given() {
     let (mut member, sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -62,6 +65,7 @@ fn test_pair_member_cbt04_apply_given() {
 
 // Its parts, each alone: the kit's read; the duration; main's `inflict`; main's `interrupt`.
 #[test]
+#[available_gas(l2_gas: 5242755)] // ceil(1.05 × 4993100 measured)
 fn test_pair_member_part_infliction() {
     let (member, _sheets) = member_state();
     opaque(member.infliction());
@@ -69,6 +73,7 @@ fn test_pair_member_part_infliction() {
 }
 
 #[test]
+#[available_gas(l2_gas: 5236697)] // ceil(1.05 × 4987330 measured)
 fn test_pair_member_part_duration() {
     let (member, _sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -77,6 +82,7 @@ fn test_pair_member_part_duration() {
 }
 
 #[test]
+#[available_gas(l2_gas: 5262495)] // ceil(1.05 × 5011900 measured)
 fn test_pair_member_part_inflict() {
     let (mut member, _sheets) = member_state();
     member.inflict(opaque(condition::KNOCKED_DOWN), opaque(201), opaque(2));
@@ -84,6 +90,7 @@ fn test_pair_member_part_inflict() {
 }
 
 #[test]
+#[available_gas(l2_gas: 5262579)] // ceil(1.05 × 5011980 measured)
 fn test_pair_member_part_interrupt() {
     let (mut member, sheets) = member_state();
     member.interrupt(opaque(201), @sheets);
@@ -97,6 +104,7 @@ fn touch(ref member: Member) {
 }
 
 #[test]
+#[available_gas(l2_gas: 5226564)] // ceil(1.05 × 4977680 measured)
 fn test_pair_member_part_call() {
     let (mut member, _sheets) = member_state();
     touch(ref member);
@@ -105,6 +113,7 @@ fn test_pair_member_part_call() {
 
 // The alternatives: every step inlined, in place.
 #[test]
+#[available_gas(l2_gas: 5282823)] // ceil(1.05 × 5031260 measured)
 fn test_pair_member_in_place() {
     let (mut member, sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -115,6 +124,7 @@ fn test_pair_member_in_place() {
 
 // Conditions 1–4 apart from the knock-down: Crippled, the costliest of the four.
 #[test]
+#[available_gas(l2_gas: 5256321)] // ceil(1.05 × 5006020 measured)
 fn test_pair_member_split() {
     let (mut member, _sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -123,6 +133,7 @@ fn test_pair_member_split() {
 }
 
 #[test]
+#[available_gas(l2_gas: 5280828)] // ceil(1.05 × 5029360 measured)
 fn test_pair_member_knock() {
     let (mut member, sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -132,6 +143,7 @@ fn test_pair_member_knock() {
 
 // A degenerating condition only (Bleeding, Poison, Burning: the MVP's commonest, FX-22).
 #[test]
+#[available_gas(l2_gas: 5248194)] // ceil(1.05 × 4998280 measured)
 fn test_pair_member_hot() {
     let (mut member, _sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -142,6 +154,7 @@ fn test_pair_member_hot() {
 // Gathered: one application added; the gathered applications written (every condition, a
 // knock-down).
 #[test]
+#[available_gas(l2_gas: 5245989)] // ceil(1.05 × 4996180 measured)
 fn test_pair_member_gather_add() {
     let (member, _sheets) = member_state();
     let source: Infliction = opaque(Default::default());
@@ -152,6 +165,7 @@ fn test_pair_member_gather_add() {
 }
 
 #[test]
+#[available_gas(l2_gas: 5279621)] // ceil(1.05 × 5028210 measured)
 fn test_pair_member_gather_flush() {
     let (mut member, sheets) = member_state();
     let gathered = opaque(
@@ -167,12 +181,14 @@ fn test_pair_member_gather_flush() {
 // The goblin: CBT-04's 76,820, then its parts and the alternative.
 
 #[test]
+#[available_gas(l2_gas: 621243)] // ceil(1.05 × 591660 measured)
 fn test_goblin_base() {
     let (goblin, _sheets) = goblin_state();
     opaque(goblin);
 }
 
 #[test]
+#[available_gas(l2_gas: 701904)] // ceil(1.05 × 668480 measured)
 fn test_pair_goblin_cbt04_apply() {
     let (mut goblin, sheets) = goblin_state();
     let source: Infliction = opaque(Default::default());
@@ -181,6 +197,7 @@ fn test_pair_goblin_cbt04_apply() {
 }
 
 #[test]
+#[available_gas(l2_gas: 656408)] // ceil(1.05 × 625150 measured)
 fn test_pair_goblin_part_inflict() {
     let (mut goblin, _sheets) = goblin_state();
     goblin.inflict(opaque(condition::KNOCKED_DOWN), opaque(52), opaque(2));
@@ -188,6 +205,7 @@ fn test_pair_goblin_part_inflict() {
 }
 
 #[test]
+#[available_gas(l2_gas: 651851)] // ceil(1.05 × 620810 measured)
 fn test_pair_goblin_part_interrupt() {
     let (mut goblin, sheets) = goblin_state();
     goblin.interrupt(opaque(52), @sheets);
@@ -200,6 +218,7 @@ fn touch_goblin(ref goblin: Goblin) {
 }
 
 #[test]
+#[available_gas(l2_gas: 623973)] // ceil(1.05 × 594260 measured)
 fn test_pair_goblin_part_call() {
     let (mut goblin, _sheets) = goblin_state();
     touch_goblin(ref goblin);
@@ -207,6 +226,7 @@ fn test_pair_goblin_part_call() {
 }
 
 #[test]
+#[available_gas(l2_gas: 671538)] // ceil(1.05 × 639560 measured)
 fn test_pair_goblin_in_place() {
     let (mut goblin, sheets) = goblin_state();
     let source: Infliction = opaque(Default::default());
@@ -215,6 +235,7 @@ fn test_pair_goblin_in_place() {
 }
 
 #[test]
+#[available_gas(l2_gas: 684338)] // ceil(1.05 × 651750 measured)
 fn test_pair_goblin_gather_flush() {
     let (mut goblin, sheets) = goblin_state();
     let gathered = opaque(
@@ -235,6 +256,7 @@ fn rending() -> Infliction {
 }
 
 #[test]
+#[available_gas(l2_gas: 343402385)] // ceil(1.05 × 327049890 measured)
 fn test_alternatives_match_cbt04_member() {
     let sheets = Fixture::sheets();
     let source = rending();
@@ -295,6 +317,7 @@ fn test_alternatives_match_cbt04_member() {
 }
 
 #[test]
+#[available_gas(l2_gas: 11102049)] // ceil(1.05 × 10573380 measured)
 fn test_alternatives_match_cbt04_goblin() {
     let sheets = Fixture::sheets();
     let source = rending();

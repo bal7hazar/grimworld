@@ -23,6 +23,7 @@ BASES = {
     "test_pair_touch_main": "test_touch_main_fixture",
     "test_pair_touch_lazy": "test_touch_lazy_fixture",
     "test_pair_selection_": "test_selection_fixture",
+    "test_pair_index": "test_index_fixture",
     "test_pair_executor_gather_guarded": "test_executor_guarded_fixture",
     "test_pair_executor_goblin_hit_guarded": "test_executor_hit_guarded_fixture",
     "test_pair_executor_guard": "test_executor_gather_fixture",

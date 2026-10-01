@@ -15,12 +15,35 @@ use grimworld_logic::types::world::{
     TickTrait, Words, WordsTrait, World, WorldStoreTrait, WorldTrait,
 };
 use spk15::words::{Lazy, LazyTrait, SelectionTrait};
-use crate::fixtures::{goblin_words, load_words, opaque, representative, worst_content};
+use crate::fixtures::{
+    goblin_words, load_content, load_words, opaque, representative, worst_content,
+};
+
+// ---------------------------------------------------------------------------------------------
+// The content's index, once a call (lever 4): the dictionary of positions and the castes' kits,
+// on load's content (38 skills, 5 castes, 4 potions), its dictionary squashed at the end.
+
+#[test]
+#[available_gas(l2_gas: 556647)] // ceil(1.05 × 530140 measured)
+fn test_index_fixture() {
+    let content = opaque(load_content());
+    opaque(content);
+}
+
+#[test]
+#[available_gas(l2_gas: 1142831)] // ceil(1.05 × 1088410 measured)
+fn test_pair_index() {
+    let content = opaque(load_content());
+    let (sheets, _index) = content.index();
+    opaque(sheets);
+    opaque(content);
+}
 
 // ---------------------------------------------------------------------------------------------
 // Load and store, the costliest words.
 
 #[test]
+#[available_gas(l2_gas: 11735808)] // ceil(1.05 × 11176960 measured)
 fn test_words_bound_fixture() {
     let (words, content) = load_words(1);
     let (expected, _) = load_words(1);
@@ -28,6 +51,7 @@ fn test_words_bound_fixture() {
 }
 
 #[test]
+#[available_gas(l2_gas: 22836125)] // ceil(1.05 × 21748690 measured)
 fn test_pair_words_bound_main() {
     let (words, content) = load_words(1);
     let (expected, _) = load_words(1);
@@ -36,6 +60,7 @@ fn test_pair_words_bound_main() {
 }
 
 #[test]
+#[available_gas(l2_gas: 15022518)] // ceil(1.05 × 14307160 measured)
 fn test_pair_words_bound_lazy() {
     let (words, content) = load_words(1);
     let (expected, _) = load_words(1);
@@ -50,6 +75,7 @@ fn representative_words() -> (Words, grimworld_logic::types::tick::Content) {
 }
 
 #[test]
+#[available_gas(l2_gas: 15655122)] // ceil(1.05 × 14909640 measured)
 fn test_words_representative_fixture() {
     let (words, content) = representative_words();
     let (expected, _) = representative_words();
@@ -57,6 +83,7 @@ fn test_words_representative_fixture() {
 }
 
 #[test]
+#[available_gas(l2_gas: 17013560)] // ceil(1.05 × 16203390 measured)
 fn test_pair_words_representative_main() {
     let (words, content) = representative_words();
     let (expected, _) = representative_words();
@@ -65,6 +92,7 @@ fn test_pair_words_representative_main() {
 }
 
 #[test]
+#[available_gas(l2_gas: 17047737)] // ceil(1.05 × 16235940 measured)
 fn test_pair_words_representative_lazy() {
     let (words, content) = representative_words();
     let (expected, _) = representative_words();
@@ -121,12 +149,14 @@ fn lazy_candidates(prior: bool) -> (Lazy, Sheets, Index, Span<u16>) {
 }
 
 #[test]
+#[available_gas(l2_gas: 8510502)] // ceil(1.05 × 8105240 measured)
 fn test_awake_main_fixture() {
     let (world, distances) = main_candidates(false);
     assert(world.goblin_count() == 100 && distances.len() == 100, 'fixture');
 }
 
 #[test]
+#[available_gas(l2_gas: 13338098)] // ceil(1.05 × 12702950 measured)
 fn test_pair_awake_main_formed() {
     let (mut world, distances) = main_candidates(false);
     TickTrait::awake(ref world, distances);
@@ -134,12 +164,14 @@ fn test_pair_awake_main_formed() {
 }
 
 #[test]
+#[available_gas(l2_gas: 8574930)] // ceil(1.05 × 8166600 measured)
 fn test_awake_main_kept_fixture() {
     let (world, distances) = main_candidates(true);
     assert(world.goblin_count() == 100 && distances.len() == 100, 'fixture');
 }
 
 #[test]
+#[available_gas(l2_gas: 13465095)] // ceil(1.05 × 12823900 measured)
 fn test_pair_awake_main_kept() {
     let (mut world, distances) = main_candidates(true);
     TickTrait::awake(ref world, distances);
@@ -147,12 +179,14 @@ fn test_pair_awake_main_kept() {
 }
 
 #[test]
+#[available_gas(l2_gas: 2455425)] // ceil(1.05 × 2338500 measured)
 fn test_awake_lazy_fixture() {
     let (lazy, _sheets, _index, distances) = lazy_candidates(false);
     assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
 }
 
 #[test]
+#[available_gas(l2_gas: 8121068)] // ceil(1.05 × 7734350 measured)
 fn test_pair_awake_lazy_formed() {
     let (mut lazy, sheets, mut index, distances) = lazy_candidates(false);
     lazy.awake(distances, ref index, @sheets);
@@ -160,12 +194,14 @@ fn test_pair_awake_lazy_formed() {
 }
 
 #[test]
+#[available_gas(l2_gas: 2997614)] // ceil(1.05 × 2854870 measured)
 fn test_awake_lazy_kept_fixture() {
     let (lazy, _sheets, _index, distances) = lazy_candidates(true);
     assert(lazy.words.len() == 100 && distances.len() == 100, 'fixture');
 }
 
 #[test]
+#[available_gas(l2_gas: 8314383)] // ceil(1.05 × 7918460 measured)
 fn test_pair_awake_lazy_kept() {
     let (mut lazy, sheets, mut index, distances) = lazy_candidates(true);
     lazy.awake(distances, ref index, @sheets);
@@ -174,6 +210,7 @@ fn test_pair_awake_lazy_kept() {
 
 // Both selections choose the same set, the same flags, the same values (not a cost test).
 #[test]
+#[available_gas(l2_gas: 59630634)] // ceil(1.05 × 56791080 measured)
 fn test_awake_lazy_matches_main() {
     for prior in array![false, true] {
         let (mut world, distances) = main_candidates(prior);
@@ -211,6 +248,7 @@ fn test_awake_lazy_matches_main() {
 // A hook touching a frozen goblin (index 10 of 100), its health changed.
 
 #[test]
+#[available_gas(l2_gas: 14289167)] // ceil(1.05 × 13608730 measured)
 fn test_touch_main_fixture() {
     let (words, content) = load_words(1);
     let (world, sheets) = WordsTrait::load(words, @content);
@@ -219,6 +257,7 @@ fn test_touch_main_fixture() {
 }
 
 #[test]
+#[available_gas(l2_gas: 14998536)] // ceil(1.05 × 14284320 measured)
 fn test_pair_touch_main() {
     let (words, content) = load_words(1);
     let (mut world, sheets) = WordsTrait::load(words, @content);
@@ -230,6 +269,7 @@ fn test_pair_touch_main() {
 }
 
 #[test]
+#[available_gas(l2_gas: 8306718)] // ceil(1.05 × 7911160 measured)
 fn test_touch_lazy_fixture() {
     let (words, content) = load_words(1);
     let (lazy, sheets, _index) = LazyTrait::lazy_load(words, @content);
@@ -238,6 +278,7 @@ fn test_touch_lazy_fixture() {
 }
 
 #[test]
+#[available_gas(l2_gas: 8808324)] // ceil(1.05 × 8388880 measured)
 fn test_pair_touch_lazy() {
     let (words, content) = load_words(1);
     let (mut lazy, sheets, mut index) = LazyTrait::lazy_load(words, @content);
@@ -264,12 +305,14 @@ fn keys() -> Span<u32> {
 }
 
 #[test]
+#[available_gas(l2_gas: 436811)] // ceil(1.05 × 416010 measured)
 fn test_selection_fixture() {
     let keys = opaque(keys());
     opaque(keys);
 }
 
 #[test]
+#[available_gas(l2_gas: 3126963)] // ceil(1.05 × 2978060 measured)
 fn test_pair_selection_scan() {
     let keys = opaque(keys());
     opaque(SelectionTrait::scan(keys));
@@ -277,6 +320,7 @@ fn test_pair_selection_scan() {
 }
 
 #[test]
+#[available_gas(l2_gas: 1561497)] // ceil(1.05 × 1487140 measured)
 fn test_pair_selection_single() {
     let keys = opaque(keys());
     opaque(SelectionTrait::single(keys));
@@ -286,6 +330,7 @@ fn test_pair_selection_single() {
 // Both selections agree: the costliest order, rising, none eligible, fewer than 8, a mix (not a
 // cost test).
 #[test]
+#[available_gas(l2_gas: 15164405)] // ceil(1.05 × 14442290 measured)
 fn test_selection_agrees() {
     let none: u32 = 0xFFFFFFFF;
     let mut rising = array![];
@@ -312,6 +357,7 @@ fn test_selection_agrees() {
 
 // The lazy world's single-pass perception, from the AI states kept at load.
 #[test]
+#[available_gas(l2_gas: 6200030)] // ceil(1.05 × 5904790 measured)
 fn test_pair_awake_single_formed() {
     let (mut lazy, sheets, mut index, distances) = lazy_candidates(false);
     lazy.awake_single(distances, ref index, @sheets);
@@ -319,6 +365,7 @@ fn test_pair_awake_single_formed() {
 }
 
 #[test]
+#[available_gas(l2_gas: 6425097)] // ceil(1.05 × 6119140 measured)
 fn test_pair_awake_single_kept() {
     let (mut lazy, sheets, mut index, distances) = lazy_candidates(true);
     lazy.awake_single(distances, ref index, @sheets);
@@ -326,6 +373,7 @@ fn test_pair_awake_single_kept() {
 }
 
 #[test]
+#[available_gas(l2_gas: 39966308)] // ceil(1.05 × 38063150 measured)
 fn test_awake_single_matches_main() {
     for prior in array![false, true] {
         let (mut world, distances) = main_candidates(prior);
