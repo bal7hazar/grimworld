@@ -1,11 +1,12 @@
 import type { Facing, Tile, ViewActor, ViewArcs, ViewGoblin } from "../render/view";
+import { GATE_KIND, type GateRecord, globalTile } from "./fixtures/region";
 import { CHUNK, type Terrain, inBounds, kindAt, sameTile } from "./world";
 
 /**
  * The only file of `client/app` that computes what the chain decides (ORCH-client-visual §6.1).
  * Every function here is a stand-in until `client/sim` has the real rule; CLI-03 deletes this
- * file. Only the sandbox's wiring (`wiring.ts`) imports it, which a test checks. No randomness, no
- * clock.
+ * file. Only the sandbox's wiring (`wiring.ts`) and the loop's machine (`loop/machine.ts`, for
+ * gates and hubs) import it, which a test checks. No randomness, no clock.
  */
 
 /**
@@ -248,6 +249,52 @@ export function revealInSight(terrain: Terrain, centre: Tile): Terrain {
     return touched && kind === "unrevealed" ? (terrain.hidden[index] ?? "wall") : kind;
   });
   return { ...terrain, kinds };
+}
+
+// --- hubs and the transitions (CLI-03c) ---------------------------------------------------------
+
+/**
+ * PLACEHOLDER until CLI-02 (and CLI-03 for gates). The hub gate the adventurer can leave by: D-148,
+ * a gate is used by standing on its anchor tile; a hub gate (kind 1) of `location` whose anchor is
+ * `tile`, or null. Requirements (rank, quest) are not checked: the fixed data has none.
+ */
+export function hubGateAt(
+  gates: readonly GateRecord[],
+  location: number,
+  tile: Tile,
+): GateRecord | null {
+  return (
+    gates.find(
+      (g) =>
+        g.source === location &&
+        g.kind === GATE_KIND.hub &&
+        sameTile(globalTile(g.anchor_chunk, g.anchor_tile), tile),
+    ) ?? null
+  );
+}
+
+/**
+ * PLACEHOLDER until CLI-02 (and CLI-03 for gates). Where entering a gate puts the adventurer
+ * (design/02 *Entering*): the gate's destination, on its entry tile. The gate's requirements are
+ * met on fixed data; the entry draw is the chain's and decides nothing the sandbox draws.
+ */
+export function entryThrough(gate: GateRecord): { location: number; tile: Tile } {
+  return { location: gate.destination, tile: globalTile(gate.entry_chunk, gate.entry_tile) };
+}
+
+/** How an expedition ended (design/02 *Ending an expedition*). */
+export type ExpeditionEnd =
+  | { readonly how: "gate"; readonly gate: GateRecord }
+  | { readonly how: "travel back" }
+  | { readonly how: "defeat" };
+
+/**
+ * PLACEHOLDER until CLI-02 (and CLI-03, CLI-08 for map travel). The hub an expedition ends in,
+ * design/02's table: returned through a hub gate, that gate's hub; travelled back, or defeated,
+ * the last hub visited. Travelling back to another unlocked hub is the world map's (CLI-08).
+ */
+export function hubAfter(end: ExpeditionEnd, lastHub: number): number {
+  return end.how === "gate" ? end.gate.destination : lastHub;
 }
 
 /** A location's state before or after a step: what the stop conditions read. */
