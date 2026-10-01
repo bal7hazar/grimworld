@@ -40,7 +40,7 @@
 //!
 //! **Edges (D-140).** A rule never panics on a legal action:
 //! - a position outside the window (240 and up): no sight, no reach, no arc, not in front, the
-//!   facing unchanged, an empty shape;
+//!   facing unchanged, an empty shape, the distance `FAR` (255, above every range);
 //! - the same tile: in sight unless it is a wall (no tile between), no arc (a hit never comes from
 //!   the target's own tile: two actors never share one), not in front, the facing unchanged, a
 //!   shape as any other;
@@ -52,6 +52,8 @@
 //! - a wall at either end of the line: no sight (an actor never stands on a wall; a tile target can
 //!   be one).
 //! A facing above 5 or a shape id outside 1–5 is a stored value the pipeline refuses: asserted.
+//! A window holds no bit at or above 240: its field is private, made through `WindowTrait::new`
+//! (asserted) or `Serde` (refused).
 //!
 //! **`u256`** is used only to split a bitmap of the window into its two limbs (written reason, as
 //! `packing`'s: a `felt252` has no bitwise operation, and the `felt252 → u256` conversion is the
@@ -62,7 +64,7 @@
 //! of `tests::test_cost_*_twice` and `_once` (its inputs opaque to the compiler; each figure holds
 //! 2,440 of the benchmark's own, three opaque inputs and the check, `test_cost_overhead_*`).
 //! `sight` 22,176 (`hexx`'s table path, any pair within 6, both ends tested); `reach` 34,216;
-//! `distance` 14,890; `arc` 25,140 adjacent, 25,240 at range or on the window's ring (the line's
+//! `distance` 16,230; `arc` 25,140 adjacent, 25,240 at range or on the window's ring (the line's
 //! first step in constant time); `front` 11,850; `facing` 22,500
 //! on every path; `shape` `DISC_1` 14,656 away from the window's ring, 69,926 on it, `DISC_3`
 //! 137,106; `tiles` of 7 tiles 57,151.
@@ -80,6 +82,8 @@ use crate::types::effect::shape;
 pub const WIDTH: u8 = 15;
 pub const HEIGHT: u8 = 16;
 pub const SIZE: u8 = 240;
+/// The distance of a position outside the window: above every range (design/04's widest is 8).
+pub const FAR: u8 = 255;
 
 /// The ranges of design/04's table, in tiles (hex distance).
 pub mod range {
@@ -128,10 +132,31 @@ const AROUND_ODD: felt252 = 0x3ffd000000000087f9a0000000000000000000000000000000
 const AROUND_EVEN: felt252 = 0x3ffe800000000087fcd0000000000000000000000000000000000000000c003;
 
 /// The board of a tick: bit `p` of `open` is 1 when the tile `p` is walkable, 0 for a wall (an
-/// unrevealed or void chunk is wall, design/02). Bits 240 and up are 0.
-#[derive(Copy, Drop, Serde, PartialEq, Debug)]
+/// unrevealed or void chunk is wall, design/02). Bits 240 and up are 0: the field is private, so a
+/// window is made only through `WindowTrait::new`, which checks it, or deserialized through the
+/// same check (`WindowSerde`); `WindowTrait::open` reads it.
+#[derive(Copy, Drop, PartialEq, Debug)]
 pub struct Window {
-    pub open: felt252,
+    open: felt252,
+}
+
+/// One felt, `open`; deserializing refuses (`None`) a bitmap with a bit at or above 240, as `new`
+/// asserts.
+pub impl WindowSerde of Serde<Window> {
+    fn serialize(self: @Window, ref output: Array<felt252>) {
+        output.append(*self.open);
+    }
+
+    fn deserialize(ref serialized: Span<felt252>) -> Option<Window> {
+        let open = *serialized.pop_front()?;
+        // `u256`: the split of the felt is its range proof (module documentation)
+        let wide: u256 = open.into();
+        if wide.high < HIGH_LIMIT {
+            Some(Window { open })
+        } else {
+            None
+        }
+    }
 }
 
 /// A move between two tiles in `q` and `r` (`GeometryTrait::to_axial`): magnitudes and signs.
@@ -157,8 +182,18 @@ pub impl WindowImpl of WindowTrait {
         position < SIZE
     }
 
-    /// The hex distance between two tiles of the window (walls ignored).
+    /// The window's walkable bitmap.
+    #[inline(always)]
+    fn open(self: @Window) -> felt252 {
+        *self.open
+    }
+
+    /// The hex distance between two tiles of the window (walls ignored); `FAR` (255, above every
+    /// range) when either is outside the window, so that no range holds it.
     fn distance(from: u8, to: u8) -> u8 {
+        if !(Self::inside(from) && Self::inside(to)) {
+            return FAR;
+        }
         WindowInternal::length(WindowInternal::delta(from, to))
     }
 
@@ -510,7 +545,7 @@ mod tests {
     use hexx::board::map::HexMap;
     use crate::types::combat::Arc;
     use crate::types::effect::shape;
-    use super::{HEIGHT, SIZE, WIDTH, Window, WindowTrait, range};
+    use super::{FAR, HEIGHT, SIZE, WIDTH, Window, WindowTrait, range};
 
     /// Every tile walkable: `2^240 − 1`.
     const OPEN: felt252 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -816,7 +851,8 @@ mod tests {
 
     /// AC-2: `hexx`'s line is design/04's, ties included, from both row parities at the centre.
     #[test]
-    #[available_gas(l2_gas: 251973246)] // ceil(1.05 × 239974520 measured)
+    // gas: raised, distance guards a position outside the window (fix loop 3)
+    #[available_gas(l2_gas: 252309519)] // ceil(1.05 × 240294780 measured)
     fn test_line_against_oracle_centre() {
         Fixture::check_from(Fixture::at(7, 7));
         Fixture::check_from(Fixture::at(7, 8));
@@ -824,8 +860,8 @@ mod tests {
 
     /// The same at the window's corners and edges, where a line can leave it.
     #[test]
-    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
-    #[available_gas(l2_gas: 469606389)] // ceil(1.05 × 447244180 measured)
+    // gas: raised, sight tests both ends (fix loop 1); distance guards outside (fix loop 3)
+    #[available_gas(l2_gas: 470951481)] // ceil(1.05 × 448525220 measured)
     fn test_line_against_oracle_edges() {
         Fixture::check_from(Fixture::at(0, 0));
         Fixture::check_from(Fixture::at(14, 15));
@@ -960,6 +996,41 @@ mod tests {
         assert!(WindowTrait::distance(Fixture::at(0, 0), Fixture::at(8, 0)) <= range::EARSHOT);
         assert!(WindowTrait::distance(Fixture::at(0, 0), Fixture::at(9, 0)) > range::EARSHOT);
         assert!(range::NEARBY == 2 && range::AREA == 3 && range::ALERT == 5);
+    }
+
+    /// A position outside the window (240, 255) at either end or both: `FAR`, no panic, and no
+    /// range holds it.
+    #[test]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    fn test_distance_outside() {
+        let centre = Fixture::at(7, 8);
+        assert!(WindowTrait::distance(SIZE, centre) == FAR);
+        assert!(WindowTrait::distance(centre, SIZE) == FAR);
+        assert!(WindowTrait::distance(255, centre) == FAR);
+        assert!(WindowTrait::distance(centre, 255) == FAR);
+        assert!(WindowTrait::distance(SIZE, 255) == FAR);
+        assert!(WindowTrait::distance(255, 255) == FAR);
+        assert!(FAR > range::EARSHOT);
+        // The last tile of the window is inside
+        assert!(WindowTrait::distance(SIZE - 1, SIZE - 1) == 0);
+        // (0, 0) to (14, 15): dq = 7, dr = 15, one sign
+        assert!(WindowTrait::distance(0, SIZE - 1) == 22);
+    }
+
+    /// A window is made through `new` or `Serde`: one felt, a bit at or above 240 refused.
+    #[test]
+    #[available_gas(l2_gas: 53309)] // ceil(1.05 × 50770 measured)
+    fn test_window_serde() {
+        let window = Fixture::fixture();
+        let mut felts: Array<felt252> = array![];
+        window.serialize(ref felts);
+        assert!(felts.span() == array![window.open()].span());
+        let mut span = felts.span();
+        assert!(Serde::<Window>::deserialize(ref span) == Some(window));
+        let mut above = array![OPEN + 1].span();
+        assert!(Serde::<Window>::deserialize(ref above).is_none());
+        let mut empty = array![].span();
+        assert!(Serde::<Window>::deserialize(ref empty).is_none());
     }
 
     // ---- Arcs, front, facing -----------------------------------------------------------------
@@ -1382,7 +1453,8 @@ mod tests {
 
     /// `distance` at range 6 (the hit's `melee` input, CBT-05a): one cost on every path.
     #[test]
-    #[available_gas(l2_gas: 31007)] // ceil(1.05 × 29530 measured)
+    // gas: raised, distance guards a position outside the window (fix loop 3)
+    #[available_gas(l2_gas: 32414)] // ceil(1.05 × 30870 measured)
     fn test_cost_distance_once() {
         let distance = WindowTrait::distance(
             Fixture::opaque(Fixture::at(7, 2)), Fixture::opaque(Fixture::at(7, 8)),
@@ -1391,7 +1463,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 46641)] // ceil(1.05 × 44420 measured)
+    // gas: raised, distance guards a position outside the window (fix loop 3)
+    #[available_gas(l2_gas: 49455)] // ceil(1.05 × 47100 measured)
     fn test_cost_distance_twice() {
         let distance = WindowTrait::distance(
             Fixture::opaque(Fixture::at(7, 2)), Fixture::opaque(Fixture::at(7, 8)),
@@ -1618,8 +1691,8 @@ mod tests {
     // `vectors/check.py` fails while the committed file differs from what these print
     // (`vectors/README.md`).
     #[test]
-    // gas: raised, more cases (an odd-row arc target, from on a wall) and sight tests both ends
-    #[available_gas(l2_gas: 1264513412)] // ceil(1.05 × 1204298487 measured)
+    // gas: raised, more cases (an odd-row target, from on a wall), both ends, distance's guard
+    #[available_gas(l2_gas: 1265862725)] // ceil(1.05 × 1205583547 measured)
     fn test_vectors() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
@@ -1694,8 +1767,8 @@ mod tests {
 
     /// The table's second part, its ids following the first's (snforge's step limit splits it).
     #[test]
-    // gas: raised, a neighbour outside the window given as 240 in the front vectors
-    #[available_gas(l2_gas: 436177843)] // ceil(1.05 × 415407469 measured)
+    // gas: raised, front's outside neighbour as 240; distance outside cases and guard (fix loop 3)
+    #[available_gas(l2_gas: 438953587)] // ceil(1.05 × 418051035 measured)
     fn test_vectors_1() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
@@ -1733,6 +1806,15 @@ mod tests {
                 to += 1;
             }
         }
+        // ... and a position outside the window at either end or both: `FAR`
+        let outside: [(u8, u8); 4] = [
+            (SIZE, Fixture::at(7, 8)), (Fixture::at(7, 8), 255), (SIZE, 255), (255, SIZE),
+        ];
+        for (from, to) in outside.span() {
+            let case = array![(*from).into(), (*to).into()];
+            let ok = array![WindowTrait::distance(*from, *to).into()];
+            Fixture::emit(ref digest, ref id, "distance", case.span(), ok.span());
+        }
         // `shape`: each shape at the corners, the edges, the centre and next to walls
         let centres: [u8; 11] = [
             Fixture::at(0, 0), Fixture::at(14, 0), Fixture::at(0, 15), Fixture::at(14, 15),
@@ -1758,5 +1840,5 @@ mod tests {
     const DIGEST_0: felt252 =
         2027939412732297496338127652314768997524597226589897860129522502247018952946;
     const DIGEST_1: felt252 =
-        2771260123776888357348809408523159243459654458862948645245828861959561160762;
+        2034462196832439640469718342796814804113743281669768041046952646849445135712;
 }

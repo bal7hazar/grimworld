@@ -17,7 +17,7 @@ values it prints and run it again: it must say "as computed".
 ## `window.jsonl`: the geometry of the window (ENG-02)
 
 Printed by `types::window::tests::test_vectors` (ids 0–1213) and `test_vectors_1` (ids
-1214–2060), split for snforge's step limit, each part with its digest.
+1214–2064), split for snforge's step limit, each part with its digest.
 
 One line: `{"id", "fn", "case", "ok"}`. A position is the window's index `15 y + x` (0–239; 240 and
 up is outside the window), a facing `0..=5` (East, North-East, North-West, West, South-West,
@@ -39,5 +39,5 @@ The cases:
 - `sight` and `reach`: from both row parities at the centre to every tile within 7, and the edges (a line leaving the window at a corner, a position outside, and `from` on a wall at range, adjacent and on the same tile, D-174).
 - `arc` and `facing`: from every tile within 6 of the targets `(7, 8)` (an even row) and `(7, 7)` (an odd row), the facing turning with the source, and the edges.
 - `front`: every neighbour and facing, at the centre and on the East edge, where a neighbour outside the window is given as the position 240.
-- `distance`: from `(7, 7)`, `(7, 8)` and `(0, 0)` to every tile.
+- `distance`: from `(7, 7)`, `(7, 8)` and `(0, 0)` to every tile, and a position outside the window (240, 255) at either end or both, whose distance is 255 (`FAR`, above every range).
 - `shape`: each shape at the corners, the edges, the centre and next to walls.
