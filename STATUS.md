@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-10-01 00:40 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 02:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -12,7 +12,8 @@ Audits and reviews go through `nexus audit` and `nexus review`; VPS implementers
 and **CBT-02c** ([#206](https://github.com/bal7hazar/grimworld/pull/206), unwired, D-168) merged.
 **CBT-02e** ([#212](https://github.com/bal7hazar/grimworld/pull/212)) merged: the snapshot is stored at
 `set_build` (D-168). **CBT-02d** ([#211](https://github.com/bal7hazar/grimworld/pull/211)) merged: the worst tick
-2.35× its target, carried to ENG-07. **CBT-02f** (D-169) running. ENG-05 and
+2.35× its target, carried to ENG-07. **CBT-02f** ([#219](https://github.com/bal7hazar/grimworld/pull/219), D-169) merged.
+**ENG-R1a** (`Hub` on the pattern, D-167) running, its report shown to the owner. ENG-05 and
 ENG-02 wait for `hexx` rc.1.
 A nexus auditor resumed on a new revision could not fetch it (its sandbox refused `FETCH_HEAD`): a new
 auditor per revision is started instead (reported to the owner here, as the standard asks).
@@ -35,6 +36,7 @@ service), FND-09 (`with-node.sh` on macOS) all done; the tick's cost and the sto
 | ENG-06 (D-148) | `enter`, `leave`, `travel_back` as measured | +0.7 M |
 | CBT-01, CBT-08a (D-158) | the larger snapshot and the belt's worst case, once an expedition | +2.2 M |
 | CBT-02e (D-168) | `enter` copies the stored snapshot: 5,233,259 → 4,473,259 net, once an expedition | −0.76 M |
+| CBT-02f (D-169) | `enter` checks the flattening epoch: +40,000, once an expedition | +0.04 M |
 | **Now** | | **≈ 663 M ≈ $0.584** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
 
 **A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
@@ -49,6 +51,7 @@ the bound) and the batch weight are ENG-07's.
 
 | | |
 |---|---|
+| **CBT-02f** | [#219](https://github.com/bal7hazar/grimworld/pull/219): a snapshot stale only when a flattening input or its configuration changed; `enter` 4.51 M net |
 | **CBT-02d** | [#211](https://github.com/bal7hazar/grimworld/pull/211): the awake set apart, the content through an index; worst tick ≤ 3.45 M inside a batch (2.35×), representative 1.07 M |
 | **CBT-02e** | [#212](https://github.com/bal7hazar/grimworld/pull/212): `FlattenLibrary`; the snapshot stored at `set_build` (3 words), copied by `enter`; `enter` 4.47 M net (D-158 5.25 M); `Hub` 44.71 % |
 | **CBT-02c** | [#206](https://github.com/bal7hazar/grimworld/pull/206): design/20's per-record bounds at registration; the flattening linear, unwired (`Hub` 61.15 % wired); CBT-02e stores the snapshot (D-168) |
@@ -65,14 +68,14 @@ the bound) and the batch weight are ENG-07's.
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| CBT-02f the flattening epoch | Opus 5.5 (scripts/agent.sh) | running since 00:04 |
+| ENG-R1a `Hub` on the pattern | Opus 5.5 (scripts/agent.sh) | running since 02:14 |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-CBT-02f's audits and review; ENG-R1's brief (D-167) (cost, quality) and
-review; then ENG-R1's brief (D-167), its first lot shown to the owner.
+ENG-R1a's audits (quality, cost and security) and Codex review, then the owner's reading (D-167)
+before ENG-R1b is briefed. ENG-05 and ENG-02 when `hexx` rc.1 lands; ENG-07 after ENG-05.
 
 ## Decisions needed
 
