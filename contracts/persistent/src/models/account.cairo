@@ -78,8 +78,8 @@ pub const START_SLOTS: u8 = 3;
 
 /// `account_adventurers` is a compact list of adventurer ids, seven per page (`Lanes32`), its
 /// length `AccountRecord.adventurers`: an append writes lane `n % 7` of page `n / 7`; a removal
-/// moves the last id into the hole and clears the last lane (`HubStore::add_adventurer_id`,
-/// `HubStore::remove_adventurer_id`). A page once written keeps `LIVE`.
+/// moves the last id into the hole and clears the last lane (`HubStoreTrait::add_adventurer_id`,
+/// `HubStoreTrait::remove_adventurer_id`). A page once written keeps `LIVE`.
 pub const IDS_PER_PAGE: u8 = 7;
 
 /// The refusals of accounts (ENG-04).
@@ -99,47 +99,6 @@ pub mod errors {
     /// The swap removal did not meet the adventurer in its account's list: an invariant, not a
     /// player's refusal (the ownership check comes first).
     pub const NOT_LISTED: felt252 = 'not in the account list';
-}
-
-/// `AccountRecord` as stored, one word: the paths read its two counts and change one by an
-/// addition, where the packer decodes and encodes five fields (about 20,000 and 18,000 l2 gas,
-/// measured in ENG-R1a). Each method is pinned against the packer in the tests (the oracle,
-/// docs/CAIRO.md §2). Only the store reads and writes it.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-pub struct StoredRecord {
-    pub word: felt252,
-}
-
-/// The stored `AccountRecord` of a new account: `START_SLOTS` slots, nothing else, `LIVE`.
-const NEW_RECORD: felt252 = 0x400000000000000000000000000000000000000000000000000000000000003;
-/// One more adventurer, added to a stored `AccountRecord` (its field at bit 8).
-const ONE_ADVENTURER: felt252 = 0x100;
-
-#[generate_trait]
-pub impl StoredRecordImpl of StoredRecordTrait {
-    /// The record of a new account.
-    #[inline(always)]
-    fn new() -> StoredRecord {
-        StoredRecord { word: NEW_RECORD }
-    }
-
-    /// `(slots, adventurers)`, without decoding the other fields.
-    fn counts(self: @StoredRecord) -> (u8, u8) {
-        let (low, _) = split(*self.word);
-        (low_field(low, P8.try_into().unwrap()).try_into().unwrap(), byte_at(low, P8))
-    }
-
-    /// One adventurer more (fewer than its slots ≤ 255: `AccountAssert::assert_free_slot`).
-    #[inline(always)]
-    fn with_adventurer(self: StoredRecord) -> StoredRecord {
-        StoredRecord { word: self.word + ONE_ADVENTURER }
-    }
-
-    /// One adventurer less (it has at least one).
-    #[inline(always)]
-    fn without_adventurer(self: StoredRecord) -> StoredRecord {
-        StoredRecord { word: self.word - ONE_ADVENTURER }
-    }
 }
 
 #[generate_trait]
@@ -194,27 +153,18 @@ pub impl AdventurerListAssert of AdventurerListAssertTrait {
 mod tests {
     use starknet::storage_access::StorePacking;
     use super::{
-        Account, AccountRecord, AdventurerListAssert, AdventurerListTrait, OwnerTrait, START_SLOTS,
-        StoredRecord, StoredRecordTrait, VAULT,
+        Account, AccountRecord, AdventurerListAssert, AdventurerListTrait, OwnerTrait, VAULT,
     };
 
-    // The stored record of a new account, its counts, one adventurer more or less, against the
-    // packer.
+    // The record's round trip through its packer, and the account's two slots.
     #[test]
-    #[available_gas(l2_gas: 121244)] // ceil(1.05 × 115470 measured)
-    fn test_record_words() {
-        let new = AccountRecord { slots: START_SLOTS, ..Default::default() };
-        assert(StoredRecordTrait::new().word == StorePacking::pack(new), 'new');
-        let more = AccountRecord {
+    #[available_gas(l2_gas: 55755)] // ceil(1.05 × 53100 measured)
+    fn test_account_layout() {
+        let record = AccountRecord {
             slots: 9, adventurers: 5, highest_rank: 4, vault_panes: 2, lots: 7,
         };
-        let stored = StoredRecord { word: StorePacking::pack(more) };
-        assert(stored.counts() == (9, 5), 'slots and count');
-        let one_more = AccountRecord { adventurers: 6, ..more };
-        assert(stored.with_adventurer().word == StorePacking::pack(one_more), 'one more');
-        let one_less = AccountRecord { adventurers: 4, ..more };
-        assert(stored.without_adventurer().word == StorePacking::pack(one_less), 'one less');
-        assert(StorePacking::<AccountRecord, felt252>::unpack(stored.word) == more, 'record trip');
+        let word: felt252 = StorePacking::pack(record);
+        assert(StorePacking::<AccountRecord, felt252>::unpack(word) == record, 'record trip');
         assert(starknet::Store::<Account>::size() == 2, 'account: 2 slots');
     }
 

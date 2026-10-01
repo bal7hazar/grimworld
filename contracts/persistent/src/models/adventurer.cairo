@@ -9,8 +9,8 @@ use grimworld_logic::models::gate::errors as gate_errors;
 use grimworld_logic::models::item::{ItemTrait, class as item_class};
 use grimworld_logic::models::skill::SkillTrait;
 use grimworld_logic::packing::{
-    Bitmap, LIVE, Lanes32, P104, P112, P12, P120, P16, P24, P32, P36, P4, P40, P48, P56, P64, P8,
-    P80, P96, byte_at, field, fits, join, low_field, split, u16_at, u32_at,
+    Bitmap, Lanes32, P104, P112, P120, P16, P24, P32, P40, P48, P56, P64, P8, P80, P96, byte_at,
+    field, fits, join, low_field, split, u16_at, u32_at,
 };
 use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::Loadout;
@@ -44,21 +44,9 @@ pub mod errors {
     pub const WEARS_EQUIPMENT: felt252 = 'wears equipment';
     pub const PACK_HOLDS_GOLD: felt252 = 'pack holds gold';
     // Places (ENG-06).
-    /// `AdventurerPlace.unlocked` holds hub ids below 64.
-    pub const HUB_ABOVE_63: felt252 = 'hub above 63';
-    /// Map travel to a hub not unlocked (design/01 *Connectivity*).
-    pub const NOT_UNLOCKED: felt252 = 'hub not unlocked';
     /// Region 1 is not in the registry: no start hub (D-144).
     pub const NO_START_REGION: felt252 = 'no start region';
-    /// A report for an adventurer not inside that instance.
-    pub const NOT_ITS_INSTANCE: felt252 = 'not its instance';
-    /// Experience past a `u32`.
-    pub const EXPERIENCE_OVERFLOW: felt252 = 'experience overflow';
     // `set_build` (design/03, design/15; ENG-01 §4.3): one refusal per rule.
-    /// A bit outside the fields of `Build`, `belt` or `equipped` (they come without `LIVE`).
-    pub const BUILD_LAYOUT: felt252 = 'build: layout';
-    pub const BELT_LAYOUT: felt252 = 'belt: layout';
-    pub const EQUIPPED_LAYOUT: felt252 = 'equipped: layout';
     /// The bar: the same skill twice.
     pub const DUPLICATE_SKILL: felt252 = 'build: duplicate skill';
     pub const SKILL_NOT_KNOWN: felt252 = 'build: skill not known';
@@ -264,15 +252,6 @@ pub impl BuildImpl of BuildTrait {
 
 #[generate_trait]
 pub impl BuildAssert of BuildAssertTrait {
-    /// The stored word of a `Build` sent without `LIVE` (ENG-01 §4.3); a bit outside its fields
-    /// (164-167, 176 and up) is refused.
-    fn assert_layout(build: felt252) -> felt252 {
-        let (_, high) = BitTrait::limbs(build);
-        let (above, _) = DivRem::div_rem(high, P36.try_into().unwrap());
-        assert(above < P12 && above % P4 == 0, errors::BUILD_LAYOUT);
-        build + LIVE
-    }
-
     /// design/03 *Attributes*: each rank at most 12, a rank only in an index its professions have,
     /// the points spent within what the level and the rank give. Bound: the nine indices.
     fn assert_attributes(self: @Build, primary: u8, secondary: u8, level: u8, rank: u8) {
@@ -379,13 +358,6 @@ pub impl KnownSkillsImpl of KnownSkillsTrait {
 
 #[generate_trait]
 pub impl BeltAssert of BeltAssertTrait {
-    /// The stored word of a belt sent without `LIVE`: lanes 5 and 6 are empty (ENG-01 §3.3).
-    fn assert_layout(belt: felt252) -> felt252 {
-        let (_, high) = BitTrait::limbs(belt);
-        assert(high < P32, errors::BELT_LAYOUT);
-        belt + LIVE
-    }
-
     /// A slot carrying a count names an item (ENG-01 §4.5: 4 slots, ≤ 255 each).
     fn assert_counts(items: [u32; 4], counts: [u8; 4]) {
         let items = items.span();
@@ -421,13 +393,6 @@ pub impl BeltAssert of BeltAssertTrait {
 /// §3.3).
 #[generate_trait]
 pub impl EquippedAssert of EquippedAssertTrait {
-    /// The stored word of `equipped` sent without `LIVE`: nothing above lane 6.
-    fn assert_layout(equipped: felt252) -> felt252 {
-        let (_, high) = BitTrait::limbs(equipped);
-        assert(high < P96, errors::EQUIPPED_LAYOUT);
-        equipped + LIVE
-    }
-
     /// No entity in two slots. Bound: 7 lanes, 21 pairs.
     fn assert_distinct(entities: Span<u32>) {
         for i in 1..7_u32 {
@@ -453,9 +418,9 @@ pub impl EquippedAssert of EquippedAssertTrait {
         assert(!two_handed || off_hand == 0, errors::TWO_HANDS);
     }
 
-    /// The items worn (`HubStore::get_equipment`), in lane order: each wearable by the adventurer
-    /// and in its lane's slot; then no off-hand (`entities`' lane 1) beside a weapon held in both
-    /// hands.
+    /// The items worn (`HubStoreTrait::get_equipment`), in lane order: each wearable by the
+    /// adventurer and in its lane's slot; then no off-hand (`entities`' lane 1) beside a weapon
+    /// held in both hands.
     fn assert_worn(equipment: @Equipment, adventurer_id: u32, entities: Span<u32>) {
         let mut two_handed = false;
         for (lane, item) in equipment.bases.span() {
@@ -505,37 +470,14 @@ pub impl AdventurerAssert of AdventurerAssertTrait {
         assert(*gold.amount == 0, errors::PACK_HOLDS_GOLD);
     }
 
-    /// Map travel goes to an unlocked hub (design/01 *Connectivity*).
-    fn assert_unlocked(place: @StoredPlace, hub: u16) {
-        assert(place.is_unlocked(hub), errors::NOT_UNLOCKED);
-    }
-
     /// `enter`: the gate is in the registry (`Registry.bundle` returns its parts zero otherwise).
     fn assert_gate(exists: bool) {
         assert(exists, gate_errors::NONE);
     }
 
-    /// Experience stays within a `u32` (`StoredCoreTrait::with_experience`).
-    fn assert_experience(experience: u32, amount: u32) {
-        let total: u64 = experience.into() + amount.into();
-        assert(total <= 0xFFFFFFFF, errors::EXPERIENCE_OVERFLOW);
-    }
-
-    /// The refusal of a hub id of 64 or more (`AdventurerPlace.unlocked` holds bits 0-63): the
-    /// last arm of `StoredPlaceTrait::bit`, which never returns.
-    fn hub_above_63() -> core::never {
-        core::panic_with_felt252(errors::HUB_ABOVE_63)
-    }
-
     /// D-144: the start hub is region 1's town, read from the registry.
     fn assert_start_region(exists: bool) {
         assert(exists, errors::NO_START_REGION);
-    }
-
-    /// A report is about the instance its first contributor is inside (ENG-01 §6).
-    fn assert_in_instance(place: @StoredPlace, instance: u64) {
-        let (current, _, _, inside) = place.fields();
-        assert(inside && current == instance, errors::NOT_ITS_INSTANCE);
     }
 }
 

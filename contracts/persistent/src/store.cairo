@@ -2,7 +2,7 @@
 //! access to the persistent package's storage, `get_x` and `set_x` per model, and focused reads and
 //! writes where a path needs less than the model.
 //!
-//! **`Hub`'s store is `HubStore`**, implemented on `Hub`'s contract state: a call is
+//! **`Hub`'s store is `HubStoreTrait`**, implemented on `Hub`'s contract state: a call is
 //! `self.get_core(adventurer_id)` inside the contract, with nothing built and nothing looked up at
 //! run time, as `quiver_quest`'s store is implemented on its component's state. Every storage
 //! variable of `Hub` (ENG-01 §3.3) is read and written here, and nowhere else; `Hub`'s systems
@@ -11,15 +11,16 @@
 //! **Models and stored words.** A model whose paths need all of it is read and written through
 //! its `StorePacking` (the configuration, the counters, gold, items, the snapshot, the rules
 //! epoch, known skills, the account list's pages when read). The hot words that a path reads a few
-//! fields of, or changes one field of, are read and written as **stored models** (`StoredCore`,
-//! `StoredPlace`, `StoredRecord`, `StoredBuild`): the word as stored, typed, its fields read and
-//! changed by the arithmetic their models pin against the packers (ENG-04's audit F-5: "preserving
-//! packed arithmetic where justified"; the measured costs are in `models::adventurer`). The pages
-//! of `Lanes32` changed or checked a lane at a time (the account list on write, the balances, the
-//! pack's equipment page, what an adventurer wears, its belt) are read and written as
-//! `StoredLanes` (`models::lanes`): the store holds no arithmetic, only reads, writes and the
-//! order of them. A slot never written reads 0 as a stored word, which the views return as such
-//! (`IHubViews::account`, `IHubViews::adventurer`, frozen by ENG-01).
+//! fields of, or changes one field of, are read and written as **stored models**, one file each
+//! (`models::stored_core`, `stored_place`, `stored_record`, `stored_build`): the word as stored,
+//! typed, its fields read and changed by the arithmetic the stored model pins against the model's
+//! packer (ENG-04's audit F-5: "preserving packed arithmetic where justified"; each file's doc
+//! gives the packer's measured cost). The pages of `Lanes32` changed or checked a lane at a time
+//! (the account list on write, the balances, the pack's equipment page, what an adventurer wears,
+//! its belt) are read and written as `StoredLanes` (`models::lanes`). The store holds no word
+//! arithmetic, only reads, writes, their order and loop bookkeeping. A slot never written reads 0
+//! as a stored word, which the views return as such (`IHubViews::account`, `IHubViews::adventurer`,
+//! frozen by ENG-01).
 //!
 //! **Tracking** (docs/CAIRO.md §7, D-147, D-149): **no model of `Hub` is tracked, so no `set_x`
 //! here emits**. The indexer reads ENG-01's events, frozen (D-149), and none of them matches the
@@ -48,7 +49,7 @@ use starknet::storage::{
 };
 use starknet::storage_access::{StorageBaseAddress, Store};
 use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
-use crate::models::account::{AdventurerListAssert, AdventurerListTrait, StoredRecord};
+use crate::models::account::{AdventurerListAssert, AdventurerListTrait};
 use crate::models::adventurer::{KnownSkillsTrait, WORDS};
 use crate::models::balance::BalanceTrait;
 use crate::models::item::{Equipment, EquipmentTrait, Gold};
@@ -58,6 +59,7 @@ use crate::models::snapshot::StoredSnapshot;
 use crate::models::stored_build::StoredBuild;
 use crate::models::stored_core::StoredCore;
 use crate::models::stored_place::StoredPlace;
+use crate::models::stored_record::StoredRecord;
 use crate::models::versions::Versions;
 use crate::systems::hub::Hub::ContractState as HubState;
 
@@ -695,12 +697,12 @@ mod tests {
     use grimworld_logic::packing::{LIVE, Lanes32};
     use starknet::storage::{StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::storage_access::StorePacking;
-    use crate::models::account::StoredRecordTrait;
     use crate::models::adventurer::{
         Adventurer, AdventurerCore, AdventurerPlace, AdventurerTrait, Build,
     };
     use crate::models::lanes::StoredLanesTrait;
     use crate::models::stored_build::StoredBuildTrait;
+    use crate::models::stored_record::StoredRecordTrait;
     use crate::systems::hub::Hub;
     use super::HubStoreTrait;
 

@@ -221,7 +221,8 @@ pub struct Item {
 /// one's lane and `ItemBase`, for the equipment's checks; each as the flattening reads it (`Worn`,
 /// with its `ItemMods`); the distinct modifier ids they hold, in the order met; whether the weapon
 /// is personalised (`ItemBase.flags`). Filled one item at a time as the store reads them
-/// (`HubStore::get_equipment`), so that no item is copied. Bound: 7 lanes, 5 modifiers an item.
+/// (`HubStoreTrait::get_equipment`), so that no item is copied. Bound: 7 lanes, 5 modifiers an
+/// item.
 #[derive(Drop)]
 pub struct Equipment {
     pub bases: Array<(u32, ItemBase)>,

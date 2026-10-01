@@ -2,11 +2,12 @@
 //! equipment worn (`models::lanes::StoredLanes`), as the caller sends them with `LIVE` added, each
 //! checked for its layout, and written as they are, without a packer: decoding and encoding them
 //! would cost what the check already did. Only the store writes it
-//! (`HubStore::set_adventurer_build`).
+//! (`HubStoreTrait::set_adventurer_build`).
 
-use grimworld_logic::packing::Lanes32;
+use grimworld_logic::packing::{LIVE, Lanes32, P12, P32, P36, P4, P96};
 use starknet::storage_access::StorePacking;
-use super::adventurer::{BeltAssert, BeltTrait, Build, BuildAssert, EquippedAssert};
+use crate::helpers::BitTrait;
+use super::adventurer::{BeltTrait, Build};
 use super::lanes::{StoredLanes, StoredLanesTrait};
 
 /// The three words `set_build` writes, as sent with `LIVE` added, each checked for its layout
@@ -25,13 +26,13 @@ pub const NEW_BUILD: felt252 = 0x4000000000000000000ff00000000000000000000000000
 #[generate_trait]
 pub impl StoredBuildImpl of StoredBuildTrait {
     /// The words `set_build` received, each checked for its layout in this order: the build, the
-    /// belt, the equipment (`BuildAssert`, `BeltAssert`, `EquippedAssert::assert_layout`).
+    /// belt, the equipment (`StoredBuildAssert`).
     #[inline(always)]
     fn new(build: felt252, belt: felt252, equipped: felt252) -> StoredBuild {
         StoredBuild {
-            build: BuildAssert::assert_layout(build),
-            belt: StoredLanes { word: BeltAssert::assert_layout(belt) },
-            equipped: StoredLanes { word: EquippedAssert::assert_layout(equipped) },
+            build: StoredBuildAssert::assert_build_layout(build),
+            belt: StoredLanes { word: StoredBuildAssert::assert_belt_layout(belt) },
+            equipped: StoredLanes { word: StoredBuildAssert::assert_equipped_layout(equipped) },
         }
     }
 
@@ -51,6 +52,40 @@ pub impl StoredBuildImpl of StoredBuildTrait {
     #[inline(always)]
     fn equipped(self: @StoredBuild) -> Lanes32 {
         self.equipped.decoded()
+    }
+}
+
+pub mod errors {
+    /// A bit outside the fields of `Build`, `belt` or `equipped` (they come without `LIVE`).
+    pub const BUILD_LAYOUT: felt252 = 'build: layout';
+    pub const BELT_LAYOUT: felt252 = 'belt: layout';
+    pub const EQUIPPED_LAYOUT: felt252 = 'equipped: layout';
+}
+
+/// The layouts of the words `set_build` receives (ENG-01 §3.3, §4.3), each returned as stored.
+#[generate_trait]
+pub impl StoredBuildAssert of StoredBuildAssertTrait {
+    /// The word of a `Build` sent without `LIVE`; a bit outside its fields (164-167, 176 and up)
+    /// is refused.
+    fn assert_build_layout(build: felt252) -> felt252 {
+        let (_, high) = BitTrait::limbs(build);
+        let (above, _) = DivRem::div_rem(high, P36.try_into().unwrap());
+        assert(above < P12 && above % P4 == 0, errors::BUILD_LAYOUT);
+        build + LIVE
+    }
+
+    /// The word of a belt sent without `LIVE`: lanes 5 and 6 are empty.
+    fn assert_belt_layout(belt: felt252) -> felt252 {
+        let (_, high) = BitTrait::limbs(belt);
+        assert(high < P32, errors::BELT_LAYOUT);
+        belt + LIVE
+    }
+
+    /// The word of `equipped` sent without `LIVE`: nothing above lane 6.
+    fn assert_equipped_layout(equipped: felt252) -> felt252 {
+        let (_, high) = BitTrait::limbs(equipped);
+        assert(high < P96, errors::EQUIPPED_LAYOUT);
+        equipped + LIVE
     }
 }
 

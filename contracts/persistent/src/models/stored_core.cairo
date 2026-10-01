@@ -3,12 +3,11 @@
 //! the word by arithmetic, where the packer decodes and encodes every field (measured in ENG-R1a,
 //! l2 gas: 42,000 to unpack and 41,000 to pack; a field read is one or two divisions, a change one
 //! addition). The model and its packer stay the layout and the oracle: each method is pinned
-//! against the packer in the tests. Only the store reads and writes it (`HubStore::get_core`).
+//! against the packer in the tests. Only the store reads and writes it (`HubStoreTrait::get_core`).
 
 use grimworld_logic::packing::{
     LIVE, P104, P112, P120, P32, P48, P56, P96, byte_at, low_field, split, u16_at, u32_at,
 };
-use super::adventurer::AdventurerAssert;
 
 /// `AdventurerCore` as stored, one word.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -75,8 +74,22 @@ pub impl StoredCoreImpl of StoredCoreTrait {
     /// report).
     fn with_experience(self: StoredCore, amount: u32) -> StoredCore {
         let (experience, _, _, _) = self.profile();
-        AdventurerAssert::assert_experience(experience, amount);
+        StoredCoreAssert::assert_experience(experience, amount);
         StoredCore { word: self.word + amount.into() * EXPERIENCE_UNIT }
+    }
+}
+
+pub mod errors {
+    /// Experience past a `u32`.
+    pub const EXPERIENCE_OVERFLOW: felt252 = 'experience overflow';
+}
+
+#[generate_trait]
+pub impl StoredCoreAssert of StoredCoreAssertTrait {
+    /// Experience stays within a `u32` (`StoredCoreTrait::with_experience`).
+    fn assert_experience(experience: u32, amount: u32) {
+        let total: u64 = experience.into() + amount.into();
+        assert(total <= 0xFFFFFFFF, errors::EXPERIENCE_OVERFLOW);
     }
 }
 

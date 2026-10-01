@@ -3,10 +3,9 @@
 //! unlocking one change it by arithmetic, where the packer decodes and encodes every field
 //! (measured in ENG-R1a, l2 gas: 18,000 to unpack and 15,000 to pack). The model and its packer
 //! stay the layout and the oracle: each method is pinned against the packer in the tests. Only the
-//! store reads and writes it (`HubStore::get_place`).
+//! store reads and writes it (`HubStoreTrait::get_place`).
 
 use grimworld_logic::packing::{P64, P80, P96, byte_at, join, low_field, split, u16_at};
-use super::adventurer::AdventurerAssert;
 
 /// `AdventurerPlace` as stored, one word.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -158,8 +157,37 @@ pub impl StoredPlaceImpl of StoredPlaceTrait {
             61 => 0x2000000000000000,
             62 => 0x4000000000000000,
             63 => 0x8000000000000000,
-            _ => AdventurerAssert::hub_above_63(),
+            _ => StoredPlaceAssert::hub_above_63(),
         }
+    }
+}
+
+pub mod errors {
+    /// `AdventurerPlace.unlocked` holds hub ids below 64.
+    pub const HUB_ABOVE_63: felt252 = 'hub above 63';
+    /// Map travel to a hub not unlocked (design/01 *Connectivity*).
+    pub const NOT_UNLOCKED: felt252 = 'hub not unlocked';
+    /// A report for an adventurer not inside that instance.
+    pub const NOT_ITS_INSTANCE: felt252 = 'not its instance';
+}
+
+#[generate_trait]
+pub impl StoredPlaceAssert of StoredPlaceAssertTrait {
+    /// Map travel goes to an unlocked hub (design/01 *Connectivity*).
+    fn assert_unlocked(self: @StoredPlace, hub: u16) {
+        assert(self.is_unlocked(hub), errors::NOT_UNLOCKED);
+    }
+
+    /// A report is about the instance its first contributor is inside (ENG-01 §6).
+    fn assert_in_instance(self: @StoredPlace, instance: u64) {
+        let (current, _, _, inside) = self.fields();
+        assert(inside && current == instance, errors::NOT_ITS_INSTANCE);
+    }
+
+    /// The refusal of a hub id of 64 or more (`AdventurerPlace.unlocked` holds bits 0-63): the
+    /// last arm of `StoredPlaceTrait::bit`, which never returns.
+    fn hub_above_63() -> core::never {
+        core::panic_with_felt252(errors::HUB_ABOVE_63)
     }
 }
 

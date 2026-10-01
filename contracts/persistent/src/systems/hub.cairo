@@ -200,7 +200,7 @@ pub mod Hub {
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
-    use crate::models::account::{Account, AccountAssert, OwnerTrait, StoredRecordTrait};
+    use crate::models::account::{Account, AccountAssert, OwnerTrait};
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
         BuildTrait, EquippedAssert,
@@ -213,14 +213,15 @@ pub mod Hub {
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
     use crate::models::stored_build::StoredBuildTrait;
     use crate::models::stored_core::{StoredCore, StoredCoreTrait};
-    use crate::models::stored_place::{StoredPlace, StoredPlaceTrait};
+    use crate::models::stored_place::{StoredPlace, StoredPlaceAssert, StoredPlaceTrait};
+    use crate::models::stored_record::StoredRecordTrait;
     use crate::store::HubStoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
     use super::{HubAssert, NOT_IMPLEMENTED, START_REGION, VERSION};
 
     /// docs/architecture/ENG-01-interfaces.md, *Hub storage*. quiver's components (quests,
     /// achievements) add their own storage when ARC's packages are embedded. Read and written only
-    /// through the store (`crate::store::HubStore`).
+    /// through the store (`crate::store::HubStoreTrait`).
     #[storage]
     pub struct Storage {
         pub admin: ContractAddress,
@@ -499,7 +500,7 @@ pub mod Hub {
         /// Writes `place`; no registry read (ENG-01 §10: 0 calls).
         fn travel(ref self: ContractState, adventurer_id: u32, hub: u16) {
             let (_, _, place) = self.owned_in_hub(adventurer_id);
-            AdventurerAssert::assert_unlocked(@place, hub);
+            place.assert_unlocked(hub);
             self.set_place(adventurer_id, place.located(hub));
             self.emit(AdventurerLocated { hub, adventurer: adventurer_id });
         }
@@ -642,7 +643,7 @@ pub mod Hub {
             results.assert_settled();
             let adventurer_id = *results.contributors[0];
             let place = self.get_place(adventurer_id);
-            AdventurerAssert::assert_in_instance(@place, results.instance_id);
+            place.assert_in_instance(results.instance_id);
 
             let belt = if results.closes() {
                 let (items, _) = BeltTrait::read(@self.get_belt(adventurer_id));

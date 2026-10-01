@@ -25,10 +25,9 @@ use grimworld_logic::types::combat::damage;
 use grimworld_logic::types::passive::{Passive, PassiveTrait, id as passive_id};
 use grimworld_persistent::models::account::{OwnerTrait, PACK, VAULT};
 use grimworld_persistent::models::adventurer::errors::{
-    ADVENTURER_DELETED, BELT_LAYOUT, BELT_NOT_IN_PACK, BUILD_LAYOUT, COUNT_WITHOUT_ITEM,
-    DUPLICATE_ITEM, DUPLICATE_SKILL, ELITE_SLOT, EQUIPPED_LAYOUT, NOT_A_POTION, NOT_IN_HUB,
-    NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_SKILL, POINTS, RANK_ABOVE_12, SKILL_NOT_KNOWN,
-    SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
+    ADVENTURER_DELETED, BELT_NOT_IN_PACK, COUNT_WITHOUT_ITEM, DUPLICATE_ITEM, DUPLICATE_SKILL,
+    ELITE_SLOT, NOT_A_POTION, NOT_IN_HUB, NOT_OWNER, NO_ADVENTURER, NO_ATTRIBUTE, NO_SKILL, POINTS,
+    RANK_ABOVE_12, SKILL_NOT_KNOWN, SKILL_PROFESSION, TWO_ELITES, TWO_HANDS, WRONG_SLOT,
 };
 use grimworld_persistent::models::adventurer::{AdventurerCore, Build, BuildTrait, NO_ELITE};
 use grimworld_persistent::models::item::errors::{A_COMPONENT, NOT_IN_PACK, UNIDENTIFIED};
@@ -36,6 +35,9 @@ use grimworld_persistent::models::item::{
     COMPONENT, IDENTIFIED, ItemBaseTrait, ItemMods, ItemModsTrait, Modifier,
 };
 use grimworld_persistent::models::snapshot::StoredSnapshotTrait;
+use grimworld_persistent::models::stored_build::errors::{
+    BELT_LAYOUT, BUILD_LAYOUT, EQUIPPED_LAYOUT,
+};
 use grimworld_persistent::systems::hub::{
     IHubAdminDispatcher, IHubAdminDispatcherTrait, IHubDispatcher, IHubDispatcherTrait,
     IHubSafeDispatcher, IHubSafeDispatcherTrait,

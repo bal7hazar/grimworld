@@ -23,5 +23,7 @@ pub mod stored_build;
 pub mod stored_core;
 /// An adventurer's place, as stored.
 pub mod stored_place;
+/// An account's record, as stored.
+pub mod stored_record;
 /// The registry's content and inputs versions (D-141, D-169).
 pub mod versions;
