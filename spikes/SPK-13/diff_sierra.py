@@ -42,7 +42,7 @@ def parse(lines):
         if m:
             libfuncs[m[1]] = m[2]
             continue
-        m = re.match(r"^(\S+)@(F\d+)\((.*)$", line)
+        m = re.match(r"^(.+?)@(F\d+)\((.*)$", line)
         if m:
             funcs.append((m[1], m[2], m[3]))
             continue

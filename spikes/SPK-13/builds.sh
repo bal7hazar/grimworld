@@ -5,13 +5,14 @@
 # worktree. Heavy builds go through scripts/lock.sh when `flock` exists (the VPS); on a machine
 # without it (macOS) Scarb runs directly and the environment block says so.
 #
-#   spikes/SPK-13/builds.sh [--target consumer|hexx|contracts|minimal|all] [--n N]
+#   spikes/SPK-13/builds.sh [--target consumer|consumer-dev|hexx|contracts|minimal|all] [--n N]
 #                           [--series clean,fresh-cache,one-thread] [--threads T]
 #                           [--from K] [--out DIR] [--library-commit C]
 #
 # Targets (the library is cloned by fetch-library.sh into the spike's ignored .work/):
-#   consumer   the library's crates/consumer, `build --release -p consumer` (what the library's
+#   consumer   the library's crates/consumer, `build -p consumer` in the release profile (what the library's
 #              scripts/bytecode_size.py measures: HexxGenerators and eight more classes)
+#   consumer-dev  the same in the dev profile, `build -p consumer` (its classes carry debug names)
 #   hexx       the library's crates/hexx tests, `build --test -p hexx` (the compiled test files of
 #              snforge: ~4 minutes and a 228 MB file per build on the Mac)
 #   contracts  the game's contracts/ at this branch's base commit, `build --workspace` then
@@ -26,7 +27,7 @@
 # environment gives; scripts/lock.sh defaults it to 4, rayon itself to the number of CPUs).
 #
 # Output, under --out (default spikes/SPK-13/.work/out): rows.tsv (one row per artefact and
-# build, appended across runs), env.txt, kept/ (one copy of every distinct file of an artefact),
+# build, appended across runs), env.txt, kept/ (one copy of every distinct program of an artefact),
 # builds.txt (the table of every run so far: commit it as builds-<machine>.txt).
 set -euo pipefail
 
@@ -37,7 +38,7 @@ rel_here=spikes/SPK-13
 
 target=all n=10 from=1 series=clean,fresh-cache,one-thread threads="" out="$rel_here/.work/out"
 library_commit=310b5f1
-usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --target) target=$2; shift 2 ;;
@@ -80,7 +81,7 @@ need_library() {
 # target -> manifest, profile dir, build commands (one per line)
 manifest_of() {
   case "$1" in
-    consumer | hexx) echo "$library/Scarb.toml" ;;
+    consumer | consumer-dev | hexx) echo "$library/Scarb.toml" ;;
     contracts) echo contracts/Scarb.toml ;;
     minimal) echo "$rel_here/minimal/Scarb.toml" ;;
     *) echo "builds.sh: unknown target $1" >&2; exit 2 ;;
@@ -89,7 +90,7 @@ manifest_of() {
 profile_dir_of() {
   case "$1" in
     consumer) echo "$library/target/release" ;;
-    hexx) echo "$library/target/dev" ;;
+    consumer-dev | hexx) echo "$library/target/dev" ;;
     contracts) echo contracts/target/dev ;;
     minimal) echo "$rel_here/minimal/target/dev" ;;
   esac
@@ -99,6 +100,7 @@ build_target() { # target manifest
     # The release profile through Scarb's variable: `--release` is a global option, which
     # scripts/lock.sh does not let sit before the subcommand.
     consumer) SCARB_PROFILE=release scarb_run "$2" build -p consumer ;;
+    consumer-dev) scarb_run "$2" build -p consumer ;;
     hexx) scarb_run "$2" build --test -p hexx ;;
     contracts) scarb_run "$2" build --workspace && scarb_run "$2" build --test --workspace ;;
     minimal) scarb_run "$2" build ;;
@@ -144,7 +146,7 @@ target_env() { # target manifest
     echo
     echo '```'
     case "$1" in
-      consumer | hexx) echo "library: bal7hazar/hexx-cairo at $(git -C "$library" rev-parse HEAD)" ;;
+      consumer | consumer-dev | hexx) echo "library: bal7hazar/hexx-cairo at $(git -C "$library" rev-parse HEAD)" ;;
       contracts)
         base=$(git merge-base HEAD origin/main)
         if git diff --quiet "$base" -- contracts; then same=identical; else same=DIFFERENT; fi
@@ -161,7 +163,7 @@ write_env
 IFS=, read -r -a targets <<< "$target"
 IFS=, read -r -a serieses <<< "$series"
 for t in "${targets[@]}"; do
-  case "$t" in consumer | hexx) need_library ;; esac
+  case "$t" in consumer | consumer-dev | hexx) need_library ;; esac
   manifest=$(manifest_of "$t")
   target_env "$t" "$manifest"
   for s in "${serieses[@]}"; do

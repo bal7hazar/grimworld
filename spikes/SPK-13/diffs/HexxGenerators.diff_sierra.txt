@@ -1,0 +1,19 @@
+A = spikes/SPK-13/.work/out-mac/kept/consumer/consumer_HexxGenerators.fe1ab6dfc90f/consumer_HexxGenerators.contract_class.json: 44449 statements, 98 functions
+
+B = spikes/SPK-13/.work/out-mac/kept/consumer/consumer_HexxGenerators.43f67862c161/consumer_HexxGenerators.contract_class.json: 44469 statements, 98 functions
+  types: equal sets
+  libfuncs: equal sets
+  function declarations (names, signatures, order): equal
+  function [71]:
+    A {'statements': 791, 'withdraw_gas': 0, 'first_withdraw_gas_at': None, 'calls': ['[37]', '[48]']}
+    B {'statements': 811, 'withdraw_gas': 1, 'first_withdraw_gas_at': 3, 'calls': ['[12]', '[37]', '[48]']}
+  CASM: A 49375 felts, B 49375 felts, 18475 felts differ
+
+B = spikes/SPK-13/.work/out-mac/kept/consumer/consumer_HexxGenerators.6c62b19bd60b/consumer_HexxGenerators.contract_class.json: 44468 statements, 98 functions
+  types: equal sets
+  libfuncs: equal sets
+  function declarations (names, signatures, order): equal
+  function [55]:
+    A {'statements': 1016, 'withdraw_gas': 0, 'first_withdraw_gas_at': None, 'calls': ['[66]', '[67]', '[71]']}
+    B {'statements': 1035, 'withdraw_gas': 1, 'first_withdraw_gas_at': 1, 'calls': ['[12]', '[66]', '[67]', '[71]']}
+  CASM: A 49375 felts, B 49427 felts, 30992 felts differ
