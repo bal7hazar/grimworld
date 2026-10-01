@@ -71,7 +71,9 @@ The Mac: aarch64-apple-darwin, 12 CPUs, Scarb 2.19.4 (b45b74c03), binary
 | | clean (8) | 10 | 9 | none: 27,092 in all 10 |
 | | one-thread | 10 | 9 | none: 27,092 in all 10, one file byte for byte |
 | library `consumer`, dev | clean (12) | 10 | 9 | `HexxGenerators`: 27,092 (5), 27,101 (5); same class hashes as release |
-| library `hexx`, tests | HEXX_ROWS |
+| library `hexx`, tests | clean (12) | 3 | 2 compiled test files | no program varied in 3 builds; a different file every build, one text (id numbers only) |
+| | fresh-cache (12) | 1 | 2 | the same text |
+| | one-thread | 1 | 2 | the same text |
 | game `contracts/` (build + test build) | clean (12) | 10 | 51: 10 classes, 33 test classes, 2 Sierra programs, 6 compiled test files | no program varied. The 8 Sierra programs and test files wrote a different file on every build with **one text**: only the numbers of the ids differ |
 | | fresh-cache (12) | 10 | 51 | the same |
 | | one-thread | 3 | 51 | the same (the id numbers of 6 files still differ, the texts do not) |
@@ -91,6 +93,11 @@ test file writes the compiler's numeric ids (`sierra-replace-ids` names the ids 
 numbers beside the names, and types and libfuncs carry no names in test files), so its sha256
 changes on almost every build even when the program is the same. On top of that, some builds
 really do change the program through the race above, and only those change gas.
+
+The hexx series is short (about 5.5 minutes and a 228 MB file per build; the 4-hour limit came
+first): 5 builds that agree as programs do not show that the hexx tests never vary. The race needs
+a cross-module cycle on the compiled path, and the library saw its gas drift through `Digger::dig`
+in `takeover_tests` and `hexx_integrationtest::readme::test_readme_open`.
 
 ## The diff
 
@@ -122,6 +129,11 @@ programs and their diff. Read with `diff_sierra.py`:
 only in which of the two carries `withdraw_gas`. With `RAYON_NUM_THREADS=1`, 10 builds out of 10
 gave one file. Its test (`tests/test_minimal.cairo`, l2 gas 34,220, budget 35,931) runs in CI;
 it lives in `tests/` so that `src/lib.cairo` stays the issue's program line for line.
+`minimal/reproduce.sh N [threads]` is the draft issue's reproduction (Python standard library
+only): per clean build, the file's sha256 and the function holding `withdraw_gas`. Its run for the
+draft: 12 builds at the default thread count gave the check in `ping` 5 times and in `pong` 7
+times, 12 distinct files; 6 builds with `RAYON_NUM_THREADS=1` gave one file (`12ec3e1650a18599…`),
+the check in `ping`.
 
 How it was reached, each step measured on the Mac at 12 threads:
 
@@ -224,7 +236,7 @@ outside this spike's allowlist):
 | `sierra-dump/` | Rust, the compiler's crates at 2.19.4: a class or a compiled Sierra program as text, with names |
 | `diff_sierra.py` | what differs between builds, function by function, and whether the CASM is equal |
 | `fetch-library.sh` | the library's clone at `310b5f1` in the ignored `.work/` |
-| `minimal/` | the minimal program (a Scarb package; its test runs in CI) |
+| `minimal/` | the minimal program (a Scarb package; its test runs in CI) and `reproduce.sh`, the issue's reproduction |
 | `builds-mac.txt` | the table on the Mac |
 | `diffs/` | the diffs of the kept Sierra programs |
 | `issue-draft.md` | the draft issue for `starkware-libs/cairo`, not filed |

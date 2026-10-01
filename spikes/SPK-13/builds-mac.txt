@@ -1,4 +1,4 @@
-## Environment: bal7hazar-mbp, 2026-10-01T14:19:19Z
+## Environment: bal7hazar-mbp, 2026-10-01T14:51:29Z
 
 ```
 uname -a: Darwin bal7hazar-mbp.home 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:18:48 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6020 arm64
@@ -12,10 +12,10 @@ scarb binary: ~/.asdf/installs/scarb/2.19.4/bin/scarb
 scarb binary sha256: e74277a0618b51fc706ed07ac5cdb4a6426cf4c2368e784db645a511817e63be
 scarb cache path (default): ~/Library/Caches/com.swmansion.scarb
 CPUs: 12
-RAYON_NUM_THREADS in the environment: unset; --threads of the last run: 8 (each row records its own threads)
+RAYON_NUM_THREADS in the environment: unset; --threads of the last run: none (each row records its own threads)
 build lock: none (no flock on this machine); scarb runs directly
 starkli: 0.4.2 (77ff6b3)
-spike commit: 4a76771
+spike commit: 3ec437d
 ```
 
 ### Target consumer-dev
@@ -255,8 +255,8 @@ One row per distinct text of an artefact in a series (`text sha256`: the program
 | minimal | clean | unset (rayon: 12 CPUs) | spk13_minimal | program | 11 | 11 | 90 | 1 | - | c550e947e2a1 | - | - |
 | minimal | clean | unset (rayon: 12 CPUs) | spk13_minimal | program | 9 | 9 | 90 | 1 | - | aaaa1965d1b6 | - | - |
 | minimal | one-thread | 1 | spk13_minimal | program | 10 | 1 | 90 | 1 | - | aaaa1965d1b6 | - | - |
-| hexx | clean | unset (rayon: 12 CPUs) | hexx_integrationtest.test | test | 1 | 1 | 196173 | 329 | - | f7ed79378ee9 | - | - |
-| hexx | clean | unset (rayon: 12 CPUs) | hexx_unittest.test | test | 1 | 1 | 1269305 | 2537 | - | 3d08ca5d6ed6 | - | - |
+| hexx | clean | unset (rayon: 12 CPUs) | hexx_integrationtest.test | test | 3 | 3 | 196173 | 329 | - | f7ed79378ee9 | - | - |
+| hexx | clean | unset (rayon: 12 CPUs) | hexx_unittest.test | test | 3 | 3 | 1269305 | 2537 | - | 3d08ca5d6ed6 | - | - |
 | consumer | clean | 4 | consumer_HexxMirror | class | 10 | 1 | 2212 | 27 | 6148 | 71667d91d45d | fa6f87609c4d | 0x07a222ec44a9 |
 | consumer | clean | 4 | consumer_HexxCut | class | 10 | 1 | 843 | 1 | 752 | 17cf34a2bc81 | 0904fda99634 | 0x04e5ef184404 |
 | consumer | clean | 4 | consumer_HexxAssembly | class | 10 | 1 | 2992 | 4 | 4967 | 7722dfc6f9b4 | 39b59a348a29 | 0x03f2705fb295 |
@@ -275,6 +275,10 @@ One row per distinct text of an artefact in a series (`text sha256`: the program
 | consumer | clean | 8 | consumer_HexxFlood | class | 10 | 1 | 6968 | 13 | 11630 | f5a26f7bf929 | 64048b748a6e | 0x046b8b882801 |
 | consumer | clean | 8 | consumer_HexxDial | class | 10 | 1 | 9789 | 25 | 21007 | b278e4adfbbd | 4ce10b1a69e8 | 0x06a1e28d446c |
 | consumer | clean | 8 | consumer_HexxSink | class | 10 | 1 | 24672 | 34 | 44469 | ef9c050d072e | 53b71f0665a7 | 0x0193c1948981 |
+| hexx | fresh-cache | unset (rayon: 12 CPUs) | hexx_integrationtest.test | test | 1 | 1 | 196173 | 329 | - | f7ed79378ee9 | - | - |
+| hexx | fresh-cache | unset (rayon: 12 CPUs) | hexx_unittest.test | test | 1 | 1 | 1269305 | 2537 | - | 3d08ca5d6ed6 | - | - |
+| hexx | one-thread | 1 | hexx_integrationtest.test | test | 1 | 1 | 196173 | 329 | - | f7ed79378ee9 | - | - |
+| hexx | one-thread | 1 | hexx_unittest.test | test | 1 | 1 | 1269305 | 2537 | - | 3d08ca5d6ed6 | - | - |
 
 ## Every build
 
@@ -2025,3 +2029,11 @@ One row per distinct text of an artefact in a series (`text sha256`: the program
 | consumer | clean | 30 | 8 | consumer_HexxFlood | class | 16e3387eef7bc3729775cd581d5fb89bff23dda2cf5a2d5f22a85c76dfa1e76f | f5a26f7bf9298696eaef7d8eeffee431a8b3669316f7776c043e630b724f288e | 6968 | 13 | 11630 | 64048b748a6e2f81e47d3383fd8f08e3e8777b5331357b5b40cdf8f4e62b4857 | 0x046b8b8828010ca10b56de7b59f978af9c6409d36f332c2ed2b93c2705aebf87 | starkli |
 | consumer | clean | 30 | 8 | consumer_HexxDial | class | a05097176273584bda3978d7b6b095c8c2b783a1893b8376202ccabfe77f992a | b278e4adfbbdd618578607077efe27df82ae5c2cb879806d565b7b19458eba28 | 9789 | 25 | 21007 | 4ce10b1a69e8eef2d0f62b3f99d52d8037df8eda7f666d0877d5df7f9a48a259 | 0x06a1e28d446c371b441fb6e5bce4ee42727616f9eaa88e1f658edf67ea3838f6 | starkli |
 | consumer | clean | 30 | 8 | consumer_HexxSink | class | 3fd5b2b735c096fbcd9dd7b158fdebc7624bc2fc9f680118d1eef91267a896ef | ef9c050d072ebe45ec7e2599e1dbf786fa83485afe676502b62fb71596c20a76 | 24672 | 34 | 44469 | 53b71f0665a7e80408daee32b8e2245c13e75cb18d49dba0231c59202ff03b72 | 0x0193c19489817df612cc59756fddf93f28f1f77e6ee58c4d7fe565de13878cbe | starkli |
+| hexx | clean | 2 | unset (rayon: 12 CPUs) | hexx_integrationtest.test | test | 015402237fc30ba9b542a3f3ecf3bf20ba65f1e8464c995995731f3f88a50aa2 | f7ed79378ee9bdb298ce3805820ae1bb5a56063e986b64a400206e8ddf2ce1dd | 196173 | 329 | - | - | - | - |
+| hexx | clean | 2 | unset (rayon: 12 CPUs) | hexx_unittest.test | test | 850c2a9fba442e5ffe69787061324fd62da887657b28b0bde45d220e357150cb | 3d08ca5d6ed6087fceaacb68a1370bfdb292dd04eb83becef5d3625f287aebba | 1269305 | 2537 | - | - | - | - |
+| hexx | clean | 3 | unset (rayon: 12 CPUs) | hexx_integrationtest.test | test | f8e6718a83ef3cb39ada044325d1efc9875db45fde9bb6b5aab456f449221d93 | f7ed79378ee9bdb298ce3805820ae1bb5a56063e986b64a400206e8ddf2ce1dd | 196173 | 329 | - | - | - | - |
+| hexx | clean | 3 | unset (rayon: 12 CPUs) | hexx_unittest.test | test | 5f41eb77f491a2c869834323e04ce05c0aa8e45254f515c9c264422840ab37e2 | 3d08ca5d6ed6087fceaacb68a1370bfdb292dd04eb83becef5d3625f287aebba | 1269305 | 2537 | - | - | - | - |
+| hexx | fresh-cache | 1 | unset (rayon: 12 CPUs) | hexx_integrationtest.test | test | 01b14d540e7c44bab8894ddb1aba200f42c1ce0635179b5ff133e0969a817ea0 | f7ed79378ee9bdb298ce3805820ae1bb5a56063e986b64a400206e8ddf2ce1dd | 196173 | 329 | - | - | - | - |
+| hexx | fresh-cache | 1 | unset (rayon: 12 CPUs) | hexx_unittest.test | test | 64d4be607e8243063fcae84948e48ecd92f9a74e1099fe779cee24c15ce1fe23 | 3d08ca5d6ed6087fceaacb68a1370bfdb292dd04eb83becef5d3625f287aebba | 1269305 | 2537 | - | - | - | - |
+| hexx | one-thread | 1 | 1 | hexx_integrationtest.test | test | f7841b7c1986a6613c6d95f84980be15c8a7f9ba2ad9da57d4c9a4402d167d19 | f7ed79378ee9bdb298ce3805820ae1bb5a56063e986b64a400206e8ddf2ce1dd | 196173 | 329 | - | - | - | - |
+| hexx | one-thread | 1 | 1 | hexx_unittest.test | test | 38bc240897e3ed805a0a3a92e14211190c4259d00ac18e9813ebfe3e38a667ad | 3d08ca5d6ed6087fceaacb68a1370bfdb292dd04eb83becef5d3625f287aebba | 1269305 | 2537 | - | - | - | - |
