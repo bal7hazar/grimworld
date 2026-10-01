@@ -23,7 +23,7 @@ const STATE_SHIFT: u128 = 0x100000000000000000000;
 /// `2^33`: the rules epoch's unit in the flattening epoch (bit 241 of the kit word, above the
 /// inputs version's 32 bits and the stale mark's one).
 const RULES_UNIT: u64 = 0x200000000;
-/// The rules epoch's values: 9 bits (241–249), 0 to 511, then 0 again (`next_rules`).
+/// The rules epoch's values: 9 bits (241–249), 0 to 511, then 0 again (`RulesEpochTrait::next`).
 pub const RULES_EPOCHS: u16 = 512;
 
 /// The kit word of a snapshot marked stale (bit 240, `LIVE`): an entrypoint that changes an input
@@ -57,18 +57,11 @@ pub impl StoredSnapshotImpl of StoredSnapshotTrait {
     }
 
     /// The flattening epoch (D-169): the registry's `inputs` version (`Registry.bundle`) and
-    /// `Hub`'s `rules` epoch (below `RULES_EPOCHS`), as the kit word holds them from bit 208.
+    /// `Hub`'s `rules` epoch (`models::rules_epoch`, below `RULES_EPOCHS`), as the kit word holds
+    /// them from bit 208.
     #[inline(always)]
     fn epoch(inputs: u32, rules: u16) -> u64 {
         inputs.into() + rules.into() * RULES_UNIT
-    }
-
-    /// The rules epoch after a change of the flattening's class: one more, 511 wrapping to 0. A
-    /// snapshot left without `set_build` through exactly 512 changes of the class (and no change
-    /// of an input) would read fresh again.
-    #[inline(always)]
-    fn next_rules(rules: u16) -> u16 {
-        (rules + 1) % RULES_EPOCHS
     }
 
     /// What `Instances.create` receives of a snapshot `StoredSnapshotAssert::assert_fresh`
@@ -169,15 +162,6 @@ mod tests {
         assert(
             StoredSnapshotTrait::seal(0, widest) + (STALE_MARK - LIVE) == LIVE - unit, 'below LIVE',
         );
-    }
-
-    // The rules epoch counts 0 to 511, then wraps to 0 (9 bits).
-    #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
-    fn test_rules_epoch_wraps() {
-        assert(StoredSnapshotTrait::next_rules(0) == 1, '0 to 1');
-        assert(StoredSnapshotTrait::next_rules(510) == 511, '510 to 511');
-        assert(StoredSnapshotTrait::next_rules(RULES_EPOCHS - 1) == 0, '511 wraps to 0');
     }
 
     // A snapshot of another rules epoch, of the same inputs version, is stale.

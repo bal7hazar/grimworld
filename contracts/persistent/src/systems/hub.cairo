@@ -172,7 +172,7 @@ pub mod Hub {
     use grimworld_logic::snapshot::Worn;
     use grimworld_logic::types::{InstanceId, Outcome};
     use starknet::storage::{
-        Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
+        Map, StorageAsPath, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::storage_access::{StorageBaseAddress, Store, StorePacking};
@@ -194,6 +194,7 @@ pub mod Hub {
         Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, ItemMods, ItemModsTrait,
         PERSONALISED, RiftBoard,
     };
+    use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
     use crate::store::StoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
@@ -211,10 +212,10 @@ pub mod Hub {
         /// `FlattenLibrary`'s class hash (ENG-01 §1.3, D-168): `set_build` calls it by
         /// `library_call`.
         pub flatten: ClassHash,
-        /// The rules epoch (D-169): how many times `set_contracts` changed `flatten`, modulo
-        /// `RULES_EPOCHS` (512, 9 bits of the stored kit word); 0 at deployment. A stored snapshot
-        /// carries the one it was flattened under, and `enter` refuses another.
-        pub rules_epoch: u16,
+        /// The rules epoch (D-169, `models::rules_epoch`): how many times `set_contracts` changed
+        /// `flatten` or `registry`, modulo 512 (9 bits of the stored kit word); 0 at deployment. A
+        /// stored snapshot carries the one it was flattened under, and `enter` refuses another.
+        pub rules_epoch: RulesEpoch,
         pub next_account: Counter,
         pub next_adventurer: Counter,
         pub next_item: Counter,
@@ -611,7 +612,7 @@ pub mod Hub {
             StoreTrait::set_snapshot(
                 self.snapshots.entry(adventurer_id),
                 StoredSnapshotTrait::new(
-                    stats, bar, kit, StoredSnapshotTrait::epoch(inputs, self.rules_epoch.read()),
+                    stats, bar, kit, StoredSnapshotTrait::epoch(inputs, self.rules().value),
                 ),
             );
         }
@@ -642,7 +643,7 @@ pub mod Hub {
             record.assert_enterable(hub, rank);
 
             let stored = StoreTrait::get_snapshot(self.snapshots.entry(adventurer_id));
-            let epoch = StoredSnapshotTrait::epoch(inputs, self.rules_epoch.read());
+            let epoch = StoredSnapshotTrait::epoch(inputs, self.rules().value);
             StoredSnapshotAssert::assert_fresh(stored.kit, epoch);
             StoredSnapshotAssert::assert_level(stored.stats, level);
             let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
@@ -938,8 +939,9 @@ pub mod Hub {
         }
         /// The registered contracts, the randomness provider among them, and `FlattenLibrary`'s
         /// class hash (D-168): configuration, never a constant of the code (ADR-0001, ADR-0002,
-        /// ENG-01 §1.3). A class hash other than the stored one raises the rules epoch (D-169),
-        /// which stales every stored snapshot; the same one leaves it. Administrator only.
+        /// ENG-01 §1.3). A class hash or a registry other than the stored ones raises the rules
+        /// epoch (D-169: the configuration the flattening depends on), which stales every stored
+        /// snapshot; the same two leave it. Administrator only.
         fn set_contracts(
             ref self: ContractState,
             registry: ContractAddress,
@@ -949,13 +951,20 @@ pub mod Hub {
             flatten: ClassHash,
         ) {
             assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
+            let state = @self;
+            let moves = RulesEpochTrait::moves(
+                flatten,
+                StoreTrait::get_class_hash(state.flatten.as_path()),
+                registry,
+                StoreTrait::get_address(state.registry.as_path()),
+            );
             self.registry.write(registry);
             self.instances.write(instances);
             self.market.write(market);
             self.fate.write(fate);
-            if flatten != self.flatten.read() {
-                self.flatten.write(flatten);
-                self.rules_epoch.write(StoredSnapshotTrait::next_rules(self.rules_epoch.read()));
+            self.flatten.write(flatten);
+            if moves {
+                StoreTrait::set_rules_epoch(self.rules_epoch.as_path(), self.rules().next());
             }
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
@@ -986,6 +995,12 @@ pub mod Hub {
 
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
+        /// The rules epoch, through the store (D-169): one read.
+        #[inline(always)]
+        fn rules(self: @ContractState) -> RulesEpoch {
+            StoreTrait::get_rules_epoch(self.rules_epoch.as_path())
+        }
+
         /// The check of every entrypoint that names an adventurer (ADR-0007, *Access control*;
         /// ENG-01 §1.2): three reads (`core`, the account's owner, `place`), then
         /// `AdventurerAssert::assert_owned_in_hub`, one refusal per case. Returns `(account id,

@@ -121,11 +121,12 @@ pub mod Registry {
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
-        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        Map, StorageAsPath, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::models::versions::{Versions, VersionsTrait};
+    use crate::store::StoreTrait;
     use super::{Inputs, NOT_IMPLEMENTED, Parts, VERSION, errors};
 
     #[storage]
@@ -175,11 +176,11 @@ pub mod Registry {
                 let (kind, id) = *request;
                 self.read_into(kind, id, parts(kind), ref out);
             }
-            let versions = self.versions.read();
+            let versions = self.stored_versions();
             (versions.content, versions.inputs, out.span())
         }
         fn content_version(self: @ContractState) -> u32 {
-            self.versions.read().content
+            self.stored_versions().content
         }
     }
 
@@ -425,7 +426,14 @@ pub mod Registry {
         /// slot.
         #[inline(always)]
         fn raise_versions(ref self: ContractState, input: bool) {
-            self.versions.write(self.versions.read().raised(input));
+            let versions = self.stored_versions().raised(input);
+            StoreTrait::set_versions(self.versions.as_path(), versions);
+        }
+
+        /// The content and inputs versions, through the store: one read.
+        #[inline(always)]
+        fn stored_versions(self: @ContractState) -> Versions {
+            StoreTrait::get_versions(self.versions.as_path())
         }
     }
 }
@@ -515,7 +523,6 @@ mod inputs_tests {
 #[cfg(test)]
 mod version_cost_tests {
     use snforge_std::{store, test_address};
-    use starknet::storage::StoragePointerReadAccess;
     use super::Registry;
     use super::Registry::InternalTrait;
 
@@ -532,7 +539,7 @@ mod version_cost_tests {
     #[available_gas(l2_gas: 39785)] // ceil(1.05 × 37890 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
-        assert(state.versions.read().content == 0, 'version 0');
+        assert(state.stored_versions().content == 0, 'version 0');
     }
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
