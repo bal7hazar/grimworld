@@ -295,6 +295,12 @@ pub impl HitImpl of HitTrait {
     /// `⌊base × table(x) / 2^16⌋`, then `⌊· × (100 + percent) / 100⌋`, clamped to [0,
     /// 65,535].
     /// `percent` ≥ −100, so nothing is negative and 0 is the lower bound by itself.
+    ///
+    /// **Precondition**: `percent` ≥ −100 (else `100 + percent` does not fit a `u64`), and
+    /// `armor` ≤ `i32::MAX` (else it does not fit the exponent's `i32`); either breach panics.
+    /// `resolve` always meets both: `percent` returns a sum floored at −100, and `armor` is below
+    /// 10^5 for every legal input. A caller other than `resolve` (a test, CBT-05) must meet them
+    /// too, or call `resolve`.
     #[inline(always)]
     fn damage(self: @Hit, armor: u32, percent: i32) -> u64 {
         let x: i32 = (*self.strength).into() - armor.try_into().unwrap();

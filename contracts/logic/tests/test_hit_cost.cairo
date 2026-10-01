@@ -114,7 +114,7 @@ fn each(hit: @Hit, target: @HitTarget) -> u128 {
     (more - single) / 2
 }
 
-// A tick's most hits, 14, on the costliest path.
+// A tick's most hits, 15, on the costliest path.
 #[test]
 // gas: raised, 15 hits a tick instead of 14 (FX-35 counts a bomb's 7; fix loop 1, minor 1)
 #[available_gas(l2_gas: 1130021)] // ceil(1.05 × 1076210 measured)
