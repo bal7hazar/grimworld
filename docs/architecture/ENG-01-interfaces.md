@@ -426,11 +426,13 @@ Design/02 bounds awake goblins (8), not displaced ones; E-2.
 
 ### 3.3 `Hub` storage
 
+Every variable below is read and written only through `HubStore` (`contracts/persistent/src/store.cairo`, ENG-R1a, D-143): one `get_x`/`set_x` per model; the hot words (an adventurer's `core`, `place`, `build`, `belt`, `equipped`, an account's record, balance pages, the account list) as stored words, changed by the arithmetic their models pin against the packers. The layout below is unchanged by it.
+
 | Variable | Key | Slots | Record |
 |---|---|---:|---|
 | `admin`, `registry`, `instances`, `market`, `fate` | — | 5 | addresses |
 | `flatten` | — | 1 | `ClassHash` of `FlattenLibrary` (D-168, §1.3), set by `set_contracts` |
-| `rules_epoch` | — | 1 | `RulesEpoch` (`models/rules_epoch.cairo`; the value 0 to 511 as the felt, the layout of a `u16`): the **rules epoch** (D-169, CBT-02f), raised by `set_contracts` when it changes `flatten` or `registry`, the configuration the flattening depends on (511 wraps to 0), not when it sets the same two; 0 at deployment. Read and written through the store (`StoreTrait::get_rules_epoch`, `set_rules_epoch`) |
+| `rules_epoch` | — | 1 | `RulesEpoch` (`models/rules_epoch.cairo`; the value 0 to 511 as the felt, the layout of a `u16`): the **rules epoch** (D-169, CBT-02f), raised by `set_contracts` when it changes `flatten` or `registry`, the configuration the flattening depends on (511 wraps to 0), not when it sets the same two; 0 at deployment. Read and written through the store (`HubStore::get_rules_epoch`, `set_rules_epoch`) |
 | `next_account`, `next_adventurer`, `next_item` | — | 3 | `Counter` |
 | `account_of` | owner address | 1 | account id |
 | `accounts` | account `u32` | 2 | `Account { owner, record: AccountRecord }` |
