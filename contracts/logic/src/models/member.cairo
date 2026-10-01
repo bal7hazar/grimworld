@@ -517,7 +517,9 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         self.set_condition(condition, TickMathTrait::refreshed(old, t0, d));
     }
 
-    /// `CURE` at `t0` (§3.2): a duration of 0, `D = t0 − 1`; an absent condition, nothing.
+    /// `CURE` at `t0` (§3.2): a duration of 0, `D = t0 − 1`; an absent condition, nothing. No
+    /// alive check, unlike `MemberConditionTrait::apply`: the executor reaches living actors only
+    /// (§5.14), and a member at 0 never acts again (FX-8), so its caller guards it.
     fn cure(ref self: Member, condition: u8, t0: u32) {
         let old = self.condition(condition);
         self.set_condition(condition, TickMathTrait::cured(old, t0));
@@ -727,17 +729,11 @@ mod tests {
     use crate::types::combat::{condition, skill_kind};
     use crate::types::infliction::Infliction;
     use crate::types::tick::{ABSENT_LANE, Content, ContentTrait, NO_SLOT, flag, status};
-    use crate::types::world::fixtures::{Fixture, LIVE, two};
+    use crate::types::world::fixtures::{Fixture, LIVE, opaque, two};
     use super::{
         Member, MemberAssert, MemberConditionTrait, MemberLifecycleTrait, MemberTickTrait,
         MemberTrait, MemberWordsTrait,
     };
-
-    /// Keeps a value from the compiler's constant folding, so that the path under test runs.
-    #[inline(never)]
-    fn opaque<T, +Drop<T>>(value: T) -> T {
-        value
-    }
 
     /// A member whose kit holds "Rending" (`CONDITION_DURATION` Bleeding +33 %) and
     /// *Hob-breaker*'s `KNOCKDOWN_FLAT` +1.

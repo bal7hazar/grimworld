@@ -1125,9 +1125,17 @@ the bounds above: the member's one carrier a tick (its action's or its activatio
 `ON_ATTACK_CONDITION` effects is 5 on one goblin); each of the 8 awake goblins resolves or acts once
 (§5.1), at most one `CONDITION` entry and its one held effect's `ON_ATTACK_CONDITION` on the member:
 16; one weapon hit or move each, 9 predicate sets. A cure costs less than an application and is
-counted as one. **Beyond the MVP's content** the legal carriers (§5.14: 3 entries, `RING_1`'s 6
-actors) allow 9 × 18 = 162 applications a tick, ≤ 12,546,090 at a goblin's cost; content that
-reaches it is BAL-01's and CNT-01's to refuse or price.
+counted as one. A trap's trigger replaces an application already counted, never adds one: a goblin
+that moves into a Snare in step 2 does not attack, so its payload's one application (≤ 76,820)
+replaces the 2 × 108,100 counted for it; a member that moves runs no carrier, so the ≤ 1 terrain
+payload on it (FX-34) replaces the 7 × 76,820 counted for its carrier. **Beyond the MVP's
+content** the legal carriers (§5.14: 3 entries, `RING_1`'s 6 actors) allow at most 18 applications
+a carrier, 9 × 18 = 162 a tick, each priced at its target's cost: the member's carrier on 18
+goblins, 18 × 76,820; each goblin's carrier at most 4 on the member (its 3 entries and its held
+effect's `ON_ATTACK_CONDITION`, 4 × 108,100) and the other 14 on goblins (14 × 76,820), 1,507,880;
+with the predicates, **≤ 13,547,050** a tick (1,382,760 + 8 × 1,507,880 + 101,250). It is an upper
+bound, not reached (an attack skill's entries all land on the attacked entity, §5.14); content
+that approaches it is BAL-01's and CNT-01's to refuse or price.
 
 **How the bound is proved (COST-1a to COST-1c; CBT-02b fix loop 1; CBT-02d).** Sierra charges a
 function that has no loop, and calls none, its costliest path whatever path runs; a function with a

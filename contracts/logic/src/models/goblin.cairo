@@ -521,17 +521,14 @@ mod tests {
     use crate::types::combat::{activation, condition, skill_kind};
     use crate::types::infliction::Infliction;
     use crate::types::tick::{CasteSheet, Content, ContentTrait, Sheets, SkillSheet, ai};
-    use crate::types::world::fixtures::{Fixture, HOB, LIVE, RUNT, SMASH, activation_of, two};
+    use crate::types::world::TickTrait;
+    use crate::types::world::fixtures::{
+        Fixture, HOB, LIVE, RUNT, SMASH, Script, activation_of, opaque, two,
+    };
     use super::{
         Goblin, GoblinAssert, GoblinConditionTrait, GoblinLifecycleTrait, GoblinTickTrait,
         GoblinTrait, GoblinWords, GoblinWordsTrait,
     };
-
-    /// Keeps a value from the compiler's constant folding, so that the path under test runs.
-    #[inline(never)]
-    fn opaque<T, +Drop<T>>(value: T) -> T {
-        value
-    }
 
     // CBT-04, applying (§5.7): every condition 1–5 lands in its field and survives the words; a
     // member's kit lengthens its own condition and the knock-down (Bleeding 20 +33 %: 26 ticks,
@@ -607,15 +604,19 @@ mod tests {
     }
 
     // §3.2 row 5 (§5.2, §5.6, FX-7): knocked down to D = 53, it cannot act in step 2 of ticks
-    // 52 and 53 and acts at 54, as the pipeline's step 2 reads it; through 53 a weapon hit on it
-    // is critical from any arc and it neither blocks nor evades.
+    // 52 and 53 and acts at 54; the pipeline's step 2, run over ticks 52 to 54, agrees (the
+    // goblin acts at 54 alone: D and D + 1); through 53 a weapon hit on it is critical from any
+    // arc and it neither blocks nor evades.
     #[test]
-    #[available_gas(l2_gas: 301256)] // ceil(1.05 × 286910 measured)
+    #[available_gas(l2_gas: 6224350)] // ceil(1.05 × 5927952 measured)
     fn test_goblin_knocked_predicates() {
         let mut goblin = Fixture::goblin(40, HOB);
         goblin.knocked = 53;
         assert(!goblin.can_act(52) && !goblin.can_act(53) && goblin.can_act(54), 'acts at 54');
-        assert(goblin.can_act(54) == (goblin.knocked < 54), 'as the pipeline');
+        let mut world = Fixture::only(51, goblin);
+        let mut rules: Script = Default::default();
+        TickTrait::run(ref world, @Fixture::sheets(), 3, ref rules);
+        assert(rules.acts.span() == array![(54, 40)].span(), 'the pipeline: at 54 only');
         assert(goblin.takes_critical(53) && !goblin.can_defend(53), 'tick 53: exposed');
         assert(!goblin.takes_critical(54) && goblin.can_defend(54), 'tick 54: not');
     }

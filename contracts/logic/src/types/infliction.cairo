@@ -6,9 +6,7 @@
 
 use crate::durations::effective_duration;
 use crate::types::combat::condition;
-
-/// A duration carried as a value lies in 1…32,767 ticks (design/19 §2.1).
-pub const MAX_VALUE_DURATION: i32 = 32767;
+use crate::types::effect::MAX_VALUE_DURATION;
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct Infliction {

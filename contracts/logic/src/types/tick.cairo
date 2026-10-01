@@ -34,6 +34,8 @@ pub const ADRENALINE_DECAY: u16 = 1;
 /// Health pips are clamped to ±10 (design/03, *Pips*); one pip is 2 health a tick.
 pub const MAX_PIPS: i32 = 10;
 pub const HEALTH_PER_PIP: i32 = 2;
+/// A crippled actor's move of one tile, in ticks (design/19 §3.2, FX-15).
+pub const CRIPPLED_MOVE_TICKS: u8 = 2;
 /// Energy is in thirds (design/03: one pip is one energy every 3 ticks).
 pub const ENERGY_THIRDS: u16 = 3;
 /// Stored health regeneration is its pips + 10 (`MemberStats.health_regen`, `Caste.health_regen`).

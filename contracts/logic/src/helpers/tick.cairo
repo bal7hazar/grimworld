@@ -3,10 +3,7 @@
 //! and the checks of its inputs in `TickAssert`.
 
 use crate::types::combat::condition;
-use crate::types::tick::{ADRENALINE_DECAY, HEALTH_PER_PIP, MAX_PIPS};
-
-/// A crippled actor's move of one tile, in ticks (design/19 §3.2).
-pub const CRIPPLED_MOVE_TICKS: u8 = 2;
+use crate::types::tick::{ADRENALINE_DECAY, CRIPPLED_MOVE_TICKS, HEALTH_PER_PIP, MAX_PIPS};
 
 pub mod errors {
     pub const CONDITION: felt252 = 'tick: condition not stored';

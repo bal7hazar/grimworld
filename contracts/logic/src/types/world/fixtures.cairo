@@ -270,6 +270,12 @@ pub impl FixtureImpl of Fixture {
     }
 }
 
+/// Keeps a value from the compiler's constant folding, so that the path under test runs.
+#[inline(never)]
+pub fn opaque<T, +Drop<T>>(value: T) -> T {
+    value
+}
+
 pub fn activation_of(goblin: @Goblin) -> (u8, u16, u32) {
     (*goblin.act_slot, *goblin.act_target, *goblin.act_deadline)
 }
