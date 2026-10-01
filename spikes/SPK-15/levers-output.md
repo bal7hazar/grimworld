@@ -58,9 +58,11 @@ Main's worst taken as 4,663,690 (measured 4,663,690; ENG-01 4,663,510).
 
 ## A worst batch against 40 M (per-call part once a batch)
 
-- as it stands: a tick 20,873,867 without the per-call part 19,675,090; batch writes 4,436,950 (E): **0 worst ticks** fit 40 M (24,112,040)
-- after L1–L4: a tick 15,172,503 without the per-call part 12,233,560; batch writes 4,436,950 (E): **1 worst tick** fit 40 M (31,843,013)
-- and the design levers: a tick 10,621,924 without the per-call part 12,233,560; batch writes 4,436,950 (E): **2 worst ticks** fit 40 M (37,914,358)
+- the entries decoded once a call: 118 × 30,920 = 3,648,560 (per-call, with L3)
+- the batch's writes (E): initialised 4,436,950, cold 5,637,162
+- as it stands: a tick 20,873,867 without the per-call part 19,675,090: worst ticks a 40 M batch holds: initialised **0** (24,112,040; 44,985,907 for 1); cold **0** (25,312,252; 46,186,119 for 1)
+- after L1–L4: a tick 14,807,647 without the per-call part 15,882,120: worst ticks a 40 M batch holds: initialised **1** (35,126,717; 49,934,364 for 2); cold **1** (36,326,929; 51,134,576 for 2)
+- and the design levers: a tick 10,287,468 without the per-call part 15,578,120: worst ticks a 40 M batch holds: initialised **1** (30,302,538; 40,590,006 for 2); cold **1** (31,502,750; 41,790,218 for 2)
 
 ## The table
 
@@ -69,7 +71,7 @@ Main's worst taken as 4,663,690 (measured 4,663,690; ENG-01 4,663,510).
 | CBT-04's line re-measured (the member's kit read once a carrier, not once an application) | measure | −254,580 | 0 | 0 | −76.4 M (−$0.067) | none | none | CBT-04 |
 | **L1 alone**: frozen goblins kept as words, perception's 8 scans over words | engineering | −1,059,973 | +3,255 | +1.0 M (+$0.001) | −318.0 M (−$0.280) | `load`, `store`, perception over words; the index kept for the call | **`load`'s contract with perception** (ENG-07) | ENG-07 |
 | **L2** an application in place, by condition | engineering | −773,960 | 0 | 0 | −232.2 M (−$0.205) | one inlined function a condition kind | none | CBT-04's fix loop or CBT-05 |
-| **L3** the executor: the guard once a tick and updated at every effect write, a carrier's goblins flushed once, entries with the sheets | engineering | −2,812,264 | 0 | 0 | −843.7 M (−$0.743) | CBT-05's design | the call's content (`Sheets` gains the entries) | CBT-05 |
+| **L3** the executor: the guard once a tick and updated at every effect write, a carrier's goblins flushed once, entries with the sheets | engineering | −2,812,264 | 0 | 0 | −843.7 M (−$0.743) | CBT-05's design | none (`Sheets`, an in-call type, gains the entries) | CBT-05 |
 | **L4 alone**: perception's one-pass selection on main's goblins | engineering | −1,502,900 | not measured | — | −450.9 M (−$0.397) | the selection | none | ENG-07 |
 | L1 given L4 (L1 and L4 together less L4 alone) | engineering | −1,356,393 | +3,255 | +1.0 M (+$0.001) | −406.9 M (−$0.358) | as L1 | as L1 | ENG-07 |
 | L1 and L4 together | engineering | −2,859,293 | not measured | — | −857.8 M (−$0.756) | both | as L1 | ENG-07 |

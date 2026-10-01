@@ -234,14 +234,31 @@ combo = all_eng - d1[4] - cap1_at4 - d2p - win
 print(f"- 4 awake, one application a carrier, 3 targets, the smaller window and flood (D4 excluded: no batch of 10 holds a worst tick): {m(combo)} ({combo / TARGET:.2f}x) (E)")
 
 print("\n## A worst batch against 40 M (per-call part once a batch)\n")
-per_call = words_lazy + CALL + CONTENT * BATCH
+# Fix loop 2: the per-call part is load and store, the call, the content and, with L3, the entries
+# decoded once a call (CONTENT_ENTRIES × entry); D3's 20 goblins fewer in the call are per-call too.
+# As it stands the naive executor decodes its entries at each use: per tick, not per call.
+entries_call = CONTENT_ENTRIES * entry
 per_call_main = words_main + CALL + CONTENT * BATCH
-for label, total, call in [("as it stands", everything, per_call_main), ("after L1–L4", all_eng, per_call), ("and the design levers", combo, per_call)]:
+per_call = words_lazy + CALL + CONTENT * BATCH + entries_call
+per_call_design = per_call - 20 * slope_lazy
+# The batch's own writes, both ways (E, ENG-01 §10.1): the initialised worst branch, 47,336,950, and
+# the cold maximum, 48,537,162 (+1,200,212), each less its 10 ticks at 4.29 M.
+WRITES = {"initialised": BATCH_WRITES, "cold": BATCH_WRITES + (48_537_162 - 47_336_950)}
+print(f"- the entries decoded once a call: {CONTENT_ENTRIES} × {m(entry)} = {m(entries_call)} (per-call, with L3)")
+print(f"- the batch's writes (E): initialised {m(WRITES['initialised'])}, cold {m(WRITES['cold'])}")
+for label, total, call in [
+    ("as it stands", everything, per_call_main),
+    ("after L1–L4", all_eng, per_call),
+    ("and the design levers", combo, per_call_design),
+]:
     tick = total - call // BATCH
-    n = 0
-    while (n + 1) * tick + call + BATCH_WRITES <= BATCH_CAP:
-        n += 1
-    print(f"- {label}: a tick {m(tick)} without the per-call part {m(call)}; batch writes {m(BATCH_WRITES)} (E): **{n} worst tick{"" if n == 1 else "s"}** fit 40 M ({m(n * tick + call + BATCH_WRITES)})")
+    counts = []
+    for kind, writes in WRITES.items():
+        n = 0
+        while (n + 1) * tick + call + writes <= BATCH_CAP:
+            n += 1
+        counts.append(f"{kind} **{n}** ({m(n * tick + call + writes)}; {m((n + 1) * tick + call + writes)} for {n + 1})")
+    print(f"- {label}: a tick {m(tick)} without the per-call part {m(call)}: worst ticks a 40 M batch holds: " + "; ".join(counts))
 rep_fixed_20 = REP_FIXED // 10 - REP_FIXED // 20
 
 # --- The table ---
@@ -249,7 +266,7 @@ rows = [
     ("CBT-04's line re-measured (the member's kit read once a carrier, not once an application)", "measure", correction, 0, "none", "none", "CBT-04"),
     ("**L1 alone**: frozen goblins kept as words, perception's 8 scans over words", "engineering", l1, l1_rep, "`load`, `store`, perception over words; the index kept for the call", "**`load`'s contract with perception** (ENG-07)", "ENG-07"),
     ("**L2** an application in place, by condition", "engineering", l2, 0, "one inlined function a condition kind", "none", "CBT-04's fix loop or CBT-05"),
-    ("**L3** the executor: the guard once a tick and updated at every effect write, a carrier's goblins flushed once, entries with the sheets", "engineering", l3, 0, "CBT-05's design", "the call's content (`Sheets` gains the entries)", "CBT-05"),
+    ("**L3** the executor: the guard once a tick and updated at every effect write, a carrier's goblins flushed once, entries with the sheets", "engineering", l3, 0, "CBT-05's design", "none (`Sheets`, an in-call type, gains the entries)", "CBT-05"),
     ("**L4 alone**: perception's one-pass selection on main's goblins", "engineering", l4, None, "the selection", "none", "ENG-07"),
     ("L1 given L4 (L1 and L4 together less L4 alone)", "engineering", l1_given_l4, l1_rep, "as L1", "as L1", "ENG-07"),
     ("L1 and L4 together", "engineering", l1l4, None, "both", "as L1", "ENG-07"),
