@@ -7,10 +7,10 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
 | `helpers::tests::test_pow2_and_bits` | 3967220 | 4165581 | 5.00 % | 0 | 0 | 2026-10-01 | 03feca2 |
+| `models::account::tests::test_account_layout` | 53100 | 55755 | 5.00 % | 0 | 0 | 2026-10-01 | 65a0039 |
 | `models::account::tests::test_list_at` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | fd15165 |
 | `models::account::tests::test_not_listed_refused` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-10-01 | 03feca2 |
 | `models::account::tests::test_owner_key` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | 03feca2 |
-| `models::account::tests::test_record_words` | 115470 | 121244 | 5.00 % | 0 | 0 | 2026-10-01 | 03feca2 |
 | `models::adventurer::tests::test_adventurer_layout` | 279210 | 293171 | 5.00 % | 0 | 0 | 2026-10-01 | 03feca2 |
 | `models::adventurer::tests::test_assert_bar_and_potions` | 40220 | 42231 | 5.00 % | 0 | 0 | 2026-10-01 | 4758092 |
 | `models::adventurer::tests::test_assert_bar_elite` | 144280 | 151494 | 5.00 % | 0 | 0 | 2026-10-01 | 4758092 |
@@ -63,6 +63,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `models::stored_place::tests::test_place_hub_above_63_refused` | 22650 | 23783 | 5.00 % | 0 | 0 | 2026-10-01 | 4758092 |
 | `models::stored_place::tests::test_place_returned` | 105396 | 110666 | 5.00 % | 0 | 0 | 2026-10-01 | 4758092 |
 | `models::stored_place::tests::test_place_words` | 2549385 | 2676855 | 5.00 % | 0 | 0 | 2026-10-01 | 4758092 |
+| `models::stored_record::tests::test_record_words` | 115470 | 121244 | 5.00 % | 0 | 0 | 2026-10-01 | 65a0039 |
 | `models::versions::tests::test_versions_inputs_overflow` | 15320 | 16086 | 5.00 % | 0 | 0 | 2026-10-01 | 1dccab9 |
 | `models::versions::tests::test_versions_raised` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | 1dccab9 |
 | `models::versions::tests::test_versions_round_trip` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | 1dccab9 |

@@ -572,10 +572,10 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::world::tests::test_world_assert_distances` | 304380 | 319599 | 2026-10-01 | 92428cf |
 | grimworld_logic | `types::world::tests::test_world_assert_goblins` | 28481960 | 29906058 | 2026-10-01 | 92428cf |
 | grimworld_persistent | `helpers::tests::test_pow2_and_bits` | 3967220 | 4165581 | 2026-10-01 | 03feca2 |
+| grimworld_persistent | `models::account::tests::test_account_layout` | 53100 | 55755 | 2026-10-01 | 65a0039 |
 | grimworld_persistent | `models::account::tests::test_list_at` | 13720 | 14406 | 2026-10-01 | fd15165 |
 | grimworld_persistent | `models::account::tests::test_not_listed_refused` | 15520 | 16296 | 2026-10-01 | 03feca2 |
 | grimworld_persistent | `models::account::tests::test_owner_key` | 13720 | 14406 | 2026-10-01 | 03feca2 |
-| grimworld_persistent | `models::account::tests::test_record_words` | 115470 | 121244 | 2026-10-01 | 03feca2 |
 | grimworld_persistent | `models::adventurer::tests::test_adventurer_layout` | 279210 | 293171 | 2026-10-01 | 03feca2 |
 | grimworld_persistent | `models::adventurer::tests::test_assert_bar_and_potions` | 40220 | 42231 | 2026-10-01 | 4758092 |
 | grimworld_persistent | `models::adventurer::tests::test_assert_bar_elite` | 144280 | 151494 | 2026-10-01 | 4758092 |
@@ -628,6 +628,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `models::stored_place::tests::test_place_hub_above_63_refused` | 22650 | 23783 | 2026-10-01 | 4758092 |
 | grimworld_persistent | `models::stored_place::tests::test_place_returned` | 105396 | 110666 | 2026-10-01 | 4758092 |
 | grimworld_persistent | `models::stored_place::tests::test_place_words` | 2549385 | 2676855 | 2026-10-01 | 4758092 |
+| grimworld_persistent | `models::stored_record::tests::test_record_words` | 115470 | 121244 | 2026-10-01 | 65a0039 |
 | grimworld_persistent | `models::versions::tests::test_versions_inputs_overflow` | 15320 | 16086 | 2026-10-01 | 1dccab9 |
 | grimworld_persistent | `models::versions::tests::test_versions_raised` | 13720 | 14406 | 2026-10-01 | 1dccab9 |
 | grimworld_persistent | `models::versions::tests::test_versions_round_trip` | 13720 | 14406 | 2026-10-01 | 1dccab9 |
