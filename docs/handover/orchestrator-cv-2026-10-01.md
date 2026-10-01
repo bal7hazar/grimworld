@@ -118,7 +118,7 @@ allowed to end.
   chain be a hash?
 - **Review** (Claude Sonnet 5.5, PASS WITH FINDINGS): four minors and one note, all in the note's
   arithmetic and presentation, none changing the recommendation.
-  - They were sent to the implementer at 14:12 as fix loop 1. It is queued behind SPK-13.
+  - They were sent to the implementer at 14:12 as fix loop 1. It waited for the Mac and started at 15:40:06.
   - The findings: the pointer to a never-committed `REPORT.md` (name
     `docs/reports/SPK-12-client-proving.md`, state the D-64 → D-111 deviation in the note); the
     37-tick break-even including Fate and gate transactions; the phone-time formula; the slope
