@@ -53,6 +53,10 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-177 | An audit is the exception; the review is the routine gate; OPERATIONS §6 names the few kinds that need one | Owner |
+| D-176 | The compile drift explained (rayon thread order moves `withdraw_gas` in a cycle): measured and declared builds single-threaded; the upstream issue at the owner's go | Project manager |
+| D-175 | Nobody waits for Codex: reviews on Sonnet, audits on Opus while it has no quota | Owner |
+| D-174 | CAIRO.md's bitmaps on `hexx`; ENG-02's geometry edges (a wall at either end blocks sight) | Project manager |
 | D-173 | `hexx` 0.1.0-rc.1 published (ENG-02's content); ENG-02 unblocked | Project manager, in the owner's name |
 | D-172 | The tick's engineering levers decided; a batch stops before a heavy tick; the design levers and the per-tick budget put to the owner | Project manager |
 | D-171 | SPK-15: the tick's levers before CBT-05; the worst tick 6.51M, R-2 in front of the owner | Project manager |
@@ -103,7 +107,7 @@ Every decision has its file in [docs/decisions/](docs/decisions/) and its row in
 1. ~~The verdict on `quiver_quest` 0.2.0~~ given (D-167); next: the mapping Arcade → quiver to read, then ENG-R1's first lot and ARC-07b.
 2. **D-152 confirmed**: the phone tests at the end, no Android for now (a text sent later said the contrary, the one of D-151; D-152 is kept).
 3. On SPK-12's report: whether ADR-0001 (L2 only) is reopened for client-side proving.
-4. An upstream issue on the compiler, when SPK-13 has a minimal case.
+4. **The go to file the compiler issue** at `starkware-libs/cairo`: SPK-13 has the cause and a minimal case (`spikes/SPK-13/issue-draft.md`, #252), D-176.
 
 **The owner's review of the next iterations of code on the pattern of D-143**: the reference model of ARC-06, then the first lots of ARC-07 and ENG-R1, until nothing is left to say; autonomy after that.
 

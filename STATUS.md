@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-10-01 06:00 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 14:15 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -78,11 +78,20 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 
 ## Orchestrators and agents
 
-| Game agent | Model (ran) | State |
-|---|---|---|
-| ENG-R1a quality audit, security and cost audit | GPT-6-Sol, GPT-6-Astra (nexus audit) | `blocked_quota` until 2026-10-04 13:36 UTC |
-| CBT-04 conditions, CBT-03a hit | GPT-6-Sol, GPT-6-Astra (nexus audit) | Codex audits queued at their heads after their Claude-side fix loops (D-170) |
-| SPK-15 the tick's cost levers | Opus 5.5 (scripts/agent.sh) | launching (D-171) |
+| Lot (PR) | Built by | Now | Gate (D-177) |
+|---|---|---|---|
+| ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | fix loop 2 (the Sonnet run's minors, PLAN's deferrals) | **one organisation audit** (a large refactoring the owner reads), Claude Opus 5.5; the review; the owner's reading |
+| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | fix loop 2 (small text fixes) | the review (Claude Sonnet) and the checks |
+| ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246)) | Opus 5.5 | fix loop 2 queued (merge `main`: D-174) | the review and the checks |
+| CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228)) | Opus 5.5 | fix loop 2 queued (D-172's L2) | the review and the checks |
+| SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234)) | Opus 5.5 | ready | the review and the checks |
+
+**D-177 (owner, 2026-10-01)**: the review is the routine gate; an audit is the exception. **Audits
+stopped: 0 queued or running** (the nine Codex audits had ended `blocked_quota`, the nine Claude Sonnet runs
+had finished: both stay in the record as additions); **8 planned Opus audits dropped** (CBT-04, CBT-03a and
+ENG-02 two each, SPK-15 one, ENG-R1a's security and cost). Merge order: ENG-R1a, CBT-04, CBT-03a, ENG-02,
+SPK-15; then CBT-05a. Then FND-10 (one deterministic build, D-176) on a free slot. ENG-R1b waits for the
+owner's reading of ENG-R1a; ENG-05 for `hexx` rc.2.
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 

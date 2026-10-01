@@ -49,12 +49,14 @@ reasoning.
 | Routine review of a lot; code quality; the organisation lens (CAIRO.md §8); the launcher | `[GPT-6-Sol]`, medium or high | Codex |
 | Content validation; consistency of documents | `[GPT-6-Luna]`, medium | Codex |
 | Design conformance | Opus 5.5 | `claude`, fresh context, a different agent from the implementer |
-| The review of every pull request before its merge | Codex, the project's reviewer | `nexus review` (§6) |
+| The review of every pull request before its merge | Codex, the project's reviewer; **Claude Sonnet while Codex has no quota** (D-175) | `nexus review` (§6) |
+| Any audit while Codex has no quota | **Claude Opus 5.5** (D-175): nobody waits for Codex; Nexus falls back by itself (R2) | `nexus audit` |
 
 The project's registry in Nexus (`projects/grimworld.json` of `bal7hazar/nexus`) names the provider
 and the model of each role and lens; this table agrees with it, and the registry is changed first
-when the table must change. An orchestrator session runs on Opus 5.5 or Fable 5.1, chosen by the
-project manager for the difficulty of the track.
+when the table must change. **Every orchestrator session runs on Opus 5.5** (owner, 2026-10-01: only
+the project managers and the Overseer stay on Fable 5.1, to save Fable's quota); a chip proposing
+an orchestrator says Opus 5.5 in its title.
 
 Model ids for the `claude` CLI: `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1` (or the
 aliases `opus`, `sonnet`, `fable`). An agent already running keeps the model it started on until its
@@ -166,37 +168,37 @@ them. **Game results are API**: a change that alters the outcome of any action f
 and input moves the shared test vectors, is announced in the changelog, and the client simulation is
 updated in the same lot.
 
-## 6. Audits and the review
+## 6. The review, and the few audits
 
-### Required lenses per task type
+**The routine gate of a lot is its review**: the checks of the pull request, green, and `nexus
+review` (Codex; Claude Sonnet while Codex has no quota, D-175), read by the one who merges. **An
+audit is the exception** (owner, 2026-10-01, D-177): it is run when a large feature or a large
+refactoring lands, or when the tests alone do not give the confidence needed, and only for the kinds
+of tasks below. Every pull request says in one line why an audit was asked, or that none was needed.
 
-| Task type | Design | Security | Determinism & parity | Cost | Quality | Content |
-|---|---|---|---|---|---|---|
-| Contract: system / model | ● | ● | ● | ● | ● | |
-| Contract: registry / seed data | ● | | | | ● | ● |
-| Client: simulation (mirrors chain logic) | ● | | ● | | ● | |
-| Client: interface | ● | | | | ● | |
-| Tooling / CI, the launcher | | ● | | | ● | |
-| Documentation / design | ● | | | | | |
-| Every Cairo lot since D-143 | + the **organisation lens** (docs/CAIRO.md §8) | | | | | |
-
-| Lens | Question | Key checks |
+| Kind of task | Audit required | Lens and model |
 |---|---|---|
-| **Design conformance** | Does it implement the documented rules, all of them and only them? | Every rule maps to code and to a test; no undocumented behaviour; M-1…M-6; two domains |
-| **Security** | Can a player gain something the rules do not allow? | Access control; ownership; state machine cannot be skipped; overflow; randomness cannot be predicted, replayed or re-rolled; registry permissions |
-| **Determinism & parity** | Do chain and client compute the same result? | No block data inside an instance; fixed iteration and tie-break orders; shared vectors pass on both sides |
-| **Cost** | Does it fit the budget, and is it as cheap as it can be? | Gas of every test against its budget; worst case per entrypoint; storage writes per action; packing; docs/CAIRO.md's order of preference; no `u256` without a written reason |
-| **Code quality** | Would the next agent understand and extend it? | Repository patterns; no dead code; meaningful tests; glossary names |
-| **Organisation** | Is the code in the owner's shape? | docs/CAIRO.md §7–§8 |
-| **Content validation** | Is the data playable? | Gates reachable; tables non-empty; ranges consistent; ids never reused |
+| Anything that holds or moves value: trade, auction house, inventory settlement, the funder, a payment | Yes | Security, `[GPT-6-Astra]` (Opus 5.5 while Codex has no quota) |
+| Access control, ownership, upgrades, the administrator's writes | Yes | Security, `[GPT-6-Astra]` |
+| Randomness and its providers; chunk reveal and the simulation window | Yes | Security and determinism, `[GPT-6-Astra]` |
+| A published interface: a package version on scarbs.xyz, a change of a frozen interface after a deployment, an event the indexer reads | Yes, once before the publication or the deployment | The organisation lens (CAIRO.md §8) and cost, `[GPT-6-Sol]` and `[GPT-6-Astra]` |
+| A cost or a determinism that only a measurement proves: a lot on the expedition's path whose budget rests on a measured worst case, the parity of the client's mirror | Yes, when the tests do not carry the measurement | Cost or determinism, `[GPT-6-Astra]` |
+| A large refactoring (ENG-R1's lots, a package rewritten) | Yes, one | The organisation lens, `[GPT-6-Sol]`; the owner reads the lot when they asked to |
+| A lot the owner asked to see | As the owner says | |
+| Everything else: a rule as pure code with its tests, seed data validated by the content suite, documentation, tooling, a spike, a fix loop, a lot the design covers by tests | **No** | The review |
 
-Codex is always asked for anything that holds or moves value, randomness and its providers, access
-control and ownership, chunk reveal and the simulation window; when the orchestrator judges it useful
-for a contested design or numeric decision, a gas figure that looks too good or too bad, a lot after
-three fix loops; not for documentation, validated seed data or interface work. A phase gate is audited
-on the whole phase by both providers; an external audit precedes mainnet.
+A phase gate is audited on the whole phase (security and design lenses, both providers); an
+external audit precedes mainnet. The lenses keep their questions (design conformance: the documented
+rules, all of them and only them, M-1…M-6, the two domains; security: can a player gain what the
+rules do not allow; determinism and parity: chain and client compute the same result; cost: the
+budget and the worst case; organisation: CAIRO.md §7–§8; content: the data is playable) for the
+auditor's brief, when one is asked.
 
 ### The review by Codex
+
+> **While Codex has no quota** (owner, 2026-10-01, D-175): the review is made by Claude Sonnet and
+> every audit by Claude Opus 5.5, through the same `nexus review` and `nexus audit`, which fall back by
+> themselves; nothing below waits for Codex's reset.
 
 **Every pull request is reviewed by Codex before it is merged** (owner, 2026-09-29): `nexus review`
 when the checks are green, read by the one who merges. The two cases of a merge without a review are
@@ -224,7 +226,7 @@ verdict, findings table, coverage).
 ## 7. Merge, release, publication
 
 - **A task's pull request merges** on: every check completed and green (`gh pr checks <n>`, the
-  number always named, chained on `&&`); the orchestrator's review of `REPORT.md`; the required audits
+  number always named, chained on `&&`); the orchestrator's review of `REPORT.md`; the audits §6 requires, if any,
   without open `blocker` or `major`; the Codex review; the file list of the pull request inside the
   task's allowlist. **Squash merge by the orchestrator**, `gh pr merge <n> --squash`, never a bare
   `gh pr merge`. `main` is not protected (D-121), so nothing else stops a merge on pending checks.

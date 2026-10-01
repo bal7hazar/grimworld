@@ -13,7 +13,7 @@ disagree, the brief wins for its task, and says so.
 3. The design documents and ADRs the brief names.
 4. **Every Cairo task: [docs/CAIRO.md](../CAIRO.md), in full.** Test-driven, a gas budget on
    every test, execution cost first, arithmetic then bitwise then loops, no `u256` without a
-   written reason, `u252` from `origami_hexmap`. The game is native Starknet on Cairo 2.19
+   written reason, `felt252` bitmaps through `hexx`'s `Bits` (D-174). The game is native Starknet on Cairo 2.19
    ([ADR-0007](../architecture/ADR-0007-native-starknet.md)): no Dojo.
 
 ## 2. How you work

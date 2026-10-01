@@ -146,7 +146,7 @@ mechanism and its reasons are in
 | Distance | Hex distance for ranges; path distance for movement |
 | Generation | A chunk is generated when sight touches it, from the instance's entry draw and the adventurer's irreversible actions since (D-111) |
 | Revealed | For the whole instance, and forgotten with it (D-105) |
-| Library | [`origami_hexmap`](https://github.com/dojoengine/origami/tree/main/crates/hexmap) and its successor (PLAN, track LIB) |
+| Library | [`hexx`](https://github.com/bal7hazar/hexx-cairo), `origami_hexmap`'s successor (track LIB), consumed by published version (D-173) |
 
 ## Simulation budget
 
