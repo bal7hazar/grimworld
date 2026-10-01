@@ -134,24 +134,46 @@ def rows(profile_dir, out, target, series, run, threads, keep_dir):
     print(f"collect: {len(found)} artefacts of {target}/{series}/{run}")
 
 
+def text_sha256(kept_dir, cache, r):
+    """sha256 of the program as text with its debug names (sierra-dump), from the kept copy of
+    the artefact: equal for two files that differ only by the numbers of their ids."""
+    key = r["sha256"]
+    if key not in cache:
+        folder = os.path.join(kept_dir, r["target"], f"{r['artefact']}.{key[:12]}")
+        kind = "class" if r["kind"] == "class" else "test"
+        name = r["artefact"] + (".contract_class.json" if kind == "class" else ".sierra.json")
+        path = os.path.join(folder, name)
+        if not (os.access(DUMP, os.X_OK) and os.path.exists(path)):
+            return "-"
+        out = subprocess.run([DUMP, kind, path], capture_output=True, check=True)
+        cache[key] = hashlib.sha256(out.stdout).hexdigest()
+    return cache[key]
+
+
 def table(path, env_files):
     lines = [l.rstrip("\n").split("\t") for l in open(path)]
     head, data = lines[0], [dict(zip(lines[0], l)) for l in lines[1:]]
+    kept_dir = os.path.join(os.path.dirname(path), "kept")
+    cache_file = path + ".texts.json"
+    cache = json.load(open(cache_file)) if os.path.exists(cache_file) else {}
     for e in env_files:
         print(open(e).read().rstrip() + "\n")
     print("## Distinct values per artefact (count of builds per value)\n")
+    print("`text sha256`: of the program printed with its debug names by sierra-dump; two files "
+          "with one text and two file hashes differ only by the numbers of their ids.\n")
     print("| target | series | threads | artefact | kind | builds | size | withdraw_gas | CASM felts "
-          "| sha256 (12) | CASM sha256 (12) | class hash (12) |")
-    print("|---|---|---|---|---|--:|--:|--:|--:|---|---|---|")
+          "| sha256 (12) | text sha256 (12) | CASM sha256 (12) | class hash (12) |")
+    print("|---|---|---|---|---|--:|--:|--:|--:|---|---|---|---|")
     groups = collections.OrderedDict()
     for r in data:
         key = (r["target"], r["series"], r["threads"], r["artefact"], r["kind"])
         val = (r["size"], r["withdraw_gas"], r["casm_felts"], r["sha256"][:12],
-               r["casm_sha256"][:12], r["class_hash"][:14])
+               text_sha256(kept_dir, cache, r)[:12], r["casm_sha256"][:12], r["class_hash"][:14])
         groups.setdefault(key, collections.Counter())[val] += 1
     for key, values in groups.items():
         for val, n in values.most_common():
             print("| " + " | ".join(key[:5]) + f" | {n} | " + " | ".join(val) + " |")
+    json.dump(cache, open(cache_file, "w"))
     print("\n## Every build\n")
     print("| " + " | ".join(head) + " |")
     print("|" + "---|" * len(head))

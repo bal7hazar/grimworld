@@ -7,7 +7,7 @@
 #
 #   spikes/SPK-13/builds.sh [--target consumer|hexx|contracts|minimal|all] [--n N]
 #                           [--series clean,fresh-cache,one-thread] [--threads T]
-#                           [--out DIR] [--library-commit C]
+#                           [--from K] [--out DIR] [--library-commit C]
 #
 # Targets (the library is cloned by fetch-library.sh into the spike's ignored .work/):
 #   consumer   the library's crates/consumer, `build --release -p consumer` (what the library's
@@ -21,6 +21,7 @@
 #   clean        the Scarb cache of the machine
 #   fresh-cache  SCARB_CACHE pointed at a new folder under --out for every build (deleted after)
 #   one-thread   RAYON_NUM_THREADS=1: the compiler's parallel warm-up off (the control)
+# --from K numbers the builds K..K+N-1 (to continue a series in several runs: rows are appended).
 # --threads T sets RAYON_NUM_THREADS for the clean and fresh-cache series (otherwise: what the
 # environment gives; scripts/lock.sh defaults it to 4, rayon itself to the number of CPUs).
 #
@@ -34,13 +35,14 @@ root=$(cd "$here/../.." && pwd)
 cd "$root"
 rel_here=spikes/SPK-13
 
-target=all n=10 series=clean,fresh-cache,one-thread threads="" out="$rel_here/.work/out"
+target=all n=10 from=1 series=clean,fresh-cache,one-thread threads="" out="$rel_here/.work/out"
 library_commit=310b5f1
-usage() { sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --target) target=$2; shift 2 ;;
     --n) n=$2; shift 2 ;;
+    --from) from=$2; shift 2 ;;
     --series) series=$2; shift 2 ;;
     --threads) threads=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
@@ -49,7 +51,7 @@ while [ $# -gt 0 ]; do
     *) echo "builds.sh: unknown argument $1" >&2; usage >&2; exit 2 ;;
   esac
 done
-case "$n" in '' | *[!0-9]*) echo "builds.sh: --n needs a number" >&2; exit 2 ;; esac
+case "$n$from" in '' | *[!0-9]*) echo "builds.sh: --n and --from need numbers" >&2; exit 2 ;; esac
 [ "$target" = all ] && target=consumer,hexx,contracts
 mkdir -p "$out"
 
@@ -165,8 +167,8 @@ for t in "${targets[@]}"; do
   for s in "${serieses[@]}"; do
     case "$s" in clean | fresh-cache | one-thread) ;; *) echo "builds.sh: unknown series $s" >&2; exit 2 ;; esac
     note=$(threads_note "$s")
-    for i in $(seq 1 "$n"); do
-      echo "builds.sh: $t / $s / build $i of $n (threads: $note)" >&2
+    for i in $(seq "$from" $((from + n - 1))); do
+      echo "builds.sh: $t / $s / build $i (threads: $note)" >&2
       # `scarb clean` is light (it removes the target folder): not a build, not under the lock.
       scarb --manifest-path "$manifest" clean
       cache=""
