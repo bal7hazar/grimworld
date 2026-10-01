@@ -8,17 +8,22 @@
 // nothing else (`test_cost_pair_*`, as CBT-02d did): the straight-line part that
 // `get_available_gas` around a call misses is in them. Kept in `tests/` as a benchmark (D-167).
 //
-// The most hits a tick can compute (design/19 §5.1–§5.2, ENG-01 §9.2): each of the 8 awake
-// goblins makes at most one hit a tick (a weapon attack, an attack skill or a trap its move enters;
-// a goblin whose activation resolves in step 1 does not act in step 2), and the member's carrier
-// reaches at most 6 goblins (Cinder Ring, `RING_1`; `DISC_1` is a potion's, an action of the action
-// phase, FX-35): 8 + 6 = 14.
+// The most hits a tick can compute (design/19 §5.1–§5.3, ENG-01 §9.2), counting the action
+// phase before the tick with it:
+// - each of the 8 awake goblins makes at most one hit (a weapon attack, an attack skill, or a trap
+//   its move enters; a goblin whose activation resolves in step 1 does not act in step 2);
+// - the member's action makes at most 7: a bomb, `DISC_1`, which FX-35 counts as 7 for a tick that
+//   runs one (design/19 §9 E, DES-04's decision A (a)). Cinder Ring's `RING_1` reaches 6, and an
+//   attack 1. The one instant skill allowed between two ticks deals no hit in the MVP (Brace,
+//   Warcry, Sidestep: design/03), and a member's activation lies inside its own action (FX-3), so
+//   the action's hits are those of one carrier.
+// 8 + 7 = 15.
 use core::testing::get_available_gas;
-use grimworld_logic::types::combat::{HitClass, weapon};
-use grimworld_logic::types::hit::{Arc, Hit, HitOutcome, HitTarget, HitTrait, MAX_BASE};
+use grimworld_logic::types::combat::{Arc, HitClass, weapon};
+use grimworld_logic::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BASE};
 
-/// The hits a tick can compute at most: 8 awake goblins and an area of 6.
-const HITS_PER_TICK: u32 = 14;
+/// The hits a tick can compute at most: 8 awake goblins and a bomb's 7 (FX-35).
+const HITS_PER_TICK: u32 = 15;
 
 /// The costliest path: a weapon hit that lands, with an axe from the back on a target whose every
 /// armor term and guard counts, penetration, both percent sums, and FX-19's halving triggering.
@@ -111,7 +116,8 @@ fn each(hit: @Hit, target: @HitTarget) -> u128 {
 
 // A tick's most hits, 14, on the costliest path.
 #[test]
-#[available_gas(l2_gas: 1081395)] // ceil(1.05 × 1029900 measured)
+// gas: raised, 15 hits a tick instead of 14 (FX-35 counts a bomb's 7; fix loop 1, minor 1)
+#[available_gas(l2_gas: 1130021)] // ceil(1.05 × 1076210 measured)
 fn test_cost_hits_per_tick() {
     let (hit, target) = costliest();
     let (used, landed) = hits(@hit, @target, HITS_PER_TICK);

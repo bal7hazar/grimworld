@@ -282,7 +282,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_flatten::test_library_words_are_the_flattening` | 7202536 | 7562663 | 2026-10-01 | 7b693c8 |
 | grimworld_logic | `test_hexmap::test_hexmap_distance` | 13720 | 14406 | 2026-09-28 | 5267868 |
 | grimworld_logic | `test_hit_cost::test_cost_hit_paths` | 1867240 | 1960602 | 2026-10-01 | be61643 |
-| grimworld_logic | `test_hit_cost::test_cost_hits_per_tick` | 1029900 | 1081395 | 2026-10-01 | be61643 |
+| grimworld_logic | `test_hit_cost::test_cost_hits_per_tick` | 1076210 | 1130021 | 2026-10-01 | d810243 |
 | grimworld_logic | `test_hit_cost::test_cost_pair_hit_none` | 13720 | 14406 | 2026-10-01 | be61643 |
 | grimworld_logic | `test_hit_cost::test_cost_pair_hit_one` | 60180 | 63189 | 2026-10-01 | be61643 |
 | grimworld_logic | `test_lifecycle::test_can_leave` | 62090 | 65195 | 2026-09-29 | 8e10cda |
@@ -559,7 +559,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::hit::tests::test_critical_any_arc` | 39380 | 41349 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_damage_bounds` | 44210 | 46421 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_evade` | 77460 | 81333 | 2026-10-01 | be61643 |
-| grimworld_logic | `types::hit::tests::test_example_10_7` | 31200 | 32760 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_example_10_8` | 22000 | 23100 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_exponent_clamps` | 46620 | 48951 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_fuzz_no_panic` | 515420 | 541191 | 2026-10-01 | be61643 |
@@ -569,6 +568,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::hit::tests::test_percent_floor_and_zero_hit` | 22010 | 23111 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_percents` | 64320 | 67536 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_source_health_refused` | 15520 | 16296 | 2026-10-01 | be61643 |
+| grimworld_logic | `types::hit::tests::test_spell_at_equal_strength_and_armor` | 22000 | 23100 | 2026-10-01 | d810243 |
 | grimworld_logic | `types::hit::tests::test_strength_level` | 22000 | 23100 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_strength_weapon` | 13720 | 14406 | 2026-10-01 | be61643 |
 | grimworld_logic | `types::hit::tests::test_target_health_refused` | 15520 | 16296 | 2026-10-01 | be61643 |
