@@ -502,6 +502,8 @@ mod layout_tests {
 }
 
 /// The flattening's input kinds (D-169): `SKILL`, `ITEM` and `MODIFIER`, and none of the 22 others.
+/// This guards the current list only (a change of it must change this test); that the list is what
+/// `Hub.set_build` asks the registry for is `test_build::test_set_build_requests_the_input_kinds`.
 #[cfg(test)]
 mod inputs_tests {
     use grimworld_logic::content::{ITEM, LAST_KIND, MODIFIER, SKILL};

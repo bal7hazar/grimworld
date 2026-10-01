@@ -34,7 +34,7 @@ fn stored(hub: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252,
 
 #[test]
 // gas: raised, CBT-02f: set_contracts raises the rules epoch, a new slot (D-169)
-#[available_gas(l2_gas: 5453732)] // ceil(1.05 × 5194030 measured)
+#[available_gas(l2_gas: 5475278)] // ceil(1.05 × 5214550 measured)
 fn test_hub_set_contracts_by_admin() {
     let hub = deploy_hub();
     start_cheat_caller_address(hub, ADMIN.try_into().unwrap());
@@ -70,7 +70,7 @@ fn test_hub_set_contracts_refused_to_others() {
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
 // gas: raised, CBT-02f: set_contracts raises the rules epoch, a new slot (D-169)
-#[available_gas(l2_gas: 6188049)] // ceil(1.05 × 5893380 measured)
+#[available_gas(l2_gas: 6223256)] // ceil(1.05 × 5926910 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_hands_over() {
     let hub = deploy_hub();

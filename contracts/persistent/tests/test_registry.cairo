@@ -5,8 +5,8 @@
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
 use grimworld_logic::content::{
-    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS, REGION, SHOP,
-    SKILL, TASK,
+    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS,
+    REGION, SHOP, SKILL, TASK, is_sequential, parts,
 };
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
@@ -592,6 +592,65 @@ fn test_gas_bundle_32() {
     let requests = r.books(32);
     let (v, inputs, records) = r.read.bundle(requests.span());
     assert(v == 5 && inputs == 7 && records.len() == 96, '32 records');
+}
+
+/// A record of `kind` without bounds of design/20: `parts(kind)` felts, `value` in each, `LIVE` in
+/// part 0. `CASTE` and `ARMOR_SET`, which the registry checks, take a legal record of `value`.
+fn plain_of(kind: u8, value: felt252) -> Span<felt252> {
+    if kind == CASTE {
+        return caste_at_bounds(value.try_into().unwrap());
+    }
+    if kind == ARMOR_SET {
+        let bonus = fixed(passive_id::MAX_HEALTH, 0, value.try_into().unwrap());
+        let (_, record) = source_record(bonus, Source::SetBonus);
+        return record;
+    }
+    let mut out = array![LIVE + value];
+    for _ in 1..parts(kind) {
+        out.append(value);
+    }
+    out.span()
+}
+
+/// The id a new record of `kind` takes: the next one of a sequential kind; for a composite kind,
+/// one under location 1 (`QUOTAS` its own id, `OUTLINE` its chunk set, `SHOP` its service 1) or
+/// a quiver id (`TASK`, `QUEST`).
+fn next_id(r: Registry, kind: u8) -> u32 {
+    if is_sequential(kind) {
+        r.admin.last_id(kind) + 1
+    } else if kind == QUOTAS {
+        1
+    } else if kind == OUTLINE {
+        256 + 255
+    } else if kind == SHOP {
+        16 + 1
+    } else {
+        9
+    }
+}
+
+// D-169 (fix loop 1, quality 2): every one of the 22 kinds that is not an input of the
+// flattening, written new and then changed, leaves the inputs version where it was, while the
+// content version rises twice for each. Kinds in order, so that `LOCATION` 1 exists before the
+// composite kinds that name it.
+#[test]
+#[available_gas(l2_gas: 52691457)] // ceil(1.05 × 50182340 measured)
+fn test_inputs_version_every_other_kind() {
+    let r = Fixture::deploy();
+    let mut others: u32 = 0;
+    for kind in 1..LAST_KIND + 1 {
+        if kind == SKILL || kind == ITEM || kind == MODIFIER {
+            continue;
+        }
+        let id = next_id(r, kind);
+        let before = r.version();
+        r.admin.set_record(kind, id, plain_of(kind, 1));
+        r.admin.set_record(kind, id, plain_of(kind, 2));
+        assert(r.version() == before + 2, 'new and changed: +2');
+        assert(r.inputs() == 0, 'inputs version unchanged');
+        others += 1;
+    }
+    assert(others == 22, 'the 22 other kinds');
 }
 
 // --- set_record: the content's checks (D-166; design/20 §1.3–§1.5, §6 test 1)

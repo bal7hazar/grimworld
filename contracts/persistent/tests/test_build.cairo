@@ -8,7 +8,7 @@
 // `FlattenLibrary` and stores the snapshot's words; its worst case holds the 15 modifiers design/20
 // §1.2 counts.
 use core::testing::get_available_gas;
-use grimworld_logic::content::{ITEM, LOCATION, MODIFIER, REGION, SKILL};
+use grimworld_logic::content::{ITEM, LAST_KIND, LOCATION, MODIFIER, REGION, SKILL};
 use grimworld_logic::interface::{IRegistryReadDispatcher, IRegistryReadDispatcherTrait};
 use grimworld_logic::models::base::{Base, BaseTrait};
 use grimworld_logic::models::item::{ItemRecord, ItemTrait, class};
@@ -41,7 +41,7 @@ use grimworld_persistent::systems::hub::{
     IHubSafeDispatcher, IHubSafeDispatcherTrait,
 };
 use grimworld_persistent::systems::registry::{
-    IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
+    IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait, Inputs,
 };
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, load, map_entry_address,
@@ -639,7 +639,7 @@ fn test_set_build_layout_refusals() {
 
 #[test]
 // gas: raised, CBT-02f: set_build reads the rules epoch (D-169); Hub and Registry deploy dearer
-#[available_gas(l2_gas: 79376339)] // ceil(1.05 × 75596513 measured)
+#[available_gas(l2_gas: 79397885)] // ceil(1.05 × 75617033 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -670,7 +670,7 @@ fn test_bar_known_and_registered() {
 // Of the primary or the secondary profession (design/03).
 #[test]
 // gas: raised, CBT-02f: set_build reads the rules epoch (D-169); Hub and Registry deploy dearer
-#[available_gas(l2_gas: 80159860)] // ceil(1.05 × 76342723 measured)
+#[available_gas(l2_gas: 80181406)] // ceil(1.05 × 76363243 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -785,7 +785,7 @@ fn test_attributes_indices() {
 
 #[test]
 // gas: raised, CBT-02f: set_build reads the rules epoch (D-169); Hub and Registry deploy dearer
-#[available_gas(l2_gas: 81493622)] // ceil(1.05 × 77612973 measured)
+#[available_gas(l2_gas: 81515168)] // ceil(1.05 × 77633493 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -1037,4 +1037,108 @@ fn test_set_build_stores_the_extremal_max_energy() {
     assert(stored == expected, 'the flattening stored');
     let (stats, _, _) = stored;
     assert(unpack_stats(stats).max_energy == 75, 'max energy 75');
+}
+
+// ---- the flattening's input kinds, as `set_build` asks for them (D-169, CBT-02f fix loop 1)
+// ----------------------------------------------------------
+
+/// A registry in front of the real one, for `test_set_build_requests_the_input_kinds`: it answers
+/// every read by forwarding it, and records the kinds of the records each `bundle` call asks for,
+/// one bit per kind, in the slot `kinds`. `bundle` is a view of the interface; it records through
+/// the storage syscall, which Starknet runs in a call that is not static (`Hub`'s `bundle` call is
+/// an ordinary call).
+#[starknet::contract]
+mod RecordingRegistry {
+    use grimworld_logic::interface::{
+        IRegistryRead, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
+    };
+    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::storage_access::{storage_address_from_base, storage_base_address_from_felt252};
+    use starknet::syscalls::{storage_read_syscall, storage_write_syscall};
+    use starknet::{ContractAddress, SyscallResultTrait};
+
+    #[storage]
+    struct Storage {
+        registry: ContractAddress,
+    }
+
+    #[constructor]
+    fn constructor(ref self: ContractState, registry: ContractAddress) {
+        self.registry.write(registry);
+    }
+
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        fn real(self: @ContractState) -> IRegistryReadDispatcher {
+            IRegistryReadDispatcher { contract_address: self.registry.read() }
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl ReadImpl of IRegistryRead<ContractState> {
+        fn record(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
+            self.real().record(kind, id)
+        }
+        fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
+            self.real().records(kind, ids)
+        }
+        fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, u32, Span<felt252>) {
+            let address = storage_address_from_base(
+                storage_base_address_from_felt252(selector!("kinds")),
+            );
+            let mut kinds: u256 = storage_read_syscall(0, address).unwrap_syscall().into();
+            for request in requests {
+                let (kind, _) = *request;
+                let mut bit: u256 = 1;
+                for _ in 0..kind {
+                    bit *= 2;
+                }
+                kinds = kinds | bit;
+            }
+            storage_write_syscall(0, address, kinds.try_into().unwrap()).unwrap_syscall();
+            self.real().bundle(requests)
+        }
+        fn content_version(self: @ContractState) -> u32 {
+            self.real().content_version()
+        }
+    }
+}
+
+// D-169 (fix loop 1, quality 3): the kinds `Registry` counts as the flattening's inputs
+// (`Inputs::includes`) are exactly the kinds `set_build` asks the registry for, recorded in front
+// of the registry on the worst case of ENG-01 §9.3 (8 skills, 4 potions, 7 pieces holding 15
+// modifiers), which asks for every kind `set_build` can ask for. A lot that makes `set_build` read
+// another kind fails here until `Inputs::includes` names it.
+#[test]
+#[available_gas(l2_gas: 115333224)] // ceil(1.05 × 109841165 measured)
+fn test_set_build_requests_the_input_kinds() {
+    let world = setup();
+    let class = declare("RecordingRegistry").unwrap().contract_class();
+    let (recorder, _) = class.deploy(@array![world.registry.into()]).unwrap();
+    let flatten = read(world.hub, selector!("flatten"));
+    start_cheat_caller_address(world.hub, addr(ADMIN));
+    IHubAdminDispatcher { contract_address: world.hub }
+        .set_contracts(recorder, addr(3), addr(4), addr(5), flatten.try_into().unwrap());
+    let id = adventurer(world, VANGUARD);
+    set_profile(world, id, 20, 2, 0);
+    widest_equipment(world, id);
+    // `create_adventurer` reads its region with `record`, not `bundle`: nothing recorded yet.
+    assert(read(recorder, selector!("kinds")) == 0, 'nothing before set_build');
+    act(world, ALICE)
+        .set_build(
+            id,
+            build([1, 2, 3, ELITE, 5, 6, 7, 8], [12, 12, 3, 0, 0, 0, 0, 0, 0], 3),
+            belt([1, 8, 15, 22], [3, 3, 3, 3]),
+            equipped([101, 102, 103, 104, 105, 106, 107]),
+        );
+    let requested: u256 = read(recorder, selector!("kinds")).into();
+    let mut accepted: u256 = 0;
+    let mut bit: u256 = 2;
+    for kind in 1..LAST_KIND + 1 {
+        if Inputs::includes(kind) {
+            accepted += bit;
+        }
+        bit *= 2;
+    }
+    assert(requested == accepted, 'requested kinds != inputs');
 }

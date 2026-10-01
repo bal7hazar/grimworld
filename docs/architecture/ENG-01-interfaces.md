@@ -430,7 +430,7 @@ Design/02 bounds awake goblins (8), not displaced ones; E-2.
 |---|---|---:|---|
 | `admin`, `registry`, `instances`, `market`, `fate` | — | 5 | addresses |
 | `flatten` | — | 1 | `ClassHash` of `FlattenLibrary` (D-168, §1.3), set by `set_contracts` |
-| `rules_epoch` | — | 1 | `u16`, 0 to 511: the **rules epoch** (D-169, CBT-02f), raised by `set_contracts` when it changes `flatten` (511 wraps to 0), not when it sets the same class; 0 at deployment |
+| `rules_epoch` | — | 1 | `RulesEpoch` (`models/rules_epoch.cairo`; the value 0 to 511 as the felt, the layout of a `u16`): the **rules epoch** (D-169, CBT-02f), raised by `set_contracts` when it changes `flatten` or `registry`, the configuration the flattening depends on (511 wraps to 0), not when it sets the same two; 0 at deployment. Read and written through the store (`StoreTrait::get_rules_epoch`, `set_rules_epoch`) |
 | `next_account`, `next_adventurer`, `next_item` | — | 3 | `Counter` |
 | `account_of` | owner address | 1 | account id |
 | `accounts` | account `u32` | 2 | `Account { owner, record: AccountRecord }` |
@@ -495,9 +495,14 @@ Layouts (`contracts/persistent/src/models/`), every one with `LIVE`:
   The inputs version, the mark and the rules epoch are compared in one division of the kit word's
   high limb. An entrypoint that changes an input of the flattening without recomputing it writes
   `STALE_MARK` (`LIVE` and bit 240) to the kit word: one write, no read (D-168 2; the entrypoints
-  are listed in CBT-02e's report and CBT-02f's). **The rules epoch's wrap**: 9 bits, so a snapshot
-  left without `set_build` through exactly 512 changes of the flattening's class, and no change of
-  an input, would read fresh again; anything short of that is refused.
+  are listed in CBT-02e's report and CBT-02f's). **A limitation, the rules epoch's wrap** (CBT-02f
+  fix loop 1): the epoch has 9 bits and repeats after 512 changes. A snapshot left without
+  `set_build` through **exactly 512** (or any multiple of 512) changes of the flattening's
+  configuration (its class or the registry), with no change of an input in between, reads fresh
+  again and `enter` accepts it, though it was flattened under another configuration
+  (`test_rules_epoch_full_cycle_reads_fresh` shows it); anything short of that is refused. Only
+  the administrator reaches this path (`set_contracts`), 512 times between two `set_build`s of one
+  adventurer; it is accepted as it stands.
 
 Quests and achievements are **quiver's components** (D-131, D-135), embedded by ARC: their storage
 is the package's ("every record in one storage slot"), at most **4 held quests** per adventurer.
@@ -526,7 +531,8 @@ a boss item: `2^41 + base`.
 
 `records: Map<(kind u8, id u32, part u8), felt252>`, `last_ids: Map<kind, Counter>`,
 `versions: Versions` (one slot: the content version at bits 0–31, ENG-01b, D-141; the inputs
-version at 32–63, D-169, CBT-02f; `models/versions.cairo`), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
+version at 32–63, D-169, CBT-02f; `models/versions.cairo`, read and written through the store,
+`StoreTrait::get_versions`, `set_versions`), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
 `CASTE` records name each skill; layout-tested). A record is
 `parts(kind)` felts (`grimworld_logic::content`); values may change (design/01 rules 1–2). Pillar 6
 and S-6: a zone or a quest is data.
@@ -1383,8 +1389,9 @@ counts of `caste_skills` that change (≤ 8 keys, `first` or `old`); a `CASTE` a
 it names (≤ 4 × (1 + 2) = 12 slots), its stored record (2) and the counts (≤ 8); a `SKILL` above 63
 strikes reads its count (1). A rewritten `SKILL`, `ITEM` or `MODIFIER` raises the inputs version
 in the same slot and the same write as the content version (`R.versions`, D-169): no further key.
-`Hub.set_contracts` writes `H.rules_epoch` too (`old`, one more key) when it changes `flatten`, and
-neither when the class is the same (CBT-02f); the row above prices the four addresses.
+`Hub.set_contracts` reads `flatten` and `registry` to compare them (2 reads, through the store) and
+writes `H.rules_epoch` too (one more key, new the first time) when it changes either, and not when
+both are the same (CBT-02f); the row above prices the four addresses.
 
 **The stored snapshot (CBT-02e, D-168).** `set_build` flattens the build once, through
 `FlattenLibrary` (§1.3: one library call), and writes the snapshot's three words (`H.snapshot`,

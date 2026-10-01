@@ -569,7 +569,7 @@ fn test_enter_one_debit_per_item() {
 
 #[test]
 // gas: raised, CBT-02f: enter reads the rules epoch (D-169); Hub and Registry deploy dearer
-#[available_gas(l2_gas: 48599534)] // ceil(1.05 × 46285270 measured)
+#[available_gas(l2_gas: 48621080)] // ceil(1.05 × 46305790 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -781,7 +781,7 @@ fn rules_of(world: World) -> felt252 {
 // the stored snapshot, and `set_build` clears it. The records were new before the first
 // `set_build`.
 #[test]
-#[available_gas(l2_gas: 52351785)] // ceil(1.05 × 49858842 measured)
+#[available_gas(l2_gas: 52373331)] // ceil(1.05 × 49879362 measured)
 fn test_enter_refuses_after_an_input_rewritten() {
     let world = setup();
     let id = adventurer(world);
@@ -808,7 +808,7 @@ fn test_enter_refuses_after_an_input_rewritten() {
 // location), and new ids of the kinds it reads, stale nothing: `enter` copies the snapshot
 // `set_build` stored before them, without a second `set_build`.
 #[test]
-#[available_gas(l2_gas: 45652418)] // ceil(1.05 × 43478493 measured)
+#[available_gas(l2_gas: 45673964)] // ceil(1.05 × 43499013 measured)
 fn test_enter_after_other_records_changed() {
     let world = setup();
     let id = adventurer(world);
@@ -832,7 +832,7 @@ fn test_enter_after_other_records_changed() {
 // the stored snapshot; setting the class back raises it again (still stale); `set_build` under the
 // class clears it; the same class set again raises nothing and stales nothing.
 #[test]
-#[available_gas(l2_gas: 41427305)] // ceil(1.05 × 39454576 measured)
+#[available_gas(l2_gas: 41562398)] // ceil(1.05 × 39583236 measured)
 fn test_enter_refuses_after_a_new_rules_class() {
     let world = setup();
     let id = adventurer(world);
@@ -860,7 +860,7 @@ fn test_enter_refuses_after_a_new_rules_class() {
 // D-169 (AC-2): the rules epoch's wrap. At 511, the highest of its 9 bits, a new class takes it
 // to 0, and a snapshot flattened at 511 is stale under 0; `set_build` clears it.
 #[test]
-#[available_gas(l2_gas: 39827252)] // ceil(1.05 × 37930716 measured)
+#[available_gas(l2_gas: 39891890)] // ceil(1.05 × 37992276 measured)
 fn test_enter_after_the_rules_epoch_wraps() {
     let world = setup();
     let id = adventurer(world);
@@ -876,6 +876,67 @@ fn test_enter_after_the_rules_epoch_wraps() {
     act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
     act(world, ALICE).enter(id, INTO_ZONE);
     assert(created(world).count == 1, 'entered');
+}
+
+/// `Hub.set_contracts` as the administrator, with `registry` as the registry and the rest as
+/// `setup` left them.
+fn set_registry(world: World, registry: ContractAddress) {
+    start_cheat_caller_address(world.hub, addr(ADMIN));
+    IHubAdminDispatcher { contract_address: world.hub }
+        .set_contracts(
+            registry, world.instances, addr(4), addr(5), flatten_of(world).try_into().unwrap(),
+        );
+}
+
+// D-169 (fix loop 1, security note 2): `set_contracts` with another registry raises the rules
+// epoch, as another class does, and stales the stored snapshot; setting the registry back raises
+// it again (still stale: the gate is read from the registry first, so the refusal is seen with
+// the original one); the same registry and class set again raise nothing, and after `set_build`
+// the adventurer enters.
+#[test]
+#[available_gas(l2_gas: 41088817)] // ceil(1.05 × 39132206 measured)
+fn test_enter_refuses_after_a_new_registry() {
+    let world = setup();
+    let id = adventurer(world);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    assert(rules_of(world) == 1, 'the first configuration: 1');
+    let (other, _) = declare("Registry").unwrap().contract_class().deploy(@array![ADMIN]).unwrap();
+    set_registry(world, other);
+    assert(rules_of(world) == 2, 'another registry: +1');
+    set_registry(world, world.registry);
+    assert(rules_of(world) == 3, 'back: +1');
+    #[feature("safe_dispatcher")]
+    refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+    set_registry(world, world.registry);
+    assert(rules_of(world) == 3, 'the same two: +0');
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'entered');
+}
+
+// D-169 (fix loop 1, security note 1): the limitation of the 9-bit epoch, shown. A snapshot
+// flattened at epoch 1 is stale after one change of the class, and still stale after 511; after
+// exactly 512 changes the epoch is 1 again and `enter` accepts it, though the class changed 512
+// times since `set_build`. An administrator-only path (ENG-01 §3.3).
+#[test]
+#[available_gas(l2_gas: 336642919)] // ceil(1.05 × 320612303 measured)
+fn test_rules_epoch_full_cycle_reads_fresh() {
+    let world = setup();
+    let id = adventurer(world);
+    let flatten = flatten_of(world);
+    act(world, ALICE).set_build(id, EMPTY_BUILD, 0, 0);
+    assert(rules_of(world) == 1, 'flattened at 1');
+    for change in 1..RULES_EPOCHS + 1 {
+        set_flatten(world, flatten + (change % 2).into());
+        if change == 1 || change == RULES_EPOCHS - 1 {
+            #[feature("safe_dispatcher")]
+            refused(try_act(world, ALICE).enter(id, INTO_ZONE), STALE);
+        }
+    }
+    assert(rules_of(world) == 1, '512 changes: 1 again');
+    assert(flatten_of(world) == flatten, 'the original class');
+    act(world, ALICE).enter(id, INTO_ZONE);
+    assert(created(world).count == 1, 'accepted after 512');
 }
 
 // ---- travel -------------------------------------------------------------------------------------
@@ -1059,7 +1120,7 @@ fn test_report_moved() {
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
 // gas: raised, CBT-02f: enter reads the rules epoch (D-169); Hub and Registry deploy dearer
-#[available_gas(l2_gas: 39363379)] // ceil(1.05 × 37488932 measured)
+#[available_gas(l2_gas: 39384925)] // ceil(1.05 × 37509452 measured)
 fn test_report_open() {
     let world = setup();
     let id = adventurer(world);
@@ -1096,7 +1157,7 @@ fn test_report_open() {
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
 // gas: raised, CBT-02f: enter reads the rules epoch (D-169); Hub and Registry deploy dearer
-#[available_gas(l2_gas: 39923283)] // ceil(1.05 × 38022174 measured)
+#[available_gas(l2_gas: 39944829)] // ceil(1.05 × 38042694 measured)
 fn test_report_refusals() {
     let world = setup();
     let id = adventurer(world);
