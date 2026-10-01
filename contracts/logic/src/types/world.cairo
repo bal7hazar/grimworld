@@ -724,15 +724,19 @@ pub mod fixtures;
 mod tests {
     use crate::models::goblin::{GoblinTickTrait, GoblinTrait};
     use crate::models::index::{GoblinWords, MemberWords};
-    use crate::models::member::{MemberTickTrait, MemberTrait};
+    use crate::models::member::{
+        MemberConditionTrait, MemberLifecycleTrait, MemberTickTrait, MemberTrait,
+    };
     use crate::types::MAX_CLOCK;
-    use crate::types::combat::{activation, skill_kind};
+    use crate::types::combat::{activation, condition, skill_kind};
+    use crate::types::infliction::Infliction;
     use crate::types::tick::{
-        Content, ContentTrait, NO_SLOT, PotionSheet, SkillSheet, ai, flag, status,
+        Content, ContentTrait, NO_SLOT, PotionSheet, Sheets, SkillSheet, ai, flag, status,
     };
     use super::fixtures::{Fixture, HOB, RUNT, Script, activation_of, run};
     use super::{
-        Actor, Idle, TickTrait, Words, WordsTrait, WorldAssert, WorldStoreTrait, WorldTrait,
+        Actor, Idle, Rules, TickTrait, Words, WordsTrait, World, WorldAssert, WorldStoreTrait,
+        WorldTrait,
     };
 
     // design/19 §10.3, the degeneration: Poisoned to 72, Bleeding to 77 from step 2 of tick 70,
@@ -750,6 +754,94 @@ mod tests {
         run(ref world, 3);
         assert(*world.members.at(0).health == 400 - 60, 'ticks 73-75: -6 each');
         assert(world.clock == 75, 'clock');
+    }
+
+    /// design/19 §10.3's rules (CBT-04): goblin 17's weapon hit in step 2 of tick `t` applies
+    /// Bleeding `v` to the member for each `(t, v)` of `hits` (a goblin source: no passive); the
+    /// member's spell resolving in step 1 is Field Dressing's `CURE` Bleeding (its `HEAL` is
+    /// CBT-05's, left out: the example counts the health lost).
+    #[derive(Drop)]
+    struct Dressing {
+        hits: Span<(u32, i32)>,
+    }
+
+    impl DressingRules of Rules<Dressing> {
+        fn perceive(ref self: Dressing, ref world: World) {}
+        fn resolve(
+            ref self: Dressing,
+            ref world: World,
+            sheets: @Sheets,
+            actor: Actor,
+            slot: u8,
+            target: u16,
+        ) {
+            let mut member = *world.members.at(0);
+            member.cure(condition::BLEEDING, world.clock);
+            world.set_member(0, member);
+        }
+        fn act(ref self: Dressing, ref world: World, sheets: @Sheets, index: u32) {
+            for (t, v) in self.hits {
+                if *t == world.clock {
+                    let mut member = *world.members.at(0);
+                    let source: Infliction = Default::default();
+                    member.apply(condition::BLEEDING, *v, @source, world.clock, sheets);
+                    world.set_member(0, member);
+                }
+            }
+        }
+        fn objectives(ref self: Dressing, ref world: World) {}
+    }
+
+    /// §10.3 from tick 70 to 76 with goblin 17's hits `hits`: the member's health after each
+    /// tick and its Bleeding deadline after ticks 70, 74 and 76. Field Dressing (bar slot 2, a
+    /// spell of activation 1) starts at clock 75 and resolves in step 1 of tick 76.
+    fn dressing(hits: Span<(u32, i32)>) -> (Array<u16>, Array<u32>) {
+        let sheets = Fixture::sheets();
+        let mut spec = Fixture::spec();
+        spec.conditions = [0, 72, 0, 0];
+        let mut world = Fixture::world(
+            69, array![Fixture::member(spec)], array![Fixture::goblin(17, HOB)],
+        );
+        let mut rules = Dressing { hits };
+        let mut health = array![];
+        let mut bleeding = array![];
+        while world.clock < 75 {
+            TickTrait::run(ref world, @sheets, 1, ref rules);
+            health.append(*world.members.at(0).health);
+            if world.clock == 70 || world.clock == 74 {
+                bleeding.append(*world.members.at(0).bleeding);
+            }
+        }
+        let mut member = *world.members.at(0);
+        member.start(2, 0, 1, 75);
+        world.set_member(0, member);
+        TickTrait::run(ref world, @sheets, 1, ref rules);
+        health.append(*world.members.at(0).health);
+        bleeding.append(*world.members.at(0).bleeding);
+        (health, bleeding)
+    }
+
+    // design/19 §10.3 to the unit (CBT-04, AC-3), through the rules a hit and the executor will
+    // call: Poisoned to 72; goblin 17's hit in step 2 of tick 70 applies Bleeding 8 (D = 77);
+    // ticks 70–72 lose 14 each, 73–75 6 each; Bleeding 8 again at tick 74 refreshes to 81, one
+    // degeneration that tick; Field Dressing, started at clock 75, resolves in step 1 of tick 76
+    // and cures: D = 75, nothing lost at 76. 60 lost in all.
+    #[test]
+    #[available_gas(l2_gas: 7690518)] // ceil(1.05 × 7324302 measured)
+    fn test_example_condition_refreshed() {
+        let (health, bleeding) = dressing(array![(70, 8), (74, 8)].span());
+        assert(health == array![386, 372, 358, 352, 346, 340, 340], 'health 70-76');
+        assert(bleeding == array![77, 81, 75], 'D: 77, 81, cured to 75');
+    }
+
+    // The variant: Bleeding 2 at tick 74 keeps 77 by `max` (replacing would give 75, FX-6); the
+    // health lost is the same, and the cure at 76 gives 75.
+    #[test]
+    #[available_gas(l2_gas: 7690518)] // ceil(1.05 × 7324302 measured)
+    fn test_example_condition_refreshed_variant() {
+        let (health, bleeding) = dressing(array![(70, 8), (74, 2)].span());
+        assert(health == array![386, 372, 358, 352, 346, 340, 340], 'health 70-76');
+        assert(bleeding == array![77, 77, 75], 'D: 77 kept');
     }
 
     // design/19 §10.1, step 3 of ticks 42–44: goblin 24 Burning to 44, health regeneration 0,
