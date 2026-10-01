@@ -359,9 +359,18 @@ fn flattened(
         requests.append((MODIFIER, (*modifier).into()));
     }
     let registry = IRegistryReadDispatcher { contract_address: world.registry };
-    let (version, parts) = registry.bundle(requests.span());
+    let (_, _, parts) = registry.bundle(requests.span());
     let (stats, bar, kit) = SnapshotBuildTrait::words(@loadout, worn.span(), ids, parts);
-    (stats, bar, StoredSnapshotTrait::seal(kit, version))
+    (stats, bar, StoredSnapshotTrait::seal(kit, epoch(world)))
+}
+
+/// The flattening epoch a snapshot stored now is sealed with (D-169): the registry's inputs
+/// version and `Hub`'s rules epoch.
+fn epoch(world: World) -> u64 {
+    let registry = IRegistryReadDispatcher { contract_address: world.registry };
+    let (_, inputs, _) = registry.bundle(array![].span());
+    let rules: u16 = read(world.hub, selector!("rules_epoch")).try_into().unwrap();
+    StoredSnapshotTrait::epoch(inputs, rules)
 }
 
 /// Alice's account and one adventurer of `profession`: adventurer 1; Bob's Vanguard: 2. Alice
@@ -466,7 +475,7 @@ const WORST_CASE_CALL: u128 = 8501927;
 // call). The words stored are the flattening's (AC-1).
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 120038756)] // ceil(1.05 × 114322624 measured)
+#[available_gas(l2_gas: 121095297)] // ceil(1.05 × 115328854 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -520,7 +529,7 @@ fn test_set_build_worst_case() {
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 86078618)] // ceil(1.05 × 81979636 measured)
+#[available_gas(l2_gas: 86873279)] // ceil(1.05 × 82736456 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -544,7 +553,7 @@ fn test_set_build_parts() {
 // adventurer back, and the snapshot of a level 20 Vanguard without equipment.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 82105517)] // ceil(1.05 × 78195730 measured)
+#[available_gas(l2_gas: 82881089)] // ceil(1.05 × 78934370 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -565,8 +574,7 @@ fn test_set_build_empty() {
     assert(read(world.hub, adventurer_word(id, 4)) == LIVE, 'equipped');
     let (stats, _, kit) = stored_snapshot(world, id);
     assert(unpack_stats(stats).max_health == 480, 'level 20 health');
-    let version = IRegistryReadDispatcher { contract_address: world.registry }.content_version();
-    assert(unpack_kit(StoredSnapshotTrait::kit(kit, version)).belt == [0; 4], 'no belt');
+    assert(unpack_kit(StoredSnapshotTrait::kit(kit, epoch(world))).belt == [0; 4], 'no belt');
 }
 
 // ---- who, where, and the layouts
@@ -574,7 +582,7 @@ fn test_set_build_empty() {
 
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 79103875)] // ceil(1.05 × 75337023 measured)
+#[available_gas(l2_gas: 79885589)] // ceil(1.05 × 76081513 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -599,7 +607,7 @@ fn test_set_build_ownership_refusals() {
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 81890680)] // ceil(1.05 × 77991123 measured)
+#[available_gas(l2_gas: 82709543)] // ceil(1.05 × 78770993 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -631,7 +639,7 @@ fn test_set_build_layout_refusals() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 75255054)] // ceil(1.05 × 71671480 measured)
+#[available_gas(l2_gas: 79376339)] // ceil(1.05 × 75596513 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -643,7 +651,7 @@ fn test_bar_duplicate_refused() {
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 83235061)] // ceil(1.05 × 79271486 measured)
+#[available_gas(l2_gas: 84052087)] // ceil(1.05 × 80049606 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -662,7 +670,7 @@ fn test_bar_known_and_registered() {
 // Of the primary or the secondary profession (design/03).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 76073099)] // ceil(1.05 × 72450570 measured)
+#[available_gas(l2_gas: 80159860)] // ceil(1.05 × 76342723 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -678,7 +686,7 @@ fn test_bar_profession() {
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 83108764)] // ceil(1.05 × 79151203 measured)
+#[available_gas(l2_gas: 83919385)] // ceil(1.05 × 79923223 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -701,7 +709,7 @@ fn test_bar_elite() {
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 82253752)] // ceil(1.05 × 78336906 measured)
+#[available_gas(l2_gas: 83083220)] // ceil(1.05 × 79126876 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -720,7 +728,7 @@ fn test_attributes_rank_and_points() {
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 97211525)] // ceil(1.05 × 92582404 measured)
+#[available_gas(l2_gas: 98253051)] // ceil(1.05 × 93574334 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -751,7 +759,7 @@ fn test_attributes_points_by_level() {
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 89065472)] // ceil(1.05 × 84824259 measured)
+#[available_gas(l2_gas: 89905462)] // ceil(1.05 × 85624249 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -777,7 +785,7 @@ fn test_attributes_indices() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 77166852)] // ceil(1.05 × 73492240 measured)
+#[available_gas(l2_gas: 81493622)] // ceil(1.05 × 77612973 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -797,7 +805,7 @@ fn test_belt_items() {
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 82103696)] // ceil(1.05 × 78193996 measured)
+#[available_gas(l2_gas: 82895932)] // ceil(1.05 × 78948506 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -815,7 +823,7 @@ fn test_belt_counts_within_the_pack() {
 
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 86750370)] // ceil(1.05 × 82619400 measured)
+#[available_gas(l2_gas: 87617072)] // ceil(1.05 × 83444830 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -833,7 +841,7 @@ fn test_equipment_owned_and_wearable() {
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
 // gas: raised, CBT-02e: set_build flattens through FlattenLibrary and stores the snapshot (D-168)
-#[available_gas(l2_gas: 86393641)] // ceil(1.05 × 82279658 measured)
+#[available_gas(l2_gas: 87233631)] // ceil(1.05 × 83079648 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -855,7 +863,7 @@ fn test_equipment_slots_and_hands() {
 // floors. A level 1 Vanguard's 100 health: one rune costing 75 leaves 25, accepted; two leave
 // −50, refused (costs count on every rune, FX-43).
 #[test]
-#[available_gas(l2_gas: 100288592)] // ceil(1.05 × 95512944 measured)
+#[available_gas(l2_gas: 101096304)] // ceil(1.05 × 96282194 measured)
 fn test_set_build_floor_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -870,7 +878,7 @@ fn test_set_build_floor_refused() {
 // DS-23 (D-160): an insignia is worn on the piece its record names; one made for the chest is
 // refused on the legs.
 #[test]
-#[available_gas(l2_gas: 99874143)] // ceil(1.05 × 95118231 measured)
+#[available_gas(l2_gas: 100681856)] // ceil(1.05 × 95887481 measured)
 fn test_set_build_insignia_piece_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -885,7 +893,7 @@ fn test_set_build_insignia_piece_refused() {
 // The flattening's checks of the whole build (design/20 §1.2, DS-1): six runes are more than an
 // adventurer holds, refused.
 #[test]
-#[available_gas(l2_gas: 104694739)] // ceil(1.05 × 99709275 measured)
+#[available_gas(l2_gas: 105502452)] // ceil(1.05 × 100478525 measured)
 fn test_set_build_sixth_rune_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -902,7 +910,7 @@ fn test_set_build_sixth_rune_refused() {
 
 // A modifier the registry does not hold is refused.
 #[test]
-#[available_gas(l2_gas: 95454313)] // ceil(1.05 × 90908869 measured)
+#[available_gas(l2_gas: 96232888)] // ceil(1.05 × 91650369 measured)
 fn test_set_build_unknown_modifier_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -917,7 +925,7 @@ fn test_set_build_unknown_modifier_refused() {
 // its benefit at a value of its record's range (armor against fire 1…7: 7 accepted, 8 and 0
 // refused).
 #[test]
-#[available_gas(l2_gas: 103839883)] // ceil(1.05 × 98895126 measured)
+#[available_gas(l2_gas: 104688944)] // ceil(1.05 × 99703756 measured)
 fn test_set_build_modifier_slot_and_value_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -938,7 +946,7 @@ fn test_set_build_modifier_slot_and_value_refused() {
 // pieces (DS-23), five +50 health runes of distinct ids. 480 + 150 + 40 + 250 = 920 (the set
 // bonuses of the envelope's 1,020 are not laid out yet). The words stored are the flattening's.
 #[test]
-#[available_gas(l2_gas: 106239569)] // ceil(1.05 × 101180541 measured)
+#[available_gas(l2_gas: 107257586)] // ceil(1.05 × 102150081 measured)
 fn test_set_build_stores_the_extremal_max_health() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -999,7 +1007,7 @@ fn test_set_build_stores_the_extremal_max_health() {
 // (`test_extremal_max_energy_through_the_library`: 120); the set bonuses' 10 no item holds. The
 // words stored are the flattening's.
 #[test]
-#[available_gas(l2_gas: 89807589)] // ceil(1.05 × 85531037 measured)
+#[available_gas(l2_gas: 90708269)] // ceil(1.05 × 86388827 measured)
 fn test_set_build_stores_the_extremal_max_energy() {
     let world = setup();
     let id = adventurer(world, ARCANIST);

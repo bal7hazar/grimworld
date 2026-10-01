@@ -500,7 +500,7 @@ mod inputs_tests {
     use super::Inputs;
 
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 112350)] // ceil(1.05 × 107000 measured)
     fn test_flattening_inputs() {
         for kind in 1..LAST_KIND + 1 {
             let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;
@@ -528,7 +528,7 @@ mod version_cost_tests {
 
     // `bundle`'s part of the version: one read of one slot.
     #[test]
-    #[available_gas(l2_gas: 36383)] // ceil(1.05 × 34650 measured)
+    #[available_gas(l2_gas: 39785)] // ceil(1.05 × 37890 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
         assert(state.versions.read().content == 0, 'version 0');
@@ -536,7 +536,7 @@ mod version_cost_tests {
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
     #[test]
-    #[available_gas(l2_gas: 507066)] // ceil(1.05 × 482920 measured)
+    #[available_gas(l2_gas: 510678)] // ceil(1.05 × 486360 measured)
     fn test_version_cost_raise() {
         let mut state = Registry::contract_state_for_testing();
         state.raise_versions(false);
@@ -545,7 +545,7 @@ mod version_cost_tests {
     // `set_record`'s part when the changed record is an input of the flattening (D-169): both
     // versions raised in the same write; against `test_version_cost_raise`, the added cost.
     #[test]
-    #[available_gas(l2_gas: 507066)] // ceil(1.05 × 482920 measured)
+    #[available_gas(l2_gas: 512169)] // ceil(1.05 × 487780 measured)
     fn test_version_cost_raise_input() {
         let mut state = Registry::contract_state_for_testing();
         state.raise_versions(true);
@@ -562,7 +562,7 @@ mod version_cost_tests {
 
     // Every raise after the first: the slot holds a version, the write overwrites it.
     #[test]
-    #[available_gas(l2_gas: 514647)] // ceil(1.05 × 490140 measured)
+    #[available_gas(l2_gas: 519435)] // ceil(1.05 × 494700 measured)
     fn test_version_cost_raise_again() {
         let mut state = Registry::contract_state_for_testing();
         store(test_address(), selector!("versions"), array![7].span());

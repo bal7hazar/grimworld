@@ -157,7 +157,7 @@ mod tests {
     // The flattening epoch's layout: the inputs version at bits 208–239, the rules epoch at
     // 241–249, the mark's bit 240 between them, and nothing at 250 (`LIVE`) or above.
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_epoch_bits() {
         let unit: felt252 = 0x10000000000000000000000000000000000000000000000000000; // 2^208
         let inputs = StoredSnapshotTrait::seal(0, StoredSnapshotTrait::epoch(0xffffffff, 0));
@@ -173,7 +173,7 @@ mod tests {
 
     // The rules epoch counts 0 to 511, then wraps to 0 (9 bits).
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
     fn test_rules_epoch_wraps() {
         assert(StoredSnapshotTrait::next_rules(0) == 1, '0 to 1');
         assert(StoredSnapshotTrait::next_rules(510) == 511, '510 to 511');
@@ -182,7 +182,7 @@ mod tests {
 
     // A snapshot of another rules epoch, of the same inputs version, is stale.
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 75233)] // ceil(1.05 × 71650 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_rules_refused() {
         let word = StoredSnapshotTrait::seal(kit(), StoredSnapshotTrait::epoch(4, 1));
@@ -192,7 +192,7 @@ mod tests {
 
     // The mark is stale whatever the epoch, the widest included.
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 20790)] // ceil(1.05 × 19800 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_stale_mark_refused_at_any_epoch() {
         StoredSnapshotAssert::assert_fresh(

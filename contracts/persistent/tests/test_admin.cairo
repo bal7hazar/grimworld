@@ -34,7 +34,7 @@ fn stored(hub: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252,
 
 #[test]
 // gas: raised, CBT-02e: set_contracts takes FlattenLibrary's class hash (D-168)
-#[available_gas(l2_gas: 4939893)] // ceil(1.05 × 4704660 measured)
+#[available_gas(l2_gas: 5453732)] // ceil(1.05 × 5194030 measured)
 fn test_hub_set_contracts_by_admin() {
     let hub = deploy_hub();
     start_cheat_caller_address(hub, ADMIN.try_into().unwrap());
@@ -50,7 +50,7 @@ fn test_hub_set_contracts_by_admin() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4311605)] // ceil(1.05 × 4106290 measured)
+#[available_gas(l2_gas: 4372809)] // ceil(1.05 × 4164580 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_contracts_refused_to_others() {
     let hub = deploy_hub();
@@ -70,7 +70,7 @@ fn test_hub_set_contracts_refused_to_others() {
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
 // gas: raised, CBT-02e: set_contracts takes FlattenLibrary's class hash (D-168)
-#[available_gas(l2_gas: 5636138)] // ceil(1.05 × 5367750 measured)
+#[available_gas(l2_gas: 6188049)] // ceil(1.05 × 5893380 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_hands_over() {
     let hub = deploy_hub();
@@ -103,7 +103,7 @@ fn test_hub_set_admin_hands_over() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4577906)] // ceil(1.05 × 4359910 measured)
+#[available_gas(l2_gas: 4587587)] // ceil(1.05 × 4369130 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_refused() {
     let hub = deploy_hub();
