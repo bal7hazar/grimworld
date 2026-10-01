@@ -53,6 +53,7 @@ of the same Unix user.
 | D-129, D-133 | The threshold of $0.50 for 300 actions stays the target; it does not hold with one action per transaction ($0.69 to $0.87 on Sepolia); played actions are sent in batches | Project manager |
 | D-130 | The indexer is our own | Project manager |
 | D-138 | **First publication**: `quiver_quest` 0.1.0 on scarbs.xyz, after the project manager's own checks; the registry lists it with the checksum of the go | Project manager, in the owner's name |
+| D-179 | Five readings of one hit confirmed; a sleeping target neither blocks nor evades its first hit | Project manager |
 | D-178 | CLI-03c: hubs and transitions on fixed data, for the owner's eye | Project manager, at the owner's request |
 | D-177 | An audit is the exception; the review is the routine gate; OPERATIONS §6 names the few kinds that need one | Owner |
 | D-176 | The compile drift explained (rayon thread order moves `withdraw_gas` in a cycle): measured and declared builds single-threaded; the upstream issue at the owner's go | Project manager |
