@@ -384,7 +384,7 @@ impl SeedFixture of Fixture {
 // The test region, written and read back in one `bundle` (AC-4): 13 records, 17 slots.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 22683728)] // ceil(1.05 × 21603550 measured)
+#[available_gas(l2_gas: 22611057)] // ceil(1.05 × 21534340 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
@@ -452,7 +452,7 @@ fn test_gas_seed_baseline() {
 // Writing the whole test region, 13 `set_record` (AC-4): this test less the baseline.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 20549802)] // ceil(1.05 × 19571240 measured)
+#[available_gas(l2_gas: 20483432)] // ceil(1.05 × 19508030 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -461,7 +461,7 @@ fn test_gas_seed_write() {
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 29679353)] // ceil(1.05 × 28266050 measured)
+#[available_gas(l2_gas: 29600351)] // ceil(1.05 × 28190810 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);

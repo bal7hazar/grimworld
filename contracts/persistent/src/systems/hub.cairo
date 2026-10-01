@@ -1124,8 +1124,8 @@ mod layout_tests {
     }
 
     #[test]
-    // gas: raised, CBT-02f: the layout checks rules_epoch's address too
-    #[available_gas(l2_gas: 285758)] // ceil(1.05 × 272150 measured)
+    // gas: raised, CBT-02e: the layout checks the snapshots' and flatten's addresses
+    #[available_gas(l2_gas: 285443)] // ceil(1.05 × 271850 measured)
     fn test_hub_storage_addresses() {
         let state = @Hub::contract_state_for_testing();
         assert(
