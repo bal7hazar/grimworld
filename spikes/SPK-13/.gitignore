@@ -3,4 +3,5 @@
 .work/
 target/
 minimal/target/
+.snfoundry_cache/
 __pycache__/
