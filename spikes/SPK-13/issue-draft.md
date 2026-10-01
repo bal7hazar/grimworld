@@ -2,6 +2,10 @@
 
 > Prepared by SPK-13; **not filed**. Filing it is the owner's decision (D-154 §3). Everything
 > below the line is the issue's text, written to be pasted as is.
+>
+> D-180 (2026-10-01): re-tested on Scarb 2.20.1 (Cairo 2.20.0), the latest Scarb; the drift
+> remains there, with the same code at tag v2.20.0 (and v2.19.6). Both versions and their output
+> are in the text below.
 
 ---
 
@@ -31,7 +35,9 @@ stable.
 ### Versions
 
 - Scarb 2.19.4 (b45b74c03 2026-07-21), Cairo 2.19.4, Sierra 1.9.3
-- `lowered_scc_representative` is unchanged on `main` (read 2026-10-01)
+- Scarb 2.20.1 (dd18779a1 2026-08-21), Cairo 2.20.0, Sierra 1.9.3: the same behaviour (output below)
+- `lowered_scc_representative` and the warm-up functions are unchanged at the tags v2.20.0 and
+  v2.19.6 and on `main` (read 2026-10-01)
 - Seen on aarch64-apple-darwin (12 CPUs); the two main values of the larger contract below were
   also produced on x86_64 Linux (GitHub `ubuntu-latest` and a Linux server), with the same sizes
 
@@ -138,8 +144,36 @@ b5422d51771a6269 withdraw_gas in: spk13_minimal::b::pong
 12ec3e1650a18599 withdraw_gas in: spk13_minimal::ping
 ```
 
-On several threads the gas check moves between `ping` and `pong` from one build to the next (5 and
-7 builds here), and the file differs on every build (it also writes the numeric intern id beside
+On Scarb 2.20.1 (dd18779a1 2026-08-21), Cairo 2.20.0, same machine. `./reproduce.sh 12`:
+
+```
+00e2e8e902e98256 withdraw_gas in: spk13_minimal::ping
+9903cf3bca46958a withdraw_gas in: spk13_minimal::ping
+ae1e6af352e82826 withdraw_gas in: spk13_minimal::b::pong
+cae67c3eb8f303ca withdraw_gas in: spk13_minimal::b::pong
+8c19ba8c1aec3297 withdraw_gas in: spk13_minimal::ping
+810332a4f12e23ec withdraw_gas in: spk13_minimal::ping
+4d8779d0476e70c9 withdraw_gas in: spk13_minimal::b::pong
+9900fe9ac9aa78b7 withdraw_gas in: spk13_minimal::b::pong
+39d2eb57aa625343 withdraw_gas in: spk13_minimal::b::pong
+f65d78e57ab107cc withdraw_gas in: spk13_minimal::ping
+06600e72e692bd37 withdraw_gas in: spk13_minimal::ping
+02ee609e3c1a22ed withdraw_gas in: spk13_minimal::b::pong
+```
+
+`./reproduce.sh 6 1`:
+
+```
+ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
+ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
+ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
+ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
+ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
+ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
+```
+
+On both versions, on several threads, the gas check moves between `ping` and `pong` from one build
+to the next (5 / 7 builds on 2.19.4, 6 / 6 on 2.20.1), and the file differs on every build (it also writes the numeric intern id beside
 each debug name). On one thread the file is identical, byte for byte. Earlier series on the same
 machine: 9 / 11 out of 20 builds, and 16 / 4 out of 20 while another build loaded the machine;
 `RAYON_NUM_THREADS=1`, 10 out of 10 identical.

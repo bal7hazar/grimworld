@@ -168,6 +168,18 @@ placement, follow the race.
 So it is **the toolchain**: a fix belongs in the compiler (the draft issue), not in our code or
 our cache.
 
+## Scarb 2.20.1 (D-180)
+
+The latest Scarb, 2.20.1 (`dd18779a1 2026-08-21`, Cairo 2.20.0), selected per command with
+`spikes/SPK-13/with-scarb.sh 2.20.1 …` (asdf's `ASDF_SCARB_VERSION`; no `.tool-versions`
+written): `minimal/reproduce.sh 12` put the check in `ping` 6 times and in `pong` 6 times, 12
+distinct files; `reproduce.sh 6 1` gave one file (`ecdb2df475027c55…`, the check in `ping`). **The
+drift remains.** At the tags v2.20.0 and v2.19.6, `lowered_scc_representative` (lowest
+`get_internal_id()`) and the warm-up (`should_warmup`, `warmup_diagnostics_blocking`,
+`warmup_functions_blocking`) are the same as in 2.19.4. The 2.20.0 release notes list no
+determinism fix: "stabilized ids in the debug replacer" (#10187) concerns debug names, and the
+2.19.5 and 2.19.6 notes are empty. Moving to 2.20.1 changes nothing for D-164.
+
 ## The VPS run (slot)
 
 The orchestrator runs, on the VPS, unchanged:
@@ -235,6 +247,7 @@ outside this spike's allowlist):
 | `class_hash.py` | the class hash in pure Python (Poseidon, Keccak), `--check` against starkli |
 | `sierra-dump/` | Rust, the compiler's crates at 2.19.4: a class or a compiled Sierra program as text, with names |
 | `diff_sierra.py` | what differs between builds, function by function, and whether the CASM is equal |
+| `with-scarb.sh` | runs a command with another installed Scarb (`ASDF_SCARB_VERSION`), installs nothing |
 | `fetch-library.sh` | the library's clone at `310b5f1` in the ignored `.work/` |
 | `minimal/` | the minimal program (a Scarb package; its test runs in CI) and `reproduce.sh`, the issue's reproduction |
 | `builds-mac.txt` | the table on the Mac |
