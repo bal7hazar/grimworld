@@ -75,7 +75,8 @@ export function readParams(search: string): SandboxParams {
   const hubName = params.get("hub") ?? (params.get("loop") === "1" ? "town" : null);
   return {
     fixture: params.get("fixture"),
-    hub: hubName !== null && Object.hasOwn(HUB_NAMES, hubName) ? (HUB_NAMES[hubName] ?? null) : null,
+    hub:
+      hubName !== null && Object.hasOwn(HUB_NAMES, hubName) ? (HUB_NAMES[hubName] ?? null) : null,
     entryMs: readBounded(params.get("entry"), ENTRY_RANGE) ?? ENTRY_MS,
     idle: params.get("idle") !== "0",
     panel: params.get("panel") === "1",

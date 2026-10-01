@@ -5,7 +5,7 @@ import { CHUNK } from "./world";
 
 describe("fixtures", () => {
   it("are whole chunks, with one adventurer", () => {
-    expect(Object.keys(FIXTURES)).toEqual(["meadow", "cave", "edge"]);
+    expect(Object.keys(FIXTURES)).toEqual(["meadow", "cave", "edge", "zone"]);
     for (const world of Object.values(FIXTURES)) {
       expect(world.terrain.width % CHUNK).toBe(0);
       expect(world.terrain.height % CHUNK).toBe(0);

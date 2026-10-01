@@ -1,4 +1,11 @@
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useReducer, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useReducer,
+  useState,
+} from "react";
 import type { ScaleMode } from "../../render/scaling";
 import { HUB_VIEWS } from "../fixtures/hubs";
 import { gateOf } from "../fixtures/region";
@@ -103,7 +110,12 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
       break;
     case "report":
       content = (
-        <ReportScreen outcome={screen.outcome} how={screen.how} hub={screen.hub} dispatch={dispatch} />
+        <ReportScreen
+          outcome={screen.outcome}
+          how={screen.how}
+          hub={screen.hub}
+          dispatch={dispatch}
+        />
       );
       break;
   }
@@ -146,7 +158,13 @@ function useWindowWidth(): number {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { position: "fixed", inset: 0, background: "#0b0b0e", color: "#eee", font: "15px system-ui" },
+  page: {
+    position: "fixed",
+    inset: 0,
+    background: "#0b0b0e",
+    color: "#eee",
+    font: "15px system-ui",
+  },
   desktop: { display: "flex", justifyContent: "center" },
   column: {
     position: "relative",

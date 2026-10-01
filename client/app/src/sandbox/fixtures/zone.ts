@@ -40,7 +40,10 @@ const RUNTS: readonly Tile[] = [
 ];
 
 /** The zone, the adventurer standing on `entry` (a tile of the location, global coordinates). */
-export function zoneWorld(entry: Tile, record: LocationRecord | undefined = locationOf(ZONE)): SandboxWorld {
+export function zoneWorld(
+  entry: Tile,
+  record: LocationRecord | undefined = locationOf(ZONE),
+): SandboxWorld {
   if (!record) throw new Error("the zone is not in the fixed data");
   const width = record.width * CHUNK;
   const height = record.height * CHUNK;
@@ -70,16 +73,14 @@ export function zoneWorld(entry: Tile, record: LocationRecord | undefined = loca
   });
   const actors: ViewActor[] = [
     { id: 1, side: "adventurer", profession: "vanguard", tile: entry, facing: 3, mark: null },
-    ...RUNTS.map(
-      (tile, i): ViewActor => ({
-        id: 2 + i,
-        side: "goblin",
-        caste: "runt",
-        tile,
-        facing: 0,
-        mark: "asleep",
-      }),
-    ),
+    ...RUNTS.map((tile, i): ViewActor => ({
+      id: 2 + i,
+      side: "goblin",
+      caste: "runt",
+      tile,
+      facing: 0,
+      mark: "asleep",
+    })),
   ];
   return {
     name: "zone",

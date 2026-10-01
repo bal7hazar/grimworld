@@ -12,14 +12,7 @@ export type Intent =
 
 /** A hub's services (design/11 *Hubs*); the Gate is not one of them, it has its own screen. */
 export type ServiceId =
-  | "guild"
-  | "trainer"
-  | "smith"
-  | "armorer"
-  | "enchanter"
-  | "alchemist"
-  | "market"
-  | "vault";
+  "guild" | "trainer" | "smith" | "armorer" | "enchanter" | "alchemist" | "market" | "vault";
 
 /**
  * What a tap means between screens (CLI-03c): hubs, their services, the Gate screen, the entry,

@@ -10,8 +10,7 @@ import type { Profession } from "./view";
 
 /** Where a place leads: a service's screen, or the Gate screen. */
 export type HubTarget =
-  | { readonly kind: "service"; readonly service: ServiceId }
-  | { readonly kind: "gate" };
+  { readonly kind: "service"; readonly service: ServiceId } | { readonly kind: "gate" };
 
 /** A building standing on the ground, a place to tap. */
 export interface HubPlace {

@@ -53,7 +53,11 @@ export type LoopEvent = LoopIntent | LoopAnswer;
 
 export function hubState(hub: number): LoopState {
   if (!HUB_VIEWS.has(hub)) throw new Error(`no hub ${hub} in the fixed data`);
-  return { screen: { kind: "hub", hub, inspected: null }, lastHub: hub, said: `at ${hubName(hub)}` };
+  return {
+    screen: { kind: "hub", hub, inspected: null },
+    lastHub: hub,
+    said: `at ${hubName(hub)}`,
+  };
 }
 
 export function hubName(hub: number): string {
@@ -119,7 +123,11 @@ export function step(state: LoopState, event: LoopEvent): LoopState {
       return { ...state, screen: { kind: "hub", hub: screen.hub, inspected: null }, said: "back" };
     case "gate":
       if (event.kind === "back") {
-        return { ...state, screen: { kind: "hub", hub: screen.hub, inspected: null }, said: "back" };
+        return {
+          ...state,
+          screen: { kind: "hub", hub: screen.hub, inspected: null },
+          said: "back",
+        };
       }
       if (event.kind === "enter gate") {
         const gate = gatesFrom(screen.hub).find((g) => g.id === event.gate);

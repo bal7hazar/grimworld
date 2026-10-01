@@ -167,7 +167,10 @@ export function EntryScreen({
         <div style={ui.title}>Through the gate</div>
         <p style={ui.muted}>to {destination}</p>
       </div>
-      <button style={{ ...ui.button, ...ui.quiet }} onClick={() => dispatch({ kind: "skip entry" })}>
+      <button
+        style={{ ...ui.button, ...ui.quiet }}
+        onClick={() => dispatch({ kind: "skip entry" })}
+      >
         Skip ▸
       </button>
     </div>
