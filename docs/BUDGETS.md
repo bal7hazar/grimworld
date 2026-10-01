@@ -601,8 +601,8 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `types::window::tests::test_sight` | 122336 | 128453 | 2026-10-01 | d8e01f3 |
 | grimworld_logic | `types::window::tests::test_sight_wall_at_an_end` | 224288 | 235503 | 2026-10-01 | d8e01f3 |
 | grimworld_logic | `types::window::tests::test_tiles` | 2363621 | 2481803 | 2026-10-01 | fc4e042 |
-| grimworld_logic | `types::window::tests::test_vectors` | 1188323341 | 1247739509 | 2026-10-01 | d8e01f3 |
-| grimworld_logic | `types::window::tests::test_vectors_1` | 415406569 | 436176898 | 2026-10-01 | d8e01f3 |
+| grimworld_logic | `types::window::tests::test_vectors` | 1204298487 | 1264513412 | 2026-10-01 | ebe3b8d |
+| grimworld_logic | `types::window::tests::test_vectors_1` | 415407469 | 436177843 | 2026-10-01 | ebe3b8d |
 | grimworld_logic | `types::window::tests::test_window_bits_above` | 17720 | 18606 | 2026-10-01 | fc4e042 |
 | grimworld_logic | `types::world::tests::test_adrenaline_decay` | 11380268 | 11949282 | 2026-10-01 | 92428cf |
 | grimworld_logic | `types::world::tests::test_awake_set` | 8824740 | 9265977 | 2026-10-01 | 92428cf |

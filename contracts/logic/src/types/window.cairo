@@ -11,8 +11,8 @@
 //! **The rules** (design/04 *Ranges*, *Line of sight*, *Facing and arcs*; design/19 §2.3, §5.3
 //! step 3, §5.5 step 1, §5.6):
 //! - `sight`: a fixed integer hex line between the two tiles; walls block, actors do not (an actor
-//!   is not in the window's walls), a wall at either end included (fix loop 1; the project
-//!   manager confirms the edges in docs/decisions/2026-10-01-eng-02-escalations.md). When the line
+//!   is not in the window's walls), a wall at either end included (D-174, with the edges below,
+//!   written into design/19 §6). When the line
 //!   passes exactly between two tiles, the lower tile index is taken. `hexx`'s line (N-5) has this
 //!   rule: element `i` of the line is the tile nearest `A + (i / N)(B − A)`, at a tie the smaller
 //!   row, and on the same row the smaller column (`LineTrait::line`, `HexTrait::line_to`); the
@@ -29,8 +29,7 @@
 //!   target), in `d` front, `d ± 1` front-side, `d ± 2` rear-side, `d + 3` back.
 //! - `front`: whether the target stands on the source's front tile (Blind's miss, §5.6).
 //! - `facing`: the facing an action turns to (§5.3 step 3): toward the moved-to tile or the
-//! target;
-//!   a target not adjacent, the direction of the first step of the hex line.
+//!   target; for a target not adjacent, the direction of the first step of the hex line.
 //! - The arguments come in one order: the acting tile, then the other tile, then a facing
 //!   (`arc(source, target, facing)`, `front(source, target, facing)`, `facing(from, to, facing)`).
 //! - `shape`: a shape's tiles from a centre (§2.3: `SINGLE`, `RING_1`, `DISC_1`, `DISC_2`,
@@ -191,7 +190,7 @@ pub impl WindowImpl of WindowTrait {
     /// the line from the target (the line is symmetric). `None` for the same tile or a position
     /// outside the window. Walls are not read: the caller checked `reach` first.
     fn arc(source: u8, target: u8, facing: u8) -> Option<Arc> {
-        let facing = WindowAssert::facing(facing);
+        let facing = WindowAssert::direction(facing);
         if !(Self::inside(source) && Self::inside(target)) || source == target {
             return None;
         }
@@ -208,7 +207,7 @@ pub impl WindowImpl of WindowTrait {
 
     /// Whether `target` stands on the front tile of `source` facing `facing` (§5.6, Blind).
     fn front(source: u8, target: u8, facing: u8) -> bool {
-        let facing = WindowAssert::facing(facing);
+        let facing = WindowAssert::direction(facing);
         if !(Self::inside(source) && Self::inside(target)) {
             return false;
         }
@@ -219,7 +218,7 @@ pub impl WindowImpl of WindowTrait {
     /// of `to` when adjacent, else of the first step of the hex line; `facing` unchanged for the
     /// same tile or a position outside the window.
     fn facing(from: u8, to: u8, facing: u8) -> u8 {
-        WindowAssert::facing(facing);
+        WindowAssert::direction(facing);
         if !(Self::inside(from) && Self::inside(to)) || from == to {
             return facing;
         }
@@ -490,12 +489,12 @@ pub impl WindowAssert of WindowAssertTrait {
 
     /// A shape id of `effect::shape`.
     fn assert_valid_shape(shape: u8) {
-        assert(shape >= shape::SINGLE && shape <= shape::DISC_3, errors::SHAPE);
+        assert(shape >= shape::SINGLE && shape <= shape::LAST, errors::SHAPE);
     }
 
     /// The direction of a facing `0..=5`.
     #[inline(always)]
-    fn facing(facing: u8) -> Direction {
+    fn direction(facing: u8) -> Direction {
         match facing.try_into() {
             Some(direction) => direction,
             None => core::panic_with_felt252(errors::FACING),
@@ -893,8 +892,9 @@ mod tests {
         assert!(!Fixture::open().sight(Fixture::at(0, 0), Fixture::at(0, 2)));
     }
 
-    /// Walls block, the ends are not tested, actors are not walls; the same tile and adjacent
-    /// tiles always see each other; a position outside the window sees nothing.
+    /// Walls between the ends block, actors are not walls; walkable adjacent tiles and a walkable
+    /// tile with itself see each other; a position outside the window sees nothing. A wall at an
+    /// end is `test_sight_wall_at_an_end`'s.
     #[test]
     #[available_gas(l2_gas: 128453)] // ceil(1.05 × 122336 measured)
     fn test_sight() {
@@ -912,8 +912,8 @@ mod tests {
         assert!(!Fixture::open().sight(Fixture::at(7, 8), 255));
     }
 
-    /// Fix loop 1 (the project manager's call, docs/decisions/2026-10-01-eng-02-escalations.md):
-    /// a wall at either end of the line blocks the sight, at range, adjacent and on the same tile.
+    /// D-174: a wall at either end of the line blocks the sight, at range, adjacent and on the same
+    /// tile.
     #[test]
     #[available_gas(l2_gas: 235503)] // ceil(1.05 × 224288 measured)
     fn test_sight_wall_at_an_end() {
@@ -1618,8 +1618,8 @@ mod tests {
     // `vectors/check.py` fails while the committed file differs from what these print
     // (`vectors/README.md`).
     #[test]
-    // gas: raised, more cases (an odd-row arc target) and sight tests both ends (fix loop 1)
-    #[available_gas(l2_gas: 1247739509)] // ceil(1.05 × 1188323341 measured)
+    // gas: raised, more cases (an odd-row arc target, from on a wall) and sight tests both ends
+    #[available_gas(l2_gas: 1264513412)] // ceil(1.05 × 1204298487 measured)
     fn test_vectors() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
@@ -1642,6 +1642,13 @@ mod tests {
         pairs.append((Fixture::at(14, 15), Fixture::at(14, 13)));
         pairs.append((SIZE, Fixture::at(7, 8)));
         pairs.append((Fixture::at(7, 8), 255));
+        // `from` on a wall of the fixture (D-174): at range, adjacent, the same tile
+        pairs.append((Fixture::at(9, 8), Fixture::at(7, 8)));
+        pairs.append((Fixture::at(9, 8), Fixture::at(10, 8)));
+        pairs.append((Fixture::at(9, 8), Fixture::at(9, 8)));
+        pairs.append((Fixture::at(6, 9), Fixture::at(3, 9)));
+        pairs.append((Fixture::at(6, 9), Fixture::at(7, 9)));
+        pairs.append((Fixture::at(5, 6), Fixture::at(5, 6)));
         for (from, to) in pairs.span() {
             let (from, to) = (*from, *to);
             let case = array![window.open, from.into(), to.into()];
@@ -1687,12 +1694,14 @@ mod tests {
 
     /// The table's second part, its ids following the first's (snforge's step limit splits it).
     #[test]
-    #[available_gas(l2_gas: 436176898)] // ceil(1.05 × 415406569 measured)
+    // gas: raised, a neighbour outside the window given as 240 in the front vectors
+    #[available_gas(l2_gas: 436177843)] // ceil(1.05 × 415407469 measured)
     fn test_vectors_1() {
         let window = Fixture::fixture();
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_1;
-        // `front`: every neighbour and facing, at the centre and on the edge
+        // `front`: every neighbour and facing, at the centre and on the edge (a neighbour outside
+        // the window is the position 240)
         let sources: [u8; 2] = [Fixture::at(7, 8), Fixture::at(0, 7)];
         for source in sources.span() {
             let mut facing: u8 = 0;
@@ -1702,7 +1711,7 @@ mod tests {
                     let target =
                         match LayoutTrait::neighbor(WIDTH, HEIGHT, *source, d.try_into().unwrap()) {
                         Some(target) => target,
-                        None => *source - 1,
+                        None => SIZE,
                     };
                     let case = array![(*source).into(), target.into(), facing.into()];
                     let ok = array![WindowTrait::front(*source, target, facing).into()];
@@ -1745,9 +1754,9 @@ mod tests {
     }
 
     /// The cases of the first part; the second's first id.
-    const PART_1: u32 = 1202;
+    const PART_1: u32 = 1214;
     const DIGEST_0: felt252 =
-        3295838030679513177150551323473459113002556617374071973637681149869059861050;
+        2027939412732297496338127652314768997524597226589897860129522502247018952946;
     const DIGEST_1: felt252 =
-        3385673577494068376525079887132901649283752946077370510692189650253878253083;
+        2771260123776888357348809408523159243459654458862948645245828861959561160762;
 }
