@@ -1,6 +1,6 @@
 # Status — game track
 
-**2026-09-30 22:20 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-01 00:10 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
@@ -10,7 +10,9 @@ Audits and reviews go through `nexus audit` and `nexus review`; VPS implementers
 `scripts/agent.sh`. **CBT-02** ([#182](https://github.com/bal7hazar/grimworld/pull/182)), **CBT-02b**
 ([#196](https://github.com/bal7hazar/grimworld/pull/196)) and **SPK-14** ([#202](https://github.com/bal7hazar/grimworld/pull/202))
 and **CBT-02c** ([#206](https://github.com/bal7hazar/grimworld/pull/206), unwired, D-168) merged.
-**CBT-02d** running; **CBT-02e** ([brief](docs/briefs/CBT-02e-stored-snapshot.md)) launching. ENG-05 and
+**CBT-02e** ([#212](https://github.com/bal7hazar/grimworld/pull/212)) merged: the snapshot is stored at
+`set_build` (D-168). **CBT-02d** ([#211](https://github.com/bal7hazar/grimworld/pull/211)) audited and
+reviewed, merging `main` before its merge; **CBT-02f** (D-169) running. ENG-05 and
 ENG-02 wait for `hexx` rc.1.
 A nexus auditor resumed on a new revision could not fetch it (its sandbox refused `FETCH_HEAD`): a new
 auditor per revision is started instead (reported to the owner here, as the standard asks).
@@ -19,10 +21,10 @@ auditor per revision is started instead (reported to the owner here, as the stan
 
 **Phase 0 done** (the gate items are FND-07's). **Phase 1**: ENG-01, ENG-01b, ENG-02a, ENG-03, ENG-04,
 ENG-06 done; ENG-05 and ENG-02 (line of sight) wait for the map library's release; ENG-07 after
-ENG-05; ENG-R1 (D-143, D-147) after ARC-07. **Pulled forward while the engine chain waits (D-150)**:
+ENG-05; ENG-R1 (D-143, D-147, D-167) after CBT-02d. **Pulled forward while the engine chain waits (D-150)**:
 DES-04 (design/19), CBT-01 (the combat interfaces), CBT-08a (`set_build`), FND-08 (the funding
-service), FND-09 (`with-node.sh` on macOS) all done. **No game agent runs**; the next lot is for the
-project manager to choose (see *Next*).
+service), FND-09 (`with-node.sh` on macOS) all done; the tick's cost and the stored snapshot
+(CBT-02 to CBT-02f) in progress (see *Orchestrators and agents*).
 
 **S1's running estimate** (300 actions, D-129's $0.50; D-158 asks it kept here):
 
@@ -32,7 +34,8 @@ project manager to choose (see *Next*).
 | ENG-03 (D-145) | content reads, 36,000 a slot: about 10 records a batch × 30 batches | +30 M |
 | ENG-06 (D-148) | `enter`, `leave`, `travel_back` as measured | +0.7 M |
 | CBT-01, CBT-08a (D-158) | the larger snapshot and the belt's worst case, once an expedition | +2.2 M |
-| **Now** | | **≈ 664 M ≈ $0.585** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
+| CBT-02e (D-168) | `enter` copies the stored snapshot: 5,233,259 → 4,473,259 net, once an expedition | −0.76 M |
+| **Now** | | **≈ 663 M ≈ $0.584** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
 
 **A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
 part of a worst tick is **1.06–1.11 M** (window, flood at 15 layers, 8 walkers; LIB-05 M1-T9b), which
@@ -46,6 +49,7 @@ the batch weight from the worst tick.
 
 | | |
 |---|---|
+| **CBT-02e** | [#212](https://github.com/bal7hazar/grimworld/pull/212): `FlattenLibrary`; the snapshot stored at `set_build` (3 words), copied by `enter`; `enter` 4.47 M net (D-158 5.25 M); `Hub` 44.71 % |
 | **CBT-02c** | [#206](https://github.com/bal7hazar/grimworld/pull/206): design/20's per-record bounds at registration; the flattening linear, unwired (`Hub` 61.15 % wired); CBT-02e stores the snapshot (D-168) |
 | **CBT-02b** | [#196](https://github.com/bal7hazar/grimworld/pull/196): levers (a) and (b); the worst tick proved term by term, escalated not accepted; the Hub wiring moved to CBT-02c and CBT-02e (D-166, D-168) |
 | **SPK-14** | [#202](https://github.com/bal7hazar/grimworld/pull/202): hexagonal chunks measured against 15 × 15; recommendation keep 15 × 15, the owner decides (D-165) |
@@ -60,14 +64,14 @@ the batch weight from the worst tick.
 
 | Game agent | Model (ran) | State |
 |---|---|---|
-| CBT-02d the tick's remaining levers | Opus 5.5 (scripts/agent.sh) | running since 21:37 |
-| CBT-02e stored snapshot | Opus 5.5 (scripts/agent.sh) | launching |
+| CBT-02d the tick's remaining levers | Opus 5.5 (scripts/agent.sh) | merging `main` after its audits and review |
+| CBT-02f the flattening epoch | Opus 5.5 (scripts/agent.sh) | running since 00:04 |
 
 Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, game 2.
 
 ## Next
 
-CBT-02d's and CBT-02e's audits (cost, quality) and
+CBT-02d's merge; CBT-02f's audits (cost, quality) and
 review; then ENG-R1's brief (D-167), its first lot shown to the owner.
 
 ## Decisions needed
