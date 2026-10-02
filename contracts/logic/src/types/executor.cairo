@@ -41,12 +41,12 @@
 use hexx::board::bits::Bits;
 use crate::durations::effective_duration;
 use crate::models::goblin::{
-    Goblin, GoblinConditionTrait, GoblinLifecycleTrait, GoblinPlaceTrait, GoblinTickTrait,
-    GoblinTrait, GoblinWordsTrait,
+    Goblin, GoblinConditionTrait, GoblinLifecycleTrait, GoblinPlaceTrait, GoblinTrait,
+    GoblinWordsTrait,
 };
 use crate::models::member::{
-    Member, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait, MemberTickTrait,
-    MemberTrait, MemberWordsTrait,
+    Member, MemberConditionTrait, MemberLifecycleTrait, MemberSnapshotTrait, MemberTrait,
+    MemberWordsTrait,
 };
 use crate::types::combat::{Arc, HitClass, condition, skill_kind};
 use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
