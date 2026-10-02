@@ -582,7 +582,8 @@ mod tests {
 
     // Evasion: melee weapon hits from every arc (FX-11); not a knocked-down target (FX-7).
     #[test]
-    #[available_gas(l2_gas: 73112)] // ceil(1.05 × 69630 measured)
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases in the vectors
+    #[available_gas(l2_gas: 81911)] // ceil(1.05 × 78010 measured)
     fn test_evade() {
         let target = HitTarget { evade: true, ..goblin() };
         let mut arcs = array![Arc::Front, Arc::FrontSide, Arc::RearSide, Arc::Back];
@@ -929,7 +930,8 @@ mod tests {
     // D-140: no legal input panics; the outcome keeps §5.4's invariants.
     #[test]
     #[fuzzer(runs: 256)]
-    #[available_gas(l2_gas: 533106)] // ceil(1.05 × 515420 the most expensive run)
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases in the vectors
+    #[available_gas(l2_gas: 533211)] // ceil(1.05 × 507820 measured)
     fn test_fuzz_no_panic(seed: u64) {
         let (hit, target) = case(seed);
         match hit.resolve(@target) {
@@ -965,7 +967,7 @@ mod tests {
     // Track CV's cases, each pinned: the axe front-side 100 (no +25); above half at exactly half
     // 100 (no +20); 300 − 60 = 240 = half of 480: not halved.
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 162614)] // ceil(1.05 × 154870 measured)
     fn test_cv_cases() {
         let cases = cv_cases();
         let (axe, target) = *cases[0];
@@ -1059,7 +1061,8 @@ mod tests {
     // form), and a digest of every case and outcome: a change to a rule or to the cases fails here
     // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation).
     #[test]
-    #[available_gas(l2_gas: 961496367)] // ceil(1.05 × 915710825 measured)
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases in the vectors
+    #[available_gas(l2_gas: 968230791)] // ceil(1.05 × 922124562 measured)
     fn test_vectors() {
         let mut cases = edges();
         let mut seed: u64 = 1;

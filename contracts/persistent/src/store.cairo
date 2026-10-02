@@ -579,7 +579,6 @@ mod layout_tests {
     }
 
     #[test]
-    // gas: raised, CBT-02e: the layout checks the snapshots' and flatten's addresses
     #[available_gas(l2_gas: 277641)] // ceil(1.05 × 264420 measured)
     fn test_hub_storage_addresses() {
         let state = @Hub::contract_state_for_testing();
@@ -717,7 +716,6 @@ mod tests {
     // Nine ids on two pages; removals of a hole on the first page, of the last id, of a hole on
     // the final page.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 3412742)] // ceil(1.05 × 3250230 measured)
     fn test_list_insert_and_swap_removal() {
         let mut state = Hub::contract_state_for_testing();
@@ -739,7 +737,6 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not in the account list')]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 740019)] // ceil(1.05 × 704780 measured)
     fn test_remove_not_listed_refused() {
         let mut state = Hub::contract_state_for_testing();
@@ -750,7 +747,6 @@ mod tests {
 
     // A page read once and written once whatever its changes; lanes filled and emptied counted.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 2286123)] // ceil(1.05 × 2177260 measured)
     fn test_change_balances() {
         let mut state = Hub::contract_state_for_testing();
@@ -778,7 +774,6 @@ mod tests {
     // adventurer written through the typed path reads back through the store's words, and one
     // written through the store reads back through the typed path.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 7581840)] // ceil(1.05 × 7220800 measured)
     fn test_adventurer_offsets() {
         let mut state = Hub::contract_state_for_testing();
@@ -824,7 +819,6 @@ mod tests {
 
     // The views' words as stored: 0 where nothing was written, the stored models otherwise.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 4060770)] // ceil(1.05 × 3867400 measured)
     fn test_words_as_stored() {
         let mut state = Hub::contract_state_for_testing();

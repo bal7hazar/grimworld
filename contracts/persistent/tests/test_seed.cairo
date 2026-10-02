@@ -383,7 +383,6 @@ impl SeedFixture of Fixture {
 
 // The test region, written and read back in one `bundle` (AC-4): 13 records, 17 slots.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 23701566)] // ceil(1.05 × 22572920 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
@@ -443,7 +442,6 @@ fn test_seed_written_and_read_back() {
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 6200114)] // ceil(1.05 × 5904870 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
@@ -452,7 +450,6 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 13 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 21430091)] // ceil(1.05 × 20409610 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
@@ -461,7 +458,6 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 30814791)] // ceil(1.05 × 29347420 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();

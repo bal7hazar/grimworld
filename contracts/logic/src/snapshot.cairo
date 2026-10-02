@@ -1769,7 +1769,6 @@ mod tests {
     // may hold a statistic at its per-source maximum (and, where no floor refuses it, its
     // minimum) flattens without overflow, to exactly the envelope.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 12473132)] // ceil(1.05 × 11879173 measured)
     fn test_envelope_builds() {
         // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and
@@ -2258,7 +2257,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-01: nine armors by damage type (FX-23, FX-24)
     #[available_gas(l2_gas: 573384)] // ceil(1.05 × 546080 measured)
     fn test_stats_layout() {
         let stats = MemberStats {
@@ -2296,7 +2294,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-01: design/19's passives in the bar and the kit (FX-24)
     #[available_gas(l2_gas: 389991)] // ceil(1.05 × 371420 measured)
     fn test_bar_and_kit_layout() {
         let bar = MemberBar {

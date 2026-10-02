@@ -146,7 +146,7 @@ fn test_tick_constants() {
 // unpackers read them, and every other field of the four words is kept.
 #[test]
 // gas: raised, the load reads through the content's index, built first (CBT-02d)
-#[available_gas(l2_gas: 1376372)] // ceil(1.05 × 1310830 measured)
+#[available_gas(l2_gas: 1511801)] // ceil(1.05 × 1439810 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
     let (sheets, mut index) = content().index();
@@ -216,7 +216,7 @@ fn test_tick_words_member() {
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
 // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-#[available_gas(l2_gas: 3149919)] // ceil(1.05 × 2999922 measured), kept: 3007552 now
+#[available_gas(l2_gas: 3589008)] // ceil(1.05 × 3418102 measured)
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
         PotionSheet { id: 4000, regen: 1, ..Default::default() },
@@ -260,7 +260,7 @@ fn test_potion_regeneration_every_belt_slot() {
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
 // gas: raised, the load reads through the content's index, built first (CBT-02d)
-#[available_gas(l2_gas: 605735)] // ceil(1.05 × 576890 measured)
+#[available_gas(l2_gas: 708320)] // ceil(1.05 × 674590 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {
         x: 200,

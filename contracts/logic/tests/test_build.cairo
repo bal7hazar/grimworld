@@ -259,7 +259,8 @@ fn skill_of(adrenaline: u8) -> Skill {
 // §6 test 6: `m` = 1,000 at level 255 gives 51,800 (a `u16` of `GoblinState`); energy 85 is 255
 // thirds (a `u8`); a skill of 63 strikes is usable. It packs.
 #[test]
-#[available_gas(l2_gas: 217970)] // ceil(1.05 × 207590 measured)
+// gas: raised, CBT-05a: a caste's sheet carries its armor and weapon for the executor
+#[available_gas(l2_gas: 230853)] // ceil(1.05 × 219860 measured)
 fn test_caste_at_bounds() {
     let caste = caste_at_bounds();
     caste.assert_legal();
@@ -335,7 +336,8 @@ fn test_one_hit_product() {
 // §6 test 7, DS-20: a second `ATTACK_BONUS` on one carrier is refused.
 #[test]
 #[should_panic(expected: 'carrier: two attack bonuses')]
-#[available_gas(l2_gas: 154256)] // ceil(1.05 × 146910 measured)
+// gas: raised, CBT-05a: a caste's sheet carries its armor and weapon for the executor
+#[available_gas(l2_gas: 159653)] // ceil(1.05 × 152050 measured)
 fn test_second_attack_bonus_refused() {
     let bonus = EntryTrait::new(
         kind::ATTACK_BONUS, 0, 5, 5, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,

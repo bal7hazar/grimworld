@@ -70,7 +70,6 @@ fn test_placement_and_header_layout() {
 }
 
 #[test]
-// gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 575526)] // ceil(1.05 × 548120 measured)
 fn test_member_layout() {
     let state = MemberState {
@@ -163,7 +162,6 @@ fn test_chunk_layout() {
 }
 
 #[test]
-// gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 353409)] // ceil(1.05 × 336580 measured)
 fn test_goblin_layout() {
     let state = GoblinState {
@@ -303,7 +301,6 @@ fn test_roster_masking() {
 // Fix loop 3, F-14: empty timers are "no activation" (slot 255) and zero deadlines, not LIVE alone
 // (slot 0 would name bar slot 0). Their packed words are pinned.
 #[test]
-// gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 212174)] // ceil(1.05 × 202070 measured)
 fn test_empty_timers_packed() {
     let member = empty_member_timers();

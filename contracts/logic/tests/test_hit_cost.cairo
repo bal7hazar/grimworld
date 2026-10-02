@@ -74,7 +74,9 @@ fn test_cost_pair_hit_none() {
 
 // The pair's other half: the same, and one hit on the costliest path.
 #[test]
-#[available_gas(l2_gas: 54968)] // ceil(1.05 × 52350 measured)
+// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
+// call) and the actors their positions
+#[available_gas(l2_gas: 55073)] // ceil(1.05 × 52450 measured)
 fn test_cost_pair_hit_one() {
     let (hit, target) = costliest();
     assert(hit.base == MAX_BASE && target.halve, 'inputs');
@@ -117,7 +119,7 @@ fn each(hit: @Hit, target: @HitTarget) -> u128 {
 // A tick's most hits, 15, on the costliest path.
 #[test]
 // gas: raised, 15 hits a tick instead of 14 (FX-35 counts a bomb's 7; fix loop 1, minor 1)
-#[available_gas(l2_gas: 1121799)] // ceil(1.05 × 1068380 measured)
+#[available_gas(l2_gas: 1123794)] // ceil(1.05 × 1070280 measured)
 fn test_cost_hits_per_tick() {
     let (hit, target) = costliest();
     let (used, landed) = hits(@hit, @target, HITS_PER_TICK);
@@ -128,7 +130,9 @@ fn test_cost_hits_per_tick() {
 // Every path is charged the same (the claim above, checked): a blocked hit, an evaded one, a missed
 // one, a spell and a bomb cost what a landed weapon hit costs.
 #[test]
-#[available_gas(l2_gas: 1952381)] // ceil(1.05 × 1859410 measured)
+// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
+// call) and the actors their positions
+#[available_gas(l2_gas: 1955216)] // ceil(1.05 × 1862110 measured)
 fn test_cost_hit_paths() {
     let (hit, target) = costliest();
     let landed = each(@hit, @target);

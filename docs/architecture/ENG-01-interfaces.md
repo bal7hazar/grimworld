@@ -1137,6 +1137,31 @@ which at most 8 awake (a larger set is refused where it is formed, before any ti
 | The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,264,890 → **4,663,510** (fix loop 1, COST-2: the maximum over a prior set of 8 at the array's start, its end and spread across it, kept and replaced, and none, with the distances falling, rising and the set nearest, `test_cost_awake_*` + the selection's straight-line part, 27,550, `test_cost_pair_awake_*`; the costliest, the set at the start kept. It forms the set apart in the pass that writes the flags) |
 | The geometry a tick calls (ENG-02, `types::window` on `hexx` 0.1.0-rc.1, D-173), per call (`test_cost_*`: the totals of a test making it twice less once; each figure holds 2,440 of the benchmark's own opaque inputs and check, `test_cost_overhead_*`): `sight` 22,176 (both ends tested, ENG-02 fix loop 1); `reach` 34,216; `distance` 16,230 (it guards a position outside the window, fix loop 3); `arc` 25,140 adjacent, 25,240 at range or on the window's ring, and `facing` 22,500 on every path (the line's first step in constant time); `front` 11,850; `shape` `DISC_1` 14,656, 69,926 on the window's ring; `tiles` of a `DISC_1` 57,151. A weapon hit asks `reach`, `distance` (its `melee`), `arc` and `front`: **87,536** | 8 goblins' weapon hits at range (700,288), 9 facings (the 8 and the member, 202,500), a bomb's `DISC_1` and its 7 tiles (71,807): **+ 974,595** | 15 hits each with `reach`, `distance`, `arc` and `front` (1,313,040, though a bomb's 7 `ITEM` hits take no arc), 9 facings (202,500), a `DISC_1` on the ring and its tiles (127,077): **+ 1,642,617**, 7.2 % of SPK-15's worst tick (22.8 M, D-172) |
 
+**The executor's row (CBT-05a, route (c), D-200), and the combined share recomputed on Scarb 2.20.1.**
+Every term is measured by one `snforge test --workspace --fuzzer-seed 1` on the VPS, at CBT-05a's
+code (the content's sheets carry the executor's fields, the actors their positions). Each term
+follows this section's own formula, per tick inside a batch of 10:
+
+| Term | Tests (snforge totals) | Per tick |
+|---|---|---:|
+| The pipeline's costliest tick | `test_cost_pair_term_tick` − `test_cost_pair_term_fixture` | 1,503,347 |
+| `run`'s loop | (`pair_representative_run_ten` − its fixture) / 10 − (`pair_representative_tick` − its fixture) | 4,907 |
+| Load and store, once a call | (`test_cost_load_bound` − its fixture) / 10 | 1,077,385 |
+| The library call, once a call | (`test_cost_library_call_all_dead` − `test_cost_library_baseline_all_dead`) / 10 | 786,926 |
+| The content, once a batch | (`test_content_read_worst` − `test_content_read_probe_alone`, 4,651,150; + 38 skill sheets × 42,430, 4 potions × 15,870, 5 castes × 41,150) / 10 | 653,272 |
+| **The tick's share** | 1,503,347 + 4,907 + 1,077,385 + 786,926 + 653,272 | **4,025,837** |
+| CBT-03a's 15 hits | 15 × (`test_cost_pair_hit_one` − `test_cost_pair_hit_none`, 46,440) | 696,600 |
+| CBT-04's conditions | 16 × 57,230 (a member's `knock`) + 7 × 44,980 (a goblin's) + 18,200 (the kit read) + 9 × 8,930 (predicates) | 1,329,110 |
+| **Running total, this section's form** | 4,025,837 + 696,600 + 1,329,110 | **6,051,547 (4.12 × 1,469,435)** |
+
+**The executor's line (E: a sum of measured parts).**
+- A goblin's carrier through `ExecutorLibrary`, a weapon hit on the member: **2,103,191**, measured (`types::executor::tests::test_cost_class_hits` − its fixture, over 6). The project manager decided route (c) and the owner accepted this cost, 2026-10-02 (D-198, D-200).
+- The member's worst carrier, Cinder Ring on 6 goblins: 4,406,108 in the class (`test_cost_area_levered` − its fixture), plus the call's overhead, 1,165,230 (the goblin hit through the class less the same hit in one class, 937,961): **5,571,338**.
+- **The executor's worst tick: 5,571,338 + 8 × 2,103,191 = 22,396,866.** It contains the hits and applications that the CBT-03a and CBT-04 rows price apart.
+- **The worst tick with the executor:** the tick's share + the executor's line = 4,025,837 + 22,396,866 = **26,422,703 (17.98 × 1,469,435)**.
+- **Not in it:** `TickLibrary`'s side of each call (choosing the sub-world, storing it, loading back what returns), measured by no test yet; and ENG-07's act hook, which will run the goblins' carriers of step 2 through the same call.
+- The cost-lowering design lot (CBT-05a's option (3)) is a later PLAN row.
+
 **The conditions' row (CBT-04; fix loop 2, SPK-15's L2, D-172).** An application is written in
 place, split by condition: `apply` for Bleeding, Poison, Burning and Crippled, `knock` for Knocked
 down, which the executor dispatches on the entry's condition; each is loop-free and calls nothing but

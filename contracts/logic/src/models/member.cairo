@@ -928,7 +928,9 @@ mod tests {
     // Skullring's Knocked down 2 takes the flat +1 (D = 12); every condition 1–5 lands in its
     // field and survives the words.
     #[test]
-    #[available_gas(l2_gas: 7112175)] // ceil(1.05 × 6773500 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 7674555)] // ceil(1.05 × 7309100 measured)
     fn test_member_apply() {
         let sheets = Fixture::sheets();
         let mut member = rending();
@@ -953,7 +955,9 @@ mod tests {
     // deadline is kept; at a larger, refreshed; Knocked down likewise; a value of 0 is clamped
     // to 1 (§6), never a cure. A cure of an absent condition changes nothing.
     #[test]
-    #[available_gas(l2_gas: 5355998)] // ceil(1.05 × 5100950 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5543192)] // ceil(1.05 × 5279230 measured)
     fn test_member_apply_refresh() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -978,7 +982,9 @@ mod tests {
     // Nothing applies to a member not alive (§5.14: the entries reach living actors): at 0
     // health, or down.
     #[test]
-    #[available_gas(l2_gas: 5178600)] // ceil(1.05 × 4932000 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5344469)] // ceil(1.05 × 5089970 measured)
     fn test_member_apply_not_alive() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -997,7 +1003,9 @@ mod tests {
     // counts from t0 = 201 (R = 201 + 10 − 1 = 210), energy stays paid. Without an activation a
     // knock-down changes nothing but its deadline.
     #[test]
-    #[available_gas(l2_gas: 15035444)] // ceil(1.05 × 14319470 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 15205512)] // ceil(1.05 × 14481440 measured)
     fn test_member_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -1019,7 +1027,9 @@ mod tests {
     // Wait in the action phase at clocks 51 and 52 (t0 = c + 1 ≤ 53), any at 53; a weapon hit
     // on it is critical from any arc and it neither blocks nor evades through tick 53.
     #[test]
-    #[available_gas(l2_gas: 4878290)] // ceil(1.05 × 4645990 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 4878395)] // ceil(1.05 × 4646090 measured)
     fn test_member_knocked_predicates() {
         let mut member = Fixture::member(Fixture::spec());
         member.knocked = 53;
@@ -1032,7 +1042,9 @@ mod tests {
     // §3.2 row 4 (FX-15, FX-18): Crippled to D = 62, a move at clock 61 (t0 = 62) costs 2 ticks;
     // at clock 62 (t0 = 63), 1; with a `MOVEMENT` effect, 1.
     #[test]
-    #[available_gas(l2_gas: 4915145)] // ceil(1.05 × 4681090 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 4915460)] // ceil(1.05 × 4681390 measured)
     fn test_member_crippled_move() {
         let mut member = Fixture::member(Fixture::spec());
         assert(member.move_ticks(10, false) == 1, 'not crippled');
@@ -1062,7 +1074,9 @@ mod tests {
     // 32,767), with "Rending" and without a passive, activating or not, a condition held to be
     // kept or raised, alive or not (at 0 health, down).
     #[test]
-    #[available_gas(l2_gas: 36581507)] // ceil(1.05 × 34839530 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 37639067)] // ceil(1.05 × 35846730 measured)
     fn test_member_apply_matches_oracle() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -1104,7 +1118,9 @@ mod tests {
     // legal action's outcome).
     #[test]
     #[should_panic(expected: 'tick: knock-down is knock')]
-    #[available_gas(l2_gas: 4885608)] // ceil(1.05 × 4652960 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 4885923)] // ceil(1.05 × 4653260 measured)
     fn test_member_apply_knockdown_refused() {
         let mut member = Fixture::member(Fixture::spec());
         let none: Infliction = Default::default();
@@ -1114,7 +1130,9 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down member's only action is Wait).
     #[test]
-    #[available_gas(l2_gas: 5243018)] // ceil(1.05 × 4993350 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5410986)] // ceil(1.05 × 5153320 measured)
     fn test_member_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -1141,7 +1159,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5214794)] // ceil(1.05 × 4966470 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5383182)] // ceil(1.05 × 5126840 measured)
     fn test_cost_member_condition_base() {
         let (member, _sheets) = condition_cost_state();
         opaque(member);
@@ -1149,7 +1169,9 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 5215634)] // ceil(1.05 × 4967270 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5384022)] // ceil(1.05 × 5127640 measured)
     fn test_cost_member_source_base() {
         let (member, _sheets) = condition_cost_state();
         let _source: Infliction = opaque(Default::default());
@@ -1157,7 +1179,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5234639)] // ceil(1.05 × 4985370 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5403132)] // ceil(1.05 × 5145840 measured)
     fn test_cost_member_infliction() {
         let (member, _sheets) = condition_cost_state();
         opaque(member.infliction());
@@ -1165,7 +1189,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5273415)] // ceil(1.05 × 5022300 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5443274)] // ceil(1.05 × 5184070 measured)
     fn test_cost_member_knock() {
         let (mut member, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1175,7 +1201,9 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; at 0 health.
     #[test]
-    #[available_gas(l2_gas: 5217104)] // ceil(1.05 × 4968670 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5385492)] // ceil(1.05 × 5129040 measured)
     fn test_cost_member_idle_base() {
         let (mut member, _sheets) = condition_cost_state();
         member.clear();
@@ -1185,7 +1213,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5216054)] // ceil(1.05 × 4967670 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5385492)] // ceil(1.05 × 5129040 measured)
     fn test_cost_member_zero_base() {
         let (mut member, _sheets) = condition_cost_state();
         member.health = opaque(0);
@@ -1194,7 +1224,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5273835)] // ceil(1.05 × 5022700 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5443694)] // ceil(1.05 × 5184470 measured)
     fn test_cost_member_knock_idle() {
         let (mut member, sheets) = condition_cost_state();
         member.clear();
@@ -1205,7 +1237,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5249433)] // ceil(1.05 × 4999460 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5418137)] // ceil(1.05 × 5160130 measured)
     fn test_cost_member_apply_crippled() {
         let (mut member, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1214,7 +1248,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5249433)] // ceil(1.05 × 4999460 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5418137)] // ceil(1.05 × 5160130 measured)
     fn test_cost_member_apply_bleeding() {
         let (mut member, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1223,7 +1259,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5249853)] // ceil(1.05 × 4999860 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5418557)] // ceil(1.05 × 5160530 measured)
     fn test_cost_member_apply_not_alive() {
         let (mut member, _sheets) = condition_cost_state();
         member.health = opaque(0);
@@ -1234,7 +1272,9 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    #[available_gas(l2_gas: 5310218)] // ceil(1.05 × 5057350 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5480601)] // ceil(1.05 × 5219620 measured)
     fn test_cost_member_oracle() {
         let (mut member, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1245,7 +1285,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5253150)] // ceil(1.05 × 5003000 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5422064)] // ceil(1.05 × 5163870 measured)
     fn test_cost_member_cure() {
         let (mut member, _sheets) = condition_cost_state();
         member.cure(opaque(condition::BLEEDING), opaque(201));
@@ -1253,7 +1295,9 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5226480)] // ceil(1.05 × 4977600 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5394869)] // ceil(1.05 × 5137970 measured)
     fn test_cost_member_predicates() {
         let (member, _sheets) = condition_cost_state();
         let t = opaque(201);
@@ -1267,7 +1311,9 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 10871039)] // ceil(1.05 × 10353370 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 11247380)] // ceil(1.05 × 10711790 measured)
     fn test_member_load_store() {
         let mut spec = Fixture::spec();
         spec.conditions = [11, 12, 13, 14];
@@ -1290,7 +1336,9 @@ mod tests {
     // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
     // none.
     #[test]
-    #[available_gas(l2_gas: 5889209)] // ceil(1.05 × 5608770 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 6050258)] // ceil(1.05 × 5762150 measured)
     fn test_member_bar_positions() {
         let mut words = Fixture::member_words(Fixture::spec());
         // Bar slot 7 empty, slot 0 skill 8: the content lists 8 first.
@@ -1331,7 +1379,9 @@ mod tests {
     // Knocked down likewise; Crippled lives in the words; a cure at 76 gives 75; an absent
     // condition is untouched.
     #[test]
-    #[available_gas(l2_gas: 5496603)] // ceil(1.05 × 5234860 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5693174)] // ceil(1.05 × 5422070 measured)
     fn test_member_conditions() {
         let mut member = Fixture::member(Fixture::spec());
         member.inflict(condition::BLEEDING, 70, 8);
@@ -1358,7 +1408,9 @@ mod tests {
     // at clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot:
     // Warcry in slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
     #[test]
-    #[available_gas(l2_gas: 7809029)] // ceil(1.05 × 7437170 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 8446830)] // ceil(1.05 × 8044600 measured)
     fn test_hold_eviction_and_stance() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -1384,7 +1436,9 @@ mod tests {
     // AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new
     // one on a tie; two belt slots holding the same potion item are one carrier.
     #[test]
-    #[available_gas(l2_gas: 7299600)] // ceil(1.05 × 6952000 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 8087846)] // ceil(1.05 × 7702710 measured)
     fn test_hold_refresh() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -1411,7 +1465,9 @@ mod tests {
     // hit (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline
     // cost (6 strikes: 24 quarters).
     #[test]
-    #[available_gas(l2_gas: 5675271)] // ceil(1.05 × 5405020 measured)
+    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
+    // a call) and the actors their positions
+    #[available_gas(l2_gas: 5776449)] // ceil(1.05 × 5501380 measured)
     fn test_member_adrenaline_gain() {
         let mut skills = array![];
         for id in 1..9_u16 {

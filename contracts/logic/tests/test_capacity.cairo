@@ -231,7 +231,6 @@ impl FixtureImpl of Fixture {
 // held-item costs add −18 always to each scope, 5 of them; the insignias hold the audit's CBT-8
 // pair, +18 in a stance and −18 enchanted.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 4122962)] // ceil(1.05 × 3926630 measured)
 fn test_flatten_damage_extremes() {
     let up = Fixture::damage(guard::ABOVE_HALF, scope::ALL, 18);
@@ -257,7 +256,6 @@ fn test_flatten_damage_extremes() {
 // CBT-7, penetration and guarded armor at their counts: 7 × 36 = 252; 7 × −18 = −126; the
 // unguarded armor at every held-item and armor slot, −255, without ratings.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 8095878)] // ceil(1.05 × 7710360 measured)
 fn test_flatten_penetration_and_armor_extremes() {
     let pierce = Fixture::penetration(scope::ALL, 36);
@@ -297,7 +295,6 @@ fn test_flatten_penetration_and_armor_extremes() {
 // Under design/20's per-source bounds (D-160): armor against a type 7 a source on 9 sources is
 // 63; knock-down 1 a source on 13 is 13, saturated at 3; enchantment 20 a source on 7 is 140,
 // saturated at 50; the condition 33.
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 4192209)] // ceil(1.05 × 3992580 measured)
 fn test_flatten_saturated_extremes() {
     let vs = Fixture::passive(id::ARMOR_VS, 1, 7);
@@ -324,7 +321,6 @@ fn test_flatten_saturated_extremes() {
 // CBT-8: a modifier's benefit and cost are refused only when they add to one counted sum
 // (statistic, guard, scope). The audit's insignia: `ARMOR +10 IN_STANCE`, `ARMOR −5 ENCHANTED`.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 1002509)] // ceil(1.05 × 954770 measured)
 fn test_separate_sums_accepted() {
     let insignia = Fixture::modifier(
@@ -356,7 +352,6 @@ fn test_separate_sums_accepted() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
 #[available_gas(l2_gas: 41969)] // ceil(1.05 × 39970 measured)
 fn test_damage_all_and_weapon_same_guard_refused() {
     // 10 + 10 on a plain weapon hit (and on an attack skill's): 20 > 18.
@@ -380,7 +375,6 @@ fn test_penetration_all_and_spell_refused() {
 // unguarded armor by its total (±9,995, F-21), not one passive per slot; the audit's rune, +5 and
 // −2.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 400638)] // ceil(1.05 × 381560 measured)
 fn test_unguarded_armor_twice_accepted() {
     Fixture::modifier(slot::RUNE, Fixture::armor(0, 5), Fixture::armor(0, -2)).assert_legal();
@@ -394,7 +388,6 @@ fn test_unguarded_armor_twice_accepted() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-// gas: raised, DS-23: the fixture's insignia is made for its piece
 #[available_gas(l2_gas: 120908)] // ceil(1.05 × 115150 measured)
 fn test_stance_armor_twice_refused() {
     // 10 + 10 in a stance: 20 > 18.
@@ -435,7 +428,6 @@ fn with_prefix(prefix: Modifier) -> Span<Passive> {
 // the snapshot sums them per condition. The audit's 33 + 10 is above DS-5's ≤ 33 on a prefix
 // (D-160; refused below): Bleeding 20 + 13 = 33. The oracle and the builder agree.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 4249319)] // ceil(1.05 × 4046970 measured)
 fn test_same_condition_summed() {
     let prefix = Fixture::modifier(
@@ -472,7 +464,6 @@ fn test_two_quick_casts_on_one_slot_refused() {
 // AUD-182-4 (design/20 §1.8, D-157 B and C, D-160): quick cast is held on inscriptions, the damage
 // type on prefixes; there, a catalogue of several is accepted.
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 727157)] // ceil(1.05 × 692530 measured)
 fn test_decided_slot_types_accepted() {
     let none: Passive = Default::default();
@@ -623,7 +614,6 @@ fn test_source_maps_slots() {
 // passives, +255 (the benefit, the cost) and the set's two bonuses: 32 contributions, 32 × 255 +
 // the personalised ratings = 8,720 ≤ 9,995; at −255 without ratings, −8,160.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 8145554)] // ceil(1.05 × 7757670 measured)
 fn test_flatten_unguarded_armor_extremes() {
     let high = Fixture::armor(0, 255);
@@ -653,7 +643,6 @@ fn test_flatten_unguarded_armor_extremes() {
 // CBT-2 (fix loop 3): an attack skill's hit takes `WEAPON` and `ATTACK_SKILL` (design/19 §5.4).
 // One `WEAPON +18` flattens to 18 on plain weapon hits and on attack skills, 0 on spells.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 4003146)] // ceil(1.05 × 3812520 measured)
 fn test_flatten_weapon_scope_on_attack_skills() {
     let none: Passive = Default::default();
@@ -675,7 +664,6 @@ fn test_flatten_weapon_scope_on_attack_skills() {
 // 18 of penetration; the set's two bonuses are `ALL`. The attack-skill sums reach the counted
 // bound exactly: damage 5 × 18 + 2 × 18 = 126, penetration 5 × 36 + 2 × 36 = 252.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 8193234)] // ceil(1.05 × 7803080 measured)
 fn test_flatten_worst_scope_overlap() {
     let weapon = Fixture::damage(guard::ABOVE_HALF, scope::WEAPON, 9);
@@ -710,7 +698,6 @@ fn test_flatten_worst_scope_overlap() {
 // modifier: 72 on an attack skill's hit, refused in both orderings.
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
 #[available_gas(l2_gas: 91844)] // ceil(1.05 × 87470 measured)
 fn test_penetration_weapon_and_attack_skill_refused() {
     Fixture::modifier(
@@ -723,7 +710,6 @@ fn test_penetration_weapon_and_attack_skill_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
 #[available_gas(l2_gas: 93503)] // ceil(1.05 × 89050 measured)
 fn test_penetration_attack_skill_and_weapon_refused() {
     Fixture::modifier(
@@ -736,7 +722,6 @@ fn test_penetration_attack_skill_and_weapon_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
 #[available_gas(l2_gas: 74928)] // ceil(1.05 × 71360 measured)
 fn test_damage_weapon_and_attack_skill_over_18_refused() {
     Fixture::modifier(
@@ -748,7 +733,6 @@ fn test_damage_weapon_and_attack_skill_over_18_refused() {
 }
 
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 421691)] // ceil(1.05 × 401610 measured)
 fn test_scope_overlap_within_bound_accepted() {
     // 10 − 5 on an attack skill's hit; 18 and 18 on weapon and spell hits, which no class adds.
