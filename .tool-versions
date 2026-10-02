@@ -1,5 +1,5 @@
-scarb 2.19.4
-starknet-foundry 0.61.0
+scarb 2.20.1
+starknet-foundry 0.64.0
 starknet-devnet 0.10.0
 nodejs 24.21.0
 pnpm 12.5.1

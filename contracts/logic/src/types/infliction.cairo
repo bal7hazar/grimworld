@@ -59,7 +59,7 @@ mod tests {
     // condition only (design/03's Rending Cut, Bleeding 20 with "Rending" +33 %: 26), the
     // knock-down's ticks to Knocked down only (Skullring 2 with *Hob-breaker* +1: 3).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_infliction_duration() {
         let none: Infliction = Default::default();
         assert(none.duration(condition::BLEEDING, 20) == 20, 'no passive');
@@ -74,7 +74,7 @@ mod tests {
     // 40,000 → 32,767); the bonuses at their caps (50 %, 3 ticks) above them; the
     // widest stays at 49,153, below `MAX_DURATION`.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_infliction_duration_edges() {
         let none: Infliction = Default::default();
         assert(none.duration(condition::POISON, 0) == 1, '0 -> 1');

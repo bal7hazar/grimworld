@@ -69,7 +69,11 @@ jobs:
     needs: discover
     name: cairo (${{ matrix.dir }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    # D-176 (FND-10's scope, folded into FND-11): the compiler's withdraw_gas placement follows rayon's
+    # thread order, so every measured or declared build is single-threaded (docs/CAIRO.md §2).
+    env:
+      RAYON_NUM_THREADS: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -153,6 +157,13 @@ jobs:
         if: matrix.dir == 'contracts'
         working-directory: .
         run: python3 contracts/logic/vectors/check.py
+
+      # D-176 / SPK-13: three clean builds give one CASM and one Sierra size per class. Not a class
+      # hash: it depends on the absolute build path (closure type names), SPK-13b, #283. Last, as it
+      # cleans the target folder.
+      - name: three clean builds agree
+        if: matrix.dir == 'contracts'
+        run: python3 ../.github/ci/build_stable.py
 
   # FND-12 (SPK-13b, #283): the contracts' class files built once, at CI's checkout root, and kept.
   # A class hash depends on the absolute build path, so a class that is declared on a network is

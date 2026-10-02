@@ -12,7 +12,7 @@ use starknet::storage_access::StorePacking;
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
 #[test]
-#[available_gas(l2_gas: 116267)] // ceil(1.05 × 110730 measured)
+#[available_gas(l2_gas: 108045)] // ceil(1.05 × 102900 measured)
 fn test_lanes32() {
     let lanes = Lanes32 { lanes: [1, 2, 3, 0xFFFFFFFF, 5, 6, 0xFFFFFFFF] };
     let word = pack_lanes32(lanes);
@@ -24,7 +24,7 @@ fn test_lanes32() {
 }
 
 #[test]
-#[available_gas(l2_gas: 451511)] // ceil(1.05 × 430010 measured)
+#[available_gas(l2_gas: 443289)] // ceil(1.05 × 422180 measured)
 fn test_lanes16() {
     let lanes = Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 0xFFFF, 9, 10, 11, 12, 13, 14, 0xFFFF] };
     assert(unpack_lanes16(pack_lanes16(lanes)) == lanes, 'round trip');
@@ -35,7 +35,7 @@ fn test_lanes16() {
 }
 
 #[test]
-#[available_gas(l2_gas: 21221)] // ceil(1.05 × 20210 measured)
+#[available_gas(l2_gas: 12999)] // ceil(1.05 × 12380 measured)
 fn test_bitmap() {
     let top: felt252 = 0x200000000000000000000000000000000000000000000000000000000000000; // 2^249
     let bitmap = Bitmap { bits: top + 1 };
@@ -45,7 +45,7 @@ fn test_bitmap() {
 }
 
 #[test]
-#[available_gas(l2_gas: 20003)] // ceil(1.05 × 19050 measured)
+#[available_gas(l2_gas: 11781)] // ceil(1.05 × 11220 measured)
 fn test_identifiers() {
     let id = instance_id(7, 3);
     assert(id == 7 * 0x100000000 + 3, 'instance id');
@@ -58,7 +58,7 @@ fn test_identifiers() {
 // Fix loop 1: a counter is never 0 in storage (F-4); a high limb that would reach LIVE, or a
 // bitmap above bit 249, is refused (F-9).
 #[test]
-#[available_gas(l2_gas: 18900)] // ceil(1.05 × 18000 measured)
+#[available_gas(l2_gas: 10679)] // ceil(1.05 × 10170 measured)
 fn test_counter_never_zero() {
     let zero = StorePacking::<Counter, felt252>::pack(Counter { value: 0 });
     assert(zero == LIVE, 'zero is LIVE');
@@ -70,14 +70,14 @@ fn test_counter_never_zero() {
 
 #[test]
 #[should_panic(expected: 'packing: high limb overflow')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_join_refuses_live_overflow() {
     join(0, 0x4000000000000000000000000000000);
 }
 
 #[test]
 #[should_panic(expected: 'packing: bitmap above bit 249')]
-#[available_gas(l2_gas: 18606)] // ceil(1.05 × 17720 measured)
+#[available_gas(l2_gas: 10385)] // ceil(1.05 × 9890 measured)
 fn test_bitmap_above_249_refused() {
     let bit250: felt252 = 0x400000000000000000000000000000000000000000000000000000000000000;
     StorePacking::<Bitmap, felt252>::pack(Bitmap { bits: bit250 });

@@ -6,7 +6,7 @@
 #
 #   .tool-versions   scarb, starknet-foundry (which brings snforge and sncast), starknet-devnet (the
 #                    local node, NS-1: docs/research/SPK-5b-toolchain-native.md), nodejs, pnpm.
-#                    A native Starknet game on Cairo 2.19 (ADR-0007): no sozo, katana or torii.
+#                    A native Starknet game on Cairo 2.19, 2.20 since FND-11 (ADR-0007): no sozo, katana or torii.
 #                    The Dojo spikes pin their own set in spikes/*/.tool-versions and are not
 #                    installed by this script.
 #

@@ -875,7 +875,7 @@ mod close_tests {
 
     #[test]
     // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-    #[available_gas(l2_gas: 5046069)] // ceil(1.05 × 4805780 measured)
+    #[available_gas(l2_gas: 5274990)] // ceil(1.05 × 5023800 measured)
     fn test_close_on_defeat() {
         let class = declare("ReportSink").unwrap().contract_class();
         let (hub, _) = class.deploy(@array![]).unwrap();
@@ -930,7 +930,7 @@ mod layout_tests {
 
     // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
     #[test]
-    #[available_gas(l2_gas: 193242)] // ceil(1.05 × 184040 measured)
+    #[available_gas(l2_gas: 185126)] // ceil(1.05 × 176310 measured)
     fn test_instances_storage_addresses() {
         let state = @Instances::contract_state_for_testing();
         assert(

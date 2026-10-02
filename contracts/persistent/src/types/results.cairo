@@ -93,7 +93,7 @@ mod tests {
     // The belt's reserve comes back only when the report closes the presence, merged by item,
     // before the balances, in their order.
     #[test]
-    #[available_gas(l2_gas: 340274)] // ceil(1.05 × 324070 measured)
+    #[available_gas(l2_gas: 332052)] // ceil(1.05 × 316240 measured)
     fn test_credit() {
         let belt = [4, 8, 4, 0];
         let returned = results(Outcome::Returned, 0, [1, 2, 3, 0]);
@@ -107,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 24769)] // ceil(1.05 × 23589 measured)
+    #[available_gas(l2_gas: 16652)] // ceil(1.05 × 15859 measured)
     fn test_reaches_hub() {
         assert(results(Outcome::Returned, facts::HUB_REACHED, [0; 4]).reaches_hub(), 'reached');
         assert(!results(Outcome::Returned, 0, [0; 4]).reaches_hub(), 'not reached');

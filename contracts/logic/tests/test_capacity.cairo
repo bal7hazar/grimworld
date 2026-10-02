@@ -232,7 +232,7 @@ impl FixtureImpl of Fixture {
 // pair, +18 in a stance and −18 enchanted.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 4037786)] // ceil(1.05 × 3845510 measured)
+#[available_gas(l2_gas: 4122962)] // ceil(1.05 × 3926630 measured)
 fn test_flatten_damage_extremes() {
     let up = Fixture::damage(guard::ABOVE_HALF, scope::ALL, 18);
     let down = Fixture::damage(guard::ALWAYS, scope::ALL, -18);
@@ -258,7 +258,7 @@ fn test_flatten_damage_extremes() {
 // unguarded armor at every held-item and armor slot, −255, without ratings.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 7917620)] // ceil(1.05 × 7540590 measured)
+#[available_gas(l2_gas: 8095878)] // ceil(1.05 × 7710360 measured)
 fn test_flatten_penetration_and_armor_extremes() {
     let pierce = Fixture::penetration(scope::ALL, 36);
     let low = Fixture::armor(guard::ALWAYS, -255);
@@ -298,7 +298,7 @@ fn test_flatten_penetration_and_armor_extremes() {
 // 63; knock-down 1 a source on 13 is 13, saturated at 3; enchantment 20 a source on 7 is 140,
 // saturated at 50; the condition 33.
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 4097919)] // ceil(1.05 × 3902780 measured)
+#[available_gas(l2_gas: 4192209)] // ceil(1.05 × 3992580 measured)
 fn test_flatten_saturated_extremes() {
     let vs = Fixture::passive(id::ARMOR_VS, 1, 7);
     let knock = Fixture::passive(id::KNOCKDOWN_FLAT, 0, 1);
@@ -325,7 +325,7 @@ fn test_flatten_saturated_extremes() {
 // (statistic, guard, scope). The audit's insignia: `ARMOR +10 IN_STANCE`, `ARMOR −5 ENCHANTED`.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 988785)] // ceil(1.05 × 941700 measured)
+#[available_gas(l2_gas: 1002509)] // ceil(1.05 × 954770 measured)
 fn test_separate_sums_accepted() {
     let insignia = Fixture::modifier(
         slot::INSIGNIA, Fixture::armor(guard::IN_STANCE, 10), Fixture::armor(guard::ENCHANTED, -5),
@@ -357,7 +357,7 @@ fn test_separate_sums_accepted() {
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
 // gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
-#[available_gas(l2_gas: 50190)] // ceil(1.05 × 47800 measured)
+#[available_gas(l2_gas: 41969)] // ceil(1.05 × 39970 measured)
 fn test_damage_all_and_weapon_same_guard_refused() {
     // 10 + 10 on a plain weapon hit (and on an attack skill's): 20 > 18.
     let all = Fixture::damage(guard::ALWAYS, scope::ALL, 10);
@@ -367,7 +367,7 @@ fn test_damage_all_and_weapon_same_guard_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-#[available_gas(l2_gas: 124362)] // ceil(1.05 × 118440 measured)
+#[available_gas(l2_gas: 121947)] // ceil(1.05 × 116140 measured)
 fn test_penetration_all_and_spell_refused() {
     // 30 + 10 on a spell's hit: 40 > 36.
     Fixture::modifier(
@@ -381,7 +381,7 @@ fn test_penetration_all_and_spell_refused() {
 // −2.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 399704)] // ceil(1.05 × 380670 measured)
+#[available_gas(l2_gas: 400638)] // ceil(1.05 × 381560 measured)
 fn test_unguarded_armor_twice_accepted() {
     Fixture::modifier(slot::RUNE, Fixture::armor(0, 5), Fixture::armor(0, -2)).assert_legal();
     Fixture::modifier(slot::RUNE, Fixture::armor(0, 255), Fixture::armor(0, 255)).assert_legal();
@@ -395,7 +395,7 @@ fn test_unguarded_armor_twice_accepted() {
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
 // gas: raised, DS-23: the fixture's insignia is made for its piece
-#[available_gas(l2_gas: 129003)] // ceil(1.05 × 122860 measured)
+#[available_gas(l2_gas: 120908)] // ceil(1.05 × 115150 measured)
 fn test_stance_armor_twice_refused() {
     // 10 + 10 in a stance: 20 > 18.
     Fixture::modifier(
@@ -406,7 +406,7 @@ fn test_stance_armor_twice_refused() {
 
 #[test]
 #[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_two_conditions_on_one_prefix_refused() {
     Fixture::modifier(
         slot::PREFIX,
@@ -436,7 +436,7 @@ fn with_prefix(prefix: Modifier) -> Span<Passive> {
 // (D-160; refused below): Bleeding 20 + 13 = 33. The oracle and the builder agree.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 4156215)] // ceil(1.05 × 3958300 measured)
+#[available_gas(l2_gas: 4249319)] // ceil(1.05 × 4046970 measured)
 fn test_same_condition_summed() {
     let prefix = Fixture::modifier(
         slot::PREFIX,
@@ -450,7 +450,7 @@ fn test_same_condition_summed() {
 
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 146223)] // ceil(1.05 × 139260 measured)
+#[available_gas(l2_gas: 138779)] // ceil(1.05 × 132170 measured)
 fn test_same_condition_above_33_refused() {
     Fixture::modifier(
         slot::PREFIX,
@@ -462,7 +462,7 @@ fn test_same_condition_above_33_refused() {
 
 #[test]
 #[should_panic(expected: 'modifier: counted twice')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_two_quick_casts_on_one_slot_refused() {
     let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
     Fixture::modifier(slot::INSCRIPTION, quick, Fixture::passive(id::QUICK_CAST_EVERY_N, 4, 5))
@@ -472,7 +472,8 @@ fn test_two_quick_casts_on_one_slot_refused() {
 // AUD-182-4 (design/20 §1.8, D-157 B and C, D-160): quick cast is held on inscriptions, the damage
 // type on prefixes; there, a catalogue of several is accepted.
 #[test]
-#[available_gas(l2_gas: 723986)] // ceil(1.05 × 689510 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 727157)] // ceil(1.05 × 692530 measured)
 fn test_decided_slot_types_accepted() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(
@@ -493,7 +494,7 @@ fn test_decided_slot_types_accepted() {
 // AUD-182-4: quick cast on a prefix or a suffix, the damage type on a suffix or an inscription,
 // are refused, even in a catalogue that uses only that slot type.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_undecided_slot_types_refused() {
     let quick = Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5);
     let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
@@ -505,7 +506,7 @@ fn test_undecided_slot_types_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 107972)] // ceil(1.05 × 102830 measured)
+#[available_gas(l2_gas: 99750)] // ceil(1.05 × 95000 measured)
 fn test_damage_type_suffix_catalogue_refused() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(
@@ -516,7 +517,7 @@ fn test_damage_type_suffix_catalogue_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 107972)] // ceil(1.05 × 102830 measured)
+#[available_gas(l2_gas: 99750)] // ceil(1.05 × 95000 measured)
 fn test_quick_cast_on_a_suffix_refused() {
     let none: Passive = Default::default();
     ModifierAssert::assert_catalogue(
@@ -530,7 +531,7 @@ fn test_quick_cast_on_a_suffix_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_quick_cast_on_an_armor_slot_refused() {
     Fixture::modifier(
         slot::INSIGNIA, Fixture::passive(id::QUICK_CAST_EVERY_N, 3, 5), Default::default(),
@@ -540,7 +541,7 @@ fn test_quick_cast_on_an_armor_slot_refused() {
 
 // CBT-7: an attribute's id space is not settled (escalated): any `u8` is accepted.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_attribute_ids_accepted() {
     Fixture::passive(id::ATTRIBUTE, 255, 1).assert_legal();
     Fixture::passive(id::ATTRIBUTE, 16, -2).assert_legal();
@@ -551,7 +552,7 @@ fn test_attribute_ids_accepted() {
 // CBT-1: no single passive is bounded by an aggregate the snapshot saturates or caps; a plus
 // stays a plus (§4: "+ armor", "+ ticks"; ENG-01 §3.1's percent bonuses).
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_saturated_values_accepted() {
     Fixture::passive(id::ARMOR_VS, 1, 64).assert_legal();
     Fixture::passive(id::ARMOR_VS, 9, 32767).assert_legal();
@@ -563,21 +564,21 @@ fn test_saturated_values_accepted() {
 
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_negative_knockdown_refused() {
     Fixture::passive(id::KNOCKDOWN_FLAT, 0, -1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_negative_enchant_duration_refused() {
     Fixture::passive(id::ENCHANT_DURATION, 0, -1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_adrenaline_every_0_refused() {
     Fixture::passive(id::ADRENALINE_EVERY_N, 0, 0).assert_legal();
 }
@@ -586,7 +587,7 @@ fn test_adrenaline_every_0_refused() {
 // on held slots only (row 13), so a set's bonus is refused.
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_life_steal_set_bonus_refused() {
     let steal = Fixture::passive(id::LIFE_STEAL_ON_HIT, 0, 5);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [steal, steal]).assert_legal();
@@ -595,20 +596,20 @@ fn test_life_steal_set_bonus_refused() {
 // CBT-6: the slot type is checked by `ModifierAssert`; `source` only maps it.
 #[test]
 #[should_panic(expected: 'modifier: slot')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_slot_0_refused() {
     Fixture::modifier(0, Fixture::armor(0, 5), Default::default()).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'modifier: slot')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_slot_6_refused() {
     Fixture::modifier(6, Fixture::armor(0, 5), Default::default()).assert_legal();
 }
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_source_maps_slots() {
     assert(Fixture::modifier(6, Default::default(), Default::default()).source().is_none(), '6');
     assert(Fixture::modifier(0, Default::default(), Default::default()).source().is_none(), '0');
@@ -623,7 +624,7 @@ fn test_source_maps_slots() {
 // the personalised ratings = 8,720 ≤ 9,995; at −255 without ratings, −8,160.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 7966770)] // ceil(1.05 × 7587400 measured)
+#[available_gas(l2_gas: 8145554)] // ceil(1.05 × 7757670 measured)
 fn test_flatten_unguarded_armor_extremes() {
     let high = Fixture::armor(0, 255);
     let low = Fixture::armor(0, -255);
@@ -653,7 +654,7 @@ fn test_flatten_unguarded_armor_extremes() {
 // One `WEAPON +18` flattens to 18 on plain weapon hits and on attack skills, 0 on spells.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 3918411)] // ceil(1.05 × 3731820 measured)
+#[available_gas(l2_gas: 4003146)] // ceil(1.05 × 3812520 measured)
 fn test_flatten_weapon_scope_on_attack_skills() {
     let none: Passive = Default::default();
     let weapon = Fixture::damage(guard::ALWAYS, scope::WEAPON, 18);
@@ -675,7 +676,7 @@ fn test_flatten_weapon_scope_on_attack_skills() {
 // bound exactly: damage 5 × 18 + 2 × 18 = 126, penetration 5 × 36 + 2 × 36 = 252.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 8014661)] // ceil(1.05 × 7633010 measured)
+#[available_gas(l2_gas: 8193234)] // ceil(1.05 × 7803080 measured)
 fn test_flatten_worst_scope_overlap() {
     let weapon = Fixture::damage(guard::ABOVE_HALF, scope::WEAPON, 9);
     let attack = Fixture::damage(guard::ABOVE_HALF, scope::ATTACK_SKILL, 9);
@@ -710,7 +711,7 @@ fn test_flatten_worst_scope_overlap() {
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
 // gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
-#[available_gas(l2_gas: 100065)] // ceil(1.05 × 95300 measured)
+#[available_gas(l2_gas: 91844)] // ceil(1.05 × 87470 measured)
 fn test_penetration_weapon_and_attack_skill_refused() {
     Fixture::modifier(
         slot::PREFIX,
@@ -723,7 +724,7 @@ fn test_penetration_weapon_and_attack_skill_refused() {
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
 // gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
-#[available_gas(l2_gas: 101724)] // ceil(1.05 × 96880 measured)
+#[available_gas(l2_gas: 93503)] // ceil(1.05 × 89050 measured)
 fn test_penetration_attack_skill_and_weapon_refused() {
     Fixture::modifier(
         slot::SUFFIX,
@@ -736,7 +737,7 @@ fn test_penetration_attack_skill_and_weapon_refused() {
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
 // gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
-#[available_gas(l2_gas: 83150)] // ceil(1.05 × 79190 measured)
+#[available_gas(l2_gas: 74928)] // ceil(1.05 × 71360 measured)
 fn test_damage_weapon_and_attack_skill_over_18_refused() {
     Fixture::modifier(
         slot::INSCRIPTION,
@@ -748,7 +749,7 @@ fn test_damage_weapon_and_attack_skill_over_18_refused() {
 
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 429912)] // ceil(1.05 × 409440 measured)
+#[available_gas(l2_gas: 421691)] // ceil(1.05 × 401610 measured)
 fn test_scope_overlap_within_bound_accepted() {
     // 10 − 5 on an attack skill's hit; 18 and 18 on weapon and spell hits, which no class adds.
     Fixture::modifier(
@@ -773,7 +774,7 @@ fn test_scope_overlap_within_bound_accepted() {
 
 // CBT-1 (fix loop 3): `ENERGY_COST` is "− energy" (§4), a reduction (§5.3): 0 or below.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_energy_cost_non_positive_accepted() {
     Fixture::passive(id::ENERGY_COST, 2, -1).assert_legal();
     Fixture::passive(id::ENERGY_COST, 2, 0).assert_legal();
@@ -782,14 +783,14 @@ fn test_energy_cost_non_positive_accepted() {
 
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_energy_cost_positive_refused() {
     Fixture::passive(id::ENERGY_COST, 2, 1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_energy_cost_range_crossing_zero_refused() {
     PassiveTrait::new(id::ENERGY_COST, 2, 0, 0, -1, 1).assert_legal();
 }

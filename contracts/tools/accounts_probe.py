@@ -33,6 +33,8 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 PACKAGE = os.path.join(os.path.dirname(HERE), "persistent")
 URL = os.environ["NODE_URL"]
+# D-176: `sncast declare` builds the contract with Scarb; the build is single-threaded.
+os.environ["RAYON_NUM_THREADS"] = "1"
 if urllib.parse.urlparse(URL).hostname != "127.0.0.1":
     sys.exit("accounts_probe: the local node only (NODE_URL must be on 127.0.0.1)")
 ADDRESS = os.environ["NODE_ACCOUNT_ADDRESS"]
