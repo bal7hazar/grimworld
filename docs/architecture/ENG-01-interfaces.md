@@ -207,7 +207,7 @@ slot is reached only through a gate that `create` or a reveal rewrites.
 | `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the entry chunk only; the location's quotas) |
 | `tasks[(slot, page)]` | `header.tasks` (pages beyond `⌈tasks / 4⌉` are never read) | `create`, only the pages it needs: a page never used before is new then (§9.3) |
 | `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words; **every generation-changing path** (`create`, and `leave` through a gate to a location) writes every transient word for the new clock 0: state from the snapshot, timers with no activation (`act_slot` 255, deadlines 0), effects and recharges empty (fix loops 2 and 3, F-12, F-14) |
-| `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`mask_roster_page`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
+| `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`RosterTrait::mask`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
 | `chunks[(slot, c)]` | bit `c` of `revealed`: a chunk not revealed in this generation is never read (wall, D-136) | its reveal, both words |
 | `goblins[(slot, e)]` | its spawn chunk revealed **and** bit `k` of that chunk's `touched` (the roster lists only goblins that pass this gate) | the chunk's reveal clears `touched`; the roster's count is reset at `create` |
 | `placements[adventurer]` | the adventurer id (its reference to its instance, not instance state) | `create`, `leave` |
@@ -227,11 +227,11 @@ member's four transient words are written for clock 0 of the new instance:
   counters 0, flags 0; **the belt's counts are the reserve's**, carried as the F-1 ruling says;
 - `MemberTimers`: **no activation and no condition**: `act_slot` = `NO_SLOT` (255), target 0, every
   deadline 0, stored `LIVE + 255` (fix loop 3, F-14: `LIVE` alone would read as an activation of bar
-  slot 0). `models::member::empty_member_timers`, pinned by `test_empty_timers_packed`;
+  slot 0). `models::member::MemberTimersTrait::empty`, pinned by `test_empty_timers_packed`;
 - `MemberEffects`, `Recharges`: empty, stored `LIVE`.
 
 No deadline of the old clock survives, so no deadline can point into the new clock's past or
-future by mistake. A goblin's first record starts from `empty_goblin_timers` (`act_slot` 255), the
+future by mistake. A goblin's first record starts from `GoblinTimersTrait::empty` (`act_slot` 255), the
 same way.
 
 The snapshot's words (stats, bar, kit), the controller and the task pages are identical across a
@@ -841,7 +841,7 @@ at `pre_confirmed`.
 
 **The roster in views is masked** (fix loop 2, F-13). `InstanceView.roster` returns the pages up
 to `⌈roster_count / 15⌉` with every lane of an entry at or beyond `header.roster_count` zeroed
-(`models::instance::mask_roster_page`); the goblins they list are the only roster goblins in
+(`models::instance::RosterTrait::mask`); the goblins they list are the only roster goblins in
 `InstanceView.goblins` and `RegionChunk.goblins`. The same masking applies to every internal read
 (the tick, `loot`, the reveal of a follower's position). A raw page is never returned. Tested at
 the helper (`test_roster_masking`); the view case is in the deferred view tests (E-13): an earlier

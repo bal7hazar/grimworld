@@ -4,7 +4,7 @@
 // alone are in its module (D-167, ENG-R1b).
 use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement, Terrain};
 use grimworld_ephemeral::models::goblin::{
-    Goblin, GoblinState, GoblinTimers, MAX_ADRENALINE, empty_goblin_timers,
+    Goblin, GoblinState, GoblinTimers, GoblinTimersTrait, MAX_ADRENALINE,
 };
 use grimworld_ephemeral::models::instance::Header;
 use grimworld_ephemeral::models::member::{
@@ -172,7 +172,7 @@ fn test_empty_timers_packed() {
     let member = MemberTimersTrait::empty();
     assert(member.act_slot == NO_SLOT, 'member: no slot');
     assert(StorePacking::<MemberTimers, felt252>::pack(member) == LIVE + 255, 'member word');
-    let goblin = empty_goblin_timers();
+    let goblin = GoblinTimersTrait::empty();
     assert(StorePacking::<GoblinTimers, felt252>::pack(goblin) == LIVE + 255, 'goblin word');
     let effects = MemberEffects { effects: [Default::default(); 4] };
     assert(StorePacking::<MemberEffects, felt252>::pack(effects) == LIVE, 'empty effects');
@@ -226,7 +226,7 @@ fn test_combat_fields_layout() {
     assert(
         StorePacking::<GoblinTimers, felt252>::pack(rank) == two_240 * 0x40 + LIVE, 'rank at 246',
     );
-    assert(empty_goblin_timers().act_slot == activation::NONE, 'none is 255');
+    assert(GoblinTimersTrait::empty().act_slot == activation::NONE, 'none is 255');
     assert(activation::NONE == 255 && activation::RECOVERING == 254, 'frozen states');
     assert(MAX_ADRENALINE == 252, '63 strikes');
 }

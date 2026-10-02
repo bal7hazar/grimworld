@@ -29,12 +29,12 @@
 //! `Store` (an identity `StorePacking`) at the address and in the layout the models had
 //! (`layout_tests`, `test_account_slots`): their store methods do no address arithmetic, and a path
 //! that reads or writes two slots of one account takes its sub-pointers once. **`adventurers` and
-//! `balances`
-//! keep their models' declaration and the offset access** (`AdventurerWordTrait`, `PageTrait`,
-//! `WordTrait` below): typed, they raised the expedition's path (ENG-R1b, l2 gas per call: `enter`
-//! +300 without a belt and +3,940 with 4 belt pages, the closing `report` crediting 4 pages +3,940,
-//! `travel` +200; a balance page about +985, a single adventurer slot about +100), which D-144
-//! leaves to the project manager; the rule of ENG-R1b's *Scope* keeps them as they were.
+//! `balances` keep their models' declaration and the offset access** (`AdventurerWordTrait`,
+//! `PageTrait`, `WordTrait` below): typed, they raised the expedition's path (ENG-R1b, l2 gas per
+//! call: `enter` +300 without a belt and +3,940 with 4 belt pages, the closing `report` crediting 4
+//! pages +3,940, `travel` +200; a balance page about +985, a single adventurer slot about +100),
+//! which D-144 leaves to the project manager; the rule of ENG-R1b's *Scope* keeps them as they
+//! were.
 //!
 //! **Tracking** (docs/CAIRO.md §7, D-147, D-149): **no model of `Hub` is tracked, so no `set_x`
 //! here emits**. The indexer reads ENG-01's events, frozen (D-149), and none of them matches the
