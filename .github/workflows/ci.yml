@@ -146,6 +146,14 @@ jobs:
         working-directory: .
         run: python3 contracts/tools/exp2_table.py --check
 
+      # ENG-02 (and CBT-03a's review minor): the committed vector tables of the game's logic
+      # (contracts/logic/vectors/*.jsonl, the client's mirror reads them) checked against what the
+      # code prints; a stale or hand-edited table fails here. CBT-03a's hit.jsonl joins it at its merge.
+      - name: vectors are current
+        if: matrix.dir == 'contracts'
+        working-directory: .
+        run: python3 contracts/logic/vectors/check.py
+
   client:
     needs: discover
     runs-on: ubuntu-latest
