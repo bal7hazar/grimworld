@@ -208,6 +208,7 @@ check_version() { # <label> <expected version> <command…>
   fi
 }
 
+checked_file=''   # the binary check_hash verified: the version check runs that one, never a PATH lookup
 check_hash() { # <tool> <version>: the system binary when it serves the tool, else asdf's
   local tool=$1 version=$2 want file got
   want=$(binary_sha256 "$tool" "$version" "$arch")
@@ -220,6 +221,7 @@ check_hash() { # <tool> <version>: the system binary when it serves the tool, el
   got=$(sha256_of "$file")
   if [ "$got" = "$want" ]; then
     printf '%-18s sha256 %s\n' "$tool" "$got"
+    checked_file=$file
   else
     fail "$tool $version: sha256 of $file is $got, expected $want"
     return 1
@@ -231,12 +233,13 @@ check_version snforge "$(pinned starknet-foundry)" snforge --version
 check_version sncast "$(pinned starknet-foundry)" sncast --version
 check_version node "$(pinned nodejs)" node --version
 check_version pnpm "$(pinned pnpm)" pnpm --version
-# starknet-devnet: the pinned sha256 is verified BEFORE the binary is run at all.
+# starknet-devnet: the pinned sha256 is verified BEFORE the binary is run at all, and the version is
+# checked on that very file (the system binary or asdf's install), so the PATH does not matter.
 devnet_version=$(pinned starknet-devnet)
 if [ -z "$devnet_version" ]; then
   fail "starknet-devnet is not pinned in .tool-versions"
 elif check_hash starknet-devnet "$devnet_version"; then
-  check_version starknet-devnet "$devnet_version" starknet-devnet --version
+  check_version starknet-devnet "$devnet_version" "$checked_file" --version
 else
   echo "setup-toolchain: starknet-devnet not run: its hash was not verified" >&2
 fi
