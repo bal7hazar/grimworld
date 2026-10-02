@@ -2,7 +2,6 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::ContractAddress;
-use crate::models::index::{Goblin, Member};
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::executor::{Board, Cache, Carrier};
 use crate::types::tick::Content;
@@ -138,14 +137,13 @@ pub trait IFlattenLibrary<T> {
     ) -> (felt252, felt252, felt252);
 }
 
-/// The executor as its own library class (CBT-05a, route (c)): one call a carrier, the in-call
-/// values of the actors it can reach and the batch's content in, the actors and the kills out.
+/// The executor as its own library class (CBT-05a): one call a carrier, the words of the actors it
+/// can reach and the sheets their loads need in, the words out.
 #[starknet::interface]
 pub trait IExecutorLibrary<T> {
     fn execute(
         self: @T,
-        members: Array<Member>,
-        goblins: Array<Goblin>,
+        words: Words,
         content: Content,
         board: Board,
         cache: Cache,
@@ -153,5 +151,5 @@ pub trait IExecutorLibrary<T> {
         carrier: Carrier,
         address: u16,
         t: u32,
-    ) -> (Array<Member>, Array<Goblin>, Array<u16>, Cache);
+    ) -> (Words, Cache);
 }

@@ -264,7 +264,7 @@ pub struct MemberWords {
 
 /// A member inside the call: its hot fields, what it derives once, and its words (the recharges
 /// are read and written in `words.recharges` directly: only at an activation's end).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+#[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Member {
     pub status: u8,
     pub health: u16,
@@ -317,7 +317,7 @@ pub struct GoblinWords {
 
 /// A goblin inside the call: its hot fields, what it derives once, and its words (the recharges
 /// are read and written in `state` directly).
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+#[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Goblin {
     pub entity: u16,
     pub awake: bool,
