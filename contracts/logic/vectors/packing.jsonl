@@ -2,7 +2,7 @@
 {"id":1,"fn":"split","case":["0x1"],"ok":["0x1","0x0"]}
 {"id":2,"fn":"split","case":["0x400000000000000000000000000000000000000000000000000000000000000"],"ok":["0x0","0x0"]}
 {"id":3,"fn":"split","case":["0x400000000000000000000000000000000000000000000000000000000000001"],"ok":["0x1","0x0"]}
-{"id":4,"fn":"split","case":["0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"ok":["0xffffffffffffffffffffffffffffffff","0x3ffffffffffffffffffffffffffffff"]}
+{"id":4,"fn":"split","case":["0x100000000000000000000000000000001"],"ok":["0x1","0x1"]}
 {"id":5,"fn":"split","case":["0xffffffffffffffffffffffffffffffff"],"ok":["0xffffffffffffffffffffffffffffffff","0x0"]}
 {"id":6,"fn":"split","case":["0x100000000000000000000000000000000"],"ok":["0x0","0x1"]}
 {"id":7,"fn":"split","case":["0x400000000000000000000000000000100000000000000000000000000000000"],"ok":["0x0","0x1"]}
@@ -18,7 +18,7 @@
 {"id":17,"fn":"limbs","case":["0x400000000000000000000000000000100000000000000000000000000000000"],"ok":["0x0","0x1"]}
 {"id":18,"fn":"limbs","case":["0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"ok":["0xffffffffffffffffffffffffffffffff","0x3ffffffffffffffffffffffffffffff"]}
 {"id":19,"fn":"limbs","case":["0x40000000000000000000000000000000123456789abcdef0123456789abcdef"],"ok":["0x123456789abcdef0123456789abcdef","0x0"]}
-{"id":20,"fn":"limbs","case":["0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],"ok":["0xffffffffffffffffffffffffffffffff","0x3ffffffffffffffffffffffffffffff"]}
+{"id":20,"fn":"limbs","case":["0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffffff"],"ok":["0xffffffffffffffffffffffffffffffff","0x400000000000010ffffffffffffffff"]}
 {"id":21,"fn":"limbs","case":["0x0"],"ok":["0x1","0x4000000000000110000000000000000"]}
 {"id":22,"fn":"join","case":["0x0","0x0"],"ok":["0x0","0x400000000000000000000000000000000000000000000000000000000000000"]}
 {"id":23,"fn":"join","case":["0x0","0x1"],"ok":["0x0","0x400000000000000000000000000000100000000000000000000000000000000"]}

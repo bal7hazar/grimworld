@@ -405,7 +405,7 @@ mod tests {
     // at the boundary, `value == size`.
     #[test]
     #[should_panic(expected: 'fits')]
-    #[available_gas(l2_gas: 1000000)]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_fits_refuses_size() {
         fits(2, 2, 'fits');
     }
@@ -414,7 +414,7 @@ mod tests {
     // every case and outcome: a change to a layout or to the cases fails here until
     // `contracts/logic/vectors/packing.jsonl` is regenerated.
     #[test]
-    #[available_gas(l2_gas: 654705207)] // ceil(1.05 × 623528768 measured)
+    #[available_gas(l2_gas: 653389147)] // ceil(1.05 × 622275378 measured)
     fn test_vectors() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
@@ -680,5 +680,5 @@ mod tests {
     }
 
     const DIGEST: felt252 =
-        2603097203568390405806900136266429909141274338807405352845615991299710565710;
+        2846947247712031828191250240930051473826381931961835652957099604656858941268;
 }
