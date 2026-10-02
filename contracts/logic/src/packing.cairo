@@ -404,6 +404,15 @@ mod tests {
     // The vector table, one JSON line per case (`{"id", "fn", "case", "ok"}`), and a digest of
     // every case and outcome: a change to a layout or to the cases fails here until
     // `contracts/logic/vectors/packing.jsonl` is regenerated.
+    // The refusal rows of `fits` are its guard evaluated by `test_vectors`: this asserts the panic
+    // at the boundary, `value == size`.
+    #[test]
+    #[should_panic(expected: 'fits')]
+    #[available_gas(l2_gas: 1000000)]
+    fn test_fits_refuses_size() {
+        fits(2, 2, 'fits');
+    }
+
     #[test]
     #[available_gas(l2_gas: 654705207)] // ceil(1.05 × 623528768 measured)
     fn test_vectors() {
@@ -416,7 +425,7 @@ mod tests {
 
         // `split`: any word, `LIVE` removed from the high limb when it is set.
         let words: [felt252; 14] = [
-            0, 1, LIVE, LIVE + 1, LIVE - 1, TWO_POW_128 - 1, TWO_POW_128, LIVE + TWO_POW_128,
+            0, 1, LIVE, LIVE + 1, TWO_POW_128 + 1, TWO_POW_128 - 1, TWO_POW_128, LIVE + TWO_POW_128,
             LIVE + LIVE_LOW_MAX, LIVE_LOW_MAX, LIVE + 0x0123456789abcdef0123456789abcdef, 2 * LIVE,
             MAX, MAX - LIVE,
         ];
@@ -427,7 +436,7 @@ mod tests {
         // `limbs`: a word that carries `LIVE` (0 is the wrapped case, outside the contract).
         let stored: [felt252; 8] = [
             LIVE, LIVE + 1, LIVE + U128_MAX.into(), LIVE + TWO_POW_128, LIVE + LIVE_LOW_MAX,
-            LIVE + 0x0123456789abcdef0123456789abcdef, 2 * LIVE - 1, 0,
+            LIVE + 0x0123456789abcdef0123456789abcdef, MAX - 1, 0,
         ];
         for word in stored.span() {
             let (low, high) = limbs(*word);
