@@ -67,12 +67,13 @@ mod tests {
 
     /// Prints one vector and adds it to the digest.
     fn emit(
-        ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>,
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        case: Span<felt252>,
         ok: Span<felt252>,
     ) {
-        println!(
-            "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok),
-        );
+        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
         digest.append(poseidon_hash_span(case));
         digest.append(poseidon_hash_span(ok));
         id += 1;
@@ -107,7 +108,9 @@ mod tests {
             for pair in pairs.span() {
                 let (subject, counter) = *pair;
                 let ok = domain(subject, counter, *purpose);
-                emit(ref digest, ref id, "domain", [subject, counter, *purpose].span(), [ok].span());
+                emit(
+                    ref digest, ref id, "domain", [subject, counter, *purpose].span(), [ok].span(),
+                );
             }
         }
         // `domain`: the grid of subjects and counters under one purpose.
@@ -130,8 +133,7 @@ mod tests {
                     let ok = derive(*word, *dom, *index);
                     let index_felt: felt252 = (*index).into();
                     emit(
-                        ref digest, ref id, "derive", [*word, *dom, index_felt].span(),
-                        [ok].span(),
+                        ref digest, ref id, "derive", [*word, *dom, index_felt].span(), [ok].span(),
                     );
                 }
             }

@@ -292,10 +292,9 @@ mod tests {
     use super::{
         Bitmap, BitmapStorePacking, Counter, CounterStorePacking, LIVE, LIVE_HIGH, Lanes16,
         Lanes16StorePacking, Lanes32, Lanes32StorePacking, N16, N2, N24, N28, N32, N4, N56, N6, N7,
-        N8, P108, P112, P120, P12, P16, P32, P4, P40, P56, P60, P64, P72, P8, P96, TWO_POW_128,
+        N8, P108, P112, P12, P120, P16, P32, P4, P40, P56, P60, P64, P72, P8, P96, TWO_POW_128,
         byte_at, field, fits, join, limbs, low_field, pack_lanes16, pack_lanes32, peel, split,
-        u16_at, u32_at,
-        unpack_lanes16, unpack_lanes32,
+        u16_at, u32_at, unpack_lanes16, unpack_lanes32,
     };
 
     fn hex(felts: Span<felt252>) -> ByteArray {
@@ -315,12 +314,13 @@ mod tests {
 
     /// Prints one vector and adds it to the digest.
     fn emit(
-        ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>,
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        case: Span<felt252>,
         ok: Span<felt252>,
     ) {
-        println!(
-            "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok),
-        );
+        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
         digest.append(poseidon_hash_span(case));
         digest.append(poseidon_hash_span(ok));
         id += 1;
@@ -330,8 +330,8 @@ mod tests {
     const U128_MAX: u128 = 0xffffffffffffffffffffffffffffffff;
     const LIVE_LOW_MAX: felt252 = 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    /// Cases with a refusal: `[0, result…]` accepted, `[1]` refused (the `Option` convention of the
-    /// window's `arc`). A panic cannot be caught in a test, so a refusal is the guard evaluated
+    /// Cases with a refusal: `[0, result…]` accepted, `[1]` refused (the `Option` convention of
+    /// the window's `arc`). A panic cannot be caught in a test, so a refusal is the guard evaluated
     /// here; the panics themselves are asserted by `tests/test_packing.cairo`.
     fn accepted(result: Span<felt252>) -> Array<felt252> {
         let mut out: Array<felt252> = array![0];
@@ -342,9 +342,37 @@ mod tests {
     fn lanes32_with(j: u32, v: u32) -> Lanes32 {
         Lanes32 {
             lanes: [
-                if j == 0 { v } else { 0 }, if j == 1 { v } else { 0 }, if j == 2 { v } else { 0 },
-                if j == 3 { v } else { 0 }, if j == 4 { v } else { 0 }, if j == 5 { v } else { 0 },
-                if j == 6 { v } else { 0 },
+                if j == 0 {
+                    v
+                } else {
+                    0
+                }, if j == 1 {
+                    v
+                } else {
+                    0
+                }, if j == 2 {
+                    v
+                } else {
+                    0
+                },
+                if j == 3 {
+                    v
+                } else {
+                    0
+                }, if j == 4 {
+                    v
+                } else {
+                    0
+                }, if j == 5 {
+                    v
+                } else {
+                    0
+                },
+                if j == 6 {
+                    v
+                } else {
+                    0
+                },
             ],
         }
     }
@@ -382,15 +410,15 @@ mod tests {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
         let limb_values: [u128; 7] = [
-            0, 1, U128_MAX, 0x0123456789abcdef0123456789abcdef, 0x10000000000000000, 0xffffffffffffffff,
-            LIVE_HIGH,
+            0, 1, U128_MAX, 0x0123456789abcdef0123456789abcdef, 0x10000000000000000,
+            0xffffffffffffffff, LIVE_HIGH,
         ];
 
         // `split`: any word, `LIVE` removed from the high limb when it is set.
         let words: [felt252; 14] = [
             0, 1, LIVE, LIVE + 1, LIVE - 1, TWO_POW_128 - 1, TWO_POW_128, LIVE + TWO_POW_128,
-            LIVE + LIVE_LOW_MAX, LIVE_LOW_MAX, LIVE + 0x0123456789abcdef0123456789abcdef,
-            2 * LIVE, MAX, MAX - LIVE,
+            LIVE + LIVE_LOW_MAX, LIVE_LOW_MAX, LIVE + 0x0123456789abcdef0123456789abcdef, 2 * LIVE,
+            MAX, MAX - LIVE,
         ];
         for word in words.span() {
             let (low, high) = split(*word);
@@ -406,7 +434,10 @@ mod tests {
             emit(ref digest, ref id, "limbs", [*word].span(), [low.into(), high.into()].span());
         }
         // `join`: the boundary of the high limb is 2^122 (`LIVE_HIGH`).
-        let highs: [u128; 8] = [0, 1, 0x123456789abcdef, LIVE_HIGH - 1, LIVE_HIGH, LIVE_HIGH + 1, 0x8000000000000000000000000000000, U128_MAX];
+        let highs: [u128; 8] = [
+            0, 1, 0x123456789abcdef, LIVE_HIGH - 1, LIVE_HIGH, LIVE_HIGH + 1,
+            0x8000000000000000000000000000000, U128_MAX,
+        ];
         for low in limb_values.span() {
             for high in highs.span() {
                 let case = [(*low).into(), (*high).into()];
@@ -426,7 +457,10 @@ mod tests {
                 let mut rest = *limb;
                 let value = peel(ref rest, *size);
                 emit(
-                    ref digest, ref id, "peel", [(*limb).into(), size_value.into()].span(),
+                    ref digest,
+                    ref id,
+                    "peel",
+                    [(*limb).into(), size_value.into()].span(),
                     [value.into(), rest.into()].span(),
                 );
             }
@@ -454,35 +488,50 @@ mod tests {
                 let (shift, size) = *pair;
                 let ok = field(*limb, shift, size);
                 emit(
-                    ref digest, ref id, "field", [(*limb).into(), shift.into(), size.into()].span(),
+                    ref digest,
+                    ref id,
+                    "field",
+                    [(*limb).into(), shift.into(), size.into()].span(),
                     [ok.into()].span(),
                 );
             }
             for shift in [1, P8, P56, P120].span() {
                 let ok = byte_at(*limb, *shift);
                 emit(
-                    ref digest, ref id, "byte_at", [(*limb).into(), (*shift).into()].span(),
+                    ref digest,
+                    ref id,
+                    "byte_at",
+                    [(*limb).into(), (*shift).into()].span(),
                     [ok.into()].span(),
                 );
             }
             for shift in [1, P16, P60, P112].span() {
                 let ok = u16_at(*limb, *shift);
                 emit(
-                    ref digest, ref id, "u16_at", [(*limb).into(), (*shift).into()].span(),
+                    ref digest,
+                    ref id,
+                    "u16_at",
+                    [(*limb).into(), (*shift).into()].span(),
                     [ok.into()].span(),
                 );
             }
             for shift in [1, P32, P64, P96].span() {
                 let ok = u32_at(*limb, *shift);
                 emit(
-                    ref digest, ref id, "u32_at", [(*limb).into(), (*shift).into()].span(),
+                    ref digest,
+                    ref id,
+                    "u32_at",
+                    [(*limb).into(), (*shift).into()].span(),
                     [ok.into()].span(),
                 );
             }
             for size in [2, P12, P40, P72, P108].span() {
                 let ok = low_field(*limb, (*size).try_into().unwrap());
                 emit(
-                    ref digest, ref id, "low_field", [(*limb).into(), (*size).into()].span(),
+                    ref digest,
+                    ref id,
+                    "low_field",
+                    [(*limb).into(), (*size).into()].span(),
                     [ok.into()].span(),
                 );
             }
@@ -490,10 +539,8 @@ mod tests {
 
         // `Lanes32`: pack (the seven lanes to a word), unpack (a word to the seven lanes).
         let mut lanes: Array<Lanes32> = array![
-            Lanes32 { lanes: [0, 0, 0, 0, 0, 0, 0] },
-            Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] },
-            Lanes32 { lanes: [0xffffffff; 7] },
-            Lanes32 { lanes: [1; 7] },
+            Lanes32 { lanes: [0, 0, 0, 0, 0, 0, 0] }, Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] },
+            Lanes32 { lanes: [0xffffffff; 7] }, Lanes32 { lanes: [1; 7] },
         ];
         for j in 0..7_u32 {
             for v in [1, 0x12345678, 0xffffffff].span() {
@@ -504,14 +551,20 @@ mod tests {
             let word = pack_lanes32(*value);
             emit(ref digest, ref id, "pack_lanes32", serialize(*value).span(), [word].span());
             emit(
-                ref digest, ref id, "unpack_lanes32", [word].span(),
+                ref digest,
+                ref id,
+                "unpack_lanes32",
+                [word].span(),
                 serialize(unpack_lanes32(word)).span(),
             );
         }
         // A word without `LIVE` (a slot never written) decodes as zero lanes.
         for word in [0, 1, 0x1ffffffff].span() {
             emit(
-                ref digest, ref id, "unpack_lanes32", [*word].span(),
+                ref digest,
+                ref id,
+                "unpack_lanes32",
+                [*word].span(),
                 serialize(unpack_lanes32(*word)).span(),
             );
         }
@@ -523,8 +576,7 @@ mod tests {
         let mut lanes: Array<Lanes16> = array![
             Lanes16 { lanes: [0; 15] },
             Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
-            Lanes16 { lanes: [0xffff; 15] },
-            Lanes16 { lanes: [1; 15] },
+            Lanes16 { lanes: [0xffff; 15] }, Lanes16 { lanes: [1; 15] },
         ];
         for j in 0..15_u32 {
             for v in [1, 0xffff].span() {
@@ -535,13 +587,19 @@ mod tests {
             let word = pack_lanes16(*value);
             emit(ref digest, ref id, "pack_lanes16", serialize(*value).span(), [word].span());
             emit(
-                ref digest, ref id, "unpack_lanes16", [word].span(),
+                ref digest,
+                ref id,
+                "unpack_lanes16",
+                [word].span(),
                 serialize(unpack_lanes16(word)).span(),
             );
         }
         for word in [0, 1, 0x1ffff].span() {
             emit(
-                ref digest, ref id, "unpack_lanes16", [*word].span(),
+                ref digest,
+                ref id,
+                "unpack_lanes16",
+                [*word].span(),
                 serialize(unpack_lanes16(*word)).span(),
             );
         }
@@ -549,16 +607,25 @@ mod tests {
         emit(ref digest, ref id, "pack_lanes16", [3; 15].span(), [stored].span());
 
         // `Counter`: never 0 in storage; unpack reads the low limb only.
-        for value in [0, 1, 2, 255, 0xffffffff, 0x100000000, 0xfffffffffffffffe, 0xffffffffffffffff_u64].span() {
+        for value in [
+            0, 1, 2, 255, 0xffffffff, 0x100000000, 0xfffffffffffffffe, 0xffffffffffffffff_u64,
+        ]
+            .span() {
             let word = CounterStorePacking::pack(Counter { value: *value });
             emit(ref digest, ref id, "pack_counter", [(*value).into()].span(), [word].span());
             emit(
-                ref digest, ref id, "unpack_counter", [word].span(),
+                ref digest,
+                ref id,
+                "unpack_counter",
+                [word].span(),
                 serialize(CounterStorePacking::unpack(word)).span(),
             );
         }
         emit(
-            ref digest, ref id, "unpack_counter", [0].span(),
+            ref digest,
+            ref id,
+            "unpack_counter",
+            [0].span(),
             serialize(CounterStorePacking::unpack(0)).span(),
         );
 
@@ -573,22 +640,29 @@ mod tests {
             if wide.high < LIVE_HIGH {
                 let word = BitmapStorePacking::pack(Bitmap { bits: *value });
                 emit(
-                    ref digest, ref id, "pack_bitmap", [*value].span(),
+                    ref digest,
+                    ref id,
+                    "pack_bitmap",
+                    [*value].span(),
                     accepted([word].span()).span(),
                 );
                 emit(
-                    ref digest, ref id, "unpack_bitmap", [word].span(),
+                    ref digest,
+                    ref id,
+                    "unpack_bitmap",
+                    [word].span(),
                     serialize(BitmapStorePacking::unpack(word)).span(),
                 );
             } else {
                 emit(ref digest, ref id, "pack_bitmap", [*value].span(), [1].span());
             }
         }
+        emit(ref digest, ref id, "pack_bitmap", [MAX].span(), [1].span());
         emit(
-            ref digest, ref id, "pack_bitmap", [MAX].span(), [1].span(),
-        );
-        emit(
-            ref digest, ref id, "unpack_bitmap", [0].span(),
+            ref digest,
+            ref id,
+            "unpack_bitmap",
+            [0].span(),
             serialize(BitmapStorePacking::unpack(0)).span(),
         );
         let digest = poseidon_hash_span(digest.span());
