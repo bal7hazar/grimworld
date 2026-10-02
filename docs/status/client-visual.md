@@ -53,7 +53,9 @@ PENDING-cv-market-queries; the `indexer-node` trigger paths; `verify-cli03c.mjs`
 | SPK-6a | The protocol of SPK-6, aligned on D-151 and D-152 | Opus 5.5 | Done, [#138](https://github.com/bal7hazar/grimworld/pull/138); [report](../reports/SPK-6a-protocol.md) |
 | IDX-01a | The indexer's core (lent, D-149); the CI job `indexer-node` (D-153) | Opus 5.5 | Done, [#144](https://github.com/bal7hazar/grimworld/pull/144); [report](../reports/IDX-01a-indexer-core.md), audits [security and quality](../reports/IDX-01a-audit-security-quality.md), [`[GPT-6-Sol]`](../reports/IDX-01a-audit-gpt-6-sol.md) |
 | IDX-01b | Queries Q1-Q5 and Q7, subscriptions (R4), the client library of the freshness rule (R3) | Opus 5.5 | Done, [#154](https://github.com/bal7hazar/grimworld/pull/154); [report](../reports/IDX-01b-indexer-queries.md), audits [security and quality](../reports/IDX-01b-audit-security-quality.md), [`[GPT-6-Sol]`](../reports/IDX-01b-audit-gpt-6-sol.md) |
-| The Capacitor shell | Before SPK-6.1, before Phase 6 (D-151, D-152); CV-03 proposed as its id | Opus 5.5 | Later |
+| The Capacitor shell | Before SPK-6.1, before Phase 6 (D-151, D-152); CV-03 proposed as its id | Opus 5.5 | **Suspended (owner, 2026-10-02)**; its pull request (#306) stays open, paused, not to be merged until resumed |
+| SPK-6.1 (the phone verdict) | SPK-6.1 | Orchestrator + Opus 5.5 | **Suspended (owner, 2026-10-02)**; mobile-first design is kept, tests and measures run on desktop |
+| CLI-02, the full-tick threshold | 10 queued actions within one 60 Hz frame (16.7 ms), Node and browser worker | Opus 5.5 | Re-checked on a phone when phone work resumes (phone work suspended by the owner, 2026-10-02) |
 
 ## Agents
 
@@ -74,4 +76,4 @@ None of the track runs at this writing. Threads run on the VPS and, through `--m
 
 1. CLI-03d, after the owner's test of CLI-03c.
 2. CLI-02, when ENG-02 is merged.
-3. The Capacitor shell, before Phase 6 (the hex tilemap when the owner's purchase arrives).
+3. The Capacitor shell: suspended (owner, 2026-10-02); resumes before Phase 6 when phone work resumes.
