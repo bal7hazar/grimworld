@@ -1228,7 +1228,7 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 100000000)]
     fn test_near_agrees() {
-        let window = walled(array![17, 112, 200].span());
+        let window = Fixture::walled(array![17, 112, 200].span());
         for centre in 0..240_u8 {
             for s in 1..4_u8 {
                 assert(window.near(s, centre) == window.shape(s, centre), 'near = shape');

@@ -1188,6 +1188,12 @@ pub impl DelegateRules of Rules<Delegate> {
         ref self: Delegate, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
     ) {
         let board = self.board;
+        // §5.9 in this class: the slot's carrier, and its target still legal (else nothing, the
+        // costs stay paid); the carrier itself runs behind the call.
+        let carrier = ExecutorTrait::carrier(@world, sheets, actor, slot);
+        if !ExecutorTrait::legal(@Levered {}, @world, sheets, @board, actor, carrier, target) {
+            return;
+        }
         // The source's and the address's positions.
         let source_at = match actor {
             Actor::Member(i) => {
@@ -1248,7 +1254,7 @@ pub impl DelegateRules of Rules<Delegate> {
         };
         let library = IExecutorLibraryLibraryDispatcher { class_hash: self.executor };
         let (out, cache, place) = library
-            .conclude(words, self.content, board, self.cache, sub, slot, target);
+            .execute(words, self.content, board, self.cache, sub, carrier, target, world.clock);
         self.cache = cache;
         if place {
             self.placed.append((target, actor));
@@ -1296,7 +1302,17 @@ pub impl ExecutorImpl of ExecutorTrait {
         address: u16,
     ) -> Executed {
         let t = world.clock;
-        let carrier = match actor {
+        let carrier = Self::carrier(@world, sheets, actor, slot);
+        if !Self::legal(lever, @world, sheets, board, actor, carrier, address) {
+            return Executed::Illegal;
+        }
+        Self::execute(lever, ref cache, ref world, sheets, board, actor, carrier, address, t)
+    }
+
+    /// The carrier of `actor`'s activation `slot`: a member's bar skill at its rank, a goblin's
+    /// caste skill at its caste's rank.
+    fn carrier(world: @World, sheets: @Sheets, actor: Actor, slot: u8) -> Carrier {
+        match actor {
             Actor::Member(i) => {
                 let member = world.member(i);
                 let at: u32 = member.position(slot).try_into().unwrap();
@@ -1308,11 +1324,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 let at = *kit.skills.span()[slot.into()];
                 Carrier::Skill((at, *(*sheets.castes)[goblin.caste_at].rank))
             },
-        };
-        if !Self::legal(lever, @world, sheets, board, actor, carrier, address) {
-            return Executed::Illegal;
         }
-        Self::execute(lever, ref cache, ref world, sheets, board, actor, carrier, address, t)
     }
 
     /// Whether `carrier`'s target is legal for `source` now (§5.9 at resolution; the action's
@@ -3519,7 +3531,7 @@ mod tests {
         let mut hit = 0;
         for i in 0..6_u32 {
             let pair = pair(@words, i);
-            let (out, next) = library
+            let (out, next, _) = library
                 .execute(pair, content, board(), cache, Actor::Goblin(0), Carrier::Weapon, 0, 10);
             cache = next;
             if *out.members[0].state != *words.members[0].state {

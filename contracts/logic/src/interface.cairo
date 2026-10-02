@@ -140,8 +140,9 @@ pub trait IFlattenLibrary<T> {
     ) -> (felt252, felt252, felt252);
 }
 
-/// The executor as its own library class (CBT-05a): one call a carrier, the words of the actors it
-/// can reach and the sheets their loads need in, the words out.
+/// The executor as its own library class (CBT-05a, route (c)): one call a carrier, the words of the
+/// actors it can reach and the batch's content in; the words out, and whether a `TRAP` carrier's
+/// guard held (its placement is CBT-05b's, §5.11).
 #[starknet::interface]
 pub trait IExecutorLibrary<T> {
     fn execute(
@@ -154,18 +155,5 @@ pub trait IExecutorLibrary<T> {
         carrier: Carrier,
         address: u16,
         t: u32,
-    ) -> (Words, Cache);
-    /// Step 1's hook (§5.9): the activation of `source`'s `slot` on `address` concluded at the
-    /// words' clock; its target checked legal, the carrier run. Returns the words, the cache, and
-    /// whether a `TRAP` carrier's guard held (the placement is CBT-05b's, §5.11).
-    fn conclude(
-        self: @T,
-        words: Words,
-        content: Content,
-        board: Board,
-        cache: Cache,
-        source: Actor,
-        slot: u8,
-        address: u16,
     ) -> (Words, Cache, bool);
 }
