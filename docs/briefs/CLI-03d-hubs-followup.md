@@ -44,24 +44,34 @@ Nothing in it decides a game rule (mandate §6 holds as in CLI-03c).
 
 ### 1. The arrival rule (project manager, 2026-10-01)
 
-The client offers to leave an instance by a hub gate **only when** the adventurer steps onto a gate
-tile after having left it, or through the Gate button; **never on arrival**.
+The client offers to leave an instance by a hub gate **automatically only when** the adventurer steps
+onto a hub gate's anchor after having left it; **never on arrival**. An explicit control stays
+available (below). A gate is always used by standing on its anchor (D-148, D-178): nothing leaves off
+an anchor.
 
 - The state machine (`client/app/src/sandbox/loop/machine.ts`) knows whether the adventurer has left
   the gate's anchor since arriving. It records a flag from the walk events (`listenToWalk`), not from a
   clock. The test of "on a gate tile" stays `hubGateAt` in `placeholders.ts`; the machine adds no rule
   of its own.
-- The Gate button (an explicit tap) offers to leave whatever the tile, with the confirmation I-5 gives.
+- **The Leave control** (there is none today: `InstanceScreen` shows "Gate to … · Leave ▸" only while
+  an offer exists). Add a Leave/Gate control to the instance screen. Tapped while the adventurer stands
+  on a hub gate's anchor (`hubGateAt`), including right after arrival, it opens the I-5 confirmation;
+  elsewhere it is hidden or disabled. The `leave` intent stays accepted only on an anchor; `hubGateAt`
+  is unchanged.
 - Review note 3 of CLI-03c (an entry tile that is itself a hub gate's anchor) is the same case: the
   rule above rewrites it. Cover it by a test with a fixture whose entry tile is a gate anchor.
-- design/11: **one line** under *Hubs* stating the rule, only if the owner agrees (see the table).
+- design/11: **one line** under *Hubs* stating the rule, only if the owner agrees (see the table). The
+  rule itself is the project manager's decision and does not wait for the owner.
 
 ### 2. The CLI-03c review's notes
 
 - **Note 1, the imports test's regex.** `client/app/src/sandbox/imports.test.ts` guards "no tile is
   compared to an anchor" with a one-line regex that cannot see a comparison split over two lines.
   Replace it with a check anchored on imports: which modules import `sameTile` and `hubGateAt`, against
-  an allow-list (`InstanceScreen`, `Loop`, `screens`, `machine`, `placeholders`). Keep the test failing
+  one allow-list per symbol: `hubGateAt` → `./loop/machine.ts` (already asserted at
+  `imports.test.ts:42`); `sameTile` → `./placeholders.ts` and `./wiring.ts`, besides its definer
+  `world.ts`. Keep the readers list of the anchor and entry fields (`InstanceScreen`, `Loop`,
+  `screens`) as a separate check. Keep the test failing
   on a seeded violation (write it first, show it red, then green).
 - **Note 2, the strips' atlas output.** Add a test in `tools/art` with synthetic strips plus a still
   that asserts the strips' frame placements and their cells are identical with and without the still.
@@ -80,7 +90,7 @@ The owner's answers are filled in from their test; an empty "Owner's choice" mea
 | Closing report | Returned or Defeated, how, the hub reached; experience, loot, quest progress, belt potions back; one button to the hub | Add or remove a block (for example: gold, time spent, the build used); change the order; a one-line report instead of a screen. Fixed figures only, nothing computed | _to fill_ |
 | Adventurers as decor | Standing still at fixed spots near the road; a tap shows name, profession, level; nothing drawn between taps | They walk a fixed path (a clocked animation: on demand rendering must hold, so frames are drawn only while it plays and stop at the end), or are removed from the hub | _to fill_ |
 | Where the buildings stand | Town: Guild at the back, Trainer, Enchanter; Smith, Armorer, Alchemist, Market along the road; Vault and the Gate in front. Outpost: Guild and Trainer at the back, Vault and the Gate in front | Move a building: edit the hub fixtures' positions (`fixtures/hubs.ts`); a tap target never overlaps another at 375 × 812 (a test) | _to fill_ |
-| The arrival rule (fixed scope §1) | Offered on arrival (the CLI-03c behaviour) | The rule of §1 is the project manager's decision; the owner confirms it, or asks to keep arrival offers. If the owner keeps them, §1 is dropped and the review's note 3 stands | _to fill_ |
+| The arrival rule (fixed scope §1) | Offered on arrival (the CLI-03c behaviour) | §1 is the project manager's decision (2026-10-01) and is **not** dropped by the owner's answer. The owner only decides whether it becomes a line of design/11 | _to fill_ |
 
 Rule for the implementer: each answer is a constant, a fixture value or a label, never a branch of
 logic. If an answer needs logic that is not in `placeholders.ts`, stop that part and escalate it.
@@ -106,7 +116,9 @@ logic. If an answer needs logic that is not in `placeholders.ts`, stop that part
     `client/app/package.json` and `pnpm-lock.yaml` only for the Playwright dependency below, once the
     project manager has answered.
   - `tools/art/**`, only the test of §2 note 2 (no change to the pipeline's behaviour).
-  - `docs/design/11-interface.md`, its *Hubs* section only, only for lines the owner decides.
+  - `docs/design/11-interface.md`, its *Hubs* section only, only for lines the owner decides: D-178
+    lent those lines to CLI-03c, and the project manager extends the lending to CLI-03d (open question
+    below).
   - `docs/reports/` for this lot's report.
   - Anything else is an escalation.
 
@@ -124,14 +136,16 @@ logic. If an answer needs logic that is not in `placeholders.ts`, stop that part
 ## Acceptance criteria
 
 - [ ] AC-1 Arriving on a hub gate's anchor (a fixture whose entry tile is that anchor) does not offer to
-      leave; stepping off and back on does; the Gate button offers it from any tile. Unit tests on the
-      machine.
+      leave automatically; stepping off and back on brings the offer back; the explicit Leave control, tapped
+      on the anchor at arrival, opens the I-5 confirmation; off an anchor the control is hidden or
+      disabled and `leave` is refused. Unit tests on the machine.
 - [ ] AC-2 With the seed's real fixtures nothing else changes: the CLI-03c machine tests that do not
       concern arrival pass unmodified.
 - [ ] AC-3 The imports test no longer relies on a one-line regex; a seeded violation split over two
       lines fails it (shown red in the report, then removed).
 - [ ] AC-4 A `tools/art` test pins that the strips' frames are identical with and without stills (on
-      synthetic images).
+      synthetic images). No hash, fingerprint or PNG bytes are asserted or committed; only rectangles are
+      compared, computed in the test from synthetic images.
 - [ ] AC-5 Each answered row of the table is applied; the unanswered rows keep CLI-03c's behaviour. A
       test per applied constant or fixture (services count, entry delay, report blocks, decor spots,
       building positions, no overlap of tap targets at 375 × 812).
@@ -167,6 +181,9 @@ development dependency of `client/app`, or keep it local?**
 - The brief proceeds on **commit it** unless the project manager says otherwise before the lot starts.
   If the answer is "keep local", AC-7 is run with the dependency added for the run only and reverted
   before the commit, as CLI-03a did.
+
+**Second question: the project manager extends D-178's lending of design/11 *Hubs* lines to CLI-03d.**
+Without it, the design/11 edits (the five points and the arrival-rule line) wait for the extension.
 
 ## Review
 
