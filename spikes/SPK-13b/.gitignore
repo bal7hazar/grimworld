@@ -1,0 +1,3 @@
+# The checkouts of contracts/ at the paths tested, and their build outputs.
+.work/
+__pycache__/
