@@ -13,8 +13,8 @@ use grimworld_ephemeral::models::instance::errors::{
 use grimworld_ephemeral::models::instance::{Header, OPEN, Placement, Quotas, RETURNED, SEALED};
 use grimworld_ephemeral::models::member::errors::NOT_CONTROLLER;
 use grimworld_ephemeral::models::member::{
-    Effect, GONE, INSIDE, MemberEffects, MemberState, MemberTimers, NO_SLOT, Recharges,
-    empty_member_timers,
+    Effect, GONE, INSIDE, MemberEffects, MemberState, MemberTimers, MemberTimersTrait, NO_SLOT,
+    Recharges,
 };
 use grimworld_ephemeral::systems::instances::Instances::Event;
 use grimworld_ephemeral::systems::instances::{
@@ -768,7 +768,7 @@ fn test_generation_isolation() {
         casts_2: 0,
     };
     let expected: Array<felt252> = array![
-        StorePacking::pack(entering), StorePacking::pack(empty_member_timers()), LIVE, LIVE,
+        StorePacking::pack(entering), StorePacking::pack(MemberTimersTrait::empty()), LIVE, LIVE,
         StorePacking::pack(other.stats), StorePacking::pack(other.bar),
         StorePacking::pack(other.kit), BOB,
     ];

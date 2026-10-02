@@ -6,6 +6,10 @@
 //! address arithmetic: the word itself where a view returns it as stored or a path writes a
 //! constant word, the model through `M`'s packer where a path needs its fields. `M` is a phantom:
 //! it names the layout of the word, so that a header's word is never written where a quota's is.
+//! Why one generic type here and one stored model per word in the persistent package
+//! (`StoredCore`, `StoredRecord`, `StoredLanes`): `Instances`' words carry no arithmetic of their
+//! own (the views return them as stored, the paths go through the packers), so a name for the
+//! layout is all a slot needs; `Hub`'s stored models carry the field arithmetic their paths use.
 
 use starknet::storage_access::StorePacking;
 

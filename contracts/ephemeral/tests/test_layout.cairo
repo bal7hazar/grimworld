@@ -6,12 +6,12 @@ use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement,
 use grimworld_ephemeral::models::goblin::{
     Goblin, GoblinState, GoblinTimers, MAX_ADRENALINE, empty_goblin_timers,
 };
-use grimworld_ephemeral::models::instance::{Header, Placement, Quotas, mask_roster_page};
+use grimworld_ephemeral::models::instance::Header;
 use grimworld_ephemeral::models::member::{
-    Effect, Member, MemberEffects, MemberState, MemberTimers, NO_SLOT, Recharges,
-    empty_member_timers, flag, pack_four28,
+    DeadlinesTrait, Effect, Member, MemberEffects, MemberState, MemberTimers, MemberTimersTrait,
+    NO_SLOT, Recharges, flag,
 };
-use grimworld_logic::packing::{LIVE, Lanes16};
+use grimworld_logic::packing::LIVE;
 use grimworld_logic::types::combat::activation;
 use starknet::storage_access::StorePacking;
 
@@ -118,7 +118,8 @@ fn test_goblin_layout() {
 fn test_deadline_boundaries() {
     let max: u32 = 0xFFFFFFF;
     assert(
-        pack_four28(max, 0, 0, max) == 0xFFFFFFF + 0xFFFFFFF * 0x1000000000000000000000, 'lanes',
+        DeadlinesTrait::pack(max, 0, 0, max) == 0xFFFFFFF + 0xFFFFFFF * 0x1000000000000000000000,
+        'lanes',
     );
     let timers = MemberTimers { knocked: max, ..Default::default() };
     let word = StorePacking::<MemberTimers, felt252>::pack(timers);
@@ -168,7 +169,7 @@ fn test_walls_above_224_refused() {
 // gas: raised, CBT-01: design/19 section 7.2's fields in the words
 #[available_gas(l2_gas: 212174)] // ceil(1.05 × 202070 measured)
 fn test_empty_timers_packed() {
-    let member = empty_member_timers();
+    let member = MemberTimersTrait::empty();
     assert(member.act_slot == NO_SLOT, 'member: no slot');
     assert(StorePacking::<MemberTimers, felt252>::pack(member) == LIVE + 255, 'member word');
     let goblin = empty_goblin_timers();

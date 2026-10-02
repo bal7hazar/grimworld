@@ -10,8 +10,9 @@
 //!
 //! **Models and stored words.** A model whose paths need all of it is read and written through
 //! its `StorePacking` (the configuration, the counters, gold, items, the snapshot, the rules
-//! epoch, known skills, the account list's pages when read). The hot words that a path reads a few
-//! fields of, or changes one field of, are read and written as **stored models**, one file each
+//! epoch, known skills). The account list's pages are `StoredLanes` (below), read whole then
+//! `.decoded()` for the list, changed a lane at a time on write. The hot words that a path reads a
+//! few fields of, or changes one field of, are read and written as **stored models**, one file each
 //! (`models::stored_core`, `stored_place`, `stored_record`, `stored_build`): the word as stored,
 //! typed, its fields read and changed by the arithmetic the stored model pins against the model's
 //! packer (ENG-04's audit F-5: "preserving packed arithmetic where justified"; each file's doc
@@ -25,10 +26,10 @@
 //! **Typed slots, where they hold the rule** (ENG-R1a's note 4, measured in ENG-R1b after
 //! `Instances`' storage passed the rule). `Hub` declares `accounts` as `StoredAccount` (the owner,
 //! the record as stored), `account_adventurers` and `packs` as `StoredLanes`, each a one-felt
-//! `Store`
-//! (an identity `StorePacking`) at the address and in the layout the models had (`layout_tests`,
-//! `test_account_slots`): their store methods do no address arithmetic, and a path that reads or
-//! writes two slots of one account takes its sub-pointers once. **`adventurers` and `balances`
+//! `Store` (an identity `StorePacking`) at the address and in the layout the models had
+//! (`layout_tests`, `test_account_slots`): their store methods do no address arithmetic, and a path
+//! that reads or writes two slots of one account takes its sub-pointers once. **`adventurers` and
+//! `balances`
 //! keep their models' declaration and the offset access** (`AdventurerWordTrait`, `PageTrait`,
 //! `WordTrait` below): typed, they raised the expedition's path (ENG-R1b, l2 gas per call: `enter`
 //! +300 without a belt and +3,940 with 4 belt pages, the closing `report` crediting 4 pages +3,940,
@@ -537,8 +538,9 @@ pub impl StoreImpl of StoreTrait {
     }
 }
 
-/// Offsets of the words of `Adventurer` from its address: `adventurers` keeps the offset access,
-/// typed slots measured above the expedition's path's figures (the module's doc, ENG-R1b).
+/// Offsets of the words of `Adventurer` from its address: `adventurers` keeps the offset access;
+/// typed, each slot read cost about +100 l2 gas on the expedition's path (the module's doc,
+/// ENG-R1b).
 const CORE: u8 = 0;
 const PLACE: u8 = 1;
 const BUILD: u8 = 2;

@@ -536,7 +536,7 @@ Lot and trade ids come from their counters, never reused (SPK-11 §6: the indexe
 lot is therefore always a new slot (N, once per posting); reusing lot slots per account would save
 about 0.42 M a posting at the price of the gap check (§11, E-11).
 
-**The market key** (SPK-11 *scope 5*, one felt, frozen with `LotPosted`, `models::market::market_key`):
+**The market key** (SPK-11 *scope 5*, one felt, frozen with `LotPosted`, `models::market::LotTrait::market_key`):
 a balance: its item id; equipment: `2^40 + base × 2^16 + requirement × 2^8 + rarity × 2 + identified`;
 a boss item: `2^41 + base`.
 

@@ -110,7 +110,7 @@ pub struct InstanceView {
     pub members: Span<felt252>,
     /// The roster pages, **masked** (F-13): lanes of entries at or beyond the header's roster count
     /// are zeros, whatever an earlier generation left in them
-    /// (`models::instance::mask_roster_page`).
+    /// (`models::instance::RosterTrait::mask`).
     /// Pages beyond `⌈roster_count / 15⌉` are not returned.
     pub roster: Span<felt252>,
     /// Every goblin of the members' windows: the untouched ones derived, the touched ones and the
@@ -232,7 +232,7 @@ pub mod Instances {
     use crate::models::goblin::Goblin;
     use crate::models::instance::{
         DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementAssert, PlacementTrait,
-        Quotas, QuotasTrait, RETURNED, ROSTER_LANES, mask_roster_page,
+        Quotas, QuotasTrait, RETURNED, ROSTER_LANES, RosterTrait,
     };
     use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
@@ -484,7 +484,7 @@ pub mod Instances {
                 let stored = self.get_roster_page(slot, page);
                 roster
                     .append(
-                        StorePacking::pack(mask_roster_page(stored, page, header.roster_count)),
+                        StorePacking::pack(RosterTrait::mask(stored, page, header.roster_count)),
                     );
             }
             InstanceView {

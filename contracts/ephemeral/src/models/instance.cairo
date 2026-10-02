@@ -300,26 +300,30 @@ pub const ROSTER_LANES: u8 = 15;
 /// view, goes through this. Lanes of entries at or beyond `header.roster_count` are zeroed, so a
 /// lane an earlier generation left (the count was reset at entry, the page was not rewritten) is
 /// never read as an entry and never returned. No raw page leaves the contract unmasked.
-pub fn mask_roster_page(
-    page: grimworld_logic::packing::Lanes16, index: u8, count: u8,
-) -> grimworld_logic::packing::Lanes16 {
-    let first: u16 = index.into() * ROSTER_LANES.into();
-    let count: u16 = count.into();
-    let mut out: Array<u16> = array![];
-    let mut entry = first;
-    for lane in page.lanes.span() {
-        out.append(if entry < count {
-            *lane
-        } else {
-            0
-        });
-        entry += 1;
-    }
-    grimworld_logic::packing::Lanes16 {
-        lanes: [
-            *out[0], *out[1], *out[2], *out[3], *out[4], *out[5], *out[6], *out[7], *out[8],
-            *out[9], *out[10], *out[11], *out[12], *out[13], *out[14],
-        ],
+#[generate_trait]
+pub impl RosterImpl of RosterTrait {
+    /// Page `index` of the roster, its lanes at or beyond `count` zeroed.
+    fn mask(
+        page: grimworld_logic::packing::Lanes16, index: u8, count: u8,
+    ) -> grimworld_logic::packing::Lanes16 {
+        let first: u16 = index.into() * ROSTER_LANES.into();
+        let count: u16 = count.into();
+        let mut out: Array<u16> = array![];
+        let mut entry = first;
+        for lane in page.lanes.span() {
+            out.append(if entry < count {
+                *lane
+            } else {
+                0
+            });
+            entry += 1;
+        }
+        grimworld_logic::packing::Lanes16 {
+            lanes: [
+                *out[0], *out[1], *out[2], *out[3], *out[4], *out[5], *out[6], *out[7], *out[8],
+                *out[9], *out[10], *out[11], *out[12], *out[13], *out[14],
+            ],
+        }
     }
 }
 
@@ -330,7 +334,7 @@ pub fn mask_roster_page(
 mod tests {
     use grimworld_logic::packing::{LIVE, Lanes16};
     use starknet::storage_access::StorePacking;
-    use super::{Header, Placement, Quotas, mask_roster_page};
+    use super::{Header, Placement, Quotas, RosterTrait};
 
     const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
@@ -389,15 +393,15 @@ mod tests {
         let stale = Lanes16 {
             lanes: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115],
         };
-        let masked = mask_roster_page(stale, 0, 1);
+        let masked = RosterTrait::mask(stale, 0, 1);
         assert(
             masked == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
             'one entry',
         );
-        assert(mask_roster_page(stale, 1, 1) == Lanes16 { lanes: [0; 15] }, 'page 1 empty');
-        assert(mask_roster_page(stale, 0, 0) == Lanes16 { lanes: [0; 15] }, 'count 0');
-        assert(mask_roster_page(stale, 0, 60) == stale, 'full page kept');
-        let page1 = mask_roster_page(stale, 1, 16);
+        assert(RosterTrait::mask(stale, 1, 1) == Lanes16 { lanes: [0; 15] }, 'page 1 empty');
+        assert(RosterTrait::mask(stale, 0, 0) == Lanes16 { lanes: [0; 15] }, 'count 0');
+        assert(RosterTrait::mask(stale, 0, 60) == stale, 'full page kept');
+        let page1 = RosterTrait::mask(stale, 1, 16);
         assert(
             page1 == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, 'entry 15',
         );

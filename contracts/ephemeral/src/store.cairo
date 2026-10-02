@@ -273,7 +273,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
 
     // The roster: `roster[(slot, page)]`, a `Lanes16` of fifteen entity ids
 
-    /// A roster page as stored, unmasked: the caller masks it (`mask_roster_page`, F-13).
+    /// A roster page as stored, unmasked: the caller masks it (`RosterTrait::mask`, F-13).
     #[inline(always)]
     fn get_roster_page(self: @InstancesState, slot: u32, page: u8) -> Lanes16 {
         self.roster.entry((slot, page)).read()
@@ -374,7 +374,7 @@ mod tests {
     use crate::models::instance::{HeaderTrait, QuotasTrait};
     use crate::models::member::{
         EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, Member, MemberEffects, MemberState,
-        MemberStateTrait, MemberTimers, Recharges, empty_member_timers,
+        MemberStateTrait, MemberTimers, MemberTimersTrait, Recharges,
     };
     use crate::systems::instances::Instances;
     use super::InstancesStoreTrait;
@@ -393,7 +393,7 @@ mod tests {
         let entering = MemberStateTrait::entering(9, 3, 4, 100, 10, [2, 0, 1, 0]);
         let member = Member {
             state: entering,
-            timers: empty_member_timers(),
+            timers: MemberTimersTrait::empty(),
             effects: MemberEffects { effects: [Default::default(); 4] },
             recharges: Recharges { deadlines: [0, 1, 2, 3, 4, 5, 6, 7] },
             stats: StorePacking::unpack(
@@ -427,7 +427,7 @@ mod tests {
         let base = state.members.entry((6, 0)).as_ptr().__storage_pointer_address__;
         let read = Store::<Member>::read(0, base).unwrap_syscall();
         assert(read.state == entering, 'typed state');
-        assert(read.timers == empty_member_timers(), 'typed timers');
+        assert(read.timers == MemberTimersTrait::empty(), 'typed timers');
         assert(StorePacking::pack(read.timers) == EMPTY_TIMERS, 'empty timers');
         assert(StorePacking::pack(read.effects) == EMPTY_EFFECTS, 'empty effects');
         assert(StorePacking::pack(read.recharges) == EMPTY_RECHARGES, 'empty recharges');
@@ -469,7 +469,7 @@ mod tests {
         assert(state.get_header(3) == header, 'header');
         assert(state.get_revealed(3).word == StorePacking::pack(Bitmap { bits: 0 }), 'revealed');
         assert(state.get_quotas(3).word == StorePacking::pack(QuotasTrait::new(8)), 'quotas');
-        let timers: felt252 = StorePacking::<MemberTimers>::pack(empty_member_timers());
+        let timers: felt252 = StorePacking::<MemberTimers>::pack(MemberTimersTrait::empty());
         assert(timers == EMPTY_TIMERS, 'the constant word');
         let zero: ContractAddress = 0.try_into().unwrap();
         state.initialize(zero, zero, zero, zero);
