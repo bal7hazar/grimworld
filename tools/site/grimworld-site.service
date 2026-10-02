@@ -9,5 +9,7 @@ ExecStartPre=/usr/bin/git -C %h/site/grimworld-src fetch --quiet origin main
 ExecStartPre=/usr/bin/git -C %h/site/grimworld-src checkout --quiet --detach --force FETCH_HEAD
 ExecStart=%h/site/grimworld-src/tools/site/deploy-site.sh
 Nice=10
+# node and pnpm are /usr/bin/node (24.21.0) and /usr/bin/pnpm (12.5.1), the .tool-versions ones.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 # GRIMWORLD_SITE_ART stays unset until the owner allows the art on the site (D-73).
 # Environment=GRIMWORLD_SITE_ART=1

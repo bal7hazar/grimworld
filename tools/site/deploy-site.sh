@@ -11,13 +11,14 @@
 # builds the atlas from the pack on this machine ($GRIMWORLD_ASSETS) and copies it to <release>/art/,
 # where the client loads it (src/render/atlas.ts ART_BASE). Leave it unset until the owner allows it.
 #
-# Files in $SITE_ROOT: current -> releases/<sha>; deployed (the sha and art flag of `current`);
+# Files in $SITE_ROOT: current -> releases/<sha>-<UTC time>; deployed (the sha and art flag of `current`);
 # failed (the sha of the last failed build, retried after 30 minutes); deploy.log (one line per run).
 set -euo pipefail
 
 SITE_ROOT=${GRIMWORLD_SITE_ROOT:-$HOME/site/grimworld}
 SITE_SRC=${GRIMWORLD_SITE_SRC:-$HOME/site/grimworld-src}
-REPO=${GRIMWORLD_SITE_REPO:-git@github.com:bal7hazar/grimworld.git}
+# The repository is public: HTTPS needs no key, which a unit (no SSH_AUTH_SOCK) would not have.
+REPO=${GRIMWORLD_SITE_REPO:-https://github.com/bal7hazar/grimworld.git}
 ASSETS=${GRIMWORLD_ASSETS:-$HOME/projects/assets}
 ART=${GRIMWORLD_SITE_ART:-0}
 KEEP=3
@@ -52,10 +53,11 @@ if [ ! -d "$SITE_SRC/.git" ]; then
 fi
 cd "$SITE_SRC"
 step=fetch
+git remote set-url origin "$REPO"
 git fetch --quiet origin main
 sha=$(git rev-parse FETCH_HEAD)
 
-if [ "$(cat "$SITE_ROOT/deployed" 2>/dev/null)" = "$sha art=$ART" ] && [ -d "$SITE_ROOT/releases/$sha" ]; then
+if [ "$(cat "$SITE_ROOT/deployed" 2>/dev/null)" = "$sha art=$ART" ] && [ -f "$SITE_ROOT/current/index.html" ]; then
   echo "up to date at $sha"
   trap - EXIT
   exit 0
@@ -83,26 +85,41 @@ dist=$SITE_SRC/client/app/dist
 [ -f "$dist/index.html" ] || { echo "no $dist/index.html" >&2; exit 1; }
 
 step=publish
-rel=$SITE_ROOT/releases/$sha
+# A release has a unique name, <sha>-<UTC time>: a redeploy of the same sha never touches the release
+# `current` points at, so `current` never points at a missing or half-written directory.
+name=$sha-$(date -u +%Y%m%dT%H%M%SZ)
+rel=$SITE_ROOT/releases/$name
 rm -rf "$rel.tmp"
 cp -r "$dist" "$rel.tmp"
 if [ "$ART" = 1 ]; then
-  mkdir -p "$rel.tmp/art"
-  cp -r "$SITE_SRC/tools/art/out/." "$rel.tmp/art/"
+  # Only what the client loads: sprites.json, the pages it lists and their images (not report.json
+  # or preview.html).
+  python3 - "$SITE_SRC/tools/art/out" "$rel.tmp/art" <<'PY'
+import json, shutil, sys
+from pathlib import Path
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+dst.mkdir()
+shutil.copy(src / "sprites.json", dst / "sprites.json")
+for page in json.loads((src / "sprites.json").read_text())["pages"]:
+    shutil.copy(src / page["json"], dst / page["json"])
+    shutil.copy(src / json.loads((src / page["json"]).read_text())["meta"]["image"], dst)
+PY
 fi
 chmod -R a+rX "$rel.tmp"
-rm -rf "$rel"
 mv -T "$rel.tmp" "$rel"
-ln -sfn "releases/$sha" "$SITE_ROOT/current.tmp"
+ln -sfn "releases/$name" "$SITE_ROOT/current.tmp"
 mv -T "$SITE_ROOT/current.tmp" "$SITE_ROOT/current"
 echo "$sha art=$ART" >"$SITE_ROOT/deployed"
 rm -f "$SITE_ROOT/failed"
 
-# Keep the newest $KEEP releases (a release is a directory named by a 40-hex sha, made here).
+# Prune after the switch: keep the newest $KEEP releases (directories this script named, never the one
+# `current` points at) and remove leftover *.tmp directories of failed runs.
 step=prune
-(cd "$SITE_ROOT/releases" && ls -1t | grep -E '^[0-9a-f]{40}$' | tail -n +$((KEEP + 1)) | while read -r old; do
-  [ "$old" = "$sha" ] || rm -rf "$SITE_ROOT/releases/$old"
-done)
+cd "$SITE_ROOT/releases"
+rm -rf -- ./*.tmp
+ls -1t | grep -E '^[0-9a-f]{40}-[0-9]{8}T[0-9]{6}Z$' | tail -n +$((KEEP + 1)) | while read -r old; do
+  [ "$old" = "$name" ] || rm -rf -- "$old"
+done
 
 trap - EXIT
 log "sha=$sha art=$ART result=ok duration=$(($(date +%s) - start))s"

@@ -1,5 +1,7 @@
 # Site block for the owner to install as root (this repository installs nothing under /etc):
-#   sudo cp tools/site/Caddyfile.grimworld /etc/caddy/conf.d/grimworld.caddy   # or append it to /etc/caddy/Caddyfile
+#   from ~/site/grimworld-src: sudo sh -c 'cat tools/site/Caddyfile.grimworld >> /etc/caddy/Caddyfile'
+#   (or, to keep it a separate file: add `import /etc/caddy/conf.d/*.caddy` to /etc/caddy/Caddyfile
+#   first, then sudo cp tools/site/Caddyfile.grimworld /etc/caddy/conf.d/grimworld.caddy)
 #   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 grimworld.bal7hazar.com {
 	root * /home/claude/site/grimworld/current
