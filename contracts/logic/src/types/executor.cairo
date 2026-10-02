@@ -306,6 +306,13 @@ pub impl BoardImpl of BoardTrait {
         WIDTH * dy + dx
     }
 
+    /// A shape's tiles on the window (ENG-02's `shape`), behind one call: the executor asks it for
+    /// an entry's set and for the implicit weapon hit's, so it is compiled once.
+    #[inline(never)]
+    fn shape(self: @Board, shape: u8, centre: u8) -> felt252 {
+        self.window.shape(shape, centre)
+    }
+
     /// The window's position of a location's tile `x + 256 y`.
     #[inline(always)]
     fn tile(self: @Board, tile: u16) -> u8 {
@@ -2158,7 +2165,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 } else {
                     addressed_at
                 };
-                let mask = board.window.shape(*entry.shape, centre);
+                let mask = board.shape(*entry.shape, centre);
                 let bits = if entry_kind == kind::DAMAGE {
                     HIT_BIT
                 } else {
@@ -2170,7 +2177,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             k += 1;
         }
         if damage == Some(3) {
-            let mask = board.window.shape(shape::SINGLE, addressed_at);
+            let mask = board.shape(shape::SINGLE, addressed_at);
             sets.append((mask, filter::FOES, HIT_BIT));
             union = Bits::or(union, mask.into());
         }
