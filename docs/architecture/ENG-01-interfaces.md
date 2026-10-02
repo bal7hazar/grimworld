@@ -81,8 +81,10 @@ Limits (docs.starknet.io, *Chain info*, read 2026-09-29): **4,089,446 bytes** of
 **81,920 felts** of CASM bytecode. Measured by `python3 contracts/tools/class_sizes.py` after
 `scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` on **Scarb 2.20.1** with
 `RAYON_NUM_THREADS=1` (FND-11, D-180; the figures of earlier lots were taken on 2.19.4 and are
-replaced, not compared: the compiler is the cause of every move). The Sierra class bytes carry a
-build's own text; the felt counts are the figures to compare (SPK-13b, #283):
+replaced, not compared). The previous table was stale from lots merged since; the new figures were
+already on main's CI on 2.19.4 (run 37013305661, f1a0b41). The move of 2.20.1 itself is `TickLibrary`
+−128 CASM felts (23,860 → 23,732) and no other felt count. The Sierra class bytes carry a build's own
+text; the felt counts are the figures to compare (SPK-13b, #283):
 
 | Contract | Sierra class, bytes | Sierra program, felts | CASM bytecode, felts | Share of the nearer limit |
 |---|---:|---:|---:|---:|

@@ -13,6 +13,9 @@ set -euo pipefail
 : "${RUNNER_TEMP:?RUNNER_TEMP is not set}"
 
 case "$SNFORGE" in
+  # 0.64.0: the release asset's GitHub digest, `gh api repos/foundry-rs/starknet-foundry/releases/tags/v0.64.0
+  # --jq '.assets[] | select(.name=="starknet-foundry-v0.64.0-x86_64-unknown-linux-gnu.tar.gz") | .digest'`
+  # = sha256:24c9…30a0, checked 2026-10-02 by the orchestrator, equal to the sha256sum of the download.
   0.64.0) snforge_sha=24c96491a1532431ccd9d1675b49d881eb3d09f209748199d91b4d4eed5030a0 ;;
   0.61.0) snforge_sha=fdd3b5d9b5a927a31ca45088b1c9a820519f8b2d2cc93193d790bcd5ece9359b ;;
   0.51.2) snforge_sha=9a8f9bdf69dd2e3a501949182520dccc77067c2c05d2a9ba835ec28234d4028a ;;
@@ -22,7 +25,7 @@ case "$SNFORGE" in
     ;;
 esac
 
-# The same compiler serves both snforge versions (CI ran them with it).
+# The same compiler serves the three snforge versions (CI ran them with it).
 usc=2.10.1
 usc_sha=8f6d9faf2ce644faa99e2acee7e855e3fbeb7919b99ec13d29f57c08089f2fb9
 
