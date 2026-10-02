@@ -395,6 +395,20 @@ pub struct Gain {
     pub stolen: u16,
 }
 
+/// One entry other than the hit, ready to apply (the views rework, R2): its kind, its `param`,
+/// its value at the source's rank clamped to its kind's bounds (§6), and for a holding entry the
+/// `Held` it puts (§5.7) and whether its carrier is a stance. Built once a carrier, not generic;
+/// kind 0 for an entry that applies nothing (a hit, a modifier, a `TRAP`, a holding entry that
+/// does not stay).
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct Op {
+    pub kind: u8,
+    pub param: u8,
+    pub v: i32,
+    pub held: Held,
+    pub stance: bool,
+}
+
 /// What a hit reads of its target, read once (the views rework): its defence, facing, armor
 /// against the hit's type, its state.
 #[derive(Copy, Drop, Debug, PartialEq)]
@@ -1075,6 +1089,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         let entries = entries.span();
         // 1. Guards, once, from the state now (FX-40; subject the source).
         let held = Self::guards(lever, ref cache, @source, actor, entries, t, sheets);
+        let ops = Self::ops(entries, @context);
         // 2. Placement: the payload waits for the trigger.
         if entries.len() > 0 && *entries[0].kind == kind::TRAP {
             let executed = if held & 1 == 1 {
@@ -1137,7 +1152,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             let bits = *bits;
             if *target == actor {
                 let stolen = Self::entries(
-                    lever, ref cache, ref source, actor, entries, bits, held, @context, sheets,
+                    lever, ref cache, ref source, actor, ops, bits, held, @context, sheets,
                 );
                 source.heal(stolen);
                 continue;
@@ -1161,7 +1176,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                         @attack,
                         health,
                         max_health,
-                        entries,
+                        ops,
                         bits,
                         held,
                         @context,
@@ -1184,7 +1199,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                         @attack,
                         health,
                         max_health,
-                        entries,
+                        ops,
                         bits,
                         held,
                         @context,
@@ -1287,6 +1302,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             }
             k += 1;
         }
+        let ops = Self::ops(entries, @context);
         let strength = HitTrait::level_strength(level);
         match entrant {
             Actor::Member(i) => {
@@ -1295,15 +1311,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                     lever, ref cache, ref member, entrant, hit, strength, @context, sheets,
                 ) {
                     let _ = Self::entries(
-                        lever,
-                        ref cache,
-                        ref member,
-                        entrant,
-                        entries,
-                        bits,
-                        held,
-                        @context,
-                        sheets,
+                        lever, ref cache, ref member, entrant, ops, bits, held, @context, sheets,
                     );
                 }
                 world.set_member(i, member);
@@ -1314,15 +1322,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                     lever, ref cache, ref goblin, entrant, hit, strength, @context, sheets,
                 ) {
                     let _ = Self::entries(
-                        lever,
-                        ref cache,
-                        ref goblin,
-                        entrant,
-                        entries,
-                        bits,
-                        held,
-                        @context,
-                        sheets,
+                        lever, ref cache, ref goblin, entrant, ops, bits, held, @context, sheets,
                     );
                 }
                 if goblin.is_alive() && goblin.health == 0 {
@@ -1373,7 +1373,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         attack: @OnAttack,
         health: u16,
         max_health: u16,
-        entries: Span<Entry>,
+        ops: Span<Op>,
         bits: u8,
         held: u8,
         context: @Context,
@@ -1407,7 +1407,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         gain
             .stolen +=
                 Self::entries(
-                    lever, ref cache, ref target, actor, entries, bits, held, context, sheets,
+                    lever, ref cache, ref target, actor, ops, bits, held, context, sheets,
                 );
         gain
     }
@@ -1554,15 +1554,15 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// The entries other than the hit on `target`, in entry order (§5.14 step 5): those whose set
-    /// holds it (`bits`) and whose guard held (`held`), while it is alive. Returns the health its
-    /// `LIFE_STEAL` took, which the caller gives the source.
+    /// holds it (`bits`) and whose guard held (`held`), while it is alive, each applied from its
+    /// `Op`. Returns the health its `LIFE_STEAL` took, which the caller gives the source.
     #[inline(never)]
     fn entries<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
         ref cache: Cache,
         ref target: T,
         actor: Actor,
-        entries: Span<Entry>,
+        ops: Span<Op>,
         bits: u8,
         held: u8,
         context: @Context,
@@ -1571,32 +1571,28 @@ pub impl ExecutorImpl of ExecutorTrait {
         let t = *context.t;
         let mut stolen: u16 = 0;
         let mut bit: u8 = 1;
-        for entry in entries {
-            if bits & held & bit != 0 {
+        for op in ops {
+            if bits & held & bit != 0 && *op.kind != kind::EMPTY {
                 if !target.alive() {
                     break;
                 }
-                let entry_kind = *entry.kind;
-                if entry_kind == kind::HEAL {
-                    let v = Self::clamp(entry.value(*context.rank), 0, MAX_VALUE);
-                    target.heal(v.try_into().unwrap());
-                } else if entry_kind == kind::LIFE_STEAL {
-                    let v = Self::clamp(entry.value(*context.rank), 0, MAX_VALUE);
-                    let s = Self::min16(v.try_into().unwrap(), target.health());
+                let op_kind = *op.kind;
+                if op_kind == kind::HEAL {
+                    target.heal((*op.v).try_into().unwrap());
+                } else if op_kind == kind::LIFE_STEAL {
+                    let s = Self::min16((*op.v).try_into().unwrap(), target.health());
                     target.wound(s);
                     stolen += s;
-                } else if entry_kind == kind::CONDITION {
-                    let v = entry.value(*context.rank);
-                    target.inflict(*entry.param, v, context.infliction, t, sheets);
-                } else if entry_kind == kind::CURE {
-                    target.cure(*entry.param, t);
-                } else if entry_kind == kind::ENERGY {
-                    let v = entry.value(*context.rank);
-                    target.energize(Self::clamp(v, -MAX_ENERGY_VALUE, MAX_ENERGY_VALUE));
-                } else if entry_kind == kind::INTERRUPT {
+                } else if op_kind == kind::CONDITION {
+                    target.inflict(*op.param, *op.v, context.infliction, t, sheets);
+                } else if op_kind == kind::CURE {
+                    target.cure(*op.param, t);
+                } else if op_kind == kind::ENERGY {
+                    target.energize(*op.v);
+                } else if op_kind == kind::INTERRUPT {
                     target.interrupt(t, sheets);
-                } else if entry.is_holding() {
-                    Self::hold(ref target, entry, context, sheets);
+                } else {
+                    target.hold(*op.held, *context.at, *op.stance, t, sheets);
                     if let Actor::Member(i) = actor {
                         lever.held(ref cache, i);
                     }
@@ -1607,14 +1603,57 @@ pub impl ExecutorImpl of ExecutorTrait {
         stolen
     }
 
-    /// A holding entry on `target` (§5.7): its duration at the source's rank (an enchantment's
+    /// Each entry's `Op` (R2, not generic): the value clamped to its kind's bounds, a holding
+    /// entry's `Held` (`hold`); kind 0 for what applies nothing on an actor.
+    #[inline(never)]
+    fn ops(entries: Span<Entry>, context: @Context) -> Span<Op> {
+        let mut ops = array![];
+        let none: Held = Default::default();
+        for entry in entries {
+            let entry_kind = *entry.kind;
+            let rank = *context.rank;
+            let op = if entry_kind == kind::HEAL || entry_kind == kind::LIFE_STEAL {
+                let v = Self::clamp(entry.value(rank), 0, MAX_VALUE);
+                Op { kind: entry_kind, param: 0, v, held: none, stance: false }
+            } else if entry_kind == kind::CONDITION {
+                Op {
+                    kind: entry_kind,
+                    param: *entry.param,
+                    v: entry.value(rank),
+                    held: none,
+                    stance: false,
+                }
+            } else if entry_kind == kind::CURE || entry_kind == kind::INTERRUPT {
+                Op { kind: entry_kind, param: *entry.param, v: 0, held: none, stance: false }
+            } else if entry_kind == kind::ENERGY {
+                let v = Self::clamp(entry.value(rank), -MAX_ENERGY_VALUE, MAX_ENERGY_VALUE);
+                Op { kind: entry_kind, param: 0, v, held: none, stance: false }
+            } else if entry.is_holding() {
+                match Self::hold(entry, context) {
+                    Some(held) => Op {
+                        kind: entry_kind,
+                        param: 0,
+                        v: 0,
+                        held,
+                        stance: *context.skill_kind == skill_kind::STANCE,
+                    },
+                    None => Op { kind: kind::EMPTY, param: 0, v: 0, held: none, stance: false },
+                }
+            } else {
+                Op { kind: kind::EMPTY, param: 0, v: 0, held: none, stance: false }
+            };
+            ops.append(op);
+        }
+        ops.span()
+    }
+
+    /// A holding entry's `Held` (§5.7): its duration at the source's rank (an enchantment's
     /// through `ENCHANT_DURATION`), its charges (a `BLOCK`'s are its value, 1…63; an
     /// `ON_ATTACK_CONDITION`'s its field), its deadline `t + d − 1`, or `MAX_CLOCK` for a
-    /// charge-only effect (§3.4); one that neither lasts nor has charges does not stay.
+    /// charge-only effect (§3.4); `None` for one that neither lasts nor has charges: it does not
+    /// stay.
     #[inline(never)]
-    fn hold<T, +Body<T>, +Drop<T>>(
-        ref target: T, entry: @Entry, context: @Context, sheets: @Sheets,
-    ) {
+    fn hold(entry: @Entry, context: @Context) -> Option<Held> {
         let t = *context.t;
         let rank = *context.rank;
         let mut d = entry.duration(rank);
@@ -1633,13 +1672,9 @@ pub impl ExecutorImpl of ExecutorTrait {
         } else if charges > 0 && !block {
             MAX_CLOCK
         } else {
-            return;
+            return None;
         };
-        let held = Held {
-            carrier: *context.carrier, potion: *context.potion, charges, deadline, rank,
-        };
-        let stance = *context.skill_kind == skill_kind::STANCE;
-        target.hold(held, *context.at, stance, t, sheets);
+        Some(Held { carrier: *context.carrier, potion: *context.potion, charges, deadline, rank })
     }
 
     /// The carrier's entries, packed from the first (§2.1), what they apply with, and whether it
