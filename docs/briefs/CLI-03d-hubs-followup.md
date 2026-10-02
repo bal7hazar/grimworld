@@ -58,6 +58,14 @@ an anchor.
   on a hub gate's anchor (`hubGateAt`), including right after arrival, it opens the I-5 confirmation;
   elsewhere it is hidden or disabled. The `leave` intent stays accepted only on an anchor; `hubGateAt`
   is unchanged.
+- **Two selectors, two looks.** Keep them apart so "never on arrival" is not met vacuously:
+  - The **automatic offer** is governed by `leaveOffer`: on an anchor (`hubGateAt`) **and** the
+    adventurer has left it since arriving. The "left the anchor" flag goes in `leaveOffer`, not in
+    `step`'s acceptance. On screen it is today's prominent prompt ("Gate to … · Leave ▸",
+    `InstanceScreen.tsx:37-45`).
+  - The **control's** enablement, and the acceptance of `leave` in `step`, are governed by `hubGateAt`
+    alone (on an anchor), so `leave` is not refused at arrival. On screen it is a permanent quiet button
+    (for example beside "Travel back"), disabled off an anchor.
 - Review note 3 of CLI-03c (an entry tile that is itself a hub gate's anchor) is the same case: the
   rule above rewrites it. Cover it by a test with a fixture whose entry tile is a gate anchor.
 - design/11: **one line** under *Hubs* stating the rule, only if the owner agrees (see the table). The
@@ -138,7 +146,9 @@ logic. If an answer needs logic that is not in `placeholders.ts`, stop that part
 - [ ] AC-1 Arriving on a hub gate's anchor (a fixture whose entry tile is that anchor) does not offer to
       leave automatically; stepping off and back on brings the offer back; the explicit Leave control, tapped
       on the anchor at arrival, opens the I-5 confirmation; off an anchor the control is hidden or
-      disabled and `leave` is refused. Unit tests on the machine.
+      disabled and `leave` is refused. Unit tests on the machine, at least: `leaveOffer` is null at arrival on
+      an anchor; `step(arrival on an anchor, {kind: "leave"})` reaches the report (the confirmation
+      path); off an anchor, `leave` is ignored.
 - [ ] AC-2 With the seed's real fixtures nothing else changes: the CLI-03c machine tests that do not
       concern arrival pass unmodified.
 - [ ] AC-3 The imports test no longer relies on a one-line regex; a seeded violation split over two
