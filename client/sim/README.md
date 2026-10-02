@@ -7,12 +7,12 @@ the harness's reader.
 
 ## What is mirrored
 
-| File | Cairo | Vector table | Cases |
-|---|---|---|---|
-| `src/window.ts` | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02) | `window.jsonl` | 2,065 |
-| `src/hit.ts` | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a) | `hit.jsonl` | 200 |
-| `src/exp2.ts` | `helpers/exp2.cairo`'s table, generated for both sides by `contracts/tools/exp2_table.py` | `--check` in CI | 241 entries |
-| `src/felt.ts` | `P`, the integer types (`u8` … `u128`, `i8` … `i32`) with Cairo's panics, truncating division, signed felts, short strings | — | — |
+| File            | Cairo                                                                                                                      | Vector table    | Cases       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------- | ----------- |
+| `src/window.ts` | `WindowTrait` (`contracts/logic/src/types/window.cairo`, ENG-02)                                                           | `window.jsonl`  | 2,065       |
+| `src/hit.ts`    | `HitTrait::resolve` and the `Serde` of `Hit`, `HitTarget`, `HitOutcome` (`types/hit.cairo`, CBT-03a)                       | `hit.jsonl`     | 200         |
+| `src/exp2.ts`   | `helpers/exp2.cairo`'s table, generated for both sides by `contracts/tools/exp2_table.py`                                  | `--check` in CI | 241 entries |
+| `src/felt.ts`   | `P`, the integer types (`u8` … `u128`, `i8` … `i32`) with Cairo's panics, truncating division, signed felts, short strings | —               | —           |
 
 The functions keep the Cairo names and argument order (`sight(open, from, to)`, `arc(source,
 target, facing)`, …): `number` for positions, facings and ranges, `bigint` for felts, bitmaps and
