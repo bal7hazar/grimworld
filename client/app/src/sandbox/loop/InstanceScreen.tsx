@@ -32,7 +32,7 @@ export function InstanceScreen({
 }) {
   const world = useMemo(() => zoneWorld(entry, locationOf(location)), [entry, location]);
   const [asking, setAsking] = useState<
-    { kind: "leave"; gate: GateRecord | null } | { kind: "travel back" } | null
+    { kind: "leave"; gate: GateRecord } | { kind: "travel back" } | null
   >(null);
   const offerOpen = offer !== null;
   return (
@@ -53,7 +53,7 @@ export function InstanceScreen({
           <button
             style={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
             disabled={gateHere === null}
-            onClick={() => setAsking({ kind: "leave", gate: gateHere })}
+            onClick={() => gateHere && setAsking({ kind: "leave", gate: gateHere })}
             aria-label="Leave"
           >
             Leave
@@ -83,7 +83,11 @@ export function InstanceScreen({
                   style={{ ...ui.button, ...ui.primary }}
                   onClick={() => {
                     setAsking(null);
-                    dispatch(asking.kind === "leave" ? { kind: "leave" } : { kind: "travel back" });
+                    dispatch(
+                      asking.kind === "leave"
+                        ? { kind: "leave", gate: asking.gate.id }
+                        : { kind: "travel back" },
+                    );
                   }}
                 >
                   {asking.kind === "leave" ? "Leave" : "Travel back"}

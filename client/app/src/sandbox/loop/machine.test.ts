@@ -88,11 +88,13 @@ describe("the loop's screens (CLI-03c)", () => {
     s = step(s, { kind: "moved", tile: { x: 39, y: 7 } });
     expect(leaveOffer(s)).toBeNull();
     expect(gateHere(s)).toBeNull();
-    expect(step(s, { kind: "leave" }).screen.kind).toBe("instance");
+    expect(step(s, { kind: "leave", gate: 2 }).screen.kind).toBe("instance");
     // Walk to the town's gate anchor (gate 2, chunk 0, tile 105): it leads to the town.
     s = step(s, { kind: "moved", tile: globalTile(0, 105) });
     expect(leaveOffer(s)?.id).toBe(2);
-    s = step(s, { kind: "leave" });
+    // Another gate's id on this anchor is ignored; the anchor's own id leaves.
+    expect(step(s, { kind: "leave", gate: 102 }).screen.kind).toBe("instance");
+    s = step(s, { kind: "leave", gate: 2 });
     expect(s.screen).toEqual({ kind: "report", outcome: "returned", how: "gate", hub: TOWN });
     s = step(s, { kind: "close report" });
     expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null });
@@ -105,7 +107,7 @@ describe("the loop's screens (CLI-03c)", () => {
     expect(leaveOffer(s)).toBeNull();
     expect(gateHere(s)?.id).toBe(102);
     // The explicit Leave reaches the report (the confirmation path) at arrival.
-    const left = step(s, { kind: "leave" });
+    const left = step(s, { kind: "leave", gate: 102 });
     expect(left.screen).toEqual({ kind: "report", outcome: "returned", how: "gate", hub: OUTPOST });
     // The room reporting the entry tile again changes nothing.
     if (s.screen.kind !== "instance") throw new Error("not in the instance");
@@ -126,7 +128,7 @@ describe("the loop's screens (CLI-03c)", () => {
   it("off an anchor leave is ignored; back on it, the offer and the leave are taken", () => {
     let s = step(enter(TOWN), { kind: "moved", tile: { x: 39, y: 7 } });
     expect(gateHere(s)).toBeNull();
-    expect(step(s, { kind: "leave" }).screen.kind).toBe("instance");
+    expect(step(s, { kind: "leave", gate: 2 }).screen.kind).toBe("instance");
     s = step(s, { kind: "moved", tile: globalTile(0, 105) });
     expect(leaveOffer(s)?.id).toBe(2);
   });
@@ -159,7 +161,7 @@ describe("the loop's screens (CLI-03c)", () => {
 
   it("an intent the screen does not take changes only the log line", () => {
     const intents: LoopIntent[] = [
-      { kind: "leave" },
+      { kind: "leave", gate: 2 },
       { kind: "travel back" },
       { kind: "close report" },
       { kind: "defeat now" },
