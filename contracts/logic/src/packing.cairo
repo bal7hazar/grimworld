@@ -283,3 +283,319 @@ pub impl BitmapStorePacking of starknet::storage_access::StorePacking<Bitmap, fe
         Bitmap { bits: low.into() + high.into() * TWO_POW_128 }
     }
 }
+
+/// The vector table for the TypeScript mirror (VEC-01) is printed by `tests::test_vectors` and kept
+/// in `contracts/logic/vectors/packing.jsonl` (`vectors/README.md`).
+#[cfg(test)]
+mod tests {
+    use core::poseidon::poseidon_hash_span;
+    use super::{
+        Bitmap, BitmapStorePacking, Counter, CounterStorePacking, LIVE, LIVE_HIGH, Lanes16,
+        Lanes16StorePacking, Lanes32, Lanes32StorePacking, N16, N2, N24, N28, N32, N4, N56, N6, N7,
+        N8, P108, P112, P120, P12, P16, P32, P4, P40, P56, P60, P64, P72, P8, P96, TWO_POW_128,
+        byte_at, field, fits, join, limbs, low_field, pack_lanes16, pack_lanes32, peel, split,
+        u16_at, u32_at,
+        unpack_lanes16, unpack_lanes32,
+    };
+
+    fn hex(felts: Span<felt252>) -> ByteArray {
+        let mut out: ByteArray = "[";
+        let mut first = true;
+        for felt in felts {
+            if !first {
+                out.append(@",");
+            }
+            first = false;
+            let wide: u256 = (*felt).into();
+            out.append(@format!("\"0x{:x}\"", wide));
+        }
+        out.append(@"]");
+        out
+    }
+
+    /// Prints one vector and adds it to the digest.
+    fn emit(
+        ref digest: Array<felt252>, ref id: u32, name: ByteArray, case: Span<felt252>,
+        ok: Span<felt252>,
+    ) {
+        println!(
+            "{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok),
+        );
+        digest.append(poseidon_hash_span(case));
+        digest.append(poseidon_hash_span(ok));
+        id += 1;
+    }
+
+    const MAX: felt252 = -1;
+    const U128_MAX: u128 = 0xffffffffffffffffffffffffffffffff;
+    const LIVE_LOW_MAX: felt252 = 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
+    /// Cases with a refusal: `[0, result…]` accepted, `[1]` refused (the `Option` convention of the
+    /// window's `arc`). A panic cannot be caught in a test, so a refusal is the guard evaluated
+    /// here; the panics themselves are asserted by `tests/test_packing.cairo`.
+    fn accepted(result: Span<felt252>) -> Array<felt252> {
+        let mut out: Array<felt252> = array![0];
+        out.append_span(result);
+        out
+    }
+
+    fn lanes32_with(j: u32, v: u32) -> Lanes32 {
+        Lanes32 {
+            lanes: [
+                if j == 0 { v } else { 0 }, if j == 1 { v } else { 0 }, if j == 2 { v } else { 0 },
+                if j == 3 { v } else { 0 }, if j == 4 { v } else { 0 }, if j == 5 { v } else { 0 },
+                if j == 6 { v } else { 0 },
+            ],
+        }
+    }
+
+    fn at16(j: u32, k: u32, v: u16) -> u16 {
+        if j == k {
+            v
+        } else {
+            0
+        }
+    }
+
+    fn lanes16_with(j: u32, v: u16) -> Lanes16 {
+        Lanes16 {
+            lanes: [
+                at16(j, 0, v), at16(j, 1, v), at16(j, 2, v), at16(j, 3, v), at16(j, 4, v),
+                at16(j, 5, v), at16(j, 6, v), at16(j, 7, v), at16(j, 8, v), at16(j, 9, v),
+                at16(j, 10, v), at16(j, 11, v), at16(j, 12, v), at16(j, 13, v), at16(j, 14, v),
+            ],
+        }
+    }
+
+    fn serialize<T, +Serde<T>, +Drop<T>>(value: T) -> Array<felt252> {
+        let mut out: Array<felt252> = array![];
+        value.serialize(ref out);
+        out
+    }
+
+    // The vector table, one JSON line per case (`{"id", "fn", "case", "ok"}`), and a digest of
+    // every case and outcome: a change to a layout or to the cases fails here until
+    // `contracts/logic/vectors/packing.jsonl` is regenerated.
+    #[test]
+    #[available_gas(l2_gas: 1000000000)]
+    fn test_vectors() {
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 0;
+        let limb_values: [u128; 7] = [
+            0, 1, U128_MAX, 0x0123456789abcdef0123456789abcdef, 0x10000000000000000, 0xffffffffffffffff,
+            LIVE_HIGH,
+        ];
+
+        // `split`: any word, `LIVE` removed from the high limb when it is set.
+        let words: [felt252; 14] = [
+            0, 1, LIVE, LIVE + 1, LIVE - 1, TWO_POW_128 - 1, TWO_POW_128, LIVE + TWO_POW_128,
+            LIVE + LIVE_LOW_MAX, LIVE_LOW_MAX, LIVE + 0x0123456789abcdef0123456789abcdef,
+            2 * LIVE, MAX, MAX - LIVE,
+        ];
+        for word in words.span() {
+            let (low, high) = split(*word);
+            emit(ref digest, ref id, "split", [*word].span(), [low.into(), high.into()].span());
+        }
+        // `limbs`: a word that carries `LIVE` (0 is the wrapped case, outside the contract).
+        let stored: [felt252; 8] = [
+            LIVE, LIVE + 1, LIVE + U128_MAX.into(), LIVE + TWO_POW_128, LIVE + LIVE_LOW_MAX,
+            LIVE + 0x0123456789abcdef0123456789abcdef, 2 * LIVE - 1, 0,
+        ];
+        for word in stored.span() {
+            let (low, high) = limbs(*word);
+            emit(ref digest, ref id, "limbs", [*word].span(), [low.into(), high.into()].span());
+        }
+        // `join`: the boundary of the high limb is 2^122 (`LIVE_HIGH`).
+        let highs: [u128; 8] = [0, 1, 0x123456789abcdef, LIVE_HIGH - 1, LIVE_HIGH, LIVE_HIGH + 1, 0x8000000000000000000000000000000, U128_MAX];
+        for low in limb_values.span() {
+            for high in highs.span() {
+                let case = [(*low).into(), (*high).into()];
+                if *high < LIVE_HIGH {
+                    let ok = accepted([join(*low, *high)].span());
+                    emit(ref digest, ref id, "join", case.span(), ok.span());
+                } else {
+                    emit(ref digest, ref id, "join", case.span(), [1].span());
+                }
+            }
+        }
+        // `peel`: the low field of each width, and what remains.
+        let sizes: [NonZero<u128>; 10] = [N2, N4, N6, N7, N8, N16, N24, N28, N32, N56];
+        for size in sizes.span() {
+            let size_value: u128 = (*size).into();
+            for limb in limb_values.span() {
+                let mut rest = *limb;
+                let value = peel(ref rest, *size);
+                emit(
+                    ref digest, ref id, "peel", [(*limb).into(), size_value.into()].span(),
+                    [value.into(), rest.into()].span(),
+                );
+            }
+        }
+        // `fits`: a value below its field's size is accepted, from the size up it is refused.
+        let fit_sizes: [u128; 5] = [2, 0x10, 0x100, 0x10000, 0x100000000];
+        for size in fit_sizes.span() {
+            for value in [0, 1, *size - 1, *size, *size + 1, U128_MAX].span() {
+                let case = [(*value).into(), (*size).into()];
+                if *value < *size {
+                    fits(*value, *size, 'fits');
+                    emit(ref digest, ref id, "fits", case.span(), accepted([].span()).span());
+                } else {
+                    emit(ref digest, ref id, "fits", case.span(), [1].span());
+                }
+            }
+        }
+        // `field`, `byte_at`, `u16_at`, `u32_at`, `low_field`.
+        let shifts: [(u128, u128); 8] = [
+            (1, 2), (1, 0x100), (P8, 0x100), (P16, P16), (P64, P32), (P96, P32), (P120, 0x100),
+            (P4, P12),
+        ];
+        for limb in limb_values.span() {
+            for pair in shifts.span() {
+                let (shift, size) = *pair;
+                let ok = field(*limb, shift, size);
+                emit(
+                    ref digest, ref id, "field", [(*limb).into(), shift.into(), size.into()].span(),
+                    [ok.into()].span(),
+                );
+            }
+            for shift in [1, P8, P56, P120].span() {
+                let ok = byte_at(*limb, *shift);
+                emit(
+                    ref digest, ref id, "byte_at", [(*limb).into(), (*shift).into()].span(),
+                    [ok.into()].span(),
+                );
+            }
+            for shift in [1, P16, P60, P112].span() {
+                let ok = u16_at(*limb, *shift);
+                emit(
+                    ref digest, ref id, "u16_at", [(*limb).into(), (*shift).into()].span(),
+                    [ok.into()].span(),
+                );
+            }
+            for shift in [1, P32, P64, P96].span() {
+                let ok = u32_at(*limb, *shift);
+                emit(
+                    ref digest, ref id, "u32_at", [(*limb).into(), (*shift).into()].span(),
+                    [ok.into()].span(),
+                );
+            }
+            for size in [2, P12, P40, P72, P108].span() {
+                let ok = low_field(*limb, (*size).try_into().unwrap());
+                emit(
+                    ref digest, ref id, "low_field", [(*limb).into(), (*size).into()].span(),
+                    [ok.into()].span(),
+                );
+            }
+        }
+
+        // `Lanes32`: pack (the seven lanes to a word), unpack (a word to the seven lanes).
+        let mut lanes: Array<Lanes32> = array![
+            Lanes32 { lanes: [0, 0, 0, 0, 0, 0, 0] },
+            Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] },
+            Lanes32 { lanes: [0xffffffff; 7] },
+            Lanes32 { lanes: [1; 7] },
+        ];
+        for j in 0..7_u32 {
+            for v in [1, 0x12345678, 0xffffffff].span() {
+                lanes.append(lanes32_with(j, *v));
+            }
+        }
+        for value in lanes.span() {
+            let word = pack_lanes32(*value);
+            emit(ref digest, ref id, "pack_lanes32", serialize(*value).span(), [word].span());
+            emit(
+                ref digest, ref id, "unpack_lanes32", [word].span(),
+                serialize(unpack_lanes32(word)).span(),
+            );
+        }
+        // A word without `LIVE` (a slot never written) decodes as zero lanes.
+        for word in [0, 1, 0x1ffffffff].span() {
+            emit(
+                ref digest, ref id, "unpack_lanes32", [*word].span(),
+                serialize(unpack_lanes32(*word)).span(),
+            );
+        }
+        // The `StorePacking` impl is the same two functions.
+        let stored = Lanes32StorePacking::pack(Lanes32 { lanes: [9, 8, 7, 6, 5, 4, 3] });
+        emit(ref digest, ref id, "pack_lanes32", [9, 8, 7, 6, 5, 4, 3].span(), [stored].span());
+
+        // `Lanes16`.
+        let mut lanes: Array<Lanes16> = array![
+            Lanes16 { lanes: [0; 15] },
+            Lanes16 { lanes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+            Lanes16 { lanes: [0xffff; 15] },
+            Lanes16 { lanes: [1; 15] },
+        ];
+        for j in 0..15_u32 {
+            for v in [1, 0xffff].span() {
+                lanes.append(lanes16_with(j, *v));
+            }
+        }
+        for value in lanes.span() {
+            let word = pack_lanes16(*value);
+            emit(ref digest, ref id, "pack_lanes16", serialize(*value).span(), [word].span());
+            emit(
+                ref digest, ref id, "unpack_lanes16", [word].span(),
+                serialize(unpack_lanes16(word)).span(),
+            );
+        }
+        for word in [0, 1, 0x1ffff].span() {
+            emit(
+                ref digest, ref id, "unpack_lanes16", [*word].span(),
+                serialize(unpack_lanes16(*word)).span(),
+            );
+        }
+        let stored = Lanes16StorePacking::pack(Lanes16 { lanes: [3; 15] });
+        emit(ref digest, ref id, "pack_lanes16", [3; 15].span(), [stored].span());
+
+        // `Counter`: never 0 in storage; unpack reads the low limb only.
+        for value in [0, 1, 2, 255, 0xffffffff, 0x100000000, 0xfffffffffffffffe, 0xffffffffffffffff_u64].span() {
+            let word = CounterStorePacking::pack(Counter { value: *value });
+            emit(ref digest, ref id, "pack_counter", [(*value).into()].span(), [word].span());
+            emit(
+                ref digest, ref id, "unpack_counter", [word].span(),
+                serialize(CounterStorePacking::unpack(word)).span(),
+            );
+        }
+        emit(
+            ref digest, ref id, "unpack_counter", [0].span(),
+            serialize(CounterStorePacking::unpack(0)).span(),
+        );
+
+        // `Bitmap`: 250 bits; bit 250 and above are refused.
+        let bits: [felt252; 12] = [
+            0, 1, 2, 0xffffffffffffffff, U128_MAX.into(), TWO_POW_128, TWO_POW_128 + 1,
+            0x0123456789abcdef0123456789abcdef0123456789abcdef, LIVE_LOW_MAX - 1, LIVE_LOW_MAX,
+            LIVE, LIVE + 1,
+        ];
+        for value in bits.span() {
+            let wide: u256 = (*value).into();
+            if wide.high < LIVE_HIGH {
+                let word = BitmapStorePacking::pack(Bitmap { bits: *value });
+                emit(
+                    ref digest, ref id, "pack_bitmap", [*value].span(),
+                    accepted([word].span()).span(),
+                );
+                emit(
+                    ref digest, ref id, "unpack_bitmap", [word].span(),
+                    serialize(BitmapStorePacking::unpack(word)).span(),
+                );
+            } else {
+                emit(ref digest, ref id, "pack_bitmap", [*value].span(), [1].span());
+            }
+        }
+        emit(
+            ref digest, ref id, "pack_bitmap", [MAX].span(), [1].span(),
+        );
+        emit(
+            ref digest, ref id, "unpack_bitmap", [0].span(),
+            serialize(BitmapStorePacking::unpack(0)).span(),
+        );
+        let digest = poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(digest == DIGEST, 'vectors moved: regenerate');
+    }
+
+    const DIGEST: felt252 =
+        2603097203568390405806900136266429909141274338807405352845615991299710565710;
+}

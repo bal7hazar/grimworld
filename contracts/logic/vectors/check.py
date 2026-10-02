@@ -28,6 +28,12 @@ TABLES = {
     "hit.jsonl": [
         "grimworld_logic::types::hit::tests::test_vectors",
     ],
+    "fate.jsonl": [
+        "grimworld_logic::fate::tests::test_vectors",
+    ],
+    "packing.jsonl": [
+        "grimworld_logic::packing::tests::test_vectors",
+    ],
 }
 
 
