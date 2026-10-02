@@ -21,7 +21,7 @@ arithmetic from M, **E** estimated on a stated assumption.
   L2 gas is storage: its computation is about 120 L2 gas a step, and a representative tick about
   5.3 k steps (M).
 - **A floor dominates.** Every segment under ~0.5 M steps takes **14–31 s and 3.6–3.9 GiB** on the Mac
-  (representative segments 14–20 s, worst and busy ones 23–31 s; 37–78 s and 3.0–3.7 GiB on one thread),
+  (representative segments 14–18 s, worst and busy ones 23–31 s; 37–78 s and 3.0–3.7 GiB on one thread),
   and above it about 11–14 s and 1.5 GiB per million steps (M, D).
   `canonical_small` stops at 2^20 range checks, **2,600 representative ticks (13.8 M steps) in
   164–184 s and 21 GiB**; `canonical_without_pedersen` proved 4,500 ticks (23.8 M steps) in 314–344 s

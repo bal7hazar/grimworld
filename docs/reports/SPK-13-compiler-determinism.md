@@ -82,7 +82,7 @@ The library's four metrics for the class, computed on the Mac's kept files, matc
 Across platforms, on one thread: the VPS's `HexxGenerators` class hash and text sha256 are the
 Mac's, and the minimal program's one-thread files have the same sha256 on arm64 and x86_64 on both
 Scarb versions: **the platform plays no part in the race**, shown for those two artefacts only. For
-the game's `grimworld_persistent_Registry` the two machines differ (fact (a)); that is open. The VPS
+the game's `grimworld_persistent_Registry` and `logic_integrationtest` the two machines differ (facts (a) and (b)); both are open. The VPS
 never saw 27,101: its builds ran at 4 threads (the lock's default) and 1, where the Mac gave 27,092
 as well; that is consistent with the thread count but CI (4 vCPUs, always 27,101) is not explained by
 it. No 8-thread series was run on the VPS.
@@ -107,7 +107,7 @@ unchanged, and some builds really change the program through the race, which alo
 The compiler binary, the cache (a new empty cache every build still varies), the
 incremental cache, `Scarb.lock`, the sources' order and the path (for the race), inlining and our code (the
 minimal program has neither the game's nor the library's) are each refuted by an experiment in the
-README's table. The platform and the path are excluded for the race only; the Registry difference leaves them open. The thread count is the variable: 1 thread gives one program; 4 and 8 gave one
+README's table. The platform and the path are excluded for the race only; the cross-machine differences (Registry and `logic_integrationtest`) leave them open. The thread count is the variable: 1 thread gives one program; 4 and 8 gave one
 value in 10 builds each on the Mac; 12 gave three.
 
 ## Remedy, and what the game does meanwhile

@@ -159,7 +159,7 @@ placement, follow the race.
 | Our cache (`~/.cache/scarb`, registry and git checkouts, corelib copy) | `fresh-cache` series; `one-thread` with the machine's cache | both values with a new empty cache every build (5 + 5); one value with the old cache and one thread (10/10) |
 | Scarb's incremental cache, the target folder | Every build after `scarb clean` | still varies |
 | A dependency resolved differently, `Scarb.lock` | `Scarb.lock` hash recorded per target, unchanged across builds | varies with an identical lock |
-| The sources' order on disk, the path | Same worktree path for every build | the race varies at one path, so neither is needed *for the race*. A single path per machine does not test the path, which stays open for the Registry difference |
+| The sources' order on disk, the path | Same worktree path for every build | the race varies at one path, so neither is needed *for the race*. A single path per machine does not test the path, which stays open for the cross-machine differences (Registry and `logic_integrationtest`) |
 | An unordered iteration that varies between runs in one environment | 12-thread series | **yes**: varies run to run on one machine, against D-164's assumption |
 | Inlining or optimisation reading the environment | The diff | no inlining difference, only the `withdraw_gas` placement. What the environment changes is the thread count and timing |
 | The thread count | 1, 4, 8, 12 threads | 1: always one program; 4 and 8: one value in 10 builds each on the Mac; 12: three values |
