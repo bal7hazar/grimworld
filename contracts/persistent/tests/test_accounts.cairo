@@ -13,17 +13,13 @@ use grimworld_logic::professions::{Profession, ProfessionTrait};
 use grimworld_persistent::models::account::errors::{
     HAS_ACCOUNT, NOT_ACCOUNT_OWNER, NO_ACCOUNT, NO_FREE_SLOT, OWNER_HAS_ACCOUNT, ZERO_OWNER,
 };
-use grimworld_persistent::models::account::{
-    AccountRecord, AccountRecordTrait, AdventurerListTrait, NEW_RECORD, PACK, START_SLOTS,
-    owner_key,
-};
+use grimworld_persistent::models::account::{AccountRecord, OwnerTrait, PACK};
 use grimworld_persistent::models::adventurer::errors::{
     ADVENTURER_DELETED, EMPTY_NAME, NOT_IN_HUB, NOT_OWNER, NO_ADVENTURER, PACK_HOLDS_EQUIPMENT,
     PACK_HOLDS_GOLD, PACK_HOLDS_ITEMS, WEARS_EQUIPMENT,
 };
 use grimworld_persistent::models::adventurer::{
-    ACTIVE, AdventurerCore, AdventurerCoreTrait, AdventurerPlace, AdventurerPlaceTrait, Build,
-    DELETED, EMPTY_LANES, NEW_BUILD, NO_ELITE,
+    ACTIVE, AdventurerCore, AdventurerPlace, Build, DELETED, NO_ELITE,
 };
 use grimworld_persistent::models::item::Gold;
 use grimworld_persistent::systems::hub::{
@@ -264,7 +260,7 @@ fn watched() -> Array<felt252> {
             keys.append(adventurer_word(id, word.into()));
         }
         keys.append(map_entry_address(selector!("packs"), array![id.into(), 0].span()));
-        keys.append(map_entry_address(selector!("gold"), array![owner_key(PACK, id)].span()));
+        keys.append(map_entry_address(selector!("gold"), array![OwnerTrait::key(PACK, id)].span()));
     }
     keys
 }
@@ -296,76 +292,11 @@ fn changes(before: Span<felt252>, after: Span<felt252>) -> (u32, u32, u32) {
     (new, old, zeroed)
 }
 
-// ---- the stored words written by arithmetic, against the packers (the oracle, CAIRO §2) --------
-
-#[test]
-// gas: raised, the new place is computed from region 1's town (D-144, ENG-06)
-#[available_gas(l2_gas: 606060)] // ceil(1.05 × 577200 measured)
-fn test_stored_words() {
-    let record = AccountRecord { slots: START_SLOTS, ..Default::default() };
-    assert(NEW_RECORD == StorePacking::pack(record), 'new record');
-    let more = AccountRecord { slots: 9, adventurers: 5, highest_rank: 4, vault_panes: 2, lots: 7 };
-    let word: felt252 = StorePacking::pack(more);
-    assert(AccountRecordTrait::counts(word) == (9, 5), 'slots and count');
-    let one_more = AccountRecord { adventurers: 6, ..more };
-    assert(AccountRecordTrait::with_adventurer(word) == StorePacking::pack(one_more), 'one more');
-    let one_less = AccountRecord { adventurers: 4, ..more };
-    assert(
-        AccountRecordTrait::without_adventurer(word) == StorePacking::pack(one_less), 'one less',
-    );
-
-    let core = AdventurerCore {
-        account: 0xFFFFFFFF, level: 1, profession: ARCANIST, status: ACTIVE, ..Default::default(),
-    };
-    assert(AdventurerCoreTrait::new(0xFFFFFFFF, ARCANIST) == StorePacking::pack(core), 'new core');
-    let full = AdventurerCore {
-        account: 0x12345678,
-        experience: 0xFFFFFFFF,
-        merit: 0xFFFFFFFF,
-        level: 255,
-        rank: 255,
-        profession: 255,
-        secondary: 255,
-        unspent: 0xFFFF,
-        trials_first: 0xFFFF,
-        trials_tried: 0xFFFF,
-        status: ACTIVE,
-        pack_lanes: 0xFFFF,
-    };
-    let word: felt252 = StorePacking::pack(full);
-    assert(AdventurerCoreTrait::fields(word) == (0x12345678, ACTIVE, 0xFFFF), 'core fields');
-    let deleted: felt252 = StorePacking::pack(AdventurerCore { status: DELETED, ..full });
-    assert(AdventurerCoreTrait::deleted(word) == deleted, 'deleted mark');
-    assert(AdventurerCoreTrait::fields(deleted) == (0x12345678, DELETED, 0xFFFF), 'deleted fields');
-
-    let place = AdventurerPlace {
-        instance: 0, hub: START_HUB, last_hub: START_HUB, inside: 0, unlocked: START_UNLOCKED,
-    };
-    let new_place = AdventurerPlaceTrait::new(START_HUB);
-    assert(new_place == StorePacking::pack(place), 'new place');
-    assert(!AdventurerPlaceTrait::is_inside(new_place), 'new: in a hub');
-    let inside: felt252 = StorePacking::pack(
-        AdventurerPlace { instance: 0xFFFFFFFFFFFFFFFF, hub: 0, inside: 1, ..place },
-    );
-    assert(AdventurerPlaceTrait::is_inside(inside), 'inside');
-    let build = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
-    assert(NEW_BUILD == StorePacking::pack(build), 'new build');
-    assert(EMPTY_LANES == StorePacking::pack(Lanes32 { lanes: [0; 7] }), 'empty lanes');
-
-    let page = Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] };
-    let word: felt252 = StorePacking::pack(page);
-    for lane in 0..7_u8 {
-        let expected = Lanes32 { lanes: page.set(lane, 0xFFFFFFFF).lanes };
-        let changed = word + (0xFFFFFFFF - page.get(lane)).into() * AdventurerListTrait::unit(lane);
-        assert(changed == StorePacking::pack(expected), 'lane unit');
-    }
-}
-
 // ---- register ----------------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 15620766)] // ceil(1.05 × 14924700 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 15713912)] // ceil(1.05 × 14965630 measured)
 fn test_register() {
     let (hub, _) = setup();
     let keys = watched();
@@ -390,8 +321,8 @@ fn test_register() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 9485039)] // ceil(1.05 × 9081150 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 9588495)] // ceil(1.05 × 9131900 measured)
 fn test_register_twice_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -402,8 +333,8 @@ fn test_register_twice_refused() {
 // ---- create_adventurer -------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 25009562)] // ceil(1.05 × 23866410 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 25120998)] // ceil(1.05 × 23924760 measured)
 fn test_create_adventurer() {
     let (hub, _) = setup();
     let hub_ = act(hub, ALICE);
@@ -457,6 +388,8 @@ fn test_create_adventurer() {
     assert(views(hub).adventurer(99) == array![0, 0, 0, 0, 0, 0].span(), 'never created');
 }
 
+// A unit test of `grimworld_logic::professions`, kept here for ENG-R1c, the lot of the logic
+// package.
 #[test]
 #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_playable_professions() {
@@ -477,8 +410,8 @@ fn test_playable_professions() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 7927227)] // ceil(1.05 × 7597520 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 8037582)] // ceil(1.05 × 7654840 measured)
 fn test_create_without_account_refused() {
     let (hub, _) = setup();
     #[feature("safe_dispatcher")]
@@ -486,8 +419,8 @@ fn test_create_without_account_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 9649679)] // ceil(1.05 × 9237950 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 9761609)] // ceil(1.05 × 9296770 measured)
 fn test_create_empty_name_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -496,8 +429,8 @@ fn test_create_empty_name_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 9648251)] // ceil(1.05 × 9236590 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 9751046)] // ceil(1.05 × 9286710 measured)
 fn test_create_bad_profession_refused() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -508,8 +441,8 @@ fn test_create_bad_profession_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 20338038)] // ceil(1.05 × 19417340 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 20479767)] // ceil(1.05 × 19504540 measured)
 fn test_create_no_free_slot_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -520,8 +453,8 @@ fn test_create_no_free_slot_refused() {
 // ---- delete_adventurer -------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 29394404)] // ceil(1.05 × 28042450 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 29534127)] // ceil(1.05 × 28127740 measured)
 fn test_delete_frees_the_slot_and_marks_the_record() {
     let (hub, _) = setup();
     let (_, ids) = with_adventurers(hub, ALICE, 3);
@@ -557,8 +490,8 @@ fn test_delete_frees_the_slot_and_marks_the_record() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 22215722)] // ceil(1.05 × 21205610 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 22382745)] // ceil(1.05 × 21316900 measured)
 fn test_delete_the_last_listed() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -574,8 +507,8 @@ fn test_delete_the_last_listed() {
 
 /// ENG-01 §9.3's worst case: the hole and the last id on two pages (an account of eight).
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 42853188)] // ceil(1.05 × 40860340 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 43043207)] // ceil(1.05 × 40993530 measured)
 fn test_delete_across_pages() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -601,8 +534,8 @@ fn test_delete_across_pages() {
 
 /// The MVP's worst deletion: 3 slots, the 2nd of 3 (two entries inspected, one page written).
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 25014255)] // ceil(1.05 × 23870880 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 25154504)] // ceil(1.05 × 23956670 measured)
 fn test_delete_worst_three_slots() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -621,8 +554,8 @@ fn test_delete_worst_three_slots() {
 /// ENG-01 §9.3's two-page row at its longest search: the 7th of 8 (seven entries inspected, the
 /// hole on page 0, the last id on page 1).
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 42909468)] // ceil(1.05 × 40913940 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 43099749)] // ceil(1.05 × 41047380 measured)
 fn test_delete_worst_two_pages() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -646,8 +579,8 @@ fn test_delete_worst_two_pages() {
 /// A negative swap delta: the last id is lower than the deleted one (a reused slot put a higher id
 /// first), so the lane falls by the difference; the page stays correctly packed.
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 25438938)] // ceil(1.05 × 24275340 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 25587083)] // ceil(1.05 × 24368650 measured)
 fn test_delete_negative_delta() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -667,8 +600,8 @@ fn test_delete_negative_delta() {
 /// A deletion within the final page of a multi-page list: the hole and the last id on page 1, page
 /// 0 untouched; then deltas across pages, positive and negative.
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 51899841)] // ceil(1.05 × 49476200 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 52128048)] // ceil(1.05 × 49645760 measured)
 fn test_delete_within_the_final_page() {
     let (hub, _) = setup();
     act(hub, ALICE).register();
@@ -703,8 +636,8 @@ fn test_delete_within_the_final_page() {
 // The ownership helper, each case (through `delete_adventurer`).
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13979532)] // ceil(1.05 × 13361620 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 14131971)] // ceil(1.05 × 13459020 measured)
 fn test_helper_no_adventurer() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -715,8 +648,8 @@ fn test_helper_no_adventurer() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 19534379)] // ceil(1.05 × 18651950 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 19698326)] // ceil(1.05 × 18760310 measured)
 fn test_helper_not_owner() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -728,8 +661,8 @@ fn test_helper_not_owner() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 17801910)] // ceil(1.05 × 17001980 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 17952386)] // ceil(1.05 × 17097510 measured)
 fn test_helper_deleted() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 2);
@@ -741,8 +674,8 @@ fn test_helper_deleted() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13567229)] // ceil(1.05 × 12968950 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 13699350)] // ceil(1.05 × 13047000 measured)
 fn test_helper_not_in_a_hub() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -754,8 +687,8 @@ fn test_helper_not_in_a_hub() {
 // "Its inventory emptied" (design/03, D-33), each part.
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13646073)] // ceil(1.05 × 13044040 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 13776494)] // ceil(1.05 × 13120470 measured)
 fn test_delete_pack_balances_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -765,8 +698,8 @@ fn test_delete_pack_balances_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13985171)] // ceil(1.05 × 13366990 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 14115591)] // ceil(1.05 × 13443420 measured)
 fn test_delete_pack_equipment_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -777,8 +710,8 @@ fn test_delete_pack_equipment_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13561212)] // ceil(1.05 × 12963220 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 13691633)] // ceil(1.05 × 13039650 measured)
 fn test_delete_equipped_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -789,12 +722,12 @@ fn test_delete_equipped_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13960506)] // ceil(1.05 × 13343500 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 14091767)] // ceil(1.05 × 13420730 measured)
 fn test_delete_pack_gold_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
-    let key = map_entry_address(selector!("gold"), array![owner_key(PACK, 1)].span());
+    let key = map_entry_address(selector!("gold"), array![OwnerTrait::key(PACK, 1)].span());
     write(hub, key, StorePacking::pack(Gold { amount: 1 }));
     #[feature("safe_dispatcher")]
     refused(try_act(hub, ALICE).delete_adventurer(1), PACK_HOLDS_GOLD);
@@ -802,14 +735,14 @@ fn test_delete_pack_gold_refused() {
 
 /// A pack emptied again (its lanes, pages and gold kept `LIVE` at 0) does not stop deletion.
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 14606246)] // ceil(1.05 × 13958490 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 14737517)] // ceil(1.05 × 14035730 measured)
 fn test_delete_after_the_pack_was_emptied() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
     let page = map_entry_address(selector!("packs"), array![1, 0].span());
     write(hub, page, StorePacking::pack(Lanes32 { lanes: [0; 7] }));
-    let key = map_entry_address(selector!("gold"), array![owner_key(PACK, 1)].span());
+    let key = map_entry_address(selector!("gold"), array![OwnerTrait::key(PACK, 1)].span());
     write(hub, key, StorePacking::pack(Gold { amount: 0 }));
     act(hub, ALICE).delete_adventurer(1);
     assert(core_of(hub, 1).status == DELETED, 'deleted');
@@ -818,8 +751,8 @@ fn test_delete_after_the_pack_was_emptied() {
 // ---- set_account_owner -------------------------------------------------------------------------
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 28758020)] // ceil(1.05 × 27436370 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 28954349)] // ceil(1.05 × 27575570 measured)
 fn test_set_account_owner() {
     let (hub, double) = setup();
     with_adventurers(hub, ALICE, 2);
@@ -854,8 +787,8 @@ fn test_set_account_owner() {
 
 /// ENG-01 §9.3 and §10's worst case: seven adventurers inside, each one's controller moved.
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 44846970)] // ceil(1.05 × 42759180 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 45046187)] // ceil(1.05 × 42901130 measured)
 fn test_set_account_owner_seven_inside() {
     let (hub, double) = setup();
     act(hub, ALICE).register();
@@ -894,8 +827,8 @@ fn test_set_account_owner_seven_inside() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 22167401)] // ceil(1.05 × 21159590 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 22333164)] // ceil(1.05 × 21269680 measured)
 fn test_set_account_owner_only_those_inside() {
     let (hub, double) = setup();
     with_adventurers(hub, ALICE, 3);
@@ -911,8 +844,8 @@ fn test_set_account_owner_only_those_inside() {
 /// `Instances.set_controller` reverts: the transfer reverts with it, and nothing of it is kept (the
 /// owner word, both `account_of` entries).
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 22489005)] // ceil(1.05 × 21513660 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 22711521)] // ceil(1.05 × 21630020 measured)
 fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
     let (hub, _) = setup();
     let class = declare("RefusingInstances").unwrap().contract_class();
@@ -936,8 +869,8 @@ fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13700127)] // ceil(1.05 × 13095520 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 13849878)] // ceil(1.05 × 13190360 measured)
 fn test_set_account_owner_wrong_caller_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -948,8 +881,8 @@ fn test_set_account_owner_wrong_caller_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 15422474)] // ceil(1.05 × 14735850 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 15573800)] // ceil(1.05 × 14832190 measured)
 fn test_set_account_owner_to_an_account_holder_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
@@ -961,8 +894,8 @@ fn test_set_account_owner_to_an_account_holder_refused() {
 }
 
 #[test]
-// gas: raised, the setup deploys a `Registry`; `create_adventurer` reads it (D-144, ENG-06)
-#[available_gas(l2_gas: 13357964)] // ceil(1.05 × 12769650 measured)
+// gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
+#[available_gas(l2_gas: 13488741)] // ceil(1.05 × 12846420 measured)
 fn test_set_account_owner_to_zero_refused() {
     let (hub, _) = setup();
     with_adventurers(hub, ALICE, 1);
