@@ -26,8 +26,8 @@ if [ -n "$base" ]; then
 fi
 changed=$(
   {
-    if [ -n "$base" ]; then git diff --name-only "$base" HEAD; fi
-    git diff --name-only HEAD
+    if [ -n "$base" ]; then git diff --no-renames --name-only "$base" HEAD; fi
+    git diff --no-renames --name-only HEAD
     git ls-files --others --exclude-standard
   } | sort -u
 )
@@ -67,7 +67,7 @@ pkg() {
 
 # Cairo packages: the nearest Scarb.toml of each touched Cairo file (the contracts workspace is one
 # package: contracts). A change of .tool-versions, or --all, takes every tracked one.
-cairo_inputs='(\.cairo|(^|/)Scarb\.toml|(^|/)Scarb\.lock)$|^\.tool-versions$'
+cairo_inputs='(\.cairo|(^|/)Scarb\.toml|(^|/)Scarb\.lock|(^|/)\.tool-versions)$'
 if [ "$all" = 1 ] || grep -Eq '^\.tool-versions$' <<< "$changed"; then
   files=$(git ls-files '*Scarb.toml')
 else
@@ -85,6 +85,7 @@ packages=$(
 )
 
 # Always: the format of the contracts workspace and of every package touched, as CI's cairo job.
+# shellcheck disable=SC2086 # $packages is a newline-separated list of paths without spaces
 fmt_dirs=$(printf '%s\n' contracts $packages | sort -u)
 for d in $fmt_dirs; do
   step "scarb fmt --check ($d)" pkg "$d" scarb fmt --check --workspace
