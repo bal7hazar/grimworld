@@ -62,15 +62,31 @@ The build prints two fingerprints of what it writes to `out/` (dotfiles and othe
     out/ pixels+metadata sha256: …      every PNG decoded to RGBA, every JSON canonicalised
     encoders: zlib (python) …, zlib (Pillow) …, Pillow …, NumPy …
 
-Two runs on one machine give the same two lines (measured on macOS arm64). Across machines,
-compare the second one: it holds what the client loads (pixels and data), whatever compressed it.
+Two runs on one machine give the same two lines. At `4c2b25c` the build was measured on two
+machines, two clean runs each, with the same pack (the `assets` gitlink of that commit):
 
-**Why the files differed between macOS arm64 and Linux x86_64 (ART-00): a hypothesis, until the
-orchestrator's Linux run.** Measured on the Mac: Pillow 12's wheels compress PNGs with zlib-ng
-(`zlib (Pillow) 1.3.1.zlib-ng`); the same array written by Pillow and by `artpipe/png.py` gives
+| | macOS arm64 | Linux x86_64 |
+|---|---|---|
+| OS / CPU | Darwin 25.6.0, Apple M2 Max | Linux 6.8.0-139, AMD EPYC 9354P |
+| Python | 3.12.0 | 3.12.3 |
+| `zlib (python)` | 1.2.12 | 1.3 |
+| `zlib (Pillow)` | 1.3.1.zlib-ng | 1.3 |
+
+Both machines, both runs, printed the same two fingerprints, and every file of `out/` (five files)
+has the same bytes and the same sha256 on both:
+
+    out/ sha256: f6c2caa7b1b477c144bfb948eedc6cfa070b35a2b550506a6dd5cdd9a2cd8602
+    out/ pixels+metadata sha256: 2b98b8857637072c50c4803dad7cdd1e42eb434d9d388a5e55f0f95f04fea5f5
+
+(Pillow 12.3.0 and NumPy 2.5.3 on both; only the `encoders:` line differs, as the table shows.)
+The files are identical although Python's zlib (1.2.12 vs 1.3) and Pillow's (zlib-ng vs zlib)
+differ. If another machine's `out/ sha256` differs, compare the second line: it holds what the
+client loads (pixels and data), whatever compressed it.
+
+**Why the files differed between macOS arm64 and Linux x86_64 (ART-00), and why they no longer do.**
+Measured on the Mac: Pillow 12's wheels compress PNGs with zlib-ng (`zlib (Pillow) 1.3.1.zlib-ng`); the same array written by Pillow and by `artpipe/png.py` gives
 files of different sizes and hashes and identical decoded pixels. zlib-ng's output can depend on its
-build and on the CPU's code paths, which would explain different files with equal pixels; if the
-pixel fingerprint also differs on Linux, the cause is elsewhere. So the pipeline:
+build and on the CPU's code paths, which explains different files with equal pixels. So the pipeline:
 - writes PNGs itself (`artpipe/png.py`: Paeth filter in NumPy, Python's own `zlib` at level 9),
   so the files can be byte-identical wherever Python's zlib is the same deflate (the `encoders:`
   line says which);
@@ -79,7 +95,9 @@ pixel fingerprint also differs on Linux, the cause is elsewhere. So the pipeline
   left are Python scalars (the anchor written to the JSON), which are IEEE double operations, the
   same on every machine.
 
-When the file fingerprint still differs, the pixel-and-metadata one is the reference.
+The measure above bears this out: with the pipeline's own PNG writer the files are byte-identical
+on both machines. When the file fingerprint still differs elsewhere, the pixel-and-metadata one is
+the reference.
 
 ## What it produces (`out/`)
 

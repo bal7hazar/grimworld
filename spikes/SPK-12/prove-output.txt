@@ -1,0 +1,146 @@
+# SPK-12 proving runs on the Mac, 2026-10-01 (prove/prove.py). Proofs stay in the ignored
+# prove/out/, never committed. stwo-cairo 467d5c6 with slingfall's two patches, built by
+# prove/setup.sh --native (nightly-2025-06-23). Peak RSS is the child's ru_maxrss (bytes on
+# macOS). Steps are scarb execute's (run_and_prove prints no step count at this rev).
+
+## run1: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run1 --runs 2 --case representative:1 --case worst:1 --case representative:10 --case busy:10
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_small.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:1 | 22918 | 2309 | 115 | 1 | 14.77 | 3.60 | 1090994 | 0.58 | verified, output = header |
+| representative:1 | 22918 | 2309 | 115 | 2 | 13.69 | 3.65 | 1090994 | 0.23 | verified, output = header |
+| worst:1 | 128172 | 17659 | 582 | 1 | 23.46 | 3.71 | 1098531 | 0.33 | verified, output = header |
+| worst:1 | 128172 | 17659 | 582 | 2 | 25.93 | 3.61 | 1098531 | 0.19 | verified, output = header |
+| representative:10 | 70663 | 5927 | 115 | 1 | 18.09 | 3.68 | 1076280 | 0.2 | verified, output = header |
+| representative:10 | 70663 | 5927 | 115 | 2 | 17.0 | 3.60 | 1076280 | 0.21 | verified, output = header |
+| busy:10 | 247686 | 23253 | 578 | 1 | 26.13 | 3.74 | 1095396 | 0.26 | verified, output = header |
+| busy:10 | 247686 | 23253 | 578 | 2 | 25.39 | 3.74 | 1095396 | 0.2 | verified, output = header |
+
+representative:1: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+worst:1: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+representative:10: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+busy:10: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run2: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run2 --runs 2 --case busy:40 --case representative:100 --case representative:1000 --case representative:2000
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_small.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| busy:40 | 423740 | 33300 | 582 | 1 | 26.9 | 3.83 | 1112747 | 0.25 | verified, output = header |
+| busy:40 | 423740 | 33300 | 582 | 2 | 30.61 | 3.82 | 1112747 | 0.23 | verified, output = header |
+| representative:100 | 547353 | 41547 | 115 | 1 | 19.74 | 3.88 | 1081389 | 0.23 | verified, output = header |
+| representative:100 | 547353 | 41547 | 115 | 2 | 18.94 | 3.84 | 1081389 | 0.2 | verified, output = header |
+| representative:1000 | 5311440 | 396159 | 115 | 1 | 84.95 | 10.97 | 1161597 | 0.26 | verified, output = header |
+| representative:1000 | 5311440 | 396159 | 115 | 2 | 81.53 | 9.88 | 1161597 | 0.25 | verified, output = header |
+| representative:2000 | 10604956 | 790175 | 115 | 1 | 145.93 | 19.22 | 1221292 | 0.27 | verified, output = header |
+| representative:2000 | 10604956 | 790175 | 115 | 2 | 151.33 | 19.44 | 1221292 | 0.31 | verified, output = header |
+
+busy:40: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+representative:100: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+representative:1000: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+representative:2000: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run3: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run3 --runs 2 --case representative:2600
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_small.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:2600 | 13781143 | 1026587 | 115 | 1 | 164.33 | 21.03 | 1202257 | 0.29 | verified, output = header |
+| representative:2600 | 13781143 | 1026587 | 115 | 2 | 183.73 | 20.57 | 1202257 | 0.24 | verified, output = header |
+
+representative:2600: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run4: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run4 --runs 2 --case representative:2700
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_small.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:2700 | 14310443 | 1065987 | 115 | 1 | 66.64 | 13.63 | None |  | a component over 2^20 rows (canonical_small) |
+| representative:2700 | 14310443 | 1065987 | 115 | 2 | 71.45 | 13.65 | None |  | a component over 2^20 rows (canonical_small) |
+
+representative:2700: program hash -; proofs of the runs identical: -
+
+## run5: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run5 --runs 2 --params spikes/SPK-12/prove/params.canonical_without_pedersen.json --case representative:2700
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_without_pedersen.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:2700 | 14310443 | 1065987 | 115 | 1 | 194.44 | 24.11 | 1213225 | 0.22 | verified, output = header |
+| representative:2700 | 14310443 | 1065987 | 115 | 2 | 196.69 | 22.85 | 1213225 | 0.4 | verified, output = header |
+
+representative:2700: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run6a: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run6a --runs 1 --params spikes/SPK-12/prove/params.canonical_without_pedersen.json --case representative:4500
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_without_pedersen.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:4500 | 23838746 | 1775215 | 115 | 1 | 344.1 | 23.50 | 1255743 | 0.26 | verified, output = header |
+
+representative:4500: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run6b: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run6b --runs 1 --params spikes/SPK-12/prove/params.canonical_without_pedersen.json --case representative:4500
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_without_pedersen.json
+threads: all
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:4500 | 23838746 | 1775215 | 115 | 1 | 313.53 | 33.56 | 1255743 | 0.43 | verified, output = header |
+
+representative:4500: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run7: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run7 --runs 2 --threads 6 --case representative:1 --case busy:40 --case representative:1000
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_small.json
+threads: 6
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:1 | 22918 | 2309 | 115 | 1 | 14.27 | 3.56 | 1090994 | 0.23 | verified, output = header |
+| representative:1 | 22918 | 2309 | 115 | 2 | 14.25 | 3.56 | 1090994 | 0.24 | verified, output = header |
+| busy:40 | 423740 | 33300 | 582 | 1 | 25.08 | 3.88 | 1112747 | 0.21 | verified, output = header |
+| busy:40 | 423740 | 33300 | 582 | 2 | 24.9 | 3.89 | 1112747 | 0.19 | verified, output = header |
+| representative:1000 | 5311440 | 396159 | 115 | 1 | 78.05 | 10.67 | 1161597 | 0.21 | verified, output = header |
+| representative:1000 | 5311440 | 396159 | 115 | 2 | 76.93 | 10.45 | 1161597 | 0.22 | verified, output = header |
+
+representative:1: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+busy:40: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+representative:1000: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+
+## run8: python3 spikes/SPK-12/prove/prove.py --out spikes/SPK-12/prove/out/run8 --runs 2 --threads 1 --case representative:1 --case busy:40
+
+machine: {'platform': 'macOS-26.6.2-arm64-arm-64bit', 'machine': 'arm64', 'cpus': 12, 'memory_gib': 64.0}
+params: params.canonical_small.json
+threads: 1
+
+| case | steps (scarb execute) | range_check | poseidon | run | wall s | peak RSS GiB | proof bytes | verify s | result |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| representative:1 | 22918 | 2309 | 115 | 1 | 37.4 | 2.97 | 1090994 | 0.26 | verified, output = header |
+| representative:1 | 22918 | 2309 | 115 | 2 | 37.53 | 2.97 | 1090994 | 0.28 | verified, output = header |
+| busy:40 | 423740 | 33300 | 582 | 1 | 70.77 | 3.68 | 1112747 | 0.27 | verified, output = header |
+| busy:40 | 423740 | 33300 | 582 | 2 | 78.11 | 3.65 | 1112747 | 0.29 | verified, output = header |
+
+representative:1: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
+busy:40: program hash 1742195303382262071557369172533476493946247398011594456725474716448012608596; proofs of the runs identical: True
