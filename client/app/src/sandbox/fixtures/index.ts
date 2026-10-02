@@ -1,6 +1,8 @@
 import type { Tile } from "../../render/view";
 import { CHUNK, type SandboxWorld } from "../world";
 import { fromAscii } from "./build";
+import { SEED_GATES, globalTile } from "./region";
+import { zoneWorld } from "./zone";
 
 /**
  * The sandbox's fixtures, chosen by `?fixture=<name>`. Maps are drawn as on screen: first line
@@ -143,7 +145,10 @@ const edge = fromAscii({
   ]),
 });
 
-export const FIXTURES: Readonly<Record<string, SandboxWorld>> = { meadow, cave, edge };
+/** The seed's zone, entered through the town's gate 1 (CLI-03c): the loop's instance. */
+const zone = zoneWorld(globalTile(SEED_GATES[0]!.entry_chunk, SEED_GATES[0]!.entry_tile));
+
+export const FIXTURES: Readonly<Record<string, SandboxWorld>> = { meadow, cave, edge, zone };
 
 export const DEFAULT_FIXTURE = "meadow";
 

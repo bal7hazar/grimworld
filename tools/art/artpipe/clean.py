@@ -1,4 +1,5 @@
-"""Clean-up of the sources: cutting the pack's strips into poses, registration on the feet.
+"""Clean-up of the sources: cutting the pack's strips into poses, registration on the feet; a still
+image (a building) is one pose.
 
 A pose is a `Pose`: a tight RGBA crop plus the position of its feet (anchor x, baseline y) inside
 the crop. Registration later places every pose of a sprite in one cell size on one baseline.
@@ -42,6 +43,14 @@ def cut_strip(strip_path):
     if img.shape[1] % cell:
         raise SystemExit(f"{strip_path.name}: width {img.shape[1]} is not a multiple of {cell}")
     return [register(img[:, i * cell:(i + 1) * cell]) for i in range(img.shape[1] // cell)]
+
+
+def still(path):
+    """A single still image (a building, CLI-03c), not a strip: one pose at native size, anchored at
+    its base (the line under its lowest solid row wide enough: the feet rule of `register`, so a
+    thin pole or flag under the walls is not taken for the ground) and at its horizontal centre."""
+    p = register(np.array(Image.open(path).convert("RGBA")))
+    return Pose(p.rgba, p.rgba.shape[1] // 2, p.baseline)
 
 
 def place(poses, margin):

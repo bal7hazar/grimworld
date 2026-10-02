@@ -10,7 +10,7 @@ cairo-version = "2.19"
 starknet = "2.19"
 snforge_std = "0.61"
 assert_macros = "2.19"
-origami_hexmap = "1.8.0"
+hexx = "0.1.0-rc.1"
 
 [cairo]
 sierra-replace-ids = true

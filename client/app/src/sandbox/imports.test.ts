@@ -14,13 +14,67 @@ const IMPORTS_PLACEHOLDERS =
   /from\s+["'][^"']*placeholders["']|import\(\s*["'][^"']*placeholders["']/;
 
 describe("placeholders.ts", () => {
-  it("is imported by the sandbox's wiring only", () => {
+  it("is imported by the sandbox's wiring and the loop's machine only", () => {
     const importers = Object.entries(sources)
       .filter(([path]) => !/\.test\.tsx?$/.test(path))
       .filter(([, text]) => IMPORTS_PLACEHOLDERS.test(text))
-      .map(([path]) => path);
+      .map(([path]) => path)
+      .sort();
     expect(Object.keys(sources).length).toBeGreaterThan(10);
-    expect(importers).toEqual(["./wiring.ts"]);
+    expect(importers).toEqual(["./loop/machine.ts", "./wiring.ts"]);
+  });
+
+  it("holds the hubs' and gates' rules, imported by the loop's machine only (CLI-03c, AC-5)", () => {
+    const code = Object.entries(sources).filter(
+      ([path]) => !/\.test\.tsx?$/.test(path) && path !== "./placeholders.ts",
+    );
+    const RULES = ["hubGateAt", "entryThrough", "hubAfter"];
+    for (const name of RULES) {
+      expect(sources["./placeholders.ts"]).toMatch(new RegExp(`export function ${name}\\(`));
+    }
+    const importers = code
+      .filter(([, text]) =>
+        [...text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from/g)].some((m) =>
+          (m[1] ?? "").split(",").some((name) => RULES.includes(name.trim().split(/\s+as\s+/)[0]!)),
+        ),
+      )
+      .map(([path]) => path);
+    expect(importers).toEqual(["./loop/machine.ts"]);
+    // No other module reads a gate's anchor or entry to decide where the adventurer goes: only
+    // the region's records (which define them), the zone fixture (which keeps anchors floor) and
+    // the fixtures' index (the `zone` room, entered through gate 1).
+    const data = ["./fixtures/region.ts", "./fixtures/zone.ts", "./fixtures/index.ts"];
+    const readers = code
+      .filter(([path]) => !data.includes(path))
+      .filter(([, text]) => /\b(anchor|entry)_(chunk|tile)\b|\.destination\b/.test(text))
+      .map(([path]) => path)
+      .sort();
+    // The screens name a gate's destination; none compares a tile to an anchor.
+    expect(readers).toEqual(["./loop/InstanceScreen.tsx", "./loop/Loop.tsx", "./loop/screens.tsx"]);
+    for (const [path, text] of code) {
+      expect(text, path).not.toMatch(/\b(anchor|entry)_(chunk|tile)\b.*sameTile|sameTile.*anchor/);
+    }
+    // The hub's renderer, view and taps decide nothing: they import no fixture and no sandbox.
+    for (const path of [
+      "../render/hubView.ts",
+      "../render/hubRenderer.ts",
+      "../input/hubTaps.ts",
+    ]) {
+      expect(sources[path], path).toBeDefined();
+      expect(sources[path], path).not.toMatch(/from\s+["'][^"']*sandbox/);
+    }
+  });
+
+  it("no randomness and no clock in the loop's machine and fixtures (§6.6)", () => {
+    for (const path of [
+      "./loop/machine.ts",
+      "./fixtures/hubs.ts",
+      "./fixtures/region.ts",
+      "./fixtures/zone.ts",
+    ]) {
+      expect(sources[path], path).toBeDefined();
+      expect(sources[path], path).not.toMatch(/Math\.random|Date\.|performance\.now|crypto\./);
+    }
   });
 
   it("marks every exported function PLACEHOLDER until CLI-02", () => {

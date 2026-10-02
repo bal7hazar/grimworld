@@ -5,7 +5,7 @@ edition.workspace = true
 cairo-version.workspace = true
 
 [dependencies]
-origami_hexmap.workspace = true
+hexx.workspace = true
 starknet.workspace = true
 
 [dev-dependencies]

@@ -9,11 +9,21 @@ pub mod adventurer;
 pub mod balance;
 /// Equipment entities, grimoires, gold, Rift boards.
 pub mod item;
+/// Pages of seven `u32` lanes, and their stored word.
+pub mod lanes;
 /// Lots and trades.
 pub mod market;
 /// `Hub`'s rules epoch (D-169).
 pub mod rules_epoch;
 /// The snapshot stored with the adventurer (D-168).
 pub mod snapshot;
+/// The words `set_build` writes, as stored.
+pub mod stored_build;
+/// An adventurer's core, as stored.
+pub mod stored_core;
+/// An adventurer's place, as stored.
+pub mod stored_place;
+/// An account's record, as stored.
+pub mod stored_record;
 /// The registry's content and inputs versions (D-141, D-169).
 pub mod versions;

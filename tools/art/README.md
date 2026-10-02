@@ -100,7 +100,7 @@ placing the sprite at its tile position puts the feet on it. Frame rates and loo
 
 1. **Cutting.** Every sprite is made of the pack's own horizontal strips (`file`, in the sprite's
    `root` folder of the pack): transparent already, square cells (cell = strip height), each cell
-   one pose.
+   one pose. A building is a still, one image, one pose (below).
 2. **Registration.** The feet of each pose (the lowest row that is not a thin tip) are put on one
    baseline and one horizontal anchor; every frame of a sprite gets the same cell size.
 3. **Scale** (ART-02; D-146 as corrected by the owner; ART-03). Every sprite is at the pack's own
@@ -155,6 +155,32 @@ Spear Goblin), `slinger` (the Torch Goblin), `shaman` (the Hex Shaman), `hobgobl
 frame rates (12 to 15, ADR-0003) and looping. To change a sprite's height, edit its one line in
 `[height]`: a number resamples it, `"native"` keeps the pack's drawing. The `slinger` is a
 placeholder (no goblin slinger exists); the Arcanist has no sprite (Q-12) and is left out.
+
+## Buildings: still sprites (CLI-03c)
+
+The pack's buildings are **single images**, not strips. A `[[still]]` entry of `manifest.toml` names
+one (`name`, `role = "building"`, `file`: its path in the pack, `origin`). The build makes it one
+frame at **native size**, never resampled. It is anchored at its **base**: the line under its lowest
+solid row wide enough, the feet rule of the strips, so a thin pole is not the ground. Horizontally
+it is anchored at its centre (`artpipe/clean.py`, `still`). It is packed like any sprite, with
+one animation, `still`, of one frame (rate 1, no loop), named `<building>/still/00`. Its
+`sprites.json` entry has `role: "building"`. It gets the same checks, the baseline read back from
+the PNG included, and the client draws it once.
+
+The manifest lists the town's eight buildings in one colour set, Blue, until the owner chooses:
+`castle`, `barracks`, `archery`, `monastery`, `tower`, `house1`, `house2`, `house3`. To add one,
+add a `[[still]]` with its file and run the build. The tests make their buildings from synthetic
+images (`tests/test_build.py`, `Stills`).
+
+To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
+
+    git submodule update --init assets         # the private pack, once
+    tools/art/build.py                         # writes tools/art/out/, buildings included
+    pnpm --filter @grimworld/app dev           # serves tools/art/out/ at /art/
+    # open http://localhost:5173/?hub=town
+
+From a worktree without the pack, point the dev server at a checkout that built it:
+`GRIMWORLD_ART_OUT=<that checkout>/tools/art/out pnpm --filter @grimworld/app dev`.
 
 ## PixiJS 8 check
 

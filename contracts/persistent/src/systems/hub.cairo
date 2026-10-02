@@ -4,18 +4,46 @@
 //! every entrypoint reverts with `'not implemented'` until its lot writes it.
 //! docs/architecture/ENG-01-interfaces.md.
 
+use core::num::traits::Zero;
 use grimworld_logic::types::InstanceId;
 use starknet::{ClassHash, ContractAddress};
 
 pub const VERSION: felt252 = 'grimworld-hub-1';
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
-/// The revert of an administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
-pub const NOT_ADMIN: felt252 = 'not admin';
-/// `set_admin` to the zero address would leave the role to nobody.
-pub const ZERO_ADMIN: felt252 = 'admin is zero';
+pub use errors::{NOT_ADMIN, NOT_INSTANCES, ZERO_ADMIN};
 
-/// `report` or `barter` called by anyone but the registered `Instances` (ADR-0007).
-pub const NOT_INSTANCES: felt252 = 'not instances';
+/// The refusals of `Hub`'s access control (ADR-0007, *Access control*).
+pub mod errors {
+    /// An administrator's entrypoint called by anyone else.
+    pub const NOT_ADMIN: felt252 = 'not admin';
+    /// `set_admin` to the zero address would leave the role to nobody.
+    pub const ZERO_ADMIN: felt252 = 'admin is zero';
+    /// `report` or `barter` called by anyone but the registered `Instances`.
+    pub const NOT_INSTANCES: felt252 = 'not instances';
+}
+
+/// The checks of `Hub`'s callers that are not an adventurer's owner (those are
+/// `AdventurerAssert::assert_owned_in_hub`'s).
+#[generate_trait]
+pub impl HubAssert of HubAssertTrait {
+    /// The caller is the administrator.
+    #[inline(always)]
+    fn assert_admin(caller: ContractAddress, admin: ContractAddress) {
+        assert(caller == admin, errors::NOT_ADMIN);
+    }
+
+    /// A new administrator is not the zero address.
+    #[inline(always)]
+    fn assert_admin_not_zero(admin: ContractAddress) {
+        assert(admin.is_non_zero(), errors::ZERO_ADMIN);
+    }
+
+    /// The caller is the registered `Instances`.
+    #[inline(always)]
+    fn assert_instances(caller: ContractAddress, instances: ContractAddress) {
+        assert(caller == instances, errors::NOT_INSTANCES);
+    }
+}
 
 /// The region whose town a new adventurer starts in (D-144: region 1's town, read from the
 /// registry's `REGION` record; design/01, design/09).
@@ -156,52 +184,44 @@ pub trait IHubAdmin<T> {
 
 #[starknet::contract]
 pub mod Hub {
-    use core::num::traits::Zero;
-    use grimworld_logic::content::{GATE, ITEM, MODIFIER, REGION, SKILL, exists};
+    use grimworld_logic::content::{GATE, REGION, exists};
     use grimworld_logic::interface::{
         IFlattenLibraryDispatcherTrait, IFlattenLibraryLibraryDispatcher, IInstanceEntryDispatcher,
         IInstanceEntryDispatcherTrait, IRegistryReadDispatcher, IRegistryReadDispatcherTrait,
-        IResults, Results, facts,
+        IResults, Results,
     };
-    use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord, errors as gate_errors};
-    use grimworld_logic::models::item::ItemTrait;
+    use grimworld_logic::models::gate::{Gate, GateAssert, GateRecord};
     use grimworld_logic::models::region::{Region, RegionRecord};
-    use grimworld_logic::models::skill::SkillTrait;
-    use grimworld_logic::packing::{Bitmap, Counter, Lanes32, unpack_lanes32};
+    use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
     use grimworld_logic::professions::ProfessionAssert;
-    use grimworld_logic::snapshot::Worn;
     use grimworld_logic::types::{InstanceId, Outcome};
-    use starknet::storage::{
-        Map, StorageAsPath, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
-        StoragePointerWriteAccess,
-    };
-    use starknet::storage_access::{StorageBaseAddress, Store, StorePacking};
-    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
+    use starknet::storage::Map;
+    use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
-    use crate::models::account::{
-        Account, AccountAssert, AccountRecord, AccountRecordTrait, AdventurerListTrait,
-        IDS_PER_PAGE, NEW_RECORD, PACK, RECORD_WORD, owner_key,
-    };
+    use crate::models::account::{Account, AccountAssert, OwnerTrait};
     use crate::models::adventurer::{
-        Adventurer, AdventurerAssert, AdventurerCoreTrait, AdventurerPlaceTrait, BELT_WORD,
-        BUILD_WORD, BeltAssert, BeltTrait, Build, BuildAssert, BuildTrait, CORE_WORD, EMPTY_LANES,
-        EQUIPPED_WORD, EquippedAssert, KnownSkillsTrait, NAME_WORD, NEW_BUILD, NO_ELITE, PLACE_WORD,
+        Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
+        BuildTrait, EquippedAssert,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
-        Gold, Grimoire, Item, ItemBase, ItemBaseAssert, ItemBaseTrait, ItemMods, ItemModsTrait,
-        PERSONALISED, RiftBoard,
+        Equipment, EquipmentTrait, Gold, GoldTrait, Grimoire, Item, RiftBoard,
     };
     use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
-    use crate::store::StoreTrait;
+    use crate::models::stored_build::StoredBuildTrait;
+    use crate::models::stored_core::{StoredCore, StoredCoreTrait};
+    use crate::models::stored_place::{StoredPlace, StoredPlaceAssert, StoredPlaceTrait};
+    use crate::models::stored_record::StoredRecordTrait;
+    use crate::store::HubStoreTrait;
     use crate::types::results::{ResultsAssert, ResultsTrait};
-    use super::{NOT_IMPLEMENTED, NOT_INSTANCES, START_REGION, VERSION};
+    use super::{HubAssert, NOT_IMPLEMENTED, START_REGION, VERSION};
 
     /// docs/architecture/ENG-01-interfaces.md, *Hub storage*. quiver's components (quests,
-    /// achievements) add their own storage when ARC's packages are embedded.
+    /// achievements) add their own storage when ARC's packages are embedded. Read and written only
+    /// through the store (`crate::store::HubStoreTrait`).
     #[storage]
     pub struct Storage {
         pub admin: ContractAddress,
@@ -269,14 +289,7 @@ pub mod Hub {
         market: ContractAddress,
         fate: ContractAddress,
     ) {
-        self.admin.write(admin);
-        self.registry.write(registry);
-        self.instances.write(instances);
-        self.market.write(market);
-        self.fate.write(fate);
-        self.next_account.write(Counter { value: 1 });
-        self.next_adventurer.write(Counter { value: 1 });
-        self.next_item.write(Counter { value: 1 });
+        self.initialize(admin, registry, instances, market, fate);
     }
 
     #[abi(embed_v0)]
@@ -285,14 +298,10 @@ pub mod Hub {
         /// account's two words and `account_of[caller]` new, `next_account` overwritten.
         fn register(ref self: ContractState) -> u32 {
             let caller = get_caller_address();
-            AccountAssert::assert_no_account(self.account_of.entry(caller).read());
-            let next = self.next_account.read().value;
-            let account_id: u32 = next.try_into().unwrap();
-            self.next_account.write(Counter { value: next + 1 });
-            let account = self.accounts.entry(account_id);
-            account.owner.write(caller);
-            account.as_ptr().__storage_pointer_address__.set_word(RECORD_WORD, NEW_RECORD);
-            self.account_of.entry(caller).write(account_id);
+            AccountAssert::assert_no_account(self.get_account_id(caller));
+            let account_id = self.new_account_id();
+            self.set_account(account_id, caller, StoredRecordTrait::new());
+            self.set_account_id(caller, account_id);
             account_id
         }
 
@@ -302,37 +311,21 @@ pub mod Hub {
         /// of seven, ENG-01 §4.5).
         fn set_account_owner(ref self: ContractState, account_id: u32, owner: ContractAddress) {
             let caller = get_caller_address();
-            let account = self.accounts.entry(account_id);
-            AccountAssert::assert_transfer(
-                account.owner.read(), caller, owner, self.account_of.entry(owner).read(),
-            );
-            account.owner.write(owner);
-            self.account_of.entry(owner).write(account_id);
-            self.account_of.entry(caller).write(0);
+            let (current, record) = self.get_account(account_id);
+            AccountAssert::assert_transfer(current, caller, owner, self.get_account_id(owner));
+            self.set_owner(account_id, owner);
+            self.set_account_id(owner, account_id);
+            self.set_account_id(caller, 0);
 
-            let record = account.as_ptr().__storage_pointer_address__.word(RECORD_WORD);
-            let (_, count) = AccountRecordTrait::counts(record);
+            let (_, count) = record.counts();
             if count == 0 {
                 return;
             }
-            let instances = IInstanceEntryDispatcher { contract_address: self.instances.read() };
-            let mut ids = Lanes32 { lanes: [0; 7] };
-            let mut i: u8 = 0;
-            while i != count {
-                let (page, lane) = DivRem::div_rem(i, IDS_PER_PAGE.try_into().unwrap());
-                if lane == 0 {
-                    ids = self.account_adventurers.entry((account_id, page)).read();
+            let instances = IInstanceEntryDispatcher { contract_address: self.get_instances() };
+            for adventurer_id in self.get_adventurer_ids(account_id, count) {
+                if self.get_place(*adventurer_id).is_inside() {
+                    instances.set_controller(*adventurer_id, owner);
                 }
-                let adventurer_id = ids.get(lane);
-                let base = self
-                    .adventurers
-                    .entry(adventurer_id)
-                    .as_ptr()
-                    .__storage_pointer_address__;
-                if AdventurerPlaceTrait::is_inside(base.word(PLACE_WORD)) {
-                    instances.set_controller(adventurer_id, owner);
-                }
-                i += 1;
             }
         }
 
@@ -340,43 +333,22 @@ pub mod Hub {
         /// registry (D-144: one `record` call), unlocked, at level 1, rank Wood.
         /// Writes (ENG-01 §9.3): the adventurer's six words new, its lane of the account's list
         /// (new on a page's first lane), the account's record and `next_adventurer` overwritten.
-        /// The words are written as stored, without the packers (pinned by `test_stored_words`).
         fn create_adventurer(ref self: ContractState, name: felt252, profession: u8) -> u32 {
-            let account_id = self.account_of.entry(get_caller_address()).read();
+            let account_id = self.get_account_id(get_caller_address());
             AccountAssert::assert_has_account(account_id);
             AdventurerAssert::assert_valid_name(name);
             ProfessionAssert::assert_playable(profession);
-            let account = self.accounts.entry(account_id).as_ptr().__storage_pointer_address__;
-            let record = account.word(RECORD_WORD);
-            let (slots, count) = AccountRecordTrait::counts(record);
+            let record = self.get_account_record(account_id);
+            let (slots, count) = record.counts();
             AccountAssert::assert_free_slot(slots, count);
 
-            let next = self.next_adventurer.read().value;
-            let adventurer_id: u32 = next.try_into().unwrap();
-            self.next_adventurer.write(Counter { value: next + 1 });
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            base.set_word(CORE_WORD, AdventurerCoreTrait::new(account_id, profession));
-            base.set_word(PLACE_WORD, AdventurerPlaceTrait::new(self.start_hub()));
-            base.set_word(BUILD_WORD, NEW_BUILD);
-            base.set_word(BELT_WORD, EMPTY_LANES);
-            base.set_word(EQUIPPED_WORD, EMPTY_LANES);
-            base.set_word(NAME_WORD, name);
-
-            // The list is compact: the lanes from its length on are 0, so the new id is added to
-            // its lane, and a page's first lane is written without reading the page.
-            let (page, lane) = DivRem::div_rem(count, IDS_PER_PAGE.try_into().unwrap());
-            let list = self
-                .account_adventurers
-                .entry((account_id, page))
-                .as_ptr()
-                .__storage_pointer_address__;
-            let ids = if lane == 0 {
-                EMPTY_LANES
-            } else {
-                list.word(0)
-            };
-            list.set_word(0, ids + adventurer_id.into() * AdventurerListTrait::unit(lane));
-            account.set_word(RECORD_WORD, AccountRecordTrait::with_adventurer(record));
+            let adventurer_id = self.new_adventurer_id();
+            let (core, place, build) = AdventurerTrait::new(
+                account_id, profession, self.start_hub(),
+            );
+            self.set_adventurer(adventurer_id, core, place, build, name);
+            self.add_adventurer_id(account_id, count, adventurer_id);
+            self.set_account_record(account_id, record.with_adventurer());
             adventurer_id
         }
 
@@ -390,75 +362,20 @@ pub mod Hub {
         /// account has seven adventurers or fewer).
         fn delete_adventurer(ref self: ContractState, adventurer_id: u32) {
             let (account_id, core, _) = self.owned_in_hub(adventurer_id);
-            let (_, _, pack_lanes) = AdventurerCoreTrait::fields(core);
-            let pack_page = self
-                .packs
-                .entry((adventurer_id, 0))
-                .as_ptr()
-                .__storage_pointer_address__;
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            let gold = self
-                .gold
-                .entry(owner_key(PACK, adventurer_id))
-                .as_ptr()
-                .__storage_pointer_address__;
+            let (_, _, pack_lanes) = core.fields();
             AdventurerAssert::assert_emptied(
-                pack_lanes, pack_page.word(0), base.word(EQUIPPED_WORD), gold.word(0),
+                pack_lanes,
+                @self.get_pack_page(adventurer_id, 0),
+                @self.get_equipped(adventurer_id),
+                @self.get_gold(OwnerTrait::pack(adventurer_id)),
             );
-
-            // The swap removal: the last id moves into the hole, the last lane is cleared. Bound:
-            // the account's adventurers.
-            let account = self.accounts.entry(account_id).as_ptr().__storage_pointer_address__;
-            let record = account.word(RECORD_WORD);
-            let (_, count) = AccountRecordTrait::counts(record);
-            let last = count - 1;
-            let per_page: NonZero<u8> = IDS_PER_PAGE.try_into().unwrap();
-            let (last_page, last_lane) = DivRem::div_rem(last, per_page);
-            let last_list = self
-                .account_adventurers
-                .entry((account_id, last_page))
-                .as_ptr()
-                .__storage_pointer_address__;
-            let last_word = last_list.word(0);
-            let last_ids = unpack_lanes32(last_word);
-            let last_id = last_ids.get(last_lane);
-            let mut last_new = last_word - last_id.into() * AdventurerListTrait::unit(last_lane);
-            if last_id != adventurer_id {
-                let moved: felt252 = last_id.into() - adventurer_id.into();
-                let mut i: u8 = 0;
-                let mut ids = last_ids;
-                let mut list = last_list;
-                let mut list_word = last_word;
-                loop {
-                    assert(i != last, 'not in the account list');
-                    let (page, lane) = DivRem::div_rem(i, per_page);
-                    if lane == 0 && page != last_page {
-                        list = self
-                            .account_adventurers
-                            .entry((account_id, page))
-                            .as_ptr()
-                            .__storage_pointer_address__;
-                        list_word = list.word(0);
-                        ids = unpack_lanes32(list_word);
-                    } else if lane == 0 {
-                        ids = last_ids;
-                    }
-                    if ids.get(lane) == adventurer_id {
-                        let delta = moved * AdventurerListTrait::unit(lane);
-                        if page == last_page {
-                            last_new += delta;
-                        } else {
-                            list.set_word(0, list_word + delta);
-                        }
-                        break;
-                    }
-                    i += 1;
-                }
-            }
-            last_list.set_word(0, last_new);
-            account.set_word(RECORD_WORD, AccountRecordTrait::without_adventurer(record));
-            base.set_word(CORE_WORD, AdventurerCoreTrait::deleted(core));
+            let record = self.get_account_record(account_id);
+            let (_, count) = record.counts();
+            self.remove_adventurer_id(account_id, count, adventurer_id);
+            self.set_account_record(account_id, record.without_adventurer());
+            self.set_core(adventurer_id, core.deleted());
         }
+
         /// The build in one call (design/03; ENG-01 §4.3), in a hub (the build is locked inside),
         /// every rule checked before anything is written. The bar: each skill known, in the
         /// registry, of the primary or the secondary profession, none twice, at most one elite
@@ -484,138 +401,53 @@ pub mod Hub {
             equipped: felt252,
         ) {
             let (_, core, _) = self.owned_in_hub(adventurer_id);
-            let (_, level, rank, primary) = AdventurerCoreTrait::profile(core);
-            let secondary = AdventurerCoreTrait::secondary(core);
-            let build_word = BuildAssert::assert_layout(build);
-            let belt_word = BeltAssert::assert_layout(belt);
-            let equipped_word = EquippedAssert::assert_layout(equipped);
-
-            let value: Build = StorePacking::unpack(build_word);
+            let (_, level, rank, primary) = core.profile();
+            let secondary = core.secondary();
+            let sent = StoredBuildTrait::new(build, belt, equipped);
+            let value = sent.build();
             value.assert_attributes(primary, secondary, level, rank);
             value.assert_distinct();
-            let (items, counts) = BeltTrait::read(belt_word);
+            let (items, counts) = sent.belt();
             BeltAssert::assert_counts(items, counts);
-            let entities = unpack_lanes32(equipped_word).lanes.span();
+            let entities = sent.equipped().lanes.span();
             EquippedAssert::assert_distinct(entities);
 
-            // What the registry is asked, in order: the bar's skills, the belt's distinct items.
-            let mut requests: Array<(u8, u32)> = array![];
-            let mut known: Array<bool> = array![];
-            let (mut page, mut page_word) = (0_u8, 0);
-            let mut read = false;
-            for skill in value.bar.span() {
-                let skill = *skill;
-                if skill == 0 {
-                    continue;
-                }
-                let (at, bit) = KnownSkillsTrait::at(skill);
-                if !read || at != page {
-                    page = at;
-                    page_word = self
-                        .known_skills
-                        .entry((adventurer_id, page))
-                        .as_ptr()
-                        .__storage_pointer_address__
-                        .word(0);
-                    read = true;
-                }
-                known.append(KnownSkillsTrait::knows(page_word, bit));
-                requests.append((SKILL, skill.into()));
+            // What the registry is asked, in order: the bar's skills, the belt's distinct items,
+            // the distinct modifiers worn.
+            let known = self.knows_skills(adventurer_id, value.bar.span());
+            let mut requests = value.request();
+            let potions = BeltTrait::request(items, ref requests);
+            let pack = OwnerTrait::pack(adventurer_id);
+            for (item, count) in BalanceTrait::merge(items, counts) {
+                BeltAssert::assert_held(self.get_balance(pack, item), count);
             }
-            let skills = requests.len();
-            let slots = items.span();
-            for i in 0..4_u32 {
-                let item = *slots[i];
-                if item == 0 {
-                    continue;
-                }
-                let mut first = true;
-                for j in 0..i {
-                    if *slots[j] == item {
-                        first = false;
-                    }
-                }
-                if first {
-                    requests.append((ITEM, item));
-                }
-            }
-            let belt_items = requests.len();
-            let pack = owner_key(PACK, adventurer_id);
-            for entry in BalanceTrait::merge(items, counts) {
-                let (item, count) = entry;
-                let (page, lane) = BalanceTrait::at(item);
-                let word = self
-                    .balances
-                    .entry((pack, page))
-                    .as_ptr()
-                    .__storage_pointer_address__
-                    .word(0);
-                BeltAssert::assert_held(BalanceTrait::amount(word, lane), count);
-            }
-            let (bases, worn, modifiers, personalised) = self.equipment(entities);
-            let mut two_handed = false;
-            for (lane, item) in bases.span() {
-                item.assert_wearable(adventurer_id);
-                EquippedAssert::assert_slot(*item.slot, *lane);
-                if *lane == 0 {
-                    two_handed = item.is_two_handed();
-                }
-            }
-            EquippedAssert::assert_hands(two_handed, *entities[1]);
-            for id in modifiers.span() {
-                requests.append((MODIFIER, (*id).into()));
-            }
+            let equipment = self.get_equipment(entities);
+            EquippedAssert::assert_worn(@equipment, adventurer_id, entities);
+            equipment.request(ref requests);
 
             // One registry call, even for an empty build: the inputs version the snapshot is
             // computed under (D-168 2, D-169).
             let (_, inputs, parts) = IRegistryReadDispatcher {
-                contract_address: self.registry.read(),
+                contract_address: self.get_registry(),
             }
                 .bundle(requests.span());
-            let mut at: u32 = 0;
-            let mut elite = NO_ELITE;
-            let mut slot: u8 = 0;
-            let mut k: u32 = 0;
-            for skill in value.bar.span() {
-                if *skill != 0 {
-                    let part = *parts[at];
-                    let (profession, is_elite) = SkillTrait::profile(part);
-                    BuildAssert::assert_skill(*known[k], part != 0, profession, primary, secondary);
-                    if is_elite {
-                        BuildAssert::assert_one_elite(elite);
-                        elite = slot;
-                    }
-                    at += 2;
-                    k += 1;
-                }
-                slot += 1;
-            }
-            value.assert_elite_slot(elite);
-            for _ in skills..belt_items {
-                let part = *parts[at];
-                BeltAssert::assert_potion(part != 0, ItemTrait::class_of(part));
-                at += 1;
-            }
+            let at = value.assert_bar(parts, known.span(), primary, secondary);
+            let modifier_parts = BeltAssert::assert_potions(parts, at, potions);
 
             // The snapshot's flattening, once, in `FlattenLibrary` (D-168), with every check of
             // design/20's capacity proof (D-160): a build it refuses is refused here.
+            let Equipment { bases: _, worn, modifiers, personalised } = equipment;
             let loadout = value.loadout(level, primary, personalised, items, counts);
             let (stats, bar, kit) = IFlattenLibraryLibraryDispatcher {
-                class_hash: self.flatten.read(),
+                class_hash: self.get_flatten(),
             }
-                .words(loadout, worn.span(), modifiers.span(), parts.slice(at, parts.len() - at));
+                .words(loadout, worn.span(), modifiers.span(), modifier_parts);
 
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            base.set_word(BUILD_WORD, build_word);
-            base.set_word(BELT_WORD, belt_word);
-            base.set_word(EQUIPPED_WORD, equipped_word);
-            StoreTrait::set_snapshot(
-                self.snapshots.entry(adventurer_id),
-                StoredSnapshotTrait::new(
-                    stats, bar, kit, StoredSnapshotTrait::epoch(inputs, self.rules().value),
-                ),
-            );
+            self.set_adventurer_build(adventurer_id, sent);
+            let epoch = StoredSnapshotTrait::epoch(inputs, self.get_rules_epoch().value);
+            self.set_snapshot(adventurer_id, StoredSnapshotTrait::new(stats, bar, kit, epoch));
         }
+
         /// Through a gate of the hub the adventurer is in (design/02 *Entering*, ENG-01 §6): the
         /// ownership check, the gate from the registry and its requirements, the stored snapshot
         /// checked fresh, the belt's reserve debited from the pack, then `Instances.create`, which
@@ -632,32 +464,32 @@ pub mod Hub {
         /// (E-14).
         fn enter(ref self: ContractState, adventurer_id: u32, gate: u16) -> InstanceId {
             let (_, core, place) = self.owned_in_hub(adventurer_id);
-            let (_, hub, _, _) = AdventurerPlaceTrait::fields(place);
-            let (_, level, rank, _) = AdventurerCoreTrait::profile(core);
+            let (_, hub, _, _) = place.fields();
+            let (_, level, rank, _) = core.profile();
             let (_, inputs, parts) = IRegistryReadDispatcher {
-                contract_address: self.registry.read(),
+                contract_address: self.get_registry(),
             }
                 .bundle(array![(GATE, gate.into())].span());
-            assert(exists(parts), gate_errors::NONE);
+            AdventurerAssert::assert_gate(exists(parts));
             let record: Gate = GateRecord::unpack(parts);
             record.assert_enterable(hub, rank);
 
-            let stored = StoreTrait::get_snapshot(self.snapshots.entry(adventurer_id));
-            let epoch = StoredSnapshotTrait::epoch(inputs, self.rules().value);
+            let stored = self.get_snapshot(adventurer_id);
+            let epoch = StoredSnapshotTrait::epoch(inputs, self.get_rules_epoch().value);
             StoredSnapshotAssert::assert_fresh(stored.kit, epoch);
             StoredSnapshotAssert::assert_level(stored.stats, level);
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            let (items, counts) = BeltTrait::read(base.word(BELT_WORD));
+            let (items, counts) = BeltTrait::read(@self.get_belt(adventurer_id));
             let snapshot = stored.words(epoch, counts);
 
             let reserve = BalanceTrait::merge(items, counts);
-            let (_, emptied) = self.change_pack(adventurer_id, reserve.span(), false);
+            let (_, emptied) = self
+                .change_balances(OwnerTrait::pack(adventurer_id), reserve.span(), false);
             if emptied != 0 {
-                base.set_word(CORE_WORD, AdventurerCoreTrait::with_pack_lanes(core, 0, emptied));
+                self.set_core(adventurer_id, core.with_pack_lanes(0, emptied));
             }
-            let instance = IInstanceEntryDispatcher { contract_address: self.instances.read() }
+            let instance = IInstanceEntryDispatcher { contract_address: self.get_instances() }
                 .create(adventurer_id, get_caller_address(), gate, snapshot, array![].span());
-            base.set_word(PLACE_WORD, AdventurerPlaceTrait::entered(place, instance));
+            self.set_place(adventurer_id, place.entered(instance));
             self.emit(AdventurerLocated { hub: 0, adventurer: adventurer_id });
             instance
         }
@@ -668,13 +500,8 @@ pub mod Hub {
         /// Writes `place`; no registry read (ENG-01 §10: 0 calls).
         fn travel(ref self: ContractState, adventurer_id: u32, hub: u16) {
             let (_, _, place) = self.owned_in_hub(adventurer_id);
-            AdventurerAssert::assert_unlocked(place, hub);
-            self
-                .adventurers
-                .entry(adventurer_id)
-                .as_ptr()
-                .__storage_pointer_address__
-                .set_word(PLACE_WORD, AdventurerPlaceTrait::located(place, hub));
+            place.assert_unlocked(hub);
+            self.set_place(adventurer_id, place.located(hub));
             self.emit(AdventurerLocated { hub, adventurer: adventurer_id });
         }
         fn accept_quest(ref self: ContractState, adventurer_id: u32, quest: u32) {
@@ -750,37 +577,19 @@ pub mod Hub {
     impl HubViewsImpl of super::IHubViews<ContractState> {
         /// 0: the address owns no account.
         fn account_of(self: @ContractState, owner: ContractAddress) -> u32 {
-            self.account_of.entry(owner).read()
+            self.get_account_id(owner)
         }
         /// The record as stored (0 for an account that does not exist), and the ids of its
         /// adventurers not deleted, in the list's order.
         fn account(self: @ContractState, account_id: u32) -> (ContractAddress, felt252, Span<u32>) {
-            let account = self.accounts.entry(account_id);
-            let base = account.as_ptr().__storage_pointer_address__;
-            let word = base.word(RECORD_WORD);
-            let record: AccountRecord = StorePacking::unpack(word);
-            let mut ids: Array<u32> = array![];
-            let mut page_ids = Lanes32 { lanes: [0; 7] };
-            let mut i: u8 = 0;
-            while i != record.adventurers {
-                let (page, lane) = DivRem::div_rem(i, IDS_PER_PAGE.try_into().unwrap());
-                if lane == 0 {
-                    page_ids = self.account_adventurers.entry((account_id, page)).read();
-                }
-                ids.append(page_ids.get(lane));
-                i += 1;
-            }
-            (account.owner.read(), word, ids.span())
+            let (owner, record) = self.get_account(account_id);
+            let (_, count) = record.counts();
+            (owner, record.word, self.get_adventurer_ids(account_id, count))
         }
         /// The six words as stored (six 0 for an id never created); a deleted adventurer keeps
         /// its words, `DELETED` in `core.status`.
         fn adventurer(self: @ContractState, adventurer_id: u32) -> Span<felt252> {
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            let mut words: Array<felt252> = array![];
-            for offset in 0..6_u8 {
-                words.append(base.word(offset));
-            }
-            words.span()
+            self.get_adventurer_words(adventurer_id)
         }
         fn known_skills(self: @ContractState, adventurer_id: u32) -> Span<felt252> {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -830,63 +639,42 @@ pub mod Hub {
         /// the pack pages (at most 4 for the belt, overwritten), `core` when a lane fills or
         /// experience changes, `place` when it closes or moves, `gold` when gold comes.
         fn report(ref self: ContractState, results: Results) {
-            assert(get_caller_address() == self.instances.read(), NOT_INSTANCES);
+            HubAssert::assert_instances(get_caller_address(), self.get_instances());
             results.assert_settled();
             let adventurer_id = *results.contributors[0];
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            let place = base.word(PLACE_WORD);
-            AdventurerAssert::assert_in_instance(place, results.instance_id);
+            let place = self.get_place(adventurer_id);
+            place.assert_in_instance(results.instance_id);
 
-            let mut credit = if results.closes() {
-                let (items, _) = BeltTrait::read(base.word(BELT_WORD));
-                BalanceTrait::merge(items, results.belt)
+            let belt = if results.closes() {
+                let (items, _) = BeltTrait::read(@self.get_belt(adventurer_id));
+                items
             } else {
-                array![]
+                [0; 4]
             };
-            for balance in results.balances {
-                credit.append(*balance);
-            }
-            let (filled, _) = self.change_pack(adventurer_id, credit.span(), true);
+            let credit = results.credit(belt);
+            let pack = OwnerTrait::pack(adventurer_id);
+            let (filled, _) = self.change_balances(pack, credit.span(), true);
             if filled != 0 || results.experience != 0 {
-                let core = AdventurerCoreTrait::with_pack_lanes(base.word(CORE_WORD), filled, 0);
-                base
-                    .set_word(
-                        CORE_WORD, AdventurerCoreTrait::with_experience(core, results.experience),
-                    );
+                let core = self.get_core(adventurer_id).with_pack_lanes(filled, 0);
+                self.set_core(adventurer_id, core.with_experience(results.experience));
             }
             if results.gold != 0 {
-                let entry = self.gold.entry(owner_key(PACK, adventurer_id));
-                entry.write(Gold { amount: entry.read().amount + results.gold });
+                self.set_gold(pack, self.get_gold(pack).credited(results.gold));
             }
             if results.experience != 0 {
                 for other in results.contributors.slice(1, results.contributors.len() - 1) {
-                    let other = self.adventurers.entry(*other).as_ptr().__storage_pointer_address__;
-                    other
-                        .set_word(
-                            CORE_WORD,
-                            AdventurerCoreTrait::with_experience(
-                                other.word(CORE_WORD), results.experience,
-                            ),
-                        );
+                    let core = self.get_core(*other);
+                    self.set_core(*other, core.with_experience(results.experience));
                 }
             }
 
             match results.outcome {
                 Outcome::Open => {},
-                Outcome::Moved => base
-                    .set_word(PLACE_WORD, AdventurerPlaceTrait::moved(place, results.next)),
+                Outcome::Moved => self.set_place(adventurer_id, place.moved(results.next)),
                 _ => {
-                    let (_, _, last_hub, _) = AdventurerPlaceTrait::fields(place);
-                    let hub = if results.hub != 0 {
-                        results.hub
-                    } else {
-                        last_hub
-                    };
-                    let mut located = AdventurerPlaceTrait::located(place, hub);
-                    if results.facts & facts::HUB_REACHED != 0 {
-                        located = AdventurerPlaceTrait::unlocked(located, results.location);
-                    }
-                    base.set_word(PLACE_WORD, located);
+                    let hub = place.return_hub(results.hub);
+                    let returned = place.returned(hub, results.reaches_hub(), results.location);
+                    self.set_place(adventurer_id, returned);
                     self.emit(AdventurerLocated { hub, adventurer: adventurer_id });
                 },
             }
@@ -950,302 +738,53 @@ pub mod Hub {
             fate: ContractAddress,
             flatten: ClassHash,
         ) {
-            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
-            let state = @self;
+            HubAssert::assert_admin(get_caller_address(), self.get_administrator());
             let moves = RulesEpochTrait::moves(
-                flatten,
-                StoreTrait::get_class_hash(state.flatten.as_path()),
-                registry,
-                StoreTrait::get_address(state.registry.as_path()),
+                flatten, self.get_flatten(), registry, self.get_registry(),
             );
-            self.registry.write(registry);
-            self.instances.write(instances);
-            self.market.write(market);
-            self.fate.write(fate);
-            self.flatten.write(flatten);
+            self.set_registered(registry, instances, market, fate, flatten);
             if moves {
-                StoreTrait::set_rules_epoch(self.rules_epoch.as_path(), self.rules().next());
+                self.set_rules_epoch(self.get_rules_epoch().next());
             }
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
-            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
-            assert(admin.is_non_zero(), super::ZERO_ADMIN);
-            self.admin.write(admin);
+            HubAssert::assert_admin(get_caller_address(), self.get_administrator());
+            HubAssert::assert_admin_not_zero(admin);
+            self.set_administrator(admin);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
     }
 
-    /// One stored word of a record, read or written as stored, without unpacking (docs/CAIRO.md
-    /// §1): the entrypoints below change a few fields of a record by arithmetic. Until the store
-    /// of D-143 (ARC-06, ENG-R1) takes over every access to storage.
-    #[generate_trait]
-    impl WordImpl of WordTrait {
-        /// Word `offset` of the record at `self`.
-        fn word(self: StorageBaseAddress, offset: u8) -> felt252 {
-            Store::<felt252>::read_at_offset(0, self, offset).unwrap_syscall()
-        }
-
-        fn set_word(self: StorageBaseAddress, offset: u8, value: felt252) {
-            Store::<felt252>::write_at_offset(0, self, offset, value).unwrap_syscall()
-        }
-    }
-
     #[generate_trait]
     pub impl InternalImpl of InternalTrait {
-        /// The rules epoch, through the store (D-169): one read.
-        #[inline(always)]
-        fn rules(self: @ContractState) -> RulesEpoch {
-            StoreTrait::get_rules_epoch(self.rules_epoch.as_path())
-        }
-
         /// The check of every entrypoint that names an adventurer (ADR-0007, *Access control*;
-        /// ENG-01 §1.2): three reads (`core`, the account's owner, `place`), then
+        /// ENG-01 §1.2): three reads (`core` and `place`, the account's owner), then
         /// `AdventurerAssert::assert_owned_in_hub`, one refusal per case. Returns `(account id,
-        /// core, place)`, the two words as stored, for the entrypoint to unpack what it needs.
-        fn owned_in_hub(self: @ContractState, adventurer_id: u32) -> (u32, felt252, felt252) {
-            let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
-            let core = base.word(CORE_WORD);
-            let (account_id, status, _) = AdventurerCoreTrait::fields(core);
-            let owner = self.accounts.entry(account_id).owner.read();
-            let place = base.word(PLACE_WORD);
+        /// core, place)`.
+        fn owned_in_hub(
+            self: @ContractState, adventurer_id: u32,
+        ) -> (u32, StoredCore, StoredPlace) {
+            let (core, place) = self.get_core_place(adventurer_id);
+            let (account_id, status, _) = core.fields();
+            let owner = self.get_owner(account_id);
             AdventurerAssert::assert_owned_in_hub(
-                account_id, status, place, owner, get_caller_address(),
+                account_id, status, @place, owner, get_caller_address(),
             );
             (account_id, core, place)
-        }
-
-        /// The items worn (`entities`, `equipped`'s lanes): each one's lane and `ItemBase`, for
-        /// the equipment's checks, and as the flattening reads it (`Worn`, with its `ItemMods`:
-        /// two reads an item); the distinct modifier ids they hold in the order met; whether the
-        /// weapon is personalised (`ItemBase.flags`). Bound: 7 lanes, 5 modifiers an item.
-        fn equipment(
-            self: @ContractState, entities: Span<u32>,
-        ) -> (Array<(u32, ItemBase)>, Array<Worn>, Array<u16>, bool) {
-            let mut bases = array![];
-            let mut worn = array![];
-            let mut modifiers: Array<u16> = array![];
-            let mut personalised = false;
-            for lane in 0..7_u32 {
-                let entity = *entities[lane];
-                if entity == 0 {
-                    continue;
-                }
-                let base = self.items.entry(entity).as_ptr().__storage_pointer_address__;
-                let item: ItemBase = StorePacking::unpack(base.word(0));
-                let mods: ItemMods = StorePacking::unpack(base.word(1));
-                let item_worn = mods.worn(lane.try_into().unwrap(), item.slot);
-                for id in item_worn.ids.span() {
-                    let id = *id;
-                    if id == 0 {
-                        continue;
-                    }
-                    let mut seen = false;
-                    for other in modifiers.span() {
-                        if *other == id {
-                            seen = true;
-                        }
-                    }
-                    if !seen {
-                        modifiers.append(id);
-                    }
-                }
-                if lane == 0 {
-                    personalised = item.flags & PERSONALISED != 0;
-                }
-                bases.append((lane, item));
-                worn.append(item_worn);
-            }
-            (bases, worn, modifiers, personalised)
         }
 
         /// Region 1's town (D-144), read from the registry: one `record` call. Refuses when the
         /// region is missing; a town id of 64 or more when it is placed (`unlocked` holds bits
         /// 0-63).
         fn start_hub(self: @ContractState) -> u16 {
-            let parts = IRegistryReadDispatcher { contract_address: self.registry.read() }
+            let parts = IRegistryReadDispatcher { contract_address: self.get_registry() }
                 .record(REGION, START_REGION);
             AdventurerAssert::assert_start_region(exists(parts));
             let region: Region = RegionRecord::unpack(parts);
             region.town
         }
-
-        /// Credits (`credit`) or debits the adventurer's pack by `(item, amount)` changes, each
-        /// page read once and written once, however many changes it holds (at most 12: a belt of
-        /// 4 and 8 balances, ENG-01 §4.5). Returns `(lanes filled, lanes emptied)` for
-        /// `core.pack_lanes`. Refuses a debit the pack cannot pay.
-        fn change_pack(
-            ref self: ContractState, adventurer_id: u32, changes: Span<(u32, u32)>, credit: bool,
-        ) -> (u16, u16) {
-            let owner = owner_key(PACK, adventurer_id);
-            let (mut filled, mut emptied) = (0_u16, 0_u16);
-            let count = changes.len();
-            for i in 0..count {
-                let (item, _) = *changes[i];
-                let (page, _) = BalanceTrait::at(item);
-                let mut first = true;
-                for j in 0..i {
-                    let (earlier, _) = *changes[j];
-                    let (earlier_page, _) = BalanceTrait::at(earlier);
-                    if earlier_page == page {
-                        first = false;
-                    }
-                }
-                if !first {
-                    continue;
-                }
-                let entry = self.balances.entry((owner, page)).as_ptr().__storage_pointer_address__;
-                let mut word = entry.word(0);
-                for j in i..count {
-                    let (other, amount) = *changes[j];
-                    let (other_page, lane) = BalanceTrait::at(other);
-                    if other_page != page {
-                        continue;
-                    }
-                    if credit {
-                        let (next, lane_filled) = BalanceTrait::credit(word, lane, amount);
-                        word = next;
-                        if lane_filled {
-                            filled += 1;
-                        }
-                    } else {
-                        let (next, lane_emptied) = BalanceTrait::debit(word, lane, amount);
-                        word = next;
-                        if lane_emptied {
-                            emptied += 1;
-                        }
-                    }
-                }
-                entry.set_word(0, word);
-            }
-            (filled, emptied)
-        }
-    }
-}
-
-/// The storage layout of `Hub` is what docs/architecture/ENG-01-interfaces.md says: every
-/// variable's name and keys, hence its address.
-#[cfg(test)]
-mod layout_tests {
-    use snforge_std::map_entry_address;
-    use starknet::storage::{StorageAsPointer, StoragePathEntry};
-    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
-    use super::Hub;
-
-    fn address_of(base: StorageBaseAddress) -> felt252 {
-        storage_address_from_base(base).into()
-    }
-
-    #[test]
-    // gas: raised, CBT-02e: the layout checks the snapshots' and flatten's addresses
-    #[available_gas(l2_gas: 285443)] // ceil(1.05 × 271850 measured)
-    fn test_hub_storage_addresses() {
-        let state = @Hub::contract_state_for_testing();
-        assert(
-            address_of(
-                state
-                    .account_of
-                    .entry(0x123_felt252.try_into().unwrap())
-                    .as_ptr()
-                    .__storage_pointer_address__,
-            ) == map_entry_address(selector!("account_of"), array![0x123].span()),
-            'account_of',
-        );
-        assert(
-            address_of(
-                state.accounts.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("accounts"), array![7].span()),
-            'accounts',
-        );
-        assert(
-            address_of(
-                state.account_adventurers.entry((7, 1)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("account_adventurers"), array![7, 1].span()),
-            'account_adventurers',
-        );
-        assert(
-            address_of(
-                state.adventurers.entry(9).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("adventurers"), array![9].span()),
-            'adventurers',
-        );
-        assert(
-            address_of(
-                state.known_skills.entry((9, 0)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("known_skills"), array![9, 0].span()),
-            'known_skills',
-        );
-        assert(
-            address_of(
-                state.counters.entry((9, 4)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("counters"), array![9, 4].span()),
-            'counters',
-        );
-        assert(
-            address_of(
-                state.account_counters.entry((7, 4)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("account_counters"), array![7, 4].span()),
-            'account_counters',
-        );
-        assert(
-            address_of(
-                state.grimoires.entry((9, 1)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("grimoires"), array![9, 1].span()),
-            'grimoires',
-        );
-        assert(
-            address_of(
-                state.balances.entry((0x100000009, 3)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("balances"), array![0x100000009, 3].span()),
-            'balances',
-        );
-        assert(
-            address_of(
-                state.gold.entry(0x200000007).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("gold"), array![0x200000007].span()),
-            'gold',
-        );
-        assert(
-            address_of(
-                state.items.entry(55).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("items"), array![55].span()),
-            'items',
-        );
-        assert(
-            address_of(
-                state.packs.entry((9, 2)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("packs"), array![9, 2].span()),
-            'packs',
-        );
-        assert(
-            address_of(
-                state.vaults.entry((7, 3)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("vaults"), array![7, 3].span()),
-            'vaults',
-        );
-        assert(
-            address_of(
-                state.rift_boards.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("rift_boards"), array![7].span()),
-            'rift_boards',
-        );
-        assert(
-            address_of(
-                state.snapshots.entry(9).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("snapshots"), array![9].span()),
-            'snapshots',
-        );
-        assert(
-            address_of(state.flatten.as_ptr().__storage_pointer_address__) == selector!("flatten"),
-            'flatten',
-        );
-        assert(
-            address_of(
-                state.rules_epoch.as_ptr().__storage_pointer_address__,
-            ) == selector!("rules_epoch"),
-            'rules_epoch',
-        );
     }
 }

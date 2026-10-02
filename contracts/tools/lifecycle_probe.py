@@ -42,6 +42,18 @@ never reads a Sepolia variable. From the repository root, after
 
     scripts/with-node.sh python3 contracts/tools/lifecycle_probe.py \
         > contracts/tools/lifecycle-probe-output.txt
+
+ENG-R1a (the event stream and the layout kept, AC-3): with `--stream <file>` the run also
+writes, as JSON, every transaction after `Hub`'s deployment in order (recorded or not): `Hub`'s
+storage writes (key, value) and every event of `Hub` (keys and data) and of `Instances` (its name's
+selector alone: its draws follow the transaction hashes, which follow the addresses), in emission
+order; then every key of `Hub`'s storage with its last value. The deployed addresses and
+`FlattenLibrary`'s class hash in a value are replaced by their names, so that two runs of different
+classes compare. `lifecycle-stream-before.json`, recorded on `main`'s code before ENG-R1a, is the
+stream the indexer reads and the storage `Hub` keeps: ENG-R1b and every later lot that touches
+`Hub`'s storage or events run `--expect` against it, and a change of it is a change of ENG-01's
+frozen events or layout (D-149). With `--expect <file>` it compares its stream with that file's and exits 1
+on the first difference.
 """
 import json
 import os
@@ -51,6 +63,8 @@ import sys
 import urllib.parse
 import urllib.request
 
+# ENG-R1a: `--stream <file>` writes the stream, `--expect <file>` compares it (see above).
+OPTIONS = dict(zip(sys.argv[1::2], sys.argv[2::2]))
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONTRACTS = os.path.dirname(HERE)
 URL = os.environ["NODE_URL"]
@@ -194,6 +208,33 @@ instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub,
 emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
       "flatten_class": flatten})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
+NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
+         int(instances, 16): "instances", int(flatten, 16): "flatten_class"}
+STREAM = []
+
+
+def named(value):
+    return NAMES.get(value, hex(value))
+
+
+def streamed(label, function, tx, receipt):
+    """ENG-R1a: `Hub`'s writes and the events of `tx`, in order, for `--stream`."""
+    trace = rpc("starknet_traceTransaction", {"transaction_hash": tx})
+    writes = []
+    for entry in (trace.get("state_diff") or {}).get("storage_diffs", []):
+        if int(entry["address"], 16) == int(hub, 16):
+            writes += sorted([hex(int(s["key"], 16)), named(int(s["value"], 16))]
+                             for s in entry["storage_entries"])
+    events = []
+    for event in receipt.get("events", []):
+        who = WATCHED.get(int(event["from_address"], 16))
+        if who == "hub":
+            events.append({"from": who, "keys": [named(int(k, 16)) for k in event["keys"]],
+                           "data": [named(int(d, 16)) for d in event["data"]]})
+        elif who == "instances":
+            events.append({"from": who, "name": event["keys"][0]})
+    STREAM.append({"label": label, "function": function,
+                   "status": receipt.get("execution_status"), "writes": writes, "events": events})
 
 
 def invoke(label, contract, function, *calldata, player=0, record=True):
@@ -202,6 +243,7 @@ def invoke(label, contract, function, *calldata, player=0, record=True):
                  "--contract-address", contract, "--function", function, *args)
     tx = field("Transaction Hash", out)
     receipt = rpc("starknet_getTransactionReceipt", {"transaction_hash": tx})
+    streamed(label, function, tx, receipt)
     changes = remember(tx)
     if not record:
         return receipt
@@ -344,3 +386,26 @@ for k, player in ((0, 3), (1, 1), (2, 2)):
 for adventurer in (2, 3):
     invoke("enter", hub, "enter", adventurer, 1, record=False)
 invoke("set_account_owner, 3 inside", hub, "set_account_owner", 1, 0x2000)
+
+# ENG-R1a (AC-3): the stream, and every key of `Hub`'s storage with its last value.
+if OPTIONS:
+    storage = sorted([hex(key), named(value)] for (address, key), value in KNOWN.items()
+                     if address == int(hub, 16))
+    stream = {"transactions": STREAM, "storage": storage}
+    if "--stream" in OPTIONS:
+        with open(OPTIONS["--stream"], "w") as out:
+            json.dump(stream, out, indent=1)
+            out.write("\n")
+    if "--expect" in OPTIONS:
+        with open(OPTIONS["--expect"]) as expected_file:
+            expected = json.load(expected_file)
+        for i, (a, b) in enumerate(zip(expected["transactions"], STREAM)):
+            if a != b:
+                sys.exit(f"lifecycle_probe: transaction {i} ({b['label']}) differs:\n"
+                         f"expected {json.dumps(a)}\nfound    {json.dumps(b)}")
+        if len(expected["transactions"]) != len(STREAM):
+            sys.exit("lifecycle_probe: not the same number of transactions")
+        if expected["storage"] != storage:
+            sys.exit("lifecycle_probe: Hub's storage differs")
+        emit({"stream": "equal", "transactions": len(STREAM),
+              "events": sum(len(t["events"]) for t in STREAM), "hub_keys": len(storage)})

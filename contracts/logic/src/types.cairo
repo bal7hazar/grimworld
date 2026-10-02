@@ -8,10 +8,14 @@ pub mod combat;
 pub mod effect;
 /// One hit: block, evasion, armor, damage (design/19 §5.5 steps 1–4, §5.6, CBT-03a).
 pub mod hit;
+/// What a source adds to the conditions it inflicts (design/19 §5.7, CBT-04).
+pub mod infliction;
 /// Passive effects (design/19 §4, CBT-01).
 pub mod passive;
 /// The state and content a world tick reads and writes (CBT-02).
 pub mod tick;
+/// The game's geometry on the window: sight, reach, arcs, facing, shapes (ENG-02).
+pub mod window;
 /// The world of a tick's library call, and the pipeline (CBT-02).
 pub mod world;
 

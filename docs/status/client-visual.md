@@ -1,7 +1,7 @@
 # Status — track CV (the client's visual work, on the owner's Mac)
 
-**2026-10-01 12:30 UTC** — written by the orchestrator of track CV,
-`[Fable 5.1] Orchestrateur CV (client visuel)`, a session on the VPS created by the project manager on
+**2026-10-01 15:25 UTC** — written by the orchestrator of track CV,
+`[Opus 5.5] Orchestrateur CV (client visuel)` (on Fable 5.1 until 14:00 UTC; the owner's rule puts every orchestrator on Opus 5.5), a session on the VPS created by the project manager on
 2026-10-01 to replace the Mac's orchestrator, silent since the pause of 2026-09-29. Mandate:
 [ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146, amended by D-149, D-151, D-152, D-153,
 D-162). Rewritten at each check-in; the project manager reads it like a track's `STATUS.md`.
@@ -14,17 +14,22 @@ IDX-01b). The track's priorities since the transition (D-162) are the two spikes
 R-2) and **SPK-13** (the compiler's non-reproducible builds, D-154, with D-164's CI/local fact). Both
 briefs are merged ([#242](https://github.com/bal7hazar/grimworld/pull/242)); both agents are started
 through `nexus run --require browser` (Opus 5.5, as the project manager's model policy says).
-**SPK-12 runs on the Mac; SPK-13, interrupted by the 4-hour job limit with its cause found, is resumed and queues behind it** (below). Codex is out until
-2026-10-04 13:36 UTC and **nobody waits for it** (owner's rule of 2026-10-01, via the Overseer): the
-review of a pull request is made by Claude Sonnet and every audit by Claude Opus 5.5, applied by Nexus
-from its release R2; until R2 is deployed an audit is held for the deployment.
+**SPK-12 runs on the Mac (the tick proved, the note being written); SPK-13, interrupted by the 4-hour job limit with its cause found (D-176 takes it), is resumed and queues behind it** (below). **Audits are the exception (D-177, owner's rule of 2026-10-01)**: the review of the pull request is
+the routine gate; an audit only for value, access control, randomness, a published interface, a cost or
+determinism only a measurement proves, a large refactoring, or a lot the owner asks to see. **Audits
+stopped: 0** (`nexus agents --all` lists none of this track, queued or past). **Planned audits dropped:
+2**, SPK-12's (cost, `[GPT-6-Astra]` then Opus 5.5) and SPK-13's (method, `[GPT-6-Sol]` then Opus 5.5):
+their measurements and SPK-13's single-thread pin test carry them, and the review reads the report (the
+project manager's reading). Each pull request says why an audit was asked or that none was needed.
+Reviews: Claude Sonnet while Codex has no quota.
 
 ## Tasks
 
 | ID | Task | Model | State |
 |---|---|---|---|
 | SPK-12 | **Client-side proving against L2 batches** (D-161, D-172): the segment model of S1, the cost side by side, the tick proved on the Mac with Stwo as `slingfall` does, a phone estimated, verification, the design consequences, a recommendation for the owner; [brief](../briefs/SPK-12-client-proving.md) | Opus 5.5 | **Running** on the Mac since 12:19:02 UTC, `grimworld/impl-spk-12`, account claude-b7r, class heavy (it takes the Mac's whole offer, raised by the owner to 8 CPU / 45 GB; the earlier `no_provider` wait was the heavy class not fitting 6 CPU, nexus #36, #39); branch `spike/spk-12-client-proving` |
-| SPK-13 | **Builds of the same sources that differ** (D-154, D-164): reproduce N times on the library at `310b5f1` and on `contracts/`, diff the Sierra, minimise, tell the toolchain, the platform and the cache apart; the VPS run is the orchestrator's with the spike's script; a draft upstream issue as a file; [brief](../briefs/SPK-13-compiler-determinism.md) | Opus 5.5 | **Interrupted by the platform's 4-hour wall-clock limit** at 12:18:52 UTC during its last control series, no report yet; **resumed** (`nexus continue`, 12:25 UTC) with the order to finish and report first; its new job queues behind SPK-12 (a heavy job takes the whole Mac). Pull request [#252](https://github.com/bal7hazar/grimworld/pull/252), work in progress, CI green at `97b6494`. **Cause found, not yet reported**: the two Sierra programs differ only by which function of a call-graph cycle gets the `withdraw_gas` check; the choice follows the cycle's SCC representative, the lowest salsa intern id, which the compiler's parallel warm-up assigns in thread order; `RAYON_NUM_THREADS=1` gives one program 10 times out of 10, 12 threads gave three values (27,092 / 27,101 / 27,101 Sierra felts, three class hashes) on `HexxGenerators`; a minimal program and a draft issue for `starkware-libs/cairo` are on the branch |
+| SPK-13 | **Builds of the same sources that differ** (D-154, D-164): reproduce N times on the library at `310b5f1` and on `contracts/`, diff the Sierra, minimise, tell the toolchain, the platform and the cache apart; the VPS run is the orchestrator's with the spike's script; a draft upstream issue as a file; [brief](../briefs/SPK-13-compiler-determinism.md) | Opus 5.5 | **Interrupted by the platform's 4-hour wall-clock limit** at 12:18:52 UTC during its last control series, no report yet; **resumed** (`nexus continue`, 12:25 UTC) with the order to finish and report first; its new job queues behind SPK-12 (a heavy job takes the whole Mac). Pull request [#252](https://github.com/bal7hazar/grimworld/pull/252), work in progress, CI green at `97b6494`. **Cause found, not yet reported**: the two Sierra programs differ only by which function of a call-graph cycle gets the `withdraw_gas` check; the choice follows the cycle's SCC representative, the lowest salsa intern id, which the compiler's parallel warm-up assigns in thread order; `RAYON_NUM_THREADS=1` gives one program 10 times out of 10, 12 threads gave three values (27,092 / 27,101 / 27,101 Sierra felts, three class hashes) on `HexxGenerators`; a minimal program and a draft issue for `starkware-libs/cairo` are on the branch **The VPS run is done** (this orchestrator, 12:26–12:59 UTC, `builds.sh` at `97b6494`, x86_64, 8 CPUs, `scripts/lock.sh`'s 4 threads): `consumer` 10 builds in each of three series (the machine's cache, a fresh cache, one thread), `contracts` 5 in each of two (clean, one thread); **every class identical in every build**, `HexxGenerators` 27,092 Sierra felts, CASM 49,375, at 4 threads as at 1; the programs of `contracts` differ between builds only by their ids' numbers (one canonical text per artefact, 129 of 129). So the single-thread value is 27,092, the committed snapshot; the VPS already gives it; CI's 27,101 is the value D-176's pin will remove; the table goes into #252 as `builds-vps.txt` once the agent's last push is in |
+| CLI-03c | **Hubs and the transitions, on fixed data** (D-178; D-178 says CLI-03b, an ID already taken by #163): the town and an outpost after design/11 *Hubs*, the Gate screen on ENG-03's seed, hub → instance through the entry moment to CLI-03a's renderer, instance → hub by a hub gate, `travel_back` or a debug defeat through a closing report; the pack's buildings as still sprites in `tools/art`; five points of design/11 *Hubs* written as "proposed, the owner's eye"; [brief](../briefs/CLI-03c-hubs.md) | Opus 5.5 | **Done**, [#270](https://github.com/bal7hazar/grimworld/pull/270) (`8b4e3a4`); [report](../reports/CLI-03c-hubs.md), [review](../reports/CLI-03c-review-sonnet.md) (Claude Sonnet 5.5, PASS WITH FINDINGS, three notes); no audit (D-177). Playwright drove Chrome on both viewports, every check passed, two real defects found and fixed. **The owner tests it** (`?hub=town`, `?hub=outpost`). **Follow-up, after the owner's test**: the owner's choices on the five proposed points; the arrival rule (project manager, 2026-10-01): the client offers to leave only when the adventurer steps onto a gate tile after having left it, or through the Gate button, never on arrival; one line of design/11 if the owner agrees; no seed change |
 | CLI-03a check | **The owner's test of Playwright on the Mac through Nexus** (project manager, 2026-10-01): a verification run of the merged sandbox, no implementation; Playwright launched Chrome 154 headless, every browser-checkable criterion of CLI-03a passed at 375 × 812 and 1440 × 900, four commands refused by the profile (a compound command, two `ls` outside the worktree, `lsof`), no wait, no defect, nothing committed | Opus 5.5 | Done 08:34 UTC, `grimworld/impl-cli-03a`; [report](../reports/CLI-03a-browser-check.md); told to the project manager |
 | CV-01 | The Mac launcher, `scripts/mac/agent.sh` (retired by D-162: `nexus` starts the track's agents) | Opus 5.5 | Done, [#121](https://github.com/bal7hazar/grimworld/pull/121); [report](../reports/CV-01-mac-launcher.md), [audit](../reports/CV-01-audit-gpt-6-sol.md) |
 | CV-02 | The launcher's budget of 5, load 18, the pinned Node (D-149) | Sonnet 5.5 | Done, [#129](https://github.com/bal7hazar/grimworld/pull/129); [report](../reports/CV-02-launcher-budget.md), [audit](../reports/CV-02-audit-gpt-6-sol.md) |
@@ -58,11 +63,9 @@ unavailable (quota) until 2026-10-04 13:36 UTC.
 
 ## Next
 
-1. SPK-12's report and pull request; the audit (cost, a contested design decision: Opus 5.5 under
-   the owner's rule, through Nexus R2) and the review; the report to the project manager for the
-   owner's decision on ADR-0001.
-2. SPK-13's report and the end of #252; the VPS run of its `builds.sh` by this orchestrator (x86_64
-   beside the Mac's arm64 and CI); the quality audit and the review; merge; the draft issue to the
-   owner for the go (D-154 §3).
+1. SPK-12's report and pull request; the review (no audit, D-177); merge; the report to the project
+   manager for the owner's decision on ADR-0001.
+2. SPK-13's report and the end of #252, with the VPS table (below); the review (no audit, D-177);
+   merge; the draft issue stays a file until the owner's go (D-154 §3, asked by the project manager).
 3. Then, as the pause left them and the project manager lends them: CLI-02 (after ENG-02), the
    Capacitor shell before Phase 6, the hex tilemap when the owner's purchase arrives.

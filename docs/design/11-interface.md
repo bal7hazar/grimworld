@@ -149,6 +149,17 @@ Hubs have no geometry (D-03): they are **illustrated screens with places to tap*
 The build editor shows, before leaving, what the chosen bar cannot do (no heal, no
 condition removal, nothing at range): a reminder, never a block.
 
+Points this section left open, as the CLI-03c sandbox draws them (`?hub=town`, `?hub=outpost`).
+Each is **proposed, the owner's eye** until the owner confirms it:
+
+| Point | Proposed |
+|---|---|
+| The outpost's services | Guild (its board), Trainer, Vault, then Gate; one constant, `OUTPOST_SERVICES`. **Proposed, the owner's eye** |
+| The entry moment | A short screen, "Through the gate, to …", while the entry draw is awaited, with a Skip button; on fixed data it ends after 1.2 s (`?entry=` changes it). **Proposed, the owner's eye** |
+| The closing report | Returned or Defeated, how (gate, travelled back, health at 0) and the hub it leads to, then the experience, the loot, the quest progress, and the belt's unused potions back to the pack; one button on to the hub. **Proposed, the owner's eye** |
+| How present adventurers move | They stand still at fixed spots near the road, as decor. A tap shows their name, profession and level. A hub draws nothing between taps. **Proposed, the owner's eye** |
+| Where the buildings stand | Town: Guild in the castle at the back, Trainer in the barracks, Enchanter in the tower; Smith, Armorer, Alchemist and Market along the road; Vault and the Gate in front. Outpost: Guild and Trainer at the back, Vault and the Gate in front. **Proposed, the owner's eye** |
+
 ## Desktop
 
 | | |

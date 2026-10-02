@@ -532,6 +532,80 @@ class RealManifest(unittest.TestCase):
     def test_the_manifest_is_sound(self):
         self.assertEqual(scale.validate_manifest(self.manifest, build.METHODS), [])
 
+    def test_the_town_buildings_are_blue_stills(self):
+        stills = {st["name"]: st for st in self.manifest["still"]}
+        self.assertEqual(set(stills), {"castle", "barracks", "archery", "monastery", "tower",
+                                       "house1", "house2", "house3"})
+        for name, st in stills.items():
+            self.assertEqual(st["role"], "building", name)
+            self.assertTrue(st["file"].startswith("Buildings/Blue Buildings/"), name)
+        self.assertEqual(build.still_problems(self.manifest), [])
+
+
+@unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
+class Stills(unittest.TestCase):
+    """A still building (CLI-03c), on synthetic images: no image of the pack."""
+
+    def house(self, path):
+        """A 40 x 30 house on a 64 x 48 transparent canvas, a 1 px flag pole under its left wall
+        (thinner than the feet rule's 8 %), its walls' last row at y = 39."""
+        img = np.zeros((48, 64, 4), np.uint8)
+        img[10:40, 12:52] = (90, 120, 200, 255)
+        img[40:44, 14:15] = (20, 20, 20, 255)                    # a thin pole below the walls
+        Image.fromarray(img, "RGBA").save(path)
+
+    def test_a_still_is_anchored_at_its_base_and_centre(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "House.png"
+            self.house(path)
+            pose = clean.still(path)
+        self.assertEqual(pose.rgba.shape[:2], (34, 40))          # tight crop, pole included
+        self.assertEqual(pose.baseline, 30)                      # under the walls, not the pole
+        self.assertEqual(pose.feet_x, 20)                        # the horizontal centre
+
+    def test_a_still_packs_as_one_frame_at_native_size(self):
+        from artpipe import atlas
+        s = {"atlas_max": 2048, "atlas_padding": 2, "cell_margin": 4}
+        st = {"name": "house1", "role": "building", "file": "House.png", "origin": "synthetic"}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            self.house(Path(tmp) / "House.png")
+            sprite = build.still_sprite(st, Path(tmp) / "House.png", s["cell_margin"])
+            self.assertEqual((sprite["cell_w"], sprite["cell_h"], sprite["baseline"]),
+                             (48, 42, 34))                       # 40 + 2 x 4, 34 + 2 x 4; 4 + 30
+            index = atlas.pack([sprite], s, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, [sprite], s)         # baseline read back from the PNG
+            finally:
+                build.OUT = saved
+            back = np.array(Image.open(out / "atlas-0.png").convert("RGBA"))
+        entry = index["sprites"]["house1"]
+        self.assertEqual(entry["role"], "building")
+        self.assertEqual(entry["animations"], {"still": {"frames": 1, "fps": 1, "loop": False}})
+        self.assertEqual(page["animations"], {"house1/still": ["house1/still/00"]})
+        frame = page["frames"]["house1/still/00"]
+        self.assertEqual(frame["anchor"], {"x": 0.5, "y": round(34 / 42, 6)})
+        self.assertEqual((frame["frame"]["w"], frame["frame"]["h"]), (40, 34))   # native, trimmed
+        f = frame["frame"]
+        self.assertTrue((back[f["y"]:f["y"] + 30, f["x"]:f["x"] + 40, 3] == 255).all())
+
+    def test_still_problems(self):
+        manifest = {"sprite": [{"name": "runt"}], "still": [
+            {"name": "runt", "role": "building", "file": "a.png", "origin": "x"},
+            {"name": "tower", "role": "caste", "file": "b.png", "origin": "x"},
+            {"name": "tower", "role": "building", "file": "c.gif"},
+        ]}
+        self.assertEqual(build.still_problems(manifest), [
+            "[[still]] 'runt': the name is used twice",
+            "[[still]] tower: role 'caste', not 'building'",
+            "[[still]] 'tower': the name is used twice",
+            "[[still]] tower: file 'c.gif' is not a PNG",
+            "[[still]] tower: no origin"])
+        self.assertEqual(build.still_problems({"sprite": []}), [])
+
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
 class FeetRow(unittest.TestCase):

@@ -37,3 +37,25 @@ pub impl BitImpl of BitTrait {
         above % 2 == 1
     }
 }
+
+// CBT-08a: powers of two and bits, against a plain loop (the oracle, docs/CAIRO.md §2).
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::LIVE;
+    use super::BitTrait;
+
+    #[test]
+    #[available_gas(l2_gas: 4165581)] // ceil(1.05 × 3967220 measured)
+    fn test_pow2_and_bits() {
+        let mut expected: u128 = 1;
+        for n in 0..128_u8 {
+            assert(BitTrait::pow2(n) == expected, 'pow2');
+            assert(BitTrait::is_set(expected, n), 'set');
+            assert(!BitTrait::is_set(~expected, n), 'clear');
+            if n != 127 {
+                expected *= 2;
+            }
+        }
+        assert(BitTrait::limbs(LIVE + 5) == (5, 0x4000000000000000000000000000000), 'LIVE kept');
+    }
+}

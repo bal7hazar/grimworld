@@ -8,7 +8,7 @@
 //!
 //! `u256` is used only to split a felt into its two limbs (written reason: the `felt252 → u256`
 //! conversion, `u128s_from_felt252`, is the only range proof of a full felt on Cairo 2.19;
-//! `origami_hexmap`'s `u252` splits the same way).
+//! `hexx`'s bitmaps split the same way, D-173).
 //!
 //! What a split costs (CBT-02b, lever (b); snforge, per word): the conversion about 1,700 L2 gas;
 //! removing `LIVE` by a comparison and a subtraction 1,340 more (`split` before CBT-02b), by one
