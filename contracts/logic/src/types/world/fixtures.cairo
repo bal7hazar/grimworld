@@ -160,10 +160,6 @@ pub impl FixtureImpl of Fixture {
             effect_deadline: 0,
             effect_regen: 0,
             max_health: 280,
-            health_regen: 0,
-            max_energy: 30,
-            energy_regen: 1,
-            adrenaline_cap: 0,
             caste_at: (caste - 1).into(),
             effect_at: ABSENT,
             state: LIVE

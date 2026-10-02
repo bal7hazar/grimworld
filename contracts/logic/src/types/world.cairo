@@ -237,7 +237,7 @@ pub impl TickImpl of TickTrait {
         let (stopped, resolved) = Self::conclude(ref world, sheets, ref rules);
         if !stopped && !Self::act(ref world, sheets, resolved, ref rules) {
             // Step 3.
-            Self::regenerate(ref world);
+            Self::regenerate(ref world, sheets);
         }
         // Step 4 writes nothing. Step 5.
         Self::check(ref world);
@@ -357,7 +357,7 @@ pub impl TickImpl of TickTrait {
     /// no goblin of the tick's awake set Engaged; for a goblin, not Engaged. A goblin at 0 dies
     /// after every actor of the step, in id order. The awake set is written in one rebuild, none
     /// without an awake goblin; the frozen goblins are not read.
-    fn regenerate(ref world: World) {
+    fn regenerate(ref world: World, sheets: @Sheets) {
         let t = world.clock;
         let mut engaged = false;
         for goblin in world.awake.span() {
@@ -385,7 +385,7 @@ pub impl TickImpl of TickTrait {
         for goblin in world.awake.span() {
             let mut goblin = *goblin;
             if goblin.is_alive() {
-                goblin.regenerate(t);
+                goblin.regenerate(t, sheets);
                 if goblin.health == 0 {
                     goblin.ai = ai::DEAD;
                     world.killed.append(goblin.entity);

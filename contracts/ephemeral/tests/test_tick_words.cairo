@@ -307,8 +307,8 @@ fn test_tick_words_goblin() {
     assert(goblin.bleeding == 21 && goblin.poison == 22 && goblin.burning == 23, 'conditions');
     assert(goblin.knocked == 25 && goblin.effect_deadline == 26, 'deadlines');
     // (80 + 20 × 18) × 120 / 100 = 528; skill 300 at rank 6: 1 + 4 × 6 / 12 = 3.
-    assert(goblin.max_health == 528 && goblin.health_regen == 3, 'health');
-    assert(goblin.max_energy == 120 && goblin.energy_regen == 3, 'energy');
+    assert(goblin.max_health == 528 && goblin.health_regen(@sheets) == 3, 'health');
+    assert(goblin.max_energy(@sheets) == 120 && goblin.energy_regen(@sheets) == 3, 'energy');
     assert(goblin.effect_regen == 3, 'effect pips');
     for slot in 0..4_u8 {
         assert(goblin.recharge(slot) == *state.recharges.span()[slot.into()], 'recharges');

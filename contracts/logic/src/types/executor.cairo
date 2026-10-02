@@ -462,12 +462,12 @@ pub trait Body<T> {
     /// `health = min(max, health + v)`, nothing on a dead actor.
     fn heal(ref self: T, v: u16);
     /// `clamp(energy + v, 0, max)`, `v` in energy, stored in thirds.
-    fn energize(ref self: T, v: i32);
+    fn energize(ref self: T, v: i32, sheets: @Sheets);
     /// A hit taken (§5.5 steps 5, 8, 9): a member's "hit this tick" flag; +1 quarter strike if
     /// alive; a goblin asleep or on watch notices.
-    fn struck(ref self: T);
+    fn struck(ref self: T, sheets: @Sheets);
     /// A weapon hit landed (§5.12): adrenaline and the `hits` counter.
-    fn landed(ref self: T);
+    fn landed(ref self: T, sheets: @Sheets);
     /// FX-19's halving spent.
     fn halved(ref self: T);
     /// Condition 1–5 for the value `v` at `t` (Knocked down through `knock`, CBT-04).
@@ -609,18 +609,18 @@ pub impl MemberBody of Body<Member> {
         };
     }
 
-    fn energize(ref self: Member, v: i32) {
+    fn energize(ref self: Member, v: i32, sheets: @Sheets) {
         let energy: i32 = self.energy.into() + v * ENERGY_THIRDS.into();
         let max: i32 = self.max_energy.into();
         self.energy = ExecutorTrait::clamp(energy, 0, max).try_into().unwrap();
     }
 
-    fn struck(ref self: Member) {
+    fn struck(ref self: Member, sheets: @Sheets) {
         self.flags = self.flags | flag::HIT;
         self.take_hit();
     }
 
-    fn landed(ref self: Member) {
+    fn landed(ref self: Member, sheets: @Sheets) {
         self.land_weapon_hit();
     }
 
@@ -802,14 +802,14 @@ pub impl GoblinBody of Body<Goblin> {
         };
     }
 
-    fn energize(ref self: Goblin, v: i32) {
+    fn energize(ref self: Goblin, v: i32, sheets: @Sheets) {
         let energy: i32 = self.energy.into() + v * ENERGY_THIRDS.into();
-        let max: i32 = self.max_energy.into();
+        let max: i32 = self.max_energy(sheets).into();
         self.energy = ExecutorTrait::clamp(energy, 0, max).try_into().unwrap();
     }
 
-    fn struck(ref self: Goblin) {
-        self.take_hit();
+    fn struck(ref self: Goblin, sheets: @Sheets) {
+        self.take_hit(sheets);
         // §5.5 step 9: a goblin hit while asleep or on watch notices (D-179: so only its first
         // hit finds it asleep).
         if self.health > 0 && (self.ai == ai::ASLEEP || self.ai == ai::WATCH) {
@@ -817,8 +817,8 @@ pub impl GoblinBody of Body<Goblin> {
         }
     }
 
-    fn landed(ref self: Goblin) {
-        self.land_weapon_hit();
+    fn landed(ref self: Goblin, sheets: @Sheets) {
+        self.land_weapon_hit(sheets);
     }
 
     #[inline(always)]
@@ -1238,9 +1238,9 @@ pub impl ExecutorImpl of ExecutorTrait {
                 charged /= 2;
                 slot += 1;
             }
-            source.landed();
+            source.landed(sheets);
             if offence.energy > 0 {
-                source.energize(offence.energy.into());
+                source.energize(offence.energy.into(), sheets);
             }
         }
         source.heal(gain.stolen);
@@ -1480,7 +1480,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 if landed.halved {
                     target.halved();
                 }
-                target.struck();
+                target.struck(sheets);
                 true
             },
             _ => false,
@@ -1588,7 +1588,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 } else if op_kind == kind::CURE {
                     target.cure(*op.param, t);
                 } else if op_kind == kind::ENERGY {
-                    target.energize(*op.v);
+                    target.energize(*op.v, sheets);
                 } else if op_kind == kind::INTERRUPT {
                     target.interrupt(t, sheets);
                 } else {
@@ -2436,11 +2436,20 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 100000000)]
     fn test_example_interrupt() {
-        let sheets = sheets(70);
+        // R3: the Hobgoblin's cap is its caste's kit: its smash (24) costs 1 strike, 4 quarters.
+        let base = content(70, array![].span());
+        let mut skills = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == 24 {
+                sheet.adrenaline = 1;
+            }
+            skills.append(sheet);
+        }
+        let sheets = Content { skills: skills.span(), ..base }.sheets();
         let front = *ring(AT)[0];
         let mut hob = goblin(40, front, toward(front, AT), 400);
         hob.start(0, 0, 3, 50);
-        hob.adrenaline_cap = 4;
         let mut adventurer = member(AT, toward(AT, front), weapon::MAUL);
         adventurer.adrenaline_cap = 24;
         let mut world = Fixture::world(51, array![adventurer], array![hob]);

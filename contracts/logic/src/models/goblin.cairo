@@ -142,7 +142,6 @@ pub impl GoblinImpl of GoblinTrait {
         let sheet = (*sheets.castes)[caste_at];
         let kit = (*sheets.kits)[caste_at];
         GoblinAssert::assert_kit(kit);
-        let regen: i32 = (*sheet.health_regen).into();
         let (effect_at, effect_regen) = if effect == 0 {
             (ABSENT, 0)
         } else {
@@ -168,10 +167,6 @@ pub impl GoblinImpl of GoblinTrait {
             effect_deadline,
             effect_regen: effect_regen.try_into().unwrap(),
             max_health: sheet.max_health(level).try_into().unwrap(),
-            health_regen: (regen - REGEN_OFFSET).try_into().unwrap(),
-            max_energy: *sheet.energy * 3,
-            energy_regen: *sheet.energy_regen,
-            adrenaline_cap: *kit.cap,
             caste_at,
             effect_at,
             state: words.state,
@@ -211,6 +206,31 @@ pub impl GoblinImpl of GoblinTrait {
     }
 
     /// Alive: neither dead nor looted.
+    /// Its caste's health regeneration, signed pips (`Caste.health_regen` − 10).
+    #[inline(always)]
+    fn health_regen(self: @Goblin, sheets: @Sheets) -> i8 {
+        let regen: i32 = (*(*sheets.castes)[*self.caste_at].health_regen).into();
+        (regen - REGEN_OFFSET).try_into().unwrap()
+    }
+
+    /// Its caste's max energy, in thirds.
+    #[inline(always)]
+    fn max_energy(self: @Goblin, sheets: @Sheets) -> u8 {
+        *(*sheets.castes)[*self.caste_at].energy * 3
+    }
+
+    /// Its caste's energy regeneration, thirds a tick.
+    #[inline(always)]
+    fn energy_regen(self: @Goblin, sheets: @Sheets) -> u8 {
+        *(*sheets.castes)[*self.caste_at].energy_regen
+    }
+
+    /// Its caste's adrenaline cap, in quarters (its kit's).
+    #[inline(always)]
+    fn adrenaline_cap(self: @Goblin, sheets: @Sheets) -> u8 {
+        *(*sheets.kits)[*self.caste_at].cap
+    }
+
     #[inline(always)]
     fn is_alive(self: @Goblin) -> bool {
         *self.ai < ai::DEAD
@@ -374,19 +394,18 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     /// Step 3 at tick `t` (§5.8) for an awake goblin alive: health by its caste's pips, its
     /// effect's and its conditions'; energy by the caste's pips in thirds; adrenaline decay when
     /// not Engaged (D-157 E).
-    fn regenerate(ref self: Goblin, t: u32) {
-        let mut pips: i32 = self.health_regen.into()
+    fn regenerate(ref self: Goblin, t: u32, sheets: @Sheets) {
+        let mut pips: i32 = self.health_regen(sheets).into()
             + TickMathTrait::degeneration(self.bleeding, self.poison, self.burning, t)
             + TickMathTrait::effect_pips(self.effect_regen, self.effect_deadline, t);
         self.health = TickMathTrait::heal(self.health, pips, self.max_health);
-        let energy: u16 = self.energy.into() + self.energy_regen.into();
-        self
-            .energy =
-                if energy > self.max_energy.into() {
-                    self.max_energy
-                } else {
-                    energy.try_into().unwrap()
-                };
+        let energy: u16 = self.energy.into() + self.energy_regen(sheets).into();
+        let max = self.max_energy(sheets);
+        self.energy = if energy > max.into() {
+            max
+        } else {
+            energy.try_into().unwrap()
+        };
         if self.ai != ai::ENGAGED {
             let decayed = TickMathTrait::decay(self.adrenaline.into());
             self.adrenaline = decayed.try_into().unwrap();
@@ -468,23 +487,24 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
     }
 
     /// Adrenaline gained, in quarters (§5.12), capped at its caste's cap (at most 252).
-    fn gain_adrenaline(ref self: Goblin, quarters: u8) {
-        if self.adrenaline < self.adrenaline_cap {
+    fn gain_adrenaline(ref self: Goblin, quarters: u8, sheets: @Sheets) {
+        let cap = self.adrenaline_cap(sheets);
+        if self.adrenaline < cap {
             let gained: u16 = self.adrenaline.into() + quarters.into();
-            let cap: u16 = self.adrenaline_cap.into();
+            let cap: u16 = cap.into();
             self.adrenaline = TickMathTrait::min16(gained, cap).try_into().unwrap();
         }
     }
 
     /// A weapon hit landed: 4 quarters (no `hits` counter: a member's modifier).
-    fn land_weapon_hit(ref self: Goblin) {
-        self.gain_adrenaline(4);
+    fn land_weapon_hit(ref self: Goblin, sheets: @Sheets) {
+        self.gain_adrenaline(4, sheets);
     }
 
     /// A hit taken while alive: 1 quarter.
-    fn take_hit(ref self: Goblin) {
+    fn take_hit(ref self: Goblin, sheets: @Sheets) {
         if self.is_alive() && self.health > 0 {
-            self.gain_adrenaline(1);
+            self.gain_adrenaline(1, sheets);
         }
     }
 }
@@ -929,10 +949,11 @@ mod tests {
         let goblin = Fixture::load_goblin(
             GoblinWords { entity: 77, awake: false, state, timers }, @content,
         );
-        assert(goblin.max_health == 720 && goblin.health_regen == 2, 'health');
-        assert(goblin.max_energy == 60 && goblin.energy_regen == 2, 'energy');
+        let sheets = content.sheets();
+        assert(goblin.max_health == 720 && goblin.health_regen(@sheets) == 2, 'health');
+        assert(goblin.max_energy(@sheets) == 60 && goblin.energy_regen(@sheets) == 2, 'energy');
         assert(goblin.effect_regen == 3 && !goblin.awake, 'effect');
-        assert(goblin.caste_at == 1 && goblin.adrenaline_cap == 20, 'its kit');
+        assert(goblin.caste_at == 1 && goblin.adrenaline_cap(@sheets) == 20, 'its kit');
     }
 
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
@@ -1041,13 +1062,14 @@ mod tests {
             entity: 8, awake: true, state: Fixture::goblin(8, HOB).state, timers: LIVE + 255,
         };
         let mut goblin = Fixture::load_goblin(words, @content);
-        assert(goblin.adrenaline_cap == 252, 'goblin cap 252');
+        let sheets = content.sheets();
+        assert(goblin.adrenaline_cap(@sheets) == 252, 'goblin cap 252');
         goblin.adrenaline = 250;
-        goblin.land_weapon_hit();
+        goblin.land_weapon_hit(@sheets);
         assert(goblin.adrenaline == 252, 'goblin capped');
         goblin.ai = ai::DEAD;
         goblin.adrenaline = 0;
-        goblin.take_hit();
+        goblin.take_hit(@sheets);
         assert(goblin.adrenaline == 0, 'dead: nothing');
     }
 

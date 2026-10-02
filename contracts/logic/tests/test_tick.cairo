@@ -181,10 +181,6 @@ impl FixtureImpl of Fixture {
             effect_deadline: 0,
             effect_regen: 0,
             max_health: 280,
-            health_regen: 0,
-            max_energy: 30,
-            energy_regen: 1,
-            adrenaline_cap: 0,
             caste_at: (caste - 1).into(),
             effect_at: ABSENT,
             state: LIVE
@@ -1494,12 +1490,21 @@ fn regenerate_goblin(
     goblin.burning = opaque(until);
     goblin.effect_regen = opaque(effect);
     goblin.effect_deadline = opaque(effect_until);
-    goblin.health_regen = opaque(regen);
+
     goblin.health = opaque(health);
     goblin.energy = opaque(energy);
     goblin.ai = opaque(state);
     goblin.adrenaline = opaque(adrenaline);
-    goblin.regenerate(opaque(50));
+    // R3: the regeneration is the caste's (sheet `health_regen` = pips + 10).
+    let mut caste = Fixture::caste(HOB, 1);
+    let pips: i32 = regen.into();
+    caste.health_regen = (pips + 10).try_into().unwrap();
+    let content = Content {
+        skills: Fixture::content().skills, potions: array![].span(), castes: array![caste].span(),
+    };
+    let sheets = content.sheets();
+    goblin.caste_at = 0;
+    goblin.regenerate(opaque(50), @sheets);
     goblin.health
 }
 
