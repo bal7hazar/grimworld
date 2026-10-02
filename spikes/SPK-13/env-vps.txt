@@ -1,0 +1,19 @@
+## Environment: srv1792539, 2026-10-01T12:30:43Z
+
+```
+uname -a: Linux srv1792539 6.8.0-139-generic #139-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 03:52:05 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+scarb --version:
+  scarb 2.19.4 (b45b74c03 2026-07-21)
+  cairo: 2.19.4 (https://crates.io/crates/cairo-lang-compiler/2.19.4)
+  sierra: 1.9.3
+  arch: x86_64-unknown-linux-gnu
+scarb on PATH: ~/.local/bin/scarb
+scarb binary: ~/.asdf/installs/scarb/2.19.4/bin/scarb
+scarb binary sha256: f9561caed98b1568a850254bb272b193a6227668bc0f9aa47c4b7579669d4184
+scarb cache path (default): ~/.cache/scarb
+CPUs: 8
+RAYON_NUM_THREADS in the environment: unset; --threads: none
+build lock: scripts/lock.sh (flock: /usr/bin/flock)
+starkli: absent (class hashes by class_hash.py)
+spike commit: 97b6494
+```

@@ -204,7 +204,41 @@ spikes/SPK-13/sierra-dump/Cargo.toml`; without starkli the class hashes come fro
 2. the default series (4 threads through the lock) gives 27,092 every time, matching the library's
    VPS record, and `--threads 8` shows whether more threads bring 27,101 on that machine.
 
-builds-vps.txt: *(left for the orchestrator)*.
+### What the VPS run gave
+
+Measured on the VPS (srv1792539: x86_64, 8 CPUs, Scarb 2.19.4 `b45b74c03`, binary sha256
+`f9561cae…4184`, Linux 6.8) on 2026-10-01 by the orchestrator, with the commands above except
+that no `--threads 8` series was run and the minimal program went through `minimal/reproduce.sh`
+(its 2.19.4 and 2.20.1 runs are in [minimal-vps.txt](minimal-vps.txt)), not through `builds.sh`.
+Tables: [builds-vps.txt](builds-vps.txt) (run log [builds-vps-run.log](builds-vps-run.log),
+environments [env-vps.txt](env-vps.txt), [env-vps-consumer.txt](env-vps-consumer.txt),
+[env-vps-contracts.txt](env-vps-contracts.txt)).
+
+| Target | Series (threads) | Builds | Result |
+|---|---|--:|---|
+| library `consumer`, release | clean (4, the lock's default) | 10 | 9 classes, one program each: `HexxGenerators` 27,092 Sierra felts / 49,375 CASM, class hash `0x018c238f1c99…` |
+| | fresh-cache (4) | 10 | the same |
+| | one-thread (1) | 10 | the same: 4 threads give what 1 thread gives |
+| game `contracts/` | clean (4) | 5 | 51 artefacts: one text and one class hash for every artefact in all builds |
+| | one-thread (1) | 5 | the same |
+| minimal program, 2.19.4 | default threads (8) | 20 | the check in `ping` 11 times, in `b::pong` 9 times, 20 distinct files |
+| | one thread | 6 | one file (`12ec3e1650a18599`), the check in `ping` |
+| minimal program, 2.20.1 | default threads (8) | 20 | `ping` 12, `b::pong` 8, 20 distinct files |
+| | one thread | 6 | one file (`ecdb2df475027c55`), the check in `ping` |
+
+The two points the run had to settle:
+
+1. **The platform plays no part.** The VPS's `HexxGenerators` class hash (`0x018c238f1c99…`) and
+   text sha256 (`0945b06edbcd`) are the Mac's one-thread values, and the minimal program's
+   one-thread file has the same sha256 as on the Mac on both Scarb versions (`12ec3e1650a18599`,
+   `ecdb2df475027c55`): arm64 and x86_64 give byte-identical output on one thread.
+2. **The VPS's 27,092 comes from the lock's four threads.** The default series (4 threads through
+   `scripts/lock.sh`) gave 27,092 in 10 builds out of 10, as the library's VPS record; 4 threads
+   also gave it on the Mac. Whether more threads would bring 27,101 on that machine was not run
+   (no 8-thread series): the VPS never saw 27,101 here, and the Mac's 12-thread runs did.
+
+The VPS tables list the distinct files of each artefact: the game's test files and compiled
+programs (8 of 51) write a different file at every build with one text, as on the Mac.
 
 CI's figures are the third environment: the library's CI recorded both 27,092 and 27,101, and
 the game's CI matches the Mac on all ten game classes (pull request #252).
@@ -251,5 +285,7 @@ outside this spike's allowlist):
 | `fetch-library.sh` | the library's clone at `310b5f1` in the ignored `.work/` |
 | `minimal/` | the minimal program (a Scarb package; its test runs in CI) and `reproduce.sh`, the issue's reproduction |
 | `builds-mac.txt` | the table on the Mac |
+| `builds-vps.txt`, `builds-vps-run.log`, `env-vps*.txt` | the table, the run log and the environments on the VPS |
+| `minimal-vps.txt` | the minimal program's runs on the VPS, Scarb 2.19.4 and 2.20.1 |
 | `diffs/` | the diffs of the kept Sierra programs |
 | `issue-draft.md` | the draft issue for `starkware-libs/cairo`, not filed |

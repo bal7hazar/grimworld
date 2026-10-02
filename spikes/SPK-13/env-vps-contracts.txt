@@ -1,0 +1,6 @@
+### Target contracts
+
+```
+game contracts/ at base commit 90b4974fc5a7e127e80ad1b4d0a33039dddf3908 (working tree: identical)
+Scarb.lock sha256: 213a10cee58e3c5379c203cc15ce3725b38be76df0eb171ab53ba1e67e3be6df
+```
