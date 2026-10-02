@@ -4,7 +4,7 @@ import type { Tile } from "../../render/view";
 import { type GateRecord, locationOf } from "../fixtures/region";
 import { zoneWorld } from "../fixtures/zone";
 import { RoomSandbox } from "../Sandbox";
-import { hubName } from "./machine";
+import { hubName, leaveQuestion } from "./machine";
 import { ui } from "./styles";
 
 /**
@@ -17,13 +17,16 @@ export function InstanceScreen({
   location,
   entry,
   offer,
+  gateHere,
   dispatch,
   onMoved,
 }: {
   location: number;
   entry: Tile;
-  /** The hub gate under the adventurer, if any (the machine's `leaveOffer`). */
+  /** The hub gate to offer on its own: on its anchor after leaving one (the machine's `leaveOffer`). */
   offer: GateRecord | null;
+  /** The hub gate under the adventurer, if any, at arrival too (the machine's `gateHere`). */
+  gateHere: GateRecord | null;
   dispatch: (intent: LoopIntent) => void;
   onMoved: (tile: Tile) => void;
 }) {
@@ -45,6 +48,14 @@ export function InstanceScreen({
           )}
         </div>
         <div style={styles.right}>
+          <button
+            style={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
+            disabled={gateHere === null}
+            onClick={() => setAsking("leave")}
+            aria-label="Leave"
+          >
+            Leave
+          </button>
           <button style={ui.button} onClick={() => setAsking("travel back")}>
             Travel back
           </button>
@@ -59,11 +70,7 @@ export function InstanceScreen({
         {asking && (
           <div style={styles.scrim} role="dialog" aria-label="Confirm">
             <div style={{ ...ui.card, maxWidth: 320 }}>
-              <p style={{ marginTop: 0 }}>
-                {asking === "leave" && offer
-                  ? `Leave the instance for ${hubName(offer.destination)}? The goblins will be back next time.`
-                  : "Travel back to the last hub visited? The instance closes."}
-              </p>
+              <p style={{ marginTop: 0 }}>{leaveQuestion(asking === "leave" ? gateHere : null)}</p>
               <div style={ui.row}>
                 <button style={{ ...ui.button, ...ui.quiet }} onClick={() => setAsking(null)}>
                   Stay

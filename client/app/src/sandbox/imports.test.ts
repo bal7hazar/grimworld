@@ -13,6 +13,36 @@ const sources = import.meta.glob<string>("../**/*.{ts,tsx}", {
 const IMPORTS_PLACEHOLDERS =
   /from\s+["'][^"']*placeholders["']|import\(\s*["'][^"']*placeholders["']/;
 
+/**
+ * The modules (test files apart) whose import clauses bind `name`, wherever the clause breaks its
+ * lines (`[^}]` spans newlines), under any alias.
+ */
+function importersOf(files: [string, string][], name: string): string[] {
+  return files
+    .filter(([, text]) =>
+      [...text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from/g)].some((m) =>
+        (m[1] ?? "").split(",").some(
+          (item) =>
+            item
+              .trim()
+              .split(/\s+as\s+/)[0]!
+              .replace(/^type\s+/, "") === name,
+        ),
+      ),
+    )
+    .map(([path]) => path)
+    .sort();
+}
+
+describe("importersOf", () => {
+  it("sees a clause split over several lines, an alias and a type marker", () => {
+    const split = 'import {\n  type A,\n  hubGateAt as at,\n} from "./x";';
+    expect(importersOf([["./a.ts", split]], "hubGateAt")).toEqual(["./a.ts"]);
+    expect(importersOf([["./a.ts", split]], "A")).toEqual(["./a.ts"]);
+    expect(importersOf([["./a.ts", 'import { hubGateAtX } from "./x";']], "hubGateAt")).toEqual([]);
+  });
+});
+
 describe("placeholders.ts", () => {
   it("is imported by the sandbox's wiring and the loop's machine only", () => {
     const importers = Object.entries(sources)
@@ -32,28 +62,29 @@ describe("placeholders.ts", () => {
     for (const name of RULES) {
       expect(sources["./placeholders.ts"]).toMatch(new RegExp(`export function ${name}\\(`));
     }
-    const importers = code
-      .filter(([, text]) =>
-        [...text.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from/g)].some((m) =>
-          (m[1] ?? "").split(",").some((name) => RULES.includes(name.trim().split(/\s+as\s+/)[0]!)),
-        ),
-      )
-      .map(([path]) => path);
-    expect(importers).toEqual(["./loop/machine.ts"]);
-    // No other module reads a gate's anchor or entry to decide where the adventurer goes: only
-    // the region's records (which define them), the zone fixture (which keeps anchors floor) and
-    // the fixtures' index (the `zone` room, entered through gate 1).
+    // Which modules bind each symbol, against one allow-list per symbol (CLI-03d, note 1).
+    for (const name of RULES) {
+      expect(importersOf(code, name), name).toEqual(["./loop/machine.ts"]);
+    }
+    // `sameTile` compares tiles: the placeholders and the wiring use it, `world.ts` defines it.
+    // Nothing else imports it, so nothing else can compare a tile to a gate's anchor.
+    const everything = Object.entries(sources).filter(([path]) => !/\.test\.tsx?$/.test(path));
+    expect(importersOf(everything, "sameTile")).toEqual(["./placeholders.ts", "./wiring.ts"]);
+    // The anchor and entry fields (and a gate's destination) are read by the machine (the
+    // I-5 question), the screens that name a destination, and the region's records, the zone
+    // fixture and the fixtures' index (the `zone` room, entered through gate 1) that define them.
     const data = ["./fixtures/region.ts", "./fixtures/zone.ts", "./fixtures/index.ts"];
     const readers = code
       .filter(([path]) => !data.includes(path))
       .filter(([, text]) => /\b(anchor|entry)_(chunk|tile)\b|\.destination\b/.test(text))
       .map(([path]) => path)
       .sort();
-    // The screens name a gate's destination; none compares a tile to an anchor.
-    expect(readers).toEqual(["./loop/InstanceScreen.tsx", "./loop/Loop.tsx", "./loop/screens.tsx"]);
-    for (const [path, text] of code) {
-      expect(text, path).not.toMatch(/\b(anchor|entry)_(chunk|tile)\b.*sameTile|sameTile.*anchor/);
-    }
+    expect(readers).toEqual([
+      "./loop/InstanceScreen.tsx",
+      "./loop/Loop.tsx",
+      "./loop/machine.ts",
+      "./loop/screens.tsx",
+    ]);
     // The hub's renderer, view and taps decide nothing: they import no fixture and no sandbox.
     for (const path of [
       "../render/hubView.ts",
