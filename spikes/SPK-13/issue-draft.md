@@ -216,13 +216,35 @@ the output would need the same treatment.
 
 ### A second observation, not part of the reproduction
 
-Besides the thread-order drift above, some artefacts (one contract class, one library program and some test builds) of
-a larger private project gave a different Sierra text on macOS arm64 and on x86_64 Linux (a
-different class hash, for the class), with the same commit, the same `Scarb.lock` and the same
-Scarb version, even with `RAYON_NUM_THREADS=1`. Each machine was stable on its own, and the contract
-class's CASM was the same on both. The cause was not investigated. It is offered as
-an observation only: it is not reproduced by the program in this issue and is not a claim about
-this report's cause.
+A different cause, independent of threads: **a closure's type name contains the absolute path of
+its source file, and the Sierra type id is derived from that name**, so the build directory
+reaches the Sierra program and the class hash.
+
+The compiler names a closure type `{closure@<root>/src/lib.cairo:L:C: L:C}` (`<root>` is the
+absolute path of the package's folder) and gives it the Sierra user-type id
+`ut@[starknet_keccak(name)]`. The id is a type of the program, so it is in the Sierra text and in
+the class hash. Minimal description (not reduced to a standalone package for this issue): a
+contract whose code contains one closure, for example a `within` closure passed to an iterator
+helper; the same commit, `Scarb.lock`, Scarb version and `RAYON_NUM_THREADS=1`, built from two
+different directories, gives two Sierra texts and two class hashes. An artefact is affected
+exactly when it holds a closure type; the other artefacts of the same workspace were equal at
+every path.
+
+Evidence, from a larger private project (51 artefacts, Scarb 2.19.4, `RAYON_NUM_THREADS=1`): 7
+artefacts held a closure type (one contract class, the programs and test builds that contain it).
+Built at four different absolute paths on x86_64 Linux, those 7 gave four different Sierra texts
+and file hashes, with the class hash of the contract class changing too; recomputing each closure
+type id from the name with the root replaced by a placeholder gave one text per artefact. That
+text was also equal between macOS arm64 and x86_64 Linux, so the platform is not the cause: the
+macOS/Linux difference first seen was a difference of build paths. What changes with the path: the
+file bytes, the Sierra text hash and the class hash. What does not: the Sierra felt count, the
+CASM felts and the CASM hash (the id is one felt at any path length, and the path does not reach
+the CASM).
+
+Suggestion: type ids (and the names they hash) should not depend on the absolute path of the
+build, for example by naming a closure with its path relative to the package root. With that, a
+class hash would depend only on the sources and the toolchain, not on where the repository is
+checked out.
 
 ### Workaround
 
