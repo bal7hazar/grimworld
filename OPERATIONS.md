@@ -82,6 +82,15 @@ machine's default (`.tool-versions` selects per repository), and says so in its 
 the owner. New Scarb and starknet-foundry releases are watched (the Overseer's watch, D-180) and each
 lands as a migration task per repository, with its budgets and snapshots re-measured.
 
+**Pins are generated and checked on Linux only** (project manager, 2026-10-02, after SPK-13's review in
+#252): every committed pin of a hash, of class bytes or of a size (gas snapshots, class sizes, class
+hashes, checksums) is generated and checked on Linux, the VPS or CI, never on the Mac. A build
+single-threaded (D-176) gave `grimworld_persistent_Registry` the same CASM but a different Sierra text
+and class hash on the Mac and on the VPS, each machine stable. The Mac still runs the tests. A
+difference between the Mac and Linux is reported with both figures and is not treated as a regression.
+The rule is reversed when track CV finds the cause of the cross-machine difference and it is fixed
+upstream or in our builds. The programme Slingfall holds the same rule, so both read their pins alike.
+
 A running agent is never stopped for load. The budget was measured by FND-03 (memory does not bind;
 CPU and the shared heavy lock do) and is measured again when the contracts' test build passes 6 GB
 or when a phase runs client and contract agents together. Nexus and the project's launcher do not
