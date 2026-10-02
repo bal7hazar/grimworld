@@ -1,6 +1,13 @@
 import type { ServiceId } from "../../input/intent";
-import type { HubPlace, HubTarget, HubView } from "../../render/hubView";
-import type { Profession } from "../../render/view";
+import {
+  type HubDecor,
+  type HubPlace,
+  type HubProp,
+  type HubTarget,
+  type HubView,
+  targetLabel,
+} from "../../render/hubView";
+import type { Profession, Tile } from "../../render/view";
 import { OUTPOST, TOWN } from "./region";
 
 /**
@@ -32,61 +39,169 @@ export const OUTPOST_SERVICES: readonly ServiceId[] = ["guild", "trainer", "vaul
 const service = (s: ServiceId): HubTarget => ({ kind: "service", service: s });
 const GATE: HubTarget = { kind: "gate" };
 
-function building(
-  id: string,
-  label: string,
-  target: HubTarget,
-  name: string,
-  at: readonly [number, number, number, number],
-): HubPlace {
-  const [x, y, width, height] = at;
-  return { id, label, target, building: name, x, y, width, height };
+/**
+ * The buildings of the atlas the hubs draw, and their native size in art pixels (the still's
+ * visible width, and its height above the base: `tools/art/build.py`'s table, without its margin).
+ * **Proposed, the owner's eye** (CLI-03e): the Blue set for the large buildings, `Buildings/Others/`
+ * for the trades and the life around them. Mirrored in `tools/art/README.md` *Buildings*.
+ */
+export const BUILDINGS = {
+  castle: [312, 207],
+  barracks: [184, 185],
+  archery: [183, 177],
+  tower: [120, 184],
+  fortress: [126, 232],
+  forge: [125, 171],
+  cloister: [128, 139],
+  market_hall: [127, 152],
+  grain_silo: [104, 189],
+  barn: [128, 211],
+  watchtower: [98, 150],
+  windmill: [128, 199],
+  inn: [128, 188],
+  cottage: [122, 143],
+  small_house: [100, 106],
+  hut: [100, 112],
+  straw_hut: [100, 111],
+} as const satisfies Record<string, readonly [number, number]>;
+
+type Building = keyof typeof BUILDINGS;
+
+const tile = (x: number, y: number): Tile => ({ x, y });
+
+function place(id: ServiceId | "gate", building: Building, at: Tile): HubPlace {
+  const target = id === "gate" ? GATE : service(id);
+  const [width, height] = BUILDINGS[building];
+  return { id, label: targetLabel(target), target, building, at, width, height };
+}
+
+function decor(id: string, building: Building, at: Tile): HubDecor {
+  const [width, height] = BUILDINGS[building];
+  return { id, building, at, width, height };
+}
+
+const prop = (id: string, sprite: string, x: number, y: number, mirror = false): HubProp => ({
+  id,
+  sprite,
+  at: tile(x, y),
+  ...(mirror ? { mirror } : {}),
+});
+
+/** The hexes `from` to `to` along a row (inclusive). */
+function row(y: number, from: number, to: number): Tile[] {
+  const out: Tile[] = [];
+  for (let x = Math.min(from, to); x <= Math.max(from, to); x++) out.push(tile(x, y));
+  return out;
 }
 
 /**
- * The town: three rows of buildings on a meadow, a road in front of the last row, the Gate at the
- * road's end. **Proposed, the owner's eye**: the Guild in the castle at the back, the Trainer in
- * the barracks, the Enchanter in the tower, the crafts and the Market along the road, the Vault in
- * front. Illustration units; drawn back to front.
+ * The town, on the instance's hex grid (CLI-03e): three bands of buildings five rows apart, doors
+ * facing the viewer. **Proposed, the owner's eye**: the Guild in the castle at the back between the
+ * Enchanter's tower and a windmill; the Trainer, the Smith and the Armorer along the middle street;
+ * the Alchemist, the Market, the Vault and the Gate in front, along the road that leaves by the
+ * Gate. A path climbs from the road to the middle street and the castle's door. Tiles in the
+ * room's coordinates: `x` grows West (to the left), `y` North (up), from the front-right corner.
  */
 const town: HubView = {
   name: "Town A",
   gold: 1240,
-  width: 360,
-  height: 300,
+  width: 704,
+  height: 960,
+  origin: { x: 672, y: 912 },
+  ground: {
+    tileset: "grass",
+    water: "water_c",
+    path: [
+      ...row(1, 0, 9),
+      tile(4, 3),
+      tile(4, 4),
+      tile(4, 5),
+      ...row(6, 2, 9),
+      tile(4, 7),
+      tile(4, 8),
+      tile(4, 9),
+      tile(4, 10),
+      ...row(11, 1, 8),
+    ],
+  },
   places: [
-    building("guild", "Guild", service("guild"), "castle", [180, 112, 128, 96]),
-    building("trainer", "Trainer", service("trainer"), "barracks", [62, 120, 84, 72]),
-    building("enchanter", "Enchanter", service("enchanter"), "tower", [302, 122, 52, 92]),
-    building("smith", "Smith", service("smith"), "house1", [46, 200, 56, 56]),
-    building("armorer", "Armorer", service("armorer"), "archery", [124, 204, 72, 62]),
-    building("alchemist", "Alchemist", service("alchemist"), "monastery", [234, 206, 70, 72]),
-    building("market", "Market", service("market"), "house2", [314, 200, 56, 56]),
-    building("vault", "Vault", service("vault"), "house3", [150, 290, 60, 52]),
-    building("gate", "Gate", GATE, "gate", [312, 290, 56, 52]),
+    place("guild", "castle", tile(5, 12)),
+    place("enchanter", "tower", tile(1, 12)),
+    place("trainer", "barracks", tile(8, 7)),
+    place("smith", "forge", tile(5, 7)),
+    place("armorer", "archery", tile(2, 7)),
+    place("alchemist", "cloister", tile(9, 2)),
+    place("market", "market_hall", tile(7, 2)),
+    place("vault", "grain_silo", tile(3, 2)),
+    place("gate", "watchtower", tile(1, 2)),
+  ],
+  decor: [
+    decor("windmill", "windmill", tile(9, 12)),
+    decor("inn", "inn", tile(0, 7)),
+    decor("cottage", "cottage", tile(5, 2)),
+  ],
+  props: [
+    prop("tree-back-w", "tree4", 9, 13),
+    prop("tree-back", "tree3", 2, 13, true),
+    prop("tree-e", "tree1", 0, 11, true),
+    prop("tree-mid-e", "tree2", 1, 8),
+    prop("bush-1", "bush1", 6, 9),
+    prop("bush-2", "bush3", 1, 10, true),
+    prop("bush-3", "bush2", 0, 5),
+    prop("bush-4", "bush1", 6, 4, true),
+    prop("rock-1", "rock2", 9, 0),
+    prop("rock-2", "rock4", 2, 0),
+    prop("rock-3", "rock3", 6, 2),
+    prop("stump-1", "stump1", 7, 5),
+    prop("sheep-1", "sheep", 2, 10),
+    prop("sheep-2", "sheep", 3, 10, true),
   ],
   figures: [
-    { id: 11, name: "Maren", profession: "warden", level: 7, x: 84, y: 236, facing: "right" },
-    { id: 12, name: "Tobin", profession: "vanguard", level: 3, x: 186, y: 240, facing: "left" },
-    { id: 13, name: "Ilse", profession: "cleric", level: 12, x: 262, y: 236, facing: "right" },
+    { id: 11, name: "Maren", profession: "warden", level: 7, at: tile(9, 5), facing: "right" },
+    { id: 12, name: "Tobin", profession: "vanguard", level: 3, at: tile(5, 4), facing: "left" },
+    { id: 13, name: "Ilse", profession: "cleric", level: 12, at: tile(8, 11), facing: "right" },
   ],
   services: [...TOWN_SERVICES.map(service), GATE],
 };
 
-/** The outpost: smaller, a palisade's worth of buildings, fewer services, one adventurer present. */
+/**
+ * The outpost: smaller, two bands, a palisade's worth of props, fewer services, one adventurer
+ * present. **Proposed, the owner's eye**: the Guild in the fortress, the Trainer in the barracks,
+ * the Vault in the barn, the Gate a watchtower at the road's end.
+ */
 const outpost: HubView = {
   name: "Outpost B",
   gold: 1240,
-  width: 300,
-  height: 220,
+  width: 576,
+  height: 704,
+  origin: { x: 512, y: 656 },
+  ground: {
+    tileset: "grass",
+    water: "water_c",
+    path: [...row(1, 0, 7), tile(3, 3), tile(4, 4), tile(3, 5), tile(4, 6)],
+  },
   places: [
-    building("guild", "Guild", service("guild"), "house1", [86, 110, 60, 60]),
-    building("trainer", "Trainer", service("trainer"), "barracks", [204, 112, 84, 72]),
-    building("vault", "Vault", service("vault"), "house2", [90, 208, 56, 56]),
-    building("gate", "Gate", GATE, "gate", [244, 208, 56, 52]),
+    place("guild", "fortress", tile(2, 7)),
+    place("trainer", "barracks", tile(5, 7)),
+    place("vault", "barn", tile(6, 2)),
+    place("gate", "watchtower", tile(1, 2)),
+  ],
+  decor: [decor("hut", "hut", tile(0, 7)), decor("straw-hut", "straw_hut", tile(4, 2))],
+  props: [
+    prop("tree-back-w", "tree1", 7, 8),
+    prop("tree-back-e", "tree3", 0, 8, true),
+    prop("tree-w", "tree4", 7, 6),
+    prop("stump-1", "stump2", 6, 6),
+    prop("stump-2", "stump1", 1, 5, true),
+    prop("rock-1", "rock1", 3, 4),
+    prop("rock-2", "rock3", 0, 4),
+    prop("rock-3", "rock4", 5, 0),
+    prop("rock-4", "rock2", 2, 0, true),
+    prop("bush-1", "bush2", 2, 6),
+    prop("sheep-1", "sheep", 0, 6),
   ],
   figures: [
-    { id: 21, name: "Corvin", profession: "vanguard", level: 9, x: 160, y: 156, facing: "left" },
+    { id: 21, name: "Corvin", profession: "vanguard", level: 9, at: tile(2, 3), facing: "left" },
   ],
   services: [...OUTPOST_SERVICES.map(service), GATE],
 };

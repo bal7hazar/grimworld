@@ -20,7 +20,7 @@ import { loadAtlas } from "../../render/atlas";
 import { HubRenderer } from "../../render/hubRenderer";
 import { type HubView, targetLabel } from "../../render/hubView";
 import { createPixiSurface, pixiTickersRunning } from "../../render/pixiSurface";
-import type { ScaleMode } from "../../render/scaling";
+import { type ScaleMode, canvasResolution } from "../../render/scaling";
 import { browserHost } from "../../render/scheduler";
 import { ui } from "./styles";
 
@@ -121,6 +121,7 @@ function Illustration({
         app = created;
         if (!alive) return created.destroy(true);
         mounted = new HubRenderer(surface, browserHost(), {
+          mode: scale,
           // For the browser check (AC-6): frames drawn, read from the page; no React render.
           onDraw: (stats) => {
             element.dataset.frames = String(stats.renders);
@@ -156,13 +157,14 @@ function Illustration({
     renderer?.setView(view);
   }, [renderer, view]);
 
-  const fit = size ? hubFit(view, size) : null;
+  const resolution = canvasResolution(scale, window.devicePixelRatio);
+  const fit = size ? hubFit(view, size, { mode: scale, resolution }) : null;
   return (
     <div style={styles.illustration}>
       <div ref={host} style={styles.canvas} data-atlas={atlas} />
       {fit &&
         view.places.map((place) => {
-          const rect = placeRect(place, fit);
+          const rect = placeRect(view, place, fit);
           const shape = atlas !== "loaded" || !renderer?.drawnFromAtlas(place);
           return (
             <button
@@ -171,7 +173,9 @@ function Illustration({
               onClick={() => dispatch(targetIntent(place.target))}
               aria-label={`${place.label} building`}
             >
-              <span style={shape ? styles.shapeLabel : styles.spriteLabel}>{place.label}</span>
+              <span style={styles.label} data-shape={shape ? "" : undefined}>
+                {place.label}
+              </span>
             </button>
           );
         })}
@@ -179,7 +183,7 @@ function Illustration({
         view.figures.map((figure) => (
           <button
             key={figure.id}
-            style={{ ...styles.figure, ...figureRect(figure, fit) }}
+            style={{ ...styles.figure, ...figureRect(view, figure, fit) }}
             onClick={() => dispatch(figureIntent(figure))}
             aria-label={`Adventurer ${figure.name}`}
           />
@@ -202,21 +206,21 @@ const styles: Record<string, CSSProperties> = {
     background: "transparent",
     cursor: "pointer",
   },
-  shapeLabel: {
-    marginBottom: 2,
-    padding: "1px 6px",
-    borderRadius: 4,
-    font: "12px system-ui",
-    color: "#111",
-    background: "rgba(255,255,255,0.85)",
-  },
-  spriteLabel: {
-    marginBottom: -14,
-    padding: "1px 6px",
-    borderRadius: 4,
-    font: "12px system-ui",
-    color: "#eee",
-    background: "rgba(0,0,0,0.55)",
+  /**
+   * The place's name on a plain plate hanging under its base (CLI-03e §6): the page's body text,
+   * light on a dark plate that holds on grass. It takes no tap: a tap on it reaches what is under.
+   */
+  label: {
+    marginBottom: -24,
+    padding: "1px 8px",
+    borderRadius: 6,
+    font: "600 15px system-ui",
+    lineHeight: "20px",
+    whiteSpace: "nowrap",
+    color: "#fff",
+    background: "rgba(20,20,26,0.82)",
+    border: "1px solid rgba(255,255,255,0.18)",
+    pointerEvents: "none",
   },
   figure: {
     position: "absolute",
