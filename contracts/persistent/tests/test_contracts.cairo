@@ -21,7 +21,7 @@ use snforge_std::{
 
 #[test]
 // gas: raised, it calls a stub (`buy_skill` since CBT-08a) now `register` is written (ENG-04)
-#[available_gas(l2_gas: 4201397)] // ceil(1.05 × 4001330 measured)
+#[available_gas(l2_gas: 4318755)] // ceil(1.05 × 4113100 measured)
 fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
     let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
@@ -33,7 +33,8 @@ fn test_hub_deploys_and_stubs_revert() {
 }
 
 #[test]
-#[available_gas(l2_gas: 3891311)] // ceil(1.05 × 3706010 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 3992919)] // ceil(1.05 × 3802780 measured)
 fn test_market_and_registry_deploy() {
     let class = declare("Market").unwrap().contract_class();
     let (market, _) = class.deploy(@array![1, 2, 3]).unwrap();
@@ -49,7 +50,7 @@ fn test_market_and_registry_deploy() {
 }
 
 #[test]
-#[available_gas(l2_gas: 417527)] // ceil(1.05 × 397644 measured)
+#[available_gas(l2_gas: 406260)] // ceil(1.05 × 386914 measured)
 fn test_fate_word() {
     let class = declare("TxHashFate").unwrap().contract_class();
     let (address, _) = class.deploy(@array![]).unwrap();
@@ -59,7 +60,7 @@ fn test_fate_word() {
 }
 
 #[test]
-#[available_gas(l2_gas: 408032)] // ceil(1.05 × 388601 measured)
+#[available_gas(l2_gas: 396660)] // ceil(1.05 × 377771 measured)
 fn test_fate_refuses_mainnet_calls() {
     let class = declare("TxHashFate").unwrap().contract_class();
     let (address, _) = class.deploy(@array![]).unwrap();
@@ -71,7 +72,7 @@ fn test_fate_refuses_mainnet_calls() {
 }
 
 #[test]
-#[available_gas(l2_gas: 286136)] // ceil(1.05 × 272510 measured)
+#[available_gas(l2_gas: 276444)] // ceil(1.05 × 263280 measured)
 fn test_fate_refuses_mainnet_deployment() {
     let class = declare("TxHashFate").unwrap().contract_class();
     start_cheat_chain_id_global('SN_MAIN');

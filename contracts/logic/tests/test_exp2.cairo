@@ -31,7 +31,7 @@ fn expected() -> Array<u32> {
 
 // Every x of the table, and 40 beyond each end (the clamp), against the independent values.
 #[test]
-#[available_gas(l2_gas: 3046890)] // ceil(1.05 × 2901800 measured)
+#[available_gas(l2_gas: 3038795)] // ceil(1.05 × 2894090 measured)
 fn test_every_entry_and_clamp() {
     let expected = expected();
     assert(expected.len() == LEN, 'expected length');
@@ -55,7 +55,7 @@ fn test_every_entry_and_clamp() {
 
 // The octaves are exact: 2^k at x = 40k, for k from -4 to +2.
 #[test]
-#[available_gas(l2_gas: 25158)] // ceil(1.05 × 23960 measured)
+#[available_gas(l2_gas: 16937)] // ceil(1.05 × 16130 measured)
 fn test_octaves_exact() {
     assert(Exp2::at(-160) == SHIFT / 16, '2^-4');
     assert(Exp2::at(-120) == SHIFT / 8, '2^-3');
@@ -68,7 +68,7 @@ fn test_octaves_exact() {
 
 // Out of range clamps, at both ends, however far.
 #[test]
-#[available_gas(l2_gas: 21893)] // ceil(1.05 × 20850 measured)
+#[available_gas(l2_gas: 13671)] // ceil(1.05 × 13020 measured)
 fn test_clamp_ends() {
     assert(Exp2::at(-161) == Exp2::at(-160), 'below clamps');
     assert(Exp2::at(-65535) == 4096, 'far below clamps');
@@ -77,7 +77,7 @@ fn test_clamp_ends() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_assert_covered() {
     Exp2Assert::assert_covered(-160);
     Exp2Assert::assert_covered(0);
@@ -86,14 +86,14 @@ fn test_assert_covered() {
 
 #[test]
 #[should_panic(expected: 'exp2: x out of range')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_assert_covered_above_refused() {
     Exp2Assert::assert_covered(81);
 }
 
 #[test]
 #[should_panic(expected: 'exp2: x out of range')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_assert_covered_below_refused() {
     Exp2Assert::assert_covered(-161);
 }
@@ -105,7 +105,7 @@ fn opaque(x: i32) -> i32 {
 }
 
 #[test]
-#[available_gas(l2_gas: 20118)] // ceil(1.05 × 19160 measured)
+#[available_gas(l2_gas: 11897)] // ceil(1.05 × 11330 measured)
 fn test_bench_lookup() {
     let x: i32 = opaque(-37);
     assert(Exp2::at(x) == 34517, 'lookup');

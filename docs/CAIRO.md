@@ -20,6 +20,10 @@ reference for how they are applied.
 Limits that remain: the maximum size of a class, and readability. A specialisation that
 saves nothing measurable is not made.
 
+Starknet caps a transaction at 1.1×10⁹ L2 gas ("Max L2 gas per transaction", mainnet limits:
+https://docs.starknet.io/learn/cheatsheets/chain-info, read 2026-10-02). The batch target of 40 M L2 gas
+(design/02, a target not yet proven; ENG-01 §10.1; SPK-15 measured against it) sits well under it.
+
 ## 2. Test-driven, with gas as a test result
 
 | Step | |
@@ -40,7 +44,7 @@ saves nothing measurable is not made.
 | Reports carry them | `REPORT.md` has a gas table: before, after, budget, for everything the lot touched |
 | Raising a budget | Needs a reason, written as `// gas: raised, <reason>` above the attribute (checked by `scripts/gas_budgets.py`) and in the pull request, and the orchestrator's agreement, given at review from the `raised` notes of the gas table. Lowering one needs nothing |
 | Oracles | An optimised algorithm is tested against a plain, obviously correct version kept in the tests (a scalar flood against the bit-parallel one) |
-| **Measured and declared builds are single-threaded** (D-176) | Scarb 2.19's compiler picks a call-graph cycle's `withdraw_gas` placement by intern-id order, which depends on rayon's thread order: every build whose gas, class size or class hash is measured, snapshotted, packaged or declared runs with `RAYON_NUM_THREADS=1` (CI gates, release checks, `scarb package`, `declare`) |
+| **Measured and declared builds are single-threaded** (D-176) | Scarb's compiler (2.19, and still 2.20.1: SPK-13) picks a call-graph cycle's `withdraw_gas` placement by intern-id order, which depends on rayon's thread order: every build whose gas, class size or class hash is measured, snapshotted, packaged or declared runs with `RAYON_NUM_THREADS=1` (CI gates, release checks, `scarb package`, `declare`). A class hash or a Sierra file hash also depends on the absolute build path (SPK-13b, #283): compare gas, Sierra felt counts and CASM, never those hashes |
 | **Where a test lives** (owner, 2026-09-30, D-167) | The unit tests of a module are **in that module's file**, under `#[cfg(test)] mod tests`, so that whoever changes the code sees its tests. Only what needs a deployed contract or several packages (integration, an entrypoint's gas benchmark, a parity table) is in `tests/`. A test kept apart for a performance reason says so above it |
 
 ## 3. Order of preference

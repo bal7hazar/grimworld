@@ -412,7 +412,7 @@ mod tests {
     };
 
     #[test]
-    #[available_gas(l2_gas: 363636)] // ceil(1.05 × 346320 measured)
+    #[available_gas(l2_gas: 355415)] // ceil(1.05 × 338490 measured)
     fn test_item_grimoire_rift_layout() {
         let base = ItemBase {
             base: 0xFFFF,
@@ -468,7 +468,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'packing: pairs 25-48 overflow')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_pairs_overflow_refused() {
         StorePacking::<
             Pairs, felt252,
@@ -478,7 +478,7 @@ mod tests {
     // CBT-08a, D-158: `ItemBase.slot` at bit 120 and `hands` at 124, 4 bits each, copied from the
     // `BASE` record by the constructor every creator of an item calls.
     #[test]
-    #[available_gas(l2_gas: 189315)] // ceil(1.05 × 180300 measured)
+    #[available_gas(l2_gas: 181094)] // ceil(1.05 × 172470 measured)
     fn test_item_slot_and_hands() {
         let one = ItemBase { slot: 1, ..Default::default() };
         assert(
@@ -516,14 +516,14 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'packing: slot above 4 b')]
     fn test_item_slot_too_wide() {
         StorePacking::<ItemBase, felt252>::pack(ItemBase { slot: 16, ..Default::default() });
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'packing: hands above 4 b')]
     fn test_item_hands_too_wide() {
         StorePacking::<ItemBase, felt252>::pack(ItemBase { hands: 16, ..Default::default() });
@@ -532,7 +532,7 @@ mod tests {
     // The items worn as `set_build` reads them: lanes and bases in lane order, the distinct
     // modifiers in the order met, the weapon's personalisation.
     #[test]
-    #[available_gas(l2_gas: 158945)] // ceil(1.05 × 151376 measured)
+    #[available_gas(l2_gas: 150829)] // ceil(1.05 × 143646 measured)
     fn test_equipment() {
         let none = Modifier { id: 0, value: 0 };
         let weapon = Item {

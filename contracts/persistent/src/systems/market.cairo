@@ -197,7 +197,7 @@ mod layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 65909)] // ceil(1.05 × 62770 measured)
+    #[available_gas(l2_gas: 57792)] // ceil(1.05 × 55040 measured)
     fn test_market_storage_addresses() {
         let state = @Market::contract_state_for_testing();
         assert(

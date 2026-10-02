@@ -130,7 +130,7 @@ impl FeltsImpl of Felts {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 4637336)] // ceil(1.05 × 4416510 measured)
+#[available_gas(l2_gas: 4848081)] // ceil(1.05 × 4617220 measured)
 fn test_set_record_new_sequential() {
     let r = Fixture::deploy();
     assert(r.admin.last_id(LOCATION) == 0, 'none yet');
@@ -146,7 +146,7 @@ fn test_set_record_new_sequential() {
 // An existing record's values change (design/01 rule 2: ids are append-only, values are not).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 4715015)] // ceil(1.05 × 4490490 measured)
+#[available_gas(l2_gas: 5006789)] // ceil(1.05 × 4768370 measured)
 fn test_set_record_existing_changes() {
     let r = Fixture::deploy();
     r.admin.set_record(LOCATION, 1, Felts::two(5, 6));
@@ -160,7 +160,7 @@ fn test_set_record_existing_changes() {
 // Composite kinds (`OUTLINE`, `SHOP`): any id whose parent exists; `last_id` stays 0.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 7469081)] // ceil(1.05 × 7113410 measured)
+#[available_gas(l2_gas: 7891023)] // ceil(1.05 × 7515260 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_composite_needs_parent() {
     let r = Fixture::deploy();
@@ -187,7 +187,7 @@ fn test_set_record_composite_needs_parent() {
 // location does not exist; `last_id` stays 0.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 5641556)] // ceil(1.05 × 5372910 measured)
+#[available_gas(l2_gas: 5950539)] // ceil(1.05 × 5667180 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy();
@@ -208,7 +208,7 @@ fn test_set_record_quotas_keyed_by_location() {
 // An outline's chunk is a chunk of the location (below 225) or 255, its chunk set.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 4796873)] // ceil(1.05 × 4568450 measured)
+#[available_gas(l2_gas: 5021279)] // ceil(1.05 × 4782170 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_outline_chunk_refused() {
     let r = Fixture::deploy();
@@ -225,7 +225,7 @@ fn test_set_record_outline_chunk_refused() {
 // the quiver id exists is the content pipeline's check).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3799184)] // ceil(1.05 × 3618270 measured)
+#[available_gas(l2_gas: 3969819)] // ceil(1.05 × 3780780 measured)
 fn test_set_record_quiver_ids() {
     let r = Fixture::deploy();
     r.admin.set_record(TASK, 0x12345, Felts::one(1));
@@ -239,7 +239,7 @@ fn test_set_record_quiver_ids() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 1675632)] // ceil(1.05 × 1595840 measured)
+#[available_gas(l2_gas: 1710387)] // ceil(1.05 × 1628940 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_refused_to_others() {
     let r = Fixture::deploy();
@@ -251,7 +251,7 @@ fn test_set_record_refused_to_others() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 2778111)] // ceil(1.05 × 2645820 measured)
+#[available_gas(l2_gas: 2833803)] // ceil(1.05 × 2698860 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_part_count_refused() {
     let r = Fixture::deploy();
@@ -265,7 +265,8 @@ fn test_set_record_part_count_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1270458)] // ceil(1.05 × 1209960 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 1286828)] // ceil(1.05 × 1225550 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {
     let r = Fixture::deploy();
@@ -281,7 +282,7 @@ fn test_set_record_unknown_kind_refused() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3954626)] // ceil(1.05 × 3766310 measured)
+#[available_gas(l2_gas: 4031255)] // ceil(1.05 × 3839290 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_live_refused() {
     let r = Fixture::deploy();
@@ -301,7 +302,7 @@ fn test_set_record_not_live_refused() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 1929711)] // ceil(1.05 × 1837820 measured)
+#[available_gas(l2_gas: 1958177)] // ceil(1.05 × 1864930 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_id_zero_refused() {
     let r = Fixture::deploy();
@@ -314,7 +315,7 @@ fn test_set_record_id_zero_refused() {
 // Sequential kinds are append-only: a new id is `last_id + 1`, never a gap.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3949019)] // ceil(1.05 × 3760970 measured)
+#[available_gas(l2_gas: 4092774)] // ceil(1.05 × 3897880 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_not_next_refused() {
     let r = Fixture::deploy();
@@ -332,7 +333,7 @@ fn test_set_record_not_next_refused() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 8843552)] // ceil(1.05 × 8422430 measured)
+#[available_gas(l2_gas: 9593766)] // ceil(1.05 × 9136920 measured)
 fn test_version_rises_per_changed_record() {
     let r = Fixture::deploy();
     assert(r.version() == 0, '0 at deployment');
@@ -362,7 +363,7 @@ fn test_version_rises_per_changed_record() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 7506996)] // ceil(1.05 × 7149520 measured)
+#[available_gas(l2_gas: 7925411)] // ceil(1.05 × 7548010 measured)
 fn test_bundle_version_and_order() {
     let r = Fixture::deploy();
     r.admin.set_record(REGION, 1, Felts::one(1));
@@ -398,7 +399,8 @@ fn prefix_of(value: i16) -> Span<felt252> {
 // identical rewrite and a new id do not; no record of another kind moves it, new or rewritten.
 // The content version rises for every changed record, as before.
 #[test]
-#[available_gas(l2_gas: 24290270)] // ceil(1.05 × 23133590 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 25720758)] // ceil(1.05 × 24495960 measured)
 fn test_inputs_version_per_kind() {
     let r = Fixture::deploy();
     let none: [Entry; 3] = [Default::default(); 3];
@@ -441,7 +443,7 @@ fn test_inputs_version_per_kind() {
 // A record never written reads as `parts(kind)` zeros: part 0 is 0, the record does not exist.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3096461)] // ceil(1.05 × 2949010 measured)
+#[available_gas(l2_gas: 3216623)] // ceil(1.05 × 3063450 measured)
 fn test_missing_record_reads_zeros() {
     let r = Fixture::deploy();
     assert(r.read.record(BOOK, 1) == array![0, 0, 0].span(), 'record');
@@ -453,7 +455,8 @@ fn test_missing_record_reads_zeros() {
 }
 
 #[test]
-#[available_gas(l2_gas: 5061326)] // ceil(1.05 × 4820310 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 5488109)] // ceil(1.05 × 5226770 measured)
 #[feature("safe_dispatcher")]
 fn test_reads_bounded() {
     let r = Fixture::deploy();
@@ -479,7 +482,7 @@ fn test_reads_bounded() {
 // The role moves: the new administrator writes, the former one no longer can.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3544349)] // ceil(1.05 × 3375570 measured)
+#[available_gas(l2_gas: 3662589)] // ceil(1.05 × 3488180 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_hands_over() {
     let r = Fixture::deploy();
@@ -495,7 +498,7 @@ fn test_set_admin_hands_over() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 2860316)] // ceil(1.05 × 2724110 measured)
+#[available_gas(l2_gas: 2946248)] // ceil(1.05 × 2805950 measured)
 #[feature("safe_dispatcher")]
 fn test_set_admin_refused() {
     let r = Fixture::deploy();
@@ -509,7 +512,8 @@ fn test_set_admin_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 859131)] // ceil(1.05 × 818220 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 866450)] // ceil(1.05 × 825190 measured)
 #[feature("safe_dispatcher")]
 fn test_upgrade_stub() {
     let r = Fixture::deploy();
@@ -521,7 +525,8 @@ fn test_upgrade_stub() {
 
 // The baseline of the tests below: the deployment alone.
 #[test]
-#[available_gas(l2_gas: 748902)] // ceil(1.05 × 713240 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 756557)] // ceil(1.05 × 720530 measured)
 fn test_gas_deploy() {
     Fixture::deploy();
 }
@@ -530,7 +535,7 @@ fn test_gas_deploy() {
 // (ENG-01 §10: 5 N / 0 O).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3365639)] // ceil(1.05 × 3205370 measured)
+#[available_gas(l2_gas: 3473831)] // ceil(1.05 × 3308410 measured)
 fn test_gas_set_record_new() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -540,7 +545,7 @@ fn test_gas_set_record_new() {
 // 0 N / 5 O, which counts `last_id` too; a changed record does not write it).
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3878627)] // ceil(1.05 × 3693930 measured)
+#[available_gas(l2_gas: 4092417)] // ceil(1.05 × 3897540 measured)
 fn test_gas_set_record_changed() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -550,7 +555,7 @@ fn test_gas_set_record_changed() {
 // `set_record` of the same values: 3 reads, nothing written, the version kept.
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 3665561)] // ceil(1.05 × 3491010 measured)
+#[available_gas(l2_gas: 3804192)] // ceil(1.05 × 3623040 measured)
 fn test_gas_set_record_unchanged() {
     let r = Fixture::deploy();
     r.admin.set_record(BOOK, 1, Felts::three(1, 2, 3));
@@ -559,7 +564,8 @@ fn test_gas_set_record_unchanged() {
 
 // `records` against `bundle` for the same record: the difference is the version's read.
 #[test]
-#[available_gas(l2_gas: 2756082)] // ceil(1.05 × 2624840 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 2782301)] // ceil(1.05 × 2649810 measured)
 fn test_gas_records_1() {
     let r = Fixture::deploy();
     r.books(1);
@@ -567,7 +573,8 @@ fn test_gas_records_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 2778710)] // ceil(1.05 × 2646390 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 2817738)] // ceil(1.05 × 2683560 measured)
 fn test_gas_bundle_1() {
     let r = Fixture::deploy();
     let requests = r.books(1);
@@ -576,7 +583,8 @@ fn test_gas_bundle_1() {
 }
 
 #[test]
-#[available_gas(l2_gas: 15857888)] // ceil(1.05 × 15102750 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 16067016)] // ceil(1.05 × 15301920 measured)
 fn test_gas_bundle_10() {
     let r = Fixture::deploy();
     let requests = r.books(10);
@@ -586,7 +594,8 @@ fn test_gas_bundle_10() {
 
 // The bound: 32 records of 3 parts, 96 slots and the version (ENG-01 §9.3: at most 97 reads).
 #[test]
-#[available_gas(l2_gas: 47829212)] // ceil(1.05 × 45551630 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 48454140)] // ceil(1.05 × 46146800 measured)
 fn test_gas_bundle_32() {
     let r = Fixture::deploy();
     let requests = r.books(32);
@@ -634,7 +643,8 @@ fn next_id(r: Registry, kind: u8) -> u32 {
 // content version rises twice for each. Kinds in order, so that `LOCATION` 1 exists before the
 // composite kinds that name it.
 #[test]
-#[available_gas(l2_gas: 52691457)] // ceil(1.05 × 50182340 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 56201786)] // ceil(1.05 × 53525510 measured)
 fn test_inputs_version_every_other_kind() {
     let r = Fixture::deploy();
     let mut others: u32 = 0;
@@ -713,7 +723,8 @@ fn assert_refused(result: Result<(), Array<felt252>>, message: felt252) {
 // `hi` is accepted, one at `hi + 1` is refused with the per-source bound, and one at `lo − 1` is
 // refused (by the bound, or by the passive's own range where that is non-negative).
 #[test]
-#[available_gas(l2_gas: 75201063)] // ceil(1.05 × 71620060 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 78449039)] // ceil(1.05 × 74713370 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_per_source_bounds() {
     let r = Fixture::deploy();
@@ -777,7 +788,8 @@ fn test_set_record_per_source_bounds() {
 
 // DS-4 and design/19 §7.2: the passives a source may not hold are refused on it.
 #[test]
-#[available_gas(l2_gas: 10241606)] // ceil(1.05 × 9753910 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 10460016)] // ceil(1.05 × 9961920 measured)
 fn test_set_record_sources_refused() {
     let r = Fixture::deploy();
     let refused = array![
@@ -814,7 +826,8 @@ fn test_set_record_sources_refused() {
 
 // DS-23: an insignia names its piece, and its health is within the piece's 15 / 10 / 5.
 #[test]
-#[available_gas(l2_gas: 7574312)] // ceil(1.05 × 7213630 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 7798581)] // ceil(1.05 × 7427220 measured)
 fn test_set_record_insignia_pieces() {
     let r = Fixture::deploy();
     let none: Passive = Default::default();
@@ -875,7 +888,8 @@ fn skill_of(adrenaline: u8, entries: [Entry; 3]) -> Span<felt252> {
 // DS-18, DS-29: a caste record at its bounds is accepted; one unit beyond any is refused; the
 // skills it names are at most 63 strikes (across records).
 #[test]
-#[available_gas(l2_gas: 16001055)] // ceil(1.05 × 15239100 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 16509161)] // ceil(1.05 × 15723010 measured)
 fn test_set_record_caste_bounds() {
     let r = Fixture::deploy();
     assert_accepted(try_write(r, SKILL, skill_of(63, [Default::default(); 3])));
@@ -904,7 +918,8 @@ fn test_set_record_caste_bounds() {
 // DS-20 (§6 test 7): a second `ATTACK_BONUS` on one carrier is refused; a potion's entry is a
 // legal, unscaled carrier (design/19 §5.14).
 #[test]
-#[available_gas(l2_gas: 8534778)] // ceil(1.05 × 8128360 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 8774798)] // ceil(1.05 × 8356950 measured)
 fn test_set_record_carriers() {
     let r = Fixture::deploy();
     let bonus = EntryTrait::new(
@@ -974,7 +989,8 @@ fn test_set_record_conditions_after_the_mvp() {
 // accepted; then rewritten from 63 to 64, refused. The skill first at 64: the caste naming it is
 // refused (`test_set_record_caste_bounds`). A skill no caste names takes 64.
 #[test]
-#[available_gas(l2_gas: 11654675)] // ceil(1.05 × 11099690 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 12095465)] // ceil(1.05 × 11519490 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_caste_skills_either_order() {
     let r = Fixture::deploy();
@@ -993,7 +1009,8 @@ fn test_set_record_caste_skills_either_order() {
 // naming skill 2 instead, skill 1 is released (64 accepted) and skill 2 bound. Two castes naming
 // one skill: it stays bound until neither does.
 #[test]
-#[available_gas(l2_gas: 20179499)] // ceil(1.05 × 19218570 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 21357179)] // ceil(1.05 × 20340170 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_caste_rewrite_moves_the_bound() {
     let r = Fixture::deploy();

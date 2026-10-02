@@ -4,12 +4,12 @@ members = ["logic", "persistent", "ephemeral"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024_07"
-cairo-version = "2.19"
+cairo-version = "2.20"
 
 [workspace.dependencies]
-starknet = "2.19"
-snforge_std = "0.61"
-assert_macros = "2.19"
+starknet = "2.20"
+snforge_std = "0.64"
+assert_macros = "2.20"
 hexx = "0.1.0-rc.1"
 
 [cairo]

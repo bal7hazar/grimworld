@@ -1,0 +1,10 @@
+A = spikes/SPK-13/.work/out-mac/kept/consumer-dev/consumer_HexxGenerators.dd160b4dd4f5/consumer_HexxGenerators.contract_class.json: 44449 statements, 98 functions
+
+B = spikes/SPK-13/.work/out-mac/kept/consumer-dev/consumer_HexxGenerators.b4c3f21302f8/consumer_HexxGenerators.contract_class.json: 44469 statements, 98 functions
+  types: equal sets
+  libfuncs: equal sets
+  function declarations (names, signatures, order): equal
+  function hexx::generators::digger::DiggerInternal::visit::<hexx::generators::mazer::SouthWestHeading>:
+    A {'statements': 791, 'withdraw_gas': 0, 'first_withdraw_gas_at': None, 'calls': ['core::panic_with_const_felt252::<39878429859757942499084499860145094553463>', 'hexx::generators::digger::DiggerInternal::iter']}
+    B {'statements': 811, 'withdraw_gas': 1, 'first_withdraw_gas_at': 3, 'calls': ['core::panic_with_const_felt252::<375233589013918064796019>', 'core::panic_with_const_felt252::<39878429859757942499084499860145094553463>', 'hexx::generators::digger::DiggerInternal::iter']}
+  CASM: A 49375 felts, B 49375 felts, 18475 felts differ

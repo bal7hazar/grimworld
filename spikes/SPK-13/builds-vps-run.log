@@ -1,0 +1,87 @@
+Thu Oct  1 12:26:17 UTC 2026
+builds.sh: consumer / clean / build 1 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/1
+builds.sh: consumer / clean / build 2 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/2
+builds.sh: consumer / clean / build 3 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/3
+builds.sh: consumer / clean / build 4 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/4
+builds.sh: consumer / clean / build 5 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/5
+builds.sh: consumer / clean / build 6 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/6
+builds.sh: consumer / clean / build 7 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/7
+builds.sh: consumer / clean / build 8 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/8
+builds.sh: consumer / clean / build 9 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/9
+builds.sh: consumer / clean / build 10 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/clean/10
+builds.sh: consumer / fresh-cache / build 1 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/1
+builds.sh: consumer / fresh-cache / build 2 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/2
+builds.sh: consumer / fresh-cache / build 3 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/3
+builds.sh: consumer / fresh-cache / build 4 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/4
+builds.sh: consumer / fresh-cache / build 5 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/5
+builds.sh: consumer / fresh-cache / build 6 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/6
+builds.sh: consumer / fresh-cache / build 7 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/7
+builds.sh: consumer / fresh-cache / build 8 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/8
+builds.sh: consumer / fresh-cache / build 9 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/9
+builds.sh: consumer / fresh-cache / build 10 (threads: 4 (scripts/lock.sh default))
+collect: 9 artefacts of consumer/fresh-cache/10
+builds.sh: consumer / one-thread / build 1 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/1
+builds.sh: consumer / one-thread / build 2 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/2
+builds.sh: consumer / one-thread / build 3 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/3
+builds.sh: consumer / one-thread / build 4 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/4
+builds.sh: consumer / one-thread / build 5 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/5
+builds.sh: consumer / one-thread / build 6 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/6
+builds.sh: consumer / one-thread / build 7 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/7
+builds.sh: consumer / one-thread / build 8 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/8
+builds.sh: consumer / one-thread / build 9 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/9
+builds.sh: consumer / one-thread / build 10 (threads: 1)
+collect: 9 artefacts of consumer/one-thread/10
+builds.sh: table in spikes/SPK-13/.work/out-vps/builds.txt
+consumer exit=0
+Thu Oct  1 12:30:43 UTC 2026
+builds.sh: contracts / clean / build 1 (threads: 4 (scripts/lock.sh default))
+collect: 51 artefacts of contracts/clean/1
+builds.sh: contracts / clean / build 2 (threads: 4 (scripts/lock.sh default))
+collect: 51 artefacts of contracts/clean/2
+builds.sh: contracts / clean / build 3 (threads: 4 (scripts/lock.sh default))
+collect: 51 artefacts of contracts/clean/3
+builds.sh: contracts / clean / build 4 (threads: 4 (scripts/lock.sh default))
+collect: 51 artefacts of contracts/clean/4
+builds.sh: contracts / clean / build 5 (threads: 4 (scripts/lock.sh default))
+collect: 51 artefacts of contracts/clean/5
+builds.sh: contracts / one-thread / build 1 (threads: 1)
+collect: 51 artefacts of contracts/one-thread/1
+builds.sh: contracts / one-thread / build 2 (threads: 1)
+collect: 51 artefacts of contracts/one-thread/2
+builds.sh: contracts / one-thread / build 3 (threads: 1)
+collect: 51 artefacts of contracts/one-thread/3
+builds.sh: contracts / one-thread / build 4 (threads: 1)
+collect: 51 artefacts of contracts/one-thread/4
+builds.sh: contracts / one-thread / build 5 (threads: 1)
+collect: 51 artefacts of contracts/one-thread/5
+builds.sh: table in spikes/SPK-13/.work/out-vps/builds.txt
+contracts exit=0
+Thu Oct  1 12:59:40 UTC 2026

@@ -79,17 +79,24 @@ When an account changes owner while one of its adventurers is inside, `Hub.set_a
 
 Limits (docs.starknet.io, *Chain info*, read 2026-09-29): **4,089,446 bytes** of Sierra class,
 **81,920 felts** of CASM bytecode. Measured by `python3 contracts/tools/class_sizes.py` after
-`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (M, this commit):
+`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` on **Scarb 2.20.1** with
+`RAYON_NUM_THREADS=1` (FND-11, D-180; the figures of earlier lots were taken on 2.19.4 and are
+replaced, not compared). The previous table was stale from lots merged since; the new figures were
+already on main's CI on 2.19.4 (run 37013305661, f1a0b41). The move of 2.20.1 itself is `TickLibrary`
+−128 CASM felts (23,860 → 23,732) and no other felt count. The Sierra class bytes carry a build's own
+text; the felt counts are the figures to compare (SPK-13b, #283):
 
-| Contract | Sierra class, bytes | CASM bytecode, felts | Share of the nearer limit |
-|---|---:|---:|---:|
-| `Hub` | 200,851 | 9,819 | 11.99 % |
-| `Instances` | 135,728 | 6,410 | 7.82 % |
-| `Market` | 57,517 | 2,816 | 3.44 % |
-| `Registry` | 42,410 | 1,435 | 1.75 % |
-| `TxHashFate` | 18,039 | 368 | 0.45 % |
+| Contract | Sierra class, bytes | Sierra program, felts | CASM bytecode, felts | Share of the nearer limit |
+|---|---:|---:|---:|---:|
+| `Hub` | 1,116,867 | 16,304 | 37,589 | 45.89 % |
+| `Registry` | 674,234 | 10,665 | 24,611 | 30.04 % |
+| `Instances` | 630,391 | 9,258 | 23,795 | 29.05 % |
+| `TickLibrary` | 581,961 | 8,538 | 23,732 | 28.97 % |
+| `FlattenLibrary` | 561,152 | 8,436 | 22,098 | 26.98 % |
+| `Market` | 57,517 | 865 | 2,816 | 3.44 % |
+| `TxHashFate` | 18,039 | 301 | 368 | 0.45 % |
 
-(After fix loop 1. The probes `ReuseProbe`, `CallProbe` and `EventProbe` are under 1.4 % each and
+(The probes `ReuseProbe`, `CallProbe` and `EventProbe` are under 1.4 % each and
 never deployed.)
 
 CASM bytecode is the binding limit (the Sierra limit is 21 to 50 times farther). **Estimate of the

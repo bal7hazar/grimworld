@@ -182,7 +182,7 @@ mod tests {
     // when stacked (§5.7: different conditions stack); held through `t = D`, not
     // after (a condition of `d` ticks degenerates `d` times, §5.1).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_degeneration_pips() {
         assert(TickMathTrait::degeneration(50, 0, 0, 50) == -3, 'bleeding -3');
         assert(TickMathTrait::degeneration(0, 50, 0, 50) == -4, 'poison -4');
@@ -196,7 +196,7 @@ mod tests {
     // health; with +5 regeneration and Burning: −2 → −4; a loss beyond the health → 0; a
     // gain beyond the max → the max.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_degeneration_heal() {
         let all = TickMathTrait::degeneration(60, 60, 60, 60);
         assert(TickMathTrait::heal(100, all, 480) == 80, 'clamped to -10: -20');
@@ -210,7 +210,7 @@ mod tests {
     // FX-6: a refresh keeps `max(D_old, D_new)`, at equal and smaller durations; a cure is a
     // duration of 0, `D = t0 − 1`, and leaves an absent condition alone (§3.2's `CURE`).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_refreshed_cured() {
         assert(TickMathTrait::refreshed(0, 70, 8) == 77, 'new: t0 + d - 1');
         assert(TickMathTrait::refreshed(77, 70, 8) == 77, 'equal: kept');
@@ -224,7 +224,7 @@ mod tests {
     // §3.2 row 4 (FX-15, FX-18): a move costs 2 ticks while Crippled, 1 after its deadline or
     // with a `MOVEMENT` effect; `held` reads `t0 ≤ D`.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_move_ticks() {
         assert(TickMathTrait::move_ticks(62, 62, false) == 2, 'crippled: 2');
         assert(TickMathTrait::move_ticks(62, 63, false) == 1, 'over: 1');
@@ -236,7 +236,7 @@ mod tests {
     // (`InflictionTrait::duration` clamps a value to 1 first).
     #[test]
     #[should_panic(expected: 'tick: duration below 1')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_refreshed_zero_refused() {
         TickAssert::assert_duration(0);
     }

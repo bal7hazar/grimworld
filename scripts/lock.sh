@@ -44,7 +44,10 @@ esac
 
 project_lock=${GRIMWORLD_BUILD_LOCK:-/tmp/grimworld-build.lock}
 heavy_lock=${HEAVY_BUILD_LOCK:-$HOME/orchestrator/heavy-build.lock}
-export RAYON_NUM_THREADS="${RAYON_NUM_THREADS:-4}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
+# RAYON_NUM_THREADS defaults to 1, like CI: the compiler's `withdraw_gas` placement follows rayon's
+# thread order (SPK-13), so D-176 requires local builds to be single-threaded to match CI. A
+# RAYON_NUM_THREADS already in the caller's environment still wins (`:-`).
+export RAYON_NUM_THREADS="${RAYON_NUM_THREADS:-1}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
 
 cmd=("$@")
 # Called by something that already holds the heavy lock (a machine shim) without the project

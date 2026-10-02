@@ -7,7 +7,7 @@ use grimworld_logic::types::{LAST_TICK, MAX_CLOCK, MAX_DURATION, MAX_WEIGHT_TICK
 // The widest base with every bonus at its cap is exactly MAX_DURATION; bonuses beyond the caps
 // are clamped; design/15's +33 % on a condition of 20 ticks gives 26.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_effective_duration_maximum() {
     assert(
         effective_duration(
@@ -26,7 +26,7 @@ fn test_effective_duration_maximum() {
 
 #[test]
 #[should_panic(expected: 'duration: base above the cap')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_base_above_cap_refused() {
     effective_duration(MAX_BASE_DURATION + 1, 0, 0);
 }

@@ -6,12 +6,14 @@ are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
 ## 2026-10-02: the track runs in herdr
 
-**Merged on 2026-10-02**: **ENG-R1a** ([#221](https://github.com/bal7hazar/grimworld/pull/221), `d3ad22d`), **CBT-04** ([#228](https://github.com/bal7hazar/grimworld/pull/228), `81fbd98`) and
-**ENG-02** ([#246](https://github.com/bal7hazar/grimworld/pull/246), `04e12d6`); **SPK-15** ([#234](https://github.com/bal7hazar/grimworld/pull/234), `3ccc42e`) merged 2026-10-01. Their reports are
+**Merged on 2026-10-02**: **ENG-R1a** ([#221](https://github.com/bal7hazar/grimworld/pull/221), `d3ad22d`), **CBT-04** ([#228](https://github.com/bal7hazar/grimworld/pull/228), `81fbd98`),
+**ENG-02** ([#246](https://github.com/bal7hazar/grimworld/pull/246), `04e12d6`) and **CBT-03a** ([#229](https://github.com/bal7hazar/grimworld/pull/229), `3b27b9f`); **SPK-15** ([#234](https://github.com/bal7hazar/grimworld/pull/234), `3ccc42e`) merged 2026-10-01. Their reports are
 archived in `docs/reports/`, their PLAN rows done, their CHANGELOG entries written. `contracts/logic/vectors/check.py` runs in CI's
-`contracts` job; it reads `window.jsonl` (ENG-02) and does not yet read `hit.jsonl` (CBT-03a, not merged).
-**Open**: CBT-03a ([#229](https://github.com/bal7hazar/grimworld/pull/229)) is being brought up to date with main; ENG-R1a's reading by the owner (ENG-R1b waits for it);
-ENG-05 waits for `hexx` rc.2 (track LIB). **Next**: CBT-05a (the executor, SPK-15's L3), then FND-11 (Scarb 2.20.1, the pin kept).
+`contracts` job; it reads `window.jsonl` (ENG-02) and `hit.jsonl` (CBT-03a).
+**The tick's share** (ENG-01 §9.2, with CBT-03a's hit and CBT-04's rules): **5,464,542**, **3.72×** the 1,469,435 target, before CBT-05's executor.
+**Open**: CBT-05a (the executor, SPK-15's L3) is in progress; ENG-R1a's reading by the owner (ENG-R1b waits for it);
+ENG-05 waits for `hexx` rc.2 (track LIB). **Next**: FND-11 (Scarb 2.20.1, the pin kept) after CBT-05a.
+**Toolchain**: `scripts/setup-toolchain.sh` fails its `starknet-devnet` check on the VPS (command not found, expected 0.10.0); nothing of the game needs devnet so far.
 **S1's running estimate**: unchanged (≈ 663 M); none of these lots moves it: ENG-R1a's +0.4 % to +3.8 % a call is on entrypoints S1 prices only
 once an expedition, ENG-02 and CBT-04 add per-tick lines (ENG-01 §9.2) that S1 does not count, and SPK-15 says S1 should be judged on a
 representative fight tick nobody has measured. The worst tick's levers are in SPK-15's report (6.26 M to 4.74 M with the engineering levers).
@@ -68,13 +70,14 @@ target (CBT-02b: 10.3×); representative **1,065,651** (72.5 %). S1 above does n
 rests on ENG-01's per-tick estimate. The next lever (frozen goblins kept as words, ~0.85 M a tick at
 the bound) and the batch weight are ENG-07's. **The rules now landing raise it** (each lot's per-tick line, measured, at the MVP's content):
 CBT-04 (#228, conditions) +2,368,590 (up to 16 applications on the member at 108,100 each, 7 on goblins);
-CBT-03a (#229, one hit) +650,440 (14 hits at 46,460; being re-derived with the bomb's 7, FX-35). With
+CBT-03a (#229, one hit) +696,900 (15 hits at 46,460, with the bomb's 7, FX-35). With
 both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's executor writes the actors.
 
 ## What moved
 
 | | |
 |---|---|
+| **CBT-03a** | [#229](https://github.com/bal7hazar/grimworld/pull/229): `HitTrait::resolve`, one hit in 46,460; `hit.jsonl` (200 cases) in `check.py`; worst tick ≤ 5,464,542 with CBT-04 |
 | **ENG-02** | [#246](https://github.com/bal7hazar/grimworld/pull/246): the geometry on `hexx` rc.1 (`types::window`); `window.jsonl`, `check.py` in CI |
 | **CBT-04** | [#228](https://github.com/bal7hazar/grimworld/pull/228): the five conditions as tested rules; a cure on a dead goblin does nothing |
 | **ENG-R1a** | [#221](https://github.com/bal7hazar/grimworld/pull/221): `Hub` through the store, one file a stored model; +0.4 % to +3.8 % a call; `Hub` 45.89 % |
@@ -97,7 +100,7 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 | Lot (PR) | Built by | Now | Gate (D-177) |
 |---|---|---|---|
 | ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | merged 2026-10-02 (`d3ad22d`); the owner's reading pending | done |
-| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | being brought up to date with main (2026-10-02) | the review (Claude Sonnet) and the checks |
+| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | merged 2026-10-02 (`3b27b9f`) | done |
 | ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246)) | Opus 5.5 | merged 2026-10-02 (`04e12d6`) | done |
 | CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228)) | Opus 5.5 | merged 2026-10-02 (`81fbd98`) | done |
 | SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234)) | Opus 5.5 | merged 2026-10-01 (`3ccc42e`) | done |
@@ -113,8 +116,7 @@ Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, 
 
 ## Next
 
-CBT-03a (#229) merged once up to date with main; then CBT-05a (the executor), then FND-11 (Scarb 2.20.1, the pin
-kept). The owner's reading of ENG-R1a (D-167) before ENG-R1b is briefed. ENG-05 when `hexx` rc.2 lands; ENG-07 after ENG-05.
+CBT-05a (the executor) in progress, then FND-11 (Scarb 2.20.1, the pin kept). The owner's reading of ENG-R1a (D-167) before ENG-R1b is briefed. ENG-05 when `hexx` rc.2 lands; ENG-07 after ENG-05.
 
 ## Decisions needed
 
