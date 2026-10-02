@@ -398,7 +398,7 @@ Pending, with this orchestrator's recommendation:
 - Testing CLI-03c; the five points.
 - The go on SPK-13's issue.
 - SPK-12's six questions (after its merge).
-- [PENDING-cv-integer-scale](../decisions/PENDING-cv-integer-scale.md), the sandbox's scale, still
+- [2026-10-02-cv-integer-scale](../decisions/2026-10-02-cv-integer-scale.md), the sandbox's scale, still
   open since the pause.
 
 ## Next, in order, when the owner resumes
