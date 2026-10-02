@@ -25,6 +25,9 @@ TABLES = {
         "grimworld_logic::types::window::tests::test_vectors",
         "grimworld_logic::types::window::tests::test_vectors_1",
     ],
+    "hit.jsonl": [
+        "grimworld_logic::types::hit::tests::test_vectors",
+    ],
 }
 
 
