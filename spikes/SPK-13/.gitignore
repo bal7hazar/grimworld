@@ -1,0 +1,7 @@
+# The library's clone (read at a named commit, never pushed), the build outputs and the fresh
+# Scarb caches of builds.sh, and the minimal program's build outputs.
+.work/
+target/
+minimal/target/
+.snfoundry_cache/
+__pycache__/

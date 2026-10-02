@@ -1,0 +1,12 @@
+A = spikes/SPK-13/.work/out-mac/kept/minimal/spk13_minimal.aaaa1965d1b6/spk13_minimal.sierra.json: 90 statements, 5 functions
+
+B = spikes/SPK-13/.work/out-mac/kept/minimal/spk13_minimal.c550e947e2a1/spk13_minimal.sierra.json: 90 statements, 5 functions
+  types: equal sets
+  libfuncs: equal sets
+  function declarations (names, signatures, order): equal
+  function spk13_minimal::b::pong:
+    A {'statements': 33, 'withdraw_gas': 0, 'first_withdraw_gas_at': None, 'calls': ['core::panic_with_const_felt252::<155785504329508738615720351733824384887>', 'spk13_minimal::ping']}
+    B {'statements': 43, 'withdraw_gas': 1, 'first_withdraw_gas_at': 1, 'calls': ['core::panic_with_const_felt252::<155785504329508738615720351733824384887>', 'core::panic_with_const_felt252::<375233589013918064796019>', 'spk13_minimal::ping']}
+  function spk13_minimal::ping:
+    A {'statements': 43, 'withdraw_gas': 1, 'first_withdraw_gas_at': 1, 'calls': ['core::panic_with_const_felt252::<155785504329508738615720351733824384887>', 'core::panic_with_const_felt252::<375233589013918064796019>', 'spk13_minimal::b::pong']}
+    B {'statements': 33, 'withdraw_gas': 0, 'first_withdraw_gas_at': None, 'calls': ['core::panic_with_const_felt252::<155785504329508738615720351733824384887>', 'spk13_minimal::b::pong']}

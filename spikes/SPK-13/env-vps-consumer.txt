@@ -1,0 +1,6 @@
+### Target consumer
+
+```
+library: bal7hazar/hexx-cairo at 310b5f187a33723e9cd62b57970c250992875b86
+Scarb.lock sha256: 1e4d64d9e432222cd3078aa3f88bb106e86dff2d58c75764e84a4729a1ea2932
+```

@@ -1,0 +1,12 @@
+[package]
+name = "sierra-dump"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "SPK-13: prints the Sierra program of a contract class or of a compiled test file as text, with the debug names, so that two builds can be diffed."
+
+# The crates of the compiler that Scarb 2.19.4 embeds (`scarb --version`: cairo 2.19.4).
+[dependencies]
+cairo-lang-sierra = "=2.19.4"
+cairo-lang-starknet-classes = "=2.19.4"
+serde_json = "1"
