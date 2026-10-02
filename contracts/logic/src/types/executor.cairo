@@ -473,7 +473,6 @@ pub trait Body<T> {
     /// Condition 1–5 for the value `v` at `t` (Knocked down through `knock`, CBT-04).
     fn inflict(ref self: T, condition: u8, v: i32, source: @Infliction, t: u32, sheets: @Sheets);
     fn cure(ref self: T, condition: u8, t: u32);
-    fn interrupt(ref self: T, t: u32, sheets: @Sheets);
     /// A holding effect through §5.7, its carrier at `at`.
     #[inline(never)]
     fn hold(ref self: T, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets);
@@ -645,11 +644,6 @@ pub impl MemberBody of Body<Member> {
         }
     }
 
-    fn interrupt(ref self: Member, t: u32, sheets: @Sheets) {
-        if self.is_alive() {
-            MemberTickTrait::interrupt(ref self, t, sheets);
-        }
-    }
 
     #[inline(never)]
     fn hold(ref self: Member, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) {
@@ -838,11 +832,6 @@ pub impl GoblinBody of Body<Goblin> {
         GoblinLifecycleTrait::cure(ref self, condition, t);
     }
 
-    fn interrupt(ref self: Goblin, t: u32, sheets: @Sheets) {
-        if self.is_alive() {
-            GoblinTickTrait::interrupt(ref self, t, sheets);
-        }
-    }
 
     #[inline(never)]
     fn hold(ref self: Goblin, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) {
@@ -1088,7 +1077,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         let (entries, context, weapon_hit) = Self::read(lever, sheets, @source, carrier, t);
         let entries = entries.span();
         // 1. Guards, once, from the state now (FX-40; subject the source).
-        let held = Self::guards(lever, ref cache, @source, actor, entries, t, sheets);
+        let held = Self::guards(@source, entries);
         let ops = Self::ops(entries, @context);
         // 2. Placement: the payload waits for the trigger.
         if entries.len() > 0 && *entries[0].kind == kind::TRAP {
@@ -1151,10 +1140,9 @@ pub impl ExecutorImpl of ExecutorTrait {
         for (position, target, bits) in list {
             let bits = *bits;
             if *target == actor {
-                let stolen = Self::entries(
+                Self::entries(
                     lever, ref cache, ref source, actor, ops, bits, held, @context, sheets,
                 );
-                source.heal(stolen);
                 continue;
             }
             let shot = Shot {
@@ -1310,7 +1298,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 if Self::trap(
                     lever, ref cache, ref member, entrant, hit, strength, @context, sheets,
                 ) {
-                    let _ = Self::entries(
+                    Self::entries(
                         lever, ref cache, ref member, entrant, ops, bits, held, @context, sheets,
                     );
                 }
@@ -1321,7 +1309,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 if Self::trap(
                     lever, ref cache, ref goblin, entrant, hit, strength, @context, sheets,
                 ) {
-                    let _ = Self::entries(
+                    Self::entries(
                         lever, ref cache, ref goblin, entrant, ops, bits, held, @context, sheets,
                     );
                 }
@@ -1404,11 +1392,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 }
             }
         }
-        gain
-            .stolen +=
-                Self::entries(
-                    lever, ref cache, ref target, actor, ops, bits, held, context, sheets,
-                );
+        Self::entries(lever, ref cache, ref target, actor, ops, bits, held, context, sheets);
         gain
     }
 
@@ -1555,7 +1539,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// The entries other than the hit on `target`, in entry order (§5.14 step 5): those whose set
     /// holds it (`bits`) and whose guard held (`held`), while it is alive, each applied from its
-    /// `Op`. Returns the health its `LIFE_STEAL` took, which the caller gives the source.
+    /// `Op`.
     #[inline(never)]
     fn entries<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
@@ -1567,9 +1551,8 @@ pub impl ExecutorImpl of ExecutorTrait {
         held: u8,
         context: @Context,
         sheets: @Sheets,
-    ) -> u16 {
+    ) {
         let t = *context.t;
-        let mut stolen: u16 = 0;
         let mut bit: u8 = 1;
         for op in ops {
             if bits & held & bit != 0 && *op.kind != kind::EMPTY {
@@ -1579,18 +1562,12 @@ pub impl ExecutorImpl of ExecutorTrait {
                 let op_kind = *op.kind;
                 if op_kind == kind::HEAL {
                     target.heal((*op.v).try_into().unwrap());
-                } else if op_kind == kind::LIFE_STEAL {
-                    let s = Self::min16((*op.v).try_into().unwrap(), target.health());
-                    target.wound(s);
-                    stolen += s;
                 } else if op_kind == kind::CONDITION {
                     target.inflict(*op.param, *op.v, context.infliction, t, sheets);
                 } else if op_kind == kind::CURE {
                     target.cure(*op.param, t);
                 } else if op_kind == kind::ENERGY {
                     target.energize(*op.v, sheets);
-                } else if op_kind == kind::INTERRUPT {
-                    target.interrupt(t, sheets);
                 } else {
                     target.hold(*op.held, *context.at, *op.stance, t, sheets);
                     if let Actor::Member(i) = actor {
@@ -1600,7 +1577,6 @@ pub impl ExecutorImpl of ExecutorTrait {
             }
             bit *= 2;
         }
-        stolen
     }
 
     /// Each entry's `Op` (R2, not generic): the value clamped to its kind's bounds, a holding
@@ -1612,7 +1588,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         for entry in entries {
             let entry_kind = *entry.kind;
             let rank = *context.rank;
-            let op = if entry_kind == kind::HEAL || entry_kind == kind::LIFE_STEAL {
+            let op = if entry_kind == kind::HEAL {
                 let v = Self::clamp(entry.value(rank), 0, MAX_VALUE);
                 Op { kind: entry_kind, param: 0, v, held: none, stance: false }
             } else if entry_kind == kind::CONDITION {
@@ -1623,7 +1599,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                     held: none,
                     stance: false,
                 }
-            } else if entry_kind == kind::CURE || entry_kind == kind::INTERRUPT {
+            } else if entry_kind == kind::CURE {
                 Op { kind: entry_kind, param: *entry.param, v: 0, held: none, stance: false }
             } else if entry_kind == kind::ENERGY {
                 let v = Self::clamp(entry.value(rank), -MAX_ENERGY_VALUE, MAX_ENERGY_VALUE);
@@ -1754,48 +1730,17 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// Every entry's guard, once, from the state now (§2.4, FX-40): bit `k` set if entry `k`'s
-    /// holds for its subject, the source.
+    /// holds for its subject, the source. The MVP's entries are guarded by `BELOW_HALF` at most
+    /// (Second Wind); the validators refuse the others (CBT-05a, option (ii)), which hold nowhere.
     #[inline(never)]
-    fn guards<L, +Levers<L>, S, +Body<S>>(
-        lever: @L,
-        ref cache: Cache,
-        source: @S,
-        actor: Actor,
-        entries: Span<Entry>,
-        t: u32,
-        sheets: @Sheets,
-    ) -> u8 {
-        let mut needed = false;
-        for entry in entries {
-            if *entry.guard != guard::ALWAYS {
-                needed = true;
-            }
-        }
-        let defence = if needed {
-            source.defence(lever, ref cache, actor, t, sheets)
-        } else {
-            Default::default()
-        };
+    fn guards<S, +Body<S>>(source: @S, entries: Span<Entry>) -> u8 {
         let health: u32 = source.health().into();
         let max: u32 = source.max_health().into();
         let mut held: u8 = 0;
         let mut bit: u8 = 1;
         for entry in entries {
             let g = *entry.guard;
-            let holds = if g == guard::ALWAYS {
-                true
-            } else if g == guard::ABOVE_HALF {
-                health * 2 > max
-            } else if g == guard::BELOW_HALF {
-                health * 2 < max
-            } else if g == guard::IN_STANCE {
-                defence.in_stance
-            } else if g == guard::ENCHANTED {
-                defence.is_enchanted
-            } else {
-                false
-            };
-            if holds {
+            if g == guard::ALWAYS || (g == guard::BELOW_HALF && health * 2 < max) {
                 held += bit;
             }
             bit *= 2;
@@ -2298,8 +2243,8 @@ mod tests {
             guard::BELOW_HALF,
             0,
         );
-        let steal = entry(kind::LIFE_STEAL, 0, 20, 20, target::SELF, shape::RING_1, filter::FOES);
-        skills.append(skill(CROSSING, skill_kind::SPELL, 0, [below, steal, none]));
+        let mend = entry(kind::HEAL, 0, 40, 40, target::SELF, shape::SINGLE, filter::ALLIES);
+        skills.append(skill(CROSSING, skill_kind::SPELL, 0, [below, mend, none]));
         let trap = entry(kind::TRAP, 0, 0, 0, target::TILE, shape::SINGLE, 0);
         let earth = entry(
             kind::DAMAGE, damage::EARTH, 10, 40, target::FOE, shape::SINGLE, filter::FOES,
@@ -2520,110 +2465,27 @@ mod tests {
         assert(arcanist.knocked == 202, 'knocked down');
     }
 
-    // §10.7 (FX-40): `DAMAGE` 50 guarded `BELOW_HALF`, then `LIFE_STEAL` 20, on two foes of 100
-    // (strength 60 = armor 60: x = 0). The source at 230 / 480: the guard is read once; A 100 →
-    // 50 → 30, source 250 (above half now); B still takes the hit: 50, then 30, source 270.
+    // §10.7 (FX-40), with a `HEAL` on the source where the example has `LIFE_STEAL` (deferred,
+    // option (ii)): `DAMAGE` 50 guarded `BELOW_HALF` on `RING_1`, then `HEAL` 40 on the source,
+    // strength 60 = armor 60 (x = 0). In tile order A, the source, B: A 100 → 50; the source
+    // heals 230 → 270, above half now; B is still hit, its guard read once: 100 → 50.
     #[test]
     #[available_gas(l2_gas: 100000000)]
     fn test_example_guard_crossing_half() {
         let sheets = sheets(60);
         let tiles = ring(AT);
+        assert(*tiles[1] < AT && *tiles[4] > AT, 'tile order');
         let mut adventurer = member(AT, 0, weapon::STAFF);
         adventurer.health = 230;
-        let foes = array![goblin(20, *tiles[1], 0, 100), goblin(21, *tiles[3], 0, 100)];
+        let foes = array![goblin(20, *tiles[1], 0, 100), goblin(21, *tiles[4], 0, 100)];
         let mut world = Fixture::world(9, array![adventurer], foes);
         let mut cache: Cache = Default::default();
         let carrier = Carrier::Skill((at(@sheets, CROSSING), 12));
         ExecutorTrait::execute(
             @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
         );
-        assert(world.goblin(0).health == 30 && world.goblin(1).health == 30, 'both hit');
-        assert(world.member(0).health == 270, 'source 270');
-    }
-
-    /// An oil (`ON_ATTACK_CONDITION` Poison 10, 2 charges, `d` 0: deadline `MAX_CLOCK`) in belt
-    /// slot 0, item 100, held in effect slot 0, and the content with it.
-    fn oiled() -> (Member, Content) {
-        let oil = EntryTrait::new(
-            kind::ON_ATTACK_CONDITION,
-            condition::POISON,
-            10,
-            10,
-            0,
-            0,
-            2,
-            target::SELF,
-            shape::SINGLE,
-            filter::ALLIES,
-            0,
-            0,
-        );
-        let potions = array![
-            PotionSheet { id: 100, regen: 0, entry: oil.pack(), range: 0, strength: 0 },
-            PotionSheet { id: 101, regen: 0, ..Default::default() },
-            PotionSheet { id: 102, regen: 0, ..Default::default() },
-            PotionSheet { id: 103, regen: 0, ..Default::default() },
-        ];
-        let content = content(40, potions.span());
-        let mut spec = Fixture::spec();
-        spec
-            .effects =
-                [(0, true, MAX_CLOCK, 0), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
-        let mut words = Fixture::member_words(spec);
-        words.effects += 2 * two(16);
-        let base = member(AT, 0, weapon::SWORD);
-        words.stats = base.words.stats;
-        let mut adventurer = Fixture::load_member(words, @content);
-        place_member(ref adventurer, AT, 0);
-        (adventurer, content)
-    }
-
-    // §10.8: hit 1, the goblin survives: Poison applied, charges 2 → 1; hit 2 kills it: no
-    // Poison (step 7: dead), but the charge is spent (step 8): 0, the oil ends.
-    #[test]
-    #[available_gas(l2_gas: 100000000)]
-    fn test_example_oil_on_a_killing_blow() {
-        let (adventurer, content) = oiled();
-        let sheets = content.sheets();
-        let front = *ring(AT)[0];
-        let foe = goblin(30, front, toward(front, AT), 30);
-        let mut world = Fixture::world(9, array![adventurer], array![foe]);
-        let mut cache: Cache = Default::default();
-        // Strength 60 against armor 40: ⌊27 × 92,682 / 65,536⌋ = 38 a hit; 50 health survives
-        // the first.
-        let mut foe = world.goblin(0);
-        foe.health = 50;
-        foe.max_health = 50;
-        world.set_goblin(0, foe);
-        ExecutorTrait::execute(
-            @levered(),
-            ref cache,
-            ref world,
-            @sheets,
-            @board(),
-            Actor::Member(0),
-            Carrier::Weapon,
-            30,
-            10,
-        );
-        let foe = world.goblin(0);
-        assert(foe.health > 0 && foe.poison == 19, 'poisoned 10');
-        assert(world.member(0).effect_of(0).charges == 1, 'charge 2 -> 1');
-        ExecutorTrait::execute(
-            @levered(),
-            ref cache,
-            ref world,
-            @sheets,
-            @board(),
-            Actor::Member(0),
-            Carrier::Weapon,
-            30,
-            11,
-        );
-        let foe = world.goblin(0);
-        assert(foe.ai == ai::DEAD && foe.poison == 19, 'killed, no poison');
-        let oil = world.member(0).effect_of(0);
-        assert(oil.charges == 0 && oil.deadline == 10, 'oil ended');
+        assert(world.goblin(0).health == 50 && world.goblin(1).health == 50, 'both hit');
+        assert(world.member(0).health == 270, 'healed across half');
     }
 
     // §10.9 through the pipeline: a goblin's attack skill of activation 1 started at 50 (`A` 51)

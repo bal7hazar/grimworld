@@ -25,7 +25,7 @@ use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::packing::LIVE;
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{
-    Entry, EntryTrait, errors as entry_errors, filter, kind, shape, target,
+    Entry, EntryTrait, errors as entry_errors, filter, guard, kind, shape, target,
 };
 use grimworld_logic::types::passive::{
     Passive, PassiveTrait, Source, errors as passive_errors, id as passive_id,
@@ -980,6 +980,40 @@ fn test_set_record_conditions_after_the_mvp() {
     let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
     assert_refused(
         try_write(r, ITEM, potion(cure(condition::BLIND))), entry_errors::CONDITION_NOT_MVP,
+    );
+}
+
+// CBT-05a, option (ii): `set_record` refuses the kinds and entry guards the MVP's content does
+// not use (`LIFE_STEAL`, `INTERRUPT`; guards `ABOVE_HALF`, `IN_STANCE`, `ENCHANTED`), in a skill
+// and in a potion; `BELOW_HALF` (Second Wind) is accepted.
+#[test]
+#[available_gas(l2_gas: 9000000)]
+fn test_set_record_deferred_kinds_and_guards() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let on_foe = |
+        k: u8, v: i16, g: u8,
+    | EntryTrait::new(k, 0, v, v, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, g, 0);
+    assert_accepted(
+        try_write(r, SKILL, skill_of(4, [on_foe(kind::HEAL, 20, guard::BELOW_HALF), none, none])),
+    );
+    assert_refused(
+        try_write(r, SKILL, skill_of(4, [on_foe(kind::LIFE_STEAL, 20, 0), none, none])),
+        entry_errors::KIND_DEFERRED,
+    );
+    assert_refused(
+        try_write(r, SKILL, skill_of(4, [on_foe(kind::INTERRUPT, 0, 0), none, none])),
+        entry_errors::KIND_DEFERRED,
+    );
+    for g in array![guard::ABOVE_HALF, guard::IN_STANCE, guard::ENCHANTED] {
+        assert_refused(
+            try_write(r, SKILL, skill_of(4, [on_foe(kind::HEAL, 20, g), none, none])),
+            entry_errors::GUARD_DEFERRED,
+        );
+    }
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_refused(
+        try_write(r, ITEM, potion(on_foe(kind::LIFE_STEAL, 20, 0))), entry_errors::KIND_DEFERRED,
     );
 }
 

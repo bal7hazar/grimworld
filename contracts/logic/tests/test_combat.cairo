@@ -299,7 +299,6 @@ fn test_entry_legal() {
     drain.assert_legal();
     let regen = Entry { v0: -10, v12: 6, d0: 5, d12: 5, ..Fixture::on_self(5) };
     regen.assert_legal();
-    Fixture::on_foe(kind::INTERRUPT).assert_legal();
     let empty: Entry = Default::default();
     empty.assert_legal();
 }
@@ -335,6 +334,45 @@ fn test_entry_unknown_condition_refused() {
 }
 
 // CBT-05a: conditions 6–9 are refused in every kind that names a condition (FX-22).
+// CBT-05a, option (ii): the kinds and entry guards the MVP's content does not use are refused.
+#[test]
+#[should_panic(expected: 'entry: kind deferred')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_interrupt_deferred() {
+    Fixture::on_foe(kind::INTERRUPT).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'entry: kind deferred')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_life_steal_deferred() {
+    Entry { v0: 20, v12: 20, ..Fixture::on_foe(kind::LIFE_STEAL) }.assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'entry: guard deferred')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_guard_above_half_deferred() {
+    Entry { v0: 20, v12: 20, guard: guard::ABOVE_HALF, ..Fixture::on_foe(kind::HEAL) }
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'entry: guard deferred')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_guard_in_stance_deferred() {
+    Entry { v0: 20, v12: 20, guard: guard::IN_STANCE, ..Fixture::on_foe(kind::HEAL) }
+        .assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'entry: guard deferred')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_guard_enchanted_deferred() {
+    Entry { v0: 20, v12: 20, guard: guard::ENCHANTED, ..Fixture::on_foe(kind::HEAL) }
+        .assert_legal();
+}
+
 #[test]
 #[should_panic(expected: 'entry: condition after the MVP')]
 #[available_gas(l2_gas: 16296)]
@@ -375,7 +413,7 @@ fn test_entry_empty_with_field_refused() {
 #[should_panic(expected: 'entry: shape')]
 #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_entry_shape_zero_refused() {
-    Entry { shape: 0, ..Fixture::on_foe(kind::INTERRUPT) }.assert_legal();
+    Entry { shape: 0, ..Fixture::on_foe(kind::HEAL) }.assert_legal();
 }
 
 #[test]

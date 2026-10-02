@@ -132,6 +132,8 @@ pub mod errors {
     pub const READS: felt252 = 'entry: field not read';
     pub const PARAM: felt252 = 'entry: param';
     pub const CONDITION_NOT_MVP: felt252 = 'entry: condition after the MVP';
+    pub const KIND_DEFERRED: felt252 = 'entry: kind deferred';
+    pub const GUARD_DEFERRED: felt252 = 'entry: guard deferred';
     pub const VALUE: felt252 = 'entry: value out of bounds';
     pub const NO_TIME: felt252 = 'entry: neither d nor charges';
     pub const NOT_SCALED: felt252 = 'entry: scales';
@@ -394,6 +396,18 @@ pub impl EntryAssert of EntryAssertTrait {
             return;
         }
         assert(*self.kind <= kind::LAST, errors::KIND);
+        // CBT-05a's scope (the project manager, 2026-10-02, option (ii)): the executor runs what
+        // the MVP's content uses (design/19 §8, design/20 §3). `LIFE_STEAL` and `INTERRUPT` have
+        // no MVP source, and no MVP entry is guarded but by `BELOW_HALF` (Second Wind): they stay
+        // in design/19 and are refused here until content needs them (PLAN: executor kinds beyond
+        // the MVP's content).
+        assert(
+            *self.kind != kind::LIFE_STEAL && *self.kind != kind::INTERRUPT, errors::KIND_DEFERRED,
+        );
+        assert(
+            *self.guard == guard::ALWAYS || *self.guard == guard::BELOW_HALF,
+            errors::GUARD_DEFERRED,
+        );
         let (fields, low, high) = reads(*self.kind);
         assert(*self.shape >= shape::SINGLE && *self.shape <= shape::LAST, errors::SHAPE);
         assert(*self.guard <= guard::LAST, errors::GUARD);
