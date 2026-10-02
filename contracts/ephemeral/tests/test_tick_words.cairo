@@ -201,7 +201,7 @@ fn test_tick_words_member() {
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
 // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-#[available_gas(l2_gas: 3149919)] // ceil(1.05 × 2999922 measured)
+#[available_gas(l2_gas: 3149919)] // ceil(1.05 × 2999922 measured), kept: 3007552 now
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
         PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
