@@ -1,14 +1,16 @@
-//! The executor as its own library class (CBT-05a; ENG-01 §1.3): `TickLibrary` would call it once
-//! a carrier, with the words of the actors the carrier can reach and the sheets their loads need.
-//! It loads them, runs the carrier (`types::executor`, with SPK-15's L3) and returns the words.
-//! Built to measure the own-class route against the single class.
+//! The executor as its own library class (CBT-05a, route (c), the project manager 2026-10-02):
+//! `TickLibrary` calls it once a carrier with the actors the carrier can reach, as their in-call
+//! values (their hot fields and what each derived once: no load or store of their words here), and
+//! the batch's content, whose sheets it builds. It runs the carrier (`types::executor`, with
+//! SPK-15's L3) and returns the actors and the kills.
 
 #[starknet::contract]
 pub mod ExecutorLibrary {
     use crate::interface::IExecutorLibrary;
+    use crate::models::index::{Goblin, Member};
     use crate::types::executor::{Board, Cache, Carrier, ExecutorTrait, Levered};
-    use crate::types::tick::Content;
-    use crate::types::world::{Actor, Words, WordsTrait, WorldStoreTrait};
+    use crate::types::tick::{Content, ContentTrait};
+    use crate::types::world::{Actor, WorldTrait};
 
     #[storage]
     struct Storage {}
@@ -17,7 +19,8 @@ pub mod ExecutorLibrary {
     impl ExecutorLibraryImpl of IExecutorLibrary<ContractState> {
         fn execute(
             self: @ContractState,
-            words: Words,
+            members: Array<Member>,
+            goblins: Array<Goblin>,
             content: Content,
             board: Board,
             cache: Cache,
@@ -25,13 +28,15 @@ pub mod ExecutorLibrary {
             carrier: Carrier,
             address: u16,
             t: u32,
-        ) -> (Words, Cache) {
-            let (mut world, sheets) = words.load(@content);
+        ) -> (Array<Member>, Array<Goblin>, Array<u16>, Cache) {
+            let sheets = content.sheets();
+            let mut world = WorldTrait::new(t, members, goblins, array![], false);
             let mut cache = cache;
             ExecutorTrait::execute(
                 @Levered {}, ref cache, ref world, @sheets, @board, source, carrier, address, t,
             );
-            (world.store(), cache)
+            let (members, goblins, killed) = world.actors();
+            (members, goblins, killed, cache)
         }
     }
 }

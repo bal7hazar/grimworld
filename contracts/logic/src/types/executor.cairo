@@ -3354,45 +3354,29 @@ mod tests {
     }
 
     // ---- The own-class route (a library call a carrier), measured -----------------------------
-    // A goblin's weapon hit through `ExecutorLibrary`: the words of the source and of the member,
-    // and the sheets their loads need (the bar's 8 skills, the caste and its 4), in and out; six
-    // calls less the fixture that builds the same arguments.
+    // A goblin's weapon hit through `ExecutorLibrary` (route (c)): the source's and the member's
+    // in-call values and the batch's content (the one their positions were derived from), in; the
+    // actors and the kills out. Six calls less the fixture that builds the same arguments.
 
-    fn class_args() -> (crate::types::world::Words, Content) {
+    fn class_args() -> (Member, Span<Goblin>, Content) {
         let (world, _) = hits_state();
-        let words = crate::types::world::WorldStoreTrait::store(world);
-        let full = content(40, array![].span());
-        let mut skills = array![];
-        for sheet in full.skills {
-            if *sheet.id <= 8 || (*sheet.id >= 24 && *sheet.id <= 27) {
-                skills.append(*sheet);
-            }
+        let mut goblins = array![];
+        for i in 0..6_u32 {
+            goblins.append(world.goblin(i));
         }
-        let content = Content {
-            skills: skills.span(), potions: array![].span(), castes: array![*full.castes[0]].span(),
-        };
-        (words, content)
-    }
-
-    /// The source goblin `i` and the member, alone.
-    fn pair(words: @crate::types::world::Words, i: u32) -> crate::types::world::Words {
-        crate::types::world::Words {
-            clock: *words.clock,
-            members: array![*words.members[0]],
-            goblins: array![*words.goblins[i]],
-            killed: array![],
-            defeated: false,
-        }
+        (world.member(0), goblins.span(), content(40, array![].span()))
     }
 
     #[test]
     #[available_gas(l2_gas: 200000000)]
     fn test_cost_class_hits_fixture() {
-        let (words, content) = class_args();
+        let (member, goblins, content) = class_args();
         for i in 0..6_u32 {
-            let pair = pair(@words, i);
-            assert(opaque(pair.goblins.len()) == 1 && content.skills.len() == 12, 'args');
+            let pair = (array![member], array![*goblins[i]]);
+            let (members, sources) = pair;
+            assert(opaque(sources.len()) == 1 && members.len() == 1, 'args');
         }
+        assert(content.skills.len() > 0, 'content');
     }
 
     #[test]
@@ -3400,15 +3384,24 @@ mod tests {
     fn test_cost_class_hits() {
         let class = declare("ExecutorLibrary").unwrap().contract_class();
         let library = IExecutorLibraryLibraryDispatcher { class_hash: *class.class_hash };
-        let (words, content) = class_args();
+        let (member, goblins, content) = class_args();
         let mut cache: Cache = Default::default();
         let mut hit = 0;
         for i in 0..6_u32 {
-            let pair = pair(@words, i);
-            let (out, next) = library
-                .execute(pair, content, board(), cache, Actor::Goblin(0), Carrier::Weapon, 0, 10);
+            let (members, _, _, next) = library
+                .execute(
+                    array![member],
+                    array![*goblins[i]],
+                    content,
+                    board(),
+                    cache,
+                    Actor::Goblin(0),
+                    Carrier::Weapon,
+                    0,
+                    10,
+                );
             cache = next;
-            if *out.members[0].state != *words.members[0].state {
+            if (*members[0]).health != member.health {
                 hit += 1;
             }
         }

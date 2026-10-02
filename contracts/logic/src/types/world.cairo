@@ -676,6 +676,13 @@ pub impl WorldImpl of WorldTrait {
         self.awake = rebuilt;
     }
 
+    /// The world's actors as they are now and its kills, in their orders: what `ExecutorLibrary`
+    /// returns (CBT-05a, route (c)).
+    fn actors(self: World) -> (Array<Member>, Array<Goblin>, Array<u16>) {
+        let goblins = self.current();
+        (self.members, goblins, self.killed)
+    }
+
     /// The index of the goblin of `entity`, if the world holds it: a binary search, the goblins
     /// being in ascending entity id (an entity never changes). For the executor (CBT-05a).
     fn find(self: @World, entity: u16) -> Option<u32> {
