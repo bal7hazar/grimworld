@@ -77,7 +77,7 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 |---|---|
 | **ENG-02** | [#246](https://github.com/bal7hazar/grimworld/pull/246): the geometry on `hexx` rc.1 (`types::window`); `window.jsonl`, `check.py` in CI |
 | **CBT-04** | [#228](https://github.com/bal7hazar/grimworld/pull/228): the five conditions as tested rules; a cure on a dead goblin does nothing |
-| **ENG-R1a** | [#221](https://github.com/bal7hazar/grimworld/pull/221): `Hub` through the store, one file a stored model; +0.4 % to +3.8 % a call; `Hub` 45.42 % |
+| **ENG-R1a** | [#221](https://github.com/bal7hazar/grimworld/pull/221): `Hub` through the store, one file a stored model; +0.4 % to +3.8 % a call; `Hub` 45.89 % |
 | **SPK-15** | [#234](https://github.com/bal7hazar/grimworld/pull/234): the tick's levers measured; worst tick 6.26 M to 4.74 M (engineering), design levers priced |
 | **CBT-02f** | [#219](https://github.com/bal7hazar/grimworld/pull/219): a snapshot stale only when a flattening input or its configuration changed; `enter` 4.51 M net |
 | **CBT-02d** | [#211](https://github.com/bal7hazar/grimworld/pull/211): the awake set apart, the content through an index; worst tick ≤ 3.45 M inside a batch (2.35×), representative 1.07 M |
