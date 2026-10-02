@@ -20,6 +20,10 @@ reference for how they are applied.
 Limits that remain: the maximum size of a class, and readability. A specialisation that
 saves nothing measurable is not made.
 
+Starknet caps a transaction at 1.1×10⁹ L2 gas ("Max L2 gas per transaction", mainnet limits:
+https://docs.starknet.io/learn/cheatsheets/chain-info, read 2026-10-02). The batch target of 40 M L2 gas
+(design/02, a target not yet proven; ENG-01 §10.1; SPK-15 measured against it) sits well under it.
+
 ## 2. Test-driven, with gas as a test result
 
 | Step | |

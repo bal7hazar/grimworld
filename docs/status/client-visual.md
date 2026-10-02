@@ -64,7 +64,7 @@ None of the track runs at this writing. Threads run on the VPS and, through `--m
 
 | | For | State |
 |---|---|---|
-| [PENDING-cv-integer-scale](../decisions/PENDING-cv-integer-scale.md) | The owner's eye on the sandbox, then SPK-6 | Open |
+| [2026-10-02-cv-integer-scale](../decisions/2026-10-02-cv-integer-scale.md) | The owner's eye on the sandbox, then SPK-6 | Accepted as proposed, D-194 |
 | [PENDING-cv-market-queries](../decisions/PENDING-cv-market-queries.md) | The project manager | The category of a balance; the unit of a lot's expiry |
 | The `indexer-node` trigger paths | The project manager | Both audits of IDX-01a: narrower than the job's dependencies |
 | SPK-13b: the cause of the Mac/Linux difference (two open groups) | The project manager | Proposed |
