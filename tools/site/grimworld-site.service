@@ -1,0 +1,13 @@
+[Unit]
+Description=Publish the client of Grim World's main (tools/site/deploy-site.sh)
+
+[Service]
+Type=oneshot
+# Runs the script from the service's OWN clone (~/site/grimworld-src). The clone is brought to main
+# first, so that the script that runs is main's (the first run after this file merges included).
+ExecStartPre=/usr/bin/git -C %h/site/grimworld-src fetch --quiet origin main
+ExecStartPre=/usr/bin/git -C %h/site/grimworld-src checkout --quiet --detach --force FETCH_HEAD
+ExecStart=%h/site/grimworld-src/tools/site/deploy-site.sh
+Nice=10
+# GRIMWORLD_SITE_ART stays unset until the owner allows the art on the site (D-73).
+# Environment=GRIMWORLD_SITE_ART=1

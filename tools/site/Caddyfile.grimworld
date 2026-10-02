@@ -1,0 +1,16 @@
+# Site block for the owner to install as root (this repository installs nothing under /etc):
+#   sudo cp tools/site/Caddyfile.grimworld /etc/caddy/conf.d/grimworld.caddy   # or append it to /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+grimworld.bal7hazar.com {
+	root * /home/claude/site/grimworld/current
+	encode zstd gzip
+	try_files {path} /index.html
+	file_server
+
+	# Basic auth: REMOVE THIS BLOCK TO MAKE THE SITE PUBLIC. That is the owner's decision.
+	# The hash is a placeholder: generate it with `caddy hash-password` (it asks for the password and
+	# prints a bcrypt hash) and paste it in place of the placeholder. Never commit a real hash.
+	basic_auth {
+		owner <BCRYPT_HASH_FROM_caddy_hash-password>
+	}
+}
