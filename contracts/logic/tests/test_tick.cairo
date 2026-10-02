@@ -476,8 +476,7 @@ fn representative() -> (World, Sheets) {
 
 // Determinism (AC-2): the same state gives the same world, over 10 busy ticks.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 62684444)] // ceil(1.05 × 59699470 measured)
 fn test_deterministic() {
     let (mut a, content) = worst_state(false, 1);
@@ -491,8 +490,7 @@ fn test_deterministic() {
 
 // The fixtures' own cost, subtracted from the benchmarks below.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14355002)] // ceil(1.05 × 13671430 measured)
 fn test_cost_fixture_worst() {
     let (world, content) = worst_state(true, 3);
@@ -500,8 +498,7 @@ fn test_cost_fixture_worst() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14356787)] // ceil(1.05 × 13673130 measured)
 fn test_cost_fixture_worst_batch() {
     let (world, content) = worst_state(false, 1);
@@ -509,8 +506,7 @@ fn test_cost_fixture_worst_batch() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 16623117)] // ceil(1.05 × 15831540 measured)
 fn test_cost_fixture_worst_words() {
     let (words, content) = worst_words();
@@ -558,8 +554,7 @@ fn test_cost_fixture_representative_words() {
 
 // A batch's 10 representative ticks through one library call: load, ticks, store, the call.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19303095)] // ceil(1.05 × 18383900 measured)
 fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -583,8 +578,7 @@ fn test_cost_library_baseline_representative() {
 // bound (CBT-02b, below), not the bound. CBT-02d prints the tick measured alone ("gas heavy tick"):
 // the difference with the fixture also counts the checks below.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15991220)] // ceil(1.05 × 15229733 measured)
 fn test_cost_tick_worst() {
     let (mut world, content) = worst_state(true, 3);
@@ -601,8 +595,7 @@ fn test_cost_tick_worst() {
 // The same construction with only the 8 awake goblins in the array (no frozen candidate): what
 // the array's bound adds is the difference with `test_cost_tick_worst`.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 7037993)] // ceil(1.05 × 6702850 measured)
 fn test_cost_fixture_worst_8() {
     let (world, _) = worst_of(true, 3, 8);
@@ -610,8 +603,7 @@ fn test_cost_fixture_worst_8() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 8574241)] // ceil(1.05 × 8165943 measured)
 fn test_cost_tick_worst_8() {
     let (mut world, content) = worst_of(true, 3, 8);
@@ -625,8 +617,7 @@ fn test_cost_tick_worst_8() {
 // "gas busy tick"): the ticks alternate between 8 conclusions and 8 acts, and in the latter each of
 // `Busy`'s act hooks writes its goblin (its own work, the AI's in ENG-07, not the pipeline's).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 31580756)] // ceil(1.05 × 30076910 measured)
 fn test_cost_batch_worst() {
     let (mut world, content) = worst_state(false, 1);
@@ -646,8 +637,7 @@ fn test_cost_batch_worst() {
 // The round trip returns exactly the words it was given (quality 4): every member and goblin word,
 // the clock, the kills. Its baseline builds the same two fixtures.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 44550860)] // ceil(1.05 × 42429390 measured)
 fn test_cost_load_store_worst() {
     let (words, content) = worst_words();
@@ -658,8 +648,7 @@ fn test_cost_load_store_worst() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 33241604)] // ceil(1.05 × 31658670 measured)
 fn test_cost_fixture_worst_words_twice() {
     let (words, content) = worst_words();
@@ -686,8 +675,7 @@ fn candidates() -> (World, Span<u16>) {
 // COST-1: the awake set's selection (§5.2) at the candidate bound, `MAX_GOBLINS` = 100: the 8
 // nearest are the array's last 8.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 12964182)] // ceil(1.05 × 12346840 measured)
 fn test_cost_awake_100() {
     let (mut world, distances) = candidates();
@@ -696,8 +684,7 @@ fn test_cost_awake_100() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 8205624)] // ceil(1.05 × 7814880 measured)
 fn test_cost_fixture_candidates() {
     let (world, distances) = candidates();
@@ -755,8 +742,7 @@ fn awake_tick(prior: Span<u16>, order: u8, expected: Span<u16>) {
 
 // No prior set: the scans' costliest order (`test_cost_awake_100`'s state, measured alone).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 13496291)] // ceil(1.05 × 12853610 measured)
 fn test_cost_awake_none() {
     awake_tick(array![].span(), 0, at_end(8));
@@ -764,8 +750,7 @@ fn test_cost_awake_none() {
 
 // The prior set at the array's end, kept.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15249990)] // ceil(1.05 × 14523800 measured)
 fn test_cost_awake_end_kept() {
     awake_tick(at_end(8), 0, at_end(8));
@@ -773,8 +758,7 @@ fn test_cost_awake_end_kept() {
 
 // The prior set at the array's start, replaced by the last 8.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15249066)] // ceil(1.05 × 14522920 measured)
 fn test_cost_awake_start_replaced() {
     awake_tick(at_start(8), 0, at_end(8));
@@ -782,8 +766,7 @@ fn test_cost_awake_start_replaced() {
 
 // The prior set spread across the array, replaced by the last 8.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15232067)] // ceil(1.05 × 14506730 measured)
 fn test_cost_awake_spread_replaced() {
     awake_tick(at_spread(), 0, at_end(8));
@@ -791,8 +774,7 @@ fn test_cost_awake_spread_replaced() {
 
 // The prior set at the array's start, kept (the distances rising).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15197123)] // ceil(1.05 × 14473450 measured)
 fn test_cost_awake_start_kept() {
     awake_tick(at_start(8), 1, at_start(8));
@@ -800,8 +782,7 @@ fn test_cost_awake_start_kept() {
 
 // The prior set at the array's end, replaced by the first 8 (the distances rising).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15196199)] // ceil(1.05 × 14472570 measured)
 fn test_cost_awake_end_replaced() {
     awake_tick(at_end(8), 1, at_start(8));
@@ -809,8 +790,7 @@ fn test_cost_awake_end_replaced() {
 
 // The prior set spread across the array, kept (nearest).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15227730)] // ceil(1.05 × 14502600 measured)
 fn test_cost_awake_spread_kept() {
     awake_tick(at_spread(), 2, at_spread());
@@ -834,8 +814,7 @@ fn test_cost_awake_spread_kept() {
 
 // The costliest state of the bound, its fixture alone.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 18520226)] // ceil(1.05 × 17638310 measured)
 fn test_cost_pair_term_fixture() {
     let (_world, _sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
@@ -843,8 +822,7 @@ fn test_cost_pair_term_fixture() {
 
 // The same, and its tick with the bound's rules.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20098740)] // ceil(1.05 × 19141657 measured)
 fn test_cost_pair_term_tick() {
     let (mut world, sheets) = term_world(seven_then(C, L), at_end(8), false, 1, 1);
@@ -854,8 +832,7 @@ fn test_cost_pair_term_tick() {
 
 // The state of 8 activating goblins, its fixture alone.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 18521664)] // ceil(1.05 × 17639680 measured)
 fn test_cost_pair_activating_fixture() {
     let (_world, _sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
@@ -863,8 +840,7 @@ fn test_cost_pair_activating_fixture() {
 
 // The same, and its tick with the bound's rules.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19342841)] // ceil(1.05 × 18421753 measured)
 fn test_cost_pair_activating_tick() {
     let (mut world, sheets) = term_world(all_of(A, 8), at_end(8), false, 1, 1);
@@ -874,8 +850,7 @@ fn test_cost_pair_activating_tick() {
 
 // The representative state, its fixture alone.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 7750176)] // ceil(1.05 × 7381120 measured)
 fn test_cost_pair_representative_fixture() {
     let (_world, _sheets) = representative();
@@ -883,8 +858,7 @@ fn test_cost_pair_representative_fixture() {
 
 // The same, and one tick with the lot's rules.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 8487021)] // ceil(1.05 × 8082877 measured)
 fn test_cost_pair_representative_tick() {
     let (mut world, sheets) = representative();
@@ -894,8 +868,7 @@ fn test_cost_pair_representative_tick() {
 
 // The same, and one tick through `run`.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 8498613)] // ceil(1.05 × 8093917 measured)
 fn test_cost_pair_representative_run_one() {
     let (mut world, sheets) = representative();
@@ -905,8 +878,7 @@ fn test_cost_pair_representative_run_one() {
 
 // The same, and ten ticks through `run`.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15170148)] // ceil(1.05 × 14447760 measured)
 fn test_cost_pair_representative_run_ten() {
     let (mut world, sheets) = representative();
@@ -917,16 +889,14 @@ fn test_cost_pair_representative_run_ten() {
 // The awake selection's straight-line part, the same way: the costliest prior set (at the array's
 // start, kept) and none.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 10271888)] // ceil(1.05 × 9782750 measured)
 fn test_cost_pair_awake_start_kept_fixture() {
     let (_world, _distances) = awake_state(at_start(8), 1);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15067301)] // ceil(1.05 × 14349810 measured)
 fn test_cost_pair_awake_start_kept() {
     let (mut world, distances) = awake_state(at_start(8), 1);
@@ -934,16 +904,14 @@ fn test_cost_pair_awake_start_kept() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 8641973)] // ceil(1.05 × 8230450 measured)
 fn test_cost_pair_awake_none_fixture() {
     let (_world, _distances) = awake_state(array![].span(), 0);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 13365629)] // ceil(1.05 × 12729170 measured)
 fn test_cost_pair_awake_none() {
     let (mut world, distances) = awake_state(array![].span(), 0);
@@ -952,16 +920,14 @@ fn test_cost_pair_awake_none() {
 
 // `Busy`'s first tick (8 conclusions and the member's), for `tick<Busy>`'s straight-line part.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14354162)] // ceil(1.05 × 13670630 measured)
 fn test_cost_pair_busy_fixture() {
     let (_world, _sheets) = worst_state(false, 1);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15922932)] // ceil(1.05 × 15164697 measured)
 fn test_cost_pair_busy_tick() {
     let (mut world, sheets) = worst_state(false, 1);
@@ -971,8 +937,7 @@ fn test_cost_pair_busy_tick() {
 
 // The ten ticks of the run above, each measured alone ("gas representative tick").
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 16110570)] // ceil(1.05 × 15343400 measured)
 fn test_cost_run_ticks_alone() {
     let (mut world, sheets) = representative();
@@ -992,8 +957,7 @@ fn test_cost_run_ticks_alone() {
 // through `library_call`.
 // The difference is the call: its syscall and the words and content through calldata and back.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 29089267)] // ceil(1.05 × 27704063 measured)
 fn test_cost_library_baseline() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -1006,8 +970,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 835954852)] // ceil(1.05 × 796147478 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -1021,8 +984,7 @@ fn test_cost_library_call() {
 // until CBT-05 and ENG-07), so after the opening tick the goblins fall quiet. A trace of the call
 // at the array's bound, not a bound (the tick's is CBT-02b's, below).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 844148703)] // ceil(1.05 × 803951145 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -1033,8 +995,7 @@ fn test_cost_library_call_batch() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 16631423)] // ceil(1.05 × 15839450 measured)
 fn test_cost_library_baseline_batch() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -1045,8 +1006,7 @@ fn test_cost_library_baseline_batch() {
 
 // The library call runs the pipeline: the same words as a direct run.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 875616563)] // ceil(1.05 × 833920536 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -1070,8 +1030,7 @@ fn test_cost_sheets_baseline() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 431298)] // ceil(1.05 × 410760 measured)
 fn test_cost_sheets() {
     let (skill, caste) = records();
@@ -1082,8 +1041,7 @@ fn test_cost_sheets() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 757512)] // ceil(1.05 × 721440 measured)
 fn test_cost_sheets_unpacked() {
     let (skill, caste) = records();
@@ -1246,8 +1204,7 @@ fn branch_fixture(branch: u8, dying: bool, member_dying: bool) {
 
 // Each branch is the one named (not a cost test).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 76444919)] // ceil(1.05 × 72804684 measured)
 fn test_branch_worlds_take_their_branch() {
     let content = branch_content(3).sheets();
@@ -1273,8 +1230,7 @@ fn test_branch_worlds_take_their_branch() {
 
 // 8 goblins all lapsing, dying: a lapse's term with eight goblins (CBT-02b's per-goblin terms).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15699219)] // ceil(1.05 × 14951637 measured)
 fn test_cost_bound_eight_lapses() {
     let (mut world, content) = branch_world_n(B_LAPSE, true, true, 8);
@@ -1284,8 +1240,7 @@ fn test_cost_bound_eight_lapses() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14395626)] // ceil(1.05 × 13710120 measured)
 fn test_cost_bound_eight_lapses_fixture() {
     let (world, content) = branch_world_n(B_LAPSE, true, true, 8);
@@ -1293,144 +1248,126 @@ fn test_cost_bound_eight_lapses_fixture() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14608948)] // ceil(1.05 × 13913283 measured)
 fn test_cost_bound_base() {
     branch_tick(B_NONE, false, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14370584)] // ceil(1.05 × 13686270 measured)
 fn test_cost_bound_base_fixture() {
     branch_fixture(B_NONE, false, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14587055)] // ceil(1.05 × 13892433 measured)
 fn test_cost_bound_base_member_alive() {
     branch_tick(B_NONE, false, false);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14370689)] // ceil(1.05 × 13686370 measured)
 fn test_cost_bound_base_member_alive_fixture() {
     branch_fixture(B_NONE, false, false);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14733614)] // ceil(1.05 × 14032013 measured)
 fn test_cost_bound_conclude_recover() {
     branch_tick(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14373965)] // ceil(1.05 × 13689490 measured)
 fn test_cost_bound_conclude_recover_fixture() {
     branch_fixture(B_CONCLUDE_RECOVER, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14733509)] // ceil(1.05 × 14031913 measured)
 fn test_cost_bound_conclude_recover_alive() {
     branch_tick(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14374070)] // ceil(1.05 × 13689590 measured)
 fn test_cost_bound_conclude_recover_alive_fixture() {
     branch_fixture(B_CONCLUDE_RECOVER, false, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14735623)] // ceil(1.05 × 14033926 measured)
 fn test_cost_bound_conclude_clear() {
     branch_tick(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14374269)] // ceil(1.05 × 13689780 measured)
 fn test_cost_bound_conclude_clear_fixture() {
     branch_fixture(B_CONCLUDE_CLEAR, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14755132)] // ceil(1.05 × 14052506 measured)
 fn test_cost_bound_lapse() {
     branch_tick(B_LAPSE, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14374973)] // ceil(1.05 × 13690450 measured)
 fn test_cost_bound_lapse_fixture() {
     branch_fixture(B_LAPSE, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14714245)] // ceil(1.05 × 14013566 measured)
 fn test_cost_bound_recovery_end() {
     branch_tick(B_RECOVERY_END, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14375676)] // ceil(1.05 × 13691120 measured)
 fn test_cost_bound_recovery_end_fixture() {
     branch_fixture(B_RECOVERY_END, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14688527)] // ceil(1.05 × 13989073 measured)
 fn test_cost_bound_activating() {
     branch_tick(B_ACTIVATING, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14376275)] // ceil(1.05 × 13691690 measured)
 fn test_cost_bound_activating_fixture() {
     branch_fixture(B_ACTIVATING, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14692825)] // ceil(1.05 × 13993166 measured)
 fn test_cost_bound_free() {
     branch_tick(B_FREE, true, true);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 14376380)] // ceil(1.05 × 13691790 measured)
 fn test_cost_bound_free_fixture() {
     branch_fixture(B_FREE, true, true);
@@ -1440,8 +1377,7 @@ fn test_cost_bound_free_fixture() {
 // CBT-02d: a read through the index costs the same wherever the record lies: the first skill and
 // the last, the first caste and the last, in the same content. The fixture builds the index.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1356999)] // ceil(1.05 × 1292380 measured)
 fn test_cost_index_skill_first() {
     let (_, mut index) = branch_content(3).index();
@@ -1449,8 +1385,7 @@ fn test_cost_index_skill_first() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1357209)] // ceil(1.05 × 1292580 measured)
 fn test_cost_index_skill_last() {
     let (_, mut index) = branch_content(3).index();
@@ -1458,8 +1393,7 @@ fn test_cost_index_skill_last() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1356999)] // ceil(1.05 × 1292380 measured)
 fn test_cost_index_caste_first() {
     let (_, mut index) = branch_content(3).index();
@@ -1467,8 +1401,7 @@ fn test_cost_index_caste_first() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1357209)] // ceil(1.05 × 1292580 measured)
 fn test_cost_index_caste_last() {
     let (_, mut index) = branch_content(3).index();
@@ -1476,8 +1409,7 @@ fn test_cost_index_caste_last() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1356884)] // ceil(1.05 × 1292270 measured)
 fn test_cost_index_fixture() {
     let (sheets, _) = branch_content(3).index();
@@ -1675,8 +1607,7 @@ fn regenerate_member(
 
 // A goblin's step 3, the pips below −10 (clamped), health lost.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_below() {
     assert(regenerate_goblin(99, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1684,8 +1615,7 @@ fn test_cost_path_goblin_below() {
 
 // A goblin's step 3, the same, health to 0.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_below_dead() {
     assert(regenerate_goblin(99, 2, 99, 0, 15, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1693,8 +1623,7 @@ fn test_cost_path_goblin_below_dead() {
 
 // A goblin's step 3, the pips in −10…−1.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_down() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1702,8 +1631,7 @@ fn test_cost_path_goblin_down() {
 
 // A goblin's step 3, the same, health to 0.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_down_dead() {
     assert(regenerate_goblin(99, 2, 99, 5, 10, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1711,8 +1639,7 @@ fn test_cost_path_goblin_down_dead() {
 
 // A goblin's step 3, the pips in 0…10.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_up() {
     assert(regenerate_goblin(0, 2, 99, 0, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1720,8 +1647,7 @@ fn test_cost_path_goblin_up() {
 
 // A goblin's step 3, the same, health to its max.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_up_full() {
     assert(regenerate_goblin(0, 2, 99, 0, 278, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1729,8 +1655,7 @@ fn test_cost_path_goblin_up_full() {
 
 // A goblin's step 3, the pips above 10 (clamped).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_above() {
     assert(regenerate_goblin(0, 10, 99, 10, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1738,8 +1663,7 @@ fn test_cost_path_goblin_above() {
 
 // A goblin's step 3, the same, health to its max.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_above_full() {
     assert(regenerate_goblin(0, 10, 99, 10, 270, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1747,8 +1671,7 @@ fn test_cost_path_goblin_above_full() {
 
 // A goblin's step 3, no effect pips.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_effect_zero() {
     assert(regenerate_goblin(99, 0, 99, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1756,8 +1679,7 @@ fn test_cost_path_goblin_effect_zero() {
 
 // A goblin's step 3, an effect over.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_effect_over() {
     assert(regenerate_goblin(99, 2, 40, 7, 100, 0, ai::ALERTED, 5) <= 280, 'health');
@@ -1765,8 +1687,7 @@ fn test_cost_path_goblin_effect_over() {
 
 // A goblin's step 3, energy to its max.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_energy_capped() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 30, ai::ALERTED, 5) <= 280, 'health');
@@ -1774,8 +1695,7 @@ fn test_cost_path_goblin_energy_capped() {
 
 // A goblin's step 3, no adrenaline to decay.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_adrenaline_zero() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ALERTED, 0) <= 280, 'health');
@@ -1783,8 +1703,7 @@ fn test_cost_path_goblin_adrenaline_zero() {
 
 // A goblin's step 3, Engaged: no decay.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 715092)] // ceil(1.05 × 681040 measured)
 fn test_cost_path_goblin_engaged() {
     assert(regenerate_goblin(99, 2, 99, 5, 100, 0, ai::ENGAGED, 5) <= 280, 'health');
@@ -1794,8 +1713,7 @@ fn test_cost_path_goblin_engaged() {
 
 // A member's step 3, the pips below −10 (clamped), health lost.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_below() {
     assert(regenerate_member(99, 2, 99, -10, 100, 30, false, 5) <= 480, 'health');
@@ -1803,8 +1721,7 @@ fn test_cost_path_member_below() {
 
 // A member's step 3, the same, health to 0.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_below_dead() {
     assert(regenerate_member(99, 2, 99, -10, 15, 30, false, 5) <= 480, 'health');
@@ -1812,8 +1729,7 @@ fn test_cost_path_member_below_dead() {
 
 // A member's step 3, the pips in −10…−1.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_down() {
     assert(regenerate_member(99, 2, 99, -2, 100, 30, false, 5) <= 480, 'health');
@@ -1821,8 +1737,7 @@ fn test_cost_path_member_down() {
 
 // A member's step 3, the same, health to 0.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_down_dead() {
     assert(regenerate_member(99, 2, 99, -2, 10, 30, false, 5) <= 480, 'health');
@@ -1830,8 +1745,7 @@ fn test_cost_path_member_down_dead() {
 
 // A member's step 3, the pips in 0…10.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_up() {
     assert(regenerate_member(0, 2, 99, 0, 100, 30, false, 5) <= 480, 'health');
@@ -1839,8 +1753,7 @@ fn test_cost_path_member_up() {
 
 // A member's step 3, the same, health to its max.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_up_full() {
     assert(regenerate_member(0, 2, 99, 0, 478, 30, false, 5) <= 480, 'health');
@@ -1848,8 +1761,7 @@ fn test_cost_path_member_up_full() {
 
 // A member's step 3, the pips above 10 (clamped).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_above() {
     assert(regenerate_member(0, 3, 99, 5, 100, 30, false, 5) <= 480, 'health');
@@ -1857,8 +1769,7 @@ fn test_cost_path_member_above() {
 
 // A member's step 3, the same, health to its max.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_above_full() {
     assert(regenerate_member(0, 3, 99, 5, 475, 30, false, 5) <= 480, 'health');
@@ -1866,8 +1777,7 @@ fn test_cost_path_member_above_full() {
 
 // A member's step 3, no effect pips (the effects' block skipped).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_effects_zero() {
     assert(regenerate_member(99, 0, 99, 6, 100, 30, false, 5) <= 480, 'health');
@@ -1875,8 +1785,7 @@ fn test_cost_path_member_effects_zero() {
 
 // A member's step 3, the effects over.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_effects_over() {
     assert(regenerate_member(99, 2, 40, 6, 100, 30, false, 5) <= 480, 'health');
@@ -1884,8 +1793,7 @@ fn test_cost_path_member_effects_over() {
 
 // A member's step 3, energy to its max.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_energy_capped() {
     assert(regenerate_member(99, 2, 99, -2, 100, 59, false, 5) <= 480, 'health');
@@ -1893,8 +1801,7 @@ fn test_cost_path_member_energy_capped() {
 
 // A member's step 3, no adrenaline to decay.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_adrenaline_zero() {
     assert(regenerate_member(99, 2, 99, -2, 100, 30, false, 0) <= 480, 'health');
@@ -1902,8 +1809,7 @@ fn test_cost_path_member_adrenaline_zero() {
 
 // A member's step 3, in combat: no decay.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 4923104)] // ceil(1.05 × 4688670 measured)
 fn test_cost_path_member_engaged() {
     assert(regenerate_member(99, 2, 99, -2, 100, 30, true, 5) <= 480, 'health');
@@ -1963,8 +1869,7 @@ fn test_cost_path_goblin_store_changed() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 9776750)] // ceil(1.05 × 9311190 measured)
 fn test_cost_path_member_store_same() {
     let words = Fixture::member_words(Fixture::spec());
@@ -1972,8 +1877,7 @@ fn test_cost_path_member_store_same() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 9776750)] // ceil(1.05 × 9311190 measured)
 fn test_cost_path_member_store_changed() {
     let words = Fixture::member_words(Fixture::spec());
@@ -2220,8 +2124,7 @@ impl ActsRules of Rules<Acts> {
 
 // No goblin awake: the base (the member concluding and dying; the array not read).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15040487)] // ceil(1.05 × 14324273 measured)
 fn test_cost_term_none() {
     term_tick(array![].span(), array![].span(), false, 1, 1);
@@ -2229,8 +2132,7 @@ fn test_cost_term_none() {
 
 // The same with the content of a conclusion into a recovery: `k` changes nothing else.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15040487)] // ceil(1.05 × 14324273 measured)
 fn test_cost_term_none_k3() {
     term_tick(array![].span(), array![].span(), false, 3, 1);
@@ -2238,8 +2140,7 @@ fn test_cost_term_none_k3() {
 
 // The base with two members (M-3): what the second member adds.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15234688)] // ceil(1.05 × 14509226 measured)
 fn test_cost_term_none_two_members() {
     term_tick(array![].span(), array![].span(), false, 1, 2);
@@ -2248,16 +2149,14 @@ fn test_cost_term_none_two_members() {
 // CBT-02d fix loop 1 (COST-3): the base with four and eight members (M-3 allows 8). Each member's
 // conclusion rebuilds the members' array, so a member adds more the more there are.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15675820)] // ceil(1.05 × 14929352 measured)
 fn test_cost_term_none_four_members() {
     term_tick(array![].span(), array![].span(), false, 1, 4);
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 16776002)] // ceil(1.05 × 15977144 measured)
 fn test_cost_term_none_eight_members() {
     term_tick(array![].span(), array![].span(), false, 1, 8);
@@ -2265,8 +2164,7 @@ fn test_cost_term_none_eight_members() {
 
 // One goblin: concluding into a recovery.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15674561)] // ceil(1.05 × 14928153 measured)
 fn test_cost_term_one_conclude_recover() {
     term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), false, 3, 1);
@@ -2274,8 +2172,7 @@ fn test_cost_term_one_conclude_recover() {
 
 // Eight goblins: concluding into a recovery.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20461112)] // ceil(1.05 × 19486773 measured)
 fn test_cost_term_eight_conclude_recover() {
     term_tick(all_of(B_CONCLUDE_RECOVER, 8), at_end(8), false, 3, 1);
@@ -2283,8 +2180,7 @@ fn test_cost_term_eight_conclude_recover() {
 
 // One goblin: concluding, the field cleared.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15676570)] // ceil(1.05 × 14930066 measured)
 fn test_cost_term_one_conclude_clear() {
     term_tick(all_of(B_CONCLUDE_CLEAR, 1), at_end(1), false, 1, 1);
@@ -2292,8 +2188,7 @@ fn test_cost_term_one_conclude_clear() {
 
 // Eight goblins: concluding, the field cleared.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20477181)] // ceil(1.05 × 19502077 measured)
 fn test_cost_term_eight_conclude_clear() {
     term_tick(all_of(B_CONCLUDE_CLEAR, 8), at_end(8), false, 1, 1);
@@ -2301,8 +2196,7 @@ fn test_cost_term_eight_conclude_clear() {
 
 // One goblin: a lapse.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15696940)] // ceil(1.05 × 14949466 measured)
 fn test_cost_term_one_lapse() {
     term_tick(all_of(B_LAPSE, 1), at_end(1), false, 1, 1);
@@ -2310,8 +2204,7 @@ fn test_cost_term_one_lapse() {
 
 // Eight goblins: a lapse.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20243829)] // ceil(1.05 × 19279837 measured)
 fn test_cost_term_eight_lapse() {
     term_tick(all_of(B_LAPSE, 8), at_end(8), false, 1, 1);
@@ -2319,8 +2212,7 @@ fn test_cost_term_eight_lapse() {
 
 // One goblin: a lapse, the later recharge kept.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15697339)] // ceil(1.05 × 14949846 measured)
 fn test_cost_term_one_lapse_keep() {
     term_tick(all_of(B_LAPSE_KEEP, 1), at_end(1), false, 1, 1);
@@ -2328,8 +2220,7 @@ fn test_cost_term_one_lapse_keep() {
 
 // Eight goblins: a lapse, the later recharge kept.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20247021)] // ceil(1.05 × 19282877 measured)
 fn test_cost_term_eight_lapse_keep() {
     term_tick(all_of(B_LAPSE_KEEP, 8), at_end(8), false, 1, 1);
@@ -2337,8 +2228,7 @@ fn test_cost_term_eight_lapse_keep() {
 
 // One goblin: a recovery over.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15656032)] // ceil(1.05 × 14910506 measured)
 fn test_cost_term_one_recovery_end() {
     term_tick(all_of(B_RECOVERY_END, 1), at_end(1), false, 1, 1);
@@ -2346,8 +2236,7 @@ fn test_cost_term_one_recovery_end() {
 
 // Eight goblins: a recovery over.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19909572)] // ceil(1.05 × 18961497 measured)
 fn test_cost_term_eight_recovery_end() {
     term_tick(all_of(B_RECOVERY_END, 8), at_end(8), false, 1, 1);
@@ -2355,8 +2244,7 @@ fn test_cost_term_eight_recovery_end() {
 
 // One goblin: activating, busy.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15628067)] // ceil(1.05 × 14883873 measured)
 fn test_cost_term_one_activating() {
     term_tick(all_of(B_ACTIVATING, 1), at_end(1), false, 1, 1);
@@ -2364,8 +2252,7 @@ fn test_cost_term_one_activating() {
 
 // Eight goblins: activating, busy.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19733777)] // ceil(1.05 × 18794073 measured)
 fn test_cost_term_eight_activating() {
     term_tick(all_of(B_ACTIVATING, 8), at_end(8), false, 1, 1);
@@ -2373,8 +2260,7 @@ fn test_cost_term_eight_activating() {
 
 // One goblin: a recovery running on.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15628477)] // ceil(1.05 × 14884263 measured)
 fn test_cost_term_one_recovering() {
     term_tick(all_of(B_RECOVERING, 1), at_end(1), false, 1, 1);
@@ -2382,8 +2268,7 @@ fn test_cost_term_one_recovering() {
 
 // Eight goblins: a recovery running on.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19737053)] // ceil(1.05 × 18797193 measured)
 fn test_cost_term_eight_recovering() {
     term_tick(all_of(B_RECOVERING, 8), at_end(8), false, 1, 1);
@@ -2391,8 +2276,7 @@ fn test_cost_term_eight_recovering() {
 
 // One goblin: free, acting in step 2.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15633310)] // ceil(1.05 × 14888866 measured)
 fn test_cost_term_one_free() {
     term_tick(all_of(B_FREE, 1), at_end(1), false, 1, 1);
@@ -2400,8 +2284,7 @@ fn test_cost_term_one_free() {
 
 // Eight goblins: free, acting in step 2.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19775718)] // ceil(1.05 × 18834017 measured)
 fn test_cost_term_eight_free() {
     term_tick(all_of(B_FREE, 8), at_end(8), false, 1, 1);
@@ -2409,8 +2292,7 @@ fn test_cost_term_eight_free() {
 
 // One goblin: free but knocked down.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15628676)] // ceil(1.05 × 14884453 measured)
 fn test_cost_term_one_knocked() {
     term_tick(all_of(B_KNOCKED, 1), at_end(1), false, 1, 1);
@@ -2418,8 +2300,7 @@ fn test_cost_term_one_knocked() {
 
 // Eight goblins: free but knocked down.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19738649)] // ceil(1.05 × 18798713 measured)
 fn test_cost_term_eight_knocked() {
     term_tick(all_of(B_KNOCKED, 8), at_end(8), false, 1, 1);
@@ -2427,8 +2308,7 @@ fn test_cost_term_eight_knocked() {
 
 // One goblin: awake and already dead.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15601649)] // ceil(1.05 × 14858713 measured)
 fn test_cost_term_one_dead() {
     term_tick(all_of(B_DEAD, 1), at_end(1), false, 1, 1);
@@ -2436,8 +2316,7 @@ fn test_cost_term_one_dead() {
 
 // Eight goblins: awake and already dead.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19522433)] // ceil(1.05 × 18592793 measured)
 fn test_cost_term_eight_dead() {
     term_tick(all_of(B_DEAD, 8), at_end(8), false, 1, 1);
@@ -2445,8 +2324,7 @@ fn test_cost_term_eight_dead() {
 
 // One goblin concluding into a recovery, surviving step 3.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 15674855)] // ceil(1.05 × 14928433 measured)
 fn test_cost_term_one_conclude_recover_surviving() {
     term_tick(all_of(B_CONCLUDE_RECOVER, 1), at_end(1), true, 3, 1);
@@ -2454,8 +2332,7 @@ fn test_cost_term_one_conclude_recover_surviving() {
 
 // The costliest mix: 7 conclusions, then a lapse whose write the end of step 1 rebuilds.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20493131)] // ceil(1.05 × 19517267 measured)
 fn test_cost_term_mix_clear_lapse() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_end(8), false, 1, 1);
@@ -2463,8 +2340,7 @@ fn test_cost_term_mix_clear_lapse() {
 
 // The same, the awake goblins at the array's start.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20491692)] // ceil(1.05 × 19515897 measured)
 fn test_cost_term_mix_clear_lapse_start() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_start(8), false, 1, 1);
@@ -2472,8 +2348,7 @@ fn test_cost_term_mix_clear_lapse_start() {
 
 // The same, the awake goblins spread across the array.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20475921)] // ceil(1.05 × 19500877 measured)
 fn test_cost_term_mix_clear_lapse_spread() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_LAPSE), at_spread(), false, 1, 1);
@@ -2481,8 +2356,7 @@ fn test_cost_term_mix_clear_lapse_spread() {
 
 // Swap: 7 conclusions, then an activating goblin.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20383319)] // ceil(1.05 × 19412684 measured)
 fn test_cost_term_mix_clear_activating() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_ACTIVATING), at_end(8), false, 1, 1);
@@ -2490,8 +2364,7 @@ fn test_cost_term_mix_clear_activating() {
 
 // Swap: 7 conclusions, then a recovery over.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20452223)] // ceil(1.05 × 19478307 measured)
 fn test_cost_term_mix_clear_recovery_end() {
     term_tick(seven_then(B_CONCLUDE_CLEAR, B_RECOVERY_END), at_end(8), false, 1, 1);
@@ -2499,8 +2372,7 @@ fn test_cost_term_mix_clear_recovery_end() {
 
 // Swap: 7 activating goblins, then a lapse.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19842151)] // ceil(1.05 × 18897286 measured)
 fn test_cost_term_mix_activating_lapse() {
     term_tick(seven_then(B_ACTIVATING, B_LAPSE), at_end(8), false, 1, 1);
@@ -2508,8 +2380,7 @@ fn test_cost_term_mix_activating_lapse() {
 
 // A lapse first, then 7 conclusions: its write goes with the first conclusion's rebuild.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20441334)] // ceil(1.05 × 19467937 measured)
 fn test_cost_term_mix_lapse_first() {
     term_tick(
@@ -2539,8 +2410,7 @@ const R: u8 = B_RECOVERY_END;
 
 // A conclusion first in the set, the others activating.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19807984)] // ceil(1.05 × 18864746 measured)
 fn test_cost_term_set_c_first() {
     term_mix(array![C, A, A, A, A, A, A, A]);
@@ -2548,8 +2418,7 @@ fn test_cost_term_set_c_first() {
 
 // A conclusion in the middle of the set.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19810966)] // ceil(1.05 × 18867586 measured)
 fn test_cost_term_set_c_middle() {
     term_mix(array![A, A, A, C, A, A, A, A]);
@@ -2557,8 +2426,7 @@ fn test_cost_term_set_c_middle() {
 
 // A conclusion last in the set.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19810966)] // ceil(1.05 × 18867586 measured)
 fn test_cost_term_set_c_last() {
     term_mix(array![A, A, A, A, A, A, A, C]);
@@ -2566,8 +2434,7 @@ fn test_cost_term_set_c_last() {
 
 // An activating goblin first, 7 conclusions after it.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20372504)] // ceil(1.05 × 19402384 measured)
 fn test_cost_term_set_a_then_c() {
     term_mix(array![A, C, C, C, C, C, C, C]);
@@ -2575,8 +2442,7 @@ fn test_cost_term_set_a_then_c() {
 
 // Two conclusions, then activating goblins.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19900408)] // ceil(1.05 × 18952769 measured)
 fn test_cost_term_set_cc_first() {
     term_mix(array![C, C, A, A, A, A, A, A]);
@@ -2584,8 +2450,7 @@ fn test_cost_term_set_cc_first() {
 
 // Six conclusions, then two lapses (two writes left for the end of step 1).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20443088)] // ceil(1.05 × 19469607 measured)
 fn test_cost_term_set_c6_ll() {
     term_mix(array![C, C, C, C, C, C, L, L]);
@@ -2593,8 +2458,7 @@ fn test_cost_term_set_c6_ll() {
 
 // Six conclusions, an activating goblin, a lapse.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20386910)] // ceil(1.05 × 19416104 measured)
 fn test_cost_term_set_c6_al() {
     term_mix(array![C, C, C, C, C, C, A, L]);
@@ -2602,8 +2466,7 @@ fn test_cost_term_set_c6_al() {
 
 // Six conclusions, a lapse, an activating goblin.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20386910)] // ceil(1.05 × 19416104 measured)
 fn test_cost_term_set_c6_la() {
     term_mix(array![C, C, C, C, C, C, L, A]);
@@ -2611,8 +2474,7 @@ fn test_cost_term_set_c6_la() {
 
 // Six conclusions, a recovery over, a lapse.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20402180)] // ceil(1.05 × 19430647 measured)
 fn test_cost_term_set_c6_rl() {
     term_mix(array![C, C, C, C, C, C, R, L]);
@@ -2620,8 +2482,7 @@ fn test_cost_term_set_c6_rl() {
 
 // A lapse between two conclusions: its write goes with the next conclusion's.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20438352)] // ceil(1.05 × 19465097 measured)
 fn test_cost_term_set_c_l_c6() {
     term_mix(array![C, L, C, C, C, C, C, C]);
@@ -2629,8 +2490,7 @@ fn test_cost_term_set_c_l_c6() {
 
 // A recovery over between two conclusions.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20397444)] // ceil(1.05 × 19426137 measured)
 fn test_cost_term_set_c_r_c6() {
     term_mix(array![C, R, C, C, C, C, C, C]);
@@ -2638,8 +2498,7 @@ fn test_cost_term_set_c_r_c6() {
 
 // Two lapses between two conclusions: both writes go with the next conclusion's.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 20402106)] // ceil(1.05 × 19430577 measured)
 fn test_cost_term_set_c_ll_c5() {
     term_mix(array![C, L, L, C, C, C, C, C]);
@@ -2647,8 +2506,7 @@ fn test_cost_term_set_c_ll_c5() {
 
 // A lapse first, the others activating.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19828354)] // ceil(1.05 × 18884146 measured)
 fn test_cost_term_set_l_first() {
     term_mix(array![L, A, A, A, A, A, A, A]);
@@ -2656,8 +2514,7 @@ fn test_cost_term_set_l_first() {
 
 // A lapse in the middle, the others activating.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19828354)] // ceil(1.05 × 18884146 measured)
 fn test_cost_term_set_l_middle() {
     term_mix(array![A, A, A, L, A, A, A, A]);
@@ -2665,8 +2522,7 @@ fn test_cost_term_set_l_middle() {
 
 // Two lapses last, the others activating.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 19884532)] // ceil(1.05 × 18937649 measured)
 fn test_cost_term_set_a6_ll() {
     term_mix(array![A, A, A, A, A, A, L, L]);
@@ -2720,8 +2576,7 @@ fn load_words(members: u32) -> (Words, Content) {
 
 // Load and store of the costliest words, the round trip checked.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 23252607)] // ceil(1.05 × 22145340 measured)
 fn test_cost_load_bound() {
     let (words, content) = load_words(1);
@@ -2741,8 +2596,7 @@ fn test_cost_load_bound_fixture() {
 
 // The same with two members (M-3): what each member adds.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 33322443)] // ceil(1.05 × 31735660 measured)
 fn test_cost_load_bound_two_members() {
     let (words, content) = load_words(2);
@@ -2787,8 +2641,7 @@ fn read_skill(kinds: [u8; 3], v0: i16, v12: i16) -> i16 {
 
 // A skill's sheet, its `REGENERATION`: the first entry.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 53519)] // ceil(1.05 × 50970 measured)
 fn test_cost_sheet_skill_regen_first() {
     assert(read_skill([kind::REGENERATION, kind::DAMAGE, kind::DAMAGE], 2, 6) == 2, 'regen');
@@ -2796,8 +2649,7 @@ fn test_cost_sheet_skill_regen_first() {
 
 // A skill's sheet, its `REGENERATION`: the second.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 56931)] // ceil(1.05 × 54220 measured)
 fn test_cost_sheet_skill_regen_second() {
     assert(read_skill([kind::DAMAGE, kind::REGENERATION, kind::DAMAGE], 2, 6) == 2, 'regen');
@@ -2805,8 +2657,7 @@ fn test_cost_sheet_skill_regen_second() {
 
 // A skill's sheet, its `REGENERATION`: the third.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 60344)] // ceil(1.05 × 57470 measured)
 fn test_cost_sheet_skill_regen_third() {
     assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], 2, 6) == 2, 'regen');
@@ -2814,8 +2665,7 @@ fn test_cost_sheet_skill_regen_third() {
 
 // A skill's sheet, its `REGENERATION`: the third, negative.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 61604)] // ceil(1.05 × 58670 measured)
 fn test_cost_sheet_skill_regen_third_negative() {
     assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::REGENERATION], -3, -10) == -3, 'regen');
@@ -2823,8 +2673,7 @@ fn test_cost_sheet_skill_regen_third_negative() {
 
 // A skill's sheet, its `REGENERATION`: none of three entries.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 52353)] // ceil(1.05 × 49860 measured)
 fn test_cost_sheet_skill_none() {
     assert(read_skill([kind::DAMAGE, kind::DAMAGE, kind::DAMAGE], 2, 6) == 0, 'regen');
@@ -2832,8 +2681,7 @@ fn test_cost_sheet_skill_none() {
 
 // A skill's sheet, its `REGENERATION`: an empty second entry.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 48174)] // ceil(1.05 × 45880 measured)
 fn test_cost_sheet_skill_damage_then_empty() {
     assert(read_skill([kind::DAMAGE, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
@@ -2841,8 +2689,7 @@ fn test_cost_sheet_skill_damage_then_empty() {
 
 // A skill's sheet, its `REGENERATION`: no entry.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 44552)] // ceil(1.05 × 42430 measured)
 fn test_cost_sheet_skill_empty() {
     assert(read_skill([kind::EMPTY, kind::EMPTY, kind::EMPTY], 2, 6) == 0, 'regen');
@@ -2863,8 +2710,7 @@ fn potion_parts(entry_kind: u8, v0: i16) -> Span<felt252> {
 
 // A potion's sheet: a `REGENERATION`, positive or negative, or another entry.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 29096)] // ceil(1.05 × 27710 measured)
 fn test_cost_sheet_potion_regen() {
     assert(
@@ -2873,8 +2719,7 @@ fn test_cost_sheet_potion_regen() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 29096)] // ceil(1.05 × 27710 measured)
 fn test_cost_sheet_potion_regen_negative() {
     assert(
@@ -2884,8 +2729,7 @@ fn test_cost_sheet_potion_regen_negative() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 28886)] // ceil(1.05 × 27510 measured)
 fn test_cost_sheet_potion_damage() {
     assert(PotionSheetTrait::read(opaque(7), potion_parts(kind::DAMAGE, 3)).regen == 0, 'none');
@@ -2899,8 +2743,7 @@ fn test_cost_sheet_potion_fixture() {
 
 // A caste's sheet (no loop).
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 388175)] // ceil(1.05 × 369690 measured)
 fn test_cost_sheet_caste() {
     let (_, caste) = records();
@@ -2936,8 +2779,7 @@ fn worst_words_kills() -> (Words, Content) {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 103470757)] // ceil(1.05 × 98543578 measured)
 fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2948,8 +2790,7 @@ fn test_cost_library_call_kills() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 29448524)] // ceil(1.05 × 28046213 measured)
 fn test_cost_library_baseline_kills() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -2969,8 +2810,7 @@ fn worst_words_two() -> (Words, Content) {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 932517909)] // ceil(1.05 × 888112294 measured)
 fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2981,8 +2821,7 @@ fn test_cost_library_call_two_members() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 29608243)] // ceil(1.05 × 28198326 measured)
 fn test_cost_library_baseline_two_members() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -3010,8 +2849,7 @@ fn worst_words_all_dead() -> (Words, Content) {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 36696320)] // ceil(1.05 × 34948876 measured)
 fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -3022,8 +2860,7 @@ fn test_cost_library_call_all_dead() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 28433594)] // ceil(1.05 × 27079613 measured)
 fn test_cost_library_baseline_all_dead() {
     let _class = declare("TickLibrary").unwrap().contract_class();
@@ -3351,8 +3188,7 @@ fn check(digests: Span<felt252>, expected: Span<felt252>) {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 138619736)] // ceil(1.05 × 132018796 measured)
 fn test_parity_examples() {
     let expected = array![
@@ -3383,8 +3219,7 @@ fn test_parity_examples() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 181430523)] // ceil(1.05 × 172790974 measured)
 fn test_parity_states() {
     let expected = array![
@@ -3401,8 +3236,7 @@ fn test_parity_states() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 244783825)] // ceil(1.05 × 233127452 measured)
 fn test_parity_terms_one() {
     let expected = array![
@@ -3424,8 +3258,7 @@ fn test_parity_terms_one() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 231343224)] // ceil(1.05 × 220326880 measured)
 fn test_parity_terms_eight() {
     let expected = array![
@@ -3444,8 +3277,7 @@ fn test_parity_terms_eight() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 164719646)] // ceil(1.05 × 156875853 measured)
 fn test_parity_terms_mixed() {
     let expected = array![

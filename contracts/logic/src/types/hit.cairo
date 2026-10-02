@@ -582,7 +582,7 @@ mod tests {
 
     // Evasion: melee weapon hits from every arc (FX-11); not a knocked-down target (FX-7).
     #[test]
-    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases in the vectors
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
     #[available_gas(l2_gas: 81911)] // ceil(1.05 × 78010 measured)
     fn test_evade() {
         let target = HitTarget { evade: true, ..goblin() };
@@ -930,7 +930,7 @@ mod tests {
     // D-140: no legal input panics; the outcome keeps §5.4's invariants.
     #[test]
     #[fuzzer(runs: 256)]
-    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases in the vectors
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
     #[available_gas(l2_gas: 533211)] // ceil(1.05 × 507820 measured)
     fn test_fuzz_no_panic(seed: u64) {
         let (hit, target) = case(seed);
@@ -1061,7 +1061,7 @@ mod tests {
     // form), and a digest of every case and outcome: a change to a rule or to the cases fails here
     // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation).
     #[test]
-    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases in the vectors
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
     #[available_gas(l2_gas: 968230791)] // ceil(1.05 × 922124562 measured)
     fn test_vectors() {
         let mut cases = edges();

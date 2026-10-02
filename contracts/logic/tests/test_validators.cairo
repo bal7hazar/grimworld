@@ -313,8 +313,7 @@ fn test_sources_accepted() {
 // CBT-3: an attack's hit modifier takes the attacked foe: `FOES`.
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 88169)] // ceil(1.05 × 83970 measured)
 fn test_attack_bonus_on_allies_refused() {
     let bonus = Fixture::modifier_on_foe(kind::ATTACK_BONUS);
@@ -323,8 +322,7 @@ fn test_attack_bonus_on_allies_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 88368)] // ceil(1.05 × 84160 measured)
 fn test_attack_hit_penetration_on_allies_refused() {
     let pierce = Fixture::modifier_on_foe(kind::HIT_PENETRATION);
@@ -332,8 +330,7 @@ fn test_attack_hit_penetration_on_allies_refused() {
 }
 
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 413196)] // ceil(1.05 × 393520 measured)
 fn test_attack_modifiers_on_foes_accepted() {
     Fixture::attack_with(Fixture::modifier_on_foe(kind::ATTACK_BONUS));

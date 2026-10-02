@@ -565,8 +565,7 @@ fn test_skill_target_refused() {
 
 // §5.14: design/03's starter skills, as design/19 §8 writes them, are legal carriers.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1759296)] // ceil(1.05 × 1675520 measured)
 fn test_legal_carriers() {
     Fixture::cinder_ring().assert_legal();
@@ -593,8 +592,7 @@ fn test_legal_carriers() {
 
 #[test]
 #[should_panic(expected: 'carrier: gap')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 240408)] // ceil(1.05 × 228960 measured)
 fn test_carrier_gap_refused() {
     let [a, b, _] = Fixture::cinder_ring().entries;
@@ -603,8 +601,7 @@ fn test_carrier_gap_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two hits')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 177566)] // ceil(1.05 × 169110 measured)
 fn test_carrier_two_hits_refused() {
     let hit = Fixture::damage(damage::FIRE, 1, 2);
@@ -613,8 +610,7 @@ fn test_carrier_two_hits_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two hits')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 88368)] // ceil(1.05 × 84160 measured)
 fn test_carrier_attack_with_damage_refused() {
     let hit = Fixture::damage(damage::SLASHING, 1, 2);
@@ -624,8 +620,7 @@ fn test_carrier_attack_with_damage_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: damage not first')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 177272)] // ceil(1.05 × 168830 measured)
 fn test_carrier_damage_not_first_refused() {
     let [hit, burn, _] = Fixture::cinder_ring().entries;
@@ -634,8 +629,7 @@ fn test_carrier_damage_not_first_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: two holding entries')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 176568)] // ceil(1.05 × 168160 measured)
 fn test_carrier_two_holding_refused() {
     let armor = Entry { v0: 5, v12: 5, d0: 8, d12: 20, ..Fixture::on_self(kind::ARMOR) };
@@ -645,8 +639,7 @@ fn test_carrier_two_holding_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier without hit')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 227525)] // ceil(1.05 × 216690 measured)
 fn test_carrier_modifier_without_hit_refused() {
     let [_, pierce, _] = Fixture::static_lash().entries;
@@ -656,8 +649,7 @@ fn test_carrier_modifier_without_hit_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 242939)] // ceil(1.05 × 231370 measured)
 fn test_carrier_modifier_on_another_set_refused() {
     let [hit, pierce, _] = Fixture::static_lash().entries;
@@ -667,8 +659,7 @@ fn test_carrier_modifier_on_another_set_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: attack bonus')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 176757)] // ceil(1.05 × 168340 measured)
 fn test_carrier_attack_bonus_in_a_spell_refused() {
     let [bonus, _, _] = Fixture::cleave().entries;
@@ -678,8 +669,7 @@ fn test_carrier_attack_bonus_in_a_spell_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: attack entry')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 74792)] // ceil(1.05 × 71230 measured)
 fn test_carrier_attack_entry_on_self_refused() {
     let heal = Entry { v0: 1, v12: 1, ..Fixture::on_self(kind::HEAL) };
@@ -689,8 +679,7 @@ fn test_carrier_attack_entry_on_self_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: trap entry')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 161060)] // ceil(1.05 × 153390 measured)
 fn test_carrier_trap_not_first_refused() {
     let [trap, hit, cripple] = Fixture::snare().entries;
@@ -699,8 +688,7 @@ fn test_carrier_trap_not_first_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: trap payload')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 235452)] // ceil(1.05 × 224240 measured)
 fn test_carrier_trap_payload_on_self_refused() {
     let [trap, hit, _] = Fixture::snare().entries;
@@ -710,8 +698,7 @@ fn test_carrier_trap_payload_on_self_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: disc 1 not a potion')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 104276)] // ceil(1.05 × 99310 measured)
 fn test_carrier_disc_1_in_a_skill_refused() {
     let hit = Entry { shape: shape::DISC_1, ..Fixture::damage(damage::FIRE, 1, 2) };
@@ -720,8 +707,7 @@ fn test_carrier_disc_1_in_a_skill_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: area after the MVP')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 87360)] // ceil(1.05 × 83200 measured)
 fn test_carrier_disc_2_refused() {
     let hit = Entry { shape: shape::DISC_2, ..Fixture::damage(damage::FIRE, 1, 2) };
@@ -737,8 +723,7 @@ fn test_skill_seal_of_capture_refused() {
 
 // §7.2: `ITEM`, 1 part; a potion carries one entry, a bomb its range and strength.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 482234)] // ceil(1.05 × 459270 measured)
 fn test_item_round_trip() {
     let top = ItemTrait::new(
@@ -774,8 +759,7 @@ fn test_item_round_trip() {
 
 #[test]
 #[should_panic(expected: 'entry: scales')]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 77910)] // ceil(1.05 × 74200 measured)
 fn test_item_scaled_potion_refused() {
     let heal = Entry { v0: 10, v12: 20, ..Fixture::on_self(kind::HEAL) };

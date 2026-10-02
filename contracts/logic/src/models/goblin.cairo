@@ -609,8 +609,7 @@ mod tests {
     // member's kit lengthens its own condition and the knock-down (Bleeding 20 +33 %: 26 ticks,
     // D = 35; Knocked down 2 + 1: D = 12); no passive, the value itself.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 1386725)] // ceil(1.05 × 1320690 measured)
     fn test_goblin_apply() {
         let sheets = Fixture::sheets();
@@ -634,8 +633,7 @@ mod tests {
     // a cure gives `t0 − 1`, an absent condition's cure nothing; a dead goblin takes nothing,
     // neither a condition nor a cure.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 1081626)] // ceil(1.05 × 1030120 measured)
     fn test_goblin_apply_refresh_cure() {
         let sheets = Fixture::sheets();
@@ -666,8 +664,7 @@ mod tests {
     // at clock 51 knocks the Hobgoblin down for 2 ticks, t0 = 52: D = 53, the field none, R =
     // 52 + 10 − 1 = 61. A recovering goblin knocked down keeps its recovery (not an activation).
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 1099172)] // ceil(1.05 × 1046830 measured)
     fn test_goblin_knockdown_interrupts() {
         let sheets = Fixture::sheets();
@@ -689,8 +686,7 @@ mod tests {
     // goblin acts at 54 alone: D and D + 1); through 53 a weapon hit on it is critical from any
     // arc and it neither blocks nor evades.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 6472696)] // ceil(1.05 × 6164472 measured)
     fn test_goblin_knocked_predicates() {
         let mut goblin = Fixture::goblin(40, HOB);
@@ -789,8 +785,7 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down goblin skips step 2).
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 803513)] // ceil(1.05 × 765250 measured)
     fn test_goblin_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
@@ -814,8 +809,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 778491)] // ceil(1.05 × 741420 measured)
     fn test_cost_goblin_condition_base() {
         let (goblin, _sheets) = condition_cost_state();
@@ -824,8 +818,7 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 779331)] // ceil(1.05 × 742220 measured)
     fn test_cost_goblin_source_base() {
         let (goblin, _sheets) = condition_cost_state();
@@ -835,8 +828,7 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; dead.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 779751)] // ceil(1.05 × 742620 measured)
     fn test_cost_goblin_idle_base() {
         let (mut goblin, _sheets) = condition_cost_state();
@@ -847,8 +839,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 779751)] // ceil(1.05 × 742620 measured)
     fn test_cost_goblin_dead_base() {
         let (mut goblin, _sheets) = condition_cost_state();
@@ -858,8 +849,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 825720)] // ceil(1.05 × 786400 measured)
     fn test_cost_goblin_knock() {
         let (mut goblin, sheets) = condition_cost_state();
@@ -869,8 +859,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 826140)] // ceil(1.05 × 786800 measured)
     fn test_cost_goblin_knock_idle() {
         let (mut goblin, sheets) = condition_cost_state();
@@ -882,8 +871,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 808931)] // ceil(1.05 × 770410 measured)
     fn test_cost_goblin_apply_crippled() {
         let (mut goblin, _sheets) = condition_cost_state();
@@ -893,8 +881,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 808931)] // ceil(1.05 × 770410 measured)
     fn test_cost_goblin_apply_bleeding() {
         let (mut goblin, _sheets) = condition_cost_state();
@@ -904,8 +891,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 809351)] // ceil(1.05 × 770810 measured)
     fn test_cost_goblin_apply_dead() {
         let (mut goblin, _sheets) = condition_cost_state();
@@ -917,8 +903,7 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 856401)] // ceil(1.05 × 815620 measured)
     fn test_cost_goblin_oracle() {
         let (mut goblin, sheets) = condition_cost_state();
@@ -930,8 +915,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 810726)] // ceil(1.05 × 772120 measured)
     fn test_cost_goblin_cure() {
         let (mut goblin, _sheets) = condition_cost_state();
@@ -940,8 +924,7 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 788739)] // ceil(1.05 × 751180 measured)
     fn test_cost_goblin_predicates() {
         let (goblin, _sheets) = condition_cost_state();
@@ -956,8 +939,7 @@ mod tests {
     // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank; its
     // caste's position and cap, its kit's.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 1087002)] // ceil(1.05 × 1035240 measured)
     fn test_goblin_load() {
         let caste = CasteSheet {
@@ -995,8 +977,7 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 1368738)] // ceil(1.05 × 1303560 measured)
     fn test_goblin_load_store() {
         let content = Fixture::content();
@@ -1022,8 +1003,7 @@ mod tests {
     // A caste skill missing from the content is refused when a goblin of the caste loads.
     #[test]
     #[should_panic(expected: 'tick: skill not in content')]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 463313)] // ceil(1.05 × 441250 measured)
     fn test_goblin_load_missing_skill() {
         let content = Content {
@@ -1068,8 +1048,7 @@ mod tests {
 
     // AUD-182-6, a goblin's one slot (FX-30, FX-13): refreshed by its carrier, replaced by another.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 891576)] // ceil(1.05 × 849120 measured)
     fn test_goblin_hold() {
         let sheets = Fixture::hold_content().sheets();
@@ -1085,8 +1064,7 @@ mod tests {
     // AUD-182-6, adrenaline (§5.12, FX-12): a goblin's gains capped at its caste's, at most 252;
     // a dead goblin gains nothing.
     #[test]
-    // gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once
-    // a call) and the actors their positions
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
     #[available_gas(l2_gas: 660146)] // ceil(1.05 × 628710 measured)
     fn test_goblin_adrenaline_gain() {
         let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);

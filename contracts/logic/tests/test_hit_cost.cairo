@@ -74,8 +74,7 @@ fn test_cost_pair_hit_none() {
 
 // The pair's other half: the same, and one hit on the costliest path.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 55073)] // ceil(1.05 × 52450 measured)
 fn test_cost_pair_hit_one() {
     let (hit, target) = costliest();
@@ -130,8 +129,7 @@ fn test_cost_hits_per_tick() {
 // Every path is charged the same (the claim above, checked): a blocked hit, an evaded one, a missed
 // one, a spell and a bomb cost what a landed weapon hit costs.
 #[test]
-// gas: raised, CBT-05a: the content's sheets carry the executor's fields (entries decoded once a
-// call) and the actors their positions
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
 #[available_gas(l2_gas: 1955216)] // ceil(1.05 × 1862110 measured)
 fn test_cost_hit_paths() {
     let (hit, target) = costliest();
