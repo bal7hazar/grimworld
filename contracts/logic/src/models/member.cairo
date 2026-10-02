@@ -6,16 +6,17 @@
 //! layouts are the ephemeral package's, which owns the storage; the offsets below are ENG-01's
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
+use crate::helpers::signed::SignedTrait;
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::packing::{
-    N16, N2, N28, N32, N56, N7, N8, P112, P16, P20, P24, P28, P32, P52, P56, P64, P72, P8, P80, P84,
-    P96, field, limbs, peel,
+    N16, N2, N28, N32, N56, N7, N8, P112, P16, P20, P24, P28, P32, P48, P52, P56, P64, P72, P8, P80,
+    P84, P96, field, limbs, peel,
 };
-use crate::types::combat::{condition, skill_kind};
+use crate::types::combat::{condition, damage, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
     ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SkillSheet,
-    SkillSheetTrait, status,
+    SkillSheetTrait, flag, status,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -39,6 +40,21 @@ const F112: felt252 = 0x10000000000000000000000000000;
 /// `Member.bar_at`'s lanes: bar slot `s`'s position at bits `16 s` (CBT-02d: one `u128`, where
 /// eight `u32` made each copy of a member 7 felts longer).
 const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
+/// `MemberStats`' bar ranks, 4 bits a slot from its high limb's bit 0.
+const RANK_LANES: [u128; 8] = [1, 0x10, 0x100, 0x1000, 0x10000, 0x100000, 0x1000000, 0x10000000];
+/// `MemberBar`'s `DAMAGE_PERCENT` sums by class, from its high limb's bit 8 (136 − 128).
+const PASSIVE_LANES: [u128; 3] = [P8, P16, P24];
+/// `MemberStats`' `ARMOR_VS` of types 3–9, from its high limb's bit 72 (200 − 128).
+const VS_LANES: [u128; 7] = [P72, P78, P84, P90, P96, P102, P108];
+const N88: NonZero<u128> = 0x10000000000000000000000;
+const P26: u128 = 0x4000000;
+const P54: u128 = 0x40000000000000;
+const P74: u128 = 0x4000000000000000000;
+const P78: u128 = 0x40000000000000000000;
+const P90: u128 = 0x40000000000000000000000;
+const P102: u128 = 0x40000000000000000000000000;
+const P104: u128 = 0x100000000000000000000000000;
+const P108: u128 = 0x1000000000000000000000000000;
 
 pub mod errors {
     /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
@@ -439,6 +455,117 @@ pub impl MemberWordsImpl of MemberWordsTrait {
         };
         self.effect_deadlines = deadlines;
         self.effect_regen = regen;
+    }
+}
+
+/// The fields of a member's words its hits and the executor's guards read (CBT-05a; ENG-01 §3.2,
+/// design/19 §7.2 offsets): read in the words at each use, never written in play.
+#[generate_trait]
+pub impl MemberSnapshotImpl of MemberSnapshotTrait {
+    /// Its tile and facing (`MemberState` x 32–39, y 40–47, facing 48–55).
+    fn place(self: @Member) -> (u8, u8, u8) {
+        let (low, _) = limbs(*self.words.state);
+        let (mut rest, _) = DivRem::div_rem(low, N32);
+        let x = peel(ref rest, N8);
+        let y = peel(ref rest, N8);
+        let facing = peel(ref rest, N8);
+        (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
+    }
+
+    /// Its level (`MemberStats` 64–71).
+    fn level(self: @Member) -> u8 {
+        let (low, _) = limbs(*self.words.stats);
+        field(low, P64, P8).try_into().unwrap()
+    }
+
+    /// Its weapon (`MemberStats`): class 88–95, damage 96–103, range 112–119, strength
+    /// 120–127 (the snapshot's `5 × rank` capped, `HitTrait::weapon_strength`), damage type
+    /// 160–167, requirement met 176–183.
+    fn weapon(self: @Member) -> (u8, u8, u8, u8, u8, bool) {
+        let (low, high) = limbs(*self.words.stats);
+        let (mut rest, _) = DivRem::div_rem(low, N88);
+        let class = peel(ref rest, N8);
+        let damage = peel(ref rest, N8);
+        let _ticks = peel(ref rest, N8);
+        let range = peel(ref rest, N8);
+        let strength = rest;
+        let damage_type = field(high, P32, P8);
+        let met = field(high, P48, P8);
+        (
+            class.try_into().unwrap(),
+            damage.try_into().unwrap(),
+            range.try_into().unwrap(),
+            strength.try_into().unwrap(),
+            damage_type.try_into().unwrap(),
+            met != 0,
+        )
+    }
+
+    /// The rank of bar slot 0–7's skill (`MemberStats` 128 + 4 slot, 0–15).
+    fn rank(self: @Member, slot: u8) -> u8 {
+        let (_, high) = limbs(*self.words.stats);
+        field(high, *RANK_LANES.span()[slot.into()], 0x10).try_into().unwrap()
+    }
+
+    /// Its `DAMAGE_PERCENT` sums of class `s` (0 plain weapon, 1 attack skill, 2 spell), unguarded
+    /// and `ABOVE_HALF`, and its `PENETRATION` sum of the class (`MemberBar` 136 + 8 (3 g + s),
+    /// 184 + 8 s; design/19 §7.2).
+    fn passives(self: @Member, s: u8) -> (i16, i16, u16) {
+        let (_, high) = limbs(*self.words.bar);
+        let shift = *PASSIVE_LANES.span()[s.into()];
+        let always = SignedTrait::from8(field(high, shift, P8));
+        let above = SignedTrait::from8(field(high, shift * P24, P8));
+        let penetration = field(high, shift * P48, P8);
+        (always.into(), above.into(), penetration.try_into().unwrap())
+    }
+
+    /// Its unguarded armor (`MemberBar` 232–247, signed) and its guarded sums in a stance and
+    /// enchanted (`MemberKit` 184–191, 192–199, signed; F-20).
+    fn armor(self: @Member) -> (i16, i8, i8) {
+        let (_, bar) = limbs(*self.words.bar);
+        let (_, kit) = limbs(*self.words.kit);
+        (
+            SignedTrait::from16(field(bar, P104, P16)),
+            SignedTrait::from8(field(kit, P56, P8)),
+            SignedTrait::from8(field(kit, P64, P8)),
+        )
+    }
+
+    /// Its `ARMOR_VS` of damage type 1–9 (`MemberStats` 48 + 6 (t − 1) for 1–2, 200 + 6 (t
+    /// − 3)
+    /// for 3–9; FX-23); 0 for none.
+    fn armor_vs(self: @Member, damage_type: u8) -> u8 {
+        if damage_type == 0 || damage_type > damage::LAST {
+            return 0;
+        }
+        let (low, high) = limbs(*self.words.stats);
+        let vs = if damage_type <= 2 {
+            field(low, *[P48, P54].span()[(damage_type - 1).into()], 0x40)
+        } else {
+            field(high, *VS_LANES.span()[(damage_type - 3).into()], 0x40)
+        };
+        vs.try_into().unwrap()
+    }
+
+    /// `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` (`MemberKit` 128–135, 136–143).
+    fn on_hit(self: @Member) -> (u8, u8) {
+        let (_, high) = limbs(*self.words.kit);
+        let mut rest = high;
+        let steal = peel(ref rest, N8);
+        let energy = peel(ref rest, N8);
+        (steal.try_into().unwrap(), energy.try_into().unwrap())
+    }
+
+    /// `ENCHANT_DURATION`'s percent (`MemberKit` 154–159).
+    fn enchant_percent(self: @Member) -> u8 {
+        let (_, high) = limbs(*self.words.kit);
+        field(high, P26, 0x40).try_into().unwrap()
+    }
+
+    /// It holds `HALVE_FIRST_HEAVY_HIT` (`MemberKit` 202) and has not spent it (`flag::HALVED`).
+    fn halves(self: @Member) -> bool {
+        let (_, high) = limbs(*self.words.kit);
+        field(high, P74, 2) == 1 && *self.flags & flag::HALVED == 0
     }
 }
 

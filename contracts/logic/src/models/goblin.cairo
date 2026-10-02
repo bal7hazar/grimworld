@@ -7,7 +7,9 @@
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
-use crate::packing::{N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P84, field, limbs, peel};
+use crate::packing::{
+    N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, field, limbs, peel,
+};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
@@ -264,6 +266,32 @@ pub impl GoblinWordsImpl of GoblinWordsTrait {
             + TickMathTrait::delta(old.rank.into(), held.rank.into(), F246);
         self.effect_deadline = held.deadline;
         self.effect_regen = pips;
+    }
+}
+
+/// The fields of a goblin's words its hits read (CBT-05a; ENG-01 §3.2 offsets).
+#[generate_trait]
+pub impl GoblinPlaceImpl of GoblinPlaceTrait {
+    /// Its tile and facing (`GoblinState` x 0–7, y 8–15, facing 16–23).
+    #[inline(always)]
+    fn place(self: @Goblin) -> (u8, u8, u8) {
+        Self::at(*self.state)
+    }
+
+    /// The tile and facing a `GoblinState` word holds.
+    fn at(state: felt252) -> (u8, u8, u8) {
+        let (low, _) = limbs(state);
+        let mut rest = low;
+        let x = peel(ref rest, N8);
+        let y = peel(ref rest, N8);
+        let facing = peel(ref rest, N8);
+        (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
+    }
+
+    /// Its level (`GoblinState` 80–87, the pack's).
+    fn level(self: @Goblin) -> u8 {
+        let (low, _) = limbs(*self.state);
+        field(low, P80, P8).try_into().unwrap()
     }
 }
 

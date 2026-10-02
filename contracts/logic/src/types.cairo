@@ -6,6 +6,8 @@
 pub mod combat;
 /// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
 pub mod effect;
+/// The executor: one layer owns a carrier's entries (design/19 §5.14, CBT-05a).
+pub mod executor;
 /// One hit: block, evasion, armor, damage (design/19 §5.5 steps 1–4, §5.6, CBT-03a).
 pub mod hit;
 /// What a source adds to the conditions it inflicts (design/19 §5.7, CBT-04).

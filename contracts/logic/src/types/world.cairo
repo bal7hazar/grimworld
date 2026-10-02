@@ -676,6 +676,51 @@ pub impl WorldImpl of WorldTrait {
         self.awake = rebuilt;
     }
 
+    /// The index of the goblin of `entity`, if the world holds it: a binary search, the goblins
+    /// being in ascending entity id (an entity never changes). For the executor (CBT-05a).
+    fn find(self: @World, entity: u16) -> Option<u32> {
+        let goblins = self.goblins.span();
+        let mut low: u32 = 0;
+        let mut high: u32 = goblins.len();
+        while low < high {
+            let middle = (low + high) / 2;
+            let at = *goblins[middle].entity;
+            if at == entity {
+                return Some(middle);
+            }
+            if at < entity {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+        None
+    }
+
+    /// Every goblin alive, as `(index, state word)`, the awake set's at their current values: where
+    /// the executor finds the actors of an area (CBT-05a). One pass.
+    fn alive(self: @World) -> Array<(u32, felt252)> {
+        let all = self.goblins.span();
+        let awake = self.awake.span();
+        let woken = *self.woken;
+        let mut alive = array![];
+        let mut k = 0;
+        let mut i = 0;
+        for goblin in all {
+            let goblin = if k < woken.len() && *woken[k] == i {
+                k += 1;
+                awake[k - 1]
+            } else {
+                goblin
+            };
+            if goblin.is_alive() {
+                alive.append((i, *goblin.state));
+            }
+            i += 1;
+        }
+        alive
+    }
+
     /// A goblin at 0 dies at once (§5.13): health 0, dead (its remains), out of the awake set's
     /// work, recorded in resolution order (`GoblinKilled`). For the executor.
     fn kill(ref self: World, index: u32) {
