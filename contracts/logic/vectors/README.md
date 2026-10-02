@@ -52,8 +52,7 @@ module's header, `contracts/logic/src/types/hit.cairo`. A negative integer is `P
 The cases: the hand-written edges (each rule of design/19 §5.4–§5.6 and §6 at its bounds), then
 seeded cases over every input.
 
-**Moved by CBT-05a (D-179).** A sleeping target neither blocks nor evades its first hit: an
-`asleep` target holding `EVADE` against a melee weapon hit now lands, critical, where it was evaded.
-The new edge `(sword, asleep + evade)` was added after the asleep-and-block edge, so the ids of every
-later case moved by one; and every seeded case with `asleep`, `evade`, `melee` and a weapon class,
-not knocked down and not blocked, moved from `Evaded` to `Landed`.
+**Moved by CBT-05a (D-179).** A sleeping target neither blocks nor evades its first hit. One edge
+was added, id 6: `(sword, asleep + evade)`, which lands critical (`[3, 140, 1, 0]`) where the old
+rule evaded it. Every later case moved up one id, and the table, 200 cases, lost its last seeded
+case. No case kept from before changed its outcome (checked against `origin/main`'s table).

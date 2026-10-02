@@ -22,7 +22,7 @@ use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
 use grimworld_logic::types::MAX_CLOCK;
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
-use grimworld_logic::types::executor::{Board, BoardTrait};
+use grimworld_logic::types::executor::{Board, BoardTrait, ExecutorTrait};
 use grimworld_logic::types::tick::{
     ABSENT, CasteSheet, CasteSheetTrait, Content, ContentTrait, IndexTrait, NO_SLOT, PotionSheet,
     PotionSheetTrait, Sheets, SheetsTrait, SkillSheet, SkillSheetTrait, ai, flag, status,
@@ -974,7 +974,7 @@ fn test_library_matches_pipeline() {
     let (expected, _) = worst_words();
     let words = library.run(words, content, board(), 3);
     let (mut world, sheets) = expected.load(@content);
-    let mut rules = Idle {};
+    let mut rules = ExecutorTrait::new(board());
     TickTrait::run(ref world, @sheets, 3, ref rules);
     assert(words == world.store(), 'the call runs the pipeline');
 }

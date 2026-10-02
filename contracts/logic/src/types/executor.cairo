@@ -930,16 +930,17 @@ pub impl ExecutorImpl of ExecutorTrait {
         if addressing == target::SELF {
             return true;
         }
-        let from = Self::position(world, board, source);
+        let (_, from) = Self::locate(world, board, source);
         let to = if addressing == target::TILE {
             board.tile(address)
         } else {
             match Self::actor(world, address) {
                 Some(actor) => {
-                    if !Self::alive(world, actor) {
+                    let (alive, at) = Self::locate(world, board, actor);
+                    if !alive {
                         return false;
                     }
-                    Self::position(world, board, actor)
+                    at
                 },
                 None => { return false; },
             }
@@ -1074,14 +1075,14 @@ pub impl ExecutorImpl of ExecutorTrait {
             None => (false, HitClass::Spell, Default::default()),
         };
         // 4. The target sets, all taken now: the actor list in ascending position.
-        let list = Self::actors(@world, board, @source, actor, entries, damage, address);
+        let (x, y, source_facing) = source.place();
+        let source_at = board.position(x, y);
+        let list = Self::actors(@world, board, @source, actor, source_at, entries, damage, address);
         let offence = if damage.is_some() {
             source.offence(lever, class, @hit_entry, bonus, penetration, @context, sheets)
         } else {
             Self::spell(class, 0, @hit_entry, 0, 0, 0, @context)
         };
-        let (_, _, source_facing) = source.place();
-        let source_at = Self::position(@world, board, actor);
         // 5. Each actor, in order.
         let mut pending: Pending = array![];
         for (position, target, bits) in list {
@@ -1801,13 +1802,14 @@ pub impl ExecutorImpl of ExecutorTrait {
         board: @Board,
         source: @S,
         actor: Actor,
+        source_at: u8,
         entries: Span<Entry>,
         damage: Option<u32>,
         address: u16,
     ) -> Span<(u8, Actor, u8)> {
-        let source_at = Self::position(world, board, actor);
         let mut addressed: Option<Actor> = None;
         let mut addressed_at: u8 = FAR;
+        let mut addressed_alive = false;
         let mut wide = false;
         let mut targets_entity = damage == Some(3);
         for entry in entries {
@@ -1821,8 +1823,10 @@ pub impl ExecutorImpl of ExecutorTrait {
         }
         if targets_entity {
             if let Some(a) = Self::actor(world, address) {
+                let (alive, at) = Self::locate(world, board, a);
                 addressed = Some(a);
-                addressed_at = Self::position(world, board, a);
+                addressed_at = at;
+                addressed_alive = alive;
             }
         }
         let tile_at = board.tile(address);
@@ -1875,11 +1879,11 @@ pub impl ExecutorImpl of ExecutorTrait {
                 candidates.append((board.position(x, y), Actor::Goblin(i), false));
             }
         } else {
-            if Self::alive(world, actor) {
+            if source.alive() {
                 candidates.append((source_at, actor, member_source));
             }
             if let Some(a) = addressed {
-                if a != actor && Self::alive(world, a) {
+                if a != actor && addressed_alive {
                     let is_member = match a {
                         Actor::Member(_) => true,
                         Actor::Goblin(_) => false,
@@ -1984,30 +1988,21 @@ pub impl ExecutorImpl of ExecutorTrait {
         }
     }
 
-    /// Whether the actor is alive (a member inside above 0, a goblin not dead).
-    fn alive(world: @World, actor: Actor) -> bool {
+    /// Whether the actor is alive (a member inside above 0, a goblin not dead) and its position in
+    /// the window: one read of it.
+    fn locate(world: @World, board: @Board, actor: Actor) -> (bool, u8) {
         match actor {
-            Actor::Member(i) => world.member(i).is_alive(),
+            Actor::Member(i) => {
+                let member = world.member(i);
+                let (x, y, _) = MemberSnapshotTrait::place(@member);
+                (member.is_alive(), board.position(x, y))
+            },
             Actor::Goblin(i) => {
                 let goblin = world.goblin(i);
-                goblin.is_alive() && goblin.health > 0
+                let (x, y, _) = GoblinPlaceTrait::place(@goblin);
+                (goblin.is_alive() && goblin.health > 0, board.position(x, y))
             },
         }
-    }
-
-    /// The actor's position in the window.
-    fn position(world: @World, board: @Board, actor: Actor) -> u8 {
-        let (x, y) = match actor {
-            Actor::Member(i) => {
-                let (x, y, _) = MemberSnapshotTrait::place(@world.member(i));
-                (x, y)
-            },
-            Actor::Goblin(i) => {
-                let (x, y, _) = GoblinPlaceTrait::place(@world.goblin(i));
-                (x, y)
-            },
-        };
-        board.position(x, y)
     }
 
     /// The range of the source's weapon (design/04: touch 1, ranged 6).
