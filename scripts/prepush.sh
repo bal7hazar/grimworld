@@ -57,52 +57,72 @@ step() {
 
 total_start=$(date +%s.%N)
 
-# Always.
-step "scarb fmt --check" bash -c 'cd contracts && scarb fmt --check --workspace'
+# pkg <dir> <command...>: run a command from a package's own folder, so that asdf picks the package's
+# own .tool-versions (some spikes pin older Scarb versions), as CI does.
+pkg() {
+  local dir=$1
+  shift
+  (cd "$root/$dir" && "$@")
+}
+
+# Cairo packages: the nearest Scarb.toml of each touched Cairo file (the contracts workspace is one
+# package: contracts). A change of .tool-versions, or --all, takes every tracked one.
+cairo_inputs='(\.cairo|(^|/)Scarb\.toml|(^|/)Scarb\.lock)$|^\.tool-versions$'
+if [ "$all" = 1 ] || grep -Eq '^\.tool-versions$' <<< "$changed"; then
+  files=$(git ls-files '*Scarb.toml')
+else
+  files=$(grep -E "$cairo_inputs" <<< "$changed" || true)
+fi
+packages=$(
+  while read -r f; do
+    [ -n "$f" ] || continue
+    d=$(dirname "$f")
+    while [ "$d" != . ] && [ ! -f "$d/Scarb.toml" ]; do d=$(dirname "$d"); done
+    [ -f "$d/Scarb.toml" ] || continue
+    case "$d" in contracts | contracts/*) d=contracts ;; esac
+    echo "$d"
+  done <<< "$files" | sort -u
+)
+
+# Always: the format of the contracts workspace and of every package touched, as CI's cairo job.
+fmt_dirs=$(printf '%s\n' contracts $packages | sort -u)
+for d in $fmt_dirs; do
+  step "scarb fmt --check ($d)" pkg "$d" scarb fmt --check --workspace
+done
 step "gas_budgets.py --self-test" python3 scripts/gas_budgets.py --self-test
 if touched '^tools/art/'; then
   step "tools/art tests" python3 -m unittest discover -s tools/art/tests
 fi
 
-# Cairo: the packages touched; no Cairo source, manifest, lock or .tool-versions changed: no compile. The contracts workspace is one build (CI: `scarb build --workspace`).
-cairo_inputs='(\.cairo|/Scarb\.toml|/Scarb\.lock)$|^\.tool-versions$'
-contracts_inputs='^contracts/(.*/)?(Scarb\.toml|Scarb\.lock)$|^contracts/.*\.cairo$|^\.tool-versions$'
+# Builds always go through the machine's heavy lock (lock.sh --heavy, the subcommand first), never
+# around it: a build waits for its turn like any other.
 built=0
-if touched "$contracts_inputs"; then
-  step "build contracts" scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build --workspace
-  built=1
-fi
-# Any other package (a spike, the emitter): the nearest Scarb.toml of each touched Cairo file.
-others=$(
-  if [ "$all" = 1 ]; then
-    git ls-files '*Scarb.toml'
+for d in $packages; do
+  if [ "$d" = contracts ]; then
+    step "build contracts" pkg contracts "$root/scripts/lock.sh" --heavy scarb build --workspace
+    built=1
   else
-    grep -E "$cairo_inputs" <<< "$changed" | while read -r f; do
-      d=$(dirname "$f")
-      while [ "$d" != . ] && [ ! -f "$d/Scarb.toml" ]; do d=$(dirname "$d"); done
-      [ -f "$d/Scarb.toml" ] && echo "$d/Scarb.toml"
-    done
-  fi | grep -Ev '^contracts/|^Scarb\.toml$' | sort -u
-)
-for m in $others; do
-  step "build $(dirname "$m")" scripts/lock.sh scarb --manifest-path "$m" build
+    step "build $d" pkg "$d" "$root/scripts/lock.sh" --heavy scarb build
+  fi
 done
 
 # Generated artefacts, only when their inputs changed.
-if [ "$built" = 1 ]; then
+if [ "$built" = 1 ] || touched '^docs/BUDGETS\.md$|^contracts/.*/GAS\.md$|^scripts/gas_budgets\.py$'; then
   step "gas_budgets.py --check" python3 scripts/gas_budgets.py --check
+fi
+if [ "$built" = 1 ]; then
   step "class_sizes.py" python3 contracts/tools/class_sizes.py
 fi
-if touched '^contracts/logic/src/|^contracts/logic/vectors/'; then
+if touched '^contracts/logic/(src/|vectors/|Scarb\.toml$|Scarb\.lock$)|^contracts/Scarb\.(toml|lock)$|^\.tool-versions$'; then
   step "vectors check.py" python3 contracts/logic/vectors/check.py
 fi
 if touched '^contracts/tools/exp2_table\.py$|^contracts/logic/src/helpers/exp2_table\.cairo$|^client/sim/src/exp2\.ts$'; then
   step "exp2_table.py --check" python3 contracts/tools/exp2_table.py --check
 fi
 
-# The client (CI's `client` job).
-if touched '^(client|indexer)/|^package\.json$|^pnpm-(lock|workspace)\.yaml$|^\.tool-versions$'; then
-  if [ ! -d node_modules ]; then
+# The client (CI's client job).
+if touched '^(client|indexer|services)/|(^|/)package\.json$|^pnpm-(lock|workspace)\.yaml$|^\.tool-versions$'; then
+  if [ ! -d node_modules ] || touched '(^|/)package\.json$|^pnpm-(lock|workspace)\.yaml$'; then
     step "pnpm install" scripts/lock.sh pnpm install --frozen-lockfile
   fi
   step "pnpm lint" scripts/lock.sh pnpm lint
