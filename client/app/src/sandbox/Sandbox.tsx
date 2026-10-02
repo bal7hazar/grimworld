@@ -35,8 +35,9 @@ export function Sandbox() {
  * the map's intents before the session (`route`) and places its labels after each frame drawn
  * (`onFrame`). A hub shows no walk counter: a hub has no tick.
  *
- * For the browser check: the root's `data-frames` (frames drawn), `data-tile` (where the
- * adventurer stands) and `data-walking`.
+ * For the browser check: the root's `data-frames` (frames drawn), `data-atlas`, `data-camera`
+ * (tile (0, 0) on the canvas and the scale, after each frame), `data-tile` (where the adventurer
+ * stands) and `data-walking`.
  */
 export function RoomSandbox({
   world,
@@ -114,6 +115,9 @@ export function RoomSandbox({
       if (root.current) {
         root.current.dataset.frames = String(stats.renders);
         root.current.dataset.atlas = controller.atlasState();
+        // Where tile (0, 0)'s centre is on the canvas, and CSS pixels per art pixel.
+        const origin = controller.tileOnScreen({ x: 0, y: 0 });
+        root.current.dataset.camera = `${origin.x} ${origin.y} ${controller.scale()}`;
       }
       frameListener.current?.(controller);
     });
