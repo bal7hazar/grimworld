@@ -296,3 +296,230 @@ name = "house3"
 role = "building"
 file = "Buildings/Blue Buildings/House3.png"
 origin = "House3, blue"
+
+# ---------------------------------------------------------------- the hubs' buildings (CLI-03e)
+# `Buildings/Others/`: single buildings of the pack, 128 px wide, presumably the ones the owner
+# commissioned (its README does not say which files; CLI-03e's open question 2). Same rules as the
+# Blue stills above. The place -> building mapping is the client's (sandbox/fixtures/hubs.ts),
+# mirrored in README.md *Buildings*.
+
+[[still]]
+name = "fortress"
+role = "building"
+file = "Buildings/Others/Fortress.png"
+origin = "Fortress, others"
+
+[[still]]
+name = "forge"
+role = "building"
+file = "Buildings/Others/Forge.png"
+origin = "Forge, others"
+
+[[still]]
+name = "cloister"
+role = "building"
+file = "Buildings/Others/Cloister.png"
+origin = "Cloister, others"
+
+[[still]]
+name = "market_hall"
+role = "building"
+file = "Buildings/Others/Market_Hall.png"
+origin = "Market Hall, others"
+
+[[still]]
+name = "grain_silo"
+role = "building"
+file = "Buildings/Others/Grain_Silo.png"
+origin = "Grain Silo, others"
+
+[[still]]
+name = "barn"
+role = "building"
+file = "Buildings/Others/Barn.png"
+origin = "Barn, others"
+
+[[still]]
+name = "watchtower"
+role = "building"
+file = "Buildings/Others/Watchtower.png"
+origin = "Watchtower, others"
+
+[[still]]
+name = "inn"
+role = "building"
+file = "Buildings/Others/Inn.png"
+origin = "Inn, others"
+
+[[still]]
+name = "tavern"
+role = "building"
+file = "Buildings/Others/Tavern.png"
+origin = "Tavern, others"
+
+[[still]]
+name = "windmill"
+role = "building"
+file = "Buildings/Others/Windmill.png"
+origin = "Windmill, others"
+
+[[still]]
+name = "stable"
+role = "building"
+file = "Buildings/Others/Stable.png"
+origin = "Stable, others"
+
+[[still]]
+name = "hut"
+role = "building"
+file = "Buildings/Others/Hut.png"
+origin = "Hut, others"
+
+[[still]]
+name = "straw_hut"
+role = "building"
+file = "Buildings/Others/Straw_Hut.png"
+origin = "Straw Hut, others"
+
+[[still]]
+name = "cottage"
+role = "building"
+file = "Buildings/Others/Cottage.png"
+origin = "Cottage, others"
+
+[[still]]
+name = "small_house"
+role = "building"
+file = "Buildings/Others/Small_House.png"
+origin = "Small House, others"
+
+[[still]]
+name = "rural_house"
+role = "building"
+file = "Buildings/Others/Rural_House.png"
+origin = "Rural House, others"
+
+# ---------------------------------------------------------------- props (CLI-03e)
+# Trees, bushes, rocks, stumps and a sheep around the hubs' buildings: stills of role `prop`. An
+# animated strip is drawn at one frame (no idle animation in a hub): `frame` its index from the
+# left, `cell` = [width, height] its cell (the trees' are not square). Anchored at the base.
+
+[[still]]
+name = "tree1"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Tree1.png"
+frame = 0
+cell = [192, 256]
+origin = "Tree 1, frame 0"
+
+[[still]]
+name = "tree2"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Tree2.png"
+frame = 0
+cell = [192, 256]
+origin = "Tree 2, frame 0"
+
+[[still]]
+name = "tree3"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Tree3.png"
+frame = 0
+cell = [192, 192]
+origin = "Tree 3, frame 0"
+
+[[still]]
+name = "tree4"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Tree4.png"
+frame = 0
+cell = [192, 192]
+origin = "Tree 4, frame 0"
+
+[[still]]
+name = "bush1"
+role = "prop"
+file = "Terrain/Decorations/Bushes/Bushe1.png"
+frame = 0
+cell = [128, 128]
+origin = "Bush 1, frame 0"
+
+[[still]]
+name = "bush2"
+role = "prop"
+file = "Terrain/Decorations/Bushes/Bushe2.png"
+frame = 0
+cell = [128, 128]
+origin = "Bush 2, frame 0"
+
+[[still]]
+name = "bush3"
+role = "prop"
+file = "Terrain/Decorations/Bushes/Bushe3.png"
+frame = 0
+cell = [128, 128]
+origin = "Bush 3, frame 0"
+
+[[still]]
+name = "sheep"
+role = "prop"
+file = "Terrain/Resources/Meat/Sheep/Sheep_Idle.png"
+frame = 0
+cell = [128, 128]
+origin = "Sheep, idle frame 0"
+
+[[still]]
+name = "stump1"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Stump 1.png"
+origin = "Stump 1"
+
+[[still]]
+name = "stump2"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Stump 2.png"
+origin = "Stump 2"
+
+[[still]]
+name = "rock1"
+role = "prop"
+file = "Terrain/Decorations/Rocks/Rock1.png"
+origin = "Rock 1"
+
+[[still]]
+name = "rock2"
+role = "prop"
+file = "Terrain/Decorations/Rocks/Rock2.png"
+origin = "Rock 2"
+
+[[still]]
+name = "rock3"
+role = "prop"
+file = "Terrain/Decorations/Rocks/Rock3.png"
+origin = "Rock 3"
+
+[[still]]
+name = "rock4"
+role = "prop"
+file = "Terrain/Decorations/Rocks/Rock4.png"
+origin = "Rock 4"
+
+# ---------------------------------------------------------------- ground tiles (CLI-03e)
+# Named 64 x 64 cells of a tileset: each becomes the sprite `<name>_<cell>`, role `tile`, packed
+# untrimmed at native size, anchored at its top-left corner, its edges extruded into the gutter.
+# `cells` = {cell = [column, row]} in the sheet. The grass is the first colour variant (proposed,
+# the owner's eye): its flat ground's 3 x 3 autotile, the centre and the eight edges and corners.
+
+[[tileset]]
+name = "grass"
+role = "tile"
+file = "Terrain/Tileset/Tilemap_color1.png"
+origin = "Tilemap color 1, flat ground"
+cells = { nw = [0, 0], n = [1, 0], ne = [2, 0], w = [0, 1], c = [1, 1], e = [2, 1], sw = [0, 2], s = [1, 2], se = [2, 2] }
+
+[[tileset]]
+name = "water"
+role = "tile"
+file = "Terrain/Tileset/Water Background color.png"
+origin = "Water background"
+cells = { c = [0, 0] }

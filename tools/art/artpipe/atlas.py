@@ -1,5 +1,9 @@
 """Atlas packing: trimmed frames on shelves, PNG pages + TexturePacker "hash" JSON for PixiJS 8.
 
+A tile (CLI-03e, a sprite with `untrimmed`) is packed whole, at its cell's size, and its edge
+pixels are extruded into the gutter around it, so that a scaled scene sampling just outside a cell
+finds the cell's own edge, not a neighbour or transparency: no seam between two tiles.
+
 A sprite never straddles two pages, so each page is a self-contained atlas that PixiJS loads with
 `Assets.load` and one `Spritesheet`. Everything is deterministic: fixed order, no timestamps.
 """
@@ -46,9 +50,20 @@ def trim(cell):
     return cell[y0:y1, x0:x1], (int(x0), int(y0))
 
 
+def extrude(img, x, y, w, h, e):
+    """Copies the frame's edge rows and columns `e` px outward (corners included)."""
+    for i in range(1, e + 1):
+        img[y:y + h, x - i] = img[y:y + h, x]
+        img[y:y + h, x + w - 1 + i] = img[y:y + h, x + w - 1]
+    for i in range(1, e + 1):
+        img[y - i, x - e:x + w + e] = img[y, x - e:x + w + e]
+        img[y + h - 1 + i, x - e:x + w + e] = img[y + h - 1, x - e:x + w + e]
+
+
 def pack(sprites, s, out_dir):
     """sprites: ordered list of dicts (name, cell_w, cell_h, baseline, anims=[{name, fps, loop,
-    cells}]). Writes atlas-N.png / atlas-N.json and returns (index, page names)."""
+    cells}], and for a tile `untrimmed` and `anchor` = (x, y) as fractions of the cell). Writes
+    atlas-N.png / atlas-N.json and returns (index, page names)."""
     side, pad = s["atlas_max"], s["atlas_padding"]
     pages, page_of, trimmed = [], {}, {}
     for sp in sprites:
@@ -56,7 +71,7 @@ def pack(sprites, s, out_dir):
         for anim in sp["anims"]:
             for i, cell in enumerate(anim["cells"]):
                 key = f'{sp["name"]}/{anim["name"]}/{i:02d}'
-                crop, off = trim(cell)
+                crop, off = (cell, (0, 0)) if sp.get("untrimmed") else trim(cell)
                 trimmed[key] = (crop, off)
                 items.append((key, crop.shape[1], crop.shape[0]))
         for n, page in enumerate(pages):
@@ -77,7 +92,7 @@ def pack(sprites, s, out_dir):
         width = max(x + w for _, x, _, w, _ in page.placed) + pad
         width = -(-width // 4) * 4
         img = np.zeros((height, width, 4), np.uint8)
-        frames, animations, rates = {}, {}, {}
+        frames, animations, rates, whole = {}, {}, {}, []
         pos = {key: (x, y, w, h) for key, x, y, w, h in page.placed}
         for sp in [q for q in sprites if page_of[q["name"]] == n]:
             for anim in sp["anims"]:
@@ -87,17 +102,23 @@ def pack(sprites, s, out_dir):
                     x, y, w, h = pos[key]
                     crop, (ox, oy) = trimmed[key]
                     img[y:y + h, x:x + w] = crop
+                    if sp.get("untrimmed"):
+                        whole.append((x, y, w, h))
+                    ax, ay = sp.get("anchor", (0.5, sp["baseline"] / sp["cell_h"]))
                     frames[key] = {
                         "frame": {"x": x, "y": y, "w": w, "h": h},
                         "rotated": False,
-                        "trimmed": True,
+                        "trimmed": not sp.get("untrimmed", False),
                         "spriteSourceSize": {"x": ox, "y": oy, "w": w, "h": h},
                         "sourceSize": {"w": sp["cell_w"], "h": sp["cell_h"]},
-                        "anchor": {"x": 0.5, "y": round(sp["baseline"] / sp["cell_h"], 6)},
+                        "anchor": {"x": round(ax, 6), "y": round(ay, 6)},
                     }
                     keys.append(key)
                 animations[f'{sp["name"]}/{anim["name"]}'] = keys
                 rates[f'{sp["name"]}/{anim["name"]}'] = {"fps": anim["fps"], "loop": anim["loop"]}
+        # After every frame is written: an extrusion only fills the gutter, half of it at most.
+        for box in whole:
+            extrude(img, *box, pad // 2)
         png, jsn = f"atlas-{n}.png", f"atlas-{n}.json"
         pngfile.write(out_dir / png, img)
         data = {
