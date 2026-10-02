@@ -25,7 +25,7 @@ try:
     import numpy as np
     from PIL import Image
 
-    from artpipe import clean, fingerprint, png, scale
+    from artpipe import atlas, clean, fingerprint, png, scale
 except ImportError:                                         # outside the venv
     np = None
 
@@ -696,6 +696,71 @@ class Fingerprint(unittest.TestCase):
             self.assertEqual((fingerprint.files(a), fingerprint.content(a)), before)
             self.assertEqual([f.name for f in fingerprint.outputs(a)],
                              ["atlas-0.json", "atlas-0.png"])
+
+
+@unittest.skipIf(np is None, "needs the venv's NumPy and Pillow")
+class StillsBesideStrips(unittest.TestCase):
+    """CLI-03d, note 2 of the CLI-03c review: adding a still to the atlas leaves the strips' frames
+    where they were. Synthetic images only (D-73): no byte of the pack, no hash is asserted.
+
+    Pinned: each strip frame's rectangle on its page, its trim offset, and its cell's pixels.
+    Not pinned: the page's size and bytes (a still landing on a page can make it taller)."""
+
+    SETTINGS = {"atlas_max": 64, "atlas_padding": 1}
+
+    @staticmethod
+    def sprite(name, shades, w, h, role="adventurer"):
+        cells = []
+        for shade in shades:
+            cell = np.zeros((h + 4, w + 4, 4), np.uint8)
+            cell[2:2 + h, 2:2 + w] = (shade, 10, 10, 255)
+            cells.append(cell)
+        return {"name": name, "role": role, "cell_w": w + 4, "cell_h": h + 4, "baseline": h + 2,
+                "anims": [{"name": "idle", "fps": 6, "loop": True, "cells": cells}]}
+
+    def packed(self, sprites):
+        out = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(out))
+        index = atlas.pack(sprites, self.SETTINGS, out)
+        pages = []
+        for page in index["pages"]:
+            data = json.loads((out / page["json"]).read_text())
+            pages.append((data, np.array(Image.open(out / page["image"]).convert("RGBA"))))
+        return index, pages
+
+    def frames_of(self, index, pages, names):
+        """name -> [(frame rectangle, trim offset, cell pixels)] for the given sprites."""
+        found = {}
+        for name in names:
+            data, img = pages[index["sprites"][name]["page"]]
+            for key, f in data["frames"].items():
+                if key.split("/")[0] != name:
+                    continue
+                r = f["frame"]
+                px = img[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]].copy()
+                found.setdefault(name, []).append(
+                    ((r["x"], r["y"], r["w"], r["h"]),
+                     (f["spriteSourceSize"]["x"], f["spriteSourceSize"]["y"]), px.tobytes()))
+        return found
+
+    def test_strips_keep_their_frames_with_a_still(self):
+        strips = [self.sprite("a", [30, 60, 90], 10, 12), self.sprite("b", [120, 150], 14, 9)]
+        still = self.sprite("castle", [200], 20, 30, role="building")
+        without = self.packed(strips)
+        with_still = self.packed(strips + [still])
+        names = ["a", "b"]
+        self.assertEqual(self.frames_of(*without, names), self.frames_of(*with_still, names))
+        # The still itself is packed, on a page of the same atlas.
+        self.assertIn("castle", with_still[0]["sprites"])
+
+    def test_the_still_is_the_only_thing_the_pages_may_gain(self):
+        strips = [self.sprite("a", [30, 60], 10, 12)]
+        still = self.sprite("castle", [200], 20, 30, role="building")
+        (_, pages) = self.packed(strips)
+        (_, pages_with) = self.packed(strips + [still])
+        # No assertion on a page's size or bytes: only that every strip frame is still listed.
+        self.assertEqual(set(pages[0][0]["frames"]), {
+            k for k in pages_with[0][0]["frames"] if not k.startswith("castle/")})
 
 
 if __name__ == "__main__":

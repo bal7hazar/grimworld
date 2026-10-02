@@ -4,7 +4,7 @@ import type { Tile } from "../../render/view";
 import { type GateRecord, locationOf } from "../fixtures/region";
 import { zoneWorld } from "../fixtures/zone";
 import { RoomSandbox } from "../Sandbox";
-import { hubName } from "./machine";
+import { hubName, leaveQuestion } from "./machine";
 import { ui } from "./styles";
 
 /**
@@ -17,18 +17,23 @@ export function InstanceScreen({
   location,
   entry,
   offer,
+  gateHere,
   dispatch,
   onMoved,
 }: {
   location: number;
   entry: Tile;
-  /** The hub gate under the adventurer, if any (the machine's `leaveOffer`). */
+  /** The hub gate to offer on its own: on its anchor after leaving one (the machine's `leaveOffer`). */
   offer: GateRecord | null;
+  /** The hub gate under the adventurer, if any, at arrival too (the machine's `gateHere`). */
+  gateHere: GateRecord | null;
   dispatch: (intent: LoopIntent) => void;
   onMoved: (tile: Tile) => void;
 }) {
   const world = useMemo(() => zoneWorld(entry, locationOf(location)), [entry, location]);
-  const [asking, setAsking] = useState<"leave" | "travel back" | null>(null);
+  const [asking, setAsking] = useState<
+    { kind: "leave"; gate: GateRecord | null } | { kind: "travel back" } | null
+  >(null);
   const offerOpen = offer !== null;
   return (
     <div style={ui.screen} data-screen="instance">
@@ -37,7 +42,7 @@ export function InstanceScreen({
           {offerOpen && (
             <button
               style={{ ...ui.button, ...ui.primary }}
-              onClick={() => setAsking("leave")}
+              onClick={() => setAsking({ kind: "leave", gate: offer })}
               aria-label="Leave by this gate"
             >
               Gate to {hubName(offer.destination)} · Leave ▸
@@ -45,7 +50,15 @@ export function InstanceScreen({
           )}
         </div>
         <div style={styles.right}>
-          <button style={ui.button} onClick={() => setAsking("travel back")}>
+          <button
+            style={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
+            disabled={gateHere === null}
+            onClick={() => setAsking({ kind: "leave", gate: gateHere })}
+            aria-label="Leave"
+          >
+            Leave
+          </button>
+          <button style={ui.button} onClick={() => setAsking({ kind: "travel back" })}>
             Travel back
           </button>
           <button
@@ -60,9 +73,7 @@ export function InstanceScreen({
           <div style={styles.scrim} role="dialog" aria-label="Confirm">
             <div style={{ ...ui.card, maxWidth: 320 }}>
               <p style={{ marginTop: 0 }}>
-                {asking === "leave" && offer
-                  ? `Leave the instance for ${hubName(offer.destination)}? The goblins will be back next time.`
-                  : "Travel back to the last hub visited? The instance closes."}
+                {leaveQuestion(asking.kind === "leave" ? asking.gate : null)}
               </p>
               <div style={ui.row}>
                 <button style={{ ...ui.button, ...ui.quiet }} onClick={() => setAsking(null)}>
@@ -72,10 +83,10 @@ export function InstanceScreen({
                   style={{ ...ui.button, ...ui.primary }}
                   onClick={() => {
                     setAsking(null);
-                    dispatch(asking === "leave" ? { kind: "leave" } : { kind: "travel back" });
+                    dispatch(asking.kind === "leave" ? { kind: "leave" } : { kind: "travel back" });
                   }}
                 >
-                  {asking === "leave" ? "Leave" : "Travel back"}
+                  {asking.kind === "leave" ? "Leave" : "Travel back"}
                 </button>
               </div>
             </div>
