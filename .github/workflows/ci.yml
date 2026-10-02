@@ -158,7 +158,11 @@ jobs:
   # A class hash depends on the absolute build path, so a class that is declared on a network is
   # one of these files, never a local worktree build; build-root.json records the root, the commit,
   # the Scarb version and the OS it came from (OPERATIONS §7). A job of its own, not a step of the
-  # `cairo` matrix: one clean build of exactly contracts/, uploaded once, whatever the matrix does.
+  # `cairo` matrix: one clean build of exactly contracts/, uploaded once, whatever the matrix does
+  # (no cache restored, target/ removed before the build, snforge's *.test.* files left out).
+  # On a pull request the checkout is the head commit, not the merge commit, so the build, the
+  # artefact's name and build-root.json's commit are one commit. A class to declare comes from the
+  # artefact of a push to main (OPERATIONS §7), not from a pull request's run.
   # RAYON_NUM_THREADS=1 is the repository's build pin (D-176). No class hash is computed here.
   class-artefacts:
     needs: discover
@@ -167,6 +171,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - id: pins
@@ -181,18 +186,20 @@ jobs:
       - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
         with:
           scarb-version: ${{ steps.pins.outputs.scarb }}
-          scarb-lock: contracts/Scarb.lock
+          # No registry or target/ cache: the build below starts from nothing.
+          cache: false
 
       - name: build at CI's root
         env:
           RAYON_NUM_THREADS: "1"
           SCARB: ${{ steps.pins.outputs.scarb }}
-          # The pull request's head, not the merge commit the checkout holds.
+          # The commit the checkout holds (see the job's comment).
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           scarb --version | grep -q "^scarb $SCARB " || { echo "scarb is not $SCARB" >&2; exit 1; }
           cd contracts
+          rm -rf target
           scarb build --workspace
           # Written by python so that no value is interpolated into a shell string.
           python3 - <<'PY'
@@ -209,7 +216,7 @@ jobs:
               f.write("\n")
           print(json.dumps(record, indent=2))
           PY
-          find target -name '*.contract_class.json' -o -name '*.compiled_contract_class.json' | sort
+          find target -type f ! -name '*.test.*' \( -name '*.contract_class.json' -o -name '*.compiled_contract_class.json' \) | sort
 
       # 90 days: the most the default plan keeps, so a declaration can follow its merge by weeks.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -218,6 +225,7 @@ jobs:
           path: |
             contracts/target/**/*.contract_class.json
             contracts/target/**/*.compiled_contract_class.json
+            !contracts/target/**/*.test.*
             contracts/target/build-root.json
           retention-days: 90
           if-no-files-found: error

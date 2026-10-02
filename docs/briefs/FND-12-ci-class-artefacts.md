@@ -36,16 +36,20 @@ root they were built at. This lot only builds and keeps files: no declaration, n
     step of tests and the gas gate and restores a cache of `target/`; the artefact must come from one clean
     build of exactly `contracts/`, whose result nothing else touches, and an extra step in the matrix would
     upload once per package. It needs `discover` for the validated Scarb version of `contracts`.
-  - Its steps: checkout (no credentials kept), `setup-scarb` at the contracts' pin, `scarb build
+  - Its steps: checkout of the commit it names (`ref` = the pull request's head, else the pushed
+    commit, so on a pull request the build is the head, not the merge commit; no credentials kept),
+    `setup-scarb` at the contracts' pin with `cache: false` (the action's default would restore
+    `contracts/target/` from the `cairo (contracts)` job's cache), `rm -rf contracts/target`, `scarb build
     --workspace` in `contracts/` with `RAYON_NUM_THREADS=1` set in the step (the repository's build pin,
     D-176; FND-11 moves it to the repository's one place if it lands first), then `actions/upload-artifact`
-    (pinned by SHA) of `contracts/target/**/*.contract_class.json`, `*.compiled_contract_class.json` and a
-    small `build-root.json`, named `contract-classes-<commit sha>`, retention 90 days (the maximum of the
+    (pinned by SHA) of `contracts/target/**/*.contract_class.json`, `*.compiled_contract_class.json`
+    (snforge's `*.test.*` files excluded) and a small `build-root.json`, named `contract-classes-<commit sha>`, retention 90 days (the maximum of the
     default plan: long enough for a declaration to follow its merge by weeks), `if-no-files-found: error`.
   - `build-root.json`: `root` (`$GITHUB_WORKSPACE`), `commit` (the commit built: the pull request's head,
-    not the merge commit), `scarb` (the version scarb reports), `os` (the runner's OS and image).
+    the checkout's), `scarb` (the version scarb reports), `os` (the runner's OS and image).
   - **OPERATIONS.md §7**: the deployment record also names the CI root path and the artefact (run id or
-    URL, and name) the declared class came from. One or two sentences.
+    URL, and name) the declared class came from. One or two sentences: a declared class
+    comes from the artefact of a push to `main` (the commit on `main`), never of a pull request's run.
 - Out: anything in `contracts/`; any class hash or Sierra file hash pinned or compared (#283); declaring,
   sending, any secret; the discover script; the other jobs.
 - Allowlist: `docs/briefs/FND-12-ci-class-artefacts.md`, `.github/workflows/ci.yml`, `OPERATIONS.md` §7
@@ -53,8 +57,8 @@ root they were built at. This lot only builds and keeps files: no declaration, n
 
 ## Acceptance criteria
 - [ ] AC-1 On the pull request, the `class-artefacts` job runs, builds `contracts/` at CI's checkout root
-      and uploads an artefact named `contract-classes-<sha>` holding the class files of the packages that
-      declare and `build-root.json`.
+      and uploads an artefact named `contract-classes-<sha>` holding exactly the class files of the packages
+      that declare (10 classes × 2 files) and `build-root.json`: no stale file, no `*.test.*`.
 - [ ] AC-2 `build-root.json` holds the right values (root = the job's `$GITHUB_WORKSPACE`, the head
       commit, the Scarb version, the runner's OS), quoted in the report from the downloaded artefact.
 - [ ] AC-3 The retention is stated (90 days) and the job fails if no class file is found.

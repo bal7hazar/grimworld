@@ -264,7 +264,8 @@ verdict, findings table, coverage).
   script that sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**.
   Every release goes to Sepolia first; every deployment records the class hash it declared and the
   commit (D-154), the CI checkout root it was built at and the CI artefact (run URL and name,
-  `contract-classes-<sha>`, with its `build-root.json`) the declared class files came from (FND-12). Mainnet is the owner's (D-116).
+  `contract-classes-<sha>`, with its `build-root.json`) the declared class files came from (FND-12), the artefact of a push to
+  `main` (the commit on `main`), never of a pull request's run. Mainnet is the owner's (D-116).
 - **Publications on scarbs.xyz are delegated to the project manager, in the owner's name** (D-132).
   No sub-agent publishes, ever. The orchestrator asks with a committed
   `docs/decisions/PENDING-publish-<package>-<version>.md` (package, version, commit, what changed,
