@@ -732,7 +732,7 @@ mod market_layout_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 65909)] // ceil(1.05 × 62770 measured)
+    #[available_gas(l2_gas: 57792)] // ceil(1.05 × 55040 measured)
     fn test_market_storage_addresses() {
         let state = @Market::contract_state_for_testing();
         assert(
@@ -766,7 +766,7 @@ mod market_tests {
     use super::MarketStoreTrait;
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 3106142)] // ceil(1.05 × 2958230 measured)
     fn test_market_initialize() {
         let mut state = Market::contract_state_for_testing();
         state.initialize(1.try_into().unwrap(), 2.try_into().unwrap(), 3.try_into().unwrap());

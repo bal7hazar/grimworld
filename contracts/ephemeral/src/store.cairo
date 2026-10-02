@@ -296,7 +296,7 @@ mod layout_tests {
 
     // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
     #[test]
-    #[available_gas(l2_gas: 193242)] // ceil(1.05 × 184040 measured)
+    #[available_gas(l2_gas: 185126)] // ceil(1.05 × 176310 measured)
     fn test_instances_storage_addresses() {
         let state = @Instances::contract_state_for_testing();
         assert(
@@ -387,7 +387,7 @@ mod tests {
     // reads back through the store's slots, and one written through the store reads back as the
     // model.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 11410571)] // ceil(1.05 × 10867210 measured)
     fn test_member_slots() {
         let mut state = Instances::contract_state_for_testing();
         let entering = MemberStateTrait::entering(9, 3, 4, 100, 10, [2, 0, 1, 0]);
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not controller')]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 615510)] // ceil(1.05 × 586200 measured)
     fn test_controlled_state_refused() {
         let mut state = Instances::contract_state_for_testing();
         state.set_member_controller(5, 0, alice());
@@ -449,7 +449,7 @@ mod tests {
     // The words the view returns as stored: 0 where nothing was written, the models' packed words
     // otherwise.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 3361502)] // ceil(1.05 × 3201430 measured)
     fn test_words_as_stored() {
         let mut state = Instances::contract_state_for_testing();
         assert(state.get_stored_header(3).word == 0, 'no header');
@@ -523,7 +523,7 @@ mod note4_tests {
 
     // `create`'s snapshot and controller: three words and the controller.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 1964025)] // ceil(1.05 × 1870500 measured)
     fn test_snapshot_by_offsets() {
         let mut state = Instances::contract_state_for_testing();
         let base = member(@state);
@@ -535,7 +535,7 @@ mod note4_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 1964655)] // ceil(1.05 × 1871100 measured)
     fn test_snapshot_typed() {
         let mut state = Instances::contract_state_for_testing();
         state.set_snapshot(SLOT, 0, @snapshot(), controller());
@@ -543,7 +543,7 @@ mod note4_tests {
 
     // `begin`'s member: the state through its packer, then the three empty transient words.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 2020841)] // ceil(1.05 × 1924610 measured)
     fn test_entering_by_offsets() {
         let mut state = Instances::contract_state_for_testing();
         let base = member(@state);
@@ -554,7 +554,7 @@ mod note4_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 2022731)] // ceil(1.05 × 1926410 measured)
     fn test_entering_typed() {
         let mut state = Instances::contract_state_for_testing();
         state.set_entering(SLOT, 0, entering());
@@ -562,14 +562,14 @@ mod note4_tests {
 
     // `leave`: the stats word, for the maxima.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 45245)] // ceil(1.05 × 43090 measured)
     fn test_stats_by_offsets() {
         let state = Instances::contract_state_for_testing();
         assert(word(member(@state), 4) == 0, 'blank');
     }
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 45350)] // ceil(1.05 × 43190 measured)
     fn test_stats_typed() {
         let state = Instances::contract_state_for_testing();
         assert(state.get_stats(SLOT, 0).word == 0, 'blank');
@@ -577,7 +577,7 @@ mod note4_tests {
 
     // `instance_state`: one member's eight words.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 251843)] // ceil(1.05 × 239850 measured)
     fn test_member_words_by_offsets() {
         let state = Instances::contract_state_for_testing();
         let base = member(@state);
@@ -589,7 +589,7 @@ mod note4_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 240755)] // ceil(1.05 × 229290 measured)
     fn test_member_words_typed() {
         let state = Instances::contract_state_for_testing();
         assert(state.get_member_words(SLOT, 1).len() == 8, 'eight');
@@ -598,7 +598,7 @@ mod note4_tests {
     // `instance_state`: the header (its word, decoded once), the revealed set, the quotas, one
     // task page, as stored.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 200886)] // ceil(1.05 × 191320 measured)
     fn test_view_words_by_offsets() {
         let state = @Instances::contract_state_for_testing();
         let header_word = word(state.headers.entry(SLOT).as_ptr().__storage_pointer_address__, 0);
@@ -616,7 +616,7 @@ mod note4_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 200571)] // ceil(1.05 × 191020 measured)
     fn test_view_words_typed() {
         let state = Instances::contract_state_for_testing();
         let stored = state.get_stored_header(SLOT);
@@ -629,7 +629,7 @@ mod note4_tests {
 
     // `begin`'s instance words: the header, the revealed set and the quotas through their packers.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 1664901)] // ceil(1.05 × 1585620 measured)
     fn test_begin_words_by_model() {
         let state = @Instances::contract_state_for_testing();
         let header = HeaderTrait::new(2, 3, 0, false, 112, 112, 6);
@@ -654,7 +654,7 @@ mod note4_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 1664796)] // ceil(1.05 × 1585520 measured)
     fn test_begin_words_typed() {
         let mut state = Instances::contract_state_for_testing();
         state.set_header(SLOT, HeaderTrait::new(2, 3, 0, false, 112, 112, 6));

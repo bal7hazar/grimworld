@@ -67,7 +67,7 @@ mod tests {
 
     // The word is the model's packed word, both ways; a word never written reads 0, not `LIVE`.
     #[test]
-    #[available_gas(l2_gas: 100000)]
+    #[available_gas(l2_gas: 13839)] // ceil(1.05 × 13180 measured)
     fn test_stored_word_and_model() {
         let bits = Bitmap { bits: 0x5 };
         let stored: Stored<Bitmap> = StoredTrait::new(bits);
