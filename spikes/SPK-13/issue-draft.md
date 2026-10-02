@@ -216,10 +216,11 @@ the output would need the same treatment.
 
 ### A second observation, not part of the reproduction
 
-Besides the thread-order drift above, one program of a larger private project gave a different
-Sierra text and class hash on macOS arm64 and on x86_64 Linux, with the same commit, the same
-`Scarb.lock` and the same Scarb version, even with `RAYON_NUM_THREADS=1`. Each machine was stable
-on its own, and the CASM was the same on both. The cause was not investigated. It is offered as
+Besides the thread-order drift above, some artefacts (one contract class and some test builds) of
+a larger private project gave a different Sierra text on macOS arm64 and on x86_64 Linux (a
+different class hash, for the class), with the same commit, the same `Scarb.lock` and the same
+Scarb version, even with `RAYON_NUM_THREADS=1`. Each machine was stable on its own, and the contract
+class's CASM was the same on both. The cause was not investigated. It is offered as
 an observation only: it is not reproduced by the program in this issue and is not a claim about
 this report's cause.
 

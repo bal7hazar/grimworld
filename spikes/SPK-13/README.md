@@ -239,11 +239,16 @@ The two points the run had to settle:
    l.117, l.229); VPS: text `654665be9dce`, class hash `0x0001621259ac` (`builds-vps.txt` l.73, l.156). Each
    machine is stable alone (one text in all its builds, 12 threads on the Mac included), and the Sierra size
    (10,665), CASM felts (24,611) and CASM sha256 (`9eaca75f52b3`) are equal, with the same commit, the same
-   `Scarb.lock` and the same Scarb version. In all, 7 of the 51 artefacts differ on one thread: the Registry
-   class and its two copies in the test builds (`persistent_unittest_Registry.test`,
-   `persistent_integrationtest_Registry.test`), the `grimworld_persistent` program, and three compiled test
-   files that embed it (`persistent_unittest.test`, `persistent_integrationtest.test`,
-   `logic_integrationtest.test`); the other 44 have the same text on both machines. The class hashes come
+   `Scarb.lock` and the same Scarb version. In all, 7 of the 51 artefacts differ on one thread, in two groups:
+   (a) the Registry class, its two copies in the test builds (`persistent_unittest_Registry.test`,
+   `persistent_integrationtest_Registry.test`), the `grimworld_persistent` program and the two compiled
+   test files of that package (`persistent_unittest.test`, `persistent_integrationtest.test`), whose class
+   lists in the tables each include a Registry class; (b) `grimworld_logic_integrationtest.test`
+   (Mac `f77be9a5c282`, VPS `02764e4e3ffb`), which differs although its build holds no Registry (only
+   `FlattenLibrary` and `TickLibrary`, equal on both machines) and `contracts/logic/Scarb.toml` has no
+   dependency on `grimworld_persistent`, while `logic_unittest.test` and the `grimworld_logic` program are
+   equal. The cross-machine difference therefore has at least two independent sources, both open; the
+   other 44 artefacts have the same text on both machines. The class hashes come
    from different tools (starkli on the Mac, `class_hash.py` on the VPS), but the Sierra text sha256 differs
    too, so the hash tool does not explain the difference (other classes match across the two tools). It is not the race; its cause (the platform, the
    path or another difference of environment) is unknown. So a one-thread build is stable *per machine*, and
