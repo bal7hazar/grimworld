@@ -395,6 +395,20 @@ pub struct Gain {
     pub stolen: u16,
 }
 
+/// What a hit reads of its target, read once (the views rework): its defence, facing, armor
+/// against the hit's type, its state.
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct Struck {
+    pub defence: Defence,
+    pub facing: u8,
+    pub armor_vs: u8,
+    pub knocked: bool,
+    pub asleep: bool,
+    pub halves: bool,
+    pub health: u16,
+    pub max_health: u16,
+}
+
 /// What the executor reads and writes of an actor, a member or a goblin (design/19 §5.5–§5.7,
 /// §5.12): one generic executor for both, monomorphized.
 pub trait Body<T> {
@@ -1425,9 +1439,9 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// §5.5 steps 1–5 and the target's part of 8 and 9 on `target`, the source's health given
-    /// (the `ABOVE_HALF` damage passives): the arc and the front tile from ENG-02 for a weapon hit,
-    /// CBT-03a's `resolve`, a block's charge spent, the damage applied, FX-19's halving spent, the
-    /// hit recorded. Returns whether it landed.
+    /// (the `ABOVE_HALF` damage passives): the target read once into a view (`Struck`), the hit
+    /// resolved on the view (`resolve`, not generic), its outcome written back once. Returns
+    /// whether it landed.
     #[inline(never)]
     fn strike<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
@@ -1440,12 +1454,51 @@ pub impl ExecutorImpl of ExecutorTrait {
         t: u32,
         sheets: @Sheets,
     ) -> bool {
-        let offence = *shot.offence;
         let defence = target.defence(lever, ref cache, actor, t, sheets);
+        let (_, _, facing) = target.place();
+        let view = Struck {
+            defence,
+            facing,
+            armor_vs: target.armor_vs((*shot.offence).damage_type, sheets),
+            knocked: target.knocked(t),
+            asleep: target.asleep(),
+            halves: target.halves(),
+            health: target.health(),
+            max_health: target.max_health(),
+        };
+        let outcome = Self::resolve(ref cache, shot, @view, health, max_health, t);
+        match outcome {
+            HitOutcome::Blocked => {
+                target.spend(defence.block_slot, t);
+                if let Actor::Member(i) = actor {
+                    lever.spent(ref cache, i);
+                }
+                false
+            },
+            HitOutcome::Landed(landed) => {
+                target.wound(landed.damage);
+                if landed.halved {
+                    target.halved();
+                }
+                target.struck();
+                true
+            },
+            _ => false,
+        }
+    }
+
+    /// The hit on a target's view (§5.5 steps 1–4, not generic): the arc and the front tile from
+    /// ENG-02 for a weapon hit, the `Hit` and its `HitTarget`, CBT-03a's `resolve`; the hit
+    /// counted.
+    #[inline(never)]
+    fn resolve(
+        ref cache: Cache, shot: @Shot, view: @Struck, health: u16, max_health: u16, t: u32,
+    ) -> HitOutcome {
+        let offence = *shot.offence;
+        let defence = *view.defence;
         let weapon = offence.class == HitClass::Weapon;
         let (arc, in_front) = if weapon {
-            let (_, _, facing) = target.place();
-            let arc = match WindowTrait::arc(*shot.source_at, *shot.target_at, facing) {
+            let arc = match WindowTrait::arc(*shot.source_at, *shot.target_at, *view.facing) {
                 Some(arc) => arc,
                 // Never on a legal hit (`legal` asked `reach` first): two actors never share a
                 // tile, and a position outside the window has no reach.
@@ -1483,38 +1536,21 @@ pub impl ExecutorImpl of ExecutorTrait {
             armor_enchanted: defence.enchanted,
             in_stance: defence.in_stance,
             enchanted: defence.is_enchanted,
-            armor_vs: target.armor_vs(offence.damage_type, sheets),
+            armor_vs: *view.armor_vs,
             block,
             evade: defence.evade,
-            knocked_down: target.knocked(t),
-            asleep: target.asleep(),
-            halve: weapon && target.halves(),
-            health: target.health(),
-            max_health: target.max_health(),
+            knocked_down: *view.knocked,
+            asleep: *view.asleep,
+            halve: weapon && *view.halves,
+            health: *view.health,
+            max_health: *view.max_health,
         };
         if cache.hits_at != t + 1 {
             cache.hits = 0;
             cache.hits_at = t + 1;
         }
         cache.hits += 1;
-        match hit.resolve(@struck) {
-            HitOutcome::Blocked => {
-                target.spend(defence.block_slot, t);
-                if let Actor::Member(i) = actor {
-                    lever.spent(ref cache, i);
-                }
-                false
-            },
-            HitOutcome::Landed(landed) => {
-                target.wound(landed.damage);
-                if landed.halved {
-                    target.halved();
-                }
-                target.struck();
-                true
-            },
-            _ => false,
-        }
+        hit.resolve(@struck)
     }
 
     /// The entries other than the hit on `target`, in entry order (§5.14 step 5): those whose set
