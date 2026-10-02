@@ -33,7 +33,7 @@ lint; `pnpm exec prettier --check client indexer` lists its files and the copied
 
 ## The simulator (the agent)
 
-Xcode 26.0 or later.
+Xcode 26.0 or later (checked with Xcode 27.0 and the iOS 26.5 simulator, iPhone 17).
 
 ```sh
 pnpm shell:sync            # or shell:build, with the atlas
@@ -42,12 +42,16 @@ xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator \
   CODE_SIGNING_ALLOWED=NO build
 xcrun simctl boot 'iPhone 17'
 xcrun simctl install booted /tmp/grimworld-shell/Build/Products/Debug-iphonesimulator/App.app
-xcrun simctl launch booted com.example.grimworld
-xcrun simctl spawn booted log show --last 2m --predicate 'process == "App"' | grep '\[shell\]'
+xcrun simctl launch --console-pty booted com.example.grimworld \
+  -startQuery 'fixture=cave&scale=sharp&panel=1'
 ```
 
-The page logs `[shell] start {…}` with the device state at start, and `[shell] thermalChange …`
-on each change; Capacitor forwards both to the system log.
+- `-startQuery` (Debug builds only) gives the sandbox its URL parameters, as `?fixture=…` does in
+  Safari (protocol §2.3). Without it the app opens on `capacitor://localhost/`.
+- `--console-pty` shows the app's output: Capacitor's lines (`⚡️ [info] - …`, the page's console)
+  and the native `[shell] native start inspectable=… scrollEnabled=… state=…` line, which is also
+  in the system log (`xcrun simctl spawn booted log show --last 2m --predicate 'process == "App"'`).
+- Safari's Web Inspector: Safari, Develop, the simulator, then the app's page.
 
 ## The owner's iPhone 14 (the owner, who signs)
 
@@ -56,7 +60,8 @@ Signing and every Apple account action are the owner's; the agent never signs, n
 1. Build the atlas on the Mac (`tools/art`, see `tools/art/README.md`).
 2. `pnpm shell:build`, then `pnpm shell:open`.
 3. Copy `ios/App/Signing.local.xcconfig.example` to `ios/App/Signing.local.xcconfig` (ignored by
-   git) and put your team and a bundle identifier of your own in it.
+   git) and put your team and a bundle identifier of your own in it. `ios/debug.xcconfig` includes
+   it, for the Debug configuration (Xcode's Run).
 4. In Xcode, choose the iPhone and Run. On the phone, trust the developer profile (Settings,
    General, VPN & Device Management), then open the app and check the run.
 
