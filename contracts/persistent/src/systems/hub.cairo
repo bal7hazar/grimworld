@@ -202,8 +202,8 @@ pub mod Hub {
     };
     use crate::models::account::{AccountAssert, OwnerTrait, StoredAccount};
     use crate::models::adventurer::{
-        AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert, BuildTrait,
-        EquippedAssert, StoredAdventurer,
+        Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
+        BuildTrait, EquippedAssert,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
@@ -245,8 +245,8 @@ pub mod Hub {
         pub accounts: Map<u32, StoredAccount>,
         /// `(account, page)`: its adventurer ids, seven per page (a `Lanes32` as stored).
         pub account_adventurers: Map<(u32, u8), StoredLanes>,
-        /// Six slots each (`Adventurer`'s, typed as stored).
-        pub adventurers: Map<u32, StoredAdventurer>,
+        /// Six slots each.
+        pub adventurers: Map<u32, Adventurer>,
         /// `(adventurer, page)`: bit per skill id, 250 per page.
         pub known_skills: Map<(u32, u8), Bitmap>,
         /// `(adventurer, counter)`: "distinct" bitmaps of titles (T-2).
@@ -255,9 +255,8 @@ pub mod Hub {
         pub account_counters: Map<(u32, u16), Bitmap>,
         /// `(adventurer, book)`: three slots each.
         pub grimoires: Map<(u32, u16), Grimoire>,
-        /// `(owner key, page)`: seven balances of `u32` per page, item `7 page + lane` (a `Lanes32`
-        /// as stored).
-        pub balances: Map<(felt252, u32), StoredLanes>,
+        /// `(owner key, page)`: seven balances of `u32` per page, item `7 page + lane`.
+        pub balances: Map<(felt252, u32), Lanes32>,
         pub gold: Map<felt252, Gold>,
         /// Two slots each, by entity id.
         pub items: Map<u32, Item>,

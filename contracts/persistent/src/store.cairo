@@ -22,16 +22,18 @@
 //! as a stored word, which the views return as such (`IHubViews::account`, `IHubViews::adventurer`,
 //! frozen by ENG-01).
 //!
-//! **Typed slots** (ENG-R1a's note 4, measured in ENG-R1b after `Instances`' storage passed the
-//! rule). `Hub` declares the storage these stored models live in with them, as `quiver_quest`
-//! does: `adventurers` as `StoredAdventurer`, `accounts` as `StoredAccount`, `account_adventurers`,
-//! `balances` and `packs` as `StoredLanes`, each a one-felt `Store` (an identity `StorePacking`)
-//! at the address and in the layout the full models had (`layout_tests`, `test_adventurer_offsets`,
-//! `test_account_slots`). So the store does no address arithmetic: no `__storage_pointer_address__`,
-//! no word offset, no `read_at_offset`; a path that reads or writes several slots of one entry
-//! takes the entry's sub-pointers once (`sub_pointers`, `sub_pointers_mut`), one address hash. **No
-//! slot keeps an offset access**: every one passed the rule (ENG-R1b's report gives the figures).
-//! The full models (`Adventurer`, `Account`) stay the layout and the packers' oracle in the tests.
+//! **Typed slots, where they hold the rule** (ENG-R1a's note 4, measured in ENG-R1b after
+//! `Instances`' storage passed the rule). `Hub` declares `accounts` as `StoredAccount` (the owner,
+//! the record as stored), `account_adventurers` and `packs` as `StoredLanes`, each a one-felt
+//! `Store`
+//! (an identity `StorePacking`) at the address and in the layout the models had (`layout_tests`,
+//! `test_account_slots`): their store methods do no address arithmetic, and a path that reads or
+//! writes two slots of one account takes its sub-pointers once. **`adventurers` and `balances`
+//! keep their models' declaration and the offset access** (`AdventurerWordTrait`, `PageTrait`,
+//! `WordTrait` below): typed, they raised the expedition's path (ENG-R1b, l2 gas per call: `enter`
+//! +300 without a belt and +3,940 with 4 belt pages, the closing `report` crediting 4 pages +3,940,
+//! `travel` +200; a balance page about +985, a single adventurer slot about +100), which D-144
+//! leaves to the project manager; the rule of ENG-R1b's *Scope* keeps them as they were.
 //!
 //! **Tracking** (docs/CAIRO.md §7, D-147, D-149): **no model of `Hub` is tracked, so no `set_x`
 //! here emits**. The indexer reads ENG-01's events, frozen (D-149), and none of them matches the
@@ -63,12 +65,13 @@
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
 use starknet::storage::{
-    Mutable, StoragePath, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
-    SubPointersForward, SubPointersMutForward,
+    Mutable, StorageAsPointer, StoragePath, StoragePathEntry, StoragePointerReadAccess,
+    StoragePointerWriteAccess, SubPointersForward, SubPointersMutForward,
 };
-use starknet::{ClassHash, ContractAddress};
+use starknet::storage_access::{StorageBaseAddress, Store};
+use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
 use crate::models::account::{AdventurerListAssert, AdventurerListTrait};
-use crate::models::adventurer::KnownSkillsTrait;
+use crate::models::adventurer::{KnownSkillsTrait, WORDS};
 use crate::models::balance::BalanceTrait;
 use crate::models::item::{Equipment, EquipmentTrait, Gold};
 use crate::models::lanes::{LanesTrait, StoredLanes, StoredLanesTrait};
@@ -317,74 +320,74 @@ pub impl HubStoreImpl of HubStoreTrait {
         build: StoredBuild,
         name: felt252,
     ) {
-        let slots = self.adventurers.entry(adventurer_id).sub_pointers_mut();
-        slots.core.write(core);
-        slots.place.write(place);
-        slots.build.write(build.build);
-        slots.belt.write(build.belt);
-        slots.equipped.write(build.equipped);
-        slots.name.write(name);
+        let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+        base.set_word(CORE, core.word);
+        base.set_word(PLACE, place.word);
+        base.set_word(BUILD, build.build);
+        base.set_word(BELT, build.belt.word);
+        base.set_word(EQUIPPED, build.equipped.word);
+        base.set_word(NAME, name);
     }
 
     /// The six words as stored, for the view that returns them so (`IHubViews::adventurer`,
     /// ENG-01): six 0 for an id never created.
     fn get_adventurer_words(self: @HubState, adventurer_id: u32) -> Span<felt252> {
-        let adventurer = self.adventurers.entry(adventurer_id).read();
-        array![
-            adventurer.core.word, adventurer.place.word, adventurer.build, adventurer.belt.word,
-            adventurer.equipped.word, adventurer.name,
-        ]
-            .span()
+        let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+        let mut words: Array<felt252> = array![];
+        for offset in 0..WORDS {
+            words.append(base.word(offset));
+        }
+        words.span()
     }
 
     /// The core and the place as stored, under one address: the two words of the ownership check
     /// (`Hub`'s `owned_in_hub`), which every entrypoint naming an adventurer reads.
     fn get_core_place(self: @HubState, adventurer_id: u32) -> (StoredCore, StoredPlace) {
-        let slots = self.adventurers.entry(adventurer_id).sub_pointers();
-        (slots.core.read(), slots.place.read())
+        let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+        (StoredCore { word: base.word(CORE) }, StoredPlace { word: base.word(PLACE) })
     }
 
     /// The core as stored, one read.
     #[inline(always)]
     fn get_core(self: @HubState, adventurer_id: u32) -> StoredCore {
-        self.adventurers.entry(adventurer_id).core.read()
+        StoredCore { word: self.adventurer_word(adventurer_id, CORE) }
     }
 
     #[inline(always)]
     fn set_core(ref self: HubState, adventurer_id: u32, core: StoredCore) {
-        self.adventurers.entry(adventurer_id).core.write(core)
+        self.set_adventurer_word(adventurer_id, CORE, core.word)
     }
 
     /// The place as stored, one read.
     #[inline(always)]
     fn get_place(self: @HubState, adventurer_id: u32) -> StoredPlace {
-        self.adventurers.entry(adventurer_id).place.read()
+        StoredPlace { word: self.adventurer_word(adventurer_id, PLACE) }
     }
 
     #[inline(always)]
     fn set_place(ref self: HubState, adventurer_id: u32, place: StoredPlace) {
-        self.adventurers.entry(adventurer_id).place.write(place)
+        self.set_adventurer_word(adventurer_id, PLACE, place.word)
     }
 
     /// The belt as stored, one read (`BeltTrait::read` decodes its items and counts).
     #[inline(always)]
     fn get_belt(self: @HubState, adventurer_id: u32) -> StoredLanes {
-        self.adventurers.entry(adventurer_id).belt.read()
+        StoredLanes { word: self.adventurer_word(adventurer_id, BELT) }
     }
 
     /// What it wears as stored, one read.
     #[inline(always)]
     fn get_equipped(self: @HubState, adventurer_id: u32) -> StoredLanes {
-        self.adventurers.entry(adventurer_id).equipped.read()
+        StoredLanes { word: self.adventurer_word(adventurer_id, EQUIPPED) }
     }
 
     /// The build in design/03's sense, `set_build`'s three slots: the bar and the attributes, the
     /// belt, the equipment, the words as sent with `LIVE`.
     fn set_adventurer_build(ref self: HubState, adventurer_id: u32, build: StoredBuild) {
-        let slots = self.adventurers.entry(adventurer_id).sub_pointers_mut();
-        slots.build.write(build.build);
-        slots.belt.write(build.belt);
-        slots.equipped.write(build.equipped);
+        let base = self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__;
+        base.set_word(BUILD, build.build);
+        base.set_word(BELT, build.belt.word);
+        base.set_word(EQUIPPED, build.equipped.word);
     }
 
     // Known skills: `known_skills[(adventurer, page)]`, a `Bitmap` of 250 skill ids
@@ -422,7 +425,7 @@ pub impl HubStoreImpl of HubStoreTrait {
     /// not decoded.
     fn get_balance(self: @HubState, owner: felt252, item: u32) -> u32 {
         let (page, lane) = BalanceTrait::at(item);
-        self.balances.entry((owner, page)).read().get(lane)
+        StoredLanes { word: self.balance_page(owner, page).word(0) }.get(lane)
     }
 
     /// Credits (`credit`) or debits the balances of `owner` by `(item, amount)` changes: each page
@@ -440,11 +443,11 @@ pub impl HubStoreImpl of HubStoreTrait {
             }
             let (item, _) = *changes[i];
             let (page, _) = BalanceTrait::at(item);
-            let entry = self.balances.entry((owner, page));
+            let entry = self.balance_page(owner, page);
             let (stored, page_filled, page_emptied) = BalanceTrait::apply(
-                entry.read(), page, changes, i, credit,
+                StoredLanes { word: entry.word(0) }, page, changes, i, credit,
             );
-            entry.write(stored);
+            entry.set_word(0, stored.word);
             filled += page_filled;
             emptied += page_emptied;
         }
@@ -531,6 +534,62 @@ pub impl StoreImpl of StoreTrait {
     #[inline(always)]
     fn set_versions(path: StoragePath<Mutable<Versions>>, versions: Versions) {
         path.write(versions)
+    }
+}
+
+/// Offsets of the words of `Adventurer` from its address: `adventurers` keeps the offset access,
+/// typed slots measured above the expedition's path's figures (the module's doc, ENG-R1b).
+const CORE: u8 = 0;
+const PLACE: u8 = 1;
+const BUILD: u8 = 2;
+const BELT: u8 = 3;
+const EQUIPPED: u8 = 4;
+const NAME: u8 = 5;
+
+/// One word of an adventurer, as stored.
+#[generate_trait]
+impl AdventurerWordImpl of AdventurerWordTrait {
+    #[inline(always)]
+    fn adventurer_word(self: @HubState, adventurer_id: u32, offset: u8) -> felt252 {
+        self.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__.word(offset)
+    }
+
+    #[inline(always)]
+    fn set_adventurer_word(ref self: HubState, adventurer_id: u32, offset: u8, value: felt252) {
+        self
+            .adventurers
+            .entry(adventurer_id)
+            .as_ptr()
+            .__storage_pointer_address__
+            .set_word(offset, value)
+    }
+}
+
+/// The addresses of the balance pages the store reads and writes as stored words: `balances`
+/// keeps the offset access, typed slots measured at about +985 l2 gas a page on `enter` and the
+/// closing `report` (the module's doc, ENG-R1b).
+#[generate_trait]
+impl PageImpl of PageTrait {
+    /// Page `page` of the owner's balances.
+    #[inline(always)]
+    fn balance_page(self: @HubState, owner: felt252, page: u32) -> StorageBaseAddress {
+        self.balances.entry((owner, page)).as_ptr().__storage_pointer_address__
+    }
+}
+
+/// One stored word of a record, read or written as stored: what a stored model holds (see the
+/// module's doc).
+#[generate_trait]
+impl WordImpl of WordTrait {
+    /// Word `offset` of the record at `self`.
+    #[inline(always)]
+    fn word(self: StorageBaseAddress, offset: u8) -> felt252 {
+        Store::<felt252>::read_at_offset(0, self, offset).unwrap_syscall()
+    }
+
+    #[inline(always)]
+    fn set_word(self: StorageBaseAddress, offset: u8, value: felt252) {
+        Store::<felt252>::write_at_offset(0, self, offset, value).unwrap_syscall()
     }
 }
 
@@ -728,8 +787,10 @@ mod market_tests {
 #[cfg(test)]
 mod tests {
     use grimworld_logic::packing::{LIVE, Lanes32};
-    use starknet::storage::{StorageAsPointer, StoragePathEntry};
-    use starknet::storage_access::{StorageBaseAddress, Store, StorePacking};
+    use starknet::storage::{
+        StorageAsPointer, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+    };
+    use starknet::storage_access::{Store, StorePacking};
     use starknet::{ContractAddress, SyscallResultTrait};
     use crate::models::account::{Account, AccountRecord};
     use crate::models::adventurer::{
@@ -740,12 +801,6 @@ mod tests {
     use crate::models::stored_record::StoredRecordTrait;
     use crate::systems::hub::Hub;
     use super::HubStoreTrait;
-
-    /// The address of an adventurer's six slots, to write and read `Adventurer` as the model
-    /// (the oracle of `StoredAdventurer`'s slots).
-    fn adventurer_at(state: @Hub::ContractState, adventurer_id: u32) -> StorageBaseAddress {
-        state.adventurers.entry(adventurer_id).as_ptr().__storage_pointer_address__
-    }
 
     fn ids(state: @Hub::ContractState, count: u8) -> Array<u32> {
         let mut out = array![];
@@ -831,7 +886,7 @@ mod tests {
             equipped: Lanes32 { lanes: [11, 0, 12, 0, 0, 0, 0] },
             name: 'Cedric',
         };
-        Store::<Adventurer>::write(0, adventurer_at(@state, 5), adventurer).unwrap_syscall();
+        state.adventurers.entry(5).write(adventurer);
         let core: felt252 = StorePacking::pack(adventurer.core);
         let place: felt252 = StorePacking::pack(adventurer.place);
         let build: felt252 = StorePacking::pack(adventurer.build);
@@ -847,7 +902,7 @@ mod tests {
 
         let (new_core, new_place, new_build) = AdventurerTrait::new(3, 1, 2);
         state.set_adventurer(6, new_core, new_place, new_build, 'Brenna');
-        let read = Store::<Adventurer>::read(0, adventurer_at(@state, 6)).unwrap_syscall();
+        let read = state.adventurers.entry(6).read();
         assert(StorePacking::pack(read.core) == new_core.word, 'typed core');
         assert(StorePacking::pack(read.place) == new_place.word, 'typed place');
         assert(StorePacking::pack(read.build) == new_build.build, 'typed build');
@@ -858,7 +913,7 @@ mod tests {
             .set_adventurer_build(
                 6, StoredBuildTrait::new(build - LIVE, belt - LIVE, equipped - LIVE),
             );
-        let read = Store::<Adventurer>::read(0, adventurer_at(@state, 6)).unwrap_syscall();
+        let read = state.adventurers.entry(6).read();
         assert(read.build == adventurer.build && read.belt == adventurer.belt, 'typed set_build');
         assert(read.equipped == adventurer.equipped, 'typed equipped after');
     }

@@ -625,23 +625,7 @@ pub impl BuildStorePacking of starknet::storage_access::StorePacking<Build, felt
     }
 }
 
-/// An adventurer's six slots as `Hub` declares them (ENG-R1b, ENG-R1a's note 4): `Adventurer`'s
-/// slots in its order, at the same address, each as stored (`StoredCore`, `StoredPlace`, the
-/// build's word, `StoredLanes`, the name), so that the store reads and writes a slot typed and
-/// needs no offset. Pinned against `Adventurer` by the store's `test_adventurer_offsets`.
-#[derive(Copy, Drop, starknet::Store)]
-pub struct StoredAdventurer {
-    pub core: StoredCore,
-    pub place: StoredPlace,
-    /// `Build` as stored (`StoredBuild.build`).
-    pub build: felt252,
-    pub belt: StoredLanes,
-    pub equipped: StoredLanes,
-    pub name: felt252,
-}
-
-/// Six consecutive slots under an adventurer id. The layout and the packers' oracle; `Hub`
-/// declares its storage with `StoredAdventurer`.
+/// Six consecutive slots under an adventurer id.
 #[derive(Copy, Drop, Serde, starknet::Store)]
 pub struct Adventurer {
     pub core: AdventurerCore,

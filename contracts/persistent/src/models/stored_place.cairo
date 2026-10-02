@@ -13,20 +13,6 @@ pub struct StoredPlace {
     pub word: felt252,
 }
 
-/// One felt in storage, the word as it is: no packer runs on a read or a write (ENG-R1b: `Hub`
-/// declares its storage with the stored models, ENG-R1a's note 4).
-pub impl StoredPlaceStorePacking of starknet::storage_access::StorePacking<StoredPlace, felt252> {
-    #[inline(always)]
-    fn pack(value: StoredPlace) -> felt252 {
-        value.word
-    }
-
-    #[inline(always)]
-    fn unpack(value: felt252) -> StoredPlace {
-        StoredPlace { word: value }
-    }
-}
-
 /// Entering an instance, moving to the next one, being in a hub, unlocking one (ENG-06).
 #[generate_trait]
 pub impl StoredPlaceImpl of StoredPlaceTrait {
