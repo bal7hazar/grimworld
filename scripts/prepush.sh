@@ -64,9 +64,9 @@ if touched '^tools/art/'; then
   step "tools/art tests" python3 -m unittest discover -s tools/art/tests
 fi
 
-# Cairo: the packages touched. The contracts workspace is one build (CI: `scarb build --workspace`).
+# Cairo: the packages touched; no Cairo source, manifest, lock or .tool-versions changed: no compile. The contracts workspace is one build (CI: `scarb build --workspace`).
 cairo_inputs='(\.cairo|/Scarb\.toml|/Scarb\.lock)$|^\.tool-versions$'
-contracts_inputs='^contracts/.*(\.cairo|/Scarb\.toml|/Scarb\.lock)$|^\.tool-versions$|^scripts/(gas_budgets\.py|lock\.sh)$|^docs/BUDGETS\.md$|^contracts/.*/GAS\.md$|^contracts/tools/class_sizes\.py$'
+contracts_inputs='^contracts/(.*/)?(Scarb\.toml|Scarb\.lock)$|^contracts/.*\.cairo$|^\.tool-versions$'
 built=0
 if touched "$contracts_inputs"; then
   step "build contracts" scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build --workspace
