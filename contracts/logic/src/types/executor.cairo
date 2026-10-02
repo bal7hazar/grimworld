@@ -874,6 +874,7 @@ pub enum Unit {
 }
 
 pub impl UnitBody of Body<Unit> {
+    #[inline(never)]
     fn health(self: @Unit) -> u16 {
         match self {
             Unit::M(m) => MemberBody::health(m),
@@ -881,6 +882,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn max_health(self: @Unit) -> u16 {
         match self {
             Unit::M(m) => MemberBody::max_health(m),
@@ -888,6 +890,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn alive(self: @Unit) -> bool {
         match self {
             Unit::M(m) => MemberBody::alive(m),
@@ -895,6 +898,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn is_member(self: @Unit) -> bool {
         match self {
             Unit::M(m) => MemberBody::is_member(m),
@@ -902,6 +906,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn place(self: @Unit) -> (u8, u8, u8) {
         match self {
             Unit::M(m) => MemberBody::place(m),
@@ -909,6 +914,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn knocked(self: @Unit, t: u32) -> bool {
         match self {
             Unit::M(m) => MemberBody::knocked(m, t),
@@ -916,6 +922,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn asleep(self: @Unit) -> bool {
         match self {
             Unit::M(m) => MemberBody::asleep(m),
@@ -923,6 +930,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn halves(self: @Unit) -> bool {
         match self {
             Unit::M(m) => MemberBody::halves(m),
@@ -930,6 +938,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn armor_vs(self: @Unit, damage_type: u8, sheets: @Sheets) -> u8 {
         match self {
             Unit::M(m) => MemberBody::armor_vs(m, damage_type, sheets),
@@ -937,6 +946,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn infliction(self: @Unit) -> Infliction {
         match self {
             Unit::M(m) => MemberBody::infliction(m),
@@ -944,6 +954,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn enchant_percent(self: @Unit) -> u8 {
         match self {
             Unit::M(m) => MemberBody::enchant_percent(m),
@@ -951,6 +962,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn slots(self: @Unit) -> u8 {
         match self {
             Unit::M(m) => MemberBody::slots(m),
@@ -958,6 +970,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn effect(self: @Unit, slot: u8) -> (Held, u32) {
         match self {
             Unit::M(m) => MemberBody::effect(m, slot),
@@ -965,6 +978,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn defence<L, +Levers<L>>(
         self: @Unit, lever: @L, ref cache: Cache, actor: Actor, t: u32, sheets: @Sheets,
     ) -> Defence {
@@ -974,6 +988,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn offence<L, +Levers<L>>(
         self: @Unit,
         lever: @L,
@@ -994,6 +1009,7 @@ pub impl UnitBody of Body<Unit> {
         }
     }
 
+    #[inline(never)]
     fn wound(ref self: Unit, damage: u16) {
         self = match self {
             Unit::M(mut m) => {
@@ -1007,6 +1023,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn heal(ref self: Unit, v: u16) {
         self = match self {
             Unit::M(mut m) => {
@@ -1020,6 +1037,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn energize(ref self: Unit, v: i32, sheets: @Sheets) {
         self = match self {
             Unit::M(mut m) => {
@@ -1033,6 +1051,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn struck(ref self: Unit, sheets: @Sheets) {
         self = match self {
             Unit::M(mut m) => {
@@ -1046,6 +1065,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn landed(ref self: Unit, sheets: @Sheets) {
         self = match self {
             Unit::M(mut m) => {
@@ -1059,6 +1079,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn halved(ref self: Unit) {
         self = match self {
             Unit::M(mut m) => {
@@ -1072,6 +1093,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn inflict(
         ref self: Unit, condition: u8, v: i32, source: @Infliction, t: u32, sheets: @Sheets,
     ) {
@@ -1087,6 +1109,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn cure(ref self: Unit, condition: u8, t: u32) {
         self = match self {
             Unit::M(mut m) => {
@@ -1100,6 +1123,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn hold(ref self: Unit, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) {
         self = match self {
             Unit::M(mut m) => {
@@ -1113,6 +1137,7 @@ pub impl UnitBody of Body<Unit> {
         };
     }
 
+    #[inline(never)]
     fn spend(ref self: Unit, slot: u8, t: u32) {
         self = match self {
             Unit::M(mut m) => {
