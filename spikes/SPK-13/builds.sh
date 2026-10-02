@@ -67,6 +67,7 @@ scarb_run() {
   if [ "$lock" = 1 ]; then
     scripts/lock.sh scarb --manifest-path "$manifest" "$@"
   else
+    # No flock: not the VPS, no shim and no lock to take.
     scarb --manifest-path "$manifest" "$@"
   fi
 }
@@ -171,8 +172,10 @@ for t in "${targets[@]}"; do
     note=$(threads_note "$s")
     for i in $(seq "$from" $((from + n - 1))); do
       echo "builds.sh: $t / $s / build $i (threads: $note)" >&2
-      # `scarb clean` is light (it removes the target folder): not a build, not under the lock.
-      scarb --manifest-path "$manifest" clean
+      # `scarb clean` is light (it removes the target folder): not a build, not under the lock. The
+      # VPS shim looks at its first argument, so the subcommand goes first and the manifest is the
+      # working directory (Scarb 2.19 takes --manifest-path only before the subcommand).
+      (cd "$(dirname "$manifest")" && scarb clean)
       cache=""
       (
         if [ "$s" = fresh-cache ]; then

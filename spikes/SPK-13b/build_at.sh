@@ -36,7 +36,8 @@ echo "build_at.sh: contracts/ at $commit in $dir (path length ${#dir}, label $la
 
 git -C "$root" archive "$commit" contracts | tar -x -C "$dir"
 manifest=$dir/contracts/Scarb.toml
-scarb --manifest-path "$manifest" clean
+# Light, and the VPS shim reads its first argument: subcommand first, the manifest's folder as cwd.
+(cd "$(dirname "$manifest")" && scarb clean)
 export RAYON_NUM_THREADS=1
 log=$out/build-$label.log
 { "$root/scripts/lock.sh" scarb --manifest-path "$manifest" build --workspace &&
