@@ -1,541 +1,540 @@
-# CLI-03f — Walking in the hubs: the adventurer walks the hub's hex grid, client-side
+# CLI-03f — Hubs as zones: a hub is lived like an exploration zone, client-side
 
-**Status: ready to start.** CLI-03e merged as #307, so the hubs already stand on the hex grid. Branch
-from `main`.
+**Status: ready to start.** CLI-03e merged as #307. The work is done on the branch of #319, which
+built a lighter hub walk from the first version of this brief. That variant is **not merged**: this
+brief replaces it, and the same pull request is reworked.
 
-Written for the orchestrator of track CV on 2026-10-02, from **D-196**. The owner said, through the
-project manager: "I want to keep the hex-map mechanics (even if it is entirely client-side, since the
-player's position needs no on-chain verification)." The orchestrator's reading, corrected by the
-project manager, is that the hubs are walked on the hex grid, client-side, and that the tap menus may
-sit on top. CLI-03e laid the hubs on the instance's grid but added no movement. Today a hub is tapped,
-not walked. This lot adds the walking.
+Written for the orchestrator of track CV on 2026-10-02, from **D-202** (the project manager, from
+the owner's feedback). The owner, on the hubs: "the town map is not right at all; the immersion
+must stay the same: whether town, exploration zone or dungeon, we must model on the
+exploration-zone experience (hex map, pathfinding, etc.)". The first version of this brief made a
+hub a fitted illustration with its own light walk. D-202 rules that out: **a hub takes the zones'
+engine as is**. A town or an outpost is a zone whose places are buildings.
 
 ## Agent
 
-Profile: `impl-opus`. The lot is presentation with design judgement: a walk on the hub, its
-animation in a renderer that draws on demand, the machine's hub state and the browser check. It also
-touches five modules that must keep their tests green.
+Profile: `impl-opus`. The lot is presentation with design judgement: it moves the hubs onto the
+zone's controller, renderer and session, teaches the renderer to draw buildings and props on wall
+hexes, and keeps the zone's tests green while doing it.
 
-Branch: `cv/cli-03f-hub-walking`.
+Branch: **#319's branch**, `hp/grimworld-cv/t-0062-cli-03f-walking-in-the-hubs`, the same pull
+request. Bring `main` in by a merge if needed: never a rebase, never a force push.
 
-Machine: **the Mac** (`--machine mac`, repo `/Users/bal7hazar/git/grimworld`). The lot commits no
-pin, gas table or fingerprint. The browser check and the atlas build also run there, as for CLI-03d.
+Machine: **the VPS** (the Mac is not offered). The lot commits no pin, gas table or fingerprint.
+The pack is at `/home/claude/projects/assets`: `tools/art/build.py` reads `assets/` at the repo
+root, so link it into the worktree by an **uncommitted** symlink for the build and remove the link
+afterwards, as #319 did. The browser check runs here in headless Chromium.
 
 ## Goal
 
-After this task, the player's adventurer stands in the town and in the outpost and walks their hex
-grids:
+After this task, the town and the outpost are lived exactly like the seed's zone:
 
-1. **The adventurer is drawn in the hub**, at the room's scale, on a hex, and appears where it
-   arrives.
-2. **A tap on the ground walks it there**, one hex per step, along a short path around the buildings
-   and props. It faces the way it goes, as in a room.
-3. **A tap on a building walks it to the building's door, then opens the place.** The tap menus
-   stay on top: the service row under the illustration opens a place at once, and the present
-   adventurers are still inspected by a tap.
-4. **The Gate is left by walking to its door**, which opens the Gate screen. The CLI-03d arrival
-   rule is unchanged.
+1. **The same engine.** A hub opens in the zone's controller (`SandboxController`), on the zone's
+   renderer (`Renderer`), with the zone's session (`SandboxSession`) and wiring (`wiring.ts`). Same
+   hex map, same camera (follow, pan, pinch and wheel zoom, ◎ back to the adventurer), same zoom
+   levels, same scale modes, same tile drawing, same path finder, same step, turn and tween.
+2. **A hub is a zone's content.** Its ground is the zone's terrain. Its buildings and props stand
+   on wall hexes, as obstacle objects (design/10). Its present adventurers are actors that stand
+   still. The player's adventurer arrives on a hex beside the Gate.
+3. **Places open by walking onto their door.** A tap on a building paths to its door with the
+   zone's own pathfinding, then opens the place. The service row under the map still opens a place
+   at once.
+4. **The Gate is a place.** Walking onto its door opens the Gate screen. CLI-03d's arrival rule
+   and D-148 are unchanged.
 
-Everything is client-side. The chain only knows which hub an adventurer is in (D-03). The position
-inside a hub is presentation (D-196) and is never sent, checked or stored.
+Everything is client-side. The chain knows only which hub an adventurer is in (D-03). The position
+inside a hub is presentation (D-196, D-202): never sent, checked or stored.
 
 ## Context
 
-- **D-196** (`docs/decisions/2026-10-02-cli-03c-visual.md`) and the correction of its reading (above).
+- **D-202** (the project manager, 2026-10-02, from the owner's feedback above), recorded in this
+  brief and in the orchestrator's decisions. It replaces the first version's design choices 1
+  (a lighter hub walk) and 6 (no camera, the hub fits the screen). The project manager's earlier
+  ruling that the hub walk is presentation, not a rule, still holds for the **position**. The
+  **finder** is now the zone's: see *Design choices* §4.
+- **D-196** (`docs/decisions/2026-10-02-cli-03c-visual.md`): the hubs keep the hex-map mechanics,
+  client-side, and get the real assets.
+- **D-178** (`docs/decisions/2026-10-01-cli-03c-hubs.md`) and its lending, extended to CLI-03d and
+  CLI-03e: under it, this lot writes design/11 *Hubs*' first line (*Design choices* §8).
 - **The house style and the lots before this one**:
-  - `docs/briefs/CLI-03c-hubs.md`: the loop, the screens, the intents.
-  - `docs/briefs/CLI-03d-hubs-followup.md`: the arrival rule, `gateHere` and `leaveOffer`.
-  - `docs/briefs/CLI-03e-hubs-visual.md`: the hex grid, one scale, the standing layer, the
-    labels and the 750-art-pixel width budget.
-- **design/11 *Hubs***, as CLI-03d and D-194 leave it:
-  - the five accepted lines: the outpost's services, the entry moment, the closing report, the
-    present adventurers standing still, where the buildings stand;
-  - the arrival rule's line ("never automatically on arrival").
-  - Its first line says "Hubs have no geometry (D-03): they are illustrated screens with places to
-    tap". See *Open questions* §1.
+  - `docs/briefs/CLI-03a-render-sandbox.md`, `docs/briefs/CLI-03b-sandbox-path.md`: the room, its
+    renderer, its camera, its walk;
+  - `docs/briefs/CLI-03c-hubs.md`: the loop, the screens, the intents;
+  - `docs/briefs/CLI-03d-hubs-followup.md`: the arrival rule, `gateHere` and `leaveOffer`;
+  - `docs/briefs/CLI-03e-hubs-visual.md`: the pack's buildings and props on anchor hexes, one
+    scale (the room's), the labels.
+- **design/10 *Hex grid with a square tileset***: one continuous ground per biome, a subtle hex
+  grid, and **one obstacle object per wall tile** (rock, bush, tree, stump). A hub's buildings and
+  props are exactly that.
 - **D-148** (`docs/decisions/2026-09-29-eng-06-lifecycle.md`): a gate is used by standing on its
-  anchor tile, and the client walks the adventurer onto it. The hub gates out of the town (the seed's gate 1) and
-  the outpost (the fixture's gate 101) have anchor `0/0`, because a hub has no map. Their
-  anchors mean nothing in a hub. See *Design choices* §5.
+  anchor tile. The hub gates (the seed's gate 1, the fixture's gate 101) have anchor `0/0`: a hub
+  has no map in the seed. See *Design choices* §7.
 - **D-03 and the indexer's scope** (`docs/decisions/2026-09-28-indexer-scope.md`, question 2): the
-  chain knows only who is in which hub. Live movement of other adventurers in a hub is cosmetic and
-  needs a relay (Q-09, Phase 5, not in the MVP). **Only the player's own adventurer walks.**
-- **The mandate** `docs/briefs/ORCH-client-visual.md`:
-  - §1 for the paths;
-  - §4 (D-73) for the art;
-  - §6, binding: no rule in `client/app` outside `sandbox/placeholders.ts`; the renderer's input is
-    a view state; a tap produces an intent; rendered on demand, no render loop; no randomness and no
-    clock in what `client/sim` will decide.
-- **Phone work is suspended** (owner, 2026-10-02). The design stays mobile-first: it is checked in
-  the browser at 375 × 812 and on a desktop window, and nothing runs on a device.
+  chain knows who is in which hub. Other adventurers moving live needs a relay (Q-09, Phase 5).
+  **Only the player's own adventurer walks.**
+- **The mandate** `docs/briefs/ORCH-client-visual.md`: §1 for the paths; §4 (D-73) for the art;
+  §6, binding: no rule in `client/app` outside `sandbox/placeholders.ts`; the renderer's input is a
+  view state; a tap produces an intent; rendered on demand; no randomness and no clock in what
+  `client/sim` will decide.
+- **Phone work is suspended** (owner, 2026-10-02). The design stays mobile-first: checked in the
+  browser at 375 × 812 and 1440 × 900, nothing on a device.
 
-### What main has today
+### What main has today: the zone
 
-- **The instance's walk** has several parts:
-  - `sandbox/wiring.ts`: `applyIntent` plans a path on a tap (`findPath`), plays on the tap or
-    previews it (`playOnTap`), and `walkStep` plays one step through `stepToward` and evaluates the
-    stop conditions of design/02.
-  - `sandbox/session.ts`: `SandboxSession` walks the planned queue on the host's timers, one step
-    every `stepMs`. It pauses while the page is hidden and resumes after.
-  - `render/renderer.ts`: the step's tween (`STEP_MS` 180), the turn (`TURN_MS`), the camera's
-    follow (`CAMERA_MS`) and the `move` animation while stepping.
-  - `render/facing.ts`: six facings, mirrored for West.
-  - `sandbox/walkFollowsPreview.test.ts`: the walk stays on the preview, through the same path a
-    browser tap takes.
-  - Every rule in this chain is a placeholder (`findPath`, `stepToward`, `neighbour`, sight, the
-    window of D-120). CLI-03 replaces them with `client/sim`.
-- **The hub** has the following parts:
-  - `render/hubView.ts`: `HubView`, `hubPoint` and `feetPoint` on the room's `tileToPixel`, and the
-    standing layer sorted by base y (`standingOrder`).
-  - `render/hubRenderer.ts`: the ground baked once, the standing layer, and drawing only on a
-    change. Figures are drawn at their idle frame 0, so the hub has no tween.
-  - `input/hubTaps.ts`: `hubFit` fits the whole illustration in its zone at one factor;
-    `placeRect` and `figureRect` give the tap targets; `targetIntent` gives a tap's intent.
-  - `sandbox/loop/HubScreen.tsx`: one HTML button per place and present figure over the canvas, and
-    the service row below.
-  - `sandbox/fixtures/hubs.ts`: the town (704 × 960 art px, 9 places, 3 decor buildings, 14 props,
-    3 figures) and the outpost (576 × 704, 4 places, 2 decor, 11 props, 1 figure). Every one stands
-    on a tile. The ground path is drawn only, not walked.
-  - `sandbox/loop/machine.ts`: the hub screen is `{ kind: "hub", hub, inspected }`. It has no
-    position. The service and Gate screens replace the hub screen, so `HubScreen` unmounts when a
-    place opens.
-  - `client/app/verify-hubs.mjs` (`pnpm --filter @grimworld/app verify:hubs`): the loop walked in a
-    headless browser, with screenshots only under `VERIFY_SHOTS`, untracked.
-- **The player's adventurer is not drawn in a hub.** `ADVENTURER` (Wren, vanguard) is shown on the
-  Gate screen only.
+The seed's zone, opened by the loop's instance (`sandbox/loop/InstanceScreen.tsx`), is:
+
+| Part | Where | What it does |
+|---|---|---|
+| The world | `sandbox/world.ts` (`SandboxWorld`, `Terrain`), `sandbox/fixtures/zone.ts` (`zoneWorld`) | Terrain of whole 15 × 15 chunks (`floor`, `wall`, `unrevealed`), actors, the adventurer's id |
+| The mount | `sandbox/Sandbox.tsx` (`RoomSandbox`) | Mounts the controller on a world, reports the adventurer's tile after each change (`onTile`), carries the loop's controls over the map, the ◎ button, the walk counter, the debug panel |
+| The controller | `sandbox/controller.ts` (`SandboxController`) | PixiJS surface, gestures (`input/gestures.ts`): pan, zoom, tap → `{ kind: "tile" }`, press → `{ kind: "inspect" }`, through `screenToTile` |
+| The session | `sandbox/session.ts` (`SandboxSession`) | Applies intents through the wiring; walks the planned queue on the host's timers, one step every `stepMs`; pauses while hidden |
+| The wiring | `sandbox/wiring.ts` (`applyIntent`, `walkStep`, `toView`) | The only importer of `placeholders.ts`: path on a tap (`findPath`), step (`stepToward`), sight, reveal, stop conditions, arcs on a selected actor, the tick cost |
+| The renderer | `render/renderer.ts` (`Renderer`) | Draws a `ViewState` on demand: terrain baked per chunk (`render/shapes.ts` `drawTerrain`: ground, a rock on each wall, the grid), actors sorted by y, the step tween (`STEP_MS`), the turn (`TURN_MS`), the camera's follow (`CAMERA_MS`), the path's ghosts, the zoom levels (`DEFAULT_ZOOM`), the scale modes |
+| The rules' stand-ins | `sandbox/placeholders.ts` | `findPath` (BFS inside the D-120 window, off its outer ring), `stepToward`, `neighbour`, `tilesInSight`, `revealInSight`, `stopsAfterStep`, `visibleActors`, `arcsOf`, `TICKS_PER_STEP`, and the loop's `hubGateAt`, `entryThrough`, `hubAfter` |
+
+### What main has today: the hub
+
+| Part | Where |
+|---|---|
+| The view | `render/hubView.ts`: `HubView` (places, decor, props, figures, services, the ground's tileset, water and drawn path), `hubPoint`, `feetPoint`, `standingOrder`, `groundCell` |
+| The renderer | `render/hubRenderer.ts` (`HubRenderer`): the water backdrop, the tileset ground baked once, the standing layer sorted by base y, buildings and props from the atlas's `still` (role `building`, `prop`), shapes without the atlas; no camera, no tween |
+| The taps | `input/hubTaps.ts`: `hubFit` (the whole illustration fitted in its zone), `placeRect`, `figureRect`, `overlap`, `targetIntent`, `figureIntent` |
+| The screen | `sandbox/loop/HubScreen.tsx`: one HTML button per place and present figure over the canvas, the service row below |
+| The fixtures | `sandbox/fixtures/hubs.ts`: the town (11 columns × 19 rows of hexes, 9 places, 3 decor buildings, 14 props, 3 figures) and the outpost (4 places, 2 decor, 11 props, 1 figure), every one on a hex; `BUILDINGS` (native sizes) |
+| The machine | `sandbox/loop/machine.ts`: the hub screen `{ kind: "hub", hub, inspected }`, no position |
+| The browser check | `client/app/verify-hubs.mjs` (`pnpm --filter @grimworld/app verify:hubs`) |
+
+### What #319's branch has (the light variant, not merged)
+
+`input/coords.ts` `neighbours`; `input/hubWalk.ts` (`hubWalkable`, `hubPath`, a BFS, `HubWalker` on
+timers); a walker, a step tween and a target marker in `HubRenderer`; `input/hubTaps.ts`
+`hubTile`; the fixtures' `arrival` (town `(2, 0)`, outpost `(1, 1)`) and `depth` (0 for the town's
+Market and the outpost's straw hut); the machine's `at` on the hub, service and Gate screens and
+its `stood` answer; an imports-test assertion on `hubWalk.ts`; the walking pass of
+`verify-hubs.mjs`; design/11's first line in the first ruling's words; its report
+`docs/reports/CLI-03f-hub-walking.md`. Its measures: 16 steps from the arrival hex to the town's
+Guild; a town hex 34.1 points across at 375 × 812 under `hubFit`.
 
 ## Scope and non-goals
 
 - **In**:
-  1. The player's figure in each hub, on a hex, drawn at its native size in the standing layer.
-  2. A hub walk: which hexes are walkable, a path to a tapped hex, steps on the host's timers with
-     the room's step animation and facing, retargeting by a new tap, and a pause while the page is
-     hidden.
-  3. Taps: ground walks; a building walks to its door, then opens; the service row opens at once;
-     a figure is inspected (unchanged).
-  4. The machine keeps the adventurer's hex across a hub's screens (a service, the Gate screen,
-     back).
-  5. The fixtures: an arrival hex per hub, and which hexes each building blocks.
-  6. Tests, and the browser check extended to walking.
+  1. `hubWorld`: a hub's fixtures turned into a `SandboxWorld` (terrain, actors, the arrival hex).
+  2. The renderer draws a view's **structures** (buildings, decor buildings, props) on their hexes,
+     sorted with the actors, from the atlas's stills or as shapes.
+  3. The hub screen built on `RoomSandbox`, with the places' labels following the camera, and the
+     service row.
+  4. A tap routed before the wiring: a building walks to its door, a figure is inspected; anything
+     else is the zone's own tap.
+  5. A place opens when a walk the player started toward it ends on its door.
+  6. What a hub must not inherit from the zone's stand-ins (*Design choices* §3), as one world
+     kind read by the wiring, and one parameter of `findPath` (§4).
+  7. The machine keeps the adventurer's hex across a hub's screens.
+  8. Removing what the hub no longer uses (CLI-03e's renderer and fit, #319's walk).
+  9. design/11 *Hubs*' first line (§8). Tests, and the browser check extended.
 - **Out (non-goals)**:
   - Anything on chain: no entrypoint, no event, no seed change, no position sent or stored.
-  - Any game rule. The hub walk decides nothing the chain decides (*Design choices* §1).
-    `placeholders.ts` is not changed and no hub symbol is added to it.
+  - Any new game rule, and any hub symbol in `placeholders.ts`.
   - `client/sim/**`, `contracts/**`, accounts (`client/app/src/account/**`, `client/app/src/chain.ts`).
-  - Other adventurers walking: they stand still (D-194). Their live movement needs a relay (Q-09).
-  - Moving a building, a prop or a figure. The positions are CLI-03e's, accepted as proposed.
-  - A camera that pans or follows in a hub (*Design choices* §6).
-  - The keyboard (design/11 *Desktop*'s `Q W E A S D`): the client has no keyboard input yet, and
-    one later lot can bring it to the room and the hub together (*Open questions* §6).
-  - Idle animations in a hub. A figure is animated only while it steps.
+  - Other adventurers walking: they stand still (D-194).
+  - Moving a building, a prop or a figure: CLI-03e's positions stay, except where a door must be
+    reachable (§5).
+  - A textured ground (design/10's "one continuous textured ground per biome"), for the zone and
+    the hub together: a later lot (*Open questions* §2).
+  - The keyboard (design/11 *Desktop*), the client's chrome from the pack's `UI Elements/`, the
+    service screens (CLI-06, CLI-07), the world map (CLI-08).
   - Remembering the position across a reload or a later visit.
-  - The client's chrome from the pack's `UI Elements/` (the later chrome lot), the service screens
-    (CLI-06, CLI-07) and the world map (CLI-08).
   - Phone builds, simulators, devices (suspended).
-  - `docs/design/`. design/11's first line is the project manager's to route (*Open questions* §1).
 
 ## Design choices
 
-Each choice gives a recommendation, its reason, and what would reverse it. Where the choice is
-aesthetic (pace, marker, arrival hex), it is a constant or a fixture value, for the owner's eye.
+Each choice gives a recommendation, its reason, and what would reverse it. The first two are
+binding (D-202); the others are this brief's.
 
-### 1. Reuse the instance's walk, or a lighter hub walk
+### 1. The zone's engine, as is (binding)
 
-**Recommended: a lighter hub walk that reuses the room's presentation pieces but none of its rules.**
+A hub opens through `RoomSandbox` with a `SandboxWorld`, exactly as the instance opens the zone.
+The loop's `HubScreen` becomes a sibling of `InstanceScreen`: `RoomSandbox` with the hub's
+controls as children.
 
-The hub walk reuses:
+- **Reused unchanged**: `SandboxController`, `SandboxSession`, `Renderer`, `GestureTracker`,
+  `screenToTile`, the camera and its follow, `DEFAULT_ZOOM`, the scale modes, `STEP_MS`, `TURN_MS`,
+  `CAMERA_MS`, the path's ghosts, `render/facing.ts`, the idle animation setting, the ◎ button and
+  the debug panel.
+- **Dropped**: `hubFit` and "the hub fits the screen"; `HubRenderer`; #319's `input/hubWalk.ts`
+  (its BFS, `hubWalkable`, `HubWalker`), its walker, tween and target marker in `HubRenderer`,
+  `hubTile`, and `neighbours` in `input/coords.ts` (the zone's finder needs no second copy of the
+  hex rule: the imports test's F-6 guard forbids copies).
+- The camera opens centred on the adventurer, at `DEFAULT_ZOOM.defaultAcross`, as in a zone.
 
-- `input/coords.ts` for the grid;
-- `render/facing.ts` and the `move` animation for how a step looks;
-- `STEP_MS` as the default pace;
-- the pattern of `SandboxSession` for the timers: steps on injected `WalkTimers`, a pause while
-  hidden, and nothing scheduled once the walk ends.
+**What reverses it**: only the owner or the project manager (D-202).
 
-It does **not** reuse `wiring.ts`, `placeholders.ts` (`findPath`, `stepToward`, `neighbour`) or the
-room's `Renderer`, for these reasons:
+### 2. A hub's content as a zone's content (binding in substance, shape proposed)
 
-- **They are stand-ins for rules that `client/sim` will own.** CLI-03 deletes `placeholders.ts`, but
-  the hub walk outlives it: a hub's position never reaches the sim or the chain. A hub walk built on
-  them would have to be rewritten at CLI-03, or would make the sim answer a question the chain never
-  asks.
-- **Most of the room's walk does not apply in a hub.** A hub has no fog, sight, chunk reveal,
-  goblins, stop condition, tick cost or queue counter. The D-120 window (15 × 16, with its outer
-  ring as wall) would also forbid the hub's edge hexes for no reason.
-- **The room's `Renderer` draws a different scene.** It draws tiles, fog and chunk bakes. The hub's
-  renderer draws a baked pack ground, a sorted standing layer and HTML labels, and CLI-03e's tests
-  pin it. Adding a tween for one figure to `HubRenderer` is smaller than teaching the room's
-  renderer the hub.
+A pure `hubWorld(view, at)` (in `sandbox/fixtures/hubs.ts`, or a new `sandbox/fixtures/hubWorld.ts`)
+returns a `SandboxWorld`:
 
-The geometry is shared. The six neighbours of a hex are presentation (pointy-top, odd-r, the
-library's numbering, mandate §6.2). They go into `input/coords.ts` as `neighbours(tile)`, tested
-equal to `test/hexxLibrary.ts`'s `libraryNext` for the six directions on even and odd rows.
-`placeholders.ts`'s `neighbour` is left alone: it stays the stand-in the sim replaces.
+- **Terrain**: whole 15 × 15 chunks covering the hub's hexes (the town needs 1 × 2 chunks). Every
+  chunk is revealed: a hub has no `unrevealed` tile.
+  - `floor`: a hex of the island. The island is the hexes whose centre is at least half a hex
+    inside CLI-03e's illustration rectangle (#319's measured rule: whole border cells would close
+    the town's road on row 0).
+  - `wall`: every other hex (outside is void, D-134), **and** every hex a building or a prop
+    stands on.
+- **Buildings**: a building, place or decor, makes `wall` the hexes of its footprint: its base row,
+  the hexes whose centre lies under its width, centred on its anchor, and `depth` rows behind it
+  (default 1; 0 for the town's Market and the outpost's straw hut, from #319). **A place's door,
+  its anchor hex, stays `floor`**; a decor building's anchor is `wall`.
+- **Props**: trees, bushes, rocks, stumps, sheep make their hex `wall`. They are design/10's
+  obstacle objects of those wall hexes.
+- **Actors**: the player's adventurer (`ADVENTURER`'s profession) on `at`, and each present figure
+  as an adventurer actor on its hex, facing West (3) for `"left"` and East (0) for `"right"`, with
+  no mark. Actors block a path as in a zone.
+- **Structures**: the world carries the hub's buildings and props as data for the view (§6), not
+  as actors.
 
-**Path**: a breadth-first search over the hub's walkable hexes, with a fixed tie-break (lowest
-`y`, then `x`, as the room's reading). It is deterministic, so a test pins a path. It is not a rule:
-nothing else depends on which of two equal paths is walked.
+Tests assert, for both hubs: the arrival hex is `floor` and free; every door is `floor`; every
+door is reachable from the arrival hex with the zone's finder (§4); no structure stands on a
+`floor` hex except at a door.
 
-**No preview, no confirmation, no counter**: a tap walks at once (design/11's play-on-tap default).
-A hub walk costs nothing and can be undone by another tap. The tapped hex carries a faint target
-marker while the walk lasts (`HUB_TARGET_ALPHA`, a constant, for the owner's eye). The steps not yet
-walked are not drawn.
+**What reverses it**: a hex the owner finds wrongly open or closed is a `depth` or an extra
+`blocks` list on a building: a fixture value.
 
-**Retarget**: a tap during a walk plans a new path from the hex the adventurer is stepping to,
-after the step in progress ends. Another place opening (the service row, a figure's inspection)
-ends the walk where it stands.
+### 3. What a hub does not inherit from the zone's stand-ins
 
-**What reverses it**: the project manager rules that the hub walk is a rule after all, for example
-because a later relay (Q-09) must replay the same paths. It would then move to `client/sim`
-through a `PENDING-cv-hub-walk.md` (*Open questions* §2).
+The zone's wiring calls stand-ins for the instance's rules. A hub has no fight, no goblin, no fog,
+no tick: it must not inherit them as game rules. The world carries a kind, `kind: "zone" | "hub"`
+(default `"zone"`, so every existing fixture and test is unchanged), and the wiring reads it:
 
-### 2. A tap on a building
+| Stand-in | In a zone | In a hub |
+|---|---|---|
+| Sight (`tilesInSight`, design/18) | radius 6, beyond dimmed | every tile is in sight: nothing dimmed |
+| Reveal (`revealInSight`) | chunks revealed by sight | nothing to reveal (no `unrevealed` tile) |
+| Stop conditions (`stopsAfterStep`) | a goblin enters sight, a chunk is revealed | none can fire (no goblin, no reveal); a test asserts it |
+| The D-120 window in `findPath` | the path stays inside it, off its outer ring | **no window**: §4 |
+| Tick cost (`TICKS_PER_STEP`) and the walk counter | "*n* steps · *n* ticks ✕" | **no counter**: `RoomSandbox` hides it for a hub; a new tap retargets, as in a zone |
+| A tap on an actor | selects it and shows its arcs (design/04) | routed before the wiring: a present figure is inspected (§5); the player's adventurer is a no-op |
+| Goblins, fights, `defeat now`, Leave, Travel back | the instance's | none: those controls are `InstanceScreen`'s, not `RoomSandbox`'s |
 
-**Recommended: walk to its door, then open.** The door is the place's anchor hex (`HubPlace.at`).
+`placeholders.ts` gains no hub symbol. The hub kind is read in `wiring.ts` only (and `Sandbox.tsx`
+for the counter), so the imports test keeps its guards.
 
-- When the walk ends on the anchor, the place's existing intent is dispatched (`targetIntent`):
-  `open service` or `open gate screen`. The machine's intents do not change.
-- If the adventurer already stands on the door, the place opens at once.
-- A walk that passes over a door without ending there opens nothing. A walk to a ground hex that
-  happens to be a door opens that place, so tapping the doorstep or the building gives the same
-  result.
-- If no path to the door exists (it should not happen: a test asserts every door is reachable from
-  the arrival hex), the place opens at once and the log says why.
-- **The service row opens at once**, with no walk. This keeps the tap menus on top, a one-thumb
-  shortcut (I-1) and a way that never waits on an animation (accessibility).
+**What reverses it**: a game decision that gives hubs one of these (a night watch, a brawl in the
+tavern) would be a rule in `client/sim`, not here.
 
-Reason: this is the mechanic the owner kept, the adventurer going to the place. It is bounded: the
-longest walk in the town, from the arrival hex to the Guild's door, is about 12 steps, or about
-2.2 s at 180 ms a step. That figure is an estimate from the fixture's coordinates, not a
-measurement; the thread measures it and reports it.
+### 4. The zone's finder, without the D-120 window
 
-**What reverses it**: at the owner's eye, "open at once with the figure walking behind the menu" is
-one branch in `HubScreen` (dispatch on tap, walk unseen). Both are cheap. The default is the one
-that shows the walk.
+The town has 19 rows of hexes. The D-120 window is 16 rows around the adventurer, and `findPath`
+keeps a path off its outer ring. From the arrival hex on row 0, the zone's finder would refuse the
+Guild's door on row 12 (#319 measured 16 steps to it). The window bounds **the chain's tick**
+(D-120): it is not the finder's, and a hub has no tick.
 
-### 3. Where the adventurer starts
+**Recommended**: `findPath` takes one optional parameter that lifts the window bound, default
+bounded. The wiring passes it for a hub only. The zone's paths, and every test of `placeholders.ts`,
+`wiring.ts`, `session.ts` and `walkFollowsPreview.test.ts`, are unchanged. One test is added: an
+unbounded path across more than 16 rows. The tie rule and the BFS are untouched.
 
-**Recommended: on an arrival hex per hub, `HubView.arrival`: the path hex next to the Gate's door,
-on the town's side.** In the town the Gate's door is `(1, 1)`. Its neighbour `(2, 1)` holds a rock
-(`rock-2`), so the thread takes the nearest free path hex beside the door, on row 0 or 1, and says
-which hex it took.
+- The step stays `stepToward`, unchanged: a hub's step is the zone's step.
+- When CLI-02/CLI-03 replace `findPath` by the map library's finder from `client/sim`, the hub uses
+  that finder too, without the tick's window. The hub's position stays presentation: the finder is
+  shared, nothing it answers in a hub is sent or checked.
 
-- Every arrival puts the adventurer there:
-  - the first hub of the loop (`hubState`);
-  - the hub a closing report leads to (`close report`), whatever the outcome: returned, travelled
-    back or defeated.
-- Arriving never opens a place and never starts a walk.
+**What reverses it**: the project manager prefers no change to `placeholders.ts`. The alternative
+is a hub that walks in legs (a new path from where each leg ends), which shows as a stop in the
+walk: worse, and still the zone's finder.
 
-Reason: the hub is entered through its Gate, so arriving beside the Gate reads right. Not arriving
-**on** the Gate's door avoids the trap CLI-03d closed in the instance (an offer at arrival). The
-door rule of §2 already ignores arrival, so this is belt and braces, and it keeps the figure out of
-the watchtower's base.
+### 5. Taps: buildings to their door, figures inspected
 
-**What reverses it**: the owner wants another hex (a fixture value), or a different hex per way of
-arriving (defeat at the Guild, for example). That would be a branch on the report's `how` in the
-machine: a constant table, still no rule.
+A tap on the canvas goes through the controller's gestures and `screenToTile` as in a zone. The
+hub screen gives `RoomSandbox` one optional hook, `route(intent) → Intent | null`, applied by the
+controller before the session (the zone passes none):
 
-### 4. Collisions with buildings and props
+- **A hex of a place's footprint, its door included**: the intent becomes a tap on the door. The
+  hub screen remembers the place as the walk's **destination**.
+- **A present figure's hex**: the hook dispatches `inspect adventurer` (the machine's, unchanged)
+  and returns `null`. A long press on it does the same.
+- **A decor building's or a prop's hex**: `null`, and one log line (no target, as CLI-03e).
+- **Anything else**: the intent unchanged, the zone's own tap: a `floor` hex is walked to, a `wall`
+  clears. A new tap clears the destination.
 
-**Recommended: a hex is walkable when its centre lies on the grass inside the island, and nothing
-blocks it.**
+The destination opens the place when **the walk ends with the adventurer on the door** (the
+session's walk is over, the planned queue empty, no stop). Then `targetIntent(place.target)` is
+dispatched once: `open service` or `open gate screen`. So:
 
-- **Grass**: not on the ground's border cells, where the tileset's edges meet the water.
-- **Buildings**: a building blocks the hexes of its ground footprint, which are:
-  - its base row, `ceil(width / TILE_WIDTH)` hexes centred on the door;
-  - `depth` rows behind it (a fixture value per building, default 1).
+- if the adventurer already stands on the door, a tap on the building opens at once;
+- a walk that passes over a door opens nothing;
+- a ground tap on a door's hex opens that place, as the building's tap does;
+- if no path to the door exists (a test asserts every door is reachable), the place opens at once
+  and the log says why;
+- **the service row opens a place at once**, with no walk, and ends a walk in progress: a
+  one-thumb shortcut (I-1) and a way that never waits on an animation (accessibility).
 
-  **The door itself stays walkable**, since it is where the adventurer stands to open the place.
-  Decor buildings block the same way and have no walkable door.
-- **Props**: trees, stumps, rocks, bushes and sheep block their hex.
-- **Present figures**: they block their hex, as actors do in a room, and are still inspected by a
-  tap.
-- **The ground path is not a constraint**: the adventurer may walk on grass anywhere free. The path
-  stays drawing only.
-- **Behind a building**: a figure walking behind a building's roof is drawn under it by the standing
-  layer's sort (CLI-03e §5). That is the intended depth, not a collision.
+The route is pure (`hubTap(world or view, tile)`), tested without a browser.
 
-The blocked set is computed from the fixtures by one pure function (`hubWalkable(view)`), not
-listed by hand. Tests assert that:
+**What reverses it**: the owner wants a building's tap to open at once with the figure walking
+unseen: one branch in the hub screen.
 
-- no path enters a blocked hex;
-- every place's door is reachable from the arrival hex;
-- the arrival hex is free;
-- each hub has at least one walkable hex per place door.
+### 6. Buildings and props drawn by the zone's renderer
 
-**What reverses it**: the owner finds a hex wrongly open or closed. That is a `depth`, or an extra
-`blocks` list on a building in the fixtures: a fixture value.
+`ViewState` gains `structures`, empty for a zone: each `{ key, sprite, at, width, height,
+mirror?, kind: "building" | "prop" }`, from the hub's places, decor buildings and props.
 
-### 5. Leaving by the Gate, D-148 and the arrival rule
+- The renderer draws each in the actor layer, its base on its hex's centre (CLI-03e §5: the middle
+  of a building's base on its anchor), from the atlas's `still` (roles `building` and `prop`,
+  `tools/art`), at native size: one scale, the room's (CLI-03e).
+- Without the atlas, the shapes CLI-03e's `HubRenderer` draws for buildings move into
+  `render/shapes.ts`.
+- Structures and actors sort together by the y of their base, then by a stable key (CLI-03e's
+  `standingOrder`), so a figure behind a house is covered and one in front covers it.
+- **A wall hex under a structure draws no rock**: the structure is its obstacle object (design/10).
+  `drawTerrain` gets the set of covered hexes. The zone passes none, so its terrain draws as today
+  and the renderer's tests pass unmodified.
+- Structures never move and are not tweened. They do not ask for frames: drawing stays on demand.
+- **The ground is the zone's**: `drawTerrain`'s plain continuous ground, the subtle grid, chunk
+  bakes. CLI-03e's tileset ground, its water backdrop and its drawn earth path are dropped with
+  `HubRenderer` (the path was drawing only). A textured ground for zones and hubs together is a
+  later lot (*Open questions* §2).
 
-**Recommended: the hub's Gate behaves like every place.** A walk ending on the Gate's door, or a tap
-on the Gate building or on "Gate ▸" in the service row, opens the **Gate screen**. The Gate screen
-is unchanged (the gates, the build, the belt, the last check, then *Leave* → `enter gate`, the entry
-moment, the instance).
+**Labels**: the places' names stay HTML, positioned from the renderer's camera (`tileToScreen` on
+the anchor, above the building's height) after each drawn frame. They are not buttons: taps go
+through the canvas. The present figures' names show on inspection, as CLI-03c's. The service row
+under the map stays: it is the accessible way to every place.
 
-- **D-148 is respected in spirit and untouched in the data.**
-  - D-148 governs gates whose anchor is a tile of a location with a map. A hub has no map in the
-    seed, so its gates' anchors (`0/0`) are not placed on the hub's grid, and the hub's Gate door is
-    a **client fixture hex**, not a seed anchor.
-  - Standing on the Gate's door to open the Gate screen is the client's analogue of "used by
-    standing on its anchor". It decides nothing: entering is still the Gate screen's confirmed
-    `enter gate`.
-  - No seed change, and no change to `hubGateAt`, `entryThrough` or `hubAfter`.
-- **The arrival rule is unchanged.**
-  - In the instance, CLI-03d's `leaveOffer`, `gateHere` and the Leave control stay as they are.
-  - In the hub, "never on arrival" holds by construction: arriving starts on the arrival hex, not
-    the Gate's door (§3), and only a walk the player started can open a place (§2).
-  - Back from the Gate screen, the adventurer still stands on the Gate's door and nothing reopens.
-    Tapping the Gate again opens it at once (§2).
-- **The imports test keeps its guard.** The hub walk compares hub fixture hexes, never a seed
-  gate's anchor. It does not import `sameTile`, `hubGateAt` or a record's `anchor_*` fields, and the
-  allow-lists of `sandbox/imports.test.ts` do not grow for it. If the thread needs to compare
-  tiles, it uses the walk module's own key, and the imports test gains one assertion: the hub walk
-  module imports nothing from `placeholders.ts` or `fixtures/region.ts`.
+**What reverses it**: the owner wants the tileset's grass back before the textured-ground lot. That
+would be a ground layer of the zone's renderer, for zones too, never a hub-only renderer.
 
-**What reverses it**: the seed gives hubs a map and real gate anchors (a game decision). Then the
-Gate's door becomes that anchor, through `hubGateAt` in `placeholders.ts`, as in an instance.
+### 7. Arrival, the Gate, D-148 and the arrival rule
 
-### 6. The camera on a hub larger than the screen
+- **The arrival hex**: #319's, beside the Gate on the road: town `(2, 0)`, outpost `(1, 1)` (a
+  fixture value, `arrival`). Every arrival puts the adventurer there: the first hub of the loop
+  (`hubState`) and the hub a closing report leads to, whatever the outcome. Arriving never opens a
+  place and never starts a walk.
+- **The Gate is a place**: its door ends a walk → the Gate screen. The Gate screen is unchanged
+  (the gates, the build, the belt, the last check, then *Leave* → `enter gate`).
+- **D-148, in spirit, untouched in the data.** A hub has no map in the seed, so its gates' anchors
+  (`0/0`) are not on the hub's grid. The Gate's door is a **client fixture hex**. Standing on it to
+  open the Gate screen is the client's analogue of "used by standing on its anchor", and it decides
+  nothing: entering is still the Gate screen's confirmed `enter gate`. No seed change; `hubGateAt`,
+  `entryThrough` and `hubAfter` unchanged.
+- **The arrival rule is unchanged.** In the instance, CLI-03d's `leaveOffer`, `gateHere` and the
+  Leave control stay as they are. In the hub, "never on arrival" holds by construction: the
+  adventurer arrives beside the Gate, not on its door, and only a walk the player started can open
+  a place. Back from the Gate screen, the adventurer stands on the door and nothing reopens.
+- **The machine** (`sandbox/loop/machine.ts`, #319's shape kept): the hub, service and Gate screens
+  carry `at: Tile`. `hubState(hub)` and `close report` set it to the hub's `arrival`. `back` keeps
+  it. The hub screen sends the zone's existing answer **`moved`** after each step (as the instance
+  does), accepted on the hub screen; #319's `stood` is dropped. The machine records the hex and
+  decides nothing about it.
+- The hub's room is remounted on each return to the hub screen (the loop's key), with the
+  adventurer on `at`.
 
-**Recommended: no camera in this lot. The whole hub stays fitted (`hubFit`), and the fit does not
-change while the adventurer walks.**
+### 8. design/11 *Hubs*, first line
 
-- CLI-03e's width budget (at most 750 art pixels) guarantees the fit by width. Today's hubs fit
-  their zone at 375 × 812 and at 1440 × 900.
-- At 375 points the town's factor is about 0.53 point per art pixel, so a hex is about 34 points
-  across its flats. That is an estimate from `375 / 704 × 64`, before the zone's padding; the thread
-  measures it.
-- Keeping the fit fixed keeps every HTML tap target still during a walk, which CLI-03e's tests and
-  the overlap test rely on.
-- A test asserts that every hex of a walk stays inside the zone, at both sizes.
+Written by this lot under D-178's lending, replacing #319's line, exactly:
 
-**What reverses it**: a hub that no longer fits (wider than the budget, or taller than the zone at
-375 × 812), or the owner wanting a closer view. A later lot then follows the adventurer with the
-room's camera tween (`CAMERA_MS`), and moves the HTML targets with the camera.
+> Hubs have no geometry on chain (D-03). On the client, a hub is lived like an exploration zone:
+> the same hex map, camera, pathfinding and rendering; its places are buildings the adventurer
+> walks to (D-196, D-202).
+
+Nothing else in `docs/design/` changes. If another line of design/11 *Hubs* contradicts it (the
+sketch of a fitted illustration, for example), the thread lists it under *Escalations* instead of
+editing it.
+
+## What is reused and what is dropped
+
+| From | Reused | Dropped |
+|---|---|---|
+| CLI-03e (#307, main) | The places, decor buildings, props and figures and their hexes; `BUILDINGS`; the atlas's stills of roles `building` and `prop`; the services lists; `targetLabel`, `targetIntent`, `figureIntent`; the service row; the building shapes without the atlas; the standing order's sort rule | `HubRenderer` and its tests; `hubFit`, `placeRect`, `figureRect`, `overlap`, `MIN_TARGET` and their tests; the tileset ground (`groundCell`, `groundCells`, `HubGround`), the water backdrop, `PATH_ALPHA`, `SHOW_GRID`; the HTML place and figure buttons over the canvas. `tools/art` keeps the role `tile` (not in the allowlist): the client no longer draws it until the textured-ground lot |
+| #319's branch | `arrival` (town `(2, 0)`, outpost `(1, 1)`); `depth` and its two zeros; the island's half-hex rule; the machine's `at` and its tests; the door rules (walk ends on the door, already on it, passing over, the service row at once); the walking pass of `verify-hubs.mjs`, adapted; its measures as a reference | `input/hubWalk.ts` and its tests; `neighbours` in `input/coords.ts`; the walker, tween and target marker in `HubRenderer`; `hubTile`; `WalkedHub`; the `stood` answer; its imports-test assertion on `hubWalk.ts`; its design/11 line; its report, rewritten |
 
 ## Allowlist
 
 - `client/app/src/**` except `client/app/src/account/**`, `client/app/src/chain.ts` and their tests.
-  The expected files are:
-  - `input/coords.ts` (`neighbours`), and a new `input/hubWalk.ts` (walkable hexes, path, the
-    walker on timers), with their tests;
-  - `render/hubView.ts`, `render/hubRenderer.ts` (the player's figure, the step tween, the target
-    marker);
-  - `input/hubTaps.ts` (a ground tap to a hex: `hubTile(view, fit, point)`);
-  - `sandbox/fixtures/hubs.ts` (`arrival`, `depth`);
-  - `sandbox/loop/machine.ts`, `sandbox/loop/HubScreen.tsx`, `sandbox/loop/Loop.tsx`;
-  - `sandbox/imports.test.ts`: one assertion added, none loosened.
-- `client/app/verify-hubs.mjs`: the walking pass.
-- `docs/reports/` for this lot's report.
-- **Not in the allowlist**:
-  - `sandbox/placeholders.ts` (unchanged);
-  - `tools/art/**` (no new art role is expected: the professions' `move` strips are in the atlas
-    already; if one is missing, escalate);
-  - `client/app/package.json` and `pnpm-lock.yaml` (no dependency expected);
-  - `docs/design/`;
-  - `.github/`.
-- Anything else is an escalation in the report, not an edit.
+  The expected files:
+  - `sandbox/world.ts` (`kind`, `structures`), `sandbox/wiring.ts` (the hub kind), `sandbox/Sandbox.tsx`
+    (`route`, no counter for a hub), `sandbox/controller.ts` (`route`);
+  - `sandbox/placeholders.ts`: **only** the optional window parameter of `findPath` (§4), with one
+    test;
+  - `render/view.ts` (`structures`), `render/renderer.ts`, `render/shapes.ts` (structures, covered
+    hexes, building shapes);
+  - `render/hubView.ts` (kept as the fixtures' data types, its drawing helpers removed),
+    `render/hubRenderer.ts` and `input/hubTaps.ts` (removed or reduced to `targetIntent`,
+    `figureIntent`), `input/hubWalk.ts` and `input/coords.ts` (#319's additions removed);
+  - `sandbox/fixtures/hubs.ts` (and a new `hubWorld.ts` if preferred);
+  - `sandbox/loop/HubScreen.tsx`, `sandbox/loop/machine.ts`, `sandbox/loop/Loop.tsx`;
+  - `sandbox/imports.test.ts`: guards kept; assertions may be added; none loosened. If the hub
+    kind needs a guard's allow-list to grow, escalate instead.
+- `client/app/verify-hubs.mjs`.
+- `docs/design/11-interface.md`: **the first line of *Hubs* only** (§8).
+- `docs/reports/CLI-03f-hub-walking.md`: rewritten for this lot.
+- **Not in the allowlist**: `tools/art/**`, `client/app/package.json`, `pnpm-lock.yaml`,
+  `client/sim/**`, `.github/`, the rest of `docs/design/`. Anything else is an escalation in the
+  report, not an edit.
 
 ## Interfaces
 
-- **Intents** (`input/intent.ts`): the loop's intents are unchanged (`open service`,
-  `open gate screen`, `enter gate`, `leave`, `travel back`, `close report`, `inspect adventurer`,
-  `back`, `skip entry`, `defeat now`).
-  - A tap on the hub's ground is the existing map intent `{ kind: "tile", tile }`, handled by the hub
-    walk, never by `wiring.ts`.
-  - A building's tap is still `targetIntent(place.target)`, dispatched when the walk ends on the
-    door (§2).
-- **The machine** (`sandbox/loop/machine.ts`):
-  - The hub, service and Gate screens carry `at: Tile`, the adventurer's hex in that hub.
-    `hubState(hub)` and `close report` set it to the hub's `arrival`. `back` from a service or the
-    Gate screen keeps it.
-  - A new answer, `{ kind: "stood", tile }`, is accepted on the hub screen only. It updates `at`
-    after each step, as `moved` does in the instance.
-  - The machine stays pure: it records the hex and decides nothing about it.
-- **`HubView`** (`render/hubView.ts`) stays the hub renderer's only input. New fields, all data:
-  - `arrival: Tile`;
-  - `depth` on a place and on a decor building (optional, default 1);
-  - the walker, `{ profession, at, facing: Facing, target: Tile | null }`, filled by `HubScreen`
-    from the machine and the walk. `facing` is a six-way `Facing` drawn with `isMirrored`.
-
-  The present figures keep `facing: "left" | "right"`.
-- **`input/hubWalk.ts`**, pure except for the walker's injected timers:
-  - `hubWalkable(view): (tile: Tile) => boolean`;
-  - `hubPath(view, from, to): Tile[] | null` (first step first, `from` excluded);
-  - `stepFacing(from, to): Facing`;
-  - a `HubWalker` class on `WalkTimers` (`sandbox/session.ts`'s interface, or a copy of its shape
-    if importing it would pull the room's wiring), with `walkTo(tile, then?)`, `stop()` and
-    `destroy()`.
-- **`HubRenderer`**:
-  - It draws the walker in the standing layer, sorted with the rest.
-  - On a step, it tweens the walker from hex to hex over the step's duration with the `move`
-    animation, and asks for frames only while the tween runs.
-  - Once the walk ends, it draws nothing more. The ground is **not** baked again by a walk.
+- **`SandboxWorld`** (`sandbox/world.ts`): `kind?: "zone" | "hub"` (default `"zone"`);
+  `structures?: readonly Structure[]` (default none).
+- **`ViewState`** (`render/view.ts`): `structures: readonly ViewStructure[]` (empty for a zone),
+  produced by `toView` from the world.
+- **`findPath`** (`sandbox/placeholders.ts`): one optional last parameter that lifts the D-120
+  window bound; default bounded.
+- **`RoomSandbox`** and **`SandboxOptions`**: an optional `route(intent: Intent): Intent | null`.
+- **`hubWorld(view, at): SandboxWorld`** and **`hubTap(view, tile)`**: pure, in the fixtures or a
+  hub module of `sandbox/`, never in `placeholders.ts`.
+- **The loop's intents** (`input/intent.ts`): unchanged. The map intents (`tile`, `inspect`) are
+  unchanged.
+- **The machine**: `at: Tile` on the hub, service and Gate screens; `moved` accepted on the hub
+  screen.
 
 ## Acceptance criteria
 
-- [ ] AC-1 **The walker is drawn**:
-      - in each hub, the player's figure stands on the arrival hex at arrival (a machine test for
-        `hubState` and for `close report` after each of `gate`, `travel back` and `defeat`);
-      - it is drawn at the room's height at the same factor (CLI-03e's AC-1 test extended to the
-        walker).
-- [ ] AC-2 **Walkable hexes and paths** (unit tests on both hubs):
-      - no path enters a blocked hex (building footprints with `depth`, props, figures, the ground's
-        border);
-      - every place's door is reachable from the arrival hex;
-      - the arrival hex is free;
-      - `hubPath` is deterministic (a pinned path in the town);
-      - `neighbours` equals `libraryNext` for the six directions on even and odd rows.
-- [ ] AC-3 **Ground taps walk**:
-      - a tap's screen point maps to the hex the renderer draws there (`hubTile`, through `hubFit`,
-        at 375 × 812 and 1440 × 900);
-      - a tap on a free hex walks to it one step per `HUB_STEP_MS` on fake timers, facing each step's
-        direction;
-      - a tap during a walk retargets after the step in progress;
-      - a tap on a blocked hex or off the island does nothing but a log line;
-      - the walk pauses while the page is hidden and resumes after (`FakeHost`).
-- [ ] AC-4 **Buildings walk, then open**:
-      - a tap on a place walks to its door, then dispatches `targetIntent` once;
-      - standing on the door, a tap opens at once;
-      - a walk passing over a door opens nothing;
-      - the service row opens at once and ends a walk in progress;
-      - no tap reaches a decor building or a prop (CLI-03e's test unchanged).
-- [ ] AC-5 **The Gate and the arrival rule**:
-      - a walk ending on the Gate's door opens the Gate screen;
-      - arriving opens nothing;
-      - back from the Gate screen keeps the adventurer on the door, and nothing reopens;
-      - CLI-03d's arrival-rule tests in the instance pass **unmodified**;
-      - `hubGateAt`, `entryThrough`, `hubAfter` and `placeholders.ts` are unchanged
-        (`git diff --stat` in the report);
-      - `imports.test.ts` is green with its new assertion (the hub walk imports nothing from
-        `placeholders.ts` or `fixtures/region.ts`), shown red on a seeded violation, then removed.
-- [ ] AC-6 **The position survives the hub's screens**: open a service, then back, and the adventurer
-      stands where it was; open the Gate screen, then back, and likewise (machine tests).
-- [ ] AC-7 **On demand**:
-      - while a walk runs, frames are drawn;
-      - once it ends, nothing is drawn (CLI-03c's on-demand test extended with a walk; no ticker
-        left running);
-      - a walk bakes the ground zero times (CLI-03e's bake count unchanged).
-- [ ] AC-8 **The fit and the targets**:
-      - the hub's fit does not change during a walk;
-      - every hex of every walk stays inside the zone at 375 × 812 and 1440 × 900;
-      - the tap targets keep at least 40 points and do not overlap (CLI-03e's tests unchanged).
-- [ ] AC-9 **Mechanics unchanged elsewhere**:
-      - the CLI-03c, CLI-03d and CLI-03e tests pass unmodified, except those that construct a hub
-        screen without `at`, which are updated and listed in the report;
-      - the room's tests (`walkFollowsPreview`, `wiring`, `session`, `renderer`) pass unmodified.
-- [ ] AC-10 **The browser check** (`pnpm --filter @grimworld/app verify:hubs`, extended), on the Mac
+- [ ] AC-1 **The same engine**: the hub screen mounts `RoomSandbox` with a `SandboxWorld` of kind
+      `"hub"`; `HubRenderer`, `hubFit` and `input/hubWalk.ts` are gone (or no longer imported by
+      the loop: the report says which); a test asserts the hub screen's world goes through
+      `SandboxSession` and the zone's `Renderer`.
+- [ ] AC-2 **The world** (unit tests on both hubs): the arrival hex is `floor` and free; every door
+      is `floor`; every building's footprint (with `depth`) and every prop's hex is `wall`; no
+      `unrevealed` tile; every door is reachable from the arrival hex with `findPath` unbounded;
+      the present figures are actors on their hexes.
+- [ ] AC-3 **The stand-ins a hub does not inherit**: in a hub, every tile is in sight; a walk
+      across the town fires no stop; the walk counter is not shown; a tap on a figure inspects it
+      and selects nothing (no arcs). In a zone, all of these are as before (the existing tests,
+      unmodified).
+- [ ] AC-4 **The finder**: `findPath` bounded gives the same paths as before (every existing test
+      unmodified); bounded, the town's Guild door is out of reach from the arrival hex (row 12,
+      beyond the window's ring); unbounded, a pinned path to it.
+- [ ] AC-5 **Taps**: on fake timers (`FakeHost`): a tap on a `floor` hex walks there one step per
+      `STEP_MS`, facing each step, with the camera following; a tap on a building walks to its
+      door, then dispatches `targetIntent` once; standing on the door, a tap opens at once; a walk
+      passing over a door opens nothing; a tap on a decor building or a prop does nothing but a log
+      line; the service row opens at once and ends a walk; a new tap retargets; the walk pauses
+      while hidden and resumes after.
+- [ ] AC-6 **Drawing**: structures are drawn from the atlas's stills at native size (the synthetic
+      atlas) and as shapes without it; they sort with the actors by base y (a figure behind a
+      building is under it); a wall under a structure draws no rock; drawing stays on demand (no
+      frame once a walk ends, no ticker left running); the zone's renderer tests pass unmodified.
+- [ ] AC-7 **The Gate and the arrival rule**: a walk ending on the Gate's door opens the Gate
+      screen; arriving opens nothing; back from the Gate screen keeps the adventurer on the door
+      and nothing reopens; CLI-03d's arrival-rule tests in the instance pass **unmodified**;
+      `hubGateAt`, `entryThrough`, `hubAfter` are unchanged and `placeholders.ts` changes only by
+      §4's parameter (`git diff origin/main -- client/app/src/sandbox/placeholders.ts` in the
+      report).
+- [ ] AC-8 **The position survives the hub's screens** (machine tests): arrival on `arrival` after
+      `hubState` and after `close report` for each of `gate`, `travel back` and `defeat`; a service,
+      then back, keeps `at`; the Gate screen, then back, likewise.
+- [ ] AC-9 **Mechanics unchanged elsewhere**: the room's tests (`walkFollowsPreview`, `wiring`,
+      `session`, `renderer`, `placeholders`) and the CLI-03c and CLI-03d tests pass unmodified,
+      except tests that build a hub screen without `at`, or test removed hub pieces: the report
+      lists each one updated or removed, and why.
+- [ ] AC-10 **The imports test**: green, no guard loosened; the hub kind and the route import nothing
+      from `placeholders.ts` outside `wiring.ts`; shown red on a seeded violation, then removed.
+- [ ] AC-11 **The browser check** (`pnpm --filter @grimworld/app verify:hubs`, adapted), on the VPS
       in headless Chromium, at **375 × 812** and **1440 × 900**, in both hubs, with the atlas built
-      from this branch (`tools/art/build.py`, never committed). The check:
-      - taps a ground hex, waits for the walk to end, and asserts that `data-frames` stops growing;
-      - taps the Smith (in the town) and the Trainer (in the outpost): walk, then the service
-        screen;
-      - goes back, and asserts that the adventurer is still on the door;
-      - walks to the Gate: the Gate screen;
-      - runs the CLI-03c/03d loop as before;
-      - fails on any page error.
+      from this branch (never committed). It checks:
+      - the hub's canvas is the zone's: `RoomSandbox` exposes the frames drawn as `data-frames`
+        (the renderer's `onDraw` stats, as CLI-03e's `HubScreen` did), for the instance too;
+      - a tap on a ground hex walks there, the camera follows, and `data-frames` stops growing once
+        the walk ends;
+      - a tap on the Smith (town) and the Trainer (outpost): walk, then the service screen; back,
+        and the adventurer is on the door;
+      - a walk to the Gate: the Gate screen;
+      - a pinch or wheel zoom and the ◎ button work as in the instance;
+      - the CLI-03c/03d loop as before; no page error.
 
-      With `VERIFY_SHOTS=1`, a shot of each hub mid-walk and after it goes into the thread's library
-      folder, **untracked**: never committed, attached or posted (D-73). The report describes them
-      in words and gives the run's real output.
-- [ ] AC-11 `pnpm --filter @grimworld/app test`, `lint`, `typecheck`, `build`,
+      With `VERIFY_SHOTS=1`, a shot of each hub at each size, mid-walk and after, into the thread's
+      library folder, **untracked**: never committed, attached or posted (D-73). The report
+      describes them in words and gives the run's real output.
+- [ ] AC-12 `pnpm --filter @grimworld/app test`, `lint`, `typecheck`, `build`,
       `pnpm exec prettier --check client indexer` and `scripts/prepush.sh` pass. CI is green.
-- [ ] AC-12 **The owner's eye, last**: the orchestrator asks through the project manager once AC-1
-      to AC-11 hold (*Open questions* §5).
-      - The owner's answer is recorded in the pull request.
-      - A change asked for that is a constant or a fixture value (pace, arrival hex, marker,
-        `depth`) is a fix loop of this lot.
-      - A change of mechanics is a new lot.
+- [ ] AC-13 **The owner's eye, last**, on **https://grimworld.bal7hazar.com after the merge** (the
+      site rebuilds from `main` within 5 minutes once its timer is installed, with the atlas). The
+      orchestrator sends the project manager one line: what to look at and the URL.
+      - The question: does the hub look and play like a zone (same camera, zoom, pathfinding,
+        rendering)?
+      - The owner's answer is recorded in the pull request or the status file.
+      - A change that is a constant or a fixture value (arrival hex, `depth`, a label's place) is a
+        fix lot; a change of mechanics is a new lot.
 
 ## Verification
 
-- **On the Mac**:
-  - the commands of AC-11;
-  - `tools/art/build.py` with the pack (`git submodule update --init assets`, or
-    `GRIMWORLD_ASSETS` as the README says);
-  - then the browser check of AC-10.
+- **On the VPS**:
+  - the commands of AC-12 (Cairo is not touched: `scripts/prepush.sh` runs no Cairo build);
+  - `tools/art/build.py`, with `assets` linked to `/home/claude/projects/assets` by an uncommitted
+    symlink, removed afterwards;
+  - then the browser check of AC-11.
 - Start and stop the dev server inside one foreground command, and kill only its recorded process
   group (the script does this already).
 - `scripts/prepush.sh` before every push, never `--no-verify`.
-- CI is polled at most once per pull request every 5 minutes. Better: open the PR and end the turn.
+- CI is polled at most once per pull request every 5 minutes. Better: push and end the turn.
 
 ## Review and audit
 
-- **Review** by the other model, on the pull request's head: `review` (Sonnet) when the implementer
-  is Opus, as recommended; `review-opus` if Sonnet. The reviewer works from the diff and the tests.
-  It does not need the pack, and the owner's eye is the visual verdict. The review checks most
-  closely:
-  - that nothing in the hub walk is a game rule, or imports one;
-  - that the arrival rule is untouched;
-  - that drawing stays on demand.
-- **Audit: none** (D-177: the owner sees the lot). The orchestrator decides otherwise if the thread
-  adds a dependency, touches a path outside the allowlist, or changes `placeholders.ts`.
+- **Review** by the other model on the pull request's head: `review` (Sonnet) when the implementer
+  is Opus, as recommended. The reviewer works from the diff and the tests; the owner's eye is the
+  visual verdict. It checks most closely:
+  - that the hub runs on the zone's controller, session, wiring and renderer, with no hub-only
+    walk, finder or renderer left;
+  - that `placeholders.ts` changes by §4's parameter only, with the zone's paths unchanged;
+  - that no zone stand-in (sight, stops, ticks, arcs) leaks into a hub, and no hub symbol into
+    `placeholders.ts`;
+  - that the arrival rule is untouched and drawing stays on demand.
+- **Audit**: per D-177, none by default (the owner sees the lot). The orchestrator decides
+  otherwise if the thread adds a dependency, touches a path outside the allowlist, or changes
+  `placeholders.ts` beyond §4.
 
 ## Rules of this run
 
-- D-73: nothing of the pack in a commit, the pull request, an issue, a comment or the report. Sizes,
-  counts, paths and descriptions in words are fine.
+- D-73: nothing of the pack in a commit, the pull request, an issue, a comment or the report.
+  Sizes, counts, paths and descriptions in words are fine. The symlink to the pack is never
+  committed.
 - No pin is generated or committed.
-- Foreground only. Never merge unless prompted with the exact line.
+- Foreground only. Never merge unless prompted with the exact line. Never rebase or force-push
+  #319's branch.
 - External issues are named in words, not links, in commit messages and pull request text.
-- Pull request title: `[<model>] CLI-03f walking in the hubs`. The body:
-  - lists the six design choices as built, with any deviation;
+- Pull request (#319) title: `[<model>] CLI-03f hubs as zones (D-202)`. The body (set through REST,
+  `gh pr edit` fails on Projects-classic):
+  - says the light variant is replaced by D-202's design, and lists the eight design choices as
+    built, with any deviation;
+  - lists what was reused and dropped (the table above, as built);
   - names every dependency added (none expected);
-  - says "Audit: none (D-177)" and "Owner's eye: requested through the project manager".
+  - says "Audit: none (D-177)" unless the orchestrator decides otherwise, and "Owner's eye: on the
+    public site after the merge".
 
 ## Report
 
-`REPORT.md` as in `docs/briefs/COMMON.md` §7, with:
+`docs/reports/CLI-03f-hub-walking.md`, rewritten, as in `docs/briefs/COMMON.md` §7, with:
 
 - the summary and the pull request's URL;
-- the files changed;
-- the arrival hexes and the `depth` values chosen;
-- the measured longest walk (steps and seconds) in each hub, and the hex size in points at 375 ×
-  812;
+- the files changed, added and removed;
+- the arrival hexes, the `depth` values and any fixture moved so that a door is reachable;
+- the measured longest walk (steps and seconds) in each hub, and the hex size in points at
+  375 × 812 at the default zoom;
 - the browser check's commands and real output, and where the shots are;
-- the tests updated for `at`;
+- the tests updated or removed, and why;
+- `git diff origin/main -- client/app/src/sandbox/placeholders.ts`;
 - the commands refused by the profile;
 - deviations, escalations and open questions.
 
 ## Open questions
 
-1. **For the project manager: design/11 *Hubs*, first line.** It says "Hubs have no geometry
-   (D-03): they are illustrated screens with places to tap", which walking contradicts in words
-   (D-03 itself, that the chain knows only who is in which hub, still holds).
-   - Default: this lot writes nothing in `docs/design/`.
-   - Proposed line, if the project manager routes it (the game's design document, the lending of
-     D-178 or a game pull request): "Hubs have no geometry on chain (D-03): the chain knows which
-     hub an adventurer is in. The client lays each hub on a hex grid and the player's adventurer
-     walks it (D-196); a place opens when the walk ends on its door, or from the service row."
-2. **For the project manager: the hub walk is presentation, not a rule.** The brief puts it in
-   `input/hubWalk.ts`, outside `placeholders.ts`, because no chain state depends on it and it
-   survives CLI-03.
+1. **Decided (D-202): a hub's engine.** The zone's, as is; no light hub walk, no fitted hub. The
+   first version's §1 and §6 are withdrawn.
+2. **For the owner, later: the ground's look.** The hub now draws the zone's plain ground and grid,
+   so CLI-03e's tileset grass, water and earth path are gone from the hub until a textured ground
+   (design/10's "one continuous textured ground per biome") is built for zones and hubs together.
+   - Default: as written; the textured ground is a later lot of track CV, proposed to the project
+     manager after the owner's eye (AC-13).
+   - Reverse: the owner asks for the tileset's grass in the hubs now. It would then be a ground
+     layer of the zone's renderer, for both.
+3. **For the project manager: `findPath`'s window parameter** (§4). One optional parameter in
+   `placeholders.ts`, default unchanged.
    - Default: as written, recorded in the PR.
-   - What reverses it: a ruling that it is a rule (for example, if the later relay of Q-09 must
-     replay the same paths for other players). It would then move to `client/sim` through a
-     `PENDING-cv-hub-walk.md`.
-3. **For the owner: a building's tap.** Walk to the door, then open (default), or open at once with
-   the figure walking unseen. The service row opens at once either way.
-4. **For the owner: the feel.**
-   - The pace: `HUB_STEP_MS`, default `STEP_MS` (180 ms), the room's.
-   - The arrival hex: beside the Gate, per hub.
-   - The target marker: faint, on the tapped hex.
-   - The blocked rows behind each building: `depth`, default 1.
-
-   Each is a constant or a fixture value.
-5. **For the orchestrator: where the owner looks (AC-12).** The published client
-   (`grimworld.bal7hazar.com`, lot t-0059) builds **without the atlas** until the owner allows the
-   art to be served (D-73 and the licence).
-   - Default: the owner looks on the Mac's dev server with the atlas built from the branch, as for
-     CLI-03c and CLI-03e.
-   - Alternative: after merge, on the published client, if the art is allowed by then. Without the
-     atlas, the walk is visible on the shapes.
-6. **For the orchestrator: the keyboard.** design/11 *Desktop* gives `Q W E A S D` for the six
-   directions. The client has no keyboard input yet.
-   - Default: out of this lot. One later lot brings it to the room and the hub together.
-   - Reverse: the owner asks for it at AC-12.
-7. **For the owner: a ground hex is about 34 points at 375 points**, under I-6's 40.
-   - The room already taps hexes smaller than that (about 29 points at 13 hexes across), so the
-     brief reads I-6 as governing buttons and places, not the map's hexes.
-   - Default: accepted, as in the room.
-   - Reverse: the owner finds the hub's hexes hard to hit, which brings the camera of §6 forward.
+   - Reverse: no change to `placeholders.ts`; the hub then walks in legs, which shows.
+4. **For the owner: the feel.** The pace (`STEP_MS`, the zone's), the arrival hex, the `depth` of
+   each building, the zoom (the zone's `DEFAULT_ZOOM`): each a constant or a fixture value, judged
+   at AC-13.
+5. **For the orchestrator: the keyboard.** design/11 *Desktop* gives `Q W E A S D`. Default: out of
+   this lot; one later lot brings it to the zone, and so to the hub.
+6. **Decided: where the owner looks.** On the public site after the merge (the art is served there
+   since 2026-10-02), not on a dev server.
