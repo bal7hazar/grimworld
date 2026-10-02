@@ -154,7 +154,7 @@ mod tests {
 
     // Each lane's unit, `get` and `set`, against the packer.
     #[test]
-    #[available_gas(l2_gas: 266816)] // ceil(1.05 × 254110 measured)
+    #[available_gas(l2_gas: 258594)] // ceil(1.05 × 246280 measured)
     fn test_lanes() {
         let page = Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] };
         let word: felt252 = StorePacking::pack(page);
@@ -168,21 +168,21 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'lane above 6')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_lane_above_6_refused() {
         Lanes32 { lanes: [0; 7] }.get(7);
     }
 
     #[test]
     #[should_panic(expected: 'lane above 6')]
-    #[available_gas(l2_gas: 18921)] // ceil(1.05 × 18020 measured)
+    #[available_gas(l2_gas: 10700)] // ceil(1.05 × 10190 measured)
     fn test_stored_lane_above_6_refused() {
         StoredLanesTrait::new().get(7);
     }
 
     // The stored page's lanes, additions, removals and replacements, against the packer.
     #[test]
-    #[available_gas(l2_gas: 305498)] // ceil(1.05 × 290950 measured)
+    #[available_gas(l2_gas: 297276)] // ceil(1.05 × 283120 measured)
     fn test_stored_lanes() {
         let page = Lanes32 { lanes: [1, 0xFFFFFFFF, 3, 0, 5, 6, 0xFFFFFFFE] };
         let word = stored(page);

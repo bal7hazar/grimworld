@@ -46,7 +46,7 @@ impl FixtureImpl of Fixture {
 }
 
 #[test]
-#[available_gas(l2_gas: 91098)] // ceil(1.05 × 86760 measured)
+#[available_gas(l2_gas: 82877)] // ceil(1.05 × 78930 measured)
 fn test_region_round_trip() {
     let region = RegionTrait::new(0xFFFF, 2, 0xFFFF, 'Fifteen letters');
     assert(Record::unpack(region.pack()) == region, 'round trip');
@@ -59,14 +59,14 @@ fn test_region_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 25694)] // ceil(1.05 × 24470 measured)
+#[available_gas(l2_gas: 17598)] // ceil(1.05 × 16760 measured)
 #[should_panic(expected: 'region: name too long')]
 fn test_region_name_too_long() {
     RegionTrait::new(1, 0, 1, 'Sixteen letters!').pack();
 }
 
 #[test]
-#[available_gas(l2_gas: 763508)] // ceil(1.05 × 727150 measured)
+#[available_gas(l2_gas: 755286)] // ceil(1.05 × 719320 measured)
 fn test_location_round_trip() {
     let top = Fixture::location_max();
     let parts = top.pack();
@@ -79,7 +79,7 @@ fn test_location_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 248997)] // ceil(1.05 × 237140 measured)
+#[available_gas(l2_gas: 240776)] // ceil(1.05 × 229310 measured)
 fn test_location_bits() {
     let value = LocationTrait::new(
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, true, 1, 1, Lanes16 { lanes: [0; 15] },
@@ -93,7 +93,7 @@ fn test_location_bits() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'location: width')]
 fn test_location_width_refused() {
     let mut value = Fixture::location_zero();
@@ -102,7 +102,7 @@ fn test_location_width_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'location: height')]
 fn test_location_height_refused() {
     let mut value = Fixture::location_zero();
@@ -111,7 +111,7 @@ fn test_location_height_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'location: entry chunk')]
 fn test_location_entry_chunk_refused() {
     let mut value = Fixture::location_zero();
@@ -120,7 +120,7 @@ fn test_location_entry_chunk_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'location: entry tile')]
 fn test_location_entry_tile_refused() {
     let mut value = Fixture::location_zero();
@@ -129,7 +129,7 @@ fn test_location_entry_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 209664)] // ceil(1.05 × 199680 measured)
+#[available_gas(l2_gas: 201443)] // ceil(1.05 × 191850 measured)
 fn test_gate_round_trip() {
     let top = Fixture::gate_max();
     assert(Record::<Gate>::unpack(top.pack()) == top, 'round trip');
@@ -144,7 +144,7 @@ fn test_gate_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'gate: anchor chunk')]
 fn test_gate_anchor_chunk_refused() {
     let mut gate = Fixture::gate_max();
@@ -153,7 +153,7 @@ fn test_gate_anchor_chunk_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'gate: anchor tile')]
 fn test_gate_anchor_tile_refused() {
     let mut gate = Fixture::gate_max();
@@ -162,7 +162,7 @@ fn test_gate_anchor_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'gate: entry chunk')]
 fn test_gate_entry_chunk_refused() {
     let mut gate = Fixture::gate_max();
@@ -171,7 +171,7 @@ fn test_gate_entry_chunk_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'gate: entry tile')]
 fn test_gate_entry_tile_refused() {
     let mut gate = Fixture::gate_max();
@@ -180,7 +180,7 @@ fn test_gate_entry_tile_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 30513)] // ceil(1.05 × 29060 measured)
+#[available_gas(l2_gas: 22292)] // ceil(1.05 × 21230 measured)
 fn test_outline_round_trip() {
     // All 225 bits set: 128 in the low limb, 97 in the high one.
     let full = OutlineTrait::new(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, 0x1FFFFFFFFFFFFFFFFFFFFFFFF);
@@ -196,7 +196,7 @@ fn test_outline_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'outline: above bit 224')]
 fn test_outline_above_bit_224_refused() {
     OutlineTrait::new(0, 0x2000000000000000000000000).pack();

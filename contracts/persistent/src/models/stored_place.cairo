@@ -204,7 +204,7 @@ mod tests {
     // ENG-06: entering, moving, located, unlocked, against the packer; the bit table against the
     // powers of two.
     #[test]
-    #[available_gas(l2_gas: 2676855)] // ceil(1.05 × 2549385 measured)
+    #[available_gas(l2_gas: 2668738)] // ceil(1.05 × 2541655 measured)
     fn test_place_words() {
         let start = AdventurerPlace { instance: 0, hub: 5, last_hub: 5, inside: 0, unlocked: 0x20 };
         let stored = StoredPlaceTrait::new(5);
@@ -244,14 +244,14 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'hub above 63')]
-    #[available_gas(l2_gas: 23783)] // ceil(1.05 × 22650 measured)
+    #[available_gas(l2_gas: 15687)] // ceil(1.05 × 14940 measured)
     fn test_place_hub_above_63_refused() {
         StoredPlaceTrait::new(64);
     }
 
     // The report's return: the hub reported, else the last one; unlocked when a hub was reached.
     #[test]
-    #[available_gas(l2_gas: 110666)] // ceil(1.05 × 105396 measured)
+    #[available_gas(l2_gas: 102550)] // ceil(1.05 × 97666 measured)
     fn test_place_returned() {
         let inside = stored_place(
             AdventurerPlace { instance: 9, hub: 0, last_hub: 5, inside: 1, unlocked: 0x20 },

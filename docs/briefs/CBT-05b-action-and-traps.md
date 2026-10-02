@@ -174,15 +174,21 @@ table of every test.
    and the generated gas files; this lot writes `GAS.md` and `BUDGETS.md` too. *Recommendation*:
    start CBT-05b after FND-11 merges (the order of the track is CBT-05a, then FND-11), so its budgets
    are set once, under the new compiler.
+   **Decided by the orchestrator, 2026-10-02 (the project manager confirmed):** CBT-05b starts after
+   CBT-05a and FND-11 merge, as recommended.
 2. **Move and Interact.** §5.3 covers every action, but ENG-07's row owns "movement, facing, …,
    action queue". *Recommendation*: CBT-05b owns the five combat kinds and the trap trigger; Move
    (its walkable, unoccupied tile, Crippled's 2 ticks through `move_ticks`, its facing) and Interact
    stay ENG-07's, which calls the trigger after each move. If the orchestrator prefers one action
    trait, Move's legality joins this lot and only the window and `play` stay ENG-07's.
+   **Decided by the orchestrator, 2026-10-02 (the project manager confirmed):** Move and Interact stay
+   ENG-07's, which calls the trap trigger after each move.
 3. **Entities and global tiles against window positions.** An action names an entity (`u16`) or a
    global tile (`x + 256 y`, ENG-01 §3.2); `WindowTrait` takes window positions (0–239) and a
    `Window` holds no origin. *Recommendation*: the action phase takes the window's origin as an
    argument from its caller (ENG-07 assembles the window) and converts once.
+   **Decided by the orchestrator, 2026-10-02 (the project manager confirmed):** the caller passes the
+   window's origin.
 4. **The sheets lack the skill header's energy, range and target** (`SkillSheet`, `types/tick.cairo`).
    *Recommendation*: add them to the in-call sheet as CBT-02d's index did (no frozen interface
    changes), measured, unless CBT-05a's decoded entries already carry them.
@@ -196,3 +202,7 @@ table of every test.
    *Recommendation*: the band's lower level and rank 0, the payload the skill's entries without a
    `TRAP` entry if it has one; the project manager confirms (a design reading, D-155's owner), and
    the lot builds the placed trap first, which needs none of this.
+   **Decided by the project manager, 2026-10-02:** a terrain trap's source is its location band's lower
+   level, rank 0; its payload is the skill's entries without its `TRAP` entry. Reason: the location
+   holds no level or rank; the lower bound keeps a trap at or below the band's danger. Reversed if
+   playtest shows traps too weak in the band's upper half, or the owner's design reading sets otherwise.

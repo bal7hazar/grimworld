@@ -83,6 +83,8 @@ if SCOPE not in ("hub", "r1b"):
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONTRACTS = os.path.dirname(HERE)
 URL = os.environ["NODE_URL"]
+# D-176: `sncast declare` builds the contract with Scarb; the build is single-threaded.
+os.environ["RAYON_NUM_THREADS"] = "1"
 if urllib.parse.urlparse(URL).hostname != "127.0.0.1":
     sys.exit("lifecycle_probe: the local node only (NODE_URL must be on 127.0.0.1)")
 ADDRESS = os.environ["NODE_ACCOUNT_ADDRESS"]

@@ -62,7 +62,7 @@ mod tests {
 
     // The epoch counts 0 to 511, then wraps to 0 (9 bits).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_rules_epoch_wraps() {
         assert(RulesEpoch { value: 0 }.next() == RulesEpoch { value: 1 }, '0 to 1');
         assert(RulesEpoch { value: 510 }.next() == RulesEpoch { value: 511 }, '510 to 511');
@@ -71,7 +71,7 @@ mod tests {
 
     // The slot holds the value as it is: the layout of a `u16` storage variable.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_rules_epoch_packing() {
         let widest = RulesEpoch { value: RULES_EPOCHS - 1 };
         assert(StorePacking::<RulesEpoch, felt252>::pack(widest) == 511, 'as a felt');
@@ -81,7 +81,7 @@ mod tests {
 
     // A change of the class or of the registry moves it; the same two do not.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_rules_epoch_moves() {
         let (one, three) = (1_felt252.try_into().unwrap(), 3_felt252.try_into().unwrap());
         let (two, four) = (2_felt252.try_into().unwrap(), 4_felt252.try_into().unwrap());

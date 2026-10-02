@@ -58,7 +58,7 @@ mod tests {
     // The stored record of a new account, its counts, one adventurer more or less, against the
     // packer.
     #[test]
-    #[available_gas(l2_gas: 121244)] // ceil(1.05 × 115470 measured)
+    #[available_gas(l2_gas: 113022)] // ceil(1.05 × 107640 measured)
     fn test_record_words() {
         let new = AccountRecord { slots: START_SLOTS, ..Default::default() };
         assert(StoredRecordTrait::new().word == StorePacking::pack(new), 'new');

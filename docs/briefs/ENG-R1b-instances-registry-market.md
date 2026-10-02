@@ -184,13 +184,17 @@ comparisons, the tests moved, the gas table of every test.
    *Recommendation*: `Instances` first, as written above: its `Member` is already a struct of
    one-felt models, so the typed declaration is nearest there and the measure is cleanest; `Hub`
    follows under the same rule in this lot rather than reopening ENG-R1a's lot.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
 2. **`RegistryAssert`'s place.** CAIRO §7 puts `Assert` impls in `models/`; `RegistryAssert` sits in the
    contract module and its content checks are the validators CBT-05a edits. *Recommendation*: leave it
    where it is in this lot; move it after CBT-05a's merge, in ENG-R1c or a fix loop, so that two lots
    never edit the validators at once.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
 3. **A CI job for the probe.** ENG-R1a's escalation (report line 325): the probe's `--expect` runs by
    hand. *Recommendation*: not in this lot (`.github/` is the orchestrator's and FND-11 owns CI now);
    a CI job running both `--expect` through `scripts/with-node.sh` after FND-11.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
 4. **`Market`'s tracking.** Its events (`LotPosted`, `LotClosed`, `TradeOpened`, `TradeClosed`) are
    emitted by no code yet. *Recommendation*: no model tracked here; the lot that writes `Market`'s
    entrypoints decides, under D-149.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.

@@ -454,7 +454,7 @@ mod tests {
 
     // Weapon: 5 × rank, capped by the level's cap (design/04, DS-9).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_strength_weapon() {
         assert(HitTrait::weapon_strength(10, 255) == 50, '5 x 10');
         assert(HitTrait::weapon_strength(10, 40) == 40, 'capped');
@@ -464,7 +464,7 @@ mod tests {
 
     // Spell and trap: 3 × level (design/04, FX-28); a bomb's is its recipe's, taken as is.
     #[test]
-    #[available_gas(l2_gas: 23100)] // ceil(1.05 × 22000 measured)
+    #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_strength_level() {
         assert(HitTrait::level_strength(20) == 60, '3 x 20');
         assert(HitTrait::level_strength(255) == 765, '3 x 255');
@@ -475,7 +475,7 @@ mod tests {
 
     // Base: the weapon's damage after requirement, + `ATTACK_BONUS` (§3.1, design/15).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_weapon_base() {
         assert(HitTrait::weapon_base(18, true, 0) == 18, 'met');
         assert(HitTrait::weapon_base(18, false, 0) == 6, 'below requirement: / 3');
@@ -488,7 +488,7 @@ mod tests {
     // ---- §5.4: arcs, critical, axe, weakness --------------------------------------------------
 
     #[test]
-    #[available_gas(l2_gas: 50148)] // ceil(1.05 × 47760 measured)
+    #[available_gas(l2_gas: 41927)] // ceil(1.05 × 39930 measured)
     fn test_arcs_weapon() {
         assert(damage(sword(), goblin()) == 100, 'front');
         assert(damage(Hit { arc: Arc::FrontSide, ..sword() }, goblin()) == 100, 'front-side');
@@ -498,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 58632)] // ceil(1.05 × 55840 measured)
+    #[available_gas(l2_gas: 50411)] // ceil(1.05 × 48010 measured)
     fn test_axe() {
         let axe = Hit { weapon: weapon::AXE, ..sword() };
         assert(damage(axe, goblin()) == 100, 'front: none');
@@ -511,7 +511,7 @@ mod tests {
 
     // Knocked down or asleep: critical from any arc (design/04, §3.2), once.
     #[test]
-    #[available_gas(l2_gas: 41349)] // ceil(1.05 × 39380 measured)
+    #[available_gas(l2_gas: 33128)] // ceil(1.05 × 31550 measured)
     fn test_critical_any_arc() {
         let down = HitTarget { knocked_down: true, ..goblin() };
         let asleep = HitTarget { asleep: true, ..goblin() };
@@ -523,7 +523,7 @@ mod tests {
 
     // Arcs, critical, block, evasion, weakness are weapon-only (§5.4, FX-27).
     #[test]
-    #[available_gas(l2_gas: 85239)] // ceil(1.05 × 81180 measured)
+    #[available_gas(l2_gas: 77144)] // ceil(1.05 × 73470 measured)
     fn test_other_classes_take_no_arc() {
         let target = HitTarget { knocked_down: true, block: 3, evade: true, ..goblin() };
         let mut classes = array![HitClass::Spell, HitClass::Item, HitClass::Trap];
@@ -544,7 +544,7 @@ mod tests {
 
     // Weakness −33 % (P), summed with the critical: 107 % (design/04 *Edges*, D-140).
     #[test]
-    #[available_gas(l2_gas: 32655)] // ceil(1.05 × 31100 measured)
+    #[available_gas(l2_gas: 24434)] // ceil(1.05 × 23270 measured)
     fn test_weakness() {
         let weak = Hit { weakened: true, ..sword() };
         assert(damage(weak, goblin()) == 67, '-33');
@@ -554,7 +554,7 @@ mod tests {
     // ---- §5.6: miss, block, evasion -----------------------------------------------------------
 
     #[test]
-    #[available_gas(l2_gas: 41349)] // ceil(1.05 × 39380 measured)
+    #[available_gas(l2_gas: 33128)] // ceil(1.05 × 31550 measured)
     fn test_block_by_arc() {
         let target = HitTarget { block: 2, ..goblin() };
         assert(sword().resolve(@target) == HitOutcome::Blocked, 'front blocked');
@@ -569,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 32655)] // ceil(1.05 × 31100 measured)
+    #[available_gas(l2_gas: 24434)] // ceil(1.05 × 23270 measured)
     fn test_block_knocked_down_or_asleep() {
         let down = HitTarget { block: 2, knocked_down: true, ..goblin() };
         assert(damage(sword(), down) == 140, 'knocked down: no block');
@@ -579,7 +579,7 @@ mod tests {
 
     // Evasion: melee weapon hits from every arc (FX-11); not a knocked-down target (FX-7).
     #[test]
-    #[available_gas(l2_gas: 81333)] // ceil(1.05 × 77460 measured)
+    #[available_gas(l2_gas: 73112)] // ceil(1.05 × 69630 measured)
     fn test_evade() {
         let target = HitTarget { evade: true, ..goblin() };
         let mut arcs = array![Arc::Front, Arc::FrontSide, Arc::RearSide, Arc::Back];
@@ -598,7 +598,7 @@ mod tests {
     // Blind (P): a weapon hit misses unless the target is on the source's front tile; before a
     // block, so no charge is spent.
     #[test]
-    #[available_gas(l2_gas: 23100)] // ceil(1.05 × 22000 measured)
+    #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_blind_miss() {
         let blind = Hit { blind: true, in_front: false, ..sword() };
         let target = HitTarget { block: 1, ..goblin() };
@@ -613,7 +613,7 @@ mod tests {
 
     // Every term of `a`, the guards read from the target (§2.4); every class takes armor (§5.4).
     #[test]
-    #[available_gas(l2_gas: 116813)] // ceil(1.05 × 111250 measured)
+    #[available_gas(l2_gas: 108591)] // ceil(1.05 × 103420 measured)
     fn test_armor_terms() {
         let target = HitTarget {
             armor: 10,
@@ -640,7 +640,7 @@ mod tests {
     // §6: armor below 0 counts 0 before penetration (D-140, F-20); a negative term counts
     // before the floor.
     #[test]
-    #[available_gas(l2_gas: 23100)] // ceil(1.05 × 22000 measured)
+    #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_armor_below_zero() {
         let negative = HitTarget { armor: -500, armor_effects: 20, ..goblin() };
         assert(sword().armor(@negative) == 0, 'floored');
@@ -657,7 +657,7 @@ mod tests {
 
     // §6: penetration capped at 100 (FX-9); truncated; weapon and spell only (§5.4).
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_penetration() {
         let target = HitTarget { armor: 41, ..goblin() };
         assert(Hit { penetration: 25, ..sword() }.armor(@target) == 31, '41 - 10');
@@ -676,7 +676,7 @@ mod tests {
 
     // §6: the exponent at both clamps.
     #[test]
-    #[available_gas(l2_gas: 48951)] // ceil(1.05 × 46620 measured)
+    #[available_gas(l2_gas: 40730)] // ceil(1.05 × 38790 measured)
     fn test_exponent_clamps() {
         let zero = HitTarget { armor: 0, ..goblin() };
         assert(damage(Hit { strength: 80, ..sword() }, zero) == 400, 'x = 80');
@@ -689,7 +689,7 @@ mod tests {
 
     // The percents summed once, truncated (X-5, D-140); `DAMAGE_PERCENT` by guard; ≥ −100.
     #[test]
-    #[available_gas(l2_gas: 67536)] // ceil(1.05 × 64320 measured)
+    #[available_gas(l2_gas: 59315)] // ceil(1.05 × 56490 measured)
     fn test_percents() {
         let hit = Hit { base: 33, percent: 15, ..sword() };
         // ⌊33 × 115 / 100⌋ = 37 (37.95).
@@ -708,7 +708,7 @@ mod tests {
 
     // §6: a sum below −100 is −100; the hit lands with 0 damage, and is a hit (FX-10).
     #[test]
-    #[available_gas(l2_gas: 23111)] // ceil(1.05 × 22010 measured)
+    #[available_gas(l2_gas: 14889)] // ceil(1.05 × 14180 measured)
     fn test_percent_floor_and_zero_hit() {
         let hit = Hit { percent: -120, weakened: true, ..sword() };
         assert(hit.percent(@goblin(), false) == -100, 'floored');
@@ -728,7 +728,7 @@ mod tests {
 
     // §6: damage at both bounds.
     #[test]
-    #[available_gas(l2_gas: 46421)] // ceil(1.05 × 44210 measured)
+    #[available_gas(l2_gas: 38199)] // ceil(1.05 × 36380 measured)
     fn test_damage_bounds() {
         let zero = HitTarget { armor: 0, ..goblin() };
         let top = Hit {
@@ -756,7 +756,7 @@ mod tests {
     // ---- FX-19: the halving ---------------------------------------------------------------------
 
     #[test]
-    #[available_gas(l2_gas: 92820)] // ceil(1.05 × 88400 measured)
+    #[available_gas(l2_gas: 84599)] // ceil(1.05 × 80570 measured)
     fn test_halve_first_heavy_hit() {
         let held = HitTarget { halve: true, health: 300, max_health: 480, ..goblin() };
         // 2 × 300 ≥ 480 and 2 × (300 − 100) < 480: halved to 50.
@@ -788,7 +788,7 @@ mod tests {
     // §10.7's point, a carrier's guard read once for every actor (FX-40), is the executor's and is
     // tested by CBT-05.
     #[test]
-    #[available_gas(l2_gas: 23100)] // ceil(1.05 × 22000 measured)
+    #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_spell_at_equal_strength_and_armor() {
         let area = Hit { class: HitClass::Spell, base: 50, strength: 60, ..sword() };
         let target = HitTarget { armor: 60, ..goblin() };
@@ -797,7 +797,7 @@ mod tests {
 
     // §10.8: a killing blow lands with its full damage; death is the executor's (steps 5–9).
     #[test]
-    #[available_gas(l2_gas: 23100)] // ceil(1.05 × 22000 measured)
+    #[available_gas(l2_gas: 15005)] // ceil(1.05 × 14290 measured)
     fn test_example_10_8() {
         let weak = HitTarget { health: 20, ..goblin() };
         assert(damage(sword(), weak) == 100, 'lands above health');
@@ -806,28 +806,28 @@ mod tests {
     // ---- What an input may not be -------------------------------------------------------------
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: base above its bound')]
     fn test_base_refused() {
         HitAssert::assert_valid(@Hit { base: MAX_BASE + 1, ..sword() }, @goblin());
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: health above max')]
     fn test_target_health_refused() {
         HitAssert::assert_valid(@sword(), @HitTarget { health: 101, ..goblin() });
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: health above max')]
     fn test_source_health_refused() {
         HitAssert::assert_valid(@Hit { health: 2, max_health: 1, ..sword() }, @goblin());
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'hit: block charges')]
     fn test_block_refused() {
         HitAssert::assert_valid(@sword(), @HitTarget { block: 64, ..goblin() });
@@ -923,7 +923,7 @@ mod tests {
     // D-140: no legal input panics; the outcome keeps §5.4's invariants.
     #[test]
     #[fuzzer(runs: 256)]
-    #[available_gas(l2_gas: 541191)] // ceil(1.05 × 515420 the most expensive run)
+    #[available_gas(l2_gas: 533106)] // ceil(1.05 × 515420 the most expensive run)
     fn test_fuzz_no_panic(seed: u64) {
         let (hit, target) = case(seed);
         match hit.resolve(@target) {
@@ -1022,7 +1022,7 @@ mod tests {
     // form), and a digest of every case and outcome: a change to a rule or to the cases fails here
     // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation).
     #[test]
-    #[available_gas(l2_gas: 961504483)] // ceil(1.05 × 915718555 measured)
+    #[available_gas(l2_gas: 961496367)] // ceil(1.05 × 915710825 measured)
     fn test_vectors() {
         let mut cases = edges();
         let mut seed: u64 = 1;

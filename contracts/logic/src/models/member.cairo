@@ -775,7 +775,7 @@ mod tests {
     // Skullring's Knocked down 2 takes the flat +1 (D = 12); every condition 1–5 lands in its
     // field and survives the words.
     #[test]
-    #[available_gas(l2_gas: 7120292)] // ceil(1.05 × 6781230 measured)
+    #[available_gas(l2_gas: 7112175)] // ceil(1.05 × 6773500 measured)
     fn test_member_apply() {
         let sheets = Fixture::sheets();
         let mut member = rending();
@@ -800,7 +800,7 @@ mod tests {
     // deadline is kept; at a larger, refreshed; Knocked down likewise; a value of 0 is clamped
     // to 1 (§6), never a cure. A cure of an absent condition changes nothing.
     #[test]
-    #[available_gas(l2_gas: 5364114)] // ceil(1.05 × 5108680 measured)
+    #[available_gas(l2_gas: 5355998)] // ceil(1.05 × 5100950 measured)
     fn test_member_apply_refresh() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -825,7 +825,7 @@ mod tests {
     // Nothing applies to a member not alive (§5.14: the entries reach living actors): at 0
     // health, or down.
     #[test]
-    #[available_gas(l2_gas: 5186717)] // ceil(1.05 × 4939730 measured)
+    #[available_gas(l2_gas: 5178600)] // ceil(1.05 × 4932000 measured)
     fn test_member_apply_not_alive() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -844,7 +844,7 @@ mod tests {
     // counts from t0 = 201 (R = 201 + 10 − 1 = 210), energy stays paid. Without an activation a
     // knock-down changes nothing but its deadline.
     #[test]
-    #[available_gas(l2_gas: 15043560)] // ceil(1.05 × 14327200 measured)
+    #[available_gas(l2_gas: 15035444)] // ceil(1.05 × 14319470 measured)
     fn test_member_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -866,7 +866,7 @@ mod tests {
     // Wait in the action phase at clocks 51 and 52 (t0 = c + 1 ≤ 53), any at 53; a weapon hit
     // on it is critical from any arc and it neither blocks nor evades through tick 53.
     #[test]
-    #[available_gas(l2_gas: 4886511)] // ceil(1.05 × 4653820 measured)
+    #[available_gas(l2_gas: 4878290)] // ceil(1.05 × 4645990 measured)
     fn test_member_knocked_predicates() {
         let mut member = Fixture::member(Fixture::spec());
         member.knocked = 53;
@@ -879,7 +879,7 @@ mod tests {
     // §3.2 row 4 (FX-15, FX-18): Crippled to D = 62, a move at clock 61 (t0 = 62) costs 2 ticks;
     // at clock 62 (t0 = 63), 1; with a `MOVEMENT` effect, 1.
     #[test]
-    #[available_gas(l2_gas: 4923366)] // ceil(1.05 × 4688920 measured)
+    #[available_gas(l2_gas: 4915145)] // ceil(1.05 × 4681090 measured)
     fn test_member_crippled_move() {
         let mut member = Fixture::member(Fixture::spec());
         assert(member.move_ticks(10, false) == 1, 'not crippled');
@@ -909,7 +909,7 @@ mod tests {
     // 32,767), with "Rending" and without a passive, activating or not, a condition held to be
     // kept or raised, alive or not (at 0 health, down).
     #[test]
-    #[available_gas(l2_gas: 36589623)] // ceil(1.05 × 34847260 measured)
+    #[available_gas(l2_gas: 36581507)] // ceil(1.05 × 34839530 measured)
     fn test_member_apply_matches_oracle() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -951,7 +951,7 @@ mod tests {
     // legal action's outcome).
     #[test]
     #[should_panic(expected: 'tick: knock-down is knock')]
-    #[available_gas(l2_gas: 4893830)] // ceil(1.05 × 4660790 measured)
+    #[available_gas(l2_gas: 4885608)] // ceil(1.05 × 4652960 measured)
     fn test_member_apply_knockdown_refused() {
         let mut member = Fixture::member(Fixture::spec());
         let none: Infliction = Default::default();
@@ -961,7 +961,7 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down member's only action is Wait).
     #[test]
-    #[available_gas(l2_gas: 5251134)] // ceil(1.05 × 5001080 measured)
+    #[available_gas(l2_gas: 5243018)] // ceil(1.05 × 4993350 measured)
     fn test_member_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -988,7 +988,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5222784)] // ceil(1.05 × 4974080 measured)
+    #[available_gas(l2_gas: 5214794)] // ceil(1.05 × 4966470 measured)
     fn test_cost_member_condition_base() {
         let (member, _sheets) = condition_cost_state();
         opaque(member);
@@ -996,7 +996,7 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 5223624)] // ceil(1.05 × 4974880 measured)
+    #[available_gas(l2_gas: 5215634)] // ceil(1.05 × 4967270 measured)
     fn test_cost_member_source_base() {
         let (member, _sheets) = condition_cost_state();
         let _source: Infliction = opaque(Default::default());
@@ -1004,7 +1004,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5242755)] // ceil(1.05 × 4993100 measured)
+    #[available_gas(l2_gas: 5234639)] // ceil(1.05 × 4985370 measured)
     fn test_cost_member_infliction() {
         let (member, _sheets) = condition_cost_state();
         opaque(member.infliction());
@@ -1012,7 +1012,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5281532)] // ceil(1.05 × 5030030 measured)
+    #[available_gas(l2_gas: 5273415)] // ceil(1.05 × 5022300 measured)
     fn test_cost_member_knock() {
         let (mut member, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1022,7 +1022,7 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; at 0 health.
     #[test]
-    #[available_gas(l2_gas: 5225220)] // ceil(1.05 × 4976400 measured)
+    #[available_gas(l2_gas: 5217104)] // ceil(1.05 × 4968670 measured)
     fn test_cost_member_idle_base() {
         let (mut member, _sheets) = condition_cost_state();
         member.clear();
@@ -1032,7 +1032,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5224044)] // ceil(1.05 × 4975280 measured)
+    #[available_gas(l2_gas: 5216054)] // ceil(1.05 × 4967670 measured)
     fn test_cost_member_zero_base() {
         let (mut member, _sheets) = condition_cost_state();
         member.health = opaque(0);
@@ -1041,7 +1041,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5281952)] // ceil(1.05 × 5030430 measured)
+    #[available_gas(l2_gas: 5273835)] // ceil(1.05 × 5022700 measured)
     fn test_cost_member_knock_idle() {
         let (mut member, sheets) = condition_cost_state();
         member.clear();
@@ -1052,7 +1052,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5257550)] // ceil(1.05 × 5007190 measured)
+    #[available_gas(l2_gas: 5249433)] // ceil(1.05 × 4999460 measured)
     fn test_cost_member_apply_crippled() {
         let (mut member, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1061,7 +1061,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5257550)] // ceil(1.05 × 5007190 measured)
+    #[available_gas(l2_gas: 5249433)] // ceil(1.05 × 4999460 measured)
     fn test_cost_member_apply_bleeding() {
         let (mut member, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1070,7 +1070,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5257970)] // ceil(1.05 × 5007590 measured)
+    #[available_gas(l2_gas: 5249853)] // ceil(1.05 × 4999860 measured)
     fn test_cost_member_apply_not_alive() {
         let (mut member, _sheets) = condition_cost_state();
         member.health = opaque(0);
@@ -1081,7 +1081,7 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    #[available_gas(l2_gas: 5318334)] // ceil(1.05 × 5065080 measured)
+    #[available_gas(l2_gas: 5310218)] // ceil(1.05 × 5057350 measured)
     fn test_cost_member_oracle() {
         let (mut member, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1092,7 +1092,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5261267)] // ceil(1.05 × 5010730 measured)
+    #[available_gas(l2_gas: 5253150)] // ceil(1.05 × 5003000 measured)
     fn test_cost_member_cure() {
         let (mut member, _sheets) = condition_cost_state();
         member.cure(opaque(condition::BLEEDING), opaque(201));
@@ -1100,7 +1100,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5234597)] // ceil(1.05 × 4985330 measured)
+    #[available_gas(l2_gas: 5226480)] // ceil(1.05 × 4977600 measured)
     fn test_cost_member_predicates() {
         let (member, _sheets) = condition_cost_state();
         let t = opaque(201);
@@ -1114,7 +1114,7 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 10879155)] // ceil(1.05 × 10361100 measured)
+    #[available_gas(l2_gas: 10871039)] // ceil(1.05 × 10353370 measured)
     fn test_member_load_store() {
         let mut spec = Fixture::spec();
         spec.conditions = [11, 12, 13, 14];
@@ -1137,7 +1137,7 @@ mod tests {
     // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
     // none.
     #[test]
-    #[available_gas(l2_gas: 5897325)] // ceil(1.05 × 5616500 measured)
+    #[available_gas(l2_gas: 5889209)] // ceil(1.05 × 5608770 measured)
     fn test_member_bar_positions() {
         let mut words = Fixture::member_words(Fixture::spec());
         // Bar slot 7 empty, slot 0 skill 8: the content lists 8 first.
@@ -1161,7 +1161,7 @@ mod tests {
 
     // AUD-182-9: the words' decoder is the member's own (`MemberTrait::hot`).
     #[test]
-    #[available_gas(l2_gas: 4915208)] // ceil(1.05 × 4681150 measured)
+    #[available_gas(l2_gas: 4906986)] // ceil(1.05 × 4673320 measured)
     fn test_member_hot() {
         let mut spec = Fixture::spec();
         spec.conditions = [11, 12, 13, 14];
@@ -1178,7 +1178,7 @@ mod tests {
     // Knocked down likewise; Crippled lives in the words; a cure at 76 gives 75; an absent
     // condition is untouched.
     #[test]
-    #[available_gas(l2_gas: 5504720)] // ceil(1.05 × 5242590 measured)
+    #[available_gas(l2_gas: 5496603)] // ceil(1.05 × 5234860 measured)
     fn test_member_conditions() {
         let mut member = Fixture::member(Fixture::spec());
         member.inflict(condition::BLEEDING, 70, 8);
@@ -1205,7 +1205,7 @@ mod tests {
     // at clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot:
     // Warcry in slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
     #[test]
-    #[available_gas(l2_gas: 7817145)] // ceil(1.05 × 7444900 measured)
+    #[available_gas(l2_gas: 7809029)] // ceil(1.05 × 7437170 measured)
     fn test_hold_eviction_and_stance() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -1231,7 +1231,7 @@ mod tests {
     // AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new
     // one on a tie; two belt slots holding the same potion item are one carrier.
     #[test]
-    #[available_gas(l2_gas: 7307717)] // ceil(1.05 × 6959730 measured)
+    #[available_gas(l2_gas: 7299600)] // ceil(1.05 × 6952000 measured)
     fn test_hold_refresh() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -1258,7 +1258,7 @@ mod tests {
     // hit (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline
     // cost (6 strikes: 24 quarters).
     #[test]
-    #[available_gas(l2_gas: 5683388)] // ceil(1.05 × 5412750 measured)
+    #[available_gas(l2_gas: 5675271)] // ceil(1.05 × 5405020 measured)
     fn test_member_adrenaline_gain() {
         let mut skills = array![];
         for id in 1..9_u16 {
@@ -1292,7 +1292,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'member: regeneration above i8')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_member_assert_pips() {
         MemberAssert::assert_pips(128);
     }

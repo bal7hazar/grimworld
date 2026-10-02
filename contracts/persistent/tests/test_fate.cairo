@@ -21,7 +21,7 @@ fn deploy_fate() -> IFateDispatcher {
 // The same transaction and domain give the same word, however many times it is asked; another
 // domain, or another transaction, gives another word.
 #[test]
-#[available_gas(l2_gas: 1014130)] // ceil(1.05 × 965838 measured)
+#[available_gas(l2_gas: 996144)] // ceil(1.05 × 948708 measured)
 fn test_fate_deterministic_per_transaction_and_domain() {
     let fate = deploy_fate();
     let loot = domain(0x100000001, 4, LOOT);
@@ -37,7 +37,7 @@ fn test_fate_deterministic_per_transaction_and_domain() {
 
 // One transaction, one word per purpose, four values each through `derive`: all distinct.
 #[test]
-#[available_gas(l2_gas: 3598462)] // ceil(1.05 × 3427106 measured)
+#[available_gas(l2_gas: 3575435)] // ceil(1.05 × 3405176 measured)
 fn test_fate_values_distinct_through_derive() {
     let fate = deploy_fate();
     start_cheat_transaction_hash(fate.contract_address, 0x7a);
@@ -64,7 +64,7 @@ fn test_fate_values_distinct_through_derive() {
 // another purpose, subject or counter is another input to Poseidon, hence another word; and the
 // same domain in another transaction is another word (the test above).
 #[test]
-#[available_gas(l2_gas: 783351)] // ceil(1.05 × 746048 measured)
+#[available_gas(l2_gas: 770404)] // ceil(1.05 × 733718 measured)
 fn test_fate_anyone_gets_only_their_domain() {
     let fate = deploy_fate();
     start_cheat_transaction_hash_global(0x7a);
@@ -80,7 +80,8 @@ fn test_fate_anyone_gets_only_their_domain() {
 // The game reaches the provider through its configuration: the address the administrator set in
 // `Hub` is the provider called.
 #[test]
-#[available_gas(l2_gas: 4941989)] // ceil(1.05 × 4754436 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 5246615)] // ceil(1.05 × 4996776 measured)
 fn test_fate_at_the_configured_address() {
     let fate = deploy_fate();
     let class = declare("Hub").unwrap().contract_class();

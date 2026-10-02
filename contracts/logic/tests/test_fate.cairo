@@ -17,7 +17,7 @@ fn all_distinct(values: Span<felt252>) -> bool {
 
 // The eight purposes are distinct, and so are their domains for one subject and counter.
 #[test]
-#[available_gas(l2_gas: 387761)] // ceil(1.05 × 369296 measured)
+#[available_gas(l2_gas: 379645)] // ceil(1.05 × 361566 measured)
 fn test_purposes_distinct() {
     let purposes = PURPOSES.span();
     assert(purposes.len() == 8, 'eight purposes');
@@ -32,7 +32,7 @@ fn test_purposes_distinct() {
 // A domain binds its subject, its counter and their order: the same purpose in another instance,
 // at another sequence, or with subject and counter swapped, is another domain.
 #[test]
-#[available_gas(l2_gas: 103709)] // ceil(1.05 × 98770 measured)
+#[available_gas(l2_gas: 95592)] // ceil(1.05 × 91040 measured)
 fn test_domain_binds_subject_and_counter() {
     let base = domain(1, 2, LOOT);
     assert(base == poseidon_hash_span(array![1, 2, LOOT].span()), 'poseidon(s, c, p)');
@@ -46,7 +46,7 @@ fn test_domain_binds_subject_and_counter() {
 
 // derive is the plain poseidon of its three inputs.
 #[test]
-#[available_gas(l2_gas: 59430)] // ceil(1.05 × 56600 measured)
+#[available_gas(l2_gas: 51314)] // ceil(1.05 × 48870 measured)
 fn test_derive_oracle() {
     let d = domain(1, 0, LOOT);
     assert(derive(0xabc, d, 0) == poseidon_hash_span(array![0xabc, d, 0].span()), 'index 0');
@@ -56,7 +56,7 @@ fn test_derive_oracle() {
 // One word, every purpose's domain, indices 0 to 3: 32 values, all distinct, and none equal to
 // the word itself or to a domain.
 #[test]
-#[available_gas(l2_gas: 3492111)] // ceil(1.05 × 3325820 measured)
+#[available_gas(l2_gas: 3483995)] // ceil(1.05 × 3318090 measured)
 fn test_derive_distinct_per_domain_and_index() {
     let word = 0x5eed;
     let mut values = array![word];
@@ -75,7 +75,7 @@ fn test_derive_distinct_per_domain_and_index() {
 // give the same value (determinism).
 #[test]
 #[fuzzer(runs: 64)]
-#[available_gas(l2_gas: 1107729)] // ceil(1.05 × 1054980 measured, the most expensive run)
+#[available_gas(l2_gas: 1099613)] // ceil(1.05 × 1054980 measured, the most expensive run)
 fn test_derive_fuzz(word: felt252, index: u32) {
     let d = domain(1, 0, LOOT);
     let value = derive(word, d, index);

@@ -91,6 +91,13 @@ difference between the Mac and Linux is reported with both figures and is not tr
 The rule is reversed when track CV finds the cause of the cross-machine difference and it is fixed
 upstream or in our builds. The programme Slingfall holds the same rule, so both read their pins alike.
 
+**Class hashes are built at CI's checkout path** (project manager, 2026-10-02, after SPK-13b, #283: the
+compiler puts the absolute build path into closure type ids, so a class's Sierra text and hash depend on
+the build root): the reference build root is CI's checkout path. A class hash is pinned only from CI's
+output, with that root path recorded beside it. A class declared on a network uses the class files built
+by CI at that root (a CI artefact), never a local worktree build. Local builds may check felts, CASM and
+gas, not class hashes.
+
 A running agent is never stopped for load. The budget was measured by FND-03 (memory does not bind;
 CPU and the shared heavy lock do) and is measured again when the contracts' test build passes 6 GB
 or when a phase runs client and contract agents together. Nexus and the project's launcher do not
@@ -263,7 +270,9 @@ verdict, findings table, coverage).
   sends transactions measures instead of looping, reports how many it sent and their cost, and every
   script that sends one **first asks the RPC for its chain id and stops unless it is `SN_SEPOLIA`**.
   Every release goes to Sepolia first; every deployment records the class hash it declared and the
-  commit (D-154). Mainnet is the owner's (D-116).
+  commit (D-154), the CI checkout root it was built at and the CI artefact (run URL and name,
+  `contract-classes-<sha>`, with its `build-root.json`) the declared class files came from (FND-12), the artefact of a push to
+  `main` (the commit on `main`), never of a pull request's run. Mainnet is the owner's (D-116).
 - **Publications on scarbs.xyz are delegated to the project manager, in the owner's name** (D-132).
   No sub-agent publishes, ever. The orchestrator asks with a committed
   `docs/decisions/PENDING-publish-<package>-<version>.md` (package, version, commit, what changed,

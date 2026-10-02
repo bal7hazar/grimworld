@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 180590)] // ceil(1.05 × 171990 measured)
+    #[available_gas(l2_gas: 172368)] // ceil(1.05 × 164160 measured)
     fn test_balance_pages() {
         assert(BalanceTrait::at(0) == (0, 0) && BalanceTrait::at(13) == (1, 6), 'at');
         assert(BalanceTrait::at(0xFFFFFFFF) == (0x24924924, 3), 'at the top');
@@ -169,7 +169,7 @@ mod tests {
 
     // A page's changes applied together, the other pages' skipped; the first change of a page.
     #[test]
-    #[available_gas(l2_gas: 149111)] // ceil(1.05 × 142010 measured)
+    #[available_gas(l2_gas: 140889)] // ceil(1.05 × 134180 measured)
     fn test_apply() {
         let changes = array![(1, 3), (8, 2), (1, 4), (15, 0)].span();
         let (page, filled, emptied) = BalanceTrait::apply(
@@ -185,21 +185,21 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'balance: not enough')]
-    #[available_gas(l2_gas: 46977)] // ceil(1.05 × 44740 measured)
+    #[available_gas(l2_gas: 38756)] // ceil(1.05 × 36910 measured)
     fn test_debit_too_much_refused() {
         BalanceTrait::debit(stored(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 7] }), 2, 4);
     }
 
     #[test]
     #[should_panic(expected: 'balance: overflow')]
-    #[available_gas(l2_gas: 47292)] // ceil(1.05 × 45040 measured)
+    #[available_gas(l2_gas: 39071)] // ceil(1.05 × 37210 measured)
     fn test_credit_overflow_refused() {
         BalanceTrait::credit(stored(Lanes32 { lanes: [1, 2, 3, 4, 5, 6, 0xFFFFFFFF] }), 6, 1);
     }
 
     // The belt's slots merged: one change per distinct item, counts summed, empty slots skipped.
     #[test]
-    #[available_gas(l2_gas: 544488)] // ceil(1.05 × 518560 measured)
+    #[available_gas(l2_gas: 536267)] // ceil(1.05 × 510730 measured)
     fn test_belt_merge() {
         assert(BalanceTrait::merge([4, 9, 4, 4], [1, 2, 3, 0]) == array![(4, 4), (9, 2)], 'merged');
         assert(BalanceTrait::merge([4, 4, 4, 4], [0, 0, 0, 5]) == array![(4, 5)], 'last slot');
