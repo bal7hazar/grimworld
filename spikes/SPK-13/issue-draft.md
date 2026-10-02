@@ -3,9 +3,14 @@
 > Prepared by SPK-13; **not filed**. Filing it is the owner's decision (D-154 §3). Everything
 > below the line is the issue's text, written to be pasted as is.
 >
-> D-180 (2026-10-01): re-tested on Scarb 2.20.1 (Cairo 2.20.0), the latest Scarb; the drift
+> D-180 (2026-10-01): re-tested on Scarb 2.20.1 (Cairo 2.20.0), the latest 2.20 release; the drift
 > remains there, with the same code at tag v2.20.0 (and v2.19.6). Both versions and their output
 > are in the text below.
+>
+> Maintainer note (not part of the issue): the second observation confirms #10358, whose fix
+> #10359 (f9347a8, 2026-09-03) is on upstream `main`. Before filing, check which release first
+> ships f9347a8, starting with Scarb v2.19.5 (17 Sep 2026) and v2.19.6 (28 Sep 2026), both released
+> after f9347a8 was merged, and whether the thread-order drift still reproduces there; the owner decides.
 
 ---
 
@@ -175,7 +180,7 @@ ecdb2df475027c55 withdraw_gas in: spk13_minimal::ping
 
 On both versions, on several threads, the gas check moves between `ping` and `pong` from one build
 to the next (5 / 7 builds on 2.19.4, 6 / 6 on 2.20.1), and the file differs on every build (it also writes the numeric intern id beside
-each debug name). On one thread the file is identical, byte for byte. Earlier series on the same
+each debug name). On one thread the file is identical, byte for byte, when built from the same directory. Earlier series on the same
 machine: 9 / 11 out of 20 builds, and 16 / 4 out of 20 while another build loaded the machine;
 `RAYON_NUM_THREADS=1`, 10 out of 10 identical.
 
@@ -216,13 +221,34 @@ the output would need the same treatment.
 
 ### A second observation, not part of the reproduction
 
-Besides the thread-order drift above, some artefacts (one contract class, one library program and some test builds) of
-a larger private project gave a different Sierra text on macOS arm64 and on x86_64 Linux (a
-different class hash, for the class), with the same commit, the same `Scarb.lock` and the same
-Scarb version, even with `RAYON_NUM_THREADS=1`. Each machine was stable on its own, and the contract
-class's CASM was the same on both. The cause was not investigated. It is offered as
-an observation only: it is not reproduced by the program in this issue and is not a claim about
-this report's cause.
+A different cause, independent of threads, and a known one: the closure-path bug of #10358
+(absolute paths in closure type names). It is **still present in Scarb 2.19.4 (measured here) and 2.20.1 (per #10358's own sweep)**. Its
+fix, #10359 (f9347a8, "Name generated functions by a rustc-style path instead of their source
+location"), is on upstream `main` and was merged after both of those releases.
+
+The compiler names a closure type `{closure@<root>/src/lib.cairo:L:C: L:C}` (`<root>` is the
+absolute path of the package's folder) and gives it the Sierra user-type id
+`ut@[starknet_keccak(name)]`. The id is a type of the program, so the build directory is in the
+Sierra text and in the class hash. Minimal description (not reduced to a standalone package for
+this issue): a contract whose code contains one closure, bound to a local and called directly; the
+same commit, `Scarb.lock`, Scarb version and `RAYON_NUM_THREADS=1`, built from two different
+directories, gives two Sierra texts and two class hashes. An artefact is affected exactly when it
+holds a closure type; the other artefacts of the same workspace had the same Sierra text at every
+path (two of them had varying file bytes with equal text).
+
+Evidence, from a larger private project (51 artefacts, Scarb 2.19.4, `RAYON_NUM_THREADS=1`): 7
+artefacts held a closure type (one contract class, one program and the test builds that contain
+it). Built at four different absolute paths on x86_64 Linux, those 7 gave four different Sierra
+texts and file hashes, with the class hash of the contract class changing too. With the root
+replaced by a placeholder in every closure name and each id recomputed, the texts of the builds at
+two Linux paths and at two macOS paths were equal, one text per artefact; a third Linux path
+matched the text predicted this way before it was built. A Linux build also predicts the macOS
+Sierra text exactly when the macOS root is put in (macOS rewrites `/tmp` to `/private/tmp`, so no
+literal equal path was built). So the platform is not the cause: the macOS/Linux difference first
+seen in that project was a difference of build paths, and it was the whole of it. What changes with
+the path: the file bytes, the Sierra text hash and the class hash. What does not: the Sierra felt
+count, the CASM felts and the CASM hash (the id is one felt at any path length, and the path does
+not reach the CASM).
 
 ### Workaround
 
@@ -231,4 +257,5 @@ Build with `RAYON_NUM_THREADS=1` (slower; no parallel warm-up).
 ### Related
 
 - #10358 (absolute paths in closure type names broke deterministic compilation): another
-  reproducibility bug, fixed; the thread-order drift is independent of paths.
+  reproducibility bug, fixed upstream by #10359 (f9347a8, after Scarb 2.20.1); still present in
+  2.19.4 (measured here) and 2.20.1 (per #10358's own sweep), see the second observation. The thread-order drift is independent of paths.

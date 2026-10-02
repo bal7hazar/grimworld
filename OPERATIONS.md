@@ -91,6 +91,13 @@ difference between the Mac and Linux is reported with both figures and is not tr
 The rule is reversed when track CV finds the cause of the cross-machine difference and it is fixed
 upstream or in our builds. The programme Slingfall holds the same rule, so both read their pins alike.
 
+**Class hashes are built at CI's checkout path** (project manager, 2026-10-02, after SPK-13b, #283: the
+compiler puts the absolute build path into closure type ids, so a class's Sierra text and hash depend on
+the build root): the reference build root is CI's checkout path. A class hash is pinned only from CI's
+output, with that root path recorded beside it. A class declared on a network uses the class files built
+by CI at that root (a CI artefact), never a local worktree build. Local builds may check felts, CASM and
+gas, not class hashes.
+
 A running agent is never stopped for load. The budget was measured by FND-03 (memory does not bind;
 CPU and the shared heavy lock do) and is measured again when the contracts' test build passes 6 GB
 or when a phase runs client and contract agents together. Nexus and the project's launcher do not
