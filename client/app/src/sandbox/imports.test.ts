@@ -169,4 +169,20 @@ describe("placeholders.ts", () => {
     const text = sources["./placeholders.ts"] ?? "";
     expect(text).not.toMatch(/Math\.random|Date\.|performance\.now|crypto\./);
   });
+
+  it("the shell imports no rule, no account and no chain (CV-03)", () => {
+    const shell = Object.entries(sources).filter(([path]) => path.startsWith("../shell/"));
+    expect(shell.map(([path]) => path)).toContain("../shell/deviceState.ts");
+    for (const [path, text] of shell) {
+      const specifiers = [...text.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map(
+        (m) => m[1] ?? "",
+      );
+      for (const specifier of specifiers) {
+        expect(specifier, path).not.toMatch(
+          /client\/sim|@grimworld\/sim|\/account(\/|$)|\/chain(\.ts)?$/,
+        );
+        expect(specifier, path).not.toMatch(/placeholders|sandbox/);
+      }
+    }
+  });
 });
