@@ -1,6 +1,6 @@
 # Draft issue for `starkware-libs/cairo`
 
-> Prepared by SPK-13; **not filed**. Filing it is the owner's decision (D-154 §3). Everything
+> Prepared by SPK-13. Filed as https://github.com/starkware-libs/cairo/issues/10434, 2026-10-02, from bal7hazar (filing was the owner's decision, D-154 §3). Everything
 > below the line is the issue's text, written to be pasted as is.
 >
 > D-180 (2026-10-01): re-tested on Scarb 2.20.1 (Cairo 2.20.0), the latest 2.20 release; the drift
@@ -11,6 +11,8 @@
 > #10359 (f9347a8, 2026-09-03) is on upstream `main`. Before filing, check which release first
 > ships f9347a8, starting with Scarb v2.19.5 (17 Sep 2026) and v2.19.6 (28 Sep 2026), both released
 > after f9347a8 was merged, and whether the thread-order drift still reproduces there; the owner decides.
+>
+> Answered 2026-10-02: no released Scarb carries f9347a8 (checked by the Overseer).
 
 ---
 
