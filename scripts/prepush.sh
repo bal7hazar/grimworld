@@ -107,11 +107,20 @@ gas_check() {
     python3 scripts/gas_budgets.py --check --no-lock
   fi
 }
-# pnpmrun <command...>: through the project lock where there is flock.
+# pnpmrun <command...>: through the project lock where there is flock, waiting at most lock_wait seconds.
 pnpmrun() {
-  if [ "$have_flock" = 1 ]; then scripts/lock.sh pnpm "$@"; else pnpm "$@"; fi
+  if [ "$have_flock" = 1 ]; then scripts/lock.sh --wait "$lock_wait" pnpm "$@"; else pnpm "$@"; fi
+}
+# vectors/check.py takes the lock through scripts/lock.sh when GRIMWORLD_LOCK_WAIT is set.
+vectors_check() {
+  if [ "$have_flock" = 1 ]; then
+    GRIMWORLD_LOCK_WAIT=$lock_wait python3 contracts/logic/vectors/check.py
+  else
+    python3 contracts/logic/vectors/check.py
+  fi
 }
 
+gas_docs_re='^docs/BUDGETS\.md$|^contracts/.*/GAS\.md$|^scripts/gas_budgets\.py$'
 vectors_re='^contracts/logic/(src/|vectors/|Scarb\.toml$|Scarb\.lock$)|^contracts/Scarb\.(toml|lock)$|^\.tool-versions$'
 
 # Cairo packages: the nearest Scarb.toml of each touched Cairo file (the contracts workspace is one
@@ -165,9 +174,9 @@ for d in $packages; do
 done
 
 # Generated artefacts, only when their inputs changed.
-if [ "$built" = 1 ] || { [ "$lock_busy" = 0 ] && touched '^docs/BUDGETS\.md$|^contracts/.*/GAS\.md$|^scripts/gas_budgets\.py$'; }; then
+if [ "$built" = 1 ] || { [ "$lock_busy" = 0 ] && touched "$gas_docs_re"; }; then
   step "gas_budgets.py --check" gas_check
-elif [ "$lock_busy" = 1 ] && touched '^contracts/'; then
+elif [ "$lock_busy" = 1 ] && { touched '^contracts/' || touched "$gas_docs_re"; }; then
   skip "gas_budgets.py --check"
 fi
 if [ "$built" = 1 ]; then
@@ -175,7 +184,7 @@ if [ "$built" = 1 ]; then
 fi
 if touched "$vectors_re"; then
   if [ "$built" = 1 ] && [ "$lock_busy" = 0 ]; then
-    step "vectors check.py" python3 contracts/logic/vectors/check.py
+    step "vectors check.py" vectors_check
   elif [ "$lock_busy" = 1 ]; then
     skip "vectors check.py"
   fi
