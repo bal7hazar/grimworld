@@ -11,7 +11,11 @@ account, no chain and no network (CLI-01, SPK-6.2). **Android is not built** (D-
 - `ios/`: the Xcode project `cap add ios` generated, with Swift Package Manager (`CapApp-SPM`).
 - `src/shell/deviceState.ts`: `readDeviceState()` (the thermal state, the battery level and state,
   Low Power Mode, read by the native `DeviceState` plugin; `null` in a browser) and
-  `onThermalChange()`. No polling: read at start and stop, and on each change.
+  `onThermalChange()`. No polling: read at start and stop, and on each change. `readDeviceState()`
+  rejects when the native read fails: its caller handles the rejection.
+- `src/shell/startLog.ts`: `logShellStart()`, called by `src/main.tsx`, writes the page's
+  `[shell] start {"href":…,"state":{…}}` line once at start and `[shell] thermalChange <state>` on
+  each change, in the shell only (nothing in a browser).
 
 ## Commands
 
@@ -48,9 +52,14 @@ xcrun simctl launch --console-pty booted com.example.grimworld \
 
 - `-startQuery` (Debug builds only) gives the sandbox its URL parameters, as `?fixture=…` does in
   Safari (protocol §2.3). Without it the app opens on `capacitor://localhost/`.
-- `--console-pty` shows the app's output: Capacitor's lines (`⚡️ [info] - …`, the page's console)
+- `--console-pty` shows the app's output: the page's console as Capacitor forwards it
+  (`⚡️  [log] - [shell] start {…}`, `⚡️  [log] - [shell] thermalChange …`, the sandbox's own lines),
   and the native `[shell] native start inspectable=… scrollEnabled=… state=…` line, which is also
   in the system log (`xcrun simctl spawn booted log show --last 2m --predicate 'process == "App"'`).
+- The atlas: after `shell:build` the app serves `dist/art/` at `/art/`, as the dev server does, and
+  the sandbox draws the sprites (the debug panel, `panel=1`, says `atlas: loaded`). After
+  `shell:sync` it logs `[sandbox] no atlas at /art/: drawing shapes` and draws shapes. No capture
+  of a screen with the atlas leaves the Mac (D-73).
 - Safari's Web Inspector: Safari, Develop, the simulator, then the app's page.
 
 ## The owner's iPhone 14 (the owner, who signs)

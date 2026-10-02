@@ -19,7 +19,9 @@ const browserLoaders: AtlasLoaders = {
     // A server without the art may answer with its HTML page: not an index.
     return response.json().catch(() => null);
   },
-  loadSheet: (url) => Assets.load<Spritesheet>(url),
+  // Absolute, resolved against the page: PixiJS resolves a path from the root against an
+  // http(s) origin only, so in the iOS shell `/art/…` would become `capacitor://art/…` (CV-03).
+  loadSheet: (url) => Assets.load<Spritesheet>(new URL(url, document.baseURI).href),
 };
 
 /**

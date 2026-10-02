@@ -54,7 +54,10 @@ export function toDeviceState(raw: Record<string, unknown>): DeviceState | null 
   return { thermal, battery, charging, lowPower: raw.lowPower };
 }
 
-/** The device state, or null outside the native shell. */
+/**
+ * The device state, or null outside the native shell. Rejects when the native read fails: the
+ * caller handles the rejection (`main.tsx` logs it).
+ */
 export async function readDeviceState(
   bridge: ShellBridge = nativeBridge,
 ): Promise<DeviceState | null> {
