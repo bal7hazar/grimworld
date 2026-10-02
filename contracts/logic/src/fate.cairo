@@ -41,3 +41,108 @@ pub fn domain(subject: felt252, counter: felt252, purpose: felt252) -> felt252 {
 pub fn derive(word: felt252, domain: felt252, index: u32) -> felt252 {
     poseidon_hash_span([word, domain, index.into()].span())
 }
+
+/// The vector table for the TypeScript mirror (VEC-01) is printed by `tests::test_vectors` and kept
+/// in `contracts/logic/vectors/fate.jsonl` (`vectors/README.md`).
+#[cfg(test)]
+mod tests {
+    use core::poseidon::poseidon_hash_span;
+    use crate::packing::LIVE;
+    use super::{PURPOSES, derive, domain};
+
+    fn hex(felts: Span<felt252>) -> ByteArray {
+        let mut out: ByteArray = "[";
+        let mut first = true;
+        for felt in felts {
+            if !first {
+                out.append(@",");
+            }
+            first = false;
+            let wide: u256 = (*felt).into();
+            out.append(@format!("\"0x{:x}\"", wide));
+        }
+        out.append(@"]");
+        out
+    }
+
+    /// Prints one vector and adds it to the digest.
+    fn emit(
+        ref digest: Array<felt252>,
+        ref id: u32,
+        name: ByteArray,
+        case: Span<felt252>,
+        ok: Span<felt252>,
+    ) {
+        println!("{{\"id\":{},\"fn\":\"{}\",\"case\":{},\"ok\":{}}}", id, name, hex(case), hex(ok));
+        digest.append(poseidon_hash_span(case));
+        digest.append(poseidon_hash_span(ok));
+        id += 1;
+    }
+
+    // The last felt below the field's prime, `P - 1`.
+    const MAX: felt252 = -1;
+    const TWO_POW_32: felt252 = 0x100000000;
+    const TWO_POW_64: felt252 = 0x10000000000000000;
+    const TWO_POW_128: felt252 = 0x100000000000000000000000000000000;
+
+    // The vector table, one JSON line per case (`{"id", "fn", "case", "ok"}`), and a digest of
+    // every case and outcome: a change to a derivation or to the cases fails here until
+    // `contracts/logic/vectors/fate.jsonl` is regenerated.
+    #[test]
+    #[available_gas(l2_gas: 447769148)] // ceil(1.05 × 426446807 measured)
+    fn test_vectors() {
+        let mut digest: Array<felt252> = array![];
+        let mut id: u32 = 0;
+        // The purposes, by index.
+        let mut i: felt252 = 0;
+        for purpose in PURPOSES.span() {
+            emit(ref digest, ref id, "purpose", [i].span(), [*purpose].span());
+            i += 1;
+        }
+        // `domain`: every purpose over a spread of subjects and counters.
+        let pairs: [(felt252, felt252); 8] = [
+            (0, 0), (1, 0), (0, 1), (MAX, MAX), (TWO_POW_128, TWO_POW_64), (0xabc, 255),
+            (LIVE, TWO_POW_32), (2, 0xffffffff),
+        ];
+        for purpose in PURPOSES.span() {
+            for pair in pairs.span() {
+                let (subject, counter) = *pair;
+                let ok = domain(subject, counter, *purpose);
+                emit(
+                    ref digest, ref id, "domain", [subject, counter, *purpose].span(), [ok].span(),
+                );
+            }
+        }
+        // `domain`: the grid of subjects and counters under one purpose.
+        let subjects: [felt252; 8] = [0, 1, 2, 0xabc, TWO_POW_64, TWO_POW_128, LIVE, MAX];
+        let counters: [felt252; 7] = [0, 1, 2, 255, TWO_POW_32, TWO_POW_64, MAX];
+        let entry = *PURPOSES.span()[0];
+        for subject in subjects.span() {
+            for counter in counters.span() {
+                let ok = domain(*subject, *counter, entry);
+                emit(ref digest, ref id, "domain", [*subject, *counter, entry].span(), [ok].span());
+            }
+        }
+        // `derive`: words, domains and indices at their edges.
+        let words: [felt252; 5] = [0, 1, 0x123456789, TWO_POW_128, MAX];
+        let domains: [felt252; 3] = [0, domain(1, 0, entry), MAX];
+        let indices: [u32; 6] = [0, 1, 7, 255, 65535, 0xffffffff];
+        for word in words.span() {
+            for dom in domains.span() {
+                for index in indices.span() {
+                    let ok = derive(*word, *dom, *index);
+                    let index_felt: felt252 = (*index).into();
+                    emit(
+                        ref digest, ref id, "derive", [*word, *dom, index_felt].span(), [ok].span(),
+                    );
+                }
+            }
+        }
+        let digest = poseidon_hash_span(digest.span());
+        println!("digest {}", digest);
+        assert(digest == DIGEST, 'vectors moved: regenerate');
+    }
+
+    const DIGEST: felt252 =
+        3474069607777092078014837612374645396392313416994272855124942792786643125445;
+}
