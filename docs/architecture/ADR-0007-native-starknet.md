@@ -24,7 +24,7 @@ no Torii, no dojo.js.**
 |---|---|---|
 | Contracts | Dojo world, models, systems | Starknet contracts and components (`#[starknet::contract]`, `#[starknet::component]`) |
 | State | Dojo models, written through the world | Contract storage, packed explicitly (docs/CAIRO.md §4, §5) |
-| Compiler | Cairo 2.13 (Scarb 2.13.1, snforge 0.51.2) | **Cairo 2.19** (Scarb 2.19.4, snforge 0.61), the toolchain of the owner's libraries; exact pins by SPK-5b |
+| Compiler | Cairo 2.13 (Scarb 2.13.1, snforge 0.51.2) | **Cairo 2.19** (Scarb 2.19.4, snforge 0.61), the toolchain of the owner's libraries; exact pins by SPK-5b. **Moved to Cairo 2.20 (Scarb 2.20.1, snforge 0.64.0) by FND-11, D-180** |
 | Permissions | Dojo's owners and writers | Ours: who may call what, written and audited (§ Access control) |
 | Deployment | `sozo migrate` | Declare and deploy scripts of our own (OPS-01) |
 | Local network | Katana, through sozo | A local Starknet node that accepts the classes of Cairo 2.19: chosen by SPK-5b |

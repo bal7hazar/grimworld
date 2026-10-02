@@ -55,7 +55,7 @@ mod tests {
 
     // Both fields at their widest come back whole; 0 is both at 0.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_versions_round_trip() {
         let widest = Versions { content: 0xffffffff, inputs: 0xffffffff };
         assert(StorePacking::unpack(StorePacking::pack(widest)) == widest, 'widest');
@@ -67,7 +67,7 @@ mod tests {
 
     // A changed record raises the content version; the inputs version only for an input.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_versions_raised() {
         let v = Versions { content: 7, inputs: 3 };
         assert(v.raised(false) == Versions { content: 8, inputs: 3 }, 'not an input');
@@ -75,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 16086)] // ceil(1.05 × 15320 measured)
+    #[available_gas(l2_gas: 7991)] // ceil(1.05 × 7610 measured)
     #[should_panic]
     fn test_versions_inputs_overflow() {
         Versions { content: 0, inputs: 0xffffffff }.raised(true);

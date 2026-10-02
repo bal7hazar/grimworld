@@ -558,7 +558,7 @@ mod tests {
     // member's kit lengthens its own condition and the knock-down (Bleeding 20 +33 %: 26 ticks,
     // D = 35; Knocked down 2 + 1: D = 12); no passive, the value itself.
     #[test]
-    #[available_gas(l2_gas: 1068638)] // ceil(1.05 × 1017750 measured)
+    #[available_gas(l2_gas: 1060521)] // ceil(1.05 × 1010020 measured)
     fn test_goblin_apply() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -581,7 +581,7 @@ mod tests {
     // a cure gives `t0 − 1`, an absent condition's cure nothing; a dead goblin takes nothing,
     // neither a condition nor a cure.
     #[test]
-    #[available_gas(l2_gas: 928389)] // ceil(1.05 × 884180 measured)
+    #[available_gas(l2_gas: 920273)] // ceil(1.05 × 876450 measured)
     fn test_goblin_apply_refresh_cure() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -611,7 +611,7 @@ mod tests {
     // at clock 51 knocks the Hobgoblin down for 2 ticks, t0 = 52: D = 53, the field none, R =
     // 52 + 10 − 1 = 61. A recovering goblin knocked down keeps its recovery (not an activation).
     #[test]
-    #[available_gas(l2_gas: 944360)] // ceil(1.05 × 899390 measured)
+    #[available_gas(l2_gas: 936243)] // ceil(1.05 × 891660 measured)
     fn test_goblin_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -632,7 +632,7 @@ mod tests {
     // goblin acts at 54 alone: D and D + 1); through 53 a weapon hit on it is critical from any
     // arc and it neither blocks nor evades.
     #[test]
-    #[available_gas(l2_gas: 6224350)] // ceil(1.05 × 5927952 measured)
+    #[available_gas(l2_gas: 6216339)] // ceil(1.05 × 5920322 measured)
     fn test_goblin_knocked_predicates() {
         let mut goblin = Fixture::goblin(40, HOB);
         goblin.knocked = 53;
@@ -649,7 +649,7 @@ mod tests {
     // recovers until B = 63 (it skips step 2 of tick 63); at 63, a move costs 1; with a
     // `MOVEMENT` effect, 1 (FX-18).
     #[test]
-    #[available_gas(l2_gas: 340536)] // ceil(1.05 × 324320 measured)
+    #[available_gas(l2_gas: 332315)] // ceil(1.05 × 316490 measured)
     fn test_goblin_crippled_move() {
         let mut goblin = Fixture::goblin(9, RUNT);
         goblin.set_crippled(62);
@@ -679,7 +679,7 @@ mod tests {
     // goblin on every condition, at the values 1, 20, 0 and 40,000, with "Rending" and without,
     // activating, recovering, a condition held to be kept or raised, and dead.
     #[test]
-    #[available_gas(l2_gas: 23396016)] // ceil(1.05 × 22281920 measured)
+    #[available_gas(l2_gas: 23387900)] // ceil(1.05 × 22274190 measured)
     fn test_goblin_apply_matches_oracle() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -720,7 +720,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'tick: knock-down is knock')]
-    #[available_gas(l2_gas: 298988)] // ceil(1.05 × 284750 measured)
+    #[available_gas(l2_gas: 290892)] // ceil(1.05 × 277040 measured)
     fn test_goblin_apply_knockdown_refused() {
         let mut goblin = Fixture::goblin(9, HOB);
         let none: Infliction = Default::default();
@@ -730,7 +730,7 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down goblin skips step 2).
     #[test]
-    #[available_gas(l2_gas: 649121)] // ceil(1.05 × 618210 measured)
+    #[available_gas(l2_gas: 641004)] // ceil(1.05 × 610480 measured)
     fn test_goblin_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -753,7 +753,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 621243)] // ceil(1.05 × 591660 measured)
+    #[available_gas(l2_gas: 613253)] // ceil(1.05 × 584050 measured)
     fn test_cost_goblin_condition_base() {
         let (goblin, _sheets) = condition_cost_state();
         opaque(goblin);
@@ -761,7 +761,7 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 622083)] // ceil(1.05 × 592460 measured)
+    #[available_gas(l2_gas: 614093)] // ceil(1.05 × 584850 measured)
     fn test_cost_goblin_source_base() {
         let (goblin, _sheets) = condition_cost_state();
         let _source: Infliction = opaque(Default::default());
@@ -770,7 +770,7 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; dead.
     #[test]
-    #[available_gas(l2_gas: 622503)] // ceil(1.05 × 592860 measured)
+    #[available_gas(l2_gas: 614513)] // ceil(1.05 × 585250 measured)
     fn test_cost_goblin_idle_base() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.clear();
@@ -780,7 +780,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 622503)] // ceil(1.05 × 592860 measured)
+    #[available_gas(l2_gas: 614513)] // ceil(1.05 × 585250 measured)
     fn test_cost_goblin_dead_base() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.ai = opaque(ai::DEAD);
@@ -789,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 669648)] // ceil(1.05 × 637760 measured)
+    #[available_gas(l2_gas: 661532)] // ceil(1.05 × 630030 measured)
     fn test_cost_goblin_knock() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -798,7 +798,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 670068)] // ceil(1.05 × 638160 measured)
+    #[available_gas(l2_gas: 661952)] // ceil(1.05 × 630430 measured)
     fn test_cost_goblin_knock_idle() {
         let (mut goblin, sheets) = condition_cost_state();
         goblin.clear();
@@ -809,7 +809,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 652754)] // ceil(1.05 × 621670 measured)
+    #[available_gas(l2_gas: 644637)] // ceil(1.05 × 613940 measured)
     fn test_cost_goblin_apply_crippled() {
         let (mut goblin, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -818,7 +818,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 652754)] // ceil(1.05 × 621670 measured)
+    #[available_gas(l2_gas: 644637)] // ceil(1.05 × 613940 measured)
     fn test_cost_goblin_apply_bleeding() {
         let (mut goblin, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -827,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 653174)] // ceil(1.05 × 622070 measured)
+    #[available_gas(l2_gas: 645057)] // ceil(1.05 × 614340 measured)
     fn test_cost_goblin_apply_dead() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.ai = opaque(ai::DEAD);
@@ -838,7 +838,7 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    #[available_gas(l2_gas: 701904)] // ceil(1.05 × 668480 measured)
+    #[available_gas(l2_gas: 693788)] // ceil(1.05 × 660750 measured)
     fn test_cost_goblin_oracle() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -849,7 +849,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 655179)] // ceil(1.05 × 623980 measured)
+    #[available_gas(l2_gas: 647063)] // ceil(1.05 × 616250 measured)
     fn test_cost_goblin_cure() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.cure(opaque(condition::BLEEDING), opaque(52));
@@ -857,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 631617)] // ceil(1.05 × 601540 measured)
+    #[available_gas(l2_gas: 623501)] // ceil(1.05 × 593810 measured)
     fn test_cost_goblin_predicates() {
         let (goblin, _sheets) = condition_cost_state();
         let t = opaque(52);
@@ -871,7 +871,7 @@ mod tests {
     // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank; its
     // caste's position and cap, its kit's.
     #[test]
-    #[available_gas(l2_gas: 908639)] // ceil(1.05 × 865370 measured)
+    #[available_gas(l2_gas: 900522)] // ceil(1.05 × 857640 measured)
     fn test_goblin_load() {
         let caste = CasteSheet {
             id: 3,
@@ -906,7 +906,7 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 1072145)] // ceil(1.05 × 1021090 measured)
+    #[available_gas(l2_gas: 1064028)] // ceil(1.05 × 1013360 measured)
     fn test_goblin_load_store() {
         let content = Fixture::content();
         // Caste 2, level 10.
@@ -931,7 +931,7 @@ mod tests {
     // A caste skill missing from the content is refused when a goblin of the caste loads.
     #[test]
     #[should_panic(expected: 'tick: skill not in content')]
-    #[available_gas(l2_gas: 454724)] // ceil(1.05 × 433070 measured)
+    #[available_gas(l2_gas: 446607)] // ceil(1.05 × 425340 measured)
     fn test_goblin_load_missing_skill() {
         let content = Content {
             skills: array![Fixture::skill(24, skill_kind::ATTACK, 3, 10)].span(),
@@ -947,7 +947,7 @@ mod tests {
 
     // AUD-182-9: the words' decoder is the goblin's own (`GoblinTrait::hot`).
     #[test]
-    #[available_gas(l2_gas: 341334)] // ceil(1.05 × 325080 measured)
+    #[available_gas(l2_gas: 333113)] // ceil(1.05 × 317250 measured)
     fn test_goblin_hot() {
         let goblin = Fixture::goblin(8, RUNT);
         let (state_ai, health, _, _, caste, slot, _, _, _, _, _, _, _, level, _, _) =
@@ -961,7 +961,7 @@ mod tests {
     // AUD-182-6, conditions (§5.7, FX-6): a dead goblin takes nothing; Crippled lives in the
     // words.
     #[test]
-    #[available_gas(l2_gas: 613484)] // ceil(1.05 × 584270 measured)
+    #[available_gas(l2_gas: 605262)] // ceil(1.05 × 576440 measured)
     fn test_goblin_conditions() {
         let mut dead = Fixture::goblin(8, HOB);
         dead.ai = ai::DEAD;
@@ -975,7 +975,7 @@ mod tests {
 
     // AUD-182-6, a goblin's one slot (FX-30, FX-13): refreshed by its carrier, replaced by another.
     #[test]
-    #[available_gas(l2_gas: 707606)] // ceil(1.05 × 673910 measured)
+    #[available_gas(l2_gas: 699489)] // ceil(1.05 × 666180 measured)
     fn test_goblin_hold() {
         let sheets = Fixture::hold_content().sheets();
         let mut goblin = Fixture::goblin(8, HOB);
@@ -990,7 +990,7 @@ mod tests {
     // AUD-182-6, adrenaline (§5.12, FX-12): a goblin's gains capped at its caste's, at most 252;
     // a dead goblin gains nothing.
     #[test]
-    #[available_gas(l2_gas: 486182)] // ceil(1.05 × 463030 measured)
+    #[available_gas(l2_gas: 478065)] // ceil(1.05 × 455300 measured)
     fn test_goblin_adrenaline_gain() {
         let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);
         heavy.adrenaline = 63;
@@ -1021,7 +1021,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'goblin: regeneration above i8')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_goblin_assert_pips() {
         GoblinAssert::assert_pips(-129);
     }

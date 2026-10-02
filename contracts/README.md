@@ -1,6 +1,6 @@
 # contracts
 
-The game's Starknet contracts: plain Cairo 2.19 (Scarb 2.19.4, snforge 0.61), **no Dojo**
+The game's Starknet contracts: plain Cairo 2.20 (Scarb 2.20.1, snforge 0.64), **no Dojo**
 ([ADR-0007](../docs/architecture/ADR-0007-native-starknet.md)): there is no world, no `sozo`, no
 Torii and no namespace, so no `dojo` package or `dojo_dev.toml` here. The pins are in
 `.tool-versions` at the root; run `scripts/setup-toolchain.sh` if a tool is missing.
@@ -68,7 +68,7 @@ one dispatcher call carrying the list of results.
 
 ## Build and test
 
-From the repository root, always through the build lock (Scarb 2.19: `--manifest-path` comes
+From the repository root, always through the build lock (Scarb 2.19 and later: `--manifest-path` comes
 before the subcommand):
 
 ```

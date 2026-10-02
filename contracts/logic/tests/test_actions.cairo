@@ -13,7 +13,7 @@ fn ten() -> Array<Action> {
 
 // Every kind, every argument at its widest, ten actions: decoding gives them back in order.
 #[test]
-#[available_gas(l2_gas: 386778)] // ceil(1.05 × 368360 measured)
+#[available_gas(l2_gas: 378557)] // ceil(1.05 × 360530 measured)
 fn test_batch_round_trip() {
     let actions = ten();
     let word = encode_batch(actions.span()).unwrap();
@@ -22,7 +22,7 @@ fn test_batch_round_trip() {
 
 // The layout pinned: count at bits 0-3, action i at 4 + 24 i (i < 5), then 128 + 24 (i - 5).
 #[test]
-#[available_gas(l2_gas: 126641)] // ceil(1.05 × 120610 measured)
+#[available_gas(l2_gas: 118419)] // ceil(1.05 × 112780 measured)
 fn test_batch_layout() {
     // Move East = 0; Attack 9 = 3 + 9 × 8; Skill slot 2 on tile 300 = 4 + 2 × 8 + 64 + 300 ×
     // 128;
@@ -46,7 +46,7 @@ fn test_batch_layout() {
 
 // One encoding per batch: counts out of 1-10, bits beyond the count, bad arguments are refused.
 #[test]
-#[available_gas(l2_gas: 107846)] // ceil(1.05 × 102710 measured)
+#[available_gas(l2_gas: 99624)] // ceil(1.05 × 94880 measured)
 fn test_batch_refusals() {
     assert(encode_batch(array![].span()).is_none(), 'empty encoded');
     let mut eleven = ten();
@@ -67,7 +67,7 @@ fn test_batch_refusals() {
 // The encoder refuses what the decoder refuses: a direction above 5, a bar slot above 7, a belt
 // slot above 3 (fix loop 1, F-10); one bad action refuses the whole batch.
 #[test]
-#[available_gas(l2_gas: 42504)] // ceil(1.05 × 40480 measured)
+#[available_gas(l2_gas: 34409)] // ceil(1.05 × 32770 measured)
 fn test_encoder_refusals() {
     assert(encode_action(Action::Move(6)).is_none(), 'move 6');
     assert(encode_action(Action::Turn(255)).is_none(), 'turn 255');

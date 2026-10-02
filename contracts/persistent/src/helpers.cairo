@@ -45,7 +45,7 @@ mod tests {
     use super::BitTrait;
 
     #[test]
-    #[available_gas(l2_gas: 4165581)] // ceil(1.05 × 3967220 measured)
+    #[available_gas(l2_gas: 4157360)] // ceil(1.05 × 3959390 measured)
     fn test_pow2_and_bits() {
         let mut expected: u128 = 1;
         for n in 0..128_u8 {

@@ -580,7 +580,7 @@ mod layout_tests {
 
     #[test]
     // gas: raised, CBT-02e: the layout checks the snapshots' and flatten's addresses
-    #[available_gas(l2_gas: 285758)] // ceil(1.05 × 272150 measured)
+    #[available_gas(l2_gas: 277641)] // ceil(1.05 × 264420 measured)
     fn test_hub_storage_addresses() {
         let state = @Hub::contract_state_for_testing();
         assert(
@@ -717,7 +717,8 @@ mod tests {
     // Nine ids on two pages; removals of a hole on the first page, of the last id, of a hole on
     // the final page.
     #[test]
-    #[available_gas(l2_gas: 3074358)] // ceil(1.05 × 2927960 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 3412742)] // ceil(1.05 × 3250230 measured)
     fn test_list_insert_and_swap_removal() {
         let mut state = Hub::contract_state_for_testing();
         for i in 0..9_u8 {
@@ -738,7 +739,8 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not in the account list')]
-    #[available_gas(l2_gas: 704036)] // ceil(1.05 × 670510 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 740019)] // ceil(1.05 × 704780 measured)
     fn test_remove_not_listed_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.add_adventurer_id(1, 0, 11);
@@ -748,7 +750,8 @@ mod tests {
 
     // A page read once and written once whatever its changes; lanes filled and emptied counted.
     #[test]
-    #[available_gas(l2_gas: 2152490)] // ceil(1.05 × 2049990 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 2286123)] // ceil(1.05 × 2177260 measured)
     fn test_change_balances() {
         let mut state = Hub::contract_state_for_testing();
         let owner = 0x100000005;
@@ -765,7 +768,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'balance: not enough')]
-    #[available_gas(l2_gas: 101724)] // ceil(1.05 × 96880 measured)
+    #[available_gas(l2_gas: 99908)] // ceil(1.05 × 95150 measured)
     fn test_change_balances_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.change_balances(0x100000005, array![(1, 1)].span(), false);
@@ -775,7 +778,8 @@ mod tests {
     // adventurer written through the typed path reads back through the store's words, and one
     // written through the store reads back through the typed path.
     #[test]
-    #[available_gas(l2_gas: 7189907)] // ceil(1.05 × 6847530 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 7581840)] // ceil(1.05 × 7220800 measured)
     fn test_adventurer_offsets() {
         let mut state = Hub::contract_state_for_testing();
         let adventurer = Adventurer {
@@ -820,7 +824,8 @@ mod tests {
 
     // The views' words as stored: 0 where nothing was written, the stored models otherwise.
     #[test]
-    #[available_gas(l2_gas: 3838937)] // ceil(1.05 × 3656130 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 4060770)] // ceil(1.05 × 3867400 measured)
     fn test_words_as_stored() {
         let mut state = Hub::contract_state_for_testing();
         assert(state.get_adventurer_words(5) == array![0, 0, 0, 0, 0, 0].span(), 'never created');
