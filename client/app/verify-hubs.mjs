@@ -189,13 +189,12 @@ async function hubShots(browser) {
       await page.goto(`${base}/?hub=${hub}`);
       await screen(page, "hub").waitFor();
       const canvas = page.locator("[data-atlas]");
-      await page.waitForFunction(
-        () => document.querySelector("[data-atlas]")?.getAttribute("data-atlas") !== "loading",
-      );
+      await page.locator('[data-atlas]:not([data-atlas="loading"])').waitFor();
       const atlas = await canvas.getAttribute("data-atlas");
       await page.waitForTimeout(500);
       const shapes = await page.locator("[data-shape]").count();
-      if (atlas === "loaded") ok(shapes === 0, `${hub} ${label}: atlas loaded, no place as a shape`);
+      if (atlas === "loaded")
+        ok(shapes === 0, `${hub} ${label}: atlas loaded, no place as a shape`);
       else console.log(`  note ${hub} ${label}: atlas ${atlas}, ${shapes} places as shapes`);
       if (shots) {
         const path = join(shots, `hub-${hub}-${label}.png`);
