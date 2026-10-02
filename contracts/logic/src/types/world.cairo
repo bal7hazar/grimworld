@@ -1028,6 +1028,7 @@ mod tests {
                 recharge: 0,
                 regen0: 2,
                 regen12: 6,
+                ..Default::default(),
             },
         ];
         for id in 2..9_u16 {
@@ -1035,7 +1036,7 @@ mod tests {
         }
         let content = Content {
             skills: skills.span(),
-            potions: array![PotionSheet { id: 101, regen: 3 }].span(),
+            potions: array![PotionSheet { id: 101, regen: 3, ..Default::default() }].span(),
             castes: array![].span(),
         };
         let mut spec = Fixture::spec();

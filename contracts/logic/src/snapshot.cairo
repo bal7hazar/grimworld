@@ -21,6 +21,7 @@ use crate::packing::{
 };
 use crate::professions::ProfessionTrait;
 use crate::types::effect::guard;
+use crate::types::hit::HitTrait;
 use crate::types::passive::{Passive, Source, id};
 
 /// The widest unguarded armor (design/19 §7.2, F-20; F-21 settled by CBT-01): the weighted rating
@@ -1103,14 +1104,10 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         if *loadout.personalised {
             weapon_damage = weapon_damage * PERSONALISED_DAMAGE_PERCENT / 100;
         }
-        let strength: u16 = STRENGTH_PER_RANK
-            * FlattenTrait::rank(points, runes, *loadout.weapon_attribute).into();
-        let cap: u16 = (*loadout.strength_cap).into();
-        let strength = if strength > cap {
-            cap
-        } else {
-            strength
-        };
+        // One copy of the rule (CBT-05a, carried from CBT-03a): the hit's.
+        let strength = HitTrait::weapon_strength(
+            FlattenTrait::rank(points, runes, *loadout.weapon_attribute), *loadout.strength_cap,
+        );
         let rating: i32 = (*loadout.rating).into();
         Snapshot {
             stats: MemberStats {

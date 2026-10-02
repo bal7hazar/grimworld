@@ -23,7 +23,7 @@ use grimworld_logic::types::MAX_CLOCK;
 use grimworld_logic::types::combat::{activation, skill_kind, weapon};
 use grimworld_logic::types::effect::{EntryTrait, filter, kind, shape, target};
 use grimworld_logic::types::tick::{
-    CasteSheet, CasteSheetTrait, Content, ContentTrait, IndexTrait, NO_SLOT, PotionSheet,
+    ABSENT, CasteSheet, CasteSheetTrait, Content, ContentTrait, IndexTrait, NO_SLOT, PotionSheet,
     PotionSheetTrait, Sheets, SheetsTrait, SkillSheet, SkillSheetTrait, ai, flag, status,
 };
 use grimworld_logic::types::world::{
@@ -153,6 +153,7 @@ impl FixtureImpl of Fixture {
             energy_regen: spec.energy_regen,
             adrenaline_cap: 0,
             bar_at: 0x00070006000500040003000200010000,
+            effect_at: 0xFFFFFFFFFFFFFFFF,
             words: Self::member_words(spec),
         }
     }
@@ -183,6 +184,7 @@ impl FixtureImpl of Fixture {
             energy_regen: 1,
             adrenaline_cap: 0,
             caste_at: (caste - 1).into(),
+            effect_at: ABSENT,
             state: LIVE
                 + ai::ENGAGED.into() * two(24)
                 + 100 * two(32)
@@ -193,7 +195,16 @@ impl FixtureImpl of Fixture {
     }
 
     fn skill(id: u16, kind: u8, activation: u16, recharge: u16) -> SkillSheet {
-        SkillSheet { id, kind, adrenaline: 0, activation, recharge, regen0: 0, regen12: 0 }
+        SkillSheet {
+            id,
+            kind,
+            adrenaline: 0,
+            activation,
+            recharge,
+            regen0: 0,
+            regen12: 0,
+            ..Default::default(),
+        }
     }
 
     /// A caste of multiplier 100 %, no regeneration, 10 energy regenerating 1 pip, weapon cost
@@ -208,6 +219,7 @@ impl FixtureImpl of Fixture {
             energy_regen: 1,
             weapon_ticks: k,
             skills: [first, first + 1, first + 2, first + 3],
+            ..Default::default(),
         }
     }
 
@@ -230,7 +242,7 @@ impl FixtureImpl of Fixture {
         }
         Content {
             skills: skills.span(),
-            potions: array![PotionSheet { id: 101, regen: 3 }].span(),
+            potions: array![PotionSheet { id: 101, regen: 3, ..Default::default() }].span(),
             castes: array![Self::caste(HOB, 1), Self::caste(RUNT, 2)].span(),
         }
     }
@@ -375,8 +387,10 @@ fn worst_content(k: u8) -> Content {
         castes.append(Fixture::caste(caste, k));
     }
     let potions = array![
-        PotionSheet { id: 100, regen: 1 }, PotionSheet { id: 101, regen: 2 },
-        PotionSheet { id: 102, regen: 1 }, PotionSheet { id: 103, regen: 2 },
+        PotionSheet { id: 100, regen: 1, ..Default::default() },
+        PotionSheet { id: 101, regen: 2, ..Default::default() },
+        PotionSheet { id: 102, regen: 1, ..Default::default() },
+        PotionSheet { id: 103, regen: 2, ..Default::default() },
     ];
     Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
 }
@@ -1293,46 +1307,6 @@ fn test_cost_bound_free_fixture() {
     branch_fixture(B_FREE, true, true);
 }
 
-// The lookups by id that remain, for the executor's rules (a carrier's id: `SheetsTrait::skill`,
-// `potion`): one more comparison a position, the last record against the first in the same
-// content (38 skills, 4 potions). The pipeline and the loads no longer scan (CBT-02d).
-#[test]
-#[available_gas(l2_gas: 316554)] // ceil(1.05 × 301480 measured)
-fn test_cost_scan_skill_first() {
-    let sheets = unindexed(branch_content(3));
-    assert(*sheets.skill(1).id == 1, 'first');
-}
-
-#[test]
-#[available_gas(l2_gas: 400859)] // ceil(1.05 × 381770 measured)
-fn test_cost_scan_skill_last() {
-    let sheets = unindexed(branch_content(3));
-    assert(*sheets.skill(43).id == 43, 'last');
-}
-
-#[test]
-#[available_gas(l2_gas: 315819)] // ceil(1.05 × 300780 measured)
-fn test_cost_scan_potion_first() {
-    let sheets = unindexed(branch_content(3));
-    assert(*sheets.potion(100).id == 100, 'first');
-}
-
-#[test]
-#[available_gas(l2_gas: 321080)] // ceil(1.05 × 305790 measured)
-fn test_cost_scan_potion_last() {
-    let sheets = unindexed(branch_content(3));
-    assert(*sheets.potion(103).id == 103, 'last');
-}
-
-/// The sheets of `content` without its index and kits: what a scan by id reads.
-fn unindexed(content: Content) -> Sheets {
-    Sheets {
-        skills: content.skills,
-        potions: content.potions,
-        castes: content.castes,
-        kits: array![].span(),
-    }
-}
 
 // CBT-02d: a read through the index costs the same wherever the record lies: the first skill and
 // the last, the first caste and the last, in the same content. The fixture builds the index.
@@ -2803,6 +2777,7 @@ fn parity_examples() -> Array<felt252> {
             recharge: 0,
             regen0: 2,
             regen12: 6,
+            ..Default::default(),
         },
     ];
     for id in 2..9_u16 {
@@ -2810,7 +2785,7 @@ fn parity_examples() -> Array<felt252> {
     }
     let regen = Content {
         skills: skills.span(),
-        potions: array![PotionSheet { id: 101, regen: 3 }].span(),
+        potions: array![PotionSheet { id: 101, regen: 3, ..Default::default() }].span(),
         castes: array![].span(),
     };
     let mut spec = Fixture::spec();

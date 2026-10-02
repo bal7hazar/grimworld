@@ -11,8 +11,8 @@ use crate::packing::{N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P84, field
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
-    CasteSheetTrait, Held, Index, IndexTrait, Kit, MISSING, REGEN_OFFSET, Sheets, SheetsTrait,
-    SkillSheetTrait, ai,
+    ABSENT, CasteSheetTrait, Held, Index, IndexTrait, Kit, MISSING, REGEN_OFFSET, Sheets,
+    SheetsTrait, SkillSheetTrait, ai,
 };
 
 pub use super::index::{Goblin, GoblinWords};
@@ -141,10 +141,11 @@ pub impl GoblinImpl of GoblinTrait {
         let kit = (*sheets.kits)[caste_at];
         GoblinAssert::assert_kit(kit);
         let regen: i32 = (*sheet.health_regen).into();
-        let effect_regen: i32 = if effect == 0 {
-            0
+        let (effect_at, effect_regen) = if effect == 0 {
+            (ABSENT, 0)
         } else {
-            (*sheets.skills)[index.skill(effect)].regen(rank)
+            let at = index.skill(effect);
+            (at, (*sheets.skills)[at].regen(rank))
         };
         GoblinAssert::assert_pips(effect_regen);
         Goblin {
@@ -170,6 +171,7 @@ pub impl GoblinImpl of GoblinTrait {
             energy_regen: *sheet.energy_regen,
             adrenaline_cap: *kit.cap,
             caste_at,
+            effect_at,
             state: words.state,
             timers: words.timers,
         }
@@ -423,7 +425,7 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
 
     /// A holding effect on its one slot at `t` (§5.7): the same carrier held keeps the later
     /// deadline, the new one on a tie (FX-30); anything else replaces it (FX-13).
-    fn hold(ref self: Goblin, held: Held, t: u32, sheets: @Sheets) {
+    fn hold(ref self: Goblin, held: Held, at: u32, t: u32, sheets: @Sheets) {
         if !self.is_alive() {
             return;
         }
@@ -431,9 +433,10 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
         if old.deadline >= t && old.carrier == held.carrier && held.deadline < old.deadline {
             return;
         }
-        let pips: i32 = sheets.skill(held.carrier).regen(held.rank);
+        let pips: i32 = (*sheets.skills)[at].regen(held.rank);
         GoblinAssert::assert_pips(pips);
         self.set_effect(held, pips.try_into().unwrap());
+        self.effect_at = at;
     }
 
     /// Adrenaline gained, in quarters (§5.12), capped at its caste's cap (at most 252).
@@ -881,6 +884,7 @@ mod tests {
             energy_regen: 2,
             weapon_ticks: 2,
             skills: [SMASH, 0, 0, 0],
+            ..Default::default(),
         };
         let mut smash = Fixture::skill(SMASH, skill_kind::SPELL, 0, 0);
         smash.regen0 = 1;
@@ -979,10 +983,10 @@ mod tests {
     fn test_goblin_hold() {
         let sheets = Fixture::hold_content().sheets();
         let mut goblin = Fixture::goblin(8, HOB);
-        goblin.hold(Fixture::held(11, false, 50, 3), 40, @sheets);
-        goblin.hold(Fixture::held(11, false, 45, 3), 40, @sheets);
+        goblin.hold(Fixture::held(11, false, 50, 3), 8, 40, @sheets);
+        goblin.hold(Fixture::held(11, false, 45, 3), 8, 40, @sheets);
         assert(goblin.effect_of().deadline == 50, 'goblin keeps the later');
-        goblin.hold(Fixture::held(15, false, 44, 12), 40, @sheets);
+        goblin.hold(Fixture::held(15, false, 44, 12), 12, 40, @sheets);
         let replaced = goblin.effect_of() == Fixture::held(15, false, 44, 12);
         assert(replaced && goblin.effect_regen == 1, 'replaced');
     }

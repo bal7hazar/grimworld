@@ -131,6 +131,7 @@ pub mod errors {
     pub const EMPTY: felt252 = 'entry: empty with a field';
     pub const READS: felt252 = 'entry: field not read';
     pub const PARAM: felt252 = 'entry: param';
+    pub const CONDITION_NOT_MVP: felt252 = 'entry: condition after the MVP';
     pub const VALUE: felt252 = 'entry: value out of bounds';
     pub const NO_TIME: felt252 = 'entry: neither d nor charges';
     pub const NOT_SCALED: felt252 = 'entry: scales';
@@ -382,7 +383,8 @@ pub impl EntryAssert of EntryAssertTrait {
 
     /// The content pipeline's checks of one entry (§2.1, §3; X-1): an empty entry has every field
     /// 0; otherwise its kind is one of the MVP's, its shape 1–5 and its guard 0–4, the fields
-    /// its kind does not read are 0, its `param` is one its kind names, its value at ranks 0 and 15
+    /// its kind does not read are 0, its `param` is one its kind names (a condition one of the
+    /// MVP's five, FX-22), its value at ranks 0 and 15
     /// lies within its kind's bounds, its duration at ranks 0 and 15 within 0…43,688, and an
     /// `ON_ATTACK_CONDITION` has a duration or charges.
     fn assert_legal(self: @Entry) {
@@ -410,6 +412,13 @@ pub impl EntryAssert of EntryAssertTrait {
                 _ => param >= condition::BLEEDING && param <= condition::LAST,
             };
             assert(named, errors::PARAM);
+            // Conditions 6–9 have no MVP source and no stored deadline until FX-22 (CBT-04): a
+            // `CONDITION`, `CURE` or `ON_ATTACK_CONDITION` naming one is refused here, so that the
+            // executor never meets one (CBT-05a).
+            let k = *self.kind;
+            if k == kind::CONDITION || k == kind::CURE || k == kind::ON_ATTACK_CONDITION {
+                assert(param <= condition::LAST_MVP, errors::CONDITION_NOT_MVP);
+            }
         }
         if v_read == 0 {
             assert(*self.v0 == 0 && *self.v12 == 0, errors::READS);

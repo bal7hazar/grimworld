@@ -22,10 +22,24 @@ use starknet::storage_access::StorePacking;
 fn bar_skills() -> Array<SkillSheet> {
     let mut skills = array![
         SkillSheet {
-            id: 300, kind: 4, adrenaline: 0, activation: 1, recharge: 9, regen0: 1, regen12: 5,
+            id: 300,
+            kind: 4,
+            adrenaline: 0,
+            activation: 1,
+            recharge: 9,
+            regen0: 1,
+            regen12: 5,
+            ..Default::default(),
         },
         SkillSheet {
-            id: 301, kind: 1, adrenaline: 5, activation: 0, recharge: 4, regen0: 0, regen12: 0,
+            id: 301,
+            kind: 1,
+            adrenaline: 5,
+            activation: 0,
+            recharge: 4,
+            regen0: 0,
+            regen12: 0,
+            ..Default::default(),
         },
     ];
     for id in 7..13_u16 {
@@ -37,7 +51,7 @@ fn bar_skills() -> Array<SkillSheet> {
 fn content() -> Content {
     Content {
         skills: bar_skills().span(),
-        potions: array![PotionSheet { id: 4000, regen: -2 }].span(),
+        potions: array![PotionSheet { id: 4000, regen: -2, ..Default::default() }].span(),
         castes: array![
             CasteSheet {
                 id: 12,
@@ -47,6 +61,7 @@ fn content() -> Content {
                 energy_regen: 3,
                 weapon_ticks: 2,
                 skills: [301, 300, 0, 0],
+                ..Default::default(),
             },
         ]
             .span(),
@@ -203,8 +218,10 @@ fn test_tick_words_member() {
 #[available_gas(l2_gas: 3128415)] // ceil(1.05 × 2979442 measured), kept: 3007552 now
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
-        PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
-        PotionSheet { id: 4002, regen: 3 }, PotionSheet { id: 4003, regen: 4 },
+        PotionSheet { id: 4000, regen: 1, ..Default::default() },
+        PotionSheet { id: 4001, regen: 2, ..Default::default() },
+        PotionSheet { id: 4002, regen: 3, ..Default::default() },
+        PotionSheet { id: 4003, regen: 4, ..Default::default() },
     ];
     let content = Content {
         skills: bar_skills().span(), potions: potions.span(), castes: array![].span(),

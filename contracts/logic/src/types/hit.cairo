@@ -148,7 +148,8 @@ pub struct HitTarget {
     pub evade: bool,
     /// It is knocked down (CBT-04): critical from any arc, neither blocks nor evades (FX-7).
     pub knocked_down: bool,
-    /// It is asleep: critical from any arc, and this first hit cannot be blocked (design/04).
+    /// It is asleep: critical from any arc, and this first hit can be neither blocked (design/04)
+    /// nor evaded (D-179).
     pub asleep: bool,
     /// It holds `HALVE_FIRST_HEAVY_HIT`, not yet spent (FX-19).
     pub halve: bool,
@@ -215,7 +216,9 @@ pub impl HitImpl of HitTrait {
         if *target.block > 0 && front && open && !*target.asleep {
             return Option::Some(HitOutcome::Blocked);
         }
-        if *target.evade && *self.melee && open {
+        // D-179: a sleeping target neither blocks nor evades its first hit (the executor clears
+        // `asleep` when it notices, §5.5 step 9).
+        if *target.evade && *self.melee && open && !*target.asleep {
             return Option::Some(HitOutcome::Evaded);
         }
         Option::None
@@ -589,6 +592,9 @@ mod tests {
         assert(damage(Hit { melee: false, ..sword() }, target) == 100, 'ranged not evaded');
         let down = HitTarget { knocked_down: true, ..target };
         assert(damage(sword(), down) == 140, 'knocked down: no evasion');
+        // D-179: a sleeping target neither blocks nor evades its first hit.
+        let asleep = HitTarget { asleep: true, ..target };
+        assert(damage(sword(), asleep) == 140, 'asleep: no evasion');
         // Block comes before evasion (§5.5 step 2's order): a charge is spent, not an evasion.
         let both = HitTarget { block: 1, ..target };
         assert(sword().resolve(@both) == HitOutcome::Blocked, 'block first');
@@ -952,6 +958,7 @@ mod tests {
             (Hit { arc: Arc::Back, weapon: weapon::AXE, ..sword() }, goblin()),
             (sword(), HitTarget { knocked_down: true, block: 2, evade: true, ..goblin() }),
             (sword(), HitTarget { asleep: true, block: 2, ..goblin() }),
+            (sword(), HitTarget { asleep: true, evade: true, ..goblin() }),
             (sword(), HitTarget { block: 2, ..goblin() }),
             (Hit { arc: Arc::RearSide, ..sword() }, HitTarget { block: 2, ..goblin() }),
             (Hit { arc: Arc::Back, ..sword() }, HitTarget { evade: true, ..goblin() }),

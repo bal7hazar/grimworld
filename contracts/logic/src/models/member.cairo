@@ -14,8 +14,8 @@ use crate::packing::{
 use crate::types::combat::{condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
-    ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SheetsTrait,
-    SkillSheet, SkillSheetTrait, status,
+    ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SkillSheet,
+    SkillSheetTrait, status,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -172,6 +172,8 @@ pub impl MemberImpl of MemberTrait {
         let (belt, _) = limbs(words.kit);
         let mut deadlines: Array<u32> = array![];
         let mut regen: Array<i8> = array![];
+        let mut effect_at: u128 = 0;
+        let mut lane: u32 = 0;
         for effect in array![first, second, third, fourth] {
             let mut rest = effect;
             let carrier: u16 = peel(ref rest, N16).try_into().unwrap();
@@ -183,16 +185,23 @@ pub impl MemberImpl of MemberTrait {
             let rank: u8 = rest.try_into().unwrap();
             // The potion tag first: with it, the carrier is a belt slot 0–3, slot 0 included
             // (ENG-01 §3.2; AUD-182-1). Without it, skill 0 is an empty slot.
+            let shift = *BAR_LANES.span()[lane];
             let pips: i32 = if potion == 1 {
                 let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
-                (*(*sheets.potions)[index.potion(id.try_into().unwrap())].regen).into()
+                let at = index.potion(id.try_into().unwrap());
+                effect_at += at.into() * shift;
+                (*(*sheets.potions)[at].regen).into()
             } else if carrier == 0 {
+                effect_at += ABSENT_LANE * shift;
                 0
             } else {
-                (*sheets.skills)[index.skill(carrier)].regen(rank)
+                let at = index.skill(carrier);
+                effect_at += at.into() * shift;
+                (*sheets.skills)[at].regen(rank)
             };
             MemberAssert::assert_pips(pips);
             regen.append(pips.try_into().unwrap());
+            lane += 1;
         }
         // The bar's highest adrenaline cost, in quarters (§5.12).
         let (bar, _) = limbs(words.bar);
@@ -234,6 +243,7 @@ pub impl MemberImpl of MemberTrait {
             energy_regen: energy_regen.try_into().unwrap(),
             adrenaline_cap: cap,
             bar_at,
+            effect_at,
             words,
         }
     }
@@ -320,6 +330,13 @@ pub impl MemberImpl of MemberTrait {
     #[inline(always)]
     fn position(self: @Member, slot: u8) -> u128 {
         field(*self.bar_at, *BAR_LANES.span()[slot.into()], P16)
+    }
+
+    /// The position in the content of effect slot 0–3's carrier: a skill's in `Sheets.skills`, a
+    /// potion's in `Sheets.potions` (`ABSENT_LANE` for an empty slot).
+    #[inline(always)]
+    fn effect_position(self: @Member, slot: u8) -> u128 {
+        field(*self.effect_at, *BAR_LANES.span()[slot.into()], P16)
     }
 
     /// The sheet of bar slot 0–7's skill, at its position (CBT-02d).
@@ -555,8 +572,9 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         }
     }
 
-    /// A holding effect applied at tick or clock `t` (§5.7), `stance` if its carrier is a stance;
-    /// returns its slot. In order:
+    /// A holding effect applied at tick or clock `t` (§5.7), `stance` if its carrier is a stance,
+    /// `at` its carrier's position in the content (a skill's, or a potion's: CBT-05a, no lookup
+    /// by id); returns its slot. In order:
     /// 1. its carrier held (FX-42: the skill id, or a potion's item id through its belt slot):
     ///    the application with the later deadline is kept whole, the new one on a tie (FX-30);
     /// 2. else a stance while one is held: it takes that slot;
@@ -564,7 +582,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
     /// 4. else eviction: the earliest deadline, ties the lowest slot (FX-13).
     /// An effect ends by its deadline: one whose charges reach 0 is ended by the executor with a
     /// deadline of `t − 1`.
-    fn hold(ref self: Member, held: Held, stance: bool, t: u32, sheets: @Sheets) -> u8 {
+    fn hold(ref self: Member, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) -> u8 {
         let item = if held.potion {
             self.belt_item(held.carrier)
         } else {
@@ -582,7 +600,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
                 };
                 if same {
                     if held.deadline >= old.deadline {
-                        self.put(slot, held, item, sheets);
+                        self.put(slot, held, at, sheets);
                     }
                     return slot;
                 }
@@ -594,12 +612,16 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
             let mut slot: u8 = 0;
             while slot < 4 {
                 let old = self.effect_of(slot);
-                if old.deadline >= t
-                    && !old.potion
-                    && old.carrier != 0
-                    && *sheets.skill(old.carrier).kind == skill_kind::STANCE {
-                    self.put(slot, held, item, sheets);
-                    return slot;
+                if old.deadline >= t && !old.potion && old.carrier != 0 {
+                    let position = self.effect_position(slot);
+                    if position != ABSENT_LANE
+                        && *(*sheets.skills)[position
+                            .try_into()
+                            .unwrap()]
+                            .kind == skill_kind::STANCE {
+                        self.put(slot, held, at, sheets);
+                        return slot;
+                    }
                 }
                 slot += 1;
             }
@@ -611,7 +633,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         while slot < 4 {
             let deadline = self.effect_of(slot).deadline;
             if deadline < t {
-                self.put(slot, held, item, sheets);
+                self.put(slot, held, at, sheets);
                 return slot;
             }
             if deadline < earliest_deadline {
@@ -620,19 +642,23 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
             }
             slot += 1;
         }
-        self.put(earliest, held, item, sheets);
+        self.put(earliest, held, at, sheets);
         earliest
     }
 
-    /// Writes `held` in `slot` with its pips: a potion's through its item, a skill's at its rank.
-    fn put(ref self: Member, slot: u8, held: Held, item: u32, sheets: @Sheets) {
+    /// Writes `held` in `slot` with its pips and its carrier's position `at`: a potion's sheet,
+    /// a skill's at its rank.
+    fn put(ref self: Member, slot: u8, held: Held, at: u32, sheets: @Sheets) {
         let pips: i32 = if held.potion {
-            (*sheets.potion(item).regen).into()
+            (*(*sheets.potions)[at].regen).into()
         } else {
-            sheets.skill(held.carrier).regen(held.rank)
+            (*sheets.skills)[at].regen(held.rank)
         };
         MemberAssert::assert_pips(pips);
         self.set_effect(slot, held, pips.try_into().unwrap());
+        let shift = *BAR_LANES.span()[slot.into()];
+        let old = self.effect_position(slot);
+        self.effect_at = self.effect_at - old * shift + at.into() * shift;
     }
 
     /// Adrenaline gained, in quarters (§5.12): capped at the member's cap (its bar's highest
@@ -1214,14 +1240,14 @@ mod tests {
             .effects =
                 [(11, false, 90, 12), (12, false, 85, 12), (13, false, 85, 12), (3, true, 100, 0)];
         let mut member = Fixture::load_member(Fixture::member_words(spec), @content);
-        let slot = member.hold(Fixture::held(14, false, 86, 12), true, 81, @sheets);
+        let slot = member.hold(Fixture::held(14, false, 86, 12), 11, true, 81, @sheets);
         assert(slot == 1 && member.effect_of(1) == Fixture::held(14, false, 86, 12), 'evicted');
-        let slot = member.hold(Fixture::held(15, false, 90, 12), true, 83, @sheets);
+        let slot = member.hold(Fixture::held(15, false, 90, 12), 12, true, 83, @sheets);
         assert(slot == 1 && member.effect_of(1).carrier == 15, 'stance replaces stance');
         assert(member.effect_regen == [0, 1, 0, 4], 'pips follow');
         assert(member.effect_deadlines == [90, 90, 85, 100], 'deadlines follow');
         // A free slot (a deadline passed) is taken before any eviction, the lowest first.
-        let slot = member.hold(Fixture::held(12, false, 95, 12), false, 86, @sheets);
+        let slot = member.hold(Fixture::held(12, false, 95, 12), 9, false, 86, @sheets);
         assert(slot == 2, 'lowest free slot');
         // The words round-trip what was held.
         let again = Fixture::load_member(member.store(), @content);
@@ -1238,18 +1264,18 @@ mod tests {
         let mut spec = Fixture::spec();
         spec.effects = [(11, false, 90, 4), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
         let mut member = Fixture::load_member(Fixture::member_words(spec), @content);
-        member.hold(Fixture::held(11, false, 88, 12), false, 81, @sheets);
+        member.hold(Fixture::held(11, false, 88, 12), 8, false, 81, @sheets);
         assert(member.effect_of(0) == Fixture::held(11, false, 90, 4), 'earlier: kept');
-        member.hold(Fixture::held(11, false, 90, 12), false, 81, @sheets);
+        member.hold(Fixture::held(11, false, 90, 12), 8, false, 81, @sheets);
         assert(member.effect_of(0) == Fixture::held(11, false, 90, 12), 'tie: the new one');
-        member.hold(Fixture::held(11, false, 95, 7), false, 81, @sheets);
+        member.hold(Fixture::held(11, false, 95, 7), 8, false, 81, @sheets);
         assert(member.effect_of(0) == Fixture::held(11, false, 95, 7), 'later: replaced whole');
         // Belt slots 0 and 2 hold one item: one carrier.
         let mut words = member.store();
         words.kit = LIVE + 100 + 101 * two(32) + 100 * two(64) + 103 * two(96);
         let mut member = Fixture::load_member(words, @content);
-        let first = member.hold(Fixture::held(0, true, 99, 0), false, 81, @sheets);
-        let second = member.hold(Fixture::held(2, true, 120, 0), false, 81, @sheets);
+        let first = member.hold(Fixture::held(0, true, 99, 0), 0, false, 81, @sheets);
+        let second = member.hold(Fixture::held(2, true, 120, 0), 0, false, 81, @sheets);
         assert(first == 1 && second == 1, 'same potion, same slot');
         assert(member.effect_of(1) == Fixture::held(2, true, 120, 0), 'later potion kept');
     }

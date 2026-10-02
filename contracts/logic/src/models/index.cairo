@@ -298,6 +298,10 @@ pub struct Member {
     /// Its bar's skills' positions in the content (`types::tick::Sheets.skills`), found once at its
     /// load (CBT-02d): slot `s` in bits `16 s`, `ABSENT_LANE` for an empty slot.
     pub bar_at: u128,
+    /// Each held effect's carrier's position in the content, found once at its load and set when
+    /// the executor holds one (CBT-05a): a skill's in `Sheets.skills`, a potion's in
+    /// `Sheets.potions`; slot `s` in bits `16 s`, `ABSENT_LANE` for an empty slot.
+    pub effect_at: u128,
     pub words: MemberWords,
 }
 
@@ -347,6 +351,8 @@ pub struct Goblin {
     /// Its caste's position in the content (`types::tick::Sheets.castes` and `.kits`), found once
     /// at its load (CBT-02d).
     pub caste_at: u32,
+    /// Its held effect's skill's position in `Sheets.skills` (CBT-05a), `ABSENT` for none.
+    pub effect_at: u32,
     pub state: felt252,
     pub timers: felt252,
 }

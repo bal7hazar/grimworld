@@ -928,6 +928,46 @@ fn test_set_record_carriers() {
     assert_refused(try_write(r, ITEM, ingredient), item_errors::NOT_POTION);
 }
 
+// CBT-05a (CBT-04's carried item): a `CONDITION`, `CURE` or `ON_ATTACK_CONDITION` naming one of
+// the conditions after the MVP (6–9, FX-22) is refused by `set_record`, a skill's entry or a
+// potion's; the MVP's five are accepted (the skill is `skill_of`'s attack: every entry `FOE`,
+// `SINGLE`).
+#[test]
+#[available_gas(l2_gas: 9000000)]
+fn test_set_record_conditions_after_the_mvp() {
+    let r = Fixture::deploy();
+    let none: Entry = Default::default();
+    let inflict = |
+        c: u8,
+    | EntryTrait::new(
+        kind::CONDITION, c, 3, 3, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,
+    );
+    let cure = |
+        c: u8,
+    | EntryTrait::new(kind::CURE, c, 0, 0, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0);
+    let coat = |
+        c: u8,
+    | EntryTrait::new(
+        kind::ON_ATTACK_CONDITION, c, 24, 24, 10, 10, 0, target::FOE, shape::SINGLE, 0, 0, 0,
+    );
+    assert_accepted(
+        try_write(r, SKILL, skill_of(4, [inflict(condition::KNOCKED_DOWN), none, none])),
+    );
+    assert_accepted(try_write(r, SKILL, skill_of(4, [cure(condition::CRIPPLED), none, none])));
+    for c in condition::DAZED..condition::LAST + 1 {
+        for entry in array![inflict(c), cure(c), coat(c)] {
+            assert_refused(
+                try_write(r, SKILL, skill_of(4, [entry, none, none])),
+                entry_errors::CONDITION_NOT_MVP,
+            );
+        }
+    }
+    let potion = |entry: Entry| ItemTrait::new(item_class::POTION, 1, 1, 10, 0, entry, 0, 0).pack();
+    assert_refused(
+        try_write(r, ITEM, potion(cure(condition::BLIND))), entry_errors::CONDITION_NOT_MVP,
+    );
+}
+
 // DS-18 whatever the order of writes (CBT-02c fix loop 2, the review's major): the registry counts
 // the castes that name each skill (`caste_skills`) and refuses a skill above 63 strikes while one
 // does. The caste first, naming skill 1 before it exists: skill 1 at 64 is refused, at 63

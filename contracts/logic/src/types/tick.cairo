@@ -25,8 +25,9 @@ use core::dict::{Felt252Dict, Felt252DictTrait};
 use crate::helpers::signed::SignedTrait;
 use crate::models::caste::Caste;
 use crate::models::index::{Item, Skill};
-use crate::packing::{N16, N32, N4, N8, limbs, peel};
-use crate::types::effect::{EntryTrait, kind};
+use crate::packing::{N16, N4, N8, limbs, peel};
+use crate::types::combat::damage;
+use crate::types::effect::{ENTRY_BOUND, Entry, EntryTrait, kind};
 
 /// Adrenaline lost a tick out of combat, in quarter strikes (design/19 §5.8, FX-12): a code
 /// constant until BAL-01, **1** by D-157 E.
@@ -90,7 +91,9 @@ pub struct Held {
 
 
 /// The fields of a `SKILL` a tick reads: kind, activation, recharge, and its `REGENERATION`
-/// entry's line (0, 0 without one).
+/// entry's line (0, 0 without one); for the executor (CBT-05a), its range and its three entries as
+/// the record packs them (97 bits each, 0 an empty entry), decoded once a call into
+/// `Sheets.entries` (SPK-15's L3, D-172).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct SkillSheet {
     pub id: u16,
@@ -101,13 +104,22 @@ pub struct SkillSheet {
     pub recharge: u16,
     pub regen0: i16,
     pub regen12: i16,
+    /// In tiles: the reach its target must be in at resolution (§5.9).
+    pub range: u8,
+    pub entry1: u128,
+    pub entry2: u128,
+    pub entry3: u128,
 }
 
-/// The field of a potion (`ITEM`) a tick reads: its `REGENERATION` pips (potions do not scale).
+/// The fields of a potion (`ITEM`) a tick reads: its `REGENERATION` pips (potions do not scale);
+/// for the executor, its entry packed, its range and a bomb's strength (FX-18, FX-28).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct PotionSheet {
     pub id: u32,
     pub regen: i16,
+    pub entry: u128,
+    pub range: u8,
+    pub strength: u8,
 }
 
 /// The fields of a `CASTE` a tick reads (design/19 §7.3).
@@ -123,6 +135,16 @@ pub struct CasteSheet {
     /// Its weapon's tick cost `k` (FX-15).
     pub weapon_ticks: u8,
     pub skills: [u16; 4],
+    /// For the executor's hits (CBT-05a, §5.5): its armor, its armor per damage type (9 × 6 bits,
+    /// type `t` at `6 (t − 1)`, FX-23), its weapon inline (class, damage ≤ 255 by DS-18, damage
+    /// type, range) and the rank of its skills and weapon (§7.3).
+    pub armor: u8,
+    pub armor_vs: u64,
+    pub weapon: u8,
+    pub weapon_damage: u8,
+    pub damage_type: u8,
+    pub weapon_range: u8,
+    pub rank: u8,
 }
 
 /// The content of a batch, read once (D-145): the skills of the bars, of the goblins' castes and
@@ -133,6 +155,12 @@ pub struct Content {
     pub potions: Span<PotionSheet>,
     pub castes: Span<CasteSheet>,
 }
+
+/// `CasteSheet.armor_vs`'s lanes: damage type `t` at `6 (t − 1)`, and the 54 bits' bound.
+const VS_LANES: [u64; 9] = [
+    1, 0x40, 0x1000, 0x40000, 0x1000000, 0x40000000, 0x1000000000, 0x40000000000, 0x1000000000000,
+];
+const VS_BOUND: u128 = 0x40000000000000;
 
 /// A position in a list of `Sheets` that holds nothing: an empty skill slot.
 pub const ABSENT: u32 = 0xFFFFFFFF;
@@ -157,12 +185,16 @@ pub struct Kit {
 /// The content as the ticks read it (CBT-02d): its sheets, and each caste's `Kit` in the order of
 /// `castes`. An actor holds the positions of its records (`Goblin.caste_at`, `Member.bar_at`),
 /// found once, at its load, through the `Index`; the ticks read a record at its position.
+/// The carriers' entries decoded once a call (CBT-05a, SPK-15's L3): skill `p`'s three at `3 p`,
+/// `3 p + 1`, `3 p + 2`; potion `p`'s one at `p`. An in-call type: nothing crosses the call.
 #[derive(Copy, Drop, Debug, PartialEq)]
 pub struct Sheets {
     pub skills: Span<SkillSheet>,
     pub potions: Span<PotionSheet>,
     pub castes: Span<CasteSheet>,
     pub kits: Span<Kit>,
+    pub entries: Span<Entry>,
+    pub potion_entries: Span<Entry>,
 }
 
 /// The content's positions by id, built once per call (CBT-02d): one dictionary, read once for
@@ -199,6 +231,7 @@ pub impl SkillSheetImpl of SkillSheetTrait {
                 regen12 = *entry.v12;
             }
         }
+        let [first, second, third] = *skill.entries;
         SkillSheet {
             id,
             kind: *skill.kind,
@@ -207,6 +240,10 @@ pub impl SkillSheetImpl of SkillSheetTrait {
             recharge: *skill.recharge,
             regen0,
             regen12,
+            range: *skill.range,
+            entry1: first.pack(),
+            entry2: second.pack(),
+            entry3: third.pack(),
         }
     }
 
@@ -218,8 +255,8 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         let (second, third) = limbs(*parts[1]);
         let mut regen0 = 0;
         let mut regen12 = 0;
-        for entry in array![first, second, third] {
-            let mut rest = entry;
+        for entry in array![first, second, third].span() {
+            let mut rest = *entry;
             let entry_kind = peel(ref rest, N8);
             if entry_kind == kind::EMPTY.into() {
                 break;
@@ -240,6 +277,7 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         let adrenaline = peel(ref rest, N8);
         let activation = peel(ref rest, N16);
         let recharge = peel(ref rest, N16);
+        let range = peel(ref rest, N8);
         SkillSheet {
             id,
             kind: kind.try_into().unwrap(),
@@ -248,6 +286,10 @@ pub impl SkillSheetImpl of SkillSheetTrait {
             recharge: recharge.try_into().unwrap(),
             regen0,
             regen12,
+            range: range.try_into().unwrap(),
+            entry1: first,
+            entry2: second,
+            entry3: third,
         }
     }
 
@@ -255,6 +297,19 @@ pub impl SkillSheetImpl of SkillSheetTrait {
     #[inline(always)]
     fn regen(self: @SkillSheet, rank: u8) -> i32 {
         EntryTrait::line(*self.regen0, *self.regen12, rank)
+    }
+
+    /// Its entry 0–2 decoded from the packed field: the naive executor's read at each use, the
+    /// measured pair of `Sheets.entries` (SPK-15's L3).
+    fn entry(self: @SkillSheet, k: u32) -> Entry {
+        let bits = if k == 0 {
+            *self.entry1
+        } else if k == 1 {
+            *self.entry2
+        } else {
+            *self.entry3
+        };
+        EntryTrait::unpack(bits)
     }
 }
 
@@ -266,13 +321,18 @@ pub impl PotionSheetImpl of PotionSheetTrait {
         } else {
             0
         };
-        PotionSheet { id, regen }
+        PotionSheet {
+            id, regen, entry: item.entry.pack(), range: *item.range, strength: *item.strength,
+        }
     }
 
     /// The sheet of potion `id` read from its record's part (`models::item` layout: the entry in
-    /// the high limb); `new` on the unpacked record is its oracle.
+    /// the high limb's 97 low bits, then the range and the strength); `new` on the unpacked record
+    /// is its oracle.
     fn read(id: u32, parts: Span<felt252>) -> PotionSheet {
-        let (_, entry) = limbs(*parts[0]);
+        let (_, high) = limbs(*parts[0]);
+        let (above, entry) = DivRem::div_rem(high, ENTRY_BOUND.try_into().unwrap());
+        let (strength, range) = DivRem::div_rem(above, N8);
         let mut rest = entry;
         let regen = if peel(ref rest, N8) == kind::REGENERATION.into() {
             let _ = peel(ref rest, N8);
@@ -280,7 +340,13 @@ pub impl PotionSheetImpl of PotionSheetTrait {
         } else {
             0
         };
-        PotionSheet { id, regen }
+        PotionSheet {
+            id,
+            regen,
+            entry,
+            range: range.try_into().unwrap(),
+            strength: strength.try_into().unwrap(),
+        }
     }
 }
 
@@ -295,25 +361,61 @@ pub impl CasteSheetImpl of CasteSheetTrait {
             energy_regen: *caste.energy_regen,
             weapon_ticks: *caste.weapon.ticks,
             skills: *caste.skills,
+            armor: *caste.armor,
+            armor_vs: Self::pack_vs(*caste.armor_vs),
+            weapon: *caste.weapon.class,
+            weapon_damage: (*caste.weapon.damage).try_into().unwrap(),
+            damage_type: *caste.weapon.damage_type,
+            weapon_range: *caste.weapon.range,
+            rank: *caste.rank,
         }
+    }
+
+    /// The nine armors by damage type in 6-bit lanes, type `t` at `6 (t − 1)` (the record's).
+    fn pack_vs(armor_vs: [u8; 9]) -> u64 {
+        let mut packed: u64 = 0;
+        let mut shift: u64 = 1;
+        for vs in armor_vs.span() {
+            packed += (*vs).into() * shift;
+            shift *= 0x40;
+        }
+        packed
+    }
+
+    /// Its armor against damage type 1–9 (FX-23); 0 for none.
+    #[inline(always)]
+    fn armor_vs(self: @CasteSheet, damage_type: u8) -> u8 {
+        if damage_type == 0 || damage_type > damage::LAST {
+            return 0;
+        }
+        let shift = *VS_LANES.span()[(damage_type - 1).into()];
+        let (above, _) = DivRem::div_rem(*self.armor_vs, shift.try_into().unwrap());
+        let (_, vs) = DivRem::div_rem(above, 0x40);
+        vs.try_into().unwrap()
     }
 
     /// The sheet of caste `id` read from its record's 2 parts (`models::caste` layout: the
     /// weapon's ticks at bit 72); `new` on the unpacked record is its oracle.
     fn read(id: u16, parts: Span<felt252>) -> CasteSheet {
-        let (low, _) = limbs(*parts[0]);
+        let (low, high) = limbs(*parts[0]);
         let (skills, _) = limbs(*parts[1]);
-        // Tier and AI profile 0–15, the health multiplier, its regeneration; the armor and the
-        // weapon's class, damage and type 40–71; its ticks, its range; energy and its
-        // regeneration.
+        // Tier and AI profile 0–15, the health multiplier, its regeneration, the armor; the
+        // weapon's class, damage, type, ticks and range 48–79; energy and its regeneration, the
+        // flee threshold, the rank 104–107. The high limb: the armor by type, 54 bits.
         let (mut rest, _) = DivRem::div_rem(low, N16);
         let health = peel(ref rest, N16);
         let health_regen = peel(ref rest, N8);
-        let _ = peel(ref rest, N32);
+        let armor = peel(ref rest, N8);
+        let weapon = peel(ref rest, N4);
+        let weapon_damage = peel(ref rest, N16);
+        let damage_type = peel(ref rest, N4);
         let weapon_ticks = peel(ref rest, N4);
-        let _range = peel(ref rest, N4);
+        let weapon_range = peel(ref rest, N4);
         let energy = peel(ref rest, N8);
         let energy_regen = peel(ref rest, N8);
+        let _flee = peel(ref rest, N8);
+        let rank = peel(ref rest, N4);
+        let (_, armor_vs) = DivRem::div_rem(high, VS_BOUND.try_into().unwrap());
         let mut rest = skills;
         let first = peel(ref rest, N16);
         let second = peel(ref rest, N16);
@@ -330,6 +432,13 @@ pub impl CasteSheetImpl of CasteSheetTrait {
                 first.try_into().unwrap(), second.try_into().unwrap(), third.try_into().unwrap(),
                 fourth.try_into().unwrap(),
             ],
+            armor: armor.try_into().unwrap(),
+            armor_vs: armor_vs.try_into().unwrap(),
+            weapon: weapon.try_into().unwrap(),
+            weapon_damage: weapon_damage.try_into().unwrap(),
+            damage_type: damage_type.try_into().unwrap(),
+            weapon_range: weapon_range.try_into().unwrap(),
+            rank: rank.try_into().unwrap(),
         }
     }
 
@@ -353,9 +462,51 @@ pub impl ContentImpl of ContentTrait {
             kits.append(index.kit(caste, *self.skills));
         }
         let sheets = Sheets {
-            skills: *self.skills, potions: *self.potions, castes: *self.castes, kits: kits.span(),
+            skills: *self.skills,
+            potions: *self.potions,
+            castes: *self.castes,
+            kits: kits.span(),
+            entries: Self::entries(*self.skills),
+            potion_entries: Self::potion_entries(*self.potions),
         };
         (sheets, index)
+    }
+
+    /// Every skill's three entries, decoded once a call (SPK-15's L3): an entry after an empty one
+    /// is empty (§2.1, the pipeline refuses a gap), so it is not decoded.
+    fn entries(skills: Span<SkillSheet>) -> Span<Entry> {
+        let mut entries = array![];
+        let none: Entry = Default::default();
+        for sheet in skills {
+            if *sheet.entry1 == 0 {
+                entries.append(none);
+                entries.append(none);
+                entries.append(none);
+                continue;
+            }
+            entries.append(EntryTrait::unpack(*sheet.entry1));
+            if *sheet.entry2 == 0 {
+                entries.append(none);
+                entries.append(none);
+                continue;
+            }
+            entries.append(EntryTrait::unpack(*sheet.entry2));
+            if *sheet.entry3 == 0 {
+                entries.append(none);
+            } else {
+                entries.append(EntryTrait::unpack(*sheet.entry3));
+            }
+        }
+        entries.span()
+    }
+
+    /// Every potion's entry, decoded once a call.
+    fn potion_entries(potions: Span<PotionSheet>) -> Span<Entry> {
+        let mut entries = array![];
+        for sheet in potions {
+            entries.append(EntryTrait::unpack(*sheet.entry));
+        }
+        entries.span()
     }
 
     /// The call's sheets alone, the index dropped.
@@ -456,26 +607,6 @@ pub const MISSING: u32 = 0xFFFFFFFE;
 
 #[generate_trait]
 pub impl SheetsImpl of SheetsTrait {
-    /// The sheet of skill `id`, by a scan: for the executor's rules, which hold a carrier's id
-    /// (`hold`, `put`, a stance), not the pipeline's.
-    fn skill(self: @Sheets, id: u16) -> @SkillSheet {
-        for sheet in *self.skills {
-            if *sheet.id == id {
-                return sheet;
-            }
-        }
-        core::panic_with_felt252(errors::NO_SKILL)
-    }
-
-    fn potion(self: @Sheets, id: u32) -> @PotionSheet {
-        for sheet in *self.potions {
-            if *sheet.id == id {
-                return sheet;
-            }
-        }
-        core::panic_with_felt252(errors::NO_POTION)
-    }
-
     /// The sheet of skill `slot` of the caste at `caste_at`, through its kit.
     #[inline(always)]
     fn caste_skill(self: @Sheets, caste_at: u32, slot: u8) -> @SkillSheet {
@@ -596,7 +727,10 @@ mod tests {
         skills.append(twin);
         let content = Content {
             skills: skills.span(),
-            potions: array![PotionSheet { id: 2, regen: 1 }, PotionSheet { id: 70000, regen: 2 }]
+            potions: array![
+                PotionSheet { id: 2, regen: 1, ..Default::default() },
+                PotionSheet { id: 70000, regen: 2, ..Default::default() },
+            ]
                 .span(),
             castes: array![].span(),
         };

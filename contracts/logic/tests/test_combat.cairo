@@ -334,6 +334,21 @@ fn test_entry_unknown_condition_refused() {
     Fixture::inflict(10, 1, 1).assert_legal();
 }
 
+// CBT-05a: conditions 6–9 are refused in every kind that names a condition (FX-22).
+#[test]
+#[should_panic(expected: 'entry: condition after the MVP')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_condition_after_the_mvp_refused() {
+    Fixture::inflict(condition::DAZED, 1, 1).assert_legal();
+}
+
+#[test]
+#[should_panic(expected: 'entry: condition after the MVP')]
+#[available_gas(l2_gas: 16296)]
+fn test_entry_cure_after_the_mvp_refused() {
+    Entry { param: condition::DEEP_WOUND, ..Fixture::on_self(kind::CURE) }.assert_legal();
+}
+
 #[test]
 #[should_panic(expected: 'entry: neither d nor charges')]
 #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
