@@ -47,7 +47,29 @@ folder that holds `contracts/`):
 | `len115` | `/tmp/spk13b-vps-same-length-as-mac-x…x` (105: `…/contracts` is 115 characters, the Mac worktree's length) |
 | `ci37` | `/tmp/spk13b-ci-len-x…x` (37, the length of CI's `/home/runner/work/grimworld/grimworld`) |
 
-PATHS_TABLE
+`paths_table.py`, one build per path. Two rows vary in file sha256 only: their text is equal, and
+the file changes with the id numbering that SPK-13 describes, at every build. The other 7 rows are
+the 7 artefacts:
+
+paths: path:ci37, path:len115, path:mac52, path:wt
+| artefact | sha256 | text_sha256 | size | withdraw_gas | casm_felts | casm_sha256 | class_hash | bytes |
+|---|---|---|---|---|---|---|---|---|
+| grimworld_ephemeral_integrationtest.test | varies: 2ac4cb557ba8 / 1c8a074b6b86 / 72c3521876d8 / b7794e204dbd | same f0b9a8d5e2f6 | same 118162 | same 191 | same - | same - | same - | same 21482969 |
+| grimworld_logic_integrationtest.test | varies: 64cfe6c245c6 / 1b870aa4f1b2 / bbed18580fba / 29c794b51d5e | varies: f5e0ded81748 / 33d87b6b3224 / 512d4520abc8 / 0790fd999e3b | same 238451 | same 801 | same - | same - | same - | varies: 43737081 / 43737283 / 43737093 / 43737349 |
+| grimworld_logic_unittest.test | varies: 733f68090942 / 55059de06c62 / 0f8581268e61 / da522038fc60 | same c0fe8883079d | same 188955 | same 379 | same - | same - | same - | same 33615557 |
+| grimworld_persistent | varies: f6ae2297d109 / 6d39d39d349d / 1a511051f61a / 28e92af6ae87 | varies: 61d02e7ccb9c / 318f9460cb2c / 296720233fa3 / 6b545e30f093 | same 48035 | same 161 | same - | same - | same - | varies: 11062838 / 11065490 / 11063031 / 11066347 |
+| grimworld_persistent_Registry | varies: 36153ccb2bf1 / 528df988b25d / 9777bfd19b74 / 9abf21de872f | varies: 68f8ec9dfd86 / 756d4e501b8a / ad9fa24c0fdd / c4245b587398 | same 10665 | same 46 | same 24611 | same 9eaca75f52b3 | varies: 0x04ea10657c / 0x06ae37e158 / 0x056cee05d5 / 0x07a334d2f2 | varies: 673858 / 674402 / 673897 / 674577 |
+| grimworld_persistent_integrationtest.test | varies: 1b391e845986 / e3169f7916fa / ee44d506e242 / 7ffe91bcba09 | varies: 7573e48a2e2d / ec0e3fae4221 / 4e90deafac59 / d0fc2eababb3 | same 291975 | same 534 | same - | same - | same - | varies: 52408636 / 52408771 / 52408641 / 52408811 |
+| grimworld_persistent_integrationtest_Registry.test | varies: 36153ccb2bf1 / 528df988b25d / 9777bfd19b74 / 9abf21de872f | varies: 68f8ec9dfd86 / 756d4e501b8a / ad9fa24c0fdd / c4245b587398 | same 10665 | same 46 | same - | same - | varies: 0x04ea10657c / 0x06ae37e158 / 0x056cee05d5 / 0x07a334d2f2 | varies: 673858 / 674402 / 673897 / 674577 |
+| grimworld_persistent_unittest.test | varies: 9b9ad69c3ee6 / 26482bc9d934 / ff3df674e34b / ea5cc3dfca27 | varies: 64ddb172bfe1 / ea3e85c45079 / 9a7641d90772 / 5cfe3a836083 | same 73970 | same 230 | same - | same - | same - | varies: 13810185 / 13810253 / 13810188 / 13810274 |
+| grimworld_persistent_unittest_Registry.test | varies: 36153ccb2bf1 / 528df988b25d / 9777bfd19b74 / 9abf21de872f | varies: 68f8ec9dfd86 / 756d4e501b8a / ad9fa24c0fdd / c4245b587398 | same 10665 | same 46 | same - | same - | varies: 0x04ea10657c / 0x06ae37e158 / 0x056cee05d5 / 0x07a334d2f2 | varies: 673858 / 674402 / 673897 / 674577 |
+
+42 artefacts identical in every measure at every path; 9 differ (listed).
+
+The Registry's file is 674,402 bytes at `len115`, as on the Mac at its 115-character root:
+the byte count follows the length of the path, and the text follows the string. The text at CI's
+literal root `/home/runner/work/grimworld/grimworld`, predicted (point 3) and not built, is
+`c0a2b7c56e60` for the Registry. So a worktree build and a CI build of these 7 differ on Linux.
 
 **2. With the path taken out, the Mac and Linux texts are equal.** `closures.py compare` replaces
 the root in every closure name with `<ROOT>` and recomputes each closure's id from the new name.
@@ -64,7 +86,9 @@ artefact on both machines:
 
 **3. One Linux build predicts every recorded value.** `closures.py predict` puts a root into the
 VPS's `wt` text and prints the text sha256 a build there would give, if the path is all that
-changes. The predictions equal the measured value in every case:
+changes. The predictions equal the measured value in every case. The `len115` build was run after
+its prediction (`756d4e501b8a`) and gave it; a root of the Mac worktree's length still gives
+another text than the Mac's, so the string matters, not its length:
 
 | Root put in | Registry | logic_integrationtest | persistent | persistent_unittest | persistent_integrationtest | Measured by |
 |---|---|---|---|---|---|---|
