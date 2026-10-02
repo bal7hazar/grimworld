@@ -42,7 +42,9 @@ arithmetic from M, **E** estimated on a stated assumption.
 - **A fight-heavy expedition is where proofs win**: 300 worst ticks, each an invocation alone under
   D-172, cost **$12.1 batched as it stands ($9.5 after SPK-15's levers) against $0.95 proved** (E): a
   worst tick sent alone costs 36–46 M, about half of a proved segment's 79.5 M, and one proof holds 46
-  to 66 of them under the virtual transaction's cap.
+  to 66 of them under the virtual transaction's cap. The "as it stands" worst tick (45.8 M) is over the
+  batch's 40 M limit (SPK-15), so its batched figure is a notional price: only the "with L1–L4" figure
+  (35.9 M) is sendable.
 - **What blocks option D today is not the cost but the prover.** SNIP-36 verifies proofs of a
   *virtual Starknet transaction* run by the virtual OS, not of a standalone program. **No prover
   answers PROOF2 today** (slingfall SN1 §5), the virtual-OS prover is a server backend, and nobody has
@@ -146,12 +148,16 @@ fight-heavy expedition needs one proof**: the lever is the number of segments, n
 | Fight-heavy: 300 worst ticks, as it stands, 13 segments | 13,784 M, **$12.14** (E: 300 invocations of a tick alone, 45.8 M each, D-172) | 1,076 M, **$0.948** (E) | **0.078×** |
 | Fight-heavy, with SPK-15's L1–L4 | 10,826 M, $9.54 (E: 35.9 M a tick alone) | 1,076 M, $0.948 (E) | 0.099× |
 
+The "as it stands" worst tick (45.8 M alone) exceeds the 40 M batch limit (SPK-15), so its batched figure
+is a notional price, not a transaction that could be sent; only the "with L1–L4" figure (35.9 M) is
+sendable.
+
 **The break-even** (E): a proof (79.5 M) costs less than the same ticks batched when a segment holds at
 least
 
 | Batched cost of a tick | L2 gas | Ticks a segment |
 |---|--:|--:|
-| S1's average: 663 M less `enter`, `leave`, the central reading's 10 Fate actions and 2 gates (36.3 M), over 300 ticks | 2,066,003 | **39** |
+| S1's average: 663 M less `enter`, `leave`, the central reading's 10 Fate actions and 2 gates (43.2 M), over 300 ticks | 2,066,003 | **39** |
 | The representative tick at the expedition's target (cost-budget §2) | 1,469,435 | **55** |
 | A worst tick alone, as it stands (SPK-15) | 45,802,846 | **2** |
 | A worst tick alone, with L1–L4 | 35,943,656 | **3** |
@@ -437,10 +443,12 @@ sending since it computes every tick.
 Why:
 
 1. **S1 does not need proofs, and may get worse with them.** At the central reading (13 segments) S1 costs
-   1.62× more proved; proofs win S1 only if it has 5 or fewer Fate actions and no gate (E). S1's
+   1.62× more proved; proofs win S1 only with no gate and about 6 or fewer Fate actions (E: 581 M at 6, 662.9 M against 663.0 M at 7, a tie; `cost.py`, `shared(F, 0)` and 7 segments at 79,472,160 each). S1's
    problem is the per-tick cost of fights, which ENG-07's representative fight tick will measure.
 2. **Heavy fights are where proofs win, by an order of magnitude** (0.08× to 0.10× on the fight-heavy
-   expedition, E). They are D-172's open case: a worst tick runs alone at 36–46 M. **But the phone pays
+   expedition, E). They are D-172's open case: a worst tick runs alone at 36–46 M, but the 46 M of the tick
+   "as it stands" exceeds the 40 M batch limit (SPK-15), so that price is notional and only the 36 M "with
+   L1–L4" is sendable. **But the phone pays
    for it**: a fight-heavy expedition's 13 proofs of 85–227 s each take **12–32 % of the battery** (§4,
    E), against SPK-6's 8 % for 30 minutes of play; the saving on the chain is spent on the device.
 3. **The path is not open yet.** No prover answers PROOF2 today; a virtual transaction's proving time is
