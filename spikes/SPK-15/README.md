@@ -9,7 +9,7 @@ levers** (a rule changes; the owner decides).
 ## Run it
 
 ```
-scarb --manifest-path spikes/SPK-15/Scarb.toml build
+scripts/lock.sh scarb --manifest-path spikes/SPK-15/Scarb.toml build
 (cd spikes/SPK-15 && snforge test)
 python3 spikes/SPK-15/summarize.py spikes/SPK-15/snforge-test-output-{1,2}.txt   # every pair
 python3 spikes/SPK-15/levers.py spikes/SPK-15/snforge-test-output-{1,2}.txt      # the table
