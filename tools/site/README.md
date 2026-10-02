@@ -1,4 +1,4 @@
-# tools/site — the client of `main`, served for the owner's reviews
+# tools/site — the client of `main`, served publicly for the owner's reviews
 
 `grimworld.bal7hazar.com` serves the client of `origin/main`, rebuilt when main moves.
 
@@ -19,8 +19,8 @@ Run every 5 minutes by `grimworld-site.timer` (it can also be run by hand):
 
 **Art (D-73).** Off by default: the client draws shapes. With `GRIMWORLD_SITE_ART=1` (a line in the
 service, commented out) the script builds the atlas from `~/projects/assets` with `tools/art/build.py`
-and copies `sprites.json` and the pages it lists (not `report.json` or `preview.html`) to `<release>/art/`, where the client loads it. Leave it unset until the owner decides
-whether the art may be served (behind basic auth or publicly). Nothing of the art is in the repository.
+and copies `sprites.json` and the pages it lists (not `report.json` or `preview.html`) to `<release>/art/`, where the client loads it. It stays unset: it is enabled only when the
+owner says that the pack's illustrations may be served publicly (D-73), the site being public. Nothing of the art is in the repository.
 
 The client has no chain endpoint configured: it talks to no network from the site.
 
@@ -42,28 +42,20 @@ As root, so that Caddy (user `caddy`) can read the site: `/home/claude` is `drwx
 (execute permission on that one directory for `caddy` only; `~/site` and `~/site/grimworld` need `o+x`,
 done above, and the script makes each release `a+rX`).
 
-Then the Caddy block, `Caddyfile.grimworld`. The commands run from `~/site/grimworld-src`
-(`cd ~/site/grimworld-src`; before the PR is merged, from the worktree that has the file). Get the hash
-first (`caddy hash-password` asks for the password and prints a bcrypt hash) and paste it in place of the
-placeholder in your copy of the block. Then, on a stock Caddyfile, append the block:
-
-    sudo sh -c 'cat tools/site/Caddyfile.grimworld >> /etc/caddy/Caddyfile'
-    sudo caddy validate --config /etc/caddy/Caddyfile
-    sudo systemctl reload caddy
-
-(or add the line `import /etc/caddy/conf.d/*.caddy` to `/etc/caddy/Caddyfile` first and copy the block to
-`/etc/caddy/conf.d/grimworld.caddy`).
-
-The `basic_auth` block is there so that the site is private; remove it to make the site public (the
-owner's decision). No password or hash is committed.
+The Caddy block, `Caddyfile.grimworld`, serves the site **publicly**: the owner decided so on 2026-10-02.
+It is already appended to the end of `/etc/caddy/Caddyfile` on this VPS (there is no conf.d); to change
+it, edit that file as root, then `sudo caddy validate --config /etc/caddy/Caddyfile` and
+`sudo systemctl reload caddy`. `basic_auth` is an option, not the default: a commented example is in the
+block (hash from `caddy hash-password`; never commit a real one).
 
 ## Runtime notes
 
 - The service runs `/usr/bin/node` 24.21.0 and `/usr/bin/pnpm` 12.5.1 (the versions of `.tool-versions`),
   from an explicit `Environment=PATH=/usr/local/bin:/usr/bin:/bin`.
 - The clone uses HTTPS (the repository is public): a unit has no `SSH_AUTH_SOCK`, so an SSH remote would
-  need a passphrase-less key or a deploy key. The script sets the clone's `origin` to that URL on each run
-  (`GRIMWORLD_SITE_REPO` overrides it).
+  need a passphrase-less key or a deploy key. The unit sets the clone's `origin` to that URL in an `ExecStartPre` before its
+  `git fetch`, and the script does the same on each run (`GRIMWORLD_SITE_REPO` overrides it for the
+  script only).
 - `deploy.log` has a line per deploy or failed build only. If the service fails before the script starts
   (the `git fetch` or `checkout` of `ExecStartPre`), nothing is logged there: look at
   `journalctl --user -u grimworld-site`.
