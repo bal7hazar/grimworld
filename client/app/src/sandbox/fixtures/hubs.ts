@@ -95,12 +95,13 @@ function row(y: number, from: number, to: number): Tile[] {
 }
 
 /**
- * The town, on the instance's hex grid (CLI-03e): three bands of buildings five rows apart, doors
- * facing the viewer. **Proposed, the owner's eye**: the Guild in the castle at the back between the
+ * The town, on the instance's hex grid (CLI-03e): three bands of buildings, doors facing the
+ * viewer. **Proposed, the owner's eye**: the Guild in the castle at the back between the
  * Enchanter's tower and a windmill; the Trainer, the Smith and the Armorer along the middle street;
  * the Alchemist, the Market, the Vault and the Gate in front, along the road that leaves by the
- * Gate. A path climbs from the road to the middle street and the castle's door. Tiles in the
- * room's coordinates: `x` grows West (to the left), `y` North (up), from the front-right corner.
+ * Gate; the present adventurers on the street between the front and the middle. A path climbs
+ * from the road to the middle street and the castle's door. Tiles in the room's coordinates: `x`
+ * grows West (to the left), `y` North (up), from the front-right corner.
  */
 const town: HubView = {
   name: "Town A",
@@ -112,7 +113,9 @@ const town: HubView = {
     tileset: "grass",
     water: "water_c",
     path: [
-      ...row(1, 0, 9),
+      ...row(0, 0, 9),
+      tile(4, 1),
+      tile(5, 2),
       tile(4, 3),
       tile(4, 4),
       tile(4, 5),
@@ -130,15 +133,15 @@ const town: HubView = {
     place("trainer", "barracks", tile(8, 7)),
     place("smith", "forge", tile(5, 7)),
     place("armorer", "archery", tile(2, 7)),
-    place("alchemist", "cloister", tile(9, 2)),
-    place("market", "market_hall", tile(7, 2)),
-    place("vault", "grain_silo", tile(3, 2)),
-    place("gate", "watchtower", tile(1, 2)),
+    place("alchemist", "cloister", tile(8, 1)),
+    place("market", "market_hall", tile(5, 1)),
+    place("vault", "grain_silo", tile(3, 1)),
+    place("gate", "watchtower", tile(1, 1)),
   ],
   decor: [
     decor("windmill", "windmill", tile(9, 12)),
-    decor("inn", "inn", tile(0, 7)),
-    decor("cottage", "cottage", tile(5, 2)),
+    decor("house", "small_house", tile(0, 7)),
+    decor("cottage", "cottage", tile(8, 3)),
   ],
   props: [
     prop("tree-back-w", "tree4", 9, 13),
@@ -149,16 +152,16 @@ const town: HubView = {
     prop("bush-2", "bush3", 1, 10, true),
     prop("bush-3", "bush2", 0, 5),
     prop("bush-4", "bush1", 6, 4, true),
-    prop("rock-1", "rock2", 9, 0),
-    prop("rock-2", "rock4", 2, 0),
-    prop("rock-3", "rock3", 6, 2),
-    prop("stump-1", "stump1", 7, 5),
+    prop("rock-1", "rock2", 0, 1),
+    prop("rock-2", "rock4", 2, 1),
+    prop("rock-3", "rock3", 7, 2),
+    prop("stump-1", "stump1", 8, 5),
     prop("sheep-1", "sheep", 2, 10),
     prop("sheep-2", "sheep", 3, 10, true),
   ],
   figures: [
-    { id: 11, name: "Maren", profession: "warden", level: 7, at: tile(9, 5), facing: "right" },
-    { id: 12, name: "Tobin", profession: "vanguard", level: 3, at: tile(5, 4), facing: "left" },
+    { id: 11, name: "Maren", profession: "warden", level: 7, at: tile(7, 5), facing: "right" },
+    { id: 12, name: "Tobin", profession: "vanguard", level: 3, at: tile(2, 5), facing: "left" },
     { id: 13, name: "Ilse", profession: "cleric", level: 12, at: tile(8, 11), facing: "right" },
   ],
   services: [...TOWN_SERVICES.map(service), GATE],
