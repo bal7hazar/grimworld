@@ -120,7 +120,7 @@ played are never shown as queued ([02-core-loop](02-core-loop.md#planned-queues-
 
 ## Hubs
 
-Hubs have no geometry (D-03): they are **illustrated screens with places to tap**.
+Hubs have no geometry on chain (D-03): the chain knows which hub an adventurer is in. The client lays each hub on a hex grid and the player's adventurer walks it (D-196); a place opens when the walk ends on its door, or from the service row. (D-196, owner, 2026-10-02)
 
 ```
 ┌──────────────────────────────┐
