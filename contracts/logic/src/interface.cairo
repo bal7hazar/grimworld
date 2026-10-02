@@ -1,7 +1,7 @@
 //! The calls between contracts (docs/architecture/ENG-01-interfaces.md, *Boundaries*). They live
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
-use starknet::ContractAddress;
+use starknet::{ClassHash, ContractAddress};
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
 use crate::types::executor::{Board, Cache, Carrier};
 use crate::types::tick::Content;
@@ -119,9 +119,12 @@ pub trait IFate<T> {
 #[starknet::interface]
 pub trait ITickLibrary<T> {
     /// Runs `ticks` world ticks over the stored `words` with the batch's `content` on the tick's
-    /// `board` (the window and where it lies: CBT-05a's executor reads it), stopping after a tick
-    /// that defeated the adventurer; returns the words.
-    fn run(self: @T, words: Words, content: Content, board: Board, ticks: u8) -> Words;
+    /// `board` (the window and where it lies), each carrier through the executor's class
+    /// `executor` (route (c), CBT-05a), stopping after a tick that defeated the adventurer;
+    /// returns the words.
+    fn run(
+        self: @T, words: Words, content: Content, board: Board, executor: ClassHash, ticks: u8,
+    ) -> Words;
 }
 
 /// The snapshot's flattening as a library class (ENG-01 §1.3, D-168): `Hub.set_build` calls it
@@ -152,4 +155,17 @@ pub trait IExecutorLibrary<T> {
         address: u16,
         t: u32,
     ) -> (Words, Cache);
+    /// Step 1's hook (§5.9): the activation of `source`'s `slot` on `address` concluded at the
+    /// words' clock; its target checked legal, the carrier run. Returns the words, the cache, and
+    /// whether a `TRAP` carrier's guard held (the placement is CBT-05b's, §5.11).
+    fn conclude(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        cache: Cache,
+        source: Actor,
+        slot: u8,
+        address: u16,
+    ) -> (Words, Cache, bool);
 }

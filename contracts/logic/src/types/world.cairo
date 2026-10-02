@@ -49,7 +49,7 @@ use crate::models::goblin::{GoblinTickTrait, GoblinTrait};
 use crate::models::index::{Goblin, GoblinWords, Member, MemberWords};
 use crate::models::member::{MemberTickTrait, MemberTrait};
 use crate::types::combat::activation;
-use crate::types::tick::{Content, ContentTrait, NO_SLOT, Sheets, ai, flag, status};
+use crate::types::tick::{Content, ContentTrait, Index, NO_SLOT, Sheets, ai, flag, status};
 
 /// What crosses the library call: the clock, the members (ascending entity id), the goblins the
 /// ticks may touch (ascending entity id), the goblins killed in resolution order (`GoblinKilled`)
@@ -99,6 +99,13 @@ pub impl WordsImpl of WordsTrait {
     /// The world of the call and its content's sheets: the index built once, every actor loaded
     /// once through it (D-145), the awake set formed in the same pass.
     fn load(self: Words, content: @Content) -> (World, Sheets) {
+        let (world, sheets, _) = self.indexed(content);
+        (world, sheets)
+    }
+
+    /// The same, the content's index kept: for a caller that loads actors again during the call
+    /// (route (c): `TickLibrary` reloads what `ExecutorLibrary` returns, CBT-05a).
+    fn indexed(self: Words, content: @Content) -> (World, Sheets, Index) {
         let (sheets, mut index) = content.index();
         let mut members = array![];
         let mut downs = 0;
@@ -131,7 +138,7 @@ pub impl WordsImpl of WordsTrait {
             killed: self.killed,
             defeated: self.defeated,
         };
-        (world, sheets)
+        (world, sheets, index)
     }
 }
 
@@ -209,7 +216,7 @@ pub impl IdleRules of Rules<Idle> {
 pub impl TickImpl of TickTrait {
     /// Runs up to `ticks` world ticks (an action's tick cost, design/02), stopping after a tick
     /// that defeated the adventurer.
-    fn run<R, +Rules<R>, +Drop<R>>(ref world: World, sheets: @Sheets, ticks: u8, ref rules: R) {
+    fn run<R, +Rules<R>, +Destruct<R>>(ref world: World, sheets: @Sheets, ticks: u8, ref rules: R) {
         let mut k: u8 = 0;
         while k < ticks && !world.defeated {
             Self::tick(ref world, sheets, ref rules);
@@ -218,7 +225,7 @@ pub impl TickImpl of TickTrait {
     }
 
     /// One world tick, steps 0 to 5 (design/19 §5.1).
-    fn tick<R, +Rules<R>, +Drop<R>>(ref world: World, sheets: @Sheets, ref rules: R) {
+    fn tick<R, +Rules<R>, +Destruct<R>>(ref world: World, sheets: @Sheets, ref rules: R) {
         world.assert_goblins();
         // The adventurer at 0 before the tick (in the action phase: a trap on its move, §5.11):
         // the tick stops at once, before the clock advances or any actor runs; step 5's defeat
@@ -260,7 +267,7 @@ pub impl TickImpl of TickTrait {
     /// mask of the awake goblins that resolved (bit `2^k` for the `k`-th of the set).
     /// The goblins step 1 changes are pending writes, put in the set in one rebuild before the
     /// executor runs (it sees the world as it is) and when the step ends.
-    fn conclude<R, +Rules<R>, +Drop<R>>(
+    fn conclude<R, +Rules<R>, +Destruct<R>>(
         ref world: World, sheets: @Sheets, ref rules: R,
     ) -> (bool, u128) {
         let t = world.clock;
@@ -329,7 +336,7 @@ pub impl TickImpl of TickTrait {
     /// Step 2: every goblin of the awake set, ascending id, that is alive, not busy (activating
     /// or recovering), not knocked down, and did not resolve in step 1 (§5.2). Returns whether
     /// the adventurer reached 0.
-    fn act<R, +Rules<R>, +Drop<R>>(
+    fn act<R, +Rules<R>, +Destruct<R>>(
         ref world: World, sheets: @Sheets, resolved: u128, ref rules: R,
     ) -> bool {
         let t = world.clock;

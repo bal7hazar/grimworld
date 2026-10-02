@@ -555,7 +555,7 @@ fn test_cost_library_call_batch_representative() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (world, content) = representative();
-    let words = library.run(world.store(), content_of(@content), board(), 10);
+    let words = library.run(world.store(), content_of(@content), board(), executor(), 10);
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -939,7 +939,7 @@ fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words();
-    let words = library.run(words, content, board(), 1);
+    let words = library.run(words, content, board(), executor(), 1);
     assert(words.clock == 50, 'one tick');
 }
 
@@ -952,7 +952,7 @@ fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (world, content) = worst_state(false, 1);
-    let words = library.run(world.store(), content_of(@content), board(), 10);
+    let words = library.run(world.store(), content_of(@content), board(), executor(), 10);
     assert(words.clock == 59, 'ten ticks');
 }
 
@@ -973,7 +973,7 @@ fn test_library_matches_pipeline() {
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words();
     let (expected, _) = worst_words();
-    let words = library.run(words, content, board(), 3);
+    let words = library.run(words, content, board(), executor(), 3);
     let (mut world, sheets) = expected.load(@content);
     let mut rules = ExecutorTrait::new(board());
     TickTrait::run(ref world, @sheets, 3, ref rules);
@@ -2627,7 +2627,7 @@ fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_kills();
-    let words = library.run(words, content, board(), 1);
+    let words = library.run(words, content, board(), executor(), 1);
     assert(words.killed.len() == 100, 'every goblin once');
 }
 
@@ -2656,7 +2656,7 @@ fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_two();
-    let words = library.run(words, content, board(), 1);
+    let words = library.run(words, content, board(), executor(), 1);
     assert(words.members.len() == 2, 'two members');
 }
 
@@ -2693,7 +2693,7 @@ fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let (words, content) = worst_words_all_dead();
-    let words = library.run(words, content, board(), 1);
+    let words = library.run(words, content, board(), executor(), 1);
     assert(words.killed.len() == 100, 'each goblin once');
 }
 
@@ -3122,6 +3122,11 @@ fn test_parity_terms_mixed() {
         1893901237981330943186718663857116933347588528450890899926102793009466032819,
     ];
     check(parity_terms_mixed().span(), expected.span());
+}
+
+/// The executor's class (route (c), CBT-05a), declared once a test.
+fn executor() -> starknet::ClassHash {
+    *declare("ExecutorLibrary").unwrap().contract_class().class_hash
 }
 
 /// The board of the library's calls (CBT-05a): an open window at the location's origin. The

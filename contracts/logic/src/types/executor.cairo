@@ -39,7 +39,9 @@
 //!   its pack's `alert` bits and the packs within 8 tiles are chunk features, ENG-07's.
 
 use hexx::board::bits::Bits;
+use starknet::ClassHash;
 use crate::durations::effective_duration;
+use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
 use crate::models::goblin::{
     Goblin, GoblinConditionTrait, GoblinLifecycleTrait, GoblinPlaceTrait, GoblinTrait,
     GoblinWordsTrait,
@@ -53,10 +55,11 @@ use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape,
 use crate::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BLOCK};
 use crate::types::infliction::Infliction;
 use crate::types::tick::{
-    ABSENT, ABSENT_LANE, CasteSheetTrait, ENERGY_THIRDS, Held, Sheets, SkillSheetTrait, ai, flag,
+    ABSENT, ABSENT_LANE, CasteSheetTrait, Content, ENERGY_THIRDS, Held, Index, Sheets,
+    SkillSheetTrait, ai, flag,
 };
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
-use crate::types::world::{Actor, Pending, Rules, World, WorldTrait};
+use crate::types::world::{Actor, Pending, Rules, Words, World, WorldTrait};
 use crate::types::{FIRST_GOBLIN, MAX_CLOCK};
 
 /// A value's bounds at play (design/19 §6: a value outside its kind's bounds is clamped).
@@ -1161,6 +1164,117 @@ pub impl ExecutorRules of Rules<Executor> {
     fn objectives(ref self: Executor, ref world: World) {}
 }
 
+/// The rules of the tick's library class under route (c) (the project manager, 2026-10-02,
+/// option (2)): step 1's hook calls the executor's own class, `ExecutorLibrary`, once a carrier,
+/// with the words of the actors the carrier can reach: every member, the source, the addressed
+/// goblin, and the goblins within one tile of the source or of the address (the MVP's shapes are
+/// of radius 1 at most: `SINGLE`, `RING_1`, `DISC_1`; `DISC_2` and `DISC_3` are refused, FX-21).
+/// The returned words are loaded again through the call's index and put back in the world; the
+/// kills are appended in resolution order. Perception, the AI and the objectives are ENG-07's.
+#[derive(Destruct)]
+pub struct Delegate {
+    pub board: Board,
+    pub cache: Cache,
+    pub executor: ClassHash,
+    pub content: Content,
+    pub index: Index,
+    pub placed: Array<(u16, Actor)>,
+}
+
+pub impl DelegateRules of Rules<Delegate> {
+    fn perceive(ref self: Delegate, ref world: World) {}
+
+    fn resolve(
+        ref self: Delegate, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
+    ) {
+        let board = self.board;
+        // The source's and the address's positions.
+        let source_at = match actor {
+            Actor::Member(i) => {
+                let (x, y, _) = MemberSnapshotTrait::place(@world.member(i));
+                board.position(x, y)
+            },
+            Actor::Goblin(i) => {
+                let (x, y, _) = GoblinPlaceTrait::place(@world.goblin(i));
+                board.position(x, y)
+            },
+        };
+        let addressed = if target < FIRST_GOBLIN {
+            None
+        } else {
+            world.find(target)
+        };
+        let address_at = if target < FIRST_GOBLIN && target.into() < world.member_count() {
+            let (x, y, _) = MemberSnapshotTrait::place(@world.member(target.into()));
+            board.position(x, y)
+        } else {
+            match addressed {
+                Some(i) => {
+                    let (x, y, _) = GoblinPlaceTrait::place(@world.goblin(i));
+                    board.position(x, y)
+                },
+                None => board.tile(target),
+            }
+        };
+        // The goblins the carrier can reach, ascending index (so ascending entity id).
+        let mut picked: Array<u32> = array![];
+        let mut sub = actor;
+        for (i, state) in world.alive() {
+            let (x, y, _) = GoblinPlaceTrait::at(state);
+            let at = board.position(x, y);
+            let own = actor == Actor::Goblin(i);
+            let near = WindowTrait::distance(at, source_at) <= 1
+                || WindowTrait::distance(at, address_at) <= 1;
+            if own || addressed == Some(i) || near {
+                if own {
+                    sub = Actor::Goblin(picked.len());
+                }
+                picked.append(i);
+            }
+        }
+        let mut members = array![];
+        let count = world.member_count();
+        let mut m = 0;
+        while m < count {
+            members.append(world.member(m).store());
+            m += 1;
+        }
+        let mut goblins = array![];
+        for i in picked.span() {
+            goblins.append(world.goblin(*i).store());
+        }
+        let words = Words {
+            clock: world.clock, members, goblins, killed: array![], defeated: false,
+        };
+        let library = IExecutorLibraryLibraryDispatcher { class_hash: self.executor };
+        let (out, cache, place) = library
+            .conclude(words, self.content, board, self.cache, sub, slot, target);
+        self.cache = cache;
+        if place {
+            self.placed.append((target, actor));
+        }
+        let mut m = 0;
+        for words in out.members {
+            let member = MemberTrait::load(words, ref self.index, sheets);
+            world.set_member(m, member);
+            m += 1;
+        }
+        let mut k = 0;
+        for words in out.goblins {
+            let goblin = GoblinTrait::load(words, ref self.index, sheets);
+            world.set_goblin(*picked[k], goblin);
+            k += 1;
+        }
+        for entity in out.killed {
+            world.killed.append(entity);
+        }
+    }
+
+    fn act(ref self: Delegate, ref world: World, sheets: @Sheets, index: u32) {}
+
+    fn objectives(ref self: Delegate, ref world: World) {}
+}
+
 #[generate_trait]
 pub impl ExecutorImpl of ExecutorTrait {
     /// The executor's rules on `board`.
@@ -2133,7 +2247,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 } else {
                     addressed_at
                 };
-                let mask = board.window.shape(*entry.shape, centre);
+                let mask = board.window.near(*entry.shape, centre);
                 let bits = if entry_kind == kind::DAMAGE {
                     HIT_BIT
                 } else {
@@ -2145,7 +2259,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             k += 1;
         }
         if damage == Some(3) {
-            let mask = board.window.shape(shape::SINGLE, addressed_at);
+            let mask = board.window.near(shape::SINGLE, addressed_at);
             sets.append((mask, filter::FOES, HIT_BIT));
             union = Bits::or(union, mask.into());
         }

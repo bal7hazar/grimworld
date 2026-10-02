@@ -286,6 +286,28 @@ pub impl WindowImpl of WindowTrait {
         Bits::to_felt(Bits::and(tiles, (*self.open).into()))
     }
 
+    /// `shape` for the shapes the MVP's content uses (CBT-05a, option (2) of the project manager,
+    /// 2026-10-02): `SINGLE`, `RING_1`, `DISC_1`, by the same rule. `DISC_2` and `DISC_3` have no
+    /// MVP content (FX-21; the validators refuse them since CBT-01): an empty set here, so that the
+    /// executor's class does not hold `disc`. The executor's one shape call.
+    fn near(self: @Window, shape: u8, centre: u8) -> felt252 {
+        if !Self::inside(centre) {
+            return 0;
+        }
+        let tiles = if shape == shape::SINGLE {
+            Bits::pow(centre)
+        } else if shape == shape::RING_1 {
+            WindowInternal::neighbours(centre, 0)
+        } else if shape == shape::DISC_1 {
+            WindowInternal::neighbours(centre, 1)
+        } else {
+            return 0;
+        };
+        // `u256`: the two limbs of the bitmaps for the bitwise builtin (module documentation)
+        let tiles: u256 = tiles.into();
+        Bits::to_felt(Bits::and(tiles, (*self.open).into()))
+    }
+
     /// The positions of a bitmap of the window, ascending.
     fn tiles(mask: felt252) -> Span<u8> {
         // `u256`: the two limbs of the bitmap, each walked on its own (module documentation)
@@ -1201,6 +1223,20 @@ mod tests {
     }
 
     /// Counts in the open, at the corners and edges; walls skipped; the centre a wall.
+    // CBT-05a: `near` is `shape` for the MVP's three shapes at every centre, and empty for the
+    // radii FX-21 defers.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_near_agrees() {
+        let window = walled(array![17, 112, 200].span());
+        for centre in 0..240_u8 {
+            for s in 1..4_u8 {
+                assert(window.near(s, centre) == window.shape(s, centre), 'near = shape');
+            }
+            assert(window.near(4, centre) == 0 && window.near(5, centre) == 0, 'deferred');
+        }
+    }
+
     #[test]
     #[available_gas(l2_gas: 1454972)] // ceil(1.05 × 1385687 measured)
     fn test_shapes_edges() {

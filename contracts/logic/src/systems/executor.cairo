@@ -1,12 +1,13 @@
-//! The executor as its own library class (CBT-05a; ENG-01 §1.3): `TickLibrary` would call it once
-//! a carrier, with the words of the actors the carrier can reach and the sheets their loads need.
-//! It loads them, runs the carrier (`types::executor`, with SPK-15's L3) and returns the words.
-//! Built to measure the own-class route against the single class.
+//! The executor as its own library class (CBT-05a, route (c), option (2): the project manager,
+//! 2026-10-02; ENG-01 §1.3): `TickLibrary`'s step-1 hook (`types::executor::Delegate`) calls it
+//! once a carrier, with the words of the actors the carrier can reach and the batch's content. It
+//! loads them, runs the carrier (`types::executor`, with SPK-15's L3) and returns the words.
+//! `execute` is the immediate carrier's entry (CBT-05b's action phase), `conclude` step 1's.
 
 #[starknet::contract]
 pub mod ExecutorLibrary {
     use crate::interface::IExecutorLibrary;
-    use crate::types::executor::{Board, Cache, Carrier, ExecutorTrait, Levered};
+    use crate::types::executor::{Board, Cache, Carrier, Executed, ExecutorTrait, Levered};
     use crate::types::tick::Content;
     use crate::types::world::{Actor, Words, WordsTrait, WorldStoreTrait};
 
@@ -32,6 +33,24 @@ pub mod ExecutorLibrary {
                 @Levered {}, ref cache, ref world, @sheets, @board, source, carrier, address, t,
             );
             (world.store(), cache)
+        }
+
+        fn conclude(
+            self: @ContractState,
+            words: Words,
+            content: Content,
+            board: Board,
+            cache: Cache,
+            source: Actor,
+            slot: u8,
+            address: u16,
+        ) -> (Words, Cache, bool) {
+            let (mut world, sheets) = words.load(@content);
+            let mut cache = cache;
+            let executed = ExecutorTrait::conclude(
+                @Levered {}, ref cache, ref world, @sheets, @board, source, slot, address,
+            );
+            (world.store(), cache, executed == Executed::Place)
         }
     }
 }
