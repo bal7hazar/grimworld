@@ -50,11 +50,12 @@ The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with oth
 
 - **Every heavy command goes through the build lock**:
   `scripts/lock.sh scarb --manifest-path <package>/Scarb.toml build` (Scarb 2.19 and later: the option
-  comes before the subcommand), `cd <package> && snforge test <filter>` (the machine's
+  comes before the subcommand; the script takes the machine's heavy lock itself for every scarb or
+  snforge build, test, check, lint or execute), `cd <package> && snforge test <filter>` (the machine's
   `snforge` shim takes the heavy lock), `scripts/lock.sh pnpm build`. It waits silently, sometimes for
-  minutes, while another build runs: that is normal. A workspace-wide run adds `--heavy`.
+  minutes, while another build runs: that is normal. `--heavy` stays accepted.
   `scarb` and `snforge` on your PATH are also the machine's shims, which take the shared
-  heavy lock by themselves.
+  heavy lock by themselves when the subcommand comes first.
 - **Local checks are package-scoped**: the tests of what you touched and of what depends on
   it. Never the whole workspace locally; the pull-request CI is the full gate. Push early and
   fix from CI.

@@ -225,6 +225,18 @@ jobs:
           set +e; out=$(PATH=$lkd/bin:$PATH scripts/lock.sh --heavy --wait 1 scarb build 2>&1); s=$?; set -e
           [ "$s" = 75 ]; grep -q 'build lock busy for 1 s' <<< "$out"; [ ! -e "$lkd/ran" ]
           wait "$lk2"
+          # FND-15: the heavy lock is taken for a scarb build wherever the subcommand sits, with no --heavy: after
+          # --manifest-path too (the machine shim only sees a first-argument subcommand). Held, it ends in 75 and the
+          # command does not run; `scarb fmt` takes no heavy lock and runs under the same held lock.
+          flock "$HEAVY_BUILD_LOCK" sleep 6 & lk3=$!
+          for _ in $(seq 1 50); do flock -n "$HEAVY_BUILD_LOCK" true || break; sleep 0.2; done   # held
+          set +e; out=$(PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb --manifest-path x/Scarb.toml build 2>&1); s=$?; set -e
+          [ "$s" = 75 ]; grep -q 'build lock busy for 1 s' <<< "$out"; [ ! -e "$lkd/ran" ]
+          set +e; out=$(PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb build 2>&1); s=$?; set -e
+          [ "$s" = 75 ]; [ ! -e "$lkd/ran" ]
+          PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb fmt --check; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
+          PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb --manifest-path x/Scarb.toml fmt --check; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
+          wait "$lk3"
           # Free again: the command runs under the locks.
           PATH=$lkd/bin:$PATH scripts/lock.sh --heavy --wait 5 scarb build; [ -e "$lkd/ran" ]
           for w in 0 x; do
@@ -316,6 +328,35 @@ jobs:
           mkdir -p "$work/bare"; ln -sf "$(command -v bash)" "$work/bare/bash"; ln -sf "$(command -v starknet-devnet)" "$work/bare/starknet-devnet"
           set +e; PATH=$work/bare "$work/bare/bash" scripts/with-node.sh true 2> "$work/err"; rc=$?; set -e
           [ "$rc" = 127 ]; grep -q 'neither setsid nor perl' "$work/err"
+
+          # The asdf fallback (FND-14): starknet-devnet is not on the PATH but asdf is. A stub asdf answers
+          # `where starknet-devnet 0.10.0` (the version of .tool-versions) with a directory whose bin/ holds the
+          # downloaded devnet, and the node starts from it; with a wrong directory, or no asdf, it stops with 127.
+          realdevnet=$(command -v starknet-devnet)
+          nodevnet=''; n=0
+          IFS=: read -ra dirs <<< "$PATH"
+          for d in "${dirs[@]}"; do
+            if [ -x "$d/starknet-devnet" ]; then
+              n=$((n + 1)); mkdir -p "$work/nodevnet$n"
+              for f in "$d"/*; do [ "${f##*/}" = starknet-devnet ] || ln -s "$f" "$work/nodevnet$n/" 2> /dev/null || true; done
+              d=$work/nodevnet$n
+            fi
+            nodevnet=$nodevnet:$d
+          done
+          nodevnet=${nodevnet#:}
+          if PATH=$nodevnet command -v starknet-devnet; then echo "starknet-devnet still visible" >&2; exit 1; fi
+          mkdir -p "$work/asdf-home/bin" "$work/asdf-bin"; ln -sf "$realdevnet" "$work/asdf-home/bin/starknet-devnet"
+          # shellcheck disable=SC2016 # the stub's own variables, not this shell's
+          printf '#!/bin/sh\necho "$*" >> "%s/asdf-calls"\n[ "$1 $2 $3" = "where starknet-devnet 0.10.0" ] && echo "%s"\n' "$work" "$work/asdf-home" > "$work/asdf-bin/asdf"
+          chmod +x "$work/asdf-bin/asdf"
+          grep -qx 'starknet-devnet 0.10.0' .tool-versions
+          rm -f "$work/asdf-calls" "$work/asdf-url"
+          # shellcheck disable=SC2016 # the inner shell expands NODE_URL, on purpose
+          PATH=$work/asdf-bin:$nodevnet scripts/with-node.sh sh -c 'echo "$NODE_URL" > "$1"' sh "$work/asdf-url"
+          grep -q '^http://127.0.0.1:' "$work/asdf-url"; grep -qx 'where starknet-devnet 0.10.0' "$work/asdf-calls"
+          rm -f "$work/ran"; printf '#!/bin/sh\necho "%s/nowhere"\n' "$work" > "$work/asdf-bin/asdf"
+          set +e; PATH=$work/asdf-bin:$nodevnet scripts/with-node.sh touch "$work/ran" 2> "$work/err"; rc=$?; set -e
+          [ "$rc" = 127 ]; grep -q 'starknet-devnet not found' "$work/err"; [ ! -e "$work/ran" ]
 
           # --full-archive: the flag is on the node's command line, and a balance read at block 0 answers
           # after a mint made a later block; without the flag the same read is refused.

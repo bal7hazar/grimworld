@@ -2,7 +2,7 @@
 """ENG-01: the size of every contract class of the workspace against Starknet's limits (ADR-0007,
 *Class size*; docs/architecture/ENG-01-interfaces.md, *Class size*).
 
-Reads the artifacts of `scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (the
+Reads the artifacts of `scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (which takes the heavy lock; the
 `*.starknet_artifacts.json` of `contracts/target/dev/`) and prints, per contract, the Sierra class
 (its JSON, the size the network limits) and the CASM bytecode, with the share of each limit. Exits 1
 when a class passes a limit, or the warning share given by `--warn` (default 50 %: a class that

@@ -2,7 +2,7 @@
 """SPK-14: write src/tables.cairo, the constants of the hexagonal chunk, its window and its
 generation, computed on the plain model (geometry.py, generation.py).
 
-    python3 spikes/SPK-14/gen_tables.py && scarb --manifest-path spikes/SPK-14/Scarb.toml fmt
+    python3 spikes/SPK-14/gen_tables.py && scripts/lock.sh scarb --manifest-path spikes/SPK-14/Scarb.toml fmt
 """
 import os
 
