@@ -2047,3 +2047,1006 @@ pub impl ExecutorImpl of ExecutorTrait {
         }
     }
 }
+
+/// The executor's unit tests (D-167): design/19 §10's worked examples to the unit (10.1, 10.2,
+/// 10.4, 10.6–10.10), §5.14's steps and order, each kind of §3 the MVP's content uses, §5.7,
+/// §5.12, §5.13, §6's edges for carriers, the guard (SPK-15's) across two hits, and L3's pairs:
+/// each part levered alone against `Naive` (the totals of two tests that differ by the lever
+/// alone).
+#[cfg(test)]
+mod tests {
+    use crate::models::goblin::{
+        Goblin, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait, GoblinWordsTrait,
+    };
+    use crate::models::member::{
+        Member, MemberLifecycleTrait, MemberTickTrait, MemberTrait, MemberWordsTrait,
+    };
+    use crate::types::MAX_CLOCK;
+    use crate::types::combat::{condition, damage, skill_kind, weapon};
+    use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape, target};
+    use crate::types::tick::{
+        Content, ContentTrait, Held, PotionSheet, Sheets, SkillSheet, ai, flag,
+    };
+    use crate::types::window::{Window, WindowTrait};
+    use crate::types::world::fixtures::{Fixture, HOB, opaque, two};
+    use crate::types::world::{Actor, World, WorldTrait};
+    use super::{
+        Board, BoardTrait, Cache, Carrier, DefenceTrait, Executed, ExecutorTrait, Levered, Levers,
+        Naive,
+    };
+
+    // ---- Fixtures ------------------------------------------------------------------------------
+
+    /// The member's tile: (7, 7), position 112, in the open window at the origin.
+    const AT: u8 = 112;
+    /// Ids of the tests' skills, appended to the fixtures' content (positions 16 on).
+    const RING: u16 = 40;
+    const SKULLRING: u16 = 41;
+    const SIDESTEP: u16 = 42;
+    const BRACE: u16 = 43;
+    const CROSSING: u16 = 44;
+    const SNARE: u16 = 45;
+    const KNOCK: u16 = 46;
+    const KINDS: u16 = 47;
+    const SHIELD: u16 = 48;
+    const STRIKE: u16 = 49;
+
+    fn open() -> Window {
+        WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+    }
+
+    fn board() -> Board {
+        BoardTrait::new(open(), 0, 0)
+    }
+
+    fn xy(position: u8) -> (u8, u8) {
+        (position % 15, position / 15)
+    }
+
+    /// The tiles of `RING_1` around `centre`, ascending.
+    fn ring(centre: u8) -> Span<u8> {
+        WindowTrait::tiles(open().shape(shape::RING_1, centre))
+    }
+
+    fn entry(kind: u8, param: u8, v0: i16, v12: i16, t: u8, s: u8, f: u8) -> Entry {
+        EntryTrait::new(kind, param, v0, v12, 0, 0, 0, t, s, f, 0, 0)
+    }
+
+    fn skill(id: u16, kind: u8, range: u8, entries: [Entry; 3]) -> SkillSheet {
+        let [a, b, c] = entries;
+        SkillSheet {
+            id,
+            kind,
+            adrenaline: 0,
+            activation: 1,
+            recharge: 10,
+            regen0: 0,
+            regen12: 0,
+            range,
+            entry1: a.pack(),
+            entry2: b.pack(),
+            entry3: c.pack(),
+        }
+    }
+
+    /// The fixtures' content (bar 1–8 at 0–7, castes 1 and 2 and their skills at 8–15), the
+    /// tests'
+    /// skills after, castes of armor `armor`, a sword of damage 30 (rank 12: strength 60), one
+    /// potion per `potions`.
+    fn content(armor: u8, potions: Span<PotionSheet>) -> Content {
+        let base = Fixture::content();
+        let none: Entry = Default::default();
+        let mut skills = array![];
+        skills.append_span(base.skills);
+        let fire = entry(
+            kind::DAMAGE, damage::FIRE, 80, 80, target::SELF, shape::RING_1, filter::FOES,
+        );
+        let burn = entry(
+            kind::CONDITION, condition::BURNING, 3, 3, target::SELF, shape::RING_1, filter::FOES,
+        );
+        skills.append(skill(RING, skill_kind::SPELL, 0, [fire, burn, none]));
+        let knock = entry(
+            kind::CONDITION,
+            condition::KNOCKED_DOWN,
+            2,
+            2,
+            target::FOE,
+            shape::SINGLE,
+            filter::FOES,
+        );
+        skills.append(skill(SKULLRING, skill_kind::ATTACK, 1, [knock, none, none]));
+        let evade = EntryTrait::new(
+            kind::EVADE, 1, 0, 0, 6, 6, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        skills.append(skill(SIDESTEP, skill_kind::STANCE, 0, [evade, none, none]));
+        let block = EntryTrait::new(
+            kind::BLOCK, 0, 1, 1, 10, 10, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        skills.append(skill(BRACE, skill_kind::STANCE, 0, [block, none, none]));
+        let below = EntryTrait::new(
+            kind::DAMAGE,
+            damage::FIRE,
+            50,
+            50,
+            0,
+            0,
+            0,
+            target::SELF,
+            shape::RING_1,
+            filter::FOES,
+            guard::BELOW_HALF,
+            0,
+        );
+        let steal = entry(kind::LIFE_STEAL, 0, 20, 20, target::SELF, shape::RING_1, filter::FOES);
+        skills.append(skill(CROSSING, skill_kind::SPELL, 0, [below, steal, none]));
+        let trap = entry(kind::TRAP, 0, 0, 0, target::TILE, shape::SINGLE, 0);
+        let earth = entry(
+            kind::DAMAGE, damage::EARTH, 10, 40, target::FOE, shape::SINGLE, filter::FOES,
+        );
+        let cripple = entry(
+            kind::CONDITION, condition::CRIPPLED, 3, 3, target::FOE, shape::SINGLE, filter::FOES,
+        );
+        skills.append(skill(SNARE, skill_kind::TRAP, 3, [trap, earth, cripple]));
+        skills.append(skill(KNOCK, skill_kind::ATTACK, 1, [knock, none, none]));
+        let heal = entry(kind::HEAL, 0, 30, 30, target::SELF, shape::SINGLE, filter::ALLIES);
+        let cure = entry(
+            kind::CURE, condition::BLEEDING, 0, 0, target::SELF, shape::SINGLE, filter::ALLIES,
+        );
+        let energy = entry(kind::ENERGY, 0, 5, 5, target::SELF, shape::SINGLE, filter::ALLIES);
+        skills.append(skill(KINDS, skill_kind::SKILL, 0, [heal, cure, energy]));
+        let shield = EntryTrait::new(
+            kind::ARMOR, 0, 30, 30, 5, 5, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        skills.append(skill(SHIELD, skill_kind::ENCHANTMENT, 0, [shield, none, none]));
+        let pierce = entry(
+            kind::HIT_PENETRATION, 0, 50, 50, target::FOE, shape::SINGLE, filter::FOES,
+        );
+        skills.append(skill(STRIKE, skill_kind::ATTACK, 1, [pierce, none, none]));
+        let mut castes = array![];
+        for caste in base.castes {
+            castes
+                .append(
+                    crate::types::tick::CasteSheet {
+                        armor,
+                        weapon: weapon::SWORD,
+                        weapon_damage: 30,
+                        damage_type: damage::SLASHING,
+                        weapon_range: 1,
+                        rank: 12,
+                        ..*caste,
+                    },
+                );
+        }
+        Content { skills: skills.span(), potions, castes: castes.span() }
+    }
+
+    fn sheets(armor: u8) -> Sheets {
+        content(armor, array![].span()).sheets()
+    }
+
+    /// The position of skill `id` in `content`'s sheets.
+    fn at(sheets: @Sheets, id: u16) -> u32 {
+        let mut i = 0;
+        for sheet in *sheets.skills {
+            if *sheet.id == id {
+                return i;
+            }
+            i += 1;
+        }
+        core::panic_with_felt252('no skill')
+    }
+
+    /// The fixtures' member at `position` facing `facing`, level 20, a weapon of `class`,
+    /// damage 27, range 1, strength 60, type slashing, its requirement met.
+    fn member(position: u8, facing: u8, class: u8) -> Member {
+        let mut member = Fixture::member(Fixture::spec());
+        place_member(ref member, position, facing);
+        member.words.stats += 20 * two(64)
+            + class.into() * two(88)
+            + 27 * two(96)
+            + 1 * two(112)
+            + 60 * two(120)
+            + damage::SLASHING.into() * two(160)
+            + 1 * two(176);
+        member
+    }
+
+    fn place_member(ref member: Member, position: u8, facing: u8) {
+        let (x, y) = xy(position);
+        member.words.state += x.into() * two(32) + y.into() * two(40) + facing.into() * two(48);
+    }
+
+    /// A fixtures' goblin of caste HOB at `position`, facing `facing`, health `health`.
+    fn goblin(entity: u16, position: u8, facing: u8, health: u16) -> Goblin {
+        let mut goblin = Fixture::goblin(entity, HOB);
+        let (x, y) = xy(position);
+        goblin.state += x.into() + y.into() * two(8) + facing.into() * two(16);
+        goblin.health = health;
+        if health > goblin.max_health {
+            goblin.max_health = health;
+        }
+        goblin
+    }
+
+    /// The facing from `from` toward `to`.
+    fn toward(from: u8, to: u8) -> u8 {
+        WindowTrait::facing(from, to, 0)
+    }
+
+    fn levered() -> Levered {
+        Levered {}
+    }
+
+    // ---- design/19 §10 ------------------------------------------------------------------------
+
+    // §10.1: Cinder Ring (fire 80, Burning 3; `SELF`, `RING_1`, `FOES`) at tick 42 from the
+    // Arcanist (level 20: strength 60) on goblins 57, 90 and 24 of armor 40 (x = 20: ⌊80 ×
+    // 92,682 / 65,536⌋ = 113), in tile order: 57 (90 health) and 90 (100) die, `GoblinKilled` 57
+    // then 90, Burning skipped on the dead; 24 goes 200 → 87 and burns to 44.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_area_kills_two() {
+        let sheets = sheets(40);
+        let tiles = ring(AT);
+        let goblins = array![
+            goblin(24, *tiles[4], 0, 200), goblin(57, *tiles[0], 0, 90),
+            goblin(90, *tiles[2], 0, 100),
+        ];
+        let mut world = Fixture::world(41, array![member(AT, 0, weapon::STAFF)], goblins);
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, RING), 12));
+        let executed = ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 42,
+        );
+        assert(executed == Executed::Ran, 'ran');
+        assert(world.killed.span() == array![57, 90].span(), 'killed in tile order');
+        let survivor = world.goblin(0);
+        assert(survivor.health == 87, '200 - 113');
+        assert(survivor.burning == 44, 'burning to 44');
+        assert(world.goblin(1).burning == 0, 'nothing on the dead');
+        assert(world.goblin(1).ai == ai::DEAD && world.goblin(2).ai == ai::DEAD, 'dead');
+        assert(cache.hits == 3, 'three hits');
+    }
+
+    // §10.2: Skullring from the Hobgoblin's front tile at clock 51 (`t₀` 52): the implicit
+    // weapon hit first (front arc, not critical: ⌊27 × 55,109 / 65,536⌋ = 22 at strength 60
+    // against armor 70), then the knock-down (`D` 53) interrupts its smash (`A` 53): the field to
+    // none, recharge 52 + 10 − 1 = 61. The adventurer +4 quarters, the Hobgoblin +1.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_interrupt() {
+        let sheets = sheets(70);
+        let front = *ring(AT)[0];
+        let mut hob = goblin(40, front, toward(front, AT), 400);
+        hob.start(0, 0, 3, 50);
+        hob.adrenaline_cap = 4;
+        let mut adventurer = member(AT, toward(AT, front), weapon::MAUL);
+        adventurer.adrenaline_cap = 24;
+        let mut world = Fixture::world(51, array![adventurer], array![hob]);
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, SKULLRING), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 40, 52,
+        );
+        let hob = world.goblin(0);
+        assert(hob.health == 378, '400 - 22');
+        assert(hob.knocked == 53, 'knocked to 53');
+        assert(hob.act_slot == crate::types::combat::activation::NONE, 'interrupted');
+        assert(hob.recharge(0) == 61, 'recharge 61');
+        assert(hob.adrenaline == 1, 'hobgoblin +1');
+        assert(world.member(0).adrenaline == 4, 'adventurer +4');
+    }
+
+    // §10.4: four effects held, none a stance; Sidestep (`EVADE`, `d` 6, a stance) at clock 80
+    // evicts Warcry (deadlines 85 and 85: the lowest slot) into slot 1, `D` = 86, rank 12; Brace at
+    // clock 82, a stance while one is held, takes slot 1.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_eviction_and_stance() {
+        let content = content(40, array![].span());
+        let sheets = content.sheets();
+        let mut spec = Fixture::spec();
+        spec
+            .effects =
+                [(1, false, 90, 12), (2, false, 85, 12), (3, false, 85, 12), (4, false, 100, 12)];
+        let mut adventurer = Fixture::load_member(Fixture::member_words(spec), @content);
+        place_member(ref adventurer, AT, 0);
+        let mut world = Fixture::world(80, array![adventurer], array![]);
+        let mut cache: Cache = Default::default();
+        let sidestep = Carrier::Skill((at(@sheets, SIDESTEP), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), sidestep, 0, 81,
+        );
+        let held = world.member(0).effect_of(1);
+        assert(held.carrier == SIDESTEP && held.deadline == 86 && held.rank == 12, 'evicts warcry');
+        let brace = Carrier::Skill((at(@sheets, BRACE), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), brace, 0, 83,
+        );
+        let held = world.member(0).effect_of(1);
+        assert(held.carrier == BRACE && held.charges == 1, 'stance replaces stance');
+        assert(world.member(0).effect_of(2).carrier == 3, 'others kept');
+    }
+
+    // §10.6: a goblin's knock-down in step 2 of tick 201 interrupts the Arcanist's spell (`A`
+    // 202): no effect, the recharge from `t₀` = 201.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_fifth_cast_interrupted() {
+        let sheets = sheets(40);
+        let front = *ring(AT)[0];
+        let mut adventurer = member(AT, 0, weapon::STAFF);
+        adventurer.start(2, 0, 2, 200);
+        let foe = goblin(30, front, toward(front, AT), 100);
+        let mut world = Fixture::world(201, array![adventurer], array![foe]);
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, KNOCK), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Goblin(0), carrier, 0, 201,
+        );
+        let arcanist = world.member(0);
+        assert(arcanist.act_slot == crate::types::tick::NO_SLOT, 'interrupted');
+        assert(arcanist.recharge(2) == 210, 'recharge from 201');
+        assert(arcanist.knocked == 202, 'knocked down');
+    }
+
+    // §10.7 (FX-40): `DAMAGE` 50 guarded `BELOW_HALF`, then `LIFE_STEAL` 20, on two foes of 100
+    // (strength 60 = armor 60: x = 0). The source at 230 / 480: the guard is read once; A 100 →
+    // 50 → 30, source 250 (above half now); B still takes the hit: 50, then 30, source 270.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_guard_crossing_half() {
+        let sheets = sheets(60);
+        let tiles = ring(AT);
+        let mut adventurer = member(AT, 0, weapon::STAFF);
+        adventurer.health = 230;
+        let foes = array![goblin(20, *tiles[1], 0, 100), goblin(21, *tiles[3], 0, 100)];
+        let mut world = Fixture::world(9, array![adventurer], foes);
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, CROSSING), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
+        );
+        assert(world.goblin(0).health == 30 && world.goblin(1).health == 30, 'both hit');
+        assert(world.member(0).health == 270, 'source 270');
+    }
+
+    /// An oil (`ON_ATTACK_CONDITION` Poison 10, 2 charges, `d` 0: deadline `MAX_CLOCK`) in belt
+    /// slot 0, item 100, held in effect slot 0, and the content with it.
+    fn oiled() -> (Member, Content) {
+        let oil = EntryTrait::new(
+            kind::ON_ATTACK_CONDITION,
+            condition::POISON,
+            10,
+            10,
+            0,
+            0,
+            2,
+            target::SELF,
+            shape::SINGLE,
+            filter::ALLIES,
+            0,
+            0,
+        );
+        let potions = array![
+            PotionSheet { id: 100, regen: 0, entry: oil.pack(), range: 0, strength: 0 },
+            PotionSheet { id: 101, regen: 0, ..Default::default() },
+            PotionSheet { id: 102, regen: 0, ..Default::default() },
+            PotionSheet { id: 103, regen: 0, ..Default::default() },
+        ];
+        let content = content(40, potions.span());
+        let mut spec = Fixture::spec();
+        spec
+            .effects =
+                [(0, true, MAX_CLOCK, 0), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+        let mut words = Fixture::member_words(spec);
+        words.effects += 2 * two(16);
+        let base = member(AT, 0, weapon::SWORD);
+        words.stats = base.words.stats;
+        let mut adventurer = Fixture::load_member(words, @content);
+        place_member(ref adventurer, AT, 0);
+        (adventurer, content)
+    }
+
+    // §10.8: hit 1, the goblin survives: Poison applied, charges 2 → 1; hit 2 kills it: no
+    // Poison (step 7: dead), but the charge is spent (step 8): 0, the oil ends.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_oil_on_a_killing_blow() {
+        let (adventurer, content) = oiled();
+        let sheets = content.sheets();
+        let front = *ring(AT)[0];
+        let foe = goblin(30, front, toward(front, AT), 30);
+        let mut world = Fixture::world(9, array![adventurer], array![foe]);
+        let mut cache: Cache = Default::default();
+        // Strength 60 against armor 40: ⌊27 × 92,682 / 65,536⌋ = 38 a hit; 50 health survives
+        // the first.
+        let mut foe = world.goblin(0);
+        foe.health = 50;
+        foe.max_health = 50;
+        world.set_goblin(0, foe);
+        ExecutorTrait::execute(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            @board(),
+            Actor::Member(0),
+            Carrier::Weapon,
+            30,
+            10,
+        );
+        let foe = world.goblin(0);
+        assert(foe.health > 0 && foe.poison == 19, 'poisoned 10');
+        assert(world.member(0).effect_of(0).charges == 1, 'charge 2 -> 1');
+        ExecutorTrait::execute(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            @board(),
+            Actor::Member(0),
+            Carrier::Weapon,
+            30,
+            11,
+        );
+        let foe = world.goblin(0);
+        assert(foe.ai == ai::DEAD && foe.poison == 19, 'killed, no poison');
+        let oil = world.member(0).effect_of(0);
+        assert(oil.charges == 0 && oil.deadline == 10, 'oil ended');
+    }
+
+    // §10.9 through the pipeline: a goblin's attack skill of activation 1 started at 50 (`A` 51)
+    // resolves in step 1 of 51 through the executor's hook: its weapon hit lands on the member.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_activated_attack_resolves() {
+        let content = content(40, array![].span());
+        let sheets = content.sheets();
+        let front = *ring(AT)[0];
+        let mut foe = goblin(30, front, toward(front, AT), 100);
+        foe.start(1, 0, 1, 50);
+        let mut world = Fixture::world(50, array![member(AT, 0, weapon::SWORD)], array![foe]);
+        let mut rules = ExecutorTrait::new(board());
+        crate::types::world::TickTrait::tick(ref world, @sheets, ref rules);
+        let hit = world.member(0);
+        assert(hit.health < 400 && hit.flags & flag::HIT != 0, 'hit at 51');
+        assert(rules.cache.hits == 1, 'one hit');
+    }
+
+    // §10.10, the trigger: goblin 44 (armor 40, 100 health) enters a Snare of member 0 (level 20:
+    // strength 60, rank 12): the payload alone, class `TRAP`: ⌊40 × 92,682 / 65,536⌋ = 56, 100
+    // →
+    // 44; Crippled from 305 to 307. The placement first: the guard held, `Place`.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_trap() {
+        let sheets = sheets(40);
+        let snare = at(@sheets, SNARE);
+        let mut world = Fixture::world(
+            301, array![member(AT, 0, weapon::STAFF)], array![goblin(44, 0, 0, 100)],
+        );
+        let mut cache: Cache = Default::default();
+        let placed = ExecutorTrait::execute(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            @board(),
+            Actor::Member(0),
+            Carrier::Skill((snare, 12)),
+            7 + 256 * 9,
+            302,
+        );
+        assert(placed == Executed::Place, 'placed');
+        assert(world.goblin(0).health == 100, 'no actor at placement');
+        ExecutorTrait::trigger(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            snare,
+            12,
+            20,
+            7,
+            Default::default(),
+            Actor::Goblin(0),
+            305,
+        );
+        let foe = world.goblin(0);
+        assert(foe.health == 44 && foe.crippled() == 307, 'triggered');
+    }
+
+    // ---- §5.14's order and edges
+    // ----------------------------------------------------------------
+
+    // SPK-15's guard across two hits in one tick (L3): the member's `BLOCK` of 1 charge, read
+    // once, blocks goblin A's hit and is spent; goblin B's lands. The naive executor, reading it at
+    // each hit, agrees.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_guard_two_hits() {
+        let content = content(40, array![].span());
+        let sheets = content.sheets();
+        let tiles = ring(AT);
+        let brace = at(@sheets, BRACE);
+        for naive in array![false, true] {
+            let mut adventurer = member(AT, toward(AT, *tiles[0]), weapon::SWORD);
+            adventurer
+                .hold(
+                    Held { carrier: BRACE, potion: false, charges: 1, deadline: 20, rank: 12 },
+                    brace,
+                    true,
+                    10,
+                    @sheets,
+                );
+            let a = goblin(30, *tiles[0], toward(*tiles[0], AT), 100);
+            let b = goblin(31, *tiles[1], toward(*tiles[1], AT), 100);
+            let mut world = Fixture::world(9, array![adventurer], array![a, b]);
+            let mut cache: Cache = Default::default();
+            for i in 0..2_u32 {
+                if naive {
+                    ExecutorTrait::execute(
+                        @Naive {},
+                        ref cache,
+                        ref world,
+                        @sheets,
+                        @board(),
+                        Actor::Goblin(i),
+                        Carrier::Weapon,
+                        0,
+                        10,
+                    );
+                } else {
+                    ExecutorTrait::execute(
+                        @levered(),
+                        ref cache,
+                        ref world,
+                        @sheets,
+                        @board(),
+                        Actor::Goblin(i),
+                        Carrier::Weapon,
+                        0,
+                        10,
+                    );
+                }
+                if i == 0 {
+                    assert(world.member(0).health == 400, 'A blocked');
+                }
+            }
+            assert(world.member(0).health < 400, 'B landed');
+            assert(world.member(0).effect_of(0).charges == 0, 'charge spent');
+        }
+    }
+
+    // A stopped hit stops the carrier on that actor (§5.5 step 2): Skullring blocked applies no
+    // knock-down; the attack's adrenaline is not gained.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_stopped_hit_stops_the_carrier() {
+        let sheets = sheets(70);
+        let front = *ring(AT)[0];
+        let mut hob = goblin(40, front, toward(front, AT), 400);
+        hob
+            .hold(
+                Held { carrier: BRACE, potion: false, charges: 2, deadline: 90, rank: 12 },
+                at(@sheets, BRACE),
+                50,
+                @sheets,
+            );
+        let mut adventurer = member(AT, toward(AT, front), weapon::MAUL);
+        adventurer.adrenaline_cap = 24;
+        let mut world = Fixture::world(51, array![adventurer], array![hob]);
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, SKULLRING), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 40, 52,
+        );
+        let hob = world.goblin(0);
+        assert(hob.health == 400 && hob.knocked == 0, 'blocked: nothing');
+        assert(hob.effect_of().charges == 1, 'a charge spent');
+        assert(world.member(0).adrenaline == 0, 'no adrenaline');
+    }
+
+    // §5.9: a target dead or out of reach at resolution: nothing, `Illegal`.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_target_illegal_at_resolution() {
+        let sheets = sheets(40);
+        let front = *ring(AT)[0];
+        let mut dead = goblin(40, front, 0, 0);
+        dead.ai = ai::DEAD;
+        let far = goblin(41, AT + 45, 0, 100);
+        let mut adventurer = member(AT, 0, weapon::SWORD);
+        let world = Fixture::world(51, array![adventurer], array![dead, far]);
+        let skull = Carrier::Skill((at(@sheets, SKULLRING), 12));
+        assert(
+            !ExecutorTrait::legal(
+                @levered(), @world, @sheets, @board(), Actor::Member(0), skull, 40,
+            ),
+            'dead',
+        );
+        assert(
+            !ExecutorTrait::legal(
+                @levered(), @world, @sheets, @board(), Actor::Member(0), skull, 41,
+            ),
+            'out of reach',
+        );
+        assert(
+            !ExecutorTrait::legal(
+                @levered(), @world, @sheets, @board(), Actor::Member(0), skull, 99,
+            ),
+            'absent',
+        );
+        let ring = Carrier::Skill((at(@sheets, RING), 12));
+        assert(
+            ExecutorTrait::legal(@levered(), @world, @sheets, @board(), Actor::Member(0), ring, 0),
+            'self',
+        );
+    }
+
+    // A carrier with no actor (Cinder Ring alone): carrier-level effects only, nothing written.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_carrier_without_actor() {
+        let sheets = sheets(40);
+        let mut world = Fixture::world(
+            9, array![member(AT, 0, weapon::STAFF)], array![goblin(40, 0, 0, 100)],
+        );
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, RING), 12));
+        let executed = ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
+        );
+        assert(executed == Executed::Ran && world.goblin(0).health == 100, 'nothing');
+        assert(cache.hits == 0, 'no hit');
+    }
+
+    // The instant kinds on the source (`HEAL` capped at max, `CURE`, `ENERGY` in thirds capped),
+    // and never on a member at 0 (CBT-04's review): nothing cured or healed.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_instant_kinds() {
+        let sheets = sheets(40);
+        let mut adventurer = member(AT, 0, weapon::STAFF);
+        adventurer.health = 460;
+        adventurer.energy = 50;
+        adventurer.bleeding = 30;
+        let mut world = Fixture::world(9, array![adventurer], array![]);
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, KINDS), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
+        );
+        let after = world.member(0);
+        assert(after.health == 480, 'healed, capped');
+        assert(after.bleeding == 9, 'cured: D = t - 1');
+        assert(after.energy == 60, 'energy capped at max');
+        let mut down = member(AT, 0, weapon::STAFF);
+        down.health = 0;
+        down.bleeding = 30;
+        let mut world = Fixture::world(9, array![down], array![]);
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
+        );
+        assert(world.member(0).health == 0 && world.member(0).bleeding == 30, 'nothing at 0');
+    }
+
+    // A holding `ARMOR` (an enchantment: `ENCHANTED` holds) enters the member's defence once held:
+    // the cache is updated at the hold (L3).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_hold_updates_the_defence() {
+        let sheets = sheets(40);
+        let mut world = Fixture::world(9, array![member(AT, 0, weapon::STAFF)], array![]);
+        let mut cache: Cache = Default::default();
+        let lever = levered();
+        let before = lever.defence(ref cache, @world.member(0), 0, 10, @sheets);
+        assert(before.effects == 0 && !before.is_enchanted, 'none yet');
+        let carrier = Carrier::Skill((at(@sheets, SHIELD), 12));
+        ExecutorTrait::execute(
+            @lever, ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
+        );
+        let after = lever.defence(ref cache, @world.member(0), 0, 10, @sheets);
+        assert(after.effects == 30 && after.is_enchanted, 'armor held');
+        assert(world.member(0).effect_of(0).deadline == 14, 'd 5 from 10');
+    }
+
+    // `HIT_PENETRATION` with the carrier's hit (Static Lash's kind on an attack): 50 % of armor 80
+    // gone, so the hit at strength 60 meets 40.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_hit_penetration() {
+        let sheets = sheets(80);
+        let front = *ring(AT)[0];
+        let foe = goblin(40, front, toward(front, AT), 200);
+        let mut world = Fixture::world(
+            9, array![member(AT, toward(AT, front), weapon::SWORD)], array![foe],
+        );
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, STRIKE), 12));
+        ExecutorTrait::execute(
+            @levered(), ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 40, 10,
+        );
+        // x = 60 − 40 = 20: ⌊27 × 92,682 / 65,536⌋ = 38.
+        assert(world.goblin(0).health == 200 - 38, 'penetrated');
+    }
+
+    // §5.12: `ADRENALINE_EVERY_N` 2: the second weapon hit doubles (4, then 8), `hits` resets.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_adrenaline_every_n() {
+        let sheets = sheets(40);
+        let front = *ring(AT)[0];
+        let mut adventurer = member(AT, toward(AT, front), weapon::SWORD);
+        adventurer.words.kit += 2 * two(160);
+        adventurer.adrenaline_cap = 100;
+        let foe = goblin(40, front, toward(front, AT), 400);
+        let mut world = Fixture::world(9, array![adventurer], array![foe]);
+        let mut cache: Cache = Default::default();
+        ExecutorTrait::execute(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            @board(),
+            Actor::Member(0),
+            Carrier::Weapon,
+            40,
+            10,
+        );
+        assert(world.member(0).adrenaline == 4 && world.member(0).hits() == 1, 'first');
+        ExecutorTrait::execute(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            @board(),
+            Actor::Member(0),
+            Carrier::Weapon,
+            40,
+            10,
+        );
+        assert(world.member(0).adrenaline == 12 && world.member(0).hits() == 0, 'doubled');
+    }
+
+    // D-179 through the executor: a sleeping goblin holding `EVADE` takes its first hit (critical)
+    // and notices: Engaged.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_asleep_first_hit() {
+        let sheets = sheets(40);
+        let front = *ring(AT)[0];
+        let mut foe = goblin(40, front, toward(front, AT), 400);
+        foe.ai = ai::ASLEEP;
+        foe
+            .hold(
+                Held { carrier: SIDESTEP, potion: false, charges: 0, deadline: 90, rank: 12 },
+                at(@sheets, SIDESTEP),
+                5,
+                @sheets,
+            );
+        let mut world = Fixture::world(
+            9, array![member(AT, toward(AT, front), weapon::SWORD)], array![foe],
+        );
+        let mut cache: Cache = Default::default();
+        ExecutorTrait::execute(
+            @levered(),
+            ref cache,
+            ref world,
+            @sheets,
+            @board(),
+            Actor::Member(0),
+            Carrier::Weapon,
+            40,
+            10,
+        );
+        // Critical: ⌊38 × 140 / 100⌋ = 53 (x = 20).
+        assert(world.goblin(0).health == 400 - 53, 'not evaded, critical');
+        assert(world.goblin(0).ai == ai::ENGAGED, 'noticed');
+    }
+
+    // ---- L3's pairs ---------------------------------------------------------------------------
+    // Each lever alone against the naive executor, on SPK-15's worst carriers: the member's area on
+    // six awake goblins (entries and one rebuild), eight goblins' weapon hits on the member (the
+    // defence). A pair is the snforge totals of two tests differing by the lever.
+
+    #[derive(Copy, Drop, Default)]
+    struct EntriesOnly {}
+    #[derive(Copy, Drop, Default)]
+    struct DefenceOnly {}
+    #[derive(Copy, Drop, Default)]
+    struct RebuildOnly {}
+
+    impl EntriesOnlyLevers of Levers<EntriesOnly> {
+        fn entry(self: @EntriesOnly, sheets: @Sheets, at: u32, k: u32) -> Entry {
+            *(*sheets.entries)[3 * at + k]
+        }
+        fn potion_entry(self: @EntriesOnly, sheets: @Sheets, at: u32) -> Entry {
+            *(*sheets.potion_entries)[at]
+        }
+        fn defence(
+            self: @EntriesOnly,
+            ref cache: Cache,
+            member: @Member,
+            index: u32,
+            t: u32,
+            sheets: @Sheets,
+        ) -> super::Defence {
+            DefenceTrait::member(member, t, sheets, self)
+        }
+        fn spent(self: @EntriesOnly, ref cache: Cache, index: u32) {}
+        fn held(self: @EntriesOnly, ref cache: Cache, index: u32) {}
+        fn gathers(self: @EntriesOnly) -> bool {
+            false
+        }
+    }
+
+    impl DefenceOnlyLevers of Levers<DefenceOnly> {
+        fn entry(self: @DefenceOnly, sheets: @Sheets, at: u32, k: u32) -> Entry {
+            Naive {}.entry(sheets, at, k)
+        }
+        fn potion_entry(self: @DefenceOnly, sheets: @Sheets, at: u32) -> Entry {
+            Naive {}.potion_entry(sheets, at)
+        }
+        fn defence(
+            self: @DefenceOnly,
+            ref cache: Cache,
+            member: @Member,
+            index: u32,
+            t: u32,
+            sheets: @Sheets,
+        ) -> super::Defence {
+            Levered {}.defence(ref cache, member, index, t, sheets)
+        }
+        fn spent(self: @DefenceOnly, ref cache: Cache, index: u32) {
+            Levered {}.spent(ref cache, index)
+        }
+        fn held(self: @DefenceOnly, ref cache: Cache, index: u32) {
+            Levered {}.held(ref cache, index)
+        }
+        fn gathers(self: @DefenceOnly) -> bool {
+            false
+        }
+    }
+
+    impl RebuildOnlyLevers of Levers<RebuildOnly> {
+        fn entry(self: @RebuildOnly, sheets: @Sheets, at: u32, k: u32) -> Entry {
+            Naive {}.entry(sheets, at, k)
+        }
+        fn potion_entry(self: @RebuildOnly, sheets: @Sheets, at: u32) -> Entry {
+            Naive {}.potion_entry(sheets, at)
+        }
+        fn defence(
+            self: @RebuildOnly,
+            ref cache: Cache,
+            member: @Member,
+            index: u32,
+            t: u32,
+            sheets: @Sheets,
+        ) -> super::Defence {
+            DefenceTrait::member(member, t, sheets, self)
+        }
+        fn spent(self: @RebuildOnly, ref cache: Cache, index: u32) {}
+        fn held(self: @RebuildOnly, ref cache: Cache, index: u32) {}
+        fn gathers(self: @RebuildOnly) -> bool {
+            true
+        }
+    }
+
+    /// The member's Cinder Ring on six awake goblins of 400 health (none dies), 8 awake in all.
+    fn area_state() -> (World, Sheets) {
+        let sheets = sheets(40);
+        let tiles = ring(AT);
+        let mut goblins = array![];
+        let mut entity: u16 = 20;
+        for tile in tiles {
+            goblins.append(goblin(entity, *tile, 0, 400));
+            entity += 1;
+        }
+        goblins.append(goblin(entity, 0, 0, 400));
+        goblins.append(goblin(entity + 1, 1, 0, 400));
+        (Fixture::world(9, array![member(AT, 0, weapon::STAFF)], goblins), sheets)
+    }
+
+    fn area<L, +Levers<L>, +Drop<L>>(lever: L) {
+        let (mut world, sheets) = area_state();
+        let mut cache: Cache = Default::default();
+        let carrier = Carrier::Skill((at(@sheets, RING), 12));
+        ExecutorTrait::execute(
+            @lever, ref cache, ref world, @sheets, @board(), Actor::Member(0), carrier, 0, 10,
+        );
+        assert(cache.hits == 6, 'six hits');
+    }
+
+    /// Eight goblins around the member (six adjacent, two in reach of nothing) each hitting it with
+    /// a weapon in turn: eight hits on one defence.
+    fn hits_state() -> (World, Sheets) {
+        let sheets = sheets(40);
+        let tiles = ring(AT);
+        let mut goblins = array![];
+        let mut entity: u16 = 20;
+        for tile in tiles {
+            goblins.append(goblin(entity, *tile, toward(*tile, AT), 100));
+            entity += 1;
+        }
+        let mut adventurer = member(AT, 0, weapon::SWORD);
+        adventurer.health = 480;
+        (Fixture::world(9, array![adventurer], goblins), sheets)
+    }
+
+    fn hits<L, +Levers<L>, +Drop<L>>(lever: L) {
+        let (mut world, sheets) = hits_state();
+        let mut cache: Cache = Default::default();
+        for i in 0..6_u32 {
+            ExecutorTrait::execute(
+                @lever,
+                ref cache,
+                ref world,
+                @sheets,
+                @board(),
+                Actor::Goblin(i),
+                Carrier::Weapon,
+                0,
+                10,
+            );
+        }
+        assert(cache.hits == 6, 'six hits');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_area_fixture() {
+        let (world, _) = area_state();
+        assert(opaque(world.goblin_count()) == 8, 'fixture');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_area_naive() {
+        area(Naive {});
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_area_entries() {
+        area(EntriesOnly {});
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_area_rebuild() {
+        area(RebuildOnly {});
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_area_levered() {
+        area(Levered {});
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_hits_fixture() {
+        let (world, _) = hits_state();
+        assert(opaque(world.goblin_count()) == 6, 'fixture');
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_hits_naive() {
+        hits(Naive {});
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_hits_defence() {
+        hits(DefenceOnly {});
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_hits_levered() {
+        hits(Levered {});
+    }
+}

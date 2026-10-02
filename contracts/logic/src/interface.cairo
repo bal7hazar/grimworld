@@ -3,6 +3,7 @@
 
 use starknet::ContractAddress;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
+use crate::types::executor::Board;
 use crate::types::tick::Content;
 use crate::types::world::Words;
 use crate::types::{InstanceId, Outcome};
@@ -117,9 +118,10 @@ pub trait IFate<T> {
 /// `ITickLibraryLibraryDispatcher`, the class hash being its configuration.
 #[starknet::interface]
 pub trait ITickLibrary<T> {
-    /// Runs `ticks` world ticks over the stored `words` with the batch's `content`, stopping after
-    /// a tick that defeated the adventurer; returns the words.
-    fn run(self: @T, words: Words, content: Content, ticks: u8) -> Words;
+    /// Runs `ticks` world ticks over the stored `words` with the batch's `content` on the tick's
+    /// `board` (the window and where it lies: CBT-05a's executor reads it), stopping after a tick
+    /// that defeated the adventurer; returns the words.
+    fn run(self: @T, words: Words, content: Content, board: Board, ticks: u8) -> Words;
 }
 
 /// The snapshot's flattening as a library class (ENG-01 §1.3, D-168): `Hub.set_build` calls it

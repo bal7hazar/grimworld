@@ -41,3 +41,19 @@ The cases:
 - `front`: every neighbour and facing, at the centre and on the East edge, where a neighbour outside the window is given as the position 240.
 - `distance`: from `(7, 7)`, `(7, 8)` and `(0, 0)` to every tile, and a position outside the window (240, 255) at either end or both, whose distance is 255 (`FAR`, above every range).
 - `shape`: each shape at the corners, the edges, the centre and next to walls.
+
+## `hit.jsonl`: one hit (CBT-03a)
+
+Printed by `types::hit::tests::test_vectors`, with its digest. One line: `{"id", "case", "ok"}`.
+The case is the `Serde` of `(Hit, HitTarget)`, 28 felts, and `ok` the `Serde` of `HitOutcome`
+(1 felt for a stopped hit, 4 for a landed one); the order and meaning of every felt are in the
+module's header, `contracts/logic/src/types/hit.cairo`. A negative integer is `P − |v|`.
+
+The cases: the hand-written edges (each rule of design/19 §5.4–§5.6 and §6 at its bounds), then
+seeded cases over every input.
+
+**Moved by CBT-05a (D-179).** A sleeping target neither blocks nor evades its first hit: an
+`asleep` target holding `EVADE` against a melee weapon hit now lands, critical, where it was evaded.
+The new edge `(sword, asleep + evade)` was added after the asleep-and-block edge, so the ids of every
+later case moved by one; and every seeded case with `asleep`, `evade`, `melee` and a weapon class,
+not knocked down and not blocked, moved from `Evaded` to `Landed`.
