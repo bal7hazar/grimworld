@@ -216,7 +216,7 @@ jobs:
             want=$(sed -n 's/^ *starknet-devnet:0.10.0:amd64) echo \([0-9a-f]*\) ;;$/\1/p' scripts/setup-toolchain.sh)
             [ -n "$want" ]
             dl=$(mktemp -d)
-            curl -sfL "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v0.10.0/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$dl"
+            curl -sfL --retry 3 --retry-delay 5 "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v0.10.0/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$dl"
             bin=$(find "$dl" -type f -name starknet-devnet | head -n 1)
             [ "$(sha256sum "$bin" | cut -d' ' -f1)" = "$want" ]
             chmod +x "$bin"; export PATH="$(dirname "$bin"):$PATH"
