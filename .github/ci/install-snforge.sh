@@ -35,7 +35,7 @@ mkdir -p "$dest"
 # fetch_and_extract <name> <url> <sha256>
 fetch_and_extract() {
   local archive="$dest/$1.tar.gz"
-  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --output "$archive" "$2"
+  curl --fail --silent --show-error --location --retry 3 --retry-delay 5 --proto '=https' --tlsv1.2 --output "$archive" "$2"
   echo "$3  $archive" | sha256sum --check --strict -
   tar --extract --gzip --strip-components=1 --file "$archive" --directory "$dest"
 }
