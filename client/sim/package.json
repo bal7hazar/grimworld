@@ -7,7 +7,8 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --dir src",
+    "bench": "vitest run --dir bench --silent=false",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

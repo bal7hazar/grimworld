@@ -13,8 +13,10 @@ declare class URL {
   readonly pathname: string;
 }
 
-// The mutation check prints its table for the report.
+// The mutation check and the measurements (`bench/`) print their tables for the report, timed by
+// the measurements alone.
 declare const console: { log(...data: unknown[]): void };
+declare const performance: { now(): number };
 
 declare module "node:fs" {
   export function existsSync(path: URL): boolean;
