@@ -13,6 +13,5 @@ ExecStart=%h/site/grimworld-src/tools/site/deploy-site.sh
 Nice=10
 # node and pnpm are /usr/bin/node (24.21.0) and /usr/bin/pnpm (12.5.1), the .tool-versions ones.
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-# GRIMWORLD_SITE_ART stays unset: the art is served only when the owner says the pack's illustrations
-# may be served publicly (D-73).
-# Environment=GRIMWORLD_SITE_ART=1
+# The art is on by the owner's decision of 2026-10-02 (D-73): the built atlas is served publicly.
+Environment=GRIMWORLD_SITE_ART=1

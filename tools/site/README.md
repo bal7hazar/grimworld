@@ -17,16 +17,18 @@ Run every 5 minutes by `grimworld-site.timer` (it can also be run by hand):
 4. Logs one line per run (sha, art flag, result, duration) to `~/site/grimworld/deploy.log`; the journal
    (`journalctl --user -u grimworld-site`) has the time of each step.
 
-**Art (D-73).** Off by default: the client draws shapes. With `GRIMWORLD_SITE_ART=1` (a line in the
-service, commented out) the script builds the atlas from `~/projects/assets` with `tools/art/build.py`
-and copies `sprites.json` and the pages it lists (not `report.json` or `preview.html`) to `<release>/art/`, where the client loads it. It stays unset: it is enabled only when the
-owner says that the pack's illustrations may be served publicly (D-73), the site being public. Nothing of the art is in the repository.
+**Art (D-73).** On, by the owner's decision of 2026-10-02 that the pack's illustrations are served on the
+public site: the service sets `GRIMWORLD_SITE_ART=1`. The script builds the atlas from `~/projects/assets`
+with `tools/art/build.py` and copies **only the built atlas** to `<release>/art/`: `sprites.json`, the pages
+it lists and their images. Never `report.json`, `preview.html` or a raw file of the pack, and nothing of
+the pack is committed (the repository holds none). Without the variable the client draws shapes.
 
 The client has no chain endpoint configured: it talks to no network from the site.
 
 ## Owner's install steps
 
-The timer is not installed by CI or by the agents. As `claude` (lingering is already on):
+The timer is not installed by CI or by the agents. As `claude` (lingering is already on), from
+`~/site/grimworld-src` (the `cp` below is relative to it):
 
     mkdir -p ~/site/grimworld && chmod o+x ~/site ~/site/grimworld
     git clone https://github.com/bal7hazar/grimworld.git ~/site/grimworld-src   # skip if it exists
