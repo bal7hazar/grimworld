@@ -1,0 +1,23 @@
+App/build
+App/Pods
+App/output
+App/App/public
+DerivedData
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# Generated Config files
+App/App/capacitor.config.json
+App/App/config.xml
+
+# The owner's signing (SHELL.md), never committed
+App/Signing.local.xcconfig
+
+# Swift Package Manager's resolution of capacitor-swift-pm (exact 8.5.2 in CapApp-SPM)
+App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# Icon and splash images: the owner adds them locally, never committed (the repository holds no
+# image file, D-73)
+App/App/Assets.xcassets/**/*.png

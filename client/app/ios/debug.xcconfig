@@ -1,0 +1,6 @@
+CAPACITOR_DEBUG = true
+PRODUCT_BUNDLE_IDENTIFIER = com.example.grimworld
+
+// Signing is the owner's (SHELL.md): a team and a bundle identifier of the owner's own, in a file
+// git ignores. Copy App/Signing.local.xcconfig.example to App/Signing.local.xcconfig.
+#include? "App/Signing.local.xcconfig"

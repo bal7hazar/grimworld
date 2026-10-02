@@ -11,15 +11,21 @@
     "test:node": "vitest run src/account/burner.node.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "verify:hubs": "node verify-hubs.mjs"
+    "verify:hubs": "node verify-hubs.mjs",
+    "shell:build": "GRIMWORLD_EMBED_ART=1 pnpm build && cap sync ios",
+    "shell:sync": "pnpm build && cap sync ios",
+    "shell:open": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2",
     "pixi.js": "8.21.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "starknet": "10.8.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
