@@ -103,6 +103,18 @@ pub enum HitClass {
     Trap,
 }
 
+/// The arc of the target a hit arrives from (design/04 *Facing and arcs*, D-41), for a target
+/// facing `d`: front `d`, front-side `d ± 1`, rear-side `d ± 2` (the flank), back `d + 3`. At
+/// range, the arc of the tile the line of sight arrives from. Computed by ENG-02, read by the hit
+/// (`types::hit`, CBT-03a). Not stored; the order of the variants is their encoding.
+#[derive(Copy, Drop, Serde, PartialEq, Debug)]
+pub enum Arc {
+    Front,
+    FrontSide,
+    RearSide,
+    Back,
+}
+
 /// Who placed a trap (design/19 §7.2, a placed trap's chunk-object `param`, 16 bits): bit 15 is
 /// 0 for a member (member 0–7 at bits 0–2, bar slot 0–7 at bits 3–5) and 1 for a goblin
 /// (entity − 8 at bits 0–11, at most 3,593 − 8 < 4,096; caste skill 0–3 at bits 12–13).

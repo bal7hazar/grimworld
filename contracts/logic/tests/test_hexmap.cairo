@@ -1,7 +1,7 @@
-use origami_hexmap::helpers::geometry::GeometryTrait;
+use hexx::board::geometry::GeometryTrait;
 
-// `origami_hexmap` 1.8.0 builds on the game's compiler (Cairo 2.19) and its functions run from
-// the game's own package.
+// `hexx` 0.1.0-rc.1, the takeover of `origami_hexmap` 1.8.0 (D-173), builds on the game's compiler
+// (Cairo 2.19) and its functions run from the game's own package, with 1.8.0's results.
 #[test]
 #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
 fn test_hexmap_distance() {
