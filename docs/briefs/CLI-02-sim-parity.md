@@ -8,8 +8,8 @@ and SPK-4 (merged, #82). ENG-05 and ENG-07 are still todo, so the task is **spli
 CLI-02a now, CLI-02b when ENG-05 lands, CLI-02c when ENG-07 lands.
 
 **It is a task of the game lent to track CV** (ORCH-client-visual §8 names it as the next candidate:
-"CLI-02 (the client's mirror, after ENG-02)"). `client/sim/**` is under *Never* in the mandate's §1:
-the allowlists below hold only once the project manager has lent the task (open question 1).
+"CLI-02 (the client's mirror, after ENG-02)"). `client/sim/**` is under *Never* in the mandate's §1;
+the project manager lent it to track CV for CLI-02a, b and c on 2026-10-02 (question 1 below).
 
 ## Goal
 
@@ -120,7 +120,7 @@ Title: `[Opus 5.5] CLI-02a sim parity harness` · Profile: `impl-opus` · Branch
   5. **Fate and packing, if their vectors exist at launch**: `domain` and `derive` through
      `@scure/starknet`'s Poseidon (`client/sim/src/fate.ts`), the packing helpers the mirror needs
      (`client/sim/src/packing.ts`), each with parity on its table. If the tables are not on `main`
-     when you start (open question 2), leave both out, say so, and they move to CLI-02b.
+     when you start (question 2), leave both out, say so, and they move to CLI-02b.
   6. **The mutation check** (`client/sim/src/parity/mutants.test.ts`, as SPK-4's `mutants.ts`): at
      least 12 seeded mistakes, each a one-line change behind a flag, and the test fails if the
      vectors do not catch every one. At least: the line's tie taking the higher index; the arc's
@@ -137,7 +137,7 @@ Title: `[Opus 5.5] CLI-02a sim parity harness` · Profile: `impl-opus` · Branch
      in the lockfile); `src/index.ts` exports the mirror and drops the `clamp` placeholder (and its
      test); a short `client/sim/README.md`: what is mirrored, where the vectors come from, how to
      add a table.
-- **Out**: `contracts/` (the tables and their tests are track game's, open question 2); `client/app`
+- **Out**: `contracts/` (the tables and their tests are track game's, question 2); `client/app`
   (CLI-03 replaces the placeholders); any rule without a vector table; the chain and accounts
   (CLI-01); `.github/` (no change is needed: the `client` job already runs `pnpm test` on every pull
   request).
@@ -183,7 +183,7 @@ python3 contracts/tools/exp2_table.py --check
 
 ## CLI-02b — the reveal (when ENG-05 is merged)
 
-- **In**: the mirror of ENG-05's reveal on the vectors ENG-05 prints (open question 4): the random
+- **In**: the mirror of ENG-05's reveal on the vectors ENG-05 prints (question 4): the random
   word's derivation (`derive`), generation with margins, edges and openings, bands, quotas, anchors,
   placement; D-134 (void chunks around every location and outside a zone's outline, a chunk's four
   corner tiles always wall, an unrevealed chunk is wall in the window: D-136); the packing of a
@@ -204,8 +204,8 @@ python3 contracts/tools/exp2_table.py --check
 - **The measurement D-140 asks for**: a full tick in TypeScript, Poseidon included, in Node on the
   VPS and in a browser worker (the Mac, `--machine mac`), on ENG-07's **worst tick** and on its
   **representative fight tick** (D-172); median and p95, cold first call, the mirror's gzip size;
-  against SPK-4's 2.4 µs a primitive and the threshold the orchestrator sets (open question 5). A
-  queue of 10 actions walked ahead, as the client does (D-133). Measurements are reported, never
+  against SPK-4's 2.4 µs a primitive and the threshold of question 5: **10 queued actions (D-133)
+  walked ahead within one 60 Hz frame (16.7 ms)**, in Node and in a browser worker. Measurements are reported, never
   committed as pins.
 - **Allowlist**: `client/sim/**`, `docs/reports/CLI-02c-*`.
 - **Audit**: determinism and cost (`audit`, Opus), once, on the measurement and the parity of the
@@ -230,40 +230,26 @@ summary and the pull request's URL; the files changed; the mirror's functions an
 pass, with their counts; the mutation table; the measurements with their commands and real output;
 the commands refused by the profile; deviations, escalations, open questions.
 
-## Open questions for the orchestrator
+## Questions and their answers
 
-Not decided here: each belongs to the orchestrator, the project manager or track game.
+Raised by this brief; answered by the project manager on 2026-10-02, or asked of track game.
 
-1. **The lending** (for the project manager). `client/sim/**` is *Never* in ORCH-client-visual §1;
-   §8 lists CLI-02 as the next candidate lent "after ENG-02". CLI-02a needs the project manager's
-   lending, with its allowlist above, before it launches. Recommendation: lend CLI-02 as a whole
-   (the three lots), so that CLI-02b and CLI-02c need no second request.
-2. **Fate and packing vectors** (for track game). `fate::domain`, `fate::derive` and the packing
-   helpers have no vector table, and `contracts/` is not this track's. Recommendation: the game adds
-   `fate.jsonl` (a few hundred `domain` and `derive` cases, the felt's edges included) and
-   `packing.jsonl` (each helper at its field boundaries) as tests of `grimworld_logic` and two
-   entries of `check.py`'s `TABLES` — a small lot, `impl-sonnet`. Without them, CLI-02a ships without
-   Poseidon's parity, and it moves to CLI-02b.
-3. **Who updates the mirror when the game moves a vector** (for the project manager and track
-   game). Once CLI-02a merges, the `client` job reads the tables on every pull request, so **a game
-   pull request that changes a rule fails CI until the mirror follows** — the parity D-140 wants, but
-   it couples the tracks. The first case is known: CBT-05a moves one `hit.jsonl` vector (D-179 #5).
-   Options: (a) the game's pull request updates `client/sim` itself (its allowlist then names the
-   mirror's file); (b) the game's pull request is paired with a CV pull request merged right after,
-   the game's CI waiting on it; (c) the tables are copied into `client/sim` with a check that warns
-   without failing (a change to `.github/`, not CV's). Recommendation: (a) for a change of a few
-   lines, (b) for a new rule; never (c), which lets the mirror drift silently. Decide it before
-   CLI-02a merges, or before CBT-05a does if it merges first.
-4. **The vectors of ENG-05 and ENG-07** (for track game). CLI-02b and CLI-02c can only be written on
-   tables the game prints: ask that ENG-05's and ENG-07's briefs require them in the same JSON-lines
-   format and checked by `check.py` (the reveal of a chunk; a tick, the worst tick and D-172's
-   representative fight tick among them; the flood and perception; the executor's hits), with the
-   game's own short strings for any panic.
-5. **A threshold for the full tick** (for the project manager). D-140 asks CLI-02 to measure the
-   tick in TypeScript and Poseidon but sets no threshold. Recommendation: a budget per tick in Node
-   and in a browser worker that leaves a queue of 10 actions (D-133) walked ahead within one frame
-   at 60 Hz (16.7 ms); above it, the fallback SPK-4 names (that rule alone in the VM, option (b)) is
-   studied. The phone's figure belongs to SPK-6.1.
-6. **Enough hit cases?** SPK-4 validated parity on 10,000 vectors; `hit.jsonl` has 200. CLI-02a's
-   mutation check says whether they see every rule. If a mutant survives, the game is asked for
-   more cases (an escalation through this orchestrator, not an edit by CLI-02a).
+1. **The lending.** **Decided**: `client/sim/**` is lent to track CV for CLI-02a, b and c;
+   `contracts/` and `contracts/logic/vectors/` stay the game's. Reversed if a game lot must change
+   `client/sim` (it then asks track CV).
+2. **Fate and packing vectors** (`fate.jsonl`, `packing.jsonl` as tests of `grimworld_logic` and
+   entries of `check.py`'s `TABLES`). **Asked of track game through the project manager.** Until they
+   are on `main`, CLI-02a ships without Poseidon's parity and it moves to CLI-02b.
+3. **Who updates the mirror when the game moves a vector.** **Decided**: a game pull request that
+   moves a vector updates the TypeScript mirror itself when the change is a few lines; a new rule gets
+   a paired CV pull request. CI couples the tables and `client/sim` once CLI-02a merges (the first
+   case: CBT-05a's `hit.jsonl` vector, D-179 #5).
+4. **The vectors of ENG-05 and ENG-07** (the reveal; a tick, the worst tick and D-172's
+   representative fight tick among them; the flood, perception, the executor's hits; same JSON-lines
+   format, checked by `check.py`). **Asked of track game through the project manager.**
+5. **A threshold for the full tick.** **Decided**: 10 queued actions walked ahead within one 60 Hz
+   frame (16.7 ms), in Node and in a browser worker. Reversed if the reference phone (iPhone 14)
+   misses it while the desktop passes: the threshold is then set on the phone (SPK-6.1).
+6. **Enough hit cases?** SPK-4 validated parity on 10,000 vectors; `hit.jsonl` has 200. Open:
+   CLI-02a's mutation check says whether they see every rule; if a mutant survives, the game is asked
+   for more cases (an escalation through the orchestrator, not an edit by CLI-02a).
