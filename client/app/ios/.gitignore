@@ -11,3 +11,9 @@ capacitor-cordova-ios-plugins
 # Generated Config files
 App/App/capacitor.config.json
 App/App/config.xml
+
+# The owner's signing (SHELL.md), never committed
+App/Signing.local.xcconfig
+
+# Swift Package Manager's resolution of capacitor-swift-pm (exact 8.5.2 in CapApp-SPM)
+App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
