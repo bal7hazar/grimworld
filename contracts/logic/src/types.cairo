@@ -6,6 +6,8 @@
 pub mod combat;
 /// The effect entry and its enumerations (design/19 §2, §3, CBT-01).
 pub mod effect;
+/// What a source adds to the conditions it inflicts (design/19 §5.7, CBT-04).
+pub mod infliction;
 /// Passive effects (design/19 §4, CBT-01).
 pub mod passive;
 /// The state and content a world tick reads and writes (CBT-02).
