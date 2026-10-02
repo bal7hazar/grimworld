@@ -9,6 +9,7 @@ use grimworld_logic::packing::{
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::MAX_CLOCK;
 use starknet::ContractAddress;
+use crate::helpers::stored::Stored;
 
 /// Member status (`MemberState.status`).
 pub const INSIDE: u8 = 0;
@@ -16,11 +17,6 @@ pub const DOWN: u8 = 1;
 pub const GONE: u8 = 2;
 /// Energy is stored in thirds (design/03, *Pips*).
 pub const ENERGY_THIRDS: u16 = 3;
-/// Offsets of the words of `Member` from its address, for a word read or written as stored.
-pub const TIMERS_WORD: u8 = 1;
-pub const EFFECTS_WORD: u8 = 2;
-pub const RECHARGES_WORD: u8 = 3;
-pub const STATS_WORD: u8 = 4;
 
 pub mod errors {
     /// A gate action by anyone but the member's controller (M-6, ENG-01 §1.2).
@@ -29,6 +25,16 @@ pub mod errors {
     pub const CHARGES: felt252 = 'packing: charges above 63';
     pub const RANK: felt252 = 'packing: rank above 15';
     pub const BELT_SLOT: felt252 = 'packing: belt slot above 3';
+}
+
+#[generate_trait]
+pub impl MemberAssert of MemberAssertTrait {
+    /// A gate action's caller is the member's controller (M-6, ENG-01 §1.2): a revert, not a
+    /// refusal of the game.
+    #[inline(always)]
+    fn assert_controller(controller: ContractAddress, caller: ContractAddress) {
+        assert(controller == caller, errors::NOT_CONTROLLER);
+    }
 }
 
 #[generate_trait]
@@ -332,7 +338,9 @@ pub impl RechargesStorePacking of starknet::storage_access::StorePacking<Recharg
     }
 }
 
-/// The eight consecutive slots of a member (`Store` layout: field `i` at offset `i`).
+/// The eight consecutive slots of a member (`Store` layout: field `i` at offset `i`), as models:
+/// the layout and the packers' oracle. `Instances` declares its storage with `StoredMember`, the
+/// same slots typed as stored words.
 #[derive(Copy, Drop, Serde, starknet::Store)]
 pub struct Member {
     pub state: MemberState,
@@ -344,6 +352,24 @@ pub struct Member {
     pub kit: MemberKit,
     /// The account allowed to play this member (M-6: "the caller controls this adventurer"),
     /// from the persistent domain at entry, updated by `set_controller`.
+    pub controller: ContractAddress,
+}
+
+/// A member's eight slots as `Instances` declares them (ENG-R1b): `Member`'s slots in its order, at
+/// the same addresses, each the word of its model as stored (`helpers::stored`). The store reads and
+/// writes a slot typed and needs no offset: the state and the controller through their models, the
+/// other six as words (the view returns all eight as stored, `begin` writes the empty transient
+/// words as constants, `create` writes the snapshot's three words as `Hub` stored them, D-168).
+/// Pinned against `Member` by the store's `test_member_slots`.
+#[derive(Copy, Drop, starknet::Store)]
+pub struct StoredMember {
+    pub state: Stored<MemberState>,
+    pub timers: Stored<MemberTimers>,
+    pub effects: Stored<MemberEffects>,
+    pub recharges: Stored<Recharges>,
+    pub stats: Stored<MemberStats>,
+    pub bar: Stored<MemberBar>,
+    pub kit: Stored<MemberKit>,
     pub controller: ContractAddress,
 }
 

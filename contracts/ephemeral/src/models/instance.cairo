@@ -43,6 +43,21 @@ pub impl PlacementImpl of PlacementTrait {
 }
 
 #[generate_trait]
+pub impl PlacementAssert of PlacementAssertTrait {
+    /// `create`: the adventurer is in no instance (design/02: at most one).
+    #[inline(always)]
+    fn assert_outside(self: @Placement) {
+        assert(*self.inside == 0, errors::ALREADY_INSIDE);
+    }
+
+    /// `set_controller`: the adventurer is in an instance.
+    #[inline(always)]
+    fn assert_inside(self: @Placement) {
+        assert(*self.inside != 0, errors::NOT_INSIDE);
+    }
+}
+
+#[generate_trait]
 pub impl HeaderImpl of HeaderTrait {
     /// The header of a new generation (ENG-01 §2.1): sequence 0, clock 0, open, one member, the
     /// tasks snapshotted, nothing revealed, the roster empty (its stale lanes masked by the count),
