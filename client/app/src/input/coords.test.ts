@@ -5,6 +5,7 @@ import {
   HEX_RADIUS,
   TILE_WIDTH,
   fitScale,
+  neighbours,
   pixelToTile,
   screenToTile,
   screenToWorld,
@@ -12,7 +13,7 @@ import {
   tileToScreen,
   worldToScreen,
 } from "./coords";
-import { LIBRARY_NEXT } from "../test/hexxLibrary";
+import { LIBRARY_DIRECTIONS, LIBRARY_NEXT, libraryNext } from "../test/hexxLibrary";
 
 const viewport = { width: 375, height: 812 };
 
@@ -117,5 +118,19 @@ describe("fitScale", () => {
     const scale = fitScale({ width: 1440, height: 900 }, 13);
     expect(13 * TILE_WIDTH * scale).toBeLessThan(1440);
     expect((12 * 1.5 + 2) * HEX_RADIUS * scale).toBeCloseTo(900, 9);
+  });
+});
+
+describe("neighbours (CLI-03f)", () => {
+  it("equals the library's next in the six directions, on even and odd rows", () => {
+    for (const tile of [
+      { x: 4, y: 4 },
+      { x: 4, y: 5 },
+      { x: 37, y: 12 },
+      { x: 37, y: 13 },
+    ]) {
+      const around = neighbours(tile);
+      for (const d of LIBRARY_DIRECTIONS) expect(around[d], `${d}`).toEqual(libraryNext(tile, d));
+    }
   });
 });

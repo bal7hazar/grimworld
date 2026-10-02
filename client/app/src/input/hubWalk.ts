@@ -3,6 +3,8 @@ import { STEP_MS } from "../render/renderer";
 import type { FrameHost } from "../render/scheduler";
 import type { Facing, Tile } from "../render/view";
 import { TILE_WIDTH, neighbours } from "./coords";
+import { targetIntent } from "./hubTaps";
+import type { Intent, LoopIntent } from "./intent";
 
 /**
  * The player's adventurer walking a hub's hex grid (CLI-03f, D-196): presentation, not a rule. The
@@ -116,7 +118,10 @@ export function doorAt(view: HubView, tile: Tile): HubPlace | null {
 }
 
 /** Timers and visibility of the host (the renderer's `FrameHost` is one). */
-export type WalkTimers = Pick<FrameHost, "setTimer" | "clearTimer" | "hidden" | "onVisibilityChange">;
+export type WalkTimers = Pick<
+  FrameHost,
+  "setTimer" | "clearTimer" | "hidden" | "onVisibilityChange"
+>;
 
 /** Where the walker is: its hex (the one it steps to during a step), its facing, its goal. */
 export interface WalkerState {
@@ -224,4 +229,45 @@ export class HubWalker {
     this.current = state;
     this.options.onChange?.(state);
   }
+}
+
+/** What the hub's taps do with the walk: the ground walks, a place walks then opens (CLI-03f). */
+export interface WalkTaps {
+  /** A tap on the ground: the map's intent. Walks there; a door reached opens its place. */
+  ground(intent: Intent): void;
+  /** A building: walk to its door, then open it; standing on the door, open at once. */
+  place(place: HubPlace): void;
+  /** A service entry, a present adventurer, a closed inspection: the walk ends, the intent now. */
+  now(intent: LoopIntent): void;
+}
+
+/**
+ * The hub's taps over a walker. A walk that passes over a door opens nothing: only the walk's end
+ * does. A door out of reach (no fixture has one: a test walks to every door) opens at once.
+ */
+export function walkTaps(
+  view: HubView,
+  walker: () => HubWalker | null,
+  dispatch: (intent: LoopIntent) => void,
+  log: (line: string) => void = () => {},
+): WalkTaps {
+  return {
+    ground(intent) {
+      if (intent.kind !== "tile") return;
+      const { tile } = intent;
+      const door = doorAt(view, tile);
+      const open = door ? () => dispatch(targetIntent(door.target)) : undefined;
+      if (!walker()?.walkTo(tile, open)) log(`(${tile.x}, ${tile.y}): not walkable, nothing to do`);
+    },
+    place(place) {
+      const open = () => dispatch(targetIntent(place.target));
+      if (walker()?.walkTo(place.at, open)) return;
+      log(`no walk to the ${place.label}'s door: opened at once`);
+      open();
+    },
+    now(intent) {
+      walker()?.stop();
+      dispatch(intent);
+    },
+  };
 }

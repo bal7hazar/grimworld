@@ -69,15 +69,28 @@ type Building = keyof typeof BUILDINGS;
 
 const tile = (x: number, y: number): Tile => ({ x, y });
 
-function place(id: ServiceId | "gate", building: Building, at: Tile): HubPlace {
+/**
+ * `depth`: the rows behind the base row the building blocks for the walk (CLI-03f), 1 when not
+ * given. **Proposed, the owner's eye**: 0 where the drawn path climbs behind a building.
+ */
+function place(id: ServiceId | "gate", building: Building, at: Tile, depth?: number): HubPlace {
   const target = id === "gate" ? GATE : service(id);
   const [width, height] = BUILDINGS[building];
-  return { id, label: targetLabel(target), target, building, at, width, height };
+  return {
+    id,
+    label: targetLabel(target),
+    target,
+    building,
+    at,
+    width,
+    height,
+    ...(depth === undefined ? {} : { depth }),
+  };
 }
 
-function decor(id: string, building: Building, at: Tile): HubDecor {
+function decor(id: string, building: Building, at: Tile, depth?: number): HubDecor {
   const [width, height] = BUILDINGS[building];
-  return { id, building, at, width, height };
+  return { id, building, at, width, height, ...(depth === undefined ? {} : { depth }) };
 }
 
 const prop = (id: string, sprite: string, x: number, y: number, mirror = false): HubProp => ({
@@ -134,7 +147,8 @@ const town: WalkedHub = {
     place("smith", "forge", tile(5, 7)),
     place("armorer", "archery", tile(2, 7)),
     place("alchemist", "cloister", tile(8, 1)),
-    place("market", "market_hall", tile(5, 1)),
+    // The path climbs behind the market hall's side, (5, 2): open (CLI-03f).
+    place("market", "market_hall", tile(5, 1), 0),
     place("vault", "grain_silo", tile(3, 1)),
     place("gate", "watchtower", tile(1, 1)),
   ],
@@ -191,7 +205,8 @@ const outpost: WalkedHub = {
     place("vault", "barn", tile(6, 2)),
     place("gate", "watchtower", tile(1, 2)),
   ],
-  decor: [decor("hut", "hut", tile(0, 7)), decor("straw-hut", "straw_hut", tile(4, 2))],
+  // The path climbs behind the straw hut, (3, 3): open (CLI-03f).
+  decor: [decor("hut", "hut", tile(0, 7)), decor("straw-hut", "straw_hut", tile(4, 2), 0)],
   props: [
     prop("tree-back-w", "tree1", 7, 8),
     prop("tree-back-e", "tree3", 0, 8, true),

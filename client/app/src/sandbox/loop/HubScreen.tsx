@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import type { Application } from "pixi.js";
-import type { Intent, LoopIntent } from "../../input/intent";
+import type { LoopIntent } from "../../input/intent";
 import {
   type Size,
   figureIntent,
@@ -19,26 +19,16 @@ import {
   placeRect,
   targetIntent,
 } from "../../input/hubTaps";
-import { HubWalker, type WalkerState, doorAt } from "../../input/hubWalk";
+import { HubWalker, type WalkTaps, type WalkerState, walkTaps } from "../../input/hubWalk";
 import { loadAtlas } from "../../render/atlas";
 import { HubRenderer } from "../../render/hubRenderer";
-import { type HubPlace, type HubView, type WalkedHub, targetLabel } from "../../render/hubView";
+import { type HubView, type WalkedHub, targetLabel } from "../../render/hubView";
 import type { Tile } from "../../render/view";
 import { ADVENTURER } from "../fixtures/hubs";
 import { createPixiSurface, pixiTickersRunning } from "../../render/pixiSurface";
 import { type ScaleMode, canvasResolution } from "../../render/scaling";
 import { browserHost } from "../../render/scheduler";
 import { ui } from "./styles";
-
-/** What the hub's taps do with the walk (CLI-03f): the ground walks, a place walks then opens. */
-interface Taps {
-  /** A tap on the ground: the map's intent, answered by the hub's walk. */
-  ground(intent: Intent): void;
-  /** A building: walk to its door, then open it. */
-  place(place: HubPlace): void;
-  /** A service entry or a present adventurer: the walk ends where it stands, the intent at once. */
-  now(intent: LoopIntent): void;
-}
 
 /**
  * A hub (design/11 *Hubs*): its name and the gold at the top, the illustration in the middle, the
@@ -87,27 +77,12 @@ export function HubScreen({
     };
   }, [view, onStood]);
 
-  const taps: Taps = {
-    ground(intent) {
-      if (intent.kind !== "tile") return;
-      const { tile } = intent;
-      const door = doorAt(view, tile);
-      const open = door ? () => dispatch(targetIntent(door.target)) : undefined;
-      if (!walker.current?.walkTo(tile, open)) {
-        console.debug(`[hub] (${tile.x}, ${tile.y}): not walkable, nothing to do`);
-      }
-    },
-    place(place) {
-      const open = () => dispatch(targetIntent(place.target));
-      if (walker.current?.walkTo(place.at, open)) return;
-      console.warn(`[hub] no walk to the ${place.label}'s door: opened at once`);
-      open();
-    },
-    now(intent) {
-      walker.current?.stop();
-      dispatch(intent);
-    },
-  };
+  const taps = walkTaps(
+    view,
+    () => walker.current,
+    dispatch,
+    (line) => console.debug("[hub]", line),
+  );
 
   const drawn = useMemo<HubView>(
     () => ({ ...view, walker: { profession: ADVENTURER.profession, ...walked } }),
@@ -163,7 +138,7 @@ function Illustration({
   view: HubView;
   walker: WalkerState;
   scale: ScaleMode;
-  taps: Taps;
+  taps: WalkTaps;
   children?: ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);

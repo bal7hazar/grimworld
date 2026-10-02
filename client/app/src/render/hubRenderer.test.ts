@@ -2,6 +2,7 @@ import { BufferImageSource, Container, Graphics, Sprite, Spritesheet, Texture } 
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../input/coords";
 import { figureRect, hubFit, placeRect, type Rect } from "../input/hubTaps";
+import { HUB_STEP_MS, HubWalker, hubPath } from "../input/hubWalk";
 import { BUILDINGS, HUB_VIEWS } from "../sandbox/fixtures/hubs";
 import { TOWN } from "../sandbox/fixtures/region";
 import { FakeHost } from "../test/fakeHost";
@@ -10,7 +11,7 @@ import { HubRenderer, STILL } from "./hubRenderer";
 import { type HubView, feetPoint, hubPoint } from "./hubView";
 import { Renderer } from "./renderer";
 import { type SpritesIndex, libraryFrom } from "./sprites";
-import type { ViewState } from "./view";
+import type { Facing, Tile, ViewState } from "./view";
 
 const town = HUB_VIEWS.get(TOWN)!;
 
@@ -387,4 +388,156 @@ it("the hubs' origin is the room's tile (0, 0)", () => {
   expect(hubPoint(view, { x: 0, y: 0 })).toEqual({ x: 10, y: 20 });
   const p = tileToPixel({ x: 3, y: 1 });
   expect(hubPoint(view, { x: 3, y: 1 })).toEqual({ x: 10 + p.x, y: 20 + p.y });
+});
+
+/** The hub's art with the vanguard's `move` strip (4 frames) beside its idle frame. */
+async function walkLibrary() {
+  const lib = await hubLibrary();
+  const idle = lib.get("vanguard")!;
+  const frames: Record<string, unknown> = {};
+  const keys: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const key = `vanguard/move/0${i}`;
+    keys.push(key);
+    frames[key] = {
+      frame: { x: i * 32, y: 0, w: 32, h: 40 },
+      rotated: false,
+      trimmed: false,
+      spriteSourceSize: { x: 0, y: 0, w: 32, h: 40 },
+      sourceSize: { w: 32, h: 40 },
+      anchor: { x: 0.5, y: 0.9 },
+    };
+  }
+  const source = new BufferImageSource({
+    resource: new Uint8Array(128 * 40 * 4).fill(90),
+    width: 128,
+    height: 40,
+  });
+  const sheet = new Spritesheet(new Texture({ source }), {
+    frames,
+    animations: { "vanguard/move": keys },
+    meta: { image: "move.png", format: "RGBA8888", size: { w: 128, h: 40 }, scale: "1" },
+  } as never);
+  await sheet.parse();
+  const move = { textures: sheet.animations["vanguard/move"]!, fps: 12, loop: true };
+  const all = new Map(lib);
+  all.set("vanguard", { ...idle, animations: { ...idle.animations, move } });
+  return all;
+}
+
+describe("the walker (CLI-03f)", () => {
+  const walker = (at: Tile, target: Tile | null = null, facing: Facing = 0): HubView => ({
+    ...town,
+    walker: { profession: "vanguard", at, facing, target },
+  });
+  /** The walker's node: the standing layer's one plain container, its body inside. */
+  const walkerOf = (renderer: HubRenderer) => {
+    const node = standingOf(renderer).children.find((c) => c.constructor === Container)!;
+    return { node, body: node.children[0] as Sprite };
+  };
+
+  it("stands on the arrival hex, as tall as a room's adventurer at the same factor (AC-1)", async () => {
+    const lib = await hubLibrary();
+    const { renderer, host } = setup();
+    renderer.setLibrary(lib);
+    renderer.setView(walker(town.arrival));
+    host.run(100);
+    const fit = renderer.fit()!;
+    const feet = feetPoint(town, town.arrival);
+    const { node, body } = walkerOf(renderer);
+    expect([node.x, node.y]).toEqual([feet.x, feet.y]);
+    expect(body).toBeInstanceOf(Sprite);
+    expect(body.texture).toBe(lib.get("vanguard")!.animations.idle!.textures[0]);
+    expect(body.getBounds().height / fit.scale).toBeCloseTo(40, 6);
+    // Every present figure still stands where it stood, and the scene has one more piece.
+    const pieces = town.places.length + town.decor.length + town.props.length;
+    expect(standingOf(renderer).children).toHaveLength(pieces + town.figures.length + 1);
+  });
+
+  it("a walk draws frames while it steps, none after, and never bakes the ground (AC-7, AC-8)", async () => {
+    const lib = await walkLibrary();
+    const surface = new FakeSurface();
+    const { renderer, host } = setup(surface);
+    renderer.setLibrary(lib);
+    renderer.setView(walker(town.arrival));
+    host.run(1000);
+    const bakes = renderer.bakes;
+    const ground = (sceneOf(renderer).children[0] as Sprite).texture;
+    const fit = renderer.fit();
+    const before = surface.renders;
+    const hubWalker = new HubWalker(town, town.arrival, host, {
+      onChange: (s) => renderer.setView(walker(s.at, s.target, s.facing)),
+    });
+    const to = town.places.find((p) => p.id === "smith")!.at;
+    const steps = hubPath(town, town.arrival, to)!.length;
+    hubWalker.walkTo(to);
+    host.run(HUB_STEP_MS / 2);
+    expect(renderer.stepping()).toBe(true);
+    // A move frame is shown mid-step.
+    const moving = new Set(lib.get("vanguard")!.animations.move!.textures);
+    expect(moving.has(walkerOf(renderer).body.texture)).toBe(true);
+    host.run(HUB_STEP_MS * (steps + 2));
+    const drawn = surface.renders - before;
+    // About one frame per display refresh while stepping (120 Hz here): many, and bounded.
+    expect(drawn).toBeGreaterThan(steps * 10);
+    expect(drawn).toBeLessThan(((steps + 2) * HUB_STEP_MS * 120) / 1000 + 10);
+    expect(renderer.stepping()).toBe(false);
+    expect(host.quiet()).toBe(true);
+    const after = surface.renders;
+    host.run(60_000);
+    expect(surface.renders).toBe(after);
+    // The walker stands at its idle frame on the door; the ground was baked zero times.
+    const feet = feetPoint(town, to);
+    const { node, body } = walkerOf(renderer);
+    expect([node.x, node.y]).toEqual([feet.x, feet.y]);
+    expect(body.texture).toBe(lib.get("vanguard")!.animations.idle!.textures[0]);
+    expect(renderer.bakes).toBe(bakes);
+    expect((sceneOf(renderer).children[0] as Sprite).texture).toBe(ground);
+    expect(renderer.fit()).toEqual(fit);
+    hubWalker.destroy();
+  });
+
+  it("faces the way it steps: West mirrored, East not", async () => {
+    const lib = await hubLibrary();
+    const { renderer, host } = setup();
+    renderer.setLibrary(lib);
+    renderer.setView(walker(town.arrival, null, 3));
+    host.run(100);
+    expect(walkerOf(renderer).body.scale.x).toBeLessThan(0);
+    renderer.setView(walker(town.arrival, null, 0));
+    host.run(100);
+    expect(walkerOf(renderer).body.scale.x).toBeGreaterThan(0);
+  });
+
+  it("marks the walk's target faintly, under everything that stands", () => {
+    const { renderer, host } = setup();
+    renderer.setView(walker(town.arrival, { x: 5, y: 3 }));
+    host.run(100);
+    const marker = standingOf(renderer).children[0]!;
+    expect(marker).toBeInstanceOf(Graphics);
+    expect(marker.zIndex).toBe(-Infinity);
+    const count = standingOf(renderer).children.length;
+    renderer.setView(walker(town.arrival));
+    host.run(100);
+    expect(standingOf(renderer).children).toHaveLength(count - 1);
+  });
+
+  it("is sorted with the standing layer: behind a building whose base is in front", () => {
+    const { renderer, host } = setup();
+    const smith = town.places.find((p) => p.id === "smith")!;
+    // The hex behind the Smith's door (a depth row is blocked, but the view draws any hex).
+    renderer.setView(walker({ x: smith.at.x, y: smith.at.y + 1 }));
+    host.run(100);
+    const children = standingOf(renderer).children;
+    const base = hubPoint(town, smith.at);
+    const building = children.findIndex(
+      (c) => c instanceof Graphics && Math.abs(c.getLocalBounds().maxY - base.y) < 7,
+    );
+    const walkerAt = children.findIndex(
+      (c) => c.zIndex === feetPoint(town, { ...smith.at, y: smith.at.y + 1 }).y,
+    );
+    expect(building).toBeGreaterThan(-1);
+    expect(walkerAt).toBeGreaterThan(-1);
+    expect(walkerAt).toBeLessThan(building);
+  });
 });

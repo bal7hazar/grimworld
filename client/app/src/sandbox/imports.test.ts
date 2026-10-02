@@ -96,6 +96,12 @@ describe("placeholders.ts", () => {
     }
   });
 
+  it("the hub walk imports no rule and no fixture: no placeholders.ts, no region (CLI-03f)", () => {
+    const walk = sources["../input/hubWalk.ts"];
+    expect(walk).toBeDefined();
+    expect(walk).not.toMatch(/from\s+["'][^"']*(placeholders|fixtures\/region|sandbox)[^"']*["']/);
+  });
+
   it("no randomness and no clock in the loop's machine and fixtures (§6.6)", () => {
     for (const path of [
       "./loop/machine.ts",
