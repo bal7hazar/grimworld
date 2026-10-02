@@ -1,11 +1,13 @@
-# CV-02 — The Capacitor shell for SPK-6.1 (iOS only, no chain)
+# CV-03 — The Capacitor shell for SPK-6.1 (iOS only, no chain)
 
 Written by a thread of track CV's orchestrator (herdr project `grimworld-cv`) on 2026-10-02, from PLAN's
-row CV-02, **D-151** and **D-152** (`docs/decisions/2026-09-29-spk-6-protocol.md`) and SPK-6's protocol
-§2.2 and §9 point 9 (`docs/research/SPK-6-protocol.md`). PLAN calls this task CV-02; that ID is already
-the merged launcher-budget lot (#129, `docs/briefs/CV-02-launcher-budget.md`), and the track's status
-asks the project manager for **CV-03** instead. This file keeps the name it was ordered under until the
-project manager answers (open question 1).
+row CV-03, **D-151** and **D-152** (`docs/decisions/2026-09-29-spk-6-protocol.md`) and SPK-6's protocol
+§2.2 and §9 point 9 (`docs/research/SPK-6-protocol.md`). D-151 and the protocol called this task CV-02;
+that ID is the merged launcher-budget lot (#129, `docs/briefs/CV-02-launcher-budget.md`), so it runs as
+**CV-03** (the project manager, 2026-10-02).
+
+**Status: waiting.** The implementation starts when the Mac has **Xcode 26** and **a `gh` login**, both
+with the owner through the project manager (2026-10-02).
 
 ## Thread
 Profile: `impl-opus` (PLAN names Opus 5.5; a native Swift plugin and a first Xcode project in the
@@ -45,8 +47,8 @@ exactly what the protocol asks of it, and nothing else:
   shell run before Phase 6; CLI-01 builds for the browser first and Capacitor wraps it later; the
   Android at 90 or 120 Hz is no longer asked. **For the shell this means**: no `android/` project, no
   `@capacitor/android` dependency, no Android section in the configuration; the protocol's Appendix A
-  (Android) adds them in a later task if the owner brings Android back. PLAN's row still says "iOS and
-  Android projects": the row predates D-152, and its text is the project manager's (open question 2).
+  (Android) adds them in a later task if the owner brings Android back. PLAN's row says iOS only, per D-152
+  (the project manager, 2026-10-02; its confirmation is with the owner).
 - **SPK-6's protocol** (`docs/research/SPK-6-protocol.md`, merged by SPK-6a, #138):
   - §2.1: the measured build is the production build with the atlas; the ten-actor fixture.
   - §2.2: the shell step repeats the browser step's rows once and gives the final battery, heat and
@@ -175,7 +177,7 @@ exactly what the protocol asks of it, and nothing else:
      - Name them as you see fit, one line each in the pull request.
   7. **Lint on the Mac after a sync**: one entry, `"**/ios/App/App/public/"`, added to the `ignores` of
      `client/eslint.config.js`. That file is shared with `client/sim`, so this is an escalation: it is
-     listed in the allowlist below for this one line only, pending open question 4. If the orchestrator
+     listed in the allowlist below for this one line only, pending open question 2. If the orchestrator
      refuses it, leave the file alone and state in the report that `pnpm lint` on the Mac must run before
      a sync or after removing `public/`.
   8. **A short `client/app/SHELL.md`**:
@@ -197,7 +199,7 @@ exactly what the protocol asks of it, and nothing else:
     money).
   - App icons and a splash of the game's own (Capacitor's template ones stay). No art of the pack in
     the iOS project, ever.
-  - A CI job for the shell: `.github/` is not the track's (scope of CI below; open question 3).
+  - A CI job for the shell: `.github/` is not the track's (scope of CI below; open question 1).
   - `client/sim`, `contracts/`, `scripts/` outside `scripts/mac/`, the `assets` pointer.
 - **Allowlist**:
   - `client/app/capacitor.config.ts`, `client/app/ios/**` (generated project, the plugin, `.gitignore`,
@@ -328,7 +330,7 @@ not need to change these.
   for scope 1's packages.
 - Foreground only. Delete and stop only what you created, by exact path and process id (simulator
   devices you created included).
-- Pull request: title `[Opus 5.5] CV-02 the Capacitor shell (iOS, for SPK-6.1)`. The body names every
+- Pull request: title `[Opus 5.5] CV-03 the Capacitor shell (iOS, for SPK-6.1)`. The body names every
   dependency added with its version, says "Audit: none (D-177)", and lists what the owner must do on
   the phone. Never merge.
 
@@ -346,23 +348,22 @@ The report of the thread, in the project's form (`PR:`, `## Report`, `## Next`):
 
 ## Open questions (for the orchestrator and the project manager)
 
-1. **The task's ID**: PLAN's CV-02 collides with the merged launcher lot (#129); the track asked for
-   CV-03. If the project manager confirms CV-03, this file is renamed `CV-03-capacitor-shell.md` before
-   the launch, and PLAN's row follows. That is the project manager's.
-2. **PLAN's row text** still says "iOS and Android projects" (pre-D-152). This brief builds iOS only. The
-   project manager may want the row to say "iOS (Android dropped, D-152)".
-3. **A CI check of the shell**: today CI checks only the web side. `cap sync ios` on Linux, or
+Answered by the project manager on 2026-10-02:
+- **The task's ID**: CV-03 (PLAN's CV-02 collided with the merged launcher lot, #129).
+- **PLAN's row**: iOS only, per D-152; its confirmation is with the owner.
+- **Xcode on the Mac**: the implementation waits for Xcode 26 and a `gh` login on the Mac, both with
+  the owner through the project manager (the status line above).
+
+Still open:
+1. **A CI check of the shell**: today CI checks only the web side. `cap sync ios` on Linux, or
    `xcodebuild` on a macOS runner, would need `.github/` (the project manager's) and, for macOS runners,
    is free for a public repository but slow. Decided by the project manager on the agent's
    `PENDING-cv-shell-ci.md`, if one is written.
-4. **`client/eslint.config.js`**: one `ignores` line for `ios/App/App/public/`, in a file shared with
+2. **`client/eslint.config.js`**: one `ignores` line for `ios/App/App/public/`, in a file shared with
    `client/sim`. Does the orchestrator grant it (scope 7)?
-5. **Xcode on the Mac**: D-151 installs it when SPK-6 runs. This task needs it for AC-5 to AC-10. Does the
-   owner install Xcode 26 before CV-02 launches, or does CV-02 run its Linux-able part first and the
-   rest after the install?
-6. **Order with the sandbox's instrumentation** (protocol §9 points 1–8, not yet briefed): if the run log
-   lands first, CV-02 wires the device state into it; otherwise the run-log task does. The orchestrator
+3. **Order with the sandbox's instrumentation** (protocol §9 points 1–8, not yet briefed): if the run log
+   lands first, CV-03 wires the device state into it; otherwise the run-log task does. The orchestrator
    chooses the order.
-7. **The real bundle identifier** (for example under a domain of the owner's) is the owner's. It is not
+4. **The real bundle identifier** (for example under a domain of the owner's) is the owner's. It is not
    needed for SPK-6, which uses the placeholder overridden locally, but it is needed before any store
    (HRD-08).
