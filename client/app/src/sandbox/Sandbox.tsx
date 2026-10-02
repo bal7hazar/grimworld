@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import type { Intent } from "../input/intent";
 import type { ZoomSettings } from "../render/renderer";
 import { SCALE_MODES, readScaleMode } from "../render/scaling";
 import type { Tile } from "../render/view";
@@ -17,7 +18,7 @@ import type { SandboxWorld } from "./world";
 export function Sandbox() {
   const [params] = useState(() => readParams(window.location.search));
   if (params.hub !== null) {
-    return <Loop hub={params.hub} entryMs={params.entryMs} scale={params.scale} />;
+    return <Loop hub={params.hub} entryMs={params.entryMs} />;
   }
   return (
     <div style={styles.page}>
@@ -28,19 +29,29 @@ export function Sandbox() {
 
 /**
  * The rendering sandbox (CLI-03a): the map on the whole of its box, a button back to the
- * adventurer, and a debug panel. In the loop it opens on `world` (the instance), reports where
- * the adventurer stands after every change (`onTile`), and carries the loop's controls
- * (`children`) over the map.
+ * adventurer, and a debug panel. In the loop it opens on `world` (the instance, or a hub lived like
+ * a zone, CLI-03f), reports where the adventurer stands and how its walk goes after every change
+ * (`onTile`), and carries the loop's controls (`children`) over the map. A hub's screen also routes
+ * the map's intents before the session (`route`) and places its labels after each frame drawn
+ * (`onFrame`). A hub shows no walk counter: a hub has no tick.
+ *
+ * For the browser check: the root's `data-frames` (frames drawn), `data-tile` (where the
+ * adventurer stands) and `data-walking`.
  */
 export function RoomSandbox({
   world,
   onTile,
+  route,
+  onFrame,
   children,
 }: {
   world?: SandboxWorld;
-  onTile?: (tile: Tile | null) => void;
+  onTile?: (tile: Tile | null, walk: WalkInfo) => void;
+  route?: (intent: Intent) => Intent | null;
+  onFrame?: (controller: SandboxController) => void;
   children?: ReactNode;
 } = {}) {
+  const root = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const [controller, setController] = useState<SandboxController | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => readParams(window.location.search).panel);
@@ -48,13 +59,21 @@ export function RoomSandbox({
   const [walk, setWalk] = useState<WalkInfo | null>(null);
   const tileListener = useRef(onTile);
   tileListener.current = onTile;
+  const router = useRef(route);
+  router.current = route;
+  const frameListener = useRef(onFrame);
+  frameListener.current = onFrame;
+  const hub = world?.kind === "hub";
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
     let alive = true;
     let mounted: SandboxController | null = null;
-    SandboxController.mount(element, { ...readParams(window.location.search), world })
+    const routed = router.current
+      ? { route: (intent: Intent) => (router.current ? router.current(intent) : intent) }
+      : {};
+    SandboxController.mount(element, { ...readParams(window.location.search), world, ...routed })
       .then((c) => {
         if (!alive) return c.destroy();
         mounted = c;
@@ -78,15 +97,33 @@ export function RoomSandbox({
     if (!controller) return;
     controller.listenToWalk((next) => {
       setWalk(next);
-      tileListener.current?.(controller.adventurerTile());
+      const tile = controller.adventurerTile();
+      const element = root.current;
+      if (element) {
+        element.dataset.tile = tile ? `${tile.x},${tile.y}` : "";
+        element.dataset.walking = String(next.walking);
+      }
+      tileListener.current?.(tile, next);
     });
     return () => controller.listenToWalk(null);
   }, [controller]);
 
+  useEffect(() => {
+    if (!controller) return;
+    controller.listenToFrames((stats) => {
+      if (root.current) {
+        root.current.dataset.frames = String(stats.renders);
+        root.current.dataset.atlas = controller.atlasState();
+      }
+      frameListener.current?.(controller);
+    });
+    return () => controller.listenToFrames(null);
+  }, [controller]);
+
   return (
-    <div style={styles.root}>
+    <div ref={root} style={styles.root}>
       <div ref={host} style={styles.canvas} />
-      {controller && walk && <WalkCounter controller={controller} walk={walk} />}
+      {controller && walk && !hub && <WalkCounter controller={controller} walk={walk} />}
       <button
         style={styles.centre}
         onClick={() => controller?.recentre()}

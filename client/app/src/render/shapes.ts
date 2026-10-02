@@ -1,7 +1,7 @@
 import { Graphics } from "pixi.js";
 import { HEX_RADIUS, type Point, tileToPixel } from "../input/coords";
 import { WEDGE } from "./facing";
-import type { Caste, Mark, Profession, Tile, ViewState, ViewTile } from "./view";
+import type { Caste, Mark, Profession, Tile, ViewState, ViewStructure, ViewTile } from "./view";
 
 /**
  * Plain shapes: the terrain (the pack has no hex terrain, design/10), and the actors when the atlas
@@ -24,6 +24,16 @@ const COLOURS = {
   selected: 0xffffff,
   wedgeAdventurer: 0xffffff,
   wedgeGoblin: 0xffd166,
+  wall: 0xd8cfb8,
+  wallShade: 0x9c947f,
+  roof: 0x3b6fb6,
+  roofShade: 0x2a4f84,
+  decorRoof: 0x8a6a46,
+  door: 0x4a3420,
+  gate: 0x8a8577,
+  gateShade: 0x5c574d,
+  bush: 0x3f6a2c,
+  bushLight: 0x5f8f3f,
 };
 
 /** The six corners of a pointy-top hex around a centre, `grow` pixels out. */
@@ -55,9 +65,13 @@ function drawRock(g: Graphics, tile: Tile): void {
 
 /**
  * The static layers of one chunk, to be baked into one texture: a continuous ground (each hex grown by half a
- * pixel so that no seam shows), rocks on walls, the hex grid, and the unrevealed.
+ * pixel so that no seam shows), rocks on walls, the hex grid, and the unrevealed. A wall hex in
+ * `covered` (`"x,y"`) draws no rock: a structure stands there as its obstacle object (CLI-03f).
  */
-export function drawTerrain(tiles: readonly ViewTile[]): Graphics {
+export function drawTerrain(
+  tiles: readonly ViewTile[],
+  covered: ReadonlySet<string> = new Set(),
+): Graphics {
   const g = new Graphics();
   for (const tile of tiles) {
     const centre = tileToPixel(tile);
@@ -72,7 +86,46 @@ export function drawTerrain(tiles: readonly ViewTile[]): Graphics {
       g.poly(hexCorners(centre)).stroke({ width: 1, color: COLOURS.groundEdge, alpha: 0.35 });
     }
   }
-  for (const tile of tiles) if (tile.kind === "wall") drawRock(g, tile);
+  for (const tile of tiles) {
+    if (tile.kind === "wall" && !covered.has(`${tile.x},${tile.y}`)) drawRock(g, tile);
+  }
+  return g;
+}
+
+/**
+ * A structure as a shape, when the atlas has no still for it (CLI-03e's shapes, CLI-03f): a
+ * building at its native size, walls, a roof and a door, the Gate as an arch; a prop as a bush.
+ * Base at (0, 0).
+ */
+export function drawStructure(structure: ViewStructure): Graphics {
+  const { width: w, height: h } = structure;
+  const g = new Graphics();
+  if (structure.kind === "prop") {
+    g.ellipse(0, 0, 20, 5).fill({ color: 0x000000, alpha: 0.25 });
+    g.circle(0, -16, 16).fill(COLOURS.bush);
+    g.circle(-5, -21, 7).fill(COLOURS.bushLight);
+    return g;
+  }
+  g.ellipse(0, 0, w * 0.55, 6).fill({ color: 0x000000, alpha: 0.25 });
+  if (structure.shape === "gate") {
+    const pillar = Math.max(6, w * 0.22);
+    g.rect(-w / 2, -h, pillar, h).fill(COLOURS.gate);
+    g.rect(w / 2 - pillar, -h, pillar, h).fill(COLOURS.gate);
+    g.rect(-w / 2, -h, w, h * 0.22).fill(COLOURS.gateShade);
+    g.rect(-w / 2 + pillar, -h * 0.78, w - 2 * pillar, h * 0.78).fill({
+      color: 0x000000,
+      alpha: 0.35,
+    });
+    return g;
+  }
+  const roof = structure.shape === "decor" ? COLOURS.decorRoof : COLOURS.roof;
+  const wall = h * 0.58;
+  g.rect(-w / 2, -wall, w, wall).fill(COLOURS.wall);
+  g.rect(-w / 2, -wall * 0.25, w, wall * 0.25).fill(COLOURS.wallShade);
+  g.poly([-w / 2 - 4, -wall, w / 2 + 4, -wall, 0, -h]).fill(roof);
+  g.poly([0, -h, w / 2 + 4, -wall, 0, -wall]).fill(COLOURS.roofShade);
+  const door = Math.max(6, w * 0.16);
+  g.rect(-door / 2, -wall * 0.5, door, wall * 0.5).fill(COLOURS.door);
   return g;
 }
 

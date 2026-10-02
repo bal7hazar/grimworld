@@ -4,7 +4,7 @@ import {
   type HubPlace,
   type HubProp,
   type HubTarget,
-  type WalkedHub,
+  type HubView,
   targetLabel,
 } from "../../render/hubView";
 import type { Profession, Tile } from "../../render/view";
@@ -71,7 +71,7 @@ const tile = (x: number, y: number): Tile => ({ x, y });
 
 /**
  * `depth`: the rows behind the base row the building blocks for the walk (CLI-03f), 1 when not
- * given. **Proposed, the owner's eye**: 0 where the drawn path climbs behind a building.
+ * given. **Proposed, the owner's eye**: 0 where the way climbs behind a building's side.
  */
 function place(id: ServiceId | "gate", building: Building, at: Tile, depth?: number): HubPlace {
   const target = id === "gate" ? GATE : service(id);
@@ -100,13 +100,6 @@ const prop = (id: string, sprite: string, x: number, y: number, mirror = false):
   ...(mirror ? { mirror } : {}),
 });
 
-/** The hexes `from` to `to` along a row (inclusive). */
-function row(y: number, from: number, to: number): Tile[] {
-  const out: Tile[] = [];
-  for (let x = Math.min(from, to); x <= Math.max(from, to); x++) out.push(tile(x, y));
-  return out;
-}
-
 /**
  * The town, on the instance's hex grid (CLI-03e): three bands of buildings, doors facing the
  * viewer. **Proposed, the owner's eye**: the Guild in the castle at the back between the
@@ -116,30 +109,12 @@ function row(y: number, from: number, to: number): Tile[] {
  * from the road to the middle street and the castle's door. Tiles in the room's coordinates: `x`
  * grows West (to the left), `y` North (up), from the front-right corner.
  */
-const town: WalkedHub = {
+const town: HubView = {
   name: "Town A",
   gold: 1240,
   width: 704,
   height: 960,
   origin: { x: 672, y: 912 },
-  ground: {
-    tileset: "grass",
-    water: "water_c",
-    path: [
-      ...row(0, 0, 9),
-      tile(4, 1),
-      tile(5, 2),
-      tile(4, 3),
-      tile(4, 4),
-      tile(4, 5),
-      ...row(6, 2, 9),
-      tile(4, 7),
-      tile(4, 8),
-      tile(4, 9),
-      tile(4, 10),
-      ...row(11, 1, 8),
-    ],
-  },
   places: [
     place("guild", "castle", tile(5, 12)),
     place("enchanter", "tower", tile(1, 12)),
@@ -147,7 +122,7 @@ const town: WalkedHub = {
     place("smith", "forge", tile(5, 7)),
     place("armorer", "archery", tile(2, 7)),
     place("alchemist", "cloister", tile(8, 1)),
-    // The path climbs behind the market hall's side, (5, 2): open (CLI-03f).
+    // The way climbs behind the market hall's side, (5, 2): open (CLI-03f).
     place("market", "market_hall", tile(5, 1), 0),
     place("vault", "grain_silo", tile(3, 1)),
     place("gate", "watchtower", tile(1, 1)),
@@ -188,24 +163,19 @@ const town: WalkedHub = {
  * present. **Proposed, the owner's eye**: the Guild in the fortress, the Trainer in the barracks,
  * the Vault in the barn, the Gate a watchtower at the road's end.
  */
-const outpost: WalkedHub = {
+const outpost: HubView = {
   name: "Outpost B",
   gold: 1240,
   width: 576,
   height: 704,
   origin: { x: 512, y: 656 },
-  ground: {
-    tileset: "grass",
-    water: "water_c",
-    path: [...row(1, 0, 7), tile(3, 3), tile(4, 4), tile(3, 5), tile(4, 6)],
-  },
   places: [
     place("guild", "fortress", tile(2, 7)),
     place("trainer", "barracks", tile(5, 7)),
     place("vault", "barn", tile(6, 2)),
     place("gate", "watchtower", tile(1, 2)),
   ],
-  // The path climbs behind the straw hut, (3, 3): open (CLI-03f).
+  // The way climbs behind the straw hut, (3, 3): open (CLI-03f).
   decor: [decor("hut", "hut", tile(0, 7)), decor("straw-hut", "straw_hut", tile(4, 2), 0)],
   props: [
     prop("tree-back-w", "tree1", 7, 8),
@@ -229,7 +199,7 @@ const outpost: WalkedHub = {
 };
 
 /** Each hub's view, by location id. */
-export const HUB_VIEWS: ReadonlyMap<number, WalkedHub> = new Map([
+export const HUB_VIEWS: ReadonlyMap<number, HubView> = new Map([
   [TOWN, town],
   [OUTPOST, outpost],
 ]);

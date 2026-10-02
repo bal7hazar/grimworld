@@ -65,10 +65,8 @@ export interface LoopState {
 export type LoopAnswer =
   /** The entry draw is made: the instance opens on its entry chunk. */
   | { readonly kind: "entry drawn" }
-  /** The adventurer stands on a tile of the instance (after each step of the room). */
-  | { readonly kind: "moved"; readonly tile: Tile }
-  /** The adventurer stands on a hex of the hub (after each step of the hub's walk, CLI-03f). */
-  | { readonly kind: "stood"; readonly tile: Tile };
+  /** The adventurer stands on a tile of the instance or the hub (after each step of the room). */
+  | { readonly kind: "moved"; readonly tile: Tile };
 
 export type LoopEvent = LoopIntent | LoopAnswer;
 
@@ -148,7 +146,9 @@ export function step(state: LoopState, event: LoopEvent): LoopState {
             screen: { kind: "gate", hub: screen.hub, at: screen.at },
             said: "open the Gate",
           };
-        case "stood":
+        case "moved":
+          // Recorded for the hub's screens, decided nowhere (CLI-03f).
+          if (screen.at.x === event.tile.x && screen.at.y === event.tile.y) return state;
           return { ...state, screen: { ...screen, at: event.tile } };
         case "inspect adventurer": {
           const figure = HUB_VIEWS.get(screen.hub)?.figures.find((f) => f.id === event.adventurer);

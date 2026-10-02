@@ -215,25 +215,27 @@ describe("the adventurer's hex in the hub (CLI-03f)", () => {
     }
   });
 
-  it("stood: the hub screen records each step's hex, and only the hub screen takes it", () => {
-    const s = step(hubState(TOWN), { kind: "stood", tile: { x: 3, y: 0 } });
+  it("moved: the hub screen records each step's hex, as the instance does (CLI-03f, D-202)", () => {
+    const s = step(hubState(TOWN), { kind: "moved", tile: { x: 3, y: 0 } });
     expect(s.screen).toMatchObject({ kind: "hub", at: { x: 3, y: 0 } });
+    // The same hex again changes nothing: the room reports after every change, not every step.
+    expect(step(s, { kind: "moved", tile: { x: 3, y: 0 } })).toBe(s);
     const service = run(hubState(TOWN), { kind: "open service", service: "smith" });
-    expect(step(service, { kind: "stood", tile: { x: 3, y: 0 } }).screen).toEqual(service.screen);
-    expect(step(enter(TOWN), { kind: "stood", tile: { x: 3, y: 0 } }).screen.kind).toBe("instance");
+    expect(step(service, { kind: "moved", tile: { x: 3, y: 0 } }).screen).toEqual(service.screen);
+    expect(step(enter(TOWN), { kind: "moved", tile: { x: 3, y: 0 } }).screen.kind).toBe("instance");
   });
 
   it("survives a service and back, the Gate screen and back (AC-6, AC-5)", () => {
     let s = run(
       hubState(TOWN),
-      { kind: "stood", tile: smithDoor },
+      { kind: "moved", tile: smithDoor },
       { kind: "open service", service: "smith" },
     );
     expect(s.screen).toMatchObject({ kind: "service", at: smithDoor });
     s = step(s, { kind: "back" });
     expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: smithDoor });
     const gateDoor = HUB_VIEWS.get(TOWN)!.places.find((p) => p.id === "gate")!.at;
-    s = run(s, { kind: "stood", tile: gateDoor }, { kind: "open gate screen" });
+    s = run(s, { kind: "moved", tile: gateDoor }, { kind: "open gate screen" });
     expect(s.screen).toEqual({ kind: "gate", hub: TOWN, at: gateDoor });
     // Back on the Gate's door, nothing reopens: the hub screen, standing there.
     s = step(s, { kind: "back" });
@@ -243,7 +245,7 @@ describe("the adventurer's hex in the hub (CLI-03f)", () => {
   it("an inspection keeps the hex", () => {
     const s = run(
       hubState(TOWN),
-      { kind: "stood", tile: smithDoor },
+      { kind: "moved", tile: smithDoor },
       { kind: "inspect adventurer", adventurer: 12 },
       { kind: "back" },
     );

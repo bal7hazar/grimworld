@@ -6,7 +6,6 @@ import {
   useReducer,
   useState,
 } from "react";
-import type { ScaleMode } from "../../render/scaling";
 import { HUB_VIEWS } from "../fixtures/hubs";
 import { gateOf } from "../fixtures/region";
 import { EntryScreen, GateScreen, ReportScreen, ServiceScreen, SheetSummary } from "./screens";
@@ -42,7 +41,7 @@ function reduce(model: LoopModel, event: LoopEvent): LoopModel {
   const state = step(model.state, event);
   if (state === model.state) return model;
   const entered = state.screen.kind === "instance" && model.state.screen.kind !== "instance";
-  const quiet = event.kind === "moved" || event.kind === "stood";
+  const quiet = event.kind === "moved";
   return {
     state,
     log: quiet ? model.log : [...model.log.slice(-40), state.said],
@@ -55,7 +54,7 @@ function reduce(model: LoopModel, event: LoopEvent): LoopModel {
  * instance, the closing report, and back to a hub. Taps become intents; the machine
  * (`machine.ts`) and the fixed data answer them.
  */
-export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; scale: ScaleMode }) {
+export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
   const [model, dispatch] = useReducer(reduce, hub, (h) => ({
     state: hubState(h),
     log: [hubState(h).said],
@@ -65,10 +64,6 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
   const entryDrawn = useCallback(() => dispatch({ kind: "entry drawn" }), []);
   const moved = useCallback(
     (tile: { x: number; y: number }) => dispatch({ kind: "moved", tile }),
-    [],
-  );
-  const stood = useCallback(
-    (tile: { x: number; y: number }) => dispatch({ kind: "stood", tile }),
     [],
   );
   const { screen } = model.state;
@@ -86,9 +81,8 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
           view={view}
           inspected={screen.inspected}
           at={screen.at}
-          scale={scale}
           dispatch={dispatch}
-          onStood={stood}
+          onMoved={moved}
         />
       );
       break;

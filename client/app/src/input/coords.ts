@@ -105,35 +105,3 @@ export function fitScale(viewport: Viewport, across: number): number {
   const height = (across - 1) * ROW_HEIGHT + 2 * HEX_RADIUS;
   return Math.min(viewport.width / width, viewport.height / height);
 }
-
-/**
- * Where one step in each direction leads, by row parity: `[dx, dy]` per `Facing`, in the map
- * library's numbering (East 0 … South-East 5, `render/facing.ts`). Odd rows sit half a tile West.
- */
-const STEPS: readonly (readonly (readonly [number, number])[])[] = [
-  [
-    [-1, 0],
-    [-1, 1],
-    [0, 1],
-    [1, 0],
-    [0, -1],
-    [-1, -1],
-  ],
-  [
-    [-1, 0],
-    [0, 1],
-    [1, 1],
-    [1, 0],
-    [1, -1],
-    [0, -1],
-  ],
-];
-
-/**
- * The six hexes around a tile, indexed by direction (pointy-top, odd-r, the library's numbering,
- * ORCH-client-visual §6.2): presentation geometry, for walking a hub (CLI-03f). It is not the
- * instance's movement rule, which `client/sim` owns.
- */
-export function neighbours(tile: Tile): Tile[] {
-  return STEPS[tile.y & 1]!.map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy }));
-}

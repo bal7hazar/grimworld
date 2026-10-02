@@ -67,6 +67,29 @@ export interface ViewArcs {
   readonly back: readonly Tile[];
 }
 
+/**
+ * A building or a prop standing on the map (CLI-03f): design/10's obstacle object of the wall
+ * hexes it covers. It never moves. Drawn from the atlas's still `sprite` at native size, the middle
+ * of its base on its hex's centre, or as a shape without the atlas.
+ */
+export interface ViewStructure {
+  /** Unique in the view; breaks a tie of the drawing order. */
+  readonly key: string;
+  readonly kind: "building" | "prop";
+  /** The still's name in the atlas (`tools/art`, roles `building` and `prop`). */
+  readonly sprite: string;
+  /** The hex its base stands on. */
+  readonly at: Tile;
+  /** Its native size in art pixels: the shape drawn without the atlas. */
+  readonly width: number;
+  readonly height: number;
+  readonly mirror?: boolean;
+  /** The shape without the atlas: a house (the default), a decor house, or the Gate's arch. */
+  readonly shape?: "house" | "decor" | "gate";
+  /** The wall hexes it stands on: they draw no rock, the structure is their obstacle object. */
+  readonly covers: readonly Tile[];
+}
+
 export interface ViewState {
   /** Every tile to draw: revealed terrain, and the unrevealed tiles next to it. */
   readonly tiles: readonly ViewTile[];
@@ -82,4 +105,9 @@ export interface ViewState {
   /** Steps of a planned path that a stop or a cancel dropped: they fade out (design/11). */
   readonly dropped: readonly Tile[];
   readonly selectedTile: Tile | null;
+  /**
+   * Buildings and props (a hub's, CLI-03f); none in a zone. Optional so that a view written by hand
+   * (the renderer's tests) stays a zone's; `toView` always gives it.
+   */
+  readonly structures?: readonly ViewStructure[];
 }

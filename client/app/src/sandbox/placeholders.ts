@@ -160,6 +160,10 @@ export const TICKS_PER_STEP = 1;
  * the window around `from` and off its outer ring (D-120, `insideRing`). Null when there is none,
  * or when `to` is `from`. A breadth-first flood from `to`, bounded by the window's 240 tiles.
  *
+ * `bounded` false lifts the window bound (CLI-03f): the window bounds the chain's tick, and a hub
+ * has no tick and nothing on chain (D-03). The flood is then bounded by the terrain (outside is
+ * wall, D-134). Only the wiring passes it, for a hub; every zone path keeps the default.
+ *
  * The tie rule is **a reading** of "lowest tile index" (design/04, the determinism rules): among
  * shortest paths, each step takes the neighbour of lowest index (`y`, then `x`). The map library's
  * finder may break ties otherwise; CLI-02 replaces this function by it, and its paths are the rule.
@@ -169,9 +173,10 @@ export function findPath(
   actors: readonly ViewActor[],
   from: Tile,
   to: Tile,
+  bounded = true,
 ): Tile[] | null {
   const free = (tile: Tile) =>
-    insideRing(from, tile) &&
+    (!bounded || insideRing(from, tile)) &&
     kindAt(terrain, tile) === "floor" &&
     !actors.some((a) => sameTile(a.tile, tile));
   if (sameTile(from, to) || !free(to)) return null;
