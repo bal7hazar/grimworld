@@ -19,7 +19,7 @@ holds what produced them.
 ## Reproduce
 
 ```sh
-scripts/lock.sh scarb --manifest-path spikes/SPK-12/Scarb.toml build
+scripts/lock.sh --heavy scarb --manifest-path spikes/SPK-12/Scarb.toml build
 (cd spikes/SPK-12 && snforge test)
 spikes/SPK-12/prove/setup.sh --native            # most of an hour cold on the Mac
 python3 spikes/SPK-12/prove/collect.py           # the runs' tables -> prove-output.txt

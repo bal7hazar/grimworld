@@ -173,6 +173,6 @@ points at `dist/client/` (`pnpm build`).
 - `pnpm test:node`: the local-node scenario under `scripts/with-node.sh` with
   `STATE_ARCHIVE_CAPACITY=full` (on macOS through `test-node/bin/setsid`); it needs the emitter's
   artifacts in `emitter/target/dev/` (from the repository root,
-  `scripts/lock.sh scarb --manifest-path indexer/emitter/Scarb.toml build`, which needs `[lib]` in
-  `contracts/persistent/Scarb.toml`). IDX-01b's part (`test-node/queries.scenario.ts`)
+  `scripts/lock.sh --heavy scarb --manifest-path indexer/emitter/Scarb.toml build`, which needs
+  `[lib]` in `contracts/persistent/Scarb.toml`). IDX-01b's part (`test-node/queries.scenario.ts`)
   moves the node's clock with `devnet_increaseTime`.
