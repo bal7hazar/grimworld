@@ -46,6 +46,7 @@ export class FrameScheduler {
   private timer: number | null = null;
   private timerAt = 0;
   private dirty = false;
+  private destroyed = false;
   private renders = 0;
   private sinceInput = 0;
   private readonly unsubscribe: () => void;
@@ -75,6 +76,7 @@ export class FrameScheduler {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.cancel();
     this.unsubscribe();
   }
@@ -92,7 +94,7 @@ export class FrameScheduler {
   }
 
   private wakeAt(time: number): void {
-    if (this.host.hidden()) return;
+    if (this.destroyed || this.host.hidden()) return;
     const delay = time - this.host.now();
     if (delay <= FRAME_SLACK_MS) {
       if (this.timer !== null) this.host.clearTimer(this.timer);
@@ -114,7 +116,7 @@ export class FrameScheduler {
 
   private onFrame(): void {
     this.frame = null;
-    if (this.host.hidden()) return;
+    if (this.destroyed || this.host.hidden()) return;
     const now = this.host.now();
     const { changed, next } = this.client.advance(now);
     if (changed || this.dirty) {

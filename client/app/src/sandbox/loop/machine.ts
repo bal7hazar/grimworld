@@ -25,6 +25,11 @@ export type Screen =
       readonly entry: Tile;
       /** Where the adventurer stands now, as the room reports it. */
       readonly tile: Tile;
+      /**
+       * The adventurer has stood off a hub gate's anchor since arriving (true at once when the
+       * entry tile is no anchor). The room offers to leave by a gate only then (CLI-03d).
+       */
+      readonly left: boolean;
     }
   | {
       readonly kind: "report";
@@ -69,11 +74,28 @@ export function gatesFrom(hub: number): readonly GateRecord[] {
   return GATES.filter((g) => g.source === hub).sort((a, b) => a.id - b.id);
 }
 
-/** The hub gate the adventurer stands on in the instance, if any: the room offers to leave. */
-export function leaveOffer(state: LoopState): GateRecord | null {
+/** The hub gate under the adventurer in the instance, if any (D-148: standing on its anchor). */
+export function gateHere(state: LoopState): GateRecord | null {
   const { screen } = state;
   if (screen.kind !== "instance") return null;
   return hubGateAt(GATES, screen.location, screen.tile);
+}
+
+/**
+ * The hub gate the room offers to leave by on its own: the adventurer stands on its anchor after
+ * having left an anchor, never on arrival (CLI-03d). The Leave control uses `gateHere` instead.
+ */
+export function leaveOffer(state: LoopState): GateRecord | null {
+  const { screen } = state;
+  if (screen.kind !== "instance" || !screen.left) return null;
+  return gateHere(state);
+}
+
+/** The I-5 confirmation's text for leaving by `gate` (design/11), or the travel-back one. */
+export function leaveQuestion(gate: GateRecord | null): string {
+  return gate
+    ? `Leave the instance for ${hubName(gate.destination)}? The goblins will be back next time.`
+    : "Travel back to the last hub visited? The instance closes.";
 }
 
 function ignored(state: LoopState, event: LoopEvent): LoopState {
@@ -146,17 +168,34 @@ export function step(state: LoopState, event: LoopEvent): LoopState {
       const { location, tile } = entryThrough(gate);
       return {
         ...state,
-        screen: { kind: "instance", location, gate: gate.id, entry: tile, tile },
+        screen: {
+          kind: "instance",
+          location,
+          gate: gate.id,
+          entry: tile,
+          tile,
+          left: hubGateAt(GATES, location, tile) === null,
+        },
         said: `${event.kind}: ${locationName(location)} at (${tile.x}, ${tile.y})`,
       };
     }
     case "instance":
       switch (event.kind) {
         case "moved":
-          return { ...state, screen: { ...screen, tile: event.tile } };
+          return {
+            ...state,
+            screen: {
+              ...screen,
+              tile: event.tile,
+              left: screen.left || hubGateAt(GATES, screen.location, event.tile) === null,
+            },
+          };
         case "leave": {
-          const gate = leaveOffer(state);
-          return gate ? end(state, { how: "gate", gate }) : ignored(state, event);
+          // Only through the gate asked about, and only from its anchor (D-148): a walk may have moved on.
+          const gate = gateHere(state);
+          return gate?.id === event.gate
+            ? end(state, { how: "gate", gate })
+            : ignored(state, event);
         }
         case "travel back":
           return end(state, { how: "travel back" });

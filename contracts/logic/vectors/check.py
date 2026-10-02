@@ -34,9 +34,16 @@ TABLES = {
 def printed(test, write):
     """The lines the test prints; it must pass, except when regenerating (the digest is then the
     one to set)."""
-    run = subprocess.run(
-        ["snforge", "test", test, "--exact"], cwd=PACKAGE, capture_output=True, text=True,
-    )
+    cmd = ["snforge", "test", test, "--exact"]
+    if os.environ.get("GRIMWORLD_LOCK_WAIT"):
+        # A caller that bounds its wait for the machine's build lock (scripts/prepush.sh) gets the
+        # test through scripts/lock.sh, which reads that variable; without it (CI, by hand) the run is
+        # what it was.
+        cmd = [os.path.join(os.path.dirname(os.path.dirname(PACKAGE)), "scripts", "lock.sh"), "--heavy"] + cmd
+    run = subprocess.run(cmd, cwd=PACKAGE, capture_output=True, text=True)
+    if run.returncode == 75 and "build lock busy for" in run.stderr:
+        sys.stderr.write(run.stderr)
+        sys.exit(75)
     out = run.stdout.splitlines()
     lines = [line for line in out if line.startswith('{"id"')]
     digest = next((line.split()[1] for line in out if line.startswith("digest ")), None)

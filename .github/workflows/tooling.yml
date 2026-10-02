@@ -205,6 +205,28 @@ jobs:
           if HEAVY_BUILD_LOCK_HELD=1 scripts/lock.sh scarb build 2> /dev/null; then
             echo "lock.sh accepted a reversed lock order" >&2; exit 1
           fi
+          # --wait (FND-13): a lock that stays busy ends the wait with 75 and the busy line, and the command
+          # does not run (a fake scarb records any run); the same for the heavy lock; a bad number is refused.
+          lkd=$(mktemp -d); mkdir "$lkd/bin"
+          printf '#!/bin/sh\ntouch "%s/ran"\n' "$lkd" > "$lkd/bin/scarb"; chmod +x "$lkd/bin/scarb"
+          export GRIMWORLD_BUILD_LOCK=$lkd/project.lock HEAVY_BUILD_LOCK=$lkd/heavy.lock
+          flock "$GRIMWORLD_BUILD_LOCK" sleep 4 & lk1=$!
+          for _ in $(seq 1 50); do flock -n "$GRIMWORLD_BUILD_LOCK" true || break; sleep 0.2; done   # held
+          set +e; out=$(PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 scarb build 2>&1); s=$?; set -e
+          [ "$s" = 75 ]; grep -q 'build lock busy for 1 s' <<< "$out"; [ ! -e "$lkd/ran" ]
+          wait "$lk1"
+          flock "$HEAVY_BUILD_LOCK" sleep 4 & lk2=$!
+          for _ in $(seq 1 50); do flock -n "$HEAVY_BUILD_LOCK" true || break; sleep 0.2; done   # held
+          set +e; out=$(PATH=$lkd/bin:$PATH scripts/lock.sh --heavy --wait 1 scarb build 2>&1); s=$?; set -e
+          [ "$s" = 75 ]; grep -q 'build lock busy for 1 s' <<< "$out"; [ ! -e "$lkd/ran" ]
+          wait "$lk2"
+          # Free again: the command runs under the locks.
+          PATH=$lkd/bin:$PATH scripts/lock.sh --heavy --wait 5 scarb build; [ -e "$lkd/ran" ]
+          for w in 0 x; do
+            set +e; PATH=$lkd/bin:$PATH scripts/lock.sh --wait "$w" scarb build 2> /dev/null; s=$?; set -e
+            [ "$s" = 2 ] || { echo "lock.sh --wait $w: exit $s, not refused" >&2; exit 1; }
+          done
+          unset GRIMWORLD_BUILD_LOCK HEAVY_BUILD_LOCK
 
       # with-node.sh (FND-09): the process group of the command on both paths (with setsid, and with it hidden from
       # PATH so the perl fallback of macOS runs), and --full-archive. The node is the pinned devnet, downloaded
@@ -216,7 +238,7 @@ jobs:
             want=$(sed -n 's/^ *starknet-devnet:0.10.0:amd64) echo \([0-9a-f]*\) ;;$/\1/p' scripts/setup-toolchain.sh)
             [ -n "$want" ]
             dl=$(mktemp -d)
-            curl -sfL "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v0.10.0/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$dl"
+            curl -sfL --retry 3 --retry-delay 5 "https://github.com/0xSpaceShard/starknet-devnet/releases/download/v0.10.0/starknet-devnet-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$dl"
             bin=$(find "$dl" -type f -name starknet-devnet | head -n 1)
             [ "$(sha256sum "$bin" | cut -d' ' -f1)" = "$want" ]
             chmod +x "$bin"; export PATH="$(dirname "$bin"):$PATH"

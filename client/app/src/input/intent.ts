@@ -26,8 +26,8 @@ export type LoopIntent =
   | { readonly kind: "open gate screen" }
   /** "Leave" on the Gate screen: enter the instance behind gate `gate`. */
   | { readonly kind: "enter gate"; readonly gate: number }
-  /** Confirmed on a hub gate's anchor (D-148): leave the instance through it. */
-  | { readonly kind: "leave" }
+  /** Confirmed on a hub gate's anchor (D-148): leave the instance through gate `gate`, the one asked about. */
+  | { readonly kind: "leave"; readonly gate: number }
   /** Confirmed (design/11 I-5): travel back to a hub. */
   | { readonly kind: "travel back" }
   /** The closing report read: on to the hub. */

@@ -59,6 +59,7 @@ export class SandboxController {
   private idle: boolean;
   private zoom: ZoomSettings;
   private readonly cleanups: (() => void)[] = [];
+  private destroyed = false;
   private listener: ((info: SandboxInfo) => void) | null = null;
   private walkListener: ((walk: WalkInfo) => void) | null = null;
 
@@ -113,6 +114,7 @@ export class SandboxController {
     this.listenToGestures(this.app.canvas);
     loadAtlas()
       .then((library) => {
+        if (this.destroyed) return;
         this.atlas = library ? "loaded" : "none";
         this.library = library;
         if (library) this.renderer.setLibrary(library);
@@ -123,6 +125,7 @@ export class SandboxController {
         this.notify();
       })
       .catch((error: unknown) => {
+        if (this.destroyed) return;
         this.atlas = "failed";
         console.error("[sandbox] the atlas failed to load; drawing shapes", error);
         this.notify();
@@ -305,6 +308,7 @@ export class SandboxController {
   }
 
   destroy(): void {
+    this.destroyed = true;
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.listener = null;
     this.walkListener = null;
