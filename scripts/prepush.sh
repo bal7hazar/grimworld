@@ -2,10 +2,20 @@
 # The checks of CI that a local run can stop before a push (FND-13). It decides from the diff against
 # the upstream branch (origin/main when there is none) plus the working tree what to run; --all runs
 # every check. Every step runs; the summary lists the failures and the exit status is 1 if any failed.
-# CI stays the gate: this script weakens nothing there. Heavy builds go through scripts/lock.sh.
+# CI stays the gate: this script weakens nothing there.
+#
+# The build lock (VPS): every build goes through scripts/lock.sh --heavy, never around it, and waits at
+# most PREPUSH_LOCK_WAIT seconds (default 90) for it. If the lock stays busy, the Cairo compile and the
+# checks that build are skipped, one line says so, and that part exits 0 (CI compiles); fmt, the scripts'
+# tests and every other failure still make the exit status 1. Where there is no flock (the Mac has no
+# build lock, as scripts/lock.sh itself needs flock) the builds run directly and the full check runs.
 #
 #   scripts/prepush.sh [--all]
 set -uo pipefail
+
+lock_wait=${PREPUSH_LOCK_WAIT:-90}
+have_flock=0
+if command -v flock > /dev/null 2>&1; then have_flock=1; fi
 
 root=$(git rev-parse --show-toplevel) || exit 2
 cd "$root" || exit 2
@@ -41,18 +51,38 @@ echo "prepush: base ${base:-none}; $(grep -c . <<< "$changed" || true) changed f
 touched() { [ "$all" = 1 ] || grep -Eq "$1" <<< "$changed"; }
 
 failed=()
-# step <name> <command...>: run it, print its time, record a failure.
+skipped=()
+lock_busy=0
+# step <name> <command...>: run it, print its time, record a failure. A command that stopped because
+# the build lock stayed busy (scripts/lock.sh's line) is a skip, not a failure.
 step() {
-  local name=$1 start end rc
+  local name=$1 start end rc out status
   shift
   echo "::: $name"
+  out=$(mktemp)
   start=$(date +%s.%N)
-  "$@"
-  rc=$?
+  "$@" 2>&1 | tee "$out"
+  rc=${PIPESTATUS[0]}
   end=$(date +%s.%N)
-  printf '::: %s: %s in %.1fs\n' "$name" "$([ "$rc" = 0 ] && echo ok || echo "FAILED ($rc)")" "$(awk -v a="$start" -v b="$end" 'BEGIN { print b - a }')"
-  [ "$rc" = 0 ] || failed+=("$name")
+  if [ "$rc" = 0 ]; then
+    status=ok
+  elif grep -q 'build lock busy for' "$out"; then
+    status="SKIPPED (build lock busy for $lock_wait s)"
+    lock_busy=1
+    skipped+=("$name")
+  else
+    status="FAILED ($rc)"
+    failed+=("$name")
+  fi
+  rm -f "$out"
+  printf '::: %s: %s in %.1fs\n' "$name" "$status" "$(awk -v a="$start" -v b="$end" 'BEGIN { print b - a }')"
+  last_rc=$rc
   return 0
+}
+# skip <name>: a step not run because the lock stayed busy.
+skip() {
+  echo "::: $1: skipped (build lock busy)"
+  skipped+=("$1")
 }
 
 total_start=$(date +%s.%N)
@@ -64,9 +94,28 @@ pkg() {
   shift
   (cd "$root/$dir" && "$@")
 }
+# lockrun <command...>: through the machine's heavy lock, waiting at most lock_wait seconds; directly
+# where there is no flock.
+lockrun() {
+  if [ "$have_flock" = 1 ]; then "$root/scripts/lock.sh" --heavy --wait "$lock_wait" "$@"; else "$@"; fi
+}
+# gas_check: gas_budgets.py takes the lock through lock.sh, which reads GRIMWORLD_LOCK_WAIT.
+gas_check() {
+  if [ "$have_flock" = 1 ]; then
+    GRIMWORLD_LOCK_WAIT=$lock_wait python3 scripts/gas_budgets.py --check
+  else
+    python3 scripts/gas_budgets.py --check --no-lock
+  fi
+}
+# pnpmrun <command...>: through the project lock where there is flock.
+pnpmrun() {
+  if [ "$have_flock" = 1 ]; then scripts/lock.sh pnpm "$@"; else pnpm "$@"; fi
+}
+
+vectors_re='^contracts/logic/(src/|vectors/|Scarb\.toml$|Scarb\.lock$)|^contracts/Scarb\.(toml|lock)$|^\.tool-versions$'
 
 # Cairo packages: the nearest Scarb.toml of each touched Cairo file (the contracts workspace is one
-# package: contracts). A change of .tool-versions, or --all, takes every tracked one.
+# package: contracts). A change of the root .tool-versions, or --all, takes every tracked one.
 cairo_inputs='(\.cairo|(^|/)Scarb\.toml|(^|/)Scarb\.lock|(^|/)\.tool-versions)$'
 if [ "$all" = 1 ] || grep -Eq '^\.tool-versions$' <<< "$changed"; then
   files=$(git ls-files '*Scarb.toml')
@@ -83,6 +132,10 @@ packages=$(
     echo "$d"
   done <<< "$files" | sort -u
 )
+# vectors/check.py runs snforge: the contracts build is its probe of the lock.
+if touched "$vectors_re" && ! grep -qx contracts <<< "$packages"; then
+  packages=$(printf '%s\n' "$packages" contracts | grep . | sort -u)
+fi
 
 # Always: the format of the contracts workspace and of every package touched, as CI's cairo job.
 # shellcheck disable=SC2086 # $packages is a newline-separated list of paths without spaces
@@ -96,26 +149,36 @@ if touched '^tools/art/'; then
 fi
 
 # Builds always go through the machine's heavy lock (lock.sh --heavy, the subcommand first), never
-# around it: a build waits for its turn like any other.
+# around it: a build waits its turn, at most lock_wait seconds, then it is skipped.
 built=0
 for d in $packages; do
+  if [ "$lock_busy" = 1 ]; then
+    skip "build $d"
+    continue
+  fi
   if [ "$d" = contracts ]; then
-    step "build contracts" pkg contracts "$root/scripts/lock.sh" --heavy scarb build --workspace
-    built=1
+    step "build contracts" pkg contracts lockrun scarb build --workspace
+    if [ "$last_rc" = 0 ]; then built=1; fi
   else
-    step "build $d" pkg "$d" "$root/scripts/lock.sh" --heavy scarb build
+    step "build $d" pkg "$d" lockrun scarb build
   fi
 done
 
 # Generated artefacts, only when their inputs changed.
-if [ "$built" = 1 ] || touched '^docs/BUDGETS\.md$|^contracts/.*/GAS\.md$|^scripts/gas_budgets\.py$'; then
-  step "gas_budgets.py --check" python3 scripts/gas_budgets.py --check
+if [ "$built" = 1 ] || { [ "$lock_busy" = 0 ] && touched '^docs/BUDGETS\.md$|^contracts/.*/GAS\.md$|^scripts/gas_budgets\.py$'; }; then
+  step "gas_budgets.py --check" gas_check
+elif [ "$lock_busy" = 1 ] && touched '^contracts/'; then
+  skip "gas_budgets.py --check"
 fi
 if [ "$built" = 1 ]; then
   step "class_sizes.py" python3 contracts/tools/class_sizes.py
 fi
-if touched '^contracts/logic/(src/|vectors/|Scarb\.toml$|Scarb\.lock$)|^contracts/Scarb\.(toml|lock)$|^\.tool-versions$'; then
-  step "vectors check.py" python3 contracts/logic/vectors/check.py
+if touched "$vectors_re"; then
+  if [ "$built" = 1 ] && [ "$lock_busy" = 0 ]; then
+    step "vectors check.py" python3 contracts/logic/vectors/check.py
+  elif [ "$lock_busy" = 1 ]; then
+    skip "vectors check.py"
+  fi
 fi
 if touched '^contracts/tools/exp2_table\.py$|^contracts/logic/src/helpers/exp2_table\.cairo$|^client/sim/src/exp2\.ts$'; then
   step "exp2_table.py --check" python3 contracts/tools/exp2_table.py --check
@@ -124,15 +187,18 @@ fi
 # The client (CI's client job).
 if touched '^(client|indexer|services)/|(^|/)package\.json$|^pnpm-(lock|workspace)\.yaml$|^\.tool-versions$'; then
   if [ ! -d node_modules ] || touched '(^|/)package\.json$|^pnpm-(lock|workspace)\.yaml$'; then
-    step "pnpm install" scripts/lock.sh pnpm install --frozen-lockfile
+    step "pnpm install" pnpmrun install --frozen-lockfile
   fi
-  step "pnpm lint" scripts/lock.sh pnpm lint
-  step "pnpm typecheck" scripts/lock.sh pnpm typecheck
-  step "pnpm test" scripts/lock.sh pnpm test
+  step "pnpm lint" pnpmrun lint
+  step "pnpm typecheck" pnpmrun typecheck
+  step "pnpm test" pnpmrun test
   step "prettier" pnpm exec prettier --check client indexer
 fi
 
 printf 'prepush: total %.1fs\n' "$(awk -v a="$total_start" -v b="$(date +%s.%N)" 'BEGIN { print b - a }')"
+if [ "${#skipped[@]}" -gt 0 ]; then
+  echo "prepush: build lock busy for $lock_wait s; Cairo compile skipped, CI will compile (skipped: ${skipped[*]})"
+fi
 if [ "${#failed[@]}" -gt 0 ]; then
   echo "prepush: FAILED: ${failed[*]}" >&2
   exit 1

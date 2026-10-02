@@ -8,6 +8,10 @@
   through `scripts/lock.sh --heavy scarb build` (the `scarb` shim serialises builds: concurrent ones were
   OOM-killed), run from each package's own folder. It builds only the packages you touched and skips the
   compile when no Cairo source, Scarb manifest or lock, or `.tool-versions` changed. Never work around the lock.
+- On the VPS it waits at most 90 s for that lock (`PREPUSH_LOCK_WAIT`, through `scripts/lock.sh --wait`, never around
+  it); if the lock stays busy it skips the Cairo compile and the checks that build, prints one line, and CI compiles.
+  fmt, the scripts' tests and any other failure still fail the push. Where there is no `flock` (the Mac has no build
+  lock) the full check runs, builds included.
 - The hook checks HEAD and the working tree, not the refs being pushed.
 - Never push red: fix what it reports first. CI stays the gate; this is the same checks, earlier.
 - `scripts/prepush.sh --all` runs every check whatever the diff: use it when you change the toolchain pins, a
