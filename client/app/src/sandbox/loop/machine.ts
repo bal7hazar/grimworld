@@ -191,8 +191,11 @@ export function step(state: LoopState, event: LoopEvent): LoopState {
             },
           };
         case "leave": {
+          // Only through the gate asked about, and only from its anchor (D-148): a walk may have moved on.
           const gate = gateHere(state);
-          return gate ? end(state, { how: "gate", gate }) : ignored(state, event);
+          return gate?.id === event.gate
+            ? end(state, { how: "gate", gate })
+            : ignored(state, event);
         }
         case "travel back":
           return end(state, { how: "travel back" });
