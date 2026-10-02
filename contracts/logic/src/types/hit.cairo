@@ -947,6 +947,36 @@ mod tests {
         }
     }
 
+    /// Track CV's hand-picked cases (CBT-05a): (200) an axe from the front-side arc, landing below
+    /// the clamp: no axe bonus; (201) the `ABOVE_HALF` damage passive at exactly half health,
+    /// with a non-zero percent: it does not apply; (202) FX-19's halving when the hit leaves the
+    /// target at exactly half: `2 (h ⊖ d) < max` fails, no halving.
+    fn cv_cases() -> Array<(Hit, HitTarget)> {
+        array![
+            (Hit { weapon: weapon::AXE, arc: Arc::FrontSide, ..sword() }, goblin()),
+            (Hit { percent_above_half: 20, health: 50, max_health: 100, ..sword() }, goblin()),
+            (
+                Hit { base: 60, ..sword() },
+                HitTarget { halve: true, health: 300, max_health: 480, ..goblin() },
+            ),
+        ]
+    }
+
+    // Track CV's cases, each pinned: the axe front-side 100 (no +25); above half at exactly half
+    // 100 (no +20); 300 − 60 = 240 = half of 480: not halved.
+    #[test]
+    #[available_gas(l2_gas: 100000)]
+    fn test_cv_cases() {
+        let cases = cv_cases();
+        let (axe, target) = *cases[0];
+        assert(damage(axe, target) == 100, 'axe front-side: no bonus');
+        let (half, target) = *cases[1];
+        assert(damage(half, target) == 100, 'exactly half: no above-half');
+        let (hit, target) = *cases[2];
+        let landed = landed(hit.resolve(@target));
+        assert(landed.damage == 60 && !landed.halved, 'left at half: not halved');
+    }
+
     // ---- The vector table for the TypeScript mirror (D-140, SPK-4) ---------------------------
 
     /// The hand-written cases: the edges above, so that the mirror meets each.
@@ -1037,6 +1067,9 @@ mod tests {
             cases.append(case(seed));
             seed += 1;
         }
+        // Track CV's three (their mutation check of the mirror), after the seeded cases so that
+        // no earlier id moves: ids 200, 201, 202.
+        cases.append_span(cv_cases().span());
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
         for (hit, target) in cases.span() {
