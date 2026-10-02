@@ -299,7 +299,6 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     }
 
     /// The tile and facing a `GoblinState` word holds.
-    #[inline(never)]
     fn at(state: felt252) -> (u8, u8, u8) {
         let (low, _) = limbs(state);
         let mut rest = low;
@@ -310,7 +309,6 @@ pub impl GoblinPlaceImpl of GoblinPlaceTrait {
     }
 
     /// Its level (`GoblinState` 80–87, the pack's).
-    #[inline(never)]
     fn level(self: @Goblin) -> u8 {
         let (low, _) = limbs(*self.state);
         field(low, P80, P8).try_into().unwrap()

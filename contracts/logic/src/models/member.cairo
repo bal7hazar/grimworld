@@ -463,7 +463,6 @@ pub impl MemberWordsImpl of MemberWordsTrait {
 #[generate_trait]
 pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its tile and facing (`MemberState` x 32–39, y 40–47, facing 48–55).
-    #[inline(never)]
     fn place(self: @Member) -> (u8, u8, u8) {
         let (low, _) = limbs(*self.words.state);
         let (mut rest, _) = DivRem::div_rem(low, N32);
@@ -474,7 +473,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     }
 
     /// Its level (`MemberStats` 64–71).
-    #[inline(never)]
     fn level(self: @Member) -> u8 {
         let (low, _) = limbs(*self.words.stats);
         field(low, P64, P8).try_into().unwrap()
@@ -483,7 +481,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its weapon (`MemberStats`): class 88–95, damage 96–103, range 112–119, strength
     /// 120–127 (the snapshot's `5 × rank` capped, `HitTrait::weapon_strength`), damage type
     /// 160–167, requirement met 176–183.
-    #[inline(never)]
     fn weapon(self: @Member) -> (u8, u8, u8, u8, u8, bool) {
         let (low, high) = limbs(*self.words.stats);
         let (mut rest, _) = DivRem::div_rem(low, N88);
@@ -505,7 +502,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     }
 
     /// The rank of bar slot 0–7's skill (`MemberStats` 128 + 4 slot, 0–15).
-    #[inline(never)]
     fn rank(self: @Member, slot: u8) -> u8 {
         let (_, high) = limbs(*self.words.stats);
         field(high, *RANK_LANES.span()[slot.into()], 0x10).try_into().unwrap()
@@ -514,7 +510,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its `DAMAGE_PERCENT` sums of class `s` (0 plain weapon, 1 attack skill, 2 spell), unguarded
     /// and `ABOVE_HALF`, and its `PENETRATION` sum of the class (`MemberBar` 136 + 8 (3 g + s),
     /// 184 + 8 s; design/19 §7.2).
-    #[inline(never)]
     fn passives(self: @Member, s: u8) -> (i16, i16, u16) {
         let (_, high) = limbs(*self.words.bar);
         let shift = *PASSIVE_LANES.span()[s.into()];
@@ -526,7 +521,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
 
     /// Its unguarded armor (`MemberBar` 232–247, signed) and its guarded sums in a stance and
     /// enchanted (`MemberKit` 184–191, 192–199, signed; F-20).
-    #[inline(never)]
     fn armor(self: @Member) -> (i16, i8, i8) {
         let (_, bar) = limbs(*self.words.bar);
         let (_, kit) = limbs(*self.words.kit);
@@ -540,7 +534,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     /// Its `ARMOR_VS` of damage type 1–9 (`MemberStats` 48 + 6 (t − 1) for 1–2, 200 + 6 (t
     /// − 3)
     /// for 3–9; FX-23); 0 for none.
-    #[inline(never)]
     fn armor_vs(self: @Member, damage_type: u8) -> u8 {
         if damage_type == 0 || damage_type > damage::LAST {
             return 0;
@@ -555,7 +548,6 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     }
 
     /// `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` (`MemberKit` 128–135, 136–143).
-    #[inline(never)]
     fn on_hit(self: @Member) -> (u8, u8) {
         let (_, high) = limbs(*self.words.kit);
         let mut rest = high;
@@ -565,14 +557,12 @@ pub impl MemberSnapshotImpl of MemberSnapshotTrait {
     }
 
     /// `ENCHANT_DURATION`'s percent (`MemberKit` 154–159).
-    #[inline(never)]
     fn enchant_percent(self: @Member) -> u8 {
         let (_, high) = limbs(*self.words.kit);
         field(high, P26, 0x40).try_into().unwrap()
     }
 
     /// It holds `HALVE_FIRST_HEAVY_HIT` (`MemberKit` 202) and has not spent it (`flag::HALVED`).
-    #[inline(never)]
     fn halves(self: @Member) -> bool {
         let (_, high) = limbs(*self.words.kit);
         field(high, P74, 2) == 1 && *self.flags & flag::HALVED == 0
