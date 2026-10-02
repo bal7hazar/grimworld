@@ -26,7 +26,7 @@ fn state() -> (World, Sheets) {
 }
 
 #[test]
-#[available_gas(l2_gas: 14126175)] // ceil(1.05 × 13453500 measured)
+#[available_gas(l2_gas: 14369177)] // ceil(1.05 × 13684930 measured)
 fn test_executor_fixture() {
     let (world, sheets) = state();
     opaque(@world);
@@ -34,7 +34,7 @@ fn test_executor_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14160752)] // ceil(1.05 × 13486430 measured)
+#[available_gas(l2_gas: 14405643)] // ceil(1.05 × 13719660 measured)
 fn test_pair_executor_member_round_trip() {
     let (mut world, sheets) = state();
     let mut member: Member = world.member(opaque(0));
@@ -45,7 +45,7 @@ fn test_pair_executor_member_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14246579)] // ceil(1.05 × 13568170 measured)
+#[available_gas(l2_gas: 14484687)] // ceil(1.05 × 13794940 measured)
 fn test_pair_executor_awake_round_trip() {
     let (mut world, sheets) = state();
     let mut goblin: Goblin = world.goblin(opaque(99));
@@ -56,7 +56,7 @@ fn test_pair_executor_awake_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14834369)] // ceil(1.05 × 14127970 measured)
+#[available_gas(l2_gas: 15015179)] // ceil(1.05 × 14300170 measured)
 fn test_pair_executor_frozen_round_trip() {
     let (mut world, sheets) = state();
     let mut goblin: Goblin = world.goblin(opaque(10));
@@ -68,7 +68,7 @@ fn test_pair_executor_frozen_round_trip() {
 
 // The actors already read (outside the pair's difference: both read them).
 #[test]
-#[available_gas(l2_gas: 14179830)] // ceil(1.05 × 13504600 measured)
+#[available_gas(l2_gas: 14423252)] // ceil(1.05 × 13736430 measured)
 fn test_executor_gather_fixture() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -79,7 +79,7 @@ fn test_executor_gather_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14441612)] // ceil(1.05 × 13753916 measured)
+#[available_gas(l2_gas: 14686189)] // ceil(1.05 × 13986846 measured)
 fn test_pair_executor_gather() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -96,7 +96,7 @@ fn test_pair_executor_gather() {
 
 // The same inputs, resolved (CBT-03a's hit alone, on these inputs).
 #[test]
-#[available_gas(l2_gas: 14480084)] // ceil(1.05 × 13790556 measured)
+#[available_gas(l2_gas: 14724661)] // ceil(1.05 × 14023486 measured)
 fn test_pair_executor_gather_resolve() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -111,7 +111,7 @@ fn test_pair_executor_gather_resolve() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14694914)] // ceil(1.05 × 13995156 measured)
+#[available_gas(l2_gas: 14935963)] // ceil(1.05 × 14224726 measured)
 fn test_pair_executor_goblin_hit() {
     let (mut world, sheets) = state();
     let outcome = ExecutorTrait::goblin_hit(ref world, opaque(99), opaque(50), @sheets);
@@ -121,7 +121,7 @@ fn test_pair_executor_goblin_hit() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16730123)] // ceil(1.05 × 15933450 measured)
+#[available_gas(l2_gas: 16942443)] // ceil(1.05 × 16135660 measured)
 fn test_pair_executor_bomb_each() {
     let (mut world, sheets) = state();
     let targets = array![92, 93, 94, 95, 96, 97, 98].span();
@@ -136,7 +136,7 @@ fn test_pair_executor_bomb_each() {
 // The same bomb on 3 targets (D2′, fix loop 1 note 7): the difference with 7 is 4 targets' own
 // part; the rest (one rebuild, the member's round trip, the kit's read) is the bomb's fixed part.
 #[test]
-#[available_gas(l2_gas: 15108492)] // ceil(1.05 × 14389040 measured)
+#[available_gas(l2_gas: 15350108)] // ceil(1.05 × 14619150 measured)
 fn test_pair_executor_bomb_flushed_3() {
     let (mut world, sheets) = state();
     let targets = array![0, 1, 2].span();
@@ -149,7 +149,7 @@ fn test_pair_executor_bomb_flushed_3() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16259061)] // ceil(1.05 × 15484820 measured)
+#[available_gas(l2_gas: 16501391)] // ceil(1.05 × 15715610 measured)
 fn test_pair_executor_bomb_flushed() {
     let (mut world, sheets) = state();
     let targets = array![0, 1, 2, 3, 4, 5, 6].span();
@@ -163,7 +163,7 @@ fn test_pair_executor_bomb_flushed() {
 
 // Both bombs leave the same world (not a cost test).
 #[test]
-#[available_gas(l2_gas: 34637999)] // ceil(1.05 × 32988570 measured)
+#[available_gas(l2_gas: 34919850)] // ceil(1.05 × 33257000 measured)
 fn test_executor_bombs_agree() {
     let (mut each, sheets) = worst_state(false, 3);
     let (mut flushed, _) = worst_state(false, 3);
@@ -179,7 +179,7 @@ fn test_executor_bombs_agree() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14257436)] // ceil(1.05 × 13578510 measured)
+#[available_gas(l2_gas: 14504742)] // ceil(1.05 × 13814040 measured)
 fn test_pair_executor_condition_member() {
     let (mut world, sheets) = state();
     let source: Infliction = opaque(Default::default());
@@ -191,7 +191,7 @@ fn test_pair_executor_condition_member() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14327534)] // ceil(1.05 × 13645270 measured)
+#[available_gas(l2_gas: 14563437)] // ceil(1.05 × 13869940 measured)
 fn test_pair_executor_condition_goblin() {
     let (mut world, sheets) = state();
     let source: Infliction = opaque(Default::default());
@@ -228,7 +228,7 @@ fn entry_bits() -> u128 {
 }
 
 #[test]
-#[available_gas(l2_gas: 14171640)] // ceil(1.05 × 13496800 measured)
+#[available_gas(l2_gas: 14414642)] // ceil(1.05 × 13728230 measured)
 fn test_executor_entry_fixture() {
     let (world, sheets) = state();
     opaque(entry_bits());
@@ -237,7 +237,7 @@ fn test_executor_entry_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14204106)] // ceil(1.05 × 13527720 measured)
+#[available_gas(l2_gas: 14448158)] // ceil(1.05 × 13760150 measured)
 fn test_pair_executor_entry() {
     let (world, sheets) = state();
     let entry = EntryTrait::unpack(opaque(entry_bits()));
@@ -248,7 +248,7 @@ fn test_pair_executor_entry() {
 
 // The outcome is a hit that lands (the gather builds legal inputs): not a cost test.
 #[test]
-#[available_gas(l2_gas: 14693486)] // ceil(1.05 × 13993796 measured)
+#[available_gas(l2_gas: 14928980)] // ceil(1.05 × 14218076 measured)
 fn test_executor_goblin_hit_lands() {
     let (mut world, sheets) = worst_state(false, 3);
     let before = world.member(0).health;
@@ -265,7 +265,7 @@ fn test_executor_goblin_hit_lands() {
 // The member's guard (its defence terms) read once a tick, not at each hit.
 
 #[test]
-#[available_gas(l2_gas: 14419346)] // ceil(1.05 × 13732710 measured)
+#[available_gas(l2_gas: 14663607)] // ceil(1.05 × 13965340 measured)
 fn test_pair_executor_guard() {
     let (world, sheets) = state();
     let goblin = opaque(world.goblin(99));
@@ -285,7 +285,7 @@ fn guarded_state() -> (World, Sheets, Goblin, Member, Guard) {
 }
 
 #[test]
-#[available_gas(l2_gas: 14435201)] // ceil(1.05 × 13747810 measured)
+#[available_gas(l2_gas: 14679672)] // ceil(1.05 × 13980640 measured)
 fn test_executor_guarded_fixture() {
     let (world, sheets, goblin, member, guard) = guarded_state();
     opaque(@world);
@@ -296,7 +296,7 @@ fn test_executor_guarded_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14460628)] // ceil(1.05 × 13772026 measured)
+#[available_gas(l2_gas: 14705414)] // ceil(1.05 × 14005156 measured)
 fn test_pair_executor_gather_guarded() {
     let (world, sheets, goblin, member, guard) = guarded_state();
     let (hit, target) = GatherTrait::goblin_on_member_guarded(
@@ -312,7 +312,7 @@ fn test_pair_executor_gather_guarded() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14369229)] // ceil(1.05 × 13684980 measured)
+#[available_gas(l2_gas: 14614856)] // ceil(1.05 × 13918910 measured)
 fn test_executor_hit_guarded_fixture() {
     let (world, sheets) = state();
     let guard = opaque(GatherTrait::guard(@world.member(0), 50));
@@ -322,7 +322,7 @@ fn test_executor_hit_guarded_fixture() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14708186)] // ceil(1.05 × 14007796 measured)
+#[available_gas(l2_gas: 14949550)] // ceil(1.05 × 14237666 measured)
 fn test_pair_executor_goblin_hit_guarded() {
     let (mut world, sheets) = state();
     let mut guard = opaque(GatherTrait::guard(@world.member(0), 50));
@@ -337,7 +337,7 @@ fn test_pair_executor_goblin_hit_guarded() {
 
 // The guarded hit leaves the world the unguarded one leaves (not a cost test).
 #[test]
-#[available_gas(l2_gas: 31008540)] // ceil(1.05 × 29531942 measured)
+#[available_gas(l2_gas: 31318258)] // ceil(1.05 × 29826912 measured)
 fn test_executor_guarded_agrees() {
     let (mut a, sheets) = worst_state(false, 3);
     let (mut b, _) = worst_state(false, 3);
@@ -366,7 +366,7 @@ fn blocking() -> (World, Sheets) {
 // guard gives the outcomes the guard read at each hit gives, and the same world; read once and not
 // updated, the second hit would be blocked too.
 #[test]
-#[available_gas(l2_gas: 32511098)] // ceil(1.05 × 30962950 measured)
+#[available_gas(l2_gas: 32818170)] // ceil(1.05 × 31255400 measured)
 fn test_executor_guard_two_hits() {
     let (mut each, sheets) = blocking();
     let (mut once, _) = blocking();

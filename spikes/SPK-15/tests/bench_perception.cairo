@@ -175,55 +175,55 @@ fn agree(state: u8) {
 // Formed.
 
 #[test]
-#[available_gas(l2_gas: 8631935)] // ceil(1.05 × 8220890 measured)
+#[available_gas(l2_gas: 8840118)] // ceil(1.05 × 8419160 measured)
 fn test_perc_main_formed_fixture() {
     main_fixture(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 13458207)] // ceil(1.05 × 12817340 measured)
+#[available_gas(l2_gas: 13565139)] // ceil(1.05 × 12919180 measured)
 fn test_pair_perc_main_formed() {
     main_pair(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 8624406)] // ceil(1.05 × 8213720 measured)
+#[available_gas(l2_gas: 8828285)] // ceil(1.05 × 8407890 measured)
 fn test_perc_decoded_formed_fixture() {
     decoded_fixture(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 13447214)] // ceil(1.05 × 12806870 measured)
+#[available_gas(l2_gas: 13549841)] // ceil(1.05 × 12904610 measured)
 fn test_pair_perc_decoded_scan_formed() {
     decoded_scan(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 11880656)] // ceil(1.05 × 11314910 measured)
+#[available_gas(l2_gas: 11983283)] // ceil(1.05 × 11412650 measured)
 fn test_pair_perc_decoded_single_formed() {
     decoded_single(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 2575398)] // ceil(1.05 × 2452760 measured)
+#[available_gas(l2_gas: 3050450)] // ceil(1.05 × 2905190 measured)
 fn test_perc_lazy_formed_fixture() {
     lazy_fixture(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 8242679)] // ceil(1.05 × 7850170 measured)
+#[available_gas(l2_gas: 8740599)] // ceil(1.05 × 8324380 measured)
 fn test_pair_perc_lazy_scan_formed() {
     lazy_scan(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 6321641)] // ceil(1.05 × 6020610 measured)
+#[available_gas(l2_gas: 6819561)] // ceil(1.05 × 6494820 measured)
 fn test_pair_perc_lazy_single_formed() {
     lazy_single(FORMED);
 }
 
 #[test]
-#[available_gas(l2_gas: 68889923)] // ceil(1.05 × 65609450 measured)
+#[available_gas(l2_gas: 69728096)] // ceil(1.05 × 66407710 measured)
 fn test_perc_agree_formed() {
     agree(FORMED);
 }
@@ -232,55 +232,55 @@ fn test_perc_agree_formed() {
 // Kept, the set at the array's end.
 
 #[test]
-#[available_gas(l2_gas: 8668527)] // ceil(1.05 × 8255740 measured)
+#[available_gas(l2_gas: 8874191)] // ceil(1.05 × 8451610 measured)
 fn test_perc_main_kept_end_fixture() {
     main_fixture(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 13557380)] // ceil(1.05 × 12911790 measured)
+#[available_gas(l2_gas: 13661792)] // ceil(1.05 × 13011230 measured)
 fn test_pair_perc_main_kept_end() {
     main_pair(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 8660999)] // ceil(1.05 × 8248570 measured)
+#[available_gas(l2_gas: 8862357)] // ceil(1.05 × 8440340 measured)
 fn test_perc_decoded_kept_end_fixture() {
     decoded_fixture(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 13546386)] // ceil(1.05 × 12901320 measured)
+#[available_gas(l2_gas: 13646493)] // ceil(1.05 × 12996660 measured)
 fn test_pair_perc_decoded_scan_kept_end() {
     decoded_scan(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 11979828)] // ceil(1.05 × 11409360 measured)
+#[available_gas(l2_gas: 12079935)] // ceil(1.05 × 11504700 measured)
 fn test_pair_perc_decoded_single_kept_end() {
     decoded_single(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 3091211)] // ceil(1.05 × 2944010 measured)
+#[available_gas(l2_gas: 3547194)] // ceil(1.05 × 3378280 measured)
 fn test_perc_lazy_kept_end_fixture() {
     lazy_fixture(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 8408169)] // ceil(1.05 × 8007780 measured)
+#[available_gas(l2_gas: 8901050)] // ceil(1.05 × 8477190 measured)
 fn test_pair_perc_lazy_scan_kept_end() {
     lazy_scan(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 6518883)] // ceil(1.05 × 6208460 measured)
+#[available_gas(l2_gas: 7011764)] // ceil(1.05 × 6677870 measured)
 fn test_pair_perc_lazy_single_kept_end() {
     lazy_single(KEPT_END);
 }
 
 #[test]
-#[available_gas(l2_gas: 69566606)] // ceil(1.05 × 66253910 measured)
+#[available_gas(l2_gas: 70387139)] // ceil(1.05 × 67035370 measured)
 fn test_perc_agree_kept_end() {
     agree(KEPT_END);
 }
@@ -289,55 +289,55 @@ fn test_perc_agree_kept_end() {
 // Kept, the set at the array's start, distances rising (ENG-01's maximum for main).
 
 #[test]
-#[available_gas(l2_gas: 8723421)] // ceil(1.05 × 8308020 measured)
+#[available_gas(l2_gas: 8929085)] // ceil(1.05 × 8503890 measured)
 fn test_perc_main_kept_start_fixture() {
     main_fixture(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 13620296)] // ceil(1.05 × 12971710 measured)
+#[available_gas(l2_gas: 13724708)] // ceil(1.05 × 13071150 measured)
 fn test_pair_perc_main_kept_start() {
     main_pair(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 8715893)] // ceil(1.05 × 8300850 measured)
+#[available_gas(l2_gas: 8917251)] // ceil(1.05 × 8492620 measured)
 fn test_perc_decoded_kept_start_fixture() {
     decoded_fixture(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 13609302)] // ceil(1.05 × 12961240 measured)
+#[available_gas(l2_gas: 13709409)] // ceil(1.05 × 13056580 measured)
 fn test_pair_perc_decoded_scan_kept_start() {
     decoded_scan(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 11427402)] // ceil(1.05 × 10883240 measured)
+#[available_gas(l2_gas: 11527509)] // ceil(1.05 × 10978580 measured)
 fn test_pair_perc_decoded_single_kept_start() {
     decoded_single(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 3146105)] // ceil(1.05 × 2996290 measured)
+#[available_gas(l2_gas: 3602088)] // ceil(1.05 × 3430560 measured)
 fn test_perc_lazy_kept_start_fixture() {
     lazy_fixture(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 8367723)] // ceil(1.05 × 7969260 measured)
+#[available_gas(l2_gas: 8860604)] // ceil(1.05 × 8438670 measured)
 fn test_pair_perc_lazy_scan_kept_start() {
     lazy_scan(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 5863095)] // ceil(1.05 × 5583900 measured)
+#[available_gas(l2_gas: 6355976)] // ceil(1.05 × 6053310 measured)
 fn test_pair_perc_lazy_single_kept_start() {
     lazy_single(KEPT_START);
 }
 
 #[test]
-#[available_gas(l2_gas: 68467487)] // ceil(1.05 × 65207130 measured)
+#[available_gas(l2_gas: 69288020)] // ceil(1.05 × 65988590 measured)
 fn test_perc_agree_kept_start() {
     agree(KEPT_START);
 }
@@ -346,55 +346,55 @@ fn test_perc_agree_kept_start() {
 // Replaced: the first 8 put to sleep, the last 8 woken.
 
 #[test]
-#[available_gas(l2_gas: 8732976)] // ceil(1.05 × 8317120 measured)
+#[available_gas(l2_gas: 8938640)] // ceil(1.05 × 8512990 measured)
 fn test_perc_main_replaced_fixture() {
     main_fixture(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 13620905)] // ceil(1.05 × 12972290 measured)
+#[available_gas(l2_gas: 13725317)] // ceil(1.05 × 13071730 measured)
 fn test_pair_perc_main_replaced() {
     main_pair(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 8725448)] // ceil(1.05 × 8309950 measured)
+#[available_gas(l2_gas: 8926806)] // ceil(1.05 × 8501720 measured)
 fn test_perc_decoded_replaced_fixture() {
     decoded_fixture(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 13609911)] // ceil(1.05 × 12961820 measured)
+#[available_gas(l2_gas: 13710018)] // ceil(1.05 × 13057160 measured)
 fn test_pair_perc_decoded_scan_replaced() {
     decoded_scan(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 12043353)] // ceil(1.05 × 11469860 measured)
+#[available_gas(l2_gas: 12143460)] // ceil(1.05 × 11565200 measured)
 fn test_pair_perc_decoded_single_replaced() {
     decoded_single(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 3155660)] // ceil(1.05 × 3005390 measured)
+#[available_gas(l2_gas: 3611643)] // ceil(1.05 × 3439660 measured)
 fn test_perc_lazy_replaced_fixture() {
     lazy_fixture(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 8960448)] // ceil(1.05 × 8533760 measured)
+#[available_gas(l2_gas: 9436781)] // ceil(1.05 × 8987410 measured)
 fn test_pair_perc_lazy_scan_replaced() {
     lazy_scan(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 7071162)] // ceil(1.05 × 6734440 measured)
+#[available_gas(l2_gas: 7547495)] // ceil(1.05 × 7188090 measured)
 fn test_pair_perc_lazy_single_replaced() {
     lazy_single(REPLACED);
 }
 
 #[test]
-#[available_gas(l2_gas: 70926188)] // ceil(1.05 × 67548750 measured)
+#[available_gas(l2_gas: 71713625)] // ceil(1.05 × 68298690 measured)
 fn test_perc_agree_replaced() {
     agree(REPLACED);
 }

@@ -9,7 +9,7 @@ use grimworld_logic::models::goblin::{Goblin, GoblinTickTrait, GoblinTrait, Gobl
 use grimworld_logic::models::member::{Member, MemberTickTrait, MemberTrait, MemberWords};
 use grimworld_logic::types::combat::{activation, skill_kind};
 use grimworld_logic::types::tick::{
-    CasteSheet, Content, ContentTrait, NO_SLOT, PotionSheet, Sheets, SkillSheet, ai, status,
+    ABSENT, CasteSheet, Content, ContentTrait, NO_SLOT, PotionSheet, Sheets, SkillSheet, ai, status,
 };
 use grimworld_logic::types::world::{Actor, Rules, World, WorldTrait};
 
@@ -133,6 +133,7 @@ pub impl FixtureImpl of Fixture {
             energy_regen: spec.energy_regen,
             adrenaline_cap: 0,
             bar_at: 0x00070006000500040003000200010000,
+            effect_at: 0xFFFFFFFFFFFFFFFF,
             words: Self::member_words(spec),
         }
     }
@@ -157,11 +158,8 @@ pub impl FixtureImpl of Fixture {
             effect_deadline: 0,
             effect_regen: 0,
             max_health: 280,
-            health_regen: 0,
-            max_energy: 30,
-            energy_regen: 1,
-            adrenaline_cap: 0,
             caste_at: (caste - 1).into(),
+            effect_at: ABSENT,
             state: LIVE
                 + ai::ENGAGED.into() * two(24)
                 + 100 * two(32)
@@ -172,7 +170,16 @@ pub impl FixtureImpl of Fixture {
     }
 
     fn skill(id: u16, kind: u8, activation: u16, recharge: u16) -> SkillSheet {
-        SkillSheet { id, kind, adrenaline: 0, activation, recharge, regen0: 0, regen12: 0 }
+        SkillSheet {
+            id,
+            kind,
+            adrenaline: 0,
+            activation,
+            recharge,
+            regen0: 0,
+            regen12: 0,
+            ..Default::default(),
+        }
     }
 
     fn caste(id: u16, k: u8) -> CasteSheet {
@@ -185,6 +192,7 @@ pub impl FixtureImpl of Fixture {
             energy_regen: 1,
             weapon_ticks: k,
             skills: [first, first + 1, first + 2, first + 3],
+            ..Default::default(),
         }
     }
 
@@ -204,7 +212,7 @@ pub impl FixtureImpl of Fixture {
         }
         Content {
             skills: skills.span(),
-            potions: array![PotionSheet { id: 101, regen: 3 }].span(),
+            potions: array![PotionSheet { id: 101, regen: 3, ..Default::default() }].span(),
             castes: array![Self::caste(HOB, 1), Self::caste(RUNT, 2)].span(),
         }
     }
@@ -297,8 +305,10 @@ pub fn worst_content(k: u8) -> Content {
         castes.append(Fixture::caste(caste, k));
     }
     let potions = array![
-        PotionSheet { id: 100, regen: 1 }, PotionSheet { id: 101, regen: 2 },
-        PotionSheet { id: 102, regen: 1 }, PotionSheet { id: 103, regen: 2 },
+        PotionSheet { id: 100, regen: 1, ..Default::default() },
+        PotionSheet { id: 101, regen: 2, ..Default::default() },
+        PotionSheet { id: 102, regen: 1, ..Default::default() },
+        PotionSheet { id: 103, regen: 2, ..Default::default() },
     ];
     Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
 }
