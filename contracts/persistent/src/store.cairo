@@ -40,7 +40,15 @@
 //! test of `Hub`'s storage addresses (`layout_tests`) is here because the store is what reads and
 //! writes them.
 //!
-//! **`Registry`'s storage** is ENG-R1b's: `StoreTrait` keeps its two path methods until then.
+//! **`Market`'s store is `MarketStoreTrait`**, on `Market`'s state the same way: only the
+//! constructor writes `Market`'s storage until the lot that writes its entrypoints, so it holds
+//! that path alone (ENG-R1b: no store method for a path no code takes). **No model of `Market` is
+//! tracked**: its events (`LotPosted`, `LotClosed`, `TradeOpened`, `TradeClosed`) are emitted by no
+//! code yet, and the lot that writes its entrypoints decides under D-149 (ENG-R1b, open question
+//! 4).
+//!
+//! **`Registry`'s storage** is ENG-R1b's second part, after CBT-05a: `StoreTrait` keeps its two
+//! path methods until then.
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
 use starknet::storage::{
@@ -62,6 +70,7 @@ use crate::models::stored_place::StoredPlace;
 use crate::models::stored_record::StoredRecord;
 use crate::models::versions::Versions;
 use crate::systems::hub::Hub::ContractState as HubState;
+use crate::systems::market::Market::ContractState as MarketState;
 
 #[generate_trait]
 pub impl HubStoreImpl of HubStoreTrait {
@@ -490,6 +499,25 @@ pub impl HubStoreImpl of HubStoreTrait {
 }
 
 #[generate_trait]
+pub impl MarketStoreImpl of MarketStoreTrait {
+    /// The constructor's writes: the administrator, the hub, the registry, and the three counters
+    /// at their `LIVE` zero, so that the first posting and the first trade overwrite.
+    fn initialize(
+        ref self: MarketState,
+        admin: ContractAddress,
+        hub: ContractAddress,
+        registry: ContractAddress,
+    ) {
+        self.admin.write(admin);
+        self.hub.write(hub);
+        self.registry.write(registry);
+        self.lot_count.write(Counter { value: 0 });
+        self.open_lot_count.write(Counter { value: 0 });
+        self.trade_count.write(Counter { value: 0 });
+    }
+}
+
+#[generate_trait]
 pub impl StoreImpl of StoreTrait {
     /// `Registry.versions`, one slot: the content and inputs versions; 0 at deployment. Read by
     /// `bundle`, `content_version` and `set_record`.
@@ -687,6 +715,69 @@ mod layout_tests {
             ) == selector!("rules_epoch"),
             'rules_epoch',
         );
+    }
+}
+
+/// The storage layout of `Market` is what docs/architecture/ENG-01-interfaces.md says: every
+/// variable's name and keys, hence its address. Here since ENG-R1b, as `Hub`'s.
+#[cfg(test)]
+mod market_layout_tests {
+    use snforge_std::map_entry_address;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
+    use crate::systems::market::Market;
+
+    fn address_of(base: StorageBaseAddress) -> felt252 {
+        storage_address_from_base(base).into()
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 65909)] // ceil(1.05 × 62770 measured)
+    fn test_market_storage_addresses() {
+        let state = @Market::contract_state_for_testing();
+        assert(
+            address_of(
+                state.lots.entry(5).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("lots"), array![5].span()),
+            'lots',
+        );
+        assert(
+            address_of(
+                state.seller_lots.entry((7, 0)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("seller_lots"), array![7, 0].span()),
+            'seller_lots',
+        );
+        assert(
+            address_of(
+                state.trades.entry(3).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("trades"), array![3].span()),
+            'trades',
+        );
+    }
+}
+
+/// `Market`'s constructor through the store: the configuration, and the counters at `LIVE`.
+#[cfg(test)]
+mod market_tests {
+    use grimworld_logic::packing::{Counter, LIVE};
+    use starknet::storage::StoragePointerReadAccess;
+    use starknet::storage_access::StorePacking;
+    use crate::systems::market::Market;
+    use super::MarketStoreTrait;
+
+    #[test]
+    #[available_gas(l2_gas: 1)]
+    fn test_market_initialize() {
+        let mut state = Market::contract_state_for_testing();
+        state.initialize(1.try_into().unwrap(), 2.try_into().unwrap(), 3.try_into().unwrap());
+        assert(state.admin.read() == 1.try_into().unwrap(), 'admin');
+        assert(state.hub.read() == 2.try_into().unwrap(), 'hub');
+        assert(state.registry.read() == 3.try_into().unwrap(), 'registry');
+        let zero: felt252 = StorePacking::pack(Counter { value: 0 });
+        assert(zero == LIVE, 'the LIVE zero');
+        assert(state.lot_count.read() == Counter { value: 0 }, 'lots');
+        assert(state.open_lot_count.read() == Counter { value: 0 }, 'open lots');
+        assert(state.trade_count.read() == Counter { value: 0 }, 'trades');
     }
 }
 

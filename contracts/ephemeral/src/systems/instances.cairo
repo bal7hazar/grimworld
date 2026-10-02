@@ -234,9 +234,7 @@ pub mod Instances {
         DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementAssert, PlacementTrait,
         Quotas, QuotasTrait, RETURNED, ROSTER_LANES, mask_roster_page,
     };
-    use crate::models::member::{
-        DOWN, GONE, MemberState, MemberStateTrait, StoredMember,
-    };
+    use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
     use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION};
 
@@ -733,7 +731,10 @@ pub mod Instances {
                 _ => core::panic_with_felt252('close: not a closing outcome'),
             };
             self.set_header(slot, Header { status, ..header });
-            self.set_member_state(slot, placement.member, MemberState { status: member_status, ..state });
+            self
+                .set_member_state(
+                    slot, placement.member, MemberState { status: member_status, ..state },
+                );
             self.set_placement(state.adventurer, Placement { inside: 0, ..placement });
             self.emit(InstanceClosed { instance_id, outcome });
             self.report(instance_id, state.adventurer, outcome, hub, facts, hub, 0, state.belt);

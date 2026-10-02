@@ -9,15 +9,15 @@
 //! storage path or an offset.
 //!
 //! **Typed slots** (ENG-R1a's note 4, measured in ENG-R1b). `Instances` declares its storage with
-//! the slot types it reads and writes, as `quiver_quest` does: a word that a view returns as stored,
-//! or that a path writes as a constant, is declared `Stored<M>` (`helpers::stored`), the word of the
-//! model `M` as stored, at the address and in the layout a `Map<_, M>` gives (`layout_tests`). So
-//! the store does no address arithmetic: no `__storage_pointer_address__`, no word offset, no
-//! `read_at_offset`. Declared so: the header, the revealed set, the quotas, the task pages, and the
-//! member's eight slots (`StoredMember`). Declared as their models, because every path reads or
-//! writes them whole through their packer: the configuration, `next_slot`, the placements, the
-//! roster pages. `entropy` is a felt. **No slot keeps an offset access**: every one passed the rule
-//! of ENG-R1b's *Scope* (its report gives the figures).
+//! the slot types it reads and writes, as `quiver_quest` does: a word that a view returns as
+//! stored, or that a path writes as a constant, is declared `Stored<M>` (`helpers::stored`), the
+//! word of the model `M` as stored, at the address and in the layout a `Map<_, M>` gives
+//! (`layout_tests`). So the store does no address arithmetic: no `__storage_pointer_address__`, no
+//! word offset, no `read_at_offset`. Declared so: the header, the revealed set, the quotas, the
+//! task pages, and the member's eight slots (`StoredMember`). Declared as their models, because
+//! every path reads or writes them whole through their packer: the configuration, `next_slot`, the
+//! placements, the roster pages. `entropy` is a felt. **No slot keeps an offset access**: every one
+//! passed the rule of ENG-R1b's *Scope* (its report gives the figures).
 //!
 //! **Models and words.** A path that needs a model's fields reads it through its packer
 //! (`get_header`, `get_controller_state`); a view reads the words as stored (`get_stored_header`,
@@ -196,6 +196,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     /// (`MemberAssert::assert_controller`, M-6): a gate action's access check (`Instances`'
     /// `admit`). The two slots under one address, the check between the two reads, so that a
     /// caller who is not the controller reverts before the state is read.
+    #[inline(always)]
     fn get_controlled_state(
         self: @InstancesState, slot: u32, member: u8, caller: ContractAddress,
     ) -> MemberState {
@@ -361,6 +362,115 @@ mod layout_tests {
     }
 }
 
+/// The store's methods across several slots, on `Instances`' state: the typed slots against the
+/// models' layout, and the words the view returns as stored.
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::Bitmap;
+    use grimworld_logic::snapshot::SnapshotWords;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{Store, StorePacking};
+    use starknet::{ContractAddress, SyscallResultTrait};
+    use crate::models::instance::{HeaderTrait, QuotasTrait};
+    use crate::models::member::{
+        EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, Member, MemberEffects, MemberState,
+        MemberStateTrait, MemberTimers, Recharges, empty_member_timers,
+    };
+    use crate::systems::instances::Instances;
+    use super::InstancesStoreTrait;
+
+    fn alice() -> ContractAddress {
+        0xa11ce.try_into().unwrap()
+    }
+
+    // `StoredMember`'s slots against `Member`'s derived `Store`: a member written as the model
+    // reads back through the store's slots, and one written through the store reads back as the
+    // model.
+    #[test]
+    #[available_gas(l2_gas: 1)]
+    fn test_member_slots() {
+        let mut state = Instances::contract_state_for_testing();
+        let entering = MemberStateTrait::entering(9, 3, 4, 100, 10, [2, 0, 1, 0]);
+        let member = Member {
+            state: entering,
+            timers: empty_member_timers(),
+            effects: MemberEffects { effects: [Default::default(); 4] },
+            recharges: Recharges { deadlines: [0, 1, 2, 3, 4, 5, 6, 7] },
+            stats: StorePacking::unpack(0x400000000000000000000000000000000000000000000000000000000640064),
+            bar: StorePacking::unpack(0x400000000000000000000000000000000000000000000000000000000000000),
+            kit: StorePacking::unpack(0x400000000000000000000000000000000000000000000000000000000000000),
+            controller: alice(),
+        };
+        let base = state.members.entry((5, 0)).as_ptr().__storage_pointer_address__;
+        Store::<Member>::write(0, base, member).unwrap_syscall();
+        let words = array![
+            StorePacking::pack(member.state), StorePacking::pack(member.timers),
+            StorePacking::pack(member.effects), StorePacking::pack(member.recharges),
+            StorePacking::pack(member.stats), StorePacking::pack(member.bar),
+            StorePacking::pack(member.kit), alice().into(),
+        ];
+        assert(state.get_member_words(5, 1) == words.span(), 'eight words');
+        assert(state.get_controlled_state(5, 0, alice()) == entering, 'state');
+        assert(state.get_stats(5, 0).word == *words[4], 'stats');
+
+        let snapshot = SnapshotWords {
+            stats: *words[4], bar: *words[5], kit: *words[6], belt_counts: [2, 0, 1, 0],
+        };
+        state.set_snapshot(6, 0, @snapshot, alice());
+        state.set_entering(6, 0, entering);
+        let base = state.members.entry((6, 0)).as_ptr().__storage_pointer_address__;
+        let read = Store::<Member>::read(0, base).unwrap_syscall();
+        assert(read.state == entering, 'typed state');
+        assert(read.timers == empty_member_timers(), 'typed timers');
+        assert(StorePacking::pack(read.timers) == EMPTY_TIMERS, 'empty timers');
+        assert(StorePacking::pack(read.effects) == EMPTY_EFFECTS, 'empty effects');
+        assert(StorePacking::pack(read.recharges) == EMPTY_RECHARGES, 'empty recharges');
+        assert(StorePacking::pack(read.stats) == snapshot.stats, 'typed stats');
+        assert(StorePacking::pack(read.bar) == snapshot.bar, 'typed bar');
+        assert(StorePacking::pack(read.kit) == snapshot.kit, 'typed kit');
+        assert(read.controller == alice(), 'typed controller');
+        let other: ContractAddress = 0xb0b.try_into().unwrap();
+        state.set_member_controller(6, 0, other);
+        state.set_member_state(6, 0, MemberState { health: 1, ..entering });
+        let read = Store::<Member>::read(0, base).unwrap_syscall();
+        assert(read.controller == other && read.state.health == 1, 'one slot each');
+        assert(StorePacking::pack(read.stats) == snapshot.stats, 'the others kept');
+    }
+
+    #[test]
+    #[should_panic(expected: 'not controller')]
+    #[available_gas(l2_gas: 1)]
+    fn test_controlled_state_refused() {
+        let mut state = Instances::contract_state_for_testing();
+        state.set_member_controller(5, 0, alice());
+        state.get_controlled_state(5, 0, 0xb0b.try_into().unwrap());
+    }
+
+    // The words the view returns as stored: 0 where nothing was written, the models' packed words
+    // otherwise.
+    #[test]
+    #[available_gas(l2_gas: 1)]
+    fn test_words_as_stored() {
+        let mut state = Instances::contract_state_for_testing();
+        assert(state.get_stored_header(3).word == 0, 'no header');
+        assert(state.get_revealed(3).word == 0 && state.get_quotas(3).word == 0, 'nothing');
+        assert(state.get_member_words(3, 1) == array![0, 0, 0, 0, 0, 0, 0, 0].span(), 'no member');
+        let header = HeaderTrait::new(2, 3, 5, true, 112, 112, 6);
+        state.set_header(3, header);
+        state.set_revealed(3, Bitmap { bits: 0 });
+        state.set_quotas(3, QuotasTrait::new(8));
+        assert(state.get_stored_header(3).word == StorePacking::pack(header), 'header word');
+        assert(state.get_header(3) == header, 'header');
+        assert(state.get_revealed(3).word == StorePacking::pack(Bitmap { bits: 0 }), 'revealed');
+        assert(state.get_quotas(3).word == StorePacking::pack(QuotasTrait::new(8)), 'quotas');
+        let timers: felt252 = StorePacking::<MemberTimers>::pack(empty_member_timers());
+        assert(timers == EMPTY_TIMERS, 'the constant word');
+        let zero: ContractAddress = 0.try_into().unwrap();
+        state.initialize(zero, zero, zero, zero);
+        assert(state.new_slot() == 1 && state.new_slot() == 2, 'slots from 1');
+    }
+}
+
 /// ENG-R1a's note 4, measured (ENG-R1b): each path the typed slots replaced, run once through the
 /// offset access it replaced (`__storage_pointer_address__` and `Store::<felt252>::read_at_offset`
 /// or `write_at_offset` at `Member`'s offsets, kept here as the reference) and once through the
@@ -370,7 +480,7 @@ mod layout_tests {
 mod note4_tests {
     use grimworld_logic::snapshot::SnapshotWords;
     use starknet::storage::{StorageAsPointer, StoragePathEntry};
-    use starknet::storage_access::{Store, StorageBaseAddress};
+    use starknet::storage_access::{StorageBaseAddress, Store};
     use starknet::{ContractAddress, SyscallResultTrait};
     use crate::helpers::stored::StoredTrait;
     use crate::models::instance::{Header, HeaderTrait, Quotas, QuotasTrait};
@@ -495,7 +605,10 @@ mod note4_tests {
         let header: Header = starknet::storage_access::StorePacking::unpack(header_word);
         let mut tasks: Array<felt252> = array![];
         for page in 0..1_u8 {
-            tasks.append(word(state.tasks.entry((SLOT, page)).as_ptr().__storage_pointer_address__, 0));
+            tasks
+                .append(
+                    word(state.tasks.entry((SLOT, page)).as_ptr().__storage_pointer_address__, 0),
+                );
         }
         let revealed = word(state.revealed.entry(SLOT).as_ptr().__storage_pointer_address__, 0);
         let quotas = word(state.quotas.entry(SLOT).as_ptr().__storage_pointer_address__, 0);
@@ -520,15 +633,21 @@ mod note4_tests {
     fn test_begin_words_by_model() {
         let state = @Instances::contract_state_for_testing();
         let header = HeaderTrait::new(2, 3, 0, false, 112, 112, 6);
-        Store::<Header>::write(0, state.headers.entry(SLOT).as_ptr().__storage_pointer_address__, header)
+        Store::<
+            Header,
+        >::write(0, state.headers.entry(SLOT).as_ptr().__storage_pointer_address__, header)
             .unwrap_syscall();
-        Store::<grimworld_logic::packing::Bitmap>::write(
+        Store::<
+            grimworld_logic::packing::Bitmap,
+        >::write(
             0,
             state.revealed.entry(SLOT).as_ptr().__storage_pointer_address__,
             grimworld_logic::packing::Bitmap { bits: 0 },
         )
             .unwrap_syscall();
-        Store::<Quotas>::write(
+        Store::<
+            Quotas,
+        >::write(
             0, state.quotas.entry(SLOT).as_ptr().__storage_pointer_address__, QuotasTrait::new(6),
         )
             .unwrap_syscall();

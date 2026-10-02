@@ -187,23 +187,107 @@ pub struct Trade {
     pub invited: TradeSide,
 }
 
-/// The market key of SPK-11 (*scope 5*), one felt, frozen with `LotPosted`:
-/// - a balance: its item id;
-/// - equipment: `2^40 + base × 2^16 + requirement × 2^8 + rarity × 2 + identified`;
-/// - a boss item: `2^41 + base` (each boss item is its own key).
-pub fn market_key(
-    kind: u8, item: u32, base: u16, requirement: u8, rarity: u8, identified: bool, boss: bool,
-) -> felt252 {
-    if kind == BALANCE {
-        return item.into();
+#[generate_trait]
+pub impl LotImpl of LotTrait {
+    /// The market key of SPK-11 (*scope 5*), one felt, frozen with `LotPosted`:
+    /// - a balance: its item id;
+    /// - equipment: `2^40 + base × 2^16 + requirement × 2^8 + rarity × 2 + identified`;
+    /// - a boss item: `2^41 + base` (each boss item is its own key).
+    fn market_key(
+        kind: u8, item: u32, base: u16, requirement: u8, rarity: u8, identified: bool, boss: bool,
+    ) -> felt252 {
+        if kind == BALANCE {
+            return item.into();
+        }
+        if boss {
+            return 0x20000000000 + base.into();
+        }
+        let flag: felt252 = if identified {
+            1
+        } else {
+            0
+        };
+        0x10000000000
+            + base.into() * 0x10000
+            + requirement.into() * 0x100
+            + rarity.into() * 2
+            + flag
     }
-    if boss {
-        return 0x20000000000 + base.into();
+}
+
+/// The records of `Market` are what docs/architecture/ENG-01-interfaces.md says: each record's size
+/// in slots, the bit offsets of its packed records, `LIVE` included, and the market key. Here since
+/// ENG-R1b (D-167); the variables' names and keys are checked in `store::market_layout_tests`.
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::LIVE;
+    use starknet::storage_access::StorePacking;
+    use super::{BALANCE, EQUIPMENT, Lot, LotTrait, SellerPage, Trade, TradeHead, TradeMoney};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    #[test]
+    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    fn test_record_sizes() {
+        assert(starknet::Store::<Trade>::size() == 5, 'trade: 5 slots');
+        assert(starknet::Store::<Lot>::size() == 1, 'lot: 1 slot');
     }
-    let flag: felt252 = if identified {
-        1
-    } else {
-        0
-    };
-    0x10000000000 + base.into() * 0x10000 + requirement.into() * 0x100 + rarity.into() * 2 + flag
+
+    #[test]
+    #[available_gas(l2_gas: 205937)] // ceil(1.05 × 196130 measured)
+    fn test_market_layout() {
+        let lot = Lot {
+            price: 0xFFFFFFFFFFFFFFFF,
+            expiry: 0xFFFFFFFFFFFFFFFF,
+            seller: 0xFFFFFFFF,
+            lot_size: 100,
+            state: 4,
+            kind: EQUIPMENT,
+            item: 0xFFFFFFFF,
+            market: 0xFFFF,
+        };
+        let word = StorePacking::<Lot, felt252>::pack(lot);
+        assert(StorePacking::<Lot, felt252>::unpack(word) == lot, 'lot trip');
+        let seller = Lot { seller: 1, ..Default::default() };
+        assert(StorePacking::<Lot, felt252>::pack(seller) == TWO_128 + LIVE, 'seller at bit 128');
+
+        let page = SellerPage { lots: [1, 0xFFFFFFFFFFFFFFFF, 3], count: 20 };
+        let word = StorePacking::<SellerPage, felt252>::pack(page);
+        assert(StorePacking::<SellerPage, felt252>::unpack(word) == page, 'seller page trip');
+
+        let head = TradeHead {
+            inviter: 1,
+            invited_account: 2,
+            invited: 3,
+            state: 1,
+            confirmations: 3,
+            revision: 0xFF,
+            opened_at: 0xFFFFFFFFFFFFFFFF,
+        };
+        let word = StorePacking::<TradeHead, felt252>::pack(head);
+        assert(StorePacking::<TradeHead, felt252>::unpack(word) == head, 'trade head trip');
+
+        let money = TradeMoney {
+            gold: 0xFFFFFFFFFFFFFFFF, item0: 1, amount0: 2, item1: 0xFFFFFFFF, amount1: 0xFFFFFFFF,
+        };
+        let word = StorePacking::<TradeMoney, felt252>::pack(money);
+        assert(StorePacking::<TradeMoney, felt252>::unpack(word) == money, 'money trip');
+
+        // SPK-11 *scope 5*: balances by item id; equipment by base, requirement, rarity,
+        // identified;
+        // boss items one key each.
+        assert(LotTrait::market_key(BALANCE, 77, 0, 0, 0, false, false) == 77, 'balance key');
+        assert(
+            LotTrait::market_key(EQUIPMENT, 5, 12, 9, 3, true, false) == 0x10000000000
+                + 12 * 0x10000
+                + 9 * 0x100
+                + 3 * 2
+                + 1,
+            'equipment key',
+        );
+        assert(
+            LotTrait::market_key(EQUIPMENT, 5, 40, 9, 4, true, true) == 0x20000000000 + 40,
+            'boss key',
+        );
+    }
 }

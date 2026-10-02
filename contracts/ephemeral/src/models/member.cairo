@@ -356,9 +356,9 @@ pub struct Member {
 }
 
 /// A member's eight slots as `Instances` declares them (ENG-R1b): `Member`'s slots in its order, at
-/// the same addresses, each the word of its model as stored (`helpers::stored`). The store reads and
-/// writes a slot typed and needs no offset: the state and the controller through their models, the
-/// other six as words (the view returns all eight as stored, `begin` writes the empty transient
+/// the same addresses, each the word of its model as stored (`helpers::stored`). The store reads
+/// and writes a slot typed and needs no offset: the state and the controller through their models,
+/// the other six as words (the view returns all eight as stored, `begin` writes the empty transient
 /// words as constants, `create` writes the snapshot's three words as `Hub` stored them, D-168).
 /// Pinned against `Member` by the store's `test_member_slots`.
 #[derive(Copy, Drop, starknet::Store)]

@@ -61,13 +61,15 @@ pub trait IMarketAdmin<T> {
 #[starknet::contract]
 pub mod Market {
     use grimworld_logic::packing::Counter;
-    use starknet::storage::{Map, StoragePointerWriteAccess};
+    use starknet::storage::Map;
     use starknet::{ClassHash, ContractAddress};
     use crate::events::{LotClosed, LotPosted, TradeClosed, TradeOpened};
     use crate::models::market::{Lot, SellerPage, Trade};
+    use crate::store::MarketStoreTrait;
     use super::{NOT_IMPLEMENTED, VERSION};
 
-    /// docs/architecture/ENG-01-interfaces.md, *Market storage*.
+    /// docs/architecture/ENG-01-interfaces.md, *Market storage*. Read and written only by the
+    /// store (`MarketStoreTrait`).
     #[storage]
     pub struct Storage {
         pub admin: ContractAddress,
@@ -99,13 +101,7 @@ pub mod Market {
         hub: ContractAddress,
         registry: ContractAddress,
     ) {
-        self.admin.write(admin);
-        self.hub.write(hub);
-        self.registry.write(registry);
-        // Counters start at their LIVE zero: the first posting and the first trade overwrite.
-        self.lot_count.write(Counter { value: 0 });
-        self.open_lot_count.write(Counter { value: 0 });
-        self.trade_count.write(Counter { value: 0 });
+        self.initialize(admin, hub, registry);
     }
 
     #[abi(embed_v0)]
@@ -180,43 +176,5 @@ pub mod Market {
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
         }
-    }
-}
-
-/// The storage layout of `Market` is what docs/architecture/ENG-01-interfaces.md says: every
-/// variable's name and keys, hence its address.
-#[cfg(test)]
-mod layout_tests {
-    use snforge_std::map_entry_address;
-    use starknet::storage::{StorageAsPointer, StoragePathEntry};
-    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
-    use super::Market;
-
-    fn address_of(base: StorageBaseAddress) -> felt252 {
-        storage_address_from_base(base).into()
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 65909)] // ceil(1.05 × 62770 measured)
-    fn test_market_storage_addresses() {
-        let state = @Market::contract_state_for_testing();
-        assert(
-            address_of(
-                state.lots.entry(5).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("lots"), array![5].span()),
-            'lots',
-        );
-        assert(
-            address_of(
-                state.seller_lots.entry((7, 0)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("seller_lots"), array![7, 0].span()),
-            'seller_lots',
-        );
-        assert(
-            address_of(
-                state.trades.entry(3).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("trades"), array![3].span()),
-            'trades',
-        );
     }
 }

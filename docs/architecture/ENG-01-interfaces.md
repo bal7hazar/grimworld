@@ -325,6 +325,8 @@ gas). This is C.
 
 ### 3.2 `Instances` storage
 
+Every variable below is read and written only through `InstancesStoreTrait` (`contracts/ephemeral/src/store.cairo`, ENG-R1b, D-143): one `get_x`/`set_x` per model, and focused reads and writes where a path needs less (a member's controller and state, its stats word, the snapshot's three words). The storage is declared with typed slots (ENG-R1a's note 4): `headers`, `revealed`, `quotas` and `tasks` as `Stored<M>`, the word of their record `M` as stored, and `members` as `StoredMember`, `Member`'s eight slots typed so, so that no access computes an offset. The layout below is unchanged by it.
+
 | Variable | Key | Slots | Record | Written by |
 |---|---|---:|---|---|
 | `admin`, `hub`, `registry`, `fate` | — | 4 | addresses | constructor, `set_contracts` |
@@ -511,6 +513,8 @@ is the package's ("every record in one storage slot"), at most **4 held quests**
 Their entrypoints on `Hub` are frozen here (§4.3).
 
 ### 3.4 `Market` storage
+
+Every variable below is read and written only through `MarketStoreTrait` (`contracts/persistent/src/store.cairo`, ENG-R1b): the constructor's writes, the only path until `Market`'s entrypoints are written. The layout below is unchanged by it.
 
 | Variable | Key | Slots | Record |
 |---|---|---:|---|
