@@ -83,6 +83,9 @@ The files are identical although Python's zlib (1.2.12 vs 1.3) and Pillow's (zli
 differ. If another machine's `out/ sha256` differs, compare the second line: it holds what the
 client loads (pixels and data), whatever compressed it.
 
+These are the fingerprints of `4c2b25c`'s manifest; a later manifest has others (CLI-03e's added
+the hubs' art and recorded none).
+
 **Why the files differed between macOS arm64 and Linux x86_64 (ART-00), and why they no longer do.**
 Measured on the Mac: Pillow 12's wheels compress PNGs with zlib-ng (`zlib (Pillow) 1.3.1.zlib-ng`); the same array written by Pillow and by `artpipe/png.py` gives
 files of different sizes and hashes and identical decoded pixels. zlib-ng's output can depend on its
@@ -111,7 +114,8 @@ the reference.
 Names: frames are `<sprite>/<animation>/<nn>` (`runt/attack/03`), animations `<sprite>/<animation>`
 (`hobgoblin/move`). Every frame carries `sourceSize` = the sprite's cell (one size per sprite),
 `spriteSourceSize` (the trim offset in the cell) and `anchor` = (0.5, baseline / cell height), so
-placing the sprite at its tile position puts the feet on it. Frame rates and looping are in
+placing the sprite at its tile position puts the feet on it. A tile (role `tile`) is the exception:
+untrimmed, `anchor` = (0, 0), its top-left corner (see *Buildings, props and tiles*). Frame rates and looping are in
 `meta.animationRates` and in `sprites.json`. Sprites face right; left is a mirror (`scale.x = -1`).
 
 ## What it does
@@ -174,7 +178,7 @@ frame rates (12 to 15, ADR-0003) and looping. To change a sprite's height, edit 
 `[height]`: a number resamples it, `"native"` keeps the pack's drawing. The `slinger` is a
 placeholder (no goblin slinger exists); the Arcanist has no sprite (Q-12) and is left out.
 
-## Buildings: still sprites (CLI-03c)
+## Buildings, props and tiles: still sprites (CLI-03c, CLI-03e)
 
 The pack's buildings are **single images**, not strips. A `[[still]]` entry of `manifest.toml` names
 one (`name`, `role = "building"`, `file`: its path in the pack, `origin`). The build makes it one
@@ -185,17 +189,61 @@ one animation, `still`, of one frame (rate 1, no loop), named `<building>/still/
 `sprites.json` entry has `role: "building"`. It gets the same checks, the baseline read back from
 the PNG included, and the client draws it once.
 
-The manifest lists the town's eight buildings in one colour set, Blue, until the owner chooses:
-`castle`, `barracks`, `archery`, `monastery`, `tower`, `house1`, `house2`, `house3`. To add one,
-add a `[[still]]` with its file and run the build. The tests make their buildings from synthetic
-images (`tests/test_build.py`, `Stills`).
+The manifest lists the eight Blue buildings (`castle`, `barracks`, `archery`, `monastery`, `tower`,
+`house1`, `house2`, `house3`), one colour set until the owner chooses, and the single buildings of
+`Buildings/Others/` the hubs use (`fortress`, `forge`, `cloister`, `market_hall`, `grain_silo`,
+`barn`, `watchtower`, `windmill`, `inn`, `tavern`, `stable`, `hut`, `straw_hut`, `cottage`,
+`small_house`, `rural_house`). To add one, add a `[[still]]` with its file and run the build.
+
+**Props** (CLI-03e): a `[[still]]` with `role = "prop"`: trees, bushes, rocks, stumps, a sheep.
+`sprites.json` tells them from buildings by the role. An animated strip is drawn at **one frame**
+(no idle animation in a hub): `frame` is the cell's index from the left, `cell = [width, height]`
+its size, which may be non-square (the trees' cells are 192 × 256); `cell` defaults to the strip's
+height, square. Without `frame` and `cell` the whole image is the still. The cell is then trimmed
+and anchored at its base like any still.
+
+**Tiles** (CLI-03e): a `[[tileset]]` entry (`name`, `role = "tile"`, `file`, `origin`, and
+`cells = { <cell> = [column, row] }`) cuts named **64 × 64** cells of a sheet of
+`Terrain/Tileset/`. Each cell becomes the sprite `<name>_<cell>` (`grass_c`, `grass_nw`, …) with one
+animation `still` of one frame. A tile is packed **untrimmed**, at native size (an edge cell keeps
+its transparent part, so cells laid side by side meet exactly), anchored at its **top-left corner**
+(`anchor` = (0, 0)), and its edge pixels are **extruded** into the gutter around it (half the atlas
+padding), so a scaled scene that samples just outside a cell finds the cell's own edge: no seam.
+The build checks every tile's frame is exactly 64 × 64, untrimmed, at offset (0, 0). The manifest
+cuts the 3 × 3 flat-ground autotile of `Tilemap_color1.png` (`grass_nw` … `grass_se`, the centre
+`grass_c`; the first colour variant, proposed for the owner's eye) and the flat water
+(`water_c`).
+
+Stills, props and tiles are packed after the strips: the strips' frames are the same with and
+without them (`tests/test_build.py`, `StillsBesideStrips`). A sprite never straddles two pages; the
+tiles may land on another page than the buildings, and the client loads every page. The tests make
+their buildings, props and tiles from synthetic images (`Stills`, `Tiles`).
+
+**The hubs' places** (CLI-03e, `client/app/src/sandbox/fixtures/hubs.ts`, proposed for the owner's
+eye; the fixtures are the source, this table mirrors them):
+
+| Place | Town | Outpost |
+|---|---|---|
+| Guild | `castle` (Blue castle) | `fortress` (`Others/Fortress`) |
+| Trainer | `barracks` (Blue barracks) | `barracks` (Blue barracks) |
+| Enchanter | `tower` (Blue tower) | — |
+| Smith | `forge` (`Others/Forge`) | — |
+| Armorer | `archery` (Blue archery) | — |
+| Alchemist | `cloister` (`Others/Cloister`) | — |
+| Market | `market_hall` (`Others/Market_Hall`) | — |
+| Vault | `grain_silo` (`Others/Grain_Silo`) | `barn` (`Others/Barn`) |
+| Gate | `watchtower` (`Others/Watchtower`) | `watchtower` (`Others/Watchtower`) |
+
+Around them, without a tap target: in the town a `windmill`, a `small_house` and a `cottage`; in
+the outpost a `hut` and a `straw_hut`; props `tree1`–`tree4`, `bush1`–`bush3`, `rock1`–`rock4`,
+`stump1`, `stump2`, `sheep`. The ground is `grass_*`, the water around it `water_c`.
 
 To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
 
     git submodule update --init assets         # the private pack, once
-    tools/art/build.py                         # writes tools/art/out/, buildings included
+    tools/art/build.py                         # writes tools/art/out/, the hubs' art included
     pnpm --filter @grimworld/app dev           # serves tools/art/out/ at /art/
-    # open http://localhost:5173/?hub=town
+    # open http://localhost:5173/?hub=town and http://localhost:5173/?hub=outpost
 
 From a worktree without the pack, point the dev server at a checkout that built it:
 `GRIMWORLD_ART_OUT=<that checkout>/tools/art/out pnpm --filter @grimworld/app dev`.

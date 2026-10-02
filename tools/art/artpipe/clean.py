@@ -1,5 +1,5 @@
 """Clean-up of the sources: cutting the pack's strips into poses, registration on the feet; a still
-image (a building) is one pose.
+image (a building, a prop) is one pose; a tileset cell is kept as it is.
 
 A pose is a `Pose`: a tight RGBA crop plus the position of its feet (anchor x, baseline y) inside
 the crop. Registration later places every pose of a sprite in one cell size on one baseline.
@@ -45,12 +45,36 @@ def cut_strip(strip_path):
     return [register(img[:, i * cell:(i + 1) * cell]) for i in range(img.shape[1] // cell)]
 
 
-def still(path):
-    """A single still image (a building, CLI-03c), not a strip: one pose at native size, anchored at
+def still(path, frame=None, cell=None):
+    """A still image (a building, CLI-03c; a prop, CLI-03e): one pose at native size, anchored at
     its base (the line under its lowest solid row wide enough: the feet rule of `register`, so a
-    thin pole or flag under the walls is not taken for the ground) and at its horizontal centre."""
-    p = register(np.array(Image.open(path).convert("RGBA")))
+    thin pole or flag under the walls is not taken for the ground) and at its horizontal centre.
+
+    The whole image, or, with `frame` or `cell`, one cell of a strip (CLI-03e): `cell` = (w, h),
+    possibly not square (the trees' 192 x 256), the strip's height when absent; `frame` its index
+    from the left, 0 when absent."""
+    img = np.array(Image.open(path).convert("RGBA"))
+    if frame is not None or cell is not None:
+        w, h = cell if cell is not None else (img.shape[0], img.shape[0])
+        if img.shape[0] != h or img.shape[1] % w:
+            raise SystemExit(f"{path.name}: {img.shape[1]} x {img.shape[0]} is not a strip of "
+                             f"{w} x {h} cells")
+        i = frame or 0
+        if not 0 <= i < img.shape[1] // w:
+            raise SystemExit(f"{path.name}: no frame {i} (it has {img.shape[1] // w})")
+        img = img[:, i * w:(i + 1) * w]
+    p = register(img)
     return Pose(p.rgba, p.rgba.shape[1] // 2, p.baseline)
+
+
+def tile(path, column, row, size):
+    """One square cell of a tileset (CLI-03e): `size` x `size` at (column, row), untouched and
+    untrimmed, transparent parts included (an edge cell)."""
+    img = np.array(Image.open(path).convert("RGBA"))
+    y, x = row * size, column * size
+    if column < 0 or row < 0 or y + size > img.shape[0] or x + size > img.shape[1]:
+        raise SystemExit(f"{path.name}: no {size} px cell at column {column}, row {row}")
+    return img[y:y + size, x:x + size].copy()
 
 
 def place(poses, margin):

@@ -1,4 +1,6 @@
-# PENDING — the default zoom against the integer scale of pixel art
+# the default zoom against the integer scale of pixel art
+
+**Decided: Accepted as proposed by the owner, 2026-10-02 (D-194).**
 
 | | |
 |---|---|

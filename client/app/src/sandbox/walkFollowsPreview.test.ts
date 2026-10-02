@@ -114,13 +114,15 @@ describe("the walk follows the previewed path (Resume 1, bug 1)", () => {
     { x: 14, y: 14 },
     { x: 14, y: 15 },
   ]) {
-    it(`in each of the six directions, 3 tiles, from a row of parity ${start.y & 1}`, () => {
-      const base = field();
-      const world = {
-        ...base,
-        actors: base.actors.map((a) => ({ ...a, tile: start })),
-      };
-      for (const d of LIBRARY_DIRECTIONS) {
+    // One test per direction: each walk is real CPU work (about 0.1 s alone), and a test that
+    // sweeps all six would use the whole default budget when the machine is loaded.
+    for (const d of LIBRARY_DIRECTIONS) {
+      it(`in direction ${d}, 3 tiles, from a row of parity ${start.y & 1}`, () => {
+        const base = field();
+        const world = {
+          ...base,
+          actors: base.actors.map((a) => ({ ...a, tile: start })),
+        };
         let target = start;
         for (let k = 0; k < 3; k++) target = libraryNext(target, d as Facing);
         const preview = walkThePreview(world, target);
@@ -130,8 +132,8 @@ describe("the walk follows the previewed path (Resume 1, bug 1)", () => {
           expect(tile, `direction ${d}`).toEqual(libraryNext(at, d as Facing));
           at = tile;
         }
-      }
-    });
+      });
+    }
   }
 
   it("from the meadow's start, 3 tiles south-east (down-right on screen), as the owner tapped", () => {
@@ -150,33 +152,41 @@ describe("the walk follows the previewed path (Resume 1, bug 1)", () => {
     }
   });
 
-  it("around a wall, both viewports", () => {
-    const wall = [10, 11, 12, 13, 14, 15, 16, 17].map((y) => ({ x: 16, y }));
-    const world = field(wall);
-    for (const viewport of VIEWPORTS) {
+  for (const viewport of VIEWPORTS) {
+    it(`around a wall, viewport ${viewport.width} × ${viewport.height}`, () => {
+      const wall = [10, 11, 12, 13, 14, 15, 16, 17].map((y) => ({ x: 16, y }));
+      const world = field(wall);
       const preview = walkThePreview(world, { x: 18, y: 14 }, viewport);
       expect(preview.length).toBeGreaterThan(distance({ x: 14, y: 14 }, { x: 18, y: 14 }));
       expect(preview.some((t) => wall.some((w) => sameTile(w, t)))).toBe(false);
+    });
+  }
+
+  // The detours are found when the file is collected (cheap: no renderer), and each one is its
+  // own test, so a walk's cost is not added to the next one's.
+  const cave = fixtureNamed("cave");
+  const caveState = initialState(cave);
+  const caveStart = heroOf(caveState).tile;
+  const detours: Tile[] = [];
+  for (let y = 0; y < cave.terrain.height; y++) {
+    for (let x = 0; x < cave.terrain.width; x++) {
+      const tile = { x, y };
+      const path = findPath(caveState.world.terrain, caveState.world.actors, caveStart, tile);
+      if (!path || path.length < 4 || path.length > 6) continue;
+      if (path.length === distance(caveStart, tile)) continue;
+      detours.push(tile);
     }
+  }
+
+  it("the cave has detours of 4 to 6 steps from the start", () => {
+    expect(detours.length).toBeGreaterThan(3);
   });
 
-  it("around the cave's walls: every detour of 4 to 6 steps from the start", () => {
-    const world = fixtureNamed("cave");
-    const state = initialState(world);
-    const start = heroOf(state).tile;
-    let detours = 0;
-    for (let y = 0; y < world.terrain.height; y++) {
-      for (let x = 0; x < world.terrain.width; x++) {
-        const tile = { x, y };
-        const path = findPath(state.world.terrain, state.world.actors, start, tile);
-        if (!path || path.length < 4 || path.length > 6) continue;
-        if (path.length === distance(start, tile)) continue;
-        walkThePreview(world, tile);
-        detours++;
-      }
-    }
-    expect(detours).toBeGreaterThan(3);
-  });
+  for (const tile of detours) {
+    it(`around the cave's walls: the detour to (${tile.x}, ${tile.y})`, () => {
+      walkThePreview(cave, tile);
+    });
+  }
 });
 
 /** Whether a tile's centre is on screen, the camera on the adventurer at the default zoom. */
@@ -194,41 +204,61 @@ function onScreenAtDefaultZoom(
 }
 
 describe("a stop for sight names goblins drawn after the step (Resume 1, bug 2)", () => {
-  it("every walk of every fixture: the named goblins entered visibleActors at that step, on screen", () => {
-    let stops = 0;
-    for (const name of Object.keys(FIXTURES)) {
-      const world = fixtureNamed(name);
-      for (let y = 0; y < world.terrain.height; y++) {
-        for (let x = 0; x < world.terrain.width; x++) {
-          if (kindAt(world.terrain, { x, y }) !== "floor") continue;
-          let state = applyIntent(initialState(world), { kind: "tile", tile: { x, y } });
-          while (state.walking) {
-            const before = new Set(toView(state).actors.map((a) => a.id));
-            state = walkStep(state);
-            if (!/came into sight/.test(state.stopped)) continue;
-            stops++;
-            const hero = heroOf(state).tile;
-            // The renderer's input after the step: the same visibleActors.
-            const drawn = toView(state).actors;
-            const entered = drawn.filter((a) => a.side === "goblin" && !before.has(a.id));
-            const what = `${name} to (${x}, ${y}), at (${hero.x}, ${hero.y}): ${state.stopped}`;
-            expect(entered.length, what).toBeGreaterThan(0);
-            for (const goblin of entered) {
-              expect(goblin.side === "goblin" && state.stopped, what).toContain(
-                goblin.side === "goblin" ? goblin.caste : "",
-              );
-              expect(distance(hero, goblin.tile), what).toBeLessThanOrEqual(6);
-              for (const viewport of VIEWPORTS) {
-                expect(onScreenAtDefaultZoom(viewport, hero, goblin.tile), what).toBe(true);
+  // The sweep over a fixture's floor is real CPU work (0.2 to 0.4 s alone), so each fixture is
+  // cut into bands of rows, one test per band: no test is long enough to meet the default budget
+  // on a loaded machine.
+  const BANDS = 4;
+  for (const name of Object.keys(FIXTURES)) {
+    for (let band = 0; band < BANDS; band++) {
+      it(`every walk of the ${name} fixture, rows ${band + 1}/${BANDS}: the named goblins entered visibleActors at that step, on screen`, () => {
+        const world = fixtureNamed(name);
+        const rows = Math.ceil(world.terrain.height / BANDS);
+        for (let y = band * rows; y < Math.min((band + 1) * rows, world.terrain.height); y++) {
+          for (let x = 0; x < world.terrain.width; x++) {
+            if (kindAt(world.terrain, { x, y }) !== "floor") continue;
+            let state = applyIntent(initialState(world), { kind: "tile", tile: { x, y } });
+            while (state.walking) {
+              const before = new Set(toView(state).actors.map((a) => a.id));
+              state = walkStep(state);
+              if (!/came into sight/.test(state.stopped)) continue;
+              const hero = heroOf(state).tile;
+              // The renderer's input after the step: the same visibleActors.
+              const drawn = toView(state).actors;
+              const entered = drawn.filter((a) => a.side === "goblin" && !before.has(a.id));
+              const what = `${name} to (${x}, ${y}), at (${hero.x}, ${hero.y}): ${state.stopped}`;
+              expect(entered.length, what).toBeGreaterThan(0);
+              for (const goblin of entered) {
+                expect(goblin.side === "goblin" && state.stopped, what).toContain(
+                  goblin.side === "goblin" ? goblin.caste : "",
+                );
+                expect(distance(hero, goblin.tile), what).toBeLessThanOrEqual(6);
+                for (const viewport of VIEWPORTS) {
+                  expect(onScreenAtDefaultZoom(viewport, hero, goblin.tile), what).toBe(true);
+                }
               }
+              // Every caste named is one of those that entered.
+              const named = state.stopped.match(/\b(runt|skirmisher|slinger|shaman|hobgoblin)\b/g);
+              const castes = new Set<string>(
+                entered.map((a) => (a.side === "goblin" ? a.caste : "")),
+              );
+              for (const caste of named ?? []) expect(castes.has(caste), what).toBe(true);
             }
-            // Every caste named is one of those that entered.
-            const named = state.stopped.match(/\b(runt|skirmisher|slinger|shaman|hobgoblin)\b/g);
-            const castes = new Set<string>(
-              entered.map((a) => (a.side === "goblin" ? a.caste : "")),
-            );
-            for (const caste of named ?? []) expect(castes.has(caste), what).toBe(true);
           }
+        }
+      });
+    }
+  }
+
+  it("the sweep is not vacuous: the meadow has more than 20 stops for sight", () => {
+    const world = fixtureNamed("meadow");
+    let stops = 0;
+    for (let y = 0; y < world.terrain.height; y++) {
+      for (let x = 0; x < world.terrain.width; x++) {
+        if (kindAt(world.terrain, { x, y }) !== "floor") continue;
+        let state = applyIntent(initialState(world), { kind: "tile", tile: { x, y } });
+        while (state.walking) {
+          state = walkStep(state);
+          if (/came into sight/.test(state.stopped)) stops++;
         }
       }
     }

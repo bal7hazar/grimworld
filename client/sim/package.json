@@ -7,11 +7,13 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --dir src",
+    "bench": "vitest run --dir bench --silent=false",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@scure/starknet": "1.1.0",
     "vitest": "5.0.2"
   }
 }

@@ -248,8 +248,8 @@ Raised by this brief; answered by the project manager on 2026-10-02, or asked of
    representative fight tick among them; the flood, perception, the executor's hits; same JSON-lines
    format, checked by `check.py`). **Asked of track game through the project manager.**
 5. **A threshold for the full tick.** **Decided**: 10 queued actions walked ahead within one 60 Hz
-   frame (16.7 ms), in Node and in a browser worker. Reversed if the reference phone (iPhone 14)
-   misses it while the desktop passes: the threshold is then set on the phone (SPK-6.1).
+   frame (16.7 ms), in Node and in a browser worker. Re-checked on a phone when phone work
+   resumes (phone work suspended by the owner, 2026-10-02).
 6. **Enough hit cases?** SPK-4 validated parity on 10,000 vectors; `hit.jsonl` has 200. Open:
    CLI-02a's mutation check says whether they see every rule; if a mutant survives, the game is asked
    for more cases (an escalation through the orchestrator, not an edit by CLI-02a).

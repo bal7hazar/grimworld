@@ -32,8 +32,10 @@ HANDOFF = "GRIMWORLD_ART_VENV"    # set before handing off to .venv/bin/python: 
 METHODS = ("area", "area-blend", "nearest")
 SPREAD = 6                  # px: an idle whose frames span more than this gets a warning
 WORD = "sla" + "yer"        # the manga's name: never written nor printed (D-73, design/10)
-STILL_ROLE = "building"     # the role of a `[[still]]`: a single image, no animation (CLI-03c)
+STILL_ROLES = ("building", "prop")  # the roles of a `[[still]]`: one image, no animation (CLI-03c/e)
 STILL_ANIM = "still"        # its one animation of one frame, the name the client draws
+TILE_ROLE = "tile"          # a cell of a `[[tileset]]` (CLI-03e): untrimmed, anchored top-left
+TILE = 64                   # a tileset cell's side, the art's base tile (design/10)
 USAGE = """usage: tools/art/build.py [--check] [--resample=area|area-blend|nearest]
        tools/art/build.py --fingerprint     fingerprints of the existing out/, no build
        tools/art/build.py --pack-heights    visible heights of the pack's own units
@@ -272,7 +274,8 @@ def main(opts):
     manifest = tomllib.loads((HERE / "manifest.toml").read_text())
     s = manifest["settings"]
     method = opts["resample"] or s["resample"]
-    problems = scale.validate_manifest(manifest, METHODS) + still_problems(manifest)
+    problems = (scale.validate_manifest(manifest, METHODS) + still_problems(manifest)
+                + tileset_problems(manifest))
     if problems:
         raise SystemExit("manifest.toml:\n  " + "\n  ".join(problems))
     specs = {sp["name"]: manifest["height"][sp["name"]] for sp in manifest["sprite"]}
@@ -319,9 +322,17 @@ def main(opts):
             "role": st["role"], "origin": st["origin"],
             "cell": [sprite["cell_w"], sprite["cell_h"]], "baseline": sprite["baseline"],
         }
+    report["tiles"] = {}
+    for ts in manifest.get("tileset", []):
+        for sprite in tile_sprites(ts, ASSETS / ts["file"]):
+            sprites.append(sprite)
+            origins[sprite["name"]] = ts["origin"]
+            report["tiles"][sprite["name"]] = {
+                "role": TILE_ROLE, "origin": ts["origin"], "cell": [TILE, TILE], "baseline": 0}
     index = atlas.pack(sprites, s, OUT)
     for name, info in index["sprites"].items():
-        entry = report["sprites"].get(name) or report["stills"][name]
+        entry = (report["sprites"].get(name) or report["stills"].get(name)
+                 or report["tiles"][name])
         entry["page"] = f'atlas-{info["page"]}'
     pages = [json.loads((OUT / p["json"]).read_text()) for p in index["pages"]]
     verify(pages, index, sprites, s)
@@ -337,8 +348,9 @@ def main(opts):
 
 
 def still_problems(manifest):
-    """The `[[still]]` entries of the manifest (CLI-03c): each a building, a single PNG of the pack,
-    named once and not as a sprite. Returns the list of problems."""
+    """The `[[still]]` entries of the manifest (CLI-03c, CLI-03e): each a building or a prop, a
+    single PNG of the pack or one cell of a strip (`frame`, `cell` = [w, h]), named once and not as
+    a sprite. Returns the list of problems."""
     sprites = {sp["name"] for sp in manifest.get("sprite", [])}
     problems, seen = [], set()
     for st in manifest.get("still", []):
@@ -349,21 +361,79 @@ def still_problems(manifest):
         if name in sprites or name in seen:
             problems.append(f"[[still]] {name!r}: the name is used twice")
         seen.add(name)
-        if st.get("role") != STILL_ROLE:
-            problems.append(f"[[still]] {name}: role {st.get('role')!r}, not {STILL_ROLE!r}")
+        if st.get("role") not in STILL_ROLES:
+            problems.append(f"[[still]] {name}: role {st.get('role')!r}, not one of "
+                            f"{', '.join(map(repr, STILL_ROLES))}")
         if not str(st.get("file", "")).endswith(".png"):
             problems.append(f"[[still]] {name}: file {st.get('file')!r} is not a PNG")
         if not st.get("origin"):
             problems.append(f"[[still]] {name}: no origin")
+        frame, cell = st.get("frame"), st.get("cell")
+        if frame is not None and not (isinstance(frame, int) and frame >= 0):
+            problems.append(f"[[still]] {name}: frame {frame!r} is not an index")
+        if cell is not None and not (isinstance(cell, list) and len(cell) == 2 and all(
+                isinstance(v, int) and v > 0 for v in cell)):
+            problems.append(f"[[still]] {name}: cell {cell!r} is not [width, height]")
     return problems
+
+
+def tileset_problems(manifest):
+    """The `[[tileset]]` entries (CLI-03e): a PNG of the pack, role `tile`, an origin, and named
+    cells `{name = [column, row]}`; every cell becomes the sprite `<tileset>_<cell>`, a name used
+    once in the whole manifest. Returns the list of problems."""
+    names = {sp["name"] for sp in manifest.get("sprite", [])}
+    names |= {st.get("name") for st in manifest.get("still", [])}
+    problems = []
+    for ts in manifest.get("tileset", []):
+        name = ts.get("name")
+        if not name:
+            problems.append(f"a [[tileset]] has no name: {ts!r}")
+            continue
+        if ts.get("role") != TILE_ROLE:
+            problems.append(f"[[tileset]] {name}: role {ts.get('role')!r}, not {TILE_ROLE!r}")
+        if not str(ts.get("file", "")).endswith(".png"):
+            problems.append(f"[[tileset]] {name}: file {ts.get('file')!r} is not a PNG")
+        if not ts.get("origin"):
+            problems.append(f"[[tileset]] {name}: no origin")
+        cells = ts.get("cells")
+        if not isinstance(cells, dict) or not cells:
+            problems.append(f"[[tileset]] {name}: no cells")
+            continue
+        for cell, at in cells.items():
+            sprite = f"{name}_{cell}"
+            if sprite in names:
+                problems.append(f"[[tileset]] {name}: {sprite!r}, the name is used twice")
+            names.add(sprite)
+            if not (isinstance(at, list) and len(at) == 2 and all(
+                    isinstance(v, int) and v >= 0 for v in at)):
+                problems.append(f"[[tileset]] {name}: cell {cell} {at!r} is not [column, row]")
+    return problems
+
+
+def tile_sprites(ts, path):
+    """A tileset's cells as the atlas packs them: each a sprite of one cell, TILE x TILE, untrimmed
+    (an edge cell keeps its transparent part, so cells laid side by side meet exactly), anchored at
+    its top-left corner, with one animation `still` of one frame; its edges extruded into the
+    gutter by `atlas.pack`."""
+    from artpipe import clean
+    out = []
+    for cell, (column, row) in ts["cells"].items():
+        rgba = clean.tile(path, column, row, TILE)
+        out.append({"name": f"{ts['name']}_{cell}", "role": TILE_ROLE, "cell_w": TILE,
+                    "cell_h": TILE, "baseline": 0, "untrimmed": True, "anchor": (0, 0),
+                    "anims": [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": [rgba]}]})
+    return out
 
 
 def still_sprite(st, path, margin):
     """A still as the atlas packs it: one cell at native size, its base on the baseline
-    (`clean.still`), and one animation, `still`, of one frame. The frame rate is 1 and the
-    animation does not loop: nothing in it ever changes, and the client draws it once."""
+    (`clean.still`, of the whole image or of one cell of a strip), and one animation, `still`, of
+    one frame. The frame rate is 1 and the animation does not loop: nothing in it ever changes, and
+    the client draws it once."""
     from artpipe import clean
-    cell_w, cell_h, baseline, cells = clean.place([clean.still(path)], margin)
+    cell = tuple(st["cell"]) if st.get("cell") else None
+    pose = clean.still(path, st.get("frame"), cell)
+    cell_w, cell_h, baseline, cells = clean.place([pose], margin)
     return {"name": st["name"], "role": st["role"], "cell_w": cell_w, "cell_h": cell_h,
             "baseline": baseline,
             "anims": [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": cells}]}
@@ -487,6 +557,12 @@ def verify(pages, index, sprites, s):
             assert abs(f["anchor"]["y"] - spec[name]["baseline"] / src["h"]) < 1e-5, key
             crop = img[fr["y"]:fr["y"] + fr["h"], fr["x"]:fr["x"] + fr["w"]]
             assert crop[..., 3].any(), key
+            if spec[name]["role"] == TILE_ROLE:
+                # A tile: its whole cell, TILE x TILE, untrimmed, anchored at its top-left corner.
+                assert (fr["w"], fr["h"]) == (TILE, TILE) == (src["w"], src["h"]), key
+                assert (sr["x"], sr["y"]) == (0, 0) and not f["trimmed"], key
+                assert f["anchor"] == {"x": 0, "y": 0}, key
+                continue
             # Same baseline, read back from the PNG: the feet row of the frame as placed in its cell.
             assert sr["y"] + feet_row(crop[..., 3]) == spec[name]["baseline"], \
                 f"{key}: baseline off"
@@ -508,13 +584,16 @@ def verify(pages, index, sprites, s):
 
 def print_report(report):
     from artpipe import fingerprint
-    print(f"{'sprite':<11}{'role':<11}{'cell':<10}{'frames':<8}page")
+    print(f"{'sprite':<14}{'role':<11}{'cell':<10}{'frames':<8}page")
     for name, r in report["sprites"].items():
         frames = sum(r["animations"].values())
-        print(f"{name:<11}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{frames:<8}"
+        print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{frames:<8}"
               f"{r['page']}")
     for name, r in report.get("stills", {}).items():
-        print(f"{name:<11}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'still':<8}"
+        print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'still':<8}"
+              f"{r['page']}")
+    for name, r in report.get("tiles", {}).items():
+        print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'tile':<8}"
               f"{r['page']}")
     print_scale(report)
     fingerprint.report(OUT)

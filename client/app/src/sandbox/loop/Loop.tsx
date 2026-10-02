@@ -15,6 +15,7 @@ import { InstanceScreen } from "./InstanceScreen";
 import {
   type LoopEvent,
   type LoopState,
+  gateHere,
   hubName,
   hubState,
   leaveOffer,
@@ -106,6 +107,7 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
           location={screen.location}
           entry={screen.entry}
           offer={leaveOffer(model.state)}
+          gateHere={gateHere(model.state)}
           dispatch={dispatch}
           onMoved={moved}
         />

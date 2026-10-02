@@ -1,0 +1,2 @@
+# The mutation check's copies of src/ (src/parity/mutants.test.ts), removed after each run.
+.mutants/

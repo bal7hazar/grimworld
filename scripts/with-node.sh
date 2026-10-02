@@ -48,7 +48,16 @@ while [ $# -gt 0 ]; do
   shift
 done
 [ $# -ge 1 ] || usage
-command -v starknet-devnet > /dev/null || { echo "with-node: starknet-devnet not found (scripts/setup-toolchain.sh)" >&2; exit 127; }
+# The node binary: on the PATH, else where asdf installed the version pinned in .tool-versions (the PATH
+# of some machines does not carry asdf's shims). Read-only: nothing is installed or set.
+devnet=$(command -v starknet-devnet || true)
+if [ -z "$devnet" ] && command -v asdf > /dev/null; then
+  devnet_pin=$(awk '$1 == "starknet-devnet" { print $2 }' "$(dirname "${BASH_SOURCE[0]}")/../.tool-versions" 2> /dev/null || true)
+  if [ -n "$devnet_pin" ] && devnet_dir=$(asdf where starknet-devnet "$devnet_pin" 2> /dev/null) && [ -x "$devnet_dir/bin/starknet-devnet" ]; then
+    devnet=$devnet_dir/bin/starknet-devnet
+  fi
+fi
+[ -n "$devnet" ] || { echo "with-node: starknet-devnet not found (scripts/setup-toolchain.sh)" >&2; exit 127; }
 
 # The command's own session. `setsid` where the system has it; else perl (on macOS by default) calls the
 # same setsid(2) and execs, so the pid stays the command's and is the group id, exactly as with setsid:
@@ -155,7 +164,7 @@ start_node() {
   for attempt in 1 2 3 4 5; do
     pick_port
     node_port=$PORT
-    starknet-devnet --seed 0 ${node_args[@]+"${node_args[@]}"} --port "$node_port" > "$log_dir/node.log" 2>&1 &
+    "$devnet" --seed 0 ${node_args[@]+"${node_args[@]}"} --port "$node_port" > "$log_dir/node.log" 2>&1 &
     node_pid=$!
     wait_for node "$node_pid" "$log_dir/node.log" node_ready
     status=$?

@@ -13,7 +13,7 @@ dependencies = [
 name = "grimworld_logic"
 version = "0.1.0"
 dependencies = [
- "origami_hexmap",
+ "hexx",
 ]
 
 [[package]]
@@ -24,10 +24,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "origami_hexmap"
-version = "1.8.0"
+name = "hexx"
+version = "0.1.0-rc.1"
 source = "registry+https://scarbs.xyz/"
-checksum = "sha256:789ecf7b0769664e8509fc6a81674e57adf57c736a0a6e67c30690ca58e444bd"
+checksum = "sha256:9313e06b7b11282cb015f47af41fcd41a3162b627fb14b0734e35569f5ca1500"
 
 [[package]]
 name = "snforge_scarb_plugin"
