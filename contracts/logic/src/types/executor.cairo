@@ -319,6 +319,7 @@ pub impl DefenceImpl of DefenceTrait {
     /// The member's defence at `t`: its armor terms from its words, each of its four held effects'
     /// holding entry at the slot's rank (`ARMOR`, `BLOCK`, `EVADE`), and whether a stance or an
     /// enchantment is held.
+    #[inline(never)]
     fn member<L, +Levers<L>>(member: @Member, t: u32, sheets: @Sheets, lever: @L) -> Defence {
         let (armor, stance, enchanted) = member.armor();
         let mut defence = Defence { armor, stance, enchanted, block_slot: 0, ..Default::default() };
@@ -336,6 +337,7 @@ pub impl DefenceImpl of DefenceTrait {
     }
 
     /// A goblin's defence at `t`: its caste's armor and its one held effect.
+    #[inline(never)]
     fn goblin<L, +Levers<L>>(goblin: @Goblin, t: u32, sheets: @Sheets, lever: @L) -> Defence {
         let caste = (*sheets.castes)[*goblin.caste_at];
         let mut defence = Defence { armor: (*caste.armor).into(), ..Default::default() };
@@ -348,6 +350,7 @@ pub impl DefenceImpl of DefenceTrait {
 
     /// What one held effect adds: its holding entry's `ARMOR`, `BLOCK`, `EVADE`; its carrier a
     /// stance or an enchantment.
+    #[inline(never)]
     fn add<L, +Levers<L>>(
         ref defence: Defence, held: @Held, at: u32, slot: u8, sheets: @Sheets, lever: @L,
     ) {
@@ -373,6 +376,23 @@ pub impl DefenceImpl of DefenceTrait {
             }
         }
     }
+}
+
+/// The source's `ON_ATTACK_CONDITION`s held at `t` (§5.5 step 7), gathered once a carrier: each
+/// `(condition, value)`, the slots holding charges (bit `2^slot`), what it adds to conditions.
+#[derive(Drop, Debug, PartialEq)]
+pub struct OnAttack {
+    pub conditions: Span<(u8, i32)>,
+    pub charged: u8,
+    pub infliction: Infliction,
+}
+
+/// What the source gains from one actor's turn: its weapon hit landed (step 8's source side), the
+/// health it stole (`LIFE_STEAL`, `LIFE_STEAL_ON_HIT`).
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub struct Gain {
+    pub landed: bool,
+    pub stolen: u16,
 }
 
 /// What the executor reads and writes of an actor, a member or a goblin (design/19 §5.5–§5.7,
@@ -427,6 +447,7 @@ pub trait Body<T> {
     fn cure(ref self: T, condition: u8, t: u32);
     fn interrupt(ref self: T, t: u32, sheets: @Sheets);
     /// A holding effect through §5.7, its carrier at `at`.
+    #[inline(never)]
     fn hold(ref self: T, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets);
     /// Its effect slots: 4 for a member, 1 for a goblin.
     fn slots(self: @T) -> u8;
@@ -602,6 +623,7 @@ pub impl MemberBody of Body<Member> {
         }
     }
 
+    #[inline(never)]
     fn hold(ref self: Member, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) {
         if self.is_alive() {
             MemberLifecycleTrait::hold(ref self, held, at, stance, t, sheets);
@@ -794,6 +816,7 @@ pub impl GoblinBody of Body<Goblin> {
         }
     }
 
+    #[inline(never)]
     fn hold(ref self: Goblin, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) {
         // A goblin's slot holds a skill (ENG-01 §3.2): a potion's effect does not stay on it.
         if !held.potion {
@@ -902,6 +925,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// legality, §5.3, is CBT-05b's): an entity it addresses is alive and in reach (the skill's
     /// range, a weapon's or an attack skill's: the weapon's; ENG-02's `reach`, before any arc); a
     /// tile it addresses is in reach. A carrier addressing its source is always legal.
+    #[inline(never)]
     fn legal<L, +Levers<L>>(
         lever: @L,
         world: @World,
@@ -1083,6 +1107,16 @@ pub impl ExecutorImpl of ExecutorTrait {
         } else {
             Self::spell(class, 0, @hit_entry, 0, 0, 0, @context)
         };
+        // The source's side of its weapon hit, gathered once (the source is never the target of
+        // its own hit): the target-side code is then compiled once a target type, not a pair.
+        let attack = if class == HitClass::Weapon {
+            Self::attack(lever, @source, t, sheets)
+        } else {
+            OnAttack { conditions: array![].span(), charged: 0, infliction: context.infliction }
+        };
+        let health = source.health();
+        let max_health = source.max_health();
+        let mut gain = Gain { landed: false, stolen: 0 };
         // 5. Each actor, in order.
         let mut pending: Pending = array![];
         for (position, target, bits) in list {
@@ -1104,36 +1138,48 @@ pub impl ExecutorImpl of ExecutorTrait {
             match *target {
                 Actor::Member(i) => {
                     let mut member = world.member(i);
-                    Self::on(
+                    let got = Self::on(
                         lever,
                         ref cache,
-                        ref source,
                         ref member,
                         *target,
                         @shot,
+                        @attack,
+                        health,
+                        max_health,
                         entries,
                         bits,
                         held,
                         @context,
                         sheets,
                     );
+                    gain =
+                        Gain {
+                            landed: gain.landed || got.landed, stolen: gain.stolen + got.stolen,
+                        };
                     world.set_member(i, member);
                 },
                 Actor::Goblin(i) => {
                     let mut goblin = world.goblin(i);
-                    Self::on(
+                    let got = Self::on(
                         lever,
                         ref cache,
-                        ref source,
                         ref goblin,
                         *target,
                         @shot,
+                        @attack,
+                        health,
+                        max_health,
                         entries,
                         bits,
                         held,
                         @context,
                         sheets,
                     );
+                    gain =
+                        Gain {
+                            landed: gain.landed || got.landed, stolen: gain.stolen + got.stolen,
+                        };
                     if goblin.is_alive() && goblin.health == 0 {
                         // §5.13: it dies at once, in resolution order.
                         goblin.ai = ai::DEAD;
@@ -1151,6 +1197,24 @@ pub impl ExecutorImpl of ExecutorTrait {
                 },
             }
         }
+        // §5.5 step 8, the source's side of its weapon hit, whether the target lives or not: each
+        // charge spent, adrenaline and `hits`, `ENERGY_ON_HIT`; and the health it stole.
+        if gain.landed {
+            let mut charged = attack.charged;
+            let mut slot: u8 = 0;
+            while charged != 0 {
+                if charged & 1 == 1 {
+                    source.spend(slot, t);
+                }
+                charged /= 2;
+                slot += 1;
+            }
+            source.landed();
+            if offence.energy > 0 {
+                source.energize(offence.energy.into());
+            }
+        }
+        source.heal(gain.stolen);
         // 6. Carrier-level effects: a shout's alert is ENG-07's (packs are chunk features); a
         // glyph and the `casts` counters are §5.3's (CBT-05b).
         (Executed::Ran, pending)
@@ -1258,6 +1322,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// A trap's hit on the entrant, if its payload holds one whose guard held: never blocked or
     /// evaded (§5.6), no arc; returns whether the entrant is alive after it.
+    #[inline(never)]
     fn trap<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
         ref cache: Cache,
@@ -1282,69 +1347,64 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// One actor other than the source: the hit first, if it is in the hit's set and the hit's
     /// guard held (§5.5); stopped, nothing else of the carrier; then the other entries whose set
-    /// holds it, in entry order, if it is alive and their guard held. Life stolen heals the source.
-    fn on<
-        L, +Levers<L>, +Drop<L>, S, +Body<S>, +Drop<S>, +Copy<S>, T, +Body<T>, +Drop<T>, +Copy<T>,
-    >(
+    /// holds it, in entry order, if it is alive and their guard held. Returns what the source
+    /// gains (its weapon hit landed, the health stolen), which the caller gives it.
+    #[inline(never)]
+    fn on<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
         ref cache: Cache,
-        ref source: S,
         ref target: T,
         actor: Actor,
         shot: @Shot,
+        attack: @OnAttack,
+        health: u16,
+        max_health: u16,
         entries: Span<Entry>,
         bits: u8,
         held: u8,
         context: @Context,
         sheets: @Sheets,
-    ) {
+    ) -> Gain {
+        let mut gain = Gain { landed: false, stolen: 0 };
         if *shot.hit {
-            if !Self::hit(lever, ref cache, ref source, ref target, actor, shot, context, sheets) {
-                return;
+            let t = *context.t;
+            if !Self::strike(
+                lever, ref cache, ref target, actor, shot, health, max_health, t, sheets,
+            ) {
+                return gain;
+            }
+            if (*shot.offence).class == HitClass::Weapon {
+                // §5.5 step 7, target-side, the target alive: the source's
+                // `ON_ATTACK_CONDITION`s; its `LIFE_STEAL_ON_HIT`.
+                gain.landed = true;
+                for (condition, v) in *attack.conditions {
+                    if target.alive() {
+                        target.inflict(*condition, *v, attack.infliction, t, sheets);
+                    }
+                }
+                let steal = (*shot.offence).steal;
+                if steal > 0 && target.alive() {
+                    let stolen = Self::min16(steal.into(), target.health());
+                    target.wound(stolen);
+                    gain.stolen += stolen;
+                }
             }
         }
-        let stolen = Self::entries(
-            lever, ref cache, ref target, actor, entries, bits, held, context, sheets,
-        );
-        source.heal(stolen);
+        gain
+            .stolen +=
+                Self::entries(
+                    lever, ref cache, ref target, actor, entries, bits, held, context, sheets,
+                );
+        gain
     }
 
-    /// §5.5: the hit on `target`, then, for a weapon hit, steps 7 and 8 on both sides. Returns
-    /// false if it was stopped (blocked, evaded, missed).
-    fn hit<
-        L, +Levers<L>, +Drop<L>, S, +Body<S>, +Drop<S>, +Copy<S>, T, +Body<T>, +Drop<T>, +Copy<T>,
-    >(
-        lever: @L,
-        ref cache: Cache,
-        ref source: S,
-        ref target: T,
-        actor: Actor,
-        shot: @Shot,
-        context: @Context,
-        sheets: @Sheets,
-    ) -> bool {
-        let t = *context.t;
-        let offence = *shot.offence;
-        let landed = Self::strike(
-            lever,
-            ref cache,
-            ref target,
-            actor,
-            shot,
-            source.health(),
-            source.max_health(),
-            t,
-            sheets,
-        );
-        if !landed {
-            return false;
-        }
-        if offence.class != HitClass::Weapon {
-            return true;
-        }
-        // 7. Target-side, the target alive: the source's `ON_ATTACK_CONDITION`s; its
-        // `LIFE_STEAL_ON_HIT`.
-        let infliction = source.infliction();
+    /// The source's `ON_ATTACK_CONDITION`s held at `t`: each one's condition and value at its rank,
+    /// and the slots whose charges a landed weapon hit spends.
+    #[inline(never)]
+    fn attack<L, +Levers<L>, S, +Body<S>>(
+        lever: @L, source: @S, t: u32, sheets: @Sheets,
+    ) -> OnAttack {
+        let mut conditions = array![];
         let mut charged: u8 = 0;
         let mut slot: u8 = 0;
         let slots = source.slots();
@@ -1353,10 +1413,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             if effect.deadline >= t && at != ABSENT {
                 let entry = Self::holding(lever, sheets, effect.potion, at);
                 if entry.kind == kind::ON_ATTACK_CONDITION {
-                    if target.alive() {
-                        target
-                            .inflict(entry.param, entry.value(effect.rank), @infliction, t, sheets);
-                    }
+                    conditions.append((entry.param, entry.value(effect.rank)));
                     if effect.charges > 0 {
                         charged += Self::bit(slot.into());
                     }
@@ -1364,32 +1421,14 @@ pub impl ExecutorImpl of ExecutorTrait {
             }
             slot += 1;
         }
-        if offence.steal > 0 && target.alive() {
-            let stolen = Self::min16(offence.steal.into(), target.health());
-            target.wound(stolen);
-            source.heal(stolen);
-        }
-        // 8. Source-side, whether the target lives or not: each charge spent, adrenaline and
-        // `hits`, `ENERGY_ON_HIT`.
-        let mut slot: u8 = 0;
-        while charged != 0 {
-            if charged & 1 == 1 {
-                source.spend(slot, t);
-            }
-            charged /= 2;
-            slot += 1;
-        }
-        source.landed();
-        if offence.energy > 0 {
-            source.energize(offence.energy.into());
-        }
-        true
+        OnAttack { conditions: conditions.span(), charged, infliction: source.infliction() }
     }
 
     /// §5.5 steps 1–5 and the target's part of 8 and 9 on `target`, the source's health given
     /// (the `ABOVE_HALF` damage passives): the arc and the front tile from ENG-02 for a weapon hit,
     /// CBT-03a's `resolve`, a block's charge spent, the damage applied, FX-19's halving spent, the
     /// hit recorded. Returns whether it landed.
+    #[inline(never)]
     fn strike<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
         ref cache: Cache,
@@ -1481,6 +1520,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// The entries other than the hit on `target`, in entry order (§5.14 step 5): those whose set
     /// holds it (`bits`) and whose guard held (`held`), while it is alive. Returns the health its
     /// `LIFE_STEAL` took, which the caller gives the source.
+    #[inline(never)]
     fn entries<L, +Levers<L>, +Drop<L>, T, +Body<T>, +Drop<T>, +Copy<T>>(
         lever: @L,
         ref cache: Cache,
@@ -1535,6 +1575,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// through `ENCHANT_DURATION`), its charges (a `BLOCK`'s are its value, 1…63; an
     /// `ON_ATTACK_CONDITION`'s its field), its deadline `t + d − 1`, or `MAX_CLOCK` for a
     /// charge-only effect (§3.4); one that neither lasts nor has charges does not stay.
+    #[inline(never)]
     fn hold<T, +Body<T>, +Drop<T>>(
         ref target: T, entry: @Entry, context: @Context, sheets: @Sheets,
     ) {
@@ -1567,6 +1608,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// The carrier's entries, packed from the first (§2.1), what they apply with, and whether it
     /// has an implicit weapon hit (a weapon attack, an attack skill).
+    #[inline(never)]
     fn read<L, +Levers<L>, S, +Body<S>>(
         lever: @L, sheets: @Sheets, source: @S, carrier: Carrier, t: u32,
     ) -> (Array<Entry>, Context, bool) {
@@ -1642,6 +1684,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// Every entry's guard, once, from the state now (§2.4, FX-40): bit `k` set if entry `k`'s
     /// holds for its subject, the source.
+    #[inline(never)]
     fn guards<L, +Levers<L>, S, +Body<S>>(
         lever: @L,
         ref cache: Cache,
@@ -1691,6 +1734,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// The hit modifiers whose guard held (§5.14 step 3): `ATTACK_BONUS` (its value clamped to
     /// 0…32,767, CBT-03a's carried item) and `HIT_PENETRATION` (0…100).
+    #[inline(never)]
     fn modifiers(entries: Span<Entry>, held: u8, rank: u8) -> (u32, u16) {
         let mut bonus: u32 = 0;
         let mut penetration: u16 = 0;
@@ -1713,6 +1757,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// The source terms of a hit that is not a weapon's: its strength (`3 × level`, a bomb's
     /// recipe), its base, the `DAMAGE` entry's value clamped to 0…32,767 (§6, CBT-03a's carried
     /// item), its type the entry's `param`.
+    #[inline(never)]
     fn spell(
         class: HitClass,
         strength: u16,
@@ -1741,6 +1786,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// The source's `PENETRATION` effects held at `t` that apply to the hit's class (§3.4,
     /// §5.4): a plain weapon hit takes scopes `WEAPON` and `ALL`, an attack skill's also
     /// `ATTACK_SKILL`, a spell `SPELL` and `ALL`; a bomb or a trap none. Each 0…100.
+    #[inline(never)]
     fn penetration<L, +Levers<L>, S, +Body<S>>(
         lever: @L, source: @S, class: u8, t: u32, sheets: @Sheets,
     ) -> u16 {
@@ -1775,6 +1821,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// The holding entry of a held effect's carrier at `at` (§5.14: at most one a carrier); the
     /// empty entry if it has none.
+    #[inline(never)]
     fn holding<L, +Levers<L>>(lever: @L, sheets: @Sheets, potion: bool, at: u32) -> Entry {
         if potion {
             return lever.potion_entry(sheets, at);
@@ -1797,6 +1844,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// to the window (ENG-02's `shape`), its actors those its filter takes, alive; the source is
     /// never in its own hit's set. A carrier whose entries are all `SINGLE` on its source or the
     /// addressed entity reads those two actors alone; any other scans the world.
+    #[inline(never)]
     fn actors<S, +Body<S>>(
         world: @World,
         board: @Board,
@@ -1919,6 +1967,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// `list` in ascending position (a selection: at most the window's actors, each once).
+    #[inline(never)]
     fn ascending(list: Span<(u8, Actor, u8)>) -> Span<(u8, Actor, u8)> {
         let mut sorted: Array<(u8, Actor, u8)> = array![];
         let mut last: u16 = 0;
@@ -1946,6 +1995,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// Pending writes by ascending position in the awake set, as `WorldTrait::flush` takes them.
+    #[inline(never)]
     fn sorted(pending: Pending) -> Pending {
         let list = pending.span();
         let mut sorted: Pending = array![];
@@ -1973,6 +2023,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// The actor of entity `entity`: a member 0–7 the world holds, or a goblin it holds.
+    #[inline(never)]
     fn actor(world: @World, entity: u16) -> Option<Actor> {
         if entity < FIRST_GOBLIN {
             let i: u32 = entity.into();
@@ -1990,6 +2041,7 @@ pub impl ExecutorImpl of ExecutorTrait {
 
     /// Whether the actor is alive (a member inside above 0, a goblin not dead) and its position in
     /// the window: one read of it.
+    #[inline(never)]
     fn locate(world: @World, board: @Board, actor: Actor) -> (bool, u8) {
         match actor {
             Actor::Member(i) => {
@@ -2006,6 +2058,7 @@ pub impl ExecutorImpl of ExecutorTrait {
     }
 
     /// The range of the source's weapon (design/04: touch 1, ranged 6).
+    #[inline(never)]
     fn weapon_range(world: @World, sheets: @Sheets, source: Actor) -> u8 {
         match source {
             Actor::Member(i) => {
@@ -3043,5 +3096,92 @@ mod tests {
     #[available_gas(l2_gas: 100000000)]
     fn test_cost_hits_levered() {
         hits(Levered {});
+    }
+
+    // ---- Where a goblin's weapon hit goes (the parts, each six times on `hits_state`, less its
+    // fixture) ----------------------------------------------------------------------------------
+
+    // The source goblin read from the world and written back (one rebuild of the awake set).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_part_source() {
+        let (mut world, _) = hits_state();
+        for i in 0..6_u32 {
+            let goblin = world.goblin(i);
+            world.set_goblin(i, opaque(goblin));
+        }
+    }
+
+    // The member target read and written back.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_part_member() {
+        let (mut world, _) = hits_state();
+        for _ in 0..6_u32 {
+            let member = world.member(0);
+            world.set_member(0, opaque(member));
+        }
+    }
+
+    // §5.14 step 4: the actor list of an implicit weapon hit on the member.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_part_actors() {
+        let (world, _) = hits_state();
+        let tiles = ring(AT);
+        for i in 0..6_u32 {
+            let goblin = world.goblin(i);
+            let list = ExecutorTrait::actors(
+                @world, @board(), @goblin, Actor::Goblin(i), *tiles[i], array![].span(), Some(3), 0,
+            );
+            assert(list.len() == 1, 'the member');
+        }
+    }
+
+    // The hit itself: the defence (kept), the geometry (`arc`, `front`), CBT-03a's `resolve`, the
+    // damage and the hit recorded, on the member, with the goblins' offence.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_cost_part_strike() {
+        let (world, sheets) = hits_state();
+        let tiles = ring(AT);
+        let lever = levered();
+        let mut cache: Cache = Default::default();
+        let mut member = world.member(0);
+        for i in 0..6_u32 {
+            let goblin = world.goblin(i);
+            let context = super::Context {
+                rank: 12,
+                infliction: Default::default(),
+                enchant: 0,
+                skill_kind: 0,
+                carrier: 0,
+                potion: false,
+                at: crate::types::tick::ABSENT,
+                scope: 0,
+                t: 10,
+            };
+            let offence = super::Body::offence(
+                @goblin,
+                @lever,
+                crate::types::combat::HitClass::Weapon,
+                @Default::default(),
+                0,
+                0,
+                @context,
+                @sheets,
+            );
+            let shot = super::Shot {
+                hit: true,
+                offence,
+                source_at: *tiles[i],
+                source_facing: toward(*tiles[i], AT),
+                target_at: AT,
+            };
+            ExecutorTrait::strike(
+                @lever, ref cache, ref member, Actor::Member(0), @shot, 100, 280, 10, @sheets,
+            );
+        }
+        assert(opaque(member.health) < 480, 'struck');
     }
 }
