@@ -43,7 +43,7 @@ contract lot **only after a SNIP-36 virtual transaction has been proved on a pho
 Why, in brief:
 
 1. S1 does not need proofs and may get worse with them: at the central reading (13 segments) it costs
-   1.62× more proved; proofs win S1 only with no gate and about 6 or fewer Fate actions (E).
+   1.62× more proved; proofs win S1 only when its Fate actions and gates together are about 6 or fewer (F + G ≤ 6; F + G = 7 with no gate is a tie, with any gate it loses; E, `cost.py`).
 2. Heavy fights are where proofs win (0.08× to 0.10×, E), but the phone pays for it: 12–32 % of the
    battery for 13 proofs, against SPK-6's 8 % for 30 minutes of play. The "as it stands" worst tick
    (45.8 M) exceeds the 40 M batch limit (SPK-15), so its batched price is notional; only the "with
@@ -70,14 +70,16 @@ Proving on the Mac, `canonical_small`, verified, two runs each, deterministic pr
 | representative, 2,600 ticks (the largest under `canonical_small`) | 13,781,143 | 164.33 / 183.73 | 21.03 / 20.57 | 1,202,257 |
 | representative, 4,500 ticks, `canonical_without_pedersen` | 23,838,746 | 344.10 / 313.53 | 23.50 / 33.56 | 1,255,743 |
 
-- A floor dominates: about 14 s and 3.6 GiB for any segment under ~0.5 M steps (37 s and 3.0 GiB on one
-  thread); above it about 11–14 s and 1.5 GiB per million steps (M, D). Six threads are as fast as twelve.
+- A floor dominates: 14–31 s and 3.6–3.9 GiB for every segment under ~0.5 M steps (representative
+  14–18 s, worst:1 23–26 s, busy:10 25–26 s, busy:40 27–31 s; 37–78 s and 3.0–3.7 GiB on one thread);
+  above it about 11–14 s and 1.5 GiB per million steps (M, D). Six threads are as fast as twelve.
 - `canonical_small` stops at 2^20 range checks (2,700 representative ticks fail); the proof is
   1.08–1.26 MB; verification 0.19–0.58 s.
 - A tick's computation is about 115–121 L2 gas a Cairo step (D).
-- Phone (E): 19–42 s a segment at the floor, 3.0–3.6 GiB at the floor against about 3 GB an iOS app may
-  hold, so the prover as built does not fit; 13 proofs take 2.7–5.9 % of the battery at the floor and
-  12–32 % on a fight-heavy expedition.
+- Phone (E): 19–87 s a segment from the floor (representative:1) to busy:40, 3.0–3.9 GiB against about
+  3 GB an iOS app may hold, so the prover as built does not fit; 13 proofs take 2.7–12.3 % of the battery
+  from the floor to busy:40 (`cost-output.txt`) and 12–32 % on a fight-heavy expedition. 8 % is crossed
+  above about 56 s of phone time a proof, inside busy:40's 35–87 s.
 - One proof is a flat 75,000,000 L2 gas (M, slingfall on the devnet); a proved segment costs 79,472,160
   L2 gas, $0.070 (E).
 - A proof holds 46 worst ticks as they stand, 66 with L1–L4, 680 representative ticks (E).
@@ -124,10 +126,11 @@ average batched tick (2,066,003 L2 gas, after taking `enter`, `leave`, 10 Fate a
 
 ```sh
 spikes/SPK-12/prove/setup.sh --native
-python3 spikes/SPK-12/prove/prove.py --runs 2 --out spikes/SPK-12/prove/out/run1 \
-  --case representative:1 --case worst:1 --case representative:10 --case busy:10
-python3 spikes/SPK-12/prove/collect.py
-python3 spikes/SPK-12/cost.py
+python3 spikes/SPK-12/prove/prove.py ...   # runs run1 to run8 (run6a, run6b); each one's exact command is
+                                           # the header of its table in spikes/SPK-12/prove-output.txt
+python3 spikes/SPK-12/prove/collect.py     # the runs' tables -> prove-output.txt
+python3 spikes/SPK-12/cost.py              # -> cost-output.txt
+(cd spikes/SPK-12 && snforge test)         # two clean runs -> snforge-test-output-1.txt, -2.txt
 ```
 
 ## Remaining
