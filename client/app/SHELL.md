@@ -9,6 +9,7 @@ account, no chain and no network (CLI-01, SPK-6.2). **Android is not built** (D-
   no `server.url` (the app loads its bundled build, never a dev server); Web Inspector on
   (`ios.webContentsDebuggingEnabled`, off in any store build, HRD-08); the web view's scroll off.
 - `ios/`: the Xcode project `cap add ios` generated, with Swift Package Manager (`CapApp-SPM`).
+  It has no icon or splash image: the owner's are added locally (ignored by git), never committed.
 - `src/shell/deviceState.ts`: `readDeviceState()` (the thermal state, the battery level and state,
   Low Power Mode, read by the native `DeviceState` plugin; `null` in a browser) and
   `onThermalChange()`. No polling: read at start and stop, and on each change. `readDeviceState()`
