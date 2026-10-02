@@ -123,6 +123,8 @@ function stop(hit: Hit, target: HitTarget): HitOutcome | undefined {
   if (hit.blind && !hit.in_front) return { kind: "Missed" };
   const open = !target.knocked_down;
   const front = hit.arc === Arc.Front || hit.arc === Arc.FrontSide;
+  // A sleeping target cannot block its first hit (design/04). D-179 #5 (CBT-05a) adds that it
+  // cannot evade it either: the paired change is `&& !target.asleep` on the evasion's line below.
   if (target.block > 0n && front && open && !target.asleep) return { kind: "Blocked" };
   if (target.evade && hit.melee && open) return { kind: "Evaded" };
   return undefined;

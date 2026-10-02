@@ -126,7 +126,7 @@ const MUTANTS: readonly Mutant[] = [
     from: "(hit.arc === Arc.RearSide || hit.arc === Arc.Back)",
     to: "true",
     survives:
-      "no axe hit from the front or front-side arc lands below the 65,535 clamp (ids 29, 186 are stopped, 134 saturates)",
+      "no axe hit from the front or front-side arc lands below the 65,535 clamp (each is stopped or saturates)",
   },
   {
     name: "the above-half guard holds at exactly half",
