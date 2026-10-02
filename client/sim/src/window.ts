@@ -8,7 +8,7 @@
 // `p`. The rules, their edges and their reasons are the Cairo module's documentation; this file
 // names only where the mirror computes differently.
 
-import { panic } from "./felt";
+import { P, panic } from "./felt";
 
 export const WIDTH = 15;
 export const HEIGHT = 16;
@@ -266,9 +266,9 @@ export function shape(open: bigint, shape: number, centre: number): bigint {
   return tiles & open;
 }
 
-/** The positions of a bitmap of the window, ascending. */
+/** The positions of a bitmap of the window, ascending (`mask: felt252`, as Cairo's). */
 export function tiles(mask: bigint): number[] {
-  if (mask < 0n) throw new RangeError(`not a bitmap: ${mask}`);
+  if (mask < 0n || mask >= P) throw new RangeError(`not a felt: ${mask}`);
   const positions: number[] = [];
   for (let p = 0; mask >> BigInt(p) !== 0n; p++) {
     if (walkable(mask, p)) positions.push(p);

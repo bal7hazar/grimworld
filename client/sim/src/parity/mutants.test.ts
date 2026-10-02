@@ -158,8 +158,10 @@ const MUTANTS: readonly Mutant[] = [
 
 const SRC = new URL("../", import.meta.url);
 const COPIES = new URL("../.mutants/", SRC);
+// The copies sit beside `src/`, not in it; `.mutants` is filtered all the same, so that copies left
+// by a killed run could never be copied again if they ever moved under `src/`.
 const SOURCES = readdirSync(SRC, { recursive: true }).filter(
-  (path) => path.endsWith(".ts") && !path.endsWith(".test.ts"),
+  (path) => path.endsWith(".ts") && !path.endsWith(".test.ts") && !path.startsWith(".mutants"),
 );
 
 type Parity = {

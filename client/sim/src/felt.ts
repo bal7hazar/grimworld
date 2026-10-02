@@ -69,6 +69,15 @@ export function div(type: IntType, a: bigint, b: bigint): bigint {
   return checked(type, a / b, "div");
 }
 
+/**
+ * An argument of a Cairo function typed `type`: Cairo cannot be called outside the type, so a value
+ * outside it is a bug of the caller, a `RangeError`, not a Cairo panic.
+ */
+export function arg(type: IntType, value: bigint): bigint {
+  if (value < type.min || value > type.max) throw new RangeError(`${value} is not a ${type.name}`);
+  return value;
+}
+
 /** `value.try_into().unwrap()` into `type`: the value, or the panic of the failed unwrap. */
 export function narrow(type: IntType, value: bigint): bigint {
   if (value < type.min || value > type.max) panic("Option::unwrap failed.");

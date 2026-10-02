@@ -6,6 +6,8 @@
 
 import { exp2 } from "./exp2";
 import {
+  add,
+  arg,
   boolFromFelt,
   boolToFelt,
   fromFelt,
@@ -207,20 +209,24 @@ export function resolve(hit: Hit, target: HitTarget): HitOutcome {
   return { kind: "Landed", damage: narrow(u16, amount), critical, halved };
 }
 
-/** A weapon hit's strength: `5 × rank`, capped. */
+/** A weapon hit's strength: `5 × rank` (`rank: u8`), capped by `cap: u8`; a `u16`. */
 export function weapon_strength(rank: bigint, cap: bigint): bigint {
-  const strength = mul(u16, STRENGTH_PER_RANK, rank);
-  return strength > cap ? cap : strength;
+  const strength = mul(u16, STRENGTH_PER_RANK, arg(u8, rank));
+  return strength > arg(u8, cap) ? cap : strength;
 }
 
-/** A spell's or a trap's strength: `3 × level`. */
+/** A spell's or a trap's strength: `3 × level` (`level: u8`); a `u16`. */
 export function level_strength(level: bigint): bigint {
-  return mul(u16, STRENGTH_PER_LEVEL, level);
+  return mul(u16, STRENGTH_PER_LEVEL, arg(u8, level));
 }
 
-/** A weapon hit's base: the weapon's damage, divided by 3 below its requirement, plus a bonus. */
+/**
+ * A weapon hit's base (`damage: u8`, `bonus: u16`): the weapon's damage, divided by 3 below its
+ * requirement, plus a bonus; a `u32`, at most `MAX_BASE` for the largest arguments.
+ */
 export function weapon_base(damage: bigint, requirement_met: boolean, bonus: bigint): bigint {
-  return (requirement_met ? damage : damage / REQUIREMENT_DIVISOR) + bonus;
+  const own = arg(u8, damage);
+  return add(u32, requirement_met ? own : own / REQUIREMENT_DIVISOR, arg(u16, bonus));
 }
 
 /** The `Serde` of `(Hit, HitTarget)`: 28 felts, in the order of `hit.cairo`'s documentation. */
