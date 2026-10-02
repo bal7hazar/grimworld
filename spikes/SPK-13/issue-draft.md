@@ -216,7 +216,7 @@ the output would need the same treatment.
 
 ### A second observation, not part of the reproduction
 
-Besides the thread-order drift above, some artefacts (one contract class and some test builds) of
+Besides the thread-order drift above, some artefacts (one contract class, one library program and some test builds) of
 a larger private project gave a different Sierra text on macOS arm64 and on x86_64 Linux (a
 different class hash, for the class), with the same commit, the same `Scarb.lock` and the same
 Scarb version, even with `RAYON_NUM_THREADS=1`. Each machine was stable on its own, and the contract
