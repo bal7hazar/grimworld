@@ -814,7 +814,8 @@ mod tests {
     // the final page.
     #[test]
     // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-    #[available_gas(l2_gas: 3412742)] // ceil(1.05 × 3250230 measured)
+    // gas: raised, ENG-R1b: account_adventurers declared with typed slots (note 4)
+    #[available_gas(l2_gas: 3426045)] // ceil(1.05 × 3262900 measured)
     fn test_list_insert_and_swap_removal() {
         let mut state = Hub::contract_state_for_testing();
         for i in 0..9_u8 {
@@ -836,7 +837,8 @@ mod tests {
     #[test]
     #[should_panic(expected: 'not in the account list')]
     // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-    #[available_gas(l2_gas: 740019)] // ceil(1.05 × 704780 measured)
+    // gas: raised, ENG-R1b: account_adventurers declared with typed slots (note 4)
+    #[available_gas(l2_gas: 742991)] // ceil(1.05 × 707610 measured)
     fn test_remove_not_listed_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.add_adventurer_id(1, 0, 11);
@@ -921,7 +923,8 @@ mod tests {
     // The views' words as stored: 0 where nothing was written, the stored models otherwise.
     #[test]
     // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-    #[available_gas(l2_gas: 4060770)] // ceil(1.05 × 3867400 measured)
+    // gas: raised, ENG-R1b: accounts declared with typed slots (note 4)
+    #[available_gas(l2_gas: 4060875)] // ceil(1.05 × 3867500 measured)
     fn test_words_as_stored() {
         let mut state = Hub::contract_state_for_testing();
         assert(state.get_adventurer_words(5) == array![0, 0, 0, 0, 0, 0].span(), 'never created');
@@ -941,7 +944,7 @@ mod tests {
     // `StoredAccount`'s slots against `Account`'s derived `Store`: an account written as the model
     // reads back through the store, and one written through the store reads back as the model.
     #[test]
-    #[available_gas(l2_gas: 1)]
+    #[available_gas(l2_gas: 2213169)] // ceil(1.05 × 2107780 measured)
     fn test_account_slots() {
         let mut state = Hub::contract_state_for_testing();
         let owner: ContractAddress = 0xa11ce.try_into().unwrap();

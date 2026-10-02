@@ -74,7 +74,7 @@ pub impl MemberStateImpl of MemberStateTrait {
 /// The stored words of a member's timers, effects and recharges entering a new generation (ENG-01
 /// §2.1, F-12, F-14), written as they are stored: `empty_member_timers` packed (no activation, no
 /// condition: `LIVE + 255`), and no effect or recharge (`LIVE`). Pinned against the packers by
-/// `test_empty_words`.
+/// `test_empty_timers_packed` (`tests/test_layout.cairo`).
 pub const EMPTY_TIMERS: felt252 = 0x4000000000000000000000000000000000000000000000000000000000000ff;
 pub const EMPTY_EFFECTS: felt252 =
     0x400000000000000000000000000000000000000000000000000000000000000;
@@ -378,4 +378,120 @@ pub struct StoredMember {
 /// Stored, it is `LIVE + 255`, not `LIVE` alone: `act_slot` 0 would name bar slot 0.
 pub fn empty_member_timers() -> MemberTimers {
     MemberTimers { act_slot: NO_SLOT, ..Default::default() }
+}
+
+/// The member's words are what docs/architecture/ENG-01-interfaces.md says: the bit offsets of
+/// every packed word, `LIVE` included, and the refusals of a field too wide. Here since ENG-R1b
+/// (D-167); the tests that span several models stay in `tests/test_layout.cairo`.
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::LIVE;
+    use starknet::storage_access::StorePacking;
+    use super::{Effect, MemberEffects, MemberState, MemberTimers, Recharges, pack_four28};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    #[test]
+    // gas: raised, CBT-01: design/19 section 7.2's fields in the words
+    #[available_gas(l2_gas: 575526)] // ceil(1.05 × 548120 measured)
+    fn test_member_layout() {
+        let state = MemberState {
+            adventurer: 0xFFFFFFFF,
+            x: 224,
+            y: 224,
+            facing: 5,
+            status: 2,
+            health: 0xFFFF,
+            energy: 0xFFFF,
+            adrenaline: 0xFFFF,
+            hits: 0xFF,
+            casts: 0xFF,
+            belt: [1, 2, 3, 0xFF],
+            flags: 0xFF,
+            casts_2: 0xFF,
+        };
+        let word = StorePacking::<MemberState, felt252>::pack(state);
+        assert(StorePacking::<MemberState, felt252>::unpack(word) == state, 'state trip');
+        let health = MemberState { health: 1, ..Default::default() };
+        assert(
+            StorePacking::<MemberState, felt252>::pack(health) == 0x10000000000000000 + LIVE,
+            'health at bit 64',
+        );
+
+        let timers = MemberTimers {
+            act_slot: 255,
+            act_target: 0xFFFF,
+            act_tile: 1,
+            act_deadline: 0xFFFFFFF,
+            bleeding: 1,
+            poison: 2,
+            burning: 3,
+            crippled: 4,
+            knocked: 0xFFFFFFF,
+        };
+        let word = StorePacking::<MemberTimers, felt252>::pack(timers);
+        assert(StorePacking::<MemberTimers, felt252>::unpack(word) == timers, 'timers trip');
+        let knocked = MemberTimers { knocked: 1, ..Default::default() };
+        assert(
+            StorePacking::<MemberTimers, felt252>::pack(knocked) == 0x10000000000000000 * TWO_128
+                + LIVE,
+            'knocked at bit 192',
+        );
+
+        // design/19 §7.2: charges 0–63, the potion tag with a belt slot 0–3, rank 0–15.
+        let full = Effect {
+            skill: 0xFFFF, charges: 63, potion: false, deadline: 0xFFFFFFF, rank: 15,
+        };
+        let drunk = Effect { skill: 3, charges: 1, potion: true, deadline: 3, rank: 0 };
+        let effects = MemberEffects { effects: [full, drunk, full, full] };
+        let word = StorePacking::<MemberEffects, felt252>::pack(effects);
+        assert(StorePacking::<MemberEffects, felt252>::unpack(word) == effects, 'effects trip');
+
+        let recharges = Recharges { deadlines: [0xFFFFFFF, 1, 2, 3, 4, 5, 6, 0xFFFFFFF] };
+        let word = StorePacking::<Recharges, felt252>::pack(recharges);
+        assert(StorePacking::<Recharges, felt252>::unpack(word) == recharges, 'recharges trip');
+        let slot4 = Recharges { deadlines: [0, 0, 0, 0, 1, 0, 0, 0] };
+        assert(
+            StorePacking::<Recharges, felt252>::pack(slot4) == TWO_128 + LIVE, 'slot 4 at bit 128',
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: deadline above 2^28')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_recharge_above_28_bits_refused() {
+        pack_four28(0, 0x10000000, 0, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: deadline > MAX_CLOCK')]
+    #[available_gas(l2_gas: 41496)] // ceil(1.05 × 39520 measured)
+    fn test_member_deadline_past_max_clock_refused() {
+        let timers = MemberTimers { act_deadline: 0x10000000, ..Default::default() };
+        StorePacking::<MemberTimers, felt252>::pack(timers);
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: charges above 63')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_effect_charges_refused() {
+        let wide = Effect { charges: 64, ..Default::default() };
+        StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: rank above 15')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_effect_rank_refused() {
+        let wide = Effect { rank: 16, ..Default::default() };
+        StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: belt slot above 3')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_effect_belt_slot_refused() {
+        let wide = Effect { skill: 4, potion: true, ..Default::default() };
+        StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+    }
 }

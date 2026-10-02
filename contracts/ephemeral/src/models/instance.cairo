@@ -322,3 +322,84 @@ pub fn mask_roster_page(
         ],
     }
 }
+
+/// The instance's records are what docs/architecture/ENG-01-interfaces.md says: the bit offsets of
+/// `Placement`, `Header` and `Quotas`, `LIVE` included, and the roster's masking (F-13). Here since
+/// ENG-R1b (D-167).
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::{LIVE, Lanes16};
+    use starknet::storage_access::StorePacking;
+    use super::{Header, Placement, Quotas, mask_roster_page};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    #[test]
+    #[available_gas(l2_gas: 458157)] // ceil(1.05 × 436340 measured)
+    fn test_placement_and_header_layout() {
+        let placement = Placement {
+            slot: 0xFFFFFFFF, generation: 0xFFFFFFFF, member: 7, inside: 1,
+        };
+        let word = StorePacking::<Placement, felt252>::pack(placement);
+        assert(StorePacking::<Placement, felt252>::unpack(word) == placement, 'placement trip');
+        let inside = Placement { inside: 1, ..Default::default() };
+        assert(
+            StorePacking::<Placement, felt252>::pack(inside) == 0x1000000000000000000 + LIVE,
+            'inside at bit 72',
+        );
+
+        let header = Header {
+            generation: 0xFFFFFFFF,
+            sequence: 1,
+            clock: 0xFFFFFFF,
+            location: 0xFFFF,
+            status: 3,
+            members: 1,
+            tasks: 16,
+            revealed_count: 225,
+            roster_count: 30,
+            flags: 1,
+            entry_chunk: 224,
+            entry_tile: 224,
+            gate: 0xFFFF,
+        };
+        let word = StorePacking::<Header, felt252>::pack(header);
+        assert(StorePacking::<Header, felt252>::unpack(word) == header, 'header trip');
+        let one = Header { sequence: 1, tasks: 1, gate: 1, ..Default::default() };
+        let expected = 0x100000000 + TWO_128 + 0x1000000000000 * TWO_128 + LIVE;
+        assert(
+            StorePacking::<Header, felt252>::pack(one) == expected,
+            'sequence 32 tasks 128 gate 176',
+        );
+        assert(StorePacking::<Header, felt252>::pack(Default::default()) == LIVE, 'never 0');
+
+        let quotas = Quotas {
+            target: 12, open_edges: 3, left: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0xFF],
+        };
+        let word = StorePacking::<Quotas, felt252>::pack(quotas);
+        assert(StorePacking::<Quotas, felt252>::unpack(word) == quotas, 'quotas trip');
+    }
+
+    // Fix loop 2, F-13: an earlier generation filled page 0; the new one has one entry. Masked, the
+    // page shows that entry and zeros elsewhere; page 1 shows zeros; with 16 entries page 1 keeps
+    // its lane 0 only.
+    #[test]
+    #[available_gas(l2_gas: 336830)] // ceil(1.05 × 320790 measured)
+    fn test_roster_masking() {
+        let stale = Lanes16 {
+            lanes: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115],
+        };
+        let masked = mask_roster_page(stale, 0, 1);
+        assert(
+            masked == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+            'one entry',
+        );
+        assert(mask_roster_page(stale, 1, 1) == Lanes16 { lanes: [0; 15] }, 'page 1 empty');
+        assert(mask_roster_page(stale, 0, 0) == Lanes16 { lanes: [0; 15] }, 'count 0');
+        assert(mask_roster_page(stale, 0, 60) == stale, 'full page kept');
+        let page1 = mask_roster_page(stale, 1, 16);
+        assert(
+            page1 == Lanes16 { lanes: [101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, 'entry 15',
+        );
+    }
+}
