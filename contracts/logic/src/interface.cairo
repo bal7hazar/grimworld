@@ -3,9 +3,9 @@
 
 use starknet::ContractAddress;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
-use crate::types::executor::Board;
+use crate::types::executor::{Board, Cache, Carrier};
 use crate::types::tick::Content;
-use crate::types::world::Words;
+use crate::types::world::{Actor, Words};
 use crate::types::{InstanceId, Outcome};
 
 /// The results interface (ADR-0001, *Keeping the exit open*): what an instance hands to the
@@ -135,4 +135,21 @@ pub trait IFlattenLibrary<T> {
     fn words(
         self: @T, loadout: Loadout, worn: Span<Worn>, ids: Span<u16>, records: Span<felt252>,
     ) -> (felt252, felt252, felt252);
+}
+
+/// The executor as its own library class (CBT-05a): one call a carrier, the words of the actors it
+/// can reach and the sheets their loads need in, the words out.
+#[starknet::interface]
+pub trait IExecutorLibrary<T> {
+    fn execute(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        cache: Cache,
+        source: Actor,
+        carrier: Carrier,
+        address: u16,
+        t: u32,
+    ) -> (Words, Cache);
 }

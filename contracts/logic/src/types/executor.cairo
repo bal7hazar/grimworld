@@ -110,7 +110,7 @@ pub enum Executed {
 /// An actor's terms a hit on it reads that change only when an effect is held, spent or ended
 /// (design/19 §5.5 step 3, §5.6), and its stance and enchantment (the guards `IN_STANCE`,
 /// `ENCHANTED`): SPK-15's "guard". Read once a tick for the member (`Cache`, L3).
-#[derive(Copy, Drop, Debug, PartialEq, Default)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct Defence {
     /// The unguarded armor (the snapshot's signed value, or the caste's).
     pub armor: i16,
@@ -132,7 +132,7 @@ pub struct Defence {
 /// The member's defence kept for the tick (L3): valid for `member` at `t` while `at == t + 1`.
 /// The hits the executor ran at `t`, counted (the 15 of ENG-01 §9.2 is a derivation; this is the
 /// count).
-#[derive(Copy, Drop, Debug, PartialEq, Default)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct Cache {
     pub defence: Defence,
     pub member: u32,
@@ -2103,6 +2103,8 @@ pub impl ExecutorImpl of ExecutorTrait {
 /// alone).
 #[cfg(test)]
 mod tests {
+    use snforge_std::{DeclareResultTrait, declare};
+    use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
     use crate::models::goblin::{
         Goblin, GoblinLifecycleTrait, GoblinTickTrait, GoblinTrait, GoblinWordsTrait,
     };
@@ -3183,5 +3185,67 @@ mod tests {
             );
         }
         assert(opaque(member.health) < 480, 'struck');
+    }
+
+    // ---- The own-class route (a library call a carrier), measured -----------------------------
+    // A goblin's weapon hit through `ExecutorLibrary`: the words of the source and of the member,
+    // and the sheets their loads need (the bar's 8 skills, the caste and its 4), in and out; six
+    // calls less the fixture that builds the same arguments.
+
+    fn class_args() -> (crate::types::world::Words, Content) {
+        let (world, _) = hits_state();
+        let words = crate::types::world::WorldStoreTrait::store(world);
+        let full = content(40, array![].span());
+        let mut skills = array![];
+        for sheet in full.skills {
+            if *sheet.id <= 8 || (*sheet.id >= 24 && *sheet.id <= 27) {
+                skills.append(*sheet);
+            }
+        }
+        let content = Content {
+            skills: skills.span(), potions: array![].span(), castes: array![*full.castes[0]].span(),
+        };
+        (words, content)
+    }
+
+    /// The source goblin `i` and the member, alone.
+    fn pair(words: @crate::types::world::Words, i: u32) -> crate::types::world::Words {
+        crate::types::world::Words {
+            clock: *words.clock,
+            members: array![*words.members[0]],
+            goblins: array![*words.goblins[i]],
+            killed: array![],
+            defeated: false,
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 200000000)]
+    fn test_cost_class_hits_fixture() {
+        let (words, content) = class_args();
+        for i in 0..6_u32 {
+            let pair = pair(@words, i);
+            assert(opaque(pair.goblins.len()) == 1 && content.skills.len() == 12, 'args');
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 200000000)]
+    fn test_cost_class_hits() {
+        let class = declare("ExecutorLibrary").unwrap().contract_class();
+        let library = IExecutorLibraryLibraryDispatcher { class_hash: *class.class_hash };
+        let (words, content) = class_args();
+        let mut cache: Cache = Default::default();
+        let mut hit = 0;
+        for i in 0..6_u32 {
+            let pair = pair(@words, i);
+            let (out, next) = library
+                .execute(pair, content, board(), cache, Actor::Goblin(0), Carrier::Weapon, 0, 10);
+            cache = next;
+            if *out.members[0].state != *words.members[0].state {
+                hit += 1;
+            }
+        }
+        assert(cache.hits == 6 && hit == 6, 'six hits');
     }
 }
