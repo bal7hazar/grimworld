@@ -176,10 +176,11 @@ export function hubTap(view: HubView, tile: Tile): HubTap {
   if (figure) return { kind: "figure", figure };
   const place = view.places.find((p) => footprint(view, p).some((t) => key(t) === here));
   if (place) return { kind: "place", place };
-  const decor = view.decor.find((d) => footprint(view, d).some((t) => key(t) === here));
-  if (decor) return { kind: "decor", id: decor.id };
+  // A prop is the object of its own hex, even where a decor building's back row reaches it.
   const prop = view.props.find((p) => key(p.at) === here);
   if (prop) return { kind: "prop", id: prop.id };
+  const decor = view.decor.find((d) => footprint(view, d).some((t) => key(t) === here));
+  if (decor) return { kind: "decor", id: decor.id };
   return { kind: "ground" };
 }
 
