@@ -193,19 +193,27 @@ moved, the proof of behaviour (vectors, digests, probe), and the gas table of ev
    owner's reading. *Recommendation*: ENG-R1c takes the first window where no lot runs in
    `contracts/logic/src/`; it never delays ENG-07 once ENG-05 and `hexx` rc.2 allow ENG-07 to start. The
    project manager orders them.
+   **Decided by the project manager, 2026-10-02:** the first window where no lot runs in
+   `contracts/logic/src`, never delaying ENG-05 or ENG-07 (ENG-07 feeds R-2). If ENG-05 is ready before
+   all ENG-R1c prerequisites are met (the owner's reading of ENG-R1a included), ENG-05 and ENG-07 go
+   first and ENG-R1c follows ENG-07. Reversed if ENG-07's design needs the pattern in logic first.
 2. **How far `GateAssert` and `RegionAssert` go.** Today `Hub` reads the registry and calls
    `AdventurerAssert::assert_gate(exists)` (`persistent/src/models/adventurer.cairo:474`) with the logic
    package's error. *Recommendation*: the check moves to `grimworld_logic::models::gate::GateAssert`
    (and a `RegionAssert` for the start region if it is the region's) with the same message; `Hub`'s call
    changes, nothing else of `adventurer.cairo`.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
 3. **The tolerance on the tick.** The tick is 3.72× its target (STATUS, ENG-01 §9.2), and this lot moves
    code without changing it. *Recommendation*: on the tick's worst-case benchmarks any rise is an
    escalation, not a D-144 replacement; D-144 applies elsewhere.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
 4. **Names in ENG-01 and the design documents.** ENG-01 names `encode_batch`, `decode_batch`,
    `effective_duration`; design/19 and design/20 name `effective_duration`. *Recommendation*: update ENG-01
    (allowlisted); leave the design documents, or keep the rule's name as the method's
    (`DurationTrait::effective_duration`), since the design names a rule, not a path.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
 5. **`snapshot.cairo`'s split** goes to `models/` (the words are stored by the ephemeral package in the
    member's record) or `types/` (the logic package stores nothing). *Recommendation*: `models/`, as the
    registry records already are (`models/index.cairo`: records the persistent `Registry` stores), and as
    `models/member.cairo` holds the member's words.
+   **Decided by the orchestrator, 2026-10-02:** as recommended.
