@@ -31,7 +31,9 @@ export function InstanceScreen({
   onMoved: (tile: Tile) => void;
 }) {
   const world = useMemo(() => zoneWorld(entry, locationOf(location)), [entry, location]);
-  const [asking, setAsking] = useState<"leave" | "travel back" | null>(null);
+  const [asking, setAsking] = useState<
+    { kind: "leave"; gate: GateRecord | null } | { kind: "travel back" } | null
+  >(null);
   const offerOpen = offer !== null;
   return (
     <div style={ui.screen} data-screen="instance">
@@ -40,7 +42,7 @@ export function InstanceScreen({
           {offerOpen && (
             <button
               style={{ ...ui.button, ...ui.primary }}
-              onClick={() => setAsking("leave")}
+              onClick={() => setAsking({ kind: "leave", gate: offer })}
               aria-label="Leave by this gate"
             >
               Gate to {hubName(offer.destination)} · Leave ▸
@@ -51,12 +53,12 @@ export function InstanceScreen({
           <button
             style={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
             disabled={gateHere === null}
-            onClick={() => setAsking("leave")}
+            onClick={() => setAsking({ kind: "leave", gate: gateHere })}
             aria-label="Leave"
           >
             Leave
           </button>
-          <button style={ui.button} onClick={() => setAsking("travel back")}>
+          <button style={ui.button} onClick={() => setAsking({ kind: "travel back" })}>
             Travel back
           </button>
           <button
@@ -70,7 +72,9 @@ export function InstanceScreen({
         {asking && (
           <div style={styles.scrim} role="dialog" aria-label="Confirm">
             <div style={{ ...ui.card, maxWidth: 320 }}>
-              <p style={{ marginTop: 0 }}>{leaveQuestion(asking === "leave" ? gateHere : null)}</p>
+              <p style={{ marginTop: 0 }}>
+                {leaveQuestion(asking.kind === "leave" ? asking.gate : null)}
+              </p>
               <div style={ui.row}>
                 <button style={{ ...ui.button, ...ui.quiet }} onClick={() => setAsking(null)}>
                   Stay
@@ -79,10 +83,10 @@ export function InstanceScreen({
                   style={{ ...ui.button, ...ui.primary }}
                   onClick={() => {
                     setAsking(null);
-                    dispatch(asking === "leave" ? { kind: "leave" } : { kind: "travel back" });
+                    dispatch(asking.kind === "leave" ? { kind: "leave" } : { kind: "travel back" });
                   }}
                 >
-                  {asking === "leave" ? "Leave" : "Travel back"}
+                  {asking.kind === "leave" ? "Leave" : "Travel back"}
                 </button>
               </div>
             </div>

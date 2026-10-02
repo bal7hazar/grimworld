@@ -109,10 +109,15 @@ describe("the loop's screens (CLI-03c)", () => {
     expect(left.screen).toEqual({ kind: "report", outcome: "returned", how: "gate", hub: OUTPOST });
     // The room reporting the entry tile again changes nothing.
     if (s.screen.kind !== "instance") throw new Error("not in the instance");
-    s = step(s, { kind: "moved", tile: s.screen.tile });
+    const entryTile = s.screen.tile;
+    s = step(s, { kind: "moved", tile: entryTile });
     expect(leaveOffer(s)).toBeNull();
+    const arrival = entryTile;
     s = step(s, { kind: "moved", tile: { x: 39, y: 7 } });
     expect(leaveOffer(s)).toBeNull();
+    // Back onto the arrival anchor (gate 102): the offer comes.
+    s = step(s, { kind: "moved", tile: arrival });
+    expect(leaveOffer(s)?.id).toBe(102);
     const anchor = globalTile(0, 105);
     s = step(s, { kind: "moved", tile: anchor });
     expect(leaveOffer(s)?.id).toBe(2);
