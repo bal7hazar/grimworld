@@ -18,7 +18,7 @@ const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
 // Records of several slots: a member is 8, a chunk 2, a goblin 2.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_record_sizes() {
     assert(starknet::Store::<Member>::size() == 8, 'member: 8 slots');
     assert(starknet::Store::<Chunk>::size() == 2, 'chunk: 2 slots');
@@ -27,7 +27,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 466379)] // ceil(1.05 × 444170 measured)
+#[available_gas(l2_gas: 458157)] // ceil(1.05 × 436340 measured)
 fn test_placement_and_header_layout() {
     let placement = Placement { slot: 0xFFFFFFFF, generation: 0xFFFFFFFF, member: 7, inside: 1 };
     let word = StorePacking::<Placement, felt252>::pack(placement);
@@ -71,7 +71,7 @@ fn test_placement_and_header_layout() {
 
 #[test]
 // gas: raised, CBT-01: design/19 section 7.2's fields in the words
-#[available_gas(l2_gas: 583748)] // ceil(1.05 × 555950 measured)
+#[available_gas(l2_gas: 575526)] // ceil(1.05 × 548120 measured)
 fn test_member_layout() {
     let state = MemberState {
         adventurer: 0xFFFFFFFF,
@@ -131,7 +131,7 @@ fn test_member_layout() {
 }
 
 #[test]
-#[available_gas(l2_gas: 374094)] // ceil(1.05 × 356280 measured)
+#[available_gas(l2_gas: 365873)] // ceil(1.05 × 348450 measured)
 fn test_chunk_layout() {
     // Every tile a wall, every edge open: bit 228 is the last one used.
     let all: felt252 = 0x200000000000000000000000000000000000000000000000000000000 - 1;
@@ -164,7 +164,7 @@ fn test_chunk_layout() {
 
 #[test]
 // gas: raised, CBT-01: design/19 section 7.2's fields in the words
-#[available_gas(l2_gas: 361631)] // ceil(1.05 × 344410 measured)
+#[available_gas(l2_gas: 353409)] // ceil(1.05 × 336580 measured)
 fn test_goblin_layout() {
     let state = GoblinState {
         x: 224,
@@ -217,7 +217,7 @@ fn test_goblin_layout() {
 // Fix loop 1, F-9: every field narrower than its Cairo type is refused when too wide, at its
 // boundary; nothing spills into a neighbouring lane.
 #[test]
-#[available_gas(l2_gas: 336494)] // ceil(1.05 × 320470 measured)
+#[available_gas(l2_gas: 328272)] // ceil(1.05 × 312640 measured)
 fn test_deadline_boundaries() {
     let max: u32 = 0xFFFFFFF;
     assert(
@@ -238,14 +238,14 @@ fn test_deadline_boundaries() {
 
 #[test]
 #[should_panic(expected: 'packing: deadline above 2^28')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_recharge_above_28_bits_refused() {
     pack_four28(0, 0x10000000, 0, 0);
 }
 
 #[test]
 #[should_panic(expected: 'packing: deadline above 2^28')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_goblin_deadline_above_28_bits_refused() {
     let timers = GoblinTimers { poison: 0x10000000, ..Default::default() };
     StorePacking::<GoblinTimers, felt252>::pack(timers);
@@ -253,7 +253,7 @@ fn test_goblin_deadline_above_28_bits_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: deadline > MAX_CLOCK')]
-#[available_gas(l2_gas: 49592)] // ceil(1.05 × 47230 measured)
+#[available_gas(l2_gas: 41496)] // ceil(1.05 × 39520 measured)
 fn test_member_deadline_past_max_clock_refused() {
     let timers = MemberTimers { act_deadline: 0x10000000, ..Default::default() };
     StorePacking::<MemberTimers, felt252>::pack(timers);
@@ -261,7 +261,7 @@ fn test_member_deadline_past_max_clock_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: offsets above 25 bits')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_pack_offsets_refused() {
     let pack = PackPlacement { offsets: 0x2000000, ..Default::default() };
     let features = Features {
@@ -274,7 +274,7 @@ fn test_pack_offsets_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: walls above bit 224')]
-#[available_gas(l2_gas: 18606)] // ceil(1.05 × 17720 measured)
+#[available_gas(l2_gas: 10385)] // ceil(1.05 × 9890 measured)
 fn test_walls_above_224_refused() {
     let walls: felt252 = 0x200000000000000000000000000000000000000000000000000000000; // 2^225
     StorePacking::<Terrain, felt252>::pack(Terrain { walls, edges: 0 });
@@ -284,7 +284,7 @@ fn test_walls_above_224_refused() {
 // page shows that entry and zeros elsewhere; page 1 shows zeros; with 16 entries page 1 keeps its
 // lane 0 only.
 #[test]
-#[available_gas(l2_gas: 345051)] // ceil(1.05 × 328620 measured)
+#[available_gas(l2_gas: 336830)] // ceil(1.05 × 320790 measured)
 fn test_roster_masking() {
     let stale = Lanes16 {
         lanes: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115],
@@ -304,7 +304,7 @@ fn test_roster_masking() {
 // (slot 0 would name bar slot 0). Their packed words are pinned.
 #[test]
 // gas: raised, CBT-01: design/19 section 7.2's fields in the words
-#[available_gas(l2_gas: 220395)] // ceil(1.05 × 209900 measured)
+#[available_gas(l2_gas: 212174)] // ceil(1.05 × 202070 measured)
 fn test_empty_timers_packed() {
     let member = empty_member_timers();
     assert(member.act_slot == NO_SLOT, 'member: no slot');
@@ -322,7 +322,7 @@ fn test_empty_timers_packed() {
 // slot: charges 0–63 at slot bit 16, the potion tag at 23, the rank at 52. `GoblinTimers`: the
 // effect's charges at 240 and rank at 246. The empty words keep their packed values.
 #[test]
-#[available_gas(l2_gas: 739662)] // ceil(1.05 × 704440 measured)
+#[available_gas(l2_gas: 731441)] // ceil(1.05 × 696610 measured)
 fn test_combat_fields_layout() {
     let casts = MemberState { casts_2: 1, ..Default::default() };
     let two_168: felt252 = TWO_128 * 0x10000000000;
@@ -370,7 +370,7 @@ fn test_combat_fields_layout() {
 
 #[test]
 #[should_panic(expected: 'packing: charges above 63')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_effect_charges_refused() {
     let wide = Effect { charges: 64, ..Default::default() };
     StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
@@ -378,7 +378,7 @@ fn test_effect_charges_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: rank above 15')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_effect_rank_refused() {
     let wide = Effect { rank: 16, ..Default::default() };
     StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
@@ -386,7 +386,7 @@ fn test_effect_rank_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: belt slot above 3')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_effect_belt_slot_refused() {
     let wide = Effect { skill: 4, potion: true, ..Default::default() };
     StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
@@ -394,7 +394,7 @@ fn test_effect_belt_slot_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: charges above 63')]
-#[available_gas(l2_gas: 35648)] // ceil(1.05 × 33950 measured)
+#[available_gas(l2_gas: 27552)] // ceil(1.05 × 26240 measured)
 fn test_goblin_effect_charges_refused() {
     let timers = GoblinTimers { effect_charges: 64, ..Default::default() };
     StorePacking::<GoblinTimers, felt252>::pack(timers);
@@ -402,7 +402,7 @@ fn test_goblin_effect_charges_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: rank above 15')]
-#[available_gas(l2_gas: 35648)] // ceil(1.05 × 33950 measured)
+#[available_gas(l2_gas: 27552)] // ceil(1.05 × 26240 measured)
 fn test_goblin_effect_rank_refused() {
     let timers = GoblinTimers { effect_rank: 16, ..Default::default() };
     StorePacking::<GoblinTimers, felt252>::pack(timers);

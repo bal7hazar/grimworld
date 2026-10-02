@@ -79,8 +79,8 @@ def budget_for(measured):
     return (measured * 105 + 99) // 100
 
 
-def run(cmd, cwd=ROOT):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+def run(cmd, cwd=ROOT, env=None):
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
 
 
 # ---------------------------------------------------------------- sources
@@ -491,7 +491,9 @@ def main():
         cmd = ["snforge", "test", "--workspace", "--fuzzer-seed", "1"]
         if not args.no_lock:
             cmd = [os.path.join(ROOT, "scripts", "lock.sh"), "--heavy"] + cmd
-        res = run(cmd, os.path.join(ROOT, args.workspace))
+        # D-176: a measured build is single-threaded, or the compiler's withdraw_gas placement follows
+        # rayon's thread order and the figures differ between builds (docs/CAIRO.md §2).
+        res = run(cmd, os.path.join(ROOT, args.workspace), {**os.environ, "RAYON_NUM_THREADS": "1"})
         text = res.stdout
         if res.returncode != 0:
             sys.stderr.write(text + res.stderr)

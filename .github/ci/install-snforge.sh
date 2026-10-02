@@ -13,6 +13,7 @@ set -euo pipefail
 : "${RUNNER_TEMP:?RUNNER_TEMP is not set}"
 
 case "$SNFORGE" in
+  0.64.0) snforge_sha=24c96491a1532431ccd9d1675b49d881eb3d09f209748199d91b4d4eed5030a0 ;;
   0.61.0) snforge_sha=fdd3b5d9b5a927a31ca45088b1c9a820519f8b2d2cc93193d790bcd5ece9359b ;;
   0.51.2) snforge_sha=9a8f9bdf69dd2e3a501949182520dccc77067c2c05d2a9ba835ec28234d4028a ;;
   *)

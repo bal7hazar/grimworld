@@ -466,8 +466,9 @@ fn try_set(
 /// target is its measure): ceil(1.05 × 8,097,073 measured), snforge, `get_available_gas` around
 /// the dispatcher call. snforge prices a new slot as an overwrite: the first write's premium is
 /// the node probe's (`contracts/tools/lifecycle_probe.py`). Raised from 3,108,768 (2,960,731
-/// measured, no modifier worn): the flattening of the 15 modifiers, D-160, D-168.
-const WORST_CASE_CALL: u128 = 8501927;
+/// measured, no modifier worn): the flattening of the 15 modifiers, D-160, D-168. Raised again to
+/// ceil(1.05 × 8,667,373 measured) on Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost.
+const WORST_CASE_CALL: u128 = 9100742;
 
 // The worst case of ENG-01 §9.3 and §10: 8 skills (an elite in slot 3), every attribute point of
 // a level 20 Copper spent (12/12/3: 97 + 97 + 6 = 200), four potions on four pack pages, seven
@@ -477,7 +478,7 @@ const WORST_CASE_CALL: u128 = 8501927;
 // call). The words stored are the flattening's (AC-1).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 121328019)] // ceil(1.05 × 115550494 measured)
+#[available_gas(l2_gas: 126671123)] // ceil(1.05 × 120639164 measured)
 fn test_set_build_worst_case() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -531,7 +532,7 @@ fn test_set_build_worst_case() {
 // The worst case's make-up: each part alone, the others empty (the report's cost table).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 87113792)] // ceil(1.05 × 82965516 measured)
+#[available_gas(l2_gas: 91091791)] // ceil(1.05 × 86754086 measured)
 fn test_set_build_parts() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -555,7 +556,7 @@ fn test_set_build_parts() {
 // adventurer back, and the snapshot of a level 20 Vanguard without equipment.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 83054213)] // ceil(1.05 × 79099250 measured)
+#[available_gas(l2_gas: 86765931)] // ceil(1.05 × 82634220 measured)
 fn test_set_build_empty() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -584,7 +585,7 @@ fn test_set_build_empty() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 80001877)] // ceil(1.05 × 76192263 measured)
+#[available_gas(l2_gas: 83394500)] // ceil(1.05 × 79423333 measured)
 fn test_set_build_ownership_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -609,7 +610,7 @@ fn test_set_build_ownership_refusals() {
 // `equipped`; bit 250 (`LIVE`) is not the caller's to send.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 82845518)] // ceil(1.05 × 78900493 measured)
+#[available_gas(l2_gas: 86341462)] // ceil(1.05 × 82229963 measured)
 fn test_set_build_layout_refusals() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -641,7 +642,7 @@ fn test_set_build_layout_refusals() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 79479428)] // ceil(1.05 × 75694693 measured)
+#[available_gas(l2_gas: 82932112)] // ceil(1.05 × 78982963 measured)
 fn test_bar_duplicate_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -653,7 +654,7 @@ fn test_bar_duplicate_refused() {
 // Known: skills 1 to 12 on page 0; skill 13 is in no bit. 12 is known but has no record.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 84301819)] // ceil(1.05 × 80287446 measured)
+#[available_gas(l2_gas: 87962297)] // ceil(1.05 × 83773616 measured)
 fn test_bar_known_and_registered() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -672,7 +673,7 @@ fn test_bar_known_and_registered() {
 // Of the primary or the secondary profession (design/03).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 80321791)] // ceil(1.05 × 76496943 measured)
+#[available_gas(l2_gas: 83811854)] // ceil(1.05 × 79820813 measured)
 fn test_bar_profession() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -688,7 +689,7 @@ fn test_bar_profession() {
 // At most one elite; `elite_slot` names it, or is 255 without one.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 84194128)] // ceil(1.05 × 80184883 measured)
+#[available_gas(l2_gas: 87810821)] // ceil(1.05 × 83629353 measured)
 fn test_bar_elite() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -711,7 +712,7 @@ fn test_bar_elite() {
 // Ranks 0 to 12 (design/03); a level 20 Copper has 200 points.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 83243891)] // ceil(1.05 × 79279896 measured)
+#[available_gas(l2_gas: 86789920)] // ceil(1.05 × 82657066 measured)
 fn test_attributes_rank_and_points() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -730,7 +731,7 @@ fn test_attributes_rank_and_points() {
 // A level 1 Wood has no point; a level 1 Tin has 15 (design/03); each level band's step.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 98634747)] // ceil(1.05 × 93937854 measured)
+#[available_gas(l2_gas: 103032326)] // ceil(1.05 × 98126024 measured)
 fn test_attributes_points_by_level() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -761,7 +762,7 @@ fn test_attributes_points_by_level() {
 // attribute. A Warden has 4 attributes, a Vanguard and an Arcanist 5.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 90100331)] // ceil(1.05 × 85809839 measured)
+#[available_gas(l2_gas: 93942985)] // ceil(1.05 × 89469509 measured)
 fn test_attributes_indices() {
     let world = setup();
     let id = adventurer(world, WARDEN);
@@ -787,7 +788,7 @@ fn test_attributes_indices() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 81687673)] // ceil(1.05 × 77797783 measured)
+#[available_gas(l2_gas: 85148966)] // ceil(1.05 × 81094253 measured)
 fn test_belt_items() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -807,7 +808,7 @@ fn test_belt_items() {
 // The pack holds 3 of each potion: the counts are within it, two slots of one item summed.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 83085320)] // ceil(1.05 × 79128876 measured)
+#[available_gas(l2_gas: 86641009)] // ceil(1.05 × 82515246 measured)
 fn test_belt_counts_within_the_pack() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -825,7 +826,7 @@ fn test_belt_counts_within_the_pack() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 88013499)] // ceil(1.05 × 83822380 measured)
+#[available_gas(l2_gas: 91694768)] // ceil(1.05 × 87328350 measured)
 fn test_equipment_owned_and_wearable() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -843,7 +844,7 @@ fn test_equipment_owned_and_wearable() {
 // Each base in its own slot; a weapon in both hands leaves the off-hand empty (design/15).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 87592374)] // ceil(1.05 × 83421308 measured)
+#[available_gas(l2_gas: 91370767)] // ceil(1.05 × 87019778 measured)
 fn test_equipment_slots_and_hands() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -866,7 +867,7 @@ fn test_equipment_slots_and_hands() {
 // −50, refused (costs count on every rune, FX-43).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 101233781)] // ceil(1.05 × 96413124 measured)
+#[available_gas(l2_gas: 105739299)] // ceil(1.05 × 100704094 measured)
 fn test_set_build_floor_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -882,7 +883,7 @@ fn test_set_build_floor_refused() {
 // refused on the legs.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 100811352)] // ceil(1.05 × 96010811 measured)
+#[available_gas(l2_gas: 105304271)] // ceil(1.05 × 100289781 measured)
 fn test_set_build_insignia_piece_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -898,7 +899,7 @@ fn test_set_build_insignia_piece_refused() {
 // adventurer holds, refused.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 105703453)] // ceil(1.05 × 100669955 measured)
+#[available_gas(l2_gas: 110309772)] // ceil(1.05 × 105056925 measured)
 fn test_set_build_sixth_rune_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -916,7 +917,7 @@ fn test_set_build_sixth_rune_refused() {
 // A modifier the registry does not hold is refused.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 96320710)] // ceil(1.05 × 91734009 measured)
+#[available_gas(l2_gas: 100658543)] // ceil(1.05 × 95865279 measured)
 fn test_set_build_unknown_modifier_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -932,7 +933,7 @@ fn test_set_build_unknown_modifier_refused() {
 // refused).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 104901811)] // ceil(1.05 × 99906486 measured)
+#[available_gas(l2_gas: 109503299)] // ceil(1.05 × 104288856 measured)
 fn test_set_build_modifier_slot_and_value_refused() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -954,7 +955,7 @@ fn test_set_build_modifier_slot_and_value_refused() {
 // bonuses of the envelope's 1,020 are not laid out yet). The words stored are the flattening's.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 107393120)] // ceil(1.05 × 102279161 measured)
+#[available_gas(l2_gas: 111973398)] // ceil(1.05 × 106641331 measured)
 fn test_set_build_stores_the_extremal_max_health() {
     let world = setup();
     let id = adventurer(world, VANGUARD);
@@ -1016,7 +1017,7 @@ fn test_set_build_stores_the_extremal_max_health() {
 // words stored are the flattening's.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 90812040)] // ceil(1.05 × 86487657 measured)
+#[available_gas(l2_gas: 94648289)] // ceil(1.05 × 90141227 measured)
 fn test_set_build_stores_the_extremal_max_energy() {
     let world = setup();
     let id = adventurer(world, ARCANIST);
@@ -1120,7 +1121,7 @@ mod RecordingRegistry {
 // another kind fails here until `Inputs::includes` names it.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 115452682)] // ceil(1.05 × 109954935 measured)
+#[available_gas(l2_gas: 120386706)] // ceil(1.05 × 114654005 measured)
 fn test_set_build_requests_the_input_kinds() {
     let world = setup();
     let class = declare("RecordingRegistry").unwrap().contract_class();

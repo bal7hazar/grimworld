@@ -88,7 +88,7 @@ fn widest() -> (Loadout, Span<Worn>, Span<u16>, Span<felt252>) {
 
 // The library's words are the flattening's (D-168: `set_build` stores them, `enter` copies them).
 #[test]
-#[available_gas(l2_gas: 7562663)] // ceil(1.05 × 7202536 measured)
+#[available_gas(l2_gas: 7554022)] // ceil(1.05 × 7194306 measured)
 fn test_library_words_are_the_flattening() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
     let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -105,7 +105,7 @@ fn test_library_words_are_the_flattening() {
 // Cost: the library call of the widest equipment, the call alone (`get_available_gas` around it),
 // the benchmark of `set_build`'s flattening.
 #[test]
-#[available_gas(l2_gas: 4640683)] // ceil(1.05 × 4419698 measured)
+#[available_gas(l2_gas: 4631937)] // ceil(1.05 × 4411368 measured)
 fn test_cost_library_call_widest() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
     let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -119,7 +119,7 @@ fn test_cost_library_call_widest() {
 
 // Cost: the library call of a build without equipment (the fixed part).
 #[test]
-#[available_gas(l2_gas: 2074646)] // ceil(1.05 × 1975853 measured)
+#[available_gas(l2_gas: 2065900)] // ceil(1.05 × 1967523 measured)
 fn test_cost_library_call_empty() {
     let class = declare("FlattenLibrary").unwrap().contract_class();
     let library = IFlattenLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -222,7 +222,7 @@ fn through_the_library(
 // 250 = 920. design/20's 1,020 adds two +50 set bonuses, which no item holds: armor sets are not
 // laid out in the loadout (`set_bonuses` 0, `BuildTrait::loadout`).
 #[test]
-#[available_gas(l2_gas: 6741154)] // ceil(1.05 × 6420146 measured)
+#[available_gas(l2_gas: 6732512)] // ceil(1.05 × 6411916 measured)
 fn test_extremal_max_health_through_the_library() {
     let none: Passive = Default::default();
     let mut records = held_records(PassiveTrait::new(id::MAX_HEALTH, 0, 0, 0, 1, 30));
@@ -262,7 +262,7 @@ fn test_extremal_max_health_through_the_library() {
 // armor, the five held slots at +5: 30 + 45 + 20 + 25 = 120. design/20's 130 adds two +5 set
 // bonuses, which no item holds (as above).
 #[test]
-#[available_gas(l2_gas: 3468188)] // ceil(1.05 × 3303036 measured)
+#[available_gas(l2_gas: 3459547)] // ceil(1.05 × 3294806 measured)
 fn test_extremal_max_energy_through_the_library() {
     let none: Passive = Default::default();
     let mut records = held_records(PassiveTrait::new(id::MAX_ENERGY, 0, 0, 0, 1, 5));
@@ -285,7 +285,7 @@ fn test_extremal_max_energy_through_the_library() {
 // down. The loadout carries it; `set_build` cannot yet, since `BASE` lays out no weapon statistics
 // (D-158): its loadout's weapon damage is 0.
 #[test]
-#[available_gas(l2_gas: 1539832)] // ceil(1.05 × 1466506 measured)
+#[available_gas(l2_gas: 1531190)] // ceil(1.05 × 1458276 measured)
 fn test_extremal_weapon_damage_through_the_library() {
     let loadout = Loadout {
         weapon_damage: 27, requirement_met: 1, personalised: true, ..bare(20, 1),
@@ -301,7 +301,7 @@ fn test_extremal_weapon_damage_through_the_library() {
 // build-local indices and the global ids runes name are not numbered (D-157 A), so its loadout
 // has no point.
 #[test]
-#[available_gas(l2_gas: 2144338)] // ceil(1.05 × 2042226 measured)
+#[available_gas(l2_gas: 2135696)] // ceil(1.05 × 2033996 measured)
 fn test_extremal_ranks_through_the_library() {
     let attribute = PassiveTrait::new(id::ATTRIBUTE, PRIMARY, 0, 0, 1, 3);
     let rune = ModifierTrait::new(modifier_slot::RUNE, attribute, Default::default());

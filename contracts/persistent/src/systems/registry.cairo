@@ -453,7 +453,7 @@ mod layout_tests {
 
     #[test]
     // gas: raised, CBT-02c fix loop 2: the layout checks caste_skills' address too
-    #[available_gas(l2_gas: 72755)] // ceil(1.05 × 69290 measured)
+    #[available_gas(l2_gas: 64638)] // ceil(1.05 × 61560 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
         assert(
@@ -484,7 +484,7 @@ mod layout_tests {
 
     // The oracle of `Parts::key` and `Parts::address`: the map's own address, for the widest keys.
     #[test]
-    #[available_gas(l2_gas: 186228)] // ceil(1.05 × 177360 measured)
+    #[available_gas(l2_gas: 178112)] // ceil(1.05 × 169630 measured)
     fn test_part_address_is_the_maps() {
         let state = @Registry::contract_state_for_testing();
         let cases: Array<(u8, u32, u8)> = array![
@@ -510,7 +510,7 @@ mod inputs_tests {
     use super::Inputs;
 
     #[test]
-    #[available_gas(l2_gas: 112350)] // ceil(1.05 × 107000 measured)
+    #[available_gas(l2_gas: 104255)] // ceil(1.05 × 99290 measured)
     fn test_flattening_inputs() {
         for kind in 1..LAST_KIND + 1 {
             let expected = kind == SKILL || kind == ITEM || kind == MODIFIER;
@@ -529,7 +529,7 @@ mod version_cost_tests {
     use super::Registry::InternalTrait;
 
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_version_cost_baseline() {
         let state = Registry::contract_state_for_testing();
         let _ = @state;
@@ -538,7 +538,7 @@ mod version_cost_tests {
     // `bundle`'s part of the versions: one read of one slot, unpacked into the two (D-169).
     #[test]
     // gas: raised, CBT-02f: the slot holds the content and inputs versions, unpacked at the read
-    #[available_gas(l2_gas: 39785)] // ceil(1.05 × 37890 measured)
+    #[available_gas(l2_gas: 37989)] // ceil(1.05 × 36180 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
         assert(state.stored_versions().content == 0, 'version 0');
@@ -546,7 +546,8 @@ mod version_cost_tests {
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
     #[test]
-    #[available_gas(l2_gas: 507066)] // ceil(1.05 × 482920 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 524633)] // ceil(1.05 × 499650 measured)
     fn test_version_cost_raise() {
         let mut state = Registry::contract_state_for_testing();
         state.raise_versions(false);
@@ -555,7 +556,8 @@ mod version_cost_tests {
     // `set_record`'s part when the changed record is an input of the flattening (D-169): both
     // versions raised in the same write; against `test_version_cost_raise`, the added cost.
     #[test]
-    #[available_gas(l2_gas: 512169)] // ceil(1.05 × 487780 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 525998)] // ceil(1.05 × 500950 measured)
     fn test_version_cost_raise_input() {
         let mut state = Registry::contract_state_for_testing();
         state.raise_versions(true);
@@ -563,7 +565,7 @@ mod version_cost_tests {
 
     // The baseline of the next one: a version already written.
     #[test]
-    #[available_gas(l2_gas: 444087)] // ceil(1.05 × 422940 measured)
+    #[available_gas(l2_gas: 435992)] // ceil(1.05 × 415230 measured)
     fn test_version_cost_stored_baseline() {
         let state = Registry::contract_state_for_testing();
         store(test_address(), selector!("versions"), array![7].span());
@@ -572,7 +574,8 @@ mod version_cost_tests {
 
     // Every raise after the first: the slot holds a version, the write overwrites it.
     #[test]
-    #[available_gas(l2_gas: 514647)] // ceil(1.05 × 490140 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 533264)] // ceil(1.05 × 507870 measured)
     fn test_version_cost_raise_again() {
         let mut state = Registry::contract_state_for_testing();
         store(test_address(), selector!("versions"), array![7].span());
@@ -629,14 +632,15 @@ mod detection_cost_tests {
 
     // The baseline of the four below: the record stored, nothing else.
     #[test]
-    #[available_gas(l2_gas: 1352841)] // ceil(1.05 × 1288420 measured)
+    #[available_gas(l2_gas: 1344746)] // ceil(1.05 × 1280710 measured)
     fn test_detection_cost_stored_baseline() {
         let _state = Registry::contract_state_for_testing();
         Book::store();
     }
 
     #[test]
-    #[available_gas(l2_gas: 1538681)] // ceil(1.05 × 1465410 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 1577814)] // ceil(1.05 × 1502680 measured)
     fn test_detection_cost_identical_blind() {
         let _state = Registry::contract_state_for_testing();
         Book::store();
@@ -644,7 +648,8 @@ mod detection_cost_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1456907)] // ceil(1.05 × 1387530 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 1467690)] // ceil(1.05 × 1397800 measured)
     fn test_detection_cost_identical() {
         let mut state = Registry::contract_state_for_testing();
         Book::store();
@@ -652,7 +657,8 @@ mod detection_cost_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1538681)] // ceil(1.05 × 1465410 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 1577814)] // ceil(1.05 × 1502680 measured)
     fn test_detection_cost_changed_blind() {
         let _state = Registry::contract_state_for_testing();
         Book::store();
@@ -660,7 +666,8 @@ mod detection_cost_tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1600956)] // ceil(1.05 × 1524720 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 1658990)] // ceil(1.05 × 1579990 measured)
     fn test_detection_cost_changed() {
         let mut state = Registry::contract_state_for_testing();
         Book::store();

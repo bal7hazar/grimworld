@@ -98,7 +98,7 @@ mod tests {
 
     // The words `set_build` receives, as stored: `LIVE` added, each read back as its model.
     #[test]
-    #[available_gas(l2_gas: 189609)] // ceil(1.05 × 180580 measured)
+    #[available_gas(l2_gas: 181388)] // ceil(1.05 × 172750 measured)
     fn test_stored_build() {
         let build = Build { bar: [3, 0, 0, 0, 0, 0, 0, 9], attributes: 0x21, elite_slot: 7 };
         let counts: u32 = 0xFF + 0x2 * 0x100;

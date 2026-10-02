@@ -23,7 +23,7 @@ fn market(event: Market::Event) -> (Array<felt252>, Array<felt252>) {
 }
 
 #[test]
-#[available_gas(l2_gas: 85712)] // ceil(1.05 × 81630 measured)
+#[available_gas(l2_gas: 77490)] // ceil(1.05 × 73800 measured)
 fn test_hub_events() {
     let (keys, data) = hub(
         Hub::Event::AdventurerLocated(AdventurerLocated { hub: 3, adventurer: 9 }),
@@ -55,7 +55,7 @@ fn test_hub_events() {
 }
 
 #[test]
-#[available_gas(l2_gas: 82698)] // ceil(1.05 × 78760 measured)
+#[available_gas(l2_gas: 74477)] // ceil(1.05 × 70930 measured)
 fn test_market_events() {
     let (keys, data) = market(
         Market::Event::LotPosted(

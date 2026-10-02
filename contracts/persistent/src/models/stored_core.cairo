@@ -105,7 +105,7 @@ mod tests {
 
     // The core's fields, the deletion mark, pack lanes and experience, against the packer.
     #[test]
-    #[available_gas(l2_gas: 302159)] // ceil(1.05 × 287770 measured)
+    #[available_gas(l2_gas: 293937)] // ceil(1.05 × 279940 measured)
     fn test_core_words() {
         let full = AdventurerCore {
             account: 0x12345678,
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'experience overflow')]
-    #[available_gas(l2_gas: 77910)] // ceil(1.05 × 74200 measured)
+    #[available_gas(l2_gas: 69689)] // ceil(1.05 × 66370 measured)
     fn test_experience_overflow_refused() {
         stored_core(AdventurerCore { experience: 100, ..Default::default() })
             .with_experience(0xFFFFFFFF - 99);

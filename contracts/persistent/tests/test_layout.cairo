@@ -13,14 +13,14 @@ use starknet::storage_access::StorePacking;
 const TWO_128: felt252 = 0x100000000000000000000000000000000;
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_record_sizes() {
     assert(starknet::Store::<Trade>::size() == 5, 'trade: 5 slots');
     assert(starknet::Store::<Lot>::size() == 1, 'lot: 1 slot');
 }
 
 #[test]
-#[available_gas(l2_gas: 205937)] // ceil(1.05 × 196130 measured)
+#[available_gas(l2_gas: 197715)] // ceil(1.05 × 188300 measured)
 fn test_market_layout() {
     let lot = Lot {
         price: 0xFFFFFFFFFFFFFFFF,

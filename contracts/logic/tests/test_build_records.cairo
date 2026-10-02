@@ -9,7 +9,7 @@ use grimworld_logic::packing::LIVE;
 use grimworld_logic::professions::ProfessionTrait;
 
 #[test]
-#[available_gas(l2_gas: 81669)] // ceil(1.05 × 77780 measured)
+#[available_gas(l2_gas: 73448)] // ceil(1.05 × 69950 measured)
 fn test_base_round_trip() {
     let maul = BaseTrait::new(slot::WEAPON, 2);
     assert(Record::unpack(maul.pack()) == maul, 'round trip');
@@ -30,35 +30,35 @@ fn test_base_round_trip() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'base: slot')]
 fn test_base_slot_refused() {
     BaseTrait::new(slot::LAST + 1, 0).pack();
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'base: slot')]
 fn test_base_no_slot_refused() {
     BaseTrait::new(0, 0).pack();
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'base: hands')]
 fn test_base_weapon_hands_refused() {
     BaseTrait::new(slot::WEAPON, 3).pack();
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'base: hands')]
 fn test_base_armor_hands_refused() {
     BaseTrait::new(slot::OFF_HAND, 1).pack();
 }
 
 #[test]
-#[available_gas(l2_gas: 2311985)] // ceil(1.05 × 2201890 measured)
+#[available_gas(l2_gas: 2303763)] // ceil(1.05 × 2194060 measured)
 fn test_skill_profile_and_item_class() {
     for profession in array![1_u8, 6, 0xFF] {
         for elite in array![false, true] {
@@ -89,7 +89,7 @@ fn test_skill_profile_and_item_class() {
 
 // design/03's attribute counts: 26 in all (D-157).
 #[test]
-#[available_gas(l2_gas: 35196)] // ceil(1.05 × 33520 measured)
+#[available_gas(l2_gas: 27101)] // ceil(1.05 × 25810 measured)
 fn test_profession_attributes() {
     let mut total: u8 = 0;
     for id in 1..7_u8 {
@@ -102,7 +102,7 @@ fn test_profession_attributes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 #[should_panic(expected: 'bad profession')]
 fn test_profession_attributes_none() {
     ProfessionTrait::attributes(0);

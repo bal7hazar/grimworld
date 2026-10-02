@@ -135,7 +135,7 @@ mod tests {
     // Sealed with the widest kit and flattening epoch (the inputs version and the rules epoch at
     // their highest), the kit comes back whole, and the state reads.
     #[test]
-    #[available_gas(l2_gas: 304731)] // ceil(1.05 × 290220 measured)
+    #[available_gas(l2_gas: 296510)] // ceil(1.05 × 282390 measured)
     fn test_seal_round_trip() {
         let epoch = StoredSnapshotTrait::epoch(0xffffffff, RULES_EPOCHS - 1);
         let word = StoredSnapshotTrait::seal(kit(), epoch);
@@ -150,7 +150,7 @@ mod tests {
     // The flattening epoch's layout: the inputs version at bits 208–239, the rules epoch at
     // 241–249, the mark's bit 240 between them, and nothing at 250 (`LIVE`) or above.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_epoch_bits() {
         let unit: felt252 = 0x10000000000000000000000000000000000000000000000000000; // 2^208
         let inputs = StoredSnapshotTrait::seal(0, StoredSnapshotTrait::epoch(0xffffffff, 0));
@@ -166,7 +166,7 @@ mod tests {
 
     // A snapshot of another rules epoch, of the same inputs version, is stale.
     #[test]
-    #[available_gas(l2_gas: 75233)] // ceil(1.05 × 71650 measured)
+    #[available_gas(l2_gas: 67011)] // ceil(1.05 × 63820 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_rules_refused() {
         let word = StoredSnapshotTrait::seal(kit(), StoredSnapshotTrait::epoch(4, 1));
@@ -176,7 +176,7 @@ mod tests {
 
     // The mark is stale whatever the epoch, the widest included.
     #[test]
-    #[available_gas(l2_gas: 20790)] // ceil(1.05 × 19800 measured)
+    #[available_gas(l2_gas: 12569)] // ceil(1.05 × 11970 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_stale_mark_refused_at_any_epoch() {
         StoredSnapshotAssert::assert_fresh(
@@ -185,28 +185,28 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'snapshot: missing')]
     fn test_missing_refused() {
         StoredSnapshotAssert::assert_fresh(0, 0);
     }
 
     #[test]
-    #[available_gas(l2_gas: 20685)] // ceil(1.05 × 19700 measured)
+    #[available_gas(l2_gas: 12464)] // ceil(1.05 × 11870 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_stale_mark_refused() {
         StoredSnapshotAssert::assert_fresh(STALE_MARK, 0);
     }
 
     #[test]
-    #[available_gas(l2_gas: 70539)] // ceil(1.05 × 67180 measured)
+    #[available_gas(l2_gas: 62318)] // ceil(1.05 × 59350 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_version_refused() {
         StoredSnapshotAssert::assert_fresh(StoredSnapshotTrait::seal(kit(), 4), 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 127985)] // ceil(1.05 × 121890 measured)
+    #[available_gas(l2_gas: 119763)] // ceil(1.05 × 114060 measured)
     #[should_panic(expected: 'snapshot: stale')]
     fn test_other_level_refused() {
         let stats = pack_stats(MemberStats { level: 3, ..Default::default() });
@@ -216,7 +216,7 @@ mod tests {
 
     // The stale mark is `LIVE` and bit 240 alone.
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_stale_mark_bits() {
         assert(
             STALE_MARK == LIVE + 0x1000000000000000000000000000000000000000000000000000000000000,
