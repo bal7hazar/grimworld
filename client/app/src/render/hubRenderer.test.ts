@@ -342,6 +342,10 @@ describe("the hub renderer's buildings (CLI-03c AC-1, CLI-03e AC-3)", () => {
     const shown = surface.stage.children[1] as Sprite;
     expect(shown.texture.source.scaleMode).toBe("linear");
     expect(shown.scale.x).toBeCloseTo(renderer.fit()!.scale, 12);
+    // The baked root has no transform of its own: the frame is in art pixels.
+    const scene = renderer.sceneRoot();
+    expect([scene.scale.x, scene.scale.y, scene.x, scene.y]).toEqual([1, 1, 0, 0]);
+    expect(scene.parent).toBeNull();
   });
 });
 

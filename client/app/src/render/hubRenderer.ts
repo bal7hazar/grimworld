@@ -158,10 +158,11 @@ export class HubRenderer implements FrameClient {
   private place(): void {
     const fit = this.fit();
     if (!fit) return;
-    for (const node of [this.scene, this.sharpSprite]) {
-      node.scale.set(fit.scale);
-      node.position.set(fit.x, fit.y);
-    }
+    // `sharp` bakes the scene as a root free of any transform (as the room's offscreen pass); only
+    // the sprite that shows the bake is fitted.
+    const fitted = this.mode === "sharp" ? this.sharpSprite : this.scene;
+    fitted.scale.set(fit.scale);
+    fitted.position.set(fit.x, fit.y);
     for (const child of this.backdrop.removeChildren()) child.destroy();
     const water = this.still(this.view!.ground.water);
     const fill = water ? new Sprite(water) : new Graphics().rect(0, 0, 1, 1).fill(COLOURS.water);
@@ -304,6 +305,8 @@ export class HubRenderer implements FrameClient {
     if (!view || !fit) return;
     const frame = new Rectangle(0, 0, view.width, view.height);
     const old = this.sharpSprite.texture;
+    // The scene is never on the stage in this mode and keeps an identity transform: the frame is
+    // in its own art pixels.
     const texture = this.surface.bake(this.scene, frame, this.bakeResolution(fit, frame));
     texture.source.scaleMode = "linear";
     this.sharpSprite.texture = texture;

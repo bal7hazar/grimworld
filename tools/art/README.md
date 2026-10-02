@@ -79,12 +79,12 @@ has the same bytes and the same sha256 on both:
     out/ pixels+metadata sha256: 2b98b8857637072c50c4803dad7cdd1e42eb434d9d388a5e55f0f95f04fea5f5
 
 (Pillow 12.3.0 and NumPy 2.5.3 on both; only the `encoders:` line differs, as the table shows.)
-
-These are the fingerprints of `4c2b25c`'s manifest; a later manifest has others (CLI-03e's added
-the hubs' art and recorded none).
 The files are identical although Python's zlib (1.2.12 vs 1.3) and Pillow's (zlib-ng vs zlib)
 differ. If another machine's `out/ sha256` differs, compare the second line: it holds what the
 client loads (pixels and data), whatever compressed it.
+
+These are the fingerprints of `4c2b25c`'s manifest; a later manifest has others (CLI-03e's added
+the hubs' art and recorded none).
 
 **Why the files differed between macOS arm64 and Linux x86_64 (ART-00), and why they no longer do.**
 Measured on the Mac: Pillow 12's wheels compress PNGs with zlib-ng (`zlib (Pillow) 1.3.1.zlib-ng`); the same array written by Pillow and by `artpipe/png.py` gives

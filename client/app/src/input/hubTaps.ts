@@ -52,7 +52,9 @@ export interface HubScaling {
 /**
  * The whole illustration, as large as fits, centred: **one** factor for the whole scene (CLI-03e).
  * `snap`, as in a room, makes an art pixel a whole number of canvas pixels: here the largest that
- * still fits (a hub is not panned), at least one, and the corner on a canvas pixel.
+ * still fits (a hub is not panned), and the corner on a canvas pixel. When even one canvas pixel
+ * per art pixel does not fit (a 1× screen, a phone under 352 points at 2×), the hub keeps the
+ * fitted scale of `continuous`: it never overflows its zone.
  */
 export function hubFit(
   view: Pick<HubView, "width" | "height">,
@@ -62,10 +64,11 @@ export function hubFit(
   let scale = Math.max(0.01, Math.min(zone.width / view.width, zone.height / view.height));
   if (scaling.mode === "snap") {
     const r = scaling.resolution;
-    scale = Math.max(1, Math.floor(scale * r + 1e-9)) / r;
+    const n = Math.floor(scale * r + 1e-9);
+    if (n >= 1) scale = snapScale(n / r, r);
     const corner = (free: number) => Math.round((free / 2) * r) / r;
     return {
-      scale: snapScale(scale, r),
+      scale,
       x: corner(zone.width - view.width * scale),
       y: corner(zone.height - view.height * scale),
     };

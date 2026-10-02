@@ -23,9 +23,12 @@ const VIEWPORTS = [
   { width: 430, height: 687 },
   { width: 375, height: 520 },
   { width: 430, height: 600 },
+  // A 320-point phone (fix loop 1 of #307): snap at 1× and 2× falls back to the fitted scale.
+  { width: 320, height: 520 },
 ];
 const SCALINGS = [
   { mode: "continuous", resolution: canvasResolution("continuous", 2) },
+  { mode: "snap", resolution: canvasResolution("snap", 1) },
   { mode: "snap", resolution: canvasResolution("snap", 2) },
   { mode: "sharp", resolution: canvasResolution("sharp", 3) },
 ] as const;
@@ -128,5 +131,20 @@ describe("hub taps (CLI-03c, AC-5): every tap yields an intent, never a result",
     expect(desktop.scale).toBe(0.5);
     const wide = hubFit(view, { width: 1500, height: 2000 }, { mode: "snap", resolution: 2 });
     expect(wide.scale).toBe(2); // 4 canvas px per art pixel
+  });
+
+  it("snap never overflows: below one canvas pixel per art pixel, the fitted scale", () => {
+    const view = { width: 704, height: 960 };
+    for (const [zone, r] of [
+      [{ width: 430, height: 687 }, 1],
+      [{ width: 375, height: 599 }, 1],
+      [{ width: 320, height: 520 }, 2],
+    ] as const) {
+      const fit = hubFit(view, zone, { mode: "snap", resolution: r });
+      expect(fit.scale).toBeCloseTo(hubFit(view, zone).scale, 12);
+      expect(fit.x).toBeGreaterThanOrEqual(0);
+      expect(fit.y).toBeGreaterThanOrEqual(0);
+      expect(view.width * fit.scale).toBeLessThanOrEqual(zone.width);
+    }
   });
 });

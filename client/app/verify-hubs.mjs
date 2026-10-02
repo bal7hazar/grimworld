@@ -7,8 +7,10 @@
 // and sends SIGTERM to that recorded group in `finally`. No screenshot is taken unless
 // VERIFY_SHOTS is set, and then only into the untracked `.verify-out/`, or VERIFY_SHOTS_DIR (D-73:
 // a folder outside git). With the shots, CLI-03e's four: the town and the outpost at 375 × 812 and
-// 1440 × 900, once the atlas is loaded (`hub-<name>-<viewport>.png`), and a check that no place is
-// drawn as a shape when the atlas is there.
+// 1440 × 900, once the atlas is loaded (`hub-<name>-<viewport>.png`). The hub pass also opens the
+// town in `?scale=sharp` and fails on any page error. Its check that no place is drawn as a shape
+// applies only with the pack (the atlas built in `tools/art/out/`); without it the pass notes the
+// shapes and asserts nothing about them.
 //
 // Env: VERIFY_PORT (default 5197), VERIFY_CHANNEL (a Playwright channel such as "chrome"; default:
 // the Chromium that `playwright-core install chromium` fetched), VERIFY_SHOTS=1, VERIFY_SHOTS_DIR.
@@ -185,7 +187,9 @@ async function hubShots(browser) {
   ]) {
     const context = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
     const page = await context.newPage();
-    for (const hub of ["town", "outpost"]) {
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.stack ?? String(e)));
+    for (const hub of ["town", "outpost", "town&scale=sharp"]) {
       await page.goto(`${base}/?hub=${hub}`);
       await screen(page, "hub").waitFor();
       const canvas = page.locator("[data-atlas]");
@@ -196,12 +200,16 @@ async function hubShots(browser) {
       if (atlas === "loaded")
         ok(shapes === 0, `${hub} ${label}: atlas loaded, no place as a shape`);
       else console.log(`  note ${hub} ${label}: atlas ${atlas}, ${shapes} places as shapes`);
+      const frames = Number(await canvas.getAttribute("data-frames"));
+      ok(frames >= 1, `${hub} ${label}: drawn (${frames} frames)`);
       if (shots) {
-        const path = join(shots, `hub-${hub}-${label}.png`);
+        const path = join(shots, `hub-${hub.replace("&scale=", "-")}-${label}.png`);
         await page.screenshot({ path });
         console.log(`  shot ${path}`);
       }
     }
+    ok(errors.length === 0, `hubs ${label}: no page error`);
+    for (const e of errors) console.log(`  page error: ${e.split("\n").slice(0, 2).join(" | ")}`);
     await context.close();
   }
 }
