@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LoopIntent } from "../../input/intent";
+import { HUB_VIEWS } from "../fixtures/hubs";
 import { OUTPOST, TOWN, globalTile } from "../fixtures/region";
 import {
   type LoopEvent,
@@ -11,6 +12,9 @@ import {
   leaveQuestion,
   step,
 } from "./machine";
+
+/** The town's arrival hex (CLI-03f): the hub screens carry the adventurer's hex. */
+const ARRIVAL = HUB_VIEWS.get(TOWN)!.arrival;
 
 function run(state: LoopState, ...events: LoopEvent[]): LoopState {
   return events.reduce(step, state);
@@ -32,17 +36,17 @@ function enter(hub: number): LoopState {
 describe("the loop's screens (CLI-03c)", () => {
   it("hub → service → back, hub → Gate screen → back", () => {
     let s = run(hubState(TOWN), { kind: "open service", service: "smith" });
-    expect(s.screen).toEqual({ kind: "service", hub: TOWN, service: "smith" });
+    expect(s.screen).toEqual({ kind: "service", hub: TOWN, service: "smith", at: ARRIVAL });
     s = step(s, { kind: "back" });
-    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: ARRIVAL });
     s = run(s, { kind: "open gate screen" });
-    expect(s.screen).toEqual({ kind: "gate", hub: TOWN });
+    expect(s.screen).toEqual({ kind: "gate", hub: TOWN, at: ARRIVAL });
     expect(step(s, { kind: "back" }).screen.kind).toBe("hub");
   });
 
   it("inspects a present adventurer of this hub only", () => {
     const s = step(hubState(TOWN), { kind: "inspect adventurer", adventurer: 12 });
-    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: 12 });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: 12, at: ARRIVAL });
     expect(s.said).toBe("inspect Tobin, vanguard level 3");
     expect(step(hubState(TOWN), { kind: "inspect adventurer", adventurer: 21 }).screen).toEqual(
       hubState(TOWN).screen,
@@ -97,7 +101,7 @@ describe("the loop's screens (CLI-03c)", () => {
     s = step(s, { kind: "leave", gate: 2 });
     expect(s.screen).toEqual({ kind: "report", outcome: "returned", how: "gate", hub: TOWN });
     s = step(s, { kind: "close report" });
-    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: ARRIVAL });
     expect(s.lastHub).toBe(TOWN);
   });
 

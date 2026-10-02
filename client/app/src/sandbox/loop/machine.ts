@@ -11,10 +11,24 @@ import { type ExpeditionEnd, entryThrough, hubAfter, hubGateAt } from "../placeh
  * randomness; the entry's wait is the screen's timer, which sends the answer `entry drawn`.
  */
 
+/**
+ * The hub, service and Gate screens carry `at`, the player's adventurer's hex in that hub (CLI-03f):
+ * presentation, recorded for the hub screen to draw, never decided here.
+ */
 export type Screen =
-  | { readonly kind: "hub"; readonly hub: number; readonly inspected: number | null }
-  | { readonly kind: "service"; readonly hub: number; readonly service: ServiceId }
-  | { readonly kind: "gate"; readonly hub: number }
+  | {
+      readonly kind: "hub";
+      readonly hub: number;
+      readonly inspected: number | null;
+      readonly at: Tile;
+    }
+  | {
+      readonly kind: "service";
+      readonly hub: number;
+      readonly service: ServiceId;
+      readonly at: Tile;
+    }
+  | { readonly kind: "gate"; readonly hub: number; readonly at: Tile }
   /** The entry moment: the entry draw, a Fate action sent alone, awaited (design/02). */
   | { readonly kind: "entry"; readonly hub: number; readonly gate: number }
   | {
@@ -52,14 +66,18 @@ export type LoopAnswer =
   /** The entry draw is made: the instance opens on its entry chunk. */
   | { readonly kind: "entry drawn" }
   /** The adventurer stands on a tile of the instance (after each step of the room). */
-  | { readonly kind: "moved"; readonly tile: Tile };
+  | { readonly kind: "moved"; readonly tile: Tile }
+  /** The adventurer stands on a hex of the hub (after each step of the hub's walk, CLI-03f). */
+  | { readonly kind: "stood"; readonly tile: Tile };
 
 export type LoopEvent = LoopIntent | LoopAnswer;
 
+/** Arriving in a hub: on its arrival hex, whatever the way of arriving (CLI-03f). */
 export function hubState(hub: number): LoopState {
-  if (!HUB_VIEWS.has(hub)) throw new Error(`no hub ${hub} in the fixed data`);
+  const view = HUB_VIEWS.get(hub);
+  if (!view) throw new Error(`no hub ${hub} in the fixed data`);
   return {
-    screen: { kind: "hub", hub, inspected: null },
+    screen: { kind: "hub", hub, inspected: null, at: view.arrival },
     lastHub: hub,
     said: `at ${hubName(hub)}`,
   };
@@ -121,11 +139,17 @@ export function step(state: LoopState, event: LoopEvent): LoopState {
         case "open service":
           return {
             ...state,
-            screen: { kind: "service", hub: screen.hub, service: event.service },
+            screen: { kind: "service", hub: screen.hub, service: event.service, at: screen.at },
             said: `open ${event.service}`,
           };
         case "open gate screen":
-          return { ...state, screen: { kind: "gate", hub: screen.hub }, said: "open the Gate" };
+          return {
+            ...state,
+            screen: { kind: "gate", hub: screen.hub, at: screen.at },
+            said: "open the Gate",
+          };
+        case "stood":
+          return { ...state, screen: { ...screen, at: event.tile } };
         case "inspect adventurer": {
           const figure = HUB_VIEWS.get(screen.hub)?.figures.find((f) => f.id === event.adventurer);
           if (!figure) return ignored(state, event);
@@ -142,12 +166,16 @@ export function step(state: LoopState, event: LoopEvent): LoopState {
       }
     case "service":
       if (event.kind !== "back") return ignored(state, event);
-      return { ...state, screen: { kind: "hub", hub: screen.hub, inspected: null }, said: "back" };
+      return {
+        ...state,
+        screen: { kind: "hub", hub: screen.hub, inspected: null, at: screen.at },
+        said: "back",
+      };
     case "gate":
       if (event.kind === "back") {
         return {
           ...state,
-          screen: { kind: "hub", hub: screen.hub, inspected: null },
+          screen: { kind: "hub", hub: screen.hub, inspected: null, at: screen.at },
           said: "back",
         };
       }

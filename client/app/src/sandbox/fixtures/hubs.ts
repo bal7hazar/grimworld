@@ -4,7 +4,7 @@ import {
   type HubPlace,
   type HubProp,
   type HubTarget,
-  type HubView,
+  type WalkedHub,
   targetLabel,
 } from "../../render/hubView";
 import type { Profession, Tile } from "../../render/view";
@@ -103,7 +103,7 @@ function row(y: number, from: number, to: number): Tile[] {
  * from the road to the middle street and the castle's door. Tiles in the room's coordinates: `x`
  * grows West (to the left), `y` North (up), from the front-right corner.
  */
-const town: HubView = {
+const town: WalkedHub = {
   name: "Town A",
   gold: 1240,
   width: 704,
@@ -165,6 +165,8 @@ const town: HubView = {
     { id: 13, name: "Ilse", profession: "cleric", level: 12, at: tile(8, 11), facing: "right" },
   ],
   services: [...TOWN_SERVICES.map(service), GATE],
+  // The road's hex South-West of the Gate's door, on the town's side (CLI-03f, the owner's eye).
+  arrival: tile(2, 0),
 };
 
 /**
@@ -172,7 +174,7 @@ const town: HubView = {
  * present. **Proposed, the owner's eye**: the Guild in the fortress, the Trainer in the barracks,
  * the Vault in the barn, the Gate a watchtower at the road's end.
  */
-const outpost: HubView = {
+const outpost: WalkedHub = {
   name: "Outpost B",
   gold: 1240,
   width: 576,
@@ -207,10 +209,12 @@ const outpost: HubView = {
     { id: 21, name: "Corvin", profession: "vanguard", level: 9, at: tile(2, 3), facing: "left" },
   ],
   services: [...OUTPOST_SERVICES.map(service), GATE],
+  // The road's hex South-West of the Gate's door, as in the town (CLI-03f, the owner's eye).
+  arrival: tile(1, 1),
 };
 
 /** Each hub's view, by location id. */
-export const HUB_VIEWS: ReadonlyMap<number, HubView> = new Map([
+export const HUB_VIEWS: ReadonlyMap<number, WalkedHub> = new Map([
   [TOWN, town],
   [OUTPOST, outpost],
 ]);

@@ -1,10 +1,14 @@
 import { Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
-import { HEX_RADIUS, TILE_WIDTH } from "../input/coords";
+import { HEX_RADIUS, type Point, TILE_WIDTH } from "../input/coords";
 import { type HubFit, type Size, hubFit } from "../input/hubTaps";
+import { HUB_STEP_MS } from "../input/hubWalk";
+import { isMirrored } from "./facing";
 import {
   type HubPlace,
   type HubView,
+  type HubWalkerView,
   type Standing,
+  feetPoint,
   groundCell,
   groundCells,
   hubPoint,
@@ -14,7 +18,7 @@ import type { Surface } from "./renderer";
 import { type ScaleMode, sharpFactor } from "./scaling";
 import { type FrameClient, type FrameHost, FrameScheduler, type FrameStats } from "./scheduler";
 import { drawBody } from "./shapes";
-import type { SpriteLibrary } from "./sprites";
+import type { SpriteArt, SpriteLibrary } from "./sprites";
 
 /** The animation name of a still in the atlas (`tools/art`, `STILL_ANIM`): buildings, props, tiles. */
 export const STILL = "still";
@@ -26,6 +30,8 @@ export const STILL = "still";
 export const PATH_ALPHA = 0.5;
 /** A faint outline of the hex grid over the ground, for the owner's eye; off by default. */
 export const SHOW_GRID = false;
+/** The tapped hex's marker while a walk lasts (CLI-03f, the owner's eye): a faint light hex. */
+export const HUB_TARGET_ALPHA = 0.28;
 
 const COLOURS = {
   water: 0x3f8f8d,
@@ -46,9 +52,10 @@ const COLOURS = {
  * Draws a `HubView` on demand (CLI-03c, CLI-03e): the water around the hub, the ground baked once
  * into one texture, then one standing layer (buildings, decor, props, figures) sorted by the y of
  * each base. Every piece is at its native size: the scene is drawn with **one** factor, the fit of
- * `input/hubTaps.ts` in the room's scale modes. Nothing in a hub moves (D-178), so a frame is
- * drawn when the view, the atlas or the size changes, and none otherwise: no ticker, no idle
- * frame, no timer. The labels are the page's.
+ * `input/hubTaps.ts` in the room's scale modes. Only the player's adventurer moves (CLI-03f): a
+ * step tweens it from hex to hex with its `move` frames, and asks for frames until the step ends.
+ * Otherwise a frame is drawn when the view, the atlas or the size changes, and none else: no
+ * ticker, no idle frame, no timer. A walk never bakes the ground again. The labels are the page's.
  */
 export class HubRenderer implements FrameClient {
   readonly scheduler: FrameScheduler;
@@ -69,27 +76,45 @@ export class HubRenderer implements FrameClient {
   private readonly mode: ScaleMode;
   /** Ground bakes since the start: one per hub, atlas and size (AC-4). */
   bakes = 0;
+  /** The player's adventurer in the standing layer, and the tapped hex's marker under it. */
+  private walkerNode: WalkerNode | null = null;
+  private readonly marker = new Graphics();
+  private readonly stepMs: number;
 
   constructor(
     private readonly surface: Pick<Surface, "stage" | "render" | "bake" | "resolution"> &
       Partial<Pick<Surface, "maxTextureSize">>,
-    host: FrameHost,
+    private readonly host: FrameHost,
     options: {
       library?: SpriteLibrary | null;
       mode?: ScaleMode;
+      /** A step's tween, in ms: the walk's pace (`HUB_STEP_MS`). */
+      stepMs?: number;
       onDraw?: (stats: FrameStats) => void;
     } = {},
   ) {
     this.library = options.library ?? null;
     this.mode = options.mode ?? "continuous";
+    this.stepMs = options.stepMs ?? HUB_STEP_MS;
+    this.standing.sortableChildren = true;
     this.scheduler = new FrameScheduler(host, this, options.onDraw);
     this.scene.addChild(this.groundSprite, this.standing);
     surface.stage.addChild(this.backdrop);
     surface.stage.addChild(this.mode === "sharp" ? this.sharpSprite : this.scene);
   }
 
+  /**
+   * A new view rebuilds the scene; a view that differs only by its walker moves the walker, and
+   * the rest (the ground's bake above all) stays as it is.
+   */
   setView(view: HubView): void {
+    const previous = this.view;
     this.view = view;
+    if (previous && sameScene(previous, view)) {
+      this.syncWalker(view.walker ?? null);
+      this.scheduler.invalidate();
+      return;
+    }
     this.rebuild();
   }
 
@@ -121,8 +146,23 @@ export class HubRenderer implements FrameClient {
     return this.scene;
   }
 
-  advance(): { changed: boolean; next: number | null } {
-    return { changed: false, next: null };
+  /** While a step tweens: the walker's position and `move` frame at `now`, and the next frame. */
+  advance(now: number): { changed: boolean; next: number | null } {
+    const node = this.walkerNode;
+    if (!node?.step) return { changed: false, next: null };
+    const { from, to, start } = node.step;
+    const t = Math.min(1, Math.max(0, (now - start) / this.stepMs));
+    const k = 1 - (1 - t) ** 3;
+    node.container.position.set(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k);
+    node.container.zIndex = node.container.y;
+    if (t >= 1) node.step = null;
+    this.showWalkerFrame(node, now);
+    return { changed: true, next: node.step ? now : null };
+  }
+
+  /** Whether the walker's step is being drawn: for tests. */
+  stepping(): boolean {
+    return this.walkerNode?.step != null;
   }
 
   draw(): void {
@@ -136,23 +176,117 @@ export class HubRenderer implements FrameClient {
     this.dropGround();
     if (this.sharpSprite.texture !== Texture.EMPTY) this.sharpSprite.texture.destroy(true);
     this.backdrop.destroy({ children: true });
+    if (!this.marker.parent) this.marker.destroy();
     this.sharpSprite.destroy();
     this.scene.destroy({ children: true });
   }
 
   private rebuild(): void {
+    this.standing.removeChild(this.marker);
     for (const child of this.standing.removeChildren()) child.destroy({ children: true });
+    this.walkerNode = null;
     this.dropGround();
     const view = this.view;
     if (view) {
       this.groundSource = this.drawGround(view);
       for (const item of standingOrder(view)) {
+        if (item.kind === "walker") continue; // drawn by `syncWalker`
         const node = this.standingNode(item);
-        if (node) this.standing.addChild(node);
+        if (!node) continue;
+        // Sorted by the base's y; the standing order's insertion keeps the key's tie-break.
+        node.zIndex = item.base.y;
+        this.standing.addChild(node);
       }
+      this.syncWalker(view.walker ?? null);
     }
     this.place();
     this.scheduler.invalidate();
+  }
+
+  /**
+   * The walker drawn where the view puts it: a step to an adjacent hex tweens from where it is
+   * drawn; anything else (the first drawing, a jump) puts it there at once. The marker follows the
+   * walk's target.
+   */
+  private syncWalker(walker: HubWalkerView | null): void {
+    const view = this.view!;
+    this.marker.clear();
+    if (walker?.target) {
+      hexagon(this.marker, hubPoint(view, walker.target)).fill({
+        color: 0xffffff,
+        alpha: HUB_TARGET_ALPHA,
+      });
+      if (!this.marker.parent) this.standing.addChild(this.marker);
+    } else if (this.marker.parent) {
+      this.standing.removeChild(this.marker);
+    }
+    // Under everything that stands: it is on the ground.
+    this.marker.zIndex = -Infinity;
+    let node = this.walkerNode;
+    if (!walker) {
+      node?.container.destroy({ children: true });
+      this.walkerNode = null;
+      return;
+    }
+    const feet = feetPoint(view, walker.at);
+    if (!node || node.profession !== walker.profession) {
+      node?.container.destroy({ children: true });
+      node = this.createWalker(walker);
+      node.container.position.set(feet.x, feet.y);
+      this.walkerNode = node;
+      this.standing.addChild(node.container);
+    } else if (node.at.x !== walker.at.x || node.at.y !== walker.at.y) {
+      const from = { x: node.container.x, y: node.container.y };
+      const adjacent = Math.hypot(feet.x - from.x, feet.y - from.y) < TILE_WIDTH * 1.01;
+      node.step = adjacent ? { from, to: feet, start: this.host.now() } : null;
+      if (!adjacent) node.container.position.set(feet.x, feet.y);
+    }
+    node.at = walker.at;
+    node.container.zIndex = node.container.y;
+    node.body.scale.x = (isMirrored(walker.facing) ? -1 : 1) * Math.abs(node.body.scale.x);
+    this.showWalkerFrame(node, this.host.now());
+    this.standing.sortChildren();
+  }
+
+  private createWalker(walker: HubWalkerView): WalkerNode {
+    const container = new Container();
+    const art = this.library?.get(walker.profession) ?? null;
+    const texture = art?.animations.idle?.textures[0];
+    let body: Container;
+    let sprite: Sprite | null = null;
+    if (art && texture) {
+      sprite = this.sprite(texture, 0, 0);
+      // As in a room: the sprite's own scale from sprites.json (1 by default).
+      sprite.scale.set(art.scale, art.scale);
+      body = sprite;
+    } else {
+      body = drawBody(walker.profession);
+    }
+    container.addChild(body);
+    return {
+      profession: walker.profession,
+      at: walker.at,
+      container,
+      body,
+      sprite,
+      art: sprite ? art : null,
+      step: null,
+      frame: "",
+    };
+  }
+
+  /** Its `move` frames while it steps, its idle frame 0 when it stands, as the present figures. */
+  private showWalkerFrame(node: WalkerNode, now: number): void {
+    if (!node.sprite || !node.art) return;
+    const move = node.step ? node.art.animations.move : undefined;
+    const animation = move ?? node.art.animations.idle;
+    const count = animation?.textures.length ?? 1;
+    const index = move ? Math.floor((now * move.fps) / 1000 + 1e-6) % count : 0;
+    const key = `${move ? "move" : "idle"}/${index}`;
+    if (key === node.frame) return;
+    node.frame = key;
+    const texture = animation?.textures[index];
+    if (texture) node.sprite.texture = texture;
   }
 
   private place(): void {
@@ -177,7 +311,7 @@ export class HubRenderer implements FrameClient {
   }
 
   /** A standing piece at native size: a sprite with its base on its point, or a shape. */
-  private standingNode(item: Standing): Container | null {
+  private standingNode(item: Exclude<Standing, { kind: "walker" }>): Container | null {
     if (item.kind === "figure") {
       const { figure } = item;
       const art = this.library?.get(figure.profession);
@@ -320,6 +454,30 @@ export class HubRenderer implements FrameClient {
     this.groundSprite.texture = Texture.EMPTY;
     this.groundResolution = 0;
   }
+}
+
+interface WalkerNode {
+  readonly profession: HubWalkerView["profession"];
+  /** The hex it was last put on. */
+  at: HubWalkerView["at"];
+  readonly container: Container;
+  /** The sprite or the shape, mirrored for the West facings. */
+  readonly body: Container;
+  readonly sprite: Sprite | null;
+  readonly art: SpriteArt | null;
+  /** The step being drawn, from where it was drawn to its new hex's feet, in art pixels. */
+  step: { from: Point; to: Point; start: number } | null;
+  frame: string;
+}
+
+/** Whether two views draw the same scene: everything but the walker is the same data. */
+function sameScene(a: HubView, b: HubView): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  keys.delete("walker");
+  for (const k of keys) {
+    if (a[k as keyof HubView] !== b[k as keyof HubView]) return false;
+  }
+  return true;
 }
 
 /** A pointy-top hexagon around a point, as the room draws its tiles. */

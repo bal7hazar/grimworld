@@ -42,7 +42,7 @@ function reduce(model: LoopModel, event: LoopEvent): LoopModel {
   const state = step(model.state, event);
   if (state === model.state) return model;
   const entered = state.screen.kind === "instance" && model.state.screen.kind !== "instance";
-  const quiet = event.kind === "moved";
+  const quiet = event.kind === "moved" || event.kind === "stood";
   return {
     state,
     log: quiet ? model.log : [...model.log.slice(-40), state.said],
@@ -67,6 +67,10 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
     (tile: { x: number; y: number }) => dispatch({ kind: "moved", tile }),
     [],
   );
+  const stood = useCallback(
+    (tile: { x: number; y: number }) => dispatch({ kind: "stood", tile }),
+    [],
+  );
   const { screen } = model.state;
   // Logged once a line is in the log (not in the reducer, which React may run twice).
   useEffect(() => {
@@ -78,7 +82,14 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
     case "hub": {
       const view = HUB_VIEWS.get(screen.hub);
       content = view && (
-        <HubScreen view={view} inspected={screen.inspected} scale={scale} dispatch={dispatch} />
+        <HubScreen
+          view={view}
+          inspected={screen.inspected}
+          at={screen.at}
+          scale={scale}
+          dispatch={dispatch}
+          onStood={stood}
+        />
       );
       break;
     }

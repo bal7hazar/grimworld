@@ -1,15 +1,16 @@
 import { type Point, TILE_WIDTH, tileToPixel } from "../input/coords";
 import type { ServiceId } from "../input/intent";
 import { DEFAULT_FEET, feetOffset } from "./renderer";
-import type { Profession, Tile } from "./view";
+import type { Facing, Profession, Tile } from "./view";
 
 /**
  * The hub renderer's input (CLI-03c, CLI-03e), as `view.ts` is the room's: what a hub shows, as
- * data. A hub is a screen of places to tap (design/11 *Hubs*, D-03): no movement, no rule. Since
- * CLI-03e it is laid out on the **instance's hex grid** at the instance's scale (D-196): every
- * building, prop and figure stands on a hex, given as a tile in the room's coordinates
- * (`input/coords.ts`), and the illustration is in art pixels at scale 1, `x` to the right and `y`
- * down. The grid places things; it is not drawn.
+ * data. A hub has no geometry on chain (design/11 *Hubs*, D-03): no rule. Since CLI-03e it is laid
+ * out on the **instance's hex grid** at the instance's scale (D-196): every building, prop and
+ * figure stands on a hex, given as a tile in the room's coordinates (`input/coords.ts`), and the
+ * illustration is in art pixels at scale 1, `x` to the right and `y` down. The grid places things;
+ * it is not drawn. Since CLI-03f the player's adventurer walks it (`input/hubWalk.ts`): the walker
+ * is presentation, never sent or stored.
  */
 
 /** Where a place leads: a service's screen, or the Gate screen. */
@@ -29,6 +30,8 @@ export interface HubPlace {
   /** Its native size in art pixels (the still's visible width, and height above its base). */
   readonly width: number;
   readonly height: number;
+  /** Rows behind its base row that it blocks for the walk (CLI-03f): 1 when absent. */
+  readonly depth?: number;
 }
 
 /** A building that is not a place: life around the services. No tap target, no label. */
@@ -39,6 +42,8 @@ export interface HubDecor {
   /** Its native size, for the shape drawn without the atlas. */
   readonly width: number;
   readonly height: number;
+  /** Rows behind its base row that it blocks for the walk (CLI-03f): 1 when absent. */
+  readonly depth?: number;
 }
 
 /** A tree, a bush, a rock, a stump, a sheep (`tools/art`, role `prop`): drawn at one frame. */
@@ -72,6 +77,17 @@ export interface HubGround {
   readonly path: readonly Tile[];
 }
 
+/** The player's adventurer in the hub (CLI-03f): where it stands, where it faces, where it goes. */
+export interface HubWalkerView {
+  readonly profession: Profession;
+  /** The hex it stands on, or steps to while a step is drawn. */
+  readonly at: Tile;
+  /** Six ways, as in a room; West, North-West and South-West mirror the sprite (`isMirrored`). */
+  readonly facing: Facing;
+  /** The tapped hex while a walk lasts (a faint marker), else null. */
+  readonly target: Tile | null;
+}
+
 export interface HubView {
   readonly name: string;
   readonly gold: number;
@@ -87,7 +103,17 @@ export interface HubView {
   readonly figures: readonly HubFigure[];
   /** The service entries under the illustration, in reading order; the Gate last. */
   readonly services: readonly HubTarget[];
+  /**
+   * Where the player's adventurer stands on arriving in the hub (CLI-03f): beside the Gate. Every
+   * hub the loop walks has one (`WalkedHub`); a view drawn alone may leave it out.
+   */
+  readonly arrival?: Tile;
+  /** The player's adventurer, when drawn: set by the hub screen from the machine and the walk. */
+  readonly walker?: HubWalkerView | null;
 }
+
+/** A hub the player's adventurer walks: its arrival hex is given (the loop's fixtures). */
+export type WalkedHub = HubView & { readonly arrival: Tile };
 
 /** One label per target: the building's tap and its service entry name the same screen. */
 export function targetLabel(target: HubTarget): string {
@@ -121,11 +147,17 @@ export type Standing =
       readonly key: string;
       readonly base: Point;
       readonly figure: HubFigure;
+    }
+  | {
+      readonly kind: "walker";
+      readonly key: string;
+      readonly base: Point;
+      readonly walker: HubWalkerView;
     };
 
 /**
  * The standing layer back to front: by the y of each base, then by a stable key. A figure in front
- * of a house covers it; one behind is covered.
+ * of a house covers it; one behind is covered. The walker is sorted with the rest.
  */
 export function standingOrder(view: HubView): Standing[] {
   const items: Standing[] = [
@@ -153,6 +185,16 @@ export function standingOrder(view: HubView): Standing[] {
       base: feetPoint(view, figure.at),
       figure,
     })),
+    ...(view.walker
+      ? [
+          {
+            kind: "walker",
+            key: "walker",
+            base: feetPoint(view, view.walker.at),
+            walker: view.walker,
+          } satisfies Standing,
+        ]
+      : []),
   ];
   return items.sort((a, b) => a.base.y - b.base.y || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }

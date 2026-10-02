@@ -7,6 +7,8 @@ import {
   hubPoint,
 } from "../render/hubView";
 import { type ScaleMode, snapScale } from "../render/scaling";
+import type { Tile } from "../render/view";
+import { type Point, pixelToTile } from "./coords";
 import type { LoopIntent } from "./intent";
 
 /**
@@ -114,6 +116,23 @@ export function figureRect(view: Pick<HubView, "origin">, figure: HubFigure, fit
     width,
     height,
   });
+}
+
+/**
+ * The hex under a point of the zone, in CSS pixels (CLI-03f): the hex the renderer draws there,
+ * through the same fit. A tap on the ground walks there (`input/hubWalk.ts`).
+ */
+export function hubTile(view: Pick<HubView, "origin">, fit: HubFit, point: Point): Tile {
+  return pixelToTile({
+    x: (point.x - fit.x) / fit.scale - view.origin.x,
+    y: (point.y - fit.y) / fit.scale - view.origin.y,
+  });
+}
+
+/** A hex's centre in the zone, in CSS pixels: the inverse of `hubTile`. */
+export function tileScreen(view: Pick<HubView, "origin">, fit: HubFit, tile: Tile): Point {
+  const c = hubPoint(view, tile);
+  return { x: fit.x + c.x * fit.scale, y: fit.y + c.y * fit.scale };
 }
 
 /** Whether two rectangles share any area (touching edges do not). */
