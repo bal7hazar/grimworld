@@ -116,7 +116,7 @@ export class FrameScheduler {
 
   private onFrame(): void {
     this.frame = null;
-    if (this.host.hidden()) return;
+    if (this.destroyed || this.host.hidden()) return;
     const now = this.host.now();
     const { changed, next } = this.client.advance(now);
     if (changed || this.dirty) {
