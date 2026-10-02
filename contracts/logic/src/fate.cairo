@@ -88,7 +88,7 @@ mod tests {
     // every case and outcome: a change to a derivation or to the cases fails here until
     // `contracts/logic/vectors/fate.jsonl` is regenerated.
     #[test]
-    #[available_gas(l2_gas: 1000000000)]
+    #[available_gas(l2_gas: 447777264)] // ceil(1.05 × 426454537 measured)
     fn test_vectors() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;

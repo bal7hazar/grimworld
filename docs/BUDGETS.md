@@ -59,6 +59,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_ephemeral | `test_tick_words::test_tick_constants` | 13720 | 14406 | 2026-09-29 | 0489b29 |
 | grimworld_ephemeral | `test_tick_words::test_tick_words_goblin` | 584620 | 613851 | 2026-10-01 | 92428cf |
 | grimworld_ephemeral | `test_tick_words::test_tick_words_member` | 1318560 | 1384488 | 2026-10-01 | 92428cf |
+| grimworld_logic | `fate::tests::test_vectors` | 426454537 | 447777264 | 2026-10-02 | f55176c |
 | grimworld_logic | `helpers::tick::tests::test_degeneration_heal` | 13720 | 14406 | 2026-10-01 | be61643 |
 | grimworld_logic | `helpers::tick::tests::test_degeneration_pips` | 13720 | 14406 | 2026-10-01 | be61643 |
 | grimworld_logic | `helpers::tick::tests::test_move_ticks` | 13720 | 14406 | 2026-10-01 | be61643 |
@@ -122,6 +123,7 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `models::member::tests::test_member_knockdown_interrupts` | 14327200 | 15043560 | 2026-10-01 | be61643 |
 | grimworld_logic | `models::member::tests::test_member_knocked_predicates` | 4653820 | 4886511 | 2026-10-01 | be61643 |
 | grimworld_logic | `models::member::tests::test_member_load_store` | 10361100 | 10879155 | 2026-10-01 | 92428cf |
+| grimworld_logic | `packing::tests::test_vectors` | 623528768 | 654705207 | 2026-10-02 | f55176c |
 | grimworld_logic | `snapshot::tests::test_bar_and_kit_layout` | 379250 | 398213 | 2026-09-30 | 51bd42c |
 | grimworld_logic | `snapshot::tests::test_bar_armor_above_bound_refused` | 15520 | 16296 | 2026-09-30 | 51bd42c |
 | grimworld_logic | `snapshot::tests::test_bar_armor_below_bound_refused` | 15520 | 16296 | 2026-09-30 | 51bd42c |

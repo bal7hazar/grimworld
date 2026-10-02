@@ -6,6 +6,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 
 | Test | l2 gas | Budget | Headroom | l1 gas | l1 data gas | Date | Commit |
 |---|---:|---:|---:|---:|---:|---|---|
+| `fate::tests::test_vectors` | 426454537 | 447777264 | 5.00 % | 0 | 0 | 2026-10-02 | f55176c |
 | `helpers::tick::tests::test_degeneration_heal` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | be61643 |
 | `helpers::tick::tests::test_degeneration_pips` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | be61643 |
 | `helpers::tick::tests::test_move_ticks` | 13720 | 14406 | 5.00 % | 0 | 0 | 2026-10-01 | be61643 |
@@ -69,6 +70,7 @@ Detail of every test of the package, from the same run as docs/BUDGETS.md. Headr
 | `models::member::tests::test_member_knockdown_interrupts` | 14327200 | 15043560 | 5.00 % | 0 | 0 | 2026-10-01 | be61643 |
 | `models::member::tests::test_member_knocked_predicates` | 4653820 | 4886511 | 5.00 % | 0 | 0 | 2026-10-01 | be61643 |
 | `models::member::tests::test_member_load_store` | 10361100 | 10879155 | 5.00 % | 0 | 0 | 2026-10-01 | 92428cf |
+| `packing::tests::test_vectors` | 623528768 | 654705207 | 5.00 % | 0 | 0 | 2026-10-02 | f55176c |
 | `snapshot::tests::test_bar_and_kit_layout` | 379250 | 398213 | 5.00 % | 0 | 0 | 2026-09-30 | 51bd42c |
 | `snapshot::tests::test_bar_armor_above_bound_refused` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-30 | 51bd42c |
 | `snapshot::tests::test_bar_armor_below_bound_refused` | 15520 | 16296 | 5.00 % | 0 | 0 | 2026-09-30 | 51bd42c |
