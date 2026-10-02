@@ -200,15 +200,16 @@ pub mod Hub {
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
-    use crate::models::account::{Account, AccountAssert, OwnerTrait};
+    use crate::models::account::{AccountAssert, OwnerTrait, StoredAccount};
     use crate::models::adventurer::{
-        Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
-        BuildTrait, EquippedAssert,
+        AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert, BuildTrait,
+        EquippedAssert, StoredAdventurer,
     };
     use crate::models::balance::BalanceTrait;
     use crate::models::item::{
         Equipment, EquipmentTrait, Gold, GoldTrait, Grimoire, Item, RiftBoard,
     };
+    use crate::models::lanes::StoredLanes;
     use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
     use crate::models::stored_build::StoredBuildTrait;
@@ -240,12 +241,12 @@ pub mod Hub {
         pub next_adventurer: Counter,
         pub next_item: Counter,
         pub account_of: Map<ContractAddress, u32>,
-        /// Two slots each: owner, record.
-        pub accounts: Map<u32, Account>,
-        /// `(account, page)`: its adventurer ids, seven per page.
-        pub account_adventurers: Map<(u32, u8), Lanes32>,
-        /// Six slots each.
-        pub adventurers: Map<u32, Adventurer>,
+        /// Two slots each: owner, record (`Account`'s, typed as stored).
+        pub accounts: Map<u32, StoredAccount>,
+        /// `(account, page)`: its adventurer ids, seven per page (a `Lanes32` as stored).
+        pub account_adventurers: Map<(u32, u8), StoredLanes>,
+        /// Six slots each (`Adventurer`'s, typed as stored).
+        pub adventurers: Map<u32, StoredAdventurer>,
         /// `(adventurer, page)`: bit per skill id, 250 per page.
         pub known_skills: Map<(u32, u8), Bitmap>,
         /// `(adventurer, counter)`: "distinct" bitmaps of titles (T-2).
@@ -254,14 +255,15 @@ pub mod Hub {
         pub account_counters: Map<(u32, u16), Bitmap>,
         /// `(adventurer, book)`: three slots each.
         pub grimoires: Map<(u32, u16), Grimoire>,
-        /// `(owner key, page)`: seven balances of `u32` per page, item `7 page + lane`.
-        pub balances: Map<(felt252, u32), Lanes32>,
+        /// `(owner key, page)`: seven balances of `u32` per page, item `7 page + lane` (a `Lanes32`
+        /// as stored).
+        pub balances: Map<(felt252, u32), StoredLanes>,
         pub gold: Map<felt252, Gold>,
         /// Two slots each, by entity id.
         pub items: Map<u32, Item>,
         /// `(adventurer, page)`: equipment entities in the pack, seven per page (design/15: 20
-        /// slots, +5 per bag).
-        pub packs: Map<(u32, u8), Lanes32>,
+        /// slots, +5 per bag; a `Lanes32` as stored).
+        pub packs: Map<(u32, u8), StoredLanes>,
         /// `(account, page)`: equipment entities in the vault, seven per page (25 per pane).
         pub vaults: Map<(u32, u8), Lanes32>,
         pub rift_boards: Map<u32, RiftBoard>,

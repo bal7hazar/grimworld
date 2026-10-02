@@ -15,6 +15,20 @@ pub struct StoredCore {
     pub word: felt252,
 }
 
+/// One felt in storage, the word as it is: no packer runs on a read or a write (ENG-R1b: `Hub`
+/// declares its storage with the stored models, ENG-R1a's note 4).
+pub impl StoredCoreStorePacking of starknet::storage_access::StorePacking<StoredCore, felt252> {
+    #[inline(always)]
+    fn pack(value: StoredCore) -> felt252 {
+        value.word
+    }
+
+    #[inline(always)]
+    fn unpack(value: felt252) -> StoredCore {
+        StoredCore { word: value }
+    }
+}
+
 const LEVEL_ONE: felt252 = 0x1000000000000000000000000;
 const PROFESSION_UNIT: felt252 = 0x10000000000000000000000000000;
 /// Added to a stored `AdventurerCore` whose status is `ACTIVE`, it becomes `DELETED` (bit 176).

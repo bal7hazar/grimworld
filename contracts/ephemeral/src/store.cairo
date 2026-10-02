@@ -396,9 +396,15 @@ mod tests {
             timers: empty_member_timers(),
             effects: MemberEffects { effects: [Default::default(); 4] },
             recharges: Recharges { deadlines: [0, 1, 2, 3, 4, 5, 6, 7] },
-            stats: StorePacking::unpack(0x400000000000000000000000000000000000000000000000000000000640064),
-            bar: StorePacking::unpack(0x400000000000000000000000000000000000000000000000000000000000000),
-            kit: StorePacking::unpack(0x400000000000000000000000000000000000000000000000000000000000000),
+            stats: StorePacking::unpack(
+                0x400000000000000000000000000000000000000000000000000000000640064,
+            ),
+            bar: StorePacking::unpack(
+                0x400000000000000000000000000000000000000000000000000000000000000,
+            ),
+            kit: StorePacking::unpack(
+                0x400000000000000000000000000000000000000000000000000000000000000,
+            ),
             controller: alice(),
         };
         let base = state.members.entry((5, 0)).as_ptr().__storage_pointer_address__;
