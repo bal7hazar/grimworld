@@ -230,4 +230,4 @@ Build with `RAYON_NUM_THREADS=1` (slower; no parallel warm-up).
 ### Related
 
 - #10358 (absolute paths in closure type names broke deterministic compilation): another
-  reproducibility bug, fixed; this one is independent of paths.
+  reproducibility bug, fixed; the thread-order drift is independent of paths.

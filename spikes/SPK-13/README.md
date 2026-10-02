@@ -239,9 +239,13 @@ The two points the run had to settle:
    l.117, l.229); VPS: text `654665be9dce`, class hash `0x0001621259ac` (`builds-vps.txt` l.73, l.156). Each
    machine is stable alone (one text in all its builds, 12 threads on the Mac included), and the Sierra size
    (10,665), CASM felts (24,611) and CASM sha256 (`9eaca75f52b3`) are equal, with the same commit, the same
-   `Scarb.lock` and the same Scarb version. The classes that embed it differ too (the `grimworld_persistent`
-   program and the `persistent_integrationtest.test` and `logic_integrationtest.test` files). Every other game
-   class has the same text and class hash on both machines. It is not the race; its cause (the platform, the
+   `Scarb.lock` and the same Scarb version. In all, 7 of the 51 artefacts differ on one thread: the Registry
+   class and its two copies in the test builds (`persistent_unittest_Registry.test`,
+   `persistent_integrationtest_Registry.test`), the `grimworld_persistent` program, and three compiled test
+   files that embed it (`persistent_unittest.test`, `persistent_integrationtest.test`,
+   `logic_integrationtest.test`); the other 44 have the same text on both machines. The class hashes come
+   from different tools (starkli on the Mac, `class_hash.py` on the VPS), but the Sierra text sha256 differs
+   too, so the hash tool does not explain the difference (other classes match across the two tools). It is not the race; its cause (the platform, the
    path or another difference of environment) is unknown. So a one-thread build is stable *per machine*, and
    cross-machine reproducibility of a game class hash is **not shown**.
 2. **The VPS's 27,092 is consistent with the lock's four threads.** The default series (4 threads
