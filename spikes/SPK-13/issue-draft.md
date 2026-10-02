@@ -3,13 +3,14 @@
 > Prepared by SPK-13; **not filed**. Filing it is the owner's decision (D-154 §3). Everything
 > below the line is the issue's text, written to be pasted as is.
 >
-> D-180 (2026-10-01): re-tested on Scarb 2.20.1 (Cairo 2.20.0), the latest Scarb; the drift
+> D-180 (2026-10-01): re-tested on Scarb 2.20.1 (Cairo 2.20.0), the latest 2.20 release; the drift
 > remains there, with the same code at tag v2.20.0 (and v2.19.6). Both versions and their output
 > are in the text below.
 >
 > Maintainer note (not part of the issue): the second observation confirms #10358, whose fix
 > #10359 (f9347a8, 2026-09-03) is on upstream `main`. Before filing, check which release first
-> ships f9347a8 and whether the thread-order drift still reproduces there; the owner decides.
+> ships f9347a8, starting with Scarb v2.19.5 (17 Sep 2026) and v2.19.6 (28 Sep 2026), both released
+> after f9347a8 was merged, and whether the thread-order drift still reproduces there; the owner decides.
 
 ---
 
@@ -221,9 +222,9 @@ the output would need the same treatment.
 ### A second observation, not part of the reproduction
 
 A different cause, independent of threads, and a known one: the closure-path bug of #10358
-(absolute paths in closure type names). It is **still present in Scarb 2.19.4 and 2.20.1**. Its
+(absolute paths in closure type names). It is **still present in Scarb 2.19.4 (measured here) and 2.20.1 (per #10358's own sweep)**. Its
 fix, #10359 (f9347a8, "Name generated functions by a rustc-style path instead of their source
-location"), is on upstream `main` and was merged after both releases.
+location"), is on upstream `main` and was merged after both of those releases.
 
 The compiler names a closure type `{closure@<root>/src/lib.cairo:L:C: L:C}` (`<root>` is the
 absolute path of the package's folder) and gives it the Sierra user-type id
@@ -242,7 +243,7 @@ texts and file hashes, with the class hash of the contract class changing too. W
 replaced by a placeholder in every closure name and each id recomputed, the texts of the builds at
 two Linux paths and at two macOS paths were equal, one text per artefact; a third Linux path
 matched the text predicted this way before it was built. A Linux build also predicts the macOS
-bytes exactly when the macOS root is put in (macOS rewrites `/tmp` to `/private/tmp`, so no
+Sierra text exactly when the macOS root is put in (macOS rewrites `/tmp` to `/private/tmp`, so no
 literal equal path was built). So the platform is not the cause: the macOS/Linux difference first
 seen in that project was a difference of build paths, and it was the whole of it. What changes with
 the path: the file bytes, the Sierra text hash and the class hash. What does not: the Sierra felt
@@ -257,4 +258,4 @@ Build with `RAYON_NUM_THREADS=1` (slower; no parallel warm-up).
 
 - #10358 (absolute paths in closure type names broke deterministic compilation): another
   reproducibility bug, fixed upstream by #10359 (f9347a8, after Scarb 2.20.1); still present in
-  2.19.4 and 2.20.1, see the second observation. The thread-order drift is independent of paths.
+  2.19.4 (measured here) and 2.20.1 (per #10358's own sweep), see the second observation. The thread-order drift is independent of paths.
