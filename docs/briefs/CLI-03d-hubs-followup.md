@@ -56,8 +56,15 @@ an anchor.
 - **The Leave control** (there is none today: `InstanceScreen` shows "Gate to … · Leave ▸" only while
   an offer exists). Add a Leave/Gate control to the instance screen. Tapped while the adventurer stands
   on a hub gate's anchor (`hubGateAt`), including right after arrival, it opens the I-5 confirmation;
-  elsewhere it is hidden or disabled. The `leave` intent stays accepted only on an anchor; `hubGateAt`
-  is unchanged.
+  elsewhere it is disabled. The `leave` intent stays accepted only on an anchor; `hubGateAt` is
+  unchanged.
+- **A second selector, `gateHere(state)`.** On main the I-5 confirmation takes its text and destination
+  from `offer` (= `leaveOffer`), which is null at arrival under the new rule: the dialog would read
+  "Travel back to the last hub visited?" while confirming a leave by the gate. So `machine.ts` exports
+  `gateHere(state)` = `hubGateAt` on the instance's tile. `InstanceScreen` receives it as a prop next to
+  `offer` (it cannot import `hubGateAt`: `imports.test.ts` allows only `./loop/machine.ts`). The
+  control's enablement and the I-5 confirmation's text and destination come from that prop, never from
+  `offer`. `gateHere` lives in `machine.ts`, so the import allow-lists do not change.
 - **Two selectors, two looks.** Keep them apart so "never on arrival" is not met vacuously:
   - The **automatic offer** is governed by `leaveOffer`: on an anchor (`hubGateAt`) **and** the
     adventurer has left it since arriving. The "left the anchor" flag goes in `leaveOffer`, not in
@@ -65,7 +72,7 @@ an anchor.
     `InstanceScreen.tsx:37-45`).
   - The **control's** enablement, and the acceptance of `leave` in `step`, are governed by `hubGateAt`
     alone (on an anchor), so `leave` is not refused at arrival. On screen it is a permanent quiet button
-    (for example beside "Travel back"), disabled off an anchor.
+    (for example beside "Travel back"), disabled off an anchor (`gateHere` null).
 - Review note 3 of CLI-03c (an entry tile that is itself a hub gate's anchor) is the same case: the
   rule above rewrites it. Cover it by a test with a fixture whose entry tile is a gate anchor.
 - design/11: **one line** under *Hubs* stating the rule, only if the owner agrees (see the table). The
@@ -145,10 +152,12 @@ logic. If an answer needs logic that is not in `placeholders.ts`, stop that part
 
 - [ ] AC-1 Arriving on a hub gate's anchor (a fixture whose entry tile is that anchor) does not offer to
       leave automatically; stepping off and back on brings the offer back; the explicit Leave control, tapped
-      on the anchor at arrival, opens the I-5 confirmation; off an anchor the control is hidden or
-      disabled and `leave` is refused. Unit tests on the machine, at least: `leaveOffer` is null at arrival on
+      on the anchor at arrival, opens the I-5 confirmation; off an anchor the control is disabled
+      and `leave` is refused. Unit tests on the machine, at least: `leaveOffer` is null at arrival on
       an anchor; `step(arrival on an anchor, {kind: "leave"})` reaches the report (the confirmation
-      path); off an anchor, `leave` is ignored.
+      path); off an anchor, `leave` is ignored. Plus a component test of `InstanceScreen`: with `gateHere` set and
+      `offer` null (arrival), tapping the control shows "Leave the instance for <destination>?", not
+      "Travel back …".
 - [ ] AC-2 With the seed's real fixtures nothing else changes: the CLI-03c machine tests that do not
       concern arrival pass unmodified.
 - [ ] AC-3 The imports test no longer relies on a one-line regex; a seeded violation split over two
@@ -163,7 +172,8 @@ logic. If an answer needs logic that is not in `placeholders.ts`, stop that part
       unanswered rows; nothing else in design/11 changed (`git diff` restricted to the section).
 - [ ] AC-7 (Mac, only if the Playwright check is kept: see below) the loop is walked on 375 × 812 and a
       desktop window: town → gate → entry → room → leave → report → town, outpost, travel back, defeat,
-      and the arrival case (arrive on the gate anchor: no offer). Real output in the report; no
+      and the arrival case (arrive on the gate anchor: no automatic offer; tapping the control shows "Leave
+      the instance for <destination>?"). Real output in the report; no
       screenshot leaves the Mac (D-73: shapes only may be described).
 - [ ] AC-8 `pnpm --filter @grimworld/app test`, `lint`, `typecheck`, `build`, `prettier --check client
       indexer`, the art pipeline's tests pass. CI green.
