@@ -941,3 +941,15 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_persistent | `test_seed::test_seed_written_and_read_back` | 22572920 | 23701566 | 2026-10-02 | f55176c |
 | grimworld_persistent | `types::results::tests::test_credit` | 316240 | 332052 | 2026-10-02 | f55176c |
 | grimworld_persistent | `types::results::tests::test_reaches_hub` | 15859 | 16652 | 2026-10-02 | f55176c |
+
+## Accepted rises
+
+### Scarb 2.20.1 and starknet-foundry 0.64.0 (FND-11, #293)
+
+Accepted by the project manager under D-144, 2026-10-02, cause: compiler (Scarb 2.20.1, D-180):
+
+- `enter`: +4 % to +6 % on its tests (`test_lifecycle::test_enter*`).
+- `set_build`: the worst case's call budget 8,501,927 → 9,100,742 (measured 8,667,373).
+- `grimworld_persistent`: rises up to +18.5 % (`test_lifecycle::test_rules_epoch_full_cycle_reads_fresh`).
+- `grimworld_ephemeral`: 24 rises, the largest +4.6 %.
+- Tests of `create`, `leave` and `travel_back` that rose: +2.5 % to +4.7 % (the list is in the report of #293).

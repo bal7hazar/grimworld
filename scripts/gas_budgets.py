@@ -338,6 +338,24 @@ def provenance_ok(date, commit, cwd=ROOT, main="origin/main"):
     return run(["git", "show", "-s", "--format=%cs", commit], cwd).stdout.strip() == date
 
 
+# Accepted rises of budgets: written by the generator below the table, so a regeneration keeps them
+# (add an entry when the project manager accepts a rise; never remove one).
+ACCEPTED = [
+    "## Accepted rises",
+    "",
+    "### Scarb 2.20.1 and starknet-foundry 0.64.0 (FND-11, #293)",
+    "",
+    "Accepted by the project manager under D-144, 2026-10-02, cause: compiler (Scarb 2.20.1, D-180):",
+    "",
+    "- `enter`: +4 % to +6 % on its tests (`test_lifecycle::test_enter*`).",
+    "- `set_build`: the worst case's call budget 8,501,927 → 9,100,742 (measured 8,667,373).",
+    "- `grimworld_persistent`: rises up to +18.5 % (`test_lifecycle::test_rules_epoch_full_cycle_reads_fresh`).",
+    "- `grimworld_ephemeral`: 24 rises, the largest +4.6 %.",
+    "- Tests of `create`, `leave` and `travel_back` that rose: +2.5 % to +4.7 % (the list is in the report of #293).",
+    "",
+]
+
+
 def render(rows, previous, ws, packages, keep_invalid):
     """({path or 'BUDGETS': text}, problems). A row whose measure and budget are unchanged keeps
     its date and commit if they verify; if not, it is stamped anew (write) or reported (check)."""
@@ -381,7 +399,9 @@ def render(rows, previous, ws, packages, keep_invalid):
             f"| {r['package']} | `{r['test']}` | {_m(r)} | {r['budget'] or '—'} "
             f"| {r['date']} | {r['commit']} |"
         )
-    out = {"BUDGETS": "\n".join(budgets) + "\n"}
+    if ws.rstrip("/") == "contracts":
+        budgets += [""] + ACCEPTED
+    out = {"BUDGETS": "\n".join(budgets).rstrip("\n") + "\n"}
     for package, path in packages.items():
         mine = [r for r in rows if r["package"] == package]
         gas = [
