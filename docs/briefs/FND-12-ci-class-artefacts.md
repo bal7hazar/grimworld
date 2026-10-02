@@ -58,7 +58,7 @@ root they were built at. This lot only builds and keeps files: no declaration, n
 ## Acceptance criteria
 - [ ] AC-1 On the pull request, the `class-artefacts` job runs, builds `contracts/` at CI's checkout root
       and uploads an artefact named `contract-classes-<sha>` holding exactly the class files of the packages
-      that declare (10 classes × 2 files) and `build-root.json`: no stale file, no `*.test.*`.
+      that declare (11 classes × 2 files) and `build-root.json`: no stale file, no `*.test.*`.
 - [ ] AC-2 `build-root.json` holds the right values (root = the job's `$GITHUB_WORKSPACE`, the head
       commit, the Scarb version, the runner's OS), quoted in the report from the downloaded artefact.
 - [ ] AC-3 The retention is stated (90 days) and the job fails if no class file is found.
