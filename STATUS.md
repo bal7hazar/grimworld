@@ -1,8 +1,20 @@
 # Status — game track
 
-**2026-10-01 14:15 UTC** — written by the game orchestrator `[Opus 5.5] Orchestrateur Grim World (jeu)`.
+**2026-10-02** — the track now runs in herdr (orchestrator: herdr project `grimworld-game`); written by its bookkeeping thread. Earlier text is by `[Opus 5.5] Orchestrateur Grim World (jeu)` (2026-10-01 14:15 UTC).
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
+
+## 2026-10-02: the track runs in herdr
+
+**Merged on 2026-10-02**: **ENG-R1a** ([#221](https://github.com/bal7hazar/grimworld/pull/221), `d3ad22d`), **CBT-04** ([#228](https://github.com/bal7hazar/grimworld/pull/228), `81fbd98`) and
+**ENG-02** ([#246](https://github.com/bal7hazar/grimworld/pull/246), `04e12d6`); **SPK-15** ([#234](https://github.com/bal7hazar/grimworld/pull/234), `3ccc42e`) merged 2026-10-01. Their reports are
+archived in `docs/reports/`, their PLAN rows done, their CHANGELOG entries written. `contracts/logic/vectors/check.py` runs in CI's
+`contracts` job; it reads `window.jsonl` (ENG-02) and does not yet read `hit.jsonl` (CBT-03a, not merged).
+**Open**: CBT-03a ([#229](https://github.com/bal7hazar/grimworld/pull/229)) is being brought up to date with main; ENG-R1a's reading by the owner (ENG-R1b waits for it);
+ENG-05 waits for `hexx` rc.2 (track LIB). **Next**: CBT-05a (the executor, SPK-15's L3), then FND-11 (Scarb 2.20.1, the pin kept).
+**S1's running estimate**: unchanged (≈ 663 M); none of these lots moves it: ENG-R1a's +0.4 % to +3.8 % a call is on entrypoints S1 prices only
+once an expedition, ENG-02 and CBT-04 add per-tick lines (ENG-01 §9.2) that S1 does not count, and SPK-15 says S1 should be judged on a
+representative fight tick nobody has measured. The worst tick's levers are in SPK-15's report (6.26 M to 4.74 M with the engineering levers).
 
 ## Resumed 2026-09-30 (D-162: the standard roles of Nexus)
 
@@ -63,6 +75,10 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 
 | | |
 |---|---|
+| **ENG-02** | [#246](https://github.com/bal7hazar/grimworld/pull/246): the geometry on `hexx` rc.1 (`types::window`); `window.jsonl`, `check.py` in CI |
+| **CBT-04** | [#228](https://github.com/bal7hazar/grimworld/pull/228): the five conditions as tested rules; a cure on a dead goblin does nothing |
+| **ENG-R1a** | [#221](https://github.com/bal7hazar/grimworld/pull/221): `Hub` through the store, one file a stored model; +0.4 % to +3.8 % a call; `Hub` 45.42 % |
+| **SPK-15** | [#234](https://github.com/bal7hazar/grimworld/pull/234): the tick's levers measured; worst tick 6.26 M to 4.74 M (engineering), design levers priced |
 | **CBT-02f** | [#219](https://github.com/bal7hazar/grimworld/pull/219): a snapshot stale only when a flattening input or its configuration changed; `enter` 4.51 M net |
 | **CBT-02d** | [#211](https://github.com/bal7hazar/grimworld/pull/211): the awake set apart, the content through an index; worst tick ≤ 3.45 M inside a batch (2.35×), representative 1.07 M |
 | **CBT-02e** | [#212](https://github.com/bal7hazar/grimworld/pull/212): `FlattenLibrary`; the snapshot stored at `set_build` (3 words), copied by `enter`; `enter` 4.47 M net (D-158 5.25 M); `Hub` 44.71 % |
@@ -80,11 +96,11 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 
 | Lot (PR) | Built by | Now | Gate (D-177) |
 |---|---|---|---|
-| ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | fix loop 2 (the Sonnet run's minors, PLAN's deferrals) | **one organisation audit** (a large refactoring the owner reads), Claude Opus 5.5; the review; the owner's reading |
-| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | fix loop 2 (small text fixes) | the review (Claude Sonnet) and the checks |
-| ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246)) | Opus 5.5 | fix loop 2 queued (merge `main`: D-174) | the review and the checks |
-| CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228)) | Opus 5.5 | fix loop 2 queued (D-172's L2) | the review and the checks |
-| SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234)) | Opus 5.5 | ready | the review and the checks |
+| ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | merged 2026-10-02 (`d3ad22d`); the owner's reading pending | done |
+| CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | being brought up to date with main (2026-10-02) | the review (Claude Sonnet) and the checks |
+| ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246)) | Opus 5.5 | merged 2026-10-02 (`04e12d6`) | done |
+| CBT-04 conditions ([#228](https://github.com/bal7hazar/grimworld/pull/228)) | Opus 5.5 | merged 2026-10-02 (`81fbd98`) | done |
+| SPK-15 tick cost levers ([#234](https://github.com/bal7hazar/grimworld/pull/234)) | Opus 5.5 | merged 2026-10-01 (`3ccc42e`) | done |
 
 **D-177 (owner, 2026-10-01)**: the review is the routine gate; an audit is the exception. **Audits
 stopped: 0 queued or running** (the nine Codex audits had ended `blocked_quota`, the nine Claude Sonnet runs
@@ -97,8 +113,8 @@ Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, 
 
 ## Next
 
-ENG-R1a's audits (quality, cost and security) and Codex review, then the owner's reading (D-167)
-before ENG-R1b is briefed. ENG-05 and ENG-02 when `hexx` rc.1 lands; ENG-07 after ENG-05.
+CBT-03a (#229) merged once up to date with main; then CBT-05a (the executor), then FND-11 (Scarb 2.20.1, the pin
+kept). The owner's reading of ENG-R1a (D-167) before ENG-R1b is briefed. ENG-05 when `hexx` rc.2 lands; ENG-07 after ENG-05.
 
 ## Decisions needed
 
