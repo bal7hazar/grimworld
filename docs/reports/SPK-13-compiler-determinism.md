@@ -10,7 +10,7 @@ the files win. Brief: [SPK-13](../briefs/SPK-13-compiler-determinism.md). Pull r
 
 ## Summary
 
-**The toolchain, not our code, our cache or the platform.** Cairo 2.19.4 (Scarb 2.19.4) places the
+**The toolchain, not our code or our cache; the platform plays no part in the race.** Cairo 2.19.4 (Scarb 2.19.4) places the
 `withdraw_gas` check of a recursive call cycle on the function chosen as the cycle's
 representative: the lowest salsa intern id (`lowered_scc_representative`). The feedback set, and
 so `needs_withdraw_gas`, follow from that choice. With more than one rayon thread the compiler
@@ -20,7 +20,7 @@ CASM, another class hash, other gas. With `RAYON_NUM_THREADS=1` the warm-up is s
 build was the same.
 
 **The remedy is the single-thread pin (D-176)**: every measured or declared build runs with
-`RAYON_NUM_THREADS=1`. Scarb 2.20.1 (Cairo 2.20.0, D-180) does not fix it: the drift remains, and
+`RAYON_NUM_THREADS=1`. It makes a build stable *per machine*; reproducibility of a game class hash across machines is not shown (fact (a)). Scarb 2.20.1 (Cairo 2.20.0, D-180) does not fix it: the drift remains, and
 the representative and the warm-up are the same at the tags v2.20.0 and v2.19.6. The issue for
 `starkware-libs/cairo` is drafted ([issue-draft.md](../../spikes/SPK-13/issue-draft.md)) and **not filed**: it waits for the owner.
 
@@ -29,7 +29,7 @@ the representative and the warm-up are the same at the tags v2.20.0 and v2.19.6.
 **(a) The game's contracts are not affected today.** 23 clean builds of `contracts/` on the Mac
 (each Starknet class and each compiled test file) gave one program per artefact, and 10 more on
 the VPS (5 at 4 threads, 5 at 1) gave one text and one class hash for each of the 51 artefacts.
-CI on x86_64 printed the same Sierra and CASM felts as the Mac for all ten game classes. Whether
+CI on x86_64 printed the same Sierra and CASM felts as the Mac for all ten game classes (sizes, not hashes). **But the game's Registry class hash differs between the Mac and the VPS**: Mac `0x04e885bd251a` (text `dc86e41df9bb`, `builds-mac.txt` l.117, l.229), VPS `0x0001621259ac` (text `654665be9dce`, `builds-vps.txt` l.73, l.156), each stable on its machine, with equal Sierra size (10,665), CASM felts (24,611) and CASM sha256 (`9eaca75f52b3`), the same commit, lock and Scarb version. The `grimworld_persistent` program and two test files that embed it differ too; every other game class matches. This is not the race, its cause is open and was not investigated here, and cross-machine reproducibility of a game class hash is **not shown**. Whether
 the game's code has a cross-module recursive cycle was not inspected: the builds show that no
 current class is affected. A contract that later calls the map generator (`Digger` has such a
 cycle, ENG-05) would be exposed.
@@ -38,8 +38,10 @@ cycle, ENG-05) would be exposed.
 cache and sources gave 27,092, 27,101 and a third value (27,101 Sierra felts / 49,427 CASM) from
 one clean build to the next; the library's CI recorded both 27,092 and 27,101. The values are the
 possible placements of a gas check in a cycle, and nothing bounds them at two. The pin is therefore
-the remedy, not the record of two accepted values: every one-thread build gave 27,092 (the
-committed snapshot), so the snapshot can return to one exact value. The library's gate and CI are
+the remedy, not the record of two accepted values: every one-thread build of the targets run (the
+library's consumer, on the Mac and the VPS) gave 27,092 (the committed snapshot), so the snapshot can
+return to one exact value. What explains CI always giving 27,101 is open: CI has 4 vCPUs and the Mac at
+4 threads gave 27,092 in 10 builds out of 10, so the thread count alone does not explain it. The library's gate and CI are
 its orchestrator's decision, taken through the project manager.
 
 ## The measurements
@@ -79,9 +81,11 @@ The library's four metrics for the class, computed on the Mac's kept files, matc
 
 Across platforms, on one thread: the VPS's `HexxGenerators` class hash and text sha256 are the
 Mac's, and the minimal program's one-thread files have the same sha256 on arm64 and x86_64 on both
-Scarb versions. **The platform plays no part.** The VPS never saw 27,101: its builds ran at 4
-threads (the lock's default), where the Mac gave 27,092 as well. No 8-thread series was run on the
-VPS.
+Scarb versions: **the platform plays no part in the race**, shown for those two artefacts only. For
+the game's `grimworld_persistent_Registry` the two machines differ (fact (a)); that is open. The VPS
+never saw 27,101: its builds ran at 4 threads (the lock's default) and 1, where the Mac gave 27,092
+as well; that is consistent with the thread count but CI (4 vCPUs, always 27,101) is not explained by
+it. No 8-thread series was run on the VPS.
 
 ### The diff and the minimal program
 
@@ -100,10 +104,10 @@ unchanged, and some builds really change the program through the race, which alo
 
 ### Hypotheses refuted
 
-The compiler binary, the platform, the cache (a new empty cache every build still varies), the
-incremental cache, `Scarb.lock`, the sources' order and the path, inlining and our code (the
+The compiler binary, the cache (a new empty cache every build still varies), the
+incremental cache, `Scarb.lock`, the sources' order and the path (for the race), inlining and our code (the
 minimal program has neither the game's nor the library's) are each refuted by an experiment in the
-README's table. The thread count is the variable: 1 thread gives one program; 4 and 8 gave one
+README's table. The platform and the path are excluded for the race only; the Registry difference leaves them open. The thread count is the variable: 1 thread gives one program; 4 and 8 gave one
 value in 10 builds each on the Mac; 12 gave three.
 
 ## Remedy, and what the game does meanwhile

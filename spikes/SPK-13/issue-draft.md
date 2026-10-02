@@ -38,8 +38,9 @@ stable.
 - Scarb 2.20.1 (dd18779a1 2026-08-21), Cairo 2.20.0, Sierra 1.9.3: the same behaviour (output below)
 - `lowered_scc_representative` and the warm-up functions are unchanged at the tags v2.20.0 and
   v2.19.6 and on `main` (read 2026-10-01)
-- Seen on aarch64-apple-darwin (12 CPUs); the two main values of the larger contract below were
-  also produced on x86_64 Linux (GitHub `ubuntu-latest` and a Linux server), with the same sizes
+- Measured on aarch64-apple-darwin (12 CPUs). The two main values of the larger contract below
+  were also *recorded* on x86_64 Linux (GitHub `ubuntu-latest` and a Linux server), with the same
+  sizes; those observations come from the library's own records, not from a run for this issue
 
 ### Minimal program
 

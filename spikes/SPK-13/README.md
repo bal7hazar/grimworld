@@ -6,7 +6,7 @@ compiler is [issue-draft.md](issue-draft.md) (not filed: the owner's decision).
 
 ## The answer
 
-**The toolchain, not our code, our cache or the platform.** The Cairo compiler 2.19.4 (in Scarb
+**The toolchain, not our code or our cache; the platform plays no part in the race.** The Cairo compiler 2.19.4 (in Scarb
 2.19.4) chooses which function of a recursive call cycle gets the `withdraw_gas` check from the
 cycle's *representative*: the function with the lowest **salsa intern id**
 (`cairo-lang-lowering` 2.19.4, `graph_algorithms/strongly_connected_components.rs`,
@@ -37,7 +37,7 @@ ran with 4 threads is not recorded. The VPS run below records it.
 
 **The game's contracts are not affected today.** 23 clean builds of `contracts/` (each Starknet
 class and each compiled test file) gave one program per artefact, and CI on x86_64 gives the same
-class sizes. Whether the game's code has a recursive cycle across modules was not inspected; the
+class sizes (sizes, not hashes). **The game's `grimworld_persistent_Registry` class hash differs between the Mac and the VPS** on one thread, each stable alone, an open fact not caused by the race (see "The VPS run"). Whether the game's code has a recursive cycle across modules was not inspected; the
 builds show that no current class is affected. A game contract that later gets such a cycle (one
 that calls the map generator, whose `Digger` has one) would be exposed.
 
@@ -155,11 +155,11 @@ placement, follow the race.
 | Hypothesis | Experiment | Result |
 |---|---|---|
 | The compiler binary differs between machines | One binary (one sha256) on the Mac | both values (and a third) from the same binary. Across machines, the two values are byte-equal in the library's four metrics on arm64 and x86_64 |
-| The platform (arm64 against x86_64) | The Mac's kept classes against the library's VPS and CI records, and the game's CI | identical sizes on both platforms. The one-thread VPS run (below) is the byte-level check |
+| The platform (arm64 against x86_64) | The Mac's kept classes against the library's VPS and CI records, and the game's CI | identical sizes on both platforms. The one-thread VPS run (below): byte-equal for `HexxGenerators` and the minimal program, **not** for the game's `Registry` (open, see "The VPS run"). Not refuted for the game's classes |
 | Our cache (`~/.cache/scarb`, registry and git checkouts, corelib copy) | `fresh-cache` series; `one-thread` with the machine's cache | both values with a new empty cache every build (5 + 5); one value with the old cache and one thread (10/10) |
 | Scarb's incremental cache, the target folder | Every build after `scarb clean` | still varies |
 | A dependency resolved differently, `Scarb.lock` | `Scarb.lock` hash recorded per target, unchanged across builds | varies with an identical lock |
-| The sources' order on disk, the path | Same worktree path for every build | varies at one path, so neither is needed |
+| The sources' order on disk, the path | Same worktree path for every build | the race varies at one path, so neither is needed *for the race*. A single path per machine does not test the path, which stays open for the Registry difference |
 | An unordered iteration that varies between runs in one environment | 12-thread series | **yes**: varies run to run on one machine, against D-164's assumption |
 | Inlining or optimisation reading the environment | The diff | no inlining difference, only the `withdraw_gas` placement. What the environment changes is the thread count and timing |
 | The thread count | 1, 4, 8, 12 threads | 1: always one program; 4 and 8: one value in 10 builds each on the Mac; 12: three values |
@@ -228,20 +228,36 @@ environments [env-vps.txt](env-vps.txt), [env-vps-consumer.txt](env-vps-consumer
 
 The two points the run had to settle:
 
-1. **The platform plays no part.** The VPS's `HexxGenerators` class hash (`0x018c238f1c99…`) and
-   text sha256 (`0945b06edbcd`) are the Mac's one-thread values, and the minimal program's
-   one-thread file has the same sha256 as on the Mac on both Scarb versions (`12ec3e1650a18599`,
-   `ecdb2df475027c55`): arm64 and x86_64 give byte-identical output on one thread.
-2. **The VPS's 27,092 comes from the lock's four threads.** The default series (4 threads through
-   `scripts/lock.sh`) gave 27,092 in 10 builds out of 10, as the library's VPS record; 4 threads
-   also gave it on the Mac. Whether more threads would bring 27,101 on that machine was not run
-   (no 8-thread series): the VPS never saw 27,101 here, and the Mac's 12-thread runs did.
+1. **The platform plays no part in the race, and is excluded for two artefacts only.** The VPS's
+   `HexxGenerators` class hash (`0x018c238f1c99…`) and text sha256 (`0945b06edbcd`) are the Mac's
+   one-thread values, and the minimal program's one-thread file has the same sha256 as on the Mac on
+   both Scarb versions (`12ec3e1650a18599`, `ecdb2df475027c55`). For the game's `contracts/` the two
+   machines do **not** agree on everything:
+
+   **Open fact, not investigated here: the game's `grimworld_persistent_Registry` class differs between the
+   Mac and the VPS on one thread.** Mac: text `dc86e41df9bb`, class hash `0x04e885bd251a` (`builds-mac.txt`
+   l.117, l.229); VPS: text `654665be9dce`, class hash `0x0001621259ac` (`builds-vps.txt` l.73, l.156). Each
+   machine is stable alone (one text in all its builds, 12 threads on the Mac included), and the Sierra size
+   (10,665), CASM felts (24,611) and CASM sha256 (`9eaca75f52b3`) are equal, with the same commit, the same
+   `Scarb.lock` and the same Scarb version. The classes that embed it differ too (the `grimworld_persistent`
+   program and the `persistent_integrationtest.test` and `logic_integrationtest.test` files). Every other game
+   class has the same text and class hash on both machines. It is not the race; its cause (the platform, the
+   path or another difference of environment) is unknown. So a one-thread build is stable *per machine*, and
+   cross-machine reproducibility of a game class hash is **not shown**.
+2. **The VPS's 27,092 is consistent with the lock's four threads.** The default series (4 threads
+   through `scripts/lock.sh`) gave 27,092 in 10 builds out of 10, as the library's VPS record; 4
+   threads also gave it on the Mac, and 1 thread gave it on the VPS. Whether more threads would bring
+   27,101 on that machine was not run (no 8-thread series). Open: CI (4 vCPUs, `ubuntu-latest`) gave
+   27,101 always, while the Mac at 4 threads gave 27,092 in 10 builds out of 10, so the thread count
+   alone does not explain D-164's two environments.
 
 The VPS tables list the distinct files of each artefact: the game's test files and compiled
 programs (8 of 51) write a different file at every build with one text, as on the Mac.
 
 CI's figures are the third environment: the library's CI recorded both 27,092 and 27,101, and
-the game's CI matches the Mac on all ten game classes (pull request #252).
+the game's CI matches the Mac's Sierra and CASM *sizes* on all ten game classes (pull request #252).
+Equal sizes do not show equal class hashes: the Registry's sizes are equal on the Mac and the VPS while
+its hashes differ.
 
 ## What lifts D-164's exception, and what the game does meanwhile
 
@@ -251,7 +267,7 @@ environment": they are the possible placements of a gas check in a cycle, and th
 placements is not bounded by two. What would lift it:
 
 - **now**: build the library's class-size gate (`scripts/bytecode_size.py`) and gas snapshots with
-  `RAYON_NUM_THREADS=1`. Every one-thread build gave one value (27,092, the committed snapshot),
+  `RAYON_NUM_THREADS=1`. Every one-thread build of the targets run (the consumer, on the Mac and the VPS) gave one value (27,092, the committed snapshot),
   so the snapshot can go back to one exact value. That is the library orchestrator's call (their
   scripts and CI), and it is decided by the project manager;
 - **for good**: the compiler fix (the draft issue). The pin moves when a Scarb release with it
@@ -261,7 +277,9 @@ placements is not bounded by two. What would lift it:
 outside this spike's allowlist):
 
 1. **A deployment build is a one-thread build**: `RAYON_NUM_THREADS=1 scarb build` from a clean
-   `target/`. The class hash it declares can then be rebuilt from the commit by anyone.
+   `target/`. A one-thread build is stable on one machine; that the class hash it declares can be
+   rebuilt from the commit on another machine is **not shown** (the game's Registry differs between the Mac and
+   the VPS, above).
 2. **Record at every deployment** (D-154 §4, extended): the commit, the class hash, the Sierra
    felts and CASM felts, `scarb --version` (Cairo and Sierra versions), and the build's
    `RAYON_NUM_THREADS`. A later check rebuilds with the same settings and compares class hashes.
