@@ -667,7 +667,7 @@ mod tests {
 
     // The words of a new adventurer against the packers (ENG-04's `test_stored_words`).
     #[test]
-    #[available_gas(l2_gas: 146160)] // ceil(1.05 × 139200 measured)
+    #[available_gas(l2_gas: 137939)] // ceil(1.05 × 131370 measured)
     fn test_new_adventurer_words() {
         let (new_core, new_place, build) = AdventurerTrait::new(0xFFFFFFFF, ARCANIST, 5);
         let expected = AdventurerCore {
@@ -690,7 +690,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 293171)] // ceil(1.05 × 279210 measured)
+    #[available_gas(l2_gas: 284949)] // ceil(1.05 × 271380 measured)
     fn test_adventurer_layout() {
         let full = AdventurerCore {
             account: 0xFFFFFFFF,
@@ -736,7 +736,7 @@ mod tests {
     // Fix loop 1, F-9: fields narrower than their type are refused when too wide.
     #[test]
     #[should_panic(expected: 'packing: attributes above 36 b')]
-    #[available_gas(l2_gas: 43418)] // ceil(1.05 × 41350 measured)
+    #[available_gas(l2_gas: 35322)] // ceil(1.05 × 33640 measured)
     fn test_attributes_above_36_bits_refused() {
         StorePacking::<
             Build, felt252,
@@ -744,7 +744,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 137309)] // ceil(1.05 × 130770 measured)
+    #[available_gas(l2_gas: 129087)] // ceil(1.05 × 122940 measured)
     fn test_belt_word() {
         let counts: u32 = 0xFF + 0x2 * 0x100 + 0x3 * 0x10000 + 0x80 * 0x1000000;
         let belt = Lanes32 { lanes: [0xFFFFFFFF, 2, 3, 0x12345678, counts, 0, 0] };
@@ -759,7 +759,7 @@ mod tests {
 
     // The bar against its parts (two a skill), the elite, the potions (one part an item).
     #[test]
-    #[available_gas(l2_gas: 42231)] // ceil(1.05 × 40220 measured)
+    #[available_gas(l2_gas: 34010)] // ceil(1.05 × 32390 measured)
     fn test_assert_bar_and_potions() {
         let empty = Build { bar: [0; 8], attributes: 0, elite_slot: NO_ELITE };
         assert(empty.assert_bar(array![].span(), array![].span(), 1, 0) == 0, 'empty bar');
@@ -768,7 +768,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: skill not known')]
-    #[available_gas(l2_gas: 27731)] // ceil(1.05 × 26410 measured)
+    #[available_gas(l2_gas: 19635)] // ceil(1.05 × 18700 measured)
     fn test_assert_bar_unknown_refused() {
         let bar = Build { bar: [4, 0, 0, 0, 0, 0, 0, 0], attributes: 0, elite_slot: NO_ELITE };
         bar.assert_bar(array![0, 0].span(), array![false].span(), 1, 0);
@@ -776,7 +776,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'belt: not a potion')]
-    #[available_gas(l2_gas: 27794)] // ceil(1.05 × 26470 measured)
+    #[available_gas(l2_gas: 19572)] // ceil(1.05 × 18640 measured)
     fn test_assert_potions_refused() {
         BeltAssert::assert_potions(array![0, 0, 0].span(), 2, 1);
     }
@@ -793,7 +793,7 @@ mod tests {
 
     // The elite walk: two parts a skill, the elite's slot found and matched, empty slots skipped.
     #[test]
-    #[available_gas(l2_gas: 151494)] // ceil(1.05 × 144280 measured)
+    #[available_gas(l2_gas: 143273)] // ceil(1.05 × 136450 measured)
     fn test_assert_bar_elite() {
         let bar = Build { bar: [4, 0, 5, 0, 0, 0, 0, 6], attributes: 0, elite_slot: 2 };
         let parts = array![
@@ -810,7 +810,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: two elites')]
-    #[available_gas(l2_gas: 46389)] // ceil(1.05 × 44180 measured)
+    #[available_gas(l2_gas: 38294)] // ceil(1.05 × 36470 measured)
     fn test_assert_bar_two_elites_refused() {
         let bar = Build { bar: [4, 5, 0, 0, 0, 0, 0, 0], attributes: 0, elite_slot: 0 };
         let parts = array![skill_part(1, true), 0, skill_part(1, true), 0];
@@ -819,7 +819,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: elite slot')]
-    #[available_gas(l2_gas: 67683)] // ceil(1.05 × 64460 measured)
+    #[available_gas(l2_gas: 59588)] // ceil(1.05 × 56750 measured)
     fn test_assert_bar_elite_slot_refused() {
         let bar = Build { bar: [4, 5, 0, 0, 0, 0, 0, 0], attributes: 0, elite_slot: 0 };
         let parts = array![skill_part(1, false), 0, skill_part(1, true), 0];
@@ -828,7 +828,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: skill profession')]
-    #[available_gas(l2_gas: 30954)] // ceil(1.05 × 29480 measured)
+    #[available_gas(l2_gas: 22859)] // ceil(1.05 × 21770 measured)
     fn test_assert_bar_profession_refused() {
         let bar = Build { bar: [4, 0, 0, 0, 0, 0, 0, 0], attributes: 0, elite_slot: NO_ELITE };
         bar.assert_bar(array![skill_part(3, false), 0].span(), array![true].span(), 1, 2);
@@ -843,7 +843,7 @@ mod tests {
 
     // The items worn: each wearable and in its lane's slot, no off-hand beside two hands.
     #[test]
-    #[available_gas(l2_gas: 143995)] // ceil(1.05 × 137138 measured)
+    #[available_gas(l2_gas: 135879)] // ceil(1.05 × 129408 measured)
     fn test_assert_worn() {
         let mut equipment = EquipmentTrait::new();
         equipment.add(0, worn(1, 2));
@@ -858,7 +858,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'equipped: two hands')]
-    #[available_gas(l2_gas: 81185)] // ceil(1.05 × 77319 measured)
+    #[available_gas(l2_gas: 73069)] // ceil(1.05 × 69589 measured)
     fn test_assert_worn_two_hands_refused() {
         let mut equipment = EquipmentTrait::new();
         equipment.add(0, worn(1, 2));
@@ -868,7 +868,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'equipped: wrong slot')]
-    #[available_gas(l2_gas: 48839)] // ceil(1.05 × 46513 measured)
+    #[available_gas(l2_gas: 40723)] // ceil(1.05 × 38783 measured)
     fn test_assert_worn_wrong_slot_refused() {
         let mut equipment = EquipmentTrait::new();
         equipment.add(2, worn(4, 0));
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'item: not in the pack')]
-    #[available_gas(l2_gas: 43218)] // ceil(1.05 × 41160 measured)
+    #[available_gas(l2_gas: 35102)] // ceil(1.05 × 33430 measured)
     fn test_assert_worn_not_in_pack_refused() {
         let mut equipment = EquipmentTrait::new();
         equipment.add(2, worn(3, 0));
@@ -886,7 +886,7 @@ mod tests {
 
     // CBT-08a: bit `skill % 250` of page `skill / 250`, in both limbs.
     #[test]
-    #[available_gas(l2_gas: 174185)] // ceil(1.05 × 165890 measured)
+    #[available_gas(l2_gas: 165963)] // ceil(1.05 × 158060 measured)
     fn test_known_skills_bits() {
         assert(KnownSkillsTrait::at(0) == (0, 0), '0');
         assert(KnownSkillsTrait::at(249) == (0, 249), '249');
@@ -909,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     #[should_panic(expected: 'build: skill not known')]
     fn test_known_skills_past_page_255() {
         KnownSkillsTrait::at(64000);
@@ -918,7 +918,7 @@ mod tests {
     // design/03's points against its rule as a loop: 5 a level up to 10, 10 from 11 to 15, 15
     // from 16 to 20, 15 at Tin and 15 at Copper.
     #[test]
-    #[available_gas(l2_gas: 313205)] // ceil(1.05 × 298290 measured)
+    #[available_gas(l2_gas: 304983)] // ceil(1.05 × 290460 measured)
     fn test_attribute_points() {
         let mut expected: u16 = 0;
         for level in 1..21_u8 {
@@ -941,7 +941,7 @@ mod tests {
 
     // D-157 A: 0-4 the primary's attributes, 5-8 the secondary's without its primary attribute.
     #[test]
-    #[available_gas(l2_gas: 101903)] // ceil(1.05 × 97050 measured)
+    #[available_gas(l2_gas: 93807)] // ceil(1.05 × 89340 measured)
     fn test_attribute_indices() {
         for index in 0..9_u8 {
             // A Vanguard (5) with a Warden secondary (4, so 3 at 5-7).

@@ -401,9 +401,6 @@ mod tests {
         out
     }
 
-    // The vector table, one JSON line per case (`{"id", "fn", "case", "ok"}`), and a digest of
-    // every case and outcome: a change to a layout or to the cases fails here until
-    // `contracts/logic/vectors/packing.jsonl` is regenerated.
     // The refusal rows of `fits` are its guard evaluated by `test_vectors`: this asserts the panic
     // at the boundary, `value == size`.
     #[test]
@@ -413,6 +410,9 @@ mod tests {
         fits(2, 2, 'fits');
     }
 
+    // The vector table, one JSON line per case (`{"id", "fn", "case", "ok"}`), and a digest of
+    // every case and outcome: a change to a layout or to the cases fails here until
+    // `contracts/logic/vectors/packing.jsonl` is regenerated.
     #[test]
     #[available_gas(l2_gas: 654705207)] // ceil(1.05 × 623528768 measured)
     fn test_vectors() {

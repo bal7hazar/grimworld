@@ -35,7 +35,7 @@ fn fits(p: Passive, source: Source) -> bool {
 // refused, a source that may not hold the passive is refused, and a modifier's benefit and cost are
 // summed.
 #[test]
-#[available_gas(l2_gas: 1724478)] // ceil(1.05 × 1642360 measured)
+#[available_gas(l2_gas: 1716257)] // ceil(1.05 × 1634530 measured)
 fn test_per_source_bounds() {
     // (id, param, source, lo, hi)
     let rows = array![
@@ -109,7 +109,7 @@ fn envelope(i: u8, param: u8) -> (i32, i32) {
 // stays within the `n × [lo, hi]` computed here. The lower ends of max health, max energy and
 // energy regeneration go below their floors and are refused (DS-2); every other field is shown.
 #[test]
-#[available_gas(l2_gas: 284067)] // ceil(1.05 × 270540 measured)
+#[available_gas(l2_gas: 275846)] // ceil(1.05 × 262710 measured)
 fn test_capacity_proof() {
     // Max health: `100 + 20 (L − 1)` at level 255, the `u8`'s widest, + equipment ≤ 65,535. The
     // insignias add their pieces' 15 + 10 + 5 + 5 + 5 = 40 (DS-23), not five times the chest's 15.
@@ -153,7 +153,7 @@ fn test_capacity_proof() {
 // COST-2, the record (DS-23): an insignia names its piece; its health is within the piece's bound;
 // the slot types that are not insignias name none; the piece round-trips in the record.
 #[test]
-#[available_gas(l2_gas: 275468)] // ceil(1.05 × 262350 measured)
+#[available_gas(l2_gas: 267246)] // ceil(1.05 × 254520 measured)
 fn test_insignia_record_piece() {
     let legs = ModifierTrait::insignia(
         base_slot::LEGS, passive(id::MAX_HEALTH, 0, 10), Default::default(),
@@ -165,7 +165,7 @@ fn test_insignia_record_piece() {
 
 #[test]
 #[should_panic(expected: 'modifier: health above piece')]
-#[available_gas(l2_gas: 160178)] // ceil(1.05 × 152550 measured)
+#[available_gas(l2_gas: 152082)] // ceil(1.05 × 144840 measured)
 fn test_insignia_record_above_piece_refused() {
     ModifierTrait::insignia(base_slot::LEGS, passive(id::MAX_HEALTH, 0, 11), Default::default())
         .assert_legal();
@@ -173,7 +173,7 @@ fn test_insignia_record_above_piece_refused() {
 
 #[test]
 #[should_panic(expected: 'modifier: piece')]
-#[available_gas(l2_gas: 153857)] // ceil(1.05 × 146530 measured)
+#[available_gas(l2_gas: 145635)] // ceil(1.05 × 138700 measured)
 fn test_insignia_record_without_piece_refused() {
     ModifierTrait::new(slot::INSIGNIA, passive(id::MAX_HEALTH, 0, 5), Default::default())
         .assert_legal();
@@ -183,7 +183,7 @@ fn test_insignia_record_without_piece_refused() {
 // within the source's bound), is refused: each passive lies within −75…+50.
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 134295)] // ceil(1.05 × 127900 measured)
+#[available_gas(l2_gas: 126074)] // ceil(1.05 × 120070 measured)
 fn test_cancelling_rune_refused() {
     ModifierTrait::new(
         slot::RUNE, passive(id::MAX_HEALTH, 0, -32717), passive(id::MAX_HEALTH, 0, 32767),
@@ -194,7 +194,7 @@ fn test_cancelling_rune_refused() {
 // AUD-182-3: a cancelling pair on one rune (+32,767 and −32,764: sum +3) is refused.
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 134789)] // ceil(1.05 × 128370 measured)
+#[available_gas(l2_gas: 126567)] // ceil(1.05 × 120540 measured)
 fn test_cancelling_attribute_rune_refused() {
     ModifierTrait::new(
         slot::RUNE, passive(id::ATTRIBUTE, PRIMARY, 32767), passive(id::ATTRIBUTE, PRIMARY, -32764),
@@ -205,7 +205,7 @@ fn test_cancelling_attribute_rune_refused() {
 // §6 test 1, through the validators: a modifier a unit beyond its bound is refused.
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 134789)] // ceil(1.05 × 128370 measured)
+#[available_gas(l2_gas: 126567)] // ceil(1.05 × 120540 measured)
 fn test_modifier_beyond_bound_refused() {
     ModifierTrait::new(slot::PREFIX, passive(id::MAX_HEALTH, 0, 31), Default::default())
         .assert_legal();
@@ -213,7 +213,7 @@ fn test_modifier_beyond_bound_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: per-source bound')]
-#[available_gas(l2_gas: 29012)] // ceil(1.05 × 27630 measured)
+#[available_gas(l2_gas: 20916)] // ceil(1.05 × 19920 measured)
 fn test_set_bonus_beyond_bound_refused() {
     let knock = passive(id::KNOCKDOWN_FLAT, 0, 2);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [knock, knock]).assert_legal();
@@ -259,7 +259,7 @@ fn skill_of(adrenaline: u8) -> Skill {
 // §6 test 6: `m` = 1,000 at level 255 gives 51,800 (a `u16` of `GoblinState`); energy 85 is 255
 // thirds (a `u8`); a skill of 63 strikes is usable. It packs.
 #[test]
-#[available_gas(l2_gas: 226191)] // ceil(1.05 × 215420 measured)
+#[available_gas(l2_gas: 217970)] // ceil(1.05 × 207590 measured)
 fn test_caste_at_bounds() {
     let caste = caste_at_bounds();
     caste.assert_legal();
@@ -274,7 +274,7 @@ fn test_caste_at_bounds() {
 
 #[test]
 #[should_panic(expected: 'caste: health above 1000 %')]
-#[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
+#[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
 fn test_caste_multiplier_1001_refused() {
     let caste = Caste { health: 1001, ..caste_at_bounds() };
     Record::<Caste>::pack(@caste);
@@ -282,7 +282,7 @@ fn test_caste_multiplier_1001_refused() {
 
 #[test]
 #[should_panic(expected: 'caste: energy regen above 10')]
-#[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
+#[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
 fn test_caste_energy_regen_refused() {
     let caste = Caste { energy_regen: 11, ..caste_at_bounds() };
     Record::<Caste>::pack(@caste);
@@ -290,7 +290,7 @@ fn test_caste_energy_regen_refused() {
 
 #[test]
 #[should_panic(expected: 'caste: weapon damage above 255')]
-#[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
+#[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
 fn test_caste_weapon_damage_refused() {
     let caste = Caste {
         weapon: WeaponTrait::new(weapon::MAUL, 256, damage::BLUNT, 2, 1), ..caste_at_bounds(),
@@ -300,7 +300,7 @@ fn test_caste_weapon_damage_refused() {
 
 #[test]
 #[should_panic(expected: 'caste: flee above 100')]
-#[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
+#[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
 fn test_caste_flee_refused() {
     let caste = Caste { flee: 101, ..caste_at_bounds() };
     Record::<Caste>::pack(@caste);
@@ -308,7 +308,7 @@ fn test_caste_flee_refused() {
 
 #[test]
 #[should_panic(expected: 'caste: skill adrenaline')]
-#[available_gas(l2_gas: 57635)] // ceil(1.05 × 54890 measured)
+#[available_gas(l2_gas: 49413)] // ceil(1.05 × 47060 measured)
 fn test_caste_skill_of_64_strikes_refused() {
     CasteAssert::assert_skills(array![skill_of(63), skill_of(64)].span());
 }
@@ -317,7 +317,7 @@ fn test_caste_skill_of_64_strikes_refused() {
 // 21 and accepts 20. The tick's extremes: `test_tick::test_regeneration_extremes`.
 #[test]
 #[should_panic(expected: 'caste: health regen')]
-#[available_gas(l2_gas: 35963)] // ceil(1.05 × 34250 measured)
+#[available_gas(l2_gas: 27867)] // ceil(1.05 × 26540 measured)
 fn test_caste_health_regen_21_refused_at_pack() {
     let caste = Caste { health_regen: 21, ..caste_at_bounds() };
     Record::<Caste>::pack(@caste);
@@ -325,7 +325,7 @@ fn test_caste_health_regen_21_refused_at_pack() {
 
 // §6 test 7: one hit's product in a `u64` (§1.6): B's base 33,022 at x = 80 and A's 163,836.
 #[test]
-#[available_gas(l2_gas: 18638)] // ceil(1.05 × 17750 measured)
+#[available_gas(l2_gas: 10416)] // ceil(1.05 × 9920 measured)
 fn test_one_hit_product() {
     let table: u64 = Exp2::at(80).into();
     assert(33022 * table == 8656519168, 'B: < 2^34');
@@ -335,7 +335,7 @@ fn test_one_hit_product() {
 // §6 test 7, DS-20: a second `ATTACK_BONUS` on one carrier is refused.
 #[test]
 #[should_panic(expected: 'carrier: two attack bonuses')]
-#[available_gas(l2_gas: 162351)] // ceil(1.05 × 154620 measured)
+#[available_gas(l2_gas: 154256)] // ceil(1.05 × 146910 measured)
 fn test_second_attack_bonus_refused() {
     let bonus = EntryTrait::new(
         kind::ATTACK_BONUS, 0, 5, 5, 0, 0, 0, target::FOE, shape::SINGLE, filter::FOES, 0, 0,

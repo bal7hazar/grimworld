@@ -115,7 +115,7 @@ fn member_words() -> (MemberState, MemberTimers, MemberEffects, Recharges, Membe
 
 // The constants the tick mirrors are this package's.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_tick_constants() {
     assert(status::INSIDE == INSIDE && status::DOWN == DOWN && status::GONE == GONE, 'status');
     assert(ai::ASLEEP == ASLEEP && ai::WATCH == WATCH && ai::ALERTED == ALERTED, 'ai');
@@ -131,7 +131,7 @@ fn test_tick_constants() {
 // unpackers read them, and every other field of the four words is kept.
 #[test]
 // gas: raised, the load reads through the content's index, built first (CBT-02d)
-#[available_gas(l2_gas: 1384488)] // ceil(1.05 × 1318560 measured)
+#[available_gas(l2_gas: 1376372)] // ceil(1.05 × 1310830 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
     let (sheets, mut index) = content().index();
@@ -200,7 +200,8 @@ fn test_tick_words_member() {
 // AUD-182-1: a potion's effect regenerates from each of the four belt slots, slot 0 included (its
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
-#[available_gas(l2_gas: 3128415)] // ceil(1.05 × 2979442 measured), kept: 3007552 now
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 3149919)] // ceil(1.05 × 2999922 measured), kept: 3007552 now
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
         PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
@@ -242,7 +243,7 @@ fn test_potion_regeneration_every_belt_slot() {
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
 // gas: raised, the load reads through the content's index, built first (CBT-02d)
-#[available_gas(l2_gas: 613851)] // ceil(1.05 × 584620 measured)
+#[available_gas(l2_gas: 605735)] // ceil(1.05 × 576890 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {
         x: 200,

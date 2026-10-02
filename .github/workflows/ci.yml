@@ -69,7 +69,11 @@ jobs:
     needs: discover
     name: cairo (${{ matrix.dir }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    # D-176 (FND-10's scope, folded into FND-11): the compiler's withdraw_gas placement follows rayon's
+    # thread order, so every measured or declared build is single-threaded (docs/CAIRO.md §2).
+    env:
+      RAYON_NUM_THREADS: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -153,6 +157,89 @@ jobs:
         if: matrix.dir == 'contracts'
         working-directory: .
         run: python3 contracts/logic/vectors/check.py
+
+      # D-176 / SPK-13: three clean builds give one CASM and one Sierra size per class. Not a class
+      # hash: it depends on the absolute build path (closure type names), SPK-13b, #283. Last, as it
+      # cleans the target folder.
+      - name: three clean builds agree
+        if: matrix.dir == 'contracts'
+        run: python3 ../.github/ci/build_stable.py
+
+  # FND-12 (SPK-13b, #283): the contracts' class files built once, at CI's checkout root, and kept.
+  # A class hash depends on the absolute build path, so a class that is declared on a network is
+  # one of these files, never a local worktree build; build-root.json records the root, the commit,
+  # the Scarb version and the OS it came from (OPERATIONS §7). A job of its own, not a step of the
+  # `cairo` matrix: one clean build of exactly contracts/, uploaded once, whatever the matrix does
+  # (no cache restored, target/ removed before the build, snforge's *.test.* files left out).
+  # On a pull request the checkout is the head commit, not the merge commit, so the build, the
+  # artefact's name and build-root.json's commit are one commit. A class to declare comes from the
+  # artefact of a push to main (OPERATIONS §7), not from a pull request's run.
+  # RAYON_NUM_THREADS=1 is the repository's build pin (D-176). No class hash is computed here.
+  class-artefacts:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - id: pins
+        env:
+          PACKAGES: ${{ needs.discover.outputs.packages }}
+        run: |
+          set -euo pipefail
+          scarb=$(python3 -c 'import json, os; print(next(p["scarb"] for p in json.loads(os.environ["PACKAGES"]) if p["dir"] == "contracts"))')
+          [[ $scarb =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "scarb $scarb" >&2; exit 1; }
+          echo "scarb=$scarb" >> "$GITHUB_OUTPUT"
+
+      - uses: software-mansion/setup-scarb@2a96b748888e3329ee44ac9ac073d930e692b3cd # v1.6.2
+        with:
+          scarb-version: ${{ steps.pins.outputs.scarb }}
+          # No registry or target/ cache: the build below starts from nothing.
+          cache: false
+
+      - name: build at CI's root
+        env:
+          RAYON_NUM_THREADS: "1"
+          SCARB: ${{ steps.pins.outputs.scarb }}
+          # The commit the checkout holds (see the job's comment).
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          scarb --version | grep -q "^scarb $SCARB " || { echo "scarb is not $SCARB" >&2; exit 1; }
+          cd contracts
+          rm -rf target
+          scarb build --workspace
+          # Written by python so that no value is interpolated into a shell string.
+          python3 - <<'PY'
+          import json, os, subprocess
+          scarb = subprocess.run(["scarb", "--version"], capture_output=True, text=True, check=True).stdout.splitlines()[0]
+          record = {
+              "root": os.environ["GITHUB_WORKSPACE"],
+              "commit": os.environ["COMMIT"],
+              "scarb": scarb.split()[1],
+              "os": f'{os.environ["RUNNER_OS"]} {os.environ["ImageOS"]} {os.environ["ImageVersion"]}',
+          }
+          with open("target/build-root.json", "w") as f:
+              json.dump(record, f, indent=2)
+              f.write("\n")
+          print(json.dumps(record, indent=2))
+          PY
+          find target -type f ! -name '*.test.*' \( -name '*.contract_class.json' -o -name '*.compiled_contract_class.json' \) | sort
+
+      # 90 days: the most the default plan keeps, so a declaration can follow its merge by weeks.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: contract-classes-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            contracts/target/**/*.contract_class.json
+            contracts/target/**/*.compiled_contract_class.json
+            !contracts/target/**/*.test.*
+            contracts/target/build-root.json
+          retention-days: 90
+          if-no-files-found: error
 
   client:
     needs: discover

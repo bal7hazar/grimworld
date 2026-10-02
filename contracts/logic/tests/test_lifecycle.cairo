@@ -8,7 +8,7 @@ use grimworld_logic::professions::ProfessionTrait;
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats, SnapshotTrait};
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_position() {
     assert(LocationTrait::position(0, 0) == (0, 0), 'origin');
     assert(LocationTrait::position(0, 105) == (0, 7), 'row 7');
@@ -18,7 +18,7 @@ fn test_position() {
 }
 
 #[test]
-#[available_gas(l2_gas: 34608)] // ceil(1.05 × 32960 measured)
+#[available_gas(l2_gas: 26387)] // ceil(1.05 × 25130 measured)
 fn test_has_map() {
     let place = |kind: u8| {
         LocationTrait::new(
@@ -40,7 +40,7 @@ fn test_has_map() {
 // A gate is left from its source, on its anchor, when it is a hub gate or a link with no
 // requirement.
 #[test]
-#[available_gas(l2_gas: 65195)] // ceil(1.05 × 62090 measured)
+#[available_gas(l2_gas: 56973)] // ceil(1.05 × 54260 measured)
 fn test_can_leave() {
     let gate = GateTrait::new(2, 1, 0, 105, 0, 0, kind::HUB, 0, 0);
     assert(gate.anchor() == (0, 7) && gate.entry() == (0, 0), 'anchor, entry');
@@ -60,7 +60,7 @@ fn test_can_leave() {
 }
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_enterable() {
     GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 3, 0).assert_enterable(1, 3);
     GateTrait::new(1, 2, 0, 0, 0, 105, kind::LINK, 0, 0).assert_enterable(1, 0);
@@ -68,28 +68,28 @@ fn test_enterable() {
 
 #[test]
 #[should_panic(expected: 'gate: not in this hub')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_enterable_elsewhere() {
     GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 0, 0).assert_enterable(4, 0);
 }
 
 #[test]
 #[should_panic(expected: 'gate: kind')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_enterable_floor() {
     GateTrait::new(1, 2, 0, 0, 0, 105, kind::FLOOR, 0, 0).assert_enterable(1, 0);
 }
 
 #[test]
 #[should_panic(expected: 'gate: rank')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_enterable_rank() {
     GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 3, 0).assert_enterable(1, 2);
 }
 
 #[test]
 #[should_panic(expected: 'gate: quest')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_enterable_quest() {
     GateTrait::new(1, 2, 0, 0, 0, 105, kind::HUB, 0, 5).assert_enterable(1, 9);
 }
@@ -97,7 +97,7 @@ fn test_enterable_quest() {
 // design/03: health 100 + 20 per level above 1; energy, its pips and armor by profession.
 #[test]
 // gas: raised, CBT-01: design/19's passives in the snapshot (FX-24)
-#[available_gas(l2_gas: 53288)] // ceil(1.05 × 50750 measured)
+#[available_gas(l2_gas: 45066)] // ceil(1.05 × 42920 measured)
 fn test_snapshot() {
     let snapshot = SnapshotTrait::new(
         20, 3, [1, 2, 3, 4, 5, 6, 7, 8], 2, [9, 10, 11, 12], [1, 2, 3, 4],
@@ -140,7 +140,7 @@ fn test_snapshot() {
 #[test]
 #[should_panic(expected: 'bad profession')]
 // gas: raised, CBT-01: design/19's passives in the snapshot (FX-24)
-#[available_gas(l2_gas: 22806)] // ceil(1.05 × 21720 measured)
+#[available_gas(l2_gas: 14711)] // ceil(1.05 × 14010 measured)
 fn test_snapshot_of_no_profession() {
     SnapshotTrait::new(1, 0, [0; 8], 255, [0; 4], [0; 4]);
 }

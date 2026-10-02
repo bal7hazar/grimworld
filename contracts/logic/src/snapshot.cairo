@@ -1772,7 +1772,8 @@ mod tests {
     // may hold a statistic at its per-source maximum (and, where no floor refuses it, its
     // minimum) flattens without overflow, to exactly the envelope.
     #[test]
-    #[available_gas(l2_gas: 12470119)] // ceil(1.05 × 11876303 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    #[available_gas(l2_gas: 12473132)] // ceil(1.05 × 11879173 measured)
     fn test_envelope_builds() {
         // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and
         // set bonuses at 50.
@@ -1823,7 +1824,7 @@ mod tests {
     // held slots, insignias 15, 10, 5, 5, 5, five +50 health runes of distinct ids, two +50 set
     // bonuses. The final maximum is `max_health`; `health_bonus` is freed (DS-3).
     #[test]
-    #[available_gas(l2_gas: 4266253)] // ceil(1.05 × 4063098 measured)
+    #[available_gas(l2_gas: 4259817)] // ceil(1.05 × 4056968 measured)
     fn test_extremal_max_health() {
         let mut all = everywhere(passive(id::MAX_HEALTH, 0, 30), held_slots());
         let insignias = [15_i16, 10, 5, 5, 5];
@@ -1846,7 +1847,7 @@ mod tests {
     // ranks 15, DS-8) in light armor, five held slots and two set bonuses at +5: 30 + 45 + 20 +
     // 35.
     #[test]
-    #[available_gas(l2_gas: 2492861)] // ceil(1.05 × 2374153 measured)
+    #[available_gas(l2_gas: 2486425)] // ceil(1.05 × 2368023 measured)
     fn test_extremal_max_energy_and_rank() {
         let mut all = everywhere(passive(id::MAX_ENERGY, 0, 5), held_slots());
         all.append(held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300));
@@ -1865,7 +1866,7 @@ mod tests {
 
     // The ranks of all eight bar slots at 15 fill `MemberStats.ranks`' 32 bits (4 bits a slot).
     #[test]
-    #[available_gas(l2_gas: 1230908)] // ceil(1.05 × 1172293 measured)
+    #[available_gas(l2_gas: 1222792)] // ceil(1.05 × 1164563 measured)
     fn test_ranks_of_every_bar_slot() {
         let all = array![held(passive(id::ATTRIBUTE, PRIMARY, 3), Source::Rune, 10, 300)];
         let build = Loadout { bar_attributes: [PRIMARY; 8], ..loadout(3, 20) };
@@ -1877,7 +1878,7 @@ mod tests {
     // strength is 5 × the weapon attribute's rank capped by level (DS-9): 50, and 40 under a cap
     // of 40.
     #[test]
-    #[available_gas(l2_gas: 1646344)] // ceil(1.05 × 1567946 measured)
+    #[available_gas(l2_gas: 1638227)] // ceil(1.05 × 1560216 measured)
     fn test_extremal_weapon() {
         let maul = Loadout {
             weapon: weapon::MAUL,
@@ -1897,7 +1898,7 @@ mod tests {
     // §6 test 2, "each other field ≤ its envelope": every source at its widest on every other
     // row.
     #[test]
-    #[available_gas(l2_gas: 5609004)] // ceil(1.05 × 5341908 measured)
+    #[available_gas(l2_gas: 5600887)] // ceil(1.05 × 5334178 measured)
     fn test_other_fields_within_envelopes() {
         let mut all = array![];
         let mut i: u8 = 0;
@@ -1932,7 +1933,7 @@ mod tests {
     // attack skills (lane 1), the other −18 always on spells (lane 2), the inscriptions +18 and
     // −18 always on all hits (0–2), the set bonuses +18 above half on spells (lane 5).
     #[test]
-    #[available_gas(l2_gas: 3694067)] // ceil(1.05 × 3518159 measured)
+    #[available_gas(l2_gas: 3685951)] // ceil(1.05 × 3510429 measured)
     fn test_lanes_against_the_oracle() {
         let all = array![
             held(
@@ -2021,7 +2022,7 @@ mod tests {
     // §6 test 3: the floors (DS-2), level 1 with every cost at its bound: refused.
     #[test]
     #[should_panic(expected: 'build: max health below 1')]
-    #[available_gas(l2_gas: 575110)] // ceil(1.05 × 547723 measured)
+    #[available_gas(l2_gas: 566993)] // ceil(1.05 × 539993 measured)
     fn test_floor_max_health_refused() {
         // Runes: +5 armor and −75 health; set bonuses −75: 100 − 375 − 150.
         let mut all = array![];
@@ -2038,7 +2039,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: max energy below 0')]
-    #[available_gas(l2_gas: 780616)] // ceil(1.05 × 743443 measured)
+    #[available_gas(l2_gas: 772499)] // ceil(1.05 × 735713 measured)
     fn test_floor_max_energy_refused() {
         // A Vanguard's 20, five held slots and two set bonuses at −5: −15.
         let all = everywhere(
@@ -2050,7 +2051,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: energy regen below 0')]
-    #[available_gas(l2_gas: 780616)] // ceil(1.05 × 743443 measured)
+    #[available_gas(l2_gas: 772499)] // ceil(1.05 × 735713 measured)
     fn test_floor_energy_regen_refused() {
         // A Vanguard's 2 pips, five held slots and two set bonuses at −1: −5.
         let all = everywhere(
@@ -2064,7 +2065,7 @@ mod tests {
     // against a type 149 → 63 (a Warden's +30 elemental and 17 sources at 7). Condition duration
     // 65,534 → 50: `test_same_condition_capped`, below.
     #[test]
-    #[available_gas(l2_gas: 11256097)] // ceil(1.05 × 10720092 measured)
+    #[available_gas(l2_gas: 11255331)] // ceil(1.05 × 10719362 measured)
     fn test_saturation() {
         let all = everywhere(passive(id::ENCHANT_DURATION, 0, 20), sources());
         let snapshot = flatten(@loadout(2, 20), all.span());
@@ -2092,7 +2093,7 @@ mod tests {
     // §6 test 5 (FX-43, D-157 D): two health runes of one modifier id count once; of two ids,
     // both.
     #[test]
-    #[available_gas(l2_gas: 2289973)] // ceil(1.05 × 2180926 measured)
+    #[available_gas(l2_gas: 2281856)] // ceil(1.05 × 2173196 measured)
     fn test_rune_identity() {
         let rune = passive(id::MAX_HEALTH, 0, 50);
         let same = array![held(rune, Source::Rune, 10, 7), held(rune, Source::Rune, 11, 7)];
@@ -2106,7 +2107,7 @@ mod tests {
     // AUD-182-2: three runes of one modifier id (+50 health, −75 health): the benefit counts
     // once, every cost counts (FX-43): 480 + 50 − 225.
     #[test]
-    #[available_gas(l2_gas: 1811768)] // ceil(1.05 × 1725493 measured)
+    #[available_gas(l2_gas: 1803652)] // ceil(1.05 × 1717763 measured)
     fn test_repeated_rune_id() {
         let benefit = passive(id::MAX_HEALTH, 0, 50);
         let price = passive(id::MAX_HEALTH, 0, -75);
@@ -2124,7 +2125,7 @@ mod tests {
     // AUD-182-3: a rune's contribution to an attribute is its passives' sum: +1 and +2 on one
     // rune give 3, so 12 points reach 15.
     #[test]
-    #[available_gas(l2_gas: 1380554)] // ceil(1.05 × 1314813 measured)
+    #[available_gas(l2_gas: 1372438)] // ceil(1.05 × 1307083 measured)
     fn test_rune_attribute_contribution() {
         let all = array![
             held(passive(id::ATTRIBUTE, PRIMARY, 1), Source::Rune, 10, 7),
@@ -2138,7 +2139,7 @@ mod tests {
     // The counts of design/20 §1.2 at their bounds, the 17 sources: accepted; one more of a
     // source: refused.
     #[test]
-    #[available_gas(l2_gas: 4288492)] // ceil(1.05 × 4084278 measured)
+    #[available_gas(l2_gas: 4282056)] // ceil(1.05 × 4078148 measured)
     fn test_counts_at_bounds() {
         let all = everywhere(passive(id::ARMOR, 0, 1), sources());
         let snapshot = flatten(@loadout(1, 20), all.span());
@@ -2147,7 +2148,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: too many of a source')]
-    #[available_gas(l2_gas: 278107)] // ceil(1.05 × 264863 measured)
+    #[available_gas(l2_gas: 270116)] // ceil(1.05 × 257253 measured)
     fn test_sixth_rune_refused() {
         let mut all = array![];
         let mut i: u8 = 0;
@@ -2160,7 +2161,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: too many of a source')]
-    #[available_gas(l2_gas: 194201)] // ceil(1.05 × 184953 measured)
+    #[available_gas(l2_gas: 186211)] // ceil(1.05 × 177343 measured)
     fn test_second_prefix_refused() {
         let all = array![
             held(passive(id::ARMOR, 0, 5), Source::Prefix, 0, 1),
@@ -2171,7 +2172,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: too many of a source')]
-    #[available_gas(l2_gas: 211736)] // ceil(1.05 × 201653 measured)
+    #[available_gas(l2_gas: 203746)] // ceil(1.05 × 194043 measured)
     fn test_third_set_bonus_refused() {
         let all = array![
             held(passive(id::ARMOR, 0, 5), Source::SetBonus, 15, 0),
@@ -2185,7 +2186,7 @@ mod tests {
     // instance after a later one is refused.
     #[test]
     #[should_panic(expected: 'build: instances out of order')]
-    #[available_gas(l2_gas: 197228)] // ceil(1.05 × 187836 measured)
+    #[available_gas(l2_gas: 189238)] // ceil(1.05 × 180226 measured)
     fn test_instances_out_of_order_refused() {
         let all = array![
             held(passive(id::ARMOR, 0, 5), Source::Rune, 11, 1),
@@ -2197,7 +2198,7 @@ mod tests {
     // DS-23: one insignia a piece.
     #[test]
     #[should_panic(expected: 'build: two insignias a piece')]
-    #[available_gas(l2_gas: 199625)] // ceil(1.05 × 190119 measured)
+    #[available_gas(l2_gas: 191635)] // ceil(1.05 × 182509 measured)
     fn test_two_insignias_on_a_piece_refused() {
         let mut first = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 5, 200);
         let mut second = held(passive(id::MAX_HEALTH, 0, 5), Source::Insignia, 6, 200);
@@ -2209,7 +2210,7 @@ mod tests {
     // A quick-cast pair names an attribute of the build (D-157 A): its index; one the build does
     // not hold is refused.
     #[test]
-    #[available_gas(l2_gas: 1122286)] // ceil(1.05 × 1068843 measured)
+    #[available_gas(l2_gas: 1114169)] // ceil(1.05 × 1061113 measured)
     fn test_quick_cast_pairs() {
         let all = array![
             held(passive(id::QUICK_CAST_EVERY_N, OTHER, 4), Source::Inscription, 3, 1),
@@ -2223,7 +2224,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'build: quick-cast attribute')]
-    #[available_gas(l2_gas: 194327)] // ceil(1.05 × 185073 measured)
+    #[available_gas(l2_gas: 186337)] // ceil(1.05 × 177463 measured)
     fn test_quick_cast_attribute_not_held_refused() {
         let all = array![held(passive(id::QUICK_CAST_EVERY_N, 99, 4), Source::Inscription, 3, 1)];
         SnapshotBuildTrait::build(@loadout(1, 20), all.span());
@@ -2231,7 +2232,7 @@ mod tests {
 
     // The passives that are not summed: the lowest N, the damage type, halving.
     #[test]
-    #[available_gas(l2_gas: 1383515)] // ceil(1.05 × 1317633 measured)
+    #[available_gas(l2_gas: 1375399)] // ceil(1.05 × 1309903 measured)
     fn test_passives_not_summed() {
         let all = array![
             held(passive(id::DAMAGE_TYPE, damage::FIRE, 0), Source::Prefix, 0, 1),
@@ -2247,21 +2248,21 @@ mod tests {
 
     // DS-29: `pack_stats` accepts a health regeneration of 20 and refuses 21.
     #[test]
-    #[available_gas(l2_gas: 113117)] // ceil(1.05 × 107730 measured)
+    #[available_gas(l2_gas: 105021)] // ceil(1.05 × 100020 measured)
     fn test_stats_health_regen_20_packs() {
         pack_stats(MemberStats { health_regen: 20, ..Default::default() });
     }
 
     #[test]
     #[should_panic(expected: 'snapshot: health regen')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_stats_health_regen_21_refused() {
         pack_stats(MemberStats { health_regen: 21, ..Default::default() });
     }
 
     #[test]
     // gas: raised, CBT-01: nine armors by damage type (FX-23, FX-24)
-    #[available_gas(l2_gas: 581606)] // ceil(1.05 × 553910 measured)
+    #[available_gas(l2_gas: 573384)] // ceil(1.05 × 546080 measured)
     fn test_stats_layout() {
         let stats = MemberStats {
             max_health: 0xFFFF,
@@ -2299,7 +2300,7 @@ mod tests {
 
     #[test]
     // gas: raised, CBT-01: design/19's passives in the bar and the kit (FX-24)
-    #[available_gas(l2_gas: 398213)] // ceil(1.05 × 379250 measured)
+    #[available_gas(l2_gas: 389991)] // ceil(1.05 × 371420 measured)
     fn test_bar_and_kit_layout() {
         let bar = MemberBar {
             skills: [1, 2, 3, 4, 5, 6, 7, 0xFFFF], elite_slot: 255, ..Fixture::empty_bar(),
@@ -2329,7 +2330,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 148985)] // ceil(1.05 × 141890 measured)
+    #[available_gas(l2_gas: 140763)] // ceil(1.05 × 134060 measured)
     fn test_task_page_layout() {
         let full = TaskEntry { task: 0xFFFFFFFF, kind: 0xFF, param: 0xFFFF };
         let page = TaskPage {
@@ -2366,7 +2367,7 @@ mod tests {
     // 136–183 (signed), the penetration sums 184–207, the quick-cast pairs 208–231 and the
     // unguarded armor 232–247 (signed); each round-trips at both ends and sits at its bit.
     #[test]
-    #[available_gas(l2_gas: 838415)] // ceil(1.05 × 798490 measured)
+    #[available_gas(l2_gas: 830193)] // ceil(1.05 × 790660 measured)
     fn test_bar_passives_layout() {
         let top = MemberBar {
             skills: [0xFFFF; 8],
@@ -2407,21 +2408,21 @@ mod tests {
     // F-21: the unguarded armor is bounded by 9,995 either way; a wider value is refused.
     #[test]
     #[should_panic(expected: 'snapshot: armor above bound')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_bar_armor_above_bound_refused() {
         pack_bar(MemberBar { armor: MAX_UNGUARDED_ARMOR + 1, ..Fixture::empty_bar() });
     }
 
     #[test]
     #[should_panic(expected: 'snapshot: armor above bound')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_bar_armor_below_bound_refused() {
         pack_bar(MemberBar { armor: -MAX_UNGUARDED_ARMOR - 1, ..Fixture::empty_bar() });
     }
 
     #[test]
     #[should_panic(expected: 'snapshot: quick-cast attribute')]
-    #[available_gas(l2_gas: 85271)] // ceil(1.05 × 81210 measured)
+    #[available_gas(l2_gas: 77175)] // ceil(1.05 × 73500 measured)
     fn test_bar_quick_cast_attribute_refused() {
         let wide = QuickCast { attribute: 16, every: 1 };
         pack_bar(MemberBar { quick_cast: [Default::default(), wide], ..Fixture::empty_bar() });
@@ -2429,7 +2430,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'snapshot: armor vs above 63')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_stats_armor_vs_refused() {
         pack_stats(MemberStats { armor_vs: [0, 0, 0, 0, 0, 0, 0, 0, 64], ..Default::default() });
     }
@@ -2437,7 +2438,7 @@ mod tests {
     // The kit's high limb (design/19 §7.2): 75 bits, each field at its bit; the narrow ones
     // refused when wider.
     #[test]
-    #[available_gas(l2_gas: 646905)] // ceil(1.05 × 616100 measured)
+    #[available_gas(l2_gas: 638684)] // ceil(1.05 × 608270 measured)
     fn test_kit_passives_layout() {
         let bit = |kit: MemberKit| -> felt252 {
             pack_kit(kit) - LIVE
@@ -2491,21 +2492,21 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'snapshot: knock-down above 3')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_kit_knockdown_refused() {
         pack_kit(MemberKit { knockdown: 4, ..Default::default() });
     }
 
     #[test]
     #[should_panic(expected: 'snapshot: percent above 63')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_kit_percent_refused() {
         pack_kit(MemberKit { enchantment_duration: 64, ..Default::default() });
     }
 
     #[test]
     #[should_panic(expected: 'snapshot: condition')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_kit_condition_refused() {
         pack_kit(MemberKit { condition: 16, ..Default::default() });
     }
@@ -2562,7 +2563,7 @@ mod tests {
 
     // The baseline of the two below: the widest build's inputs, not flattened.
     #[test]
-    #[available_gas(l2_gas: 302579)] // ceil(1.05 × 288170 measured)
+    #[available_gas(l2_gas: 294483)] // ceil(1.05 × 280460 measured)
     fn test_cost_build_baseline() {
         let (build, all) = widest();
         assert(all.len() == 32 && build.level == 20, 'the widest build');
@@ -2570,7 +2571,7 @@ mod tests {
 
     // The flattening of the widest build (D-166): this test less the baseline.
     #[test]
-    #[available_gas(l2_gas: 2011441)] // ceil(1.05 × 1915658 measured)
+    #[available_gas(l2_gas: 2003325)] // ceil(1.05 × 1907928 measured)
     fn test_cost_build_widest() {
         let (build, all) = widest();
         assert(all.len() == 32 && build.level == 20, 'the widest build');
@@ -2580,7 +2581,7 @@ mod tests {
 
     // CBT-02's flattening of the same build, for the comparison (its checks not included).
     #[test]
-    #[available_gas(l2_gas: 11524223)] // ceil(1.05 × 10975450 measured)
+    #[available_gas(l2_gas: 11516001)] // ceil(1.05 × 10967620 measured)
     fn test_cost_oracle_widest() {
         let (build, all) = widest();
         assert(all.len() == 32 && build.level == 20, 'the widest build');
@@ -2590,7 +2591,7 @@ mod tests {
 
     // The same build flattened and compared with the oracle.
     #[test]
-    #[available_gas(l2_gas: 13301325)] // ceil(1.05 × 12667928 measured)
+    #[available_gas(l2_gas: 13293208)] // ceil(1.05 × 12660198 measured)
     fn test_widest_against_the_oracle() {
         let (build, all) = widest();
         let snapshot = flatten(@build, all.span());
@@ -2600,14 +2601,14 @@ mod tests {
 
     // The fixed part of the flattening: a build that holds no passive, and CBT-02's on the same.
     #[test]
-    #[available_gas(l2_gas: 403645)] // ceil(1.05 × 384423 measured)
+    #[available_gas(l2_gas: 395654)] // ceil(1.05 × 376813 measured)
     fn test_cost_build_empty() {
         let snapshot = SnapshotBuildTrait::build(@loadout(3, 20), array![].span());
         assert(snapshot.stats.max_health == 480, 'no passive');
     }
 
     #[test]
-    #[available_gas(l2_gas: 267509)] // ceil(1.05 × 254770 measured)
+    #[available_gas(l2_gas: 259413)] // ceil(1.05 × 247060 measured)
     fn test_cost_oracle_empty() {
         let snapshot = oracle(@loadout(3, 20), array![].span());
         assert(snapshot.stats.max_health == 480, 'no passive');
@@ -2617,7 +2618,7 @@ mod tests {
     // saturates at 50: envelope A's 65,534 gives 50 (the builder's sum, without the validators
     // that now forbid it). Moved from `test_capacity` (D-167, CBT-02c fix loop 1).
     #[test]
-    #[available_gas(l2_gas: 40961)] // ceil(1.05 × 39010 measured)
+    #[available_gas(l2_gas: 32739)] // ceil(1.05 × 31180 measured)
     fn test_same_condition_capped() {
         let wide = passive(id::CONDITION_DURATION, condition::POISON, 32767);
         assert(
@@ -2633,7 +2634,7 @@ mod tests {
     // CBT-9: two conditions are still refused, by the builder as by the validators.
     #[test]
     #[should_panic(expected: 'snapshot: two conditions')]
-    #[available_gas(l2_gas: 31143)] // ceil(1.05 × 29660 measured)
+    #[available_gas(l2_gas: 22922)] // ceil(1.05 × 21830 measured)
     fn test_two_conditions_builder_refused() {
         MemberKitTrait::condition_duration(
             array![
@@ -2683,7 +2684,7 @@ mod tests {
     // Each modifier's benefit at its rolled value, then its cost; instances `5 × lane + slot`; the
     // insignia's piece the chest's slot.
     #[test]
-    #[available_gas(l2_gas: 718998)] // ceil(1.05 × 684760 measured)
+    #[available_gas(l2_gas: 710777)] // ceil(1.05 × 676930 measured)
     fn test_worn_held() {
         let (ids, records) = worn_records();
         let held_passives = WornTrait::held(worn_items(), ids, records);
@@ -2709,7 +2710,7 @@ mod tests {
 
     // The words are the flattening's, packed: of the passives held, and of no item at all.
     #[test]
-    #[available_gas(l2_gas: 4042456)] // ceil(1.05 × 3849958 measured)
+    #[available_gas(l2_gas: 4034340)] // ceil(1.05 × 3842228 measured)
     fn test_words_are_the_flattening() {
         let (ids, records) = worn_records();
         let build = loadout(1, 20);
@@ -2731,7 +2732,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 366125)] // ceil(1.05 × 348690 measured)
+    #[available_gas(l2_gas: 357903)] // ceil(1.05 × 340860 measured)
     #[should_panic(expected: 'item: no such modifier')]
     fn test_worn_unknown_modifier_refused() {
         let (ids, _) = worn_records();
@@ -2740,7 +2741,7 @@ mod tests {
 
     // A rune (4) in the insignia's slot.
     #[test]
-    #[available_gas(l2_gas: 555072)] // ceil(1.05 × 528640 measured)
+    #[available_gas(l2_gas: 546851)] // ceil(1.05 × 520810 measured)
     #[should_panic(expected: 'item: modifier slot type')]
     fn test_worn_slot_type_refused() {
         let (ids, records) = worn_records();
@@ -2752,7 +2753,7 @@ mod tests {
 
     // Fire 1…7: 8 is refused, and 0 (`test_worn_value_below_refused`).
     #[test]
-    #[available_gas(l2_gas: 548342)] // ceil(1.05 × 522230 measured)
+    #[available_gas(l2_gas: 540120)] // ceil(1.05 × 514400 measured)
     #[should_panic(expected: 'item: modifier value')]
     fn test_worn_value_above_refused() {
         let (ids, records) = worn_records();
@@ -2763,7 +2764,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 547848)] // ceil(1.05 × 521760 measured)
+    #[available_gas(l2_gas: 539627)] // ceil(1.05 × 513930 measured)
     #[should_panic(expected: 'item: modifier value')]
     fn test_worn_value_below_refused() {
         let (ids, records) = worn_records();
@@ -2775,7 +2776,7 @@ mod tests {
 
     // DS-23: the chest's insignia on the legs.
     #[test]
-    #[available_gas(l2_gas: 552615)] // ceil(1.05 × 526300 measured)
+    #[available_gas(l2_gas: 544394)] // ceil(1.05 × 518470 measured)
     #[should_panic(expected: 'item: insignia piece')]
     fn test_worn_insignia_piece_refused() {
         let (ids, records) = worn_records();
@@ -2787,7 +2788,7 @@ mod tests {
 
     // `SnapshotTrait::words` packs the three words of a snapshot and keeps the belt's counts.
     #[test]
-    #[available_gas(l2_gas: 484155)] // ceil(1.05 × 461100 measured)
+    #[available_gas(l2_gas: 475934)] // ceil(1.05 × 453270 measured)
     fn test_snapshot_words() {
         let snapshot = SnapshotTrait::new(
             3, 1, [1, 2, 0, 0, 0, 0, 0, 0], 255, [7; 4], [1, 2, 3, 4],

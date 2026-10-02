@@ -15,7 +15,7 @@ fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
 
 #[test]
 // gas: raised, pins Stop::Version, Refusal::Version and their ordinals (F-15)
-#[available_gas(l2_gas: 215292)] // ceil(1.05 × 205040 measured)
+#[available_gas(l2_gas: 207071)] // ceil(1.05 × 197210 measured)
 fn test_instances_event_keys_and_data() {
     let id = instance_id(5, 2);
     let (keys, data) = split(
@@ -114,7 +114,7 @@ fn test_instances_event_keys_and_data() {
 
 // Fix loop 1, F-7: the per-action events of design/02 beside BatchPlayed.
 #[test]
-#[available_gas(l2_gas: 62055)] // ceil(1.05 × 59100 measured)
+#[available_gas(l2_gas: 53834)] // ceil(1.05 × 51270 measured)
 fn test_per_action_event_keys_and_data() {
     let id = instance_id(5, 2);
     let (keys, data) = split(

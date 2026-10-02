@@ -19,7 +19,8 @@ fn deploy_instances() -> ContractAddress {
 }
 
 #[test]
-#[available_gas(l2_gas: 2783298)] // ceil(1.05 × 2650760 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 2853617)] // ceil(1.05 × 2717730 measured)
 fn test_instances_deploys_and_stubs_revert() {
     let address = deploy_instances();
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');
@@ -42,7 +43,8 @@ fn two_probes() -> (ICallProbeDispatcher, ICallProbeDispatcher) {
 
 // Eight records read by one call to their contract (the baseline of the pair).
 #[test]
-#[available_gas(l2_gas: 5349960)] // ceil(1.05 × 5095200 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 5516375)] // ceil(1.05 × 5253690 measured)
 fn test_probe_read_direct() {
     let (_, b) = two_probes();
     assert(b.records(0, 8).len() == 8, 'eight');
@@ -51,7 +53,8 @@ fn test_probe_read_direct() {
 // The same eight records through one more contract: the difference with the baseline is the
 // price of one call between contracts (snforge's meter).
 #[test]
-#[available_gas(l2_gas: 5473766)] // ceil(1.05 × 5213110 measured)
+// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+#[available_gas(l2_gas: 5639970)] // ceil(1.05 × 5371400 measured)
 fn test_probe_read_through_a_call() {
     let (a, b) = two_probes();
     assert(a.records_of(b.contract_address, 0, 8).len() == 8, 'eight');
@@ -66,21 +69,21 @@ fn event_probe() -> IEventProbeDispatcher {
 // Fix loop 1, F-7: the price of the per-action events, as the difference between the same call
 // with and without them (snforge's meter). The baseline: no event.
 #[test]
-#[available_gas(l2_gas: 296793)] // ceil(1.05 × 282660 measured)
+#[available_gas(l2_gas: 288362)] // ceil(1.05 × 274630 measured)
 fn test_probe_events_none() {
     event_probe().fire(0, 0);
 }
 
 // Eight `GoblinKilled` (a batch's worst kills at one tick).
 #[test]
-#[available_gas(l2_gas: 773409)] // ceil(1.05 × 736580 measured)
+#[available_gas(l2_gas: 764978)] // ceil(1.05 × 728550 measured)
 fn test_probe_events_eight_killed() {
     event_probe().fire(8, 0);
 }
 
 // Four `ChunkRevealed` (a batch's most reveals: weight 10 allows 4 chunks).
 #[test]
-#[available_gas(l2_gas: 464993)] // ceil(1.05 × 442850 measured)
+#[available_gas(l2_gas: 456561)] // ceil(1.05 × 434820 measured)
 fn test_probe_events_four_revealed() {
     event_probe().fire(0, 4);
 }

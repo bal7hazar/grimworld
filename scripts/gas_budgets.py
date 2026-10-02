@@ -79,8 +79,8 @@ def budget_for(measured):
     return (measured * 105 + 99) // 100
 
 
-def run(cmd, cwd=ROOT):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+def run(cmd, cwd=ROOT, env=None):
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
 
 
 # ---------------------------------------------------------------- sources
@@ -338,6 +338,38 @@ def provenance_ok(date, commit, cwd=ROOT, main="origin/main"):
     return run(["git", "show", "-s", "--format=%cs", commit], cwd).stdout.strip() == date
 
 
+# Accepted rises of budgets: written by the generator below the table, so a regeneration keeps them
+# (add an entry when the project manager accepts a rise; never remove one).
+ACCEPTED = [
+    "## Accepted rises",
+    "",
+    "### Scarb 2.20.1 and starknet-foundry 0.64.0 (FND-11, #293)",
+    "",
+    "Accepted by the project manager under D-144, 2026-10-02, cause: compiler (Scarb 2.20.1, D-180):",
+    "",
+    "- `enter`: +4 % to +6 % on its tests (`test_lifecycle::test_enter*`).",
+    "- `set_build`: the worst case's call budget 8,501,927 → 9,100,742 (measured 8,667,373).",
+    "- `grimworld_persistent`: rises up to +18.5 % (`test_lifecycle::test_rules_epoch_full_cycle_reads_fresh`).",
+    "- `grimworld_ephemeral`: 24 rises, the largest +4.6 %.",
+    "- The 14 rises on `create`, `create_adventurer`, `leave`, `travel_back` and `travel` (whole-test totals, setup and several calls included; test, before → after, %):",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_create_first_entry`: 31,790,192 → 32,575,012 (+2.5 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_create_refusals`: 33,039,406 → 33,860,776 (+2.5 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_create_reuses_the_slot`: 44,105,551 → 45,690,521 (+3.6 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_create_sealed`: 25,877,196 → 26,583,366 (+2.7 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_create_without_tasks`: 27,805,866 → 28,512,036 (+2.5 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_leave_to_a_hub`: 33,228,136 → 34,221,056 (+3.0 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_leave_to_a_location`: 39,224,907 → 41,012,107 (+4.6 %)",
+    "  - `grimworld_ephemeral` `test_lifecycle::test_travel_back`: 31,536,609 → 32,510,779 (+3.1 %)",
+    "  - `grimworld_persistent` `test_accounts::test_create_adventurer`: 23,924,760 → 24,718,590 (+3.3 %)",
+    "  - `grimworld_persistent` `test_accounts::test_create_bad_profession_refused`: 9,286,710 → 9,660,880 (+4.0 %)",
+    "  - `grimworld_persistent` `test_accounts::test_create_empty_name_refused`: 9,296,770 → 9,666,540 (+4.0 %)",
+    "  - `grimworld_persistent` `test_accounts::test_create_no_free_slot_refused`: 19,504,540 → 20,381,910 (+4.5 %)",
+    "  - `grimworld_persistent` `test_accounts::test_create_without_account_refused`: 7,654,840 → 7,954,210 (+3.9 %)",
+    "  - `grimworld_persistent` `test_lifecycle::test_travel`: 35,630,367 → 37,310,737 (+4.7 %)",
+    "",
+]
+
+
 def render(rows, previous, ws, packages, keep_invalid):
     """({path or 'BUDGETS': text}, problems). A row whose measure and budget are unchanged keeps
     its date and commit if they verify; if not, it is stamped anew (write) or reported (check)."""
@@ -381,7 +413,9 @@ def render(rows, previous, ws, packages, keep_invalid):
             f"| {r['package']} | `{r['test']}` | {_m(r)} | {r['budget'] or '—'} "
             f"| {r['date']} | {r['commit']} |"
         )
-    out = {"BUDGETS": "\n".join(budgets) + "\n"}
+    if ws.rstrip("/") == "contracts":
+        budgets += [""] + ACCEPTED
+    out = {"BUDGETS": "\n".join(budgets).rstrip("\n") + "\n"}
     for package, path in packages.items():
         mine = [r for r in rows if r["package"] == package]
         gas = [
@@ -491,7 +525,9 @@ def main():
         cmd = ["snforge", "test", "--workspace", "--fuzzer-seed", "1"]
         if not args.no_lock:
             cmd = [os.path.join(ROOT, "scripts", "lock.sh"), "--heavy"] + cmd
-        res = run(cmd, os.path.join(ROOT, args.workspace))
+        # D-176: a measured build is single-threaded, or the compiler's withdraw_gas placement follows
+        # rayon's thread order and the figures differ between builds (docs/CAIRO.md §2).
+        res = run(cmd, os.path.join(ROOT, args.workspace), {**os.environ, "RAYON_NUM_THREADS": "1"})
         text = res.stdout
         if res.returncode != 0:
             sys.stderr.write(text + res.stderr)

@@ -13,7 +13,7 @@ disagree, the brief wins for its task, and says so.
 3. The design documents and ADRs the brief names.
 4. **Every Cairo task: [docs/CAIRO.md](../CAIRO.md), in full.** Test-driven, a gas budget on
    every test, execution cost first, arithmetic then bitwise then loops, no `u256` without a
-   written reason, `felt252` bitmaps through `hexx`'s `Bits` (D-174). The game is native Starknet on Cairo 2.19
+   written reason, `felt252` bitmaps through `hexx`'s `Bits` (D-174). The game is native Starknet on Cairo 2.20
    ([ADR-0007](../architecture/ADR-0007-native-starknet.md)): no Dojo.
 
 ## 2. How you work
@@ -49,7 +49,7 @@ disagree, the brief wins for its task, and says so.
 The VPS (8 vCPU, 31 GB) is shared with the owner's other programmes and with other agents.
 
 - **Every heavy command goes through the build lock**:
-  `scripts/lock.sh scarb --manifest-path <package>/Scarb.toml build` (Scarb 2.19: the option
+  `scripts/lock.sh scarb --manifest-path <package>/Scarb.toml build` (Scarb 2.19 and later: the option
   comes before the subcommand), `cd <package> && snforge test <filter>` (the machine's
   `snforge` shim takes the heavy lock), `scripts/lock.sh pnpm build`. It waits silently, sometimes for
   minutes, while another build runs: that is normal. A workspace-wide run adds `--heavy`.

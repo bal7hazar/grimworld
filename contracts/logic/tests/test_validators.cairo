@@ -86,42 +86,42 @@ impl FixtureImpl of Fixture {
 // is any `u8`, its id space not being settled; see `test_capacity`).
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_armor_vs_type_255_refused() {
     Fixture::passive(id::ARMOR_VS, 255, 1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_armor_vs_type_0_refused() {
     Fixture::passive(id::ARMOR_VS, 0, 1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_type_10_refused() {
     Fixture::passive(id::DAMAGE_TYPE, 10, 0).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_condition_duration_condition_10_refused() {
     Fixture::passive(id::CONDITION_DURATION, 10, 33).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_energy_cost_profession_7_refused() {
     Fixture::passive(id::ENERGY_COST, 7, -2).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_param_on_max_health_refused() {
     Fixture::passive(id::MAX_HEALTH, 1, 30).assert_legal();
 }
@@ -129,14 +129,14 @@ fn test_param_on_max_health_refused() {
 // CBT-1: a scope above 3 is refused by the pipeline's check, not only by the packer.
 #[test]
 #[should_panic(expected: 'passive: scope')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_percent_scope_4_refused() {
     PassiveTrait::new(id::DAMAGE_PERCENT, 0, 0, 4, 1, 1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: scope')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_penetration_scope_4_refused() {
     PassiveTrait::new(id::PENETRATION, 0, 0, 4, 1, 1).assert_legal();
 }
@@ -145,14 +145,14 @@ fn test_penetration_scope_4_refused() {
 // single passive; see `test_capacity`).
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_armor_vs_negative_refused() {
     Fixture::passive(id::ARMOR_VS, 1, -1).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: value out of bounds')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_type_with_a_value_refused() {
     Fixture::passive(id::DAMAGE_TYPE, 4, 1).assert_legal();
 }
@@ -160,14 +160,14 @@ fn test_damage_type_with_a_value_refused() {
 // CBT-1: through the containing record.
 #[test]
 #[should_panic(expected: 'passive: param')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_modifier_armor_vs_type_255_refused() {
     Fixture::on(slot::SUFFIX, Fixture::passive(id::ARMOR_VS, 255, 5));
 }
 
 // CBT-1: the ends of every domain are accepted.
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_passive_domains_accepted() {
     Fixture::passive(id::ARMOR_VS, 1, 0).assert_legal();
     Fixture::passive(id::ARMOR_VS, 9, 63).assert_legal();
@@ -190,56 +190,56 @@ fn test_passive_domains_accepted() {
 // CBT-2: design/19 §7.2's sources. The audit's case: an insignia giving `DAMAGE_PERCENT +18`.
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_percent_on_insignia_refused() {
     Fixture::on(slot::INSIGNIA, Fixture::damage());
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_percent_on_rune_refused() {
     Fixture::on(slot::RUNE, Fixture::damage());
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_penetration_on_insignia_refused() {
     Fixture::on(slot::INSIGNIA, Fixture::passive(id::PENETRATION, 0, 4));
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_guarded_armor_on_prefix_refused() {
     Fixture::on(slot::PREFIX, Fixture::stance_armor());
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_quick_cast_on_rune_refused() {
     Fixture::on(slot::RUNE, Fixture::quick_cast());
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_quick_cast_set_bonus_refused() {
     ArmorSetTrait::new([1, 2, 3, 4, 5], [Fixture::quick_cast(), Default::default()]).assert_legal();
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_condition_duration_on_suffix_refused() {
     Fixture::on(slot::SUFFIX, Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33));
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_condition_duration_set_bonus_refused() {
     let rending = Fixture::passive(id::CONDITION_DURATION, condition::BLEEDING, 33);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [rending, Default::default()]).assert_legal();
@@ -247,7 +247,7 @@ fn test_condition_duration_set_bonus_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_type_set_bonus_refused() {
     let fire = Fixture::passive(id::DAMAGE_TYPE, 4, 0);
     ArmorSetTrait::new([1, 2, 3, 4, 5], [fire, Default::default()]).assert_legal();
@@ -255,14 +255,14 @@ fn test_damage_type_set_bonus_refused() {
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_damage_type_on_insignia_refused() {
     Fixture::on(slot::INSIGNIA, Fixture::passive(id::DAMAGE_TYPE, 4, 0));
 }
 
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_rating_percent_on_a_modifier_refused() {
     Fixture::on(slot::INSIGNIA, Fixture::passive(id::RATING_PERCENT, 0, 10));
 }
@@ -270,7 +270,7 @@ fn test_rating_percent_on_a_modifier_refused() {
 // A cost is a passive of its slot too: a `DAMAGE_PERCENT` drawback on an insignia.
 #[test]
 #[should_panic(expected: 'passive: not on this source')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_cost_on_a_forbidden_source_refused() {
     let health = Fixture::passive(id::MAX_HEALTH, 0, 15);
     let drawback = Fixture::passive(id::DAMAGE_PERCENT, 0, -5);
@@ -281,7 +281,7 @@ fn test_cost_on_a_forbidden_source_refused() {
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
 // gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
-#[available_gas(l2_gas: 51030)] // ceil(1.05 × 48600 measured)
+#[available_gas(l2_gas: 42809)] // ceil(1.05 × 40770 measured)
 fn test_damage_percent_as_benefit_and_cost_refused() {
     let drawback = Fixture::passive(id::DAMAGE_PERCENT, 0, 18);
     ModifierTrait::new(slot::INSCRIPTION, Fixture::damage(), drawback).assert_legal();
@@ -290,7 +290,7 @@ fn test_damage_percent_as_benefit_and_cost_refused() {
 // CBT-2: the sources design/19 allows are accepted.
 #[test]
 // gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
-#[available_gas(l2_gas: 1523907)] // ceil(1.05 × 1451340 measured)
+#[available_gas(l2_gas: 1529357)] // ceil(1.05 × 1456530 measured)
 fn test_sources_accepted() {
     Fixture::on(slot::PREFIX, Fixture::damage());
     Fixture::on(slot::SUFFIX, Fixture::damage());
@@ -315,7 +315,7 @@ fn test_sources_accepted() {
 // CBT-3: an attack's hit modifier takes the attacked foe: `FOES`.
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 93146)] // ceil(1.05 × 88710 measured)
+#[available_gas(l2_gas: 85470)] // ceil(1.05 × 81400 measured)
 fn test_attack_bonus_on_allies_refused() {
     let bonus = Fixture::modifier_on_foe(kind::ATTACK_BONUS);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..bonus });
@@ -323,14 +323,14 @@ fn test_attack_bonus_on_allies_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 93345)] // ceil(1.05 × 88900 measured)
+#[available_gas(l2_gas: 85670)] // ceil(1.05 × 81590 measured)
 fn test_attack_hit_penetration_on_allies_refused() {
     let pierce = Fixture::modifier_on_foe(kind::HIT_PENETRATION);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..pierce });
 }
 
 #[test]
-#[available_gas(l2_gas: 403379)] // ceil(1.05 × 384170 measured)
+#[available_gas(l2_gas: 397005)] // ceil(1.05 × 378100 measured)
 fn test_attack_modifiers_on_foes_accepted() {
     Fixture::attack_with(Fixture::modifier_on_foe(kind::ATTACK_BONUS));
     Fixture::attack_with(Fixture::modifier_on_foe(kind::HIT_PENETRATION));
@@ -339,7 +339,7 @@ fn test_attack_modifiers_on_foes_accepted() {
 // CBT-4: without charges, a preparation's duration is positive at every rank (ranks 0 and 15).
 #[test]
 #[should_panic(expected: 'entry: neither d nor charges')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_preparation_falling_to_0_at_15_refused() {
     // The audit's case: 5 + trunc(−4 × 15 / 12) = 0.
     Fixture::preparation(5, 1, 0).assert_legal();
@@ -347,7 +347,7 @@ fn test_preparation_falling_to_0_at_15_refused() {
 
 #[test]
 #[should_panic(expected: 'entry: neither d nor charges')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_preparation_falling_by_one_refused() {
     // 1 + trunc(−15 / 12) = 0.
     Fixture::preparation(1, 0, 0).assert_legal();
@@ -355,13 +355,13 @@ fn test_preparation_falling_by_one_refused() {
 
 #[test]
 #[should_panic(expected: 'entry: neither d nor charges')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_preparation_rising_from_0_refused() {
     Fixture::preparation(0, 5, 0).assert_legal();
 }
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_preparation_boundaries_accepted() {
     // 4 + trunc(−3 × 15 / 12) = 1; 1 at both ends; rising from 1 to exactly 43,688 at rank 15
     // (1 + trunc(34,950 × 15 / 12)); charges without a duration.
@@ -375,21 +375,21 @@ fn test_preparation_boundaries_accepted() {
 // CBT-5: a non-potion's entry is the empty entry, every field 0.
 #[test]
 #[should_panic(expected: 'entry: empty with a field')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_ingredient_with_a_stray_field_refused() {
     let stray = Entry { v0: 1, ..Default::default() };
     ItemTrait::new(class::INGREDIENT, 1, 1, 1, 3, stray, 0, 0).assert_legal();
 }
 
 #[test]
-#[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+#[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
 fn test_ingredient_empty_entry_accepted() {
     ItemTrait::new(class::INGREDIENT, 1, 1, 1, 3, Default::default(), 0, 0).assert_legal();
 }
 
 // CBT-6: the quick-cast pair's packing, scoped in its trait.
 #[test]
-#[available_gas(l2_gas: 19677)] // ceil(1.05 × 18740 measured)
+#[available_gas(l2_gas: 11456)] // ceil(1.05 × 10910 measured)
 fn test_quick_cast_trait() {
     let top = QuickCast { attribute: 15, every: 255 };
     assert(top.pack() == 0xFFF, '12 bits');
@@ -398,7 +398,7 @@ fn test_quick_cast_trait() {
 
 #[test]
 #[should_panic(expected: 'snapshot: quick-cast attribute')]
-#[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
 fn test_quick_cast_trait_refused() {
     QuickCast { attribute: 16, every: 1 }.pack();
 }

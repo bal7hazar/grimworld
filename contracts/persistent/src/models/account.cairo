@@ -158,7 +158,7 @@ mod tests {
 
     // The record's round trip through its packer, and the account's two slots.
     #[test]
-    #[available_gas(l2_gas: 55755)] // ceil(1.05 × 53100 measured)
+    #[available_gas(l2_gas: 47534)] // ceil(1.05 × 45270 measured)
     fn test_account_layout() {
         let record = AccountRecord {
             slots: 9, adventurers: 5, highest_rank: 4, vault_panes: 2, lots: 7,
@@ -169,13 +169,13 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_owner_key() {
         assert(OwnerTrait::key(VAULT, 7) == 2 * 0x100000000 + 7, 'owner key');
     }
 
     #[test]
-    #[available_gas(l2_gas: 14406)] // ceil(1.05 × 13720 measured)
+    #[available_gas(l2_gas: 6311)] // ceil(1.05 × 6010 measured)
     fn test_list_at() {
         assert(AdventurerListTrait::at(0) == (0, 0), 'first');
         assert(AdventurerListTrait::at(13) == (1, 6), 'fourteenth');
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not in the account list')]
-    #[available_gas(l2_gas: 16296)] // ceil(1.05 × 15520 measured)
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
     fn test_not_listed_refused() {
         AdventurerListAssert::assert_listed(3, 3);
     }
