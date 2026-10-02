@@ -119,6 +119,20 @@ for later lots: **a class that passes 50 % of a limit is split before it grows f
 their size is unknown (ARC). Running `class_sizes.py` in CI is the orchestrator's step in
 `.github/` (§11, E-10).
 
+**Two exceptions to the 50 % (CBT-05a, route (c); decided by the project manager, 2026-10-02
+(D-200)).** The rule above stays the default for every class. Two classes have their own ceiling:
+- **`ExecutorLibrary`** (`contracts/logic/src/systems/executor.cairo`), the executor in its own
+  class, called once a carrier by `TickLibrary`'s step-1 hook: **at most 80,420 CASM felts**, the
+  limit (81,920) less 1,500 of margin. Accepted at 80,122 (97.81 %, measured at CBT-05a's
+  `f1a33f4`). Any growth beyond 80,420 goes to the project manager first; room is won back by a
+  later design lot (CBT-05a's option (3): only the carrier's sheets across the call, the snapshot
+  words split from the actors).
+- **`TickLibrary`**: **at most 75 %** (61,440 felts), to keep its room for CBT-05b's resolution
+  parts and ENG-07's act hook (45,427, 55.45 %, at `f1a33f4`).
+
+`contracts/tools/class_sizes.py` checks each class against its threshold: these two by name, every
+other at 50 %.
+
 **The tick's library class (CBT-02, M).** `TickLibrary`, in `grimworld_logic`
 (`contracts/logic/src/systems/tick.cairo`; the package's manifest declares `[lib]` and
 `[[target.starknet-contract]]`, since a contract target replaces the default library target). Its
