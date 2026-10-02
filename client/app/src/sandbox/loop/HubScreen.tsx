@@ -221,10 +221,13 @@ function Illustration({
         ref={host}
         style={styles.canvas}
         data-atlas={atlas}
-        // For the browser check: where the adventurer is, whether it walks, the fit's numbers.
+        // For the browser check: where the adventurer is, whether it walks, and the grid on screen
+        // (the fit's scale and corner, the hub's origin).
         data-walker={`${walker.at.x},${walker.at.y}`}
         data-walking={walker.target ? "true" : "false"}
-        data-fit={fit ? `${fit.scale} ${fit.x} ${fit.y}` : undefined}
+        data-grid={
+          fit ? `${fit.scale} ${fit.x} ${fit.y} ${view.origin.x} ${view.origin.y}` : undefined
+        }
         onClick={ground}
       />
       {fit &&

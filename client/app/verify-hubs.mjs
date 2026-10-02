@@ -1,4 +1,4 @@
-/* global console, process, fetch, setTimeout */
+/* global console, process, fetch, setTimeout, document */
 /* eslint-disable no-empty */
 // The hubs loop in a real browser (CLI-03c, CLI-03d): town → gate → entry → room → leave → report →
 // town, the outpost, travel back, defeat, and the arrival rule (no automatic offer on arrival, the
@@ -11,6 +11,12 @@
 // town in `?scale=sharp` and fails on any page error. Its check that no place is drawn as a shape
 // applies only with the pack (the atlas built in `tools/art/out/`); without it the pass notes the
 // shapes and asserts nothing about them.
+//
+// CLI-03f's walking pass, in both hubs at both sizes: a tap on a free ground hex walks there and the
+// frames stop once it stands; a tap on the Smith (the town) or the Trainer (the outpost) walks to
+// its door, then opens its screen; back, the adventurer still stands on the door; the Gate walked
+// to opens the Gate screen, and back on its door nothing reopens. With the shots, each hub mid-walk
+// and after it (`walk-<hub>-<viewport>-{mid,after}.png`).
 //
 // Env: VERIFY_PORT (default 5197), VERIFY_CHANNEL (a Playwright channel such as "chrome"; default:
 // the Chromium that `playwright-core install chromium` fetched), VERIFY_SHOTS=1, VERIFY_SHOTS_DIR.
@@ -214,6 +220,124 @@ async function hubShots(browser) {
   }
 }
 
+/** The room's conversion (`input/coords.ts`): a tile's centre in world pixels. */
+const ROW_HEIGHT = (64 / Math.sqrt(3)) * 1.5;
+const tileToPixel = (t) => ({ x: -(t.x + (t.y & 1) / 2) * 64, y: -t.y * ROW_HEIGHT });
+
+/** A hex's centre on the page, from the canvas's grid numbers (`data-grid`). */
+async function hexOnPage(page, tile) {
+  const host = page.locator("[data-grid]");
+  const [scale, fx, fy, ox, oy] = (await host.getAttribute("data-grid")).split(" ").map(Number);
+  const box = await host.boundingBox();
+  const p = tileToPixel(tile);
+  return { x: box.x + fx + (ox + p.x) * scale, y: box.y + fy + (oy + p.y) * scale };
+}
+
+const walkerAt = (page) => page.locator("[data-walker]").getAttribute("data-walker");
+
+/** Waits until the adventurer stands still; the time it took, in ms. */
+async function stood(page, timeout = 10_000) {
+  const start = Date.now();
+  await page.locator('[data-walking="false"]').waitFor({ timeout });
+  return Date.now() - start;
+}
+
+const WALKS = {
+  // Free ground hexes, nearest first, tried until one is the canvas under the pointer (not a
+  // building's or a figure's tap target); the place walked to, its door, the Gate's door.
+  town: {
+    ground: [
+      [6, 3],
+      [7, 3],
+      [3, 4],
+      [6, 6],
+    ],
+    place: "Smith",
+    door: "5,7",
+    gate: "1,1",
+  },
+  outpost: {
+    ground: [
+      [4, 4],
+      [5, 4],
+      [6, 4],
+      [1, 4],
+    ],
+    place: "Trainer",
+    door: "5,7",
+    gate: "1,2",
+  },
+};
+
+async function walking(browser) {
+  for (const [label, viewport, touch] of [
+    ["375x812", { width: 375, height: 812 }, true],
+    ["1440x900", { width: 1440, height: 900 }, false],
+  ]) {
+    const context = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.stack ?? String(e)));
+    for (const [hub, walk] of Object.entries(WALKS)) {
+      const name = `walk ${hub} ${label}`;
+      await page.goto(`${base}/?hub=${hub}`);
+      await screen(page, "hub").waitFor();
+      await page.locator('[data-atlas]:not([data-atlas="loading"])').waitFor();
+      const arrival = await walkerAt(page);
+      ok(arrival !== null, `${name}: the adventurer stands on ${arrival} on arrival`);
+      ok((await screen(page, "hub").count()) === 1, `${name}: arriving opens nothing`);
+      // A tap on the ground.
+      let tapped = null;
+      for (const [x, y] of walk.ground) {
+        const p = await hexOnPage(page, { x, y });
+        const free = await page.evaluate(
+          ([px, py]) => document.elementFromPoint(px, py)?.closest("[data-grid]") != null,
+          [p.x, p.y],
+        );
+        if (!free) continue;
+        await page.mouse.click(p.x, p.y);
+        tapped = `${x},${y}`;
+        break;
+      }
+      ok(tapped !== null, `${name}: a ground hex under the pointer (${tapped})`);
+      if (shots) {
+        await page.waitForTimeout(250);
+        await page.screenshot({ path: join(shots, `walk-${hub}-${label}-mid.png`) });
+      }
+      const ms = await stood(page);
+      ok((await walkerAt(page)) === tapped, `${name}: walked to ${tapped} (${ms} ms)`);
+      const frames = Number(await page.locator("[data-frames]").getAttribute("data-frames"));
+      await page.waitForTimeout(1000);
+      const later = Number(await page.locator("[data-frames]").getAttribute("data-frames"));
+      ok(later === frames, `${name}: data-frames stops growing once it stands (${frames})`);
+      if (shots) await page.screenshot({ path: join(shots, `walk-${hub}-${label}-after.png`) });
+      // A tap on a building: the walk, then its screen.
+      const start = Date.now();
+      await page.getByRole("button", { name: `${walk.place} building` }).click();
+      await screen(page, "service").waitFor({ timeout: 10_000 });
+      ok(
+        Date.now() - start > 180,
+        `${name}: ${walk.place}: walked (${Date.now() - start} ms), then opened`,
+      );
+      await page.getByRole("button", { name: "Back" }).click();
+      await screen(page, "hub").waitFor();
+      ok((await walkerAt(page)) === walk.door, `${name}: back, still on the ${walk.place}'s door`);
+      // The Gate, walked to; back on its door, nothing reopens.
+      await page.getByRole("button", { name: "Gate building" }).click();
+      await screen(page, "gate").waitFor({ timeout: 10_000 });
+      ok(true, `${name}: walked to the Gate: the Gate screen`);
+      await page.getByRole("button", { name: "Back" }).click();
+      await screen(page, "hub").waitFor();
+      ok((await walkerAt(page)) === walk.gate, `${name}: back, on the Gate's door`);
+      await page.waitForTimeout(1000);
+      ok((await screen(page, "hub").count()) === 1, `${name}: nothing reopens on the door`);
+    }
+    ok(errors.length === 0, `walking ${label}: no page error`);
+    for (const e of errors) console.log(`  page error: ${e.split("\n").slice(0, 2).join(" | ")}`);
+    await context.close();
+  }
+}
+
 let browser;
 try {
   await ready();
@@ -222,6 +346,7 @@ try {
   await run(browser, "phone-375x812", { width: 375, height: 812 }, true);
   await run(browser, "desktop-1440x900", { width: 1440, height: 900 }, false);
   await hubShots(browser);
+  await walking(browser);
 } catch (e) {
   failures += 1;
   console.log(`FAIL ${e}`);
