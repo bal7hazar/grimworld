@@ -864,6 +864,269 @@ pub impl GoblinBody of Body<Goblin> {
     }
 }
 
+/// An actor of either kind, one type (CBT-05a's rework, route (c)): the executor's generic code
+/// (`run`, `on`, `strike`, `entries`, the actor list) is compiled once for it, not once for a
+/// member and once for a goblin; each method dispatches to the kind's own.
+#[derive(Copy, Drop, Debug, PartialEq)]
+pub enum Unit {
+    M: Member,
+    G: Goblin,
+}
+
+pub impl UnitBody of Body<Unit> {
+    fn health(self: @Unit) -> u16 {
+        match self {
+            Unit::M(m) => MemberBody::health(m),
+            Unit::G(g) => GoblinBody::health(g),
+        }
+    }
+
+    fn max_health(self: @Unit) -> u16 {
+        match self {
+            Unit::M(m) => MemberBody::max_health(m),
+            Unit::G(g) => GoblinBody::max_health(g),
+        }
+    }
+
+    fn alive(self: @Unit) -> bool {
+        match self {
+            Unit::M(m) => MemberBody::alive(m),
+            Unit::G(g) => GoblinBody::alive(g),
+        }
+    }
+
+    fn is_member(self: @Unit) -> bool {
+        match self {
+            Unit::M(m) => MemberBody::is_member(m),
+            Unit::G(g) => GoblinBody::is_member(g),
+        }
+    }
+
+    fn place(self: @Unit) -> (u8, u8, u8) {
+        match self {
+            Unit::M(m) => MemberBody::place(m),
+            Unit::G(g) => GoblinBody::place(g),
+        }
+    }
+
+    fn knocked(self: @Unit, t: u32) -> bool {
+        match self {
+            Unit::M(m) => MemberBody::knocked(m, t),
+            Unit::G(g) => GoblinBody::knocked(g, t),
+        }
+    }
+
+    fn asleep(self: @Unit) -> bool {
+        match self {
+            Unit::M(m) => MemberBody::asleep(m),
+            Unit::G(g) => GoblinBody::asleep(g),
+        }
+    }
+
+    fn halves(self: @Unit) -> bool {
+        match self {
+            Unit::M(m) => MemberBody::halves(m),
+            Unit::G(g) => GoblinBody::halves(g),
+        }
+    }
+
+    fn armor_vs(self: @Unit, damage_type: u8, sheets: @Sheets) -> u8 {
+        match self {
+            Unit::M(m) => MemberBody::armor_vs(m, damage_type, sheets),
+            Unit::G(g) => GoblinBody::armor_vs(g, damage_type, sheets),
+        }
+    }
+
+    fn infliction(self: @Unit) -> Infliction {
+        match self {
+            Unit::M(m) => MemberBody::infliction(m),
+            Unit::G(g) => GoblinBody::infliction(g),
+        }
+    }
+
+    fn enchant_percent(self: @Unit) -> u8 {
+        match self {
+            Unit::M(m) => MemberBody::enchant_percent(m),
+            Unit::G(g) => GoblinBody::enchant_percent(g),
+        }
+    }
+
+    fn slots(self: @Unit) -> u8 {
+        match self {
+            Unit::M(m) => MemberBody::slots(m),
+            Unit::G(g) => GoblinBody::slots(g),
+        }
+    }
+
+    fn effect(self: @Unit, slot: u8) -> (Held, u32) {
+        match self {
+            Unit::M(m) => MemberBody::effect(m, slot),
+            Unit::G(g) => GoblinBody::effect(g, slot),
+        }
+    }
+
+    fn defence<L, +Levers<L>>(
+        self: @Unit, lever: @L, ref cache: Cache, actor: Actor, t: u32, sheets: @Sheets,
+    ) -> Defence {
+        match self {
+            Unit::M(m) => MemberBody::defence(m, lever, ref cache, actor, t, sheets),
+            Unit::G(g) => GoblinBody::defence(g, lever, ref cache, actor, t, sheets),
+        }
+    }
+
+    fn offence<L, +Levers<L>>(
+        self: @Unit,
+        lever: @L,
+        class: HitClass,
+        entry: @Entry,
+        bonus: u32,
+        penetration: u16,
+        context: @Context,
+        sheets: @Sheets,
+    ) -> Offence {
+        match self {
+            Unit::M(m) => MemberBody::offence(
+                m, lever, class, entry, bonus, penetration, context, sheets,
+            ),
+            Unit::G(g) => GoblinBody::offence(
+                g, lever, class, entry, bonus, penetration, context, sheets,
+            ),
+        }
+    }
+
+    fn wound(ref self: Unit, damage: u16) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::wound(ref m, damage);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::wound(ref g, damage);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn heal(ref self: Unit, v: u16) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::heal(ref m, v);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::heal(ref g, v);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn energize(ref self: Unit, v: i32, sheets: @Sheets) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::energize(ref m, v, sheets);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::energize(ref g, v, sheets);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn struck(ref self: Unit, sheets: @Sheets) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::struck(ref m, sheets);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::struck(ref g, sheets);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn landed(ref self: Unit, sheets: @Sheets) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::landed(ref m, sheets);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::landed(ref g, sheets);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn halved(ref self: Unit) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::halved(ref m);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::halved(ref g);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn inflict(
+        ref self: Unit, condition: u8, v: i32, source: @Infliction, t: u32, sheets: @Sheets,
+    ) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::inflict(ref m, condition, v, source, t, sheets);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::inflict(ref g, condition, v, source, t, sheets);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn cure(ref self: Unit, condition: u8, t: u32) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::cure(ref m, condition, t);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::cure(ref g, condition, t);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn hold(ref self: Unit, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::hold(ref m, held, at, stance, t, sheets);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::hold(ref g, held, at, stance, t, sheets);
+                Unit::G(g)
+            },
+        };
+    }
+
+    fn spend(ref self: Unit, slot: u8, t: u32) {
+        self = match self {
+            Unit::M(mut m) => {
+                MemberBody::spend(ref m, slot, t);
+                Unit::M(m)
+            },
+            Unit::G(mut g) => {
+                GoblinBody::spend(ref g, slot, t);
+                Unit::G(g)
+            },
+        };
+    }
+}
+
 /// The rules of the tick's library class (ENG-01 §1.3): step 1's hook runs the executor on the
 /// activation that concluded; the others are ENG-07's (perception, the AI, the objectives). A
 /// `TRAP` carrier whose guard held is recorded in `placed` (the address, the source), for the
@@ -1002,41 +1265,27 @@ pub impl ExecutorImpl of ExecutorTrait {
         address: u16,
         t: u32,
     ) -> Executed {
-        match source {
-            Actor::Member(i) => {
-                let mut member = world.member(i);
-                let (executed, pending) = Self::run(
-                    lever,
-                    ref cache,
-                    ref world,
-                    sheets,
-                    board,
-                    ref member,
-                    source,
-                    carrier,
-                    address,
-                    t,
-                );
+        let mut unit = match source {
+            Actor::Member(i) => Unit::M(world.member(i)),
+            Actor::Goblin(i) => Unit::G(world.goblin(i)),
+        };
+        let (executed, mut pending) = Self::run(
+            lever, ref cache, ref world, sheets, board, ref unit, source, carrier, address, t,
+        );
+        match unit {
+            Unit::M(member) => {
                 if pending.len() > 0 {
                     world.flush(Self::sorted(pending));
                 }
-                world.set_member(i, member);
-                executed
+                if let Actor::Member(i) = source {
+                    world.set_member(i, member);
+                }
             },
-            Actor::Goblin(i) => {
-                let mut goblin = world.goblin(i);
-                let (executed, mut pending) = Self::run(
-                    lever,
-                    ref cache,
-                    ref world,
-                    sheets,
-                    board,
-                    ref goblin,
-                    source,
-                    carrier,
-                    address,
-                    t,
-                );
+            Unit::G(goblin) => {
+                let i = match source {
+                    Actor::Goblin(i) => i,
+                    Actor::Member(_) => core::panic_with_felt252(errors::ADDRESS),
+                };
                 // The source joins its carrier's one rebuild (L3).
                 let gathered = if lever.gathers() && goblin.awake {
                     world.position(i)
@@ -1055,9 +1304,9 @@ pub impl ExecutorImpl of ExecutorTrait {
                         world.set_goblin(i, goblin);
                     },
                 }
-                executed
             },
         }
+        executed
     }
 
     /// §5.14 for a source of type `S`, held apart from the world until the carrier ends; returns
@@ -1152,67 +1401,27 @@ pub impl ExecutorImpl of ExecutorTrait {
                 source_facing,
                 target_at: *position,
             };
-            match *target {
-                Actor::Member(i) => {
-                    let mut member = world.member(i);
-                    let got = Self::on(
-                        lever,
-                        ref cache,
-                        ref member,
-                        *target,
-                        @shot,
-                        @attack,
-                        health,
-                        max_health,
-                        ops,
-                        bits,
-                        held,
-                        @context,
-                        sheets,
-                    );
-                    gain =
-                        Gain {
-                            landed: gain.landed || got.landed, stolen: gain.stolen + got.stolen,
-                        };
-                    world.set_member(i, member);
-                },
-                Actor::Goblin(i) => {
-                    let mut goblin = world.goblin(i);
-                    let got = Self::on(
-                        lever,
-                        ref cache,
-                        ref goblin,
-                        *target,
-                        @shot,
-                        @attack,
-                        health,
-                        max_health,
-                        ops,
-                        bits,
-                        held,
-                        @context,
-                        sheets,
-                    );
-                    gain =
-                        Gain {
-                            landed: gain.landed || got.landed, stolen: gain.stolen + got.stolen,
-                        };
-                    if goblin.is_alive() && goblin.health == 0 {
-                        // §5.13: it dies at once, in resolution order.
-                        goblin.ai = ai::DEAD;
-                        world.killed.append(goblin.entity);
-                    }
-                    let gathered = if lever.gathers() && goblin.awake {
-                        world.position(i)
-                    } else {
-                        None
-                    };
-                    match gathered {
-                        Some(k) => pending.append((k, goblin)),
-                        None => world.set_goblin(i, goblin),
-                    }
-                },
-            }
+            let mut unit = match *target {
+                Actor::Member(i) => Unit::M(world.member(i)),
+                Actor::Goblin(i) => Unit::G(world.goblin(i)),
+            };
+            let got = Self::on(
+                lever,
+                ref cache,
+                ref unit,
+                *target,
+                @shot,
+                @attack,
+                health,
+                max_health,
+                ops,
+                bits,
+                held,
+                @context,
+                sheets,
+            );
+            gain = Gain { landed: gain.landed || got.landed, stolen: gain.stolen + got.stolen };
+            Self::put(ref world, lever, ref pending, *target, unit);
         }
         // §5.5 step 8, the source's side of its weapon hit, whether the target lives or not: each
         // charge spent, adrenaline and `hits`, `ENERGY_ON_HIT`; and the health it stole.
@@ -1235,6 +1444,39 @@ pub impl ExecutorImpl of ExecutorTrait {
         // 6. Carrier-level effects: a shout's alert is ENG-07's (packs are chunk features); a
         // glyph and the `casts` counters are §5.3's (CBT-05b).
         (Executed::Ran, pending)
+    }
+
+    /// An actor back in the world after its turn: a member written; a goblin at 0 dies at once,
+    /// in resolution order (§5.13), and is written with its carrier's one rebuild if it is awake
+    /// (L3), else at once.
+    #[inline(never)]
+    fn put<L, +Levers<L>>(
+        ref world: World, lever: @L, ref pending: Pending, actor: Actor, unit: Unit,
+    ) {
+        match unit {
+            Unit::M(member) => { if let Actor::Member(i) = actor {
+                world.set_member(i, member);
+            } },
+            Unit::G(mut goblin) => {
+                let i = match actor {
+                    Actor::Goblin(i) => i,
+                    Actor::Member(_) => core::panic_with_felt252(errors::ADDRESS),
+                };
+                if goblin.is_alive() && goblin.health == 0 {
+                    goblin.ai = ai::DEAD;
+                    world.killed.append(goblin.entity);
+                }
+                let gathered = if lever.gathers() && goblin.awake {
+                    world.position(i)
+                } else {
+                    None
+                };
+                match gathered {
+                    Some(k) => pending.append((k, goblin)),
+                    None => world.set_goblin(i, goblin),
+                }
+            },
+        }
     }
 
     /// A trap's trigger (§5.11, §5.14): its payload (`payload`, the skill at that position
@@ -1292,34 +1534,16 @@ pub impl ExecutorImpl of ExecutorTrait {
         }
         let ops = Self::ops(entries, @context);
         let strength = HitTrait::level_strength(level);
-        match entrant {
-            Actor::Member(i) => {
-                let mut member = world.member(i);
-                if Self::trap(
-                    lever, ref cache, ref member, entrant, hit, strength, @context, sheets,
-                ) {
-                    Self::entries(
-                        lever, ref cache, ref member, entrant, ops, bits, held, @context, sheets,
-                    );
-                }
-                world.set_member(i, member);
-            },
-            Actor::Goblin(i) => {
-                let mut goblin = world.goblin(i);
-                if Self::trap(
-                    lever, ref cache, ref goblin, entrant, hit, strength, @context, sheets,
-                ) {
-                    Self::entries(
-                        lever, ref cache, ref goblin, entrant, ops, bits, held, @context, sheets,
-                    );
-                }
-                if goblin.is_alive() && goblin.health == 0 {
-                    goblin.ai = ai::DEAD;
-                    world.killed.append(goblin.entity);
-                }
-                world.set_goblin(i, goblin);
-            },
+        let mut unit = match entrant {
+            Actor::Member(i) => Unit::M(world.member(i)),
+            Actor::Goblin(i) => Unit::G(world.goblin(i)),
+        };
+        if Self::trap(lever, ref cache, ref unit, entrant, hit, strength, @context, sheets) {
+            Self::entries(lever, ref cache, ref unit, entrant, ops, bits, held, @context, sheets);
         }
+        // Written at once: a trap's one entrant is no carrier's rebuild.
+        let mut none: Pending = array![];
+        Self::put(ref world, @Naive {}, ref none, entrant, unit);
     }
 
     /// A trap's hit on the entrant, if its payload holds one whose guard held: never blocked or
