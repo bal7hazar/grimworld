@@ -9,6 +9,7 @@ import { type SpriteLibrary, type SpritesIndex, libraryFrom } from "../../render
 import type { Tile } from "../../render/view";
 import { FakeHost } from "../../test/fakeHost";
 import { FakeSurface } from "../../test/fakeSurface";
+import { FIXTURES } from "../fixtures";
 import { BUILDINGS, HUB_VIEWS } from "../fixtures/hubs";
 import { HUB_ADVENTURER_ID, hubTap, hubWorld } from "../fixtures/hubWorld";
 import { OUTPOST, TOWN } from "../fixtures/region";
@@ -184,6 +185,38 @@ describe("the stand-ins a hub does not inherit (CLI-03f, AC-3)", () => {
       { kind: "inspect adventurer", adventurer: figure.id },
     ]);
     expect(session.state.selectedActorId).toBeNull();
+  });
+});
+
+describe("the window stays a zone's (CLI-03f §4, the project manager's condition)", () => {
+  it("every zone fixture's tap path is the bounded finder's, tile for tile", () => {
+    let compared = 0;
+    for (const world of Object.values(FIXTURES)) {
+      expect(world.kind ?? "zone").toBe("zone");
+      const state = initialState(world);
+      const { terrain, actors } = state.world;
+      const me = actors.find((a) => a.id === world.adventurerId)!;
+      for (let y = 0; y < terrain.height; y++) {
+        for (let x = 0; x < terrain.width; x++) {
+          const tile = { x, y };
+          if (kindAt(terrain, tile) !== "floor") continue;
+          const planned = applyIntent(state, { kind: "tile", tile }, { playOnTap: false }).path;
+          const bounded = findPath(terrain, actors, me.tile, tile) ?? [];
+          expect(planned, `${world.name} ${key(tile)}`).toEqual(bounded);
+          compared += 1;
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(100);
+  });
+
+  it("the same town as a zone keeps the window: the Guild's door is out of reach", () => {
+    const view = HUB_VIEWS.get(TOWN)!;
+    const guild = place(view, "guild").at;
+    const asZone = { ...hubWorld(view, view.arrival), kind: "zone" as const };
+    const asHub = hubWorld(view, view.arrival);
+    expect(applyIntent(initialState(asZone), { kind: "tile", tile: guild }).path).toEqual([]);
+    expect(applyIntent(initialState(asHub), { kind: "tile", tile: guild }).path).toHaveLength(14);
   });
 });
 
