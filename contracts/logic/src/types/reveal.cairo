@@ -9,8 +9,9 @@
 //! 3. edges and openings (`decide`: a side facing a revealed neighbour copies its decision; facing
 //!    the location's border or a void chunk it is closed but for an anchor; any other side is
 //!    drawn: in a zone open, with 1 or 2 openings; in a dungeon a border with probability 1 in 7,
-//!    except the last open edge of the frontier while fewer than `N` chunks are revealed, and every
-//!    drawn edge a border once `N` are), then every opening and anchor joined to the spine;
+//!    except that while fewer than `N` chunks are revealed one side stays open toward a chunk that
+//!    can still grow, and every drawn edge a border once `N` are; a side the mask cuts whole is
+//!    never opened), then every opening and anchor joined to the spine;
 //! 4. the cut by the zone's outline (`cut`), then the component of the centre kept;
 //! 5. the quotas (`placement::PlacementTrait::due`, drawn first: a set-piece quota lays an authored
 //!    chunk instead of steps 1 and 2);
@@ -434,29 +435,33 @@ pub impl RevealImpl of RevealTrait {
                     }
                 } else if site.inside(next) {
                     // [Compute] Drawn: a zone's side is open; a dungeon's a border in 7, every one
-                    // once `N` are revealed
-                    free += bit;
+                    // once `N` are revealed; a side the mask cuts whole is no side to open (the
+                    // guard below widens only toward a side it can open)
                     let border = draws.draw(BORDER.try_into().unwrap()) == 0;
-                    if !emerging || (!last && !border) {
-                        open += bit;
+                    if BoardTrait::and(BoardTrait::side(side), mask) != 0 {
+                        free += bit;
+                        if !emerging || (!last && !border) {
+                            open += bit;
+                        }
                     }
                 }
             }
             side += 1;
             bit *= 2;
         }
-        // [Compute] A dungeon never closes before `N` (audit #348, minor 3): while the frontier's
-        // open edges are fewer than the chunks still owed, this chunk keeps an open side toward a
-        // chunk that can still grow (a neighbour inside the rectangle, not revealed, not this
-        // chunk): two edges into one enclosed chunk can no longer end the floor
+        // [Compute] A dungeon never closes before `N` (audit #348, minor 3, and its delta review):
+        // before `N`, a chunk with a side it can open keeps one open toward a chunk that can still
+        // grow (a neighbour inside the rectangle, not revealed, not this chunk). Always, not only
+        // when the frontier looks short: its open edges are not chunks (two edges into one
+        // enclosed chunk passed that comparison), and counting the distinct chunks behind them put
+        // `RevealLibrary` at 51.20 % (D-200)
         let frontier = if *progress.open_edges > copied {
             *progress.open_edges - copied
         } else {
             0
         };
         if emerging && !last && free != 0 {
-            let owed = *site.target - *progress.count - 1;
-            if frontier < owed && !Self::opens_growth(site, progress, chunk, open) {
+            if !Self::opens_growth(site, progress, chunk, open) {
                 open += Self::widen(site, progress, chunk, free, open);
             }
         }
@@ -1300,6 +1305,150 @@ pub mod tests {
     #[available_gas(l2_gas: 349098280)] // ceil(1.05 × 332474552 measured)
     fn test_dungeon_sweep_small_rectangle_1() {
         sweep(2000, 5);
+    }
+
+    /// Grows a dungeon from `progress` one chunk at a time until nothing is revealable, each time
+    /// the first revealable chunk (`order` 0), the last (1), or one drawn from `seed` (2).
+    fn grow_in_order(
+        site: @Site,
+        ref progress: Progress,
+        ref known: Array<(u8, Terrain)>,
+        order: u8,
+        seed: felt252,
+    ) {
+        let mut step: felt252 = 0;
+        loop {
+            let mut revealable: Array<u8> = array![];
+            let mut chunk: u8 = 0;
+            while chunk != 225 {
+                if RevealTrait::revealable(site, @progress, known.span(), chunk) {
+                    revealable.append(chunk);
+                }
+                chunk += 1;
+            }
+            let n = revealable.len();
+            if n == 0 {
+                break;
+            }
+            let at: u32 = if order == 0 {
+                0
+            } else if order == 1 {
+                n - 1
+            } else {
+                let hash: u256 = poseidon_hash_span([seed, step].span()).into();
+                (hash % n.into()).try_into().unwrap()
+            };
+            let chunk = *revealable[at];
+            let r = one(site, ref progress, known.span(), chunk);
+            known.append((chunk, r.terrain));
+            step += 1;
+        }
+    }
+
+    /// A dungeon of `N` 12 in a `width × height` rectangle entered at (1, 1): `N` close to the
+    /// area, so that enclosures are frequent.
+    fn tight_dungeon(width: u8, height: u8) -> Site {
+        let mut site = dungeon(12, exit_quota());
+        site.width = width;
+        site.height = height;
+        site.entry_chunk = 16;
+        site.anchors = array![(16, 112)].span();
+        site
+    }
+
+    fn sweep_in_order(width: u8, height: u8, first: felt252, words: felt252, order: u8) {
+        let mut seed = first;
+        while seed != first + words {
+            let site = tight_dungeon(width, height);
+            let mut progress = ProgressTrait::new(@site, seed);
+            let mut known: Array<(u8, Terrain)> = array![];
+            grow_in_order(@site, ref progress, ref known, order, seed);
+            if progress.count != 12 {
+                println!(
+                    "closed at {} of 12: {} x {}, seed {}, order {}",
+                    progress.count,
+                    width,
+                    height,
+                    seed,
+                    order,
+                );
+            }
+            assert(progress.count == 12, 'closes exactly at N');
+            assert(progress.left == [0; 14], 'nothing owed');
+            seed += 1;
+        }
+    }
+
+    // The delta review of #348: `N` close to the rectangle's area (12 of 16, 12 of 15), the reveals
+    // in descending and in drawn orders, so that a closure before `N` would show. At `N` equal to
+    // the area (12 of 4 × 3) a floor can close early (word 5100, a drawn order: 11 of 12): the
+    // guard is local, and the last chunks can be walled in by their revealed neighbours' borders;
+    // ENG-05's report proposes a content rule (a floor's rectangle larger than `N`).
+    #[test]
+    #[available_gas(l2_gas: 1007107555)] // ceil(1.05 × 959150052 measured)
+    fn test_dungeon_sweep_tight_descending() {
+        sweep_in_order(4, 4, 3000, 6, 1);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 993693215)] // ceil(1.05 × 946374490 measured)
+    fn test_dungeon_sweep_tight_drawn() {
+        sweep_in_order(4, 4, 4000, 6, 2);
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 989363329)] // ceil(1.05 × 942250789 measured)
+    fn test_dungeon_sweep_near_area() {
+        sweep_in_order(5, 3, 5000, 3, 1);
+        sweep_in_order(5, 3, 5100, 3, 2);
+    }
+
+    // The delta review of #348: two open edges into one chunk. Revealed: (7, 8) = 127 opening West
+    // and (9, 8) = 129 opening East into (8, 8) = 128, (8, 7) = 113 closed toward it, (9, 9) = 144
+    // opening East into (8, 9) = 143, (7, 9) = 142 closed toward it; every other side a border.
+    // Revealing 143 with `N` 8: 2 chunks owed after it, 2 open edges left, but one chunk behind
+    // them, which cannot grow (its neighbours are revealed). The old guard compared edges (2) with
+    // chunks (2) and let 143 draw its North side a border: then 128 alone was left and the floor
+    // closed at 7 of 8. The guard keeps growth always: 143 keeps North open whenever its draw is a
+    // border.
+    #[test]
+    #[available_gas(l2_gas: 813587363)] // ceil(1.05 × 774845107 measured)
+    fn test_dungeon_two_edges_into_one_chunk() {
+        let state: [(u8, u8); 5] = [(127, 1), (129, 2), (113, 0), (144, 2), (142, 0)];
+        let revealed = BoardTrait::pow(127)
+            + BoardTrait::pow(129)
+            + BoardTrait::pow(113)
+            + BoardTrait::pow(144)
+            + BoardTrait::pow(142);
+        let mut widened: u8 = 0;
+        let mut seed: felt252 = 0;
+        while seed != 16 {
+            let site = dungeon(8, no_quotas());
+            let mut progress = ProgressTrait::new(@site, seed);
+            let mut known: Array<(u8, Terrain)> = array![];
+            for entry in state.span() {
+                let (chunk, edges) = *entry;
+                known.append((chunk, Terrain { walls: BOARD, edges }));
+            }
+            progress.revealed = revealed;
+            progress.count = 5;
+            progress.open_edges = 3;
+            // 143's ring draws: South (into 128), then North; a border is a draw of 0
+            let word = EntropyTrait::word(seed, INSTANCE, 143);
+            let mut draws = RngTrait::new(RngTrait::mix(word, 4));
+            let _south = draws.draw(7);
+            let north_border = draws.draw(7) == 0;
+            let r = one(@site, ref progress, known.span(), 143);
+            if north_border {
+                assert(r.terrain.edges / 8 == 1, 'North kept open');
+                widened += 1;
+            }
+            known.append((143, r.terrain));
+            grow(@site, ref progress, ref known);
+            assert(progress.count == 8, 'grows to N');
+            seed += 1;
+        }
+        assert(widened != 0, 'the old guard closed one');
     }
 
     #[test]

@@ -231,6 +231,7 @@ fn test_set_record_outline_chunk_refused() {
 // `TASK` and `QUEST` take the administrator's quiver ids as they are: any non-zero id (D-145; that
 // the quiver id exists is the content pipeline's check).
 #[test]
+// gas: raised, ENG-05: the registry's content checks of the four new kinds (a longer dispatch)
 #[available_gas(l2_gas: 3969819)] // ceil(1.05 × 3780780 measured)
 fn test_set_record_quiver_ids() {
     let r = Fixture::deploy();
@@ -269,6 +270,7 @@ fn test_set_record_part_count_refused() {
 }
 
 #[test]
+// gas: raised, ENG-05: the registry's content checks of the four new kinds (a longer dispatch)
 #[available_gas(l2_gas: 1286828)] // ceil(1.05 × 1225550 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {

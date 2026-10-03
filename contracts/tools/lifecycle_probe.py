@@ -62,8 +62,10 @@ every key of both contracts' storage with its last value. A value the entry draw
 by its key alone, as `"draw"`: the entropy word of each instance entered (found by the instance's
 `instance_state`, whose third felt it is), the only stored value derived from the draw, which
 follows the transaction hash. ENG-05 adds the entry reveal's values, which follow the draw too:
-each revealed chunk's two words (the terrain word found by `instance_region`, the features word in
-the next slot) and a dungeon's quotas word (its open edges are drawn), recorded by key alone.
+each revealed chunk's terrain word (found by `instance_region`) and a dungeon's quotas word (its
+open edges are drawn), recorded by key alone; a chunk's features word, in the slot after its
+terrain, is left out of the stream: it is written only when the draw places something, so even its
+key depends on the draw (#348's delta review: the stream must not change between two runs).
 `RevealLibrary` is declared before `Hub`'s deployment, and its class hash given to `Instances`'
 constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
 recorded on `main`'s code before
@@ -241,6 +243,8 @@ STREAM = []
 # ENG-R1b: the stream of `Instances` and `Registry`, and the keys whose value the entry draw feeds.
 STREAM_R1B = []
 DRAWN = set()
+# ENG-05: the features slots of the chunks revealed, left out of the r1b stream (module doc).
+UNSTREAMED = set()
 OWNERS = {int(instances, 16): "instances", int(registry, 16): "registry"}
 
 
@@ -300,14 +304,15 @@ def streamed_r1b(label, function, receipt, diff):
                             DRAWN.add((int(instances, 16), key))
                         if value in terrains:
                             DRAWN.add((int(instances, 16), key))
-                            DRAWN.add((int(instances, 16), key + 1))
+                            UNSTREAMED.add((int(instances, 16), key + 1))
     writes = {}
     for entry in diff:
         address = int(entry["address"], 16)
         if address in OWNERS:
             writes[OWNERS[address]] = sorted(
                 [hex(int(s["key"], 16)), drawn(address, int(s["key"], 16), int(s["value"], 16))]
-                for s in entry["storage_entries"])
+                for s in entry["storage_entries"]
+                if (address, int(s["key"], 16)) not in UNSTREAMED)
     events = [{"keys": [named(int(k, 16)) for k in event["keys"]],
                "data": [named(int(d, 16)) for d in event["data"]]}
               for event in receipt.get("events", [])
@@ -495,7 +500,8 @@ invoke("set_account_owner, 3 inside", hub, "set_account_owner", 1, 0x2000)
 if SCOPE == "r1b":
     STREAM = STREAM_R1B
     storage = {who: sorted([hex(key), drawn(address, key, value)]
-                           for (address, key), value in KNOWN.items() if address == owner)
+                           for (address, key), value in KNOWN.items()
+                           if address == owner and (address, key) not in UNSTREAMED)
                for owner, who in sorted(OWNERS.items(), key=lambda o: o[1])}
 elif OPTIONS:
     storage = sorted([hex(key), named(value)] for (address, key), value in KNOWN.items()

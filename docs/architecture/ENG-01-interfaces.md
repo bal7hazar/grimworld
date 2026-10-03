@@ -218,7 +218,7 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` | 40,940 | **49.98 %** |
+| `RevealLibrary` | 40,938 | **49.97 %** |
 | `Instances` (the entry reveal's reads and writes, `instance_region`) | 39,494 | **48.21 %** (29.05 % before) |
 
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
@@ -233,8 +233,11 @@ the audit's frontier guard (#348, minor 3) two more: a power of two by two small
 from a value the compiler cannot fold (`chunk / 255`, 0 for every chunk index): a loop whose state
 starts from constants is compiled twice, a copy specialised to them (1,471 felts in `decide` alone),
 at about 15 % of a reveal's gas. The order-free quota draws (#348, major 1: one drawing loop over
-the quotas' counts, 345 felts) leave the library 20 felts under 50 %, `Instances` 1,466: ENG-07's
-wiring of the reveal into `play` is measured against them first, and the library has no room left.
+the quotas' counts, 345 felts) and the delta review's guard (always one side toward growth, not
+the frontier's edges against the chunks owed; a side the mask cuts whole never opened) leave the
+library 22 felts under 50 %, `Instances` 1,466. Counting the distinct chunks behind the frontier's
+edges, the review's first proposal, measured 51.20 %. ENG-07's wiring of the reveal into `play` is
+measured against these margins first, and the library has no room left.
 
 ---
 
@@ -1758,16 +1761,20 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 
 | What | L2 gas | Source |
 |---|---:|---|
-| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,872,546** meadow · 4,013,117 ruin · 4,013,677 forest · **4,038,683** cave | `test_cost_reveal_worst_*` |
-| One chunk in memory, typical (two sides known, a zone's content) | **2,816,013** | `test_cost_reveal_typical` |
-| Three chunks in one call, the worst content | **11,798,332** (3.93 M a chunk) | `test_cost_reveal_three` |
+| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,901,320** meadow · 4,041,891 ruin · 4,042,451 forest · **4,067,457** cave | `test_cost_reveal_worst_*` |
+| One chunk in memory, typical (two sides known, a zone's content) | **2,830,905** | `test_cost_reveal_typical` |
+| Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
-| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,263,366 · 7,355,114 · 11,174,632: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,742,400** (+2,800,000) | `lifecycle_probe.py` |
-| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,052,400** (+3,564,000) | idem |
-| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,502,400** (+2,800,000) | idem |
-| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,076,640** (+4,804,000) | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,920,640** (+7,648,000) | idem |
+| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,702,400–6,782,400** | `lifecycle_probe.py`, five runs |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,172,400–13,252,400** | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,462,400–7,582,400** | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,556,640–8,196,640** | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,720,640–11,080,640** | idem |
+
+The node's figures follow the entry draw, which follows the transaction hash: the same code gives
+another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
+`leave` to a dungeon floor). Each is the range over five runs of the same head.
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
