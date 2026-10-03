@@ -59,6 +59,8 @@ export interface FoamPiece {
   readonly source: Tile;
   /** The foam cell's top-left corner, on whole art pixels. */
   readonly origin: Cell;
+  /** The water hex the piece lies in. */
+  readonly over: Tile;
   readonly points: readonly number[];
 }
 
@@ -252,7 +254,8 @@ function foamOver(targets: readonly Tile[], at: (tile: Tile) => GroundKind | nul
         origin.x + FOAM_SIZE,
         origin.y + FOAM_SIZE,
       );
-      if (points.length >= 6 && polygonArea(points) > 1e-9) foam.push({ source, origin, points });
+      if (points.length >= 6 && polygonArea(points) > 1e-9)
+        foam.push({ source, origin, over: tile, points });
     }
   }
   return foam;

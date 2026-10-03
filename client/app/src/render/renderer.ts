@@ -31,7 +31,7 @@ import {
   drawWedge,
   type GroundTextures,
 } from "./shapes";
-import { FOAM_REACH, chunkFrame, groundOf, hexesWithin, voidFoam } from "./ground";
+import { FOAM_REACH, type FoamPiece, chunkFrame, groundOf, hexesWithin, voidFoam } from "./ground";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
@@ -282,6 +282,25 @@ function holeOf(tiles: readonly Tile[]): { x0: number; y0: number; x1: number; y
   return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
 }
 
+/** The whole art pixels around some foam pieces: the frame their group is baked in. */
+function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const { points } of pieces) {
+    for (let i = 0; i < points.length; i += 2) {
+      minX = Math.min(minX, points[i]!);
+      maxX = Math.max(maxX, points[i]!);
+      minY = Math.min(minY, points[i + 1]!);
+      maxY = Math.max(maxY, points[i + 1]!);
+    }
+  }
+  const x = Math.floor(minX);
+  const y = Math.floor(minY);
+  return new Rectangle(x, y, Math.ceil(maxX) - x, Math.ceil(maxY) - y);
+}
+
 /**
  * Draws a `ViewState` on demand. Every change (a view, the camera, the size) asks for one frame;
  * a step, a turn and the camera's pan ask for frames until they end; idle animations ask for one
@@ -299,10 +318,12 @@ export class Renderer implements FrameClient {
   private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private voidKey = "";
   /**
-   * The foam over the void (CLI-03g2, `voidFoam`): its pieces over the void's hexes, after the
-   * void's bands, under the chunks; drawn again when they change, never per frame.
+   * The foam over the void (CLI-03g2, `voidFoam`): its pieces over the void's hexes, grouped by the
+   * chunk of the hex they lie in, each group baked as a chunk is; after the void's bands, under the
+   * chunks. Drawn again when its pieces change, never per frame.
    */
-  private readonly voidFoamLayer = new Graphics();
+  private readonly voidFoamLayer = new Container();
+  private readonly voidFoamBakes = new Map<string, ChunkBake>();
   private voidFoamKey: string | null = null;
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
@@ -581,6 +602,7 @@ export class Renderer implements FrameClient {
   destroy(): void {
     this.scheduler.destroy();
     for (const chunk of this.chunks.values()) this.dropChunk(chunk);
+    for (const bake of this.voidFoamBakes.values()) this.dropChunk(bake);
     this.chunks.clear();
     this.dropOffscreen();
     this.screen.destroy();
@@ -710,15 +732,53 @@ export class Renderer implements FrameClient {
     });
   }
 
-  /** Draws the foam over the void again when its pieces or the foam's still change. */
+  /** Draws and rebakes the foam over the void, group by group, when its pieces change. */
   private syncVoidFoam(view: ViewState): void {
     const foam = this.groundTextures()?.foam ?? null;
     const pieces = foam ? voidFoam(view.tiles, view.void) : [];
-    const key = pieces.map((p) => `${p.source.x},${p.source.y}:${p.points.join(",")}`).join(" ");
+    const keyOf = (p: FoamPiece) => `${p.source.x},${p.source.y}:${p.points.join(",")}`;
+    const key = pieces.map(keyOf).join(" ");
     if (key === this.voidFoamKey) return;
     this.voidFoamKey = key;
-    this.voidFoamLayer.clear();
-    drawFoam(this.voidFoamLayer, pieces, foam);
+    const groups = new Map<string, FoamPiece[]>();
+    for (const piece of pieces) {
+      const id = `${Math.floor(piece.over.x / BAKE_CHUNK)},${Math.floor(piece.over.y / BAKE_CHUNK)}`;
+      let group = groups.get(id);
+      if (!group) groups.set(id, (group = []));
+      group.push(piece);
+    }
+    for (const [id, group] of groups) {
+      const groupKey = group.map(keyOf).join(" ");
+      const bake = this.voidFoamBakes.get(id);
+      if (bake?.key === groupKey) continue;
+      const start = this.host.now();
+      const graphics = new Graphics();
+      drawFoam(graphics, group, foam);
+      const drawMs = this.host.now() - start;
+      const frame = piecesFrame(group);
+      if (bake) {
+        bake.graphics.destroy();
+        Object.assign(bake, { key: groupKey, graphics, frame, dirty: true, drawMs });
+      } else {
+        const sprite = new Sprite(Texture.EMPTY);
+        this.voidFoamLayer.addChild(sprite);
+        this.voidFoamBakes.set(id, {
+          key: groupKey,
+          graphics,
+          frame,
+          sprite,
+          resolution: 0,
+          dirty: true,
+          drawMs,
+        });
+      }
+    }
+    for (const [id, bake] of this.voidFoamBakes) {
+      if (!groups.has(id)) {
+        this.dropChunk(bake);
+        this.voidFoamBakes.delete(id);
+      }
+    }
   }
 
   /** The atlas's ground cells, or null when the atlas has none (flat colours). */
@@ -947,7 +1007,7 @@ export class Renderer implements FrameClient {
   }
 
   private bakeTerrain(): void {
-    for (const chunk of this.chunks.values()) {
+    for (const chunk of [...this.chunks.values(), ...this.voidFoamBakes.values()]) {
       const resolution = this.bakeResolution(chunk.frame);
       if (!chunk.dirty && resolution === chunk.resolution) continue;
       const old = chunk.sprite.texture;
