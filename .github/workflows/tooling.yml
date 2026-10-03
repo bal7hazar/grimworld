@@ -23,12 +23,30 @@ jobs:
       # The `assets` submodule is private and never needed here: it is not checked out.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # FND-18 (docs/briefs/FND-18-ci-paths.md): the checks of the scripts run only when a path they
+      # exercise changed (scripts/, .tool-versions, the SPK-1 brief, a workflow or a CI helper); the two
+      # D-73 guards at the end run on every change. The job always runs: it is this workflow's result.
+      # The base is fetched alone (the checkout is shallow); an unknown base runs everything.
+      - name: changed paths
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: python3 .github/ci/changes.py --workflow tooling
+
+      - name: changed-paths self-test
+        if: steps.changes.outputs.tooling == 'true'
+        run: python3 .github/ci/changes.py --self-test
+
       - name: shellcheck
+        if: steps.changes.outputs.tooling == 'true'
         run: |
           shellcheck --version
           shellcheck scripts/*.sh
 
       - name: launcher dry-run
+        if: steps.changes.outputs.tooling == 'true'
         run: |
           set -euo pipefail
           out=$(scripts/agent.sh --dry-run smoke claude sonnet new "x" research)
@@ -249,6 +267,7 @@ jobs:
       # PATH so the perl fallback of macOS runs), and --full-archive. The node is the pinned devnet, downloaded
       # from its release and checked against the sha256 of setup-toolchain.sh before it is run.
       - name: with-node
+        if: steps.changes.outputs.tooling == 'true'
         run: |
           set -euo pipefail
           if ! command -v starknet-devnet > /dev/null; then

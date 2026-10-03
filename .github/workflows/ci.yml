@@ -35,6 +35,9 @@ jobs:
       packages: ${{ steps.find.outputs.packages }}
       node: ${{ steps.find.outputs.node }}
       pnpm: ${{ steps.find.outputs.pnpm }}
+      cairo: ${{ steps.changes.outputs.cairo }}
+      classes: ${{ steps.changes.outputs.classes }}
+      client: ${{ steps.changes.outputs.client }}
       indexer: ${{ steps.changes.outputs.indexer }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,31 +45,27 @@ jobs:
       - id: find
         run: python3 .github/ci/discover.py
 
-      # Does the change touch indexer/? (the `indexer-node` job runs only then). A pull request is
-      # compared with its base, a push with the commit before it; the base commit is fetched alone
-      # (the checkout is shallow). An unknown base (a new branch, a malformed value) runs the job.
-      # Event values reach the script as environment variables, never interpolated into it.
+      # Which jobs does the change concern (FND-18, docs/briefs/FND-18-ci-paths.md)? The test jobs
+      # below run only when a path they depend on changed: the Cairo packages (and the packages
+      # they depend on by path), `class-artefacts`, `client`, and `indexer-node` (only for
+      # indexer/, as before). A workflow or a CI helper runs everything, and so does a path that no
+      # rule claims; a documents-only change runs no test. A pull request is compared with its base,
+      # a push with the commit before it (a push to main still runs every job but `indexer-node`);
+      # the base commit is fetched alone (the checkout is shallow). An unknown base (a new branch, a
+      # malformed value) runs everything. Event values reach the script as environment variables,
+      # never interpolated into it.
       - id: changes
         env:
           EVENT: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT" = pull_request ]; then base=$PR_BASE; else base=$PUSH_BEFORE; fi
-          if ! [[ $base =~ ^[0-9a-f]{40}$ ]] || [[ $base =~ ^0+$ ]] ||
-            ! git fetch --no-tags --depth=1 origin "$base"; then
-            echo "base unknown: the indexer's jobs run"
-            echo "indexer=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          changed=$(git diff --name-only "$base" HEAD -- indexer/)
-          if [ -n "$changed" ]; then indexer=true; else indexer=false; fi
-          echo "indexer/ changed: $indexer"
-          echo "indexer=$indexer" >> "$GITHUB_OUTPUT"
+          PACKAGES: ${{ steps.find.outputs.packages }}
+        run: python3 .github/ci/changes.py --workflow ci
 
   cairo:
     needs: discover
+    # An empty matrix fails a job: it runs only when some package is concerned (FND-18).
+    if: needs.discover.outputs.cairo != '[]'
     name: cairo (${{ matrix.dir }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -77,7 +76,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.discover.outputs.packages) }}
+        include: ${{ fromJSON(needs.discover.outputs.cairo) }}
     defaults:
       run:
         working-directory: ${{ matrix.dir }}
@@ -185,6 +184,7 @@ jobs:
   # RAYON_NUM_THREADS=1 is the repository's build pin (D-176). No class hash is computed here.
   class-artefacts:
     needs: discover
+    if: needs.discover.outputs.classes == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -260,6 +260,7 @@ jobs:
 
   client:
     needs: discover
+    if: needs.discover.outputs.client == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -326,9 +327,10 @@ jobs:
   # test:node`: deploy the test emitter on starknet-devnet, emit the nine events, reorgs of depth 1
   # to 5 by devnet_abortBlocks, restart, rebuild, pruning). It runs only when the change touches
   # indexer/ (`discover` compares the tree with the base; D-153's grant), or when the base is
-  # unknown. It does NOT run for a change elsewhere, even one it depends on: .tool-versions,
-  # scripts/setup-toolchain.sh, scripts/with-node.sh, contracts/persistent (the events), this
-  # workflow. Such a change is checked by this job at the next change under indexer/, not before
+  # unknown, or for a change to a workflow or a CI helper (FND-18: those run every job). It does NOT
+  # run for a change elsewhere, even one it depends on: .tool-versions,
+  # scripts/setup-toolchain.sh, scripts/with-node.sh, contracts/persistent (the events).
+  # Such a change is checked by this job at the next change under indexer/, not before
   # (widening the trigger is with the project manager). Every version comes from `discover` (validated
   # there) or is pinned here and checked against the repository's pins: starknet-devnet as
   # scripts/setup-toolchain.sh pins it, its release tarball verified by sha256 before it is
@@ -446,3 +448,30 @@ jobs:
       - name: scenario output
         if: always()
         run: cat indexer/.scenario-results.txt 2> /dev/null || echo "no scenario output"
+
+  # FND-18: the one check that always runs, so that `gh pr checks` has a result whichever test jobs the
+  # change concerned. It fails when a needed job failed or was cancelled, and passes when every one
+  # succeeded or was skipped (a job its paths did not concern).
+  result:
+    name: ci result
+    needs: [discover, cairo, class-artefacts, client, indexer-node]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: every needed job passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          bad = []
+          for job, need in json.loads(os.environ["RESULTS"]).items():
+              result = need["result"]
+              print(f"{job}: {result}")
+              if result not in ("success", "skipped"):
+                  bad.append(job)
+          if bad:
+              raise SystemExit("not passed: " + ", ".join(bad))
+          PY
