@@ -242,6 +242,12 @@ export const HUB_VIEWS: ReadonlyMap<number, HubView> = new Map([
 export const HUB_NAMES: Readonly<Record<string, number>> = { town: TOWN, outpost: OUTPOST };
 
 /** The player's adventurer, as the Gate screen and the desktop's left panel show it. */
+/** A figure and its maximum (CLI-03l): health, energy. */
+export interface Gauge {
+  readonly current: number;
+  readonly max: number;
+}
+
 export interface AdventurerSheet {
   readonly name: string;
   readonly profession: Profession;
@@ -256,6 +262,15 @@ export interface AdventurerSheet {
    * heal, cleanse or reach is the rules', and CLI-07's build editor reads it from them.
    */
   readonly cannot: readonly string[];
+  /** PLACEHOLDER until CLI-04: fixed, never changes in the sandbox. */
+  readonly health: Gauge;
+  /** PLACEHOLDER until CLI-04: fixed, never changes in the sandbox. */
+  readonly energy: Gauge;
+  /**
+   * PLACEHOLDER until CLI-04: fixed, never changes in the sandbox. Strikes of adrenaline (no
+   * maximum, design/04); null for a profession without it.
+   */
+  readonly adrenaline: number | null;
 }
 
 export const ADVENTURER: AdventurerSheet = {
@@ -273,6 +288,13 @@ export const ADVENTURER: AdventurerSheet = {
     ["Antidote", 1],
   ],
   cannot: ["no condition removal", "nothing at range"],
+  // design/03's figures for a level-4 Vanguard, written as data, not computed (the HUD reads them).
+  /** PLACEHOLDER until CLI-04: fixed, never changes in the sandbox. */
+  health: { current: 160, max: 160 },
+  /** PLACEHOLDER until CLI-04: fixed, never changes in the sandbox. */
+  energy: { current: 20, max: 20 },
+  /** PLACEHOLDER until CLI-04: fixed, never changes in the sandbox. */
+  adrenaline: 0,
 };
 
 /** The figures of a closing report: fixed, nothing computed (design/02 *Ending an expedition*). */
