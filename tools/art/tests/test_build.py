@@ -559,6 +559,12 @@ class RealManifest(unittest.TestCase):
         self.assertEqual(set(tilesets["water"]["cells"]), {"c"})
         self.assertEqual(build.tileset_problems(self.manifest), [])
 
+    def test_the_foam_tile(self):
+        """CLI-03g2: the foam is one 192 x 192 cell, the first still of the pack's strip."""
+        foam = {ts["name"]: ts for ts in self.manifest["tileset"]}["foam"]
+        self.assertEqual((foam["file"], foam["cell"], foam["cells"]),
+                         ("Terrain/Tileset/Water Foam.png", 192, {"c": [0, 0]}))
+
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
 class Stills(unittest.TestCase):
@@ -738,6 +744,56 @@ class Tiles(unittest.TestCase):
             "[[tileset]] runt: no cells",
             "[[tileset]] water: cell c [0] is not [column, row]"])
         self.assertEqual(build.tileset_problems({"sprite": []}), [])
+
+    def test_a_cell_of_another_side(self):
+        """CLI-03g2: an entry's `cell` side (the foam's 192): the frame is exactly that cell,
+        untrimmed, anchored top-left, its transparent ring kept, its edges extruded."""
+        img = np.zeros((192, 384, 4), np.uint8)
+        img[40:152, 40:152] = (230, 240, 250, 36)                  # a faint ring's square
+        img[80:112, 80:112] = 0                                    # its hole
+        img[:, 192:] = (255, 0, 0, 255)                            # the next cell: never cut
+        ts = {"name": "foam", "role": "tile", "file": "Foam.png", "origin": "synthetic",
+              "cell": 192, "cells": {"c": [0, 0]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            Image.fromarray(img, "RGBA").save(Path(tmp) / "Foam.png")
+            sprites = build.tile_sprites(ts, Path(tmp) / "Foam.png")
+            index = atlas.pack(sprites, self.S, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, sprites, self.S)
+                # The check holds a tile to its entry's side: a 64 px claim fails on this frame.
+                wrong = [dict(sprites[0], cell_w=64, cell_h=64)]
+                with self.assertRaises(AssertionError):
+                    build.verify([page], index, wrong, self.S)
+            finally:
+                build.OUT = saved
+            packed = np.array(Image.open(out / "atlas-0.png").convert("RGBA"))
+        entry = index["sprites"]["foam_c"]
+        self.assertEqual((entry["role"], entry["cell"], entry["baseline"]),
+                         ("tile", {"w": 192, "h": 192}, 0))
+        f = page["frames"]["foam_c/still/00"]
+        self.assertEqual((f["frame"]["w"], f["frame"]["h"]), (192, 192))
+        self.assertFalse(f["trimmed"])
+        self.assertEqual(f["spriteSourceSize"], {"x": 0, "y": 0, "w": 192, "h": 192})
+        self.assertEqual(f["anchor"], {"x": 0, "y": 0})
+        r = f["frame"]
+        self.assertTrue((packed[r["y"]:r["y"] + 192, r["x"]:r["x"] + 192] == img[:, :192]).all())
+
+    def test_a_cell_side_is_checked(self):
+        manifest = {"tileset": [
+            {"name": "foam", "role": "tile", "file": "f.png", "origin": "x", "cell": 0,
+             "cells": {"c": [0, 0]}},
+            {"name": "sea", "role": "tile", "file": "s.png", "origin": "x", "cell": "192",
+             "cells": {"c": [0, 0]}},
+            {"name": "ok", "role": "tile", "file": "o.png", "origin": "x", "cell": 192,
+             "cells": {"c": [0, 0]}},
+        ]}
+        self.assertEqual(build.tileset_problems(manifest), [
+            "[[tileset]] foam: cell 0 is not a side in px",
+            "[[tileset]] sea: cell '192' is not a side in px"])
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")

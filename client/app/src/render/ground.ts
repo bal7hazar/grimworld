@@ -39,6 +39,31 @@ export interface GroundLayer {
   readonly pieces: readonly Piece[];
 }
 
+/** The foam's cell side: the pack's `Water Foam.png` cell, three tiles wide (CLI-03g2). */
+export const FOAM_SIZE = 192;
+
+/**
+ * How many hex steps a foam cell centred under a land hex reaches: its square, `FOAM_SIZE` wide,
+ * overlaps the hexes two steps away and only touches, at most, those three steps away.
+ */
+export const FOAM_REACH = 2;
+
+/**
+ * A part of a water hex under the foam of one land hex that touches water (CLI-03g2, *The method*
+ * §4): the foam cell is centred under the land hex and drawn after the water, before the grass;
+ * the grass covers its inner part, so only its parts over water are planned, each clipped to its
+ * water hex, so a chunk draws only on its own hexes.
+ */
+export interface FoamPiece {
+  /** The land hex the foam is centred under. */
+  readonly source: Tile;
+  /** The foam cell's top-left corner, on whole art pixels. */
+  readonly origin: Cell;
+  /** The water hex the piece lies in. */
+  readonly over: Tile;
+  readonly points: readonly number[];
+}
+
 /** A land hex's side that faces water: the lip is drawn along it, on the land's side. */
 export interface LipEdge {
   readonly tile: Tile;
@@ -51,6 +76,8 @@ export interface GroundPlan {
   readonly layers: readonly GroundLayer[];
   /** The earth's hexes: a soft fill over the grass (the pack has no path cell). */
   readonly earth: readonly Tile[];
+  /** The foam over the water hexes, after the water layer, before the grass. */
+  readonly foam: readonly FoamPiece[];
   readonly lip: readonly LipEdge[];
   /** The hexes the grid outlines: land only, never over water. */
   readonly grid: readonly Tile[];
@@ -168,6 +195,72 @@ export function hexPieces(tile: Tile): Piece[] {
   return pieces;
 }
 
+/** The top-left corner of the foam cell centred under a hex, rounded to whole art pixels. */
+export function foamOrigin(tile: Tile): Cell {
+  const c = tileToPixel(tile);
+  return { x: Math.round(c.x - FOAM_SIZE / 2), y: Math.round(c.y - FOAM_SIZE / 2) };
+}
+
+/** The hexes within `steps` hex steps of a tile, the tile included, each once. */
+export function hexesWithin(tile: Tile, steps: number): Tile[] {
+  const seen = new Map<string, Tile>([[`${tile.x},${tile.y}`, tile]]);
+  let edge = [tile];
+  for (let step = 0; step < steps; step++) {
+    const next: Tile[] = [];
+    for (const t of edge) {
+      for (let side = 0; side < 6; side++) {
+        const n = acrossSide(t, side);
+        const key = `${n.x},${n.y}`;
+        if (!seen.has(key)) {
+          seen.set(key, n);
+          next.push(n);
+        }
+      }
+    }
+    edge = next;
+  }
+  return [...seen.values()];
+}
+
+/**
+ * The foam over some water hexes: under every land hex that touches water (`at`), seen from each of
+ * the given hexes it reaches, clipped to that hex.
+ */
+function foamOver(targets: readonly Tile[], at: (tile: Tile) => GroundKind | null): FoamPiece[] {
+  const coastal = new Map<string, boolean>();
+  const isCoastal = (tile: Tile): boolean => {
+    const k = `${tile.x},${tile.y}`;
+    let known = coastal.get(k);
+    if (known === undefined) {
+      const ground = at(tile);
+      known =
+        ground !== null &&
+        isLand(ground) &&
+        [0, 1, 2, 3, 4, 5].some((side) => at(acrossSide(tile, side)) === "water");
+      coastal.set(k, known);
+    }
+    return known;
+  };
+  const foam: FoamPiece[] = [];
+  for (const tile of targets) {
+    const hex = hexCorners(tileToPixel(tile));
+    for (const source of hexesWithin(tile, FOAM_REACH)) {
+      if (!isCoastal(source)) continue;
+      const origin = foamOrigin(source);
+      const points = clipToRect(
+        hex,
+        origin.x,
+        origin.y,
+        origin.x + FOAM_SIZE,
+        origin.y + FOAM_SIZE,
+      );
+      if (points.length >= 6 && polygonArea(points) > 1e-9)
+        foam.push({ source, origin, over: tile, points });
+    }
+  }
+  return foam;
+}
+
 function layer(kind: "water" | "grass", hexes: readonly Tile[]): GroundLayer {
   const pieces = hexes.flatMap(hexPieces);
   const cells = new Map<string, Cell>();
@@ -223,11 +316,40 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
     }
     if (tile.kind === "wall" && !covered.has(`${t.x},${t.y}`)) rocks.push(t);
   }
+  const foam = foamOver(water, at);
   const layers = [
     ...(water.length > 0 ? [layer("water", water)] : []),
     ...(grass.length > 0 ? [layer("grass", grass)] : []),
   ];
-  return { layers, earth, lip, grid, rocks, unrevealed };
+  return { layers, earth, foam, lip, grid, rocks, unrevealed };
+}
+
+/**
+ * The foam over the void beyond the terrain (CLI-03g2), when the void is water: the pieces of every
+ * coastal land hex's foam over the hexes outside the terrain, within `FOAM_REACH` of it. The chunks
+ * bake the foam over the terrain's own water; the void is not baked (the renderer's bands), so
+ * these pieces are drawn over the bands, under the chunks, clipped to the void's hexes so that
+ * only the foam that shows is filled.
+ */
+export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefined): FoamPiece[] {
+  if (beyond !== "water") return [];
+  const own = new Map<string, ViewTile>(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
+  const at = (tile: Tile): GroundKind | null => {
+    const mine = own.get(`${tile.x},${tile.y}`);
+    if (!mine) return beyond;
+    return mine.kind === "unrevealed" ? null : groundOf(mine);
+  };
+  // The void's hexes near the terrain: within FOAM_REACH of a tile on its border.
+  const targets = new Map<string, Tile>();
+  for (const tile of tiles) {
+    const sides = [0, 1, 2, 3, 4, 5].map((side) => acrossSide(tile, side));
+    if (sides.every((t) => own.has(`${t.x},${t.y}`))) continue;
+    for (const hex of hexesWithin(tile, FOAM_REACH)) {
+      const k = `${hex.x},${hex.y}`;
+      if (!own.has(k)) targets.set(k, hex);
+    }
+  }
+  return foamOver([...targets.values()], at);
 }
 
 /**

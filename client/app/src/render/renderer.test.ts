@@ -9,11 +9,12 @@ import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
-import { DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
+import { voidFoam } from "./ground";
+import { BAKE_CHUNK, DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
 import { drawOverlay, overlayPlan } from "./shapes";
 import type { FrameStats } from "./scheduler";
 import { type SpriteArt, type SpriteLibrary, libraryFrom } from "./sprites";
-import type { Facing, ViewState } from "./view";
+import type { Facing, ViewState, ViewTile } from "./view";
 
 function setup(options: { idle: boolean; library?: SpriteLibrary | null; fixture?: string }) {
   const host = new FakeHost(1000 / 120);
@@ -592,18 +593,66 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     expect(surface.bakes).toHaveLength(8);
   });
 
+  it("rebakes a neighbouring chunk whose foam changes, three steps across its edge", () => {
+    // (14, 7), the last column of chunk (0, 0), is water; (15..18, 7) in chunk (1, 0) are land.
+    const water = (t: ViewTile, at: readonly number[]) =>
+      t.y === 7 && at.includes(t.x) ? { ...t, kind: "wall" as const, ground: "water" as const } : t;
+    const base = zoneView();
+    expect(
+      base.tiles.filter((t) => t.y === 7 && t.x >= 14 && t.x <= 18).map((t) => t.ground),
+    ).toEqual(["grass", "grass", "grass", "grass", "grass"]);
+    const view = { ...base, tiles: base.tiles.map((t) => water(t, [14])) };
+    const { host, surface, renderer } = mount(view);
+    expect(surface.bakes).toHaveLength(6);
+    // (17, 7) turns to water: (16, 7) touches water now, and its foam reaches (14, 7).
+    renderer.setView({ ...view, tiles: base.tiles.map((t) => water(t, [14, 17])) });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(8);
+    // (18, 7), four steps from chunk (0, 0): its own chunk only.
+    renderer.setView({ ...view, tiles: base.tiles.map((t) => water(t, [14, 17, 18])) });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(9);
+  });
+
   it("rebakes every chunk once when the library arrives, and draws its cells", async () => {
     const stats: FrameStats[] = [];
     const { host, surface, renderer } = mount(zoneView(), (s) => stats.push(s));
     expect(stats.at(-1)?.ground).toBe("colours");
     renderer.setLibrary(await groundLibrary());
     host.run(1000);
-    expect(surface.bakes).toHaveLength(12);
+    // Every chunk once, and the foam over the void once per group (CLI-03g2).
+    const foamGroups = voidFoamGroups(zoneView());
+    expect(foamGroups).toBeGreaterThan(0);
+    expect(surface.bakes).toHaveLength(12 + foamGroups);
     expect(stats.at(-1)?.ground).toBe("atlas");
     expect(stats.at(-1)?.bakeMs).not.toBeNull();
     host.run(10_000);
-    expect(surface.bakes).toHaveLength(12);
+    expect(surface.bakes).toHaveLength(12 + foamGroups);
     expect(host.quiet()).toBe(true);
+  });
+
+  it("bakes the foam over the void with the atlas only, per group, again only when it changes", async () => {
+    const view = zoneView();
+    const { host, renderer, surface } = mount(view);
+    const voidLayer = ((surface.stage.children[0] as Container).children[0] as Container)
+      .children[0] as Container;
+    const foam = voidLayer.children[4] as Container;
+    expect(foam.children).toHaveLength(0);
+    renderer.setLibrary(await groundLibrary());
+    host.run(100);
+    expect(foam.children).toHaveLength(voidFoamGroups(view));
+    // Each group's texture at its frame: the pieces' box, on whole art pixels.
+    for (const sprite of foam.children as Sprite[]) {
+      expect(Number.isInteger(sprite.x) && Number.isInteger(sprite.y)).toBe(true);
+      expect(sprite.texture).not.toBe(Texture.EMPTY);
+    }
+    // The same view: nothing baked again.
+    const bakes = surface.bakes.length;
+    renderer.setView({ ...view });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(bakes);
+    renderer.setLibrary(null);
+    expect(foam.children).toHaveLength(0);
   });
 
   it("draws the void around the terrain, under the chunks; the background inside; none without", () => {
@@ -638,7 +687,15 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
   });
 });
 
-/** A library with the ground's two cells (`grass_c`, `water_c`) on a plain-colour texture. */
+/** The groups the foam over the void is baked in: the chunks of the void's hexes it lies over. */
+function voidFoamGroups(view: ViewState): number {
+  const ids = voidFoam(view.tiles, view.void).map(
+    (p) => `${Math.floor(p.over.x / BAKE_CHUNK)},${Math.floor(p.over.y / BAKE_CHUNK)}`,
+  );
+  return new Set(ids).size;
+}
+
+/** A library with the ground's cells (`grass_c`, `water_c`, `foam_c`) on a plain-colour texture. */
 async function groundLibrary(): Promise<SpriteLibrary> {
   const base = await syntheticLibrary();
   const cell = (name: string): SpriteArt => ({
@@ -649,5 +706,10 @@ async function groundLibrary(): Promise<SpriteLibrary> {
     scale: 1,
     animations: { still: { textures: [Texture.WHITE], fps: 1, loop: false } },
   });
-  return new Map([...base, ["grass_c", cell("grass_c")], ["water_c", cell("water_c")]]);
+  return new Map([
+    ...base,
+    ["grass_c", cell("grass_c")],
+    ["water_c", cell("water_c")],
+    ["foam_c", { ...cell("foam_c"), cell: { w: 192, h: 192 } }],
+  ]);
 }

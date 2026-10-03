@@ -505,7 +505,7 @@ file = "Terrain/Decorations/Rocks/Rock4.png"
 origin = "Rock 4"
 
 # ---------------------------------------------------------------- ground tiles (CLI-03e)
-# Named 64 x 64 cells of a tileset: each becomes the sprite `<name>_<cell>`, role `tile`, packed
+# Named cells of a tileset, 64 x 64 unless the entry's `cell` says another side: each becomes the sprite `<name>_<cell>`, role `tile`, packed
 # untrimmed at native size, anchored at its top-left corner, its edges extruded into the gutter.
 # `cells` = {cell = [column, row]} in the sheet. The grass is the first colour variant (proposed,
 # the owner's eye): its flat ground's 3 x 3 autotile, the centre and the eight edges and corners.
@@ -522,4 +522,14 @@ name = "water"
 role = "tile"
 file = "Terrain/Tileset/Water Background color.png"
 origin = "Water background"
+cells = { c = [0, 0] }
+
+# The foam (CLI-03g2): the first still of the animated ring, one 192 x 192 cell; the zone's renderer
+# centres it under every land hex that touches water, so its ring shows on the water.
+[[tileset]]
+name = "foam"
+role = "tile"
+file = "Terrain/Tileset/Water Foam.png"
+origin = "Water foam, first frame"
+cell = 192
 cells = { c = [0, 0] }

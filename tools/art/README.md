@@ -178,7 +178,7 @@ frame rates (12 to 15, ADR-0003) and looping. To change a sprite's height, edit 
 `[height]`: a number resamples it, `"native"` keeps the pack's drawing. The `slinger` is a
 placeholder (no goblin slinger exists); the Arcanist has no sprite (Q-12) and is left out.
 
-## Buildings, props and tiles: still sprites (CLI-03c, CLI-03e)
+## Buildings, props and tiles: still sprites (CLI-03c, CLI-03e, CLI-03g2)
 
 The pack's buildings are **single images**, not strips. A `[[still]]` entry of `manifest.toml` names
 one (`name`, `role = "building"`, `file`: its path in the pack, `origin`). The build makes it one
@@ -204,15 +204,20 @@ and anchored at its base like any still.
 
 **Tiles** (CLI-03e): a `[[tileset]]` entry (`name`, `role = "tile"`, `file`, `origin`, and
 `cells = { <cell> = [column, row] }`) cuts named **64 × 64** cells of a sheet of
-`Terrain/Tileset/`. Each cell becomes the sprite `<name>_<cell>` (`grass_c`, `grass_nw`, …) with one
+`Terrain/Tileset/`, or square cells of another side given by the entry's optional `cell` (in px;
+CLI-03g2), the column and row then counted in cells of that side. Each cell becomes the sprite `<name>_<cell>` (`grass_c`, `grass_nw`, …) with one
 animation `still` of one frame. A tile is packed **untrimmed**, at native size (an edge cell keeps
 its transparent part, so cells laid side by side meet exactly), anchored at its **top-left corner**
 (`anchor` = (0, 0)), and its edge pixels are **extruded** into the gutter around it (half the atlas
 padding), so a scaled scene that samples just outside a cell finds the cell's own edge: no seam.
-The build checks every tile's frame is exactly 64 × 64, untrimmed, at offset (0, 0). The manifest
-cuts the 3 × 3 flat-ground autotile of `Tilemap_color1.png` (`grass_nw` … `grass_se`, the centre
-`grass_c`; the first colour variant, proposed for the owner's eye) and the flat water
-(`water_c`).
+The build checks every tile's frame is exactly its entry's cell (64 × 64 by default), untrimmed,
+at offset (0, 0). The manifest cuts the 3 × 3 flat-ground autotile of `Tilemap_color1.png`
+(`grass_nw` … `grass_se`, the centre `grass_c`; the first colour variant, proposed for the owner's
+eye), the flat water (`water_c`), and the first still of the foam's strip `Water Foam.png`, one
+192 × 192 cell (`foam_c`, `cell = 192`). The zone's renderer reads `grass_c`, `water_c` and
+`foam_c` (`client/app/src/render/renderer.ts`, `GROUND_TILES`): the grass and the water fill the
+hexes of their ground, and the foam is centred under every land hex that touches water, its part
+over the water drawn (CLI-03g). The other eight `grass_*` cells stay for a square coast.
 
 Stills, props and tiles are packed after the strips: the strips' frames are the same with and
 without them (`tests/test_build.py`, `StillsBesideStrips`). A sprite never straddles two pages; the

@@ -6,14 +6,20 @@ import { HUB_VIEWS } from "../sandbox/fixtures/hubs";
 import { hubWorld } from "../sandbox/fixtures/hubWorld";
 import { initialState, toView } from "../sandbox/wiring";
 import {
+  FOAM_REACH,
+  FOAM_SIZE,
   GROW,
+  type GroundPlan,
   acrossSide,
   chunkFrame,
   clipToRect,
+  foamOrigin,
   groundPlan,
   hexCorners,
   hexPieces,
+  hexesWithin,
   polygonArea,
+  voidFoam,
 } from "./ground";
 import { BAKE_CHUNK } from "./renderer";
 import type { GroundKind, Tile, TileKind, ViewTile } from "./view";
@@ -187,6 +193,173 @@ describe("groundPlan (AC-3)", () => {
     expect(plan.lip).toEqual([]);
   });
 });
+
+describe("the foam (CLI-03g2)", () => {
+  /** An island: land in a hex disc of radius 3 around (6, 6), water around it, in 13 × 13. */
+  const disc = new Set(hexesWithin({ x: 6, y: 6 }, 3).map(key));
+  const island = (t: Tile): GroundKind =>
+    disc.has(key(t)) ? (t.y === 6 ? "earth" : "grass") : "water";
+  const tiles = block(0, 12, 0, 12, island);
+  const inBlock = new Map(tiles.map((t) => [key(t), t] as const));
+  const coastal = tiles.filter(
+    (t) =>
+      island(t) !== "water" &&
+      [0, 1, 2, 3, 4, 5].some((side) => {
+        const next = inBlock.get(key(acrossSide(t, side)));
+        return next !== undefined && island(next) === "water";
+      }),
+  );
+  const pieceKey = (p: GroundPlan["foam"][number]) => `${key(p.source)}|${p.points.join()}`;
+
+  it("the hexes within n steps: 1, 7, 19, 37", () => {
+    expect([0, 1, 2, 3].map((n) => hexesWithin({ x: 4, y: 5 }, n).length)).toEqual([1, 7, 19, 37]);
+  });
+
+  it("one foam still under every land hex that touches water, and under no other", () => {
+    const plan = groundPlan(tiles);
+    expect(coastal.length).toBe(18);
+    const sources = new Set(plan.foam.map((p) => key(p.source)));
+    expect([...sources].sort()).toEqual(coastal.map(key).sort());
+    for (const piece of plan.foam) {
+      // The cell centred under its land hex, on whole art pixels.
+      expect(piece.origin).toEqual(foamOrigin(piece.source));
+      expect(Number.isInteger(piece.origin.x) && Number.isInteger(piece.origin.y)).toBe(true);
+      const c = tileToPixel(piece.source);
+      expect(Math.abs(piece.origin.x + FOAM_SIZE / 2 - c.x)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(piece.origin.y + FOAM_SIZE / 2 - c.y)).toBeLessThanOrEqual(0.5);
+      for (let i = 0; i < piece.points.length; i += 2) {
+        expect(piece.points[i]!).toBeGreaterThanOrEqual(piece.origin.x - 1e-9);
+        expect(piece.points[i]!).toBeLessThanOrEqual(piece.origin.x + FOAM_SIZE + 1e-9);
+        expect(piece.points[i + 1]!).toBeGreaterThanOrEqual(piece.origin.y - 1e-9);
+        expect(piece.points[i + 1]!).toBeLessThanOrEqual(piece.origin.y + FOAM_SIZE + 1e-9);
+      }
+    }
+  });
+
+  it("over water only, each piece inside one water hex: the cell's whole part over water", () => {
+    const plan = groundPlan(tiles);
+    const water = tiles.filter((t) => island(t) === "water");
+    for (const source of coastal) {
+      const o = foamOrigin(source);
+      const planned = plan.foam
+        .filter((p) => key(p.source) === key(source))
+        .reduce((sum, p) => sum + polygonArea(p.points), 0);
+      // What the cell covers over the block's water, hex by hex, is what is planned.
+      const expected = water.reduce((sum, w) => {
+        const hex = hexCorners(tileToPixel(w));
+        const part = clipToRect(hex, o.x, o.y, o.x + FOAM_SIZE, o.y + FOAM_SIZE);
+        return sum + (part.length >= 6 ? polygonArea(part) : 0);
+      }, 0);
+      expect(planned).toBeCloseTo(expected, 6);
+      expect(planned).toBeGreaterThan(0);
+    }
+    for (const piece of plan.foam) {
+      // Within FOAM_REACH steps of its land hex, every corner inside one water hex.
+      const near = hexesWithin(piece.source, FOAM_REACH).filter((t) => island(t) === "water");
+      const holder = near.filter((w) => insideConvex(piece.points, hexCorners(tileToPixel(w))));
+      expect(holder).toHaveLength(1);
+    }
+  });
+
+  it("the same pieces when the island is cut into chunks, through `around`", () => {
+    const whole = groundPlan(tiles).foam.map(pieceKey).sort();
+    const around = (t: Tile) => {
+      const tile = inBlock.get(key(t));
+      return tile ? island(tile) : null;
+    };
+    const cut = [
+      tiles.filter((t) => t.x < 6),
+      tiles.filter((t) => t.x >= 6 && t.y < 5),
+      tiles.filter((t) => t.x >= 6 && t.y >= 5),
+    ].flatMap((chunk) => groundPlan(chunk, { around }).foam.map(pieceKey));
+    expect(cut.sort()).toEqual(whole);
+  });
+
+  it("no foam from an unrevealed land hex, none on an unrevealed water hex, none on grass only", () => {
+    expect(groundPlan(block(0, 4, 0, 4)).foam).toEqual([]);
+    const hidden = tiles.map((t) => (t.x >= 6 ? { ...t, kind: "unrevealed" as const } : t));
+    const plan = groundPlan(hidden);
+    expect(plan.foam.length).toBeGreaterThan(0);
+    for (const piece of plan.foam) {
+      expect(piece.source.x).toBeLessThan(6);
+      const holder = tiles.filter(
+        (w) => w.x < 6 && insideConvex(piece.points, hexCorners(tileToPixel(w))),
+      );
+      expect(holder.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("the foam over the void (CLI-03g2)", () => {
+  const ground = (t: Tile): GroundKind => (t.x === 4 ? "water" : t.y === 2 ? "earth" : "grass");
+  const kind = (t: Tile): TileKind => (t.y === 0 ? "unrevealed" : t.x === 4 ? "wall" : "floor");
+  const tiles = block(0, 4, 0, 4, ground, kind);
+  const present = new Set(tiles.map(key));
+
+  it("none unless the void is water", () => {
+    expect(voidFoam(tiles, undefined)).toEqual([]);
+    expect(voidFoam(tiles, "grass")).toEqual([]);
+  });
+
+  it("from every revealed land hex on the border, over the void's hexes only", () => {
+    const pieces = voidFoam(tiles, "water");
+    const border = tiles.filter(
+      (t) =>
+        t.kind !== "unrevealed" &&
+        t.ground !== "water" &&
+        [0, 1, 2, 3, 4, 5].some((side) => !present.has(key(acrossSide(t, side)))),
+    );
+    expect(border.length).toBeGreaterThan(0);
+    const sources = new Set(pieces.map((p) => key(p.source)));
+    for (const t of border) expect(sources.has(key(t))).toBe(true);
+    for (const piece of pieces) {
+      expect(piece.origin).toEqual(foamOrigin(piece.source));
+      const holders = hexesWithin(piece.source, FOAM_REACH).filter((h) =>
+        insideConvex(piece.points, hexCorners(tileToPixel(h))),
+      );
+      expect(holders).toHaveLength(1);
+      expect(present.has(key(holders[0]!))).toBe(false);
+    }
+  });
+
+  it("with the chunks' foam, the whole cell's part over water: the void as water hexes", () => {
+    // The same block inside a ring of two water hexes: its foam over the ring, from the block's
+    // land, equals the void's foam.
+    const ring = block(
+      -2,
+      6,
+      -2,
+      6,
+      (t) => (present.has(key(t)) ? ground(t) : "water"),
+      (t) => (present.has(key(t)) ? kind(t) : "wall"),
+    );
+    const fromRing = groundPlan(ring, { around: () => "water" })
+      .foam.filter((p) => present.has(key(p.source)))
+      .filter((p) => {
+        const holder = hexesWithin(p.source, FOAM_REACH).find((h) =>
+          insideConvex(p.points, hexCorners(tileToPixel(h))),
+        )!;
+        return !present.has(key(holder));
+      });
+    const k = (p: GroundPlan["foam"][number]) => `${key(p.source)}|${p.points.join()}`;
+    expect(voidFoam(tiles, "water").map(k).sort()).toEqual(fromRing.map(k).sort());
+  });
+});
+
+/** Whether every point of a polygon lies in a convex polygon (both flat `x, y, …`), edges included. */
+function insideConvex(points: readonly number[], hull: readonly number[]): boolean {
+  const n = hull.length / 2;
+  for (let i = 0; i < points.length; i += 2) {
+    for (let k = 0; k < n; k++) {
+      const ax = hull[2 * k]!;
+      const ay = hull[2 * k + 1]!;
+      const bx = hull[(2 * k + 2) % (2 * n)]!;
+      const by = hull[((2 * k + 2) % (2 * n)) + 1]!;
+      if ((bx - ax) * (points[i + 1]! - ay) - (by - ay) * (points[i]! - ax) < -1e-6) return false;
+    }
+  }
+  return true;
+}
 
 /** Every chunk of every room and both hubs, as the renderer groups them. */
 function chunksOfEveryWorld(): ViewTile[][] {

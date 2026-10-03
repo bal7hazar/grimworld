@@ -35,7 +35,7 @@ WORD = "sla" + "yer"        # the manga's name: never written nor printed (D-73,
 STILL_ROLES = ("building", "prop")  # the roles of a `[[still]]`: one image, no animation (CLI-03c/e)
 STILL_ANIM = "still"        # its one animation of one frame, the name the client draws
 TILE_ROLE = "tile"          # a cell of a `[[tileset]]` (CLI-03e): untrimmed, anchored top-left
-TILE = 64                   # a tileset cell's side, the art's base tile (design/10)
+TILE = 64                   # a tileset cell's side by default, the art's base tile (design/10)
 USAGE = """usage: tools/art/build.py [--check] [--resample=area|area-blend|nearest]
        tools/art/build.py --fingerprint     fingerprints of the existing out/, no build
        tools/art/build.py --pack-heights    visible heights of the pack's own units
@@ -328,7 +328,8 @@ def main(opts):
             sprites.append(sprite)
             origins[sprite["name"]] = ts["origin"]
             report["tiles"][sprite["name"]] = {
-                "role": TILE_ROLE, "origin": ts["origin"], "cell": [TILE, TILE], "baseline": 0}
+                "role": TILE_ROLE, "origin": ts["origin"], "cell": [sprite["cell_w"]] * 2,
+                "baseline": 0}
     index = atlas.pack(sprites, s, OUT)
     for name, info in index["sprites"].items():
         entry = (report["sprites"].get(name) or report["stills"].get(name)
@@ -378,9 +379,10 @@ def still_problems(manifest):
 
 
 def tileset_problems(manifest):
-    """The `[[tileset]]` entries (CLI-03e): a PNG of the pack, role `tile`, an origin, and named
-    cells `{name = [column, row]}`; every cell becomes the sprite `<tileset>_<cell>`, a name used
-    once in the whole manifest. Returns the list of problems."""
+    """The `[[tileset]]` entries (CLI-03e): a PNG of the pack, role `tile`, an origin, an optional
+    `cell` side in px (default TILE; CLI-03g2), and named cells `{name = [column, row]}`; every
+    cell becomes the sprite `<tileset>_<cell>`, a name used once in the whole manifest. Returns
+    the list of problems."""
     names = {sp["name"] for sp in manifest.get("sprite", [])}
     names |= {st.get("name") for st in manifest.get("still", [])}
     problems = []
@@ -395,6 +397,9 @@ def tileset_problems(manifest):
             problems.append(f"[[tileset]] {name}: file {ts.get('file')!r} is not a PNG")
         if not ts.get("origin"):
             problems.append(f"[[tileset]] {name}: no origin")
+        side = ts.get("cell", TILE)
+        if not (isinstance(side, int) and not isinstance(side, bool) and side > 0):
+            problems.append(f"[[tileset]] {name}: cell {side!r} is not a side in px")
         cells = ts.get("cells")
         if not isinstance(cells, dict) or not cells:
             problems.append(f"[[tileset]] {name}: no cells")
@@ -411,16 +416,17 @@ def tileset_problems(manifest):
 
 
 def tile_sprites(ts, path):
-    """A tileset's cells as the atlas packs them: each a sprite of one cell, TILE x TILE, untrimmed
-    (an edge cell keeps its transparent part, so cells laid side by side meet exactly), anchored at
-    its top-left corner, with one animation `still` of one frame; its edges extruded into the
-    gutter by `atlas.pack`."""
+    """A tileset's cells as the atlas packs them: each a sprite of one cell, of the entry's `cell`
+    side (TILE by default), untrimmed (an edge cell keeps its transparent part, so cells laid side
+    by side meet exactly), anchored at its top-left corner, with one animation `still` of one
+    frame; its edges extruded into the gutter by `atlas.pack`."""
     from artpipe import clean
+    side = ts.get("cell", TILE)
     out = []
     for cell, (column, row) in ts["cells"].items():
-        rgba = clean.tile(path, column, row, TILE)
-        out.append({"name": f"{ts['name']}_{cell}", "role": TILE_ROLE, "cell_w": TILE,
-                    "cell_h": TILE, "baseline": 0, "untrimmed": True, "anchor": (0, 0),
+        rgba = clean.tile(path, column, row, side)
+        out.append({"name": f"{ts['name']}_{cell}", "role": TILE_ROLE, "cell_w": side,
+                    "cell_h": side, "baseline": 0, "untrimmed": True, "anchor": (0, 0),
                     "anims": [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": [rgba]}]})
     return out
 
@@ -558,8 +564,9 @@ def verify(pages, index, sprites, s):
             crop = img[fr["y"]:fr["y"] + fr["h"], fr["x"]:fr["x"] + fr["w"]]
             assert crop[..., 3].any(), key
             if spec[name]["role"] == TILE_ROLE:
-                # A tile: its whole cell, TILE x TILE, untrimmed, anchored at its top-left corner.
-                assert (fr["w"], fr["h"]) == (TILE, TILE) == (src["w"], src["h"]), key
+                # A tile: exactly its entry's whole cell, untrimmed, anchored at its top-left corner.
+                side = spec[name]["cell_w"]
+                assert (fr["w"], fr["h"]) == (side, side) == (src["w"], src["h"]), key
                 assert (sr["x"], sr["y"]) == (0, 0) and not f["trimmed"], key
                 assert f["anchor"] == {"x": 0, "y": 0}, key
                 continue
