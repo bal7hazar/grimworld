@@ -2,7 +2,9 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::ContractAddress;
+use crate::models::chunk::Terrain;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
+use crate::types::reveal::{Progress, Site};
 use crate::types::tick::Content;
 use crate::types::world::Words;
 use crate::types::{InstanceId, Outcome};
@@ -133,4 +135,22 @@ pub trait IFlattenLibrary<T> {
     fn words(
         self: @T, loadout: Loadout, worn: Span<Worn>, ids: Span<u16>, records: Span<felt252>,
     ) -> (felt252, felt252, felt252);
+}
+
+/// The chunk reveal's library class (ENG-01 §1.3, ENG-05): `Instances` calls it through
+/// `IRevealLibraryLibraryDispatcher`, the class hash being its configuration.
+#[starknet::interface]
+pub trait IRevealLibrary<T> {
+    /// Reveals `chunks` (`(chunk, side entered)`, in order) of instance `instance_id` in the
+    /// location `site`, from `progress`, with the terrain of every revealed neighbour in `known`
+    /// (`types::reveal::RevealTrait::reveal`): the progress after them, and the chunks revealed as
+    /// `(chunk, terrain, features)`, their two words packed as stored (ENG-01 §3.2).
+    fn reveal(
+        self: @T,
+        site: Site,
+        progress: Progress,
+        instance_id: felt252,
+        known: Span<(u8, Terrain)>,
+        chunks: Span<(u8, u8)>,
+    ) -> (Progress, Span<(u8, felt252, felt252)>);
 }

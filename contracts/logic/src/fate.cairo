@@ -27,8 +27,19 @@ pub const HINT: felt252 = 'fate:hint';
 /// The day's five Rift identities, by the first board action of the day (design/17, *On-chain*).
 pub const RIFT_BOARD: felt252 = 'fate:rift-board';
 
+/// A chunk's random word at its reveal (ENG-05; ADR-0006 option C, D-111): not a call to the
+/// provider but `derive(entropy, domain(instance_id, chunk, REVEAL), 0)`, the entropy read at the
+/// reveal (`EntropyTrait::word`).
+pub const REVEAL: felt252 = 'fate:reveal';
+
 /// Every purpose, for the test that they are distinct.
-pub const PURPOSES: [felt252; 8] = [ENTRY, LOOT, CHEST, IDENTIFY, LIFT, BREW, HINT, RIFT_BOARD];
+pub const PURPOSES: [felt252; 9] = [
+    ENTRY, LOOT, CHEST, IDENTIFY, LIFT, BREW, HINT, RIFT_BOARD, REVEAL,
+];
+
+/// The tag of a reveal's fact: the chunk and the side it was entered from (ADR-0006, option B's
+/// table).
+pub const FACT_REVEAL: felt252 = 'fact:reveal';
 
 /// The domain of one draw: `poseidon(subject, counter, purpose)`.
 #[inline]
@@ -40,6 +51,36 @@ pub fn domain(subject: felt252, counter: felt252, purpose: felt252) -> felt252 {
 #[inline]
 pub fn derive(word: felt252, domain: felt252, index: u32) -> felt252 {
     poseidon_hash_span([word, domain, index.into()].span())
+}
+
+/// An instance's entropy (ADR-0006 option C, ENG-01 §3.2): the entry draw plus one hash per
+/// irreversible fact, a **set**, not a sequence: `feed` adds `poseidon(fact)`, so two facts fed in
+/// either order give the same value, and the order of two actions that lead to the same state is
+/// not a free choice. Every feeder (a reveal here; a kill, health lost, a consumable, loot, a
+/// chest, a vein in their lots) calls `feed` with a fact whose first felt is its own tag, so that
+/// two kinds of fact never hash alike.
+#[generate_trait]
+pub impl EntropyImpl of EntropyTrait {
+    /// The entropy with one more fact: `entropy + poseidon(fact)`.
+    #[inline]
+    fn feed(entropy: felt252, fact: Span<felt252>) -> felt252 {
+        entropy + poseidon_hash_span(fact)
+    }
+
+    /// The fact of a reveal: chunk `15 cy + cx`, and the side it was entered from (0 West, 1 East,
+    /// 2 South, 3 North, ENG-01's order; 4 none, at the entry).
+    #[inline]
+    fn reveal_fact(chunk: u8, side: u8) -> Span<felt252> {
+        [FACT_REVEAL, chunk.into(), side.into()].span()
+    }
+
+    /// The random word of chunk `chunk` of `instance_id`'s instance, from the entropy read at its
+    /// reveal (ENG-05 Open question 2): `derive(entropy, domain(instance_id, chunk, REVEAL), 0)`.
+    /// The chunk is the counter, never the sequence or the clock.
+    #[inline]
+    fn word(entropy: felt252, instance_id: felt252, chunk: u8) -> felt252 {
+        derive(entropy, domain(instance_id, chunk.into(), REVEAL), 0)
+    }
 }
 
 /// The vector table for the TypeScript mirror (VEC-01) is printed by `tests::test_vectors` and kept
@@ -144,5 +185,5 @@ mod tests {
     }
 
     const DIGEST: felt252 =
-        3474069607777092078014837612374645396392313416994272855124942792786643125445;
+        1839100577459864661906567117798787229400223419200535450393868919826041224050;
 }

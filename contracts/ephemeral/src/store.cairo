@@ -36,13 +36,13 @@
 //! what reads and writes them.
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
-use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskPage};
-use starknet::ContractAddress;
+use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
 use starknet::storage::{
-    StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersForward,
-    SubPointersMutForward,
+    StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersMutForward,
 };
+use starknet::{ClassHash, ContractAddress};
 use crate::helpers::stored::{Stored, StoredTrait};
+use crate::models::chunk::{Chunk, Terrain, TerrainStorePacking};
 use crate::models::instance::{Header, Placement, Quotas};
 use crate::models::member::{
     EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, MemberAssert, MemberState,
@@ -53,19 +53,21 @@ use crate::systems::instances::Instances::ContractState as InstancesState;
 pub impl InstancesStoreImpl of InstancesStoreTrait {
     // Configuration: one slot each
 
-    /// The constructor's writes: the administrator, the three registered contracts, `next_slot` at
-    /// 1.
+    /// The constructor's writes: the administrator, the three registered contracts, the reveal's
+    /// library class (ENG-05), `next_slot` at 1.
     fn initialize(
         ref self: InstancesState,
         admin: ContractAddress,
         hub: ContractAddress,
         registry: ContractAddress,
         fate: ContractAddress,
+        reveal: ClassHash,
     ) {
         self.admin.write(admin);
         self.hub.write(hub);
         self.registry.write(registry);
         self.fate.write(fate);
+        self.reveal.write(reveal);
         self.next_slot.write(Counter { value: 1 });
     }
 
@@ -94,16 +96,25 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.fate.read()
     }
 
+    /// The reveal's library class (`RevealLibrary`, ENG-05), called once an invocation that
+    /// reveals.
+    #[inline(always)]
+    fn get_reveal(self: @InstancesState) -> ClassHash {
+        self.reveal.read()
+    }
+
     /// `set_contracts`' writes, in its order.
     fn set_registered(
         ref self: InstancesState,
         hub: ContractAddress,
         registry: ContractAddress,
         fate: ContractAddress,
+        reveal: ClassHash,
     ) {
         self.hub.write(hub);
         self.registry.write(registry);
         self.fate.write(fate);
+        self.reveal.write(reveal);
     }
 
     /// A new slot, at an adventurer's first entry: `next_slot` read, then written one more. Slots
@@ -188,6 +199,51 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     #[inline(always)]
     fn set_task_page(ref self: InstancesState, slot: u32, page: u8, entries: TaskPage) {
         self.tasks.entry((slot, page)).write(StoredTrait::new(entries))
+    }
+
+    /// The first `count` tasks (`count` at most `MAX_TASKS`), through their pages' packer: what a
+    /// reveal's task quotas read (`leave`, ENG-05).
+    fn get_tasks(self: @InstancesState, slot: u32, count: u8) -> Span<TaskEntry> {
+        let mut tasks: Array<TaskEntry> = array![];
+        let mut page: u8 = 0;
+        while tasks.len() < count.into() {
+            let entries = self.tasks.entry((slot, page)).read().model().entries;
+            for entry in entries.span() {
+                if tasks.len() < count.into() {
+                    tasks.append(*entry);
+                }
+            }
+            page += 1;
+        }
+        tasks.span()
+    }
+
+    // Chunks: `chunks[(slot, chunk)]`, two slots each (`Chunk`), written at the reveal (ENG-05)
+
+    /// A revealed chunk's terrain alone, one slot, through its packer: what a reveal and a view
+    /// read of a neighbour (its edges).
+    #[inline(always)]
+    fn get_terrain(self: @InstancesState, slot: u32, chunk: u8) -> Terrain {
+        self.chunks.entry((slot, chunk)).terrain.read().model()
+    }
+
+    /// A revealed chunk's two words as stored (a chunk never revealed is never read, §2.1): the
+    /// view's.
+    #[inline(always)]
+    fn get_chunk_words(self: @InstancesState, slot: u32, chunk: u8) -> (felt252, felt252) {
+        let entry = self.chunks.entry((slot, chunk)).read();
+        (entry.terrain.word, entry.features.word)
+    }
+
+    /// The reveal's two writes of a chunk: its words as the reveal's library packed them.
+    #[inline(always)]
+    fn set_chunk(
+        ref self: InstancesState, slot: u32, chunk: u8, terrain: felt252, features: felt252,
+    ) {
+        self
+            .chunks
+            .entry((slot, chunk))
+            .write(Chunk { terrain: Stored { word: terrain }, features: Stored { word: features } })
     }
 
     // Members: `members[(slot, member)]`, eight slots (`StoredMember`)
@@ -472,7 +528,7 @@ mod tests {
         let timers: felt252 = StorePacking::<MemberTimers>::pack(MemberTimersTrait::empty());
         assert(timers == EMPTY_TIMERS, 'the constant word');
         let zero: ContractAddress = 0.try_into().unwrap();
-        state.initialize(zero, zero, zero, zero);
+        state.initialize(zero, zero, zero, zero, 0.try_into().unwrap());
         assert(state.new_slot() == 1 && state.new_slot() == 2, 'slots from 1');
     }
 }
