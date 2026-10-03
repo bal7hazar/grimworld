@@ -16,17 +16,18 @@ const OTHER: felt252 = 0xbad;
 
 fn deploy_instances() -> ContractAddress {
     let class = declare("Instances").unwrap().contract_class();
-    let (address, _) = class.deploy(@array![ADMIN, 2, 3, 4]).unwrap();
+    let (address, _) = class.deploy(@array![ADMIN, 2, 3, 4, 5]).unwrap();
     address
 }
 
-// (admin, hub, registry, fate) as stored.
-fn stored(instances: ContractAddress) -> (felt252, felt252, felt252, felt252) {
+// (admin, hub, registry, fate, reveal) as stored.
+fn stored(instances: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252) {
     (
         *load(instances, selector!("admin"), 1).at(0),
         *load(instances, selector!("hub"), 1).at(0),
         *load(instances, selector!("registry"), 1).at(0),
         *load(instances, selector!("fate"), 1).at(0),
+        *load(instances, selector!("reveal"), 1).at(0),
     )
 }
 
@@ -38,9 +39,12 @@ fn test_instances_set_contracts_by_admin() {
     start_cheat_caller_address(instances, ADMIN.try_into().unwrap());
     IInstancesAdminDispatcher { contract_address: instances }
         .set_contracts(
-            0x12.try_into().unwrap(), 0x13.try_into().unwrap(), 0x14.try_into().unwrap(),
+            0x12.try_into().unwrap(),
+            0x13.try_into().unwrap(),
+            0x14.try_into().unwrap(),
+            0x15.try_into().unwrap(),
         );
-    assert(stored(instances) == (ADMIN, 0x12, 0x13, 0x14), 'set by the admin');
+    assert(stored(instances) == (ADMIN, 0x12, 0x13, 0x14, 0x15), 'set by the admin');
 }
 
 #[test]
@@ -52,10 +56,13 @@ fn test_instances_set_contracts_refused_to_others() {
     start_cheat_caller_address(instances, OTHER.try_into().unwrap());
     let result = IInstancesAdminSafeDispatcher { contract_address: instances }
         .set_contracts(
-            0x12.try_into().unwrap(), 0x13.try_into().unwrap(), 0x14.try_into().unwrap(),
+            0x12.try_into().unwrap(),
+            0x13.try_into().unwrap(),
+            0x14.try_into().unwrap(),
+            0x15.try_into().unwrap(),
         );
     assert(*result.unwrap_err().at(0) == NOT_ADMIN, 'not admin');
-    assert(stored(instances) == (ADMIN, 2, 3, 4), 'unchanged');
+    assert(stored(instances) == (ADMIN, 2, 3, 4, 5), 'unchanged');
 }
 
 // The role moves: the new administrator sets the provider, the former one no longer can.
@@ -69,16 +76,20 @@ fn test_instances_set_admin_hands_over() {
     start_cheat_caller_address(instances, ADMIN.try_into().unwrap());
     IInstancesAdminDispatcher { contract_address: instances }.set_admin(0xad2.try_into().unwrap());
     let result = safe
-        .set_contracts(2.try_into().unwrap(), 3.try_into().unwrap(), 0x66.try_into().unwrap());
+        .set_contracts(
+            2.try_into().unwrap(), 3.try_into().unwrap(), 0x66.try_into().unwrap(), 5.try_into().unwrap(),
+        );
     assert(*result.unwrap_err().at(0) == NOT_ADMIN, 'former admin refused');
     let result = safe.set_admin(ADMIN.try_into().unwrap());
     assert(*result.unwrap_err().at(0) == NOT_ADMIN, 'former admin cannot take back');
     stop_cheat_caller_address(instances);
     start_cheat_caller_address(instances, 0xad2.try_into().unwrap());
     safe
-        .set_contracts(2.try_into().unwrap(), 3.try_into().unwrap(), 0x66.try_into().unwrap())
+        .set_contracts(
+            2.try_into().unwrap(), 3.try_into().unwrap(), 0x66.try_into().unwrap(), 5.try_into().unwrap(),
+        )
         .unwrap();
-    assert(stored(instances) == (0xad2, 2, 3, 0x66), 'the new admin sets');
+    assert(stored(instances) == (0xad2, 2, 3, 0x66, 5), 'the new admin sets');
 }
 
 #[test]
@@ -96,5 +107,5 @@ fn test_instances_set_admin_refused() {
     stop_cheat_caller_address(instances);
     start_cheat_caller_address(instances, ADMIN.try_into().unwrap());
     assert(*safe.set_admin(0.try_into().unwrap()).unwrap_err().at(0) == ZERO_ADMIN, 'zero refused');
-    assert(stored(instances) == (ADMIN, 2, 3, 4), 'unchanged');
+    assert(stored(instances) == (ADMIN, 2, 3, 4, 5), 'unchanged');
 }

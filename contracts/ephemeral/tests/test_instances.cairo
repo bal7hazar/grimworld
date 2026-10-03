@@ -14,7 +14,7 @@ use starknet::ContractAddress;
 
 fn deploy_instances() -> ContractAddress {
     let class = declare("Instances").unwrap().contract_class();
-    let (address, _) = class.deploy(@array![1, 2, 3, 4]).unwrap();
+    let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
     address
 }
 

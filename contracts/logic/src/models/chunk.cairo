@@ -200,18 +200,22 @@ mod tests {
     use crate::packing::LIVE;
     use crate::types::window::WindowTrait;
     use super::{
-        CENTRE, Features, FeaturesTrait, NEAR, Object, PackPlacement, PackPlacementTrait, Terrain,
+        CENTRE, Features, FeaturesStorePacking, FeaturesTrait, NEAR, Object, PackPlacement,
+        PackPlacementTrait, Terrain, TerrainStorePacking,
     };
 
     // The 19 tiles within 2 against ENG-02's hex distance (`WindowTrait::distance`, its own
-    // oracle): distinct, within 2, by row; a chunk's row parity is the window's when its local row
-    // 0 is even, and a row down (`+ 15`) when it is odd.
-    fn check_members(tile: u8, odd: bool) {
-        let shift: u8 = if odd {
+    // oracle): distinct, within 2, by row. A chunk's rows have the window's parity when its local
+    // row 0 is even, and are a row up (`+ 15`) when it is odd; `member` takes the global parity of
+    // the tile's row.
+    fn check_members(tile: u8, chunk_odd: bool) {
+        let shift: u8 = if chunk_odd {
             15
         } else {
             0
         };
+        let (row, _) = DivRem::div_rem(tile, 15);
+        let odd = (row % 2 == 1) != chunk_odd;
         let mut seen: felt252 = 0;
         let mut last_row: u8 = 0;
         let mut k: u8 = 0;

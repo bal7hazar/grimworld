@@ -34,6 +34,11 @@ TABLES = {
     "packing.jsonl": [
         "grimworld_logic::packing::tests::test_vectors",
     ],
+    "reveal.jsonl": [
+        "grimworld_logic::types::reveal::tests::test_vectors",
+        "grimworld_logic::types::reveal::tests::test_vectors_1",
+        "grimworld_logic::types::reveal::tests::test_vectors_2",
+    ],
 }
 
 

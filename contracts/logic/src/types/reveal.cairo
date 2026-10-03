@@ -52,8 +52,8 @@ use crate::models::set_piece::SetPiece;
 use crate::models::spawn_table::SpawnTable;
 use crate::snapshot::TaskEntry;
 use crate::types::ChunkKind;
-use self::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
-use self::placement::PlacementTrait;
+use crate::types::reveal::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
+use crate::types::reveal::placement::PlacementTrait;
 
 /// The sides of a chunk, in ENG-01's order of the edges (`Terrain.edges` bit `side`), and the side
 /// a reveal was entered from.
@@ -192,7 +192,7 @@ pub impl SiteImpl of SiteTrait {
 
     /// The pack template `id`.
     fn pack(self: @Site, id: u16) -> Option<Pack> {
-        let mut found = Option::None;
+        let mut found: Option<Pack> = Option::None;
         for entry in *self.packs {
             let (at, pack) = *entry;
             if at == id && id != 0 {
@@ -204,7 +204,7 @@ pub impl SiteImpl of SiteTrait {
 
     /// The set piece `id`.
     fn piece(self: @Site, id: u16) -> Option<SetPiece> {
-        let mut found = Option::None;
+        let mut found: Option<SetPiece> = Option::None;
         for entry in *self.pieces {
             let (at, piece) = *entry;
             if at == id && id != 0 {
@@ -489,7 +489,7 @@ pub impl RevealImpl of RevealTrait {
     fn piece(site: @Site, due: u16) -> Option<(u8, SetPiece)> {
         let mut rest = due;
         let mut i: u8 = 0;
-        let mut found = Option::None;
+        let mut found: Option<(u8, SetPiece)> = Option::None;
         while rest != 0 {
             let (above, bit) = DivRem::div_rem(rest, 2);
             rest = above;
@@ -511,7 +511,7 @@ pub impl RevealImpl of RevealTrait {
         if BoardTrait::has(interior, CENTRE) {
             return Option::Some(CENTRE);
         }
-        let mut found = Option::None;
+        let mut found: Option<u8> = Option::None;
         for tile in anchors {
             if found.is_none() && BoardTrait::has(interior, *tile) {
                 found = Option::Some(*tile);
@@ -547,7 +547,7 @@ pub impl RevealImpl of RevealTrait {
 
     /// The terrain of a revealed chunk given in `known`.
     fn known(known: Span<(u8, Terrain)>, chunk: u8) -> Terrain {
-        let mut found = Option::None;
+        let mut found: Option<Terrain> = Option::None;
         for entry in known {
             let (at, terrain) = *entry;
             if at == chunk {
@@ -583,9 +583,7 @@ pub impl RevealImpl of RevealTrait {
     /// Edge `side` of `edges` is open.
     #[inline(always)]
     fn is_open(edges: u8, side: u8) -> bool {
-        let (above, _) = DivRem::div_rem(edges, Self::pow2(side));
-        let (_, bit) = DivRem::div_rem(above, 2);
-        bit == 1
+        (edges / Self::pow2(side)) % 2 == 1
     }
 
     /// The side facing `side` across a seam: West and East, South and North.
@@ -612,14 +610,11 @@ pub impl RevealImpl of RevealTrait {
     /// The lowest set bit of a 4-bit set.
     #[inline(always)]
     fn lowest(bits: u8) -> u8 {
-        let (_, b0) = DivRem::div_rem(bits, 2);
-        let (_, b1) = DivRem::div_rem(bits, 4);
-        let (_, b2) = DivRem::div_rem(bits, 8);
-        if b0 == 1 {
+        if bits % 2 == 1 {
             1
-        } else if b1 != 0 {
+        } else if bits % 4 != 0 {
             2
-        } else if b2 != 0 {
+        } else if bits % 8 != 0 {
             4
         } else {
             8
@@ -717,7 +712,7 @@ pub mod tests {
     use hexx::board::bits::Bits;
     use hexx::board::seams::{SeamTrait, Side};
     use crate::fate::{ENTRY, EntropyTrait, REVEAL, domain};
-    use crate::models::chunk::{Features, PackPlacementTrait, Terrain, object};
+    use crate::models::chunk::{PackPlacementTrait, Terrain, object};
     use crate::models::location::biome;
     use crate::models::pack::{Pack, PackCaste};
     use crate::models::quotas::{Quota, QuotaSet, kind as quota};
@@ -837,12 +832,12 @@ pub mod tests {
     /// floor one component that holds the centre; every ring opening next to it; nothing placed on
     /// a wall, on the ring or within 2 of an opening; E-3.
     pub fn check_chunk(revealed: @Revealed) {
-        let floor = floor(revealed.terrain);
+        let ground = floor(revealed.terrain);
         let corners = 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224);
-        assert(BoardTrait::and(floor, corners) == 0, 'corners are wall');
+        assert(BoardTrait::and(ground, corners) == 0, 'corners are wall');
         let odd = odd(*revealed.chunk);
-        let interior = BoardTrait::and(floor, INTERIOR);
-        let ring = floor - interior;
+        let interior = BoardTrait::and(ground, INTERIOR);
+        let ring = ground - interior;
         if BoardTrait::has(interior, CENTRE) {
             assert(BoardTrait::component(interior, CENTRE, odd) == interior, 'one component');
         }
@@ -914,11 +909,11 @@ pub mod tests {
             let site = dungeon(12, no_quotas());
             let mut progress = ProgressTrait::new(@site, seed);
             let revealed = one(@site, ref progress, array![].span(), 112, side::NONE);
-            let floor = floor(@revealed.terrain);
+            let ground = floor(@revealed.terrain);
             let mut s: u8 = 0;
             for hexx_side in sides.span() {
                 let mask = SeamTrait::side(15, 15, *hexx_side);
-                let open = BoardTrait::and(floor, mask) != 0;
+                let open = BoardTrait::and(ground, mask) != 0;
                 assert(open == RevealTrait::is_open(revealed.terrain.edges, s), 'edge bit');
                 s += 1;
             }
@@ -1013,10 +1008,10 @@ pub mod tests {
             let mut progress = ProgressTrait::new(@site, seed);
             let a = one(@site, ref progress, array![].span(), 0, side::NONE);
             check_chunk(@a);
-            let floor = floor(@a.terrain);
+            let ground = floor(@a.terrain);
             // East (outside) and South (outside) closed, but the anchor (row 7, column 0).
-            assert(BoardTrait::and(floor, super::board::EAST) == Bits::pow(105), 'east: the anchor');
-            assert(BoardTrait::and(floor, super::board::SOUTH) == 0, 'south closed');
+            assert(BoardTrait::and(ground, super::board::EAST) == Bits::pow(105), 'east: the anchor');
+            assert(BoardTrait::and(ground, super::board::SOUTH) == 0, 'south closed');
             let b = one(@site, ref progress, array![(0, a.terrain)].span(), 1, side::EAST);
             // (1, 0)'s North faces (1, 1), void: closed.
             assert(BoardTrait::and(floor(@b.terrain), super::board::NORTH) == 0, 'north void');
@@ -1391,7 +1386,7 @@ pub mod tests {
     fn test_sight_against_a_scan() {
         let positions: [(u8, u8); 14] = [
             (21, 21), (15, 15), (29, 29), (15, 29), (29, 15), (20, 16), (24, 28), (16, 23), (28, 22),
-            (0, 0), (7, 7), (0, 105), (44, 44), (17, 19),
+            (0, 0), (7, 7), (0, 40), (44, 44), (17, 19),
         ];
         for position in positions.span() {
             let (x, y) = *position;
@@ -1549,8 +1544,8 @@ pub mod tests {
         while kind != 5 {
             let site = zone(kind, 3, 3, no_quotas());
             let mut progress = ProgressTrait::new(@site, kind.into());
-            emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(16, side::NONE)].span());
-            emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(1, side::NONE)].span());
+            let out = emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(16, side::NONE)].span());
+            emit_reveal(ref digest, ref id, @site, ref progress, array![(16, *out[0].terrain)].span(), array![(1, side::NONE)].span());
             kind += 1;
         }
         // Chunk 16 after its South, East, West and North neighbours, one at a time.

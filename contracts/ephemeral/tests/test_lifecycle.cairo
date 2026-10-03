@@ -80,10 +80,23 @@ mod RegistryDouble {
             out.span()
         }
         fn records(self: @ContractState, kind: u8, ids: Span<u32>) -> Span<felt252> {
-            core::panic_with_felt252('double: records')
+            let mut out = array![];
+            for id in ids {
+                for part in 0..parts(kind) {
+                    out.append(self.records.read((kind, *id, part)));
+                }
+            }
+            out.span()
         }
         fn bundle(self: @ContractState, requests: Span<(u8, u32)>) -> (u32, u32, Span<felt252>) {
-            core::panic_with_felt252('double: bundle')
+            let mut out = array![];
+            for request in requests {
+                let (kind, id) = *request;
+                for part in 0..parts(kind) {
+                    out.append(self.records.read((kind, id, part)));
+                }
+            }
+            (0, 0, out.span())
         }
         fn content_version(self: @ContractState) -> u32 {
             0
@@ -310,9 +323,10 @@ fn setup() -> World {
     let (fate, _) = class.deploy(@array![]).unwrap();
     let class = declare("HubDouble").unwrap().contract_class();
     let (hub, _) = class.deploy(@array![]).unwrap();
+    let reveal = declare("RevealLibrary").unwrap().contract_class();
     let class = declare("Instances").unwrap().contract_class();
     let (instances, _) = class
-        .deploy(@array![ADMIN, hub.into(), registry.into(), fate.into()])
+        .deploy(@array![ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into()])
         .unwrap();
 
     let records = IRecordsDispatcher { contract_address: registry };

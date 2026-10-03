@@ -26,7 +26,7 @@ use hexx::board::rng::{Rng, RngTrait};
 use crate::content::CRITERION_REACH_LANDMARK;
 use crate::models::chunk::{CENTRE, NEAR, Object, PackPlacement, PackPlacementTrait, object};
 use crate::models::location::biome;
-use crate::models::pack::{Pack, PackTrait};
+use crate::models::pack::PackTrait;
 use crate::models::quotas::kind as quota;
 use crate::models::set_piece::SetPiece;
 use crate::models::spawn_table::SpawnTableTrait;
@@ -378,7 +378,8 @@ pub impl PlacementImpl of PlacementTrait {
             let pick: u16 = if weight == 0 {
                 0
             } else {
-                rng.draw(weight.into().try_into().unwrap()).try_into().unwrap()
+                let bound: u128 = weight.into();
+                rng.draw(bound.try_into().unwrap()).try_into().unwrap()
             };
             if weight != 0 && roll < (*spawn.density).into() {
                 placement.pack(ref rng, site, spawn.pick(pick), Option::None);

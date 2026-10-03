@@ -134,7 +134,7 @@ pub impl PackRecord of Record<Pack> {
 mod tests {
     use crate::content::Record;
     use crate::packing::LIVE;
-    use super::{Pack, PackCaste, PackRecord, PackTrait};
+    use super::{PackCaste, PackRecord, PackTrait};
 
     #[test]
     #[available_gas(l2_gas: 1500000)]
