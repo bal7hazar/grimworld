@@ -43,7 +43,63 @@ jobs:
         if: steps.changes.outputs.tooling == 'true'
         run: |
           shellcheck --version
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh .githooks/pre-push
+
+      # FND-17: a push through the real hook and prepush.sh, from a linked worktree and from the main
+      # checkout of a scratch clone (core.hooksPath .githooks, a local bare remote), leaves the clone's
+      # branches, HEADs and .git/config byte-identical; no step sees git's repository variables (the stub
+      # scarb, which prepush.sh's fmt step calls, fails if one reaches it); the self-test run with GIT_DIR
+      # on a decoy repository leaves the decoy unchanged.
+      - name: pre-push hook in a linked worktree
+        run: |
+          set -euo pipefail
+          src=$PWD; work=$RUNNER_TEMP/fnd17; mkdir -p "$work/bin"
+          cat > "$work/bin/scarb" <<'EOS'
+          #!/bin/sh
+          for v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_PREFIX; do
+            if eval "[ -n \"\${$v+x}\" ]"; then echo "stub scarb: $v reached a step" >&2; exit 1; fi
+          done
+          EOS
+          chmod +x "$work/bin/scarb"
+          g() { git -c user.name=t -c user.email=t@t "$@"; }
+          git init -q --bare "$work/remote.git"
+          git init -q -b main "$work/clone"
+          git archive HEAD | tar -x -C "$work/clone"
+          cd "$work/clone"
+          g add -A; g commit -q -m base
+          git remote add origin "$work/remote.git"
+          git push -q origin main; git fetch -q origin; git branch -q -u origin/main main
+          git config core.hooksPath .githooks
+          g worktree add -q -b feature "$work/wt" main
+          (cd "$work/wt" && echo x > note.txt && g add note.txt && g commit -q -m "from the worktree")
+          g checkout -q -b direct; echo y > note.txt; g add note.txt; g commit -q -m "from the main checkout"
+          snap() {
+            git for-each-ref --format='%(refname) %(objectname)' refs/heads
+            cat .git/HEAD .git/worktrees/wt/HEAD
+            git config --file .git/config --get core.bare
+            if git config --file .git/config --get core.worktree; then echo "core.worktree set" >&2; exit 1; fi
+          }
+          snap > "$work/before"; cp .git/config "$work/config"
+          (cd "$work/wt" && PATH=$work/bin:$PATH git push origin feature) 2>&1 | tee "$work/push-wt"
+          PATH=$work/bin:$PATH git push origin direct 2>&1 | tee "$work/push-main"
+          # prepush.sh run by hand with GIT_DIR exported, as git's hook would: same result.
+          (cd "$work/wt" && GIT_DIR=$work/clone/.git/worktrees/wt PATH=$work/bin:$PATH scripts/prepush.sh)
+          grep -q 'prepush: all checks passed' "$work/push-wt"
+          grep -q 'prepush: all checks passed' "$work/push-main"
+          git --git-dir="$work/remote.git" rev-parse -q --verify refs/heads/feature
+          git --git-dir="$work/remote.git" rev-parse -q --verify refs/heads/direct
+          snap > "$work/after"
+          diff "$work/before" "$work/after"; cmp .git/config "$work/config"
+          [ "$(git config --file .git/config --get core.bare)" = false ]
+          git status --short > /dev/null; git -C "$work/wt" status --short > /dev/null
+          # The self-test with git's repository variables on a decoy: the decoy is unchanged.
+          git init -q -b main "$work/decoy"; g -C "$work/decoy" commit -q --allow-empty -m decoy
+          dsnap() { git -C "$work/decoy" for-each-ref; cat "$work/decoy/.git/HEAD" "$work/decoy/.git/config"; }
+          dsnap > "$work/decoy-before"
+          cd "$src"
+          GIT_DIR=$work/decoy/.git GIT_WORK_TREE=$work/decoy GIT_INDEX_FILE=$work/decoy/.git/index \
+            python3 scripts/gas_budgets.py --self-test
+          dsnap > "$work/decoy-after"; diff "$work/decoy-before" "$work/decoy-after"
 
       - name: launcher dry-run
         if: steps.changes.outputs.tooling == 'true'

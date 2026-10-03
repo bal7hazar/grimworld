@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LoopIntent } from "../../input/intent";
+import { HUB_VIEWS } from "../fixtures/hubs";
 import { OUTPOST, TOWN, globalTile } from "../fixtures/region";
 import {
   type LoopEvent,
@@ -11,6 +12,9 @@ import {
   leaveQuestion,
   step,
 } from "./machine";
+
+/** The town's arrival hex (CLI-03f): the hub screens carry the adventurer's hex. */
+const ARRIVAL = HUB_VIEWS.get(TOWN)!.arrival;
 
 function run(state: LoopState, ...events: LoopEvent[]): LoopState {
   return events.reduce(step, state);
@@ -32,17 +36,17 @@ function enter(hub: number): LoopState {
 describe("the loop's screens (CLI-03c)", () => {
   it("hub → service → back, hub → Gate screen → back", () => {
     let s = run(hubState(TOWN), { kind: "open service", service: "smith" });
-    expect(s.screen).toEqual({ kind: "service", hub: TOWN, service: "smith" });
+    expect(s.screen).toEqual({ kind: "service", hub: TOWN, service: "smith", at: ARRIVAL });
     s = step(s, { kind: "back" });
-    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: ARRIVAL });
     s = run(s, { kind: "open gate screen" });
-    expect(s.screen).toEqual({ kind: "gate", hub: TOWN });
+    expect(s.screen).toEqual({ kind: "gate", hub: TOWN, at: ARRIVAL });
     expect(step(s, { kind: "back" }).screen.kind).toBe("hub");
   });
 
   it("inspects a present adventurer of this hub only", () => {
     const s = step(hubState(TOWN), { kind: "inspect adventurer", adventurer: 12 });
-    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: 12 });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: 12, at: ARRIVAL });
     expect(s.said).toBe("inspect Tobin, vanguard level 3");
     expect(step(hubState(TOWN), { kind: "inspect adventurer", adventurer: 21 }).screen).toEqual(
       hubState(TOWN).screen,
@@ -97,7 +101,7 @@ describe("the loop's screens (CLI-03c)", () => {
     s = step(s, { kind: "leave", gate: 2 });
     expect(s.screen).toEqual({ kind: "report", outcome: "returned", how: "gate", hub: TOWN });
     s = step(s, { kind: "close report" });
-    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: ARRIVAL });
     expect(s.lastHub).toBe(TOWN);
   });
 
@@ -175,5 +179,76 @@ describe("the loop's screens (CLI-03c)", () => {
     }
     const report = step(enter(TOWN), { kind: "defeat now" });
     expect(step(report, { kind: "open gate screen" }).screen).toEqual(report.screen);
+  });
+});
+
+describe("the adventurer's hex in the hub (CLI-03f)", () => {
+  const smithDoor = HUB_VIEWS.get(TOWN)!.places.find((p) => p.id === "smith")!.at;
+
+  it("arrives on the hub's arrival hex: the loop's first hub, and after every report (AC-1)", () => {
+    for (const hub of [TOWN, OUTPOST]) {
+      expect(hubState(hub).screen).toMatchObject({ kind: "hub", at: HUB_VIEWS.get(hub)!.arrival });
+    }
+    const gate = run(
+      enter(TOWN),
+      { kind: "moved", tile: globalTile(0, 105) },
+      {
+        kind: "leave",
+        gate: 2,
+      },
+    );
+    const travel = step(enter(OUTPOST), { kind: "travel back" });
+    const defeat = step(enter(TOWN), { kind: "defeat now" });
+    for (const [s, hub] of [
+      [gate, TOWN],
+      [travel, OUTPOST],
+      [defeat, TOWN],
+    ] as const) {
+      // Walked away from the arrival hex before leaving: arriving puts it back there.
+      const back = step(s, { kind: "close report" });
+      expect(back.screen).toEqual({
+        kind: "hub",
+        hub,
+        inspected: null,
+        at: HUB_VIEWS.get(hub)!.arrival,
+      });
+    }
+  });
+
+  it("moved: the hub screen records each step's hex, as the instance does (CLI-03f, D-202)", () => {
+    const s = step(hubState(TOWN), { kind: "moved", tile: { x: 3, y: 0 } });
+    expect(s.screen).toMatchObject({ kind: "hub", at: { x: 3, y: 0 } });
+    // The same hex again changes nothing: the room reports after every change, not every step.
+    expect(step(s, { kind: "moved", tile: { x: 3, y: 0 } })).toBe(s);
+    const service = run(hubState(TOWN), { kind: "open service", service: "smith" });
+    expect(step(service, { kind: "moved", tile: { x: 3, y: 0 } }).screen).toEqual(service.screen);
+    expect(step(enter(TOWN), { kind: "moved", tile: { x: 3, y: 0 } }).screen.kind).toBe("instance");
+  });
+
+  it("survives a service and back, the Gate screen and back (AC-6, AC-5)", () => {
+    let s = run(
+      hubState(TOWN),
+      { kind: "moved", tile: smithDoor },
+      { kind: "open service", service: "smith" },
+    );
+    expect(s.screen).toMatchObject({ kind: "service", at: smithDoor });
+    s = step(s, { kind: "back" });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: smithDoor });
+    const gateDoor = HUB_VIEWS.get(TOWN)!.places.find((p) => p.id === "gate")!.at;
+    s = run(s, { kind: "moved", tile: gateDoor }, { kind: "open gate screen" });
+    expect(s.screen).toEqual({ kind: "gate", hub: TOWN, at: gateDoor });
+    // Back on the Gate's door, nothing reopens: the hub screen, standing there.
+    s = step(s, { kind: "back" });
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: gateDoor });
+  });
+
+  it("an inspection keeps the hex", () => {
+    const s = run(
+      hubState(TOWN),
+      { kind: "moved", tile: smithDoor },
+      { kind: "inspect adventurer", adventurer: 12 },
+      { kind: "back" },
+    );
+    expect(s.screen).toEqual({ kind: "hub", hub: TOWN, inspected: null, at: smithDoor });
   });
 });

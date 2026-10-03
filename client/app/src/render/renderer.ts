@@ -24,11 +24,12 @@ import {
   drawGhosts,
   drawMark,
   drawOverlay,
+  drawStructure,
   drawTerrain,
   drawWedge,
 } from "./shapes";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
-import type { ViewActor, ViewState, ViewTile } from "./view";
+import type { ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
 export interface Surface {
@@ -71,6 +72,9 @@ export const DEFAULT_ZOOM: ZoomSettings = {
   minAcross: 25,
   maxAcross: 4,
 };
+
+/** The animation name of a still in the atlas (`tools/art`, `STILL_ANIM`): buildings, props. */
+export const STILL = "still";
 
 /** The terrain is baked chunk by chunk (ADR-0006: chunks of 15 × 15). */
 export const BAKE_CHUNK = 15;
@@ -250,6 +254,11 @@ export class Renderer implements FrameClient {
   private droppedKey = "";
   private readonly actorsLayer = new Container({ sortableChildren: true });
   private readonly nodes = new Map<number, ActorNode>();
+  /** The structures drawn (CLI-03f), by key; they never move, so they are built once per view's set. */
+  private readonly structureNodes = new Map<string, Container>();
+  private structuresKey = "";
+  /** The wall hexes a structure stands on (`"x,y"`): no rock there. */
+  private covered: ReadonlySet<string> = new Set();
   private readonly chunks = new Map<string, ChunkBake>();
   private view: ViewState | null = null;
   private viewport: Viewport = { width: 1, height: 1 };
@@ -300,6 +309,7 @@ export class Renderer implements FrameClient {
     const previous = this.view;
     this.view = view;
     const now = this.host.now();
+    this.syncStructures(view.structures ?? []);
     this.syncChunks(view.tiles);
     drawOverlay(this.overlay, view);
     this.syncDropped(view, now);
@@ -396,6 +406,8 @@ export class Renderer implements FrameClient {
     this.library = library;
     for (const node of this.nodes.values()) this.removeNode(node);
     this.nodes.clear();
+    this.structuresKey = "";
+    if (this.view) this.syncStructures(this.view.structures ?? []);
     if (this.view) this.syncActors(this.view, this.host.now());
     this.scheduler.invalidate();
   }
@@ -711,10 +723,11 @@ export class Renderer implements FrameClient {
       group.push(tile);
     }
     for (const [id, group] of groups) {
-      const key = group.map((t) => `${t.x},${t.y}${t.kind[0]}`).join("");
+      const covered = (t: ViewTile) => (this.covered.has(`${t.x},${t.y}`) ? "c" : "");
+      const key = group.map((t) => `${t.x},${t.y}${t.kind[0]}${covered(t)}`).join("");
       const chunk = this.chunks.get(id);
       if (chunk?.key === key) continue;
-      const graphics = drawTerrain(group);
+      const graphics = drawTerrain(group, this.covered);
       const b = graphics.getLocalBounds();
       const frame = new Rectangle(
         Math.floor(b.minX),
@@ -795,6 +808,52 @@ export class Renderer implements FrameClient {
         this.nodes.delete(id);
       }
     }
+  }
+
+  /**
+   * The structures (CLI-03f): built again only when the view's set changes (or the atlas), each in
+   * the actors' layer, its base on its hex's centre, sorted with the actors by the y of its base.
+   * An actor on the same row stands in front of it (its feet are below the centre); two structures
+   * on one row keep the order of their keys.
+   */
+  private syncStructures(structures: readonly ViewStructure[]): void {
+    const sorted = [...structures].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    const key = sorted.map((s) => `${s.key}@${s.at.x},${s.at.y}`).join(" ");
+    if (key === this.structuresKey) return;
+    this.structuresKey = key;
+    for (const node of this.structureNodes.values()) node.destroy({ children: true });
+    this.structureNodes.clear();
+    this.covered = new Set(sorted.flatMap((s) => s.covers.map((t) => `${t.x},${t.y}`)));
+    for (const structure of sorted) {
+      const node = this.createStructure(structure);
+      this.actorsLayer.addChild(node);
+      this.structureNodes.set(structure.key, node);
+    }
+  }
+
+  private createStructure(structure: ViewStructure): Container {
+    const base = tileToPixel(structure.at);
+    const container = new Container();
+    container.position.set(base.x, base.y);
+    container.zIndex = base.y - 0.001;
+    const texture = this.library?.get(structure.sprite)?.animations[STILL]?.textures[0];
+    if (texture) {
+      const sprite = new Sprite(texture);
+      const anchor = texture.defaultAnchor;
+      sprite.anchor.set(anchor?.x ?? 0.5, anchor?.y ?? 1);
+      if (structure.mirror) sprite.scale.x = -1;
+      container.addChild(sprite);
+    } else {
+      container.addChild(drawStructure(structure));
+    }
+    return container;
+  }
+
+  /** Whether a structure is drawn from the atlas (a still), else as a shape: for the page and tests. */
+  structureFromAtlas(key: string): boolean | null {
+    const node = this.structureNodes.get(key);
+    if (!node) return null;
+    return node.children[0] instanceof Sprite;
   }
 
   /** A new set of dropped steps fades out from the ghosts' alpha to nothing. */

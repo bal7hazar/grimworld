@@ -7,7 +7,7 @@ use grimworld_logic::packing::{
     fits, join, low_field, split, u16_at,
 };
 use grimworld_logic::types::combat::activation;
-use crate::models::member::{pack_four28, unpack_four28};
+use crate::models::member::DeadlinesTrait;
 
 /// Bit 118 of the high limb (bit 246 of the word): the effect's rank.
 const P118: u128 = 0x400000000000000000000000000000;
@@ -80,11 +80,11 @@ pub impl GoblinStateStorePacking of starknet::storage_access::StorePacking<Gobli
             + value.memory_x.into() * P104
             + value.memory_y.into() * P112
             + value.flags.into() * P120;
-        join(low, pack_four28(r0, r1, r2, r3))
+        join(low, DeadlinesTrait::pack(r0, r1, r2, r3))
     }
     fn unpack(value: felt252) -> GoblinState {
         let (low, high) = split(value);
-        let (r0, r1, r2, r3) = unpack_four28(high);
+        let (r0, r1, r2, r3) = DeadlinesTrait::unpack(high);
         GoblinState {
             x: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
             y: byte_at(low, P8),
@@ -143,7 +143,9 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
             + value.poison.into() * P80
             + value.effect_skill.into() * P108;
         value.assert_valid();
-        let high = pack_four28(value.burning, value.crippled, value.knocked, value.effect_deadline)
+        let high = DeadlinesTrait::pack(
+            value.burning, value.crippled, value.knocked, value.effect_deadline,
+        )
             + value.effect_charges.into() * P112
             + value.effect_rank.into() * P118;
         join(low, high)
@@ -151,7 +153,7 @@ pub impl GoblinTimersStorePacking of starknet::storage_access::StorePacking<Gobl
     fn unpack(value: felt252) -> GoblinTimers {
         let (low, high) = split(value);
         let (effect, timers) = DivRem::div_rem(high, P112.try_into().unwrap());
-        let (burning, crippled, knocked, effect_deadline) = unpack_four28(timers);
+        let (burning, crippled, knocked, effect_deadline) = DeadlinesTrait::unpack(timers);
         let (effect_rank, effect_charges) = DivRem::div_rem(effect, 0x40);
         GoblinTimers {
             act_slot: low_field(low, P8.try_into().unwrap()).try_into().unwrap(),
@@ -189,6 +191,9 @@ pub struct Goblin {
 
 /// The timers of a goblin's first record (fix loop 3, F-14): no activation (`act_slot` 255, target
 /// 0, deadline 0), no condition, no effect. Stored, it is `LIVE + 255`.
-pub fn empty_goblin_timers() -> GoblinTimers {
-    GoblinTimers { act_slot: activation::NONE, ..Default::default() }
+#[generate_trait]
+pub impl GoblinTimersImpl of GoblinTimersTrait {
+    fn empty() -> GoblinTimers {
+        GoblinTimers { act_slot: activation::NONE, ..Default::default() }
+    }
 }

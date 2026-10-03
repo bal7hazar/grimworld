@@ -1,5 +1,5 @@
 import type { Application } from "pixi.js";
-import { pixelToTile, screenToTile } from "../input/coords";
+import { pixelToTile, screenToTile, tileToScreen } from "../input/coords";
 import { type Gesture, GestureTracker } from "../input/gestures";
 import type { Intent } from "../input/intent";
 import { loadAtlas } from "../render/atlas";
@@ -46,6 +46,11 @@ export interface SandboxOptions {
   readonly feet: number;
   readonly playOnTap: boolean;
   readonly stepMs: number;
+  /**
+   * Applied to a map intent before the session (CLI-03f, the hub screen): another intent, or null
+   * when the intent was answered outside the map. The zone passes none.
+   */
+  readonly route?: (intent: Intent) => Intent | null;
 }
 
 /**
@@ -62,6 +67,8 @@ export class SandboxController {
   private destroyed = false;
   private listener: ((info: SandboxInfo) => void) | null = null;
   private walkListener: ((walk: WalkInfo) => void) | null = null;
+  private frameListener: ((stats: FrameStats) => void) | null = null;
+  private readonly route: ((intent: Intent) => Intent | null) | null;
 
   private constructor(
     private readonly app: Application,
@@ -82,6 +89,7 @@ export class SandboxController {
     });
     this.idle = options.idle;
     this.zoom = options.zoom;
+    this.route = options.route ?? null;
   }
 
   static async mount(host: HTMLElement, options: SandboxOptions): Promise<SandboxController> {
@@ -93,7 +101,10 @@ export class SandboxController {
       zoom: options.zoom,
       feet: options.feet,
       stepMs: options.stepMs,
-      onDraw: () => controller?.notify(),
+      onDraw: (stats) => {
+        controller?.frameListener?.(stats);
+        controller?.notify();
+      },
     });
     controller = new SandboxController(app, surface, renderer, options);
     controller.start(host);
@@ -118,16 +129,20 @@ export class SandboxController {
         this.atlas = library ? "loaded" : "none";
         this.library = library;
         if (library) this.renderer.setLibrary(library);
-        else
+        else {
           console.info(
             "[sandbox] no atlas at /art/: drawing shapes (build tools/art to see sprites)",
           );
+          // One frame, so that what listens to frames reads the atlas's state.
+          this.renderer.scheduler.invalidate();
+        }
         this.notify();
       })
       .catch((error: unknown) => {
         if (this.destroyed) return;
         this.atlas = "failed";
         console.error("[sandbox] the atlas failed to load; drawing shapes", error);
+        this.renderer.scheduler.invalidate();
         this.notify();
       });
   }
@@ -191,10 +206,11 @@ export class SandboxController {
     }
   }
 
-  /** The sandbox's wiring applies the intent; the renderer draws the next view. */
+  /** The sandbox's wiring applies the intent, once routed; the renderer draws the next view. */
   apply(intent: Intent): void {
     console.debug("[sandbox]", intent.kind, `(${intent.tile.x}, ${intent.tile.y})`);
-    this.session.apply(intent);
+    const routed = this.route ? this.route(intent) : intent;
+    if (routed) this.session.apply(routed);
   }
 
   /** A tap on the counter: the planned queue's steps not walked fade out. */
@@ -270,6 +286,32 @@ export class SandboxController {
     listener?.(this.session.walk());
   }
 
+  /** Whether the atlas is loaded (the browser check reads it). */
+  atlasState(): SandboxInfo["atlas"] {
+    return this.atlas;
+  }
+
+  /** After every frame drawn: the page places what follows the camera (a hub's labels). */
+  listenToFrames(listener: ((stats: FrameStats) => void) | null): void {
+    this.frameListener = listener;
+  }
+
+  /** Where a tile's centre is on the canvas, in CSS pixels, with the camera as last drawn. */
+  tileOnScreen(tile: Tile): { x: number; y: number } {
+    const { camera, viewport } = this.renderer.cameraState();
+    return tileToScreen(camera, viewport, tile);
+  }
+
+  /** Whether a structure is drawn from the atlas (else a shape), or null when there is none. */
+  structureFromAtlas(key: string): boolean | null {
+    return this.renderer.structureFromAtlas(key);
+  }
+
+  /** The canvas's CSS pixels per art pixel. */
+  scale(): number {
+    return this.renderer.cameraState().camera.scale;
+  }
+
   /** The panel listens only while it is open, so that a closed panel costs nothing. */
   listen(listener: ((info: SandboxInfo) => void) | null): void {
     this.listener = listener;
@@ -312,6 +354,7 @@ export class SandboxController {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.listener = null;
     this.walkListener = null;
+    this.frameListener = null;
     this.session.destroy();
     this.renderer.destroy();
     this.app.destroy(true);

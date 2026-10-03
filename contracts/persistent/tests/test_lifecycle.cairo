@@ -431,7 +431,7 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 30109013)] // ceil(1.05 × 28675250 measured)
+#[available_gas(l2_gas: 30106335)] // ceil(1.05 × 28672700 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
     let id = adventurer(world);
@@ -445,7 +445,7 @@ fn test_start_hub_from_the_registry() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 32226044)] // ceil(1.05 × 30691470 measured)
+#[available_gas(l2_gas: 32222894)] // ceil(1.05 × 30688470 measured)
 fn test_start_hub_refusals() {
     // No region 1 in the registry.
     let class = declare("Registry").unwrap().contract_class();
@@ -474,7 +474,7 @@ fn test_start_hub_refusals() {
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 44065571)] // ceil(1.05 × 41967210 measured)
+#[available_gas(l2_gas: 44064164)] // ceil(1.05 × 41965870 measured)
 fn test_enter() {
     let world = setup();
     let id = adventurer(world);
@@ -518,7 +518,7 @@ fn test_enter() {
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 41260349)] // ceil(1.05 × 39295570 measured)
+#[available_gas(l2_gas: 41257671)] // ceil(1.05 × 39293020 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
     let id = adventurer(world);
@@ -555,7 +555,7 @@ fn test_enter_reserves_the_belt() {
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 37284650)] // ceil(1.05 × 35509190 measured)
+#[available_gas(l2_gas: 37281972)] // ceil(1.05 × 35506640 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
     let id = adventurer(world);
@@ -572,7 +572,7 @@ fn test_enter_one_debit_per_item() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 51135536)] // ceil(1.05 × 48700510 measured)
+#[available_gas(l2_gas: 51135084)] // ceil(1.05 × 48700080 measured)
 fn test_enter_refusals() {
     let world = setup();
     let id = adventurer(world);
@@ -612,7 +612,7 @@ fn test_enter_refusals() {
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 51973985)] // ceil(1.05 × 49499033 measured)
+#[available_gas(l2_gas: 51971308)] // ceil(1.05 × 49496483 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -682,7 +682,7 @@ const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
 // changing nothing; after `set_build`, it enters.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 39413696)] // ceil(1.05 × 37536853 measured)
+#[available_gas(l2_gas: 39411019)] // ceil(1.05 × 37534303 measured)
 fn test_enter_refuses_a_missing_snapshot() {
     let world = setup();
     let hub = act(world, ALICE);
@@ -706,7 +706,7 @@ fn test_enter_refuses_a_missing_snapshot() {
 // staleness table write). The snapshot finally copied is the level-2 one.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 50021341)] // ceil(1.05 × 47639372 measured)
+#[available_gas(l2_gas: 50018664)] // ceil(1.05 × 47636822 measured)
 fn test_enter_refuses_a_stale_snapshot() {
     let world = setup();
     let id = adventurer(world);
@@ -787,7 +787,7 @@ fn rules_of(world: World) -> felt252 {
 // `set_build`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 55381161)] // ceil(1.05 × 52743962 measured)
+#[available_gas(l2_gas: 55378483)] // ceil(1.05 × 52741412 measured)
 fn test_enter_refuses_after_an_input_rewritten() {
     let world = setup();
     let id = adventurer(world);
@@ -815,7 +815,7 @@ fn test_enter_refuses_after_an_input_rewritten() {
 // `set_build` stored before them, without a second `set_build`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 48056834)] // ceil(1.05 × 45768413 measured)
+#[available_gas(l2_gas: 48054157)] // ceil(1.05 × 45765863 measured)
 fn test_enter_after_other_records_changed() {
     let world = setup();
     let id = adventurer(world);
@@ -840,7 +840,7 @@ fn test_enter_after_other_records_changed() {
 // class clears it; the same class set again raises nothing and stales nothing.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 44113594)] // ceil(1.05 × 42012946 measured)
+#[available_gas(l2_gas: 44110916)] // ceil(1.05 × 42010396 measured)
 fn test_enter_refuses_after_a_new_rules_class() {
     let world = setup();
     let id = adventurer(world);
@@ -869,7 +869,7 @@ fn test_enter_refuses_after_a_new_rules_class() {
 // to 0, and a snapshot flattened at 511 is stale under 0; `set_build` clears it.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 42215960)] // ceil(1.05 × 40205676 measured)
+#[available_gas(l2_gas: 42213283)] // ceil(1.05 × 40203126 measured)
 fn test_enter_after_the_rules_epoch_wraps() {
     let world = setup();
     let id = adventurer(world);
@@ -904,7 +904,7 @@ fn set_registry(world: World, registry: ContractAddress) {
 // the adventurer enters.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 43526182)] // ceil(1.05 × 41453506 measured)
+#[available_gas(l2_gas: 43523504)] // ceil(1.05 × 41450956 measured)
 fn test_enter_refuses_after_a_new_registry() {
     let world = setup();
     let id = adventurer(world);
@@ -930,7 +930,7 @@ fn test_enter_refuses_after_a_new_registry() {
 // times since `set_build`. An administrator-only path (ENG-01 §3.3).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 399863650)] // ceil(1.05 × 380822523 measured)
+#[available_gas(l2_gas: 399860972)] // ceil(1.05 × 380819973 measured)
 fn test_rules_epoch_full_cycle_reads_fresh() {
     let world = setup();
     let id = adventurer(world);
@@ -954,7 +954,7 @@ fn test_rules_epoch_full_cycle_reads_fresh() {
 
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 39176274)] // ceil(1.05 × 37310737 measured)
+#[available_gas(l2_gas: 39173597)] // ceil(1.05 × 37308187 measured)
 fn test_travel() {
     let world = setup();
     let id = adventurer(world);
@@ -1022,7 +1022,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 41970935)] // ceil(1.05 × 39972319 measured)
+#[available_gas(l2_gas: 41968258)] // ceil(1.05 × 39969769 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -1064,7 +1064,7 @@ fn test_report_returned_through_a_hub_gate() {
 // return (D-141, E-15).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 43350162)] // ceil(1.05 × 41285868 measured)
+#[available_gas(l2_gas: 43347484)] // ceil(1.05 × 41283318 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -1098,7 +1098,7 @@ fn test_report_to_the_last_hub() {
 // carries). Writes: `place`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 42280544)] // ceil(1.05 × 40267184 measured)
+#[available_gas(l2_gas: 42277866)] // ceil(1.05 × 40264634 measured)
 fn test_report_moved() {
     let world = setup();
     let (id, instance) = inside_with_a_belt(world);
@@ -1131,7 +1131,7 @@ fn test_report_moved() {
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 41357308)] // ceil(1.05 × 39387912 measured)
+#[available_gas(l2_gas: 41355901)] // ceil(1.05 × 39386572 measured)
 fn test_report_open() {
     let world = setup();
     let id = adventurer(world);
@@ -1168,7 +1168,7 @@ fn test_report_open() {
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 41955687)] // ceil(1.05 × 39957797 measured)
+#[available_gas(l2_gas: 41953010)] // ceil(1.05 × 39955247 measured)
 fn test_report_refusals() {
     let world = setup();
     let id = adventurer(world);

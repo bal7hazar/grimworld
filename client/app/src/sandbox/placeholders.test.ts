@@ -315,6 +315,22 @@ describe("findPath (PLACEHOLDER until CLI-02)", () => {
     expect(path.every((t) => insideRing(me.tile, t))).toBe(true);
     expect(path.some((t) => sameTile(t, { x: 13, y: 16 }))).toBe(true);
   });
+
+  it("unbounded (a hub, CLI-03f): a path across more than the window's 16 rows", () => {
+    const me = hero(10, 2);
+    const to = { x: 10, y: 27 };
+    const terrain = open(30, 30);
+    // Bounded, the default: the target is far beyond the window's ring.
+    expect(findPath(terrain, [me], me.tile, to)).toBeNull();
+    const path = findPath(terrain, [me], me.tile, to, false)!;
+    expect(path).toHaveLength(25);
+    expect(path.at(-1)).toEqual(to);
+    expect(new Set(path.map((t) => t.y)).size).toBe(25);
+    // Walls and actors still hold it: the window is the only bound lifted.
+    const blocked = walled(30, 30, [to]);
+    expect(findPath(blocked, [me], me.tile, to, false)).toBeNull();
+    expect(findPath(terrain, [me, goblin(10, 27, 0)], me.tile, to, false)).toBeNull();
+  });
 });
 
 describe("stopsAfterStep (PLACEHOLDER until CLI-02, design/02)", () => {

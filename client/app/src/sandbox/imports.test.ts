@@ -85,15 +85,34 @@ describe("placeholders.ts", () => {
       "./loop/machine.ts",
       "./loop/screens.tsx",
     ]);
-    // The hub's renderer, view and taps decide nothing: they import no fixture and no sandbox.
+    // The hub's view and taps, and the zone's renderer that draws a hub (CLI-03f), decide nothing:
+    // they import no fixture and no sandbox.
     for (const path of [
       "../render/hubView.ts",
-      "../render/hubRenderer.ts",
+      "../render/renderer.ts",
+      "../render/shapes.ts",
       "../input/hubTaps.ts",
     ]) {
       expect(sources[path], path).toBeDefined();
       expect(sources[path], path).not.toMatch(/from\s+["'][^"']*sandbox/);
     }
+  });
+
+  it("a hub is a world's kind read by the wiring and the room only (CLI-03f, D-202)", () => {
+    const code = Object.entries(sources).filter(([path]) => !/\.test\.tsx?$/.test(path));
+    const readers = code
+      .filter(([, text]) => /\.kind\s*[!=]==\s*["']hub["']/.test(text))
+      .map(([path]) => path)
+      .sort();
+    expect(readers).toEqual(["./Sandbox.tsx", "./wiring.ts"]);
+    // The hub's world, its doors and its screen take nothing from the placeholders: the finder is
+    // reached through the wiring, as in a zone.
+    for (const path of ["./fixtures/hubWorld.ts", "./loop/hubDoors.ts", "./loop/HubScreen.tsx"]) {
+      expect(sources[path], path).toBeDefined();
+      expect(sources[path], path).not.toMatch(IMPORTS_PLACEHOLDERS);
+    }
+    // No hub symbol in the placeholders.
+    expect(sources["./placeholders.ts"]).not.toMatch(/\bhubWorld\b|\bHubView\b|\bhubTap\b/);
   });
 
   it("no randomness and no clock in the loop's machine and fixtures (§6.6)", () => {
@@ -102,6 +121,8 @@ describe("placeholders.ts", () => {
       "./fixtures/hubs.ts",
       "./fixtures/region.ts",
       "./fixtures/zone.ts",
+      "./fixtures/hubWorld.ts",
+      "./loop/hubDoors.ts",
     ]) {
       expect(sources[path], path).toBeDefined();
       expect(sources[path], path).not.toMatch(/Math\.random|Date\.|performance\.now|crypto\./);

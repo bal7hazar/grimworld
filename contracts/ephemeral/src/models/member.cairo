@@ -9,6 +9,7 @@ use grimworld_logic::packing::{
 use grimworld_logic::snapshot::{MemberBar, MemberKit, MemberStats};
 use grimworld_logic::types::MAX_CLOCK;
 use starknet::ContractAddress;
+use crate::helpers::stored::Stored;
 
 /// Member status (`MemberState.status`).
 pub const INSIDE: u8 = 0;
@@ -16,11 +17,6 @@ pub const DOWN: u8 = 1;
 pub const GONE: u8 = 2;
 /// Energy is stored in thirds (design/03, *Pips*).
 pub const ENERGY_THIRDS: u16 = 3;
-/// Offsets of the words of `Member` from its address, for a word read or written as stored.
-pub const TIMERS_WORD: u8 = 1;
-pub const EFFECTS_WORD: u8 = 2;
-pub const RECHARGES_WORD: u8 = 3;
-pub const STATS_WORD: u8 = 4;
 
 pub mod errors {
     /// A gate action by anyone but the member's controller (M-6, ENG-01 §1.2).
@@ -29,6 +25,16 @@ pub mod errors {
     pub const CHARGES: felt252 = 'packing: charges above 63';
     pub const RANK: felt252 = 'packing: rank above 15';
     pub const BELT_SLOT: felt252 = 'packing: belt slot above 3';
+}
+
+#[generate_trait]
+pub impl MemberAssert of MemberAssertTrait {
+    /// A gate action's caller is the member's controller (M-6, ENG-01 §1.2): a revert, not a
+    /// refusal of the game.
+    #[inline(always)]
+    fn assert_controller(controller: ContractAddress, caller: ContractAddress) {
+        assert(controller == caller, errors::NOT_CONTROLLER);
+    }
 }
 
 #[generate_trait]
@@ -66,9 +72,9 @@ pub impl MemberStateImpl of MemberStateTrait {
 }
 
 /// The stored words of a member's timers, effects and recharges entering a new generation (ENG-01
-/// §2.1, F-12, F-14), written as they are stored: `empty_member_timers` packed (no activation, no
-/// condition: `LIVE + 255`), and no effect or recharge (`LIVE`). Pinned against the packers by
-/// `test_empty_words`.
+/// §2.1, F-12, F-14), written as they are stored: `MemberTimersTrait::empty` packed (no
+/// activation, no condition: `LIVE + 255`), and no effect or recharge (`LIVE`). Pinned against the
+/// packers by `test_empty_timers_packed` (`tests/test_layout.cairo`).
 pub const EMPTY_TIMERS: felt252 = 0x4000000000000000000000000000000000000000000000000000000000000ff;
 pub const EMPTY_EFFECTS: felt252 =
     0x400000000000000000000000000000000000000000000000000000000000000;
@@ -254,24 +260,32 @@ pub struct MemberEffects {
     pub effects: [Effect; 4],
 }
 
-fn pack_effect(e: Effect) -> u128 {
-    assert(e.deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
-    e.assert_valid();
-    let tag: u128 = if e.potion {
-        0x800000
-    } else {
-        0
-    };
-    e.skill.into() + e.charges.into() * P16 + tag + e.deadline.into() * P24 + e.rank.into() * P52
-}
+/// One effect's 56 bits, the lane `MemberEffects`' packer puts at bits 0, 56, 128 or 184.
+#[generate_trait]
+impl EffectPacking of EffectPackingTrait {
+    fn pack(self: Effect) -> u128 {
+        assert(self.deadline <= MAX_CLOCK, 'packing: deadline > MAX_CLOCK');
+        self.assert_valid();
+        let tag: u128 = if self.potion {
+            0x800000
+        } else {
+            0
+        };
+        self.skill.into()
+            + self.charges.into() * P16
+            + tag
+            + self.deadline.into() * P24
+            + self.rank.into() * P52
+    }
 
-fn unpack_effect(bits: u128) -> Effect {
-    Effect {
-        skill: low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
-        charges: field(bits, P16, 0x40).try_into().unwrap(),
-        potion: field(bits, 0x800000, 2) == 1,
-        deadline: field(bits, P24, P28).try_into().unwrap(),
-        rank: field(bits, P52, 0x10).try_into().unwrap(),
+    fn unpack(bits: u128) -> Effect {
+        Effect {
+            skill: low_field(bits, P16.try_into().unwrap()).try_into().unwrap(),
+            charges: field(bits, P16, 0x40).try_into().unwrap(),
+            potion: field(bits, 0x800000, 2) == 1,
+            deadline: field(bits, P24, P28).try_into().unwrap(),
+            rank: field(bits, P52, 0x10).try_into().unwrap(),
+        }
     }
 }
 
@@ -280,7 +294,10 @@ pub impl MemberEffectsStorePacking of starknet::storage_access::StorePacking<
 > {
     fn pack(value: MemberEffects) -> felt252 {
         let [a, b, c, d] = value.effects;
-        join(pack_effect(a) + pack_effect(b) * P56, pack_effect(c) + pack_effect(d) * P56)
+        join(
+            EffectPackingTrait::pack(a) + EffectPackingTrait::pack(b) * P56,
+            EffectPackingTrait::pack(c) + EffectPackingTrait::pack(d) * P56,
+        )
     }
     fn unpack(value: felt252) -> MemberEffects {
         let (low, high) = split(value);
@@ -288,7 +305,10 @@ pub impl MemberEffectsStorePacking of starknet::storage_access::StorePacking<
         let (b, a) = DivRem::div_rem(low, s56);
         let (d, c) = DivRem::div_rem(high, s56);
         MemberEffects {
-            effects: [unpack_effect(a), unpack_effect(b), unpack_effect(c), unpack_effect(d)],
+            effects: [
+                EffectPackingTrait::unpack(a), EffectPackingTrait::unpack(b),
+                EffectPackingTrait::unpack(c), EffectPackingTrait::unpack(d),
+            ],
         }
     }
 }
@@ -300,39 +320,44 @@ pub struct Recharges {
     pub deadlines: [u32; 8],
 }
 
-/// Four 28-bit deadlines in one limb; a value of 2^28 or more is refused (it would corrupt the
-/// next lane).
-pub fn pack_four28(a: u32, b: u32, c: u32, d: u32) -> u128 {
-    fits(a.into(), P28, 'packing: deadline above 2^28');
-    fits(b.into(), P28, 'packing: deadline above 2^28');
-    fits(c.into(), P28, 'packing: deadline above 2^28');
-    fits(d.into(), P28, 'packing: deadline above 2^28');
-    a.into() + b.into() * P28 + c.into() * P56 + d.into() * P84
-}
+/// Four 28-bit deadlines in one limb (a member's recharges, a goblin's recharges and timers).
+#[generate_trait]
+pub impl DeadlinesImpl of DeadlinesTrait {
+    /// A value of 2^28 or more is refused (it would corrupt the next lane).
+    fn pack(a: u32, b: u32, c: u32, d: u32) -> u128 {
+        fits(a.into(), P28, 'packing: deadline above 2^28');
+        fits(b.into(), P28, 'packing: deadline above 2^28');
+        fits(c.into(), P28, 'packing: deadline above 2^28');
+        fits(d.into(), P28, 'packing: deadline above 2^28');
+        a.into() + b.into() * P28 + c.into() * P56 + d.into() * P84
+    }
 
-pub fn unpack_four28(bits: u128) -> (u32, u32, u32, u32) {
-    let s28: NonZero<u128> = P28.try_into().unwrap();
-    let (rest, a) = DivRem::div_rem(bits, s28);
-    let (rest, b) = DivRem::div_rem(rest, s28);
-    let (rest, c) = DivRem::div_rem(rest, s28);
-    let (_, d) = DivRem::div_rem(rest, s28);
-    (a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(), d.try_into().unwrap())
+    fn unpack(bits: u128) -> (u32, u32, u32, u32) {
+        let s28: NonZero<u128> = P28.try_into().unwrap();
+        let (rest, a) = DivRem::div_rem(bits, s28);
+        let (rest, b) = DivRem::div_rem(rest, s28);
+        let (rest, c) = DivRem::div_rem(rest, s28);
+        let (_, d) = DivRem::div_rem(rest, s28);
+        (a.try_into().unwrap(), b.try_into().unwrap(), c.try_into().unwrap(), d.try_into().unwrap())
+    }
 }
 
 pub impl RechargesStorePacking of starknet::storage_access::StorePacking<Recharges, felt252> {
     fn pack(value: Recharges) -> felt252 {
         let [a, b, c, d, e, f, g, h] = value.deadlines;
-        join(pack_four28(a, b, c, d), pack_four28(e, f, g, h))
+        join(DeadlinesTrait::pack(a, b, c, d), DeadlinesTrait::pack(e, f, g, h))
     }
     fn unpack(value: felt252) -> Recharges {
         let (low, high) = split(value);
-        let (a, b, c, d) = unpack_four28(low);
-        let (e, f, g, h) = unpack_four28(high);
+        let (a, b, c, d) = DeadlinesTrait::unpack(low);
+        let (e, f, g, h) = DeadlinesTrait::unpack(high);
         Recharges { deadlines: [a, b, c, d, e, f, g, h] }
     }
 }
 
-/// The eight consecutive slots of a member (`Store` layout: field `i` at offset `i`).
+/// The eight consecutive slots of a member (`Store` layout: field `i` at offset `i`), as models:
+/// the layout and the packers' oracle. `Instances` declares its storage with `StoredMember`, the
+/// same slots typed as stored words.
 #[derive(Copy, Drop, Serde, starknet::Store)]
 pub struct Member {
     pub state: MemberState,
@@ -347,9 +372,146 @@ pub struct Member {
     pub controller: ContractAddress,
 }
 
+/// A member's eight slots as `Instances` declares them (ENG-R1b): `Member`'s slots in its order, at
+/// the same addresses, each the word of its model as stored (`helpers::stored`). The store reads
+/// and writes a slot typed and needs no offset: the state and the controller through their models,
+/// the other six as words (the view returns all eight as stored, `begin` writes the empty transient
+/// words as constants, `create` writes the snapshot's three words as `Hub` stored them, D-168).
+/// Pinned against `Member` by the store's `test_member_slots`.
+#[derive(Copy, Drop, starknet::Store)]
+pub struct StoredMember {
+    pub state: Stored<MemberState>,
+    pub timers: Stored<MemberTimers>,
+    pub effects: Stored<MemberEffects>,
+    pub recharges: Stored<Recharges>,
+    pub stats: Stored<MemberStats>,
+    pub bar: Stored<MemberBar>,
+    pub kit: Stored<MemberKit>,
+    pub controller: ContractAddress,
+}
+
 /// The timers of a member entering a new generation (fix loop 3, F-14): no activation
 /// (`act_slot` = `NO_SLOT`, target 0, not a tile, deadline 0) and no condition (every deadline 0).
 /// Stored, it is `LIVE + 255`, not `LIVE` alone: `act_slot` 0 would name bar slot 0.
-pub fn empty_member_timers() -> MemberTimers {
-    MemberTimers { act_slot: NO_SLOT, ..Default::default() }
+#[generate_trait]
+pub impl MemberTimersImpl of MemberTimersTrait {
+    fn empty() -> MemberTimers {
+        MemberTimers { act_slot: NO_SLOT, ..Default::default() }
+    }
+}
+
+/// The member's words are what docs/architecture/ENG-01-interfaces.md says: the bit offsets of
+/// every packed word, `LIVE` included, and the refusals of a field too wide. Here since ENG-R1b
+/// (D-167); the tests that span several models stay in `tests/test_layout.cairo`.
+#[cfg(test)]
+mod tests {
+    use grimworld_logic::packing::LIVE;
+    use starknet::storage_access::StorePacking;
+    use super::{DeadlinesTrait, Effect, MemberEffects, MemberState, MemberTimers, Recharges};
+
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+
+    #[test]
+    // gas: raised, CBT-01: design/19 section 7.2's fields in the words
+    #[available_gas(l2_gas: 575526)] // ceil(1.05 × 548120 measured)
+    fn test_member_layout() {
+        let state = MemberState {
+            adventurer: 0xFFFFFFFF,
+            x: 224,
+            y: 224,
+            facing: 5,
+            status: 2,
+            health: 0xFFFF,
+            energy: 0xFFFF,
+            adrenaline: 0xFFFF,
+            hits: 0xFF,
+            casts: 0xFF,
+            belt: [1, 2, 3, 0xFF],
+            flags: 0xFF,
+            casts_2: 0xFF,
+        };
+        let word = StorePacking::<MemberState, felt252>::pack(state);
+        assert(StorePacking::<MemberState, felt252>::unpack(word) == state, 'state trip');
+        let health = MemberState { health: 1, ..Default::default() };
+        assert(
+            StorePacking::<MemberState, felt252>::pack(health) == 0x10000000000000000 + LIVE,
+            'health at bit 64',
+        );
+
+        let timers = MemberTimers {
+            act_slot: 255,
+            act_target: 0xFFFF,
+            act_tile: 1,
+            act_deadline: 0xFFFFFFF,
+            bleeding: 1,
+            poison: 2,
+            burning: 3,
+            crippled: 4,
+            knocked: 0xFFFFFFF,
+        };
+        let word = StorePacking::<MemberTimers, felt252>::pack(timers);
+        assert(StorePacking::<MemberTimers, felt252>::unpack(word) == timers, 'timers trip');
+        let knocked = MemberTimers { knocked: 1, ..Default::default() };
+        assert(
+            StorePacking::<MemberTimers, felt252>::pack(knocked) == 0x10000000000000000 * TWO_128
+                + LIVE,
+            'knocked at bit 192',
+        );
+
+        // design/19 §7.2: charges 0–63, the potion tag with a belt slot 0–3, rank 0–15.
+        let full = Effect {
+            skill: 0xFFFF, charges: 63, potion: false, deadline: 0xFFFFFFF, rank: 15,
+        };
+        let drunk = Effect { skill: 3, charges: 1, potion: true, deadline: 3, rank: 0 };
+        let effects = MemberEffects { effects: [full, drunk, full, full] };
+        let word = StorePacking::<MemberEffects, felt252>::pack(effects);
+        assert(StorePacking::<MemberEffects, felt252>::unpack(word) == effects, 'effects trip');
+
+        let recharges = Recharges { deadlines: [0xFFFFFFF, 1, 2, 3, 4, 5, 6, 0xFFFFFFF] };
+        let word = StorePacking::<Recharges, felt252>::pack(recharges);
+        assert(StorePacking::<Recharges, felt252>::unpack(word) == recharges, 'recharges trip');
+        let slot4 = Recharges { deadlines: [0, 0, 0, 0, 1, 0, 0, 0] };
+        assert(
+            StorePacking::<Recharges, felt252>::pack(slot4) == TWO_128 + LIVE, 'slot 4 at bit 128',
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: deadline above 2^28')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_recharge_above_28_bits_refused() {
+        DeadlinesTrait::pack(0, 0x10000000, 0, 0);
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: deadline > MAX_CLOCK')]
+    #[available_gas(l2_gas: 41496)] // ceil(1.05 × 39520 measured)
+    fn test_member_deadline_past_max_clock_refused() {
+        let timers = MemberTimers { act_deadline: 0x10000000, ..Default::default() };
+        StorePacking::<MemberTimers, felt252>::pack(timers);
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: charges above 63')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_effect_charges_refused() {
+        let wide = Effect { charges: 64, ..Default::default() };
+        StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: rank above 15')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_effect_rank_refused() {
+        let wide = Effect { rank: 16, ..Default::default() };
+        StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+    }
+
+    #[test]
+    #[should_panic(expected: 'packing: belt slot above 3')]
+    #[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+    fn test_effect_belt_slot_refused() {
+        let wide = Effect { skill: 4, potion: true, ..Default::default() };
+        StorePacking::<MemberEffects, felt252>::pack(MemberEffects { effects: [wide; 4] });
+    }
 }

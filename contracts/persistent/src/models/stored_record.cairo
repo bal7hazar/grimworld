@@ -17,6 +17,20 @@ pub struct StoredRecord {
     pub word: felt252,
 }
 
+/// One felt in storage, the word as it is: no packer runs on a read or a write (ENG-R1b: `Hub`
+/// declares its storage with the stored models, ENG-R1a's note 4).
+pub impl StoredRecordStorePacking of starknet::storage_access::StorePacking<StoredRecord, felt252> {
+    #[inline(always)]
+    fn pack(value: StoredRecord) -> felt252 {
+        value.word
+    }
+
+    #[inline(always)]
+    fn unpack(value: felt252) -> StoredRecord {
+        StoredRecord { word: value }
+    }
+}
+
 /// The stored `AccountRecord` of a new account: `START_SLOTS` slots, nothing else, `LIVE`.
 const NEW_RECORD: felt252 = 0x400000000000000000000000000000000000000000000000000000000000003;
 /// One more adventurer, added to a stored `AccountRecord` (its field at bit 8).

@@ -120,16 +120,16 @@ played are never shown as queued ([02-core-loop](02-core-loop.md#planned-queues-
 
 ## Hubs
 
-Hubs have no geometry (D-03): they are **illustrated screens with places to tap**.
+Hubs have no geometry on chain (D-03). On the client, a hub is lived like an exploration zone: the same hex map, camera, pathfinding and rendering; its places are buildings the adventurer walks to (D-196, D-202).
 
 ```
 ┌──────────────────────────────┐
 │ Town A            gold 1 240 │
 ├──────────────────────────────┤
 │                              │
-│    illustration of the town  │   present adventurers walk by
-│    with its buildings        │   (decor; tap one to inspect)
-│                              │
+│    the town as a zone:       │   present adventurers walk by
+│    the hex map with its      │   (decor; tap one to inspect)
+│    buildings                 │
 ├──────────────────────────────┤
 │ Guild    Smith     Enchanter │
 │ Trainer  Armorer   Alchemist │
