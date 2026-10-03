@@ -136,7 +136,7 @@ export function drawTerrain(
  * global texture space, so a cell drawn across several water hexes is one ring. The pieces of two
  * neighbouring land hexes overlap, as the pack composes its shore. Without the still, nothing.
  */
-function drawFoam(g: Graphics, foam: GroundPlan["foam"], texture: Texture | null): void {
+export function drawFoam(g: Graphics, foam: GroundPlan["foam"], texture: Texture | null): void {
   if (!texture) return;
   for (const piece of foam) {
     g.poly([...piece.points]).fill({

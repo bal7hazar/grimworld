@@ -291,18 +291,18 @@ describe("the foam (CLI-03g2)", () => {
 });
 
 describe("the foam over the void (CLI-03g2)", () => {
-  it("every revealed land hex on the terrain's border, only when the void is water", () => {
-    const tiles = block(
-      0,
-      4,
-      0,
-      4,
-      (t) => (t.x === 4 ? "water" : t.y === 2 ? "earth" : "grass"),
-      (t) => (t.y === 0 ? "unrevealed" : t.x === 4 ? "wall" : "floor"),
-    );
+  const ground = (t: Tile): GroundKind => (t.x === 4 ? "water" : t.y === 2 ? "earth" : "grass");
+  const kind = (t: Tile): TileKind => (t.y === 0 ? "unrevealed" : t.x === 4 ? "wall" : "floor");
+  const tiles = block(0, 4, 0, 4, ground, kind);
+  const present = new Set(tiles.map(key));
+
+  it("none unless the void is water", () => {
     expect(voidFoam(tiles, undefined)).toEqual([]);
     expect(voidFoam(tiles, "grass")).toEqual([]);
-    const present = new Set(tiles.map(key));
+  });
+
+  it("from every revealed land hex on the border, over the void's hexes only", () => {
+    const pieces = voidFoam(tiles, "water");
     const border = tiles.filter(
       (t) =>
         t.kind !== "unrevealed" &&
@@ -310,7 +310,39 @@ describe("the foam over the void (CLI-03g2)", () => {
         [0, 1, 2, 3, 4, 5].some((side) => !present.has(key(acrossSide(t, side)))),
     );
     expect(border.length).toBeGreaterThan(0);
-    expect(voidFoam(tiles, "water").map(key).sort()).toEqual(border.map(key).sort());
+    const sources = new Set(pieces.map((p) => key(p.source)));
+    for (const t of border) expect(sources.has(key(t))).toBe(true);
+    for (const piece of pieces) {
+      expect(piece.origin).toEqual(foamOrigin(piece.source));
+      const holders = hexesWithin(piece.source, FOAM_REACH).filter((h) =>
+        insideConvex(piece.points, hexCorners(tileToPixel(h))),
+      );
+      expect(holders).toHaveLength(1);
+      expect(present.has(key(holders[0]!))).toBe(false);
+    }
+  });
+
+  it("with the chunks' foam, the whole cell's part over water: the void as water hexes", () => {
+    // The same block inside a ring of two water hexes: its foam over the ring, from the block's
+    // land, equals the void's foam.
+    const ring = block(
+      -2,
+      6,
+      -2,
+      6,
+      (t) => (present.has(key(t)) ? ground(t) : "water"),
+      (t) => (present.has(key(t)) ? kind(t) : "wall"),
+    );
+    const fromRing = groundPlan(ring, { around: () => "water" })
+      .foam.filter((p) => present.has(key(p.source)))
+      .filter((p) => {
+        const holder = hexesWithin(p.source, FOAM_REACH).find((h) =>
+          insideConvex(p.points, hexCorners(tileToPixel(h))),
+        )!;
+        return !present.has(key(holder));
+      });
+    const k = (p: GroundPlan["foam"][number]) => `${key(p.source)}|${p.points.join()}`;
+    expect(voidFoam(tiles, "water").map(k).sort()).toEqual(fromRing.map(k).sort());
   });
 });
 

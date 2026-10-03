@@ -22,6 +22,7 @@ import {
   SHAPE_HEIGHT,
   SHAPE_IDLE,
   drawBody,
+  drawFoam,
   drawGhosts,
   drawMark,
   drawOverlay,
@@ -30,7 +31,7 @@ import {
   drawWedge,
   type GroundTextures,
 } from "./shapes";
-import { FOAM_REACH, chunkFrame, foamOrigin, groundOf, hexesWithin, voidFoam } from "./ground";
+import { FOAM_REACH, chunkFrame, groundOf, hexesWithin, voidFoam } from "./ground";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
@@ -298,10 +299,10 @@ export class Renderer implements FrameClient {
   private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private voidKey = "";
   /**
-   * The foam over the void (CLI-03g2, `voidFoam`): one still of the foam per land hex on the
-   * terrain's border, after the void's bands, under the chunks; rebuilt when those hexes change.
+   * The foam over the void (CLI-03g2, `voidFoam`): its pieces over the void's hexes, after the
+   * void's bands, under the chunks; drawn again when they change, never per frame.
    */
-  private readonly voidFoamLayer = new Container();
+  private readonly voidFoamLayer = new Graphics();
   private voidFoamKey: string | null = null;
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
@@ -709,21 +710,15 @@ export class Renderer implements FrameClient {
     });
   }
 
-  /** Places the foam over the void when the border's land hexes or the foam's still change. */
+  /** Draws the foam over the void again when its pieces or the foam's still change. */
   private syncVoidFoam(view: ViewState): void {
     const foam = this.groundTextures()?.foam ?? null;
-    const sources = foam ? voidFoam(view.tiles, view.void) : [];
-    const key = sources.map((t) => `${t.x},${t.y}`).join(" ");
+    const pieces = foam ? voidFoam(view.tiles, view.void) : [];
+    const key = pieces.map((p) => `${p.source.x},${p.source.y}:${p.points.join(",")}`).join(" ");
     if (key === this.voidFoamKey) return;
     this.voidFoamKey = key;
-    for (const sprite of this.voidFoamLayer.removeChildren()) sprite.destroy();
-    for (const source of sources) {
-      const sprite = new Sprite(foam!);
-      const origin = foamOrigin(source);
-      sprite.anchor.set(0, 0);
-      sprite.position.set(origin.x, origin.y);
-      this.voidFoamLayer.addChild(sprite);
-    }
+    this.voidFoamLayer.clear();
+    drawFoam(this.voidFoamLayer, pieces, foam);
   }
 
   /** The atlas's ground cells, or null when the atlas has none (flat colours). */

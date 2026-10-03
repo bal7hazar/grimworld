@@ -220,6 +220,44 @@ export function hexesWithin(tile: Tile, steps: number): Tile[] {
   return [...seen.values()];
 }
 
+/**
+ * The foam over some water hexes: under every land hex that touches water (`at`), seen from each of
+ * the given hexes it reaches, clipped to that hex.
+ */
+function foamOver(targets: readonly Tile[], at: (tile: Tile) => GroundKind | null): FoamPiece[] {
+  const coastal = new Map<string, boolean>();
+  const isCoastal = (tile: Tile): boolean => {
+    const k = `${tile.x},${tile.y}`;
+    let known = coastal.get(k);
+    if (known === undefined) {
+      const ground = at(tile);
+      known =
+        ground !== null &&
+        isLand(ground) &&
+        [0, 1, 2, 3, 4, 5].some((side) => at(acrossSide(tile, side)) === "water");
+      coastal.set(k, known);
+    }
+    return known;
+  };
+  const foam: FoamPiece[] = [];
+  for (const tile of targets) {
+    const hex = hexCorners(tileToPixel(tile));
+    for (const source of hexesWithin(tile, FOAM_REACH)) {
+      if (!isCoastal(source)) continue;
+      const origin = foamOrigin(source);
+      const points = clipToRect(
+        hex,
+        origin.x,
+        origin.y,
+        origin.x + FOAM_SIZE,
+        origin.y + FOAM_SIZE,
+      );
+      if (points.length >= 6 && polygonArea(points) > 1e-9) foam.push({ source, origin, points });
+    }
+  }
+  return foam;
+}
+
 function layer(kind: "water" | "grass", hexes: readonly Tile[]): GroundLayer {
   const pieces = hexes.flatMap(hexPieces);
   const cells = new Map<string, Cell>();
@@ -275,37 +313,7 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
     }
     if (tile.kind === "wall" && !covered.has(`${t.x},${t.y}`)) rocks.push(t);
   }
-  // The foam: under every land hex that touches water, seen from each water hex it reaches.
-  const coastal = new Map<string, boolean>();
-  const isCoastal = (tile: Tile): boolean => {
-    const k = `${tile.x},${tile.y}`;
-    let known = coastal.get(k);
-    if (known === undefined) {
-      const ground = at(tile);
-      known =
-        ground !== null &&
-        isLand(ground) &&
-        [0, 1, 2, 3, 4, 5].some((side) => at(acrossSide(tile, side)) === "water");
-      coastal.set(k, known);
-    }
-    return known;
-  };
-  const foam: FoamPiece[] = [];
-  for (const tile of water) {
-    const hex = hexCorners(tileToPixel(tile));
-    for (const source of hexesWithin(tile, FOAM_REACH)) {
-      if (!isCoastal(source)) continue;
-      const origin = foamOrigin(source);
-      const points = clipToRect(
-        hex,
-        origin.x,
-        origin.y,
-        origin.x + FOAM_SIZE,
-        origin.y + FOAM_SIZE,
-      );
-      if (points.length >= 6 && polygonArea(points) > 1e-9) foam.push({ source, origin, points });
-    }
-  }
+  const foam = foamOver(water, at);
   const layers = [
     ...(water.length > 0 ? [layer("water", water)] : []),
     ...(grass.length > 0 ? [layer("grass", grass)] : []),
@@ -314,25 +322,31 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
 }
 
 /**
- * The land hexes whose foam reaches the void beyond the terrain (CLI-03g2): every revealed land hex
- * with a side toward no tile, when the void is water. The chunks bake the foam over the terrain's
- * own water; beyond it the void is not baked (the renderer's bands), so this foam is placed over
- * the bands and under the chunks, which hide its parts over the terrain.
+ * The foam over the void beyond the terrain (CLI-03g2), when the void is water: the pieces of every
+ * coastal land hex's foam over the hexes outside the terrain, within `FOAM_REACH` of it. The chunks
+ * bake the foam over the terrain's own water; the void is not baked (the renderer's bands), so
+ * these pieces are drawn over the bands, under the chunks, clipped to the void's hexes so that
+ * only the foam that shows is filled.
  */
-export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefined): Tile[] {
+export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefined): FoamPiece[] {
   if (beyond !== "water") return [];
-  const present = new Set(tiles.map((t) => `${t.x},${t.y}`));
-  return tiles
-    .filter(
-      (t) =>
-        t.kind !== "unrevealed" &&
-        isLand(groundOf(t)) &&
-        [0, 1, 2, 3, 4, 5].some((side) => {
-          const next = acrossSide(t, side);
-          return !present.has(`${next.x},${next.y}`);
-        }),
-    )
-    .map((t) => ({ x: t.x, y: t.y }));
+  const own = new Map<string, ViewTile>(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
+  const at = (tile: Tile): GroundKind | null => {
+    const mine = own.get(`${tile.x},${tile.y}`);
+    if (!mine) return beyond;
+    return mine.kind === "unrevealed" ? null : groundOf(mine);
+  };
+  // The void's hexes near the terrain: within FOAM_REACH of a tile on its border.
+  const targets = new Map<string, Tile>();
+  for (const tile of tiles) {
+    const sides = [0, 1, 2, 3, 4, 5].map((side) => acrossSide(tile, side));
+    if (sides.every((t) => own.has(`${t.x},${t.y}`))) continue;
+    for (const hex of hexesWithin(tile, FOAM_REACH)) {
+      const k = `${hex.x},${hex.y}`;
+      if (!own.has(k)) targets.set(k, hex);
+    }
+  }
+  return foamOver([...targets.values()], at);
 }
 
 /**
