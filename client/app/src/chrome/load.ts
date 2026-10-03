@@ -192,7 +192,6 @@ export async function loadChrome<Image>(
     }
     return null;
   }
-  const urls: string[] = [];
   const pages = new Map<number, Promise<{ page: unknown; image: Image }>>();
   const pageOf = (n: number) => {
     let found = pages.get(n);
@@ -216,79 +215,115 @@ export async function loadChrome<Image>(
     }
     return { image, frame };
   };
+  /** A cut whose URL is recorded in `into` as soon as it is made (to revoke on a failure). */
+  const cut = async (
+    into: string[],
+    name: string,
+    state: ChromeState,
+    size: { readonly w: number; readonly h: number },
+    smooth = false,
+  ) => {
+    const { image, frame } = await frameFor(name, state);
+    const url = await loaders.cut(image, frame, size, smooth);
+    into.push(url);
+    return url;
+  };
   /** An element cut at the chrome's scale, in each of its states. */
-  const element = async (name: string): Promise<ChromeEntry> => {
+  const element = async (into: string[], name: string): Promise<ChromeEntry> => {
     const sprite = index.sprites[name]!;
     const ui = sprite.ui!;
     const lengths = sliceLengths(ui, sprite.cell, dpr);
-    const made: Partial<Record<ChromeState, string>> = {};
-    for (const state of ["regular", ...(ui.states ?? [])] as ChromeState[]) {
-      const { image, frame } = await frameFor(name, state);
-      const url = await loaders.cut(image, frame, lengths.image);
-      urls.push(url);
-      made[state] = url;
-    }
-    return { ui, lengths, urls: made };
+    const states = ["regular", ...(ui.states ?? [])] as ChromeState[];
+    const made = await settled(states.map((state) => cut(into, name, state, lengths.image)));
+    return { ui, lengths, urls: Object.fromEntries(states.map((s, i) => [s, made[i]!])) };
   };
-  let entries: Map<ChromeEntryName, ChromeEntry>;
-  try {
-    entries = new Map<ChromeEntryName, ChromeEntry>();
-    for (const name of CHROME_ENTRIES) entries.set(name, await element(name));
-  } catch (error) {
-    console.error(`[chrome] the UI page could not be cut (${String(error)}); plain look`);
-    for (const url of urls) loaders.revoke(url);
-    return null;
-  }
-  const chromeUrls = urls.length;
-  let hud: HudImages | null = null;
+  // Every cut runs at once (the chrome's and the HUD's): the screens get their art sooner. Each
+  // group keeps its own URLs, so a failed HUD revokes only its own.
+  const chromeUrls: string[] = [];
+  const hudUrls: string[] = [];
+  const chrome = settled(CHROME_ENTRIES.map((name) => element(chromeUrls, name)));
   const lacking = HUD_ENTRIES.filter((name) => !index.sprites[name]?.ui);
-  if (lacking.length > 0) {
-    console.warn(`[chrome] sprites.json lacks ${lacking.join(", ")}; plain HUD`);
-  } else {
-    try {
-      const hudEntries = new Map<HudEntryName, ChromeEntry>();
-      const portraits = new Map<HudEntryName, Map<PortraitSize, PortraitImage>>();
-      const cursors: Record<string, string> = {};
-      for (const name of HUD_ENTRIES) {
-        const cell = index.sprites[name]!.cell;
-        if (name.startsWith("portrait_")) {
-          const { image, frame } = await frameFor(name, "regular");
-          const sizes = new Map<PortraitSize, PortraitImage>();
-          for (const size of PORTRAIT_SIZES) {
-            const { devicePx, smooth } = portraitCut(cell, size, dpr);
-            const url = await loaders.cut(image, frame, devicePx, smooth);
-            urls.push(url);
-            sizes.set(size, { url, ...devicePx });
-          }
-          portraits.set(name, sizes);
-        } else if (name === "cursor_arrow" || name === "cursor_hand") {
+  const hudLoad = lacking.length > 0 ? null : cutHud(hudUrls);
+  async function cutHud(into: string[]): Promise<HudImages> {
+    const portraitNames = HUD_ENTRIES.filter((name) => name.startsWith("portrait_"));
+    const cursorNames = ["cursor_arrow", "cursor_hand"] as const;
+    const elementNames = HUD_ENTRIES.filter(
+      (name) => !name.startsWith("portrait_") && !name.startsWith("cursor_"),
+    );
+    const [elements, portraitCuts, cursorValues] = await settled([
+      settled(elementNames.map((name) => element(into, name))),
+      settled(
+        portraitNames.map((name) =>
+          settled(
+            PORTRAIT_SIZES.map(async (size) => {
+              const { devicePx, smooth } = portraitCut(index.sprites[name]!.cell, size, dpr);
+              const url = await cut(into, name, "regular", devicePx, smooth);
+              return { url, ...devicePx };
+            }),
+          ),
+        ),
+      ),
+      settled(
+        cursorNames.map(async (name) => {
           // A cursor at 1× and 2× whatever the screen: the browser picks by `image-set`.
-          const { image, frame } = await frameFor(name, "regular");
-          const at: string[] = [];
-          for (const ratio of [1, 2]) {
-            const size = { w: toDevicePx(cell.w, ratio), h: toDevicePx(cell.h, ratio) };
-            const url = await loaders.cut(image, frame, size);
-            urls.push(url);
-            at.push(`url("${url}") ${ratio}x`);
-          }
+          const cell = index.sprites[name]!.cell;
+          const at = await settled(
+            [1, 2].map(async (ratio) => {
+              const size = { w: toDevicePx(cell.w, ratio), h: toDevicePx(cell.h, ratio) };
+              return `url("${await cut(into, name, "regular", size)}") ${ratio}x`;
+            }),
+          );
           const [hx, hy] = CURSOR_HOT_SPOTS[name].map((v) => toDevicePx(v, 1));
           const keyword = name === "cursor_arrow" ? "auto" : "pointer";
-          cursors[name] = `image-set(${at.join(", ")}) ${hx} ${hy}, ${keyword}`;
-        } else {
-          hudEntries.set(name, await element(name));
-        }
-      }
-      hud = {
-        entries: hudEntries,
-        portraits,
-        cursors: { arrow: cursors.cursor_arrow!, hand: cursors.cursor_hand! },
-      };
-    } catch (error) {
-      console.error(`[chrome] the HUD could not be cut (${String(error)}); plain HUD`);
-      for (const url of urls.splice(chromeUrls)) loaders.revoke(url);
-    }
+          return `image-set(${at.join(", ")}) ${hx} ${hy}, ${keyword}`;
+        }),
+      ),
+    ] as const);
+    return {
+      entries: new Map(elementNames.map((name, i) => [name, (elements as ChromeEntry[])[i]!])),
+      portraits: new Map(
+        portraitNames.map((name, i) => [
+          name,
+          new Map(
+            PORTRAIT_SIZES.map((size, j) => [size, (portraitCuts as PortraitImage[][])[i]![j]!]),
+          ),
+        ]),
+      ),
+      cursors: { arrow: (cursorValues as string[])[0]!, hand: (cursorValues as string[])[1]! },
+    };
   }
-  return { dpr, entries, hud, urls };
+  const [chromeDone, hudDone] = await Promise.allSettled([chrome, hudLoad]);
+  if (chromeDone.status === "rejected") {
+    console.error(
+      `[chrome] the UI page could not be cut (${String(chromeDone.reason)}); plain look`,
+    );
+    for (const url of [...chromeUrls, ...hudUrls]) loaders.revoke(url);
+    return null;
+  }
+  const entries = new Map(CHROME_ENTRIES.map((name, i) => [name, chromeDone.value[i]!]));
+  let hud: HudImages | null = null;
+  if (lacking.length > 0) {
+    console.warn(`[chrome] sprites.json lacks ${lacking.join(", ")}; plain HUD`);
+  } else if (hudDone.status === "rejected") {
+    console.error(`[chrome] the HUD could not be cut (${String(hudDone.reason)}); plain HUD`);
+    for (const url of hudUrls) loaders.revoke(url);
+  } else {
+    hud = hudDone.value;
+  }
+  return { dpr, entries, hud, urls: [...chromeUrls, ...(hud ? hudUrls : [])] };
+}
+
+/**
+ * Every promise's value in order, once all have settled; the first failure, if any, only then:
+ * so every URL a cut made is recorded before a failure is handled.
+ */
+async function settled<T extends readonly unknown[] | unknown[]>(promises: {
+  readonly [K in keyof T]: Promise<T[K]>;
+}): Promise<T> {
+  const results = await Promise.allSettled(promises as readonly Promise<unknown>[]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) throw (failed as PromiseRejectedResult).reason;
+  return results.map((r) => (r as PromiseFulfilledResult<unknown>).value) as T;
 }
 
 const px = (v: number) => `${+v.toFixed(4)}px`;
