@@ -2988,7 +2988,7 @@ mod tests {
     // §10.9 through the pipeline: a goblin's attack skill of activation 1 started at 50 (`A` 51)
     // resolves in step 1 of 51 through the executor's hook: its weapon hit lands on the member.
     #[test]
-    #[available_gas(l2_gas: 10780290)] // ceil(1.05 × 10266942 measured)
+    #[available_gas(l2_gas: 10783965)] // ceil(1.05 × 10270442 measured)
     fn test_example_activated_attack_resolves() {
         let content = content(40, array![].span());
         let sheets = content.sheets();
@@ -3139,7 +3139,7 @@ mod tests {
 
     // §5.9: a target dead or out of reach at resolution: nothing, `Illegal`.
     #[test]
-    #[available_gas(l2_gas: 9870708)] // ceil(1.05 × 9400674 measured)
+    #[available_gas(l2_gas: 9885303)] // ceil(1.05 × 9414574 measured)
     fn test_target_illegal_at_resolution() {
         let sheets = sheets(40);
         let front = *ring(AT)[0];

@@ -369,17 +369,20 @@ ACCEPTED = [
     "",
     "### Fixture artefacts, not the tick's cost (CBT-05a, route (c), #334)",
     "",
-    "Marked at the project manager's request, 2026-10-03. These five figures are not the cost of a tick: their "
-    "fixtures place every goblin on one tile (CBT-02d's words carry no positions), so under route (c) each "
-    "concluding activation's call to `ExecutorLibrary` carries all the goblins of the world, a state play cannot "
-    "reach (one actor per tile). The tick's cost with the executor is ENG-01 §9.2's line: 26,422,703 a worst tick "
-    "(17.98 × 1,469,435), the figure for ENG-07 and R-2. Measured (budget) at #334's head:",
+    "Marked at the project manager's request, 2026-10-03. Before the cost audit's F-2 these five fixtures placed "
+    "every goblin on one tile (CBT-02d's words carried no positions), so under route (c) each concluding "
+    "activation's call to `ExecutorLibrary` carried all the goblins of the world, a state play cannot reach. Those "
+    "figures were fixture artefacts, measured (budget) at #334's earlier head:",
     "",
     "- `grimworld_logic` `test_tick::test_cost_library_call`: 796,147,478 (835,954,852)",
     "- `grimworld_logic` `test_tick::test_cost_library_call_batch`: 803,951,145 (844,148,703)",
     "- `grimworld_logic` `test_tick::test_cost_library_call_kills`: 98,543,578 (103,470,757)",
     "- `grimworld_logic` `test_tick::test_cost_library_call_two_members`: 888,112,294 (932,517,909)",
     "- `grimworld_logic` `test_tick::test_library_matches_pipeline`: 833,920,536 (875,616,563)",
+    "",
+    "With one goblin a tile (F-2) and option (3)'s levers 1 and 3 they measure 37,675,326; 45,478,993; "
+    "36,786,416; 45,716,882 and 67,729,072. Neither is the tick's cost: that is ENG-01 §9.2's measured line, "
+    "45,999,941 the worst tick, accepted as a one-tick batch (D-207).",
     "",
 ]
 
