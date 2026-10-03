@@ -186,6 +186,35 @@ The last row is why `create` receives the packed words: the three unpackers alon
 of `Hub`. The call: 3,183,138 L2 gas on the widest equipment design/20 §1.2 counts (15 modifiers, 30
 passives), 745,553 without equipment (`contracts/logic/tests/test_flatten.cairo`, the call alone).
 
+**The reveal's library class (ENG-05; Open question 1, decided by the orchestrator on
+2026-10-03).** `RevealLibrary`, in `grimworld_logic` (`contracts/logic/src/systems/reveal.cairo`),
+declared as its own class; its one entrypoint, `IRevealLibrary::reveal(site, progress, instance_id,
+known, chunks) -> (progress, chunks revealed)` (`grimworld_logic::interface`), runs the engine
+(`types::reveal::RevealTrait::reveal`) on what `Instances` read: the location's records as a `Site`
+(the location, its `QUOTAS`, `SPAWN_TABLE`, the `PACK`s and `SET_PIECE`s they name, a zone's chunk
+set and tile masks, the anchors, the snapshot's first 8 tasks), the instance's `Progress` (revealed
+set and count, open edges, quotas left, entropy), the terrain of the revealed neighbours, and the
+chunks to reveal with the side each is entered from. It returns the progress after them and each
+chunk's two words packed as stored, which `Instances` writes as they are. `Instances` holds the
+class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as `Hub` holds
+`flatten`: an administrator's argument, no event) and calls it through
+`IRevealLibraryLibraryDispatcher { class_hash }`, **once an invocation that reveals** (`create`,
+`leave` to a location; ENG-07's batches). CASM felts (`class_sizes.py`, Linux, Scarb 2.20.1,
+`RAYON_NUM_THREADS=1`):
+
+| Class | CASM felts | Share |
+|---|---:|---:|
+| `RevealLibrary` | REVEAL_FELTS | REVEAL_SHARE |
+| `Instances` (the entry reveal's reads and writes, `instance_region`) | INSTANCES_FELTS | INSTANCES_SHARE |
+
+Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
+bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about
+1,900 felts); one call site of `keep_component` (each call with constant dimensions compiled a copy,
+878 felts); the packers of a chunk's and a record's fields and the board's set operations not inlined
+(a few hundred L2 gas a reveal for about 3,100 felts); and the library returns a chunk's words
+packed, so that `Instances` holds no `Features` packer or unpacker (its view returns the words as
+stored), and `instance_region` computes a chunk's kind itself instead of building a `Site`.
+
 ---
 
 ## 2. Reusing an instance's slots
@@ -204,7 +233,7 @@ slot is reached only through a gate that `create` or a reveal rewrites.
 | Record | Reached through | Rewritten at |
 |---|---|---|
 | `headers[slot]` | the instance id: `header.generation` must equal the id's generation, else the call is refused (`Closed`) and views answer nothing | `create` (generation + 1, sequence 0, clock 0, counts reset) |
-| `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the entry chunk only; the location's quotas) |
+| `entropy`, `revealed`, `quotas` | the header | `create` (entry draw and the entry reveal's facts; the chunks sight touches from the entry tile, ENG-05; the location's quotas less what the entry reveal placed) |
 | `tasks[(slot, page)]` | `header.tasks` (pages beyond `⌈tasks / 4⌉` are never read) | `create`, only the pages it needs: a page never used before is new then (§9.3) |
 | `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words; **every generation-changing path** (`create`, and `leave` through a gate to a location) writes every transient word for the new clock 0: state from the snapshot, timers with no activation (`act_slot` 255, deadlines 0), effects and recharges empty (fix loops 2 and 3, F-12, F-14) |
 | `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`RosterTrait::mask`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
@@ -337,6 +366,7 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | Variable | Key | Slots | Record | Written by |
 |---|---|---:|---|---|
 | `admin`, `hub`, `registry`, `fate` | — | 4 | addresses | constructor, `set_contracts` |
+| `reveal` | — | 1 | `ClassHash` of `RevealLibrary` (ENG-05, §1.3) | constructor, `set_contracts` |
 | `next_slot` | — | 1 | `Counter` | first entry of an adventurer |
 | `placements` | adventurer `u32` | 1 | `Placement` | `create`, `leave` |
 | `headers` | slot | 1 | `Header` | every invocation that runs an action |
@@ -393,8 +423,18 @@ before personalisation); `MemberBar` refuses more (`MAX_UNGUARDED_ARMOR`), an `i
 - `Features`: packs at 0 and 64 (tile 0–7 · template 8–23 · level 24–31 · count 32–35 (0–5) ·
   each goblin's tile as one of the 19 tiles within 2, 5 bits each, 36–60 · the pack's shared `alert` 61–63:
   asleep, on watch, alerted, while none of its goblins has a record) · objects at 128, 160, 192
-  (tile 0–7 · kind 8–11 (chest, vein, node, trap, collector, landmark, lever or brazier) · state
+  (tile 0–7 · kind 8–11 (chest, vein, node, trap, collector, landmark, lever or brazier; **ENG-05**:
+  8 a dungeon floor's exit, placed by quota, its `param` the floor gate) · state
   12–15 (used) · param 16–31) · `touched` 224–239 (bit `k`: goblin `k` has a record) · `LIVE`.
+- **ENG-05** (the layout unchanged): the models `Terrain`, `PackPlacement`, `Object` and `Features`
+  are `grimworld_logic::models::chunk`'s (Open question 4), `Instances`' `Chunk` puts their two words
+  in two consecutive slots as typed slots (`Stored<Terrain>`, `Stored<Features>`), which the
+  reveal's library returns packed. A goblin's tile index `k` (0–18) names the tile at `OFFSETS[k]`
+  from the pack's: by axial `dr`, then `dq` (`q = x − ⌊y/2⌋`, global), independent of the row's
+  parity, `k` 9 the pack's tile (`PackPlacementTrait::member`). The reveal writes a chunk's two
+  words, the revealed set, the header's revealed count, the quotas (its open edges and what each
+  quota has left) and the entropy (`entropy + poseidon('fact:reveal', chunk, side)`, the reveal's
+  fact) at `create`, `leave` to a location and, from ENG-07, in a batch.
 - **Occupancy is not stored.** The window's occupancy is the tiles of the members and of the
   goblins in it (the roster's, and the untouched ones of the chunks it overlaps, derived from the
   pack placements), set with one table-driven addition each (E: 70 goblins at most, an estimate of
@@ -649,6 +689,10 @@ A part's address is the map's, `h(h(h(selector("records"), kind), id), part)` (P
 two links are computed once a record, each part adds one (tested against the map,
 `test_part_address_is_the_maps`); `bundle` of 32 three-part records: 4,045,220 → 3,477,020 (M).
 
+The four rows marked **ENG-05** are laid out by the chunk reveal (round-trip and bit tests in each
+model's module, D-167); `Registry`'s content checks of them (`set_record`) come after CBT-05a's
+validators (ENG-05's report).
+
 **Layouts of the world's records** (ENG-03; models under D-143: the structs in
 `grimworld_logic::models::index`, each with `new`, its `...Assert` checks, its `errors` and its
 `content::Record` impl packing into the record's parts; round-trip and bit tests in
@@ -677,6 +721,11 @@ value; no field straddles bit 128; `LIVE` in part 0.
 | `ARMOR_SET` | 0 | 5 piece bases `u16` at 0, 16, 32, 48, 64 (chest, legs, head, hands, feet) · the 3-piece bonus 128–180 · the 5-piece bonus 181–233 (a passive each) |
 | `CASTE` | 0 | tier 0–7 · AI profile 8–15 · health multiplier (percent) 16–31 · health regeneration + 10 32–39 · armor 40–47 · weapon 48–79 (class 48–51 · damage 52–67 · damage type 68–71 · ticks 72–75 · range 76–79) · energy (≤ 85) 80–87 · energy regeneration 88–95 · flee threshold 96–103 · rank of its skills 104–107 · boss 108 · armor per damage type 128–181 (type `t` at `128 + 6 (t − 1)`, ≤ 63) · loot table 182–197 |
 | `CASTE` | 1 | 4 skills `u16` at 0, 16, 32, 48, in priority order (design/19 §7.3: 243 bits over 4 limbs; the shape, DES-06 fills the values) |
+| `QUOTAS` | 0 | **ENG-05** (`models::quotas`, id = the location's): quota `i` of 6, 32 bits each, at `32 i` (`i` 0–3, low limb) and `128 + 32 (i − 4)` (`i` 4–5): kind 0–7 (0 none, 1 exit, 2 Heart, 3 vein, 4 collector, 5 landmark, 6 set piece; the packer refuses another) · param 8–23 (the exit's floor gate, the Heart's `PACK`, the `COLLECTOR`, the `LANDMARK`, the `SET_PIECE`; 0 for a vein) · count 24–31 (over the location; a dungeon floor: over its `N`) |
+| `SPAWN_TABLE` | 0 | **ENG-05** (`models::spawn_table`): entry `i` of 7, 24 bits each, at `24 i` (`i` 0–4, low limb) and `128 + 24 (i − 5)` (`i` 5–6): template `u16` 0–15 (a `PACK`; 0 none) · weight 16–23 · density 176–183 (each of a chunk's two pack slots holds a pack with probability `density / 256`) |
+| `PACK` | 0 | **ENG-05** (`models::pack`): caste `i` of 5, 32 bits each, at `32 i` (`i` 0–3, low limb) and 128 (`i` 4): caste `u16` 0–15 (0 none) · min 16–23 · max 24–31 (the packer refuses `min > max`) · level offset 160–167 (`i8`, two's complement, added to the chunk's band level, the sum held in the location's band). A placed pack stores its template and count only: goblin `k`'s caste is derived, each caste taking its `min`, then the rest in order up to each `max` (`PackTrait::caste`); a pack holds at most 5 (E-3) |
+| `SET_PIECE` | 0 | **ENG-05** (`models::set_piece`): the authored walls, bit `15 row + column` (1 = wall), 0–224 |
+| `SET_PIECE` | 1 | packs `i` of 2 (tile 0–7 · template 8–23) at `24 i`; objects at 48, 80 (low limb) and 128, each in `Object`'s 32-bit layout (§3.2), state 0. The reveal keeps the interior and the placements and joins the ring like any chunk's (ADR-0006 *Set pieces*) |
 
 **The effect entry** (CBT-01, design/19 §2.1; `grimworld_logic::types::effect::Entry`), 97 bits of a
 limb: kind 0–7 (0 empty, 1–23) · param 8–15 · `v0` 16–31 · `v12` 32–47 (`i16`) · `d0` 48–63 · `d12`
@@ -777,7 +826,7 @@ instance_region(instance_id, first: u8, count: u8) -> Span<RegionChunk>     coun
 placement(adventurer_id) -> (u64, u8, bool)
 create(adventurer_id, controller, gate: u16, snapshot: Snapshot, tasks: Span<TaskEntry>) -> u64   Hub only
 set_controller(adventurer_id, controller)                                                         Hub only
-version, set_contracts(hub, registry, fate), set_admin, upgrade(class_hash)                        admin
+version, set_contracts(hub, registry, fate, reveal: ClassHash), set_admin, upgrade(class_hash)     admin
 ```
 
 **The batch in one felt** (`grimworld_logic::actions`): count at bits 0–3 (1–10); actions 0–4 at

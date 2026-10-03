@@ -358,6 +358,9 @@ fn setup() -> World {
     records.set(GATE, 11, gate(ZONE, TOWN, here, (0, 0), gate_kind::LINK, 0, 0));
     records.set(GATE, 12, gate(TOWN, RIFT, (0, 0), centre, gate_kind::HUB, 0, 0));
     records.set(GATE, 13, gate(ZONE, 9, here, centre, gate_kind::LINK, 0, 0));
+    // ENG-05: into the zone at chunk 16's tile 16 (`(16, 16)`), next to its South-East corner:
+    // sight touches chunks 0, 1, 15 and 16.
+    records.set(GATE, 14, gate(TOWN, ZONE, (0, 0), (16, 16), gate_kind::HUB, 0, 0));
     World { instances, registry, fate, hub }
 }
 
@@ -1366,4 +1369,27 @@ fn test_entry_reveal_of_a_dungeon() {
         ChunkKind::Void
     };
     assert(*region[9].kind == west, 'beyond the West edge');
+}
+
+// The entry reveal as the invocation's difference (ENG-05 *Budget lines*): `create` into the zone
+// revealing 1 chunk (the entry tile on column 0), 2 (the floor's link, chunk 16's tile 110) and 4
+// (chunk 16's tile 16, next to a corner), each the adventurer's first entry (cold: every chunk's
+// two words new); `create` revealing 1 a later entry (the slot's words overwritten).
+fn create_gas(gate: u16, chunks: u8) -> u128 {
+    let world = setup();
+    start_cheat_caller_address(world.instances, world.hub);
+    let entry = IInstanceEntryDispatcher { contract_address: world.instances };
+    let gas = get_available_gas();
+    entry.create(HERO, addr(ALICE), gate, snapshot().words(), tasks(0));
+    let spent = gas - get_available_gas();
+    assert(header_of(world, 1).revealed_count == chunks, 'chunks revealed');
+    spent
+}
+
+#[test]
+#[available_gas(l2_gas: 1000000000)]
+fn test_cost_create_reveals() {
+    println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
+    println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));
+    println!("gas create revealing 4 chunks: {}", create_gas(14, 4));
 }
