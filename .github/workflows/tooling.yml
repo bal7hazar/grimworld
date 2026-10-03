@@ -63,8 +63,8 @@ jobs:
             if git config --file .git/config --get core.worktree; then echo "core.worktree set" >&2; exit 1; fi
           }
           snap > "$work/before"; cp .git/config "$work/config"
-          (cd "$work/wt" && PATH=$work/bin:$PATH git push -u origin feature) 2>&1 | tee "$work/push-wt"
-          PATH=$work/bin:$PATH git push -u origin direct 2>&1 | tee "$work/push-main"
+          (cd "$work/wt" && PATH=$work/bin:$PATH git push origin feature) 2>&1 | tee "$work/push-wt"
+          PATH=$work/bin:$PATH git push origin direct 2>&1 | tee "$work/push-main"
           grep -q 'prepush: all checks passed' "$work/push-wt"
           grep -q 'prepush: all checks passed' "$work/push-main"
           git --git-dir="$work/remote.git" rev-parse -q --verify refs/heads/feature
