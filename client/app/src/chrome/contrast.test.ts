@@ -66,6 +66,17 @@ describe("contrast", () => {
       const text = CHROME_TEXT.find((t) => t.component === component)!;
       expect(colour(selector), component).toBe(hex(text.colour));
     }
+    // Captions and muted lines on the art.
+    const text = (selector: string) => /\bcolor:\s*(#[0-9a-f]{3,6})/.exec(rule(selector))?.[1];
+    const on = (component: string) => CHROME_TEXT.find((t) => t.component === component)!.colour;
+    const six = (rgb: number) => `#${rgb.toString(16).padStart(6, "0")}`;
+    expect(text('[data-chrome="atlas"] .gw-panel-scroll .gw-text-muted')).toBe(
+      six(on("Text on scroll")),
+    );
+    expect(text('[data-chrome="atlas"] .gw-panel-dark .gw-text-muted')).toBe(
+      six(on("Text on dark paper")),
+    );
+    expect(six(on("Text on paper"))).toBe(six(on("Text on scroll")));
     // Large text: bold and at least 18.67 px wherever the table says large.
     expect(rule('[data-chrome="atlas"] .gw-button')).toContain("700 18.67px");
     expect(rule('[data-chrome="atlas"] .gw-ribbon-big')).toContain("700 18.67px");

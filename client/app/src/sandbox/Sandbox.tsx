@@ -58,6 +58,7 @@ export function RoomSandbox({
   const host = useRef<HTMLDivElement>(null);
   const [controller, setController] = useState<SandboxController | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => readParams(window.location.search).panel);
+  const atlas = useChromeMode() === "atlas";
   const [info, setInfo] = useState<SandboxInfo | null>(null);
   const [walk, setWalk] = useState<WalkInfo | null>(null);
   const tileListener = useRef(onTile);
@@ -146,7 +147,10 @@ export function RoomSandbox({
         style={styles.centrePlace}
         onClick={() => controller?.recentre()}
       />
-      <button style={styles.toggle} onClick={() => setPanelOpen((open) => !open)}>
+      <button
+        style={atlas ? { ...styles.toggle, ...styles.debugLook } : styles.toggle}
+        onClick={() => setPanelOpen((open) => !open)}
+      >
         {panelOpen ? "× debug" : "debug"}
       </button>
       {panelOpen && controller && info && (
@@ -203,10 +207,11 @@ function DebugPanel({
   /** The fixture can be changed (not in the loop's instance, whose world is the gate's). */
   fixtures: boolean;
 }) {
+  const atlas = useChromeMode() === "atlas";
   const zoom = info.zoom;
   const setZoom = (patch: Partial<ZoomSettings>) => controller.setZoom({ ...zoom, ...patch });
   return (
-    <div style={styles.panel}>
+    <div style={atlas ? { ...styles.panel, ...styles.debugFrame } : styles.panel}>
       {fixtures && (
         <label style={styles.row}>
           fixture{" "}
@@ -362,23 +367,29 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "rgba(255,255,255,0.85)",
   },
-  /**
-   * A debug control: deliberately not the pack's look (red, dashed; CLI-03i), at least 44 px
-   * (design/11 I-6).
-   */
+  /** The debug toggle: today's look, at least 44 px tall (design/11 I-6; CLI-03i). */
   toggle: {
     position: "absolute",
     left: 8,
     top: 8,
-    minWidth: 44,
     minHeight: 44,
-    padding: "0 10px",
+    font: "12px system-ui",
+    padding: "4px 8px",
+    border: "none",
     borderRadius: 4,
+    background: "rgba(255,255,255,0.75)",
+  },
+  /**
+   * With the pack's chrome, the debug controls say they are not game controls: red, dashed, never
+   * the pack's look (CLI-03i *What stays plain*).
+   */
+  debugLook: {
     background: "rgba(80,0,0,0.75)",
     color: "#ffb4b4",
     border: "1px dashed #ff6b6b",
     font: "12px ui-monospace, monospace",
   },
+  debugFrame: { border: "1px dashed #ff6b6b" },
   panel: {
     position: "absolute",
     left: 8,
@@ -391,7 +402,6 @@ const styles: Record<string, CSSProperties> = {
     font: "12px system-ui",
     color: "#eee",
     background: "rgba(0,0,0,0.78)",
-    border: "1px dashed #ff6b6b",
   },
   walk: {
     position: "absolute",

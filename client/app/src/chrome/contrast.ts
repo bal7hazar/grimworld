@@ -27,7 +27,7 @@ export const WHITE = 0xffffff;
 
 /**
  * Each component's text: the element it sits on, the states it is seen in, its colour and whether
- * it is large text. The same colours as `chrome.css`.
+ * it is large text. The same colours as `chrome.css` (captions and muted lines: `.gw-text-*`).
  */
 export const CHROME_TEXT: readonly {
   readonly component: string;
@@ -80,6 +80,27 @@ export const CHROME_TEXT: readonly {
     states: ["regular"],
     colour: WHITE,
     large: true,
+  },
+  {
+    component: "Text on paper",
+    entry: "paper",
+    states: ["regular"],
+    colour: 0x5b4636,
+    large: false,
+  },
+  {
+    component: "Text on scroll",
+    entry: "scroll",
+    states: ["regular"],
+    colour: 0x5b4636,
+    large: false,
+  },
+  {
+    component: "Text on dark paper",
+    entry: "paper_dark",
+    states: ["regular"],
+    colour: 0xe3e3e8,
+    large: false,
   },
   {
     component: "Ribbon small yellow",

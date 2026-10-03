@@ -104,7 +104,7 @@ brief found).
 | Closing report | Blue ribbon (returned) or red (defeated); four paper cards; a full-width blue button |
 | Desktop side panels | Special paper, white bold captions |
 | Recentre ◎, walk counter | Round blue button with the glyph; the counter a quiet button, its "stopped" line a paper-coloured tag (CSS, the paper's art is too large for it) |
-| Debug toggle and panel | Non-pack on purpose (red, dashed); the toggle 44 px tall |
+| Debug toggle and panel | Non-pack on purpose (red, dashed, with the art only); the toggle 44 px tall in every mode, today's look without the art |
 
 ## Files changed
 
@@ -117,7 +117,8 @@ brief found).
 - `client/app/src/chrome/` (new): `scale.ts`, `load.ts`, `Chrome.tsx`, `chrome.css`, `contrast.ts`,
   and `scale.test.ts`, `load.test.ts`, `contrast.test.ts`.
 - `client/app/src/sandbox/loop/HubScreen.tsx`, `InstanceScreen.tsx`, `screens.tsx`, `Loop.tsx`;
-  `sandbox/Sandbox.tsx` (recentre, walk counter, debug toggle and panel frame).
+  `sandbox/Sandbox.tsx` (recentre, walk counter; the debug toggle 44 px tall everywhere, its red
+  dashed look and the panel's frame only with the art).
 - `client/app/verify-chrome.mjs` (new), `client/app/package.json` (`verify:chrome`).
 - `PLAN.md` (rows CLI-03i, CLI-03j), this report.
 
@@ -165,9 +166,10 @@ brief found).
   (the board's side padding); the back 52 × 48 instead of 72 × 44 (the round button); ◎ 52 × 48
   instead of 48 × 48; Leave by gate 84 wide instead of 77; Skip and Stay 47.5 tall instead of 44
   (the paper's slices); Leave 78 and Travel back 130 wide instead of 71 and 107 (large text); the
-  debug toggle 58 × 44 instead of 52 × 25. All listed by the run.
+  debug toggle 58 × 44 (red, dashed) instead of 52 × 25. All listed by the run.
 - AC-8: without the art every screen is `data-chrome="plain"` with `main`'s boxes within 1 px,
-  except the debug toggle (52 × 25 → 58 × 44: the brief's §6 size change), no page error.
+  except the debug toggle's height (52 × 25 → 52 × 44: the brief's §6 size change; its look is
+  main's), no page error.
 - AC-9: forced colours: every control on the hub (11) and the confirmation (7) has a solid border,
   no border image, and text distinct from its background.
 - AC-10: shots of every screen at both sizes at ratio 2 and the town at 1 and 3, untracked, in the
@@ -194,6 +196,21 @@ brief found).
 5. The walk's "stopped" line is a paper-coloured CSS tag, not the paper's art (whose slices make it
    at least 48 px tall).
 6. `square_blue` is cut (the brief's list) but not used by any component yet.
+
+## Review (fix loop 1, review of 73cd322: PASS WITH FINDINGS)
+
+- Fixed (minor): the debug toggle and its panel keep today's look in the plain fallback and in the
+  standalone sandbox without a `ChromeProvider`; only the toggle's 44 px height applies everywhere.
+  The red dashed look and the panel's dashed frame apply only with the art. The panel opens at
+  60 px from the top instead of 36, below the taller toggle (layout, not look).
+- Fixed (note 4): `CHROME_TEXT` checks the captions and muted lines on the art: `#5b4636` on the
+  paper (6.99 : 1) and on the scroll, `#e3e3e8` on the dark paper; the test also reads those
+  colours back from `chrome.css`.
+- Known, unchanged (note 2): slice insets are rounded to whole device px independently of the
+  nearest-neighbour scaling of the image, so at 1.25× or 2.625× a slice boundary can fall one image
+  pixel off the art's own piece boundary: a faint seam is possible there; none seen at 1×, 2×, 3×.
+- Known, unchanged (note 3): one malformed `ui` entry makes `readSpritesIndex` refuse the whole
+  index, so the map falls back to shapes too, as for any other malformed entry today.
 
 ## Escalations
 
