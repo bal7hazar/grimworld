@@ -29,9 +29,21 @@ import {
   drawStructure,
   drawTerrain,
   drawWedge,
+  DIM_ALPHA,
   type GroundTextures,
 } from "./shapes";
-import { FOAM_REACH, type FoamPiece, chunkFrame, groundOf, hexesWithin, voidFoam } from "./ground";
+import {
+  type Box,
+  FOAM_REACH,
+  type FoamPiece,
+  chunkFrame,
+  groundOf,
+  hexesWithin,
+  isRock,
+  voidFoam,
+  voidHole,
+} from "./ground";
+import { OBSTACLES, type Obstacle, obstacleOf } from "./obstacles";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
@@ -258,29 +270,10 @@ export const OFFSCREEN_BUCKET = 0.25;
 export const BACKGROUND = 0x0b0b0e;
 
 /**
- * The rectangle the void leaves to the background (CLI-03g1): the tiles' centres' box, two hexes
- * in on each side, so that the void's bands pass under the terrain's outer hexes and leave no
- * notch between a row's hexes; null when the tiles are too few to hold one.
+ * The tint of an obstacle beyond sight: the overlay's dimming (black at `DIM_ALPHA`) as a multiply,
+ * since an obstacle stands over the overlay, with the actors (CLI-03h).
  */
-function holeOf(tiles: readonly Tile[]): { x0: number; y0: number; x1: number; y1: number } | null {
-  if (tiles.length === 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const tile of tiles) {
-    const c = tileToPixel(tile);
-    minX = Math.min(minX, c.x);
-    maxX = Math.max(maxX, c.x);
-    minY = Math.min(minY, c.y);
-    maxY = Math.max(maxY, c.y);
-  }
-  const x0 = minX + 2 * TILE_WIDTH;
-  const x1 = maxX - 2 * TILE_WIDTH;
-  const y0 = minY + 2 * ROW_HEIGHT;
-  const y1 = maxY - 2 * ROW_HEIGHT;
-  return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
-}
+const DIM_TINT = 0x010101 * Math.round(255 * (1 - DIM_ALPHA));
 
 /** The whole art pixels around some foam pieces: the frame their group is baked in. */
 function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
@@ -315,7 +308,7 @@ export class Renderer implements FrameClient {
    * looks as it did; the bands reach two hexes into the terrain, under its outer hexes.
    */
   private readonly voidLayer = new Container();
-  private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  private voidHole: Box | null = null;
   private voidKey = "";
   /**
    * The foam over the void (CLI-03g2, `voidFoam`): its pieces over the void's hexes, grouped by the
@@ -338,6 +331,13 @@ export class Renderer implements FrameClient {
   private structuresKey = "";
   /** The wall hexes a structure stands on (`"x,y"`): no rock there. */
   private covered: ReadonlySet<string> = new Set();
+  /**
+   * The obstacles the atlas has (CLI-03h, `OBSTACLES`), kept by `setLibrary`; none: the bakes draw
+   * the shaped rocks.
+   */
+  private obstacleArt: readonly Obstacle[] = [];
+  /** The wall hexes' obstacles drawn from the atlas, by hex (`"x,y"`), in the actors' layer. */
+  private readonly obstacleNodes = new Map<string, { readonly sprite: Sprite; readonly name: string }>();
   private readonly chunks = new Map<string, ChunkBake>();
   private readonly rings = new Map<string, { count: number; ring: readonly Tile[] }>();
   private view: ViewState | null = null;
@@ -377,6 +377,7 @@ export class Renderer implements FrameClient {
   ) {
     this.library = options.library ?? null;
     this.groundSource = this.groundTextures() ? "atlas" : "colours";
+    this.obstacleArt = this.obstaclesInAtlas();
     this.zoom = options.zoom ?? DEFAULT_ZOOM;
     this.idleOn = options.idle ?? true;
     this.mode = options.mode ?? "continuous";
@@ -392,6 +393,7 @@ export class Renderer implements FrameClient {
             ...stats,
             bakeMs: this.lastBakeMs,
             ground: this.groundSource,
+            obstacles: this.obstacleArt.length > 0 ? "atlas" : "shapes",
           })),
     );
     this.voidLayer.visible = false;
@@ -409,8 +411,9 @@ export class Renderer implements FrameClient {
   setView(view: ViewState): void {
     const previous = this.view;
     this.view = view;
-    const hole = holeOf(view.tiles);
+    const hole = voidHole(view.tiles);
     const holeKey = `${view.void ?? ""} ${hole ? Object.values(hole).join(",") : ""}`;
+    const previousVoid = this.voidKey;
     this.voidHole = hole;
     if (holeKey !== this.voidKey) {
       this.voidKey = holeKey;
@@ -418,8 +421,9 @@ export class Renderer implements FrameClient {
     }
     const now = this.host.now();
     this.syncStructures(view.structures ?? []);
-    this.syncChunks(view);
-    this.syncVoidFoam(view);
+    this.syncObstacles(view);
+    const terrainChanged = this.syncChunks(view);
+    if (terrainChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
     drawOverlay(this.overlay, view);
     this.syncDropped(view, now);
     this.syncActors(view, now);
@@ -519,6 +523,11 @@ export class Renderer implements FrameClient {
     if (this.view) this.syncStructures(this.view.structures ?? []);
     if (this.view) this.syncActors(this.view, this.host.now());
     this.groundSource = this.groundTextures() ? "atlas" : "colours";
+    // The obstacles switch between the atlas's stills and the bakes' rocks: every one again.
+    this.obstacleArt = this.obstaclesInAtlas();
+    for (const node of this.obstacleNodes.values()) node.sprite.destroy();
+    this.obstacleNodes.clear();
+    if (this.view) this.syncObstacles(this.view);
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) chunk.key = "";
@@ -922,8 +931,9 @@ export class Renderer implements FrameClient {
    * Groups the tiles by chunk; a chunk whose tiles' kinds or grounds changed, or whose lip or foam toward a
    * neighbouring chunk or the void did, is drawn again, and rebaked. Its frame comes from its
    * tiles' positions only (`chunkFrame`): the ground never changes the textures' size or count.
+   * Whether any chunk was drawn again, added or dropped: the terrain changed.
    */
-  private syncChunks(view: ViewState): void {
+  private syncChunks(view: ViewState): boolean {
     const { tiles } = view;
     const groups = new Map<string, ViewTile[]>();
     const grounds = new Map<string, GroundKind | null>();
@@ -939,6 +949,9 @@ export class Renderer implements FrameClient {
       return ground === undefined ? (view.void ?? null) : ground;
     };
     const textures = this.groundTextures();
+    // The atlas's obstacles stand in the actors' layer (`syncObstacles`): no rock in the bakes.
+    const rocks = this.obstacleArt.length === 0;
+    let changed = false;
     for (const [id, group] of groups) {
       const covered = (t: ViewTile) => (this.covered.has(`${t.x},${t.y}`) ? "c" : "");
       const ground = (t: ViewTile) => groundOf(t)[0];
@@ -950,8 +963,9 @@ export class Renderer implements FrameClient {
       const key = `${own}|${ring}`;
       const chunk = this.chunks.get(id);
       if (chunk?.key === key) continue;
+      changed = true;
       const start = this.host.now();
-      const graphics = drawTerrain(group, this.covered, { around, textures });
+      const graphics = drawTerrain(group, this.covered, { around, textures, rocks });
       const drawMs = this.host.now() - start;
       const frame = chunkFrame(group);
       if (chunk) {
@@ -975,8 +989,10 @@ export class Renderer implements FrameClient {
       if (!groups.has(id)) {
         this.dropChunk(chunk);
         this.chunks.delete(id);
+        changed = true;
       }
     }
+    return changed;
   }
 
   /**
@@ -1099,6 +1115,58 @@ export class Renderer implements FrameClient {
       container.addChild(drawStructure(structure));
     }
     return container;
+  }
+
+  /** The obstacles of `OBSTACLES` whose still the atlas has, in their order. */
+  private obstaclesInAtlas(): readonly Obstacle[] {
+    return OBSTACLES.filter((o) => this.library?.get(o.sprite)?.animations[STILL]?.textures[0]);
+  }
+
+  /**
+   * The wall hexes' obstacles (CLI-03h): with the atlas, each wall hex that would draw a rock
+   * (`isRock`) shows the still `obstacleOf` gives it, placed as a prop (its base on the hex's
+   * centre, at native size), sorted with the actors by that y; added and dropped as the revealed
+   * walls change, never per frame. Beyond sight it is dimmed as the overlay dims the ground under
+   * it. Without the atlas, none: the bakes draw the rocks.
+   */
+  private syncObstacles(view: ViewState): void {
+    if (this.obstacleArt.length === 0) return;
+    const inSight = new Set(view.sight.map((t) => `${t.x},${t.y}`));
+    const seen = new Set<string>();
+    for (const tile of view.tiles) {
+      if (!isRock(tile, this.covered)) continue;
+      const key = `${tile.x},${tile.y}`;
+      seen.add(key);
+      let node = this.obstacleNodes.get(key);
+      if (!node) {
+        const choice = obstacleOf(tile, this.obstacleArt);
+        const texture = choice && this.library?.get(choice.sprite)?.animations[STILL]?.textures[0];
+        if (!choice || !texture) continue;
+        const sprite = new Sprite(texture);
+        const anchor = texture.defaultAnchor;
+        sprite.anchor.set(anchor?.x ?? 0.5, anchor?.y ?? 1);
+        if (choice.mirror) sprite.scale.x = -1;
+        const base = tileToPixel(tile);
+        sprite.position.set(base.x, base.y);
+        sprite.zIndex = base.y - 0.001;
+        this.actorsLayer.addChild(sprite);
+        node = { sprite, name: choice.sprite };
+        this.obstacleNodes.set(key, node);
+      }
+      const tint = inSight.has(key) ? 0xffffff : DIM_TINT;
+      if (node.sprite.tint !== tint) node.sprite.tint = tint;
+    }
+    for (const [key, node] of this.obstacleNodes) {
+      if (!seen.has(key)) {
+        node.sprite.destroy();
+        this.obstacleNodes.delete(key);
+      }
+    }
+  }
+
+  /** The obstacles drawn from the atlas, by hex (`"x,y"`): their sprite and still; for tests. */
+  obstacles(): ReadonlyMap<string, { readonly sprite: Sprite; readonly name: string }> {
+    return this.obstacleNodes;
   }
 
   /** Whether a structure is drawn from the atlas (a still), else as a shape: for the page and tests. */

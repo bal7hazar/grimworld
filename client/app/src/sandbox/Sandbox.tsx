@@ -122,8 +122,10 @@ export function RoomSandbox({
         // Written when they change only: a frame's callback stays as short as before.
         const data = root.current.dataset;
         const ground = stats.ground ?? "";
+        const obstacles = stats.obstacles ?? "";
         const bake = stats.bakeMs == null ? "" : String(stats.bakeMs);
         if (data.ground !== ground) data.ground = ground;
+        if (data.obstacles !== obstacles) data.obstacles = obstacles;
         if (data.bakeMs !== bake) data.bakeMs = bake;
       }
       frameListener.current?.(controller);

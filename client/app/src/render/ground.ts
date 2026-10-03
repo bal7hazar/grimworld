@@ -1,5 +1,12 @@
 import { Rectangle } from "pixi.js";
-import { HEX_RADIUS, type Point, TILE_WIDTH, pixelToTile, tileToPixel } from "../input/coords";
+import {
+  HEX_RADIUS,
+  type Point,
+  ROW_HEIGHT,
+  TILE_WIDTH,
+  pixelToTile,
+  tileToPixel,
+} from "../input/coords";
 import type { GroundKind, Tile, ViewTile } from "./view";
 
 /**
@@ -18,6 +25,14 @@ export const groundOf = (tile: ViewTile): GroundKind => tile.ground ?? "grass";
 
 /** Whether a tile's ground is walked on: grass and earth are land, water is not. */
 export const isLand = (ground: GroundKind): boolean => ground !== "water";
+
+/**
+ * Whether a tile draws an obstacle object (a rock, or the pack's still, CLI-03h): a revealed wall
+ * not on water (the water is the obstacle) and not covered by a structure (`"x,y"`, CLI-03f).
+ */
+export function isRock(tile: ViewTile, covered: ReadonlySet<string> = new Set()): boolean {
+  return tile.kind === "wall" && isLand(groundOf(tile)) && !covered.has(`${tile.x},${tile.y}`);
+}
 
 /** A square cell of `TILE_WIDTH`, by its top-left corner in world pixels. */
 export interface Cell {
@@ -314,7 +329,7 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
     for (let side = 0; side < 6; side++) {
       if (at(acrossSide(t, side)) === "water") lip.push({ tile: t, side });
     }
-    if (tile.kind === "wall" && !covered.has(`${t.x},${t.y}`)) rocks.push(t);
+    if (isRock(tile, covered)) rocks.push(t);
   }
   const foam = foamOver(water, at);
   const layers = [
@@ -324,15 +339,63 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
   return { layers, earth, foam, lip, grid, rocks, unrevealed };
 }
 
+/** An axis-aligned rectangle of world pixels, by its corners. */
+export interface Box {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+
+/**
+ * The rectangle the void leaves to the background (CLI-03g1): the tiles' centres' box, two hexes
+ * in on each side, so that the void's bands pass under the terrain's outer hexes and leave no
+ * notch between a row's hexes; null when the tiles are too few to hold one.
+ */
+export function voidHole(tiles: readonly Tile[]): Box | null {
+  if (tiles.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const tile of tiles) {
+    const c = tileToPixel(tile);
+    minX = Math.min(minX, c.x);
+    maxX = Math.max(maxX, c.x);
+    minY = Math.min(minY, c.y);
+    maxY = Math.max(maxY, c.y);
+  }
+  const x0 = minX + 2 * TILE_WIDTH;
+  const x1 = maxX - 2 * TILE_WIDTH;
+  const y0 = minY + 2 * ROW_HEIGHT;
+  const y1 = maxY - 2 * ROW_HEIGHT;
+  return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
+}
+
+/** Whether a hex lies wholly outside a rectangle: under the void's bands, when it is the hole. */
+function outside(tile: Tile, box: Box | null): boolean {
+  if (!box) return true;
+  const c = tileToPixel(tile);
+  return (
+    c.x + TILE_WIDTH / 2 <= box.x0 ||
+    c.x - TILE_WIDTH / 2 >= box.x1 ||
+    c.y + HEX_RADIUS <= box.y0 ||
+    c.y - HEX_RADIUS >= box.y1
+  );
+}
+
 /**
  * The foam over the void beyond the terrain (CLI-03g2), when the void is water: the pieces of every
  * coastal land hex's foam over the hexes outside the terrain, within `FOAM_REACH` of it. The chunks
  * bake the foam over the terrain's own water; the void is not baked (the renderer's bands), so
  * these pieces are drawn over the bands, under the chunks, clipped to the void's hexes so that
- * only the foam that shows is filled.
+ * only the foam that shows is filled. A void hex inside the terrain's box (a concave terrain's
+ * notch) is not under the bands, which cover only the outside of `voidHole`: it shows the
+ * background, and gets no foam (CLI-03h), as water there could hide land not sent yet.
  */
 export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefined): FoamPiece[] {
   if (beyond !== "water") return [];
+  const hole = voidHole(tiles);
   const own = new Map<string, ViewTile>(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
   const at = (tile: Tile): GroundKind | null => {
     const mine = own.get(`${tile.x},${tile.y}`);
@@ -346,7 +409,7 @@ export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefi
     if (sides.every((t) => own.has(`${t.x},${t.y}`))) continue;
     for (const hex of hexesWithin(tile, FOAM_REACH)) {
       const k = `${hex.x},${hex.y}`;
-      if (!own.has(k)) targets.set(k, hex);
+      if (!own.has(k) && outside(hex, hole)) targets.set(k, hex);
     }
   }
   return foamOver([...targets.values()], at);

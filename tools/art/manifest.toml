@@ -400,9 +400,10 @@ file = "Buildings/Others/Rural_House.png"
 origin = "Rural House, others"
 
 # ---------------------------------------------------------------- props (CLI-03e)
-# Trees, bushes, rocks, stumps and a sheep around the hubs' buildings: stills of role `prop`. An
-# animated strip is drawn at one frame (no idle animation in a hub): `frame` its index from the
-# left, `cell` = [width, height] its cell (the trees' are not square). Anchored at the base.
+# Trees, bushes, rocks, stumps and a sheep around the hubs' buildings, and the zone's wall obstacles
+# (CLI-03h: every tree, bush, rock and stump below): stills of role `prop`. An animated strip is
+# drawn at one frame (no idle animation in a hub): `frame` its index from the left, `cell` =
+# [width, height] its cell (the trees' are not square). Anchored at the base.
 
 [[still]]
 name = "tree1"
@@ -461,6 +462,14 @@ cell = [128, 128]
 origin = "Bush 3, frame 0"
 
 [[still]]
+name = "bush4"
+role = "prop"
+file = "Terrain/Decorations/Bushes/Bushe4.png"
+frame = 0
+cell = [128, 128]
+origin = "Bush 4, frame 0"
+
+[[still]]
 name = "sheep"
 role = "prop"
 file = "Terrain/Resources/Meat/Sheep/Sheep_Idle.png"
@@ -479,6 +488,18 @@ name = "stump2"
 role = "prop"
 file = "Terrain/Resources/Wood/Trees/Stump 2.png"
 origin = "Stump 2"
+
+[[still]]
+name = "stump3"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Stump 3.png"
+origin = "Stump 3"
+
+[[still]]
+name = "stump4"
+role = "prop"
+file = "Terrain/Resources/Wood/Trees/Stump 4.png"
+origin = "Stump 4"
 
 [[still]]
 name = "rock1"

@@ -44,6 +44,8 @@ export interface FrameStats {
    */
   readonly bakeMs?: number | null;
   readonly ground?: "atlas" | "colours";
+  /** Where the walls' obstacles come from (CLI-03h): the atlas's stills, or the shaped rocks. */
+  readonly obstacles?: "atlas" | "shapes";
 }
 
 /** A change due sooner than this is taken on the next display frame, without a timer. */
