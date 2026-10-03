@@ -19,6 +19,7 @@ import {
   hexPieces,
   hexesWithin,
   polygonArea,
+  voidFoam,
 } from "./ground";
 import { BAKE_CHUNK } from "./renderer";
 import type { GroundKind, Tile, TileKind, ViewTile } from "./view";
@@ -286,6 +287,30 @@ describe("the foam (CLI-03g2)", () => {
       );
       expect(holder.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the foam over the void (CLI-03g2)", () => {
+  it("every revealed land hex on the terrain's border, only when the void is water", () => {
+    const tiles = block(
+      0,
+      4,
+      0,
+      4,
+      (t) => (t.x === 4 ? "water" : t.y === 2 ? "earth" : "grass"),
+      (t) => (t.y === 0 ? "unrevealed" : t.x === 4 ? "wall" : "floor"),
+    );
+    expect(voidFoam(tiles, undefined)).toEqual([]);
+    expect(voidFoam(tiles, "grass")).toEqual([]);
+    const present = new Set(tiles.map(key));
+    const border = tiles.filter(
+      (t) =>
+        t.kind !== "unrevealed" &&
+        t.ground !== "water" &&
+        [0, 1, 2, 3, 4, 5].some((side) => !present.has(key(acrossSide(t, side)))),
+    );
+    expect(border.length).toBeGreaterThan(0);
+    expect(voidFoam(tiles, "water").map(key).sort()).toEqual(border.map(key).sort());
   });
 });
 

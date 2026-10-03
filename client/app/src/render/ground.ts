@@ -314,6 +314,28 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
 }
 
 /**
+ * The land hexes whose foam reaches the void beyond the terrain (CLI-03g2): every revealed land hex
+ * with a side toward no tile, when the void is water. The chunks bake the foam over the terrain's
+ * own water; beyond it the void is not baked (the renderer's bands), so this foam is placed over
+ * the bands and under the chunks, which hide its parts over the terrain.
+ */
+export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefined): Tile[] {
+  if (beyond !== "water") return [];
+  const present = new Set(tiles.map((t) => `${t.x},${t.y}`));
+  return tiles
+    .filter(
+      (t) =>
+        t.kind !== "unrevealed" &&
+        isLand(groundOf(t)) &&
+        [0, 1, 2, 3, 4, 5].some((side) => {
+          const next = acrossSide(t, side);
+          return !present.has(`${next.x},${next.y}`);
+        }),
+    )
+    .map((t) => ({ x: t.x, y: t.y }));
+}
+
+/**
  * The miter of a hex's stroke at its 120° corners: PixiJS pads a stroke's bounds by half its width
  * times this (`getMaxMiterRatio`).
  */

@@ -30,7 +30,7 @@ import {
   drawWedge,
   type GroundTextures,
 } from "./shapes";
-import { FOAM_REACH, chunkFrame, groundOf, hexesWithin } from "./ground";
+import { FOAM_REACH, chunkFrame, foamOrigin, groundOf, hexesWithin, voidFoam } from "./ground";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
@@ -297,6 +297,12 @@ export class Renderer implements FrameClient {
   private readonly voidLayer = new Container();
   private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private voidKey = "";
+  /**
+   * The foam over the void (CLI-03g2, `voidFoam`): one still of the foam per land hex on the
+   * terrain's border, after the void's bands, under the chunks; rebuilt when those hexes change.
+   */
+  private readonly voidFoamLayer = new Container();
+  private voidFoamKey: string | null = null;
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
   /** The dropped steps of a planned path, fading out. */
@@ -368,6 +374,7 @@ export class Renderer implements FrameClient {
     );
     this.voidLayer.visible = false;
     for (let i = 0; i < 4; i++) this.voidLayer.addChild(new Sprite(Texture.WHITE));
+    this.voidLayer.addChild(this.voidFoamLayer);
     // Under the chunks, in the ground's layer: the world's children keep their order.
     this.ground.addChild(this.voidLayer);
     this.world.addChild(this.ground, this.overlay, this.fading, this.actorsLayer);
@@ -390,6 +397,7 @@ export class Renderer implements FrameClient {
     const now = this.host.now();
     this.syncStructures(view.structures ?? []);
     this.syncChunks(view);
+    this.syncVoidFoam(view);
     drawOverlay(this.overlay, view);
     this.syncDropped(view, now);
     this.syncActors(view, now);
@@ -492,7 +500,9 @@ export class Renderer implements FrameClient {
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) chunk.key = "";
+    this.voidFoamKey = null;
     if (this.view) this.syncChunks(this.view);
+    if (this.view) this.syncVoidFoam(this.view);
     this.scheduler.invalidate();
   }
 
@@ -697,6 +707,23 @@ export class Renderer implements FrameClient {
       band.width = x1 - x0;
       band.height = y1 - y0;
     });
+  }
+
+  /** Places the foam over the void when the border's land hexes or the foam's still change. */
+  private syncVoidFoam(view: ViewState): void {
+    const foam = this.groundTextures()?.foam ?? null;
+    const sources = foam ? voidFoam(view.tiles, view.void) : [];
+    const key = sources.map((t) => `${t.x},${t.y}`).join(" ");
+    if (key === this.voidFoamKey) return;
+    this.voidFoamKey = key;
+    for (const sprite of this.voidFoamLayer.removeChildren()) sprite.destroy();
+    for (const source of sources) {
+      const sprite = new Sprite(foam!);
+      const origin = foamOrigin(source);
+      sprite.anchor.set(0, 0);
+      sprite.position.set(origin.x, origin.y);
+      this.voidFoamLayer.addChild(sprite);
+    }
   }
 
   /** The atlas's ground cells, or null when the atlas has none (flat colours). */

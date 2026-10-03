@@ -9,6 +9,7 @@ import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
+import { foamOrigin, voidFoam } from "./ground";
 import { DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
 import { drawOverlay, overlayPlan } from "./shapes";
 import type { FrameStats } from "./scheduler";
@@ -625,6 +626,29 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     host.run(10_000);
     expect(surface.bakes).toHaveLength(12);
     expect(host.quiet()).toBe(true);
+  });
+
+  it("places a foam over the void under each land hex on the border, with the atlas only", async () => {
+    const view = zoneView();
+    const { host, renderer, surface } = mount(view);
+    const voidLayer = ((surface.stage.children[0] as Container).children[0] as Container)
+      .children[0] as Container;
+    const foam = voidLayer.children[4] as Container;
+    expect(foam.children).toHaveLength(0);
+    renderer.setLibrary(await groundLibrary());
+    host.run(100);
+    const border = voidFoam(view.tiles, view.void);
+    expect(border.length).toBeGreaterThan(0);
+    expect(foam.children.map((s) => `${s.x},${s.y}`)).toEqual(
+      border.map((t) => `${foamOrigin(t).x},${foamOrigin(t).y}`),
+    );
+    // The same border: the same sprites, nothing placed again.
+    const before = [...foam.children];
+    renderer.setView({ ...view });
+    host.run(100);
+    expect(foam.children).toEqual(before);
+    renderer.setLibrary(null);
+    expect(foam.children).toHaveLength(0);
   });
 
   it("draws the void around the terrain, under the chunks; the background inside; none without", () => {
