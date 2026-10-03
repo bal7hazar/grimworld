@@ -13,7 +13,7 @@ import { DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./ren
 import { drawOverlay, overlayPlan } from "./shapes";
 import type { FrameStats } from "./scheduler";
 import { type SpriteArt, type SpriteLibrary, libraryFrom } from "./sprites";
-import type { Facing, ViewState } from "./view";
+import type { Facing, ViewState, ViewTile } from "./view";
 
 function setup(options: { idle: boolean; library?: SpriteLibrary | null; fixture?: string }) {
   const host = new FakeHost(1000 / 120);
@@ -592,6 +592,27 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     expect(surface.bakes).toHaveLength(8);
   });
 
+  it("rebakes a neighbouring chunk whose foam changes, three steps across its edge", () => {
+    // (14, 7), the last column of chunk (0, 0), is water; (15..18, 7) in chunk (1, 0) are land.
+    const water = (t: ViewTile, at: readonly number[]) =>
+      t.y === 7 && at.includes(t.x) ? { ...t, kind: "wall" as const, ground: "water" as const } : t;
+    const base = zoneView();
+    expect(
+      base.tiles.filter((t) => t.y === 7 && t.x >= 14 && t.x <= 18).map((t) => t.ground),
+    ).toEqual(["grass", "grass", "grass", "grass", "grass"]);
+    const view = { ...base, tiles: base.tiles.map((t) => water(t, [14])) };
+    const { host, surface, renderer } = mount(view);
+    expect(surface.bakes).toHaveLength(6);
+    // (17, 7) turns to water: (16, 7) touches water now, and its foam reaches (14, 7).
+    renderer.setView({ ...view, tiles: base.tiles.map((t) => water(t, [14, 17])) });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(8);
+    // (18, 7), four steps from chunk (0, 0): its own chunk only.
+    renderer.setView({ ...view, tiles: base.tiles.map((t) => water(t, [14, 17, 18])) });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(9);
+  });
+
   it("rebakes every chunk once when the library arrives, and draws its cells", async () => {
     const stats: FrameStats[] = [];
     const { host, surface, renderer } = mount(zoneView(), (s) => stats.push(s));
@@ -638,7 +659,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
   });
 });
 
-/** A library with the ground's two cells (`grass_c`, `water_c`) on a plain-colour texture. */
+/** A library with the ground's cells (`grass_c`, `water_c`, `foam_c`) on a plain-colour texture. */
 async function groundLibrary(): Promise<SpriteLibrary> {
   const base = await syntheticLibrary();
   const cell = (name: string): SpriteArt => ({
@@ -649,5 +670,10 @@ async function groundLibrary(): Promise<SpriteLibrary> {
     scale: 1,
     animations: { still: { textures: [Texture.WHITE], fps: 1, loop: false } },
   });
-  return new Map([...base, ["grass_c", cell("grass_c")], ["water_c", cell("water_c")]]);
+  return new Map([
+    ...base,
+    ["grass_c", cell("grass_c")],
+    ["water_c", cell("water_c")],
+    ["foam_c", { ...cell("foam_c"), cell: { w: 192, h: 192 } }],
+  ]);
 }

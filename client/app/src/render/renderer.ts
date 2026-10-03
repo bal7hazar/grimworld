@@ -30,7 +30,7 @@ import {
   drawWedge,
   type GroundTextures,
 } from "./shapes";
-import { acrossSide, chunkFrame, groundOf } from "./ground";
+import { FOAM_REACH, chunkFrame, groundOf, hexesWithin } from "./ground";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
@@ -94,7 +94,7 @@ interface ChunkBake {
 }
 
 /** The atlas's cells the ground is filled with (CLI-03e's `[[tileset]]`, CLI-03g1). */
-export const GROUND_TILES = { grass: "grass_c", water: "water_c" } as const;
+export const GROUND_TILES = { grass: "grass_c", water: "water_c", foam: "foam_c" } as const;
 
 /** How far the void's bands reach past the terrain, in art px: beyond the furthest zoom's view. */
 export const VOID_REACH = 100_000;
@@ -704,7 +704,8 @@ export class Renderer implements FrameClient {
     const still = (name: string) => this.library?.get(name)?.animations[STILL]?.textures[0] ?? null;
     const grass = still(GROUND_TILES.grass);
     const water = still(GROUND_TILES.water);
-    return grass || water ? { grass, water } : null;
+    const foam = still(GROUND_TILES.foam);
+    return grass || water || foam ? { grass, water, foam } : null;
   }
 
   /**
@@ -836,7 +837,7 @@ export class Renderer implements FrameClient {
   }
 
   /**
-   * Groups the tiles by chunk; a chunk whose tiles' kinds or grounds changed, or whose lip toward a
+   * Groups the tiles by chunk; a chunk whose tiles' kinds or grounds changed, or whose lip or foam toward a
    * neighbouring chunk or the void did, is drawn again, and rebaked. Its frame comes from its
    * tiles' positions only (`chunkFrame`): the ground never changes the textures' size or count.
    */
@@ -860,7 +861,7 @@ export class Renderer implements FrameClient {
       const covered = (t: ViewTile) => (this.covered.has(`${t.x},${t.y}`) ? "c" : "");
       const ground = (t: ViewTile) => groundOf(t)[0];
       const own = group.map((t) => `${t.x},${t.y}${t.kind[0]}${ground(t)}${covered(t)}`).join("");
-      // The lip looks across the chunk's edge: the grounds of the hexes around it join the key.
+      // The lip and the foam look across the chunk's edge: the grounds around it join the key.
       const ring = this.ringOf(id, group)
         .map((t) => around(t)?.[0] ?? "-")
         .join("");
@@ -896,15 +897,18 @@ export class Renderer implements FrameClient {
     }
   }
 
-  /** The hexes next to a chunk's tiles but not in it, kept per chunk while its tiles stay. */
+  /**
+   * The hexes around a chunk's tiles but not in it, as far as its drawing looks: the lip one step,
+   * the foam `FOAM_REACH` steps to a land hex and one more to that hex's water (CLI-03g2). Kept per
+   * chunk while its tiles stay.
+   */
   private ringOf(id: string, group: readonly ViewTile[]): readonly Tile[] {
     const cached = this.rings.get(id);
     if (cached && cached.count === group.length) return cached.ring;
     const inside = new Set(group.map((t) => `${t.x},${t.y}`));
     const ring = new Map<string, Tile>();
     for (const tile of group) {
-      for (let side = 0; side < 6; side++) {
-        const next = acrossSide(tile, side);
+      for (const next of hexesWithin(tile, FOAM_REACH + 1)) {
         const key = `${next.x},${next.y}`;
         if (!inside.has(key)) ring.set(key, next);
       }

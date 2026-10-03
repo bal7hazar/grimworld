@@ -39,6 +39,29 @@ export interface GroundLayer {
   readonly pieces: readonly Piece[];
 }
 
+/** The foam's cell side: the pack's `Water Foam.png` cell, three tiles wide (CLI-03g2). */
+export const FOAM_SIZE = 192;
+
+/**
+ * How many hex steps a foam cell centred under a land hex reaches: its square, `FOAM_SIZE` wide,
+ * overlaps the hexes two steps away and only touches, at most, those three steps away.
+ */
+export const FOAM_REACH = 2;
+
+/**
+ * A part of a water hex under the foam of one land hex that touches water (CLI-03g2, *The method*
+ * §4): the foam cell is centred under the land hex and drawn after the water, before the grass;
+ * the grass covers its inner part, so only its parts over water are planned, each clipped to its
+ * water hex, so a chunk draws only on its own hexes.
+ */
+export interface FoamPiece {
+  /** The land hex the foam is centred under. */
+  readonly source: Tile;
+  /** The foam cell's top-left corner, on whole art pixels. */
+  readonly origin: Cell;
+  readonly points: readonly number[];
+}
+
 /** A land hex's side that faces water: the lip is drawn along it, on the land's side. */
 export interface LipEdge {
   readonly tile: Tile;
@@ -51,6 +74,8 @@ export interface GroundPlan {
   readonly layers: readonly GroundLayer[];
   /** The earth's hexes: a soft fill over the grass (the pack has no path cell). */
   readonly earth: readonly Tile[];
+  /** The foam over the water hexes, after the water layer, before the grass. */
+  readonly foam: readonly FoamPiece[];
   readonly lip: readonly LipEdge[];
   /** The hexes the grid outlines: land only, never over water. */
   readonly grid: readonly Tile[];
@@ -168,6 +193,33 @@ export function hexPieces(tile: Tile): Piece[] {
   return pieces;
 }
 
+/** The top-left corner of the foam cell centred under a hex, rounded to whole art pixels. */
+export function foamOrigin(tile: Tile): Cell {
+  const c = tileToPixel(tile);
+  return { x: Math.round(c.x - FOAM_SIZE / 2), y: Math.round(c.y - FOAM_SIZE / 2) };
+}
+
+/** The hexes within `steps` hex steps of a tile, the tile included, each once. */
+export function hexesWithin(tile: Tile, steps: number): Tile[] {
+  const seen = new Map<string, Tile>([[`${tile.x},${tile.y}`, tile]]);
+  let edge = [tile];
+  for (let step = 0; step < steps; step++) {
+    const next: Tile[] = [];
+    for (const t of edge) {
+      for (let side = 0; side < 6; side++) {
+        const n = acrossSide(t, side);
+        const key = `${n.x},${n.y}`;
+        if (!seen.has(key)) {
+          seen.set(key, n);
+          next.push(n);
+        }
+      }
+    }
+    edge = next;
+  }
+  return [...seen.values()];
+}
+
 function layer(kind: "water" | "grass", hexes: readonly Tile[]): GroundLayer {
   const pieces = hexes.flatMap(hexPieces);
   const cells = new Map<string, Cell>();
@@ -223,11 +275,42 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
     }
     if (tile.kind === "wall" && !covered.has(`${t.x},${t.y}`)) rocks.push(t);
   }
+  // The foam: under every land hex that touches water, seen from each water hex it reaches.
+  const coastal = new Map<string, boolean>();
+  const isCoastal = (tile: Tile): boolean => {
+    const k = `${tile.x},${tile.y}`;
+    let known = coastal.get(k);
+    if (known === undefined) {
+      const ground = at(tile);
+      known =
+        ground !== null &&
+        isLand(ground) &&
+        [0, 1, 2, 3, 4, 5].some((side) => at(acrossSide(tile, side)) === "water");
+      coastal.set(k, known);
+    }
+    return known;
+  };
+  const foam: FoamPiece[] = [];
+  for (const tile of water) {
+    const hex = hexCorners(tileToPixel(tile));
+    for (const source of hexesWithin(tile, FOAM_REACH)) {
+      if (!isCoastal(source)) continue;
+      const origin = foamOrigin(source);
+      const points = clipToRect(
+        hex,
+        origin.x,
+        origin.y,
+        origin.x + FOAM_SIZE,
+        origin.y + FOAM_SIZE,
+      );
+      if (points.length >= 6 && polygonArea(points) > 1e-9) foam.push({ source, origin, points });
+    }
+  }
   const layers = [
     ...(water.length > 0 ? [layer("water", water)] : []),
     ...(grass.length > 0 ? [layer("grass", grass)] : []),
   ];
-  return { layers, earth, lip, grid, rocks, unrevealed };
+  return { layers, earth, foam, lip, grid, rocks, unrevealed };
 }
 
 /**

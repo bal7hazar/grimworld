@@ -67,6 +67,8 @@ function drawRock(g: Graphics, tile: Tile): void {
 export interface GroundTextures {
   readonly grass?: Texture | null;
   readonly water?: Texture | null;
+  /** The foam's still (CLI-03g2); none: no foam, the lip alone marks the coast. */
+  readonly foam?: Texture | null;
 }
 
 export interface TerrainOptions {
@@ -106,6 +108,7 @@ export function drawTerrain(
       const colour = layer.kind === "water" ? COLOURS.water : COLOURS.ground;
       for (const hex of layer.hexes) g.poly(hexCorners(tileToPixel(hex), GROW)).fill(colour);
     }
+    if (layer.kind === "water") drawFoam(g, plan.foam, options.textures?.foam ?? null);
   }
   for (const tile of plan.earth) {
     g.poly(earthHex(tile, plan)).fill({ color: COLOURS.earth, alpha: EARTH_ALPHA });
@@ -126,6 +129,22 @@ export function drawTerrain(
   }
   for (const tile of plan.rocks) drawRock(g, tile);
   return g;
+}
+
+/**
+ * The foam (CLI-03g2): each piece filled from the foam's still, placed at its cell's corner in
+ * global texture space, so a cell drawn across several water hexes is one ring. The pieces of two
+ * neighbouring land hexes overlap, as the pack composes its shore. Without the still, nothing.
+ */
+function drawFoam(g: Graphics, foam: GroundPlan["foam"], texture: Texture | null): void {
+  if (!texture) return;
+  for (const piece of foam) {
+    g.poly([...piece.points]).fill({
+      texture,
+      textureSpace: "global",
+      matrix: new Matrix().translate(piece.origin.x, piece.origin.y),
+    });
+  }
 }
 
 /**
@@ -166,7 +185,7 @@ function earthHex(tile: Tile, plan: GroundPlan): number[] {
   return points;
 }
 
-/** The lip: a darker line on the land's side of every land–water edge (lot 1; lot 2's foam). */
+/** The lip: a darker line on the land's side of every land–water edge, over the foam's inner edge. */
 export const LIP = { width: 3, alpha: 0.55 } as const;
 
 function drawLip(g: Graphics, lip: GroundPlan["lip"]): void {
