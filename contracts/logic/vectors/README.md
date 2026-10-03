@@ -112,21 +112,21 @@ value for `Some`, `1` for `None`; an `i8` as a felt, `-1` as `P − 1`).
 | `fn` | `case` | `ok` |
 |---|---|---|
 | `word` | `entropy`, `instance_id`, `chunk` | `EntropyTrait::word`: `derive(entropy, domain(instance_id, chunk, REVEAL), 0)` |
-| `feed` | `entropy`, `chunk`, `side` (0 West, 1 East, 2 South, 3 North, 4 none) | `EntropyTrait::feed(entropy, reveal_fact(chunk, side))`: `entropy + poseidon('fact:reveal', chunk, side)` |
+| `feed` | `entropy`, then a fact's three felts (a tag, two values) | `EntropyTrait::feed(entropy, fact)`: `entropy + poseidon(fact)` (no reveal feeds the entropy: audit #348, major 1) |
 | `base` | `word`, `biome` (1 meadow … 4 ruin) | `BoardTrait::base`: the base's floor bitmap (1 = floor, interior only) |
 | `sight` | `x`, `y`, `width`, `height` (a global tile, a location in chunks) | `SightTrait::chunks`: the chunks within 6, the tile's own first, then by index |
 | `member` | `tile`, `k` (0–18), `odd` (the tile's global row parity) | `PackPlacementTrait::member`: `Option<u8>`, the chunk's tile at `OFFSETS[k]` |
-| `reveal` | `Site`, `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`), `chunks` (`Span<(u8, u8)>`, chunk and side entered) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
+| `reveal` | `Site`, `Progress`, `instance_id`, `known` (`Span<(u8, Terrain)>`; in a dungeon every revealed chunk), `chunks` (`Span<u8>`) | `RevealTrait::reveal`: the `Progress` after, then the chunks revealed, `Span<Revealed>` (chunk, `Terrain` (walls 1 = wall, edges), `Features` (2 `PackPlacement`, 3 `Object`, `touched`)) |
 
 `reveal` covers every computation the client repeats: the chunk's word, the base, the smoothing
 with the margins (`hexx`'s `CaverTrait::smooth`, B4/S2, one generation), the ring's decisions and
 openings, the lines to the spine, the cut, `keep_component`, the quotas' draws, the bands and the
 placement (the draws of `hexx`'s `RngTrait` from `mix(word, k)`: 2 quotas, 3 placement, 4 the
-ring), and the progress (revealed set, count, open edges, quotas left, the entropy fed).
+ring), and the progress (revealed set, count, open edges, quotas left; the entropy unchanged).
 
 The cases (197):
 - `word` (18): 3 entropies (0, a short string, `P − 1`) × 2 instance ids × 3 chunks (0, 112, 224);
-  `feed` (15): the 3 entropies × the 5 sides of chunk 17; `base` (12): 3 words × the 4 biomes;
+  `feed` (15): the 3 entropies × 5 facts `('fact:test', 17, s)`; `base` (12): 3 words × the 4 biomes;
   `sight` (12): corners, sides, centres and edges of chunks in a 15 × 15 location; `member` (114):
   the 19 offsets from tiles 112, 97 and 16, both parities.
 - `reveal`, part 1 (15): each biome on a 3 × 3 zone, chunk 16 (an odd chunk row) with nothing known,

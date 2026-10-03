@@ -235,7 +235,7 @@ slot is reached only through a gate that `create` or a reveal rewrites.
 | Record | Reached through | Rewritten at |
 |---|---|---|
 | `headers[slot]` | the instance id: `header.generation` must equal the id's generation, else the call is refused (`Closed`) and views answer nothing | `create` (generation + 1, sequence 0, clock 0, counts reset) |
-| `entropy`, `revealed`, `quotas` | the header | `create` (entry draw and the entry reveal's facts; the chunks sight touches from the entry tile, ENG-05; the location's quotas less what the entry reveal placed) |
+| `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the chunks sight touches from the entry tile, ENG-05; the location's quotas less what the entry reveal placed) |
 | `tasks[(slot, page)]` | `header.tasks` (pages beyond `⌈tasks / 4⌉` are never read) | `create`, only the pages it needs: a page never used before is new then (§9.3) |
 | `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words; **every generation-changing path** (`create`, and `leave` through a gate to a location) writes every transient word for the new clock 0: state from the snapshot, timers with no activation (`act_slot` 255, deadlines 0), effects and recharges empty (fix loops 2 and 3, F-12, F-14) |
 | `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`RosterTrait::mask`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
@@ -435,8 +435,10 @@ before personalisation); `MemberBar` refuses more (`MAX_UNGUARDED_ARMOR`), an `i
   from the pack's: by axial `dr`, then `dq` (`q = x − ⌊y/2⌋`, global), independent of the row's
   parity, `k` 9 the pack's tile (`PackPlacementTrait::member`). The reveal writes a chunk's two
   words, the revealed set, the header's revealed count, the quotas (its open edges and what each
-  quota has left) and the entropy (`entropy + poseidon('fact:reveal', chunk, side)`, the reveal's
-  fact) at `create`, `leave` to a location and, from ENG-07, in a batch.
+  quota has left) at `create`, `leave` to a location and, from ENG-07, in a batch. **A reveal
+  feeds nothing into the entropy** (audit #348, major 1, the orchestrator's ruling of 2026-10-03):
+  each chunk's word reads it, so a fed reveal would make the order of moves a free choice over every
+  later chunk. In a dungeon the engine reads every revealed chunk's terrain (its frontier).
 - **Occupancy is not stored.** The window's occupancy is the tiles of the members and of the
   goblins in it (the roster's, and the untouched ones of the chunks it overlaps, derived from the
   pack placements), set with one table-driven addition each (E: 70 goblins at most, an estimate of

@@ -27,7 +27,7 @@ pub mod RevealLibrary {
             progress: Progress,
             instance_id: felt252,
             known: Span<(u8, Terrain)>,
-            chunks: Span<(u8, u8)>,
+            chunks: Span<u8>,
         ) -> (Progress, Span<(u8, felt252, felt252)>) {
             let mut progress = progress;
             let revealed = RevealTrait::reveal(@site, ref progress, instance_id, known, chunks);

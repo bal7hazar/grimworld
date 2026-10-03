@@ -141,8 +141,9 @@ pub trait IFlattenLibrary<T> {
 /// `IRevealLibraryLibraryDispatcher`, the class hash being its configuration.
 #[starknet::interface]
 pub trait IRevealLibrary<T> {
-    /// Reveals `chunks` (`(chunk, side entered)`, in order) of instance `instance_id` in the
-    /// location `site`, from `progress`, with the terrain of every revealed neighbour in `known`
+    /// Reveals `chunks` (in order) of instance `instance_id` in the location `site`, from
+    /// `progress`, with the terrain of every revealed neighbour in `known` (in a dungeon, of every
+    /// revealed chunk)
     /// (`types::reveal::RevealTrait::reveal`): the progress after them, and the chunks revealed as
     /// `(chunk, terrain, features)`, their two words packed as stored (ENG-01 §3.2).
     fn reveal(
@@ -151,6 +152,6 @@ pub trait IRevealLibrary<T> {
         progress: Progress,
         instance_id: felt252,
         known: Span<(u8, Terrain)>,
-        chunks: Span<(u8, u8)>,
+        chunks: Span<u8>,
     ) -> (Progress, Span<(u8, felt252, felt252)>);
 }

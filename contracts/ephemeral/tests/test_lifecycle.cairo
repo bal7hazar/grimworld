@@ -22,7 +22,7 @@ use grimworld_ephemeral::systems::instances::{
     IInstancesSafeDispatcherTrait, InstanceView,
 };
 use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
-use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
+use grimworld_logic::fate::{ENTRY, derive, domain};
 use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
@@ -537,11 +537,8 @@ fn test_create_first_entry() {
     assert(header == expected, 'header');
     let draw = domain(id.into(), 0, ENTRY);
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
-    // The entry draw, then the entry chunk's fact (the chunk, no side: ENG-05 Open question 2).
-    let drawn = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
-    assert(
-        entropy == EntropyTrait::feed(drawn, EntropyTrait::reveal_fact(0, 4)), 'entry draw, fed',
-    );
+    // The entry draw alone: a reveal feeds nothing (audit #348, major 1).
+    assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
     assert(draws(world) == 1, 'one draw');
     assert(
         read(world.instances, key(selector!("revealed"), array![1])) == LIVE + 1,
@@ -627,7 +624,7 @@ fn test_create_without_tasks() {
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 60191562)] // ceil(1.05 × 57325297 measured)
+#[available_gas(l2_gas: 60138794)] // ceil(1.05 × 57275041 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -985,10 +982,7 @@ fn test_leave_to_a_location() {
     );
     let draw = domain(next.into(), 0, ENTRY);
     let entropy = read(world.instances, key(selector!("entropy"), array![1]));
-    let drawn = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
-    assert(
-        entropy == EntropyTrait::feed(drawn, EntropyTrait::reveal_fact(112, 4)), 'entry draw, fed',
-    );
+    assert(entropy == derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0), 'entry draw');
     assert(draws(world) == 2, 'one more draw');
     let expected = Reported {
         count: 1,
@@ -1316,7 +1310,7 @@ fn test_entry_reveal_through_the_engine() {
         @site, derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0),
     );
     let revealed = RevealTrait::reveal(
-        @site, ref progress, id.into(), array![].span(), array![(16, 4), (15, 4)].span(),
+        @site, ref progress, id.into(), array![].span(), array![16, 15].span(),
     );
     assert(revealed.len() == 2, 'two chunks');
     for chunk in revealed.span() {
@@ -1410,7 +1404,7 @@ fn create_gas(gate: u16, chunks: u8) -> u128 {
 }
 
 #[test]
-#[available_gas(l2_gas: 110454845)] // ceil(1.05 × 105195090 measured)
+#[available_gas(l2_gas: 110226220)] // ceil(1.05 × 104977352 measured)
 fn test_cost_create_reveals() {
     println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
     println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));

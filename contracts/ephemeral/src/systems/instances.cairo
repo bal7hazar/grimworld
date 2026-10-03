@@ -235,7 +235,7 @@ pub mod Instances {
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::reveal::board::BoardTrait;
-    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site, side as reveal_side};
+    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
         ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
     };
@@ -787,14 +787,10 @@ pub mod Instances {
                     chunks.span(),
                 );
             let progress = ProgressTrait::new(@site, derive(word, draw, 0));
-            let mut entered: Array<(u8, u8)> = array![];
-            for chunk in chunks.span() {
-                entered.append((*chunk, reveal_side::NONE));
-            }
             let (progress, revealed) = IRevealLibraryLibraryDispatcher {
                 class_hash: self.get_reveal(),
             }
-                .reveal(site, progress, id.into(), array![].span(), entered.span());
+                .reveal(site, progress, id.into(), array![].span(), chunks.span());
             // [Effect] The instance's words, each once
             let header = HeaderTrait::new(
                 generation,

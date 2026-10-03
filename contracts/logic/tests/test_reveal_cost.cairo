@@ -16,7 +16,7 @@ use grimworld_logic::models::location::biome;
 use grimworld_logic::models::pack::{Pack, PackCaste};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, kind as quota};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable};
-use grimworld_logic::types::reveal::{Progress, ProgressTrait, RevealTrait, Site, side};
+use grimworld_logic::types::reveal::{Progress, ProgressTrait, RevealTrait, Site};
 use snforge_std::{ContractClassTrait, DeclareResultTrait, declare};
 
 const INSTANCE: felt252 = 0x100000001;
@@ -97,7 +97,7 @@ fn known(site: @Site) -> Span<(u8, Terrain)> {
         ref progress,
         INSTANCE,
         array![].span(),
-        array![(1, side::NONE), (15, side::NONE)].span(),
+        array![1, 15].span(),
     );
     array![(1, *out[0].terrain), (15, *out[1].terrain)].span()
 }
@@ -110,48 +110,48 @@ fn test_cost_reveal_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 3751207)] // ceil(1.05 × 3572578 measured)
+#[available_gas(l2_gas: 3741367)] // ceil(1.05 × 3563206 measured)
 fn test_cost_reveal_worst_meadow() {
     let site = site(biome::MEADOW, true);
     let mut progress = progress(@site);
     RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![(16, side::NONE)].span(),
+        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
     );
 }
 
 #[test]
-#[available_gas(l2_gas: 3864167)] // ceil(1.05 × 3680159 measured)
+#[available_gas(l2_gas: 3854327)] // ceil(1.05 × 3670787 measured)
 fn test_cost_reveal_worst_forest() {
     let site = site(biome::FOREST, true);
     let mut progress = progress(@site);
     RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![(16, side::NONE)].span(),
+        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
     );
 }
 
 #[test]
-#[available_gas(l2_gas: 3890424)] // ceil(1.05 × 3705165 measured)
+#[available_gas(l2_gas: 3880583)] // ceil(1.05 × 3695793 measured)
 fn test_cost_reveal_worst_cave() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
     RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![(16, side::NONE)].span(),
+        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
     );
 }
 
 #[test]
-#[available_gas(l2_gas: 3814261)] // ceil(1.05 × 3632629 measured)
+#[available_gas(l2_gas: 3804420)] // ceil(1.05 × 3623257 measured)
 fn test_cost_reveal_worst_ruin() {
     let site = site(biome::RUIN, true);
     let mut progress = progress(@site);
     RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![(16, side::NONE)].span(),
+        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
     );
 }
 
 // The typical case's baseline: its known sides revealed, nothing more.
 #[test]
-#[available_gas(l2_gas: 6119937)] // ceil(1.05 × 5828511 measured)
+#[available_gas(l2_gas: 4573814)] // ceil(1.05 × 4356013 measured)
 fn test_cost_reveal_typical_baseline() {
     let site = site(biome::FOREST, false);
     let _known = known(@site);
@@ -159,18 +159,18 @@ fn test_cost_reveal_typical_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 8664184)] // ceil(1.05 × 8251603 measured)
+#[available_gas(l2_gas: 7071177)] // ceil(1.05 × 6734454 measured)
 fn test_cost_reveal_typical() {
     let site = site(biome::FOREST, false);
     let known = known(@site);
     let mut progress = progress(@site);
     progress.revealed = 2 + 0x8000;
     progress.count = 2;
-    RevealTrait::reveal(@site, ref progress, INSTANCE, known, array![(16, side::SOUTH)].span());
+    RevealTrait::reveal(@site, ref progress, INSTANCE, known, array![16].span());
 }
 
 #[test]
-#[available_gas(l2_gas: 10878283)] // ceil(1.05 × 10360269 measured)
+#[available_gas(l2_gas: 10862494)] // ceil(1.05 × 10345232 measured)
 fn test_cost_reveal_three() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
@@ -179,30 +179,30 @@ fn test_cost_reveal_three() {
         ref progress,
         INSTANCE,
         array![].span(),
-        array![(16, side::NONE), (17, side::EAST), (31, side::SOUTH)].span(),
+        array![16, 17, 31].span(),
     );
     assert(out.len() == 3, 'three');
 }
 
 #[test]
-#[available_gas(l2_gas: 3902719)] // ceil(1.05 × 3716875 measured)
+#[available_gas(l2_gas: 3892879)] // ceil(1.05 × 3707503 measured)
 fn test_cost_library_baseline() {
     let _class = declare("RevealLibrary").unwrap().contract_class();
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
     RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![(16, side::NONE)].span(),
+        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
     );
 }
 
 #[test]
-#[available_gas(l2_gas: 4476177)] // ceil(1.05 × 4263025 measured)
+#[available_gas(l2_gas: 4464614)] // ceil(1.05 × 4252013 measured)
 fn test_cost_library_call() {
     let class = declare("RevealLibrary").unwrap().contract_class();
     let library = IRevealLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let site = site(biome::CAVE, true);
     let progress = progress(@site);
     let (_, out) = library
-        .reveal(site, progress, INSTANCE, array![].span(), array![(16, side::NONE)].span());
+        .reveal(site, progress, INSTANCE, array![].span(), array![16].span());
     assert(out.len() == 1, 'one');
 }
