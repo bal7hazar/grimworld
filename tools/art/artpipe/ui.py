@@ -6,7 +6,9 @@ describes the lattice (`pieces.columns`, `pieces.rows`: source bounds in px) and
 the pieces contiguous, the pack's pixels untouched. The transparent outer margin is then trimmed and
 recorded as the element's `outset`. An element with states (`states = { pressed = "<file>" }`) is
 trimmed by the margins common to every state, so all its images have one size and a pressed face
-keeps its place: lower by `drop` px. The client cuts each frame from the page at the device's scale
+keeps its place: lower by `drop` px. A `recolour` map (CLI-03l) changes exact colours of the
+source before anything else, every opaque colour named (the energy bar's blue fill from the pack's
+red one). The client cuts each frame from the page at the device's scale
 and lays it out with CSS `border-image` (`slice`, `content` and `fill` below).
 """
 
@@ -22,6 +24,11 @@ SIDES = 4                   # insets are [top, right, bottom, left], in art px
 def _inset(value):
     return (isinstance(value, list) and len(value) == SIDES
             and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in value))
+
+
+def _hex(value):
+    return isinstance(value, str) and len(value) == 7 and value[0] == "#" and all(
+        c in "0123456789abcdef" for c in value[1:])
 
 
 def _bounds(value):
@@ -60,6 +67,11 @@ def problems(manifest, taken):
         if e.get("states") is not None and (not isinstance(e["states"], dict) or set(
                 e["states"]) - {"pressed"}):
             out.append(f"[[ui]] {name}: states {e['states']!r}, only `pressed` is known")
+        recolour = e.get("recolour")
+        if recolour is not None and not (isinstance(recolour, dict) and recolour and all(
+                _hex(k) and _hex(v) for k, v in recolour.items())):
+            out.append(f"[[ui]] {name}: recolour {recolour!r} is not a map of \"#rrggbb\" colours "
+                       "(lower case)")
         if ("drop" in e) != ("pressed" in (e.get("states") or {})):
             out.append(f"[[ui]] {name}: `drop` goes with a pressed state, and only with one")
         elif "drop" in e and not (isinstance(e["drop"], int) and e["drop"] >= 0):
@@ -77,6 +89,26 @@ def problems(manifest, taken):
             if not (_bounds(rows) and len(rows) == (3 if kind == "nine" else 1)):
                 out.append(f"[[ui]] {name}: pieces.rows {rows!r} is not "
                            f"{3 if kind == 'nine' else 1} [y0, y1] bounds")
+    return out
+
+
+def recolour(rgba, colours, name):
+    """`rgba` with each opaque colour replaced by its value in `colours` ({"#rrggbb": "#rrggbb"}),
+    alpha kept. Refuses (SystemExit) a map that leaves an opaque colour of the source unmapped (no
+    stray pixel of the old colour) or names a colour the source does not have."""
+    solid = rgba[..., 3] > 0
+    have = {"#%02x%02x%02x" % tuple(int(v) for v in c)
+            for c in np.unique(rgba[solid][:, :3], axis=0)}
+    unmapped, absent = sorted(have - set(colours)), sorted(set(colours) - have)
+    if unmapped:
+        raise SystemExit(f"[[ui]] {name}: recolour leaves {', '.join(unmapped)} unmapped")
+    if absent:
+        raise SystemExit(f"[[ui]] {name}: recolour names {', '.join(absent)}, which the source "
+                         "does not have")
+    out = rgba.copy()
+    for old, new in colours.items():
+        at = solid & (rgba[..., :3] == [int(old[i:i + 2], 16) for i in (1, 3, 5)]).all(axis=2)
+        out[at, :3] = [int(new[i:i + 2], 16) for i in (1, 3, 5)]
     return out
 
 
@@ -150,11 +182,14 @@ def element(e, read, tolerance):
     no gutter extrusion: the client cuts exact rectangles) plus its `ui` metadata, and its report
     line. `read(file)` gives a sheet as an RGBA array. Refuses (SystemExit) a sheet with another
     layout than described, a pressed sheet of another layout than the regular one, a `drop` that
-    is not the faces' difference, an inset outside the image and a non-uniform stretched edge."""
+    is not the faces' difference, an inset outside the image, a non-uniform stretched edge and a
+    `recolour` that leaves a colour unmapped or names one the source lacks."""
     name, kind = e["name"], e["kind"]
     fill = e.get("fill", "stretch")
     files = {REGULAR: e["file"], **(e.get("states") or {})}
     sheets = {state: read(f) for state, f in files.items()}
+    if e.get("recolour"):
+        sheets = {state: recolour(rgba, e["recolour"], name) for state, rgba in sheets.items()}
     shape = sheets[REGULAR].shape
     images = {}
     for state, rgba in sheets.items():
@@ -205,6 +240,6 @@ def element(e, read, tolerance):
               "anims": [{"name": state, "fps": 1, "loop": False, "cells": [img]}
                         for state, img in images.items()]}
     report = {"role": ROLE, "origin": e["origin"], "kind": kind, "fill": fill, "cell": [w, h],
-              "outset": common, "edge": round(worst, 3),
+              "outset": common, "content": content, "edge": round(worst, 3),
               "centre": {state: centre_colour(img, slice_) for state, img in images.items()}}
     return sprite, report

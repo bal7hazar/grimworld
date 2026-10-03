@@ -565,7 +565,15 @@ class RealManifest(unittest.TestCase):
         self.assertEqual(set(entries), {
             "paper", "paper_dark", "scroll", "wood", "button_blue", "button_red",
             "ribbon_big_blue", "ribbon_big_red", "ribbon_small_yellow", "round_blue",
-            "square_blue", "icon_back", "icon_close", "icon_gold"})
+            "square_blue", "icon_back", "icon_close", "icon_gold",
+            # CLI-03l, the HUD
+            "bar_big", "bar_big_fill", "bar_small", "bar_small_fill_energy", "icon_sword",
+            "portrait_vanguard", "portrait_warden", "portrait_cleric", "cursor_arrow",
+            "cursor_hand"})
+        # The energy fill is the small red fill in the big blue button's face colour.
+        self.assertEqual(entries["bar_small_fill_energy"]["recolour"], {"#ff3e3e": "#41919d"})
+        self.assertEqual([e["name"] for e in entries.values() if "recolour" in e],
+                         ["bar_small_fill_energy"])
         for name, e in entries.items():
             self.assertTrue(e["file"].startswith("UI Elements/UI Elements/"), name)
             if name.startswith(("button_", "round_", "square_")):
@@ -1016,6 +1024,69 @@ class Interface(unittest.TestCase):
         self.assertEqual(sprite["ui"]["slice"], [0, 0, 0, 0])
         self.assertEqual(sprite["ui"]["outset"], [4, 3, 4, 3])
 
+    def test_a_still_with_a_margin_is_trimmed_and_records_it(self):
+        """CLI-03l: a cursor or a portrait loses its transparent margin; one without keeps its size."""
+        full = np.full((12, 10, 4), (30, 40, 50, 255), np.uint8)
+        e = {"name": "icon", "role": "ui", "kind": "still", "file": "i.png", "origin": "x"}
+        sprite, _ = ui.element(e, lambda f: full, 0.15)
+        self.assertEqual(sprite["ui"]["outset"], [0, 0, 0, 0])
+        self.assertTrue((sprite["anims"][0]["cells"][0] == full).all())
+
+    @staticmethod
+    def fill(rows=((200, 30, 30), (255, 62, 62), (178, 34, 73))):
+        """A 16 x 8 bar fill: `rows` of colours, every column the same, in a transparent margin."""
+        img = np.zeros((8, 16, 4), np.uint8)
+        for y, colour in enumerate(rows):
+            img[2 + y, :] = (*colour, 255)
+        return img
+
+    def test_a_recolour_maps_every_opaque_colour(self):
+        sheet = self.fill()
+        e = {"name": "fill_blue", "role": "ui", "kind": "still", "file": "f.png", "origin": "x",
+             "recolour": {"#c81e1e": "#000080", "#ff3e3e": "#41919d", "#b22249": "#4a6982"}}
+        sprite, report = ui.element(e, lambda f: sheet, 0.15)
+        img = sprite["anims"][0]["cells"][0]
+        self.assertEqual(img.shape, (3, 16, 4))
+        self.assertEqual([tuple(int(v) for v in img[y, 5]) for y in range(3)],
+                         [(0, 0, 128, 255), (65, 145, 157, 255), (74, 105, 130, 255)])
+        self.assertTrue((img == img[:, :1]).all())             # every column still the same
+        self.assertEqual(sprite["ui"]["outset"], [2, 0, 3, 0])
+        self.assertTrue((sheet[2, 0, :3] == (200, 30, 30)).all())   # the source is not changed
+
+    def test_a_recolour_leaving_a_colour_or_naming_an_absent_one_is_refused(self):
+        sheet = self.fill()
+        e = {"name": "fill_blue", "role": "ui", "kind": "still", "file": "f.png", "origin": "x",
+             "recolour": {"#ff3e3e": "#41919d", "#b22249": "#4a6982"}}
+        with self.assertRaises(SystemExit) as err:
+            ui.element(e, lambda f: sheet, 0.15)
+        self.assertIn("recolour leaves #c81e1e unmapped", str(err.exception))
+        e["recolour"] = {"#c81e1e": "#000080", "#ff3e3e": "#41919d", "#b22249": "#4a6982",
+                         "#123456": "#000000"}
+        with self.assertRaises(SystemExit) as err:
+            ui.element(e, lambda f: sheet, 0.15)
+        self.assertIn("recolour names #123456, which the source does not have", str(err.exception))
+
+    def test_a_bar_three_slice_has_a_uniform_middle_and_its_trough_as_content(self):
+        """The small bar's layout (CLI-03l): two ends and a middle on the lattice, the middle the
+        same in every column; the edge rule passes it, and refuses a textured middle."""
+        sheet = np.zeros((12, 40, 4), np.uint8)
+        for x0 in (0, 16, 32):
+            sheet[2:10, x0:x0 + 8] = (22, 28, 46, 255)          # the ink frame
+            sheet[4:7, x0:x0 + 8] = (91, 72, 72, 255)           # the trough
+        sheet[4:7, 0:3] = sheet[4:7, 37:40] = (22, 28, 46, 255)  # the ends close it
+        e = self.entry(kind="three", pieces={"columns": self.LATTICE["columns"],
+                                             "rows": [[0, 12]]}, slice=[0, 4, 0, 4],
+                       content=[2, 3, 3, 3])
+        sprite, report = ui.element(e, lambda f: sheet, 0.15)
+        self.assertEqual(sprite["anims"][0]["cells"][0].shape, (8, 24, 4))
+        self.assertEqual(report["edge"], 0.0)
+        self.assertEqual(sprite["ui"]["content"], [2, 3, 3, 3])
+        sheet[4:7, 20] = (255, 255, 255, 255)                   # a knot in the middle's wood
+        with self.assertRaises(SystemExit):
+            ui.element(e, lambda f: sheet, 0.15)
+        sprite, _ = ui.element({**e, "fill": "round"}, lambda f: sheet, 0.15)
+        self.assertEqual(sprite["ui"]["fill"], "round")
+
     def test_ui_frames_land_only_on_ui_pages(self):
         sheet = self.sheet()
         element, _ = ui.element(self.entry(), lambda f: sheet, 0.15)
@@ -1073,6 +1144,14 @@ class Interface(unittest.TestCase):
             "[[ui]] b: content None is not [top, right, bottom, left]",
             "[[ui]] c: states {'hover': 'h.png'}, only `pressed` is known",
             "[[ui]] c: a three-slice has left and right insets only"])
+
+    def test_ui_problems_of_a_recolour(self):
+        still = {"name": "f", "role": "ui", "kind": "still", "file": "f.png", "origin": "x"}
+        for bad in ({}, {"#FF3E3E": "#41919d"}, {"#ff3e3e": "blue"}, ["#ff3e3e"]):
+            self.assertEqual(ui.problems({"ui": [{**still, "recolour": bad}]}, set()), [
+                f"[[ui]] f: recolour {bad!r} is not a map of \"#rrggbb\" colours (lower case)"])
+        good = {**still, "recolour": {"#ff3e3e": "#41919d"}}
+        self.assertEqual(ui.problems({"ui": [good]}, set()), [])
 
 
 @unittest.skipIf(np is None, "needs the venv's NumPy and Pillow")

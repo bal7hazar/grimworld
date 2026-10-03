@@ -708,3 +708,85 @@ role = "ui"
 kind = "still"
 file = "UI Elements/UI Elements/Icons/Icon_03.png"
 origin = "Icon 03, the gold coin"
+
+# The HUD (CLI-03l): the bars, the adrenaline's sword, the portraits and the desktop's cursors. The
+# client loads them apart from the chrome above: a missing one drops only the HUD to its plain look.
+
+[[ui]]
+name = "bar_big"
+role = "ui"
+kind = "three"
+fill = "round"   # the middle piece is wood grain: repeated, not stretched (the edge rule refuses it)
+file = "UI Elements/UI Elements/Bars/BigBar_Base.png"
+origin = "Big bar, the frame"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64]] }
+slice = [0, 24, 0, 24]
+content = [11, 11, 16, 11]   # the trough, where the fill lies (the fill's own rows of the sheet)
+
+[[ui]]
+name = "bar_big_fill"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Bars/BigBar_Fill.png"
+origin = "Big bar, the red fill"
+
+[[ui]]
+name = "bar_small"
+role = "ui"
+kind = "three"
+fill = "stretch"
+file = "UI Elements/UI Elements/Bars/SmallBar_Base.png"
+origin = "Small bar, the frame"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64]] }
+slice = [0, 15, 0, 15]
+content = [8, 10, 8, 10]
+
+[[ui]]
+name = "bar_small_fill_energy"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Bars/SmallBar_Fill.png"
+origin = "Small bar, the fill recoloured blue (the big blue button's face)"
+recolour = { "#ff3e3e" = "#41919d" }
+
+[[ui]]
+name = "icon_sword"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Icons/Icon_05.png"
+origin = "Icon 05, the sword"
+
+[[ui]]
+name = "portrait_vanguard"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Human Avatars/Avatars_01.png"
+origin = "Avatar 01, blue: the plumed great helm (the Warrior)"
+
+[[ui]]
+name = "portrait_warden"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Human Avatars/Avatars_03.png"
+origin = "Avatar 03, blue: the nasal helm with a small plume (the Archer)"
+
+[[ui]]
+name = "portrait_cleric"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Human Avatars/Avatars_04.png"
+origin = "Avatar 04, blue: the curly-haired, tonsured head (the Monk)"
+
+[[ui]]
+name = "cursor_arrow"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Cursors/Cursor_01.png"
+origin = "Cursor 01, the arrow"
+
+[[ui]]
+name = "cursor_hand"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Cursors/Cursor_02.png"
+origin = "Cursor 02, the pointing hand"
