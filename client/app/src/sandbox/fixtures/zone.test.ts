@@ -43,3 +43,29 @@ describe("the seed's zone as a fixture (CLI-03c)", () => {
     expect(kindAt(state.world.terrain, { x: 3, y: 7 })).toBe("unrevealed");
   });
 });
+
+describe("the zone's ground (CLI-03g1, AC-2)", () => {
+  const world = zoneWorld(globalTile(0, 105));
+  const { terrain } = world;
+
+  it("grass inside the outline, water and wall outside it; the void is water", () => {
+    const ground = terrain.ground!;
+    expect(ground).toHaveLength(terrain.width * terrain.height);
+    const counts = { grass: 0, water: 0, earth: 0 };
+    for (let y = 0; y < terrain.height; y++) {
+      for (let x = 0; x < terrain.width; x++) {
+        const i = y * terrain.width + x;
+        const inside = insideOutline(2, { x, y });
+        expect(ground[i], `${x},${y}`).toBe(inside ? "grass" : "water");
+        if (!inside) {
+          expect(terrain.kinds[i]).toBe("wall");
+          expect(terrain.hidden[i]).toBe("wall");
+        }
+        counts[ground[i]!] += 1;
+      }
+    }
+    expect(counts.water).toBeGreaterThan(0);
+    expect(counts.earth).toBe(0);
+    expect(world.void).toBe("water");
+  });
+});

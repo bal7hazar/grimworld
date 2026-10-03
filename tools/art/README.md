@@ -107,8 +107,9 @@ the reference.
 | File | Content |
 |---|---|
 | `atlas-N.png`, `atlas-N.json` | Atlas pages, at most 2048 × 2048. The JSON is TexturePacker "hash" format with `animations`, ready for PixiJS 8. A sprite never straddles two pages |
-| `sprites.json` | Index: for each sprite its page, cell size, baseline, animations (frames, fps, loop) |
-| `report.json` | Per sprite: source, cell, frames, height (source, target, result), page |
+| `atlas-ui-N.png`, `atlas-ui-N.json` | The interface's pages (CLI-03i): `ui` frames only, same format; the map never loads them (*UI elements*) |
+| `sprites.json` | Index: `pages` (each with `json`, `image`, size and `group`: `world` for the map's, `ui` for the interface's), and for each sprite its page, cell size, baseline, animations (frames, fps, loop), and for an interface element its `ui` slices |
+| `report.json` | Per sprite: source, cell, frames, height (source, target, result), page; per interface element its kind, fill, outset, edge uniformity and centre colour per state |
 | `preview.html` | Every animation playing, with cell / baseline / anchor guides, zoom, mirror, background. Open it in a browser |
 
 Names: frames are `<sprite>/<animation>/<nn>` (`runt/attack/03`), animations `<sprite>/<animation>`
@@ -178,7 +179,7 @@ frame rates (12 to 15, ADR-0003) and looping. To change a sprite's height, edit 
 `[height]`: a number resamples it, `"native"` keeps the pack's drawing. The `slinger` is a
 placeholder (no goblin slinger exists); the Arcanist has no sprite (Q-12) and is left out.
 
-## Buildings, props and tiles: still sprites (CLI-03c, CLI-03e)
+## Buildings, props and tiles: still sprites (CLI-03c, CLI-03e, CLI-03g2)
 
 The pack's buildings are **single images**, not strips. A `[[still]]` entry of `manifest.toml` names
 one (`name`, `role = "building"`, `file`: its path in the pack, `origin`). The build makes it one
@@ -200,19 +201,27 @@ The manifest lists the eight Blue buildings (`castle`, `barracks`, `archery`, `m
 (no idle animation in a hub): `frame` is the cell's index from the left, `cell = [width, height]`
 its size, which may be non-square (the trees' cells are 192 × 256); `cell` defaults to the strip's
 height, square. Without `frame` and `cell` the whole image is the still. The cell is then trimmed
-and anchored at its base like any still.
+and anchored at its base like any still. The zone's wall hexes draw the same props as their
+obstacle objects (CLI-03h): `rock1`–`rock4`, `bush1`–`bush4`, `stump1`–`stump4`, `tree1`–`tree4`,
+one per hex chosen by a hash of its coordinates (`client/app/src/render/obstacles.ts`,
+`OBSTACLES`); without them the zone draws its shaped rocks.
 
 **Tiles** (CLI-03e): a `[[tileset]]` entry (`name`, `role = "tile"`, `file`, `origin`, and
 `cells = { <cell> = [column, row] }`) cuts named **64 × 64** cells of a sheet of
-`Terrain/Tileset/`. Each cell becomes the sprite `<name>_<cell>` (`grass_c`, `grass_nw`, …) with one
+`Terrain/Tileset/`, or square cells of another side given by the entry's optional `cell` (in px;
+CLI-03g2), the column and row then counted in cells of that side. Each cell becomes the sprite `<name>_<cell>` (`grass_c`, `grass_nw`, …) with one
 animation `still` of one frame. A tile is packed **untrimmed**, at native size (an edge cell keeps
 its transparent part, so cells laid side by side meet exactly), anchored at its **top-left corner**
 (`anchor` = (0, 0)), and its edge pixels are **extruded** into the gutter around it (half the atlas
 padding), so a scaled scene that samples just outside a cell finds the cell's own edge: no seam.
-The build checks every tile's frame is exactly 64 × 64, untrimmed, at offset (0, 0). The manifest
-cuts the 3 × 3 flat-ground autotile of `Tilemap_color1.png` (`grass_nw` … `grass_se`, the centre
-`grass_c`; the first colour variant, proposed for the owner's eye) and the flat water
-(`water_c`).
+The build checks every tile's frame is exactly its entry's cell (64 × 64 by default), untrimmed,
+at offset (0, 0). The manifest cuts the 3 × 3 flat-ground autotile of `Tilemap_color1.png`
+(`grass_nw` … `grass_se`, the centre `grass_c`; the first colour variant, proposed for the owner's
+eye), the flat water (`water_c`), and the first still of the foam's strip `Water Foam.png`, one
+192 × 192 cell (`foam_c`, `cell = 192`). The zone's renderer reads `grass_c`, `water_c` and
+`foam_c` (`client/app/src/render/renderer.ts`, `GROUND_TILES`): the grass and the water fill the
+hexes of their ground, and the foam is centred under every land hex that touches water, its part
+over the water drawn (CLI-03g). The other eight `grass_*` cells stay for a square coast.
 
 Stills, props and tiles are packed after the strips: the strips' frames are the same with and
 without them (`tests/test_build.py`, `StillsBesideStrips`). A sprite never straddles two pages; the
@@ -236,7 +245,7 @@ eye; the fixtures are the source, this table mirrors them):
 
 Around them, without a tap target: in the town a `windmill`, a `small_house` and a `cottage`; in
 the outpost a `hut` and a `straw_hut`; props `tree1`–`tree4`, `bush1`–`bush3`, `rock1`–`rock4`,
-`stump1`, `stump2`, `sheep`. The ground is `grass_*`, the water around it `water_c`.
+`stump1`, `stump2`, `sheep` (`bush4`, `stump3` and `stump4` serve the zone only). The ground is `grass_*`, the water around it `water_c`.
 
 To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
 
@@ -247,6 +256,53 @@ To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
 
 From a worktree without the pack, point the dev server at a checkout that built it:
 `GRIMWORLD_ART_OUT=<that checkout>/tools/art/out pnpm --filter @grimworld/app dev`.
+
+## UI elements: nine-slices, three-slices and the UI page (CLI-03i)
+
+The client's chrome (panels, buttons, ribbons, icons) comes from the pack's `UI Elements`, one
+`[[ui]]` entry per element (`artpipe/ui.py`):
+
+| Field | Meaning |
+|---|---|
+| `kind` | `nine` (a 3 × 3 nine-slice), `three` (a horizontal three-slice: left end, middle, right end) or `still` (one image) |
+| `file`, `pieces` | The sheet, and its lattice: `columns` and `rows` as source bounds in px. The pack places pieces on 64 px cells with an empty cell between them; the lattice is described, never guessed. A three-slice of a multi-row sheet (the ribbons) selects its row with `rows` |
+| `states` | `{ pressed = "<file>" }`: a pressed sheet of the same layout |
+| `drop` | With a pressed state: how many px lower the pressed face starts (11 for the big and small buttons) |
+| `slice`, `content` | `[top, right, bottom, left]` in art px of the trimmed image: the parts kept unscaled at the edges (CSS `border-image-slice`), and where text may sit |
+| `fill` | The middle parts `stretch`, or repeat (`round`) where the art is textured (papers, scroll, board, big ribbons) |
+| `recolour` | `{ "#rrggbb" = "#rrggbb", … }` (CLI-03l): an exact colour map applied to the sheet before anything else. Every opaque colour of the sheet must be named, and only colours it has: the build refuses a map that leaves one unmapped (no stray pixel of the old colour) or names one it lacks |
+
+The build composes the pieces contiguous with the pack's pixels untouched, trims the transparent
+outer margin (recorded as `outset`; an element with states is trimmed by the margins its states
+share, so the pressed face keeps its place) and packs the elements on their own page(s),
+`atlas-ui-N`, untrimmed and without gutter extrusion: the client cuts their exact rectangles.
+It refuses a sheet with pixels outside the described pieces, a pressed sheet of another layout,
+a `drop` that is not the faces' difference, an inset outside the image, and a stretched edge that
+is not uniform (more than `settings.ui_edge` of a row or column differing from its band's
+middle). Elements of the build of 2026-10-03: `paper`, `paper_dark`, `scroll`, `wood`,
+`button_blue`, `button_red` (pressed), `ribbon_big_blue`, `ribbon_big_red`, `ribbon_small_yellow`,
+`round_blue`, `square_blue` (pressed), `icon_back`, `icon_close`, `icon_gold`.
+
+A still is trimmed like the slices: its transparent margin goes, recorded as `outset` (a still
+without margin keeps its size). The HUD's elements (CLI-03l) follow the chrome's: `bar_big`
+(three-slice, `round`: its middle is wood grain) and `bar_big_fill` (the red fill, every column
+the same), `bar_small` (three-slice, `stretch`) and `bar_small_fill_energy` (the small red fill
+recoloured `#ff3e3e` → `#41919d`, the big blue button's face), `icon_sword` (adrenaline), the
+blue row's portraits `portrait_vanguard` (Avatars 01, the Warrior's plumed helm),
+`portrait_warden` (Avatars 03, the Archer's nasal helm) and `portrait_cleric` (Avatars 04, the
+Monk's tonsure), and the desktop's cursors `cursor_arrow` and `cursor_hand`. A bar's `content` is
+its trough: the fill lies there. The client loads them apart (`HUD_ENTRIES`): a missing one drops
+only the HUD to its plain look, never the chrome.
+
+To add one: describe its sheet's lattice, run the build, read the element's line (size, edge,
+centre colour), choose the smallest slices that keep the whole border and corner drawing, and use
+it from `client/app/src/chrome/` (`load.ts` `CHROME_ENTRIES` lists what the stylesheet needs; a
+text colour on it goes into `contrast.ts`, whose test checks it against the centre colour).
+
+The client (`chrome/load.ts`) fetches the UI page once, cuts each frame at `0.5 × devicePixelRatio`
+device px per art px (nearest-neighbour) into an in-memory object URL, and lays it out with CSS
+`border-image` at one image pixel per device pixel. Without the page, the screens keep their plain
+look (`data-chrome="plain"`).
 
 ## PixiJS 8 check
 

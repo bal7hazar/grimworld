@@ -6,9 +6,9 @@ import {
   type HubView,
   hubPoint,
 } from "../../render/hubView";
-import type { Tile, TileKind, ViewActor, ViewStructure } from "../../render/view";
+import type { GroundKind, Tile, TileKind, ViewActor, ViewStructure } from "../../render/view";
 import { CHUNK, type SandboxWorld } from "../world";
-import { ADVENTURER } from "./hubs";
+import { ADVENTURER, HUB_PATHS } from "./hubs";
 
 /**
  * A hub lived like an exploration zone (CLI-03f, D-202): its fixtures turned into a `SandboxWorld`
@@ -112,6 +112,8 @@ function structures(view: HubView): ViewStructure[] {
  *
  * - terrain: whole 15 × 15 chunks over the island, all revealed; `floor` on the island, `wall`
  *   outside it (D-134) and under every building's footprint and every prop, a place's door apart;
+ * - ground (CLI-03g1): grass on the island, water off it and beyond the terrain (the void), earth
+ *   on the path's floor hexes (`HUB_PATHS`, CLI-03e's road to the Gate and the doors);
  * - actors: the player's adventurer, and each present figure standing on its hex;
  * - structures: the buildings and props, drawn by the zone's renderer on the hexes they cover.
  */
@@ -124,11 +126,16 @@ export function hubWorld(view: HubView, at: Tile): SandboxWorld {
   for (let x = 0; hubPoint(view, { x, y: 0 }).x >= EDGE_MARGIN; x++) columns = x + 1;
   const width = CHUNK * Math.max(1, Math.ceil(columns / CHUNK));
   const height = CHUNK * Math.max(1, Math.ceil(rows / CHUNK));
+  const path = new Set((HUB_PATHS.get(view) ?? []).map(key));
   const kinds: TileKind[] = [];
+  const ground: GroundKind[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const tile = { x, y };
-      kinds.push(onIsland(view, tile) && !blocked.has(key(tile)) ? "floor" : "wall");
+      const island = onIsland(view, tile);
+      const floor = island && !blocked.has(key(tile));
+      kinds.push(floor ? "floor" : "wall");
+      ground.push(!island ? "water" : floor && path.has(key(tile)) ? "earth" : "grass");
     }
   }
   const actors: ViewActor[] = [
@@ -152,7 +159,8 @@ export function hubWorld(view: HubView, at: Tile): SandboxWorld {
   return {
     name: view.name,
     description: `${view.name}: a hub lived like a zone (CLI-03f, D-202)`,
-    terrain: { width, height, kinds, hidden: kinds },
+    terrain: { width, height, kinds, hidden: kinds, ground },
+    void: "water",
     actors,
     adventurerId: HUB_ADVENTURER_ID,
     path: [],

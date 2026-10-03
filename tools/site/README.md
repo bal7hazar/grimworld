@@ -27,11 +27,12 @@ The client has no chain endpoint configured: it talks to no network from the sit
 
 ## Owner's install steps
 
-The timer is not installed by CI or by the agents. As `claude` (lingering is already on), from
-`~/site/grimworld-src` (the `cp` below is relative to it):
+The timer is not installed by CI or by the agents. As `claude` (lingering is already on). The clone comes first;
+the `cp` below is run from it:
 
     mkdir -p ~/site/grimworld && chmod o+x ~/site ~/site/grimworld
     git clone https://github.com/bal7hazar/grimworld.git ~/site/grimworld-src   # skip if it exists
+    cd ~/site/grimworld-src
     mkdir -p ~/.config/systemd/user
     cp tools/site/grimworld-site.service tools/site/grimworld-site.timer ~/.config/systemd/user/
     systemctl --user daemon-reload

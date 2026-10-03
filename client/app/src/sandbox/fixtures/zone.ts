@@ -1,4 +1,4 @@
-import type { Tile, TileKind, ViewActor } from "../../render/view";
+import type { GroundKind, Tile, TileKind, ViewActor } from "../../render/view";
 import { CHUNK, type SandboxWorld } from "../world";
 import { GATES, type LocationRecord, SEED_OUTLINES, ZONE, globalTile, locationOf } from "./region";
 
@@ -56,10 +56,13 @@ export function zoneWorld(
   ];
   const kept = (x: number, y: number) => keep.some((t) => t.x === x && t.y === y);
   const hidden: TileKind[] = [];
+  // The void outside the outline is water (CLI-03g1, the brief's default): the zone is an island.
+  const ground: GroundKind[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const inside = insideOutline(record.id, { x, y });
       hidden.push(inside && (kept(x, y) || !rock(x, y)) ? "floor" : "wall");
+      ground.push(inside ? "grass" : "water");
     }
   }
   // Only the entry's chunk is revealed; void chunks stay wall, never unrevealed (D-134, D-136).
@@ -85,7 +88,8 @@ export function zoneWorld(
   return {
     name: "zone",
     description: `The seed's zone: meadow, levels ${record.level_min}–${record.level_max}, ${record.width} × ${record.height} chunks; entered at (${entry.x}, ${entry.y})`,
-    terrain: { width, height, kinds, hidden },
+    terrain: { width, height, kinds, hidden, ground },
+    void: "water",
     actors,
     adventurerId: 1,
     path: [],

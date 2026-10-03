@@ -1,0 +1,28 @@
+/*
+ * The display font (CLI-03m): Pixelify Sans, SIL Open Font License 1.1, from the npm package
+ * `@fontsource/pixelify-sans` (pinned), latin subset, `woff2` only, bundled by Vite and served by
+ * the site itself (no request outside it). Two weights: 600 (quiet buttons, yellow ribbons) and
+ * 700 (buttons, big ribbons, titles). `swap`: the present `system-ui` shows until it has loaded,
+ * and stays if it never does.
+ *
+ * `--gw-display` is the stack for titles, ribbons, buttons and the HUD's figures; body text keeps
+ * `system-ui` (legibility at 15 px).
+ */
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/pixelify-sans/files/pixelify-sans-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/pixelify-sans/files/pixelify-sans-latin-700-normal.woff2") format("woff2");
+}
+
+:root {
+  --gw-display: "Pixelify Sans", system-ui;
+}

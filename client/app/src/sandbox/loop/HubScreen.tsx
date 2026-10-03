@@ -1,15 +1,21 @@
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, Icon, IconButton, Panel, Portrait, Ribbon } from "../../chrome/Chrome";
 import { targetIntent } from "../../input/hubTaps";
 import type { Intent, LoopIntent } from "../../input/intent";
+import type { KeyCommand } from "../../input/keys";
 import { type HubView, targetLabel } from "../../render/hubView";
 import { browserHost } from "../../render/scheduler";
 import type { Tile } from "../../render/view";
 import type { SandboxController } from "../controller";
+import { keyUi, offScreen, useScreenFocus } from "../keyScope";
 import { hubWorld } from "../fixtures/hubWorld";
 import { readParams } from "../params";
-import { RoomSandbox } from "../Sandbox";
+import { type MapKeys, RoomSandbox } from "../Sandbox";
 import type { WalkInfo } from "../session";
 import { HubDoors } from "./hubDoors";
+import { portraitLabel } from "./hud";
+import { Hud, bandSheet } from "./Hud";
+import { goIntent, hubTargets, nextTarget, serviceIntent } from "./keyTargets";
 import { ui } from "./styles";
 
 /**
@@ -19,6 +25,10 @@ import { ui } from "./styles";
  * and opens the place (`HubDoors`); the service row opens a place at once. The adventurer starts on
  * `at`, the machine's hex, and each change is answered to the machine through `onMoved`. The
  * places' names follow the camera; they take no tap.
+ *
+ * By keys (CLI-03k): `F` / `Shift+F` select a place in the service row's order (its name gets the
+ * focus ring, a ring marks its door, a live line says it), `Enter` taps its door, `1`–`9` press the
+ * service row, `Esc` closes the inspection, then cancels the walk, then clears the selection.
  */
 export function HubScreen({
   view,
@@ -63,10 +73,30 @@ export function HubScreen({
     [doors, onMoved],
   );
 
-  const labels = useRef(new Map<string, HTMLDivElement>());
+  const root = useScreenFocus();
+  const mapBox = useRef<HTMLDivElement>(null);
+  const targets = useMemo(() => hubTargets(view), [view]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const chosen = selected === null ? null : (targets[selected] ?? null);
+  const chosenRef = useRef(chosen);
+  chosenRef.current = chosen;
+  const marker = useRef<HTMLDivElement>(null);
+  const shown = useRef<SandboxController | null>(null);
+
+  const labels = useRef(new Map<string, HTMLElement>());
   const place = useCallback(
     (controller: SandboxController) => {
+      shown.current = controller;
       const scale = controller.scale();
+      const door = chosenRef.current;
+      if (marker.current) {
+        if (door) {
+          const at = controller.tileOnScreen(door.at);
+          marker.current.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
+          marker.current.style.width = marker.current.style.height = `${44 * scale}px`;
+        }
+        marker.current.style.visibility = door ? "visible" : "hidden";
+      }
       for (const p of view.places) {
         const element = labels.current.get(p.id);
         if (!element) continue;
@@ -80,56 +110,134 @@ export function HubScreen({
     },
     [view],
   );
+  useEffect(() => {
+    if (shown.current) place(shown.current);
+  }, [chosen, place]);
+
+  const onKey = (command: KeyCommand, map: MapKeys): boolean => {
+    switch (command.kind) {
+      case "step":
+        setSelected(null);
+        return map.handle(command);
+      case "cycle": {
+        const next = nextTarget(targets.length, selected, command.by);
+        setSelected(next);
+        const target = next === null ? null : targets[next];
+        if (target && map.controller && offScreen(map.controller, target.at, mapBox.current)) {
+          map.controller.lookAt(target.at);
+        }
+        return true;
+      }
+      case "go":
+        if (!chosen || !map.controller) return false;
+        map.controller.apply(goIntent(chosen.at));
+        return true;
+      case "service": {
+        const intent = serviceIntent(view, command.index);
+        if (intent) dispatch(intent);
+        return intent !== null;
+      }
+      case "escape":
+        if (figure) {
+          dispatch({ kind: "back" });
+          return true;
+        }
+        if (map.handle(command)) return true;
+        if (selected === null) return false;
+        setSelected(null);
+        return true;
+      default:
+        return map.handle(command);
+    }
+  };
 
   return (
-    <div style={ui.screen} data-screen="hub" data-hub={view.name}>
+    <div
+      ref={root}
+      tabIndex={-1}
+      style={{ ...ui.screen, ...keyUi.root }}
+      data-screen="hub"
+      data-hub={view.name}
+    >
       <header style={ui.header}>
-        <span style={ui.title}>{view.name}</span>
-        <span style={ui.gold}>gold {view.gold.toLocaleString("en-GB").replace(",", " ")}</span>
+        <Ribbon colour="blue" size="big" plain={ui.title}>
+          {view.name}
+        </Ribbon>
+        <span style={ui.gold}>
+          <Icon name="gold" text="gold" /> {view.gold.toLocaleString("en-GB").replace(",", " ")}
+        </span>
       </header>
-      <div style={styles.map}>
-        <RoomSandbox world={world} route={route} onTile={moved} onFrame={place}>
+      <Hud sheet={bandSheet()} />
+      <div ref={mapBox} style={styles.map} data-map-box="">
+        <RoomSandbox world={world} route={route} onTile={moved} onFrame={place} onKey={onKey}>
+          <div ref={marker} className="gw-key-marker" style={keyUi.marker} aria-hidden />
           {view.places.map((p) => (
-            <div
+            <Ribbon
               key={p.id}
-              ref={(element) => {
+              as="div"
+              colour="yellow"
+              size="small"
+              ref={(element: HTMLElement | null) => {
                 if (element) labels.current.set(p.id, element);
                 else labels.current.delete(p.id);
               }}
-              style={styles.label}
+              plain={styles.label}
+              style={styles.labelPlace}
+              className={chosen?.id === p.id ? "gw-key-selected" : undefined}
               data-label={p.label}
+              data-door={`${p.at.x},${p.at.y}`}
+              data-selected={chosen?.id === p.id ? "" : undefined}
             >
               {p.label}
-            </div>
+            </Ribbon>
           ))}
           {figure && (
-            <div style={styles.inspect} role="dialog" aria-label="Adventurer">
-              <span>
-                <b>{figure.name}</b> · {figure.profession}, level {figure.level}
+            <Panel
+              variant="scroll"
+              plain={styles.inspect}
+              style={styles.inspectPlace}
+              role="dialog"
+              aria-label="Adventurer"
+            >
+              <span style={styles.inspectWho}>
+                <Portrait profession={figure.profession} size={40} label={portraitLabel(figure)} />
+                <span>
+                  <b>{figure.name}</b> · {figure.profession}, level {figure.level}
+                </span>
               </span>
-              <button
-                style={{ ...ui.button, ...ui.quiet }}
+              <IconButton
+                icon="close"
+                label="Close"
+                plain={{ ...ui.button, ...ui.quiet }}
+                plainText="✕"
                 onClick={() => dispatch({ kind: "back" })}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
+              />
+            </Panel>
           )}
         </RoomSandbox>
       </div>
-      <nav style={ui.grid} aria-label="Services">
+      <span style={keyUi.hidden} aria-live="polite" data-key-live="">
+        {chosen ? `${chosen.label} selected, Enter to go` : ""}
+      </span>
+      <Panel
+        variant="wood"
+        as="nav"
+        className="gw-service-row"
+        plain={ui.grid}
+        aria-label="Services"
+      >
         {view.services.map((target) => (
-          <button
+          <Button
             key={targetLabel(target)}
-            style={{ ...ui.button, ...(target.kind === "gate" ? ui.primary : {}) }}
+            variant={target.kind === "gate" ? "commit" : "action"}
+            plain={{ ...ui.button, ...(target.kind === "gate" ? ui.primary : {}) }}
             onClick={() => dispatch(targetIntent(target))}
           >
             {targetLabel(target)}
             {target.kind === "gate" ? " ▸" : ""}
-          </button>
+          </Button>
         ))}
-      </nav>
+      </Panel>
     </div>
   );
 }
@@ -137,25 +245,28 @@ export function HubScreen({
 const styles: Record<string, CSSProperties> = {
   map: { position: "relative", flex: 1, minHeight: 0, overflow: "hidden" },
   /**
-   * A place's name on a plain plate over its building (CLI-03e §6), placed after each frame from
-   * the camera. It takes no tap: a tap on it reaches the map under it.
+   * A place's name over its building (CLI-03e §6; on a small yellow ribbon with the art, CLI-03i),
+   * placed after each frame from the camera. It takes no tap: a tap on it reaches the map under it.
    */
-  label: {
+  labelPlace: {
     position: "absolute",
     left: 0,
     top: 0,
     visibility: "hidden",
+    pointerEvents: "none",
+  },
+  /** Its plate without the art. */
+  label: {
     padding: "1px 8px",
     borderRadius: 6,
-    font: "600 15px system-ui",
-    lineHeight: "20px",
+    font: "600 0.9375rem system-ui",
+    lineHeight: "1.25rem",
     whiteSpace: "nowrap",
     color: "#fff",
     background: "rgba(20,20,26,0.82)",
     border: "1px solid rgba(255,255,255,0.18)",
-    pointerEvents: "none",
   },
-  inspect: {
+  inspectPlace: {
     position: "absolute",
     left: 8,
     right: 72,
@@ -164,6 +275,9 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
+  },
+  inspectWho: { display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 },
+  inspect: {
     padding: "4px 12px",
     borderRadius: 8,
     background: "rgba(27,27,34,0.94)",

@@ -1,6 +1,7 @@
-import { type Container, Graphics, type Sprite } from "pixi.js";
+import { type Container, Graphics, type Sprite, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel, worldToScreen } from "../input/coords";
+import { WHEEL_NOTCH } from "../input/gestures";
 import { fixtureNamed } from "../sandbox/fixtures";
 import { SandboxSession } from "../sandbox/session";
 import { initialState, toView } from "../sandbox/wiring";
@@ -9,10 +10,13 @@ import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
 import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
-import { DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
-import { drawOverlay, overlayPlan } from "./shapes";
-import { type SpriteLibrary, libraryFrom } from "./sprites";
-import type { Facing, ViewState } from "./view";
+import { isRock, voidFoam } from "./ground";
+import { OBSTACLES, obstacleOf } from "./obstacles";
+import { BAKE_CHUNK, DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
+import { DIM_ALPHA, drawOverlay, drawTerrain, overlayPlan } from "./shapes";
+import type { FrameStats } from "./scheduler";
+import { type SpriteArt, type SpriteLibrary, libraryFrom } from "./sprites";
+import type { Facing, ViewState, ViewTile } from "./view";
 
 function setup(options: { idle: boolean; library?: SpriteLibrary | null; fixture?: string }) {
   const host = new FakeHost(1000 / 120);
@@ -522,5 +526,354 @@ describe("the feet in their tile (CLI-03b)", () => {
     expect(overlay.getLocalBounds().rectangle).toEqual(before.overlay);
     renderer.setFeet(0);
     expect(node.body.position.y).toBe(0);
+  });
+});
+
+describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
+  const zoneView = () => toView(initialState(fixtureNamed("zone")));
+
+  function mount(view: ViewState, onDraw?: (stats: FrameStats) => void) {
+    const host = new FakeHost(1000 / 120);
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, host, { idle: false, onDraw });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.setView(view);
+    host.run(100);
+    return { host, surface, renderer };
+  }
+
+  /** The chunks' textures, as their sizes (the ground's layer: the void's sprite apart). */
+  const textures = (surface: FakeSurface) =>
+    ((surface.stage.children[0] as Container).children[0] as Container).children
+      .slice(1)
+      .map((s) => `${(s as Sprite).texture.width}x${(s as Sprite).texture.height}`);
+
+  it("the same number and size of textures as the view without its ground", () => {
+    const view = zoneView();
+    expect(view.tiles.some((t) => t.ground === "water")).toBe(true);
+    const plain: ViewState = {
+      ...view,
+      tiles: view.tiles.map(({ x, y, kind }) => ({ x, y, kind })),
+      void: undefined,
+    };
+    const a = mount(view);
+    const b = mount(plain);
+    expect(a.surface.bakes).toHaveLength(6);
+    expect(textures(a.surface)).toEqual(textures(b.surface));
+    expect(a.surface.bakes).toEqual(b.surface.bakes);
+  });
+
+  it("rebakes a chunk when a tile's ground changes, and nothing for the same view", () => {
+    const view = zoneView();
+    const { host, surface, renderer } = mount(view);
+    expect(surface.bakes).toHaveLength(6);
+    renderer.setView({ ...view });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(6);
+    // A grass hex in the middle of chunk (0, 0) turns to earth: that chunk only.
+    const tiles = view.tiles.map((t) =>
+      t.x === 7 && t.y === 7 ? { ...t, ground: "earth" as const } : t,
+    );
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(7);
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(7);
+  });
+
+  it("rebakes a neighbouring chunk whose lip changes across the chunk's edge", () => {
+    const view = zoneView();
+    const { host, surface, renderer } = mount(view);
+    // (15, 7) is the first column of chunk (1, 0): turned to water, (14, 7)'s lip in chunk (0, 0)
+    // changes too.
+    const tiles = view.tiles.map((t) =>
+      t.x === 15 && t.y === 7 ? { ...t, kind: "wall" as const, ground: "water" as const } : t,
+    );
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(8);
+  });
+
+  it("rebakes a neighbouring chunk whose foam changes, three steps across its edge", () => {
+    // (14, 7), the last column of chunk (0, 0), is water; (15..18, 7) in chunk (1, 0) are land.
+    const water = (t: ViewTile, at: readonly number[]) =>
+      t.y === 7 && at.includes(t.x) ? { ...t, kind: "wall" as const, ground: "water" as const } : t;
+    const base = zoneView();
+    expect(
+      base.tiles.filter((t) => t.y === 7 && t.x >= 14 && t.x <= 18).map((t) => t.ground),
+    ).toEqual(["grass", "grass", "grass", "grass", "grass"]);
+    const view = { ...base, tiles: base.tiles.map((t) => water(t, [14])) };
+    const { host, surface, renderer } = mount(view);
+    expect(surface.bakes).toHaveLength(6);
+    // (17, 7) turns to water: (16, 7) touches water now, and its foam reaches (14, 7).
+    renderer.setView({ ...view, tiles: base.tiles.map((t) => water(t, [14, 17])) });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(8);
+    // (18, 7), four steps from chunk (0, 0): its own chunk only.
+    renderer.setView({ ...view, tiles: base.tiles.map((t) => water(t, [14, 17, 18])) });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(9);
+  });
+
+  it("rebakes every chunk once when the library arrives, and draws its cells", async () => {
+    const stats: FrameStats[] = [];
+    const { host, surface, renderer } = mount(zoneView(), (s) => stats.push(s));
+    expect(stats.at(-1)?.ground).toBe("colours");
+    renderer.setLibrary(await groundLibrary());
+    host.run(1000);
+    // Every chunk once, and the foam over the void once per group (CLI-03g2).
+    const foamGroups = voidFoamGroups(zoneView());
+    expect(foamGroups).toBeGreaterThan(0);
+    expect(surface.bakes).toHaveLength(12 + foamGroups);
+    expect(stats.at(-1)?.ground).toBe("atlas");
+    expect(stats.at(-1)?.bakeMs).not.toBeNull();
+    host.run(10_000);
+    expect(surface.bakes).toHaveLength(12 + foamGroups);
+    expect(host.quiet()).toBe(true);
+  });
+
+  it("bakes the foam over the void with the atlas only, per group, again only when it changes", async () => {
+    const view = zoneView();
+    const { host, renderer, surface } = mount(view);
+    const voidLayer = ((surface.stage.children[0] as Container).children[0] as Container)
+      .children[0] as Container;
+    const foam = voidLayer.children[4] as Container;
+    expect(foam.children).toHaveLength(0);
+    renderer.setLibrary(await groundLibrary());
+    host.run(100);
+    expect(foam.children).toHaveLength(voidFoamGroups(view));
+    // Each group's texture at its frame: the pieces' box, on whole art pixels.
+    for (const sprite of foam.children as Sprite[]) {
+      expect(Number.isInteger(sprite.x) && Number.isInteger(sprite.y)).toBe(true);
+      expect(sprite.texture).not.toBe(Texture.EMPTY);
+    }
+    // The same view: nothing baked again.
+    const bakes = surface.bakes.length;
+    renderer.setView({ ...view });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(bakes);
+    renderer.setLibrary(null);
+    expect(foam.children).toHaveLength(0);
+  });
+
+  it("draws the void around the terrain, under the chunks; the background inside; none without", () => {
+    const view = zoneView();
+    const { renderer, surface } = mount(view);
+    renderer.draw();
+    const ground = (surface.stage.children[0] as Container).children[0] as Container;
+    const voidLayer = ground.children[0] as Container;
+    expect(voidLayer.visible).toBe(true);
+    const bands = voidLayer.children as Sprite[];
+    const inBand = (p: { x: number; y: number }) =>
+      bands.some((b) => p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height);
+    const adventurer = view.actors.find((a) => a.id === view.adventurerId)!.tile;
+    // East of the terrain (x < 0), on screen: the void; four hexes inside: the background.
+    expect(inBand(tileToPixel({ x: -2, y: adventurer.y }))).toBe(true);
+    expect(inBand(tileToPixel({ x: 4, y: adventurer.y }))).toBe(false);
+    // The bands cover the whole frame but the hole: its corners are in a band.
+    const { camera, viewport } = renderer.cameraState();
+    const half = { x: viewport.width / 2 / camera.scale, y: viewport.height / 2 / camera.scale };
+    for (const [sx, sy] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ] as const) {
+      const corner = { x: camera.centre.x + sx * half.x, y: camera.centre.y + sy * half.y };
+      if (corner.x > tileToPixel({ x: 2, y: 0 }).x) expect(inBand(corner)).toBe(true);
+    }
+    const cave = mount(toView(initialState(fixtureNamed("cave"))));
+    const caveGround = (cave.surface.stage.children[0] as Container).children[0] as Container;
+    expect(caveGround.children[0]!.visible).toBe(false);
+  });
+});
+
+describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
+  const zoneView = () => toView(initialState(fixtureNamed("zone")));
+  const key = (t: { x: number; y: number }) => `${t.x},${t.y}`;
+
+  async function mount(library: SpriteLibrary | null, view: ViewState = zoneView()) {
+    const host = new FakeHost(1000 / 120);
+    const surface = new FakeSurface();
+    const stats: FrameStats[] = [];
+    const renderer = new Renderer(surface, host, {
+      idle: false,
+      library,
+      onDraw: (s) => stats.push(s),
+    });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.setView(view);
+    host.run(100);
+    const actorsLayer = (surface.stage.children[0] as Container).children[3] as Container;
+    return { host, surface, renderer, stats, actorsLayer };
+  }
+
+  it("each wall hex that drew a rock shows the still its hex chooses, as a prop in the actors' layer", async () => {
+    const view = zoneView();
+    const walls = view.tiles.filter((t) => isRock(t));
+    expect(walls.length).toBeGreaterThan(5);
+    const { renderer, stats, actorsLayer } = await mount(await obstacleLibrary(), view);
+    const drawn = renderer.obstacles();
+    expect([...drawn.keys()].sort()).toEqual(walls.map(key).sort());
+    for (const wall of walls) {
+      const { sprite, name } = drawn.get(key(wall))!;
+      const choice = obstacleOf(wall, OBSTACLES)!;
+      expect(name).toBe(choice.sprite);
+      expect(sprite.scale.x).toBe(choice.mirror ? -1 : 1);
+      expect(sprite.parent).toBe(actorsLayer);
+      const base = tileToPixel(wall);
+      expect([sprite.x + 0, sprite.y + 0]).toEqual([base.x + 0, base.y + 0]);
+      // Sorted with the actors by its base: an actor on its row stands in front of it.
+      expect(sprite.zIndex).toBeLessThan(base.y);
+      expect(sprite.zIndex).toBeGreaterThan(base.y - 1);
+    }
+    expect(stats.at(-1)?.obstacles).toBe("atlas");
+    // Unrevealed walls and walls on water show none.
+    for (const t of view.tiles.filter((t) => t.kind === "wall" && !isRock(t)))
+      expect(drawn.has(key(t))).toBe(false);
+  });
+
+  it("destroy() frees the obstacles itself and empties the map, not only through the layer", async () => {
+    const { renderer } = await mount(await obstacleLibrary());
+    const sprites = [...renderer.obstacles().values()].map((n) => n.sprite);
+    expect(sprites.length).toBeGreaterThan(5);
+    expect(sprites.every((s) => !s.destroyed)).toBe(true);
+    renderer.destroy();
+    expect(renderer.obstacles().size).toBe(0);
+    expect(sprites.every((s) => s.destroyed)).toBe(true);
+  });
+
+  it("no rock in the bakes with the atlas's obstacles; the shaped rocks without them", async () => {
+    const wall = [{ x: 3, y: 3, kind: "wall" as const }];
+    const rocks = drawTerrain(wall).context.instructions.length;
+    expect(drawTerrain(wall, new Set(), { rocks: false }).context.instructions.length).toBeLessThan(
+      rocks,
+    );
+    const shapes = await mount(null);
+    expect(shapes.renderer.obstacles().size).toBe(0);
+    expect(shapes.stats.at(-1)?.obstacles).toBe("shapes");
+    // Ground cells without obstacle stills: still the rocks.
+    const ground = await mount(await groundLibrary());
+    expect(ground.renderer.obstacles().size).toBe(0);
+    expect(ground.stats.at(-1)?.obstacles).toBe("shapes");
+  });
+
+  it("dimmed beyond sight as the overlay dims the ground; bright in sight", async () => {
+    const view = zoneView();
+    const { renderer } = await mount(await obstacleLibrary(), view);
+    const inSight = new Set(view.sight.map(key));
+    const grey = Math.round(255 * (1 - DIM_ALPHA));
+    let seen = 0;
+    let dimmed = 0;
+    for (const [k, { sprite }] of renderer.obstacles()) {
+      if (inSight.has(k)) {
+        expect(sprite.tint).toBe(0xffffff);
+        seen += 1;
+      } else {
+        expect(sprite.tint).toBe((grey << 16) | (grey << 8) | grey);
+        dimmed += 1;
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+    expect(dimmed).toBeGreaterThan(0);
+  });
+
+  it("follows the walls: kept for the same view, added on a reveal, dropped with the atlas", async () => {
+    const view = zoneView();
+    const { host, renderer } = await mount(await obstacleLibrary(), view);
+    const before = new Map(renderer.obstacles());
+    renderer.setView({ ...view });
+    host.run(100);
+    for (const [k, node] of renderer.obstacles()) expect(node.sprite).toBe(before.get(k)!.sprite);
+    // An unrevealed hex revealed as a wall gets its obstacle; a wall turned floor loses it.
+    const hidden = view.tiles.find((t) => t.kind === "unrevealed" && t.ground !== "water")!;
+    const gone = view.tiles.find((t) => isRock(t))!;
+    const tiles = view.tiles.map((t) =>
+      t === hidden
+        ? { ...t, kind: "wall" as const }
+        : t === gone
+          ? { ...t, kind: "floor" as const }
+          : t,
+    );
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(renderer.obstacles().has(key(hidden))).toBe(true);
+    expect(renderer.obstacles().has(key(gone))).toBe(false);
+    expect(renderer.obstacles().size).toBe(before.size);
+    renderer.setLibrary(null);
+    expect(renderer.obstacles().size).toBe(0);
+  });
+});
+
+/** The groups the foam over the void is baked in: the chunks of the void's hexes it lies over. */
+function voidFoamGroups(view: ViewState): number {
+  const ids = voidFoam(view.tiles, view.void).map(
+    (p) => `${Math.floor(p.over.x / BAKE_CHUNK)},${Math.floor(p.over.y / BAKE_CHUNK)}`,
+  );
+  return new Set(ids).size;
+}
+
+/** A library with the ground's cells (`grass_c`, `water_c`, `foam_c`) on a plain-colour texture. */
+async function groundLibrary(): Promise<SpriteLibrary> {
+  const base = await syntheticLibrary();
+  const cell = (name: string): SpriteArt => ({
+    name,
+    role: "tile",
+    cell: { w: 64, h: 64 },
+    baseline: 0,
+    scale: 1,
+    animations: { still: { textures: [Texture.WHITE], fps: 1, loop: false } },
+  });
+  return new Map([
+    ...base,
+    ["grass_c", cell("grass_c")],
+    ["water_c", cell("water_c")],
+    ["foam_c", { ...cell("foam_c"), cell: { w: 192, h: 192 } }],
+  ]);
+}
+
+/** The ground's cells and every obstacle still (`OBSTACLES`), each on its own plain texture. */
+async function obstacleLibrary(): Promise<SpriteLibrary> {
+  const base = await groundLibrary();
+  const still = (name: string): SpriteArt => ({
+    name,
+    role: "prop",
+    cell: { w: 64, h: 64 },
+    baseline: 60,
+    scale: 1,
+    animations: {
+      still: {
+        textures: [new Texture({ source: Texture.WHITE.source, defaultAnchor: { x: 0.5, y: 1 } })],
+        fps: 1,
+        loop: false,
+      },
+    },
+  });
+  return new Map([...base, ...OBSTACLES.map((o) => [o.sprite, still(o.sprite)] as const)]);
+}
+
+describe("the keyboard's camera (CLI-03k)", () => {
+  it("lookAt eases the camera onto a tile; recentre brings it back", () => {
+    const { host, renderer, session } = setup({ idle: false, fixture: "meadow" });
+    host.run(500);
+    const target = { x: 3, y: 4 };
+    renderer.lookAt(target);
+    host.run(1000);
+    expect(renderer.cameraState().camera.centre).toEqual(tileToPixel(target));
+    renderer.recentre();
+    host.run(1000);
+    const adventurer = session.state.world.actors[0]!.tile;
+    expect(renderer.cameraState().camera.centre).toEqual(tileToPixel(adventurer));
+  });
+
+  it("one notch in, then one out, restores the scale (unless clamped)", () => {
+    const { renderer } = setup({ idle: false, fixture: "meadow" });
+    const centre = { x: 375 / 2, y: 812 / 2 };
+    const before = renderer.cameraState().camera.scale;
+    renderer.zoomAt(WHEEL_NOTCH, centre);
+    expect(renderer.cameraState().camera.scale).toBeGreaterThan(before);
+    renderer.zoomAt(1 / WHEEL_NOTCH, centre);
+    expect(renderer.cameraState().camera.scale).toBeCloseTo(before, 9);
   });
 });

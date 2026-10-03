@@ -169,6 +169,7 @@ manager's:
 | Layout | The portrait column in the centre, unchanged. Left panel: character sheet and build. Right panel: combat log and target details |
 | Mouse | Click is tap; right click is inspect; hover shows previews |
 | Keyboard | `Q W E A S D` for the six directions, `1`–`8` skills, `Z X C V` belt, `Space` wait, `R` turn, `Esc` cancel |
+| Keyboard, outside combat (CLI-03k) | In zones and hubs, each key the tap or button it stands for: `Q` West, `W` North-West, `E` North-East, `D` East, `S` South-East, `A` South-West, by physical key (AZERTY's `A Z E / Q S D`); `←` / `→` West / East, `↑` / `↓` the upper or lower hex on the side faced; `F` / `Shift+F` the next or previous place (a hub's buildings in the service row's order, a zone's hub gates), `Enter` goes there; `1`–`9` the service row, in hubs only; `L` the Leave control, on a hub gate's anchor only, asked twice (Stay focused); `0` back to the adventurer, `+` / `−` zoom; `Esc` closes the key help, the confirmation, an inspection, then cancels the planned walk, clears the selection, then goes back from a service or the Gate screen; `?` the key help. One press, one hex; never with `Ctrl`, `Cmd` or `Alt`; a text field keeps its keys. **Project manager, 2026-10-03; reversible** |
 | Window narrower than 700 points | The phone layout |
 
 ## Accessibility

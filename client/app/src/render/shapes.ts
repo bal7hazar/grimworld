@@ -1,6 +1,14 @@
-import { Graphics } from "pixi.js";
-import { HEX_RADIUS, type Point, tileToPixel } from "../input/coords";
+import { Graphics, Matrix, type Texture } from "pixi.js";
+import { TILE_WIDTH, tileToPixel } from "../input/coords";
 import { WEDGE } from "./facing";
+import {
+  GROW,
+  type GroundPlan,
+  type PlanOptions,
+  acrossSide,
+  groundPlan,
+  hexCorners,
+} from "./ground";
 import type { Caste, Mark, Profession, Tile, ViewState, ViewStructure, ViewTile } from "./view";
 
 /**
@@ -12,6 +20,9 @@ import type { Caste, Mark, Profession, Tile, ViewState, ViewStructure, ViewTile 
 const COLOURS = {
   ground: 0x5d7a3e,
   groundEdge: 0x2a3a1c,
+  water: 0x3f8f8d,
+  earth: 0xb89b6a,
+  lip: 0x1f3a2a,
   rock: 0x8a8577,
   rockShade: 0x5c574d,
   rockLight: 0xb3ad9c,
@@ -36,18 +47,7 @@ const COLOURS = {
   bushLight: 0x5f8f3f,
 };
 
-/** The six corners of a pointy-top hex around a centre, `grow` pixels out. */
-export function hexCorners(centre: Point, grow = 0): number[] {
-  const points: number[] = [];
-  for (let k = 0; k < 6; k++) {
-    const angle = Math.PI / 6 + (k * Math.PI) / 3;
-    points.push(
-      centre.x + (HEX_RADIUS + grow) * Math.cos(angle),
-      centre.y + (HEX_RADIUS + grow) * Math.sin(angle),
-    );
-  }
-  return points;
-}
+export { hexCorners };
 
 /** A rock, the obstacle object of a wall tile (design/10); two outlines, chosen by the tile. */
 function drawRock(g: Graphics, tile: Tile): void {
@@ -63,33 +63,164 @@ function drawRock(g: Graphics, tile: Tile): void {
   g.poly(at([-8, -14, 6, -16, 12, -8, -2, -6])).fill(COLOURS.rockLight);
 }
 
+/** The pack's ground cells the bake fills its layers with (CLI-03g1); none: flat colours. */
+export interface GroundTextures {
+  readonly grass?: Texture | null;
+  readonly water?: Texture | null;
+  /** The foam's still (CLI-03g2); none: no foam, the lip alone marks the coast. */
+  readonly foam?: Texture | null;
+}
+
+export interface TerrainOptions {
+  /** The ground of the tiles around the chunk (`groundPlan`'s `around`): lips across chunks. */
+  readonly around?: PlanOptions["around"];
+  readonly textures?: GroundTextures | null;
+  /**
+   * Whether the walls draw their shaped rock (the default); false when the atlas's obstacles stand
+   * on them instead (CLI-03h, the renderer's actors' layer).
+   */
+  readonly rocks?: boolean;
+}
+
 /**
- * The static layers of one chunk, to be baked into one texture: a continuous ground (each hex grown by half a
- * pixel so that no seam shows), rocks on walls, the hex grid, and the unrevealed. A wall hex in
- * `covered` (`"x,y"`) draws no rock: a structure stands there as its obstacle object (CLI-03f).
+ * The static layers of one chunk, to be baked into one texture (CLI-03g1, `groundPlan`): the water,
+ * the grass (each hex grown by half a pixel so that no seam shows), cut by cells of `TILE_WIDTH`
+ * and filled from the atlas's cell at that cell's world position, or flat colours without the
+ * atlas; the earth's soft fill; the lip along every land side that faces water; the hex grid on
+ * land; rocks on walls not on water; the unrevealed. A wall hex in `covered` (`"x,y"`) draws no
+ * rock: a structure stands there as its obstacle object (CLI-03f).
  */
 export function drawTerrain(
   tiles: readonly ViewTile[],
   covered: ReadonlySet<string> = new Set(),
+  options: TerrainOptions = {},
 ): Graphics {
+  const plan = groundPlan(tiles, { covered, around: options.around });
   const g = new Graphics();
-  for (const tile of tiles) {
-    const centre = tileToPixel(tile);
-    const colour = tile.kind === "unrevealed" ? COLOURS.unrevealed : COLOURS.ground;
-    g.poly(hexCorners(centre, 0.5)).fill(colour);
-  }
-  for (const tile of tiles) {
-    const centre = tileToPixel(tile);
-    if (tile.kind === "unrevealed") {
-      g.poly(hexCorners(centre, -1)).stroke({ width: 1, color: COLOURS.unrevealedEdge });
+  for (const layer of plan.layers) {
+    const texture = options.textures?.[layer.kind] ?? null;
+    if (texture) {
+      // Global texture space: a point samples the cell's frame at its offset in the cell, so the
+      // cells meet on whole art pixels and repeat the cell without a seam.
+      for (const piece of layer.pieces) {
+        g.poly([...piece.points]).fill({
+          texture,
+          textureSpace: "global",
+          matrix: new Matrix().translate(piece.cell.x, piece.cell.y),
+        });
+      }
     } else {
-      g.poly(hexCorners(centre)).stroke({ width: 1, color: COLOURS.groundEdge, alpha: 0.35 });
+      const colour = layer.kind === "water" ? COLOURS.water : COLOURS.ground;
+      for (const hex of layer.hexes) g.poly(hexCorners(tileToPixel(hex), GROW)).fill(colour);
+    }
+    if (layer.kind === "water") drawFoam(g, plan.foam, options.textures?.foam ?? null);
+  }
+  for (const tile of plan.earth) {
+    g.poly(earthHex(tile, plan)).fill({ color: COLOURS.earth, alpha: EARTH_ALPHA });
+  }
+  drawLip(g, plan.lip);
+  for (const tile of plan.unrevealed) {
+    g.poly(hexCorners(tileToPixel(tile), GROW)).fill(COLOURS.unrevealed);
+  }
+  for (const tile of plan.unrevealed) {
+    g.poly(hexCorners(tileToPixel(tile), -1)).stroke({ width: 1, color: COLOURS.unrevealedEdge });
+  }
+  for (const tile of plan.grid) {
+    g.poly(hexCorners(tileToPixel(tile))).stroke({
+      width: 1,
+      color: COLOURS.groundEdge,
+      alpha: 0.35,
+    });
+  }
+  if (options.rocks ?? true) for (const tile of plan.rocks) drawRock(g, tile);
+  return g;
+}
+
+/**
+ * The foam (CLI-03g2): each piece filled from the foam's still, placed at its cell's corner in
+ * global texture space, so a cell drawn across several water hexes is one ring. The pieces of two
+ * neighbouring land hexes overlap, as the pack composes its shore. Without the still, nothing.
+ */
+export function drawFoam(g: Graphics, foam: GroundPlan["foam"], texture: Texture | null): void {
+  if (!texture) return;
+  for (const piece of foam) {
+    g.poly([...piece.points]).fill({
+      texture,
+      textureSpace: "global",
+      matrix: new Matrix().translate(piece.origin.x, piece.origin.y),
+    });
+  }
+}
+
+/**
+ * The earth's fill (CLI-03e's trodden path, proposed, the owner's eye): its alpha over the grass.
+ * 0 leaves the path out.
+ */
+export const EARTH_ALPHA = 0.5;
+/** How far an earth hex's side that faces another ground stands inside it, in art px. */
+export const EARTH_INSET = 4;
+
+/**
+ * An earth hex: each side that faces earth stays on the hex's edge, so the path's hexes join
+ * without a gap or an overlap (no double alpha); each other side is moved `EARTH_INSET` inward, so
+ * the path reads as trodden ground inside the grass, not as tiles.
+ */
+function earthHex(tile: Tile, plan: GroundPlan): number[] {
+  const earth = new Set(plan.earth.map((t) => `${t.x},${t.y}`));
+  const c = tileToPixel(tile);
+  const apothem = TILE_WIDTH / 2;
+  // Side k's line: points p with p · n_k = apothem - inset, n_k at angle (k + 1)·60°.
+  const offsets = [0, 1, 2, 3, 4, 5].map((side) => {
+    const next = acrossSide(tile, side);
+    return apothem - (earth.has(`${next.x},${next.y}`) ? 0 : EARTH_INSET);
+  });
+  const points: number[] = [];
+  for (let k = 0; k < 6; k++) {
+    // Corner k + 1 lies on sides k and k + 1.
+    const a = ((k + 1) * Math.PI) / 3;
+    const b = ((k + 2) * Math.PI) / 3;
+    const da = offsets[k]!;
+    const db = offsets[(k + 1) % 6]!;
+    const det = Math.cos(a) * Math.sin(b) - Math.sin(a) * Math.cos(b);
+    points.push(
+      c.x + (da * Math.sin(b) - db * Math.sin(a)) / det,
+      c.y + (db * Math.cos(a) - da * Math.cos(b)) / det,
+    );
+  }
+  return points;
+}
+
+/** The lip: a darker line on the land's side of every land–water edge, over the foam's inner edge. */
+export const LIP = { width: 3, alpha: 0.55 } as const;
+
+function drawLip(g: Graphics, lip: GroundPlan["lip"]): void {
+  if (lip.length === 0) return;
+  const sides = new Map<string, { tile: Tile; sides: Set<number> }>();
+  for (const { tile, side } of lip) {
+    const key = `${tile.x},${tile.y}`;
+    let entry = sides.get(key);
+    if (!entry) sides.set(key, (entry = { tile, sides: new Set() }));
+    entry.sides.add(side);
+  }
+  for (const { tile, sides: facing } of sides.values()) {
+    // The hex shrunk so that its sides stand half the lip's width inside the hex's sides: a
+    // mitred join then reaches the hex's corner exactly, never past it.
+    const inner = hexCorners(tileToPixel(tile), -LIP.width / 2 / Math.cos(Math.PI / 6));
+    const corner = (k: number) => [inner[2 * (k % 6)]!, inner[2 * (k % 6) + 1]!] as const;
+    if (facing.size === 6) {
+      g.poly(inner);
+      continue;
+    }
+    // Each run of consecutive sides facing water, as one line from its first corner to its last.
+    for (const first of facing) {
+      if (facing.has((first + 5) % 6)) continue;
+      let last = first;
+      while (facing.has((last + 1) % 6)) last += 1;
+      g.moveTo(...corner(first));
+      for (let k = first + 1; k <= last + 1; k++) g.lineTo(...corner(k));
     }
   }
-  for (const tile of tiles) {
-    if (tile.kind === "wall" && !covered.has(`${tile.x},${tile.y}`)) drawRock(g, tile);
-  }
-  return g;
+  g.stroke({ width: LIP.width, color: COLOURS.lip, alpha: LIP.alpha, join: "miter" });
 }
 
 /**
@@ -129,6 +260,9 @@ export function drawStructure(structure: ViewStructure): Graphics {
   return g;
 }
 
+/** The overlay's dimming of what was seen before: black at this alpha. */
+export const DIM_ALPHA = 0.45;
+
 /** What the overlay draws, as tiles: kept apart from the drawing so that tests can read it. */
 export interface OverlayPlan {
   /** Revealed tiles beyond sight: seen before, dimmed. */
@@ -160,7 +294,7 @@ export function drawOverlay(g: Graphics, view: ViewState): void {
   const plan = overlayPlan(view);
   g.clear();
   for (const tile of plan.dimmed) {
-    g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: 0.45 });
+    g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: DIM_ALPHA });
   }
   drawArcs(g, plan);
   drawGhosts(g, plan.path);

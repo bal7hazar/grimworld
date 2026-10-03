@@ -1,4 +1,4 @@
-import type { Tile, TileKind, ViewActor, ViewStructure } from "../render/view";
+import type { GroundKind, Tile, TileKind, ViewActor, ViewStructure } from "../render/view";
 
 /** Chunks are 15 × 15 tiles (ADR-0006). */
 export const CHUNK = 15;
@@ -10,6 +10,11 @@ export interface Terrain {
   readonly kinds: readonly TileKind[];
   /** What each tile of an unrevealed chunk becomes when it is revealed (fixture data). */
   readonly hidden: readonly TileKind[];
+  /**
+   * Each tile's ground, indexed as `kinds` (CLI-03g1): presentation only, never read by a rule.
+   * Absent: every tile is grass. A water tile is `wall`, an earth tile `floor`.
+   */
+  readonly ground?: readonly GroundKind[];
 }
 
 /** What a fixture holds: the state the chain would hold, written by hand. */
@@ -28,6 +33,8 @@ export interface SandboxWorld {
   readonly kind?: "zone" | "hub";
   /** Buildings and props on wall hexes (a hub's); none by default. */
   readonly structures?: readonly ViewStructure[];
+  /** The ground beyond the terrain's rectangle (CLI-03g1): water around an island; none by default. */
+  readonly void?: GroundKind;
 }
 
 export function inBounds(terrain: Terrain, tile: Tile): boolean {

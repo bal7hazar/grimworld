@@ -9,7 +9,7 @@ export const ui: Record<string, CSSProperties> = {
     flexDirection: "column",
     color: "#eee",
     background: "#0b0b0e",
-    font: "15px system-ui",
+    font: "0.9375rem system-ui",
   },
   header: {
     display: "flex",
@@ -21,11 +21,11 @@ export const ui: Record<string, CSSProperties> = {
     background: "#16161c",
     borderBottom: "1px solid #2a2a33",
   },
-  title: { fontSize: 18, fontWeight: 600 },
+  title: { fontFamily: "var(--gw-display)", fontSize: "1.125rem", fontWeight: 700 },
   gold: { color: "#f2c94c", fontVariantNumeric: "tabular-nums" },
   body: { flex: 1, overflowY: "auto", padding: 12 },
   section: { margin: "0 0 16px" },
-  label: { color: "#9a9aa6", fontSize: 13, margin: "0 0 6px" },
+  label: { color: "#9a9aa6", fontSize: "0.8125rem", margin: "0 0 6px" },
   card: {
     padding: 12,
     margin: "0 0 10px",
@@ -39,7 +39,7 @@ export const ui: Record<string, CSSProperties> = {
     padding: "0 14px",
     border: "none",
     borderRadius: 8,
-    font: "15px system-ui",
+    font: "0.9375rem var(--gw-display)",
     color: "#111",
     background: "#e9e4d4",
     cursor: "pointer",
@@ -50,11 +50,13 @@ export const ui: Record<string, CSSProperties> = {
     background: "rgba(80,0,0,0.75)",
     color: "#ffb4b4",
     border: "1px dashed #ff6b6b",
-    font: "12px ui-monospace, monospace",
+    font: "0.75rem ui-monospace, monospace",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
+    // Three columns at the default size (a column is at least 6.5 rem, 104 px); as the text grows
+    // the columns widen with it and the row falls to two, then one, so no label is clipped.
+    gridTemplateColumns: "repeat(auto-fit, minmax(6.5rem, 1fr))",
     gap: 6,
     padding: 8,
     background: "#16161c",

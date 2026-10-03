@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_FEET, DEFAULT_ZOOM, STEP_MS } from "../render/renderer";
+import { ADVENTURER } from "./fixtures/hubs";
 import { OUTPOST, TOWN } from "./fixtures/region";
-import { ENTRY_MS, readAcross, readFeet, readParams } from "./params";
+import { ENTRY_MS, hudSheet, readAcross, readFeet, readHud, readParams } from "./params";
 
 describe("URL parameters", () => {
   it("reads the fixture, idle, panel and scale", () => {
@@ -16,6 +17,7 @@ describe("URL parameters", () => {
       feet: DEFAULT_FEET,
       playOnTap: true,
       stepMs: STEP_MS,
+      hud: null,
     });
     expect(readParams("?scale=snap").scale).toBe("snap");
     expect(readParams("?scale=pixel").scale).toBe("continuous");
@@ -63,5 +65,39 @@ describe("URL parameters", () => {
     expect(readParams("?hub=town&entry=0").entryMs).toBe(0);
     expect(readParams("?entry=-5").entryMs).toBe(ENTRY_MS);
     expect(readParams("?entry=99999").entryMs).toBe(ENTRY_MS);
+  });
+
+  it("reads the HUD's presentation figures, ?hud=low|empty (CLI-03l)", () => {
+    expect(readParams("?hub=town&hud=low").hud).toBe("low");
+    expect(readParams("?hud=empty").hud).toBe("empty");
+    for (const value of ["", "LOW", "full", "1", "constructor"]) {
+      expect(readParams(`?hud=${value}`).hud, value).toBeNull();
+    }
+    expect(readHud(null)).toBeNull();
+  });
+
+  it("gives the band other figures for ?hud=, nothing else changed (CLI-03l)", () => {
+    expect(hudSheet(ADVENTURER, null)).toBe(ADVENTURER);
+    const low = hudSheet(ADVENTURER, "low");
+    expect([low.health, low.energy, low.adrenaline]).toEqual([
+      { current: 37, max: 160 },
+      { current: 5, max: 20 },
+      3,
+    ]);
+    const empty = hudSheet(ADVENTURER, "empty");
+    expect([empty.health, empty.energy, empty.adrenaline]).toEqual([
+      { current: 0, max: 160 },
+      { current: 0, max: 20 },
+      0,
+    ]);
+    const others = (sheet: typeof ADVENTURER) =>
+      Object.entries(sheet).filter(([key]) => !["health", "energy", "adrenaline"].includes(key));
+    expect(others(low)).toEqual(others(ADVENTURER));
+    // The fixture itself is untouched: the placeholders stay what they are.
+    expect([ADVENTURER.health.current, ADVENTURER.energy.current, ADVENTURER.adrenaline]).toEqual([
+      160, 20, 0,
+    ]);
+    const warden = { ...ADVENTURER, profession: "warden" as const, adrenaline: null };
+    expect(hudSheet(warden, "low").adrenaline).toBeNull();
   });
 });
