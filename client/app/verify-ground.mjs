@@ -215,6 +215,14 @@ async function location(browser, size, viewport, touch, [name, url, hub]) {
     const ground = await room.getAttribute("data-ground");
     ok(ground === "atlas", `${label}: the ground drawn from the atlas's cells (${ground})`);
     console.log(`  note ${label}: last chunk's bake ${await room.getAttribute("data-bake-ms")} ms`);
+    if (name === "zone") {
+      // CLI-03h: the walls' obstacles are the atlas's stills, not the shaped rocks.
+      const obstacles = await room.getAttribute("data-obstacles");
+      ok(
+        obstacles === "atlas",
+        `${label}: the walls drawn with the atlas's obstacles (${obstacles})`,
+      );
+    }
   }
   if (shots) await page.screenshot({ path: join(shots, `ground-${name}-${size}.png`) });
   // The walk: steps back and forth on a row, timed frame by frame (the zone's figures, AC-8).

@@ -75,6 +75,11 @@ export interface TerrainOptions {
   /** The ground of the tiles around the chunk (`groundPlan`'s `around`): lips across chunks. */
   readonly around?: PlanOptions["around"];
   readonly textures?: GroundTextures | null;
+  /**
+   * Whether the walls draw their shaped rock (the default); false when the atlas's obstacles stand
+   * on them instead (CLI-03h, the renderer's actors' layer).
+   */
+  readonly rocks?: boolean;
 }
 
 /**
@@ -127,7 +132,7 @@ export function drawTerrain(
       alpha: 0.35,
     });
   }
-  for (const tile of plan.rocks) drawRock(g, tile);
+  if (options.rocks ?? true) for (const tile of plan.rocks) drawRock(g, tile);
   return g;
 }
 
@@ -255,6 +260,9 @@ export function drawStructure(structure: ViewStructure): Graphics {
   return g;
 }
 
+/** The overlay's dimming of what was seen before: black at this alpha. */
+export const DIM_ALPHA = 0.45;
+
 /** What the overlay draws, as tiles: kept apart from the drawing so that tests can read it. */
 export interface OverlayPlan {
   /** Revealed tiles beyond sight: seen before, dimmed. */
@@ -286,7 +294,7 @@ export function drawOverlay(g: Graphics, view: ViewState): void {
   const plan = overlayPlan(view);
   g.clear();
   for (const tile of plan.dimmed) {
-    g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: 0.45 });
+    g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: DIM_ALPHA });
   }
   drawArcs(g, plan);
   drawGhosts(g, plan.path);
