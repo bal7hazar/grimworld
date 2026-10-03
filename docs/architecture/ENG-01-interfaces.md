@@ -451,6 +451,8 @@ Design/02 bounds awake goblins (8), not displaced ones; E-2.
 
 Every variable below is read and written only through `HubStoreTrait` (`contracts/persistent/src/store.cairo`, ENG-R1a, D-143): one `get_x`/`set_x` per model; the hot words (an adventurer's `core`, `place`, `build`, `belt`, `equipped`, an account's record, balance pages, the account list) as stored words, changed by the arithmetic their models pin against the packers. The layout below is unchanged by it.
 
+`accounts`, `account_adventurers` and `packs` are declared as typed slots (`Stored<M>`; ENG-R1b part 1, #320); `adventurers` and `balances` keep their offsets (ENG-R1a's note 4, rule step 3). The layouts below are unchanged by it.
+
 | Variable | Key | Slots | Record |
 |---|---|---:|---|
 | `admin`, `registry`, `instances`, `market`, `fate` | — | 5 | addresses |
