@@ -969,8 +969,11 @@ fn test_cost_library_baseline() {
     assert(words.clock == 50, 'one tick');
 }
 
+// A fixture artefact, not the tick's cost (CBT-05a, route (c)): every goblin of this fixture
+// stands on one tile, so each carrier's call to ExecutorLibrary carries them all. The tick's
+// cost is ENG-01 §9.2's line (26,422,703 a worst tick).
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+// gas: raised, CBT-05a, route (c): each call carries every goblin (a fixture artefact)
 #[available_gas(l2_gas: 835954852)] // ceil(1.05 × 796147478 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -983,8 +986,11 @@ fn test_cost_library_call() {
 // Ten ticks through one library call over the busy state: the class runs its own rules (`Idle`
 // until CBT-05 and ENG-07), so after the opening tick the goblins fall quiet. A trace of the call
 // at the array's bound, not a bound (the tick's is CBT-02b's, below).
+// A fixture artefact, not the tick's cost (CBT-05a, route (c)): every goblin of this fixture
+// stands on one tile, so each carrier's call to ExecutorLibrary carries them all. The tick's
+// cost is ENG-01 §9.2's line (26,422,703 a worst tick).
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+// gas: raised, CBT-05a, route (c): each call carries every goblin (a fixture artefact)
 #[available_gas(l2_gas: 844148703)] // ceil(1.05 × 803951145 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -1005,8 +1011,11 @@ fn test_cost_library_baseline_batch() {
 }
 
 // The library call runs the pipeline: the same words as a direct run.
+// A fixture artefact, not the tick's cost (CBT-05a, route (c)): every goblin of this fixture
+// stands on one tile, so each carrier's call to ExecutorLibrary carries them all. The tick's
+// cost is ENG-01 §9.2's line (26,422,703 a worst tick).
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+// gas: raised, CBT-05a, route (c): each call carries every goblin (a fixture artefact)
 #[available_gas(l2_gas: 875616563)] // ceil(1.05 × 833920536 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2778,8 +2787,11 @@ fn worst_words_kills() -> (Words, Content) {
     (Words { goblins, killed, ..words }, content)
 }
 
+// A fixture artefact, not the tick's cost (CBT-05a, route (c)): every goblin of this fixture
+// stands on one tile, so each carrier's call to ExecutorLibrary carries them all. The tick's
+// cost is ENG-01 §9.2's line (26,422,703 a worst tick).
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+// gas: raised, CBT-05a, route (c): each call carries every goblin (a fixture artefact)
 #[available_gas(l2_gas: 103470757)] // ceil(1.05 × 98543578 measured)
 fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
@@ -2809,8 +2821,11 @@ fn worst_words_two() -> (Words, Content) {
     (Words { members: array![member, member], ..words }, content)
 }
 
+// A fixture artefact, not the tick's cost (CBT-05a, route (c)): every goblin of this fixture
+// stands on one tile, so each carrier's call to ExecutorLibrary carries them all. The tick's
+// cost is ENG-01 §9.2's line (26,422,703 a worst tick).
 #[test]
-// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+// gas: raised, CBT-05a, route (c): each call carries every goblin (a fixture artefact)
 #[available_gas(l2_gas: 932517909)] // ceil(1.05 × 888112294 measured)
 fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();

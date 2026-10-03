@@ -367,6 +367,20 @@ ACCEPTED = [
     "  - `grimworld_persistent` `test_accounts::test_create_without_account_refused`: 7,654,840 → 7,954,210 (+3.9 %)",
     "  - `grimworld_persistent` `test_lifecycle::test_travel`: 35,630,367 → 37,310,737 (+4.7 %)",
     "",
+    "### Fixture artefacts, not the tick's cost (CBT-05a, route (c), #334)",
+    "",
+    "Marked at the project manager's request, 2026-10-03. These five figures are not the cost of a tick: their "
+    "fixtures place every goblin on one tile (CBT-02d's words carry no positions), so under route (c) each "
+    "concluding activation's call to `ExecutorLibrary` carries all the goblins of the world, a state play cannot "
+    "reach (one actor per tile). The tick's cost with the executor is ENG-01 §9.2's line: 26,422,703 a worst tick "
+    "(17.98 × 1,469,435), the figure for ENG-07 and R-2. Measured (budget) at #334's head:",
+    "",
+    "- `grimworld_logic` `test_tick::test_cost_library_call`: 796,147,478 (835,954,852)",
+    "- `grimworld_logic` `test_tick::test_cost_library_call_batch`: 803,951,145 (844,148,703)",
+    "- `grimworld_logic` `test_tick::test_cost_library_call_kills`: 98,543,578 (103,470,757)",
+    "- `grimworld_logic` `test_tick::test_cost_library_call_two_members`: 888,112,294 (932,517,909)",
+    "- `grimworld_logic` `test_tick::test_library_matches_pipeline`: 833,920,536 (875,616,563)",
+    "",
 ]
 
 
