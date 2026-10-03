@@ -29,7 +29,9 @@ fn decode(mut felts: Span<felt252>) -> Words {
 // Two segments of 5 ticks give the 10-tick segment's words, and the first's OUT_HASH is the
 // second's IN_HASH: segments chain by their public outputs alone (slingfall's chunk binding).
 #[test]
-#[available_gas(l2_gas: 41428596)] // ceil(1.05 × 39455805 measured)
+// gas: raised, CBT-05a: the content's sheets carry the executor's fields, the actors their
+// positions
+#[available_gas(l2_gas: 45521563)] // ceil(1.05 × 43353869 measured)
 fn test_segments_chain() {
     let (words, content) = representative_args();
     let whole = segment(words.clone(), content.clone(), IDLE, 10);
@@ -79,7 +81,9 @@ fn gas_of_run(words: Span<felt252>, content: Span<felt252>, rules: felt252, tick
 }
 
 #[test]
-#[available_gas(l2_gas: 209879943)] // ceil(1.05 × 199885660 measured)
+// gas: raised, CBT-05a: the content's sheets carry the executor's fields, the actors their
+// positions
+#[available_gas(l2_gas: 222363603)] // ceil(1.05 × 211774860 measured)
 fn test_cost_run_ticks() {
     let (words, content) = representative_args();
     for ticks in array![0_u32, 1, 10, 100] {

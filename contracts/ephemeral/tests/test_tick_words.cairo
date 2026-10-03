@@ -22,10 +22,24 @@ use starknet::storage_access::StorePacking;
 fn bar_skills() -> Array<SkillSheet> {
     let mut skills = array![
         SkillSheet {
-            id: 300, kind: 4, adrenaline: 0, activation: 1, recharge: 9, regen0: 1, regen12: 5,
+            id: 300,
+            kind: 4,
+            adrenaline: 0,
+            activation: 1,
+            recharge: 9,
+            regen0: 1,
+            regen12: 5,
+            ..Default::default(),
         },
         SkillSheet {
-            id: 301, kind: 1, adrenaline: 5, activation: 0, recharge: 4, regen0: 0, regen12: 0,
+            id: 301,
+            kind: 1,
+            adrenaline: 5,
+            activation: 0,
+            recharge: 4,
+            regen0: 0,
+            regen12: 0,
+            ..Default::default(),
         },
     ];
     for id in 7..13_u16 {
@@ -37,7 +51,7 @@ fn bar_skills() -> Array<SkillSheet> {
 fn content() -> Content {
     Content {
         skills: bar_skills().span(),
-        potions: array![PotionSheet { id: 4000, regen: -2 }].span(),
+        potions: array![PotionSheet { id: 4000, regen: -2, ..Default::default() }].span(),
         castes: array![
             CasteSheet {
                 id: 12,
@@ -47,6 +61,7 @@ fn content() -> Content {
                 energy_regen: 3,
                 weapon_ticks: 2,
                 skills: [301, 300, 0, 0],
+                ..Default::default(),
             },
         ]
             .span(),
@@ -131,7 +146,7 @@ fn test_tick_constants() {
 // unpackers read them, and every other field of the four words is kept.
 #[test]
 // gas: raised, the load reads through the content's index, built first (CBT-02d)
-#[available_gas(l2_gas: 1376372)] // ceil(1.05 × 1310830 measured)
+#[available_gas(l2_gas: 1511801)] // ceil(1.05 × 1439810 measured)
 fn test_tick_words_member() {
     let (state, timers, effects, recharges, words) = member_words();
     let (sheets, mut index) = content().index();
@@ -201,11 +216,13 @@ fn test_tick_words_member() {
 // skill field 0 with the potion tag is a belt slot, not an empty slot): packed, loaded, ticked.
 #[test]
 // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-#[available_gas(l2_gas: 3149919)] // ceil(1.05 × 2999922 measured), kept: 3007552 now
+#[available_gas(l2_gas: 3589008)] // ceil(1.05 × 3418102 measured)
 fn test_potion_regeneration_every_belt_slot() {
     let potions = array![
-        PotionSheet { id: 4000, regen: 1 }, PotionSheet { id: 4001, regen: 2 },
-        PotionSheet { id: 4002, regen: 3 }, PotionSheet { id: 4003, regen: 4 },
+        PotionSheet { id: 4000, regen: 1, ..Default::default() },
+        PotionSheet { id: 4001, regen: 2, ..Default::default() },
+        PotionSheet { id: 4002, regen: 3, ..Default::default() },
+        PotionSheet { id: 4003, regen: 4, ..Default::default() },
     ];
     let content = Content {
         skills: bar_skills().span(), potions: potions.span(), castes: array![].span(),
@@ -243,7 +260,7 @@ fn test_potion_regeneration_every_belt_slot() {
 // A goblin: the same for its two words, its caste's derived fields and its effect's pips.
 #[test]
 // gas: raised, the load reads through the content's index, built first (CBT-02d)
-#[available_gas(l2_gas: 605735)] // ceil(1.05 × 576890 measured)
+#[available_gas(l2_gas: 708320)] // ceil(1.05 × 674590 measured)
 fn test_tick_words_goblin() {
     let state = GoblinState {
         x: 200,
@@ -290,8 +307,8 @@ fn test_tick_words_goblin() {
     assert(goblin.bleeding == 21 && goblin.poison == 22 && goblin.burning == 23, 'conditions');
     assert(goblin.knocked == 25 && goblin.effect_deadline == 26, 'deadlines');
     // (80 + 20 × 18) × 120 / 100 = 528; skill 300 at rank 6: 1 + 4 × 6 / 12 = 3.
-    assert(goblin.max_health == 528 && goblin.health_regen == 3, 'health');
-    assert(goblin.max_energy == 120 && goblin.energy_regen == 3, 'energy');
+    assert(goblin.max_health == 528 && goblin.health_regen(@sheets) == 3, 'health');
+    assert(goblin.max_energy(@sheets) == 120 && goblin.energy_regen(@sheets) == 3, 'energy');
     assert(goblin.effect_regen == 3, 'effect pips');
     for slot in 0..4_u8 {
         assert(goblin.recharge(slot) == *state.recharges.span()[slot.into()], 'recharges');

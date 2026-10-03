@@ -298,6 +298,10 @@ pub struct Member {
     /// Its bar's skills' positions in the content (`types::tick::Sheets.skills`), found once at its
     /// load (CBT-02d): slot `s` in bits `16 s`, `ABSENT_LANE` for an empty slot.
     pub bar_at: u128,
+    /// Each held effect's carrier's position in the content, found once at its load and set when
+    /// the executor holds one (CBT-05a): a skill's in `Sheets.skills`, a potion's in
+    /// `Sheets.potions`; slot `s` in bits `16 s`, `ABSENT_LANE` for an empty slot.
+    pub effect_at: u128,
     pub words: MemberWords,
 }
 
@@ -336,17 +340,13 @@ pub struct Goblin {
     pub effect_deadline: u32,
     pub effect_regen: i8,
     pub max_health: u16,
-    /// Pips, signed.
-    pub health_regen: i8,
-    /// In thirds.
-    pub max_energy: u8,
-    pub energy_regen: u8,
-    /// Its adrenaline gains' cap in quarters: its caste skills' highest cost, at most the field's
-    /// 252 (design/19 §5.12), derived once.
-    pub adrenaline_cap: u8,
+    // CBT-05a (R3): its health and energy regeneration, max energy and adrenaline cap are its
+    // caste's, read at `caste_at` (`GoblinTrait::health_regen` …): a lighter value to rebuild.
     /// Its caste's position in the content (`types::tick::Sheets.castes` and `.kits`), found once
     /// at its load (CBT-02d).
     pub caste_at: u32,
+    /// Its held effect's skill's position in `Sheets.skills` (CBT-05a), `ABSENT` for none.
+    pub effect_at: u32,
     pub state: felt252,
     pub timers: felt252,
 }

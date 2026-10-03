@@ -286,6 +286,28 @@ pub impl WindowImpl of WindowTrait {
         Bits::to_felt(Bits::and(tiles, (*self.open).into()))
     }
 
+    /// `shape` for the shapes the MVP's content uses (CBT-05a, option (2) of the project manager,
+    /// 2026-10-02): `SINGLE`, `RING_1`, `DISC_1`, by the same rule. `DISC_2` and `DISC_3` have no
+    /// MVP content (FX-21; the validators refuse them since CBT-01): an empty set here, so that the
+    /// executor's class does not hold `disc`. The executor's one shape call.
+    fn near(self: @Window, shape: u8, centre: u8) -> felt252 {
+        if !Self::inside(centre) {
+            return 0;
+        }
+        let tiles = if shape == shape::SINGLE {
+            Bits::pow(centre)
+        } else if shape == shape::RING_1 {
+            WindowInternal::neighbours(centre, 0)
+        } else if shape == shape::DISC_1 {
+            WindowInternal::neighbours(centre, 1)
+        } else {
+            return 0;
+        };
+        // `u256`: the two limbs of the bitmaps for the bitwise builtin (module documentation)
+        let tiles: u256 = tiles.into();
+        Bits::to_felt(Bits::and(tiles, (*self.open).into()))
+    }
+
     /// The positions of a bitmap of the window, ascending.
     fn tiles(mask: felt252) -> Span<u8> {
         // `u256`: the two limbs of the bitmap, each walked on its own (module documentation)
@@ -851,7 +873,6 @@ mod tests {
 
     /// AC-2: `hexx`'s line is design/04's, ties included, from both row parities at the centre.
     #[test]
-    // gas: raised, distance guards a position outside the window (fix loop 3)
     #[available_gas(l2_gas: 252301529)] // ceil(1.05 × 240287170 measured)
     fn test_line_against_oracle_centre() {
         Fixture::check_from(Fixture::at(7, 7));
@@ -860,7 +881,6 @@ mod tests {
 
     /// The same at the window's corners and edges, where a line can leave it.
     #[test]
-    // gas: raised, sight tests both ends (fix loop 1); distance guards outside (fix loop 3)
     #[available_gas(l2_gas: 470943365)] // ceil(1.05 × 448517490 measured)
     fn test_line_against_oracle_edges() {
         Fixture::check_from(Fixture::at(0, 0));
@@ -977,7 +997,6 @@ mod tests {
 
     /// design/04's ranges: within the range and in sight.
     #[test]
-    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
     #[available_gas(l2_gas: 126889)] // ceil(1.05 × 120846 measured)
     fn test_reach() {
         let window = Fixture::walled(array![Fixture::at(9, 8)].span());
@@ -1201,6 +1220,20 @@ mod tests {
     }
 
     /// Counts in the open, at the corners and edges; walls skipped; the centre a wall.
+    // CBT-05a: `near` is `shape` for the MVP's three shapes at every centre, and empty for the
+    // radii FX-21 defers.
+    #[test]
+    #[available_gas(l2_gas: 33162371)] // ceil(1.05 × 31583210 measured)
+    fn test_near_agrees() {
+        let window = Fixture::walled(array![17, 112, 200].span());
+        for centre in 0..240_u8 {
+            for s in 1..4_u8 {
+                assert(window.near(s, centre) == window.shape(s, centre), 'near = shape');
+            }
+            assert(window.near(4, centre) == 0 && window.near(5, centre) == 0, 'deferred');
+        }
+    }
+
     #[test]
     #[available_gas(l2_gas: 1454972)] // ceil(1.05 × 1385687 measured)
     fn test_shapes_edges() {
@@ -1288,7 +1321,6 @@ mod tests {
     // tests: they need nothing deployed.
 
     #[test]
-    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
     #[available_gas(l2_gas: 45934)] // ceil(1.05 × 43746 measured)
     fn test_cost_sight_once() {
         let window = Fixture::bench();
@@ -1298,7 +1330,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
     #[available_gas(l2_gas: 69219)] // ceil(1.05 × 65922 measured)
     fn test_cost_sight_twice() {
         let window = Fixture::bench();
@@ -1311,7 +1342,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
     #[available_gas(l2_gas: 58481)] // ceil(1.05 × 55696 measured)
     fn test_cost_reach_once() {
         let window = Fixture::bench();
@@ -1326,7 +1356,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, sight tests both ends of the line (fix loop 1, a wall at either end blocks)
     #[available_gas(l2_gas: 94408)] // ceil(1.05 × 89912 measured)
     fn test_cost_reach_twice() {
         let window = Fixture::bench();
@@ -1453,7 +1482,6 @@ mod tests {
 
     /// `distance` at range 6 (the hit's `melee` input, CBT-05a): one cost on every path.
     #[test]
-    // gas: raised, distance guards a position outside the window (fix loop 3)
     #[available_gas(l2_gas: 24192)] // ceil(1.05 × 23040 measured)
     fn test_cost_distance_once() {
         let distance = WindowTrait::distance(
@@ -1463,7 +1491,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, distance guards a position outside the window (fix loop 3)
     #[available_gas(l2_gas: 41234)] // ceil(1.05 × 39270 measured)
     fn test_cost_distance_twice() {
         let distance = WindowTrait::distance(
@@ -1691,7 +1718,6 @@ mod tests {
     // `vectors/check.py` fails while the committed file differs from what these print
     // (`vectors/README.md`).
     #[test]
-    // gas: raised, more cases (an odd-row target, from on a wall), both ends, distance's guard
     #[available_gas(l2_gas: 1265854713)] // ceil(1.05 × 1205575917 measured)
     fn test_vectors() {
         let window = Fixture::fixture();
@@ -1767,7 +1793,6 @@ mod tests {
 
     /// The table's second part, its ids following the first's (snforge's step limit splits it).
     #[test]
-    // gas: raised, front's outside neighbour as 240; distance outside cases and guard (fix loop 3)
     #[available_gas(l2_gas: 438945576)] // ceil(1.05 × 418043405 measured)
     fn test_vectors_1() {
         let window = Fixture::fixture();

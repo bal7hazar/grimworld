@@ -6,16 +6,17 @@
 //! layouts are the ephemeral package's, which owns the storage; the offsets below are ENG-01's
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
+use crate::helpers::signed::SignedTrait;
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
 use crate::packing::{
-    N16, N2, N28, N32, N56, N7, N8, P112, P16, P20, P24, P28, P32, P52, P56, P64, P72, P8, P80, P84,
-    P96, field, limbs, peel,
+    N16, N2, N28, N32, N56, N7, N8, P112, P16, P20, P24, P28, P32, P48, P52, P56, P64, P72, P8, P80,
+    P84, P96, field, limbs, peel,
 };
-use crate::types::combat::{condition, skill_kind};
+use crate::types::combat::{condition, damage, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
-    ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SheetsTrait,
-    SkillSheet, SkillSheetTrait, status,
+    ABSENT_LANE, ENERGY_THIRDS, Held, Index, IndexTrait, NO_SLOT, REGEN_OFFSET, Sheets, SkillSheet,
+    SkillSheetTrait, flag, status,
 };
 
 pub use super::index::{Member, MemberWords};
@@ -39,6 +40,21 @@ const F112: felt252 = 0x10000000000000000000000000000;
 /// `Member.bar_at`'s lanes: bar slot `s`'s position at bits `16 s` (CBT-02d: one `u128`, where
 /// eight `u32` made each copy of a member 7 felts longer).
 const BAR_LANES: [u128; 8] = [1, P16, P32, 0x1000000000000, P64, P80, P96, P112];
+/// `MemberStats`' bar ranks, 4 bits a slot from its high limb's bit 0.
+const RANK_LANES: [u128; 8] = [1, 0x10, 0x100, 0x1000, 0x10000, 0x100000, 0x1000000, 0x10000000];
+/// `MemberBar`'s `DAMAGE_PERCENT` sums by class, from its high limb's bit 8 (136 − 128).
+const PASSIVE_LANES: [u128; 3] = [P8, P16, P24];
+/// `MemberStats`' `ARMOR_VS` of types 3–9, from its high limb's bit 72 (200 − 128).
+const VS_LANES: [u128; 7] = [P72, P78, P84, P90, P96, P102, P108];
+const N88: NonZero<u128> = 0x10000000000000000000000;
+const P26: u128 = 0x4000000;
+const P54: u128 = 0x40000000000000;
+const P74: u128 = 0x4000000000000000000;
+const P78: u128 = 0x40000000000000000000;
+const P90: u128 = 0x40000000000000000000000;
+const P102: u128 = 0x40000000000000000000000000;
+const P104: u128 = 0x100000000000000000000000000;
+const P108: u128 = 0x1000000000000000000000000000;
 
 pub mod errors {
     /// An effect's `REGENERATION` pips beyond an `i8` (the kind's bound is ±10).
@@ -172,6 +188,8 @@ pub impl MemberImpl of MemberTrait {
         let (belt, _) = limbs(words.kit);
         let mut deadlines: Array<u32> = array![];
         let mut regen: Array<i8> = array![];
+        let mut effect_at: u128 = 0;
+        let mut lane: u32 = 0;
         for effect in array![first, second, third, fourth] {
             let mut rest = effect;
             let carrier: u16 = peel(ref rest, N16).try_into().unwrap();
@@ -183,16 +201,23 @@ pub impl MemberImpl of MemberTrait {
             let rank: u8 = rest.try_into().unwrap();
             // The potion tag first: with it, the carrier is a belt slot 0–3, slot 0 included
             // (ENG-01 §3.2; AUD-182-1). Without it, skill 0 is an empty slot.
+            let shift = *BAR_LANES.span()[lane];
             let pips: i32 = if potion == 1 {
                 let id = field(belt, *[1, P32, P64, P96].span()[carrier.into()], P32);
-                (*(*sheets.potions)[index.potion(id.try_into().unwrap())].regen).into()
+                let at = index.potion(id.try_into().unwrap());
+                effect_at += at.into() * shift;
+                (*(*sheets.potions)[at].regen).into()
             } else if carrier == 0 {
+                effect_at += ABSENT_LANE * shift;
                 0
             } else {
-                (*sheets.skills)[index.skill(carrier)].regen(rank)
+                let at = index.skill(carrier);
+                effect_at += at.into() * shift;
+                (*sheets.skills)[at].regen(rank)
             };
             MemberAssert::assert_pips(pips);
             regen.append(pips.try_into().unwrap());
+            lane += 1;
         }
         // The bar's highest adrenaline cost, in quarters (§5.12).
         let (bar, _) = limbs(words.bar);
@@ -234,6 +259,7 @@ pub impl MemberImpl of MemberTrait {
             energy_regen: energy_regen.try_into().unwrap(),
             adrenaline_cap: cap,
             bar_at,
+            effect_at,
             words,
         }
     }
@@ -320,6 +346,13 @@ pub impl MemberImpl of MemberTrait {
     #[inline(always)]
     fn position(self: @Member, slot: u8) -> u128 {
         field(*self.bar_at, *BAR_LANES.span()[slot.into()], P16)
+    }
+
+    /// The position in the content of effect slot 0–3's carrier: a skill's in `Sheets.skills`, a
+    /// potion's in `Sheets.potions` (`ABSENT_LANE` for an empty slot).
+    #[inline(always)]
+    fn effect_position(self: @Member, slot: u8) -> u128 {
+        field(*self.effect_at, *BAR_LANES.span()[slot.into()], P16)
     }
 
     /// The sheet of bar slot 0–7's skill, at its position (CBT-02d).
@@ -422,6 +455,117 @@ pub impl MemberWordsImpl of MemberWordsTrait {
         };
         self.effect_deadlines = deadlines;
         self.effect_regen = regen;
+    }
+}
+
+/// The fields of a member's words its hits and the executor's guards read (CBT-05a; ENG-01 §3.2,
+/// design/19 §7.2 offsets): read in the words at each use, never written in play.
+#[generate_trait]
+pub impl MemberSnapshotImpl of MemberSnapshotTrait {
+    /// Its tile and facing (`MemberState` x 32–39, y 40–47, facing 48–55).
+    fn place(self: @Member) -> (u8, u8, u8) {
+        let (low, _) = limbs(*self.words.state);
+        let (mut rest, _) = DivRem::div_rem(low, N32);
+        let x = peel(ref rest, N8);
+        let y = peel(ref rest, N8);
+        let facing = peel(ref rest, N8);
+        (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
+    }
+
+    /// Its level (`MemberStats` 64–71).
+    fn level(self: @Member) -> u8 {
+        let (low, _) = limbs(*self.words.stats);
+        field(low, P64, P8).try_into().unwrap()
+    }
+
+    /// Its weapon (`MemberStats`): class 88–95, damage 96–103, range 112–119, strength
+    /// 120–127 (the snapshot's `5 × rank` capped, `HitTrait::weapon_strength`), damage type
+    /// 160–167, requirement met 176–183.
+    fn weapon(self: @Member) -> (u8, u8, u8, u8, u8, bool) {
+        let (low, high) = limbs(*self.words.stats);
+        let (mut rest, _) = DivRem::div_rem(low, N88);
+        let class = peel(ref rest, N8);
+        let damage = peel(ref rest, N8);
+        let _ticks = peel(ref rest, N8);
+        let range = peel(ref rest, N8);
+        let strength = rest;
+        let damage_type = field(high, P32, P8);
+        let met = field(high, P48, P8);
+        (
+            class.try_into().unwrap(),
+            damage.try_into().unwrap(),
+            range.try_into().unwrap(),
+            strength.try_into().unwrap(),
+            damage_type.try_into().unwrap(),
+            met != 0,
+        )
+    }
+
+    /// The rank of bar slot 0–7's skill (`MemberStats` 128 + 4 slot, 0–15).
+    fn rank(self: @Member, slot: u8) -> u8 {
+        let (_, high) = limbs(*self.words.stats);
+        field(high, *RANK_LANES.span()[slot.into()], 0x10).try_into().unwrap()
+    }
+
+    /// Its `DAMAGE_PERCENT` sums of class `s` (0 plain weapon, 1 attack skill, 2 spell), unguarded
+    /// and `ABOVE_HALF`, and its `PENETRATION` sum of the class (`MemberBar` 136 + 8 (3 g + s),
+    /// 184 + 8 s; design/19 §7.2).
+    fn passives(self: @Member, s: u8) -> (i16, i16, u16) {
+        let (_, high) = limbs(*self.words.bar);
+        let shift = *PASSIVE_LANES.span()[s.into()];
+        let always = SignedTrait::from8(field(high, shift, P8));
+        let above = SignedTrait::from8(field(high, shift * P24, P8));
+        let penetration = field(high, shift * P48, P8);
+        (always.into(), above.into(), penetration.try_into().unwrap())
+    }
+
+    /// Its unguarded armor (`MemberBar` 232–247, signed) and its guarded sums in a stance and
+    /// enchanted (`MemberKit` 184–191, 192–199, signed; F-20).
+    fn armor(self: @Member) -> (i16, i8, i8) {
+        let (_, bar) = limbs(*self.words.bar);
+        let (_, kit) = limbs(*self.words.kit);
+        (
+            SignedTrait::from16(field(bar, P104, P16)),
+            SignedTrait::from8(field(kit, P56, P8)),
+            SignedTrait::from8(field(kit, P64, P8)),
+        )
+    }
+
+    /// Its `ARMOR_VS` of damage type 1–9 (`MemberStats` 48 + 6 (t − 1) for 1–2, 200 + 6 (t
+    /// − 3)
+    /// for 3–9; FX-23); 0 for none.
+    fn armor_vs(self: @Member, damage_type: u8) -> u8 {
+        if damage_type == 0 || damage_type > damage::LAST {
+            return 0;
+        }
+        let (low, high) = limbs(*self.words.stats);
+        let vs = if damage_type <= 2 {
+            field(low, *[P48, P54].span()[(damage_type - 1).into()], 0x40)
+        } else {
+            field(high, *VS_LANES.span()[(damage_type - 3).into()], 0x40)
+        };
+        vs.try_into().unwrap()
+    }
+
+    /// `LIFE_STEAL_ON_HIT` and `ENERGY_ON_HIT` (`MemberKit` 128–135, 136–143).
+    fn on_hit(self: @Member) -> (u8, u8) {
+        let (_, high) = limbs(*self.words.kit);
+        let mut rest = high;
+        let steal = peel(ref rest, N8);
+        let energy = peel(ref rest, N8);
+        (steal.try_into().unwrap(), energy.try_into().unwrap())
+    }
+
+    /// `ENCHANT_DURATION`'s percent (`MemberKit` 154–159).
+    fn enchant_percent(self: @Member) -> u8 {
+        let (_, high) = limbs(*self.words.kit);
+        field(high, P26, 0x40).try_into().unwrap()
+    }
+
+    /// It holds `HALVE_FIRST_HEAVY_HIT` (`MemberKit` 202) and has not spent it (`flag::HALVED`).
+    fn halves(self: @Member) -> bool {
+        let (_, high) = limbs(*self.words.kit);
+        field(high, P74, 2) == 1 && *self.flags & flag::HALVED == 0
     }
 }
 
@@ -555,8 +699,9 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         }
     }
 
-    /// A holding effect applied at tick or clock `t` (§5.7), `stance` if its carrier is a stance;
-    /// returns its slot. In order:
+    /// A holding effect applied at tick or clock `t` (§5.7), `stance` if its carrier is a stance,
+    /// `at` its carrier's position in the content (a skill's, or a potion's: CBT-05a, no lookup
+    /// by id); returns its slot. In order:
     /// 1. its carrier held (FX-42: the skill id, or a potion's item id through its belt slot):
     ///    the application with the later deadline is kept whole, the new one on a tie (FX-30);
     /// 2. else a stance while one is held: it takes that slot;
@@ -564,7 +709,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
     /// 4. else eviction: the earliest deadline, ties the lowest slot (FX-13).
     /// An effect ends by its deadline: one whose charges reach 0 is ended by the executor with a
     /// deadline of `t − 1`.
-    fn hold(ref self: Member, held: Held, stance: bool, t: u32, sheets: @Sheets) -> u8 {
+    fn hold(ref self: Member, held: Held, at: u32, stance: bool, t: u32, sheets: @Sheets) -> u8 {
         let item = if held.potion {
             self.belt_item(held.carrier)
         } else {
@@ -582,7 +727,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
                 };
                 if same {
                     if held.deadline >= old.deadline {
-                        self.put(slot, held, item, sheets);
+                        self.put(slot, held, at, sheets);
                     }
                     return slot;
                 }
@@ -594,12 +739,16 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
             let mut slot: u8 = 0;
             while slot < 4 {
                 let old = self.effect_of(slot);
-                if old.deadline >= t
-                    && !old.potion
-                    && old.carrier != 0
-                    && *sheets.skill(old.carrier).kind == skill_kind::STANCE {
-                    self.put(slot, held, item, sheets);
-                    return slot;
+                if old.deadline >= t && !old.potion && old.carrier != 0 {
+                    let position = self.effect_position(slot);
+                    if position != ABSENT_LANE
+                        && *(*sheets.skills)[position
+                            .try_into()
+                            .unwrap()]
+                            .kind == skill_kind::STANCE {
+                        self.put(slot, held, at, sheets);
+                        return slot;
+                    }
                 }
                 slot += 1;
             }
@@ -611,7 +760,7 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
         while slot < 4 {
             let deadline = self.effect_of(slot).deadline;
             if deadline < t {
-                self.put(slot, held, item, sheets);
+                self.put(slot, held, at, sheets);
                 return slot;
             }
             if deadline < earliest_deadline {
@@ -620,19 +769,23 @@ pub impl MemberLifecycleImpl of MemberLifecycleTrait {
             }
             slot += 1;
         }
-        self.put(earliest, held, item, sheets);
+        self.put(earliest, held, at, sheets);
         earliest
     }
 
-    /// Writes `held` in `slot` with its pips: a potion's through its item, a skill's at its rank.
-    fn put(ref self: Member, slot: u8, held: Held, item: u32, sheets: @Sheets) {
+    /// Writes `held` in `slot` with its pips and its carrier's position `at`: a potion's sheet,
+    /// a skill's at its rank.
+    fn put(ref self: Member, slot: u8, held: Held, at: u32, sheets: @Sheets) {
         let pips: i32 = if held.potion {
-            (*sheets.potion(item).regen).into()
+            (*(*sheets.potions)[at].regen).into()
         } else {
-            sheets.skill(held.carrier).regen(held.rank)
+            (*sheets.skills)[at].regen(held.rank)
         };
         MemberAssert::assert_pips(pips);
         self.set_effect(slot, held, pips.try_into().unwrap());
+        let shift = *BAR_LANES.span()[slot.into()];
+        let old = self.effect_position(slot);
+        self.effect_at = self.effect_at - old * shift + at.into() * shift;
     }
 
     /// Adrenaline gained, in quarters (§5.12): capped at the member's cap (its bar's highest
@@ -775,7 +928,8 @@ mod tests {
     // Skullring's Knocked down 2 takes the flat +1 (D = 12); every condition 1–5 lands in its
     // field and survives the words.
     #[test]
-    #[available_gas(l2_gas: 7112175)] // ceil(1.05 × 6773500 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 7674555)] // ceil(1.05 × 7309100 measured)
     fn test_member_apply() {
         let sheets = Fixture::sheets();
         let mut member = rending();
@@ -800,7 +954,8 @@ mod tests {
     // deadline is kept; at a larger, refreshed; Knocked down likewise; a value of 0 is clamped
     // to 1 (§6), never a cure. A cure of an absent condition changes nothing.
     #[test]
-    #[available_gas(l2_gas: 5355998)] // ceil(1.05 × 5100950 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5543192)] // ceil(1.05 × 5279230 measured)
     fn test_member_apply_refresh() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -825,7 +980,8 @@ mod tests {
     // Nothing applies to a member not alive (§5.14: the entries reach living actors): at 0
     // health, or down.
     #[test]
-    #[available_gas(l2_gas: 5178600)] // ceil(1.05 × 4932000 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5344469)] // ceil(1.05 × 5089970 measured)
     fn test_member_apply_not_alive() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -844,7 +1000,8 @@ mod tests {
     // counts from t0 = 201 (R = 201 + 10 − 1 = 210), energy stays paid. Without an activation a
     // knock-down changes nothing but its deadline.
     #[test]
-    #[available_gas(l2_gas: 15035444)] // ceil(1.05 × 14319470 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 15205512)] // ceil(1.05 × 14481440 measured)
     fn test_member_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -866,7 +1023,8 @@ mod tests {
     // Wait in the action phase at clocks 51 and 52 (t0 = c + 1 ≤ 53), any at 53; a weapon hit
     // on it is critical from any arc and it neither blocks nor evades through tick 53.
     #[test]
-    #[available_gas(l2_gas: 4878290)] // ceil(1.05 × 4645990 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 4878395)] // ceil(1.05 × 4646090 measured)
     fn test_member_knocked_predicates() {
         let mut member = Fixture::member(Fixture::spec());
         member.knocked = 53;
@@ -879,7 +1037,8 @@ mod tests {
     // §3.2 row 4 (FX-15, FX-18): Crippled to D = 62, a move at clock 61 (t0 = 62) costs 2 ticks;
     // at clock 62 (t0 = 63), 1; with a `MOVEMENT` effect, 1.
     #[test]
-    #[available_gas(l2_gas: 4915145)] // ceil(1.05 × 4681090 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 4915460)] // ceil(1.05 × 4681390 measured)
     fn test_member_crippled_move() {
         let mut member = Fixture::member(Fixture::spec());
         assert(member.move_ticks(10, false) == 1, 'not crippled');
@@ -909,7 +1068,8 @@ mod tests {
     // 32,767), with "Rending" and without a passive, activating or not, a condition held to be
     // kept or raised, alive or not (at 0 health, down).
     #[test]
-    #[available_gas(l2_gas: 36581507)] // ceil(1.05 × 34839530 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 37639067)] // ceil(1.05 × 35846730 measured)
     fn test_member_apply_matches_oracle() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -951,7 +1111,8 @@ mod tests {
     // legal action's outcome).
     #[test]
     #[should_panic(expected: 'tick: knock-down is knock')]
-    #[available_gas(l2_gas: 4885608)] // ceil(1.05 × 4652960 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 4885923)] // ceil(1.05 × 4653260 measured)
     fn test_member_apply_knockdown_refused() {
         let mut member = Fixture::member(Fixture::spec());
         let none: Infliction = Default::default();
@@ -961,7 +1122,8 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down member's only action is Wait).
     #[test]
-    #[available_gas(l2_gas: 5243018)] // ceil(1.05 × 4993350 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5410986)] // ceil(1.05 × 5153320 measured)
     fn test_member_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -988,7 +1150,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5214794)] // ceil(1.05 × 4966470 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5383182)] // ceil(1.05 × 5126840 measured)
     fn test_cost_member_condition_base() {
         let (member, _sheets) = condition_cost_state();
         opaque(member);
@@ -996,7 +1159,8 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 5215634)] // ceil(1.05 × 4967270 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5384022)] // ceil(1.05 × 5127640 measured)
     fn test_cost_member_source_base() {
         let (member, _sheets) = condition_cost_state();
         let _source: Infliction = opaque(Default::default());
@@ -1004,7 +1168,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5234639)] // ceil(1.05 × 4985370 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5403132)] // ceil(1.05 × 5145840 measured)
     fn test_cost_member_infliction() {
         let (member, _sheets) = condition_cost_state();
         opaque(member.infliction());
@@ -1012,7 +1177,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5273415)] // ceil(1.05 × 5022300 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5443274)] // ceil(1.05 × 5184070 measured)
     fn test_cost_member_knock() {
         let (mut member, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1022,7 +1188,8 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; at 0 health.
     #[test]
-    #[available_gas(l2_gas: 5217104)] // ceil(1.05 × 4968670 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5385492)] // ceil(1.05 × 5129040 measured)
     fn test_cost_member_idle_base() {
         let (mut member, _sheets) = condition_cost_state();
         member.clear();
@@ -1032,7 +1199,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5216054)] // ceil(1.05 × 4967670 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5385492)] // ceil(1.05 × 5129040 measured)
     fn test_cost_member_zero_base() {
         let (mut member, _sheets) = condition_cost_state();
         member.health = opaque(0);
@@ -1041,7 +1209,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5273835)] // ceil(1.05 × 5022700 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5443694)] // ceil(1.05 × 5184470 measured)
     fn test_cost_member_knock_idle() {
         let (mut member, sheets) = condition_cost_state();
         member.clear();
@@ -1052,7 +1221,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5249433)] // ceil(1.05 × 4999460 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5418137)] // ceil(1.05 × 5160130 measured)
     fn test_cost_member_apply_crippled() {
         let (mut member, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1061,7 +1231,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5249433)] // ceil(1.05 × 4999460 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5418137)] // ceil(1.05 × 5160130 measured)
     fn test_cost_member_apply_bleeding() {
         let (mut member, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1070,7 +1241,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5249853)] // ceil(1.05 × 4999860 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5418557)] // ceil(1.05 × 5160530 measured)
     fn test_cost_member_apply_not_alive() {
         let (mut member, _sheets) = condition_cost_state();
         member.health = opaque(0);
@@ -1081,7 +1253,8 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    #[available_gas(l2_gas: 5310218)] // ceil(1.05 × 5057350 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5480601)] // ceil(1.05 × 5219620 measured)
     fn test_cost_member_oracle() {
         let (mut member, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -1092,7 +1265,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5253150)] // ceil(1.05 × 5003000 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5422064)] // ceil(1.05 × 5163870 measured)
     fn test_cost_member_cure() {
         let (mut member, _sheets) = condition_cost_state();
         member.cure(opaque(condition::BLEEDING), opaque(201));
@@ -1100,7 +1274,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 5226480)] // ceil(1.05 × 4977600 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5394869)] // ceil(1.05 × 5137970 measured)
     fn test_cost_member_predicates() {
         let (member, _sheets) = condition_cost_state();
         let t = opaque(201);
@@ -1114,7 +1289,8 @@ mod tests {
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 10871039)] // ceil(1.05 × 10353370 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 11247380)] // ceil(1.05 × 10711790 measured)
     fn test_member_load_store() {
         let mut spec = Fixture::spec();
         spec.conditions = [11, 12, 13, 14];
@@ -1137,7 +1313,8 @@ mod tests {
     // CBT-02d: the bar's positions in the content, found once at the load; an empty slot holds
     // none.
     #[test]
-    #[available_gas(l2_gas: 5889209)] // ceil(1.05 × 5608770 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 6050258)] // ceil(1.05 × 5762150 measured)
     fn test_member_bar_positions() {
         let mut words = Fixture::member_words(Fixture::spec());
         // Bar slot 7 empty, slot 0 skill 8: the content lists 8 first.
@@ -1178,7 +1355,8 @@ mod tests {
     // Knocked down likewise; Crippled lives in the words; a cure at 76 gives 75; an absent
     // condition is untouched.
     #[test]
-    #[available_gas(l2_gas: 5496603)] // ceil(1.05 × 5234860 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5693174)] // ceil(1.05 × 5422070 measured)
     fn test_member_conditions() {
         let mut member = Fixture::member(Fixture::spec());
         member.inflict(condition::BLEEDING, 70, 8);
@@ -1205,7 +1383,8 @@ mod tests {
     // at clock 80 (`t₀` 81, `D` 86) evicts the earliest deadline, 85, ties to the lowest slot:
     // Warcry in slot 1. Brace at 82, a stance while one is held, takes Sidestep's slot.
     #[test]
-    #[available_gas(l2_gas: 7809029)] // ceil(1.05 × 7437170 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 8446830)] // ceil(1.05 × 8044600 measured)
     fn test_hold_eviction_and_stance() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
@@ -1214,14 +1393,14 @@ mod tests {
             .effects =
                 [(11, false, 90, 12), (12, false, 85, 12), (13, false, 85, 12), (3, true, 100, 0)];
         let mut member = Fixture::load_member(Fixture::member_words(spec), @content);
-        let slot = member.hold(Fixture::held(14, false, 86, 12), true, 81, @sheets);
+        let slot = member.hold(Fixture::held(14, false, 86, 12), 11, true, 81, @sheets);
         assert(slot == 1 && member.effect_of(1) == Fixture::held(14, false, 86, 12), 'evicted');
-        let slot = member.hold(Fixture::held(15, false, 90, 12), true, 83, @sheets);
+        let slot = member.hold(Fixture::held(15, false, 90, 12), 12, true, 83, @sheets);
         assert(slot == 1 && member.effect_of(1).carrier == 15, 'stance replaces stance');
         assert(member.effect_regen == [0, 1, 0, 4], 'pips follow');
         assert(member.effect_deadlines == [90, 90, 85, 100], 'deadlines follow');
         // A free slot (a deadline passed) is taken before any eviction, the lowest first.
-        let slot = member.hold(Fixture::held(12, false, 95, 12), false, 86, @sheets);
+        let slot = member.hold(Fixture::held(12, false, 95, 12), 9, false, 86, @sheets);
         assert(slot == 2, 'lowest free slot');
         // The words round-trip what was held.
         let again = Fixture::load_member(member.store(), @content);
@@ -1231,25 +1410,26 @@ mod tests {
     // AUD-182-6, refresh (FX-30, FX-42): the same carrier keeps the later deadline, whole; the new
     // one on a tie; two belt slots holding the same potion item are one carrier.
     #[test]
-    #[available_gas(l2_gas: 7299600)] // ceil(1.05 × 6952000 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 8087846)] // ceil(1.05 × 7702710 measured)
     fn test_hold_refresh() {
         let content = Fixture::hold_content();
         let sheets = content.sheets();
         let mut spec = Fixture::spec();
         spec.effects = [(11, false, 90, 4), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
         let mut member = Fixture::load_member(Fixture::member_words(spec), @content);
-        member.hold(Fixture::held(11, false, 88, 12), false, 81, @sheets);
+        member.hold(Fixture::held(11, false, 88, 12), 8, false, 81, @sheets);
         assert(member.effect_of(0) == Fixture::held(11, false, 90, 4), 'earlier: kept');
-        member.hold(Fixture::held(11, false, 90, 12), false, 81, @sheets);
+        member.hold(Fixture::held(11, false, 90, 12), 8, false, 81, @sheets);
         assert(member.effect_of(0) == Fixture::held(11, false, 90, 12), 'tie: the new one');
-        member.hold(Fixture::held(11, false, 95, 7), false, 81, @sheets);
+        member.hold(Fixture::held(11, false, 95, 7), 8, false, 81, @sheets);
         assert(member.effect_of(0) == Fixture::held(11, false, 95, 7), 'later: replaced whole');
         // Belt slots 0 and 2 hold one item: one carrier.
         let mut words = member.store();
         words.kit = LIVE + 100 + 101 * two(32) + 100 * two(64) + 103 * two(96);
         let mut member = Fixture::load_member(words, @content);
-        let first = member.hold(Fixture::held(0, true, 99, 0), false, 81, @sheets);
-        let second = member.hold(Fixture::held(2, true, 120, 0), false, 81, @sheets);
+        let first = member.hold(Fixture::held(0, true, 99, 0), 0, false, 81, @sheets);
+        let second = member.hold(Fixture::held(2, true, 120, 0), 0, false, 81, @sheets);
         assert(first == 1 && second == 1, 'same potion, same slot');
         assert(member.effect_of(1) == Fixture::held(2, true, 120, 0), 'later potion kept');
     }
@@ -1258,7 +1438,8 @@ mod tests {
     // hit (`hits` resets at N), 1 a hit taken; each gain capped at the bar's highest adrenaline
     // cost (6 strikes: 24 quarters).
     #[test]
-    #[available_gas(l2_gas: 5675271)] // ceil(1.05 × 5405020 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 5776449)] // ceil(1.05 × 5501380 measured)
     fn test_member_adrenaline_gain() {
         let mut skills = array![];
         for id in 1..9_u16 {

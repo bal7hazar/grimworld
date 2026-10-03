@@ -148,7 +148,8 @@ pub struct HitTarget {
     pub evade: bool,
     /// It is knocked down (CBT-04): critical from any arc, neither blocks nor evades (FX-7).
     pub knocked_down: bool,
-    /// It is asleep: critical from any arc, and this first hit cannot be blocked (design/04).
+    /// It is asleep: critical from any arc, and this first hit can be neither blocked (design/04)
+    /// nor evaded (D-179).
     pub asleep: bool,
     /// It holds `HALVE_FIRST_HEAVY_HIT`, not yet spent (FX-19).
     pub halve: bool,
@@ -215,7 +216,9 @@ pub impl HitImpl of HitTrait {
         if *target.block > 0 && front && open && !*target.asleep {
             return Option::Some(HitOutcome::Blocked);
         }
-        if *target.evade && *self.melee && open {
+        // D-179: a sleeping target neither blocks nor evades its first hit (the executor clears
+        // `asleep` when it notices, §5.5 step 9).
+        if *target.evade && *self.melee && open && !*target.asleep {
             return Option::Some(HitOutcome::Evaded);
         }
         Option::None
@@ -579,7 +582,8 @@ mod tests {
 
     // Evasion: melee weapon hits from every arc (FX-11); not a knocked-down target (FX-7).
     #[test]
-    #[available_gas(l2_gas: 73112)] // ceil(1.05 × 69630 measured)
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
+    #[available_gas(l2_gas: 81911)] // ceil(1.05 × 78010 measured)
     fn test_evade() {
         let target = HitTarget { evade: true, ..goblin() };
         let mut arcs = array![Arc::Front, Arc::FrontSide, Arc::RearSide, Arc::Back];
@@ -589,6 +593,9 @@ mod tests {
         assert(damage(Hit { melee: false, ..sword() }, target) == 100, 'ranged not evaded');
         let down = HitTarget { knocked_down: true, ..target };
         assert(damage(sword(), down) == 140, 'knocked down: no evasion');
+        // D-179: a sleeping target neither blocks nor evades its first hit.
+        let asleep = HitTarget { asleep: true, ..target };
+        assert(damage(sword(), asleep) == 140, 'asleep: no evasion');
         // Block comes before evasion (§5.5 step 2's order): a charge is spent, not an evasion.
         let both = HitTarget { block: 1, ..target };
         assert(sword().resolve(@both) == HitOutcome::Blocked, 'block first');
@@ -923,7 +930,8 @@ mod tests {
     // D-140: no legal input panics; the outcome keeps §5.4's invariants.
     #[test]
     #[fuzzer(runs: 256)]
-    #[available_gas(l2_gas: 533106)] // ceil(1.05 × 515420 the most expensive run)
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
+    #[available_gas(l2_gas: 533211)] // ceil(1.05 × 507820 measured)
     fn test_fuzz_no_panic(seed: u64) {
         let (hit, target) = case(seed);
         match hit.resolve(@target) {
@@ -941,6 +949,36 @@ mod tests {
         }
     }
 
+    /// Track CV's hand-picked cases (CBT-05a): (200) an axe from the front-side arc, landing below
+    /// the clamp: no axe bonus; (201) the `ABOVE_HALF` damage passive at exactly half health,
+    /// with a non-zero percent: it does not apply; (202) FX-19's halving when the hit leaves the
+    /// target at exactly half: `2 (h ⊖ d) < max` fails, no halving.
+    fn cv_cases() -> Array<(Hit, HitTarget)> {
+        array![
+            (Hit { weapon: weapon::AXE, arc: Arc::FrontSide, ..sword() }, goblin()),
+            (Hit { percent_above_half: 20, health: 50, max_health: 100, ..sword() }, goblin()),
+            (
+                Hit { base: 60, ..sword() },
+                HitTarget { halve: true, health: 300, max_health: 480, ..goblin() },
+            ),
+        ]
+    }
+
+    // Track CV's cases, each pinned: the axe front-side 100 (no +25); above half at exactly half
+    // 100 (no +20); 300 − 60 = 240 = half of 480: not halved.
+    #[test]
+    #[available_gas(l2_gas: 162614)] // ceil(1.05 × 154870 measured)
+    fn test_cv_cases() {
+        let cases = cv_cases();
+        let (axe, target) = *cases[0];
+        assert(damage(axe, target) == 100, 'axe front-side: no bonus');
+        let (half, target) = *cases[1];
+        assert(damage(half, target) == 100, 'exactly half: no above-half');
+        let (hit, target) = *cases[2];
+        let landed = landed(hit.resolve(@target));
+        assert(landed.damage == 60 && !landed.halved, 'left at half: not halved');
+    }
+
     // ---- The vector table for the TypeScript mirror (D-140, SPK-4) ---------------------------
 
     /// The hand-written cases: the edges above, so that the mirror meets each.
@@ -952,6 +990,7 @@ mod tests {
             (Hit { arc: Arc::Back, weapon: weapon::AXE, ..sword() }, goblin()),
             (sword(), HitTarget { knocked_down: true, block: 2, evade: true, ..goblin() }),
             (sword(), HitTarget { asleep: true, block: 2, ..goblin() }),
+            (sword(), HitTarget { asleep: true, evade: true, ..goblin() }),
             (sword(), HitTarget { block: 2, ..goblin() }),
             (Hit { arc: Arc::RearSide, ..sword() }, HitTarget { block: 2, ..goblin() }),
             (Hit { arc: Arc::Back, ..sword() }, HitTarget { evade: true, ..goblin() }),
@@ -1022,7 +1061,8 @@ mod tests {
     // form), and a digest of every case and outcome: a change to a rule or to the cases fails here
     // until `contracts/logic/vectors/hit.jsonl` is regenerated (module documentation).
     #[test]
-    #[available_gas(l2_gas: 961496367)] // ceil(1.05 × 915710825 measured)
+    // gas: raised, CBT-05a: D-179's case and track CV's three hit cases
+    #[available_gas(l2_gas: 968230791)] // ceil(1.05 × 922124562 measured)
     fn test_vectors() {
         let mut cases = edges();
         let mut seed: u64 = 1;
@@ -1030,6 +1070,9 @@ mod tests {
             cases.append(case(seed));
             seed += 1;
         }
+        // Track CV's three (their mutation check of the mirror), after the seeded cases so that
+        // no earlier id moves: ids 200, 201, 202.
+        cases.append_span(cv_cases().span());
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = 0;
         for (hit, target) in cases.span() {
@@ -1051,5 +1094,5 @@ mod tests {
     }
 
     const DIGEST: felt252 =
-        2906723100009955365992361671579306487455268429034762274010583741351942708746;
+        1721532226947953684441861240057568072922553245391188094346499166904764442173;
 }

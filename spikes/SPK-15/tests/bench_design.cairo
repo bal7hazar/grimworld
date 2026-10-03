@@ -38,49 +38,49 @@ fn awake_tick(n: u16) {
 }
 
 #[test]
-#[available_gas(l2_gas: 18249399)] // ceil(1.05 × 17380380 measured)
+#[available_gas(l2_gas: 18520121)] // ceil(1.05 × 17638210 measured)
 fn test_design_awake_8_fixture() {
     awake_fixture(8);
 }
 
 #[test]
-#[available_gas(l2_gas: 19801002)] // ceil(1.05 × 18858097 measured)
+#[available_gas(l2_gas: 20100777)] // ceil(1.05 × 19143597 measured)
 fn test_pair_design_awake_8() {
     awake_tick(8);
 }
 
 #[test]
-#[available_gas(l2_gas: 17297994)] // ceil(1.05 × 16474280 measured)
+#[available_gas(l2_gas: 17569346)] // ceil(1.05 × 16732710 measured)
 fn test_design_awake_6_fixture() {
     awake_fixture(6);
 }
 
 #[test]
-#[available_gas(l2_gas: 18442569)] // ceil(1.05 × 17564351 measured)
+#[available_gas(l2_gas: 18750828)] // ceil(1.05 × 17857931 measured)
 fn test_pair_design_awake_6() {
     awake_tick(6);
 }
 
 #[test]
-#[available_gas(l2_gas: 16346589)] // ceil(1.05 × 15568180 measured)
+#[available_gas(l2_gas: 16618571)] // ceil(1.05 × 15827210 measured)
 fn test_design_awake_4_fixture() {
     awake_fixture(4);
 }
 
 #[test]
-#[available_gas(l2_gas: 17135964)] // ceil(1.05 × 16319965 measured)
+#[available_gas(l2_gas: 17447667)] // ceil(1.05 × 16616825 measured)
 fn test_pair_design_awake_4() {
     awake_tick(4);
 }
 
 #[test]
-#[available_gas(l2_gas: 14441270)] // ceil(1.05 × 13753590 measured)
+#[available_gas(l2_gas: 14714637)] // ceil(1.05 × 14013940 measured)
 fn test_design_awake_0_fixture() {
     awake_fixture(0);
 }
 
 #[test]
-#[available_gas(l2_gas: 14658760)] // ceil(1.05 × 13960723 measured)
+#[available_gas(l2_gas: 14962136)] // ceil(1.05 × 14249653 measured)
 fn test_pair_design_awake_0() {
     awake_tick(0);
 }
@@ -126,55 +126,55 @@ fn window_lazy(count: u16) {
 }
 
 #[test]
-#[available_gas(l2_gas: 11828649)] // ceil(1.05 × 11265380 measured)
+#[available_gas(l2_gas: 12031688)] // ceil(1.05 × 11458750 measured)
 fn test_design_window_100_fixture() {
     window_fixture(100);
 }
 
 #[test]
-#[available_gas(l2_gas: 22927832)] // ceil(1.05 × 21836030 measured)
+#[available_gas(l2_gas: 23344545)] // ceil(1.05 × 22232900 measured)
 fn test_pair_design_window_100_main() {
     window_main(100);
 }
 
 #[test]
-#[available_gas(l2_gas: 15114225)] // ceil(1.05 × 14394500 measured)
+#[available_gas(l2_gas: 15774350)] // ceil(1.05 × 15023190 measured)
 fn test_pair_design_window_100_lazy() {
     window_lazy(100);
 }
 
 #[test]
-#[available_gas(l2_gas: 11429649)] // ceil(1.05 × 10885380 measured)
+#[available_gas(l2_gas: 11632688)] // ceil(1.05 × 11078750 measured)
 fn test_design_window_60_fixture() {
     window_fixture(60);
 }
 
 #[test]
-#[available_gas(l2_gas: 18478352)] // ceil(1.05 × 17598430 measured)
+#[available_gas(l2_gas: 18986205)] // ceil(1.05 × 18082100 measured)
 fn test_pair_design_window_60_main() {
     window_main(60);
 }
 
 #[test]
-#[available_gas(l2_gas: 14076825)] // ceil(1.05 × 13406500 measured)
+#[available_gas(l2_gas: 14720150)] // ceil(1.05 × 14019190 measured)
 fn test_pair_design_window_60_lazy() {
     window_lazy(60);
 }
 
 #[test]
-#[available_gas(l2_gas: 11230149)] // ceil(1.05 × 10695380 measured)
+#[available_gas(l2_gas: 11433188)] // ceil(1.05 × 10888750 measured)
 fn test_design_window_40_fixture() {
     window_fixture(40);
 }
 
 #[test]
-#[available_gas(l2_gas: 16253612)] // ceil(1.05 × 15479630 measured)
+#[available_gas(l2_gas: 16807035)] // ceil(1.05 × 16006700 measured)
 fn test_pair_design_window_40_main() {
     window_main(40);
 }
 
 #[test]
-#[available_gas(l2_gas: 13558125)] // ceil(1.05 × 12912500 measured)
+#[available_gas(l2_gas: 14193050)] // ceil(1.05 × 13517190 measured)
 fn test_pair_design_window_40_lazy() {
     window_lazy(40);
 }
@@ -208,37 +208,37 @@ fn representative_tick(n: u16) {
 }
 
 #[test]
-#[available_gas(l2_gas: 7593632)] // ceil(1.05 × 7232030 measured)
+#[available_gas(l2_gas: 7751405)] // ceil(1.05 × 7382290 measured)
 fn test_design_representative_8_fixture() {
     representative_fixture(8);
 }
 
 #[test]
-#[available_gas(l2_gas: 8261502)] // ceil(1.05 × 7868097 measured)
+#[available_gas(l2_gas: 8489615)] // ceil(1.05 × 8085347 measured)
 fn test_pair_design_representative_8() {
     representative_tick(8);
 }
 
 #[test]
-#[available_gas(l2_gas: 6997463)] // ceil(1.05 × 6664250 measured)
+#[available_gas(l2_gas: 7157756)] // ceil(1.05 × 6816910 measured)
 fn test_design_representative_6_fixture() {
     representative_fixture(6);
 }
 
 #[test]
-#[available_gas(l2_gas: 7531074)] // ceil(1.05 × 7172451 measured)
+#[available_gas(l2_gas: 7749611)] // ceil(1.05 × 7380581 measured)
 fn test_pair_design_representative_6() {
     representative_tick(6);
 }
 
 #[test]
-#[available_gas(l2_gas: 6401294)] // ceil(1.05 × 6096470 measured)
+#[available_gas(l2_gas: 6564107)] // ceil(1.05 × 6251530 measured)
 fn test_design_representative_4_fixture() {
     representative_fixture(4);
 }
 
 #[test]
-#[available_gas(l2_gas: 6800646)] // ceil(1.05 × 6476805 measured)
+#[available_gas(l2_gas: 7009606)] // ceil(1.05 × 6675815 measured)
 fn test_pair_design_representative_4() {
     representative_tick(4);
 }

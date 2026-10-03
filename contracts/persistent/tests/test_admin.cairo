@@ -33,7 +33,6 @@ fn stored(hub: ContractAddress) -> (felt252, felt252, felt252, felt252, felt252,
 }
 
 #[test]
-// gas: raised, CBT-02f: set_contracts raises the rules epoch, a new slot (D-169)
 #[available_gas(l2_gas: 5712651)] // ceil(1.05 × 5440620 measured)
 fn test_hub_set_contracts_by_admin() {
     let hub = deploy_hub();
@@ -50,7 +49,6 @@ fn test_hub_set_contracts_by_admin() {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 4510454)] // ceil(1.05 × 4295670 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_contracts_refused_to_others() {
@@ -70,7 +68,6 @@ fn test_hub_set_contracts_refused_to_others() {
 
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
-// gas: raised, CBT-02f: set_contracts raises the rules epoch, a new slot (D-169)
 #[available_gas(l2_gas: 6491825)] // ceil(1.05 × 6182690 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_hands_over() {
@@ -104,7 +101,6 @@ fn test_hub_set_admin_hands_over() {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 4714605)] // ceil(1.05 × 4490100 measured)
 #[feature("safe_dispatcher")]
 fn test_hub_set_admin_refused() {

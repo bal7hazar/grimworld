@@ -11,6 +11,11 @@ reaches half its limit with interfaces only, or at any later lot, is split befor
 Limits (docs.starknet.io, *Chain info*, read 2026-09-29): 4,089,446 bytes of Sierra class,
 81,920 felts of CASM bytecode.
 
+Two named exceptions to the 50 % (ENG-01 §1.3; decided by the project manager, 2026-10-02,
+D-200), each its own threshold, nothing else loosened: `ExecutorLibrary` at most 80,420 CASM felts
+(the limit less 1,500 of margin), `TickLibrary` at most 75 % (61,440 felts), its room kept for
+CBT-05b's resolution parts and ENG-07's act hook.
+
     python3 contracts/tools/class_sizes.py [--warn PERCENT]
 """
 import argparse
@@ -21,6 +26,11 @@ import sys
 
 SIERRA_LIMIT = 4_089_446
 BYTECODE_LIMIT = 81_920
+# D-200: (package, contract) -> its warning share, in percent of the nearer limit.
+EXCEPTIONS = {
+    ("grimworld_logic", "ExecutorLibrary"): 100 * 80_420 / BYTECODE_LIMIT,
+    ("grimworld_logic", "TickLibrary"): 75.0,
+}
 HERE = os.path.dirname(os.path.abspath(__file__))
 TARGET = os.path.join(os.path.dirname(HERE), "target", "dev")
 
@@ -49,8 +59,12 @@ def main():
             sierra_felts = len(json.load(open(sierra_path))["sierra_program"])
             bytecode = len(json.load(open(casm_path))["bytecode"])
             share = max(100 * sierra_bytes / SIERRA_LIMIT, 100 * bytecode / BYTECODE_LIMIT)
-            flag = "ok" if share < args.warn else "OVER"
-            failed |= share >= args.warn
+            warn = EXCEPTIONS.get(key, args.warn)
+            # An exception's own threshold is a ceiling it may reach (`at most`); the default is a
+            # share a class stays below.
+            over = share > warn if key in EXCEPTIONS else share >= warn
+            flag = "OVER" if over else ("ok" if key not in EXCEPTIONS else f"ok (D-200, {warn:.2f} %)")
+            failed |= over
             rows.append((contract["package_name"], contract["contract_name"], sierra_bytes,
                          sierra_felts, bytecode, share, flag))
     print("| Package | Contract | Sierra class, bytes | Sierra program, felts | CASM bytecode, felts "
@@ -60,7 +74,8 @@ def main():
         print(f"| {package} | `{name}` | {sierra_bytes:,} | {felts:,} | {bytecode:,} | {share:.2f} % "
               f"| {flag} |")
     print(f"\nLimits: {SIERRA_LIMIT:,} bytes of Sierra class, {BYTECODE_LIMIT:,} felts of CASM "
-          f"bytecode; warning at {args.warn:g} %.")
+          f"bytecode; warning at {args.warn:g} %, but the exceptions of D-200 at their own "
+          f"thresholds.")
     sys.exit(1 if failed else 0)
 
 

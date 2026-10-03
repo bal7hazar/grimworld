@@ -75,7 +75,7 @@ fn test_derive_distinct_per_domain_and_index() {
 // give the same value (determinism).
 #[test]
 #[fuzzer(runs: 64)]
-#[available_gas(l2_gas: 1099613)] // ceil(1.05 × 1054980 measured, the most expensive run)
+#[available_gas(l2_gas: 1099613)] // ceil(1.05 × 1047250 measured)
 fn test_derive_fuzz(word: felt252, index: u32) {
     let d = domain(1, 0, LOOT);
     let value = derive(word, d, index);

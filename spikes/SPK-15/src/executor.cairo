@@ -257,7 +257,9 @@ pub impl OutcomeImpl of OutcomeTrait {
     /// A hit on the member (§5.5 steps 5–8): landed, its health, its adrenaline for the hit
     /// taken, the source's for the hit landed; blocked, one charge of the effect in `slot` spent
     /// (the guard's `block_slot`), written in the member's effect word.
-    fn on_member(ref member: Member, ref source: Goblin, outcome: HitOutcome, slot: u8) {
+    fn on_member(
+        ref member: Member, ref source: Goblin, outcome: HitOutcome, slot: u8, sheets: @Sheets,
+    ) {
         if outcome == HitOutcome::Blocked {
             let mut held = member.effect_of(slot);
             held.charges -= 1;
@@ -275,13 +277,16 @@ pub impl OutcomeImpl of OutcomeTrait {
                         member.health - landed.damage
                     };
             member.take_hit();
-            source.land_weapon_hit();
+            // CBT-05a's R3: a goblin's adrenaline cap is its caste's kit.
+            source.land_weapon_hit(sheets);
         }
     }
 
     /// A landed hit on a goblin: its health, its adrenaline, the member's for the hit landed.
     /// Whether it died is returned (the executor's `kill`).
-    fn on_goblin(ref goblin: Goblin, ref source: Member, outcome: HitOutcome) -> bool {
+    fn on_goblin(
+        ref goblin: Goblin, ref source: Member, outcome: HitOutcome, sheets: @Sheets,
+    ) -> bool {
         if let HitOutcome::Landed(landed) = outcome {
             goblin
                 .health =
@@ -290,7 +295,7 @@ pub impl OutcomeImpl of OutcomeTrait {
                     } else {
                         goblin.health - landed.damage
                     };
-            goblin.take_hit();
+            goblin.take_hit(sheets);
             source.land_weapon_hit();
             return goblin.health == 0;
         }
@@ -310,7 +315,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             @goblin, @member, @guard, Arc::FrontSide, true, t, sheets,
         );
         let outcome = hit.resolve(@target);
-        OutcomeTrait::on_member(ref member, ref goblin, outcome, guard.block_slot);
+        OutcomeTrait::on_member(ref member, ref goblin, outcome, guard.block_slot, sheets);
         world.set_member(0, member);
         world.set_goblin(index, goblin);
         outcome
@@ -327,7 +332,7 @@ pub impl ExecutorImpl of ExecutorTrait {
             @goblin, @member, @guard, Arc::FrontSide, true, t, sheets,
         );
         let outcome = hit.resolve(@target);
-        OutcomeTrait::on_member(ref member, ref goblin, outcome, guard.block_slot);
+        OutcomeTrait::on_member(ref member, ref goblin, outcome, guard.block_slot, sheets);
         if outcome == HitOutcome::Blocked {
             guard.spend();
         }
@@ -351,7 +356,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 @member, @goblin, HitClass::Item, Arc::Back, t, sheets,
             );
             let outcome = hit.resolve(@target);
-            let died = OutcomeTrait::on_goblin(ref goblin, ref member, outcome);
+            let died = OutcomeTrait::on_goblin(ref goblin, ref member, outcome, sheets);
             goblin.apply(condition, v, @source, t, sheets);
             world.set_goblin(*index, goblin);
             if died {
@@ -381,7 +386,7 @@ pub impl ExecutorImpl of ExecutorTrait {
                 @member, @goblin, HitClass::Item, Arc::Back, t, sheets,
             );
             let outcome = hit.resolve(@target);
-            let died = OutcomeTrait::on_goblin(ref goblin, ref member, outcome);
+            let died = OutcomeTrait::on_goblin(ref goblin, ref member, outcome, sheets);
             goblin.apply(condition, v, @source, t, sheets);
             if died {
                 goblin.ai = ai::DEAD;

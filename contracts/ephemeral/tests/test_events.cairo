@@ -14,7 +14,6 @@ fn split(event: Event) -> (Array<felt252>, Array<felt252>) {
 }
 
 #[test]
-// gas: raised, pins Stop::Version, Refusal::Version and their ordinals (F-15)
 #[available_gas(l2_gas: 207071)] // ceil(1.05 × 197210 measured)
 fn test_instances_event_keys_and_data() {
     let id = instance_id(5, 2);

@@ -31,7 +31,6 @@ fn stored(instances: ContractAddress) -> (felt252, felt252, felt252, felt252) {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 3101553)] // ceil(1.05 × 2953860 measured)
 fn test_instances_set_contracts_by_admin() {
     let instances = deploy_instances();
@@ -44,7 +43,6 @@ fn test_instances_set_contracts_by_admin() {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 2944893)] // ceil(1.05 × 2804660 measured)
 #[feature("safe_dispatcher")]
 fn test_instances_set_contracts_refused_to_others() {
@@ -60,7 +58,6 @@ fn test_instances_set_contracts_refused_to_others() {
 
 // The role moves: the new administrator sets the provider, the former one no longer can.
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 3800507)] // ceil(1.05 × 3619530 measured)
 #[feature("safe_dispatcher")]
 fn test_instances_set_admin_hands_over() {
@@ -82,7 +79,6 @@ fn test_instances_set_admin_hands_over() {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 3229265)] // ceil(1.05 × 3075490 measured)
 #[feature("safe_dispatcher")]
 fn test_instances_set_admin_refused() {
