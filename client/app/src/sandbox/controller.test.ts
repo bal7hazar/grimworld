@@ -127,7 +127,7 @@ describe("SandboxController's keys (CLI-03k)", () => {
   });
 
   it("a step hands apply exactly a tap on the adjacent hex, through the router", async () => {
-    const route = vi.fn((_: Intent): Intent | null => null);
+    const route = vi.fn<(intent: Intent) => Intent | null>(() => null);
     const controller = await mounted(route);
     const start = fixtureNamed("meadow").actors[0]!.tile;
     for (const direction of [0, 1, 2, 3, 4, 5] as const) {

@@ -145,9 +145,7 @@ export function offScreen(
 ): boolean {
   if (!box) return false;
   const { x, y } = controller.tileOnScreen(tile);
-  return (
-    x < margin || y < margin || x > box.clientWidth - margin || y > box.clientHeight - margin
-  );
+  return x < margin || y < margin || x > box.clientWidth - margin || y > box.clientHeight - margin;
 }
 
 /** The keyboard's marks: the focus ring's colours live in `chrome.css` (`.gw-key-marker`). */

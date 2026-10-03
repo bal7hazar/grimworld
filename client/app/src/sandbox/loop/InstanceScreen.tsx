@@ -215,7 +215,9 @@ function Confirm({
   return (
     <div ref={box} style={styles.scrim} role="dialog" aria-label="Confirm" aria-modal="true">
       <Panel variant="scroll" plain={ui.card} style={{ maxWidth: 320 }}>
-        <p style={{ marginTop: 0 }}>{leaveQuestion(asking.kind === "leave" ? asking.gate : null)}</p>
+        <p style={{ marginTop: 0 }}>
+          {leaveQuestion(asking.kind === "leave" ? asking.gate : null)}
+        </p>
         <div style={{ ...ui.row, flexWrap: "wrap" }}>
           <Button variant="quiet" plain={{ ...ui.button, ...ui.quiet }} onClick={stay} autoFocus>
             Stay
