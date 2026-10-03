@@ -20,7 +20,7 @@ for 1, 4 and 20 keys (4 is `enter`'s count in SPK-2; 20 is this design's `enter`
 instance slot). Each case also reads the trace's state diff, to show which keys changed. One JSON
 line per transaction on stdout. Local node only: the script refuses any node URL that is not
 127.0.0.1 and never reads a Sepolia variable. From the repository root, after
-`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build`:
+`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (it takes the heavy lock itself):
 
     env -i PATH="$PATH" HOME="$HOME" scripts/with-node.sh python3 contracts/tools/reuse_probe.py \
         > contracts/tools/reuse-probe-output.txt

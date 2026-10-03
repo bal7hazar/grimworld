@@ -6,7 +6,10 @@
 #     heavy Grim World command at a time, whichever agent runs it;
 #   * the machine-wide HEAVY lock ($HEAVY_BUILD_LOCK, default ~/orchestrator/heavy-build.lock),
 #     shared with every other programme. `scarb` and `snforge` on PATH are the machine's shims
-#     (~/.local/bin), which take it by themselves; this script takes it for `--heavy`.
+#     (~/.local/bin), which take it by themselves only when the subcommand is their first argument
+#     (`scarb build`, not `scarb --manifest-path X build`); this script takes it for `--heavy` and, FND-15,
+#     for every scarb or snforge build, test, check, lint or execute, wherever the subcommand sits.
+#     `scarb fmt` and `scarb metadata`, and pnpm, take the project lock only (`--heavy` still adds it).
 # Nested calls inherit the locks already held and take only the ones they miss, in the same
 # order. Commands run under `nice -n 10` with capped parallelism.
 #
@@ -62,6 +65,11 @@ case "$1:$sub" in
   snforge:test) ;;
   pnpm:install | pnpm:build | pnpm:test | pnpm:lint | pnpm:typecheck) ;;
   *) refuse "does not wrap '$1 $sub'" ;;
+esac
+# A scarb or snforge build, test, check, lint or execute runs the compiler: it takes the heavy lock
+# as `--heavy` does (FND-15), also after `--manifest-path`, which the machine shim does not see.
+case "$1:$sub" in
+  scarb:build | scarb:test | scarb:lint | scarb:check | scarb:execute | snforge:test) heavy=1 ;;
 esac
 
 project_lock=${GRIMWORLD_BUILD_LOCK:-/tmp/grimworld-build.lock}

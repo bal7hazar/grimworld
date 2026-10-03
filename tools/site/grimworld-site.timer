@@ -1,0 +1,10 @@
+[Unit]
+Description=Publish the client of Grim World's main every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

@@ -72,7 +72,7 @@ From the repository root, always through the build lock (Scarb 2.19 and later: `
 before the subcommand):
 
 ```
-scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build
+scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build   # lock.sh takes the heavy lock itself
 cd contracts && snforge test          # the machine's shim takes the heavy lock
 ```
 

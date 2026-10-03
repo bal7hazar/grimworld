@@ -38,7 +38,7 @@ them, with `store`). The first pre-funded account is the administrator and plays
 account 1; accounts 2 to 4 of the node play the `set_account_owner` cases. One JSON line per
 transaction on stdout. Local node only: the script refuses any node URL that is not 127.0.0.1 and
 never reads a Sepolia variable. From the repository root, after
-`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build`:
+`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (it takes the heavy lock itself):
 
     scripts/with-node.sh python3 contracts/tools/lifecycle_probe.py \
         > contracts/tools/lifecycle-probe-output.txt

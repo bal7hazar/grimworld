@@ -65,3 +65,57 @@ the seeded ones, so no earlier id moved, the table now 203 cases:
 - id 202: FX-19's halving when the hit leaves the target at exactly half (300 − 60 = 240 of 480:
   not halved).
 
+## `fate.jsonl`: the Fate derivations (VEC-01)
+
+Printed by `fate::tests::test_vectors` (ids 0–217), one part, with its digest.
+
+One line: `{"id", "fn", "case", "ok"}`, every felt in hex (a `u32` index is a felt below 2^32).
+Poseidon is `core::poseidon::poseidon_hash_span`, the hash of the Starknet `poseidon` builtin.
+
+| `fn` | `case` | `ok` |
+|---|---|---|
+| `purpose` | the index in `PURPOSES` (0 `ENTRY` … 7 `RIFT_BOARD`) | the purpose's felt (a short string, e.g. `'fate:entry'`) |
+| `domain` | `subject`, `counter`, `purpose` | `fate::domain`: `poseidon(subject, counter, purpose)` |
+| `derive` | `word`, `domain`, `index` | `fate::derive`: `poseidon(word, domain, index)` |
+
+The cases (218):
+- `purpose`: the 8 purposes.
+- `domain` (120): each purpose over 8 pairs `(subject, counter)` — zeros, one on either side, `P − 1` for both, 2^128 with 2^64, a small pair, 2^250 with 2^32, a `u32` maximum counter; then 8 subjects × 7 counters (0, 1, 2, 255, 2^32, 2^64, `P − 1`) under `ENTRY`. `P − 1` is `0x800000000000011000000000000000000000000000000000000000000000000`.
+- `derive` (90): 5 words (0, 1, a small one, 2^128, `P − 1`) × 3 domains (0, `domain(1, 0, ENTRY)`, `P − 1`) × 6 indices (0, 1, 7, 255, 65535, `u32::MAX`).
+
+## `packing.jsonl`: the packing of records into a felt (VEC-01)
+
+Printed by `packing::tests::test_vectors` (ids 0–519), one part, with its digest.
+
+One line: `{"id", "fn", "case", "ok"}`, every felt in hex. A `u128` limb or a field is its value. A
+struct is its `Serde` (`Lanes32`: seven felts, `Lanes16`: fifteen, `Counter`: one, `Bitmap`: one).
+
+A function that refuses has its outcome as `[0, result…]` for accepted and `[1]` for refused (the
+`Option` form of the window's `arc`). A panic cannot be caught in a test: a refused row is the
+function's guard evaluated by the test (`high < LIVE_HIGH`, `value < size`, `bits` below bit 250),
+and the panics themselves are asserted by `tests/test_packing.cairo`. A mirror must refuse on the
+same rows and never write the word.
+
+| `fn` | `case` | `ok` |
+|---|---|---|
+| `split` | `word` | `[low, high]`, `LIVE` removed from the high limb if set (any word, 0 and `P − 1` included) |
+| `limbs` | `word` | `[low, high]` of a word that carries `LIVE`; the row of word 0 is outside the contract (the subtraction wraps) |
+| `join` | `low`, `high` | `[0, word]`, or `[1]` when `high ≥ 2^122` |
+| `peel` | `rest`, `size` (a power of two) | `[value, rest]` after the low field is removed |
+| `fits` | `value`, `size` | `[0]` accepted, `[1]` refused (`value ≥ size`) |
+| `field` | `limb`, `shift`, `size` | the field at `shift` of width `size` |
+| `byte_at`, `u16_at`, `u32_at` | `limb`, `shift` | the byte, `u16`, `u32` at `shift` |
+| `low_field` | `limb`, `size` | the low field of width `size` |
+| `pack_lanes32`, `pack_lanes16` | the lanes | the word (`LIVE` set) |
+| `unpack_lanes32`, `unpack_lanes16` | `word` | the lanes (a word without `LIVE` decodes by `split`) |
+| `pack_counter` | `value` (`u64`) | the word |
+| `unpack_counter` | `word` | the `u64` |
+| `pack_bitmap` | `bits` | `[0, word]`, or `[1]` when `bits ≥ 2^250` |
+| `unpack_bitmap` | `word` | the bits |
+
+The cases (520): `split` 14 and `limbs` 8, edges of the limbs, of `LIVE` and of the field; `join` 56
+(7 low limbs × 8 high limbs, around 2^122); `peel` 70 (10 widths × 7 limbs); `fits` 30 (5 sizes ×
+6 values around the size); `field` 56, `byte_at` 28, `u16_at` 28, `u32_at` 28, `low_field` 35 (7
+limbs from 0 to `u128::MAX`, shifts across both halves of the limb); the lanes: zeros, ones,
+maxima, ascending, and one lane set at a time (`pack` and `unpack` rows, 126 in all, and the
+words without `LIVE`); `Counter` from 0 to `u64::MAX`; `Bitmap` around bit 250 and `P − 1`.

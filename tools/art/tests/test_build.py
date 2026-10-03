@@ -534,12 +534,30 @@ class RealManifest(unittest.TestCase):
 
     def test_the_town_buildings_are_blue_stills(self):
         stills = {st["name"]: st for st in self.manifest["still"]}
-        self.assertEqual(set(stills), {"castle", "barracks", "archery", "monastery", "tower",
-                                       "house1", "house2", "house3"})
+        blue = {n for n, st in stills.items() if st["file"].startswith("Buildings/Blue Buildings/")}
+        self.assertEqual(blue, {"castle", "barracks", "archery", "monastery", "tower",
+                                "house1", "house2", "house3"})
         for name, st in stills.items():
-            self.assertEqual(st["role"], "building", name)
-            self.assertTrue(st["file"].startswith("Buildings/Blue Buildings/"), name)
+            folder = st["file"].split("/")[0]
+            self.assertEqual(st["role"], "building" if folder == "Buildings" else "prop", name)
+            if st["file"].startswith("Buildings/") and name not in blue:
+                self.assertTrue(st["file"].startswith("Buildings/Others/"), name)
         self.assertEqual(build.still_problems(self.manifest), [])
+
+    def test_the_props_and_the_ground_tiles(self):
+        """CLI-03e: props are cut at one frame from their strips; the ground is the 3 x 3 grass
+        autotile of one colour and the water."""
+        props = {st["name"]: st for st in self.manifest["still"] if st["role"] == "prop"}
+        self.assertTrue(props)
+        for name, st in props.items():
+            self.assertTrue(st["file"].startswith("Terrain/"), name)
+            if "cell" in st:
+                self.assertEqual(st["frame"], 0, name)       # one frame: no idle animation in a hub
+        tilesets = {ts["name"]: ts for ts in self.manifest["tileset"]}
+        self.assertEqual(set(tilesets["grass"]["cells"]),
+                         {"nw", "n", "ne", "w", "c", "e", "sw", "s", "se"})
+        self.assertEqual(set(tilesets["water"]["cells"]), {"c"})
+        self.assertEqual(build.tileset_problems(self.manifest), [])
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
@@ -600,11 +618,126 @@ class Stills(unittest.TestCase):
         ]}
         self.assertEqual(build.still_problems(manifest), [
             "[[still]] 'runt': the name is used twice",
-            "[[still]] tower: role 'caste', not 'building'",
+            "[[still]] tower: role 'caste', not one of 'building', 'prop'",
             "[[still]] 'tower': the name is used twice",
             "[[still]] tower: file 'c.gif' is not a PNG",
             "[[still]] tower: no origin"])
         self.assertEqual(build.still_problems({"sprite": []}), [])
+        cut = {"sprite": [], "still": [
+            {"name": "tree", "role": "prop", "file": "t.png", "origin": "x", "frame": 0,
+             "cell": [192, 256]},
+            {"name": "bush", "role": "prop", "file": "b.png", "origin": "x", "frame": -1,
+             "cell": [128]}]}
+        self.assertEqual(build.still_problems(cut), [
+            "[[still]] bush: frame -1 is not an index",
+            "[[still]] bush: cell [128] is not [width, height]"])
+
+    def strip(self, path):
+        """A strip of three 20 x 30 cells (not square): in cell i a block 10 wide and 12 + i tall,
+        standing on row 26."""
+        img = np.zeros((30, 60, 4), np.uint8)
+        for i in range(3):
+            img[26 - 12 - i:26, 20 * i + 4:20 * i + 14] = (40 * i + 40, 200, 90, 255)
+        Image.fromarray(img, "RGBA").save(path)
+
+    def test_a_prop_from_one_cell_of_a_strip(self):
+        """CLI-03e: `frame` and a non-square `cell` cut one cell; it is anchored at its base."""
+        s = {"atlas_max": 2048, "atlas_padding": 2, "cell_margin": 4}
+        st = {"name": "tree", "role": "prop", "file": "Tree.png", "origin": "synthetic",
+              "frame": 1, "cell": [20, 30]}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            self.strip(Path(tmp) / "Tree.png")
+            pose = clean.still(Path(tmp) / "Tree.png", 1, (20, 30))
+            self.assertEqual((pose.rgba.shape[:2], pose.baseline), ((13, 10), 13))
+            self.assertEqual(int(pose.rgba[0, 0, 0]), 80)       # cell 1's colour, not cell 0's
+            with self.assertRaises(SystemExit):
+                clean.still(Path(tmp) / "Tree.png", 3, (20, 30))      # three cells only
+            with self.assertRaises(SystemExit):
+                clean.still(Path(tmp) / "Tree.png", 0, (25, 30))      # not a strip of 25 px cells
+            sprite = build.still_sprite(st, Path(tmp) / "Tree.png", s["cell_margin"])
+            index = atlas.pack([sprite], s, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, [sprite], s)         # the baseline read back
+            finally:
+                build.OUT = saved
+        self.assertEqual(index["sprites"]["tree"]["role"], "prop")
+        self.assertEqual(index["sprites"]["tree"]["baseline"], 4 + 13)
+        frame = page["frames"]["tree/still/00"]
+        self.assertEqual((frame["frame"]["w"], frame["frame"]["h"]), (10, 13))
+
+
+@unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
+class Tiles(unittest.TestCase):
+    """A tileset's cells (CLI-03e), on a synthetic sheet: no image of the pack."""
+
+    S = {"atlas_max": 2048, "atlas_padding": 2, "cell_margin": 4}
+
+    def sheet(self, path):
+        """Two 64 px cells side by side: (0, 0) half transparent (an edge), (1, 0) a gradient."""
+        img = np.zeros((64, 128, 4), np.uint8)
+        img[:, 32:64] = (10, 160, 60, 255)
+        img[:, 64:] = (200, 100, 0, 255)
+        img[:, 64:, 0] = np.arange(64, dtype=np.uint8)[None, :] * 2
+        Image.fromarray(img, "RGBA").save(path)
+
+    def test_tiles_are_untrimmed_anchored_top_left_and_extruded(self):
+        ts = {"name": "grass", "role": "tile", "file": "Sheet.png", "origin": "synthetic",
+              "cells": {"w": [0, 0], "c": [1, 0]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            self.sheet(Path(tmp) / "Sheet.png")
+            sprites = build.tile_sprites(ts, Path(tmp) / "Sheet.png")
+            index = atlas.pack(sprites, self.S, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, sprites, self.S)
+            finally:
+                build.OUT = saved
+            img = np.array(Image.open(out / "atlas-0.png").convert("RGBA"))
+        self.assertEqual(set(index["sprites"]), {"grass_w", "grass_c"})
+        for name in ("grass_w", "grass_c"):
+            entry = index["sprites"][name]
+            self.assertEqual((entry["role"], entry["cell"], entry["baseline"]),
+                             ("tile", {"w": 64, "h": 64}, 0))
+            f = page["frames"][f"{name}/still/00"]
+            self.assertEqual((f["frame"]["w"], f["frame"]["h"]), (64, 64))     # untrimmed
+            self.assertFalse(f["trimmed"])
+            self.assertEqual(f["spriteSourceSize"], {"x": 0, "y": 0, "w": 64, "h": 64})
+            self.assertEqual(f["anchor"], {"x": 0, "y": 0})
+        # The edge cell keeps its transparent half; the centre cell's edges fill the gutter.
+        r = page["frames"]["grass_w/still/00"]["frame"]
+        self.assertFalse(img[r["y"]:r["y"] + 64, r["x"]:r["x"] + 32, 3].any())
+        r = page["frames"]["grass_c/still/00"]["frame"]
+        x, y = r["x"], r["y"]
+        cell = img[y:y + 64, x:x + 64]
+        self.assertTrue((img[y:y + 64, x - 1] == cell[:, 0]).all())            # left
+        self.assertTrue((img[y:y + 64, x + 64] == cell[:, 63]).all())          # right
+        self.assertTrue((img[y - 1, x:x + 64] == cell[0]).all())               # top
+        self.assertTrue((img[y + 64, x:x + 64] == cell[63]).all())             # bottom
+        self.assertTrue((img[y - 1, x - 1] == cell[0, 0]).all())               # a corner
+        self.assertFalse(img[y - 2, x:x + 64, 3].any())                        # half the gutter
+
+    def test_tileset_problems(self):
+        manifest = {"sprite": [{"name": "runt"}], "still": [{"name": "grass_c"}], "tileset": [
+            {"name": "grass", "role": "prop", "file": "a.gif", "cells": {"c": [1, 1]}},
+            {"name": "runt", "role": "tile", "file": "b.png", "origin": "x"},
+            {"name": "water", "role": "tile", "file": "w.png", "origin": "x",
+             "cells": {"c": [0], "d": [0, 0]}},
+        ]}
+        self.assertEqual(build.tileset_problems(manifest), [
+            "[[tileset]] grass: role 'prop', not 'tile'",
+            "[[tileset]] grass: file 'a.gif' is not a PNG",
+            "[[tileset]] grass: no origin",
+            "[[tileset]] grass: 'grass_c', the name is used twice",
+            "[[tileset]] runt: no cells",
+            "[[tileset]] water: cell c [0] is not [column, row]"])
+        self.assertEqual(build.tileset_problems({"sprite": []}), [])
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
@@ -752,6 +885,25 @@ class StillsBesideStrips(unittest.TestCase):
         self.assertEqual(self.frames_of(*without, names), self.frames_of(*with_still, names))
         # The still itself is packed, on a page of the same atlas.
         self.assertIn("castle", with_still[0]["sprites"])
+
+    def test_strips_keep_their_frames_with_props_and_tiles(self):
+        """CLI-03e: props and untrimmed, extruded tiles leave the strips' frames as they were."""
+        strips = [self.sprite("a", [30, 60, 90], 10, 12), self.sprite("b", [120, 150], 14, 9)]
+        prop = self.sprite("tree", [210], 12, 20, role="prop")
+        tile = {"name": "grass_c", "role": "tile", "cell_w": 16, "cell_h": 16, "baseline": 0,
+                "untrimmed": True, "anchor": (0, 0),
+                "anims": [{"name": "still", "fps": 1, "loop": False,
+                           "cells": [np.full((16, 16, 4), 180, np.uint8)]}]}
+        settings, self.SETTINGS = self.SETTINGS, {"atlas_max": 64, "atlas_padding": 2}
+        try:
+            without = self.packed(strips)
+            with_more = self.packed(strips + [prop, tile])
+        finally:
+            self.SETTINGS = settings
+        names = ["a", "b"]
+        self.assertEqual(self.frames_of(*without, names), self.frames_of(*with_more, names))
+        self.assertEqual(with_more[0]["sprites"]["grass_c"]["role"], "tile")
+        self.assertEqual(with_more[0]["sprites"]["tree"]["role"], "prop")
 
     def test_the_still_is_the_only_thing_the_pages_may_gain(self):
         strips = [self.sprite("a", [30, 60], 10, 12)]

@@ -1,0 +1,17 @@
+[Unit]
+Description=Publish the client of Grim World's main (tools/site/deploy-site.sh)
+
+[Service]
+Type=oneshot
+# Runs the script from the service's OWN clone (~/site/grimworld-src). The clone is brought to main
+# first, so that the script that runs is main's (the first run after this file merges included).
+# The clone is pointed at the public HTTPS URL first (a unit has no SSH agent), then fetched.
+ExecStartPre=/usr/bin/git -C %h/site/grimworld-src remote set-url origin https://github.com/bal7hazar/grimworld.git
+ExecStartPre=/usr/bin/git -C %h/site/grimworld-src fetch --quiet origin main
+ExecStartPre=/usr/bin/git -C %h/site/grimworld-src checkout --quiet --detach --force FETCH_HEAD
+ExecStart=%h/site/grimworld-src/tools/site/deploy-site.sh
+Nice=10
+# node and pnpm are /usr/bin/node (24.21.0) and /usr/bin/pnpm (12.5.1), the .tool-versions ones.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# The art is on by the owner's decision of 2026-10-02 (D-73): the built atlas is served publicly.
+Environment=GRIMWORLD_SITE_ART=1

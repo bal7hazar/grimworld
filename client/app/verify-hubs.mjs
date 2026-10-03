@@ -5,10 +5,15 @@
 // Leave control on the anchor). Run by hand, not by CI (it needs a browser and, for the art, the
 // atlas): `pnpm --filter @grimworld/app verify:hubs`. Starts the dev server as its own process group
 // and sends SIGTERM to that recorded group in `finally`. No screenshot is taken unless
-// VERIFY_SHOTS is set, and then only into the untracked `.verify-out/` (D-73).
+// VERIFY_SHOTS is set, and then only into the untracked `.verify-out/`, or VERIFY_SHOTS_DIR (D-73:
+// a folder outside git). With the shots, CLI-03e's four: the town and the outpost at 375 × 812 and
+// 1440 × 900, once the atlas is loaded (`hub-<name>-<viewport>.png`). The hub pass also opens the
+// town in `?scale=sharp` and fails on any page error. Its check that no place is drawn as a shape
+// applies only with the pack (the atlas built in `tools/art/out/`); without it the pass notes the
+// shapes and asserts nothing about them.
 //
 // Env: VERIFY_PORT (default 5197), VERIFY_CHANNEL (a Playwright channel such as "chrome"; default:
-// the Chromium that `playwright-core install chromium` fetched), VERIFY_SHOTS=1.
+// the Chromium that `playwright-core install chromium` fetched), VERIFY_SHOTS=1, VERIFY_SHOTS_DIR.
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -18,7 +23,9 @@ import { chromium } from "playwright-core";
 const here = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.VERIFY_PORT ?? 5197);
 const base = `http://127.0.0.1:${port}`;
-const shots = process.env.VERIFY_SHOTS ? join(here, ".verify-out") : null;
+const shots = process.env.VERIFY_SHOTS
+  ? (process.env.VERIFY_SHOTS_DIR ?? join(here, ".verify-out"))
+  : null;
 if (shots) mkdirSync(shots, { recursive: true });
 
 let failures = 0;
@@ -172,6 +179,41 @@ async function run(browser, label, viewport, touch) {
   await context.close();
 }
 
+/** CLI-03e: each hub at a phone and a desktop size, with the atlas; no place drawn as a shape. */
+async function hubShots(browser) {
+  for (const [label, viewport, touch] of [
+    ["375x812", { width: 375, height: 812 }, true],
+    ["1440x900", { width: 1440, height: 900 }, false],
+  ]) {
+    const context = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.stack ?? String(e)));
+    for (const hub of ["town", "outpost", "town&scale=sharp"]) {
+      await page.goto(`${base}/?hub=${hub}`);
+      await screen(page, "hub").waitFor();
+      const canvas = page.locator("[data-atlas]");
+      await page.locator('[data-atlas]:not([data-atlas="loading"])').waitFor();
+      const atlas = await canvas.getAttribute("data-atlas");
+      await page.waitForTimeout(500);
+      const shapes = await page.locator("[data-shape]").count();
+      if (atlas === "loaded")
+        ok(shapes === 0, `${hub} ${label}: atlas loaded, no place as a shape`);
+      else console.log(`  note ${hub} ${label}: atlas ${atlas}, ${shapes} places as shapes`);
+      const frames = Number(await canvas.getAttribute("data-frames"));
+      ok(frames >= 1, `${hub} ${label}: drawn (${frames} frames)`);
+      if (shots) {
+        const path = join(shots, `hub-${hub.replace("&scale=", "-")}-${label}.png`);
+        await page.screenshot({ path });
+        console.log(`  shot ${path}`);
+      }
+    }
+    ok(errors.length === 0, `hubs ${label}: no page error`);
+    for (const e of errors) console.log(`  page error: ${e.split("\n").slice(0, 2).join(" | ")}`);
+    await context.close();
+  }
+}
+
 let browser;
 try {
   await ready();
@@ -179,6 +221,7 @@ try {
   console.log(`browser launched: ${browser.version()}`);
   await run(browser, "phone-375x812", { width: 375, height: 812 }, true);
   await run(browser, "desktop-1440x900", { width: 1440, height: 900 }, false);
+  await hubShots(browser);
 } catch (e) {
   failures += 1;
   console.log(`FAIL ${e}`);

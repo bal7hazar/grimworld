@@ -6,8 +6,8 @@
 #
 #   spikes/SPK-13b/build_at.sh <dir> [--commit C] [--label L] [--out DIR] [--keep-target]
 #
-# <dir> must not exist; contracts/ lands in <dir>/contracts. Builds go through scripts/lock.sh
-# (RAYON_NUM_THREADS=1 is set here, so the lock's default of 4 does not apply). Rows are appended
+# <dir> must not exist; contracts/ lands in <dir>/contracts. Builds go through scripts/lock.sh --heavy
+# (RAYON_NUM_THREADS=1 is set here, explicitly; lock.sh defaults to 1 too). Rows are appended
 # to <out>/rows.tsv (default spikes/SPK-13b/.work/out) with the series `path:<L>`; the distinct
 # programs are kept in <out>/kept. The copy is removed afterwards unless --keep-target.
 set -euo pipefail
@@ -36,11 +36,12 @@ echo "build_at.sh: contracts/ at $commit in $dir (path length ${#dir}, label $la
 
 git -C "$root" archive "$commit" contracts | tar -x -C "$dir"
 manifest=$dir/contracts/Scarb.toml
-scarb --manifest-path "$manifest" clean
+# Light, and the VPS shim reads its first argument: subcommand first, the manifest's folder as cwd.
+(cd "$(dirname "$manifest")" && scarb clean)
 export RAYON_NUM_THREADS=1
 log=$out/build-$label.log
-{ "$root/scripts/lock.sh" scarb --manifest-path "$manifest" build --workspace &&
-  "$root/scripts/lock.sh" scarb --manifest-path "$manifest" build --test --workspace; } > "$log" 2>&1 ||
+{ "$root/scripts/lock.sh" --heavy scarb --manifest-path "$manifest" build --workspace &&
+  "$root/scripts/lock.sh" --heavy scarb --manifest-path "$manifest" build --test --workspace; } > "$log" 2>&1 ||
   { tail -40 "$log" >&2; exit 1; }
 python3 "$spk13/collect.py" rows "$dir/contracts/target/dev" "$out/rows.tsv" contracts "path:$label" 1 1 \
   --keep "$out/kept"

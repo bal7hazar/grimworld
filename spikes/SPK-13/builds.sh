@@ -2,7 +2,7 @@
 # SPK-13: builds the same sources N times from a clean state and records, per build, every Sierra
 # class and every compiled test file (sha256, Sierra size, withdraw_gas statements, CASM felts and
 # sha256, class hash), with the environment. Run from anywhere; every path is relative to the
-# worktree. Heavy builds go through scripts/lock.sh when `flock` exists (the VPS); on a machine
+# worktree. Heavy builds go through scripts/lock.sh --heavy when `flock` exists (the VPS); on a machine
 # without it (macOS) Scarb runs directly and the environment block says so.
 #
 #   spikes/SPK-13/builds.sh [--target consumer|consumer-dev|hexx|contracts|minimal|all] [--n N]
@@ -24,7 +24,7 @@
 #   one-thread   RAYON_NUM_THREADS=1: the compiler's parallel warm-up off (the control)
 # --from K numbers the builds K..K+N-1 (to continue a series in several runs: rows are appended).
 # --threads T sets RAYON_NUM_THREADS for the clean and fresh-cache series (otherwise: what the
-# environment gives; scripts/lock.sh defaults it to 4, rayon itself to the number of CPUs).
+# environment gives; scripts/lock.sh defaults it to 1, rayon itself to the number of CPUs).
 #
 # Output, under --out (default spikes/SPK-13/.work/out): rows.tsv (one row per artefact and
 # build, appended across runs), env.txt, kept/ (one copy of every distinct program of an artefact),
@@ -65,8 +65,9 @@ if command -v flock >/dev/null; then lock=1; else lock=0; fi
 scarb_run() {
   local manifest=$1; shift
   if [ "$lock" = 1 ]; then
-    scripts/lock.sh scarb --manifest-path "$manifest" "$@"
+    scripts/lock.sh --heavy scarb --manifest-path "$manifest" "$@"
   else
+    # No flock: not the VPS, no shim and no lock to take.
     scarb --manifest-path "$manifest" "$@"
   fi
 }
@@ -112,7 +113,7 @@ threads_note() { # series
   [ "$1" = one-thread ] && t=1
   if [ -n "$t" ]; then echo "$t"
   elif [ -n "${RAYON_NUM_THREADS:-}" ]; then echo "$RAYON_NUM_THREADS"
-  elif [ "$lock" = 1 ]; then echo "4 (scripts/lock.sh default)"
+  elif [ "$lock" = 1 ]; then echo "1 (scripts/lock.sh default)"
   else echo "unset (rayon: $(ncpu) CPUs)"
   fi
 }
@@ -171,8 +172,10 @@ for t in "${targets[@]}"; do
     note=$(threads_note "$s")
     for i in $(seq "$from" $((from + n - 1))); do
       echo "builds.sh: $t / $s / build $i (threads: $note)" >&2
-      # `scarb clean` is light (it removes the target folder): not a build, not under the lock.
-      scarb --manifest-path "$manifest" clean
+      # `scarb clean` is light (it removes the target folder): not a build, not under the lock. The
+      # VPS shim looks at its first argument, so the subcommand goes first and the manifest is the
+      # working directory (Scarb 2.19 takes --manifest-path only before the subcommand).
+      (cd "$(dirname "$manifest")" && scarb clean)
       cache=""
       (
         if [ "$s" = fresh-cache ]; then

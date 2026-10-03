@@ -17,7 +17,7 @@ The node cannot reach an account of 8 (no entrypoint sells slots) nor an adventu
 is ENG-06's): those cases are measured in snforge only (contracts/persistent/tests/test_accounts.cairo).
 One JSON line per transaction on stdout. Local node only: the script refuses any node URL that is
 not 127.0.0.1 and never reads a Sepolia variable. From the repository root, after
-`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build`:
+`scripts/lock.sh scarb --manifest-path contracts/Scarb.toml build` (it takes the heavy lock itself):
 
     scripts/with-node.sh python3 contracts/tools/accounts_probe.py \
         > contracts/tools/accounts-probe-output.txt

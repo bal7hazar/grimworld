@@ -1,0 +1,16 @@
+# Site block of grimworld.bal7hazar.com: the client of main, PUBLIC (the owner's decision, 2026-10-02).
+# Already appended by the owner to the end of /etc/caddy/Caddyfile on this VPS (there is no conf.d).
+# To change it: edit that file as root, then
+#   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+grimworld.bal7hazar.com {
+	root * /home/claude/site/grimworld/current
+	encode zstd gzip
+	try_files {path} /index.html
+	file_server
+
+	# Optional: uncomment to protect the site with basic auth. Generate the hash with
+	# `caddy hash-password` (it asks for the password and prints a bcrypt hash); never commit a real one.
+	# basic_auth {
+	# 	owner <BCRYPT_HASH_FROM_caddy_hash-password>
+	# }
+}
