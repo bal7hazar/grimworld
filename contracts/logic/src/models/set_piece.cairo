@@ -65,7 +65,7 @@ mod tests {
     use super::{Object, SetPack, SetPieceRecord, SetPieceTrait};
 
     #[test]
-    #[available_gas(l2_gas: 1500000)]
+    #[available_gas(l2_gas: 141288)] // ceil(1.05 × 134560 measured)
     fn test_set_piece_bits_and_round_trip() {
         let walls = 0x1fffffffffffffffffffffffff00000000000000000000000000000ff;
         let piece = SetPieceTrait::new(

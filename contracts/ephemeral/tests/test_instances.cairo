@@ -19,8 +19,8 @@ fn deploy_instances() -> ContractAddress {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-#[available_gas(l2_gas: 2853617)] // ceil(1.05 × 2717730 measured)
+// gas: raised, ENG-05: Instances deploys dearer (the reveal wiring, its class grew)
+#[available_gas(l2_gas: 3346728)] // ceil(1.05 × 3187360 measured)
 fn test_instances_deploys_and_stubs_revert() {
     let address = deploy_instances();
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');

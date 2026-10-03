@@ -15,12 +15,14 @@ fn all_distinct(values: Span<felt252>) -> bool {
     true
 }
 
-// The eight purposes are distinct, and so are their domains for one subject and counter.
+// The nine purposes (ENG-05 added the reveal's) are distinct, and so are their domains for one
+// subject and counter.
 #[test]
-#[available_gas(l2_gas: 379645)] // ceil(1.05 × 361566 measured)
+// gas: raised, ENG-05: the reveal purpose (one more domain)
+#[available_gas(l2_gas: 454932)] // ceil(1.05 × 433268 measured)
 fn test_purposes_distinct() {
     let purposes = PURPOSES.span();
-    assert(purposes.len() == 8, 'eight purposes');
+    assert(purposes.len() == 9, 'nine purposes');
     assert(all_distinct(purposes), 'purposes distinct');
     let mut domains = array![];
     for purpose in purposes {
@@ -53,10 +55,11 @@ fn test_derive_oracle() {
     assert(derive(0xabc, d, 9) == poseidon_hash_span(array![0xabc, d, 9].span()), 'index 9');
 }
 
-// One word, every purpose's domain, indices 0 to 3: 32 values, all distinct, and none equal to
+// One word, every purpose's domain, indices 0 to 3: 36 values, all distinct, and none equal to
 // the word itself or to a domain.
 #[test]
-#[available_gas(l2_gas: 3483995)] // ceil(1.05 × 3318090 measured)
+// gas: raised, ENG-05: the reveal purpose (one more domain)
+#[available_gas(l2_gas: 4295970)] // ceil(1.05 × 4091400 measured)
 fn test_derive_distinct_per_domain_and_index() {
     let word = 0x5eed;
     let mut values = array![word];
@@ -67,7 +70,7 @@ fn test_derive_distinct_per_domain_and_index() {
             values.append(derive(word, d, index));
         }
     }
-    assert(values.len() == 41, 'forty-one');
+    assert(values.len() == 46, 'forty-six');
     assert(all_distinct(values.span()), 'all distinct');
 }
 

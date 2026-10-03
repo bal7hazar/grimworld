@@ -498,8 +498,8 @@ impl SeedFixture of Fixture {
 // The test region, written and read back in one `bundle` (AC-4): 18 records, 22 slots (ENG-05: two
 // pack templates, a spawn table, the zone's and floor 1's quotas).
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 23701566)] // ceil(1.05 × 22572920 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 32941682)] // ceil(1.05 × 31373030 measured)
 fn test_seed_written_and_read_back() {
     let registry = Fixture::deploy();
     let written = SeedTrait::write(registry);
@@ -574,8 +574,8 @@ fn test_seed_written_and_read_back() {
 
 // The baseline of the next test: the deployment, and the file read and packed.
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
-#[available_gas(l2_gas: 6200114)] // ceil(1.05 × 5904870 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 9202904)] // ceil(1.05 × 8764670 measured)
 fn test_gas_seed_baseline() {
     Fixture::deploy();
     SeedTrait::load().records();
@@ -583,8 +583,8 @@ fn test_gas_seed_baseline() {
 
 // Writing the whole test region, 18 `set_record` (AC-4): this test less the baseline.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 21430091)] // ceil(1.05 × 20409610 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 29624595)] // ceil(1.05 × 28213900 measured)
 fn test_gas_seed_write() {
     let registry = Fixture::deploy();
     SeedTrait::load().records().write(registry);
@@ -592,8 +592,8 @@ fn test_gas_seed_write() {
 
 // Writing the same seed again changes nothing: no record changed, the version stays.
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 30814791)] // ceil(1.05 × 29347420 measured)
+// gas: raised, ENG-05: the seed holds 5 more records (packs, a spawn table, quotas)
+#[available_gas(l2_gas: 43327022)] // ceil(1.05 × 41263830 measured)
 fn test_seed_rewritten_unchanged() {
     let registry = Fixture::deploy();
     SeedTrait::write(registry);

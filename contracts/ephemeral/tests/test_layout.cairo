@@ -2,7 +2,9 @@
 // record's size in slots and the bit offsets of every packed record, LIVE included. The variables'
 // names and keys (their addresses) are checked in `store::layout_tests`; the tests of one model
 // alone are in its module (D-167, ENG-R1b).
-use grimworld_ephemeral::models::chunk::{Chunk, Features, Object, PackPlacement, Terrain};
+use grimworld_ephemeral::models::chunk::{
+    Chunk, Features, FeaturesStorePacking, Object, PackPlacement, Terrain, TerrainStorePacking,
+};
 use grimworld_ephemeral::models::goblin::{
     Goblin, GoblinState, GoblinTimers, GoblinTimersTrait, MAX_ADRENALINE,
 };
@@ -28,7 +30,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 365873)] // ceil(1.05 × 348450 measured)
+#[available_gas(l2_gas: 314538)] // ceil(1.05 × 299560 measured)
 fn test_chunk_layout() {
     // Every tile a wall, every edge open: bit 228 is the last one used.
     let all: felt252 = 0x200000000000000000000000000000000000000000000000000000000 - 1;
@@ -114,7 +116,7 @@ fn test_goblin_layout() {
 // Fix loop 1, F-9: every field narrower than its Cairo type is refused when too wide, at its
 // boundary; nothing spills into a neighbouring lane.
 #[test]
-#[available_gas(l2_gas: 328272)] // ceil(1.05 × 312640 measured)
+#[available_gas(l2_gas: 291113)] // ceil(1.05 × 277250 measured)
 fn test_deadline_boundaries() {
     let max: u32 = 0xFFFFFFF;
     assert(

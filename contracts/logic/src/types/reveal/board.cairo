@@ -299,7 +299,7 @@ mod tests {
     // The sides against `hexx`'s seams (N-2): `Side::West` is column 14, `East` column 0, `South`
     // row 0, `North` row 14, ENG-01's edge order West, East, South, North; corners excluded.
     #[test]
-    #[available_gas(l2_gas: 3000000)]
+    #[available_gas(l2_gas: 75723)] // ceil(1.05 × 72117 measured)
     fn test_sides_against_seams() {
         let corners = 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224);
         let sides = [Side::West, Side::East, Side::South, Side::North];
@@ -315,7 +315,7 @@ mod tests {
 
     // An opening's line reaches the spine, a straight run of floor along its row or column.
     #[test]
-    #[available_gas(l2_gas: 3000000)]
+    #[available_gas(l2_gas: 267969)] // ceil(1.05 × 255208 measured)
     fn test_lines_reach_the_spine() {
         let ring = Bits::pow(at(0, 3)) + Bits::pow(at(14, 11)) + Bits::pow(at(4, 0))
             + Bits::pow(at(9, 14));
@@ -335,7 +335,7 @@ mod tests {
 
     // A neighbour's facing tiles land on the same index of this chunk's side.
     #[test]
-    #[available_gas(l2_gas: 2000000)]
+    #[available_gas(l2_gas: 47286)] // ceil(1.05 × 45034 measured)
     fn test_copy_faces_the_neighbour() {
         let floor = Bits::pow(at(0, 4)) + Bits::pow(at(14, 6)) + Bits::pow(at(3, 14))
             + Bits::pow(at(8, 0)) + Bits::pow(at(7, 7));
@@ -347,7 +347,7 @@ mod tests {
 
     // `nth` against a scan of the bits.
     #[test]
-    #[available_gas(l2_gas: 30000000)]
+    #[available_gas(l2_gas: 11238714)] // ceil(1.05 × 10703537 measured)
     fn test_nth_against_a_scan() {
         let bits = INTERIOR - SPINE + Bits::pow(224) + 1;
         let total = BoardTrait::count(bits);
@@ -365,7 +365,7 @@ mod tests {
 
     // Within 2 of a tile: 19 tiles inside, fewer on the ring; an odd chunk's rows shifted.
     #[test]
-    #[available_gas(l2_gas: 3000000)]
+    #[available_gas(l2_gas: 196804)] // ceil(1.05 × 187432 measured)
     fn test_near() {
         assert(BoardTrait::count(BoardTrait::near(CENTRE, false)) == 19, 'even');
         assert(BoardTrait::count(BoardTrait::near(CENTRE, true)) == 19, 'odd');

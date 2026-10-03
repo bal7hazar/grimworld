@@ -217,7 +217,7 @@ pub trait IInstancesAdmin<T> {
 #[starknet::contract]
 pub mod Instances {
     use grimworld_logic::content::{
-        GATE, LOCATION, OUTLINE, PACK, QUOTAS, Record, SET_PIECE, SPAWN_TABLE, exists,
+        GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, exists,
     };
     use grimworld_logic::fate::{ENTRY, derive, domain};
     use grimworld_logic::interface::{

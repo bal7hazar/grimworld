@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 3000000)]
+    #[available_gas(l2_gas: 2785932)] // ceil(1.05 × 2653268 measured)
     fn test_member_offsets() {
         check_members(6 * 15 + 7, false);
         check_members(7 * 15 + 7, false);
@@ -250,7 +250,7 @@ mod tests {
 
     // Every field at its bits (ENG-01 §3.2), and back.
     #[test]
-    #[available_gas(l2_gas: 1000000)]
+    #[available_gas(l2_gas: 351771)] // ceil(1.05 × 335020 measured)
     fn test_words_round_trip() {
         let terrain = Terrain { walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff, edges: 0xb };
         let word = StorePacking::<Terrain, felt252>::pack(terrain);
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'packing: walls above bit 224')]
-    #[available_gas(l2_gas: 200000)]
+    #[available_gas(l2_gas: 10385)] // ceil(1.05 × 9890 measured)
     fn test_walls_refused_above_224() {
         StorePacking::<Terrain, felt252>::pack(Terrain { walls: 0x2000000000000000000000000000000000000000000000000000000000, edges: 0 });
     }

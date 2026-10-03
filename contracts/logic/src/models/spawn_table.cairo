@@ -93,7 +93,7 @@ mod tests {
     use super::{Spawn, SpawnTableRecord, SpawnTableTrait};
 
     #[test]
-    #[available_gas(l2_gas: 1500000)]
+    #[available_gas(l2_gas: 104748)] // ceil(1.05 × 99760 measured)
     fn test_spawn_table_bits_and_round_trip() {
         let first = Spawn { template: 0xabcd, weight: 0x12 };
         let last = Spawn { template: 0x1234, weight: 0xff };
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 1500000)]
+    #[available_gas(l2_gas: 87024)] // ceil(1.05 × 82880 measured)
     fn test_spawn_table_pick_by_weight() {
         let table = SpawnTableTrait::new(
             [

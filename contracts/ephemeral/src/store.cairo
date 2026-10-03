@@ -40,11 +40,13 @@ use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage}
 use starknet::storage_access::StorePacking;
 use starknet::{ClassHash, ContractAddress};
 use starknet::storage::{
-    StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersForward,
+    StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     SubPointersMutForward,
 };
 use crate::helpers::stored::{Stored, StoredTrait};
-use crate::models::chunk::{Chunk, Features, Terrain};
+use crate::models::chunk::{
+    Chunk, Features, FeaturesStorePacking, Terrain, TerrainStorePacking,
+};
 use crate::models::instance::{Header, Placement, Quotas};
 use crate::models::member::{
     EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, MemberAssert, MemberState,
@@ -532,7 +534,7 @@ mod tests {
         let timers: felt252 = StorePacking::<MemberTimers>::pack(MemberTimersTrait::empty());
         assert(timers == EMPTY_TIMERS, 'the constant word');
         let zero: ContractAddress = 0.try_into().unwrap();
-        state.initialize(zero, zero, zero, zero);
+        state.initialize(zero, zero, zero, zero, 0.try_into().unwrap());
         assert(state.new_slot() == 1 && state.new_slot() == 2, 'slots from 1');
     }
 }
