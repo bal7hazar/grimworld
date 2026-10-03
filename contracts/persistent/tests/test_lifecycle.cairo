@@ -612,7 +612,7 @@ fn test_enter_refusals() {
 // reach the snapshot; once inside, the build is locked (design/03).
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 51971308)] // ceil(1.05 × 49496483 measured)
+#[available_gas(l2_gas: 52000991)] // ceil(1.05 × 49524753 measured)
 fn test_enter_after_set_build() {
     let world = setup();
     let id = adventurer(world);
@@ -706,7 +706,7 @@ fn test_enter_refuses_a_missing_snapshot() {
 // staleness table write). The snapshot finally copied is the level-2 one.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 50018664)] // ceil(1.05 × 47636822 measured)
+#[available_gas(l2_gas: 50024061)] // ceil(1.05 × 47641962 measured)
 fn test_enter_refuses_a_stale_snapshot() {
     let world = setup();
     let id = adventurer(world);
@@ -787,7 +787,7 @@ fn rules_of(world: World) -> felt252 {
 // `set_build`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 55378483)] // ceil(1.05 × 52741412 measured)
+#[available_gas(l2_gas: 55400071)] // ceil(1.05 × 52761972 measured)
 fn test_enter_refuses_after_an_input_rewritten() {
     let world = setup();
     let id = adventurer(world);
@@ -815,7 +815,7 @@ fn test_enter_refuses_after_an_input_rewritten() {
 // `set_build` stored before them, without a second `set_build`.
 #[test]
 // gas: raised, ENG-R1a (D-144): the store's map addresses, a larger Hub class
-#[available_gas(l2_gas: 48054157)] // ceil(1.05 × 45765863 measured)
+#[available_gas(l2_gas: 48064951)] // ceil(1.05 × 45776143 measured)
 fn test_enter_after_other_records_changed() {
     let world = setup();
     let id = adventurer(world);
