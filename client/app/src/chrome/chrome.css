@@ -278,8 +278,8 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  padding: 10px 15px;
-  border-image-outset: 12px 0 20px;
+  padding: 8px 15px;
+  border-image-outset: 13px 0 21px;
 }
 [data-chrome="atlas"] .gw-service-row > .gw-button {
   min-width: 0;
