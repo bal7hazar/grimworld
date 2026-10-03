@@ -3531,7 +3531,8 @@ fn test_cost_route_c_tick() {
 // every goblin's attack is legal. Scenarios, one tick unless said: 0 idle; 1 the 8 goblins each
 // conclude an attack skill on the member; 2 the member concludes Cinder Ring on its ring; 3 one
 // goblin 3 tiles away concludes on the member, reaching 13 goblins (its 6 neighbours and the
-// member's 6); 4 scenario 3's state idle.
+// member's 6); 4 scenario 3's state idle; 5 scenarios 1 and 2 in the same tick (the member's
+// activation and the 8 goblins' conclude together).
 
 fn rep_content() -> Content {
     let base = worst_content(1);
@@ -3566,12 +3567,12 @@ fn rep_content() -> Content {
 
 fn rep_words(scenario: u8) -> Words {
     let mut member = member_at(480);
-    if scenario == 2 {
+    if scenario == 2 || scenario == 5 {
         member.start(1, 0, 1, 40);
     }
     let mut goblins = array![];
     let mut entity: u16 = 8;
-    if scenario >= 3 {
+    if scenario == 3 || scenario == 4 {
         // The member's ring of 6 (frozen but alive), and around a source 3 tiles away its 6
         // neighbours (frozen) and the source itself, awake.
         let source = AT + 3;
@@ -3610,7 +3611,7 @@ fn rep_words(scenario: u8) -> Words {
         }
         for tile in ascending_u8(tiles.span()) {
             let mut goblin = goblin_at(entity, *tile, 250, true);
-            if scenario == 1 {
+            if scenario == 1 || scenario == 5 {
                 goblin.start(0, 0, 1, 40);
             }
             goblins.append(goblin);
@@ -3688,6 +3689,13 @@ fn test_cost_rep_goblins() {
 fn test_cost_rep_member() {
     let words = rep_run(2, 1);
     assert(words.killed.len() == 0, 'no kill');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_all() {
+    let words = rep_run(5, 1);
+    assert(!words.defeated && words.killed.len() == 0, 'nine carriers');
 }
 
 #[test]
