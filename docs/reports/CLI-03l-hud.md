@@ -40,26 +40,26 @@ from `main` at 3ec8426, `origin/main` merged at de7fec6. Audit: none (D-177).
    at one image px per device px.
 4. **Loading** (`chrome/load.ts`): `HUD_ENTRIES` beside `CHROME_ENTRIES` in the same pass, each group
    with its own URLs: a missing HUD entry or a failed HUD cut gives `hud: null` (HUD plain, its URLs
-   revoked) and keeps the chrome. Every cut runs concurrently (see *Deviations*, 4).
+   revoked) and keeps the chrome. Every cut runs concurrently (see _Deviations_, 4).
 5. **Cursors**: `--gw-cursor-arrow` / `--gw-cursor-hand` = `image-set(url(1×) 1x, url(2×) 2x) <hx>
-   <hy>, auto|pointer`, under `@media (hover: hover) and (pointer: fine)` on the loop's root
+<hy>, auto|pointer`, under `@media (hover: hover) and (pointer: fine)` on the loop's root
    (`data-cursors`), enabled buttons and the map's canvas; a disabled button keeps the arrow. Hot
    spots in art px of the trimmed images: arrow (0, 0), hand (4, 0) → CSS (0, 0) and (2, 0).
 
 ## Manifest entries, portraits and the recolour (the build of 2026-10-03, VPS)
 
-| Entry | Kind, fill | Source (in words) | Cell (art px) | Content |
-|---|---|---|---|---|
-| `bar_big` | three, **round** | Big bar, the frame | 112 × 51 | [11, 11, 16, 11] |
-| `bar_big_fill` | still | Big bar, the red fill | 64 × 24 | — |
-| `bar_small` | three, stretch | Small bar, the frame | 94 × 19 | [8, 10, 8, 10] |
-| `bar_small_fill_energy` | still, recoloured | Small bar fill, `#ff3e3e` → `#41919d` | 64 × 3 | — |
-| `icon_sword` | still | Icon 05, the sword | 57 × 56 | — |
-| `portrait_vanguard` | still | Avatar 01, blue: the plumed great helm (the Warrior) | 197 × 182 | — |
-| `portrait_warden` | still | Avatar 03, blue: the nasal helm with a small plume (the Archer) | 140 × 160 | — |
-| `portrait_cleric` | still | Avatar 04, blue: the curly-haired, tonsured head (the Monk) | 144 × 155 | — |
-| `cursor_arrow` | still | Cursor 01, the arrow | 22 × 30 | — |
-| `cursor_hand` | still | Cursor 02, the pointing hand | 27 × 32 | — |
+| Entry                   | Kind, fill        | Source (in words)                                               | Cell (art px) | Content          |
+| ----------------------- | ----------------- | --------------------------------------------------------------- | ------------- | ---------------- |
+| `bar_big`               | three, **round**  | Big bar, the frame                                              | 112 × 51      | [11, 11, 16, 11] |
+| `bar_big_fill`          | still             | Big bar, the red fill                                           | 64 × 24       | —                |
+| `bar_small`             | three, stretch    | Small bar, the frame                                            | 94 × 19       | [8, 10, 8, 10]   |
+| `bar_small_fill_energy` | still, recoloured | Small bar fill, `#ff3e3e` → `#41919d`                           | 64 × 3        | —                |
+| `icon_sword`            | still             | Icon 05, the sword                                              | 57 × 56       | —                |
+| `portrait_vanguard`     | still             | Avatar 01, blue: the plumed great helm (the Warrior)            | 197 × 182     | —                |
+| `portrait_warden`       | still             | Avatar 03, blue: the nasal helm with a small plume (the Archer) | 140 × 160     | —                |
+| `portrait_cleric`       | still             | Avatar 04, blue: the curly-haired, tonsured head (the Monk)     | 144 × 155     | —                |
+| `cursor_arrow`          | still             | Cursor 01, the arrow                                            | 22 × 30       | —                |
+| `cursor_hand`           | still             | Cursor 02, the pointing hand                                    | 27 × 32       | —                |
 
 - **Portraits chosen by eye** against the units' idle frames: the Warden is Avatar 03 (the
   Archer's helm) and the Cleric Avatar 04 (the Monk's tonsure), not the brief's 02 and 05, a swap
@@ -74,14 +74,14 @@ from `main` at 3ec8426, `origin/main` merged at de7fec6. Audit: none (D-177).
 
 ## Boxes per screen and size (CSS px, `[x, y, w, h]`, no `?hud=`; the same at every ratio)
 
-| Screen, size | Band | Map (this branch) | Map (`main`) |
-|---|---|---|---|
-| town 1440 × 900 | [505, 53, 430, 72] | [505, 125, 430, 615] | [505, 53, 430, 686] |
+| Screen, size       | Band               | Map (this branch)    | Map (`main`)        |
+| ------------------ | ------------------ | -------------------- | ------------------- |
+| town 1440 × 900    | [505, 53, 430, 72] | [505, 125, 430, 615] | [505, 53, 430, 686] |
 | outpost 1440 × 900 | [505, 53, 430, 72] | [505, 125, 430, 665] | [505, 53, 430, 736] |
-| zone 1440 × 900 | [505, 0, 430, 72] | [505, 72, 430, 828] | [505, 0, 430, 900] |
-| town 375 × 812 | [0, 53, 375, 72] | [0, 125, 375, 527] | [0, 53, 375, 598] |
-| outpost 375 × 812 | [0, 53, 375, 72] | [0, 125, 375, 577] | [0, 53, 375, 648] |
-| zone 375 × 812 | [0, 0, 375, 72] | [0, 72, 375, 740] | [0, 0, 375, 812] |
+| zone 1440 × 900    | [505, 0, 430, 72]  | [505, 72, 430, 828]  | [505, 0, 430, 900]  |
+| town 375 × 812     | [0, 53, 375, 72]   | [0, 125, 375, 527]   | [0, 53, 375, 598]   |
+| outpost 375 × 812  | [0, 53, 375, 72]   | [0, 125, 375, 577]   | [0, 53, 375, 648]   |
+| zone 375 × 812     | [0, 0, 375, 72]    | [0, 72, 375, 740]    | [0, 0, 375, 812]    |
 
 In the hubs the map is 71 px shorter for a 72 px band: the service row's box differs by 1 px
 between the two runs (within the brief's ± 1 px).
@@ -91,12 +91,12 @@ between the two runs (within the brief's ± 1 px).
 The zone's 10-step walk × 3 per run, `main` (temporary worktree at 3ec8426) and this branch run
 alternately, three pairs, `VERIFY_WALKS_ONLY=1`:
 
-| Pair | 1440 median (main → branch) | 1440 p95 | 375 median | 375 p95 |
-|---|---|---|---|---|
-| 1 | 0.585 → 0.585 ms (×1.000) | 2.645 → 2.769 (×1.047) | 0.600 → 0.605 (×1.008) | 2.970 → 2.918 (×0.982) |
-| 2 | 0.610 → 0.580 (×0.951) | 2.710 → 1.911 (×0.705) | 0.610 → 0.590 (×0.967) | 2.388 → 2.399 (×1.005) |
-| 3 | 0.630 → 0.610 (×0.968) | 1.997 → 2.692 (×1.348) | 0.580 → 0.585 (×1.009) | 2.233 → 1.837 (×0.823) |
-| Median of the three | 0.610 → 0.585 (×0.959) | 2.645 → 2.692 (×1.018) | 0.600 → 0.590 (×0.983) | 2.388 → 2.399 (×1.005) |
+| Pair                | 1440 median (main → branch) | 1440 p95               | 375 median             | 375 p95                |
+| ------------------- | --------------------------- | ---------------------- | ---------------------- | ---------------------- |
+| 1                   | 0.585 → 0.585 ms (×1.000)   | 2.645 → 2.769 (×1.047) | 0.600 → 0.605 (×1.008) | 2.970 → 2.918 (×0.982) |
+| 2                   | 0.610 → 0.580 (×0.951)      | 2.710 → 1.911 (×0.705) | 0.610 → 0.590 (×0.967) | 2.388 → 2.399 (×1.005) |
+| 3                   | 0.630 → 0.610 (×0.968)      | 1.997 → 2.692 (×1.348) | 0.580 → 0.585 (×1.009) | 2.233 → 1.837 (×0.823) |
+| Median of the three | 0.610 → 0.585 (×0.959)      | 2.645 → 2.692 (×1.018) | 0.600 → 0.590 (×0.983) | 2.388 → 2.399 (×1.005) |
 
 Medians are within ±5 % in every pair. The 95th percentile moves with the run: `main` alone spans
 1.997–2.710 ms at 1440, and pair 3 at 1440 exceeds +25 % (×1.348) while pair 2 is ×0.705. Over the
@@ -127,9 +127,9 @@ ratio 2, and `hud-band-375x812@{1,3}x.png`, `hud-band-1440x900@1x.png`. What the
   recolour map.
 - `client/app/src/sandbox/params.test.ts`: the `readParams` equality gains `hud: null` (a new
   field of `SandboxParams`).
-- New: `chrome/scale.test.ts` (`fillWidth`, `portraitCut`), `chrome/load.test.ts` (*the HUD's
-  images*), `sandbox/loop/hud.test.ts`, `sandbox/loop/InstanceScreen.test.ts` (`trapsTab`),
-  `tools/art` *Interface* tests (trim of a still, recolour, the refusals, a bar three-slice).
+- New: `chrome/scale.test.ts` (`fillWidth`, `portraitCut`), `chrome/load.test.ts` (_the HUD's
+  images_), `sandbox/loop/hud.test.ts`, `sandbox/loop/InstanceScreen.test.ts` (`trapsTab`),
+  `tools/art` _Interface_ tests (trim of a still, recolour, the refusals, a bar three-slice).
 - No other test changed; `machine`, `hubDoors`, `walkFollowsPreview`, `wiring`, `session`,
   `placeholders` pass unmodified.
 
@@ -147,7 +147,7 @@ ratio 2, and `hud-band-375x812@{1,3}x.png`, `hud-band-1440x900@1x.png`. What the
   filtered out of `sprites.json`), and three alternating walk pairs: all passed but the frame bound
   of one pair (above).
 - `verify-hubs.mjs` (twice), `verify-ground.mjs`, `verify-keys.mjs`: all checks passed (see
-  *Deviations*, 4, for `verify-hubs`; one `verify-ground` run timed out once waiting for an
+  _Deviations_, 4, for `verify-hubs`; one `verify-ground` run timed out once waiting for an
   attribute and passed on the next run).
 
 ## Acceptance criteria
@@ -157,11 +157,11 @@ ratio 2, and `hud-band-375x812@{1,3}x.png`, `hud-band-1440x900@1x.png`. What the
 - AC-2: `tools/art` tests (synthetic sheets): trimmed still with its outset, a still without
   margin unchanged, recolour of every colour, the two refusals, a bar's uniform middle passing and
   a textured one refused; existing tests unmodified but the entry list.
-- AC-3: `load.test.ts` *the HUD's images*: all present → both `atlas`; a HUD entry missing → chrome
+- AC-3: `load.test.ts` _the HUD's images_: all present → both `atlas`; a HUD entry missing → chrome
   `atlas`, HUD `null`; a chrome entry missing → `null`; a HUD frame failing → only the HUD's URLs
   revoked; portraits at 1, 1.5, 2, 3 for 40, 48, 96, smoothing below 1:1; a ratio change revokes
   every old URL.
-- AC-4: `scale.test.ts` *a bar's fill* at 1, 1.5, 2, 3.
+- AC-4: `scale.test.ts` _a bar's fill_ at 1, 1.5, 2, 3.
 - AC-5: `hud.test.ts`; contrast row "HUD figures" white on `paper_dark` (6.89 : 1) in
   `contrast.test.ts`.
 - AC-6 to AC-10: `verify:hud`, as above.
