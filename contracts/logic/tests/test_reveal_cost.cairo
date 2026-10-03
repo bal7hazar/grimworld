@@ -106,7 +106,7 @@ fn test_cost_reveal_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4286443)] // ceil(1.05 × 4082326 measured)
+#[available_gas(l2_gas: 4269947)] // ceil(1.05 × 4066616 measured)
 fn test_cost_reveal_worst_meadow() {
     let site = site(biome::MEADOW, true);
     let mut progress = progress(@site);
@@ -114,7 +114,7 @@ fn test_cost_reveal_worst_meadow() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4434630)] // ceil(1.05 × 4223457 measured)
+#[available_gas(l2_gas: 4418135)] // ceil(1.05 × 4207747 measured)
 fn test_cost_reveal_worst_forest() {
     let site = site(biome::FOREST, true);
     let mut progress = progress(@site);
@@ -122,7 +122,7 @@ fn test_cost_reveal_worst_forest() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4460887)] // ceil(1.05 × 4248463 measured)
+#[available_gas(l2_gas: 4444391)] // ceil(1.05 × 4232753 measured)
 fn test_cost_reveal_worst_cave() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
@@ -130,7 +130,7 @@ fn test_cost_reveal_worst_cave() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4434042)] // ceil(1.05 × 4222897 measured)
+#[available_gas(l2_gas: 4417547)] // ceil(1.05 × 4207187 measured)
 fn test_cost_reveal_worst_ruin() {
     let site = site(biome::RUIN, true);
     let mut progress = progress(@site);
@@ -139,7 +139,7 @@ fn test_cost_reveal_worst_ruin() {
 
 // The typical case's baseline: its known sides revealed, nothing more.
 #[test]
-#[available_gas(l2_gas: 4994644)] // ceil(1.05 × 4756803 measured)
+#[available_gas(l2_gas: 4960036)] // ceil(1.05 × 4723843 measured)
 fn test_cost_reveal_typical_baseline() {
     let site = site(biome::FOREST, false);
     let _known = known(@site);
@@ -158,7 +158,7 @@ fn test_cost_reveal_typical() {
 }
 
 #[test]
-#[available_gas(l2_gas: 12641509)] // ceil(1.05 × 12039532 measured)
+#[available_gas(l2_gas: 12592023)] // ceil(1.05 × 11992402 measured)
 fn test_cost_reveal_three() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
@@ -169,7 +169,7 @@ fn test_cost_reveal_three() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4473182)] // ceil(1.05 × 4260173 measured)
+#[available_gas(l2_gas: 4456687)] // ceil(1.05 × 4244463 measured)
 fn test_cost_library_baseline() {
     let _class = declare("RevealLibrary").unwrap().contract_class();
     let site = site(biome::CAVE, true);
@@ -178,7 +178,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 5044918)] // ceil(1.05 × 4804683 measured)
+#[available_gas(l2_gas: 5028422)] // ceil(1.05 × 4788973 measured)
 fn test_cost_library_call() {
     let class = declare("RevealLibrary").unwrap().contract_class();
     let library = IRevealLibraryLibraryDispatcher { class_hash: *class.class_hash };

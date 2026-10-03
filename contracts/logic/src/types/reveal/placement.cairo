@@ -1,11 +1,16 @@
 //! The constraints and the placement of a reveal (ADR-0006 §3, design/18 *Features*): the quotas
-//! drawn by sampling without replacement, the band of a chunk, then the packs and the objects in
-//! the `Features` word.
+//! drawn order-free, forced at the end, the band of a chunk, then the packs and the objects in the
+//! `Features` word.
 //!
-//! - **Quotas** (`due`): for each quota with something left, one placed here with probability
-//!   `left / chunks left`, drawn as `draw(chunks left) < left`: 1 when they are equal, so **the
-//!   last chunks hold what is still owed**. At most one of each quota a chunk. "Chunks left" counts
-//!   this chunk: `N − revealed` in a dungeon, the chunk set's count less the revealed in a zone.
+//! - **Quotas** (`due`): each quota with a count draws `u = draw(total)` from the chunk's own word
+//!   (`total`: `N`, or the zone's chunk set), whatever was revealed before, and is due here when
+//!   `u < count` and something is left (probability `count / total`, **order-free**: the same
+//!   chunk draws the same `u` in any order of moves, audit #348, major 1). It is **forced** when
+//!   what is left reaches the chunks left (`left ≥ chunks left`), so **the last chunks hold what
+//!   is still owed**, and never placed with nothing left, so the count stays exact. At most one of
+//!   each quota a chunk. "Chunks left" counts this chunk: `N − revealed` in a dungeon, the chunk
+//!   set's count less the revealed in a zone. What stays order-dependent: the forced window (at
+//!   most the last `count` chunks of a quota) and, in a dungeon, which chunk is the `N`-th.
 //! - **Bands** (`level`): `level_min + (level_max − level_min) × min(d, D) / D`, `d` the chunk's
 //!   distance in chunks to the entry chunk (`|dcx| + |dcy|`), `D` the farthest a chunk can be (a
 //!   zone: `width + height − 2`; a dungeon: `N − 1`); a pack adds its template's offset, held
@@ -103,21 +108,49 @@ pub impl PlacementImpl of PlacementTrait {
     }
 
     /// Bit `i` set: quota `i` is due in this chunk (module doc), with `progress.count` chunks
-    /// revealed before it.
+    /// revealed before it. A draw for every quota with a count, so that no draw moves another.
     fn due(site: @Site, progress: @Progress, ref rng: Rng) -> u16 {
         let total = site.total();
         let revealed = *progress.count;
-        let chunks: u128 = if total > revealed {
-            (total - revealed).into()
+        let chunks: u8 = if total > revealed {
+            total - revealed
         } else {
             1
         };
-        let chunks: NonZero<u128> = chunks.try_into().unwrap();
+        let bound: u128 = if total == 0 {
+            1
+        } else {
+            total.into()
+        };
+        let bound: NonZero<u128> = bound.try_into().unwrap();
+        // Each quota's count as `start` gives it: the location's, then the tasks' (one drawing
+        // loop, D-200)
+        let mut counts: Array<u8> = array![];
+        for entry in site.quotas.quotas.span() {
+            counts.append(if *entry.kind == 0 {
+                0
+            } else {
+                *entry.count
+            });
+        }
+        for task in *site.tasks {
+            counts.append(if *task.kind == CRITERION_REACH_LANDMARK {
+                1
+            } else {
+                0
+            });
+        }
+        let mut lefts = progress.left.span();
         let mut due: u16 = 0;
         let mut bit: u16 = 1;
-        for left in progress.left.span() {
-            if *left != 0 {
-                if rng.draw(chunks) < (*left).into() {
+        for count in counts {
+            let left = match lefts.pop_front() {
+                Option::Some(left) => *left,
+                Option::None => { break; },
+            };
+            if count != 0 {
+                let u = rng.draw(bound);
+                if left != 0 && (u < count.into() || left >= chunks) {
                     due += bit;
                 }
             }

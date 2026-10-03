@@ -24,8 +24,10 @@
 //! of other lots only, so the order of the reveals and the side a chunk is entered from change no
 //! chunk's word; ADR-0006 lists moving and the order of actions among what must not steer. What
 //! still depends on the order is the state a reveal reads: the neighbours known (their seams, as
-//! the design accepts), the quotas left and the chunks left (`PlacementTrait::due`), and a
-//! dungeon's count and frontier (`decide`): ENG-05's report.
+//! the design accepts); of the quotas (`PlacementTrait::due`, each drawn order-free from the
+//! chunk's own word, the orchestrator's ruling) only the forced window at the end (at most the last
+//! `count` chunks of a quota) and a quota whose draws hit more chunks than its count (the first
+//! revealed take it); and a dungeon's count and frontier (`decide`): ENG-05's report.
 //!
 //! **What is revealable** (`kind`): a zone's chunk inside the location and in its chunk set (the
 //! whole rectangle when the location has no chunk set); a dungeon's entry chunk first, then a chunk
@@ -789,8 +791,10 @@ pub impl SightImpl of SightTrait {
 
 #[cfg(test)]
 pub mod tests {
+    use core::dict::{Felt252Dict, Felt252DictTrait};
     use core::poseidon::poseidon_hash_span;
     use hexx::board::bits::Bits;
+    use hexx::board::rng::RngTrait;
     use hexx::board::seams::{SeamTrait, Side};
     use crate::fate::{ENTRY, EntropyTrait, REVEAL, domain};
     use crate::models::chunk::{PackPlacementTrait, Terrain, object};
@@ -802,6 +806,7 @@ pub mod tests {
     use crate::snapshot::TaskEntry;
     use crate::types::ChunkKind;
     use super::board::{BOARD, BoardTrait, CENTRE, INTERIOR};
+    use super::placement::PlacementTrait;
     use super::{Progress, ProgressTrait, RevealTrait, Revealed, SightTrait, Site, SiteTrait, side};
 
     pub const INSTANCE: felt252 = 0x100000001;
@@ -985,7 +990,7 @@ pub mod tests {
     // The order of the edges (ENG-01: West, East, South, North) against `hexx`'s sides: a dungeon
     // chunk's edge bit `s` is open exactly when side `s` of its ring holds an opening.
     #[test]
-    #[available_gas(l2_gas: 46917469)] // ceil(1.05 × 44683303 measured)
+    #[available_gas(l2_gas: 46703143)] // ceil(1.05 × 44479183 measured)
     fn test_edges_against_hexx_sides() {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
@@ -1066,32 +1071,32 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 182306941)] // ceil(1.05 × 173625658 measured)
+    #[available_gas(l2_gas: 181878289)] // ceil(1.05 × 173217418 measured)
     fn test_invariants_meadow() {
         check_zone_words(biome::MEADOW, 0, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 186892454)] // ceil(1.05 × 177992813 measured)
+    #[available_gas(l2_gas: 186463802)] // ceil(1.05 × 177584573 measured)
     fn test_invariants_forest() {
         check_zone_words(biome::FOREST, 100, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 189320003)] // ceil(1.05 × 180304764 measured)
+    #[available_gas(l2_gas: 188891351)] // ceil(1.05 × 179896524 measured)
     fn test_invariants_cave() {
         check_zone_words(biome::CAVE, 200, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 192026024)] // ceil(1.05 × 182881927 measured)
+    #[available_gas(l2_gas: 191597372)] // ceil(1.05 × 182473687 measured)
     fn test_invariants_ruin() {
         check_zone_words(biome::RUIN, 300, 6);
     }
 
     // The location's border and a void chunk close a side (D-134); an anchor on it stays open.
     #[test]
-    #[available_gas(l2_gas: 61135746)] // ceil(1.05 × 58224520 measured)
+    #[available_gas(l2_gas: 60921420)] // ceil(1.05 × 58020400 measured)
     fn test_border_and_void_closed_but_anchors() {
         // Chunks (0, 0), (1, 0) and (0, 1) of a 2 × 2 zone; (1, 1) is outside the outline.
         let mut site = zone(biome::FOREST, 2, 2, no_quotas());
@@ -1130,7 +1135,7 @@ pub mod tests {
     // A border chunk is cut by its tile mask after its edges are opened (N-4): nothing outside the
     // mask is floor, the ring included; a chunk of the set without a mask is whole.
     #[test]
-    #[available_gas(l2_gas: 46408080)] // ceil(1.05 × 44198171 measured)
+    #[available_gas(l2_gas: 46300917)] // ceil(1.05 × 44096111 measured)
     fn test_cut_by_the_outline() {
         // Columns 0 to 11 of the chunk, as the test region's chunk (2, 0).
         let mut mask: felt252 = 0;
@@ -1235,7 +1240,7 @@ pub mod tests {
     // drawn sides borders, the frontier would be (8, 8) alone, which cannot grow, and the floor
     // would close at 8 of 12. Over many words it reaches exactly `N`.
     #[test]
-    #[available_gas(l2_gas: 720109366)] // ceil(1.05 × 685818443 measured)
+    #[available_gas(l2_gas: 718823410)] // ceil(1.05 × 684593723 measured)
     fn test_dungeon_enclosure_keeps_growing() {
         // (chunk, edges): West 1, East 2, South 4, North 8.
         let state: [(u8, u8); 6] = [
@@ -1286,19 +1291,19 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 348615220)] // ceil(1.05 × 332014495 measured)
+    #[available_gas(l2_gas: 346056356)] // ceil(1.05 × 329577481 measured)
     fn test_dungeon_sweep_small_rectangle_0() {
         sweep(1000, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 350703947)] // ceil(1.05 × 334003759 measured)
+    #[available_gas(l2_gas: 349098280)] // ceil(1.05 × 332474552 measured)
     fn test_dungeon_sweep_small_rectangle_1() {
         sweep(2000, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 326512666)] // ceil(1.05 × 310964443 measured)
+    #[available_gas(l2_gas: 323999616)] // ceil(1.05 × 308571062 measured)
     fn test_dungeon_closes_at_n_6() {
         check_dungeon(6, 0, 4);
     }
@@ -1312,7 +1317,7 @@ pub mod tests {
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
     // revealed, whatever the order.
     #[test]
-    #[available_gas(l2_gas: 53342574)] // ceil(1.05 × 50802451 measured)
+    #[available_gas(l2_gas: 51049749)] // ceil(1.05 × 48618808 measured)
     fn test_zone_quotas_all_placed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1368,7 +1373,7 @@ pub mod tests {
     // A set piece's quota lays the authored chunk: its interior kept but for the openings' lines,
     // its placements kept, its edges joined.
     #[test]
-    #[available_gas(l2_gas: 7304225)] // ceil(1.05 × 6956404 measured)
+    #[available_gas(l2_gas: 7286564)] // ceil(1.05 × 6939584 measured)
     fn test_set_piece_laid() {
         // An authored arena: the interior open but a wall block at rows 2–4, columns 2–4.
         let mut walls = BOARD - INTERIOR;
@@ -1406,7 +1411,7 @@ pub mod tests {
 
     // D-140: no word panics, with any mask on any chunk.
     #[test]
-    #[available_gas(l2_gas: 79785762)] // ceil(1.05 × 75986440 measured)
+    #[available_gas(l2_gas: 73572985)] // ceil(1.05 × 70069509 measured)
     fn test_no_panic_any_mask() {
         let mut seed: felt252 = 0;
         while seed != 12 {
@@ -1431,7 +1436,7 @@ pub mod tests {
     // AC-4: the same chunk under the same entropy gives the same words; the feed is a set; a
     // reveal's word is under its own domain (never the entry draw's, never another chunk's).
     #[test]
-    #[available_gas(l2_gas: 9545226)] // ceil(1.05 × 9090691 measured)
+    #[available_gas(l2_gas: 9491645)] // ceil(1.05 × 9039661 measured)
     fn test_word_and_feed() {
         let site = zone(biome::FOREST, 3, 2, no_quotas());
         let mut first = ProgressTrait::new(@site, 'entropy');
@@ -1471,7 +1476,7 @@ pub mod tests {
     // and 2 revealed in either order, then chunk 1 between them (the same neighbours known), give
     // the same words for every chunk.
     #[test]
-    #[available_gas(l2_gas: 14184110)] // ceil(1.05 × 13508676 measured)
+    #[available_gas(l2_gas: 14076947)] // ceil(1.05 × 13406616 measured)
     fn test_reveal_order_free() {
         let site = zone(biome::CAVE, 3, 1, no_quotas());
         let mut ab = ProgressTrait::new(@site, 'order');
@@ -1485,6 +1490,97 @@ pub mod tests {
         assert(a == a2 && b == b2, 'the first two');
         assert(middle == middle2, 'the one between');
         assert(ab == ba, 'the same progress');
+    }
+
+    /// The quotas due on each chunk of `order`, every placement assumed made: per chunk (dict
+    /// key) the bits due, the bits free (something left, not forced) and the bits forced, and each
+    /// forced bit's position in `order` from the end.
+    fn dues(
+        site: @Site, entropy: felt252, order: Span<u8>,
+    ) -> (Felt252Dict<u16>, Felt252Dict<u16>, u8, [u8; 14]) {
+        let mut progress = ProgressTrait::new(site, entropy);
+        let mut due: Felt252Dict<u16> = Default::default();
+        let mut free: Felt252Dict<u16> = Default::default();
+        let mut window: u8 = 0;
+        let mut placed = [0_u8; 14];
+        let total = site.total();
+        for chunk in order {
+            let word = EntropyTrait::word(entropy, INSTANCE, *chunk);
+            let mut rng = RngTrait::new(RngTrait::mix(word, 2));
+            let bits = PlacementTrait::due(site, @progress, ref rng);
+            let chunks_left = total - progress.count;
+            let mut unforced: u16 = 0;
+            let mut bit: u16 = 1;
+            let mut out: Array<u8> = array![];
+            let mut rest = bits;
+            for left in progress.left.span() {
+                if *left != 0 && *left < chunks_left {
+                    unforced += bit;
+                }
+                if *left != 0 && *left >= chunks_left && chunks_left > window {
+                    window = chunks_left;
+                }
+                bit *= 2;
+                let (above, b) = DivRem::div_rem(rest, 2);
+                rest = above;
+                out.append(b.try_into().unwrap());
+            }
+            let mut sum: Array<u8> = array![];
+            let mut k: u32 = 0;
+            for value in placed.span() {
+                sum.append(*value + *out[k]);
+                k += 1;
+            }
+            placed = PlacementTrait::fixed(sum.span());
+            due.insert((*chunk).into(), bits);
+            free.insert((*chunk).into(), unforced);
+            progress.left = PlacementTrait::spend(progress.left, bits);
+            progress.count += 1;
+        }
+        (due, free, window, placed)
+    }
+
+    // The quota-order lever (audit #348, major 1, the orchestrator's ruling): the same chunks
+    // revealed in two orders hold the same quotas, except where a quota is forced (what is left
+    // reaches the chunks left: at most the last `count` chunks of the quota) or exhausted (its
+    // draws hit more chunks than its count, the first in the order taking them). Every quota
+    // placed exactly its count in both orders.
+    #[test]
+    #[available_gas(l2_gas: 107643926)] // ceil(1.05 × 102518024 measured)
+    fn test_quota_order_free() {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::COLLECTOR, param: 1, count: 3 },
+                Quota { kind: quota::LANDMARK, param: 4, count: 2 },
+                Quota { kind: quota::VEIN, param: 0, count: 1 }, Default::default(),
+                Default::default(), Default::default(),
+            ],
+        };
+        let site = zone(biome::MEADOW, 3, 3, quotas);
+        let forward = array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32].span();
+        let backward = array![32_u8, 31, 30, 17, 16, 15, 2, 1, 0].span();
+        let counts = [3_u8, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut compared: u32 = 0;
+        let mut seed: felt252 = 0;
+        while seed != 16 {
+            let (mut due_a, mut free_a, window_a, placed_a) = dues(@site, seed, forward);
+            let (mut due_b, mut free_b, window_b, placed_b) = dues(@site, seed, backward);
+            assert(placed_a == counts && placed_b == counts, 'count exact');
+            // The forced window: at most the largest count's last chunks.
+            assert(window_a <= 3 && window_b <= 3, 'forced window');
+            for chunk in forward {
+                let key: felt252 = (*chunk).into();
+                let both = free_a.get(key) & free_b.get(key);
+                let a = due_a.get(key) & both;
+                let b = due_b.get(key) & both;
+                assert(a == b, 'order-free outside the window');
+                if both != 0 {
+                    compared += 1;
+                }
+            }
+            seed += 1;
+        }
+        assert(compared >= 64, 'compared');
     }
 
     // Each biome's walkable share of the interior (design/18 *Biomes*) on the mean of 24 words, a
@@ -1509,7 +1605,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 155563262)] // ceil(1.05 × 148155487 measured)
+    #[available_gas(l2_gas: 154705958)] // ceil(1.05 × 147339007 measured)
     fn test_biome_shares_meadow_forest() {
         let meadow = share(biome::MEADOW, 24);
         println!("meadow {}", meadow);
@@ -1520,7 +1616,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 158436325)] // ceil(1.05 × 150891738 measured)
+    #[available_gas(l2_gas: 157579021)] // ceil(1.05 × 150075258 measured)
     fn test_biome_shares_cave_ruin() {
         let cave = share(biome::CAVE, 24);
         println!("cave {}", cave);
@@ -1811,7 +1907,7 @@ pub mod tests {
     /// Part 2: a dungeon floor of `N` 6 to its close (the frontier's rules at `N − 1` and `N`),
     /// the quotas' draws in a zone, a set piece, a task's landmark.
     #[test]
-    #[available_gas(l2_gas: 305789118)] // ceil(1.05 × 291227731 measured)
+    #[available_gas(l2_gas: 303070376)] // ceil(1.05 × 288638453 measured)
     fn test_vectors_2() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_2;
@@ -1891,5 +1987,5 @@ pub mod tests {
     const DIGEST_1: felt252 =
         499845782167855331826439961529088808781201279688007834938530756287138363393;
     const DIGEST_2: felt252 =
-        541542146362358330384623711472070166721918751285941274151952146679064440882;
+        538060991249781001500494715514889890157817748702369537740609767190532782117;
 }

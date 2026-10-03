@@ -218,7 +218,7 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` | 40,595 | **49.55 %** |
+| `RevealLibrary` | 40,940 | **49.98 %** |
 | `Instances` (the entry reveal's reads and writes, `instance_region`) | 39,494 | **48.21 %** (29.05 % before) |
 
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
@@ -232,8 +232,9 @@ the audit's frontier guard (#348, minor 3) two more: a power of two by two small
 128-arm match cost about 900 felts), and the loops of `decide` and of the guard start their state
 from a value the compiler cannot fold (`chunk / 255`, 0 for every chunk index): a loop whose state
 starts from constants is compiled twice, a copy specialised to them (1,471 felts in `decide` alone),
-at about 15 % of a reveal's gas. The margins left are thin (365 felts in the library, 1,466 in
-`Instances`): ENG-07's wiring of the reveal into `play` is measured against them first.
+at about 15 % of a reveal's gas. The order-free quota draws (#348, major 1: one drawing loop over
+the quotas' counts, 345 felts) leave the library 20 felts under 50 %, `Instances` 1,466: ENG-07's
+wiring of the reveal into `play` is measured against them first, and the library has no room left.
 
 ---
 
@@ -1757,16 +1758,16 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 
 | What | L2 gas | Source |
 |---|---:|---|
-| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,888,256** meadow · 4,028,827 ruin · 4,029,387 forest · **4,054,393** cave | `test_cost_reveal_worst_*` |
-| One chunk in memory, typical (two sides known, a zone's content) | **2,662,711** | `test_cost_reveal_typical` |
-| Three chunks in one call, the worst content | **11,845,462** (3.95 M a chunk) | `test_cost_reveal_three` |
+| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,872,546** meadow · 4,013,117 ruin · 4,013,677 forest · **4,038,683** cave | `test_cost_reveal_worst_*` |
+| One chunk in memory, typical (two sides known, a zone's content) | **2,816,013** | `test_cost_reveal_typical` |
+| Three chunks in one call, the worst content | **11,798,332** (3.93 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
-| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,280,376 · 7,389,134 · 11,242,672: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
+| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,263,366 · 7,355,114 · 11,174,632: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
 | On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,742,400** (+2,800,000) | `lifecycle_probe.py` |
-| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,092,400** (+3,604,000) | idem |
-| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,622,400** (+2,920,000) | idem |
-| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,116,640** (+4,844,000) | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,880,640** (+7,608,000) | idem |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,052,400** (+3,564,000) | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,502,400** (+2,800,000) | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,076,640** (+4,804,000) | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,920,640** (+7,648,000) | idem |
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
