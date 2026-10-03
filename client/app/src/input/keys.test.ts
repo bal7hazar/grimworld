@@ -172,6 +172,16 @@ describe("the screens' keys", () => {
     expect(keyCommand(press("Numpad0"), "instance")).toEqual({ kind: "recentre" });
   });
 
+  it("AZERTY: the key printed - (Digit6) zooms out, the unshifted digit row keeps its services", () => {
+    const zoomOut = { kind: "zoom", by: -1 };
+    expect(keyCommand(press("Digit6", { key: "-" }), "hub")).toEqual(zoomOut);
+    expect(keyCommand(press("Digit6", { key: "-" }), "instance")).toEqual(zoomOut);
+    expect(keyCommand(press("Minus", { key: "-" }), "hub")).toEqual(zoomOut);
+    expect(keyCommand(press("NumpadSubtract", { key: "-" }), "hub")).toEqual(zoomOut);
+    expect(keyCommand(press("Digit1", { key: "&" }), "hub")).toEqual({ kind: "service", index: 0 });
+    expect(keyCommand(press("Digit6", { key: "-" }), "gate")).toBeNull();
+  });
+
   it("the combat keys are reserved: nothing on an instance, listed as reserved", () => {
     const reserved = [
       ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `Digit${n}`),
