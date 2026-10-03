@@ -125,6 +125,10 @@ unchanged), the revealed set, the quotas and the entropy. **The entry chunk is r
   new class under 50 % (D-200's default; `TickLibrary` ≤ 75 %, `ExecutorLibrary` ≤ 80,420 felts are
   other classes'). **Pins are generated on Linux only** (the VPS or CI; OPERATIONS.md §3, #280): a Mac
   run gives tests, never a committed `GAS.md`, budget or class size.
+- **Note on D-200**: recorded in the project's memory (the project manager, 2026-10-02); its decision
+  file is to come.
+- **Note on SPK-7's three-chunk reveal**: 5,919,680 in ADR-0006 *Measured*, 5,839,680 in SPK-7's report;
+  this brief cites the ADR.
 - docs/CAIRO.md §2 (tests first, gas a test result, every test with its budget, an oracle beside an
   optimised algorithm, **benchmarks on the worst case: "a reveal of 3 chunks"**, D-167: unit tests in
   their module's file), §7 (layers, scoped functions, every stored entity a model, the store), §8 (the
@@ -318,27 +322,37 @@ accepts; do chain and mirror compute the same chunk); the orchestrator decides a
    reveal; `TickLibrary`'s 75 % stays for ENG-07 and CBT-05. Reversed if the measure shows the code
    fits `Instances` under 50 % with room for ENG-07's wiring and the call's ~0.12 M a reveal matters:
    then linked into `Instances`, with the figures.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by a class-size or cost
+   measure that favours another place.
 2. **The chunk's word.** *Recommendation*: `derive(entropy, domain(instance_id, chunk, REVEAL), i)`,
    the entropy read at the reveal (so every irreversible fact before it counts and nothing after),
    the chunk index as the counter (never the sequence or the clock, which ADR-0006 says must not feed
    it), and the side entered fed into the entropy with the chunk after the reveal. Reversed by the
    determinism lens finding a free choice this leaves.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by the project manager or
+   the owner.
 3. **What `create` reveals.** design/18: "the entrance tile, in the first chunk, revealed by the
    entry draw"; D-136: sight never reaches a chunk not revealed. An entry tile within 6 of a chunk's
    side (the test zone's is on column 0) has sight on its neighbour. *Recommendation*: `create`
    reveals **every chunk sight touches from the entry tile** (at most 4 with the entry chunk: a
    radius of 6 overlaps at most 2 × 2 chunks), the entry chunk first, so D-136 holds from the first
-   tick; the rise is measured and goes to the project manager (D-144). The alternative (the entry chunk only, ENG-07 revealing the rest at
-   the first move) breaks D-136 until then.
+   tick; the rise is measured and goes to the project manager (D-144). The alternative (the entry
+   chunk only, ENG-07 revealing the rest at the first move) breaks D-136 until then.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by the measured rise of
+   `create`/`leave`, which goes to the project manager under D-144 whatever its size.
 4. **Where the chunk's models live.** The engine is in `grimworld_logic`; `Terrain`, `PackPlacement`,
    `Object` and `Features` are in the ephemeral package. *Recommendation*: move them to
    `grimworld_logic::models::chunk` (scoped, with their tests), the ephemeral `Chunk` storage struct
    importing them; the layout and its addresses unchanged (`layout_tests`, the probe). It also lets
    CBT-05b and ENG-07 read the objects without a dependency on `Instances`.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by the project manager or
+   the owner.
 5. **How much of the views.** `instance_region` panics today; its goblins (derived or stored) need
    the roster and `touched`, which ENG-07 brings. *Recommendation*: this lot fills each chunk's kind
    and words; `RegionChunk.goblins` and `InstanceView`'s window chunks and goblins stay empty, for
    ENG-07, with a line in the code saying so.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by the project manager or
+   the owner.
 6. **The probe's streams.** The entry reveal adds two chunk keys (and, under Open question 3, up to
    four more) to `create`'s and `leave`'s writes; `ChunkRevealed` is not emitted there (ENG-01 §5
    lists the invocations: a batch, `open`, `mine`, `barter`; the client knows the entry from
@@ -347,8 +361,12 @@ accepts; do chain and mirror compute the same chunk); the orchestrator decides a
    exactly the reveal's keys: the probe records the chunk words by key only (they follow the entry
    draw, as the entropy does) and `lifecycle-stream-before-r1b.json` is re-recorded with that diff
    shown in the report.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by track CV asking for a
+   `ChunkRevealed` event.
 7. **Quotas the tasks add.** design/14: a held contract adds its targets to the zone as a quota;
    `Quotas` keeps slots for them after the location's. *Recommendation*: this lot counts and draws
    them from the snapshotted tasks' quota kinds where a `TaskEntry` names one (a landmark to reach, a
    caste to kill), placing what it can place (a landmark, a pack holding the caste); a kind it cannot
    place is listed in the report, for the lot that brings it.
+   **Decided by the orchestrator, 2026-10-03:** as recommended. Reversed by the project manager or
+   the owner.
