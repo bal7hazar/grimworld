@@ -185,7 +185,8 @@ describe("the screens' keys", () => {
     for (const code of reserved) {
       expect(keyCommand(press(code), "instance")).toBeNull();
       const listed = BINDINGS.find(
-        (b) => b.reserved && b.screens.includes("instance") && b.matches.some((m) => m.code === code),
+        (b) =>
+          b.reserved && b.screens.includes("instance") && b.matches.some((m) => m.code === code),
       );
       expect(listed, code).toBeDefined();
       expect(listed!.matches.every((m) => m.command === null)).toBe(true);

@@ -200,7 +200,8 @@ export function stepTarget(state: SandboxState, step: StepKey): Tile | null {
   const { world } = state;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
   if (!adventurer) return null;
-  const d = "direction" in step ? step.direction : verticalDirection(adventurer.facing, step.vertical);
+  const d =
+    "direction" in step ? step.direction : verticalDirection(adventurer.facing, step.vertical);
   const { x, y } = adventurer.tile;
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
