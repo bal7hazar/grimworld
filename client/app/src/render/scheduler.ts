@@ -36,6 +36,14 @@ export interface FrameStats {
   readonly renders: number;
   /** Frames drawn since the last input. */
   readonly sinceInput: number;
+  /** The last frame's draw, in ms of the host's clock (CPU side: the GPU's work is not in it). */
+  readonly drawMs: number | null;
+  /**
+   * The renderer's, added to what it reports (CLI-03g1): the last chunk's bake, in ms, and where
+   * the ground's cells came from.
+   */
+  readonly bakeMs?: number | null;
+  readonly ground?: "atlas" | "colours";
 }
 
 /** A change due sooner than this is taken on the next display frame, without a timer. */
@@ -49,6 +57,7 @@ export class FrameScheduler {
   private destroyed = false;
   private renders = 0;
   private sinceInput = 0;
+  private drawMs: number | null = null;
   private readonly unsubscribe: () => void;
 
   constructor(
@@ -72,7 +81,7 @@ export class FrameScheduler {
   }
 
   stats(): FrameStats {
-    return { renders: this.renders, sinceInput: this.sinceInput };
+    return { renders: this.renders, sinceInput: this.sinceInput, drawMs: this.drawMs };
   }
 
   destroy(): void {
@@ -121,7 +130,9 @@ export class FrameScheduler {
     const { changed, next } = this.client.advance(now);
     if (changed || this.dirty) {
       this.dirty = false;
+      const start = this.host.now();
       this.client.draw();
+      this.drawMs = this.host.now() - start;
       this.renders += 1;
       this.sinceInput += 1;
       this.onDraw(this.stats());

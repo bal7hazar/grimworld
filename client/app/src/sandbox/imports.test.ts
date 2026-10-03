@@ -115,6 +115,29 @@ describe("placeholders.ts", () => {
     expect(sources["./placeholders.ts"]).not.toMatch(/\bhubWorld\b|\bHubView\b|\bhubTap\b/);
   });
 
+  it("the ground is presentation: no stand-in reads it, the wiring's toView alone (CLI-03g1, AC-1)", () => {
+    expect(sources["./placeholders.ts"]).not.toMatch(/\bground\b|GroundKind/i);
+    // In the sandbox, outside the fixtures that write it: only `toView` reads a terrain's ground.
+    const readers = Object.entries(sources)
+      .filter(([path]) => path.startsWith("./") && !/\.test\.tsx?$/.test(path))
+      .filter(([path]) => !path.startsWith("./fixtures/"))
+      .filter(([, text]) => /terrain\??\.ground\b/.test(text))
+      .map(([path]) => path);
+    expect(readers).toEqual(["./wiring.ts"]);
+    const wiring = sources["./wiring.ts"] ?? "";
+    const toView = wiring.slice(wiring.indexOf("export function toView("));
+    expect(wiring.match(/\.ground\b/g)).toHaveLength(1);
+    // The page reads only the renderer's report of where the ground came from (FrameStats).
+    expect(sources["./Sandbox.tsx"]).not.toMatch(/terrain|GroundKind/);
+    expect(toView).toMatch(/terrain\.ground\?\.\[i\]/);
+    // The fixtures' and the world's ground, and the renderer's, decide nothing: no placeholder.
+    for (const path of ["../render/ground.ts", "./fixtures/zone.ts", "./fixtures/hubWorld.ts"]) {
+      expect(sources[path], path).toBeDefined();
+      expect(sources[path], path).not.toMatch(IMPORTS_PLACEHOLDERS);
+    }
+    expect(sources["../render/ground.ts"]).not.toMatch(/from\s+["'][^"']*sandbox/);
+  });
+
   it("no randomness and no clock in the loop's machine and fixtures (§6.6)", () => {
     for (const path of [
       "./loop/machine.ts",

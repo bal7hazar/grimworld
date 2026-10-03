@@ -259,7 +259,9 @@ export function toView(state: SandboxState): ViewState {
   const tiles: ViewTile[] = [];
   for (let y = 0; y < terrain.height; y++) {
     for (let x = 0; x < terrain.width; x++) {
-      tiles.push({ x, y, kind: terrain.kinds[y * terrain.width + x] ?? "wall" });
+      const i = y * terrain.width + x;
+      const ground = terrain.ground?.[i];
+      tiles.push({ x, y, kind: terrain.kinds[i] ?? "wall", ...(ground ? { ground } : {}) });
     }
   }
   const sight = isHub(world)
@@ -277,5 +279,6 @@ export function toView(state: SandboxState): ViewState {
     dropped: state.dropped,
     selectedTile: state.selectedTile,
     structures: world.structures ?? [],
+    ...(world.void ? { void: world.void } : {}),
   };
 }

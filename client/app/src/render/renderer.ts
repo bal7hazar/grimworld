@@ -2,6 +2,7 @@ import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "
 import {
   type Camera,
   type Point,
+  ROW_HEIGHT,
   TILE_WIDTH,
   type Viewport,
   fitScale,
@@ -27,9 +28,11 @@ import {
   drawStructure,
   drawTerrain,
   drawWedge,
+  type GroundTextures,
 } from "./shapes";
+import { acrossSide, chunkFrame, groundOf } from "./ground";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
-import type { ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
+import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
 export interface Surface {
@@ -86,7 +89,22 @@ interface ChunkBake {
   readonly sprite: Sprite;
   resolution: number;
   dirty: boolean;
+  /** How long drawing its `graphics` took, in ms: part of its bake's time. */
+  drawMs: number;
 }
+
+/** The atlas's cells the ground is filled with (CLI-03e's `[[tileset]]`, CLI-03g1). */
+export const GROUND_TILES = { grass: "grass_c", water: "water_c" } as const;
+
+/** How far the void's bands reach past the terrain, in art px: beyond the furthest zoom's view. */
+export const VOID_REACH = 100_000;
+
+/** Flat colours of the void beyond the tiles, without the atlas (as `shapes.ts`'s layers). */
+const VOID_COLOURS: Readonly<Record<GroundKind, number>> = {
+  grass: 0x5d7a3e,
+  water: 0x3f8f8d,
+  earth: 0x5d7a3e,
+};
 
 /** What the zoom gives on screen, for the panel (see `scaling.ts` for the three numbers). */
 export interface ZoomInfo {
@@ -239,6 +257,31 @@ export const OFFSCREEN_BUCKET = 0.25;
 export const BACKGROUND = 0x0b0b0e;
 
 /**
+ * The rectangle the void leaves to the background (CLI-03g1): the tiles' centres' box, two hexes
+ * in on each side, so that the void's bands pass under the terrain's outer hexes and leave no
+ * notch between a row's hexes; null when the tiles are too few to hold one.
+ */
+function holeOf(tiles: readonly Tile[]): { x0: number; y0: number; x1: number; y1: number } | null {
+  if (tiles.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const tile of tiles) {
+    const c = tileToPixel(tile);
+    minX = Math.min(minX, c.x);
+    maxX = Math.max(maxX, c.x);
+    minY = Math.min(minY, c.y);
+    maxY = Math.max(maxY, c.y);
+  }
+  const x0 = minX + 2 * TILE_WIDTH;
+  const x1 = maxX - 2 * TILE_WIDTH;
+  const y0 = minY + 2 * ROW_HEIGHT;
+  const y1 = maxY - 2 * ROW_HEIGHT;
+  return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
+}
+
+/**
  * Draws a `ViewState` on demand. Every change (a view, the camera, the size) asks for one frame;
  * a step, a turn and the camera's pan ask for frames until they end; idle animations ask for one
  * frame per change of a sprite's frame, at most 15 per second, and none when they are off.
@@ -246,6 +289,14 @@ export const BACKGROUND = 0x0b0b0e;
 export class Renderer implements FrameClient {
   readonly scheduler: FrameScheduler;
   private readonly world = new Container();
+  /**
+   * The view's void beyond the tiles (CLI-03g1): four bands around `voidHole`, reaching
+   * `VOID_REACH` past it, placed when the view's void or its tiles' box changes, never per frame. Inside the hole the background stays as before, so a seam between two chunks' bakes
+   * looks as it did; the bands reach two hexes into the terrain, under its outer hexes.
+   */
+  private readonly voidLayer = new Container();
+  private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  private voidKey = "";
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
   /** The dropped steps of a planned path, fading out. */
@@ -260,6 +311,7 @@ export class Renderer implements FrameClient {
   /** The wall hexes a structure stands on (`"x,y"`): no rock there. */
   private covered: ReadonlySet<string> = new Set();
   private readonly chunks = new Map<string, ChunkBake>();
+  private readonly rings = new Map<string, { count: number; ring: readonly Tile[] }>();
   private view: ViewState | null = null;
   private viewport: Viewport = { width: 1, height: 1 };
   private camera: Camera = { centre: { x: 0, y: 0 }, scale: 1 };
@@ -285,6 +337,10 @@ export class Renderer implements FrameClient {
   private readonly scales = new Map<string, number>();
   private feet: number;
   private readonly stepMs: number;
+  /** The last chunk's bake, in ms (its drawing and its render into a texture), for `FrameStats`. */
+  private lastBakeMs: number | null = null;
+  /** Where the ground's cells come from, kept by `setLibrary`: no lookup in a frame. */
+  private groundSource: "atlas" | "colours" = "colours";
 
   constructor(
     private readonly surface: Surface,
@@ -292,12 +348,28 @@ export class Renderer implements FrameClient {
     options: RendererOptions = {},
   ) {
     this.library = options.library ?? null;
+    this.groundSource = this.groundTextures() ? "atlas" : "colours";
     this.zoom = options.zoom ?? DEFAULT_ZOOM;
     this.idleOn = options.idle ?? true;
     this.mode = options.mode ?? "continuous";
     this.feet = options.feet ?? DEFAULT_FEET;
     this.stepMs = options.stepMs ?? STEP_MS;
-    this.scheduler = new FrameScheduler(host, this, options.onDraw);
+    const onDraw = options.onDraw;
+    this.scheduler = new FrameScheduler(
+      host,
+      this,
+      onDraw &&
+        ((stats) =>
+          onDraw({
+            ...stats,
+            bakeMs: this.lastBakeMs,
+            ground: this.groundSource,
+          })),
+    );
+    this.voidLayer.visible = false;
+    for (let i = 0; i < 4; i++) this.voidLayer.addChild(new Sprite(Texture.WHITE));
+    // Under the chunks, in the ground's layer: the world's children keep their order.
+    this.ground.addChild(this.voidLayer);
     this.world.addChild(this.ground, this.overlay, this.fading, this.actorsLayer);
     this.passRoot.addChild(this.backdrop);
     this.mountStage();
@@ -308,9 +380,16 @@ export class Renderer implements FrameClient {
   setView(view: ViewState): void {
     const previous = this.view;
     this.view = view;
+    const hole = holeOf(view.tiles);
+    const holeKey = `${view.void ?? ""} ${hole ? Object.values(hole).join(",") : ""}`;
+    this.voidHole = hole;
+    if (holeKey !== this.voidKey) {
+      this.voidKey = holeKey;
+      this.placeVoid();
+    }
     const now = this.host.now();
     this.syncStructures(view.structures ?? []);
-    this.syncChunks(view.tiles);
+    this.syncChunks(view);
     drawOverlay(this.overlay, view);
     this.syncDropped(view, now);
     this.syncActors(view, now);
@@ -409,6 +488,11 @@ export class Renderer implements FrameClient {
     this.structuresKey = "";
     if (this.view) this.syncStructures(this.view.structures ?? []);
     if (this.view) this.syncActors(this.view, this.host.now());
+    this.groundSource = this.groundTextures() ? "atlas" : "colours";
+    this.placeVoid();
+    // The ground switches between flat colours and the atlas's cells: every chunk, once.
+    for (const chunk of this.chunks.values()) chunk.key = "";
+    if (this.view) this.syncChunks(this.view);
     this.scheduler.invalidate();
   }
 
@@ -586,6 +670,44 @@ export class Renderer implements FrameClient {
   }
 
   /**
+   * The void (CLI-03g1): the world's rectangle the frame shows, a whole art pixel larger on each
+   * side, filled with the void's look; the water's atlas cell is one flat colour, so one sprite
+   * stretched over it is the same water as the baked cells.
+   */
+  private placeVoid(): void {
+    const ground = this.view?.void;
+    this.voidLayer.visible = ground !== undefined;
+    if (ground === undefined) return;
+    // The water's cell is one flat colour: stretched, it is the same water as the baked cells.
+    const water = ground === "water" ? this.groundTextures()?.water : null;
+    const hole = this.voidHole ?? { x0: 0, y0: 0, x1: 0, y1: 0 };
+    // Placed once per view, never per frame: far past what the furthest zoom shows.
+    const far = VOID_REACH;
+    const bands = [
+      [hole.x0 - far, hole.y0 - far, hole.x1 + far, hole.y0],
+      [hole.x0 - far, hole.y1, hole.x1 + far, hole.y1 + far],
+      [hole.x0 - far, hole.y0, hole.x0, hole.y1],
+      [hole.x1, hole.y0, hole.x1 + far, hole.y1],
+    ] as const;
+    bands.forEach(([x0, y0, x1, y1], i) => {
+      const band = this.voidLayer.children[i] as Sprite;
+      band.texture = water ?? Texture.WHITE;
+      band.tint = water ? 0xffffff : VOID_COLOURS[ground];
+      band.position.set(x0, y0);
+      band.width = x1 - x0;
+      band.height = y1 - y0;
+    });
+  }
+
+  /** The atlas's ground cells, or null when the atlas has none (flat colours). */
+  private groundTextures(): GroundTextures | null {
+    const still = (name: string) => this.library?.get(name)?.animations[STILL]?.textures[0] ?? null;
+    const grass = still(GROUND_TILES.grass);
+    const water = still(GROUND_TILES.water);
+    return grass || water ? { grass, water } : null;
+  }
+
+  /**
    * The world on the stage, or the offscreen texture's sprite with the world as a root (`sharp`,
    * when its offscreen fits; `draw` decides, the mode gives the first guess).
    */
@@ -713,35 +835,57 @@ export class Renderer implements FrameClient {
     return Math.min(stepped, this.surface.maxTextureSize / side);
   }
 
-  /** Groups the tiles by chunk; a chunk whose tiles' kinds changed is drawn again, and rebaked. */
-  private syncChunks(tiles: readonly ViewTile[]): void {
+  /**
+   * Groups the tiles by chunk; a chunk whose tiles' kinds or grounds changed, or whose lip toward a
+   * neighbouring chunk or the void did, is drawn again, and rebaked. Its frame comes from its
+   * tiles' positions only (`chunkFrame`): the ground never changes the textures' size or count.
+   */
+  private syncChunks(view: ViewState): void {
+    const { tiles } = view;
     const groups = new Map<string, ViewTile[]>();
+    const grounds = new Map<string, GroundKind | null>();
     for (const tile of tiles) {
       const id = `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
       let group = groups.get(id);
       if (!group) groups.set(id, (group = []));
       group.push(tile);
+      grounds.set(`${tile.x},${tile.y}`, tile.kind === "unrevealed" ? null : groundOf(tile));
     }
+    const around = (t: Tile): GroundKind | null => {
+      const ground = grounds.get(`${t.x},${t.y}`);
+      return ground === undefined ? (view.void ?? null) : ground;
+    };
+    const textures = this.groundTextures();
     for (const [id, group] of groups) {
       const covered = (t: ViewTile) => (this.covered.has(`${t.x},${t.y}`) ? "c" : "");
-      const key = group.map((t) => `${t.x},${t.y}${t.kind[0]}${covered(t)}`).join("");
+      const ground = (t: ViewTile) => groundOf(t)[0];
+      const own = group.map((t) => `${t.x},${t.y}${t.kind[0]}${ground(t)}${covered(t)}`).join("");
+      // The lip looks across the chunk's edge: the grounds of the hexes around it join the key.
+      const ring = this.ringOf(id, group)
+        .map((t) => around(t)?.[0] ?? "-")
+        .join("");
+      const key = `${own}|${ring}`;
       const chunk = this.chunks.get(id);
       if (chunk?.key === key) continue;
-      const graphics = drawTerrain(group, this.covered);
-      const b = graphics.getLocalBounds();
-      const frame = new Rectangle(
-        Math.floor(b.minX),
-        Math.floor(b.minY),
-        Math.ceil(b.maxX) - Math.floor(b.minX),
-        Math.ceil(b.maxY) - Math.floor(b.minY),
-      );
+      const start = this.host.now();
+      const graphics = drawTerrain(group, this.covered, { around, textures });
+      const drawMs = this.host.now() - start;
+      const frame = chunkFrame(group);
       if (chunk) {
         chunk.graphics.destroy();
-        Object.assign(chunk, { key, graphics, frame, dirty: true });
+        Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs });
       } else {
         const sprite = new Sprite(Texture.EMPTY);
         this.ground.addChild(sprite);
-        this.chunks.set(id, { key, graphics, frame, sprite, resolution: 0, dirty: true });
+        this.chunks.set(id, {
+          key,
+          graphics,
+          frame,
+          sprite,
+          resolution: 0,
+          dirty: true,
+          drawMs,
+        });
       }
     }
     for (const [id, chunk] of this.chunks) {
@@ -750,6 +894,24 @@ export class Renderer implements FrameClient {
         this.chunks.delete(id);
       }
     }
+  }
+
+  /** The hexes next to a chunk's tiles but not in it, kept per chunk while its tiles stay. */
+  private ringOf(id: string, group: readonly ViewTile[]): readonly Tile[] {
+    const cached = this.rings.get(id);
+    if (cached && cached.count === group.length) return cached.ring;
+    const inside = new Set(group.map((t) => `${t.x},${t.y}`));
+    const ring = new Map<string, Tile>();
+    for (const tile of group) {
+      for (let side = 0; side < 6; side++) {
+        const next = acrossSide(tile, side);
+        const key = `${next.x},${next.y}`;
+        if (!inside.has(key)) ring.set(key, next);
+      }
+    }
+    const entry = { count: group.length, ring: [...ring.values()] };
+    this.rings.set(id, entry);
+    return entry.ring;
   }
 
   private dropChunk(chunk: ChunkBake): void {
@@ -763,7 +925,10 @@ export class Renderer implements FrameClient {
       const resolution = this.bakeResolution(chunk.frame);
       if (!chunk.dirty && resolution === chunk.resolution) continue;
       const old = chunk.sprite.texture;
+      const start = this.host.now();
       chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+      this.lastBakeMs = chunk.drawMs + (this.host.now() - start);
+      chunk.drawMs = 0;
       chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
       if (old !== Texture.EMPTY) old.destroy(true);
       chunk.dirty = false;
