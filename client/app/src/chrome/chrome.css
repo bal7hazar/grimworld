@@ -407,7 +407,8 @@ button:focus-visible,
 /*
  * The pack's cursors on desktop pointers (CLI-03l *The method* §6): the arrow on the page, the
  * pointing hand on what takes a click; a disabled button keeps the arrow. Each value carries a
- * keyword fallback. Touch screens are unchanged.
+ * keyword fallback. Touch screens are unchanged. `!important`: the plain styles set `cursor`
+ * inline on buttons (`sandbox/loop/styles.ts`), and the pack's cursor replaces it.
  */
 @media (hover: hover) and (pointer: fine) {
   [data-cursors] {
@@ -415,11 +416,10 @@ button:focus-visible,
   }
   [data-cursors] button:not(:disabled),
   [data-cursors] canvas {
-    cursor: var(--gw-cursor-hand);
+    cursor: var(--gw-cursor-hand) !important;
   }
-  [data-cursors] button:disabled,
-  [data-cursors] .gw-button:disabled {
-    cursor: var(--gw-cursor-arrow);
+  [data-cursors] button:disabled {
+    cursor: var(--gw-cursor-arrow) !important;
   }
 }
 
