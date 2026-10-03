@@ -1,3 +1,9 @@
 #!/usr/bin/env bash
 # Runs the checks of CI before a push (FND-13). Enabled once per clone: git config core.hooksPath .githooks
-exec "$(git rev-parse --show-toplevel)/scripts/prepush.sh"
+# git runs the hook from the top of the work tree and, in a linked worktree, exports GIT_DIR (the worktree's
+# folder under the shared .git): every repository variable git hands a hook is dropped (FND-17), so the
+# repository is found from the folder, as in a terminal, and no step can write to it through one of them.
+# shellcheck disable=SC2046 # one variable name per word
+unset $(git rev-parse --local-env-vars) $(compgen -v | grep '^GIT_CONFIG')
+root=$(git rev-parse --show-toplevel) || exit 2
+exec "$root/scripts/prepush.sh"
