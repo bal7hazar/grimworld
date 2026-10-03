@@ -7,7 +7,8 @@ import type { Facing } from "../render/view";
  * `LoopIntent` through the screen's dispatch). No DOM, React or PixiJS here.
  *
  * Positions are read from `event.code` (the physical key: an AZERTY keyboard gets the same block
- * and its digits without Shift), symbols from `event.key`. A key held with Ctrl, Meta or Alt is
+ * and its digits without Shift), symbols from `event.key`. A digit by position yields to a zoom
+ * character: where the key printed `-` is `Digit6` (AZERTY), it zooms out, not service 6. A key held with Ctrl, Meta or Alt is
  * the browser's; an auto-repeat or a composition is nothing (one press, one hex).
  */
 
@@ -204,8 +205,12 @@ export const BINDINGS: readonly Binding[] = [
   },
 ];
 
+/** The characters that zoom: they win over a digit read by position (AZERTY's `-` is `Digit6`). */
+const ZOOM_CHARS = ["+", "-", "="];
+
 function matches(match: KeyMatch, event: KeyLike): boolean {
   if (match.key !== undefined) return match.key === event.key;
+  if (match.code?.startsWith("Digit") && ZOOM_CHARS.includes(event.key)) return false;
   return match.code === event.code && event.shiftKey === (match.shift ?? false);
 }
 
