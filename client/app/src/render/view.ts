@@ -18,12 +18,20 @@ export interface Tile {
 export type TileKind = "floor" | "wall" | "unrevealed";
 
 /**
+ * What a tile's ground looks like (CLI-03g1): presentation only, never read by a rule. Grass and
+ * earth are land; water is never walked (a water tile is `wall`).
+ */
+export type GroundKind = "grass" | "water" | "earth";
+
+/**
  * A tile to draw. Whether it is seen now or seen before is not a field: `ViewState.sight` is the
  * one source of truth. A revealed tile in `sight` is seen now (drawn bright); every other revealed
  * tile was seen before (design/18: terrain of every revealed chunk, dimmed beyond sight).
  */
 export interface ViewTile extends Tile {
   readonly kind: TileKind;
+  /** Its ground (CLI-03g1); absent is grass, so that a view written by hand stays a meadow. */
+  readonly ground?: GroundKind;
 }
 
 /**
@@ -110,4 +118,9 @@ export interface ViewState {
    * (the renderer's tests) stays a zone's; `toView` always gives it.
    */
   readonly structures?: readonly ViewStructure[];
+  /**
+   * The ground beyond the tiles (CLI-03g1): an island's endless water. Absent: the background,
+   * and no lip toward it.
+   */
+  readonly void?: GroundKind;
 }

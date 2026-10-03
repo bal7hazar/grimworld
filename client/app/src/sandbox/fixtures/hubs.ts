@@ -198,6 +198,40 @@ const outpost: HubView = {
   arrival: tile(1, 1),
 };
 
+/** Tiles `from`..`to` of row `y`. */
+function row(y: number, from: number, to: number): Tile[] {
+  const out: Tile[] = [];
+  for (let x = Math.min(from, to); x <= Math.max(from, to); x++) out.push(tile(x, y));
+  return out;
+}
+
+/**
+ * Each hub's path, drawn as earth (CLI-03e's road, back with CLI-03g1): from the arrival along the
+ * front road, up to the middle street and the castle's door (the town), or to the fortress's
+ * (the outpost). **Proposed, the owner's eye.** Presentation only: a path hex is walked like any
+ * floor hex; a hex a building covers stays grass under it.
+ */
+export const HUB_PATHS: ReadonlyMap<HubView, readonly Tile[]> = new Map([
+  [
+    town,
+    [
+      ...row(0, 0, 9),
+      tile(4, 1),
+      tile(5, 2),
+      tile(4, 3),
+      tile(4, 4),
+      tile(4, 5),
+      ...row(6, 2, 9),
+      tile(4, 7),
+      tile(4, 8),
+      tile(4, 9),
+      tile(4, 10),
+      ...row(11, 1, 8),
+    ],
+  ],
+  [outpost, [...row(1, 0, 7), tile(3, 3), tile(4, 4), tile(3, 5), tile(4, 6)]],
+]);
+
 /** Each hub's view, by location id. */
 export const HUB_VIEWS: ReadonlyMap<number, HubView> = new Map([
   [TOWN, town],
