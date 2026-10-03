@@ -8,18 +8,27 @@ import { type GateRecord, globalTile, locationOf } from "../fixtures/region";
 import { zoneWorld } from "../fixtures/zone";
 import { keyUi, offScreen, useKeyLayer, useScreenFocus } from "../keyScope";
 import { type MapKeys, RoomSandbox } from "../Sandbox";
+import { Hud, bandSheet } from "./Hud";
 import { goIntent, leaveAsked, nextTarget, zoneTargets } from "./keyTargets";
 import { hubName, leaveQuestion } from "./machine";
 import { ui } from "./styles";
 
 type Asking = { kind: "leave"; gate: GateRecord } | { kind: "travel back" };
 
+/**
+ * Whether the confirmation keeps this key inside its two buttons: a plain `Tab` or `Shift+Tab`,
+ * never one with Ctrl, Meta or Alt (the browser's and the system's own shortcuts).
+ */
+export function trapsTab(event: KeyLike): boolean {
+  return event.code === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
 /** A hub gate's anchor, as its record gives it. */
 const anchorOf = (gate: GateRecord) => globalTile(gate.anchor_chunk, gate.anchor_tile);
 
 /**
  * The instance: CLI-03a's room on the entry chunk of the gate's destination, its renderer and input
- * unchanged, with the three ways out (CLI-03c): leaving by a hub gate the adventurer stands on
+ * unchanged, under the status band (CLI-03l), with the three ways out (CLI-03c): leaving by a hub gate the adventurer stands on
  * (D-148), travelling back, and a debug defeat. Leaving and travelling back are asked twice
  * (design/11 I-5): the offer or the button, then a confirmation.
  *
@@ -49,6 +58,7 @@ export function InstanceScreen({
   const [asking, setAsking] = useState<Asking | null>(null);
   const offerOpen = offer !== null;
   const root = useScreenFocus();
+  const mapBox = useRef<HTMLDivElement>(null);
   const targets = useMemo(() => zoneTargets(location, anchorOf), [location]);
   const [selected, setSelected] = useState<number | null>(null);
   const chosen = selected === null ? null : (targets[selected] ?? null);
@@ -82,7 +92,7 @@ export function InstanceScreen({
         const next = nextTarget(targets.length, selected, command.by);
         setSelected(next);
         const target = next === null ? null : targets[next];
-        if (target && map.controller && offScreen(map.controller, target.tile, root.current)) {
+        if (target && map.controller && offScreen(map.controller, target.tile, mapBox.current)) {
           map.controller.lookAt(target.tile);
         }
         return true;
@@ -108,65 +118,68 @@ export function InstanceScreen({
 
   return (
     <div ref={root} tabIndex={-1} style={{ ...ui.screen, ...keyUi.root }} data-screen="instance">
-      <RoomSandbox
-        world={world}
-        onTile={(tile) => tile && onMoved(tile)}
-        onFrame={place}
-        onKey={onKey}
-      >
-        <div ref={marker} className="gw-key-marker" style={keyUi.marker} aria-hidden />
-        <div style={styles.top}>
-          {offerOpen && (
+      <Hud sheet={bandSheet()} />
+      <div ref={mapBox} style={styles.map} data-map-box="">
+        <RoomSandbox
+          world={world}
+          onTile={(tile) => tile && onMoved(tile)}
+          onFrame={place}
+          onKey={onKey}
+        >
+          <div ref={marker} className="gw-key-marker" style={keyUi.marker} aria-hidden />
+          <div style={styles.top}>
+            {offerOpen && (
+              <Button
+                variant="action"
+                plain={{ ...ui.button, ...ui.primary }}
+                onClick={() => setAsking({ kind: "leave", gate: offer })}
+                aria-label="Leave by this gate"
+              >
+                Gate to {hubName(offer.destination)} · Leave ▸
+              </Button>
+            )}
+          </div>
+          <div style={styles.right}>
             <Button
               variant="action"
-              plain={{ ...ui.button, ...ui.primary }}
-              onClick={() => setAsking({ kind: "leave", gate: offer })}
-              aria-label="Leave by this gate"
+              plain={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
+              disabled={gateHere === null}
+              onClick={() => gateHere && setAsking({ kind: "leave", gate: gateHere })}
+              aria-label="Leave"
             >
-              Gate to {hubName(offer.destination)} · Leave ▸
+              Leave
             </Button>
+            <Button
+              variant="action"
+              plain={ui.button}
+              onClick={() => setAsking({ kind: "travel back" })}
+            >
+              Travel back
+            </Button>
+            <button
+              style={{ ...ui.button, ...ui.debug }}
+              onClick={() => dispatch({ kind: "defeat now" })}
+              title="A debug control of the sandbox: health reaches 0 now"
+            >
+              debug: defeat now
+            </button>
+          </div>
+          {asking && (
+            <Confirm
+              asking={asking}
+              stay={() => setAsking(null)}
+              confirm={() => {
+                setAsking(null);
+                dispatch(
+                  asking.kind === "leave"
+                    ? { kind: "leave", gate: asking.gate.id }
+                    : { kind: "travel back" },
+                );
+              }}
+            />
           )}
-        </div>
-        <div style={styles.right}>
-          <Button
-            variant="action"
-            plain={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
-            disabled={gateHere === null}
-            onClick={() => gateHere && setAsking({ kind: "leave", gate: gateHere })}
-            aria-label="Leave"
-          >
-            Leave
-          </Button>
-          <Button
-            variant="action"
-            plain={ui.button}
-            onClick={() => setAsking({ kind: "travel back" })}
-          >
-            Travel back
-          </Button>
-          <button
-            style={{ ...ui.button, ...ui.debug }}
-            onClick={() => dispatch({ kind: "defeat now" })}
-            title="A debug control of the sandbox: health reaches 0 now"
-          >
-            debug: defeat now
-          </button>
-        </div>
-        {asking && (
-          <Confirm
-            asking={asking}
-            stay={() => setAsking(null)}
-            confirm={() => {
-              setAsking(null);
-              dispatch(
-                asking.kind === "leave"
-                  ? { kind: "leave", gate: asking.gate.id }
-                  : { kind: "travel back" },
-              );
-            }}
-          />
-        )}
-      </RoomSandbox>
+        </RoomSandbox>
+      </div>
       <span style={keyUi.hidden} aria-live="polite" data-key-live="">
         {chosen ? `Gate to ${hubName(chosen.gate.destination)} selected, Enter to go` : ""}
       </span>
@@ -204,7 +217,7 @@ function Confirm({
       stay();
       return true;
     }
-    if (event.code !== "Tab") return false;
+    if (!trapsTab(event)) return false;
     const buttons = [...(box.current?.querySelectorAll("button") ?? [])];
     if (buttons.length === 0) return false;
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -233,6 +246,8 @@ function Confirm({
 }
 
 const styles: Record<string, CSSProperties> = {
+  /** The map's box under the band: the room fills it, the controls sit at its corners. */
+  map: { position: "relative", flex: 1, minHeight: 0, overflow: "hidden" },
   top: {
     position: "absolute",
     bottom: 76,
