@@ -733,6 +733,16 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
       expect(drawn.has(key(t))).toBe(false);
   });
 
+  it("destroy() frees the obstacles itself and empties the map, not only through the layer", async () => {
+    const { renderer } = await mount(await obstacleLibrary());
+    const sprites = [...renderer.obstacles().values()].map((n) => n.sprite);
+    expect(sprites.length).toBeGreaterThan(5);
+    expect(sprites.every((s) => !s.destroyed)).toBe(true);
+    renderer.destroy();
+    expect(renderer.obstacles().size).toBe(0);
+    expect(sprites.every((s) => s.destroyed)).toBe(true);
+  });
+
   it("no rock in the bakes with the atlas's obstacles; the shaped rocks without them", async () => {
     const wall = [{ x: 3, y: 3, kind: "wall" as const }];
     const rocks = drawTerrain(wall).context.instructions.length;
