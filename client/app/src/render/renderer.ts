@@ -615,6 +615,8 @@ export class Renderer implements FrameClient {
     for (const chunk of this.chunks.values()) this.dropChunk(chunk);
     for (const bake of this.voidFoamBakes.values()) this.dropChunk(bake);
     this.chunks.clear();
+    for (const node of this.obstacleNodes.values()) node.sprite.destroy();
+    this.obstacleNodes.clear();
     this.dropOffscreen();
     this.screen.destroy();
     this.world.destroy({ children: true });
