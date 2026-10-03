@@ -1,4 +1,4 @@
-import type { Tile, TileKind, ViewActor } from "../render/view";
+import type { Tile, TileKind, ViewActor, ViewStructure } from "../render/view";
 
 /** Chunks are 15 × 15 tiles (ADR-0006). */
 export const CHUNK = 15;
@@ -21,6 +21,13 @@ export interface SandboxWorld {
   readonly adventurerId: number;
   /** A planned path to draw, if the fixture shows one. */
   readonly path: readonly Tile[];
+  /**
+   * An exploration zone (the default), or a hub lived like one (CLI-03f, D-202): the wiring gives a
+   * hub none of the instance's stand-ins (sight, reveal, stops, the window, ticks, arcs).
+   */
+  readonly kind?: "zone" | "hub";
+  /** Buildings and props on wall hexes (a hub's); none by default. */
+  readonly structures?: readonly ViewStructure[];
 }
 
 export function inBounds(terrain: Terrain, tile: Tile): boolean {

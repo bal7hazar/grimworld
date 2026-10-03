@@ -6,7 +6,6 @@ import {
   useReducer,
   useState,
 } from "react";
-import type { ScaleMode } from "../../render/scaling";
 import { HUB_VIEWS } from "../fixtures/hubs";
 import { gateOf } from "../fixtures/region";
 import { EntryScreen, GateScreen, ReportScreen, ServiceScreen, SheetSummary } from "./screens";
@@ -55,7 +54,7 @@ function reduce(model: LoopModel, event: LoopEvent): LoopModel {
  * instance, the closing report, and back to a hub. Taps become intents; the machine
  * (`machine.ts`) and the fixed data answer them.
  */
-export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; scale: ScaleMode }) {
+export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
   const [model, dispatch] = useReducer(reduce, hub, (h) => ({
     state: hubState(h),
     log: [hubState(h).said],
@@ -78,7 +77,13 @@ export function Loop({ hub, entryMs, scale }: { hub: number; entryMs: number; sc
     case "hub": {
       const view = HUB_VIEWS.get(screen.hub);
       content = view && (
-        <HubScreen view={view} inspected={screen.inspected} scale={scale} dispatch={dispatch} />
+        <HubScreen
+          view={view}
+          inspected={screen.inspected}
+          at={screen.at}
+          dispatch={dispatch}
+          onMoved={moved}
+        />
       );
       break;
     }

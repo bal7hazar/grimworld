@@ -69,15 +69,28 @@ type Building = keyof typeof BUILDINGS;
 
 const tile = (x: number, y: number): Tile => ({ x, y });
 
-function place(id: ServiceId | "gate", building: Building, at: Tile): HubPlace {
+/**
+ * `depth`: the rows behind the base row the building blocks for the walk (CLI-03f), 1 when not
+ * given. **Proposed, the owner's eye**: 0 where the way climbs behind a building's side.
+ */
+function place(id: ServiceId | "gate", building: Building, at: Tile, depth?: number): HubPlace {
   const target = id === "gate" ? GATE : service(id);
   const [width, height] = BUILDINGS[building];
-  return { id, label: targetLabel(target), target, building, at, width, height };
+  return {
+    id,
+    label: targetLabel(target),
+    target,
+    building,
+    at,
+    width,
+    height,
+    ...(depth === undefined ? {} : { depth }),
+  };
 }
 
-function decor(id: string, building: Building, at: Tile): HubDecor {
+function decor(id: string, building: Building, at: Tile, depth?: number): HubDecor {
   const [width, height] = BUILDINGS[building];
-  return { id, building, at, width, height };
+  return { id, building, at, width, height, ...(depth === undefined ? {} : { depth }) };
 }
 
 const prop = (id: string, sprite: string, x: number, y: number, mirror = false): HubProp => ({
@@ -86,13 +99,6 @@ const prop = (id: string, sprite: string, x: number, y: number, mirror = false):
   at: tile(x, y),
   ...(mirror ? { mirror } : {}),
 });
-
-/** The hexes `from` to `to` along a row (inclusive). */
-function row(y: number, from: number, to: number): Tile[] {
-  const out: Tile[] = [];
-  for (let x = Math.min(from, to); x <= Math.max(from, to); x++) out.push(tile(x, y));
-  return out;
-}
 
 /**
  * The town, on the instance's hex grid (CLI-03e): three bands of buildings, doors facing the
@@ -109,24 +115,6 @@ const town: HubView = {
   width: 704,
   height: 960,
   origin: { x: 672, y: 912 },
-  ground: {
-    tileset: "grass",
-    water: "water_c",
-    path: [
-      ...row(0, 0, 9),
-      tile(4, 1),
-      tile(5, 2),
-      tile(4, 3),
-      tile(4, 4),
-      tile(4, 5),
-      ...row(6, 2, 9),
-      tile(4, 7),
-      tile(4, 8),
-      tile(4, 9),
-      tile(4, 10),
-      ...row(11, 1, 8),
-    ],
-  },
   places: [
     place("guild", "castle", tile(5, 12)),
     place("enchanter", "tower", tile(1, 12)),
@@ -134,7 +122,8 @@ const town: HubView = {
     place("smith", "forge", tile(5, 7)),
     place("armorer", "archery", tile(2, 7)),
     place("alchemist", "cloister", tile(8, 1)),
-    place("market", "market_hall", tile(5, 1)),
+    // The way climbs behind the market hall's side, (5, 2): open (CLI-03f).
+    place("market", "market_hall", tile(5, 1), 0),
     place("vault", "grain_silo", tile(3, 1)),
     place("gate", "watchtower", tile(1, 1)),
   ],
@@ -165,6 +154,8 @@ const town: HubView = {
     { id: 13, name: "Ilse", profession: "cleric", level: 12, at: tile(8, 11), facing: "right" },
   ],
   services: [...TOWN_SERVICES.map(service), GATE],
+  // The road's hex South-West of the Gate's door, on the town's side (CLI-03f, the owner's eye).
+  arrival: tile(2, 0),
 };
 
 /**
@@ -178,18 +169,14 @@ const outpost: HubView = {
   width: 576,
   height: 704,
   origin: { x: 512, y: 656 },
-  ground: {
-    tileset: "grass",
-    water: "water_c",
-    path: [...row(1, 0, 7), tile(3, 3), tile(4, 4), tile(3, 5), tile(4, 6)],
-  },
   places: [
     place("guild", "fortress", tile(2, 7)),
     place("trainer", "barracks", tile(5, 7)),
     place("vault", "barn", tile(6, 2)),
     place("gate", "watchtower", tile(1, 2)),
   ],
-  decor: [decor("hut", "hut", tile(0, 7)), decor("straw-hut", "straw_hut", tile(4, 2))],
+  // The way climbs behind the straw hut, (3, 3): open (CLI-03f).
+  decor: [decor("hut", "hut", tile(0, 7)), decor("straw-hut", "straw_hut", tile(4, 2), 0)],
   props: [
     prop("tree-back-w", "tree1", 7, 8),
     prop("tree-back-e", "tree3", 0, 8, true),
@@ -207,6 +194,8 @@ const outpost: HubView = {
     { id: 21, name: "Corvin", profession: "vanguard", level: 9, at: tile(2, 3), facing: "left" },
   ],
   services: [...OUTPOST_SERVICES.map(service), GATE],
+  // The road's hex South-West of the Gate's door, as in the town (CLI-03f, the owner's eye).
+  arrival: tile(1, 1),
 };
 
 /** Each hub's view, by location id. */
