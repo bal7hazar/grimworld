@@ -290,8 +290,8 @@ pub impl RevealImpl of RevealTrait {
     }
 
     /// Reveals `chunks` in order: each that is revealable now is generated and known to the next
-    /// ones. `known`: the terrain of every revealed neighbour of these chunks, and in a dungeon of
-    /// every revealed chunk (its frontier). Returns the chunks revealed. The entropy is read, never
+    /// ones. `known`: the terrain of every revealed neighbour of these chunks. Returns the chunks
+    /// revealed. The entropy is read, never
     /// fed: a chunk's word does not depend on the order of the reveals (audit #348, major 1).
     fn reveal(
         site: @Site,
@@ -406,14 +406,18 @@ pub impl RevealImpl of RevealTrait {
     ) -> (felt252, u8, u8) {
         let emerging = site.emerging();
         let last = *progress.count + 1 >= *site.target;
-        let mut ring: felt252 = 0;
-        let mut edges: u8 = 0;
-        let mut copied: u8 = 0;
+        // The loops' state starts from `zero`, 0 for every chunk index but not a constant: a loop
+        // whose state starts from constants is compiled twice (a copy specialised to them), which
+        // cost this class about 1,900 CASM felts (D-200).
+        let zero: u8 = chunk / 255;
+        let mut ring: felt252 = zero.into();
+        let mut edges: u8 = zero;
+        let mut copied: u8 = zero;
         // Drawable sides as bits, and those drawn open.
-        let mut free: u8 = 0;
-        let mut open: u8 = 0;
-        let mut side: u8 = 0;
-        let mut bit: u8 = 1;
+        let mut free: u8 = zero;
+        let mut open: u8 = zero;
+        let mut side: u8 = zero;
+        let mut bit: u8 = zero + 1;
         while side != 4 {
             if let Option::Some(next) = site.neighbour(chunk, side) {
                 if progress.is_revealed(next) {
@@ -437,41 +441,24 @@ pub impl RevealImpl of RevealTrait {
             side += 1;
             bit *= 2;
         }
-        // [Compute] A dungeon never closes before `N` (audit #348, minor 3): after this chunk the
-        // frontier, the distinct chunks not revealed that a revealed chunk faces open, must hold
-        // one that can still grow, or as many chunks as are still owed; else a free side opens,
-        // toward a chunk that can grow when one does
+        // [Compute] A dungeon never closes before `N` (audit #348, minor 3): while the frontier's
+        // open edges are fewer than the chunks still owed, this chunk keeps an open side toward a
+        // chunk that can still grow (a neighbour inside the rectangle, not revealed, not this
+        // chunk): two edges into one enclosed chunk can no longer end the floor
         let frontier = if *progress.open_edges > copied {
             *progress.open_edges - copied
         } else {
             0
         };
         if emerging && !last && free != 0 {
-            let mut after = Self::frontier(site, progress, known, chunk);
-            let mut side: u8 = 0;
-            let mut rest = open;
-            while side != 4 {
-                let (above, here) = DivRem::div_rem(rest, 2);
-                rest = above;
-                if here == 1 {
-                    after.append(site.neighbour(chunk, side).unwrap());
-                }
-                side += 1;
-            }
-            let owed: u32 = (*site.target - *progress.count - 1).into();
-            let mut grows = false;
-            for next in after.span() {
-                if Self::grows(site, progress, chunk, *next) {
-                    grows = true;
-                }
-            }
-            if !grows && after.len() < owed {
+            let owed = *site.target - *progress.count - 1;
+            if frontier < owed && !Self::opens_growth(site, progress, chunk, open) {
                 open += Self::widen(site, progress, chunk, free, open);
             }
         }
         // [Compute] The openings of the sides drawn open, 1 or 2 each, inside the mask
-        let mut drawn: u8 = 0;
-        let mut side: u8 = 0;
+        let mut drawn: u8 = zero;
+        let mut side: u8 = zero;
         let mut rest = open;
         while side != 4 {
             let (above, here) = DivRem::div_rem(rest, 2);
@@ -500,41 +487,12 @@ pub impl RevealImpl of RevealTrait {
         (ring, edges, open_edges)
     }
 
-    /// The frontier without `chunk`: the distinct chunks not revealed that a revealed chunk of
-    /// `known` faces with an open edge. In a dungeon `known` holds every revealed chunk (the
-    /// caller's part: `create` reveals the first, ENG-07 passes them all).
-    fn frontier(
-        site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8,
-    ) -> Array<u8> {
-        let mut out: Array<u8> = array![];
-        let mut seen: felt252 = 0;
-        for entry in known {
-            let (at, terrain) = *entry;
-            if progress.is_revealed(at) {
-                let mut side: u8 = 0;
-                while side != 4 {
-                    if Self::is_open(terrain.edges, side) {
-                        if let Option::Some(next) = site.neighbour(at, side) {
-                            if next != chunk
-                                && !progress.is_revealed(next)
-                                && !BoardTrait::has(seen, next) {
-                                seen += BoardTrait::pow(next);
-                                out.append(next);
-                            }
-                        }
-                    }
-                    side += 1;
-                }
-            }
-        }
-        out
-    }
-
     /// Whether `next`, once revealed, could open toward a chunk still to reveal: a neighbour inside
     /// the rectangle, not revealed, not `chunk` (which this reveal fills).
     fn grows(site: @Site, progress: @Progress, chunk: u8, next: u8) -> bool {
         let mut found = false;
-        let mut side: u8 = 0;
+        // From a value that is not a constant: `decide`'s note on specialised loops (D-200).
+        let mut side: u8 = next / 255;
         while side != 4 {
             if let Option::Some(other) = site.neighbour(next, side) {
                 if other != chunk && !progress.is_revealed(other) {
@@ -546,19 +504,36 @@ pub impl RevealImpl of RevealTrait {
         found
     }
 
-    /// The free side to open when the frontier could not grow: the first (ENG-01's order) not open
-    /// yet whose chunk can grow, else the first not open yet; 0 when every free side is open.
+    /// Whether one of `chunk`'s `open` sides faces a chunk that can grow.
+    fn opens_growth(site: @Site, progress: @Progress, chunk: u8, open: u8) -> bool {
+        let mut found = false;
+        let mut side: u8 = chunk / 255;
+        let mut bit: u8 = side + 1;
+        while side != 4 {
+            if (open / bit) % 2 == 1
+                && Self::grows(site, progress, chunk, site.neighbour(chunk, side).unwrap()) {
+                found = true;
+            }
+            side += 1;
+            bit *= 2;
+        }
+        found
+    }
+
+    /// The free side to open: the first (ENG-01's order) not open yet whose chunk can grow, else
+    /// the first not open yet; 0 when every free side is open.
     fn widen(site: @Site, progress: @Progress, chunk: u8, free: u8, open: u8) -> u8 {
-        let mut first: u8 = 0;
-        let mut growing: u8 = 0;
-        let mut side: u8 = 0;
-        let mut bit: u8 = 1;
+        let mut side: u8 = chunk / 255;
+        let mut first: u8 = side;
+        let mut growing: u8 = side;
+        let mut bit: u8 = side + 1;
         while side != 4 {
             if (free / bit) % 2 == 1 && (open / bit) % 2 == 0 {
                 if first == 0 {
                     first = bit;
                 }
-                if growing == 0 && Self::grows(site, progress, chunk, site.neighbour(chunk, side).unwrap()) {
+                if growing == 0
+                    && Self::grows(site, progress, chunk, site.neighbour(chunk, side).unwrap()) {
                     growing = bit;
                 }
             }
