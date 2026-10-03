@@ -1248,15 +1248,19 @@ pub impl DelegateRules of Rules<Delegate> {
                 None => source_at,
             }
         };
-        // The goblins the carrier can reach, ascending index (so ascending entity id).
+        // The goblins the carrier can reach, ascending index (so ascending entity id). Option
+        // (3)'s lever (3): a carrier whose entries are all `SINGLE` and none `TILE` (a weapon hit
+        // too) reads its source and the addressed entity alone (`actors`), so carries no other.
+        let wide = ExecutorTrait::wide(@lever, sheets, carrier);
         let mut picked: Array<u32> = array![];
         let mut sub = actor;
         for (i, state) in world.alive() {
             let (x, y, _) = GoblinPlaceTrait::at(state);
             let at = board.position(x, y);
             let own = actor == Actor::Goblin(i);
-            let near = WindowTrait::distance(at, source_at) <= 1
-                || WindowTrait::distance(at, address_at) <= 1;
+            let near = wide
+                && (WindowTrait::distance(at, source_at) <= 1
+                    || WindowTrait::distance(at, address_at) <= 1);
             if own || addressed == Some(i) || near {
                 if own {
                     sub = Actor::Goblin(picked.len());
@@ -1490,6 +1494,35 @@ pub impl ExecutorImpl of ExecutorTrait {
                 at, _,
             )) => (lever.potion_entry(sheets, at).target, *(*sheets.potions)[at].range),
         }
+    }
+
+    /// Whether `carrier` can reach an actor other than its source and the addressed entity: an
+    /// entry whose shape is not `SINGLE` or whose target is `TILE` (`actors`' own rule). A weapon
+    /// hit cannot.
+    fn wide<L, +Levers<L>>(lever: @L, sheets: @Sheets, carrier: Carrier) -> bool {
+        let mut entries = array![];
+        match carrier {
+            Carrier::Weapon => {},
+            Carrier::Skill((
+                at, _,
+            )) => {
+                for k in 0..3_u32 {
+                    let entry = lever.entry(sheets, at, k);
+                    if entry.is_empty() {
+                        break;
+                    }
+                    entries.append(entry);
+                }
+            },
+            Carrier::Potion((at, _)) => entries.append(lever.potion_entry(sheets, at)),
+        }
+        let mut wide = false;
+        for entry in entries {
+            if entry.shape != shape::SINGLE || entry.target == target::TILE {
+                wide = true;
+            }
+        }
+        wide
     }
 
     /// Runs `carrier` of `source` on `address` (an entity id, or a location's tile `x + 256 y` for
