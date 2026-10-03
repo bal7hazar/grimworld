@@ -61,6 +61,7 @@ describe("contrast", () => {
       ['[data-chrome="atlas"] .gw-panel-dark', "Panel dark"],
       ['[data-chrome="atlas"] .gw-ribbon-big', "Ribbon big blue"],
       ['[data-chrome="atlas"] .gw-ribbon-yellow', "Ribbon small yellow"],
+      ['[data-chrome="atlas"] .gw-hud-figure', "HUD figures"],
     ];
     for (const [selector, component] of pairs) {
       const text = CHROME_TEXT.find((t) => t.component === component)!;

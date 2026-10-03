@@ -164,7 +164,7 @@ export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
           style={styles.panelPlace}
           aria-label="Character sheet and build"
         >
-          <SheetSummary />
+          <SheetSummary portrait />
           <Text tone="caption" plain={ui.label}>
             Last hub visited
           </Text>

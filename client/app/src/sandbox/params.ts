@@ -6,7 +6,7 @@ import {
   type ZoomSettings,
 } from "../render/renderer";
 import { type ScaleMode, readScaleMode } from "../render/scaling";
-import { HUB_NAMES } from "./fixtures/hubs";
+import { type AdventurerSheet, HUB_NAMES } from "./fixtures/hubs";
 
 /** The bounds of the default zoom, in tiles across: the debug panel's and the URL's. */
 export const ACROSS_RANGE = { min: 3, max: 31 } as const;
@@ -41,6 +41,30 @@ export const ENTRY_RANGE = { min: 0, max: 10_000 } as const;
 /** The entry moment's fixed wait on fixed data, in ms: long enough to be seen, skippable. */
 export const ENTRY_MS = 1200;
 
+/** The HUD's presentation figures (CLI-03l): `?hud=low` or `?hud=empty`. */
+export type HudFigures = "low" | "empty";
+
+/** `low` or `empty`; anything else (absent included) is null. */
+export function readHud(value: string | null): HudFigures | null {
+  return value === "low" || value === "empty" ? value : null;
+}
+
+/**
+ * The sheet the HUD's band shows for `?hud=` (presentation only: it reaches no machine, intent or
+ * session): `low` health 37, energy 5, adrenaline 3; `empty` 0, 0, 0; maxima kept; `sheet` itself
+ * without one. A profession without adrenaline keeps null.
+ */
+export function hudSheet(sheet: AdventurerSheet, hud: HudFigures | null): AdventurerSheet {
+  if (hud === null) return sheet;
+  const [health, energy, adrenaline] = hud === "low" ? [37, 5, 3] : [0, 0, 0];
+  return {
+    ...sheet,
+    health: { ...sheet.health, current: health },
+    energy: { ...sheet.energy, current: energy },
+    adrenaline: sheet.adrenaline === null ? null : adrenaline,
+  };
+}
+
 export interface SandboxParams {
   readonly fixture: string | null;
   /**
@@ -57,6 +81,8 @@ export interface SandboxParams {
   readonly feet: number;
   readonly playOnTap: boolean;
   readonly stepMs: number;
+  /** The HUD's presentation figures, `?hud=low|empty` (CLI-03l); null otherwise. */
+  readonly hud: HudFigures | null;
 }
 
 /**
@@ -67,7 +93,7 @@ export interface SandboxParams {
  * `confirm=1` (tap twice to walk: design/11's setting; move is played on the tap by default),
  * `step=<ms>` (a step's duration, 60 to 1000). The loop (CLI-03c): `hub=town|outpost` opens it on
  * that hub, `loop=1` on the town; `entry=<ms>` the entry moment's wait (0 to 10000). An unknown
- * hub opens the room sandbox.
+ * hub opens the room sandbox. `hud=low|empty` shows other figures in the HUD's band (CLI-03l).
  */
 export function readParams(search: string): SandboxParams {
   const params = new URLSearchParams(search);
@@ -85,5 +111,6 @@ export function readParams(search: string): SandboxParams {
     feet: readFeet(params.get("feet")) ?? DEFAULT_FEET,
     playOnTap: params.get("confirm") !== "1",
     stepMs: readBounded(params.get("step"), STEP_RANGE) ?? STEP_MS,
+    hud: readHud(params.get("hud")),
   };
 }

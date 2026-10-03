@@ -340,6 +340,89 @@ button:focus-visible,
   }
 }
 
+/*
+ * The HUD (CLI-03l), scoped to [data-hud="atlas"] (the band) and the HUD's own art: a stale
+ * sprites.json keeps the chrome above and draws these plain. A bar is a three-slice of the art's
+ * height, the fill inside its trough (the padding) at whole device px (Chrome.tsx `Bar`).
+ */
+[data-hud="atlas"] .gw-bar {
+  display: flex;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  height: var(--h);
+  padding: var(--pad);
+  border-style: solid;
+  border-width: 0;
+  image-rendering: pixelated;
+  border-image-source: var(--img);
+  border-image-slice: var(--slice) fill;
+  border-image-width: var(--width);
+  border-image-repeat: var(--repeat);
+  min-width: var(--min-w);
+}
+[data-hud="atlas"] .gw-bar-big {
+  --img: var(--gw-bar-big);
+  --slice: var(--gw-bar-big-slice);
+  --width: var(--gw-bar-big-width);
+  --min-w: var(--gw-bar-big-min-w);
+  --pad: var(--gw-bar-big-pad);
+  --h: var(--gw-bar-big-h);
+  /* The middle is wood grain: repeated whole, never stretched. */
+  --repeat: round stretch;
+}
+[data-hud="atlas"] .gw-bar-small {
+  --img: var(--gw-bar-small);
+  --slice: var(--gw-bar-small-slice);
+  --width: var(--gw-bar-small-width);
+  --min-w: var(--gw-bar-small-min-w);
+  --pad: var(--gw-bar-small-pad);
+  --h: var(--gw-bar-small-h);
+  --repeat: stretch;
+}
+[data-hud="atlas"] .gw-bar-track {
+  flex: 1;
+  min-width: 96px;
+}
+[data-hud="atlas"] .gw-bar-fill {
+  /* Every column of the fill is the same: stretched along the trough, its rows one to one. */
+  background: var(--fill) 0 0 / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+[data-hud="atlas"] .gw-bar-health .gw-bar-fill {
+  --fill: var(--gw-bar-big-fill);
+}
+[data-hud="atlas"] .gw-bar-energy .gw-bar-fill {
+  --fill: var(--gw-bar-small-fill-energy);
+}
+/* The figures beside the bars: white on the special paper (contrast.ts), never over a fill. */
+[data-chrome="atlas"] .gw-hud-figure {
+  color: #fff;
+}
+[data-hud="atlas"] .gw-icon-sword {
+  --icon: var(--gw-icon-sword);
+  --icon-w: var(--gw-icon-sword-w);
+  --icon-h: var(--gw-icon-sword-h);
+}
+
+/*
+ * The pack's cursors on desktop pointers (CLI-03l *The method* §6): the arrow on the page, the
+ * pointing hand on what takes a click; a disabled button keeps the arrow. Each value carries a
+ * keyword fallback. Touch screens are unchanged. `!important`: the plain styles set `cursor`
+ * inline on buttons (`sandbox/loop/styles.ts`), and the pack's cursor replaces it.
+ */
+@media (hover: hover) and (pointer: fine) {
+  [data-cursors] {
+    cursor: var(--gw-cursor-arrow);
+  }
+  [data-cursors] button:not(:disabled),
+  [data-cursors] canvas {
+    cursor: var(--gw-cursor-hand) !important;
+  }
+  [data-cursors] button:disabled {
+    cursor: var(--gw-cursor-arrow) !important;
+  }
+}
+
 /* A high-contrast setting: the art dropped, plain system borders drawn. */
 @media (forced-colors: active) {
   [data-chrome="atlas"] .gw-panel,
@@ -352,6 +435,13 @@ button:focus-visible,
     color: CanvasText;
     text-shadow: none;
     filter: none;
+  }
+  [data-hud="atlas"] .gw-bar {
+    border-image: none;
+    border: 1px solid CanvasText;
+  }
+  [data-hud="atlas"] .gw-bar-fill {
+    forced-color-adjust: none;
   }
   [data-chrome="atlas"] .gw-button,
   [data-chrome="atlas"] .gw-icon-button {

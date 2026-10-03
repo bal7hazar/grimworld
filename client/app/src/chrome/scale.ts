@@ -66,3 +66,32 @@ export function sliceLengths(
     drop: toCssPx(ui.drop ?? 0, dpr),
   };
 }
+
+/**
+ * A bar's fill (CLI-03l *The method* §2), in whole device px of its trough `trackDevicePx`: the
+ * share `current / max`, `current` clamped to [0, max]; 0 when `max` is not above 0 or `current`
+ * is not a number. The fill is
+ * then `fillWidth / dpr` CSS px wide; at 0 no fill element is drawn.
+ */
+export function fillWidth(trackDevicePx: number, current: number, max: number): number {
+  if (!(max > 0) || !(trackDevicePx > 0) || !Number.isFinite(current)) return 0;
+  const share = Math.min(Math.max(current, 0), max) / max;
+  return Math.round(trackDevicePx * share);
+}
+
+/**
+ * A portrait's cut (CLI-03l *The method* §3): its longer side at `displayCssPx` CSS px, as whole
+ * device px, the shorter in proportion. Below one device px per art px a nearest-neighbour cut
+ * drops most pixels and the outlines with them, so the cut is smoothed there; at or above, nearest.
+ */
+export function portraitCut(
+  artSize: { readonly w: number; readonly h: number },
+  displayCssPx: number,
+  dpr: number,
+): { readonly devicePx: { readonly w: number; readonly h: number }; readonly smooth: boolean } {
+  const longer = Math.max(artSize.w, artSize.h, 1);
+  const side = Math.max(1, Math.round(displayCssPx * dpr));
+  const perArt = side / longer;
+  const of = (v: number) => (v === longer ? side : Math.max(1, Math.round(v * perArt)));
+  return { devicePx: { w: of(artSize.w), h: of(artSize.h) }, smooth: perArt < 1 };
+}

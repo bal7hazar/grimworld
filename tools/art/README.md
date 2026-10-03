@@ -270,6 +270,7 @@ The client's chrome (panels, buttons, ribbons, icons) comes from the pack's `UI 
 | `drop` | With a pressed state: how many px lower the pressed face starts (11 for the big and small buttons) |
 | `slice`, `content` | `[top, right, bottom, left]` in art px of the trimmed image: the parts kept unscaled at the edges (CSS `border-image-slice`), and where text may sit |
 | `fill` | The middle parts `stretch`, or repeat (`round`) where the art is textured (papers, scroll, board, big ribbons) |
+| `recolour` | `{ "#rrggbb" = "#rrggbb", … }` (CLI-03l): an exact colour map applied to the sheet before anything else. Every opaque colour of the sheet must be named, and only colours it has: the build refuses a map that leaves one unmapped (no stray pixel of the old colour) or names one it lacks |
 
 The build composes the pieces contiguous with the pack's pixels untouched, trims the transparent
 outer margin (recorded as `outset`; an element with states is trimmed by the margins its states
@@ -281,6 +282,17 @@ is not uniform (more than `settings.ui_edge` of a row or column differing from i
 middle). Elements of the build of 2026-10-03: `paper`, `paper_dark`, `scroll`, `wood`,
 `button_blue`, `button_red` (pressed), `ribbon_big_blue`, `ribbon_big_red`, `ribbon_small_yellow`,
 `round_blue`, `square_blue` (pressed), `icon_back`, `icon_close`, `icon_gold`.
+
+A still is trimmed like the slices: its transparent margin goes, recorded as `outset` (a still
+without margin keeps its size). The HUD's elements (CLI-03l) follow the chrome's: `bar_big`
+(three-slice, `round`: its middle is wood grain) and `bar_big_fill` (the red fill, every column
+the same), `bar_small` (three-slice, `stretch`) and `bar_small_fill_energy` (the small red fill
+recoloured `#ff3e3e` → `#41919d`, the big blue button's face), `icon_sword` (adrenaline), the
+blue row's portraits `portrait_vanguard` (Avatars 01, the Warrior's plumed helm),
+`portrait_warden` (Avatars 03, the Archer's nasal helm) and `portrait_cleric` (Avatars 04, the
+Monk's tonsure), and the desktop's cursors `cursor_arrow` and `cursor_hand`. A bar's `content` is
+its trough: the fill lies there. The client loads them apart (`HUD_ENTRIES`): a missing one drops
+only the HUD to its plain look, never the chrome.
 
 To add one: describe its sheet's lattice, run the build, read the element's line (size, edge,
 centre colour), choose the smallest slices that keep the whole border and corner drawing, and use

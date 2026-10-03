@@ -14,7 +14,8 @@
     "verify:hubs": "node verify-hubs.mjs",
     "verify:ground": "node verify-ground.mjs",
     "verify:chrome": "node verify-chrome.mjs",
-    "verify:keys": "node verify-keys.mjs"
+    "verify:keys": "node verify-keys.mjs",
+    "verify:hud": "node verify-hud.mjs"
   },
   "dependencies": {
     "pixi.js": "8.21.0",

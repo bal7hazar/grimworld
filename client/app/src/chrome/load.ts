@@ -1,6 +1,7 @@
 import { ART_BASE } from "../render/atlas";
 import { type SpritesIndex, type UiSlices, readSpritesIndex } from "../render/sprites";
-import { type SliceLengths, sliceLengths } from "./scale";
+import type { Profession } from "../render/view";
+import { type SliceLengths, portraitCut, sliceLengths, toDevicePx } from "./scale";
 
 /**
  * The chrome's images (CLI-03i *The method* §1, option D): the `ui` page of the atlas `tools/art`
@@ -28,6 +29,57 @@ export const CHROME_ENTRIES = [
 ] as const;
 
 export type ChromeEntryName = (typeof CHROME_ENTRIES)[number];
+
+/**
+ * The HUD's elements (CLI-03l *The method* §5), loaded in the same pass but apart: when one is
+ * missing or fails, only the HUD is plain (`hud: null`) and the chrome keeps its art, so a
+ * `sprites.json` built before them still shows the chrome.
+ */
+export const HUD_ENTRIES = [
+  "bar_big",
+  "bar_big_fill",
+  "bar_small",
+  "bar_small_fill_energy",
+  "icon_sword",
+  "portrait_vanguard",
+  "portrait_warden",
+  "portrait_cleric",
+  "cursor_arrow",
+  "cursor_hand",
+] as const;
+
+export type HudEntryName = (typeof HUD_ENTRIES)[number];
+
+/** The portraits' entries by profession; the Arcanist has none (no caster in the pack, Q-12). */
+export const PORTRAITS: Readonly<Record<Profession, HudEntryName | null>> = {
+  vanguard: "portrait_vanguard",
+  warden: "portrait_warden",
+  cleric: "portrait_cleric",
+  arcanist: null,
+};
+
+/** A portrait's display sizes, CSS px of its longer side: the inspect dialog, the band, the sheet. */
+export const PORTRAIT_SIZES = [40, 48, 96] as const;
+export type PortraitSize = (typeof PORTRAIT_SIZES)[number];
+
+/** The cursors' hot spots, art px of the trimmed image: the arrow's tip, the hand's fingertip. */
+export const CURSOR_HOT_SPOTS = { cursor_arrow: [0, 0], cursor_hand: [4, 0] } as const;
+
+/** A portrait cut at one display size: its object URL and its size in device px. */
+export interface PortraitImage {
+  readonly url: string;
+  readonly w: number;
+  readonly h: number;
+}
+
+export interface HudImages {
+  /** The bars' frames and fills and the sword, cut at the chrome's scale like its elements. */
+  readonly entries: ReadonlyMap<HudEntryName, ChromeEntry>;
+  /** Each portrait at each display size (smoothed below one device px per art px). */
+  readonly portraits: ReadonlyMap<HudEntryName, ReadonlyMap<PortraitSize, PortraitImage>>;
+  /** The CSS `cursor` values: the image at 1× and 2×, the hot spot, a keyword fallback. */
+  readonly cursors: { readonly arrow: string; readonly hand: string };
+}
 export type ChromeState = "regular" | "pressed";
 
 export interface ChromeEntry {
@@ -40,6 +92,8 @@ export interface ChromeEntry {
 export interface ChromeImages {
   readonly dpr: number;
   readonly entries: ReadonlyMap<ChromeEntryName, ChromeEntry>;
+  /** The HUD's images, or null: the HUD draws plain (a stale `sprites.json`, a failed cut). */
+  readonly hud: HudImages | null;
   /** Every object URL made, to revoke when the images are replaced or dropped. */
   readonly urls: readonly string[];
 }
@@ -55,11 +109,15 @@ export interface Frame {
 export interface ChromeLoaders<Image = unknown> {
   fetchJson(url: string): Promise<unknown>;
   loadImage(url: string): Promise<Image>;
-  /** The frame of `image`, scaled nearest-neighbour to `size` device px, as an object URL. */
+  /**
+   * The frame of `image` scaled to `size` device px, as an object URL: nearest-neighbour, or
+   * smoothed (`imageSmoothingQuality = "high"`) when `smooth` (a portrait reduced, CLI-03l).
+   */
   cut(
     image: Image,
     frame: Frame,
     size: { readonly w: number; readonly h: number },
+    smooth?: boolean,
   ): Promise<string>;
   revoke(url: string): void;
 }
@@ -90,13 +148,14 @@ export const browserLoaders: ChromeLoaders<HTMLImageElement> = {
     await image.decode();
     return image;
   },
-  async cut(image, frame, size) {
+  async cut(image, frame, size, smooth = false) {
     const canvas = document.createElement("canvas");
     canvas.width = size.w;
     canvas.height = size.h;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("no 2D context");
-    context.imageSmoothingEnabled = false;
+    context.imageSmoothingEnabled = smooth;
+    if (smooth) context.imageSmoothingQuality = "high";
     context.drawImage(image, frame.x, frame.y, frame.w, frame.h, 0, 0, size.w, size.h);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error("the canvas gave no image");
@@ -108,7 +167,8 @@ export const browserLoaders: ChromeLoaders<HTMLImageElement> = {
 /**
  * The chrome's images at a pixel ratio, or null: no `sprites.json`, a refused one, no `ui` page,
  * an element of `CHROME_ENTRIES` missing, a frame that is not its element's whole cell, or a load
- * that fails. The URLs made before a failure are revoked.
+ * that fails. The URLs made before a failure are revoked. The HUD's (`HUD_ENTRIES`) follow in the
+ * same pass; any of those failing leaves `hud` null and revokes only the HUD's URLs.
  */
 export async function loadChrome<Image>(
   base: string,
@@ -132,45 +192,138 @@ export async function loadChrome<Image>(
     }
     return null;
   }
-  const urls: string[] = [];
-  try {
-    const pages = new Map<number, Promise<{ page: unknown; image: Image }>>();
-    const pageOf = (n: number) => {
-      let found = pages.get(n);
-      if (!found) {
-        const info = index.pages[n]!;
-        found = loaders.fetchJson(base + info.json).then(async (page) => ({
-          page,
-          image: await loaders.loadImage(base + info.image),
-        }));
-        pages.set(n, found);
-      }
-      return found;
-    };
-    const entries = new Map<ChromeEntryName, ChromeEntry>();
-    for (const name of CHROME_ENTRIES) {
-      const sprite = index.sprites[name]!;
-      const ui = sprite.ui!;
-      const { page, image } = await pageOf(sprite.page);
-      const lengths = sliceLengths(ui, sprite.cell, dpr);
-      const made: Partial<Record<ChromeState, string>> = {};
-      for (const state of ["regular", ...(ui.states ?? [])] as ChromeState[]) {
-        const frame = frameOf(page, `${name}/${state}/00`);
-        if (!frame || frame.w !== sprite.cell.w || frame.h !== sprite.cell.h) {
-          throw new Error(`${name}/${state}: no frame of ${sprite.cell.w} × ${sprite.cell.h}`);
-        }
-        const url = await loaders.cut(image, frame, lengths.image);
-        urls.push(url);
-        made[state] = url;
-      }
-      entries.set(name, { ui, lengths, urls: made });
+  const pages = new Map<number, Promise<{ page: unknown; image: Image }>>();
+  const pageOf = (n: number) => {
+    let found = pages.get(n);
+    if (!found) {
+      const info = index.pages[n]!;
+      found = loaders.fetchJson(base + info.json).then(async (page) => ({
+        page,
+        image: await loaders.loadImage(base + info.image),
+      }));
+      pages.set(n, found);
     }
-    return { dpr, entries, urls };
-  } catch (error) {
-    console.error(`[chrome] the UI page could not be cut (${String(error)}); plain look`);
-    for (const url of urls) loaders.revoke(url);
+    return found;
+  };
+  /** The frame of `name` in `state`, checked to be the element's whole cell. */
+  const frameFor = async (name: string, state: ChromeState) => {
+    const sprite = index.sprites[name]!;
+    const { page, image } = await pageOf(sprite.page);
+    const frame = frameOf(page, `${name}/${state}/00`);
+    if (!frame || frame.w !== sprite.cell.w || frame.h !== sprite.cell.h) {
+      throw new Error(`${name}/${state}: no frame of ${sprite.cell.w} × ${sprite.cell.h}`);
+    }
+    return { image, frame };
+  };
+  /** A cut whose URL is recorded in `into` as soon as it is made (to revoke on a failure). */
+  const cut = async (
+    into: string[],
+    name: string,
+    state: ChromeState,
+    size: { readonly w: number; readonly h: number },
+    smooth = false,
+  ) => {
+    const { image, frame } = await frameFor(name, state);
+    const url = await loaders.cut(image, frame, size, smooth);
+    into.push(url);
+    return url;
+  };
+  /** An element cut at the chrome's scale, in each of its states. */
+  const element = async (into: string[], name: string): Promise<ChromeEntry> => {
+    const sprite = index.sprites[name]!;
+    const ui = sprite.ui!;
+    const lengths = sliceLengths(ui, sprite.cell, dpr);
+    const states = ["regular", ...(ui.states ?? [])] as ChromeState[];
+    const made = await settled(states.map((state) => cut(into, name, state, lengths.image)));
+    return { ui, lengths, urls: Object.fromEntries(states.map((s, i) => [s, made[i]!])) };
+  };
+  // Every cut runs at once (the chrome's and the HUD's): the screens get their art sooner. Each
+  // group keeps its own URLs, so a failed HUD revokes only its own.
+  const chromeUrls: string[] = [];
+  const hudUrls: string[] = [];
+  const chrome = settled(CHROME_ENTRIES.map((name) => element(chromeUrls, name)));
+  const lacking = HUD_ENTRIES.filter((name) => !index.sprites[name]?.ui);
+  const hudLoad = lacking.length > 0 ? null : cutHud(hudUrls);
+  async function cutHud(into: string[]): Promise<HudImages> {
+    const portraitNames = HUD_ENTRIES.filter((name) => name.startsWith("portrait_"));
+    const cursorNames = ["cursor_arrow", "cursor_hand"] as const;
+    const elementNames = HUD_ENTRIES.filter(
+      (name) => !name.startsWith("portrait_") && !name.startsWith("cursor_"),
+    );
+    const [elements, portraitCuts, cursorValues] = await settled([
+      settled(elementNames.map((name) => element(into, name))),
+      settled(
+        portraitNames.map((name) =>
+          settled(
+            PORTRAIT_SIZES.map(async (size) => {
+              const { devicePx, smooth } = portraitCut(index.sprites[name]!.cell, size, dpr);
+              const url = await cut(into, name, "regular", devicePx, smooth);
+              return { url, ...devicePx };
+            }),
+          ),
+        ),
+      ),
+      settled(
+        cursorNames.map(async (name) => {
+          // A cursor at 1× and 2× whatever the screen: the browser picks by `image-set`.
+          const cell = index.sprites[name]!.cell;
+          const at = await settled(
+            [1, 2].map(async (ratio) => {
+              const size = { w: toDevicePx(cell.w, ratio), h: toDevicePx(cell.h, ratio) };
+              return `url("${await cut(into, name, "regular", size)}") ${ratio}x`;
+            }),
+          );
+          const [hx, hy] = CURSOR_HOT_SPOTS[name].map((v) => toDevicePx(v, 1));
+          const keyword = name === "cursor_arrow" ? "auto" : "pointer";
+          return `image-set(${at.join(", ")}) ${hx} ${hy}, ${keyword}`;
+        }),
+      ),
+    ] as const);
+    return {
+      entries: new Map(elementNames.map((name, i) => [name, (elements as ChromeEntry[])[i]!])),
+      portraits: new Map(
+        portraitNames.map((name, i) => [
+          name,
+          new Map(
+            PORTRAIT_SIZES.map((size, j) => [size, (portraitCuts as PortraitImage[][])[i]![j]!]),
+          ),
+        ]),
+      ),
+      cursors: { arrow: (cursorValues as string[])[0]!, hand: (cursorValues as string[])[1]! },
+    };
+  }
+  const [chromeDone, hudDone] = await Promise.allSettled([chrome, hudLoad]);
+  if (chromeDone.status === "rejected") {
+    console.error(
+      `[chrome] the UI page could not be cut (${String(chromeDone.reason)}); plain look`,
+    );
+    for (const url of [...chromeUrls, ...hudUrls]) loaders.revoke(url);
     return null;
   }
+  const entries = new Map(CHROME_ENTRIES.map((name, i) => [name, chromeDone.value[i]!]));
+  let hud: HudImages | null = null;
+  if (lacking.length > 0) {
+    console.warn(`[chrome] sprites.json lacks ${lacking.join(", ")}; plain HUD`);
+  } else if (hudDone.status === "rejected") {
+    console.error(`[chrome] the HUD could not be cut (${String(hudDone.reason)}); plain HUD`);
+    for (const url of hudUrls) loaders.revoke(url);
+  } else {
+    hud = hudDone.value;
+  }
+  return { dpr, entries, hud, urls: [...chromeUrls, ...(hud ? hudUrls : [])] };
+}
+
+/**
+ * Every promise's value in order, once all have settled; the first failure, if any, only then:
+ * so every URL a cut made is recorded before a failure is handled.
+ */
+async function settled<T extends readonly unknown[] | unknown[]>(promises: {
+  readonly [K in keyof T]: Promise<T[K]>;
+}): Promise<T> {
+  const results = await Promise.allSettled(promises as readonly Promise<unknown>[]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) throw (failed as PromiseRejectedResult).reason;
+  return results.map((r) => (r as PromiseFulfilledResult<unknown>).value) as T;
 }
 
 const px = (v: number) => `${+v.toFixed(4)}px`;
@@ -180,11 +333,17 @@ const cssName = (name: string) => name.replace(/_/g, "-");
  * The custom properties the stylesheet reads, per element `--gw-<name>` (dashes for underscores):
  * the image (`url(…)`) and `-pressed`, `-slice` (image px), `-width` and `-pad` (CSS px, top right
  * bottom left), `-w` and `-h` (the image's CSS size), `-drop`, `-min-w` and `-min-h` (the slices'
- * sums); and `--gw-px`, one device pixel.
+ * sums); and `--gw-px`, one device pixel. With the HUD's images, the same for its bars, fills and
+ * sword, and `--gw-cursor-arrow` and `--gw-cursor-hand` (whole `cursor` values).
  */
 export function chromeProperties(images: ChromeImages): Record<string, string> {
   const out: Record<string, string> = { "--gw-px": px(1 / images.dpr) };
-  for (const [name, entry] of images.entries) {
+  const all: [string, ChromeEntry][] = [...images.entries, ...(images.hud?.entries ?? [])];
+  if (images.hud) {
+    out["--gw-cursor-arrow"] = images.hud.cursors.arrow;
+    out["--gw-cursor-hand"] = images.hud.cursors.hand;
+  }
+  for (const [name, entry] of all) {
     const n = `--gw-${cssName(name)}`;
     const { lengths, urls } = entry;
     out[n] = `url("${urls.regular}")`;
