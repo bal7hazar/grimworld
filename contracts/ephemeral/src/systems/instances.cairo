@@ -3,17 +3,75 @@
 //! interface, storage and events; every entrypoint reverts with `'not implemented'` until its lot
 //! (ENG-06, ENG-07, CBT-*) writes it. docs/architecture/ENG-01-interfaces.md.
 
-use grimworld_logic::types::{ChunkKind, InstanceId};
+use core::num::traits::Zero;
+use grimworld_logic::content::exists;
+use grimworld_logic::models::location::{Location, LocationTrait};
+use grimworld_logic::types::{ChunkKind, InstanceId, MAX_TASKS};
 use starknet::{ClassHash, ContractAddress};
+use crate::models::instance::errors as instance_errors;
 
 /// Version of the interface, returned by `version`.
 pub const VERSION: felt252 = 'grimworld-instances-1';
 /// The revert of every entrypoint not written yet.
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
-/// The revert of an administrator's entrypoint called by anyone else (ADR-0007, *Access control*).
-pub const NOT_ADMIN: felt252 = 'not admin';
-/// `set_admin` to the zero address would leave the role to nobody.
-pub const ZERO_ADMIN: felt252 = 'admin is zero';
+pub use errors::{NOT_ADMIN, ZERO_ADMIN};
+
+/// The refusals of `Instances`' administration (ADR-0007, *Access control*). The lifecycle's are
+/// `models::instance::errors`.
+pub mod errors {
+    /// An administrator's entrypoint called by anyone else.
+    pub const NOT_ADMIN: felt252 = 'not admin';
+    /// `set_admin` to the zero address would leave the role to nobody.
+    pub const ZERO_ADMIN: felt252 = 'admin is zero';
+}
+
+/// The checks of `Instances`' callers and of `create`'s inputs, before any write (those of a gate
+/// action are `HeaderAssert::refusal`'s, refusals and not reverts; the placement's are
+/// `PlacementAssert`'s).
+#[generate_trait]
+pub impl InstancesAssert of InstancesAssertTrait {
+    /// The caller is the administrator.
+    #[inline(always)]
+    fn assert_admin(caller: ContractAddress, admin: ContractAddress) {
+        assert(caller == admin, errors::NOT_ADMIN);
+    }
+
+    /// A new administrator is not the zero address.
+    #[inline(always)]
+    fn assert_admin_not_zero(admin: ContractAddress) {
+        assert(admin.is_non_zero(), errors::ZERO_ADMIN);
+    }
+
+    /// The caller is the registered hub (`create`, `set_controller`; ENG-01 §1.2).
+    #[inline(always)]
+    fn assert_hub(caller: ContractAddress, hub: ContractAddress) {
+        assert(caller == hub, instance_errors::NOT_HUB);
+    }
+
+    /// No more task entries than a snapshot holds (D-131).
+    #[inline(always)]
+    fn assert_tasks(count: u32) {
+        assert(count <= MAX_TASKS.into(), instance_errors::TOO_MANY_TASKS);
+    }
+
+    /// The registry holds the gate (`parts`, its record).
+    #[inline(always)]
+    fn assert_gate(parts: Span<felt252>) {
+        assert(exists(parts), instance_errors::NO_GATE);
+    }
+
+    /// The registry holds the gate's destination (`parts`, its record).
+    #[inline(always)]
+    fn assert_location(parts: Span<felt252>) {
+        assert(exists(parts), instance_errors::NO_LOCATION);
+    }
+
+    /// The destination has a map: a town or an outpost is not an instance (design/01).
+    #[inline(always)]
+    fn assert_map(location: @Location) {
+        assert(location.has_map(), instance_errors::NO_MAP);
+    }
+}
 
 /// A goblin as stored, or as derived from its chunk when it has no record (`derived`).
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
@@ -52,7 +110,7 @@ pub struct InstanceView {
     pub members: Span<felt252>,
     /// The roster pages, **masked** (F-13): lanes of entries at or beyond the header's roster count
     /// are zeros, whatever an earlier generation left in them
-    /// (`models::instance::mask_roster_page`).
+    /// (`models::instance::RosterTrait::mask`).
     /// Pages beyond `⌈roster_count / 15⌉` are not returned.
     pub roster: Span<felt252>,
     /// Every goblin of the members' windows: the untouched ones derived, the touched ones and the
@@ -151,7 +209,6 @@ pub trait IInstancesAdmin<T> {
 
 #[starknet::contract]
 pub mod Instances {
-    use core::num::traits::Zero;
     use grimworld_logic::content::{GATE, LOCATION, exists};
     use grimworld_logic::fate::{ENTRY, derive, domain};
     use grimworld_logic::interface::{
@@ -162,39 +219,33 @@ pub mod Instances {
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
-    use grimworld_logic::types::{
-        InstanceId, MAX_TASKS, Outcome, Refusal, instance_id, instance_parts,
-    };
-    use starknet::storage::{
-        Map, StorageAsPointer, StoragePathEntry, StoragePointerReadAccess,
-        StoragePointerWriteAccess,
-    };
-    use starknet::storage_access::{Store, StorePacking};
-    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
+    use grimworld_logic::types::{InstanceId, Outcome, Refusal, instance_id, instance_parts};
+    use starknet::storage::Map;
+    use starknet::storage_access::StorePacking;
+    use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::events::{
         BatchPlayed, ChunkRevealed, Defeated, GoblinKilled, InstanceClosed, InstanceEntered,
         Refused,
     };
+    use crate::helpers::stored::{Stored, StoredTrait};
     use crate::models::chunk::Chunk;
     use crate::models::goblin::Goblin;
     use crate::models::instance::{
-        DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementTrait, Quotas, QuotasTrait,
-        RETURNED, ROSTER_LANES, errors, mask_roster_page,
+        DEFEATED, Header, HeaderAssert, HeaderTrait, Placement, PlacementAssert, PlacementTrait,
+        Quotas, QuotasTrait, RETURNED, ROSTER_LANES, RosterTrait,
     };
-    use crate::models::member::{
-        DOWN, EFFECTS_WORD, EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, GONE, Member, MemberState,
-        MemberStateTrait, RECHARGES_WORD, STATS_WORD, TIMERS_WORD, errors as member_errors,
-    };
-    use crate::store::StoreTrait;
-    use super::{InstanceView, NOT_IMPLEMENTED, RegionChunk, VERSION};
+    use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
+    use crate::store::InstancesStoreTrait;
+    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION};
 
     /// Task entries on a stored page (`TaskPage`).
     const TASKS_PER_PAGE: u32 = 4;
-    /// Words of a member (`Member`), in the view.
-    const MEMBER_WORDS: u32 = 8;
 
     /// docs/architecture/ENG-01-interfaces.md, *Instances storage*. Every key starts with the
-    /// instance's slot, except `placements` (by adventurer: its reference to an instance).
+    /// instance's slot, except `placements` (by adventurer: its reference to an instance). Declared
+    /// with the slot types the store reads and writes (`Stored<M>`, `StoredMember`: the words of
+    /// the models `M`, `Member`, at the same addresses; ENG-R1b, `store.cairo`'s module doc). Read
+    /// and written only by the store (`InstancesStoreTrait`).
     #[storage]
     pub struct Storage {
         pub admin: ContractAddress,
@@ -204,16 +255,16 @@ pub mod Instances {
         /// The next slot handed out, at an adventurer's first entry; slots are never freed.
         pub next_slot: Counter,
         pub placements: Map<u32, Placement>,
-        pub headers: Map<u32, Header>,
+        pub headers: Map<u32, Stored<Header>>,
         /// The entry draw plus the player entropy, a sum of hashes (a set, ADR-0006 option C).
         pub entropy: Map<u32, felt252>,
         /// Bit `15 cy + cx` for each chunk revealed in the current generation.
-        pub revealed: Map<u32, Bitmap>,
-        pub quotas: Map<u32, Quotas>,
+        pub revealed: Map<u32, Stored<Bitmap>>,
+        pub quotas: Map<u32, Stored<Quotas>>,
         /// `(slot, page)`: pages 0-3, four tasks each.
-        pub tasks: Map<(u32, u8), TaskPage>,
-        /// `(slot, member)`: eight consecutive slots each.
-        pub members: Map<(u32, u8), Member>,
+        pub tasks: Map<(u32, u8), Stored<TaskPage>>,
+        /// `(slot, member)`: eight consecutive slots each (`Member`'s).
+        pub members: Map<(u32, u8), StoredMember>,
         /// `(slot, page)`: pages 0-3, fifteen entity ids each, compact: entries beyond
         /// `header.roster_count` are never read. Goblins displaced from their spawn, alive or dead
         /// and not looted (how a view finds remains away from their spawn chunk).
@@ -244,11 +295,7 @@ pub mod Instances {
         registry: ContractAddress,
         fate: ContractAddress,
     ) {
-        self.admin.write(admin);
-        self.hub.write(hub);
-        self.registry.write(registry);
-        self.fate.write(fate);
-        self.next_slot.write(Counter { value: 1 });
+        self.initialize(admin, hub, registry, fate);
     }
 
     #[abi(embed_v0)]
@@ -327,7 +374,7 @@ pub mod Instances {
                 .admit(instance_id, adventurer_id, sequence) else {
                 return 0;
             };
-            let registry = IRegistryReadDispatcher { contract_address: self.registry.read() };
+            let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
             let parts = registry.record(GATE, gate.into());
             if !exists(parts) {
                 self.refuse(instance_id, adventurer_id, sequence, header.sequence, Refusal::Gate);
@@ -365,12 +412,7 @@ pub mod Instances {
 
             self.emit(InstanceClosed { instance_id, outcome: Outcome::Moved });
             let (max_health, max_energy) = MemberStateTrait::maxima(
-                self
-                    .members
-                    .entry((slot, placement.member))
-                    .as_ptr()
-                    .__storage_pointer_address__
-                    .word(STATS_WORD),
+                self.get_stats(slot, placement.member).word,
             );
             let next = self
                 .begin(
@@ -415,8 +457,8 @@ pub mod Instances {
         /// ENG-05 and ENG-07 fill them.
         fn instance_state(self: @ContractState, instance_id: InstanceId) -> InstanceView {
             let (slot, generation) = instance_parts(instance_id);
-            let header_word = self.headers.entry(slot).as_ptr().__storage_pointer_address__.word(0);
-            let header: Header = StorePacking::unpack(header_word);
+            let stored = self.get_stored_header(slot);
+            let header = stored.model();
             if generation == 0 || header.generation != generation {
                 return InstanceView {
                     instance_id,
@@ -431,41 +473,28 @@ pub mod Instances {
                     chunks: array![].span(),
                 };
             }
-            let mut tasks: Array<felt252> = array![];
             let pages: u32 = (header.tasks.into() + TASKS_PER_PAGE - 1) / TASKS_PER_PAGE;
-            for page in 0..pages {
-                let page: u8 = page.try_into().unwrap();
-                tasks
-                    .append(
-                        self.tasks.entry((slot, page)).as_ptr().__storage_pointer_address__.word(0),
-                    );
-            }
-            let mut members: Array<felt252> = array![];
-            for m in 0..header.members {
-                let base = self.members.entry((slot, m)).as_ptr().__storage_pointer_address__;
-                for offset in 0..MEMBER_WORDS {
-                    members.append(base.word(offset.try_into().unwrap()));
-                }
-            }
+            let tasks = self.get_task_words(slot, pages.try_into().unwrap());
+            let members = self.get_member_words(slot, header.members);
             let mut roster: Array<felt252> = array![];
             let lanes: u32 = ROSTER_LANES.into();
             let pages: u32 = (header.roster_count.into() + lanes - 1) / lanes;
             for page in 0..pages {
                 let page: u8 = page.try_into().unwrap();
-                let stored = self.roster.entry((slot, page)).read();
+                let stored = self.get_roster_page(slot, page);
                 roster
                     .append(
-                        StorePacking::pack(mask_roster_page(stored, page, header.roster_count)),
+                        StorePacking::pack(RosterTrait::mask(stored, page, header.roster_count)),
                     );
             }
             InstanceView {
                 instance_id,
-                header: header_word,
-                entropy: self.entropy.entry(slot).read(),
-                revealed: self.revealed.entry(slot).as_ptr().__storage_pointer_address__.word(0),
-                quotas: self.quotas.entry(slot).as_ptr().__storage_pointer_address__.word(0),
-                tasks: tasks.span(),
-                members: members.span(),
+                header: stored.word,
+                entropy: self.get_entropy(slot),
+                revealed: self.get_revealed(slot).word,
+                quotas: self.get_quotas(slot).word,
+                tasks,
+                members,
                 roster: roster.span(),
                 goblins: array![].span(),
                 chunks: array![].span(),
@@ -480,7 +509,7 @@ pub mod Instances {
 
         /// `(instance id, member, inside)`: the adventurer's last instance, 0 if it never entered.
         fn placement(self: @ContractState, adventurer_id: u32) -> (InstanceId, u8, bool) {
-            let placement = self.placements.entry(adventurer_id).read();
+            let placement = self.get_placement(adventurer_id);
             if placement.slot == 0 {
                 return (0, 0, false);
             }
@@ -510,33 +539,29 @@ pub mod Instances {
             snapshot: SnapshotWords,
             tasks: Span<TaskEntry>,
         ) -> InstanceId {
-            assert(get_caller_address() == self.hub.read(), errors::NOT_HUB);
-            assert(tasks.len() <= MAX_TASKS.into(), errors::TOO_MANY_TASKS);
-            let placement = self.placements.entry(adventurer_id).read();
-            assert(placement.inside == 0, errors::ALREADY_INSIDE);
-            let registry = IRegistryReadDispatcher { contract_address: self.registry.read() };
+            InstancesAssert::assert_hub(get_caller_address(), self.get_hub());
+            InstancesAssert::assert_tasks(tasks.len());
+            let placement = self.get_placement(adventurer_id);
+            placement.assert_outside();
+            let registry = IRegistryReadDispatcher { contract_address: self.get_registry() };
             let parts = registry.record(GATE, gate.into());
-            assert(exists(parts), errors::NO_GATE);
+            InstancesAssert::assert_gate(parts);
             let record: Gate = GateRecord::unpack(parts);
             let parts = registry.record(LOCATION, record.destination.into());
-            assert(exists(parts), errors::NO_LOCATION);
+            InstancesAssert::assert_location(parts);
             let location: Location = LocationRecord::unpack(parts);
-            assert(location.has_map(), errors::NO_MAP);
+            InstancesAssert::assert_map(@location);
 
             let slot = if placement.slot != 0 {
                 placement.slot
             } else {
-                let next = self.next_slot.read().value;
-                self.next_slot.write(Counter { value: next + 1 });
-                next.try_into().unwrap()
+                self.new_slot()
             };
             self.write_tasks(slot, tasks);
             // The snapshot's words as `Hub` stored them (D-168), written as they are.
-            let member = self.members.entry((slot, 0));
-            StoreTrait::set_snapshot(member, @snapshot);
-            member.controller.write(controller);
+            self.set_snapshot(slot, 0, @snapshot, controller);
             let (max_health, max_energy) = MemberStateTrait::maxima(snapshot.stats);
-            let previous = self.headers.entry(slot).read().generation;
+            let previous = self.get_header(slot).generation;
             self
                 .begin(
                     slot,
@@ -557,10 +582,10 @@ pub mod Instances {
         fn set_controller(
             ref self: ContractState, adventurer_id: u32, controller: ContractAddress,
         ) {
-            assert(get_caller_address() == self.hub.read(), errors::NOT_HUB);
-            let placement = self.placements.entry(adventurer_id).read();
-            assert(placement.inside != 0, errors::NOT_INSIDE);
-            self.members.entry((placement.slot, placement.member)).controller.write(controller);
+            InstancesAssert::assert_hub(get_caller_address(), self.get_hub());
+            let placement = self.get_placement(adventurer_id);
+            placement.assert_inside();
+            self.set_member_controller(placement.slot, placement.member, controller);
         }
     }
 
@@ -576,37 +601,19 @@ pub mod Instances {
             registry: ContractAddress,
             fate: ContractAddress,
         ) {
-            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
-            self.hub.write(hub);
-            self.registry.write(registry);
-            self.fate.write(fate);
+            InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
+            self.set_registered(hub, registry, fate);
         }
 
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
-            assert(get_caller_address() == self.admin.read(), super::NOT_ADMIN);
-            assert(admin.is_non_zero(), super::ZERO_ADMIN);
-            self.admin.write(admin);
+            InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
+            InstancesAssert::assert_admin_not_zero(admin);
+            self.set_administrator(admin);
         }
 
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
-        }
-    }
-
-    /// One stored word of a record, read or written as stored (the views return words in their
-    /// layouts; a constant word is written without its packer). Until the store of D-143 (ARC-06,
-    /// ENG-R1) takes over every access to storage.
-    #[generate_trait]
-    impl WordImpl of WordTrait {
-        fn word(self: starknet::storage_access::StorageBaseAddress, offset: u8) -> felt252 {
-            Store::<felt252>::read_at_offset(0, self, offset).unwrap_syscall()
-        }
-
-        fn set_word(
-            self: starknet::storage_access::StorageBaseAddress, offset: u8, value: felt252,
-        ) {
-            Store::<felt252>::write_at_offset(0, self, offset, value).unwrap_syscall()
         }
     }
 
@@ -621,11 +628,10 @@ pub mod Instances {
             ref self: ContractState, instance_id: InstanceId, adventurer_id: u32, sequence: u32,
         ) -> Option<(u32, Header, Placement, MemberState)> {
             let (slot, generation) = instance_parts(instance_id);
-            let placement = self.placements.entry(adventurer_id).read();
-            let member = self.members.entry((placement.slot, placement.member));
-            assert(member.controller.read() == get_caller_address(), member_errors::NOT_CONTROLLER);
-            let header = self.headers.entry(slot).read();
-            let state = member.state.read();
+            let placement = self.get_placement(adventurer_id);
+            let state = self
+                .get_controlled_state(placement.slot, placement.member, get_caller_address());
+            let header = self.get_header(slot);
             match header.refusal(generation, @placement, slot, state.status, sequence) {
                 Option::Some(reason) => {
                     self.refuse(instance_id, adventurer_id, sequence, header.sequence, reason);
@@ -669,9 +675,8 @@ pub mod Instances {
             let id = instance_id(slot, generation);
             let destination = *record.destination;
             self
-                .headers
-                .entry(slot)
-                .write(
+                .set_header(
+                    slot,
                     HeaderTrait::new(
                         generation,
                         destination,
@@ -683,22 +688,18 @@ pub mod Instances {
                     ),
                 );
             let draw = domain(id.into(), 0, ENTRY);
-            let word = IFateDispatcher { contract_address: self.fate.read() }.fate(draw);
-            self.entropy.entry(slot).write(derive(word, draw, 0));
-            self.revealed.entry(slot).write(Bitmap { bits: 0 });
-            self.quotas.entry(slot).write(QuotasTrait::new(*location.target));
+            let word = IFateDispatcher { contract_address: self.get_fate() }.fate(draw);
+            self.set_entropy(slot, derive(word, draw, 0));
+            self.set_revealed(slot, Bitmap { bits: 0 });
+            self.set_quotas(slot, QuotasTrait::new(*location.target));
             let (x, y) = record.entry();
-            let member = self.members.entry((slot, 0));
-            member
-                .state
-                .write(
+            self
+                .set_entering(
+                    slot,
+                    0,
                     MemberStateTrait::entering(adventurer_id, x, y, max_health, max_energy, belt),
                 );
-            let base = member.as_ptr().__storage_pointer_address__;
-            base.set_word(TIMERS_WORD, EMPTY_TIMERS);
-            base.set_word(EFFECTS_WORD, EMPTY_EFFECTS);
-            base.set_word(RECHARGES_WORD, EMPTY_RECHARGES);
-            self.placements.entry(adventurer_id).write(PlacementTrait::new(slot, generation));
+            self.set_placement(adventurer_id, PlacementTrait::new(slot, generation));
             self
                 .emit(
                     InstanceEntered { instance_id: id, adventurer_id, location: destination, gate },
@@ -729,13 +730,12 @@ pub mod Instances {
                 Outcome::Defeated => (DEFEATED, DOWN),
                 _ => core::panic_with_felt252('close: not a closing outcome'),
             };
-            self.headers.entry(slot).write(Header { status, ..header });
+            self.set_header(slot, Header { status, ..header });
             self
-                .members
-                .entry((slot, placement.member))
-                .state
-                .write(MemberState { status: member_status, ..state });
-            self.placements.entry(state.adventurer).write(Placement { inside: 0, ..placement });
+                .set_member_state(
+                    slot, placement.member, MemberState { status: member_status, ..state },
+                );
+            self.set_placement(state.adventurer, Placement { inside: 0, ..placement });
             self.emit(InstanceClosed { instance_id, outcome });
             self.report(instance_id, state.adventurer, outcome, hub, facts, hub, 0, state.belt);
         }
@@ -753,7 +753,7 @@ pub mod Instances {
             next: InstanceId,
             belt: [u8; 4],
         ) {
-            IResultsDispatcher { contract_address: self.hub.read() }
+            IResultsDispatcher { contract_address: self.get_hub() }
                 .report(
                     Results {
                         instance_id,
@@ -789,9 +789,9 @@ pub mod Instances {
                     });
                 }
                 self
-                    .tasks
-                    .entry((slot, page))
-                    .write(
+                    .set_task_page(
+                        slot,
+                        page,
                         TaskPage { entries: [*entries[0], *entries[1], *entries[2], *entries[3]] },
                     );
                 first += TASKS_PER_PAGE;
@@ -814,8 +814,10 @@ mod close_tests {
     };
     use starknet::storage::{StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
     use crate::events::InstanceClosed;
+    use crate::helpers::stored::StoredTrait;
     use crate::models::instance::{DEFEATED, HeaderTrait, OPEN, Placement, PlacementTrait};
     use crate::models::member::{DOWN, INSIDE, MemberState};
+    use crate::store::InstancesStoreTrait;
     use super::Instances;
     use super::Instances::InternalTrait;
 
@@ -875,11 +877,13 @@ mod close_tests {
 
     #[test]
     // gas: raised, CBT-01: the snapshot carries design/19's passives (FX-24)
-    #[available_gas(l2_gas: 5274990)] // ceil(1.05 × 5023800 measured)
+    #[available_gas(l2_gas: 5273100)] // ceil(1.05 × 5022000 measured)
     fn test_close_on_defeat() {
         let class = declare("ReportSink").unwrap().contract_class();
         let (hub, _) = class.deploy(@array![]).unwrap();
         let mut state = Instances::contract_state_for_testing();
+        // The test's setup writes the slots directly, as before the store (the measure is the
+        // closing path's); the store is checked by `store`'s tests.
         state.hub.write(hub);
         let slot = 3;
         let id = instance_id(slot, 5);
@@ -888,16 +892,16 @@ mod close_tests {
         let member = MemberState {
             adventurer: 7, status: INSIDE, health: 0, belt: [1, 0, 3, 0], ..Default::default(),
         };
-        state.headers.entry(slot).write(header);
-        state.placements.entry(7).write(placement);
+        state.set_header(slot, header);
+        state.set_placement(7, placement);
         let mut spy = spy_events();
         state.close(id, slot, header, placement, member, Outcome::Defeated, 0, 0);
 
         assert(header.status == OPEN, 'was open');
-        assert(state.headers.entry(slot).read().status == DEFEATED, 'defeated');
-        let down = state.members.entry((slot, 0)).state.read();
+        assert(state.get_header(slot).status == DEFEATED, 'defeated');
+        let down = state.members.entry((slot, 0)).state.read().model();
         assert(down == MemberState { status: DOWN, ..member }, 'member down');
-        assert(state.placements.entry(7).read() == Placement { inside: 0, ..placement }, 'left');
+        assert(state.get_placement(7) == Placement { inside: 0, ..placement }, 'left');
         spy
             .assert_emitted(
                 @array![
@@ -912,86 +916,5 @@ mod close_tests {
         // One report: Defeated (variant 2), to the last hub (0), the belt's unused counts.
         let sink = ISinkDispatcher { contract_address: hub };
         assert(sink.last() == (1, 2, 0, 0x30001, 7), 'report on defeat');
-    }
-}
-
-/// The storage layout of `Instances` is what docs/architecture/ENG-01-interfaces.md says: every
-/// variable's name and keys, hence its address (a unit test: the storage is visible from here).
-#[cfg(test)]
-mod layout_tests {
-    use snforge_std::map_entry_address;
-    use starknet::storage::{StorageAsPointer, StoragePathEntry};
-    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
-    use super::Instances;
-
-    fn address_of(base: StorageBaseAddress) -> felt252 {
-        storage_address_from_base(base).into()
-    }
-
-    // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
-    #[test]
-    #[available_gas(l2_gas: 185126)] // ceil(1.05 × 176310 measured)
-    fn test_instances_storage_addresses() {
-        let state = @Instances::contract_state_for_testing();
-        assert(
-            address_of(
-                state.placements.entry(42).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("placements"), array![42].span()),
-            'placements',
-        );
-        assert(
-            address_of(
-                state.headers.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("headers"), array![7].span()),
-            'headers',
-        );
-        assert(
-            address_of(
-                state.entropy.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("entropy"), array![7].span()),
-            'entropy',
-        );
-        assert(
-            address_of(
-                state.revealed.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("revealed"), array![7].span()),
-            'revealed',
-        );
-        assert(
-            address_of(
-                state.quotas.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("quotas"), array![7].span()),
-            'quotas',
-        );
-        assert(
-            address_of(
-                state.tasks.entry((7, 3)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("tasks"), array![7, 3].span()),
-            'tasks',
-        );
-        assert(
-            address_of(
-                state.members.entry((7, 0)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("members"), array![7, 0].span()),
-            'members',
-        );
-        assert(
-            address_of(
-                state.roster.entry((7, 1)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("roster"), array![7, 1].span()),
-            'roster',
-        );
-        assert(
-            address_of(
-                state.chunks.entry((7, 224)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("chunks"), array![7, 224].span()),
-            'chunks',
-        );
-        assert(
-            address_of(
-                state.goblins.entry((7, 3601)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("goblins"), array![7, 3601].span()),
-            'goblins',
-        );
     }
 }

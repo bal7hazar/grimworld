@@ -12,8 +12,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@scure/starknet": "1.1.0"
+  },
   "devDependencies": {
-    "@scure/starknet": "1.1.0",
     "vitest": "5.0.2"
   }
 }

@@ -78,6 +78,12 @@ export function arg(type: IntType, value: bigint): bigint {
   return value;
 }
 
+/** An argument typed `felt252`: below `P`, or a `RangeError` (a bug of the caller, as `arg`). */
+export function feltArg(value: bigint): bigint {
+  if (value < 0n || value >= P) throw new RangeError(`${value} is not a felt`);
+  return value;
+}
+
 /** `value.try_into().unwrap()` into `type`: the value, or the panic of the failed unwrap. */
 export function narrow(type: IntType, value: bigint): bigint {
   if (value < type.min || value > type.max) panic("Option::unwrap failed.");

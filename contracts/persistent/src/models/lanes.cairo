@@ -81,6 +81,20 @@ pub struct StoredLanes {
     pub word: felt252,
 }
 
+/// One felt in storage, the word as it is: no packer runs on a read or a write (ENG-R1b: `Hub`
+/// declares its storage with the stored models, ENG-R1a's note 4).
+pub impl StoredLanesStorePacking of starknet::storage_access::StorePacking<StoredLanes, felt252> {
+    #[inline(always)]
+    fn pack(value: StoredLanes) -> felt252 {
+        value.word
+    }
+
+    #[inline(always)]
+    fn unpack(value: felt252) -> StoredLanes {
+        StoredLanes { word: value }
+    }
+}
+
 #[generate_trait]
 pub impl StoredLanesImpl of StoredLanesTrait {
     /// An empty page, `LIVE` alone: the page an append starts when it begins one.
