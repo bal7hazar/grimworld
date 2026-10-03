@@ -77,8 +77,8 @@ describe("contrast", () => {
       six(on("Text on dark paper")),
     );
     expect(six(on("Text on paper"))).toBe(six(on("Text on scroll")));
-    // Large text: bold and at least 18.67 px wherever the table says large.
-    expect(rule('[data-chrome="atlas"] .gw-button')).toContain("700 18.67px");
-    expect(rule('[data-chrome="atlas"] .gw-ribbon-big')).toContain("700 18.67px");
+    // Large text: bold and at least 18.67 px (1.166875 rem at the default size) wherever the table says large.
+    expect(rule('[data-chrome="atlas"] .gw-button')).toContain("700 1.166875rem");
+    expect(rule('[data-chrome="atlas"] .gw-ribbon-big')).toContain("700 1.166875rem");
   });
 });

@@ -167,7 +167,11 @@ export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
           Log
         </Text>
         {model.log.map((line, i) => (
-          <Text key={i} tone="muted" plain={{ ...ui.muted, fontSize: 13, margin: "2px 0" }}>
+          <Text
+            key={i}
+            tone="muted"
+            plain={{ ...ui.muted, fontSize: "0.8125rem", margin: "2px 0" }}
+          >
             {line}
           </Text>
         ))}
@@ -192,7 +196,7 @@ const styles: Record<string, CSSProperties> = {
     inset: 0,
     background: "#0b0b0e",
     color: "#eee",
-    font: "15px system-ui",
+    font: "0.9375rem system-ui",
   },
   desktop: { display: "flex", justifyContent: "center" },
   column: {
