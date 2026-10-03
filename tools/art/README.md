@@ -200,7 +200,10 @@ The manifest lists the eight Blue buildings (`castle`, `barracks`, `archery`, `m
 (no idle animation in a hub): `frame` is the cell's index from the left, `cell = [width, height]`
 its size, which may be non-square (the trees' cells are 192 × 256); `cell` defaults to the strip's
 height, square. Without `frame` and `cell` the whole image is the still. The cell is then trimmed
-and anchored at its base like any still.
+and anchored at its base like any still. The zone's wall hexes draw the same props as their
+obstacle objects (CLI-03h): `rock1`–`rock4`, `bush1`–`bush4`, `stump1`–`stump4`, `tree1`–`tree4`,
+one per hex chosen by a hash of its coordinates (`client/app/src/render/obstacles.ts`,
+`OBSTACLES`); without them the zone draws its shaped rocks.
 
 **Tiles** (CLI-03e): a `[[tileset]]` entry (`name`, `role = "tile"`, `file`, `origin`, and
 `cells = { <cell> = [column, row] }`) cuts named **64 × 64** cells of a sheet of
@@ -241,7 +244,7 @@ eye; the fixtures are the source, this table mirrors them):
 
 Around them, without a tap target: in the town a `windmill`, a `small_house` and a `cottage`; in
 the outpost a `hut` and a `straw_hut`; props `tree1`–`tree4`, `bush1`–`bush3`, `rock1`–`rock4`,
-`stump1`, `stump2`, `sheep`. The ground is `grass_*`, the water around it `water_c`.
+`stump1`, `stump2`, `sheep` (`bush4`, `stump3` and `stump4` serve the zone only). The ground is `grass_*`, the water around it `water_c`.
 
 To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
 
