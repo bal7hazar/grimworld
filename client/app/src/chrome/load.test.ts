@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { UiSlices } from "../render/sprites";
 import {
   CHROME_ENTRIES,
+  HUD_ENTRIES,
+  PORTRAIT_SIZES,
   type ChromeImages,
   type ChromeLoaders,
   ChromeSession,
@@ -9,10 +11,10 @@ import {
   chromeProperties,
   loadChrome,
 } from "./load";
-import { cutScale } from "./scale";
+import { cutScale, portraitCut } from "./scale";
 
 /** A `sprites.json` and its `ui` page, made in the test: frames only, no image of the pack. */
-function fakeAtlas() {
+function fakeAtlas(names: readonly string[] = CHROME_ENTRIES) {
   const sprites: Record<string, unknown> = {
     runt: {
       role: "caste",
@@ -24,11 +26,13 @@ function fakeAtlas() {
   };
   const frames: Record<string, { frame: Frame }> = {};
   let x = 0;
-  for (const name of CHROME_ENTRIES) {
+  for (const name of names) {
     const pressed = name.startsWith("button_") || name === "round_blue";
-    const cell = { w: 40 + x / 10, h: 30 };
+    const cell = name.startsWith("portrait_") ? { w: 197, h: 182 } : { w: 40 + x / 10, h: 30 };
     const ui: UiSlices = {
-      kind: name.startsWith("icon_") || name === "round_blue" ? "still" : "nine",
+      kind: /^(icon_|portrait_|cursor_|bar_.*_fill)/.test(name) || name === "round_blue"
+        ? "still"
+        : "nine",
       fill: "stretch",
       slice: [8, 8, 8, 8],
       content: [6, 6, 6, 6],
@@ -55,22 +59,25 @@ function fakeAtlas() {
 
 function fakeLoaders(json: Record<string, unknown>) {
   let n = 0;
-  const cuts: { frame: Frame; size: { w: number; h: number } }[] = [];
+  const cuts: { frame: Frame; size: { w: number; h: number }; smooth: boolean }[] = [];
   const revoked: string[] = [];
   const asked: string[] = [];
   const loaders: ChromeLoaders<string> = {
     fetchJson: async (url) => (asked.push(url), json[url] ?? null),
     loadImage: async (url) => (asked.push(url), `image ${url}`),
-    cut: async (_image, frame, size) => (cuts.push({ frame, size }), `blob:${++n}`),
+    cut: async (_image, frame, size, smooth = false) => (
+      cuts.push({ frame, size, smooth }), `blob:${++n}`
+    ),
     revoke: (url) => void revoked.push(url),
   };
   return { loaders, cuts, revoked, asked };
 }
 
-const served = () => {
-  const { index, page } = fakeAtlas();
+const served = (names: readonly string[] = CHROME_ENTRIES) => {
+  const { index, page } = fakeAtlas(names);
   return { "/art/sprites.json": index, "/art/atlas-ui-0.json": page };
 };
+const ALL = [...CHROME_ENTRIES, ...HUD_ENTRIES];
 
 describe("loadChrome", () => {
   it("cuts every element of the ui page, never a world page", async () => {
@@ -174,5 +181,107 @@ describe("chromeProperties", () => {
     expect(css["--gw-button-blue-drop"]).toBe("5.5px");
     expect(css["--gw-button-blue-min-h"]).toBe("8px");
     expect(css["--gw-paper-pressed"]).toBeUndefined();
+  });
+});
+
+describe("the HUD's images (CLI-03l AC-3)", () => {
+  it("are cut with the chrome when every HUD entry is there", async () => {
+    const { loaders } = fakeLoaders(served(ALL));
+    const images = (await loadChrome("/art/", 2, loaders))!;
+    expect([...images.entries.keys()]).toEqual([...CHROME_ENTRIES]);
+    expect(images.hud).not.toBeNull();
+    expect([...images.hud!.entries.keys()]).toEqual([
+      "bar_big",
+      "bar_big_fill",
+      "bar_small",
+      "bar_small_fill_energy",
+      "icon_sword",
+    ]);
+    expect([...images.hud!.portraits.keys()]).toEqual([
+      "portrait_vanguard",
+      "portrait_warden",
+      "portrait_cleric",
+    ]);
+    expect(images.hud!.cursors.arrow).toMatch(
+      /^image-set\(url\("blob:\d+"\) 1x, url\("blob:\d+"\) 2x\) 0 0, auto$/,
+    );
+    expect(images.hud!.cursors.hand).toMatch(/\) 2 0, pointer$/);
+    const css = chromeProperties(images);
+    expect(css["--gw-bar-big"]).toMatch(/^url\("blob:\d+"\)$/);
+    expect(css["--gw-cursor-hand"]).toBe(images.hud!.cursors.hand);
+  });
+
+  it("drops only the HUD to plain when one of its entries is missing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { loaders, cuts } = fakeLoaders(served(ALL.filter((n) => n !== "portrait_cleric")));
+    const images = await loadChrome("/art/", 1, loaders);
+    expect(images).not.toBeNull();
+    expect(images!.entries.size).toBe(CHROME_ENTRIES.length);
+    expect(images!.hud).toBeNull();
+    expect(String(warn.mock.calls[0]?.[0])).toContain("lacks portrait_cleric; plain HUD");
+    expect(cuts).toHaveLength(images!.urls.length);
+    expect(chromeProperties(images!)["--gw-cursor-arrow"]).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it("drops both to plain when a chrome entry is missing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { loaders } = fakeLoaders(served(ALL.filter((n) => n !== "paper")));
+    expect(await loadChrome("/art/", 1, loaders)).toBeNull();
+    warn.mockRestore();
+  });
+
+  it("revokes only the HUD's URLs when one of its frames fails", async () => {
+    const json = served(ALL);
+    const page = json["/art/atlas-ui-0.json"] as { frames: Record<string, { frame: Frame }> };
+    page.frames["cursor_hand/regular/00"] = { frame: { x: 0, y: 0, w: 1, h: 1 } };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { loaders, cuts, revoked } = fakeLoaders(json);
+    const images = (await loadChrome("/art/", 2, loaders))!;
+    expect(images.hud).toBeNull();
+    expect(images.urls.length + revoked.length).toBe(cuts.length);
+    expect(revoked.length).toBeGreaterThan(0);
+    expect(revoked.some((url) => images.urls.includes(url))).toBe(false);
+    error.mockRestore();
+  });
+
+  for (const dpr of [1, 1.5, 2, 3]) {
+    it(`at ${dpr}×, each portrait size is its own cut, smoothed below 1:1`, async () => {
+      const { loaders, cuts } = fakeLoaders(served(ALL));
+      const images = (await loadChrome("/art/", dpr, loaders))!;
+      for (const [, sizes] of images.hud!.portraits) {
+        expect([...sizes.keys()]).toEqual([...PORTRAIT_SIZES]);
+        for (const [size, cut] of sizes) {
+          const want = portraitCut({ w: 197, h: 182 }, size, dpr);
+          expect({ w: cut.w, h: cut.h }).toEqual(want.devicePx);
+          expect(cut.w).toBe(Math.round(size * dpr));
+          const made = cuts.find((c) => `blob:${cuts.indexOf(c) + 1}` === cut.url)!;
+          expect(made.smooth).toBe(Math.round(size * dpr) < 197);
+        }
+      }
+      // Every other cut is nearest-neighbour.
+      const portraitUrls = new Set(
+        [...images.hud!.portraits.values()].flatMap((m) => [...m.values()].map((c) => c.url)),
+      );
+      cuts.forEach((c, i) => {
+        if (!portraitUrls.has(`blob:${i + 1}`)) expect(c.smooth).toBe(false);
+      });
+    });
+  }
+
+  it("re-cuts every HUD image on a ratio change and revokes every old URL", async () => {
+    const { loaders, revoked } = fakeLoaders(served(ALL));
+    const applied: (ChromeImages | null)[] = [];
+    const session = new ChromeSession((images) => applied.push(images), loaders, "/art/");
+    await session.show(1);
+    const first = applied[0]!;
+    const hudUrls = [...first.hud!.portraits.values()].flatMap((m) =>
+      [...m.values()].map((c) => c.url),
+    );
+    expect(hudUrls.every((url) => first.urls.includes(url))).toBe(true);
+    await session.show(3);
+    expect(revoked).toEqual(first.urls);
+    expect(applied[1]!.hud!.portraits.get("portrait_vanguard")!.get(48)!.w).toBe(144);
+    session.destroy();
   });
 });

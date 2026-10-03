@@ -7,11 +7,23 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import type { Profession } from "../render/view";
 import "./chrome.css";
-import { type ChromeImages, ChromeSession, browserLoaders, chromeProperties } from "./load";
+import {
+  type ChromeImages,
+  ChromeSession,
+  type HudImages,
+  PORTRAITS,
+  type PortraitSize,
+  browserLoaders,
+  chromeProperties,
+} from "./load";
+import { fillWidth } from "./scale";
 
 /**
  * The client's chrome (CLI-03i): the pack's papers, scroll, wooden board, buttons, ribbons and
@@ -27,6 +39,15 @@ const Mode = createContext<ChromeMode>("plain");
 
 /** Whether the chrome's art is shown around this element. */
 export const useChromeMode = () => useContext(Mode);
+
+/** The HUD's images (null: plain) and the pixel ratio its fills are measured at (CLI-03l). */
+const HudArt = createContext<{ readonly images: HudImages | null; readonly dpr: number }>({
+  images: null,
+  dpr: 1,
+});
+
+/** Whether the HUD's art is shown: `plain` without it, even when the chrome has its own. */
+export const useHudMode = (): ChromeMode => (useContext(HudArt).images ? "atlas" : "plain");
 
 const currentDpr = () => window.devicePixelRatio || 1;
 
@@ -61,16 +82,21 @@ export function ChromeProvider({
     return () => query?.removeEventListener("change", changed);
   }, [dpr]);
   const mode: ChromeMode = images ? "atlas" : "plain";
+  const hud = images?.hud ?? null;
+  const hudArt = useMemo(() => ({ images: hud, dpr: images?.dpr ?? dpr }), [hud, images, dpr]);
   return (
     <Mode.Provider value={mode}>
-      <div
-        {...rest}
-        style={images ? { ...style, ...(chromeProperties(images) as CSSProperties) } : style}
-        data-chrome={mode}
-        data-chrome-dpr={images ? images.dpr : undefined}
-      >
-        {children}
-      </div>
+      <HudArt.Provider value={hudArt}>
+        <div
+          {...rest}
+          style={images ? { ...style, ...(chromeProperties(images) as CSSProperties) } : style}
+          data-chrome={mode}
+          data-chrome-dpr={images ? images.dpr : undefined}
+          data-cursors={hud ? "" : undefined}
+        >
+          {children}
+        </div>
+      </HudArt.Provider>
     </Mode.Provider>
   );
 }
@@ -161,12 +187,14 @@ export function Button({
   );
 }
 
-/** The pack's icons the chrome cuts (`icon_back`, `icon_close`, `icon_gold`). */
-export type IconName = "back" | "close" | "gold";
+/** The pack's icons the chrome cuts (`icon_back`, `icon_close`, `icon_gold`), and the HUD's sword. */
+export type IconName = "back" | "close" | "gold" | "sword";
 
 /** One of the pack's icons at the chrome's scale; `text` stands for it without the art. */
 export function Icon({ name, text }: { name: IconName; text: string }) {
-  const atlas = useChromeMode() === "atlas";
+  const chrome = useChromeMode() === "atlas";
+  const hud = useHudMode() === "atlas";
+  const atlas = name === "sword" ? hud : chrome;
   return atlas ? (
     <span className={`gw-icon gw-icon-${name}`} role="img" aria-label={text} />
   ) : (
@@ -189,7 +217,7 @@ export function IconButton({
   className,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  icon?: Exclude<IconName, "gold">;
+  icon?: Exclude<IconName, "gold" | "sword">;
   glyph?: string;
   label: string;
   plain?: CSSProperties;
@@ -267,5 +295,143 @@ export function Text({
       className={classes(`gw-text-${tone}`, className)}
       style={{ ...look, ...style }}
     />
+  );
+}
+
+/** A bar's look without the art: a dark trough in a slate frame, of the art's height (CLI-03l). */
+const PLAIN_BAR: Record<"big" | "small", CSSProperties> = {
+  big: { height: 26, padding: "6px 6px 8px", background: "#2a2a33", borderRadius: 4 },
+  small: { height: 10, padding: "3px 5px", background: "#2a2a33", borderRadius: 3 },
+};
+const PLAIN_TRACK: CSSProperties = { background: "#111" };
+const PLAIN_FILL: Record<"health" | "energy", CSSProperties> = {
+  health: { background: "#e04848" },
+  energy: { background: "#41919d" },
+};
+
+/**
+ * A bar (CLI-03l *The method* §2): the pack's wooden frame (`big`, health, the red fill) or its
+ * thin one (`small`, energy, the fill recoloured blue), the fill inside the trough at
+ * `fillWidth` whole device px of it; no fill element at 0. A `meter` with its figures in
+ * `aria-*`; the visible figures sit beside it (the caller's). Without the HUD's art, CSS bars of
+ * the same boxes. It renders again only on a resize of its trough or a change of its figures.
+ */
+export function Bar({
+  size,
+  tone,
+  current,
+  max,
+  label,
+}: {
+  size: "big" | "small";
+  tone: "health" | "energy";
+  current: number;
+  max: number;
+  label: string;
+}) {
+  const { images, dpr } = useContext(HudArt);
+  const atlas = images !== null;
+  const track = useRef<HTMLDivElement>(null);
+  const [trackPx, setTrackPx] = useState(0);
+  useLayoutEffect(() => {
+    const element = track.current;
+    if (!element) return;
+    const measure = () => setTrackPx(Math.round(element.getBoundingClientRect().width * dpr));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [dpr, atlas]);
+  const fill = fillWidth(trackPx, current, max);
+  return (
+    <div
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={Math.min(Math.max(current, 0), max)}
+      className={classes("gw-bar", `gw-bar-${size}`, `gw-bar-${tone}`)}
+      style={atlas ? undefined : { ...PLAIN_BAR[size], boxSizing: "border-box", display: "flex" }}
+      data-bar={tone}
+    >
+      <div
+        ref={track}
+        className="gw-bar-track"
+        style={atlas ? undefined : { ...PLAIN_TRACK, flex: 1, minWidth: 96 }}
+        data-track-px={trackPx}
+      >
+        {fill > 0 && (
+          <div
+            className="gw-bar-fill"
+            style={{ width: `${fill / dpr}px`, height: "100%", ...(atlas ? {} : PLAIN_FILL[tone]) }}
+            data-fill-px={fill}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A portrait (CLI-03l *The method* §3): the profession's avatar of the pack in a `size` CSS px
+ * box, cut at that size for the screen (smoothed when reduced), one image px per device px; the
+ * Arcanist, or no HUD art, draws a lettered disc of the same box. `label` names who it shows.
+ */
+export function Portrait({
+  profession,
+  size,
+  label,
+}: {
+  profession: Profession;
+  size: PortraitSize;
+  label: string;
+}) {
+  const { images, dpr } = useContext(HudArt);
+  const entry = PORTRAITS[profession];
+  const cut = entry ? images?.portraits.get(entry)?.get(size) : undefined;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="gw-portrait"
+      data-portrait={cut ? entry! : "plain"}
+      style={{
+        display: "inline-flex",
+        flex: "none",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+      }}
+    >
+      {cut ? (
+        <img
+          src={cut.url}
+          alt=""
+          draggable={false}
+          style={{ width: cut.w / dpr, height: cut.h / dpr, imageRendering: "pixelated" }}
+        />
+      ) : (
+        <span
+          aria-hidden
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxSizing: "border-box",
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            background: "#2a2a33",
+            border: "2px solid #f2c94c",
+            color: "#fff",
+            font: `700 ${Math.round(size * 0.45)}px/1 system-ui`,
+          }}
+        >
+          {profession.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
   );
 }

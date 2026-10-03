@@ -103,6 +103,15 @@ export const CHROME_TEXT: readonly {
     large: false,
   },
   {
+    // The HUD's figures, glyphs and adrenaline count beside the bars, on the band (CLI-03l §7);
+    // never over a fill.
+    component: "HUD figures",
+    entry: "paper_dark",
+    states: ["regular"],
+    colour: WHITE,
+    large: false,
+  },
+  {
     component: "Ribbon small yellow",
     entry: "ribbon_small_yellow",
     states: ["regular"],

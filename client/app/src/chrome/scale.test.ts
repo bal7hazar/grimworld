@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { UiSlices } from "../render/sprites";
-import { CHROME_SCALE, cutScale, sliceLengths, toCssPx, toDevicePx } from "./scale";
+import {
+  CHROME_SCALE,
+  cutScale,
+  fillWidth,
+  portraitCut,
+  sliceLengths,
+  toCssPx,
+  toDevicePx,
+} from "./scale";
 
 const BUTTON: UiSlices = {
   kind: "nine",
@@ -57,5 +65,57 @@ describe("the chrome's scale (AC-4)", () => {
     expect(l.image).toEqual({ w: 55, h: 52 });
     expect(l.size).toEqual({ w: 27.5, h: 26 });
     expect(l.drop).toBe(0);
+  });
+});
+
+describe("a bar's fill (CLI-03l AC-4)", () => {
+  for (const dpr of [1, 1.5, 2, 3]) {
+    it(`at ${dpr}×: whole device px, nothing at 0, the trough exactly at max`, () => {
+      const track = Math.round(150 * dpr);
+      const max = 160;
+      const cases: [number, number][] = [
+        [0, 0],
+        [1, Math.round(track / max)],
+        [80, Math.round(track / 2)],
+        [159, Math.round((track * 159) / max)],
+        [160, track],
+        [400, track],
+        [-5, 0],
+      ];
+      for (const [current, want] of cases) {
+        const got = fillWidth(track, current, max);
+        expect(got, `${current} / ${max}`).toBe(want);
+        expect(Number.isInteger(got)).toBe(true);
+        expect(got).toBeGreaterThanOrEqual(0);
+        expect(got).toBeLessThanOrEqual(track);
+      }
+    });
+  }
+
+  it("draws nothing for a bar of no maximum or no trough", () => {
+    expect(fillWidth(200, 5, 0)).toBe(0);
+    expect(fillWidth(200, 0, 0)).toBe(0);
+    expect(fillWidth(0, 20, 20)).toBe(0);
+    expect(fillWidth(200, Number.NaN, 20)).toBe(0);
+  });
+});
+
+describe("a portrait's cut (CLI-03l AC-3)", () => {
+  const ART = { w: 197, h: 182 };
+  for (const dpr of [1, 1.5, 2, 3]) {
+    for (const size of [40, 48, 96]) {
+      it(`${size} CSS px at ${dpr}×: the longer side at whole device px, smoothed below 1:1`, () => {
+        const { devicePx, smooth } = portraitCut(ART, size, dpr);
+        expect(devicePx.w).toBe(Math.round(size * dpr));
+        expect(devicePx.h).toBe(Math.round((ART.h * Math.round(size * dpr)) / ART.w));
+        expect(smooth).toBe(Math.round(size * dpr) < ART.w);
+      });
+    }
+  }
+
+  it("is nearest-neighbour at or above one device px per art px", () => {
+    expect(portraitCut({ w: 40, h: 50 }, 48, 1)).toEqual({ devicePx: { w: 38, h: 48 }, smooth: true });
+    expect(portraitCut({ w: 40, h: 48 }, 48, 1)).toEqual({ devicePx: { w: 40, h: 48 }, smooth: false });
+    expect(portraitCut({ w: 40, h: 48 }, 96, 3).smooth).toBe(false);
   });
 });
