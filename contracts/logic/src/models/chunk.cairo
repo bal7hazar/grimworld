@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 2785932)] // ceil(1.05 × 2653268 measured)
+    #[available_gas(l2_gas: 2671692)] // ceil(1.05 × 2544468 measured)
     fn test_member_offsets() {
         check_members(6 * 15 + 7, false);
         check_members(7 * 15 + 7, false);

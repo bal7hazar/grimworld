@@ -624,7 +624,7 @@ fn test_create_without_tasks() {
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 60313541)] // ceil(1.05 × 57441467 measured)
+#[available_gas(l2_gas: 60191562)] // ceil(1.05 × 57325297 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -913,7 +913,7 @@ fn test_leave_to_a_hub() {
 // entry reveal (ENG-05): floor 1's entry chunk 112, its 2 words new in this slot.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 59955754)] // ceil(1.05 × 57100718 measured)
+#[available_gas(l2_gas: 59583506)] // ceil(1.05 × 56746196 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -1387,7 +1387,7 @@ fn create_gas(gate: u16, chunks: u8) -> u128 {
 }
 
 #[test]
-#[available_gas(l2_gas: 1000000000)]
+#[available_gas(l2_gas: 110454845)] // ceil(1.05 × 105195090 measured)
 fn test_cost_create_reveals() {
     println!("gas create revealing 1 chunk: {}", create_gas(INTO_ZONE, 1));
     println!("gas create revealing 2 chunks: {}", create_gas(FLOOR_TO_ZONE, 2));

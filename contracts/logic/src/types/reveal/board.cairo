@@ -513,7 +513,7 @@ mod tests {
 
     // A neighbour's facing tiles land on the same index of this chunk's side.
     #[test]
-    #[available_gas(l2_gas: 47286)] // ceil(1.05 × 45034 measured)
+    #[available_gas(l2_gas: 42099)] // ceil(1.05 × 40094 measured)
     fn test_copy_faces_the_neighbour() {
         let floor = Bits::pow(at(0, 4)) + Bits::pow(at(14, 6)) + Bits::pow(at(3, 14))
             + Bits::pow(at(8, 0)) + Bits::pow(at(7, 7));
@@ -525,7 +525,7 @@ mod tests {
 
     // `nth` against a scan of the bits.
     #[test]
-    #[available_gas(l2_gas: 11238714)] // ceil(1.05 × 10703537 measured)
+    #[available_gas(l2_gas: 20363816)] // ceil(1.05 × 19394110 measured)
     fn test_nth_against_a_scan() {
         let bits = INTERIOR - SPINE + Bits::pow(224) + 1;
         let total = BoardTrait::count(bits);
@@ -559,7 +559,7 @@ mod tests {
     // Two dilations against `hexx`'s hexagon of radius 2, from every tile of the chunk, both
     // parities; and from several tiles at once, the union.
     #[test]
-    #[available_gas(l2_gas: 79315008)] // ceil(1.05 × 75538102 measured)
+    #[available_gas(l2_gas: 74551095)] // ceil(1.05 × 71001042 measured)
     fn test_dilation_against_hexagons() {
         let mut tile: u8 = 0;
         while tile != 225 {
@@ -577,7 +577,7 @@ mod tests {
 
     // Within 2 of a tile: 19 tiles inside, fewer on the ring; an odd chunk's rows shifted.
     #[test]
-    #[available_gas(l2_gas: 1111971)] // ceil(1.05 × 1059020 measured)
+    #[available_gas(l2_gas: 1036455)] // ceil(1.05 × 987100 measured)
     fn test_near() {
         assert(BoardTrait::count(near(CENTRE, false)) == 19, 'even');
         assert(BoardTrait::count(near(CENTRE, true)) == 19, 'odd');
