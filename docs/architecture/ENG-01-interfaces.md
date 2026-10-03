@@ -559,7 +559,7 @@ a boss item: `2^41 + base`.
 `records: Map<(kind u8, id u32, part u8), felt252>`, `last_ids: Map<kind, Counter>`,
 `versions: Versions` (one slot: the content version at bits 0–31, ENG-01b, D-141; the inputs
 version at 32–63, D-169, CBT-02f; `models/versions.cairo`, read and written through the store,
-`StoreTrait::get_versions`, `set_versions`), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
+`RegistryStoreTrait::get_versions`, `set_versions`), `caste_skills: Map<skill id u32, u32>` (CBT-02c: how many
 `CASTE` records name each skill; layout-tested). A record is
 `parts(kind)` felts (`grimworld_logic::content`); values may change (design/01 rules 1–2). Pillar 6
 and S-6: a zone or a quest is data.
@@ -659,9 +659,12 @@ new sequential id reads nothing (its keys were never written) and always raises.
 written reads as `parts(kind)` zeros** (`record`, `records`, `bundle`): part 0 is 0, so it does not
 exist. `records` and `bundle` refuse more than 32 records (`MAX_READ`).
 
-A part's address is the map's, `h(h(h(selector("records"), kind), id), part)` (Pedersen): the first
-two links are computed once a record, each part adds one (tested against the map,
-`test_part_address_is_the_maps`); `bundle` of 32 three-part records: 4,045,220 → 3,477,020 (M).
+Every variable is read and written through `Registry`'s store (`RegistryStoreTrait`,
+`contracts/persistent/src/store.cairo`; ENG-R1b), but for the content's checks
+(`RegistryAssert::assert_content`), which read `records` and `caste_skills` themselves until
+`RegistryAssert` moves. A part's address is the map's, `h(h(h(selector("records"), kind), id), part)`
+(Pedersen), computed in the store (`PartsTrait`): the first two links are computed once a record,
+each part adds one (tested against the map, `test_part_address_is_the_maps`); `bundle` of 32 three-part records: 4,045,220 → 3,477,020 (M).
 
 **Layouts of the world's records** (ENG-03; models under D-143: the structs in
 `grimworld_logic::models::index`, each with `new`, its `...Assert` checks, its `errors` and its

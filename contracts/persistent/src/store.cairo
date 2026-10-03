@@ -1252,3 +1252,39 @@ mod registry_detection_cost_tests {
         assert(state.update_record(BOOK, 1, Book::changed()), 'changed');
     }
 }
+
+/// `Registry`'s store on its state: a new record's parts (a 0 part not written, so it reads 0),
+/// existence, the counters, the administrator and the versions.
+#[cfg(test)]
+mod registry_tests {
+    use grimworld_logic::content::BOOK;
+    use grimworld_logic::packing::LIVE;
+    use starknet::storage::{StorageMapReadAccess, StoragePointerReadAccess};
+    use crate::models::versions::VersionsTrait;
+    use crate::systems::registry::Registry;
+    use super::RegistryStoreTrait;
+
+    #[test]
+    #[available_gas(l2_gas: 4138869)] // ceil(1.05 × 3941780 measured)
+    fn test_registry_store() {
+        let mut state = Registry::contract_state_for_testing();
+        assert(!state.has_record(BOOK, 1), 'never written');
+        state.set_new_record(BOOK, 1, array![LIVE + 1, 0, 3].span());
+        assert(state.has_record(BOOK, 1), 'written');
+        assert(state.records.read((BOOK, 1, 1)) == 0, 'a 0 part');
+        let mut out = array![];
+        state.read_record_into(BOOK, 1, 3, ref out);
+        assert(out == array![LIVE + 1, 0, 3], 'parts');
+        assert(state.update_record(BOOK, 1, array![LIVE + 1, 2, 3].span()), 'changed');
+        assert(state.records.read((BOOK, 1, 1)) == 2, 'part 1');
+        state.set_last_id(BOOK, 1);
+        assert(state.get_last_id(BOOK) == 1 && state.last_ids.read(BOOK).value == 1, 'last id');
+        state.set_caste_count(7, 2);
+        assert(state.get_caste_count(7) == 2 && state.caste_skills.read(7) == 2, 'caste count');
+        state.set_administrator(5.try_into().unwrap());
+        assert(state.get_administrator() == state.admin.read(), 'admin');
+        state.set_versions(state.get_versions().raised(true));
+        let versions = state.get_versions();
+        assert(versions.content == 1 && versions.inputs == 1, 'versions');
+    }
+}
