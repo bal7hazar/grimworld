@@ -608,8 +608,8 @@ fill = "round"
 file = "UI Elements/UI Elements/Wood Table/WoodTable.png"
 origin = "Wood table"
 pieces = { columns = [[0, 128], [192, 256], [320, 448]], rows = [[0, 128], [192, 256], [320, 448]] }
-slice = [85, 84, 103, 84]
-content = [24, 20, 24, 20]
+slice = [42, 30, 58, 30]
+content = [22, 30, 20, 30]
 
 [[ui]]
 name = "button_blue"

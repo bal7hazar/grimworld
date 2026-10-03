@@ -24,7 +24,8 @@ const browserLoaders: AtlasLoaders = {
 
 /**
  * The sprite library from the atlas `tools/art` built, or null when there is none. Textures are
- * scaled nearest-neighbour (pixel art).
+ * scaled nearest-neighbour (pixel art). Only the map's pages are loaded: a `ui` page (CLI-03i) is
+ * the chrome's (`chrome/load.ts`) and never reaches PixiJS.
  */
 export async function loadAtlas(
   base = ART_BASE,
@@ -43,7 +44,11 @@ export async function loadAtlas(
     return null;
   }
   const { index } = read;
-  const sheets = await Promise.all(index.pages.map((page) => loaders.loadSheet(base + page.json)));
-  for (const sheet of sheets) sheet.textureSource.scaleMode = "nearest";
+  const sheets = await Promise.all(
+    index.pages.map((page) =>
+      page.group === "ui" ? undefined : loaders.loadSheet(base + page.json),
+    ),
+  );
+  for (const sheet of sheets) if (sheet) sheet.textureSource.scaleMode = "nearest";
   return libraryFrom(index, sheets);
 }
