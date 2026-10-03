@@ -219,7 +219,9 @@ mod tests {
     }
 
     fn template(first: PackCaste, second: PackCaste) -> super::Pack {
-        PackTrait::new([first, second, Default::default(), Default::default(), Default::default()], 0)
+        PackTrait::new(
+            [first, second, Default::default(), Default::default(), Default::default()], 0,
+        )
     }
 
     #[test]

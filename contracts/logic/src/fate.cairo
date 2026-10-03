@@ -51,13 +51,14 @@ pub fn derive(word: felt252, domain: felt252, index: u32) -> felt252 {
 }
 
 /// An instance's entropy (ADR-0006 option C, ENG-01 §3.2): the entry draw plus one hash per
-/// irreversible fact, a sum, so **a multiset** of facts: two facts fed in either order give the same
-/// value (the order of two actions that reach the same state is no free choice), and the same fact
-/// fed twice counts twice, so every feeder makes its facts unique (a kill names its goblin, a chest
-/// its tile; audit #348, note 5). Every feeder (a kill, health lost, a consumable, loot, a chest, a
-/// vein, in their lots) calls `feed` with a fact whose first felt is its own tag, so that two kinds
-/// of fact never hash alike. **A reveal feeds nothing** (audit #348, major 1): the chunks' words read
-/// the entropy, so a fed reveal would make the order of moves a free choice over every later chunk.
+/// irreversible fact, a sum, so **a multiset** of facts: two facts fed in either order give the
+/// same value (the order of two actions that reach the same state is no free choice), and the same
+/// fact fed twice counts twice, so every feeder makes its facts unique (a kill names its goblin, a
+/// chest its tile; audit #348, note 5). Every feeder (a kill, health lost, a consumable, loot, a
+/// chest, a vein, in their lots) calls `feed` with a fact whose first felt is its own tag, so that
+/// two kinds of fact never hash alike. **A reveal feeds nothing** (audit #348, major 1): the
+/// chunks' words read the entropy, so a fed reveal would make the order of moves a free choice over
+/// every later chunk.
 #[generate_trait]
 pub impl EntropyImpl of EntropyTrait {
     /// The entropy with one more fact: `entropy + poseidon(fact)`.

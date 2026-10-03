@@ -121,8 +121,8 @@ pub mod Registry {
     use grimworld_logic::models::pack::{PackAssert, PackRecord};
     use grimworld_logic::models::quotas::{QuotaSetAssert, QuotaSetRecord};
     use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
-    use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
+    use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
         Map, StorageAsPath, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
@@ -287,8 +287,9 @@ pub mod Registry {
         ///   its id (`caste_skills`), whether the skill is new or rewritten.
         /// - the chunk reveal's records (ENG-05): `QUOTAS`, `SPAWN_TABLE`, `PACK` and `SET_PIECE`,
         ///   each its model's `assert_legal` (kinds known and empty entries empty; a pack of at
-        ///   most 5 at its fewest, E-3; a set piece's corners wall, D-134, and its placements on its
-        ///   interior's floor). That the ids they name exist is the content pipeline's (OPS-01).
+        ///   most 5 at its fewest, E-3; a set piece's corners wall, D-134, and its placements on
+        ///   its interior's floor). That the ids they name exist is the content pipeline's
+        ///   (OPS-01).
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == MODIFIER {

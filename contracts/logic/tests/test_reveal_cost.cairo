@@ -93,11 +93,7 @@ fn progress(site: @Site) -> Progress {
 fn known(site: @Site) -> Span<(u8, Terrain)> {
     let mut progress = progress(site);
     let out = RevealTrait::reveal(
-        site,
-        ref progress,
-        INSTANCE,
-        array![].span(),
-        array![1, 15].span(),
+        site, ref progress, INSTANCE, array![].span(), array![1, 15].span(),
     );
     array![(1, *out[0].terrain), (15, *out[1].terrain)].span()
 }
@@ -114,9 +110,7 @@ fn test_cost_reveal_baseline() {
 fn test_cost_reveal_worst_meadow() {
     let site = site(biome::MEADOW, true);
     let mut progress = progress(@site);
-    RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
-    );
+    RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
@@ -124,9 +118,7 @@ fn test_cost_reveal_worst_meadow() {
 fn test_cost_reveal_worst_forest() {
     let site = site(biome::FOREST, true);
     let mut progress = progress(@site);
-    RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
-    );
+    RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
@@ -134,9 +126,7 @@ fn test_cost_reveal_worst_forest() {
 fn test_cost_reveal_worst_cave() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
-    RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
-    );
+    RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
@@ -144,9 +134,7 @@ fn test_cost_reveal_worst_cave() {
 fn test_cost_reveal_worst_ruin() {
     let site = site(biome::RUIN, true);
     let mut progress = progress(@site);
-    RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
-    );
+    RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 // The typical case's baseline: its known sides revealed, nothing more.
@@ -175,11 +163,7 @@ fn test_cost_reveal_three() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
     let out = RevealTrait::reveal(
-        @site,
-        ref progress,
-        INSTANCE,
-        array![].span(),
-        array![16, 17, 31].span(),
+        @site, ref progress, INSTANCE, array![].span(), array![16, 17, 31].span(),
     );
     assert(out.len() == 3, 'three');
 }
@@ -190,9 +174,7 @@ fn test_cost_library_baseline() {
     let _class = declare("RevealLibrary").unwrap().contract_class();
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
-    RevealTrait::reveal(
-        @site, ref progress, INSTANCE, array![].span(), array![16].span(),
-    );
+    RevealTrait::reveal(@site, ref progress, INSTANCE, array![].span(), array![16].span());
 }
 
 #[test]
@@ -202,7 +184,6 @@ fn test_cost_library_call() {
     let library = IRevealLibraryLibraryDispatcher { class_hash: *class.class_hash };
     let site = site(biome::CAVE, true);
     let progress = progress(@site);
-    let (_, out) = library
-        .reveal(site, progress, INSTANCE, array![].span(), array![16].span());
+    let (_, out) = library.reveal(site, progress, INSTANCE, array![].span(), array![16].span());
     assert(out.len() == 1, 'one');
 }

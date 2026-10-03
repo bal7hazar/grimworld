@@ -5,19 +5,8 @@
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
 use grimworld_logic::content::{
-    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, PACK, QUEST,
-    QUOTAS, REGION, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, is_sequential, parts,
-};
-use grimworld_logic::models::chunk::Object;
-use grimworld_logic::models::pack::{PackCaste, PackRecord, PackTrait, errors as pack_errors};
-use grimworld_logic::models::quotas::{
-    Quota, QuotaSet, QuotaSetRecord, errors as quotas_errors, kind as quota_kind,
-};
-use grimworld_logic::models::set_piece::{
-    SetPack, SetPieceRecord, SetPieceTrait, errors as set_piece_errors,
-};
-use grimworld_logic::models::spawn_table::{
-    Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
+    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, PACK, QUEST, QUOTAS,
+    REGION, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, is_sequential, parts,
 };
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
@@ -26,13 +15,24 @@ use grimworld_logic::interface::{
 use grimworld_logic::models::armor_set::{ArmorSetRecord, ArmorSetTrait};
 use grimworld_logic::models::base::slot as base_slot;
 use grimworld_logic::models::caste::{CasteRecord, CasteTrait, WeaponTrait, errors as caste_errors};
+use grimworld_logic::models::chunk::Object;
 use grimworld_logic::models::item::{
     ItemRecord, ItemTrait, class as item_class, errors as item_errors,
 };
 use grimworld_logic::models::modifier::{
     ModifierRecord, ModifierTrait, errors as modifier_errors, slot as modifier_slot,
 };
+use grimworld_logic::models::pack::{PackCaste, PackRecord, PackTrait, errors as pack_errors};
+use grimworld_logic::models::quotas::{
+    Quota, QuotaSet, QuotaSetRecord, errors as quotas_errors, kind as quota_kind,
+};
+use grimworld_logic::models::set_piece::{
+    SetPack, SetPieceRecord, SetPieceTrait, errors as set_piece_errors,
+};
 use grimworld_logic::models::skill::{SkillRecord, SkillTrait};
+use grimworld_logic::models::spawn_table::{
+    Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
+};
 use grimworld_logic::packing::LIVE;
 use grimworld_logic::types::combat::{condition, damage, skill_kind, weapon};
 use grimworld_logic::types::effect::{
@@ -631,7 +631,10 @@ fn piece_of(template: u16, pack: u8, object: u8) -> Span<felt252> {
     SetPieceTrait::new(
         ring,
         [SetPack { tile: pack, template }, Default::default()],
-        [Object { tile: object, kind: 5, state: 0, param: 1 }, Default::default(), Default::default()],
+        [
+            Object { tile: object, kind: 5, state: 0, param: 1 }, Default::default(),
+            Default::default(),
+        ],
     )
         .pack()
 }
@@ -1123,7 +1126,9 @@ fn test_set_record_reveal_records() {
         quotas_errors::EMPTY,
     );
     assert_refused(
-        r.safe.set_record(QUOTAS, 1, quota_set(Quota { kind: quota_kind::VEIN, param: 0, count: 0 })),
+        r
+            .safe
+            .set_record(QUOTAS, 1, quota_set(Quota { kind: quota_kind::VEIN, param: 0, count: 0 })),
         quotas_errors::COUNT,
     );
     // A kind past the last: the packer refuses it, so it is written as its felt (kind 7, count 1).

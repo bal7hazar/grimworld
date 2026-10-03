@@ -308,7 +308,9 @@ pub impl RevealImpl of RevealTrait {
         for entry in chunks {
             let chunk = *entry;
             if Self::revealable(site, @progress, terrains.span(), chunk) {
-                let revealed = Self::generate(site, ref progress, instance_id, terrains.span(), chunk);
+                let revealed = Self::generate(
+                    site, ref progress, instance_id, terrains.span(), chunk,
+                );
                 terrains.append((chunk, revealed.terrain));
                 out.append(revealed);
             }
@@ -975,9 +977,7 @@ pub mod tests {
     pub fn one(
         site: @Site, ref progress: Progress, known: Span<(u8, Terrain)>, chunk: u8,
     ) -> Revealed {
-        let out = RevealTrait::reveal(
-            site, ref progress, INSTANCE, known, array![chunk].span(),
-        );
+        let out = RevealTrait::reveal(site, ref progress, INSTANCE, known, array![chunk].span());
         assert(out.len() == 1, 'revealed');
         *out[0]
     }
@@ -1020,11 +1020,7 @@ pub mod tests {
             check_chunk(@b);
             let c = one(@site, ref progress, array![(16, a.terrain)].span(), 31);
             check_chunk(@c);
-            let d = one(
-                @site,
-                ref progress,
-                array![(17, b.terrain), (31, c.terrain)].span(),
-                32);
+            let d = one(@site, ref progress, array![(17, b.terrain), (31, c.terrain)].span(), 32);
             check_chunk(@d);
             // Every shared edge open across its seam, from both sides (`hexx`'s seams, N-2).
             assert(
@@ -1454,9 +1450,9 @@ pub mod tests {
         let f = ['fact:test', 3].span();
         let g = ['fact:test', 4].span();
         assert(
-            EntropyTrait::feed(EntropyTrait::feed(9, f), g) == EntropyTrait::feed(
-                EntropyTrait::feed(9, g), f,
-            ),
+            EntropyTrait::feed(
+                EntropyTrait::feed(9, f), g,
+            ) == EntropyTrait::feed(EntropyTrait::feed(9, g), f),
             'order independent',
         );
         assert(EntropyTrait::feed(9, f) != EntropyTrait::feed(9, g), 'facts differ');
@@ -1762,12 +1758,7 @@ pub mod tests {
             let site = zone(kind, 3, 3, no_quotas());
             let mut progress = ProgressTrait::new(@site, kind.into());
             let out = emit_reveal(
-                ref digest,
-                ref id,
-                @site,
-                ref progress,
-                array![].span(),
-                array![16].span(),
+                ref digest, ref id, @site, ref progress, array![].span(), array![16].span(),
             );
             emit_reveal(
                 ref digest,
@@ -1785,30 +1776,18 @@ pub mod tests {
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![1_u8, 15, 17, 31].span() {
             let out = emit_reveal(
-                ref digest,
-                ref id,
-                @site,
-                ref progress,
-                known.span(),
-                array![(*chunk)].span(),
+                ref digest, ref id, @site, ref progress, known.span(), array![(*chunk)].span(),
             );
             known.append((*chunk, *out[0].terrain));
         }
-        emit_reveal(
-            ref digest, ref id, @site, ref progress, known.span(), array![16].span(),
-        );
+        emit_reveal(ref digest, ref id, @site, ref progress, known.span(), array![16].span());
         // The edge of a 2 × 2 zone with (1, 1) outside its outline, an anchor on the East side.
         let mut site = zone(biome::MEADOW, 2, 2, no_quotas());
         site.chunk_set = 1 + 2 + Bits::pow(15);
         site.anchors = array![(0, 105)].span();
         let mut progress = ProgressTrait::new(@site, 'edge');
         let out = emit_reveal(
-            ref digest,
-            ref id,
-            @site,
-            ref progress,
-            array![].span(),
-            array![(0), (16), (1)].span(),
+            ref digest, ref id, @site, ref progress, array![].span(), array![(0), (16), (1)].span(),
         );
         assert(out.len() == 2, 'void skipped');
         // A cut: columns 0 to 11.
@@ -1822,12 +1801,7 @@ pub mod tests {
         site.masks = array![(2, mask)].span();
         let mut progress = ProgressTrait::new(@site, 'cut');
         emit_reveal(
-            ref digest,
-            ref id,
-            @site,
-            ref progress,
-            array![].span(),
-            array![(2), (1)].span(),
+            ref digest, ref id, @site, ref progress, array![].span(), array![(2), (1)].span(),
         );
         let digest = poseidon_hash_span(digest.span());
         println!("digest {}", digest);
@@ -1851,12 +1825,7 @@ pub mod tests {
             while chunk != 225 && !grew {
                 if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
                     let out = emit_reveal(
-                        ref digest,
-                        ref id,
-                        @site,
-                        ref progress,
-                        known.span(),
-                        array![chunk].span(),
+                        ref digest, ref id, @site, ref progress, known.span(), array![chunk].span(),
                     );
                     known.append((chunk, *out[0].terrain));
                     grew = true;
@@ -1879,12 +1848,7 @@ pub mod tests {
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![0_u8, 1, 15, 16].span() {
             let out = emit_reveal(
-                ref digest,
-                ref id,
-                @site,
-                ref progress,
-                known.span(),
-                array![(*chunk)].span(),
+                ref digest, ref id, @site, ref progress, known.span(), array![(*chunk)].span(),
             );
             known.append((*chunk, *out[0].terrain));
         }
@@ -1913,12 +1877,7 @@ pub mod tests {
         site.pieces = array![(4, piece)].span();
         let mut progress = ProgressTrait::new(@site, 'piece');
         emit_reveal(
-            ref digest,
-            ref id,
-            @site,
-            ref progress,
-            array![].span(),
-            array![(0), (1)].span(),
+            ref digest, ref id, @site, ref progress, array![].span(), array![(0), (1)].span(),
         );
         let digest = poseidon_hash_span(digest.span());
         println!("digest {}", digest);

@@ -51,9 +51,9 @@ pub impl SetPackBits of SetPackBitsTrait {
 pub impl SetPieceAssert of SetPieceAssertTrait {
     /// `Registry`'s content check (ENG-05, after CBT-05a): its corners wall (D-134); every pack
     /// (a template) and every object (a kind) on a floor tile of the interior, the ring being the
-    /// reveal's to join; an object of a kind authored chunks hold (1 chest … 8 exit; a placed trap
-    /// is an actor's), untouched; an absent pack or object all zeros. That a template, collector or
-    /// landmark exists is the content pipeline's (OPS-01).
+    /// reveal's to join; an object of a kind authored chunks hold (1 chest … 8 exit; a placed
+    /// trap is an actor's), untouched; an absent pack or object all zeros. That a template,
+    /// collector or landmark exists is the content pipeline's (OPS-01).
     fn assert_legal(self: @SetPiece) {
         let walls = *self.walls;
         assert(BoardTrait::and(walls, CORNERS) == CORNERS, errors::CORNER);
@@ -78,7 +78,11 @@ pub impl SetPieceAssert of SetPieceAssertTrait {
     fn assert_floor(walls: felt252, tile: u8) {
         let (row, column) = DivRem::div_rem(tile, 15);
         assert(
-            tile < 225 && row != 0 && row != 14 && column != 0 && column != 14
+            tile < 225
+                && row != 0
+                && row != 14
+                && column != 0
+                && column != 14
                 && !BoardTrait::has(walls, tile),
             errors::TILE,
         );
@@ -143,7 +147,8 @@ mod tests {
         assert(SetPieceRecord::unpack(parts) == piece, 'round trip');
     }
 
-    /// Walls on the ring and on the block of rows 2–4, columns 2–4; a pack and a collector inside.
+    /// Walls on the ring and on the block of rows 2–4, columns 2–4; a pack and a collector
+    /// inside.
     fn arena(pack: u8, item: Object) -> super::SetPiece {
         let ring: felt252 = 0x1fffe000c00180030006000c00180030006000c00180030006000ffff;
         let mut walls: felt252 = ring;
