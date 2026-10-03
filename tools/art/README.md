@@ -107,8 +107,9 @@ the reference.
 | File | Content |
 |---|---|
 | `atlas-N.png`, `atlas-N.json` | Atlas pages, at most 2048 × 2048. The JSON is TexturePacker "hash" format with `animations`, ready for PixiJS 8. A sprite never straddles two pages |
-| `sprites.json` | Index: for each sprite its page, cell size, baseline, animations (frames, fps, loop) |
-| `report.json` | Per sprite: source, cell, frames, height (source, target, result), page |
+| `atlas-ui-N.png`, `atlas-ui-N.json` | The interface's pages (CLI-03i): `ui` frames only, same format; the map never loads them (*UI elements*) |
+| `sprites.json` | Index: `pages` (each with `json`, `image`, size and `group`: `world` for the map's, `ui` for the interface's), and for each sprite its page, cell size, baseline, animations (frames, fps, loop), and for an interface element its `ui` slices |
+| `report.json` | Per sprite: source, cell, frames, height (source, target, result), page; per interface element its kind, fill, outset, edge uniformity and centre colour per state |
 | `preview.html` | Every animation playing, with cell / baseline / anchor guides, zoom, mirror, background. Open it in a browser |
 
 Names: frames are `<sprite>/<animation>/<nn>` (`runt/attack/03`), animations `<sprite>/<animation>`
@@ -255,6 +256,41 @@ To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
 
 From a worktree without the pack, point the dev server at a checkout that built it:
 `GRIMWORLD_ART_OUT=<that checkout>/tools/art/out pnpm --filter @grimworld/app dev`.
+
+## UI elements: nine-slices, three-slices and the UI page (CLI-03i)
+
+The client's chrome (panels, buttons, ribbons, icons) comes from the pack's `UI Elements`, one
+`[[ui]]` entry per element (`artpipe/ui.py`):
+
+| Field | Meaning |
+|---|---|
+| `kind` | `nine` (a 3 × 3 nine-slice), `three` (a horizontal three-slice: left end, middle, right end) or `still` (one image) |
+| `file`, `pieces` | The sheet, and its lattice: `columns` and `rows` as source bounds in px. The pack places pieces on 64 px cells with an empty cell between them; the lattice is described, never guessed. A three-slice of a multi-row sheet (the ribbons) selects its row with `rows` |
+| `states` | `{ pressed = "<file>" }`: a pressed sheet of the same layout |
+| `drop` | With a pressed state: how many px lower the pressed face starts (11 for the big and small buttons) |
+| `slice`, `content` | `[top, right, bottom, left]` in art px of the trimmed image: the parts kept unscaled at the edges (CSS `border-image-slice`), and where text may sit |
+| `fill` | The middle parts `stretch`, or repeat (`round`) where the art is textured (papers, scroll, board, big ribbons) |
+
+The build composes the pieces contiguous with the pack's pixels untouched, trims the transparent
+outer margin (recorded as `outset`; an element with states is trimmed by the margins its states
+share, so the pressed face keeps its place) and packs the elements on their own page(s),
+`atlas-ui-N`, untrimmed and without gutter extrusion: the client cuts their exact rectangles.
+It refuses a sheet with pixels outside the described pieces, a pressed sheet of another layout,
+a `drop` that is not the faces' difference, an inset outside the image, and a stretched edge that
+is not uniform (more than `settings.ui_edge` of a row or column differing from its band's
+middle). Elements of the build of 2026-10-03: `paper`, `paper_dark`, `scroll`, `wood`,
+`button_blue`, `button_red` (pressed), `ribbon_big_blue`, `ribbon_big_red`, `ribbon_small_yellow`,
+`round_blue`, `square_blue` (pressed), `icon_back`, `icon_close`, `icon_gold`.
+
+To add one: describe its sheet's lattice, run the build, read the element's line (size, edge,
+centre colour), choose the smallest slices that keep the whole border and corner drawing, and use
+it from `client/app/src/chrome/` (`load.ts` `CHROME_ENTRIES` lists what the stylesheet needs; a
+text colour on it goes into `contrast.ts`, whose test checks it against the centre colour).
+
+The client (`chrome/load.ts`) fetches the UI page once, cuts each frame at `0.5 × devicePixelRatio`
+device px per art px (nearest-neighbour) into an in-memory object URL, and lays it out with CSS
+`border-image` at one image pixel per device pixel. Without the page, the screens keep their plain
+look (`data-chrome="plain"`).
 
 ## PixiJS 8 check
 
