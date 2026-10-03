@@ -89,7 +89,7 @@ pub impl TerrainStorePacking of starknet::storage_access::StorePacking<Terrain, 
 /// A pack's 64 bits in the low limb of `Features`.
 #[generate_trait]
 pub impl PackPlacementImpl of PackPlacementTrait {
-    #[inline(always)]
+    #[inline(never)]
     fn bits(self: @PackPlacement) -> u128 {
         fits((*self.count).into(), 0x10, errors::COUNT);
         fits((*self.offsets).into(), 0x2000000, errors::OFFSETS);
@@ -102,7 +102,7 @@ pub impl PackPlacementImpl of PackPlacementTrait {
             + (*self.offsets).into() * P36
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn from_bits(bits: u128) -> PackPlacement {
         PackPlacement {
             tile: low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
@@ -138,7 +138,7 @@ pub impl PackPlacementImpl of PackPlacementTrait {
 /// An object's 32 bits in the high limb of `Features`.
 #[generate_trait]
 pub impl ObjectImpl of ObjectTrait {
-    #[inline(always)]
+    #[inline(never)]
     fn bits(self: @Object) -> u128 {
         fits((*self.kind).into(), 0x10, errors::KIND);
         fits((*self.state).into(), 0x10, errors::STATE);
@@ -148,7 +148,7 @@ pub impl ObjectImpl of ObjectTrait {
             + (*self.param).into() * P16
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn from_bits(bits: u128) -> Object {
         Object {
             tile: low_field(bits, P8.try_into().unwrap()).try_into().unwrap(),
@@ -250,7 +250,7 @@ mod tests {
 
     // Every field at its bits (ENG-01 §3.2), and back.
     #[test]
-    #[available_gas(l2_gas: 351771)] // ceil(1.05 × 335020 measured)
+    #[available_gas(l2_gas: 408051)] // ceil(1.05 × 388620 measured)
     fn test_words_round_trip() {
         let terrain = Terrain { walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff, edges: 0xb };
         let word = StorePacking::<Terrain, felt252>::pack(terrain);

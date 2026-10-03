@@ -88,12 +88,12 @@ pub impl PackAssert of PackAssertTrait {
 /// Its bits in a record's limb, and back (the field order of the record's layout).
 #[generate_trait]
 pub impl PackCasteBits of PackCasteBitsTrait {
-    #[inline(always)]
+    #[inline(never)]
     fn bits(entry: @PackCaste) -> u128 {
         (*entry.caste).into() + (*entry.min).into() * P16 + (*entry.max).into() * P24
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn peel(ref rest: u128) -> PackCaste {
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let caste = peel(ref rest, P16.try_into().unwrap());
@@ -137,7 +137,7 @@ mod tests {
     use super::{PackCaste, PackRecord, PackTrait};
 
     #[test]
-    #[available_gas(l2_gas: 128520)] // ceil(1.05 × 122400 measured)
+    #[available_gas(l2_gas: 153195)] // ceil(1.05 × 145900 measured)
     fn test_pack_bits_and_round_trip() {
         let first = PackCaste { caste: 0xabcd, min: 1, max: 0x12 };
         let last = PackCaste { caste: 0x1234, min: 2, max: 0xff };
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'pack: min above max')]
-    #[available_gas(l2_gas: 70770)] // ceil(1.05 × 67400 measured)
+    #[available_gas(l2_gas: 83370)] // ceil(1.05 × 79400 measured)
     fn test_pack_bounds_refused() {
         let wrong = PackCaste { caste: 1, min: 3, max: 2 };
         PackTrait::new([wrong, Default::default(), Default::default(), Default::default(), Default::default()], 0).pack();

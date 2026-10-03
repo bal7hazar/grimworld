@@ -30,7 +30,7 @@ fn test_record_sizes() {
 }
 
 #[test]
-#[available_gas(l2_gas: 314538)] // ceil(1.05 × 299560 measured)
+#[available_gas(l2_gas: 365873)] // ceil(1.05 × 348450 measured)
 fn test_chunk_layout() {
     // Every tile a wall, every edge open: bit 228 is the last one used.
     let all: felt252 = 0x200000000000000000000000000000000000000000000000000000000 - 1;
@@ -116,7 +116,7 @@ fn test_goblin_layout() {
 // Fix loop 1, F-9: every field narrower than its Cairo type is refused when too wide, at its
 // boundary; nothing spills into a neighbouring lane.
 #[test]
-#[available_gas(l2_gas: 291113)] // ceil(1.05 × 277250 measured)
+#[available_gas(l2_gas: 328272)] // ceil(1.05 × 312640 measured)
 fn test_deadline_boundaries() {
     let max: u32 = 0xFFFFFFF;
     assert(
@@ -146,7 +146,8 @@ fn test_goblin_deadline_above_28_bits_refused() {
 
 #[test]
 #[should_panic(expected: 'packing: offsets above 25 bits')]
-#[available_gas(l2_gas: 8201)] // ceil(1.05 × 7810 measured)
+// gas: raised, ENG-05: the chunk's field packers are no longer inlined (D-200, class size)
+#[available_gas(l2_gas: 121443)] // ceil(1.05 × 115660 measured)
 fn test_pack_offsets_refused() {
     let pack = PackPlacement { offsets: 0x2000000, ..Default::default() };
     let features = Features {

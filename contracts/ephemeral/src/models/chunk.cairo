@@ -4,15 +4,18 @@
 //!
 //! Its two words are the models of `grimworld_logic::models::chunk` (ENG-05 Open question 4: the
 //! reveal, the tick and the views read them without depending on `Instances`), packed by their
-//! `StorePacking` there; this struct only puts them in two consecutive slots.
+//! `StorePacking` there. The storage declares them as typed slots (`Stored<M>`, ENG-R1a's note 4):
+//! the reveal's library returns them packed and `Instances` writes them as they are, the view
+//! returns them as stored, and a path that needs a field reads the model (`Stored::model`).
 
 pub use grimworld_logic::models::chunk::{
     Features, FeaturesStorePacking, Object, PackPlacement, Terrain, TerrainStorePacking,
 };
+use crate::helpers::stored::Stored;
 
-/// The two consecutive slots of a revealed chunk.
-#[derive(Copy, Drop, Serde, starknet::Store)]
+/// The two consecutive slots of a revealed chunk, `Terrain`'s word then `Features`'.
+#[derive(Copy, Drop, starknet::Store)]
 pub struct Chunk {
-    pub terrain: Terrain,
-    pub features: Features,
+    pub terrain: Stored<Terrain>,
+    pub features: Stored<Features>,
 }

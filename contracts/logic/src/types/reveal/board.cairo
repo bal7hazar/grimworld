@@ -17,8 +17,10 @@
 //!   every open tile is reachable from every opening (each opening's line reaches the spine, which
 //!   holds the centre). `keep_component` floods the even layout: an odd chunk is flooded one row up
 //!   on a 15 × 16 board, where its rows have their global parity.
-//! - **Within 2 of a tile** (`near`): `HexagonTrait::hexagon` (N-6), the same row shift for an odd
-//!   chunk.
+//! - **Within 2 of the openings** (`near_openings`): two hex dilations of the openings' set
+//!   (`dilate`, bit-parallel with the row parity, ring tiles included), equal to the union of
+//!   `HexagonTrait::hexagon`s of radius 2 (N-6), which the tests hold it against. `hexagon`'s table
+//!   path is not called: its tables and loop path cost `RevealLibrary` about 1,900 CASM felts (D-200).
 //!
 //! **Corners are always wall** (D-134): no step opens one (`SIDES` holds no corner, `lines` and the
 //! spine lie in the interior, an anchor on a corner is not opened).
@@ -29,7 +31,6 @@
 use core::poseidon::hades_permutation;
 use hexx::board::bits::Bits;
 use hexx::board::cut::CutTrait;
-use hexx::board::hexagon::HexagonTrait;
 use hexx::board::map::HexMapTrait;
 use hexx::generators::caver::CaverTrait;
 use crate::models::location::biome;
@@ -54,8 +55,13 @@ const LINE_EAST: felt252 = 0xfe;
 const LINE_SOUTH: felt252 = 0x200040008001000200040008000;
 /// Rows 0 to 6 of column 0: a North opening's line, once moved down to row 7.
 const COLUMN_7: felt252 = 0x40008001000200040008001;
-/// Row 0, the 15 bits the shift of an odd chunk adds below it.
-const ROW_0: felt252 = 0x7fff;
+/// The local even rows (0, 2, … 14) and the local odd ones.
+const EVEN_ROWS: felt252 = 0x1fffc0007fff0001fffc0007fff0001fffc0007fff0001fffc0007fff;
+const ODD_ROWS: felt252 = 0x3fff8000fffe0003fff8000fffe0003fff8000fffe0003fff8000;
+/// The board without column 0, without column 14, without row 0.
+const NOT_COLUMN_0: felt252 = 0x1fffbfff7ffefffdfffbfff7ffefffdfffbfff7ffefffdfffbfff7ffe;
+const NOT_COLUMN_14: felt252 = 0xfffdfffbfff7ffefffdfffbfff7ffefffdfffbfff7ffefffdfffbfff;
+const NOT_ROW_0: felt252 = 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffff8000;
 /// 2^15 and 2^-15: a row up, a row down.
 const ROW_UP: felt252 = 0x8000;
 /// 2^14, 2^210: from column 0 to column 14, from row 0 to row 14.
@@ -179,45 +185,70 @@ pub impl BoardImpl of BoardTrait {
     }
 
     /// The interior floor connected to `root` (an interior floor tile): `keep_component` (N-1) on
-    /// the chunk, or one row up on a 15 × 16 board for an odd chunk.
+    /// the chunk, or one row up on a 15 × 16 board for an odd chunk. One call site, so that the
+    /// class holds one copy of the flood.
     fn component(interior: felt252, root: u8, odd: bool) -> felt252 {
-        if odd {
-            CaverTrait::keep_component(interior * ROW_UP, 15, 16, root + 15) * Bits::inv(15)
+        let (grid, height, from, back) = if odd {
+            (interior * ROW_UP, 16, root + 15, Bits::inv(15))
         } else {
-            CaverTrait::keep_component(interior, 15, 15, root)
-        }
+            (interior, 15, root, 1)
+        };
+        CaverTrait::keep_component(grid, 15, height, from) * back
     }
 
-    /// The tiles within 2 of `tile` (N-6), the chunk's row parity honoured.
-    fn near(tile: u8, odd: bool) -> felt252 {
-        if odd {
-            let shifted = HexMapTrait::new(0, 15, 16, 0).hexagon(tile + 15, 2);
-            let below: u256 = shifted.into();
-            let row: u256 = ROW_0.into();
-            (shifted - Bits::to_felt(Bits::and(below, row))) * Bits::inv(15)
+    /// `tiles` and their hex neighbours on the chunk, ring included (`hexx`'s odd-r layout with the
+    /// global parity: a globally even row's northern and southern neighbours are `x − 1` and `x`, an
+    /// odd row's `x` and `x + 1`). Each shift is a field product of tiles masked so that it never
+    /// crosses a side; the shifted sets are joined by OR, as two of them may meet.
+    fn dilate(tiles: felt252, odd: bool) -> felt252 {
+        let wide: u256 = tiles.into();
+        let (even_rows, odd_rows) = if odd {
+            (ODD_ROWS, EVEN_ROWS)
         } else {
-            HexMapTrait::new(0, 15, 15, 0).hexagon(tile, 2)
-        }
+            (EVEN_ROWS, ODD_ROWS)
+        };
+        let evens = Bits::and(wide, even_rows.into());
+        let odds = Bits::and(wide, odd_rows.into());
+        let not_first: u256 = NOT_COLUMN_0.into();
+        let not_last: u256 = NOT_COLUMN_14.into();
+        let up: u256 = NOT_ROW_0.into();
+        // [Compute] Along the row: West (`+1`) and East (`−1`)
+        let west = Bits::to_felt(Bits::and(wide, not_last)) * 2;
+        let east = Bits::to_felt(Bits::and(wide, not_first)) * Bits::inv(1);
+        // [Compute] North: `x` from every row, `x − 1` from the even rows, `x + 1` from the odd
+        let north = Bits::or(
+            (tiles * ROW_UP).into(),
+            Bits::or(
+                (Bits::to_felt(Bits::and(evens, not_first)) * P14).into(),
+                (Bits::to_felt(Bits::and(odds, not_last)) * 0x10000).into(),
+            ),
+        );
+        // [Compute] South, from every row but row 0
+        let rows = Bits::and(wide, up);
+        let south = Bits::or(
+            (Bits::to_felt(rows) * Bits::inv(15)).into(),
+            Bits::or(
+                (Bits::to_felt(Bits::and(Bits::and(evens, up), not_first)) * Bits::inv(16)).into(),
+                (Bits::to_felt(Bits::and(Bits::and(odds, up), not_last)) * Bits::inv(14)).into(),
+            ),
+        );
+        // The northern products may pass row 14: the board cuts them.
+        let around = Bits::or(Bits::or(west.into(), east.into()), Bits::or(north, south));
+        Bits::to_felt(Bits::and(Bits::or(around, wide), BOARD.into()))
     }
 
     /// The tiles within 2 of every open ring tile and of `anchors` (already in `ring` when they
-    /// lie on it).
+    /// lie on it): two dilations.
     fn near_openings(ring: felt252, anchors: Span<u8>, odd: bool) -> felt252 {
-        let wide: u256 = ring.into();
-        let mut near: u256 = 0;
-        for tile in RING.span() {
-            if Bits::get(wide, *tile) {
-                near = Bits::or(near, Self::near(*tile, odd).into());
-            }
-        }
+        let mut tiles = ring;
         for tile in anchors {
-            near = Bits::or(near, Self::near(*tile, odd).into());
+            tiles = Self::or(tiles, Bits::pow(*tile));
         }
-        Bits::to_felt(near)
+        Self::dilate(Self::dilate(tiles, odd), odd)
     }
 
     /// The number of set bits.
-    #[inline(always)]
+    #[inline(never)]
     fn count(bits: felt252) -> u8 {
         Bits::popcount(bits.into())
     }
@@ -262,25 +293,25 @@ pub impl BoardImpl of BoardTrait {
     }
 
     /// Whether `tile` is set in `bits`.
-    #[inline(always)]
+    #[inline(never)]
     fn has(bits: felt252, tile: u8) -> bool {
         Bits::get(bits.into(), tile)
     }
 
     /// `a & b`.
-    #[inline(always)]
+    #[inline(never)]
     fn and(a: felt252, b: felt252) -> felt252 {
         Bits::to_felt(Bits::and(a.into(), b.into()))
     }
 
     /// `a | b`.
-    #[inline(always)]
+    #[inline(never)]
     fn or(a: felt252, b: felt252) -> felt252 {
         Bits::to_felt(Bits::or(a.into(), b.into()))
     }
 
     /// `a & !b`.
-    #[inline(always)]
+    #[inline(never)]
     fn minus(a: felt252, b: felt252) -> felt252 {
         a - Self::and(a, b)
     }
@@ -289,6 +320,8 @@ pub impl BoardImpl of BoardTrait {
 #[cfg(test)]
 mod tests {
     use hexx::board::bits::Bits;
+    use hexx::board::hexagon::HexagonTrait;
+    use hexx::board::map::HexMapTrait;
     use hexx::board::seams::{SeamTrait, Side};
     use super::{BOARD, BoardTrait, CENTRE, EAST, INTERIOR, NORTH, SOUTH, SPINE, WEST};
 
@@ -299,7 +332,7 @@ mod tests {
     // The sides against `hexx`'s seams (N-2): `Side::West` is column 14, `East` column 0, `South`
     // row 0, `North` row 14, ENG-01's edge order West, East, South, North; corners excluded.
     #[test]
-    #[available_gas(l2_gas: 75723)] // ceil(1.05 × 72117 measured)
+    #[available_gas(l2_gas: 84690)] // ceil(1.05 × 80657 measured)
     fn test_sides_against_seams() {
         let corners = 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224);
         let sides = [Side::West, Side::East, Side::South, Side::North];
@@ -315,7 +348,7 @@ mod tests {
 
     // An opening's line reaches the spine, a straight run of floor along its row or column.
     #[test]
-    #[available_gas(l2_gas: 267969)] // ceil(1.05 × 255208 measured)
+    #[available_gas(l2_gas: 311103)] // ceil(1.05 × 296288 measured)
     fn test_lines_reach_the_spine() {
         let ring = Bits::pow(at(0, 3)) + Bits::pow(at(14, 11)) + Bits::pow(at(4, 0))
             + Bits::pow(at(9, 14));
@@ -363,15 +396,49 @@ mod tests {
         }
     }
 
+    /// The tiles within 2 of `tile` by `hexx`'s hexagon (N-6), an odd chunk a row up on 15 × 16.
+    fn hexagon(tile: u8, odd: bool) -> felt252 {
+        if odd {
+            let shifted = HexMapTrait::new(0, 15, 16, 0).hexagon(tile + 15, 2);
+            let row: felt252 = 0x7fff;
+            (shifted - BoardTrait::and(shifted, row)) * Bits::inv(15)
+        } else {
+            HexMapTrait::new(0, 15, 15, 0).hexagon(tile, 2)
+        }
+    }
+
+    fn near(tile: u8, odd: bool) -> felt252 {
+        BoardTrait::near_openings(Bits::pow(tile), array![].span(), odd)
+    }
+
+    // Two dilations against `hexx`'s hexagon of radius 2, from every tile of the chunk, both
+    // parities; and from several tiles at once, the union.
+    #[test]
+    #[available_gas(l2_gas: 79315008)] // ceil(1.05 × 75538102 measured)
+    fn test_dilation_against_hexagons() {
+        let mut tile: u8 = 0;
+        while tile != 225 {
+            assert(near(tile, false) == hexagon(tile, false), 'even');
+            assert(near(tile, true) == hexagon(tile, true), 'odd');
+            tile += 1;
+        }
+        let tiles = Bits::pow(0) + Bits::pow(29) + Bits::pow(112) + Bits::pow(223);
+        let union = BoardTrait::or(
+            BoardTrait::or(hexagon(0, true), hexagon(29, true)),
+            BoardTrait::or(hexagon(112, true), hexagon(223, true)),
+        );
+        assert(BoardTrait::near_openings(tiles, array![].span(), true) == union, 'union');
+    }
+
     // Within 2 of a tile: 19 tiles inside, fewer on the ring; an odd chunk's rows shifted.
     #[test]
-    #[available_gas(l2_gas: 196804)] // ceil(1.05 × 187432 measured)
+    #[available_gas(l2_gas: 1111971)] // ceil(1.05 × 1059020 measured)
     fn test_near() {
-        assert(BoardTrait::count(BoardTrait::near(CENTRE, false)) == 19, 'even');
-        assert(BoardTrait::count(BoardTrait::near(CENTRE, true)) == 19, 'odd');
-        assert(BoardTrait::near(CENTRE, false) != BoardTrait::near(CENTRE, true), 'parities');
-        assert(BoardTrait::count(BoardTrait::near(at(0, 7), true)) == 11, 'east side, global even');
-        assert(BoardTrait::count(BoardTrait::near(at(7, 0), true)) == 12, 'south side');
-        assert(BoardTrait::count(BoardTrait::near(at(0, 7), false)) == 13, 'east side, global odd');
+        assert(BoardTrait::count(near(CENTRE, false)) == 19, 'even');
+        assert(BoardTrait::count(near(CENTRE, true)) == 19, 'odd');
+        assert(near(CENTRE, false) != near(CENTRE, true), 'parities');
+        assert(BoardTrait::count(near(at(0, 7), true)) == 11, 'east side, global even');
+        assert(BoardTrait::count(near(at(7, 0), true)) == 12, 'south side');
+        assert(BoardTrait::count(near(at(0, 7), false)) == 13, 'east side, global odd');
     }
 }

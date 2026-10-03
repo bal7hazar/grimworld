@@ -47,12 +47,12 @@ pub impl SpawnTableImpl of SpawnTableTrait {
 /// Its bits in a record's limb, and back (the field order of the record's layout).
 #[generate_trait]
 pub impl SpawnBits of SpawnBitsTrait {
-    #[inline(always)]
+    #[inline(never)]
     fn bits(spawn: @Spawn) -> u128 {
         (*spawn.template).into() + (*spawn.weight).into() * P16
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn peel(ref rest: u128) -> Spawn {
         let template = peel(ref rest, P16.try_into().unwrap());
         let weight = peel(ref rest, P8.try_into().unwrap());
@@ -93,7 +93,7 @@ mod tests {
     use super::{Spawn, SpawnTableRecord, SpawnTableTrait};
 
     #[test]
-    #[available_gas(l2_gas: 104748)] // ceil(1.05 × 99760 measured)
+    #[available_gas(l2_gas: 136143)] // ceil(1.05 × 129660 measured)
     fn test_spawn_table_bits_and_round_trip() {
         let first = Spawn { template: 0xabcd, weight: 0x12 };
         let last = Spawn { template: 0x1234, weight: 0xff };

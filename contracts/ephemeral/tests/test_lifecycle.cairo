@@ -498,7 +498,7 @@ fn placement_of(world: World, adventurer: u32) -> Placement {
 // `next_slot` overwritten.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 39496707)] // ceil(1.05 × 37615911 measured)
+#[available_gas(l2_gas: 38987798)] // ceil(1.05 × 37131236 measured)
 fn test_create_first_entry() {
     let world = setup();
     let keys = watched();
@@ -606,7 +606,7 @@ fn test_create_first_entry() {
 // The same with no task: no task page is written (19 − 4 = 15 new).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 35148670)] // ceil(1.05 × 33474923 measured)
+#[available_gas(l2_gas: 34639761)] // ceil(1.05 × 32990248 measured)
 fn test_create_without_tasks() {
     let world = setup();
     let keys = watched();
@@ -621,7 +621,7 @@ fn test_create_without_tasks() {
 // (ENG-01 §9.3, later entry, initialised: 0 new).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 61833274)] // ceil(1.05 × 58888832 measured)
+#[available_gas(l2_gas: 60313541)] // ceil(1.05 × 57441467 measured)
 fn test_create_reuses_the_slot() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -644,7 +644,7 @@ fn test_create_reuses_the_slot() {
 
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 42658396)] // ceil(1.05 × 40627043 measured)
+#[available_gas(l2_gas: 42295437)] // ceil(1.05 × 40281368 measured)
 fn test_create_refusals() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -673,7 +673,7 @@ fn test_create_refusals() {
 // A sealed destination sets the header's flag (design/17).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 33130927)] // ceil(1.05 × 31553263 measured)
+#[available_gas(l2_gas: 32557525)] // ceil(1.05 × 31007166 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -741,7 +741,7 @@ fn fill_slot(world: World) {
 // it, through the view and through the stored words its gates reach.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 58574058)] // ceil(1.05 × 55784817 measured)
+#[available_gas(l2_gas: 57589809)] // ceil(1.05 × 54847437 measured)
 fn test_generation_isolation() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 16);
@@ -860,7 +860,7 @@ fn test_generation_isolation() {
 // overwritten; `InstanceClosed`; one report).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 41136778)] // ceil(1.05 × 39177883 measured)
+#[available_gas(l2_gas: 40627869)] // ceil(1.05 × 38693208 measured)
 fn test_leave_to_a_hub() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -910,7 +910,7 @@ fn test_leave_to_a_hub() {
 // entry reveal (ENG-05): floor 1's entry chunk 112, its 2 words new in this slot.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 62166744)] // ceil(1.05 × 59206422 measured)
+#[available_gas(l2_gas: 59955754)] // ceil(1.05 × 57100718 measured)
 fn test_leave_to_a_location() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 5);
@@ -1031,7 +1031,7 @@ fn test_leave_to_a_location() {
 // Travel back: Returned to the last hub (the hub settles `hub` 0 as its last one, D-04).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 39340651)] // ceil(1.05 × 37467286 measured)
+#[available_gas(l2_gas: 38831742)] // ceil(1.05 × 36982611 measured)
 fn test_travel_back() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1087,7 +1087,7 @@ fn assert_refused(world: World, id: u64, from: u32, sequence: u32, reason: Refus
 
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40988402)] // ceil(1.05 × 39036573 measured)
+#[available_gas(l2_gas: 40479493)] // ceil(1.05 × 38551898 measured)
 fn test_refused_sequence() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1102,7 +1102,7 @@ fn test_refused_sequence() {
 // An id of an earlier generation, and an instance already closed.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 50678879)] // ceil(1.05 × 48265599 measured)
+#[available_gas(l2_gas: 49665440)] // ceil(1.05 × 47300419 measured)
 fn test_refused_closed() {
     let world = setup();
     let first = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1116,7 +1116,7 @@ fn test_refused_closed() {
 // The adventurer is not in that instance (another's, in another slot), or is down.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 53425592)] // ceil(1.05 × 50881516 measured)
+#[available_gas(l2_gas: 52410389)] // ceil(1.05 × 49914656 measured)
 fn test_refused_absent() {
     let world = setup();
     create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1132,7 +1132,7 @@ fn test_refused_absent() {
 // reachable"), before any draw.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 68909078)] // ceil(1.05 × 65627693 measured)
+#[available_gas(l2_gas: 68400169)] // ceil(1.05 × 65143018 measured)
 fn test_refused_gate() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1149,7 +1149,7 @@ fn test_refused_gate() {
 // A sealed Red Rift: no travel back (design/17).
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 36677084)] // ceil(1.05 × 34930556 measured)
+#[available_gas(l2_gas: 36103682)] // ceil(1.05 × 34384459 measured)
 fn test_refused_sealed() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1159,7 +1159,7 @@ fn test_refused_sealed() {
 // Only the member's controller acts (M-6): a revert, not a refusal of the game.
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 35790375)] // ceil(1.05 × 34086071 measured)
+#[available_gas(l2_gas: 35310656)] // ceil(1.05 × 33629196 measured)
 fn test_not_controller() {
     let world = setup();
     let id = create(world, HERO, ALICE, INTO_ZONE, 0);
@@ -1176,7 +1176,7 @@ fn test_not_controller() {
 
 #[test]
 // gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 40899515)] // ceil(1.05 × 38951919 measured)
+#[available_gas(l2_gas: 40390607)] // ceil(1.05 × 38467244 measured)
 fn test_set_controller() {
     let world = setup();
     let entry = IInstanceEntrySafeDispatcher { contract_address: world.instances };
@@ -1264,7 +1264,7 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 56230547)] // ceil(1.05 × 53552901 measured)
+#[available_gas(l2_gas: 53947325)] // ceil(1.05 × 51378404 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1331,7 +1331,7 @@ fn test_entry_reveal_through_the_engine() {
 
 // `instance_region` refuses a page above 16 (`REGION_PAGE`).
 #[test]
-#[available_gas(l2_gas: 33374989)] // ceil(1.05 × 31785703 measured)
+#[available_gas(l2_gas: 32860914)] // ceil(1.05 × 31296108 measured)
 #[feature("safe_dispatcher")]
 fn test_region_page_bound() {
     let world = setup();
@@ -1343,7 +1343,7 @@ fn test_region_page_bound() {
 // the frontier open (it never closes before `N`); the chunks beyond an open edge not yet revealed,
 // the others void or undecided.
 #[test]
-#[available_gas(l2_gas: 38790385)] // ceil(1.05 × 36943223 measured)
+#[available_gas(l2_gas: 34995813)] // ceil(1.05 × 33329345 measured)
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
     let id = create(world, HERO, ALICE, FAR_LINK, 0);

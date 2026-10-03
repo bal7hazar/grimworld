@@ -225,15 +225,13 @@ pub mod Instances {
         IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait,
         IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher, Results, facts,
     };
-    use grimworld_logic::models::chunk::Terrain;
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
     use grimworld_logic::models::pack::{Pack, PackRecord};
     use grimworld_logic::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
     use grimworld_logic::models::set_piece::{SetPiece, SetPieceRecord};
     use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
-    use grimworld_logic::types::reveal::{
-        Progress, ProgressTrait, RevealTrait, SightTrait, Site, SiteTrait, side as reveal_side,
-    };
+    use grimworld_logic::types::reveal::board::BoardTrait;
+    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site, side as reveal_side};
     use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
     use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
@@ -532,10 +530,11 @@ pub mod Instances {
 
         /// Chunks `first .. first + count` of the instance (`count` at most `REGION_PAGE`; past
         /// chunk 224 nothing): each one's kind (design/02 *How the views tell them apart*: void,
-        /// not yet revealed, revealed; `RevealTrait::kind`) and a revealed one's two words as
-        /// stored. A chunk not revealed is never read (§2.1). An id whose generation is not the
-        /// slot's current one answers nothing. The location's record (and a zone's chunk set) is
-        /// read once; a dungeon's chunk not revealed reads its revealed neighbours' terrain (their
+        /// not yet revealed, revealed; the engine's rule, `RevealTrait::kind`, read here without
+        /// building a `Site`: `InternalTrait::kind`) and a revealed one's two words as stored. A
+        /// chunk not revealed is never read (§2.1). An id whose generation is not the slot's
+        /// current one answers nothing. The location's record (and a zone's chunk set) is read
+        /// once; a dungeon's chunk not revealed reads its revealed neighbours' terrain (their
         /// edges). Each chunk's goblins are ENG-07's (the roster, `touched`): empty here (ENG-05
         /// Open question 5).
         fn instance_region(
@@ -559,31 +558,7 @@ pub mod Instances {
             } else {
                 0
             };
-            let site = Site {
-                target: location.target,
-                biome: location.biome,
-                level_min: location.level_min,
-                level_max: location.level_max,
-                width: location.width,
-                height: location.height,
-                entry_chunk: header.entry_chunk,
-                chunk_set,
-                masks: array![].span(),
-                anchors: array![].span(),
-                quotas: QuotaSet { quotas: [Default::default(); 6] },
-                tasks: array![].span(),
-                spawn: SpawnTable { spawns: [Default::default(); 7], density: 0 },
-                packs: array![].span(),
-                pieces: array![].span(),
-            };
             let revealed = self.get_revealed(slot).model().bits;
-            let progress = Progress {
-                revealed,
-                count: header.revealed_count,
-                open_edges: 0,
-                left: [0; 14],
-                entropy: 0,
-            };
             let last: u16 = first.into() + count.into();
             let last: u8 = if last > 225 {
                 225
@@ -592,39 +567,20 @@ pub mod Instances {
             };
             let mut chunk = first;
             while chunk < last {
-                if progress.is_revealed(chunk) {
+                let (kind, terrain, features) = if BoardTrait::has(revealed, chunk) {
                     let (terrain, features) = self.get_chunk_words(slot, chunk);
-                    out
-                        .append(
-                            RegionChunk {
-                                chunk,
-                                kind: ChunkKind::Revealed,
-                                terrain,
-                                features,
-                                goblins: array![].span(),
-                            },
-                        );
+                    (ChunkKind::Revealed, terrain, features)
                 } else {
-                    let mut known: Array<(u8, Terrain)> = array![];
-                    if location.target != 0 {
-                        let mut side: u8 = 0;
-                        while side != 4 {
-                            if let Option::Some(next) = site.neighbour(chunk, side) {
-                                if progress.is_revealed(next) {
-                                    known.append((next, self.get_terrain(slot, next)));
-                                }
-                            }
-                            side += 1;
-                        }
-                    }
-                    let kind = RevealTrait::kind(@site, @progress, known.span(), chunk);
-                    out
-                        .append(
-                            RegionChunk {
-                                chunk, kind, terrain: 0, features: 0, goblins: array![].span(),
-                            },
-                        );
-                }
+                    (
+                        self
+                            .chunk_kind(
+                                slot, @location, chunk_set, revealed, header.revealed_count, chunk,
+                            ),
+                        0,
+                        0,
+                    )
+                };
+                out.append(RegionChunk { chunk, kind, terrain, features, goblins: array![].span() });
                 chunk += 1;
             }
             out.span()
@@ -840,10 +796,8 @@ pub mod Instances {
             self.set_revealed(slot, Bitmap { bits: progress.revealed });
             self.set_quotas(slot, QuotasTrait::from_progress(*location.target, @progress));
             for chunk in revealed {
-                self
-                    .set_chunk(
-                        slot, *chunk.chunk, Chunk { terrain: *chunk.terrain, features: *chunk.features },
-                    );
+                let (index, terrain, features) = *chunk;
+                self.set_chunk(slot, index, terrain, features);
             }
             self
                 .set_entering(
@@ -969,6 +923,66 @@ pub mod Instances {
                 spawn,
                 packs: packs.span(),
                 pieces: pieces.span(),
+            }
+        }
+
+        /// The kind of a chunk not revealed (`RevealTrait::kind`'s rule, which the tests hold it
+        /// against): void outside the location's rectangle or a zone's chunk set; in a zone, not
+        /// yet revealed; in a dungeon, void once `N` chunks are revealed, or when revealed
+        /// neighbours face it and every one with a border, else not yet revealed.
+        fn chunk_kind(
+            self: @ContractState,
+            slot: u32,
+            location: @Location,
+            chunk_set: felt252,
+            revealed: felt252,
+            count: u8,
+            chunk: u8,
+        ) -> ChunkKind {
+            let (cy, cx) = DivRem::div_rem(chunk, 15);
+            let target = *location.target;
+            let inside = cx < *location.width
+                && cy < *location.height
+                && (target != 0 || chunk_set == 0 || BoardTrait::has(chunk_set, chunk));
+            if !inside {
+                return ChunkKind::Void;
+            }
+            if target == 0 {
+                return ChunkKind::Unrevealed;
+            }
+            if count >= target {
+                return ChunkKind::Void;
+            }
+            // [Compute] Its neighbours `(chunk, the bit of their edge facing it)`: West, East,
+            // South, North, those inside the rectangle
+            let mut faced = false;
+            let mut open = false;
+            let mut around: Array<(u8, u8)> = array![];
+            if cx + 1 < *location.width {
+                around.append((chunk + 1, 2));
+            }
+            if cx != 0 {
+                around.append((chunk - 1, 1));
+            }
+            if cy != 0 {
+                around.append((chunk - 15, 8));
+            }
+            if cy + 1 < *location.height {
+                around.append((chunk + 15, 4));
+            }
+            for entry in around.span() {
+                let (next, bit) = *entry;
+                if BoardTrait::has(revealed, next) {
+                    faced = true;
+                    if (self.get_terrain(slot, next).edges / bit) % 2 == 1 {
+                        open = true;
+                    }
+                }
+            }
+            if open || !faced {
+                ChunkKind::Unrevealed
+            } else {
+                ChunkKind::Void
             }
         }
 

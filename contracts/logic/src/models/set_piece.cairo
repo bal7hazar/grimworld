@@ -20,12 +20,12 @@ pub impl SetPieceImpl of SetPieceTrait {
 /// Its bits in a record's limb, and back (the field order of the record's layout).
 #[generate_trait]
 pub impl SetPackBits of SetPackBitsTrait {
-    #[inline(always)]
+    #[inline(never)]
     fn bits(pack: @SetPack) -> u128 {
         (*pack.tile).into() + (*pack.template).into() * P8
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn peel(ref rest: u128) -> SetPack {
         let tile = peel(ref rest, P8.try_into().unwrap());
         let template = peel(ref rest, P16.try_into().unwrap());
@@ -65,7 +65,7 @@ mod tests {
     use super::{Object, SetPack, SetPieceRecord, SetPieceTrait};
 
     #[test]
-    #[available_gas(l2_gas: 141288)] // ceil(1.05 × 134560 measured)
+    #[available_gas(l2_gas: 164178)] // ceil(1.05 × 156360 measured)
     fn test_set_piece_bits_and_round_trip() {
         let walls = 0x1fffffffffffffffffffffffff00000000000000000000000000000ff;
         let piece = SetPieceTrait::new(

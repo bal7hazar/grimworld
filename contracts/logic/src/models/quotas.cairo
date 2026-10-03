@@ -51,12 +51,12 @@ pub impl QuotaSetAssert of QuotaSetAssertTrait {
 /// Its bits in a record's limb, and back (the field order of the record's layout).
 #[generate_trait]
 pub impl QuotaBits of QuotaBitsTrait {
-    #[inline(always)]
+    #[inline(never)]
     fn bits(quota: @Quota) -> u128 {
         (*quota.kind).into() + (*quota.param).into() * P8 + (*quota.count).into() * P24
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn peel(ref rest: u128) -> Quota {
         let s8: NonZero<u128> = P8.try_into().unwrap();
         let kind = peel(ref rest, s8);
@@ -100,7 +100,7 @@ mod tests {
     use super::{Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind};
 
     #[test]
-    #[available_gas(l2_gas: 133224)] // ceil(1.05 × 126880 measured)
+    #[available_gas(l2_gas: 161574)] // ceil(1.05 × 153880 measured)
     fn test_quotas_bits_and_round_trip() {
         let exit = Quota { kind: kind::EXIT, param: 0xabcd, count: 0x12 };
         let last = Quota { kind: kind::SET_PIECE, param: 0x1234, count: 0xff };
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'quotas: kind')]
-    #[available_gas(l2_gas: 76356)] // ceil(1.05 × 72720 measured)
+    #[available_gas(l2_gas: 91476)] // ceil(1.05 × 87120 measured)
     fn test_quotas_kind_refused() {
         let wrong = Quota { kind: 7, param: 0, count: 1 };
         let set = QuotaSet { quotas: [wrong, Default::default(), Default::default(), Default::default(), Default::default(), Default::default()] };

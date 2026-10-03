@@ -37,16 +37,13 @@
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
 use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
-use starknet::storage_access::StorePacking;
 use starknet::{ClassHash, ContractAddress};
 use starknet::storage::{
     StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     SubPointersMutForward,
 };
 use crate::helpers::stored::{Stored, StoredTrait};
-use crate::models::chunk::{
-    Chunk, Features, FeaturesStorePacking, Terrain, TerrainStorePacking,
-};
+use crate::models::chunk::{Chunk, Terrain, TerrainStorePacking};
 use crate::models::instance::{Header, Placement, Quotas};
 use crate::models::member::{
     EMPTY_EFFECTS, EMPTY_RECHARGES, EMPTY_TIMERS, MemberAssert, MemberState,
@@ -224,32 +221,25 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
 
     // Chunks: `chunks[(slot, chunk)]`, two slots each (`Chunk`), written at the reveal (ENG-05)
 
-    /// A revealed chunk's two words through their packers.
-    #[inline(always)]
-    fn get_chunk(self: @InstancesState, slot: u32, chunk: u8) -> Chunk {
-        self.chunks.entry((slot, chunk)).read()
-    }
-
-    /// A revealed chunk's terrain alone, one slot: what a reveal reads of a neighbour.
+    /// A revealed chunk's terrain alone, one slot, through its packer: what a reveal and a view
+    /// read of a neighbour (its edges).
     #[inline(always)]
     fn get_terrain(self: @InstancesState, slot: u32, chunk: u8) -> Terrain {
-        self.chunks.entry((slot, chunk)).terrain.read()
+        self.chunks.entry((slot, chunk)).terrain.read().model()
     }
 
     /// A revealed chunk's two words as stored (a chunk never revealed is never read, §2.1): the
     /// view's.
+    #[inline(always)]
     fn get_chunk_words(self: @InstancesState, slot: u32, chunk: u8) -> (felt252, felt252) {
         let entry = self.chunks.entry((slot, chunk)).read();
-        (
-            StorePacking::<Terrain, felt252>::pack(entry.terrain),
-            StorePacking::<Features, felt252>::pack(entry.features),
-        )
+        (entry.terrain.word, entry.features.word)
     }
 
-    /// The reveal's two writes of a chunk.
+    /// The reveal's two writes of a chunk: its words as the reveal's library packed them.
     #[inline(always)]
-    fn set_chunk(ref self: InstancesState, slot: u32, chunk: u8, words: Chunk) {
-        self.chunks.entry((slot, chunk)).write(words)
+    fn set_chunk(ref self: InstancesState, slot: u32, chunk: u8, terrain: felt252, features: felt252) {
+        self.chunks.entry((slot, chunk)).write(Chunk { terrain: Stored { word: terrain }, features: Stored { word: features } })
     }
 
     // Members: `members[(slot, member)]`, eight slots (`StoredMember`)
