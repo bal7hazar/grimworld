@@ -114,8 +114,14 @@ describe("a portrait's cut (CLI-03l AC-3)", () => {
   }
 
   it("is nearest-neighbour at or above one device px per art px", () => {
-    expect(portraitCut({ w: 40, h: 50 }, 48, 1)).toEqual({ devicePx: { w: 38, h: 48 }, smooth: true });
-    expect(portraitCut({ w: 40, h: 48 }, 48, 1)).toEqual({ devicePx: { w: 40, h: 48 }, smooth: false });
+    expect(portraitCut({ w: 40, h: 50 }, 48, 1)).toEqual({
+      devicePx: { w: 38, h: 48 },
+      smooth: true,
+    });
+    expect(portraitCut({ w: 40, h: 48 }, 48, 1)).toEqual({
+      devicePx: { w: 40, h: 48 },
+      smooth: false,
+    });
     expect(portraitCut({ w: 40, h: 48 }, 96, 3).smooth).toBe(false);
   });
 });

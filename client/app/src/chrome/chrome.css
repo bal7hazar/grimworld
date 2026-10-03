@@ -347,6 +347,7 @@ button:focus-visible,
  */
 [data-hud="atlas"] .gw-bar {
   display: flex;
+  flex: 1 1 auto;
   box-sizing: border-box;
   height: var(--h);
   padding: var(--pad);

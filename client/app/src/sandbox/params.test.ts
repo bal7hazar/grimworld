@@ -90,9 +90,9 @@ describe("URL parameters", () => {
       { current: 0, max: 20 },
       0,
     ]);
-    const { health: _h, energy: _e, adrenaline: _a, ...rest } = low;
-    const { health: _h2, energy: _e2, adrenaline: _a2, ...base } = ADVENTURER;
-    expect(rest).toEqual(base);
+    const others = (sheet: typeof ADVENTURER) =>
+      Object.entries(sheet).filter(([key]) => !["health", "energy", "adrenaline"].includes(key));
+    expect(others(low)).toEqual(others(ADVENTURER));
     // The fixture itself is untouched: the placeholders stay what they are.
     expect([ADVENTURER.health.current, ADVENTURER.energy.current, ADVENTURER.adrenaline]).toEqual([
       160, 20, 0,

@@ -30,9 +30,10 @@ function fakeAtlas(names: readonly string[] = CHROME_ENTRIES) {
     const pressed = name.startsWith("button_") || name === "round_blue";
     const cell = name.startsWith("portrait_") ? { w: 197, h: 182 } : { w: 40 + x / 10, h: 30 };
     const ui: UiSlices = {
-      kind: /^(icon_|portrait_|cursor_|bar_.*_fill)/.test(name) || name === "round_blue"
-        ? "still"
-        : "nine",
+      kind:
+        /^(icon_|portrait_|cursor_|bar_.*_fill)/.test(name) || name === "round_blue"
+          ? "still"
+          : "nine",
       fill: "stretch",
       slice: [8, 8, 8, 8],
       content: [6, 6, 6, 6],
@@ -66,7 +67,8 @@ function fakeLoaders(json: Record<string, unknown>) {
     fetchJson: async (url) => (asked.push(url), json[url] ?? null),
     loadImage: async (url) => (asked.push(url), `image ${url}`),
     cut: async (_image, frame, size, smooth = false) => (
-      cuts.push({ frame, size, smooth }), `blob:${++n}`
+      cuts.push({ frame, size, smooth }),
+      `blob:${++n}`
     ),
     revoke: (url) => void revoked.push(url),
   };

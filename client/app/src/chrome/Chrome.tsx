@@ -352,7 +352,11 @@ export function Bar({
       aria-valuemax={max}
       aria-valuenow={Math.min(Math.max(current, 0), max)}
       className={classes("gw-bar", `gw-bar-${size}`, `gw-bar-${tone}`)}
-      style={atlas ? undefined : { ...PLAIN_BAR[size], boxSizing: "border-box", display: "flex" }}
+      style={
+        atlas
+          ? undefined
+          : { ...PLAIN_BAR[size], boxSizing: "border-box", display: "flex", flex: "1 1 auto" }
+      }
       data-bar={tone}
     >
       <div
