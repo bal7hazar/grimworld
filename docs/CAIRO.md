@@ -155,3 +155,4 @@ settled by task ARC-06, shown to the owner on one model before the code is rewor
 2. No free function without a written reason.
 3. Every tracked model emits on every write, and only tracked models emit.
 4. Names short and scoped; the design's words.
+
