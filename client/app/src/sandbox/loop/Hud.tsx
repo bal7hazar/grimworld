@@ -1,7 +1,7 @@
 import { type CSSProperties, memo, useRef } from "react";
 import { Bar, Icon, Panel, Portrait, useHudMode } from "../../chrome/Chrome";
 import { ADVENTURER, type AdventurerSheet } from "../fixtures/hubs";
-import { hudSheet, readHud } from "../params";
+import { hudSheet, readParams } from "../params";
 import { hudModel } from "./hud";
 
 let shown: AdventurerSheet | null = null;
@@ -12,7 +12,7 @@ let shown: AdventurerSheet | null = null;
  * changes while the page is open.
  */
 export function bandSheet(): AdventurerSheet {
-  shown ??= hudSheet(ADVENTURER, readHud(new URLSearchParams(window.location.search).get("hud")));
+  shown ??= hudSheet(ADVENTURER, readParams(window.location.search).hud);
   return shown;
 }
 
@@ -45,7 +45,14 @@ export const Hud = memo(function Hud({ sheet }: { sheet: AdventurerSheet }) {
         {model.meters.map((m) => (
           <div key={m.key} style={styles.meter}>
             <div style={styles.bar}>
-              <Bar size={m.size} tone={m.key} current={m.current} max={m.max} label={m.label} />
+              <Bar
+                size={m.size}
+                tone={m.key}
+                current={m.current}
+                max={m.max}
+                label={m.label}
+                aria={m.aria}
+              />
             </div>
             <span className="gw-hud-figure" style={styles.figure} data-figure={m.key}>
               <span aria-hidden>{m.glyph}</span> {m.text}
@@ -100,7 +107,7 @@ const styles: Record<string, CSSProperties> = {
   figure: {
     flex: "none",
     whiteSpace: "nowrap",
-    font: "600 0.8125rem/1rem system-ui",
+    font: "600 0.8125rem/1rem var(--gw-display)",
     fontVariantNumeric: "tabular-nums",
     color: "#fff",
   },

@@ -18,6 +18,7 @@
     "verify:hud": "node verify-hud.mjs"
   },
   "dependencies": {
+    "@fontsource/pixelify-sans": "5.3.0",
     "pixi.js": "8.21.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

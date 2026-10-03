@@ -186,6 +186,7 @@ ratio 2, and `hud-band-375x812@{1,3}x.png`, `hud-band-1440x900@1x.png`. What the
 5. **The cursors' CSS uses `!important`** inside its media query: the plain styles set `cursor`
    inline on buttons.
 6. Commit order: the cursors' CSS went in with the chrome's components (one file).
+7. AC-8's p95 judged on the median of three pairs.
 
 ## Escalations
 

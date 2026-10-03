@@ -72,7 +72,7 @@
   --img: var(--face);
   --floor: 44px;
   padding: var(--pad);
-  font: 700 1.166875rem/1.25rem system-ui;
+  font: 700 1.166875rem/1.25rem var(--gw-display);
   white-space: nowrap;
   /* At a larger text size a button keeps its label whole; its neighbours give way (rem text). */
   flex-shrink: 0;
@@ -114,7 +114,7 @@
   --pad: 0 var(--gw-paper-pad-x, 14px);
   --repeat: round;
   --drop: 0px;
-  font: 600 0.9375rem/1.25rem system-ui;
+  font: 600 0.9375rem/1.25rem var(--gw-display);
   color: #111;
   text-shadow: none;
 }
@@ -213,7 +213,7 @@
   --repeat: round stretch;
 }
 [data-chrome="atlas"] .gw-ribbon-big {
-  font: 700 1.166875rem/1.25rem system-ui;
+  font: 700 1.166875rem/1.25rem var(--gw-display);
   color: #fff;
   text-shadow:
     var(--gw-px) 0 #111,
@@ -248,7 +248,7 @@
   --pad: var(--gw-ribbon-small-yellow-pad);
   --h: var(--gw-ribbon-small-yellow-h);
   --repeat: stretch;
-  font: 600 0.9375rem/1.25rem system-ui;
+  font: 600 0.9375rem/1.25rem var(--gw-display);
   color: #111;
 }
 
