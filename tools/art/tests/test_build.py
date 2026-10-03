@@ -902,7 +902,6 @@ class Fingerprint(unittest.TestCase):
                              ["atlas-0.json", "atlas-0.png"])
 
 
-@unittest.skipIf(np is None, "needs the venv's NumPy and Pillow")
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
 class Interface(unittest.TestCase):
     """The interface's elements (CLI-03i), on synthetic sheets: no image of the pack."""
@@ -1076,6 +1075,7 @@ class Interface(unittest.TestCase):
             "[[ui]] c: a three-slice has left and right insets only"])
 
 
+@unittest.skipIf(np is None, "needs the venv's NumPy and Pillow")
 class StillsBesideStrips(unittest.TestCase):
     """CLI-03d, note 2 of the CLI-03c review: adding a still to the atlas leaves the strips' frames
     where they were. Synthetic images only (D-73): no byte of the pack, no hash is asserted.
