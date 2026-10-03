@@ -1,4 +1,4 @@
-import { type Container, Graphics, type Sprite } from "pixi.js";
+import { type Container, Graphics, type Sprite, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel, worldToScreen } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
@@ -11,7 +11,8 @@ import { SYNTHETIC_INDEX, syntheticSheet } from "../test/syntheticAtlas";
 import { WEDGE } from "./facing";
 import { DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
 import { drawOverlay, overlayPlan } from "./shapes";
-import { type SpriteLibrary, libraryFrom } from "./sprites";
+import type { FrameStats } from "./scheduler";
+import { type SpriteArt, type SpriteLibrary, libraryFrom } from "./sprites";
 import type { Facing, ViewState } from "./view";
 
 function setup(options: { idle: boolean; library?: SpriteLibrary | null; fixture?: string }) {
@@ -524,3 +525,116 @@ describe("the feet in their tile (CLI-03b)", () => {
     expect(node.body.position.y).toBe(0);
   });
 });
+
+describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
+  const zoneView = () => toView(initialState(fixtureNamed("zone")));
+
+  function mount(view: ViewState, onDraw?: (stats: FrameStats) => void) {
+    const host = new FakeHost(1000 / 120);
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, host, { idle: false, onDraw });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.setView(view);
+    host.run(100);
+    return { host, surface, renderer };
+  }
+
+  /** The chunks' textures, as their sizes (the ground's layer: the void's sprite apart). */
+  const textures = (surface: FakeSurface) =>
+    ((surface.stage.children[0] as Container).children[0] as Container).children
+      .slice(1)
+      .map((s) => `${(s as Sprite).texture.width}x${(s as Sprite).texture.height}`);
+
+  it("the same number and size of textures as the view without its ground", () => {
+    const view = zoneView();
+    expect(view.tiles.some((t) => t.ground === "water")).toBe(true);
+    const plain: ViewState = {
+      ...view,
+      tiles: view.tiles.map(({ x, y, kind }) => ({ x, y, kind })),
+      void: undefined,
+    };
+    const a = mount(view);
+    const b = mount(plain);
+    expect(a.surface.bakes).toHaveLength(6);
+    expect(textures(a.surface)).toEqual(textures(b.surface));
+    expect(a.surface.bakes).toEqual(b.surface.bakes);
+  });
+
+  it("rebakes a chunk when a tile's ground changes, and nothing for the same view", () => {
+    const view = zoneView();
+    const { host, surface, renderer } = mount(view);
+    expect(surface.bakes).toHaveLength(6);
+    renderer.setView({ ...view });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(6);
+    // A grass hex in the middle of chunk (0, 0) turns to earth: that chunk only.
+    const tiles = view.tiles.map((t) =>
+      t.x === 7 && t.y === 7 ? { ...t, ground: "earth" as const } : t,
+    );
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(7);
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(7);
+  });
+
+  it("rebakes a neighbouring chunk whose lip changes across the chunk's edge", () => {
+    const view = zoneView();
+    const { host, surface, renderer } = mount(view);
+    // (15, 7) is the first column of chunk (1, 0): turned to water, (14, 7)'s lip in chunk (0, 0)
+    // changes too.
+    const tiles = view.tiles.map((t) =>
+      t.x === 15 && t.y === 7 ? { ...t, kind: "wall" as const, ground: "water" as const } : t,
+    );
+    renderer.setView({ ...view, tiles });
+    host.run(100);
+    expect(surface.bakes).toHaveLength(8);
+  });
+
+  it("rebakes every chunk once when the library arrives, and draws its cells", async () => {
+    const stats: FrameStats[] = [];
+    const { host, surface, renderer } = mount(zoneView(), (s) => stats.push(s));
+    expect(stats.at(-1)?.ground).toBe("colours");
+    renderer.setLibrary(await groundLibrary());
+    host.run(1000);
+    expect(surface.bakes).toHaveLength(12);
+    expect(stats.at(-1)?.ground).toBe("atlas");
+    expect(stats.at(-1)?.bakeMs).not.toBeNull();
+    host.run(10_000);
+    expect(surface.bakes).toHaveLength(12);
+    expect(host.quiet()).toBe(true);
+  });
+
+  it("draws the void over what the frame shows, under the chunks; none without a void", () => {
+    const { surface, renderer } = mount(zoneView());
+    const ground = (surface.stage.children[0] as Container).children[0] as Container;
+    const backdrop = ground.children[0] as Sprite;
+    expect(backdrop.visible).toBe(true);
+    const { camera, viewport } = renderer.cameraState();
+    const b = backdrop.getBounds();
+    // In screen pixels: the sprite covers the viewport.
+    expect(b.minX).toBeLessThanOrEqual(0);
+    expect(b.minY).toBeLessThanOrEqual(0);
+    expect(b.maxX).toBeGreaterThanOrEqual(viewport.width);
+    expect(b.maxY).toBeGreaterThanOrEqual(viewport.height);
+    expect(camera.scale).toBeGreaterThan(0);
+    const cave = mount(toView(initialState(fixtureNamed("cave"))));
+    const caveGround = (cave.surface.stage.children[0] as Container).children[0] as Container;
+    expect(caveGround.children[0]!.visible).toBe(false);
+  });
+});
+
+/** A library with the ground's two cells (`grass_c`, `water_c`) on a plain-colour texture. */
+async function groundLibrary(): Promise<SpriteLibrary> {
+  const base = await syntheticLibrary();
+  const cell = (name: string): SpriteArt => ({
+    name,
+    role: "tile",
+    cell: { w: 64, h: 64 },
+    baseline: 0,
+    scale: 1,
+    animations: { still: { textures: [Texture.WHITE], fps: 1, loop: false } },
+  });
+  return new Map([...base, ["grass_c", cell("grass_c")], ["water_c", cell("water_c")]]);
+}
