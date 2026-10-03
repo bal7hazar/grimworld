@@ -1666,7 +1666,8 @@ inside 3,893,819 (D). Calls: `enter` 5 (the gate read by `Hub`, then the gate an
 `Instances.create`), `leave` 2 to a hub and 4 to a location: a gate names its location, so the two
 are read by two calls (D-148 (a)). The entry chunk's two keys move from `enter` to ENG-05's reveal.
 
-**Measured by ENG-05** (the chunk reveal; snforge M, each test less its baseline,
+**Measured by ENG-05** (the chunk reveal; **every rise of `enter` and `leave` below is the project
+manager's under D-144**, on the expedition's path; snforge M, each test less its baseline,
 `contracts/logic/tests/test_reveal_cost.cairo` and `contracts/ephemeral/tests/test_lifecycle.cairo`
 `test_cost_create_reveals`; the node's receipts, `lifecycle_probe.py`):
 
@@ -1677,7 +1678,11 @@ are read by two calls (D-148 (a)). The entry chunk's two keys move from `enter` 
 | Three chunks in one call, the worst content | **10,166,199** (3.39 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 546,150 | `test_cost_library_call` |
 | `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,173,078 · 7,212,546 · 10,907,216: each chunk after the first about **1.9–2.0 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node | NODE_ROWS | `lifecycle_probe.py` |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,742,400** (+2,800,000) | `lifecycle_probe.py` |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,012,400** (+3,524,000) | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,462,400** (+2,760,000) | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,036,640** (+3,764,000) | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,000,640** (+6,728,000) | idem |
 
 Where a reveal's cost goes (ENG-05's profile, the worst case): the board's steps 0.72 M
 (`keep_component` 0.37 M, smoothing 0.10 M, the openings' dilations 0.13 M), the sides' decisions
