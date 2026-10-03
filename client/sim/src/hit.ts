@@ -274,3 +274,4 @@ export function outcomeToFelts(outcome: HitOutcome): bigint[] {
   if (outcome.kind !== "Landed") return [variant];
   return [variant, outcome.damage, boolToFelt(outcome.critical), boolToFelt(outcome.halved)];
 }
+// fnd-18 verification
