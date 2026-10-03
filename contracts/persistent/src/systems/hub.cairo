@@ -200,7 +200,7 @@ pub mod Hub {
     use crate::events::{
         AdventurerLocated, DungeonCleared, RankReached, TitleDisplayed, TrialPassed,
     };
-    use crate::models::account::{Account, AccountAssert, OwnerTrait};
+    use crate::models::account::{AccountAssert, OwnerTrait, StoredAccount};
     use crate::models::adventurer::{
         Adventurer, AdventurerAssert, AdventurerTrait, BeltAssert, BeltTrait, BuildAssert,
         BuildTrait, EquippedAssert,
@@ -209,6 +209,7 @@ pub mod Hub {
     use crate::models::item::{
         Equipment, EquipmentTrait, Gold, GoldTrait, Grimoire, Item, RiftBoard,
     };
+    use crate::models::lanes::StoredLanes;
     use crate::models::rules_epoch::{RulesEpoch, RulesEpochTrait};
     use crate::models::snapshot::{StoredSnapshot, StoredSnapshotAssert, StoredSnapshotTrait};
     use crate::models::stored_build::StoredBuildTrait;
@@ -240,10 +241,10 @@ pub mod Hub {
         pub next_adventurer: Counter,
         pub next_item: Counter,
         pub account_of: Map<ContractAddress, u32>,
-        /// Two slots each: owner, record.
-        pub accounts: Map<u32, Account>,
-        /// `(account, page)`: its adventurer ids, seven per page.
-        pub account_adventurers: Map<(u32, u8), Lanes32>,
+        /// Two slots each: owner, record (`Account`'s, typed as stored).
+        pub accounts: Map<u32, StoredAccount>,
+        /// `(account, page)`: its adventurer ids, seven per page (a `Lanes32` as stored).
+        pub account_adventurers: Map<(u32, u8), StoredLanes>,
         /// Six slots each.
         pub adventurers: Map<u32, Adventurer>,
         /// `(adventurer, page)`: bit per skill id, 250 per page.
@@ -260,8 +261,8 @@ pub mod Hub {
         /// Two slots each, by entity id.
         pub items: Map<u32, Item>,
         /// `(adventurer, page)`: equipment entities in the pack, seven per page (design/15: 20
-        /// slots, +5 per bag).
-        pub packs: Map<(u32, u8), Lanes32>,
+        /// slots, +5 per bag; a `Lanes32` as stored).
+        pub packs: Map<(u32, u8), StoredLanes>,
         /// `(account, page)`: equipment entities in the vault, seven per page (25 per pane).
         pub vaults: Map<(u32, u8), Lanes32>,
         pub rift_boards: Map<u32, RiftBoard>,
