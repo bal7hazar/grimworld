@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { Button, IconButton, useChromeMode } from "../chrome/Chrome";
 import type { Intent } from "../input/intent";
 import type { ZoomSettings } from "../render/renderer";
 import { SCALE_MODES, readScaleMode } from "../render/scaling";
@@ -57,6 +58,7 @@ export function RoomSandbox({
   const host = useRef<HTMLDivElement>(null);
   const [controller, setController] = useState<SandboxController | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => readParams(window.location.search).panel);
+  const atlas = useChromeMode() === "atlas";
   const [info, setInfo] = useState<SandboxInfo | null>(null);
   const [walk, setWalk] = useState<WalkInfo | null>(null);
   const tileListener = useRef(onTile);
@@ -137,14 +139,18 @@ export function RoomSandbox({
     <div ref={root} style={styles.root}>
       <div ref={host} style={styles.canvas} />
       {controller && walk && !hub && <WalkCounter controller={controller} walk={walk} />}
-      <button
-        style={styles.centre}
+      <IconButton
+        glyph="◎"
+        label="Back to the adventurer"
+        plain={styles.centre}
+        plainText="◎"
+        style={styles.centrePlace}
         onClick={() => controller?.recentre()}
-        aria-label="Back to the adventurer"
+      />
+      <button
+        style={atlas ? { ...styles.toggle, ...styles.debugLook } : styles.toggle}
+        onClick={() => setPanelOpen((open) => !open)}
       >
-        ◎
-      </button>
-      <button style={styles.toggle} onClick={() => setPanelOpen((open) => !open)}>
         {panelOpen ? "× debug" : "debug"}
       </button>
       {panelOpen && controller && info && (
@@ -160,23 +166,33 @@ export function RoomSandbox({
  * steps left and their cost in ticks; a tap cancels. Under it, why the last walk stopped.
  */
 function WalkCounter({ controller, walk }: { controller: SandboxController; walk: WalkInfo }) {
+  const atlas = useChromeMode() === "atlas";
   if (walk.steps === 0 && !walk.stopped) return null;
+  const tag = atlas ? undefined : styles.stopped;
   return (
     <div style={styles.walk}>
       {walk.steps > 0 && (
-        <button
-          style={styles.counter}
+        <Button
+          variant="quiet"
+          plain={styles.counter}
+          style={{ pointerEvents: "auto" }}
           onClick={() => controller.cancelWalk()}
           aria-label="Cancel the planned path"
         >
           {walk.walking ? "▶" : "◌"} {walk.steps} {walk.steps === 1 ? "step" : "steps"} ·{" "}
           {walk.cost} {walk.cost === 1 ? "tick" : "ticks"} ✕
-        </button>
+        </Button>
       )}
       {walk.steps > 0 && !walk.walking && (
-        <div style={styles.stopped}>tap the tile again to walk</div>
+        <div className="gw-tag" style={tag}>
+          tap the tile again to walk
+        </div>
       )}
-      {walk.stopped && <div style={styles.stopped}>{walk.stopped}</div>}
+      {walk.stopped && (
+        <div className="gw-tag" style={tag}>
+          {walk.stopped}
+        </div>
+      )}
     </div>
   );
 }
@@ -191,10 +207,11 @@ function DebugPanel({
   /** The fixture can be changed (not in the loop's instance, whose world is the gate's). */
   fixtures: boolean;
 }) {
+  const atlas = useChromeMode() === "atlas";
   const zoom = info.zoom;
   const setZoom = (patch: Partial<ZoomSettings>) => controller.setZoom({ ...zoom, ...patch });
   return (
-    <div style={styles.panel}>
+    <div style={atlas ? { ...styles.panel, ...styles.debugFrame } : styles.panel}>
       {fixtures && (
         <label style={styles.row}>
           fixture{" "}
@@ -341,10 +358,8 @@ const styles: Record<string, CSSProperties> = {
   page: { position: "fixed", inset: 0 },
   root: { position: "absolute", inset: 0, overflow: "hidden", background: "#0b0b0e" },
   canvas: { position: "absolute", inset: 0, touchAction: "none" },
+  centrePlace: { position: "absolute", right: 16, bottom: 16 },
   centre: {
-    position: "absolute",
-    right: 16,
-    bottom: 16,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -352,20 +367,33 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "rgba(255,255,255,0.85)",
   },
+  /** The debug toggle: today's look, at least 44 px tall (design/11 I-6; CLI-03i). */
   toggle: {
     position: "absolute",
     left: 8,
     top: 8,
+    minHeight: 44,
     font: "12px system-ui",
     padding: "4px 8px",
     border: "none",
     borderRadius: 4,
     background: "rgba(255,255,255,0.75)",
   },
+  /**
+   * With the pack's chrome, the debug controls say they are not game controls: red, dashed, never
+   * the pack's look (CLI-03i *What stays plain*).
+   */
+  debugLook: {
+    background: "rgba(80,0,0,0.75)",
+    color: "#ffb4b4",
+    border: "1px dashed #ff6b6b",
+    font: "12px ui-monospace, monospace",
+  },
+  debugFrame: { border: "1px dashed #ff6b6b" },
   panel: {
     position: "absolute",
     left: 8,
-    top: 36,
+    top: 60,
     width: 260,
     maxHeight: "70vh",
     overflowY: "auto",

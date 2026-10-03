@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Button, IconButton, Panel, Ribbon, Text } from "../../chrome/Chrome";
 import type { LoopIntent, ServiceId } from "../../input/intent";
 import { targetLabel } from "../../render/hubView";
 import { ADVENTURER, REPORT_FIGURES, type AdventurerSheet } from "../fixtures/hubs";
@@ -19,22 +20,33 @@ const SERVICE_CONTENT: Readonly<Record<ServiceId, string>> = {
   vault: "Shared storage; move to and from the pack.",
 };
 
-function Header({ title, dispatch }: { title: string; dispatch?: Dispatch }) {
+/** A screen's header: the back, and the title on a big ribbon (blue, red for a defeat). */
+function Header({
+  title,
+  dispatch,
+  colour = "blue",
+}: {
+  title: string;
+  dispatch?: Dispatch;
+  colour?: "blue" | "red";
+}) {
   return (
     <header style={ui.header}>
       {dispatch ? (
-        <button
-          style={{ ...ui.button, ...ui.quiet }}
+        <IconButton
+          icon="back"
+          label="Back"
+          plain={{ ...ui.button, ...ui.quiet }}
+          plainText="‹ Back"
           onClick={() => dispatch({ kind: "back" })}
-          aria-label="Back"
-        >
-          ‹ Back
-        </button>
+        />
       ) : (
-        <span />
+        <span className="gw-header-side" />
       )}
-      <span style={ui.title}>{title}</span>
-      <span style={{ minWidth: 44 }} />
+      <Ribbon colour={colour} size="big" plain={ui.title}>
+        {title}
+      </Ribbon>
+      <span className="gw-header-side" style={{ minWidth: 44 }} />
     </header>
   );
 }
@@ -55,7 +67,9 @@ export function ServiceScreen({
       <Header title={title} dispatch={dispatch} />
       <div style={ui.body}>
         <p style={ui.muted}>{hubName(hub)}</p>
-        <div style={ui.card}>{SERVICE_CONTENT[service]}</div>
+        <Panel variant="paper" plain={ui.card}>
+          {SERVICE_CONTENT[service]}
+        </Panel>
         <p style={ui.muted}>A stub: the real screen comes with CLI-06 and CLI-07.</p>
       </div>
     </div>
@@ -67,23 +81,33 @@ export function SheetSummary({ sheet = ADVENTURER }: { sheet?: AdventurerSheet }
   return (
     <>
       <div style={ui.section}>
-        <div style={ui.label}>Adventurer</div>
+        <Text tone="caption" plain={ui.label}>
+          Adventurer
+        </Text>
         <div>
           <b>{sheet.name}</b> · {sheet.profession}, level {sheet.level}
         </div>
       </div>
       <div style={ui.section}>
-        <div style={ui.label}>Skill bar</div>
+        <Text tone="caption" plain={ui.label}>
+          Skill bar
+        </Text>
         <ol style={ui.list}>
-          {sheet.bar.map((skill, i) => (
-            <li key={i} style={skill ? undefined : ui.muted}>
-              {skill ?? "empty"}
-            </li>
-          ))}
+          {sheet.bar.map((skill, i) =>
+            skill ? (
+              <li key={i}>{skill}</li>
+            ) : (
+              <Text key={i} as="li" tone="muted" plain={ui.muted}>
+                empty
+              </Text>
+            ),
+          )}
         </ol>
       </div>
       <div style={ui.section}>
-        <div style={ui.label}>Attributes</div>
+        <Text tone="caption" plain={ui.label}>
+          Attributes
+        </Text>
         {sheet.attributes.map(([name, value]) => (
           <div key={name} style={ui.row}>
             <span>{name}</span>
@@ -92,7 +116,9 @@ export function SheetSummary({ sheet = ADVENTURER }: { sheet?: AdventurerSheet }
         ))}
       </div>
       <div style={ui.section}>
-        <div style={ui.label}>Belt</div>
+        <Text tone="caption" plain={ui.label}>
+          Belt
+        </Text>
         {sheet.belt.map(([name, count]) => (
           <div key={name} style={ui.row}>
             <span>{name}</span>
@@ -115,27 +141,34 @@ export function GateScreen({ hub, dispatch }: { hub: number; dispatch: Dispatch 
       <Header title={`Gate · ${hubName(hub)}`} dispatch={dispatch} />
       <div style={ui.body}>
         <div style={ui.section}>
-          <div style={ui.label}>Where the gates lead</div>
+          <Text tone="caption" plain={ui.label}>
+            Where the gates lead
+          </Text>
           {gates.map((gate) => (
-            <div key={gate.id} style={{ ...ui.card, ...ui.row }} data-gate={gate.id}>
+            <Panel key={gate.id} variant="paper" plain={ui.card} style={ui.row} data-gate={gate.id}>
               <span>
                 Gate {gate.id} → {locationName(gate.destination)}
               </span>
-              <button
-                style={{ ...ui.button, ...ui.primary }}
+              <Button
+                variant="action"
+                plain={{ ...ui.button, ...ui.primary }}
                 onClick={() => dispatch({ kind: "enter gate", gate: gate.id })}
                 aria-label={`Leave by gate ${gate.id}`}
               >
                 Leave ▸
-              </button>
-            </div>
+              </Button>
+            </Panel>
           ))}
         </div>
-        <SheetSummary />
-        <div style={{ ...ui.card, borderColor: "#6b5a2a" }} role="note">
-          <div style={ui.label}>Before leaving</div>
+        <Panel variant="paper" className="gw-sheet">
+          <SheetSummary />
+        </Panel>
+        <Panel variant="dark" plain={{ ...ui.card, borderColor: "#6b5a2a" }} role="note">
+          <Text tone="caption" plain={ui.label}>
+            Before leaving
+          </Text>
           This bar has {ADVENTURER.cannot.join(", ")}. A reminder, not a block.
-        </div>
+        </Panel>
       </div>
     </div>
   );
@@ -163,16 +196,25 @@ export function EntryScreen({
   }, [answer, entryMs]);
   return (
     <div style={{ ...ui.screen, justifyContent: "center", alignItems: "center", gap: 20 }}>
-      <div data-screen="entry" style={{ textAlign: "center", padding: 24 }}>
+      <Panel
+        variant="scroll"
+        data-screen="entry"
+        className="gw-entry"
+        plain={{ padding: 24 }}
+        style={{ textAlign: "center" }}
+      >
         <div style={ui.title}>Through the gate</div>
-        <p style={ui.muted}>to {destination}</p>
-      </div>
-      <button
-        style={{ ...ui.button, ...ui.quiet }}
+        <Text as="p" tone="muted" plain={ui.muted}>
+          to {destination}
+        </Text>
+      </Panel>
+      <Button
+        variant="quiet"
+        plain={{ ...ui.button, ...ui.quiet }}
         onClick={() => dispatch({ kind: "skip entry" })}
       >
         Skip ▸
-      </button>
+      </Button>
     </div>
   );
 }
@@ -197,47 +239,61 @@ export function ReportScreen({
     how === "gate" ? "through the gate" : how === "travel back" ? "travelled back" : "health at 0";
   return (
     <div style={ui.screen} data-screen="report" data-outcome={outcome}>
-      <Header title={outcome === "returned" ? "Returned" : "Defeated"} />
+      <Header
+        title={outcome === "returned" ? "Returned" : "Defeated"}
+        colour={outcome === "returned" ? "blue" : "red"}
+      />
       <div style={ui.body}>
         <p style={ui.muted}>
           {outcome === "returned" ? "Back" : "Carried back"} to {hubName(hub)}, {by}. Everything
           earned is kept.
         </p>
-        <div style={ui.card}>
-          <div style={ui.label}>Experience</div>+{figures.experience}
-        </div>
-        <div style={ui.card}>
-          <div style={ui.label}>Loot</div>
+        <Panel variant="paper" plain={ui.card}>
+          <Text tone="caption" plain={ui.label}>
+            Experience
+          </Text>
+          +{figures.experience}
+        </Panel>
+        <Panel variant="paper" plain={ui.card}>
+          <Text tone="caption" plain={ui.label}>
+            Loot
+          </Text>
           <ul style={ui.list}>
             {figures.loot.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-        </div>
-        <div style={ui.card}>
-          <div style={ui.label}>Quest progress</div>
+        </Panel>
+        <Panel variant="paper" plain={ui.card}>
+          <Text tone="caption" plain={ui.label}>
+            Quest progress
+          </Text>
           <ul style={ui.list}>
             {figures.quests.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-        </div>
-        <div style={ui.card}>
-          <div style={ui.label}>Belt</div>
+        </Panel>
+        <Panel variant="paper" plain={ui.card}>
+          <Text tone="caption" plain={ui.label}>
+            Belt
+          </Text>
           <ul style={ui.list}>
             {figures.beltBack.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-        </div>
+        </Panel>
       </div>
       <div style={{ padding: 12 }}>
-        <button
-          style={{ ...ui.button, ...ui.primary, width: "100%" }}
+        <Button
+          variant="action"
+          plain={{ ...ui.button, ...ui.primary }}
+          style={{ width: "100%" }}
           onClick={() => dispatch({ kind: "close report" })}
         >
           On to {hubName(hub)} ▸
-        </button>
+        </Button>
       </div>
     </div>
   );

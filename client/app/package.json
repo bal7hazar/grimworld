@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "verify:hubs": "node verify-hubs.mjs",
-    "verify:ground": "node verify-ground.mjs"
+    "verify:ground": "node verify-ground.mjs",
+    "verify:chrome": "node verify-chrome.mjs"
   },
   "dependencies": {
     "pixi.js": "8.21.0",

@@ -13,6 +13,7 @@ atlas_max = 2048       # page side, at most
 atlas_padding = 2      # transparent gutter between packed frames
 resample = "area"      # for a height in px, "area", "area-blend" or "nearest" (artpipe/scale.py); --resample=… overrides
 palette_max = 64       # "area" snaps colours to the source's palette when it has at most this many
+ui_edge = 0.15         # a stretched `[[ui]]` edge: at most this share of a row or column differs (artpipe/ui.py)
 
 # The height of every sprite, one line each (ART-02; D-146 as corrected by the owner, 2026-09-29:
 # the final sizes are the owner's eye on CLI-03a's sandbox, which scales per caste at display time).
@@ -554,3 +555,156 @@ file = "Terrain/Tileset/Water Foam.png"
 origin = "Water foam, first frame"
 cell = 192
 cells = { c = [0, 0] }
+
+# ---------------------------------------------------------------- interface (CLI-03i)
+# The client's chrome, from the pack's `UI Elements` (artpipe/ui.py; README *UI elements*). Packed
+# on their own page(s), `atlas-ui-N`, which the map never loads. `kind`: "nine" (a nine-slice),
+# "three" (a horizontal three-slice) or "still" (one image). `pieces`: the lattice of the sheet,
+# source bounds in px (3 columns; 3 rows, or the 1 row of a multi-row sheet); the pieces are
+# composed contiguous, the transparent outer margin trimmed (recorded as `outset`). `states`: a
+# pressed sheet of the same layout, its face `drop` px lower. `slice` and `content` are
+# [top, right, bottom, left] in art px of the trimmed image: the parts kept unscaled at the edges,
+# and where text may sit. `fill`: the middle parts "stretch", or repeat ("round") where the art is
+# textured. The build refuses a stretched edge that is not uniform (settings `ui_edge`).
+
+[[ui]]
+name = "paper"
+role = "ui"
+kind = "nine"
+fill = "round"
+file = "UI Elements/UI Elements/Papers/RegularPaper.png"
+origin = "Regular paper"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64], [128, 192], [256, 320]] }
+slice = [47, 55, 48, 55]
+content = [24, 24, 24, 24]
+
+[[ui]]
+name = "paper_dark"
+role = "ui"
+kind = "nine"
+fill = "round"
+file = "UI Elements/UI Elements/Papers/SpecialPaper.png"
+origin = "Special paper"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64], [128, 192], [256, 320]] }
+slice = [44, 55, 43, 55]
+content = [24, 24, 24, 24]
+
+[[ui]]
+name = "scroll"
+role = "ui"
+kind = "nine"
+fill = "round"
+file = "UI Elements/UI Elements/Banners/Banner.png"
+origin = "Banner (the scroll)"
+pieces = { columns = [[0, 128], [192, 256], [320, 448]], rows = [[0, 128], [192, 256], [320, 448]] }
+slice = [68, 84, 111, 100]
+content = [28, 40, 56, 44]
+
+[[ui]]
+name = "wood"
+role = "ui"
+kind = "nine"
+fill = "round"
+file = "UI Elements/UI Elements/Wood Table/WoodTable.png"
+origin = "Wood table"
+pieces = { columns = [[0, 128], [192, 256], [320, 448]], rows = [[0, 128], [192, 256], [320, 448]] }
+slice = [42, 30, 58, 30]
+content = [22, 30, 20, 30]
+
+[[ui]]
+name = "button_blue"
+role = "ui"
+kind = "nine"
+fill = "stretch"
+file = "UI Elements/UI Elements/Buttons/BigBlueButton_Regular.png"
+states = { pressed = "UI Elements/UI Elements/Buttons/BigBlueButton_Pressed.png" }
+drop = 11
+origin = "Big blue button, regular and pressed"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64], [128, 192], [256, 320]] }
+slice = [34, 20, 20, 18]
+content = [16, 24, 32, 24]
+
+[[ui]]
+name = "button_red"
+role = "ui"
+kind = "nine"
+fill = "stretch"
+file = "UI Elements/UI Elements/Buttons/BigRedButton_Regular.png"
+states = { pressed = "UI Elements/UI Elements/Buttons/BigRedButton_Pressed.png" }
+drop = 11
+origin = "Big red button, regular and pressed"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64], [128, 192], [256, 320]] }
+slice = [34, 20, 20, 18]
+content = [16, 24, 32, 24]
+
+[[ui]]
+name = "ribbon_big_blue"
+role = "ui"
+kind = "three"
+fill = "round"
+file = "UI Elements/UI Elements/Ribbons/BigRibbons.png"
+origin = "Big ribbons, blue row"
+pieces = { columns = [[0, 128], [192, 256], [320, 448]], rows = [[0, 128]] }
+slice = [0, 97, 0, 98]
+content = [12, 64, 30, 64]
+
+[[ui]]
+name = "ribbon_big_red"
+role = "ui"
+kind = "three"
+fill = "round"
+file = "UI Elements/UI Elements/Ribbons/BigRibbons.png"
+origin = "Big ribbons, red row"
+pieces = { columns = [[0, 128], [192, 256], [320, 448]], rows = [[128, 256]] }
+slice = [0, 97, 0, 98]
+content = [12, 64, 30, 64]
+
+[[ui]]
+name = "ribbon_small_yellow"
+role = "ui"
+kind = "three"
+fill = "stretch"
+file = "UI Elements/UI Elements/Ribbons/SmallRibbons.png"
+origin = "Small ribbons, yellow, forked tails"
+pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[256, 320]] }
+slice = [0, 42, 0, 42]
+content = [6, 30, 14, 30]
+
+[[ui]]
+name = "round_blue"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Buttons/SmallBlueRoundButton_Regular.png"
+states = { pressed = "UI Elements/UI Elements/Buttons/SmallBlueRoundButton_Pressed.png" }
+drop = 11
+origin = "Small blue round button, regular and pressed"
+
+[[ui]]
+name = "square_blue"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png"
+states = { pressed = "UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Pressed.png" }
+drop = 11
+origin = "Small blue square button, regular and pressed"
+
+[[ui]]
+name = "icon_back"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Icons/Icon_08.png"
+origin = "Icon 08, the orange back arrow"
+
+[[ui]]
+name = "icon_close"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Icons/Icon_09.png"
+origin = "Icon 09, the red cross"
+
+[[ui]]
+name = "icon_gold"
+role = "ui"
+kind = "still"
+file = "UI Elements/UI Elements/Icons/Icon_03.png"
+origin = "Icon 03, the gold coin"

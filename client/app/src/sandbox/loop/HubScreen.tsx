@@ -1,4 +1,5 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { Button, Icon, IconButton, Panel, Ribbon } from "../../chrome/Chrome";
 import { targetIntent } from "../../input/hubTaps";
 import type { Intent, LoopIntent } from "../../input/intent";
 import { type HubView, targetLabel } from "../../render/hubView";
@@ -63,7 +64,7 @@ export function HubScreen({
     [doors, onMoved],
   );
 
-  const labels = useRef(new Map<string, HTMLDivElement>());
+  const labels = useRef(new Map<string, HTMLElement>());
   const place = useCallback(
     (controller: SandboxController) => {
       const scale = controller.scale();
@@ -84,52 +85,73 @@ export function HubScreen({
   return (
     <div style={ui.screen} data-screen="hub" data-hub={view.name}>
       <header style={ui.header}>
-        <span style={ui.title}>{view.name}</span>
-        <span style={ui.gold}>gold {view.gold.toLocaleString("en-GB").replace(",", " ")}</span>
+        <Ribbon colour="blue" size="big" plain={ui.title}>
+          {view.name}
+        </Ribbon>
+        <span style={ui.gold}>
+          <Icon name="gold" text="gold" /> {view.gold.toLocaleString("en-GB").replace(",", " ")}
+        </span>
       </header>
       <div style={styles.map}>
         <RoomSandbox world={world} route={route} onTile={moved} onFrame={place}>
           {view.places.map((p) => (
-            <div
+            <Ribbon
               key={p.id}
-              ref={(element) => {
+              as="div"
+              colour="yellow"
+              size="small"
+              ref={(element: HTMLElement | null) => {
                 if (element) labels.current.set(p.id, element);
                 else labels.current.delete(p.id);
               }}
-              style={styles.label}
+              plain={styles.label}
+              style={styles.labelPlace}
               data-label={p.label}
             >
               {p.label}
-            </div>
+            </Ribbon>
           ))}
           {figure && (
-            <div style={styles.inspect} role="dialog" aria-label="Adventurer">
+            <Panel
+              variant="scroll"
+              plain={styles.inspect}
+              style={styles.inspectPlace}
+              role="dialog"
+              aria-label="Adventurer"
+            >
               <span>
                 <b>{figure.name}</b> · {figure.profession}, level {figure.level}
               </span>
-              <button
-                style={{ ...ui.button, ...ui.quiet }}
+              <IconButton
+                icon="close"
+                label="Close"
+                plain={{ ...ui.button, ...ui.quiet }}
+                plainText="✕"
                 onClick={() => dispatch({ kind: "back" })}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
+              />
+            </Panel>
           )}
         </RoomSandbox>
       </div>
-      <nav style={ui.grid} aria-label="Services">
+      <Panel
+        variant="wood"
+        as="nav"
+        className="gw-service-row"
+        plain={ui.grid}
+        aria-label="Services"
+      >
         {view.services.map((target) => (
-          <button
+          <Button
             key={targetLabel(target)}
-            style={{ ...ui.button, ...(target.kind === "gate" ? ui.primary : {}) }}
+            variant={target.kind === "gate" ? "commit" : "action"}
+            plain={{ ...ui.button, ...(target.kind === "gate" ? ui.primary : {}) }}
             onClick={() => dispatch(targetIntent(target))}
           >
             {targetLabel(target)}
             {target.kind === "gate" ? " ▸" : ""}
-          </button>
+          </Button>
         ))}
-      </nav>
+      </Panel>
     </div>
   );
 }
@@ -137,14 +159,18 @@ export function HubScreen({
 const styles: Record<string, CSSProperties> = {
   map: { position: "relative", flex: 1, minHeight: 0, overflow: "hidden" },
   /**
-   * A place's name on a plain plate over its building (CLI-03e §6), placed after each frame from
-   * the camera. It takes no tap: a tap on it reaches the map under it.
+   * A place's name over its building (CLI-03e §6; on a small yellow ribbon with the art, CLI-03i),
+   * placed after each frame from the camera. It takes no tap: a tap on it reaches the map under it.
    */
-  label: {
+  labelPlace: {
     position: "absolute",
     left: 0,
     top: 0,
     visibility: "hidden",
+    pointerEvents: "none",
+  },
+  /** Its plate without the art. */
+  label: {
     padding: "1px 8px",
     borderRadius: 6,
     font: "600 15px system-ui",
@@ -153,9 +179,8 @@ const styles: Record<string, CSSProperties> = {
     color: "#fff",
     background: "rgba(20,20,26,0.82)",
     border: "1px solid rgba(255,255,255,0.18)",
-    pointerEvents: "none",
   },
-  inspect: {
+  inspectPlace: {
     position: "absolute",
     left: 8,
     right: 72,
@@ -164,6 +189,8 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
+  },
+  inspect: {
     padding: "4px 12px",
     borderRadius: 8,
     background: "rgba(27,27,34,0.94)",
