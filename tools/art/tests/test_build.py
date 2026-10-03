@@ -1024,8 +1024,8 @@ class Interface(unittest.TestCase):
         self.assertEqual(sprite["ui"]["slice"], [0, 0, 0, 0])
         self.assertEqual(sprite["ui"]["outset"], [4, 3, 4, 3])
 
-    def test_a_still_with_a_margin_is_trimmed_and_records_it(self):
-        """CLI-03l: a cursor or a portrait loses its transparent margin; one without keeps its size."""
+    def test_a_still_without_a_margin_keeps_its_size(self):
+        """CLI-03l: a still without a transparent margin keeps its size and records an outset of zero."""
         full = np.full((12, 10, 4), (30, 40, 50, 255), np.uint8)
         e = {"name": "icon", "role": "ui", "kind": "still", "file": "i.png", "origin": "x"}
         sprite, _ = ui.element(e, lambda f: full, 0.15)

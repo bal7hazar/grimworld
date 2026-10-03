@@ -241,13 +241,13 @@ export const HUB_VIEWS: ReadonlyMap<number, HubView> = new Map([
 /** The names `?hub=` takes. */
 export const HUB_NAMES: Readonly<Record<string, number>> = { town: TOWN, outpost: OUTPOST };
 
-/** The player's adventurer, as the Gate screen and the desktop's left panel show it. */
 /** A figure and its maximum (CLI-03l): health, energy. */
 export interface Gauge {
   readonly current: number;
   readonly max: number;
 }
 
+/** The player's adventurer, as the Gate screen and the desktop's left panel show it. */
 export interface AdventurerSheet {
   readonly name: string;
   readonly profession: Profession;

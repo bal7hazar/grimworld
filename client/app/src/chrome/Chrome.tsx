@@ -14,6 +14,7 @@ import {
 } from "react";
 import type { Profession } from "../render/view";
 import "./chrome.css";
+import "./fonts.css";
 import {
   type ChromeImages,
   ChromeSession,
@@ -322,12 +323,19 @@ export function Bar({
   current,
   max,
   label,
+  aria,
 }: {
   size: "big" | "small";
   tone: "health" | "energy";
   current: number;
   max: number;
   label: string;
+  /** The meter's value attributes (the HUD model's), what the rendered `role="meter"` carries. */
+  aria: {
+    readonly "aria-valuemin": number;
+    readonly "aria-valuemax": number;
+    readonly "aria-valuenow": number;
+  };
 }) {
   const { images, dpr } = useContext(HudArt);
   const atlas = images !== null;
@@ -348,9 +356,7 @@ export function Bar({
     <div
       role="meter"
       aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-valuenow={Math.min(Math.max(current, 0), max)}
+      {...aria}
       className={classes("gw-bar", `gw-bar-${size}`, `gw-bar-${tone}`)}
       style={
         atlas
