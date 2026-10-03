@@ -25,57 +25,65 @@ if command -v flock > /dev/null 2>&1; then have_flock=1; fi
 root=$(git rev-parse --show-toplevel) || exit 2
 cd "$root" || exit 2
 
-# compute_changed: sets `base` (what the push is measured against, empty when origin/main cannot be
-# resolved) and `changed`. FND-21: the files the push brings (@{upstream}..HEAD, or all of the branch
-# when there is no upstream) that ALSO differ from main (origin/main...HEAD, the branch's own changes
-# against its merge base with main), plus the working tree. A file that main brought in through a merge
-# and the branch did not change is not in the set. Origin/main unresolved: no base, every check runs.
+# compute_changed: sets `base` (what the push is measured against, empty when every check must run) and
+# `changed`. FND-21: the files the push brings (@{upstream}..HEAD, or all of the branch when there is no
+# upstream) that ALSO differ from main (origin/main...HEAD, the branch's own changes against its merge
+# base with main), plus the working tree. A file that main brought in through a merge and the branch did
+# not change is not in the set; nor is a file the push reverted to main's content (it equals main).
+# Origin/main unresolved, or with no merge base with HEAD (an orphan branch): no base, every check runs.
 compute_changed() {
   local main up pushed own
   main=$(git rev-parse --verify -q origin/main 2> /dev/null || true)
   up=$(git rev-parse --verify -q '@{upstream}' 2> /dev/null || true)
   base=
-  own=
-  if [ -n "$main" ]; then
+  pushed=
+  if [ -n "$main" ] && git merge-base "$main" HEAD > /dev/null 2>&1; then
     base=$(git merge-base "${up:-$main}" HEAD 2> /dev/null || echo "${up:-$main}")
-    own=$(git diff --no-renames --name-only "$main"...HEAD 2> /dev/null || true)
+    own=$(git diff --no-renames --name-only "$main"...HEAD)
     pushed=$(git diff --no-renames --name-only "$base" HEAD)
     # the pushed files that are also the branch's own
-    pushed=$(comm -12 <(sort -u <<< "$pushed") <(sort -u <<< "$own"))
-  else
-    pushed=
+    pushed=$(LC_ALL=C comm -12 <(LC_ALL=C sort -u <<< "$pushed") <(LC_ALL=C sort -u <<< "$own"))
   fi
   changed=$(
     {
       printf '%s\n' "$pushed"
       git diff --no-renames --name-only HEAD
       git ls-files --others --exclude-standard
-    } | grep . | sort -u || true
+    } | grep . | LC_ALL=C sort -u || true
   )
 }
 
 # --self-test (FND-21): scratch repositories with main moving under a branch that merges it. The git
-# environment is sanitised as above, each repository lives in its own temporary directory.
+# environment is sanitised as above, each repository lives in its own temporary directory. A wrong
+# result ends the subshell (set -e, which only holds because its status is read with $?, not ||).
 self_test() {
-  local work rc=0
+  local work rc
   work=$(mktemp -d) || exit 2
   g() { git -c user.name=t -c user.email=t@t "$@"; }
   expect() { # <label> <expected files, space separated>
-    local got
-    got=$(tr '\n' ' ' <<< "$changed")
-    if [ "$got" != "$2 " ] && [ "$got" != "$2" ]; then
-      echo "self-test FAILED: $1: expected [$2], got [$got]" >&2
-      rc=1
-    else
-      echo "self-test ok: $1"
+    local got want
+    got=$(tr '\n' ' ' <<< "$changed" | sed 's/ *$//')
+    want=$(tr ' ' '\n' <<< "$2" | grep . | LC_ALL=C sort | tr '\n' ' ' | sed 's/ *$//' || true)
+    if [ "$got" != "$want" ]; then
+      echo "self-test FAILED: $1: expected [$want], got [$got]" >&2
+      return 1
     fi
+    echo "self-test ok: $1"
+  }
+  expect_no_base() { # <label>
+    if [ -n "$base" ]; then
+      echo "self-test FAILED: $1: expected no base, got $base" >&2
+      return 1
+    fi
+    echo "self-test ok: $1 (no base: every check runs)"
   }
   (
     set -e
     git init -q --bare "$work/remote.git"
     git init -q -b main "$work/r"
     cd "$work/r"
-    echo a > a.txt; echo b > b.txt; g add -A; g commit -q -m base
+    for f in a b c d e; do echo "$f" > "$f.txt"; done
+    g add -A; g commit -q -m base
     git remote add origin "$work/remote.git"
     git push -q origin main; git fetch -q origin
     g checkout -q -b feature
@@ -88,14 +96,34 @@ self_test() {
     g checkout -q feature; g merge -q --no-edit origin/main
     echo doc > doc.md; g add -A; g commit -q -m doc
     compute_changed; expect "upstream set, main merged" "doc.md own2.txt"
+    # an upstream ahead of HEAD: nothing to push
+    g checkout -q -b ahead; echo x > ahead.txt; g add -A; g commit -q -m ahead
+    git push -q origin ahead; g checkout -q feature; git branch -q -D ahead; git fetch -q origin
+    git branch -q -u origin/ahead
+    compute_changed; expect "upstream ahead of HEAD" ""
     git branch -q --unset-upstream
     compute_changed; expect "no upstream: all of the branch's own files" "doc.md own1.txt own2.txt"
+    echo a3 > a.txt; g commit -q -am "a again"
+    compute_changed; expect "a file main and the branch both changed" "a.txt doc.md own1.txt own2.txt"
+    echo x > c.txt; g commit -q -am "c"; echo c > c.txt; g commit -q -am "c reverted"
+    compute_changed; expect "a revert to main's content is left out" "a.txt doc.md own1.txt own2.txt"
+    g rm -q d.txt; g commit -q -m "rm d"
+    compute_changed; expect "a deleted file" "a.txt d.txt doc.md own1.txt own2.txt"
+    g mv e.txt e2.txt; g commit -q -m "mv e"
+    compute_changed; expect "a rename counts as a delete and an add" "a.txt d.txt doc.md e.txt e2.txt own1.txt own2.txt"
+    g checkout -q --detach
+    compute_changed; expect "detached HEAD" "a.txt d.txt doc.md e.txt e2.txt own1.txt own2.txt"
+    g checkout -q feature
     echo dirty >> own1.txt; echo new > untracked.txt
-    compute_changed; expect "working tree added" "doc.md own1.txt own2.txt untracked.txt"
+    compute_changed; expect "working tree added" "a.txt d.txt doc.md e.txt e2.txt own1.txt own2.txt untracked.txt"
+    g stash -q -u
+    g checkout -q --orphan orph; g rm -rfq .; echo o > o.txt; g add -A; g commit -q -m orphan
+    compute_changed; expect_no_base "orphan branch"
+    g checkout -q feature
     git remote remove origin
-    compute_changed; [ -z "$base" ] && echo "self-test ok: no origin/main: no base (every check runs)" \
-      || { echo "self-test FAILED: no origin/main kept a base" >&2; exit 1; }
-  ) || rc=1
+    compute_changed; expect_no_base "no origin/main"
+  )
+  rc=$?
   rm -rf "$work"
   exit "$rc"
 }

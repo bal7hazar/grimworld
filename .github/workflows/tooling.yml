@@ -102,6 +102,11 @@ jobs:
             python3 scripts/gas_budgets.py --self-test
           dsnap > "$work/decoy-after"; diff "$work/decoy-before" "$work/decoy-after"
 
+      # FND-21: the pre-push check's changed set after a merge of main (scratch repositories).
+      - name: prepush changed-set self-test
+        if: steps.changes.outputs.tooling == 'true'
+        run: scripts/prepush.sh --self-test
+
       - name: launcher dry-run
         if: steps.changes.outputs.tooling == 'true'
         run: |
