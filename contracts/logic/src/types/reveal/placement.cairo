@@ -38,6 +38,8 @@ use super::{Progress, Site, SiteTrait};
 pub const QUOTAS: u8 = 14;
 /// The location's quotas come first.
 pub const LOCATION_QUOTAS: u8 = 6;
+/// Draws of a tile by rejection before the exact draw (`PlacementTrait::tile`).
+pub const TRIES: u8 = 16;
 
 /// What a reveal places in a chunk, built in order.
 #[derive(Drop)]
@@ -191,23 +193,40 @@ pub impl PlacementImpl of PlacementTrait {
         held.try_into().unwrap()
     }
 
-    /// One tile drawn among those allowed, then taken.
+    /// One tile drawn among those allowed, then taken: a tile of the chunk drawn uniformly and
+    /// kept if allowed, up to `TRIES` draws; then, if none was, the `n`-th allowed tile, `n` drawn
+    /// (the exact draw, dearer: `count` and `nth`). Uniform over the allowed tiles either way.
     fn tile(ref self: Placement, ref rng: Rng) -> Option<u8> {
-        let count = BoardTrait::count(self.allowed);
-        if count == 0 {
+        if self.allowed == 0 {
             return Option::None;
         }
-        let tile = BoardTrait::nth(self.allowed, rng.draw_byte(count.try_into().unwrap()));
-        self.allowed -= Bits::pow(tile);
+        let allowed: u256 = self.allowed.into();
+        let mut found: Option<u8> = Option::None;
+        let mut tries: u8 = 0;
+        while found.is_none() && tries != TRIES {
+            let tile = rng.draw_byte(225);
+            if BoardTrait::has_wide(allowed, tile) {
+                found = Option::Some(tile);
+            }
+            tries += 1;
+        }
+        let tile = match found {
+            Option::Some(tile) => tile,
+            Option::None => {
+                let count = BoardTrait::count(self.allowed);
+                BoardTrait::nth(self.allowed, rng.draw_byte(count.try_into().unwrap()))
+            },
+        };
+        self.allowed -= BoardTrait::pow(tile);
         Option::Some(tile)
     }
 
     /// Takes `tile` if it is allowed.
     fn take(ref self: Placement, tile: u8) -> bool {
-        if tile >= 225 || !BoardTrait::has(self.allowed, tile) {
+        if tile >= 225 || !BoardTrait::has_wide(self.allowed.into(), tile) {
             return false;
         }
-        self.allowed -= Bits::pow(tile);
+        self.allowed -= BoardTrait::pow(tile);
         true
     }
 
@@ -260,45 +279,55 @@ pub impl PlacementImpl of PlacementTrait {
         let (row, _) = DivRem::div_rem(tile, 15);
         let (_, parity) = DivRem::div_rem(row, 2);
         let odd = (parity == 1) != self.odd;
+        // The allowed tiles within 2, each tested once: `(offset, tile)`.
+        let allowed: u256 = self.allowed.into();
         let mut candidates: Array<(u8, u8)> = array![];
         let mut k: u8 = 0;
         while k != NEAR {
             if k != CENTRE {
                 if let Option::Some(member) = PackPlacementTrait::member(tile, k, odd) {
-                    if BoardTrait::has(self.allowed, member) {
+                    if BoardTrait::has_wide(allowed, member) {
                         candidates.append((k, member));
                     }
                 }
             }
             k += 1;
         }
+        // Drawn without replacement: `chosen` marks the candidates taken, by their index.
         let mut offsets: u32 = CENTRE.into();
         let mut count: u8 = 1;
         let mut shift: u32 = 32;
         let mut chosen: u32 = 0;
-        while count != size && chosen != candidates.len() {
-            // [Compute] The `pick`-th candidate not chosen yet
-            let left: u8 = (candidates.len() - chosen).try_into().unwrap();
+        let total = candidates.len();
+        let mut taken: u32 = 0;
+        while count != size && taken != total {
+            let left: u8 = (total - taken).try_into().unwrap();
             let mut pick = rng.draw_byte(left.try_into().unwrap());
-            let mut found: (u8, u8) = (0, 0);
+            let mut i: u32 = 0;
+            let mut bit: u32 = 1;
+            let mut found: u32 = 0;
             let mut done = false;
-            for candidate in candidates.span() {
-                let (_, member) = *candidate;
-                if !done && BoardTrait::has(self.allowed, member) {
+            while !done {
+                if (chosen / bit) % 2 == 0 {
                     if pick == 0 {
-                        found = *candidate;
+                        found = i;
                         done = true;
                     } else {
                         pick -= 1;
                     }
                 }
+                if !done {
+                    i += 1;
+                    bit *= 2;
+                }
             }
-            let (index, member) = found;
-            self.allowed -= Bits::pow(member);
+            chosen += bit;
+            let (index, member) = *candidates[found];
+            self.allowed -= BoardTrait::pow(member);
             offsets += index.into() * shift;
             shift *= 32;
             count += 1;
-            chosen += 1;
+            taken += 1;
         }
         let alert = rng.draw_byte(2);
         let level = Self::pack_level(site, self.level, pack.level);

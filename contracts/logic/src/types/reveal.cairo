@@ -351,10 +351,10 @@ pub impl RevealImpl of RevealTrait {
             let (at, tile) = *entry;
             if at == chunk && tile < 225 {
                 if BoardTrait::has(INTERIOR, tile) {
-                    inner = BoardTrait::or(inner, Bits::pow(tile) + BoardTrait::anchor_line(tile));
+                    inner = BoardTrait::or(inner, BoardTrait::pow(tile) + BoardTrait::anchor_line(tile));
                     anchors.append(tile);
                 } else if BoardTrait::has(BOARD - INTERIOR, tile) && !Self::corner(tile) {
-                    ring = BoardTrait::or(ring, Bits::pow(tile));
+                    ring = BoardTrait::or(ring, BoardTrait::pow(tile));
                 }
             }
         }
@@ -391,7 +391,7 @@ pub impl RevealImpl of RevealTrait {
         let features = Self::features(placement.packs.span(), placement.objects.span());
         // [Compute] The instance's progress
         progress.left = PlacementTrait::spend(progress.left, placement.placed);
-        progress.revealed += Bits::pow(chunk);
+        progress.revealed += BoardTrait::pow(chunk);
         progress.count += 1;
         progress.open_edges = open_edges;
         progress
@@ -460,16 +460,13 @@ pub impl RevealImpl of RevealTrait {
             rest = above;
             if here == 1 {
                 let allowed = BoardTrait::and(BoardTrait::side(side), mask);
-                let count = BoardTrait::count(allowed);
                 let two = draws.draw_byte(2) == 1;
-                if count != 0 {
-                    let first = BoardTrait::nth(allowed, draws.draw_byte(count.try_into().unwrap()));
-                    ring = BoardTrait::or(ring, Bits::pow(first));
+                if allowed != 0 {
+                    let first = Self::opening(allowed, side, ref draws);
+                    ring = BoardTrait::or(ring, BoardTrait::pow(first));
                     if two {
-                        let second = BoardTrait::nth(
-                            allowed, draws.draw_byte(count.try_into().unwrap()),
-                        );
-                        ring = BoardTrait::or(ring, Bits::pow(second));
+                        let second = Self::opening(allowed, side, ref draws);
+                        ring = BoardTrait::or(ring, BoardTrait::pow(second));
                     }
                     edges += Self::pow2(side);
                     drawn += 1;
@@ -483,6 +480,36 @@ pub impl RevealImpl of RevealTrait {
             frontier + drawn
         };
         (ring, edges, open_edges)
+    }
+
+    /// An opening on `side` among its `allowed` tiles (not empty): one of the side's 13 tiles drawn
+    /// and kept if allowed, up to `placement::TRIES` draws, then the `n`-th allowed one (the whole
+    /// side is allowed but in a cut chunk).
+    fn opening(allowed: felt252, side: u8, ref draws: Rng) -> u8 {
+        let wide: u256 = allowed.into();
+        // The side's tile `i` (1–13): its first tile and the step between two.
+        let (first, step) = match side {
+            0 => (14, 15),
+            1 => (0, 15),
+            2 => (0, 1),
+            _ => (210, 1),
+        };
+        let mut found: Option<u8> = Option::None;
+        let mut tries: u8 = 0;
+        while found.is_none() && tries != placement::TRIES {
+            let tile = first + step * (1 + draws.draw_byte(13));
+            if BoardTrait::has_wide(wide, tile) {
+                found = Option::Some(tile);
+            }
+            tries += 1;
+        }
+        match found {
+            Option::Some(tile) => tile,
+            Option::None => {
+                let count = BoardTrait::count(allowed);
+                BoardTrait::nth(allowed, draws.draw_byte(count.try_into().unwrap()))
+            },
+        }
     }
 
     /// The set piece of the first set-piece quota due whose piece the site holds, with its slot.
@@ -1651,7 +1678,7 @@ pub mod tests {
     const DIGEST_0: felt252 =
         436879411965584264744368046098895752638038888232554053137264668756436767440;
     const DIGEST_1: felt252 =
-        1730085965442817502559636560502372965372808419812008069600142939674812239267;
+        2118439584713985996522206844831907832133690588005866000966461853720682050692;
     const DIGEST_2: felt252 =
-        3412966375977423196561007787166312851933583076115214404143177946322873272316;
+        2487151069656850120620354454503529463977834951226227166098748903113865454350;
 }

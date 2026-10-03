@@ -1370,6 +1370,11 @@ Conventions of the key sets:
 - **`create`** writes 15 + ⌈t/4⌉ keys at an adventurer's first entry (t ≤ 16 tasks), plus
   `next_slot`. A later entry finds them written; only its entry chunk index and task pages beyond
   those used before can be new. The roster is not written (§2.1: masked by its count).
+  **ENG-05**: the entry reveal writes every chunk sight touches from the entry tile, 1 to 4 chunks
+  of 2 keys each (Open question 3): the rows of `enter`, `enter_rift` and `leave` to a location
+  count the one-chunk case (`I.chunk` 2), the 4-chunk case adds 6 keys, new the first time a slot
+  reveals those chunk indices. The identities are `contracts/tools/budget_table.py`'s (ENG-05's
+  report, escalation: a branch of 8 chunk keys).
 - Goblins, chunks and pages are numbered in the identities as distinct physical keys, the worst
   case: a boss's three items on three distinct pages, 16 goblins as 32 distinct words.
 - **Standalone actions with an objective** (ENG-01b, F-3): `open`, `mine` and `barter` run ticks

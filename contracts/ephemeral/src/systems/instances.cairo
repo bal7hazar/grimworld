@@ -440,7 +440,13 @@ pub mod Instances {
             let (max_health, max_energy) = MemberStateTrait::maxima(
                 self.get_stats(slot, placement.member).word,
             );
-            let tasks = self.get_tasks(slot, header.tasks);
+            // The reveal reads the first 8 tasks' quotas (2 pages at most); the count is kept whole.
+            let read: u8 = if header.tasks < 8 {
+                header.tasks
+            } else {
+                8
+            };
+            let tasks = self.get_tasks(slot, read);
             let next = self
                 .begin(
                     slot,
@@ -449,6 +455,7 @@ pub mod Instances {
                     gate,
                     @record,
                     @location,
+                    header.tasks,
                     tasks,
                     max_health,
                     max_energy,
@@ -649,6 +656,7 @@ pub mod Instances {
                     gate,
                     @record,
                     @location,
+                    tasks.len().try_into().unwrap(),
                     tasks,
                     max_health,
                     max_energy,
@@ -740,7 +748,8 @@ pub mod Instances {
         /// member's four transient words for clock 0 (F-12, F-14): on the gate's entry tile, maxima
         /// from `stats`, the belt's `belt` counts, no activation, condition, effect or recharge. The
         /// placement follows. The caller has made every check: the draw comes last but for the
-        /// writes it feeds. No `ChunkRevealed` here (ENG-01 §5: a batch, `open`, `mine`, `barter`;
+        /// writes it feeds. `count` is the snapshot's task count, `tasks` at least its first 8 (their
+        /// quotas follow the location's). No `ChunkRevealed` here (ENG-01 §5: a batch, `open`, `mine`, `barter`;
         /// Open question 6): the client knows the entry from `InstanceEntered` and the header.
         fn begin(
             ref self: ContractState,
@@ -750,6 +759,7 @@ pub mod Instances {
             gate: u16,
             record: @Gate,
             location: @Location,
+            count: u8,
             tasks: Span<TaskEntry>,
             max_health: u16,
             max_energy: u8,
@@ -785,7 +795,7 @@ pub mod Instances {
             let header = HeaderTrait::new(
                 generation,
                 destination,
-                tasks.len().try_into().unwrap(),
+                count,
                 *location.sealed,
                 *record.entry_chunk,
                 *record.entry_tile,

@@ -52,12 +52,6 @@ pub mod alert {
 pub const CENTRE: u8 = 9;
 /// Tiles within 2 of a tile.
 pub const NEAR: u8 = 19;
-/// `dq + 2` and `dr + 2` of each of the 19 tiles within 2, by `dr`, then `dq`.
-const DQ: [u8; 19] = [2, 3, 4, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 0, 1, 2];
-const DR: [u8; 19] = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4];
-/// `⌊(y + dr) / 2⌋ − ⌊y / 2⌋ + 1` by `dr + 2`, for an even `y` and an odd one.
-const HALF_EVEN: [u8; 5] = [0, 0, 1, 1, 2];
-const HALF_ODD: [u8; 5] = [0, 1, 1, 2, 2];
 
 pub mod errors {
     pub const WALLS: felt252 = 'packing: walls above bit 224';
@@ -118,15 +112,27 @@ pub impl PackPlacementImpl of PackPlacementTrait {
     /// when the tile's global row is odd (`row + cy` odd); `None` outside the chunk.
     fn member(tile: u8, k: u8, odd: bool) -> Option<u8> {
         let (row, column) = DivRem::div_rem(tile, 15);
-        let k: u32 = k.into();
-        let dr = *DR.span()[k];
-        let half = if odd {
-            *HALF_ODD.span()[dr.into()]
+        // `dr + 2` and `dq + 2` by `k`'s row of the order (3, 4, 5, 4, 3 offsets), computed
+        // rather than read from tables (a constant table is copied at each read in Sierra).
+        let (dr, dq) = if k < 3 {
+            (0, k + 2)
+        } else if k < 7 {
+            (1, k - 2)
+        } else if k < 12 {
+            (2, k - 7)
+        } else if k < 16 {
+            (3, k - 12)
         } else {
-            *HALF_EVEN.span()[dr.into()]
+            (4, k - 16)
+        };
+        // `⌊(y + dr) / 2⌋ − ⌊y / 2⌋ + 1` for the row's parity.
+        let half = if odd {
+            (dr + 1) / 2
+        } else {
+            dr / 2
         };
         // `column + dq + half − 1` and `row + dr`, shifted by 3 and 2 so that no step is negative.
-        let x = column + *DQ.span()[k] + half;
+        let x = column + dq + half;
         let y = row + dr;
         if x < 3 || x > 17 || y < 2 || y > 16 {
             return Option::None;
