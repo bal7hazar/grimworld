@@ -1679,18 +1679,19 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 
 | What | L2 gas | Source |
 |---|---:|---|
-| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,378,508** meadow · 3,438,559 ruin · 3,486,089 forest · **3,511,095** cave | `test_cost_reveal_worst_*` |
-| One chunk in memory, typical (two sides known, a zone's content) | **2,423,092** | `test_cost_reveal_typical` |
-| Three chunks in one call, the worst content | **10,166,199** (3.39 M a chunk) | `test_cost_reveal_three` |
-| The library call itself (its syscall, the `Site` and the words through calldata) | 546,150 | `test_cost_library_call` |
-| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,173,078 · 7,212,546 · 10,907,216: each chunk after the first about **1.9–2.0 M**, its two new slots included | `test_cost_create_reveals` |
+| One chunk in memory, the worst case (no neighbour known: four sides drawn; every quota due, two 5-goblin packs, the objects by frequency) | **3,888,256** meadow · 4,028,827 ruin · 4,029,387 forest · **4,054,393** cave | `test_cost_reveal_worst_*` |
+| One chunk in memory, typical (two sides known, a zone's content) | **2,662,711** | `test_cost_reveal_typical` |
+| Three chunks in one call, the worst content | **11,845,462** (3.95 M a chunk) | `test_cost_reveal_three` |
+| The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
+| `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,280,376 · 7,389,134 · 11,242,672: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
 | On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,742,400** (+2,800,000) | `lifecycle_probe.py` |
 | On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,012,400** (+3,524,000) | idem |
 | On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,462,400** (+2,760,000) | idem |
 | On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,036,640** (+3,764,000) | idem |
 | On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,000,640** (+6,728,000) | idem |
 
-Where a reveal's cost goes (ENG-05's profile, the worst case): the board's steps 0.72 M
+Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
+about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
 (`keep_component` 0.37 M, smoothing 0.10 M, the openings' dilations 0.13 M), the sides' decisions
 0.40 M, the quotas' draws 0.10 M, the placement 2.10 M (0.38 M with nothing to place). SPK-7's
 "generation 390k–447k" is the board's steps alone; the placement, which SPK-7 did not build, is
@@ -1821,9 +1822,10 @@ difference is the calldata (+25,600 with the version) and the events priced from
   (ENG-07, CBT-*); design/02 item 6 cannot be answered by interfaces (E-13). Until then, **keep 40 M
   and weight 10**; if the ticks prove near their cost alone, weight 8 (the worst branch 38.77 M: two
   ticks and their windows less) or a bound of 48 M.
-- A reveal at weight 2 costs about 1.4 M: E-12 is unchanged. **ENG-05 measured it**: 2.4 M typical,
-  3.4–3.5 M worst in memory; in `create`, with nothing to place, about 1.9–2.0 M a chunk, its two
-  new slots included (§10): weight 2 kept, not 1.
+- A reveal at weight 2 costs about 1.4 M: E-12 is unchanged. **ENG-05 measured it**: 2.7 M typical,
+  3.9–4.1 M worst in memory; in `create`, with nothing to place, about 2.0–2.1 M a chunk, its two
+  new slots included (§10): weight 2 kept, not 1; whether 2 under-prices it is reopened at ENG-07
+  (the review of #348).
 
 ### 10.2 The expedition (D-129)
 
@@ -1864,7 +1866,7 @@ follows the **default** named; the project manager decides.
 | **E-9** | Version 1's Fate needs a request and a later draw | a provider that keeps requests, or a two-phase `loot` | ADR-0002's |
 | **E-10** | **Class sizes in CI**: `python3 contracts/tools/class_sizes.py` after the build, in `.github/workflows/ci.yml` | — | **the orchestrator's (F-11)**: added by the orchestrator to this pull request before merge |
 | **E-11** | Market: lots are new slots (ids never reused, SPK-11); a trade side ≤ 7 entities and ≤ 2 balances | reuse lot slots per account (−0.42 M a posting) | new slots; 7 / 2 |
-| **E-12** | A reveal weighs 2 but costs 1.4 M (0.6 M after its first time) | weight 1 after ENG-05's measurement | **2 kept** (ENG-05): a reveal measures 2.4 M typical and 3.4–3.5 M worst in memory; in `create`, with nothing to place, about 1.9–2.0 M a chunk, its two new slots included (§10): above the 1.4 M weight 2 was set for, so a weight of 1 is not proposed; whether 2 holds against a batch's 40 M goes with ENG-07's representative batch and the placement's lever (§10, *Measured by ENG-05*) |
+| **E-12** | A reveal weighs 2 but costs 1.4 M (0.6 M after its first time) | weight 1 after ENG-05's measurement | **2 kept** (ENG-05): a reveal measures 2.7 M typical and 3.9–4.1 M worst in memory; in `create`, with nothing to place, about 2.0–2.1 M a chunk, its two new slots included (§10): above the 1.4 M weight 2 was set for, so a weight of 1 is not proposed; whether 2 holds against a batch's 40 M goes with ENG-07's representative batch and the placement's lever (§10, *Measured by ENG-05*) |
 | **E-13** | design/02's tests that need game logic: batch = singles = multicall (item 5), the gas bound with the full execution and a revealed chunk measured (item 6), restart, window crossing, reveal, unrevealed and boundary (item 8), and the view cases of the fix loops: **(F-6)** a goblin killed away from its spawn chunk, then a restart: `instance_region` of the chunk where it lies shows its remains; after `loot`, they are gone. **(F-13)** an earlier generation fills roster page 0; the new one has one entry: `instance_state` and `instance_region` show that entry and zeros in every other lane. **(F-12)** an instance with conditions, effects and recharges running leaves through a gate: the new instance's member has none, and its belt counts are the reserve's | ENG-05, ENG-06, ENG-07 | out of this task (the masking helper is tested: `test_roster_masking`) |
 | **E-14** | quiver's components are not embedded (ARC) | — | ARC-03c/04 |
 | **E-15** (F-1) | **What happens to the belt's unused potions on defeat.** The reserve is debited at entry and credited back unused at the closing report; what is consumed is gone (the orchestrator's ruling). design/03 and design/07 do not settle defeat for the belt: design/07 says loot is kept on defeat, and design/02's D-04 says defeat costs "the instance, nothing else" | (a) **credited back on defeat as on return** (D-04's reading: the potions are not loot but were not used); (b) **lost on defeat** (the belt is part of what the instance costs); (c) lost only in a sealed Red Rift. Cost: (a) and (c) write ≤ 4 pack pages at defeat (0.13 M); (b) none | **stopped, as the ruling asks.** The interface carries the counts (`Results.belt`) whatever the rule; the hub's rule waits for the decision |
