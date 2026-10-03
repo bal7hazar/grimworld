@@ -295,6 +295,7 @@ fn changes(before: Span<felt252>, after: Span<felt252>) -> (u32, u32, u32) {
 // ---- register ----------------------------------------------------------------------------------
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 16196040)] // ceil(1.05 × 15424800 measured)
 fn test_register() {
     let (hub, _) = setup();
@@ -320,6 +321,7 @@ fn test_register() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 9976754)] // ceil(1.05 × 9501670 measured)
 fn test_register_twice_refused() {
     let (hub, _) = setup();
@@ -331,6 +333,7 @@ fn test_register_twice_refused() {
 // ---- create_adventurer -------------------------------------------------------------------------
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 25954520)] // ceil(1.05 × 24718590 measured)
 fn test_create_adventurer() {
     let (hub, _) = setup();
@@ -415,6 +418,7 @@ fn test_create_without_account_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 10149867)] // ceil(1.05 × 9666540 measured)
 fn test_create_empty_name_refused() {
     let (hub, _) = setup();
@@ -424,6 +428,7 @@ fn test_create_empty_name_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 10143924)] // ceil(1.05 × 9660880 measured)
 fn test_create_bad_profession_refused() {
     let (hub, _) = setup();
@@ -446,6 +451,7 @@ fn test_create_no_free_slot_refused() {
 // ---- delete_adventurer -------------------------------------------------------------------------
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 30830636)] // ceil(1.05 × 29362510 measured)
 fn test_delete_frees_the_slot_and_marks_the_record() {
     let (hub, _) = setup();
@@ -524,6 +530,7 @@ fn test_delete_across_pages() {
 
 /// The MVP's worst deletion: 3 slots, the 2nd of 3 (two entries inspected, one page written).
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 26179482)] // ceil(1.05 × 24932840 measured)
 fn test_delete_worst_three_slots() {
     let (hub, _) = setup();
@@ -567,6 +574,7 @@ fn test_delete_worst_two_pages() {
 /// A negative swap delta: the last id is lower than the deleted one (a reused slot put a higher id
 /// first), so the lane falls by the difference; the page stays correctly packed.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 26923071)] // ceil(1.05 × 25641020 measured)
 fn test_delete_negative_delta() {
     let (hub, _) = setup();
@@ -622,6 +630,7 @@ fn test_delete_within_the_final_page() {
 // The ownership helper, each case (through `delete_adventurer`).
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14721410)] // ceil(1.05 × 14020390 measured)
 fn test_helper_no_adventurer() {
     let (hub, _) = setup();
@@ -633,6 +642,7 @@ fn test_helper_no_adventurer() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 20533044)] // ceil(1.05 × 19555280 measured)
 fn test_helper_not_owner() {
     let (hub, _) = setup();
@@ -645,6 +655,7 @@ fn test_helper_not_owner() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 18816924)] // ceil(1.05 × 17920880 measured)
 fn test_helper_deleted() {
     let (hub, _) = setup();
@@ -657,6 +668,7 @@ fn test_helper_deleted() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14271569)] // ceil(1.05 × 13591970 measured)
 fn test_helper_not_in_a_hub() {
     let (hub, _) = setup();
@@ -669,6 +681,7 @@ fn test_helper_not_in_a_hub() {
 // "Its inventory emptied" (design/03, D-33), each part.
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14367612)] // ceil(1.05 × 13683440 measured)
 fn test_delete_pack_balances_refused() {
     let (hub, _) = setup();
@@ -679,6 +692,7 @@ fn test_delete_pack_balances_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14706710)] // ceil(1.05 × 14006390 measured)
 fn test_delete_pack_equipment_refused() {
     let (hub, _) = setup();
@@ -690,6 +704,7 @@ fn test_delete_pack_equipment_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14282751)] // ceil(1.05 × 13602620 measured)
 fn test_delete_equipped_refused() {
     let (hub, _) = setup();
@@ -701,6 +716,7 @@ fn test_delete_equipped_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14682885)] // ceil(1.05 × 13983700 measured)
 fn test_delete_pack_gold_refused() {
     let (hub, _) = setup();
@@ -713,6 +729,7 @@ fn test_delete_pack_gold_refused() {
 
 /// A pack emptied again (its lanes, pages and gold kept `LIVE` at 0) does not stop deletion.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 15388485)] // ceil(1.05 × 14655700 measured)
 fn test_delete_after_the_pack_was_emptied() {
     let (hub, _) = setup();
@@ -728,6 +745,7 @@ fn test_delete_after_the_pack_was_emptied() {
 // ---- set_account_owner -------------------------------------------------------------------------
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 30201717)] // ceil(1.05 × 28763540 measured)
 fn test_set_account_owner() {
     let (hub, double) = setup();
@@ -802,6 +820,7 @@ fn test_set_account_owner_seven_inside() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 23467763)] // ceil(1.05 × 22350250 measured)
 fn test_set_account_owner_only_those_inside() {
     let (hub, double) = setup();
@@ -818,6 +837,7 @@ fn test_set_account_owner_only_those_inside() {
 /// `Instances.set_controller` reverts: the transfer reverts with it, and nothing of it is kept (the
 /// owner word, both `account_of` entries).
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 23660480)] // ceil(1.05 × 22533790 measured)
 fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
     let (hub, _) = setup();
@@ -842,6 +862,7 @@ fn test_set_account_owner_rolled_back_when_set_controller_reverts() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14439317)] // ceil(1.05 × 13751730 measured)
 fn test_set_account_owner_wrong_caller_refused() {
     let (hub, _) = setup();
@@ -853,6 +874,7 @@ fn test_set_account_owner_wrong_caller_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 16237158)] // ceil(1.05 × 15463960 measured)
 fn test_set_account_owner_to_an_account_holder_refused() {
     let (hub, _) = setup();
@@ -865,6 +887,7 @@ fn test_set_account_owner_to_an_account_holder_refused() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 14060960)] // ceil(1.05 × 13391390 measured)
 fn test_set_account_owner_to_zero_refused() {
     let (hub, _) = setup();

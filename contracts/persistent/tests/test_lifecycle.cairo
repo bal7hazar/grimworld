@@ -430,6 +430,7 @@ fn try_report(world: World, results: Results) -> Result<(), Array<felt252>> {
 
 // A new adventurer stands in region 1's town, read from the registry, unlocked.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 30109013)] // ceil(1.05 × 28675250 measured)
 fn test_start_hub_from_the_registry() {
     let world = setup_with_town(OUTPOST);
@@ -443,6 +444,7 @@ fn test_start_hub_from_the_registry() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 32226044)] // ceil(1.05 × 30691470 measured)
 fn test_start_hub_refusals() {
     // No region 1 in the registry.
@@ -471,6 +473,7 @@ fn test_start_hub_refusals() {
 // level 1, a Vanguard's 20 energy, 2 pips, armor 80), the owner as controller, no task yet (E-14);
 // placed inside, `AdventurerLocated` in no hub. Writes: `place` only (no belt).
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 44065571)] // ceil(1.05 × 41967210 measured)
 fn test_enter() {
     let world = setup();
@@ -514,6 +517,7 @@ fn test_enter() {
 // The belt's reserve, the worst case (ENG-01 §6, §9.3): four items on four pages, each lane
 // emptied. Four pages, `core` (`pack_lanes` 4 → 0) and `place`: 6 overwritten.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 41260349)] // ceil(1.05 × 39295570 measured)
 fn test_enter_reserves_the_belt() {
     let world = setup();
@@ -550,6 +554,7 @@ fn test_enter_reserves_the_belt() {
 // Two slots of the same item are one debit of their sum (ENG-01 §6); a lane left non-zero keeps
 // `pack_lanes`. Writes: the page and `place`.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 37284650)] // ceil(1.05 × 35509190 measured)
 fn test_enter_one_debit_per_item() {
     let world = setup();
@@ -566,6 +571,7 @@ fn test_enter_one_debit_per_item() {
 }
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 51135536)] // ceil(1.05 × 48700510 measured)
 fn test_enter_refusals() {
     let world = setup();
@@ -675,6 +681,7 @@ const EMPTY_BUILD: felt252 = NEW_BUILD - LIVE;
 // CBT-02e (D-168 2): `enter` refuses an adventurer whose snapshot `set_build` never stored,
 // changing nothing; after `set_build`, it enters.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 39413696)] // ceil(1.05 × 37536853 measured)
 fn test_enter_refuses_a_missing_snapshot() {
     let world = setup();
@@ -832,6 +839,7 @@ fn test_enter_after_other_records_changed() {
 // the stored snapshot; setting the class back raises it again (still stale); `set_build` under the
 // class clears it; the same class set again raises nothing and stales nothing.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 44113594)] // ceil(1.05 × 42012946 measured)
 fn test_enter_refuses_after_a_new_rules_class() {
     let world = setup();
@@ -860,6 +868,7 @@ fn test_enter_refuses_after_a_new_rules_class() {
 // D-169 (AC-2): the rules epoch's wrap. At 511, the highest of its 9 bits, a new class takes it
 // to 0, and a snapshot flattened at 511 is stale under 0; `set_build` clears it.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 42215960)] // ceil(1.05 × 40205676 measured)
 fn test_enter_after_the_rules_epoch_wraps() {
     let world = setup();
@@ -894,6 +903,7 @@ fn set_registry(world: World, registry: ContractAddress) {
 // the original one); the same registry and class set again raise nothing, and after `set_build`
 // the adventurer enters.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 43526182)] // ceil(1.05 × 41453506 measured)
 fn test_enter_refuses_after_a_new_registry() {
     let world = setup();
@@ -919,6 +929,7 @@ fn test_enter_refuses_after_a_new_registry() {
 // exactly 512 changes the epoch is 1 again and `enter` accepts it, though the class changed 512
 // times since `set_build`. An administrator-only path (ENG-01 §3.3).
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 399863650)] // ceil(1.05 × 380822523 measured)
 fn test_rules_epoch_full_cycle_reads_fresh() {
     let world = setup();
@@ -942,6 +953,7 @@ fn test_rules_epoch_full_cycle_reads_fresh() {
 // ---- travel -------------------------------------------------------------------------------------
 
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 39176274)] // ceil(1.05 × 37310737 measured)
 fn test_travel() {
     let world = setup();
@@ -1009,6 +1021,7 @@ fn inside_with_a_belt(world: World) -> (u32, u64) {
 // Returned through a hub gate: the hub reached and unlocked, the belt's unused counts back in the
 // pack (ENG-01 §6), `AdventurerLocated`. Writes: 4 pages, `core` (`pack_lanes`), `place`.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 41970935)] // ceil(1.05 × 39972319 measured)
 fn test_report_returned_through_a_hub_gate() {
     let world = setup();
@@ -1050,6 +1063,7 @@ fn test_report_returned_through_a_hub_gate() {
 // Travel back and defeat: `hub` 0 is the last hub (D-04); on defeat the belt comes back as on
 // return (D-141, E-15).
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 43350162)] // ceil(1.05 × 41285868 measured)
 fn test_report_to_the_last_hub() {
     let world = setup();
@@ -1083,6 +1097,7 @@ fn test_report_to_the_last_hub() {
 // Through a gate to a location: still inside, in the next instance; nothing credited (the reserve
 // carries). Writes: `place`.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 42280544)] // ceil(1.05 × 40267184 measured)
 fn test_report_moved() {
     let world = setup();
@@ -1115,6 +1130,7 @@ fn test_report_moved() {
 // What the models hold today is applied: experience to every contributor, gold and balances to the
 // first one's pack (a lane filled counts in `pack_lanes`).
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 41357308)] // ceil(1.05 × 39387912 measured)
 fn test_report_open() {
     let world = setup();
@@ -1151,6 +1167,7 @@ fn test_report_open() {
 
 // What has no model yet is refused rather than dropped; the bounds of ENG-01 §4.5; the caller.
 #[test]
+// gas: raised, CBT-05a: the deployed Registry's validators refuse more (its class grew)
 #[available_gas(l2_gas: 41955687)] // ceil(1.05 × 39957797 measured)
 fn test_report_refusals() {
     let world = setup();
