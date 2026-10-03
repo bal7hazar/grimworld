@@ -1166,17 +1166,24 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
 
 | Measure | Per tick |
 |---|---:|
-| **The worst tick: the member's activation (Cinder Ring on its ring) and the 8 goblins' attack skills conclude together** (`rep_all`) | **45,999,941** (115.0 % of 40 M; 4.18 % of 1.1×10⁹) |
+| **The worst tick measured: the member's activation (Cinder Ring on its ring) and the 8 goblins' attack skills conclude together** (`rep_all`) | **45,999,941** (115.0 % of 40 M; 4.18 % of 1.1×10⁹) |
 | The 8 goblin carriers alone (`rep_goblins`) | 36,895,379 (92.2 % of 40 M) |
 | A goblin's carrier through the class, its attack on the member (`rep_goblins` − `rep_idle`, over 8) | 4,090,351 |
 | The member's Cinder Ring on 6 goblins (`rep_member` − `rep_idle`) | 9,102,352 |
-| A goblin's carrier with 13 goblins around (`rep_far` − `rep_far_idle`) | 4,308,699 |
+| A `SINGLE` carrier in a 13-goblin state (`rep_far` − `rep_far_idle`): after lever 3 a weapon carrier carries only its source and target, so the row measures that the cost does not grow with the neighbours | 4,308,699 |
 | The idle tick, the whole call (`rep_idle`) | 4,172,567 |
 | Ten ticks, the 8 goblin carriers in the first (`rep_batch`) | 44,632,312 |
 
-- **The worst tick, 45,999,941, is accepted as a batch of one tick** (the project manager,
-  2026-10-03, D-207): 40 M is a batch target, not a protocol limit; a batch holds one such tick
-  when it occurs, and ENG-07 derives the batch weight from it. Combat rules are unchanged.
+- The table's figures are measured at `ba56f53` (lever 3), the ones the cost re-audit verified
+  and D-207 names. The delta review's first-record lookup in `Delegate` lowers them a little: at
+  the head that carries it, the worst tick measured 45,890,031, the 8 goblin carriers 36,809,939, a
+  goblin's carrier 4,079,671, the member's Cinder Ring 9,077,882 (the same tests).
+- **The worst tick measured, 45,999,941, is accepted as a batch of one tick** (the project
+  manager, 2026-10-03, D-207): 40 M is a batch target, not a protocol limit; a batch holds one such
+  tick when it occurs, and ENG-07 derives the batch weight from it. Combat rules are unchanged.
+- **Not measured: a bomb in place of Cinder Ring** (`TILE`, `DISC_1`, up to 13 goblins carried),
+  estimated **≈ 48.8 M (E)**, 4.4 % of 1.1×10⁹ (the cost re-audit of #334). CBT-05b or ENG-07
+  measures it, and its figure then replaces this estimate.
 - **The levers** (the project manager's option (b), 2026-10-03), measured one by one at the same
   state:
 
@@ -1192,7 +1199,8 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
   plus a line built from the class alone (5,571,338 + 8 × 2,103,191). It left out `TickLibrary`'s
   side of each call and the worst content's load in each call; it is kept for the record only.
 - **Not in it:** the action phase's immediate carrier (CBT-05b, through the same entrypoint), and
-  ENG-07's step-2 carriers (the goblins' acts, through the same call).
+  ENG-07's step-2 carriers (the goblins' acts, through the same call). The bound of 8 goblin
+  carriers holds for `SINGLE` step-2 carriers; trap triggers' carriers are priced at ENG-07.
 - The tick's share and the running total above (4,025,837; 6,051,547) are the pipeline's alone, at
   CBT-02d's fixtures; the measured figures of this table replace them for the tick with the
   executor.

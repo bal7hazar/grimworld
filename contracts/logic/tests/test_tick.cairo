@@ -978,7 +978,7 @@ fn test_cost_library_baseline() {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, CBT-05a, route (c): each carrier calls ExecutorLibrary (D-207)
-#[available_gas(l2_gas: 39559093)] // ceil(1.05 × 37675326 measured)
+#[available_gas(l2_gas: 39555344)] // ceil(1.05 × 37671756 measured)
 fn test_cost_library_call() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -995,7 +995,7 @@ fn test_cost_library_call() {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, CBT-05a, route (c): each carrier calls ExecutorLibrary (D-207)
-#[available_gas(l2_gas: 47752943)] // ceil(1.05 × 45478993 measured)
+#[available_gas(l2_gas: 47749195)] // ceil(1.05 × 45475423 measured)
 fn test_cost_library_call_batch() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -1020,7 +1020,7 @@ fn test_cost_library_baseline_batch() {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, CBT-05a, route (c): each carrier calls ExecutorLibrary (D-207)
-#[available_gas(l2_gas: 71115526)] // ceil(1.05 × 67729072 measured)
+#[available_gas(l2_gas: 71111778)] // ceil(1.05 × 67725502 measured)
 fn test_library_matches_pipeline() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -2798,7 +2798,7 @@ fn worst_words_kills() -> (Words, Content) {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, CBT-05a, route (c): each carrier calls ExecutorLibrary (D-207)
-#[available_gas(l2_gas: 38625737)] // ceil(1.05 × 36786416 measured)
+#[available_gas(l2_gas: 38621989)] // ceil(1.05 × 36782846 measured)
 fn test_cost_library_call_kills() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -2832,7 +2832,7 @@ fn worst_words_two() -> (Words, Content) {
 // tick's cost is ENG-01 §9.2's measured line (45,999,941 the worst tick, D-207).
 #[test]
 // gas: raised, CBT-05a, route (c): each carrier calls ExecutorLibrary (D-207)
-#[available_gas(l2_gas: 48002727)] // ceil(1.05 × 45716882 measured)
+#[available_gas(l2_gas: 47995230)] // ceil(1.05 × 45709742 measured)
 fn test_cost_library_call_two_members() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -2871,7 +2871,7 @@ fn worst_words_all_dead() -> (Words, Content) {
 
 #[test]
 // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
-#[available_gas(l2_gas: 36246962)] // ceil(1.05 × 34520916 measured)
+#[available_gas(l2_gas: 36243214)] // ceil(1.05 × 34517346 measured)
 fn test_cost_library_call_all_dead() {
     let class = declare("TickLibrary").unwrap().contract_class();
     let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -3332,7 +3332,8 @@ fn board() -> Board {
 // ---- Route (c), behaviour and cost (CBT-05a, the review of #334)
 // ----------------------------------
 // `TickLibrary` runs each carrier through `ExecutorLibrary` with a sub-world (every member, the
-// source, the addressed goblin, the goblins within one tile of the source or the address). These
+// source, the addressed goblin; a carrier wider than `SINGLE` or on a `TILE` also the goblins
+// within one tile of the source or the address, a `SINGLE` one none, option (3)'s lever (3)). These
 // tests spread the goblins so that the sub-world is a strict subset and the source's sub-index
 // differs from its index, and compare the library's words with the in-process executor's.
 
@@ -3422,7 +3423,7 @@ fn agree(words: Words, content: Content) -> Words {
 // 80 at x = 60 is 226), in tile order, which the sub-world reaches; goblins 8 and 11 are far and
 // stay out of the call. The library's words equal the in-process executor's.
 #[test]
-#[available_gas(l2_gas: 17552412)] // ceil(1.05 × 16716582 measured)
+#[available_gas(l2_gas: 17526718)] // ceil(1.05 × 16692112 measured)
 fn test_route_c_kills_in_order() {
     let tiles = ring(AT);
     let mut member = member_at(400);
@@ -3441,7 +3442,7 @@ fn test_route_c_kills_in_order() {
 // tick 41: its sub-index in the call is 1, not 2. Its weapon hit (255 at rank 15, strength 75)
 // downs the member at 10 health: the tick stops, defeated. The words agree.
 #[test]
-#[available_gas(l2_gas: 15183985)] // ceil(1.05 × 14460938 measured)
+#[available_gas(l2_gas: 15174840)] // ceil(1.05 × 14452228 measured)
 fn test_route_c_source_sub_index_and_defeat() {
     let tiles = ring(AT);
     let mut source = goblin_at(10, *tiles[1], 100, true);
@@ -3453,10 +3454,40 @@ fn test_route_c_source_sub_index_and_defeat() {
     assert(out.killed.len() == 0, 'no kill');
 }
 
+// Lever (1)'s potion branch (the delta review of #334): the member holds belt slot 1's potion
+// (item 101) as an effect, and the content lists potion 100 before it, which no load needs, so the
+// call's trimmed content keeps 101 alone, at another position. Goblin 9 concludes its attack skill
+// on the member at tick 41; the member's regeneration reads the potion. The words agree.
+#[test]
+#[available_gas(l2_gas: 15023541)] // ceil(1.05 × 14308134 measured)
+fn test_route_c_potion_effect() {
+    let tiles = ring(AT);
+    let mut spec = Fixture::spec();
+    spec.health = 400;
+    spec.effects = [(1, true, 99, 0), (0, false, 0, 0), (0, false, 0, 0), (0, false, 0, 0)];
+    let mut member = Fixture::member(spec);
+    member.words.state += place(AT) * two(32);
+    member.words.stats += 20 * two(64);
+    let mut source = goblin_at(9, *tiles[0], 100, true);
+    source.start(1, 0, 1, 40);
+    let goblins = array![goblin_at(8, 230, 100, false), source];
+    let words = Fixture::world(40, array![member], goblins).store();
+    let base = route_content(30, 1);
+    let potions = array![
+        PotionSheet { id: 100, regen: 7, ..Default::default() },
+        PotionSheet { id: 101, regen: 3, ..Default::default() },
+    ];
+    let content = Content { skills: base.skills, potions: potions.span(), castes: base.castes };
+    let out = agree(words, content);
+    assert(!out.defeated && out.killed.len() == 0, 'member hit, alive');
+    assert(out.members.len() == 1, 'one member');
+}
+
 /// The representative worst tick (the review of #334, ENG-01 §9.2): 13 goblins within one tile of
 /// the member or of each other, the member's ring of 6 and 7 at distance 2; 8 of them awake, each
-/// concluding its attack skill on the member at tick 41 with a reach of 6 (all legal), so each
-/// call carries the member and the goblins within one tile of its source or of the member.
+/// concluding its attack skill on the member at tick 41 with a reach of 6 (all legal). Each call
+/// carries the member and its source alone (lever (3); before it, the goblins within one tile of
+/// its source or of the member too).
 fn worst_tick() -> (World, Sheets, grimworld_logic::types::tick::Index) {
     let inner = ring(AT);
     let mut outer: Array<u8> = array![];
@@ -3513,7 +3544,7 @@ fn test_cost_route_c_tick_in_class() {
 // The same tick through route (c): `TickLibrary`'s hook builds each sub-world, calls
 // `ExecutorLibrary` and loads back what returns, 8 times.
 #[test]
-#[available_gas(l2_gas: 48031855)] // ceil(1.05 × 45744623 measured)
+#[available_gas(l2_gas: 47958691)] // ceil(1.05 × 45674943 measured)
 fn test_cost_route_c_tick() {
     let (mut world, sheets, index) = worst_tick();
     let content = route_content(5, 6);
@@ -3534,9 +3565,11 @@ fn test_cost_route_c_tick() {
 // §9.2); the worst content (38 skills, 4 potions, 5 castes), caste 1's weapon of reach 6 so that
 // every goblin's attack is legal. Scenarios, one tick unless said: 0 idle; 1 the 8 goblins each
 // conclude an attack skill on the member; 2 the member concludes Cinder Ring on its ring; 3 one
-// goblin 3 tiles away concludes on the member, reaching 13 goblins (its 6 neighbours and the
-// member's 6); 4 scenario 3's state idle; 5 scenarios 1 and 2 in the same tick (the member's
-// activation and the 8 goblins' conclude together).
+// goblin 3 tiles away concludes on the member with 13 goblins around them (its 6 neighbours and
+// the member's 6): after lever (3) its call carries only it and the member, so the scenario
+// measures that the carrier's cost does not grow with its neighbours; 4 scenario 3's state idle; 5
+// scenarios 1 and 2 in the same tick (the member's activation and the 8 goblins' conclude
+// together).
 
 fn rep_content() -> Content {
     let base = worst_content(1);
@@ -3682,28 +3715,28 @@ fn test_cost_rep_idle() {
 }
 
 #[test]
-#[available_gas(l2_gas: 48903691)] // ceil(1.05 × 46574943 measured)
+#[available_gas(l2_gas: 48813979)] // ceil(1.05 × 46489503 measured)
 fn test_cost_rep_goblins() {
     let words = rep_run(1, 1);
     assert(!words.defeated, 'eight carriers');
 }
 
 #[test]
-#[available_gas(l2_gas: 24102208)] // ceil(1.05 × 22954483 measured)
+#[available_gas(l2_gas: 24076514)] // ceil(1.05 × 22930013 measured)
 fn test_cost_rep_member() {
     let words = rep_run(2, 1);
     assert(words.killed.len() == 0, 'no kill');
 }
 
 #[test]
-#[available_gas(l2_gas: 58463481)] // ceil(1.05 × 55679505 measured)
+#[available_gas(l2_gas: 58348075)] // ceil(1.05 × 55569595 measured)
 fn test_cost_rep_all() {
     let words = rep_run(5, 1);
     assert(!words.defeated && words.killed.len() == 0, 'nine carriers');
 }
 
 #[test]
-#[available_gas(l2_gas: 19858349)] // ceil(1.05 × 18912713 measured)
+#[available_gas(l2_gas: 19847135)] // ceil(1.05 × 18902033 measured)
 fn test_cost_rep_far() {
     let words = rep_run(3, 1);
     assert(words.goblins.len() == 13, 'thirteen');
@@ -3717,7 +3750,7 @@ fn test_cost_rep_far_idle() {
 }
 
 #[test]
-#[available_gas(l2_gas: 57027470)] // ceil(1.05 × 54311876 measured)
+#[available_gas(l2_gas: 56937758)] // ceil(1.05 × 54226436 measured)
 fn test_cost_rep_batch() {
     let words = rep_run(1, 10);
     assert(words.clock == 50, 'ten ticks');

@@ -207,8 +207,8 @@ pub struct Index {
     positions: Felt252Dict<u32>,
 }
 
-const CASTE_KEY: felt252 = 0x10000;
-const POTION_KEY: felt252 = 0x100000000;
+pub const CASTE_KEY: felt252 = 0x10000;
+pub const POTION_KEY: felt252 = 0x100000000;
 
 pub mod errors {
     pub const NO_SKILL: felt252 = 'tick: skill not in content';

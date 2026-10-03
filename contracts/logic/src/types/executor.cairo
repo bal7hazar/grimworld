@@ -56,8 +56,8 @@ use crate::types::effect::{Entry, EntryTrait, filter, guard, kind, scope, shape,
 use crate::types::hit::{Hit, HitOutcome, HitTarget, HitTrait, MAX_BLOCK};
 use crate::types::infliction::Infliction;
 use crate::types::tick::{
-    ABSENT, ABSENT_LANE, CasteSheetTrait, Content, ENERGY_THIRDS, Held, Index, Sheets,
-    SkillSheetTrait, ai, flag,
+    ABSENT, ABSENT_LANE, CASTE_KEY, CasteSheetTrait, Content, ENERGY_THIRDS, Held, Index,
+    POTION_KEY, Sheets, SkillSheetTrait, ai, flag,
 };
 use crate::types::window::{FAR, HEIGHT, WIDTH, Window, WindowTrait, range};
 use crate::types::world::{Actor, Pending, Rules, Words, World, WorldTrait};
@@ -70,10 +70,6 @@ const MAX_PERCENT: i32 = 100;
 const MAX_ARMOR_EFFECT: i32 = 255;
 /// The bit of an actor's membership mask for the carrier's hit; entries 1–3 are bits 1, 2, 4.
 const HIT_BIT: u8 = 8;
-/// The keys of `subcontent`'s dictionary: a skill's id; a caste's + `CASTE_KEY`; a potion's +
-/// `POTION_KEY` (the content index's own offsets).
-const CASTE_KEY: felt252 = 0x10000;
-const POTION_KEY: felt252 = 0x100000000;
 
 pub mod errors {
     pub const ADDRESS: felt252 = 'executor: no such actor';
@@ -1171,9 +1167,12 @@ pub impl ExecutorRules of Rules<Executor> {
 
 /// The rules of the tick's library class under route (c) (the project manager, 2026-10-02,
 /// option (2)): step 1's hook calls the executor's own class, `ExecutorLibrary`, once a carrier,
-/// with the words of the actors the carrier can reach: every member, the source, the addressed
-/// goblin, and the goblins within one tile of the source or of the address (the MVP's shapes are
-/// of radius 1 at most: `SINGLE`, `RING_1`, `DISC_1`; `DISC_2` and `DISC_3` are refused, FX-21).
+/// with the words of the actors the carrier can reach: every member, the source and the addressed
+/// goblin; a carrier with a shape wider than `SINGLE` or a `TILE` target carries the goblins within
+/// one tile of the source or of the address too (the MVP's shapes are of radius 1 at most:
+/// `SINGLE`, `RING_1`, `DISC_1`; `DISC_2` and `DISC_3` are refused, FX-21), and a `SINGLE` one, a
+/// weapon hit included, only its source and target (option (3)'s lever (3)). Only the content
+/// records the sub-world's loads need cross the call (lever (1)).
 /// The returned words are loaded again through the call's index and put back in the world; the
 /// kills are appended in resolution order. Perception, the AI and the objectives are ENG-07's.
 #[derive(Destruct)]
@@ -1290,11 +1289,13 @@ pub impl DelegateRules of Rules<Delegate> {
                 at, rank,
             )) => {
                 let id = *self.content.skills[at].id;
+                // The first record with that id, as `Index::new` takes it.
                 let mut moved = 0;
                 let mut k = 0;
                 for sheet in content.skills {
                     if *sheet.id == id {
                         moved = k;
+                        break;
                     }
                     k += 1;
                 }
@@ -1362,7 +1363,8 @@ pub impl ExecutorImpl of ExecutorTrait {
     /// The records of `content` the loads of every member and of the goblins at `picked` need
     /// (option (3)'s lever (1), CBT-05a): a member's bar skills, its held effects' skills and the
     /// potions of its held potion effects; a goblin's caste, the caste's four skills and its held
-    /// effect's skill. One dictionary of the needed keys, then one pass over each list.
+    /// effect's skill. One dictionary of the needed keys (a skill's id; a caste's + `CASTE_KEY`; a
+    /// potion's + `POTION_KEY`, the content index's own keys), then one pass over each list.
     fn subcontent(world: @World, picked: Span<u32>, content: @Content) -> Content {
         let mut needed: Felt252Dict<bool> = Default::default();
         let count = world.member_count();
