@@ -219,7 +219,7 @@ fn test_set_record_outline_chunk_refused() {
 // `TASK` and `QUEST` take the administrator's quiver ids as they are: any non-zero id (D-145; that
 // the quiver id exists is the content pipeline's check).
 #[test]
-#[available_gas(l2_gas: 3969819)] // ceil(1.05 × 3780780 measured)
+#[available_gas(l2_gas: 3969168)] // ceil(1.05 × 3780160 measured)
 fn test_set_record_quiver_ids() {
     let r = Fixture::deploy();
     r.admin.set_record(TASK, 0x12345, Felts::one(1));
@@ -257,7 +257,7 @@ fn test_set_record_part_count_refused() {
 }
 
 #[test]
-#[available_gas(l2_gas: 1286828)] // ceil(1.05 × 1225550 measured)
+#[available_gas(l2_gas: 1286775)] // ceil(1.05 × 1225500 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_unknown_kind_refused() {
     let r = Fixture::deploy();
