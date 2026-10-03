@@ -1,7 +1,8 @@
 import type { Application } from "pixi.js";
 import { pixelToTile, screenToTile, tileToScreen } from "../input/coords";
-import { type Gesture, GestureTracker } from "../input/gestures";
+import { type Gesture, GestureTracker, WHEEL_NOTCH } from "../input/gestures";
 import type { Intent } from "../input/intent";
+import type { StepKey } from "../input/keys";
 import { loadAtlas } from "../render/atlas";
 import { type PixiSurface, createPixiSurface, pixiTickersRunning } from "../render/pixiSurface";
 import { type ScaleMode, canvasResolution } from "../render/scaling";
@@ -12,6 +13,7 @@ import type { SpriteLibrary } from "../render/sprites";
 import type { Tile } from "../render/view";
 import { fixtureNamed } from "./fixtures";
 import { SandboxSession, type WalkInfo } from "./session";
+import { stepTarget } from "./wiring";
 import type { SandboxWorld } from "./world";
 
 /** What the debug panel shows. */
@@ -211,6 +213,33 @@ export class SandboxController {
     console.debug("[sandbox]", intent.kind, `(${intent.tile.x}, ${intent.tile.y})`);
     const routed = this.route ? this.route(intent) : intent;
     if (routed) this.session.apply(routed);
+  }
+
+  /**
+   * A step key (CLI-03k): exactly a tap on the adjacent hex that way, routed like one (a hub's
+   * place walks to its door). Nothing when there is no adventurer.
+   */
+  step(step: StepKey): void {
+    const tile = stepTarget(this.session.state, step);
+    if (!tile) return;
+    this.renderer.scheduler.input();
+    this.apply({ kind: "tile", tile });
+  }
+
+  /** `+` / `−` (CLI-03k): one wheel notch in or out, around the map's centre; clamped as any zoom. */
+  zoomBy(by: 1 | -1): void {
+    const { viewport } = this.renderer.cameraState();
+    this.renderer.scheduler.input();
+    this.renderer.zoomAt(by > 0 ? WHEEL_NOTCH : 1 / WHEEL_NOTCH, {
+      x: viewport.width / 2,
+      y: viewport.height / 2,
+    });
+  }
+
+  /** Eases the camera to a tile (a place selected by key, off the screen); `recentre` comes back. */
+  lookAt(tile: Tile): void {
+    this.renderer.scheduler.input();
+    this.renderer.lookAt(tile);
   }
 
   /** A tap on the counter: the planned queue's steps not walked fade out. */

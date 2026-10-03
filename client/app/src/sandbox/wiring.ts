@@ -1,4 +1,5 @@
 import type { Intent } from "../input/intent";
+import { type StepKey, verticalDirection } from "../input/keys";
 import type { Tile, ViewActor, ViewState, ViewTile } from "../render/view";
 import {
   type StepStops,
@@ -187,6 +188,28 @@ export function applyIntent(
     stopped: options.playOnTap ? "" : before.stopped,
     said: `tap ${where}: ${how} ${path.length} steps, ${path.length * TICKS_PER_STEP} ticks`,
   };
+}
+
+/**
+ * The hex a step key stands for (CLI-03k): the adjacent tile in that direction from the
+ * adventurer, ↑ / ↓ resolved on the side it faces; the controller taps it. The direction is the
+ * placeholder's own (`facingToward`, the adjacent tile it names `d`): the grid's geometry stays in
+ * `placeholders.ts`.
+ */
+export function stepTarget(state: SandboxState, step: StepKey): Tile | null {
+  const { world } = state;
+  const adventurer = world.actors.find((a) => a.id === world.adventurerId);
+  if (!adventurer) return null;
+  const d =
+    "direction" in step ? step.direction : verticalDirection(adventurer.facing, step.vertical);
+  const { x, y } = adventurer.tile;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const tile = { x: x + dx, y: y + dy };
+      if (facingToward(adventurer.tile, tile) === d) return tile;
+    }
+  }
+  return null;
 }
 
 const at = (tile: Tile) => `(${tile.x}, ${tile.y})`;

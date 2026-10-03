@@ -1302,4 +1302,10 @@ export class Renderer implements FrameClient {
     if (next === Infinity) return null;
     return Math.max(next, this.lastIdle + 1000 / IDLE_MAX_FPS);
   }
+
+  /** Eases the camera to a tile (CLI-03k: a place selected by key, off the screen). */
+  lookAt(tile: Tile): void {
+    this.panCameraTo(tileToPixel(tile), this.host.now());
+    this.scheduler.invalidate();
+  }
 }

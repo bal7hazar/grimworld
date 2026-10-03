@@ -1,16 +1,19 @@
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Icon, IconButton, Panel, Ribbon } from "../../chrome/Chrome";
 import { targetIntent } from "../../input/hubTaps";
 import type { Intent, LoopIntent } from "../../input/intent";
+import type { KeyCommand } from "../../input/keys";
 import { type HubView, targetLabel } from "../../render/hubView";
 import { browserHost } from "../../render/scheduler";
 import type { Tile } from "../../render/view";
 import type { SandboxController } from "../controller";
+import { keyUi, offScreen, useScreenFocus } from "../keyScope";
 import { hubWorld } from "../fixtures/hubWorld";
 import { readParams } from "../params";
-import { RoomSandbox } from "../Sandbox";
+import { type MapKeys, RoomSandbox } from "../Sandbox";
 import type { WalkInfo } from "../session";
 import { HubDoors } from "./hubDoors";
+import { goIntent, hubTargets, nextTarget, serviceIntent } from "./keyTargets";
 import { ui } from "./styles";
 
 /**
@@ -20,6 +23,10 @@ import { ui } from "./styles";
  * and opens the place (`HubDoors`); the service row opens a place at once. The adventurer starts on
  * `at`, the machine's hex, and each change is answered to the machine through `onMoved`. The
  * places' names follow the camera; they take no tap.
+ *
+ * By keys (CLI-03k): `F` / `Shift+F` select a place in the service row's order (its name gets the
+ * focus ring, a ring marks its door, a live line says it), `Enter` taps its door, `1`–`9` press the
+ * service row, `Esc` closes the inspection, then cancels the walk, then clears the selection.
  */
 export function HubScreen({
   view,
@@ -64,10 +71,30 @@ export function HubScreen({
     [doors, onMoved],
   );
 
+  const root = useScreenFocus();
+  const mapBox = useRef<HTMLDivElement>(null);
+  const targets = useMemo(() => hubTargets(view), [view]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const chosen = selected === null ? null : (targets[selected] ?? null);
+  const chosenRef = useRef(chosen);
+  chosenRef.current = chosen;
+  const marker = useRef<HTMLDivElement>(null);
+  const shown = useRef<SandboxController | null>(null);
+
   const labels = useRef(new Map<string, HTMLElement>());
   const place = useCallback(
     (controller: SandboxController) => {
+      shown.current = controller;
       const scale = controller.scale();
+      const door = chosenRef.current;
+      if (marker.current) {
+        if (door) {
+          const at = controller.tileOnScreen(door.at);
+          marker.current.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`;
+          marker.current.style.width = marker.current.style.height = `${44 * scale}px`;
+        }
+        marker.current.style.visibility = door ? "visible" : "hidden";
+      }
       for (const p of view.places) {
         const element = labels.current.get(p.id);
         if (!element) continue;
@@ -81,9 +108,55 @@ export function HubScreen({
     },
     [view],
   );
+  useEffect(() => {
+    if (shown.current) place(shown.current);
+  }, [chosen, place]);
+
+  const onKey = (command: KeyCommand, map: MapKeys): boolean => {
+    switch (command.kind) {
+      case "step":
+        setSelected(null);
+        return map.handle(command);
+      case "cycle": {
+        const next = nextTarget(targets.length, selected, command.by);
+        setSelected(next);
+        const target = next === null ? null : targets[next];
+        if (target && map.controller && offScreen(map.controller, target.at, mapBox.current)) {
+          map.controller.lookAt(target.at);
+        }
+        return true;
+      }
+      case "go":
+        if (!chosen || !map.controller) return false;
+        map.controller.apply(goIntent(chosen.at));
+        return true;
+      case "service": {
+        const intent = serviceIntent(view, command.index);
+        if (intent) dispatch(intent);
+        return intent !== null;
+      }
+      case "escape":
+        if (figure) {
+          dispatch({ kind: "back" });
+          return true;
+        }
+        if (map.handle(command)) return true;
+        if (selected === null) return false;
+        setSelected(null);
+        return true;
+      default:
+        return map.handle(command);
+    }
+  };
 
   return (
-    <div style={ui.screen} data-screen="hub" data-hub={view.name}>
+    <div
+      ref={root}
+      tabIndex={-1}
+      style={{ ...ui.screen, ...keyUi.root }}
+      data-screen="hub"
+      data-hub={view.name}
+    >
       <header style={ui.header}>
         <Ribbon colour="blue" size="big" plain={ui.title}>
           {view.name}
@@ -92,8 +165,9 @@ export function HubScreen({
           <Icon name="gold" text="gold" /> {view.gold.toLocaleString("en-GB").replace(",", " ")}
         </span>
       </header>
-      <div style={styles.map}>
-        <RoomSandbox world={world} route={route} onTile={moved} onFrame={place}>
+      <div ref={mapBox} style={styles.map}>
+        <RoomSandbox world={world} route={route} onTile={moved} onFrame={place} onKey={onKey}>
+          <div ref={marker} className="gw-key-marker" style={keyUi.marker} aria-hidden />
           {view.places.map((p) => (
             <Ribbon
               key={p.id}
@@ -106,7 +180,10 @@ export function HubScreen({
               }}
               plain={styles.label}
               style={styles.labelPlace}
+              className={chosen?.id === p.id ? "gw-key-selected" : undefined}
               data-label={p.label}
+              data-door={`${p.at.x},${p.at.y}`}
+              data-selected={chosen?.id === p.id ? "" : undefined}
             >
               {p.label}
             </Ribbon>
@@ -133,6 +210,9 @@ export function HubScreen({
           )}
         </RoomSandbox>
       </div>
+      <span style={keyUi.hidden} aria-live="polite" data-key-live="">
+        {chosen ? `${chosen.label} selected, Enter to go` : ""}
+      </span>
       <Panel
         variant="wood"
         as="nav"

@@ -317,8 +317,14 @@
   border-image: none;
 }
 
-/* Focus: not in the pack. A 3 px outline in today's yellow with a dark halo, keyboard only. */
-[data-chrome="atlas"] button:focus-visible {
+/*
+ * Focus: not in the pack. A 3 px outline in today's yellow with a dark halo, keyboard only; in
+ * both looks (CLI-03k), and on what the keyboard selects: a place's name, the ring on its hex.
+ */
+[data-chrome="atlas"] button:focus-visible,
+button:focus-visible,
+.gw-key-selected,
+.gw-key-marker {
   outline: 3px solid #f2c94c;
   outline-offset: 1px;
   box-shadow: 0 0 0 5px #111;

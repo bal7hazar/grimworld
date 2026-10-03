@@ -3,10 +3,20 @@ import { Button, IconButton, Panel, Ribbon, Text } from "../../chrome/Chrome";
 import type { LoopIntent, ServiceId } from "../../input/intent";
 import { targetLabel } from "../../render/hubView";
 import { ADVENTURER, REPORT_FIGURES, type AdventurerSheet } from "../fixtures/hubs";
+import { keyUi, useKeyLayer, useScreenFocus } from "../keyScope";
 import { gatesFrom, hubName, locationName } from "./machine";
 import { ui } from "./styles";
 
 type Dispatch = (intent: LoopIntent) => void;
+
+/** `Esc` on a service or the Gate screen: the header's ‹ Back (CLI-03k). */
+function useEscapeBack(screen: "service" | "gate", dispatch: Dispatch) {
+  useKeyLayer(screen, (command) => {
+    if (command?.kind !== "escape") return false;
+    dispatch({ kind: "back" });
+    return true;
+  });
+}
 
 /** What each service's screen will hold (design/11 *Hubs*), said on its stub. */
 const SERVICE_CONTENT: Readonly<Record<ServiceId, string>> = {
@@ -62,8 +72,16 @@ export function ServiceScreen({
   dispatch: Dispatch;
 }) {
   const title = targetLabel({ kind: "service", service });
+  const root = useScreenFocus();
+  useEscapeBack("service", dispatch);
   return (
-    <div style={ui.screen} data-screen="service" data-service={service}>
+    <div
+      ref={root}
+      tabIndex={-1}
+      style={{ ...ui.screen, ...keyUi.root }}
+      data-screen="service"
+      data-service={service}
+    >
       <Header title={title} dispatch={dispatch} />
       <div style={ui.body}>
         <p style={ui.muted}>{hubName(hub)}</p>
@@ -136,8 +154,10 @@ export function SheetSummary({ sheet = ADVENTURER }: { sheet?: AdventurerSheet }
  */
 export function GateScreen({ hub, dispatch }: { hub: number; dispatch: Dispatch }) {
   const gates = gatesFrom(hub);
+  const root = useScreenFocus();
+  useEscapeBack("gate", dispatch);
   return (
-    <div style={ui.screen} data-screen="gate">
+    <div ref={root} tabIndex={-1} style={{ ...ui.screen, ...keyUi.root }} data-screen="gate">
       <Header title={`Gate · ${hubName(hub)}`} dispatch={dispatch} />
       <div style={ui.body}>
         <div style={ui.section}>
@@ -177,7 +197,7 @@ export function GateScreen({ hub, dispatch }: { hub: number; dispatch: Dispatch 
 /**
  * The entry moment: the entry draw is a Fate action sent alone (design/02), so the instance waits
  * for it. On fixed data it completes after a fixed delay (`entryMs`, `?entry=`), or at once when
- * skipped; the answer is `entry drawn`.
+ * skipped; the answer is `entry drawn`. Skip takes the focus (CLI-03k): `Enter` skips.
  */
 export function EntryScreen({
   destination,
@@ -194,6 +214,7 @@ export function EntryScreen({
     const timer = window.setTimeout(answer, entryMs);
     return () => window.clearTimeout(timer);
   }, [answer, entryMs]);
+  useKeyLayer("entry", () => false);
   return (
     <div style={{ ...ui.screen, justifyContent: "center", alignItems: "center", gap: 20 }}>
       <Panel
@@ -212,6 +233,7 @@ export function EntryScreen({
         variant="quiet"
         plain={{ ...ui.button, ...ui.quiet }}
         onClick={() => dispatch({ kind: "skip entry" })}
+        autoFocus
       >
         Skip ▸
       </Button>
@@ -222,6 +244,7 @@ export function EntryScreen({
 /**
  * The closing report (design/02 *Ending an expedition*): returned or defeated, experience, loot,
  * quest progress, the belt's potions credited back (D-141). Fixed figures, nothing computed.
+ * "On to …" takes the focus (CLI-03k): `Enter` continues.
  */
 export function ReportScreen({
   outcome,
@@ -235,6 +258,7 @@ export function ReportScreen({
   dispatch: Dispatch;
 }) {
   const figures = REPORT_FIGURES[outcome];
+  useKeyLayer("report", () => false);
   const by =
     how === "gate" ? "through the gate" : how === "travel back" ? "travelled back" : "health at 0";
   return (
@@ -291,6 +315,7 @@ export function ReportScreen({
           plain={{ ...ui.button, ...ui.primary }}
           style={{ width: "100%" }}
           onClick={() => dispatch({ kind: "close report" })}
+          autoFocus
         >
           On to {hubName(hub)} ▸
         </Button>

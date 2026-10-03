@@ -1,6 +1,7 @@
 import { type Container, Graphics, type Sprite, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel, worldToScreen } from "../input/coords";
+import { WHEEL_NOTCH } from "../input/gestures";
 import { fixtureNamed } from "../sandbox/fixtures";
 import { SandboxSession } from "../sandbox/session";
 import { initialState, toView } from "../sandbox/wiring";
@@ -851,3 +852,28 @@ async function obstacleLibrary(): Promise<SpriteLibrary> {
   });
   return new Map([...base, ...OBSTACLES.map((o) => [o.sprite, still(o.sprite)] as const)]);
 }
+
+describe("the keyboard's camera (CLI-03k)", () => {
+  it("lookAt eases the camera onto a tile; recentre brings it back", () => {
+    const { host, renderer, session } = setup({ idle: false, fixture: "meadow" });
+    host.run(500);
+    const target = { x: 3, y: 4 };
+    renderer.lookAt(target);
+    host.run(1000);
+    expect(renderer.cameraState().camera.centre).toEqual(tileToPixel(target));
+    renderer.recentre();
+    host.run(1000);
+    const adventurer = session.state.world.actors[0]!.tile;
+    expect(renderer.cameraState().camera.centre).toEqual(tileToPixel(adventurer));
+  });
+
+  it("one notch in, then one out, restores the scale (unless clamped)", () => {
+    const { renderer } = setup({ idle: false, fixture: "meadow" });
+    const centre = { x: 375 / 2, y: 812 / 2 };
+    const before = renderer.cameraState().camera.scale;
+    renderer.zoomAt(WHEEL_NOTCH, centre);
+    expect(renderer.cameraState().camera.scale).toBeGreaterThan(before);
+    renderer.zoomAt(1 / WHEEL_NOTCH, centre);
+    expect(renderer.cameraState().camera.scale).toBeCloseTo(before, 9);
+  });
+});
