@@ -7,9 +7,11 @@
 # only (pnpm, no Cairo, so no build lock), at `nice`, copies dist/ to $SITE_ROOT/releases/<sha>/ and
 # switches $SITE_ROOT/current to it atomically. A failed build leaves `current` untouched.
 #
-# The art (D-73) is NOT in the build by default: the client then draws shapes. GRIMWORLD_SITE_ART=1
-# builds the atlas from the pack on this machine ($GRIMWORLD_ASSETS) and copies it to <release>/art/,
-# where the client loads it (src/render/atlas.ts ART_BASE). Leave it unset until the owner allows it.
+# The art (D-73) is off in the build by default: the client then draws shapes. The owner decided on
+# 2026-10-02 that the pack's illustrations are served, so the service sets GRIMWORLD_SITE_ART=1: the
+# script builds the atlas from the pack on this machine ($GRIMWORLD_ASSETS) and copies it to
+# <release>/art/, where the client loads it (src/render/atlas.ts ART_BASE). Only the built atlas and
+# sprites.json are served, never a raw file of the pack.
 #
 # Files in $SITE_ROOT: current -> releases/<sha>-<UTC time>; deployed (the sha and art flag of `current`);
 # failed (the sha of the last failed build, retried after 30 minutes); deploy.log (one line per run).

@@ -4,6 +4,10 @@ A tile (CLI-03e, a sprite with `untrimmed`) is packed whole, at its cell's size,
 pixels are extruded into the gutter around it, so that a scaled scene sampling just outside a cell
 finds the cell's own edge, not a neighbour or transparency: no seam between two tiles.
 
+An interface element (CLI-03i, role `ui`) is packed whole as well, without extrusion (the client
+cuts its exact rectangle), on pages of its own: `pack` is called once per group of pages (`world`,
+then `ui`), each page listed with its group.
+
 A sprite never straddles two pages, so each page is a self-contained atlas that PixiJS loads with
 `Assets.load` and one `Spritesheet`. Everything is deterministic: fixed order, no timestamps.
 """
@@ -60,10 +64,12 @@ def extrude(img, x, y, w, h, e):
         img[y + h - 1 + i, x - e:x + w + e] = img[y + h - 1, x - e:x + w + e]
 
 
-def pack(sprites, s, out_dir):
+def pack(sprites, s, out_dir, prefix="atlas", group="world", first=0):
     """sprites: ordered list of dicts (name, cell_w, cell_h, baseline, anims=[{name, fps, loop,
-    cells}], and for a tile `untrimmed` and `anchor` = (x, y) as fractions of the cell). Writes
-    atlas-N.png / atlas-N.json and returns (index, page names)."""
+    cells}], for a tile or an interface element `untrimmed` and `anchor` = (x, y) as fractions of
+    the cell, `extrude` False to leave the gutter empty, and `ui` the element's metadata). Writes
+    <prefix>-N.png / <prefix>-N.json and returns the index; its pages carry `group`, and a sprite's
+    `page` counts from `first` (the pages of the groups packed before)."""
     side, pad = s["atlas_max"], s["atlas_padding"]
     pages, page_of, trimmed = [], {}, {}
     for sp in sprites:
@@ -102,7 +108,7 @@ def pack(sprites, s, out_dir):
                     x, y, w, h = pos[key]
                     crop, (ox, oy) = trimmed[key]
                     img[y:y + h, x:x + w] = crop
-                    if sp.get("untrimmed"):
+                    if sp.get("untrimmed") and sp.get("extrude", True):
                         whole.append((x, y, w, h))
                     ax, ay = sp.get("anchor", (0.5, sp["baseline"] / sp["cell_h"]))
                     frames[key] = {
@@ -119,7 +125,7 @@ def pack(sprites, s, out_dir):
         # After every frame is written: an extrusion only fills the gutter, half of it at most.
         for box in whole:
             extrude(img, *box, pad // 2)
-        png, jsn = f"atlas-{n}.png", f"atlas-{n}.json"
+        png, jsn = f"{prefix}-{n}.png", f"{prefix}-{n}.json"
         pngfile.write(out_dir / png, img)
         data = {
             "frames": frames,
@@ -135,13 +141,16 @@ def pack(sprites, s, out_dir):
             },
         }
         (out_dir / jsn).write_text(json.dumps(data, indent=1) + "\n")
-        index["pages"].append({"json": jsn, "image": png, "w": width, "h": height})
+        index["pages"].append({"json": jsn, "image": png, "w": width, "h": height,
+                               "group": group})
     for sp in sprites:
         index["sprites"][sp["name"]] = {
-            "role": sp["role"], "page": page_of[sp["name"]],
+            "role": sp["role"], "page": first + page_of[sp["name"]],
             "cell": {"w": sp["cell_w"], "h": sp["cell_h"]},
             "baseline": sp["baseline"],
             "animations": {a["name"]: {"frames": len(a["cells"]), "fps": a["fps"], "loop": a["loop"]}
                            for a in sp["anims"]},
         }
+        if "ui" in sp:
+            index["sprites"][sp["name"]]["ui"] = sp["ui"]
     return index

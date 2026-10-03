@@ -11,9 +11,14 @@
     "test:node": "vitest run src/account/burner.node.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "verify:hubs": "node verify-hubs.mjs"
+    "verify:hubs": "node verify-hubs.mjs",
+    "verify:ground": "node verify-ground.mjs",
+    "verify:chrome": "node verify-chrome.mjs",
+    "verify:keys": "node verify-keys.mjs",
+    "verify:hud": "node verify-hud.mjs"
   },
   "dependencies": {
+    "@fontsource/pixelify-sans": "5.3.0",
     "pixi.js": "8.21.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

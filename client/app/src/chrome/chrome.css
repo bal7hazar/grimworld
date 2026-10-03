@@ -1,0 +1,464 @@
+/*
+ * The client's chrome (CLI-03i). Every rule is scoped to [data-chrome="atlas"]: without the art the
+ * components keep their inline plain look (today's) and nothing here applies. The images and their
+ * lengths are custom properties set by ChromeProvider (load.ts `chromeProperties`): one image pixel
+ * per device pixel, so no rule here scales the art. No transition anywhere (design/11 I-7).
+ */
+
+[data-chrome="atlas"] .gw-panel,
+[data-chrome="atlas"] .gw-button,
+[data-chrome="atlas"] .gw-ribbon {
+  border-style: solid;
+  border-width: 0;
+  border-radius: 0;
+  background: none;
+  box-sizing: border-box;
+  image-rendering: pixelated;
+  border-image-source: var(--img);
+  border-image-slice: var(--slice) fill;
+  border-image-width: var(--width);
+  border-image-repeat: var(--repeat, stretch);
+  min-width: max(var(--floor, 0px), var(--min-w));
+  min-height: max(var(--floor, 0px), var(--min-h));
+}
+
+/* Panels: text sits inside the drawn border, by the element's content insets. */
+[data-chrome="atlas"] .gw-panel {
+  padding: var(--pad);
+  color: #111;
+}
+[data-chrome="atlas"] .gw-panel-paper {
+  --img: var(--gw-paper);
+  --slice: var(--gw-paper-slice);
+  --width: var(--gw-paper-width);
+  --min-w: var(--gw-paper-min-w);
+  --min-h: var(--gw-paper-min-h);
+  --pad: var(--gw-paper-pad);
+  --repeat: round;
+}
+[data-chrome="atlas"] .gw-panel-dark {
+  --img: var(--gw-paper-dark);
+  --slice: var(--gw-paper-dark-slice);
+  --width: var(--gw-paper-dark-width);
+  --min-w: var(--gw-paper-dark-min-w);
+  --min-h: var(--gw-paper-dark-min-h);
+  --pad: var(--gw-paper-dark-pad);
+  --repeat: round;
+  color: #fff;
+}
+[data-chrome="atlas"] .gw-panel-scroll {
+  --img: var(--gw-scroll);
+  --slice: var(--gw-scroll-slice);
+  --width: var(--gw-scroll-width);
+  --min-w: var(--gw-scroll-min-w);
+  --min-h: var(--gw-scroll-min-h);
+  --pad: var(--gw-scroll-pad);
+  --repeat: round;
+}
+[data-chrome="atlas"] .gw-panel-wood {
+  --img: var(--gw-wood);
+  --slice: var(--gw-wood-slice);
+  --width: var(--gw-wood-width);
+  --min-w: var(--gw-wood-min-w);
+  --min-h: var(--gw-wood-min-h);
+  --pad: var(--gw-wood-pad);
+  --repeat: round;
+  color: #fff;
+}
+
+/* Buttons. The label is large text (bold, 18.67 px = 14 pt = 1.1669 rem at the default size) in white with a one-device-pixel dark
+   outline on the blue and red faces; ink on the paper (contrast.ts). */
+[data-chrome="atlas"] .gw-button {
+  --img: var(--face);
+  --floor: 44px;
+  padding: var(--pad);
+  font: 700 1.166875rem/1.25rem var(--gw-display);
+  white-space: nowrap;
+  /* At a larger text size a button keeps its label whole; its neighbours give way (rem text). */
+  flex-shrink: 0;
+  color: #fff;
+  text-shadow:
+    var(--gw-px) 0 #111,
+    calc(-1 * var(--gw-px)) 0 #111,
+    0 var(--gw-px) #111,
+    0 calc(-1 * var(--gw-px)) #111;
+  cursor: pointer;
+}
+[data-chrome="atlas"] .gw-button-action {
+  --face: var(--gw-button-blue);
+  --face-pressed: var(--gw-button-blue-pressed);
+  --slice: var(--gw-button-blue-slice);
+  --width: var(--gw-button-blue-width);
+  --min-w: var(--gw-button-blue-min-w);
+  --min-h: var(--gw-button-blue-min-h);
+  --pad: var(--gw-button-blue-pad);
+  --drop: var(--gw-button-blue-drop);
+}
+[data-chrome="atlas"] .gw-button-commit {
+  --face: var(--gw-button-red);
+  --face-pressed: var(--gw-button-red-pressed);
+  --slice: var(--gw-button-red-slice);
+  --width: var(--gw-button-red-width);
+  --min-w: var(--gw-button-red-min-w);
+  --min-h: var(--gw-button-red-min-h);
+  --pad: var(--gw-button-red-pad);
+  --drop: var(--gw-button-red-drop);
+}
+[data-chrome="atlas"] .gw-button-quiet {
+  --face: var(--gw-paper);
+  --face-pressed: var(--gw-paper);
+  --slice: var(--gw-paper-slice);
+  --width: var(--gw-paper-width);
+  --min-w: var(--gw-paper-min-w);
+  --min-h: var(--gw-paper-min-h);
+  --pad: 0 var(--gw-paper-pad-x, 14px);
+  --repeat: round;
+  --drop: 0px;
+  font: 600 0.9375rem/1.25rem var(--gw-display);
+  color: #111;
+  text-shadow: none;
+}
+[data-chrome="atlas"] .gw-label {
+  position: relative;
+  display: inline-block;
+  top: 0;
+}
+[data-chrome="atlas"] .gw-button:active:not(:disabled),
+[data-chrome="atlas"] .gw-button[aria-pressed="true"] {
+  --img: var(--face-pressed);
+}
+[data-chrome="atlas"] .gw-button:active:not(:disabled) > .gw-label,
+[data-chrome="atlas"] .gw-button[aria-pressed="true"] > .gw-label {
+  top: var(--drop);
+}
+[data-chrome="atlas"] .gw-button-quiet:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+[data-chrome="atlas"] .gw-button:disabled {
+  filter: grayscale(1) brightness(0.85);
+  cursor: default;
+}
+[data-chrome="atlas"] .gw-button:disabled > .gw-label {
+  opacity: 0.6;
+}
+
+/* The small round button with an icon or a glyph: the image at its own size. */
+[data-chrome="atlas"] .gw-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--gw-round-blue-w);
+  height: var(--gw-round-blue-h);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0 var(--gw-round-blue-drop);
+  border: none;
+  border-radius: 0;
+  background: var(--gw-round-blue) center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  font: 700 1.5rem/1 system-ui;
+  color: #fff;
+  text-shadow:
+    var(--gw-px) 0 #111,
+    calc(-1 * var(--gw-px)) 0 #111,
+    0 var(--gw-px) #111,
+    0 calc(-1 * var(--gw-px)) #111;
+  cursor: pointer;
+}
+[data-chrome="atlas"] .gw-icon-button:active {
+  background-image: var(--gw-round-blue-pressed);
+}
+[data-chrome="atlas"] .gw-icon-button:active > .gw-label {
+  top: var(--gw-round-blue-drop);
+}
+
+/* Icons at the chrome's scale. */
+[data-chrome="atlas"] .gw-icon {
+  display: inline-block;
+  vertical-align: middle;
+  background: var(--icon) center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  width: var(--icon-w);
+  height: var(--icon-h);
+}
+[data-chrome="atlas"] .gw-icon-back {
+  --icon: var(--gw-icon-back);
+  --icon-w: var(--gw-icon-back-w);
+  --icon-h: var(--gw-icon-back-h);
+}
+[data-chrome="atlas"] .gw-icon-close {
+  --icon: var(--gw-icon-close);
+  --icon-w: var(--gw-icon-close-w);
+  --icon-h: var(--gw-icon-close-h);
+}
+[data-chrome="atlas"] .gw-icon-gold {
+  --icon: var(--gw-icon-gold);
+  --icon-w: var(--gw-icon-gold-w);
+  --icon-h: var(--gw-icon-gold-h);
+  margin-right: 4px;
+}
+
+/* Ribbons: a three-slice of fixed height (the art's), the text inside its content insets. */
+[data-chrome="atlas"] .gw-ribbon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--h);
+  max-width: 100%;
+  padding: var(--pad);
+  /* The ribbon grows taller (min-height) rather than clipping a long title at a larger text size. */
+  text-align: center;
+  overflow: hidden;
+  --repeat: round stretch;
+}
+[data-chrome="atlas"] .gw-ribbon-big {
+  font: 700 1.166875rem/1.25rem var(--gw-display);
+  color: #fff;
+  text-shadow:
+    var(--gw-px) 0 #111,
+    calc(-1 * var(--gw-px)) 0 #111,
+    0 var(--gw-px) #111,
+    0 calc(-1 * var(--gw-px)) #111;
+}
+[data-chrome="atlas"] .gw-ribbon-blue {
+  --img: var(--gw-ribbon-big-blue);
+  --slice: var(--gw-ribbon-big-blue-slice);
+  --width: var(--gw-ribbon-big-blue-width);
+  --min-w: var(--gw-ribbon-big-blue-min-w);
+  --min-h: var(--gw-ribbon-big-blue-min-h);
+  --pad: var(--gw-ribbon-big-blue-pad);
+  --h: var(--gw-ribbon-big-blue-h);
+}
+[data-chrome="atlas"] .gw-ribbon-red {
+  --img: var(--gw-ribbon-big-red);
+  --slice: var(--gw-ribbon-big-red-slice);
+  --width: var(--gw-ribbon-big-red-width);
+  --min-w: var(--gw-ribbon-big-red-min-w);
+  --min-h: var(--gw-ribbon-big-red-min-h);
+  --pad: var(--gw-ribbon-big-red-pad);
+  --h: var(--gw-ribbon-big-red-h);
+}
+[data-chrome="atlas"] .gw-ribbon-yellow {
+  --img: var(--gw-ribbon-small-yellow);
+  --slice: var(--gw-ribbon-small-yellow-slice);
+  --width: var(--gw-ribbon-small-yellow-width);
+  --min-w: var(--gw-ribbon-small-yellow-min-w);
+  --min-h: var(--gw-ribbon-small-yellow-min-h);
+  --pad: var(--gw-ribbon-small-yellow-pad);
+  --h: var(--gw-ribbon-small-yellow-h);
+  --repeat: stretch;
+  font: 600 0.9375rem/1.25rem var(--gw-display);
+  color: #111;
+}
+
+/* Secondary text: its colour follows the surface (contrast.ts). */
+[data-chrome="atlas"] .gw-text-caption,
+[data-chrome="atlas"] .gw-text-muted {
+  color: #9a9aa6;
+}
+[data-chrome="atlas"] .gw-panel-paper .gw-text-caption,
+[data-chrome="atlas"] .gw-panel-paper .gw-text-muted,
+[data-chrome="atlas"] .gw-panel-scroll .gw-text-caption,
+[data-chrome="atlas"] .gw-panel-scroll .gw-text-muted {
+  color: #5b4636;
+}
+[data-chrome="atlas"] .gw-panel-paper .gw-text-caption,
+[data-chrome="atlas"] .gw-panel-scroll .gw-text-caption {
+  font-weight: 600;
+}
+[data-chrome="atlas"] .gw-panel-dark .gw-text-caption {
+  color: #fff;
+  font-weight: 700;
+}
+[data-chrome="atlas"] .gw-panel-dark .gw-text-muted {
+  color: #e3e3e8;
+}
+
+/* The hub's service row on the wooden board: the board's thick frame is drawn partly outside the
+   row (over the map's lower edge, and below the screen), so the row keeps today's height. */
+[data-chrome="atlas"] .gw-service-row {
+  display: grid;
+  gap: 4px;
+  padding: 8px 15px;
+  border-image-outset: 13px 0 21px;
+}
+[data-chrome="atlas"] .gw-service-row > .gw-button {
+  min-width: 0;
+}
+/* Three columns at 375 px give a button 111 px: the display face's widest label ("Enchanter",
+   100 px at 1.166875 rem) would run over the frame, so the row's labels are a little smaller
+   there (CLI-03m follow-up). */
+@media (max-width: 480px) {
+  [data-chrome="atlas"] .gw-service-row > .gw-button {
+    font-size: 1rem;
+    padding-inline: 8px;
+  }
+}
+
+/* Panels stacked on a screen (the Gate's sheet), the entry's scroll within the column. */
+[data-chrome="atlas"] .gw-sheet {
+  margin-bottom: 10px;
+}
+[data-chrome="atlas"] .gw-entry {
+  max-width: calc(100% - 32px);
+}
+[data-chrome="atlas"] .gw-header-side {
+  min-width: var(--gw-round-blue-w) !important;
+}
+
+/* The desktop's side panels on the special paper. */
+[data-chrome="atlas"] .gw-side {
+  margin: 8px;
+}
+
+/* The walk's "stopped" line: a small paper-coloured tag (the paper's art is too large for it). */
+[data-chrome="atlas"] .gw-tag {
+  padding: 2px 8px;
+  border: 1px solid #111;
+  border-radius: 2px;
+  color: #111;
+  background: #eee1c6;
+}
+
+/* The debug controls keep a non-pack look on purpose (red, dashed). */
+[data-chrome="atlas"] .gw-debug {
+  border-image: none;
+}
+
+/*
+ * Focus: not in the pack. A 3 px outline in today's yellow with a dark halo, keyboard only; in
+ * both looks (CLI-03k), and on what the keyboard selects: a place's name, the ring on its hex.
+ */
+[data-chrome="atlas"] button:focus-visible,
+button:focus-visible,
+.gw-key-selected,
+.gw-key-marker {
+  outline: 3px solid #f2c94c;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 5px #111;
+}
+[data-chrome="atlas"] button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (hover: hover) {
+  [data-chrome="atlas"] .gw-button:hover:not(:disabled),
+  [data-chrome="atlas"] .gw-icon-button:hover {
+    filter: brightness(1.06);
+  }
+}
+
+/*
+ * The HUD (CLI-03l), scoped to [data-hud="atlas"] (the band) and the HUD's own art: a stale
+ * sprites.json keeps the chrome above and draws these plain. A bar is a three-slice of the art's
+ * height, the fill inside its trough (the padding) at whole device px (Chrome.tsx `Bar`).
+ */
+[data-hud="atlas"] .gw-bar {
+  display: flex;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  height: var(--h);
+  padding: var(--pad);
+  border-style: solid;
+  border-width: 0;
+  image-rendering: pixelated;
+  border-image-source: var(--img);
+  border-image-slice: var(--slice) fill;
+  border-image-width: var(--width);
+  border-image-repeat: var(--repeat);
+  min-width: var(--min-w);
+}
+[data-hud="atlas"] .gw-bar-big {
+  --img: var(--gw-bar-big);
+  --slice: var(--gw-bar-big-slice);
+  --width: var(--gw-bar-big-width);
+  --min-w: var(--gw-bar-big-min-w);
+  --pad: var(--gw-bar-big-pad);
+  --h: var(--gw-bar-big-h);
+  /* The middle is wood grain: repeated whole, never stretched. */
+  --repeat: round stretch;
+}
+[data-hud="atlas"] .gw-bar-small {
+  --img: var(--gw-bar-small);
+  --slice: var(--gw-bar-small-slice);
+  --width: var(--gw-bar-small-width);
+  --min-w: var(--gw-bar-small-min-w);
+  --pad: var(--gw-bar-small-pad);
+  --h: var(--gw-bar-small-h);
+  --repeat: stretch;
+}
+[data-hud="atlas"] .gw-bar-track {
+  flex: 1;
+  min-width: 96px;
+}
+[data-hud="atlas"] .gw-bar-fill {
+  /* Every column of the fill is the same: stretched along the trough, its rows one to one. */
+  background: var(--fill) 0 0 / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+[data-hud="atlas"] .gw-bar-health .gw-bar-fill {
+  --fill: var(--gw-bar-big-fill);
+}
+[data-hud="atlas"] .gw-bar-energy .gw-bar-fill {
+  --fill: var(--gw-bar-small-fill-energy);
+}
+/* The figures beside the bars: white on the special paper (contrast.ts), never over a fill. */
+[data-chrome="atlas"] .gw-hud-figure {
+  color: #fff;
+}
+[data-hud="atlas"] .gw-icon-sword {
+  --icon: var(--gw-icon-sword);
+  --icon-w: var(--gw-icon-sword-w);
+  --icon-h: var(--gw-icon-sword-h);
+}
+
+/*
+ * The pack's cursors on desktop pointers (CLI-03l *The method* §6): the arrow on the page, the
+ * pointing hand on what takes a click; a disabled button keeps the arrow. Each value carries a
+ * keyword fallback. Touch screens are unchanged. `!important`: the plain styles set `cursor`
+ * inline on buttons (`sandbox/loop/styles.ts`), and the pack's cursor replaces it.
+ */
+@media (hover: hover) and (pointer: fine) {
+  [data-cursors] {
+    cursor: var(--gw-cursor-arrow);
+  }
+  [data-cursors] button:not(:disabled),
+  [data-cursors] canvas {
+    cursor: var(--gw-cursor-hand) !important;
+  }
+  [data-cursors] button:disabled {
+    cursor: var(--gw-cursor-arrow) !important;
+  }
+}
+
+/* A high-contrast setting: the art dropped, plain system borders drawn. */
+@media (forced-colors: active) {
+  [data-chrome="atlas"] .gw-panel,
+  [data-chrome="atlas"] .gw-button,
+  [data-chrome="atlas"] .gw-ribbon,
+  [data-chrome="atlas"] .gw-icon-button {
+    border-image: none;
+    background: Canvas;
+    border: 2px solid CanvasText;
+    color: CanvasText;
+    text-shadow: none;
+    filter: none;
+  }
+  [data-hud="atlas"] .gw-bar {
+    border-image: none;
+    border: 1px solid CanvasText;
+  }
+  [data-hud="atlas"] .gw-bar-fill {
+    forced-color-adjust: none;
+  }
+  [data-chrome="atlas"] .gw-button,
+  [data-chrome="atlas"] .gw-icon-button {
+    border-color: ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+  [data-chrome="atlas"] .gw-icon {
+    forced-color-adjust: none;
+  }
+}

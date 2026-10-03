@@ -70,3 +70,20 @@ describe("FrameScheduler after destroy", () => {
     expect(calls.draw).toBe(drawn);
   });
 });
+
+describe("frame timing (CLI-03g1, AC-8)", () => {
+  it("reports how long the last draw took, on the host's clock", () => {
+    const { host, frames, advance } = fakeHost();
+    const client: FrameClient = {
+      advance: () => ({ changed: true, next: null }),
+      draw: () => advance(3.5),
+    };
+    const seen: (number | null)[] = [];
+    const scheduler = new FrameScheduler(host, client, (stats) => seen.push(stats.drawMs));
+    expect(scheduler.stats().drawMs).toBeNull();
+    scheduler.invalidate();
+    for (const callback of [...frames.values()]) callback();
+    expect(seen).toEqual([3.5]);
+    expect(scheduler.stats().drawMs).toBe(3.5);
+  });
+});

@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "../../render/view";
 import { findPath } from "../placeholders";
 import { kindAt } from "../world";
-import { HUB_VIEWS } from "./hubs";
-import { HUB_ADVENTURER_ID, footprint, hubTap, hubWorld } from "./hubWorld";
+import { FIXTURES } from ".";
+import { HUB_PATHS, HUB_VIEWS } from "./hubs";
+import { HUB_ADVENTURER_ID, footprint, hubTap, hubWorld, onIsland } from "./hubWorld";
 
 const key = (t: Tile) => `${t.x},${t.y}`;
 
@@ -126,3 +127,56 @@ const PINNED_GUILD: readonly string[] = [
   "4,11",
   "5,12",
 ];
+
+describe("a hub's ground (CLI-03g1, AC-2)", () => {
+  for (const view of HUB_VIEWS.values()) {
+    const world = hubWorld(view, view.arrival);
+    const { terrain } = world;
+    const ground = terrain.ground!;
+    const at = (t: Tile) => ground[t.y * terrain.width + t.x];
+
+    it(`${view.name}: the island grass or earth, every other hex water and wall; the void water`, () => {
+      expect(ground).toHaveLength(terrain.width * terrain.height);
+      for (let y = 0; y < terrain.height; y++) {
+        for (let x = 0; x < terrain.width; x++) {
+          const g = at({ x, y });
+          if (onIsland(view, { x, y })) expect(g === "grass" || g === "earth").toBe(true);
+          else {
+            expect(g).toBe("water");
+            expect(kindAt(terrain, { x, y })).toBe("wall");
+          }
+        }
+      }
+      expect(world.void).toBe("water");
+    });
+
+    it(`${view.name}: every path hex earth and floor; the arrival and every door land`, () => {
+      const path = HUB_PATHS.get(view)!;
+      expect(path.length).toBeGreaterThan(0);
+      for (const tile of path) {
+        expect(at(tile), key(tile)).toBe("earth");
+        expect(kindAt(terrain, tile), key(tile)).toBe("floor");
+      }
+      // Earth is the path's only: nothing else is drawn as trodden ground.
+      const onPath = new Set(path.map(key));
+      expect(ground.filter((g) => g === "earth")).toHaveLength(onPath.size);
+      for (const tile of [view.arrival, ...view.places.map((p) => p.at)]) {
+        expect(at(tile), key(tile)).not.toBe("water");
+      }
+    });
+  }
+
+  it("no water hex is floor, in any fixture", () => {
+    const worlds = [
+      ...Object.values(FIXTURES),
+      ...[...HUB_VIEWS.values()].map((view) => hubWorld(view, view.arrival)),
+    ];
+    for (const { name, terrain } of worlds) {
+      terrain.ground?.forEach((g, i) => {
+        if (g === "water") expect(terrain.kinds[i], name).not.toBe("floor");
+        if (g === "water") expect(terrain.hidden[i], name).not.toBe("floor");
+        if (g === "earth") expect(terrain.kinds[i], name).toBe("floor");
+      });
+    }
+  });
+});

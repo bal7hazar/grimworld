@@ -25,9 +25,9 @@ dependencies = [
 
 [[package]]
 name = "hexx"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://scarbs.xyz/"
-checksum = "sha256:9313e06b7b11282cb015f47af41fcd41a3162b627fb14b0734e35569f5ca1500"
+checksum = "sha256:c4bf8aef830ca5ed0d9ebc02ad82aeea637ae96ab7311bbf522fc8d4d613a753"
 
 [[package]]
 name = "snforge_scarb_plugin"

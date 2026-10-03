@@ -7,7 +7,7 @@
 // cases kill it the mark must go.
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 type Mutant = { name: string; file: string; from: string; to: string; survives?: string };
 
@@ -301,6 +301,11 @@ function killer(parity: Parity): string | undefined {
 
 describe("the mutation check", () => {
   const results: string[] = [];
+
+  // A run that was interrupted or killed leaves its copies behind: start from none.
+  beforeAll(() => {
+    rmSync(COPIES, { recursive: true, force: true });
+  });
 
   afterAll(() => {
     rmSync(COPIES, { recursive: true, force: true });

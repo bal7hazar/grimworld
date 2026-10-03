@@ -25,7 +25,7 @@ try:
     import numpy as np
     from PIL import Image
 
-    from artpipe import atlas, clean, fingerprint, png, scale
+    from artpipe import atlas, clean, fingerprint, png, scale, ui
 except ImportError:                                         # outside the venv
     np = None
 
@@ -559,6 +559,35 @@ class RealManifest(unittest.TestCase):
         self.assertEqual(set(tilesets["water"]["cells"]), {"c"})
         self.assertEqual(build.tileset_problems(self.manifest), [])
 
+    def test_the_interface_elements(self):
+        """CLI-03i: the chrome's entries, each sound; the buttons have a pressed state."""
+        entries = {e["name"]: e for e in self.manifest["ui"]}
+        self.assertEqual(set(entries), {
+            "paper", "paper_dark", "scroll", "wood", "button_blue", "button_red",
+            "ribbon_big_blue", "ribbon_big_red", "ribbon_small_yellow", "round_blue",
+            "square_blue", "icon_back", "icon_close", "icon_gold",
+            # CLI-03l, the HUD
+            "bar_big", "bar_big_fill", "bar_small", "bar_small_fill_energy", "icon_sword",
+            "portrait_vanguard", "portrait_warden", "portrait_cleric", "cursor_arrow",
+            "cursor_hand"})
+        # The energy fill is the small red fill in the big blue button's face colour.
+        self.assertEqual(entries["bar_small_fill_energy"]["recolour"], {"#ff3e3e": "#41919d"})
+        self.assertEqual([e["name"] for e in entries.values() if "recolour" in e],
+                         ["bar_small_fill_energy"])
+        for name, e in entries.items():
+            self.assertTrue(e["file"].startswith("UI Elements/UI Elements/"), name)
+            if name.startswith(("button_", "round_", "square_")):
+                self.assertEqual(e["drop"], 11, name)
+                self.assertIn("pressed", e["states"], name)
+        self.assertEqual(ui.problems(self.manifest, build.taken_names(self.manifest))
+                         if np is not None else [], [])
+
+    def test_the_foam_tile(self):
+        """CLI-03g2: the foam is one 192 x 192 cell, the first still of the pack's strip."""
+        foam = {ts["name"]: ts for ts in self.manifest["tileset"]}["foam"]
+        self.assertEqual((foam["file"], foam["cell"], foam["cells"]),
+                         ("Terrain/Tileset/Water Foam.png", 192, {"c": [0, 0]}))
+
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
 class Stills(unittest.TestCase):
@@ -739,6 +768,56 @@ class Tiles(unittest.TestCase):
             "[[tileset]] water: cell c [0] is not [column, row]"])
         self.assertEqual(build.tileset_problems({"sprite": []}), [])
 
+    def test_a_cell_of_another_side(self):
+        """CLI-03g2: an entry's `cell` side (the foam's 192): the frame is exactly that cell,
+        untrimmed, anchored top-left, its transparent ring kept, its edges extruded."""
+        img = np.zeros((192, 384, 4), np.uint8)
+        img[40:152, 40:152] = (230, 240, 250, 36)                  # a faint ring's square
+        img[80:112, 80:112] = 0                                    # its hole
+        img[:, 192:] = (255, 0, 0, 255)                            # the next cell: never cut
+        ts = {"name": "foam", "role": "tile", "file": "Foam.png", "origin": "synthetic",
+              "cell": 192, "cells": {"c": [0, 0]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            Image.fromarray(img, "RGBA").save(Path(tmp) / "Foam.png")
+            sprites = build.tile_sprites(ts, Path(tmp) / "Foam.png")
+            index = atlas.pack(sprites, self.S, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, sprites, self.S)
+                # The check holds a tile to its entry's side: a 64 px claim fails on this frame.
+                wrong = [dict(sprites[0], cell_w=64, cell_h=64)]
+                with self.assertRaises(AssertionError):
+                    build.verify([page], index, wrong, self.S)
+            finally:
+                build.OUT = saved
+            packed = np.array(Image.open(out / "atlas-0.png").convert("RGBA"))
+        entry = index["sprites"]["foam_c"]
+        self.assertEqual((entry["role"], entry["cell"], entry["baseline"]),
+                         ("tile", {"w": 192, "h": 192}, 0))
+        f = page["frames"]["foam_c/still/00"]
+        self.assertEqual((f["frame"]["w"], f["frame"]["h"]), (192, 192))
+        self.assertFalse(f["trimmed"])
+        self.assertEqual(f["spriteSourceSize"], {"x": 0, "y": 0, "w": 192, "h": 192})
+        self.assertEqual(f["anchor"], {"x": 0, "y": 0})
+        r = f["frame"]
+        self.assertTrue((packed[r["y"]:r["y"] + 192, r["x"]:r["x"] + 192] == img[:, :192]).all())
+
+    def test_a_cell_side_is_checked(self):
+        manifest = {"tileset": [
+            {"name": "foam", "role": "tile", "file": "f.png", "origin": "x", "cell": 0,
+             "cells": {"c": [0, 0]}},
+            {"name": "sea", "role": "tile", "file": "s.png", "origin": "x", "cell": "192",
+             "cells": {"c": [0, 0]}},
+            {"name": "ok", "role": "tile", "file": "o.png", "origin": "x", "cell": 192,
+             "cells": {"c": [0, 0]}},
+        ]}
+        self.assertEqual(build.tileset_problems(manifest), [
+            "[[tileset]] foam: cell 0 is not a side in px",
+            "[[tileset]] sea: cell '192' is not a side in px"])
+
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
 class FeetRow(unittest.TestCase):
@@ -829,6 +908,250 @@ class Fingerprint(unittest.TestCase):
             self.assertEqual((fingerprint.files(a), fingerprint.content(a)), before)
             self.assertEqual([f.name for f in fingerprint.outputs(a)],
                              ["atlas-0.json", "atlas-0.png"])
+
+
+@unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
+class Interface(unittest.TestCase):
+    """The interface's elements (CLI-03i), on synthetic sheets: no image of the pack."""
+
+    S = {"atlas_max": 2048, "atlas_padding": 2}
+    LATTICE = {"columns": [[0, 8], [16, 24], [32, 40]], "rows": [[0, 8], [16, 24], [32, 40]]}
+
+    @staticmethod
+    def sheet(face_top=2, margin=(2, 1, 1, 3), colour=(200, 80, 80, 255)):
+        """A 40 x 40 lattice sheet of 8 px pieces at 0, 16 and 32 (empty cells between): a flat
+        face whose composed form starts at row `face_top`, inside the transparent `margin`
+        [top, right, bottom, left] of the composed 24 x 24 image, with a dark one-pixel rim."""
+        composed = np.zeros((24, 24, 4), np.uint8)
+        t, r, b, l = margin
+        composed[max(t, face_top):24 - b, l:24 - r] = colour
+        composed[max(t, face_top), l:24 - r] = (20, 20, 20, 255)
+        img = np.zeros((40, 40, 4), np.uint8)
+        for i, y in enumerate((0, 16, 32)):
+            for j, x in enumerate((0, 16, 32)):
+                img[y:y + 8, x:x + 8] = composed[i * 8:i * 8 + 8, j * 8:j * 8 + 8]
+        return img
+
+    def entry(self, **more):
+        e = {"name": "button", "role": "ui", "kind": "nine", "fill": "stretch", "file": "r.png",
+             "origin": "synthetic", "pieces": self.LATTICE, "slice": [3, 2, 2, 2],
+             "content": [4, 4, 4, 4]}
+        e.update(more)
+        return e
+
+    def test_a_lattice_nine_slice_is_composed_contiguous_with_its_margins_as_outset(self):
+        sheet = self.sheet(face_top=2, margin=(2, 1, 1, 3))
+        sprite, report = ui.element(self.entry(), lambda f: sheet, 0.15)
+        img = sprite["anims"][0]["cells"][0]
+        self.assertEqual(img.shape, (21, 20, 4))                 # 24 - 2 - 1, 24 - 1 - 3
+        self.assertEqual(sprite["ui"]["outset"], [2, 1, 1, 3])
+        self.assertEqual((sprite["cell_w"], sprite["cell_h"]), (20, 21))
+        self.assertTrue((img[1:, :] == (200, 80, 80, 255)).all())  # no gap from the lattice
+        self.assertEqual(report["centre"], {"regular": "#c85050"})
+        self.assertEqual(sprite["ui"]["kind"], "nine")
+        self.assertNotIn("drop", sprite["ui"])
+
+    def test_a_three_slice_row_is_cut_from_a_multi_row_sheet(self):
+        sheet = np.zeros((32, 40, 4), np.uint8)
+        sheet[0:16, :, :] = 0
+        for x0 in (0, 16, 32):
+            sheet[2:14, x0:x0 + 8] = (10, 200, 10, 255)          # row 0: green
+            sheet[18:30, x0:x0 + 8] = (200, 200, 10, 255)        # row 1: yellow
+        e = self.entry(kind="three", pieces={"columns": self.LATTICE["columns"],
+                                             "rows": [[16, 32]]}, slice=[0, 3, 0, 3],
+                       content=[0, 4, 0, 4])
+        sprite, report = ui.element(e, lambda f: sheet, 0.15)
+        img = sprite["anims"][0]["cells"][0]
+        self.assertEqual(img.shape, (12, 24, 4))
+        self.assertEqual(sprite["ui"]["outset"], [2, 0, 2, 0])
+        self.assertEqual(report["centre"]["regular"], "#c8c80a")
+
+    def test_the_pressed_state_shares_the_trim_and_drops(self):
+        regular = self.sheet(face_top=2, margin=(2, 1, 1, 3))
+        pressed = self.sheet(face_top=5, margin=(2, 0, 1, 2), colour=(150, 60, 60, 255))
+        sheets = {"r.png": regular, "p.png": pressed}
+        e = self.entry(states={"pressed": "p.png"}, drop=3, slice=[5, 2, 2, 2])
+        sprite, report = ui.element(e, sheets.__getitem__, 0.15)
+        cells = {a["name"]: a["cells"][0] for a in sprite["anims"]}
+        self.assertEqual(set(cells), {"regular", "pressed"})
+        self.assertEqual(cells["regular"].shape, cells["pressed"].shape)   # one trim for both
+        self.assertEqual(sprite["ui"]["outset"], [2, 0, 1, 2])
+        self.assertEqual((sprite["ui"]["drop"], sprite["ui"]["states"]), (3, ["pressed"]))
+        self.assertEqual(ui.face_top(cells["pressed"]) - ui.face_top(cells["regular"]), 3)
+        self.assertEqual(set(report["centre"]), {"regular", "pressed"})
+
+    def test_a_wrong_drop_is_refused(self):
+        sheets = {"r.png": self.sheet(face_top=2), "p.png": self.sheet(face_top=5)}
+        with self.assertRaises(SystemExit) as e:
+            ui.element(self.entry(states={"pressed": "p.png"}, drop=4), sheets.__getitem__, 0.15)
+        self.assertIn("drop 4, the pressed face starts 3 px lower", str(e.exception))
+
+    def test_a_pressed_sheet_of_another_layout_is_refused(self):
+        other = self.sheet()
+        other[10, 10] = (1, 2, 3, 255)                           # a pixel in an empty cell
+        sheets = {"r.png": self.sheet(), "p.png": other}
+        with self.assertRaises(SystemExit) as e:
+            ui.element(self.entry(states={"pressed": "p.png"}, drop=0), sheets.__getitem__, 0.15)
+        self.assertIn("p.png has pixels outside the described pieces", str(e.exception))
+        sheets["p.png"] = np.zeros((48, 40, 4), np.uint8)
+        with self.assertRaises(SystemExit) as e:
+            ui.element(self.entry(states={"pressed": "p.png"}, drop=0), sheets.__getitem__, 0.15)
+        self.assertIn("not the regular sheet's 40 x 40", str(e.exception))
+
+    def test_an_inset_outside_the_image_is_refused(self):
+        sheet = self.sheet()
+        for key, inset in (("slice", [12, 2, 12, 2]), ("content", [2, 11, 2, 11])):
+            with self.assertRaises(SystemExit) as e:
+                ui.element(self.entry(**{key: inset}), lambda f: sheet, 0.15)
+            self.assertIn(f"{key} {inset} lies outside", str(e.exception))
+
+    def test_a_non_uniform_stretched_edge_is_refused(self):
+        sheet = self.sheet(face_top=2, margin=(2, 1, 1, 3))
+        sheet[18:22, 18:22] = (0, 0, 255, 255)                   # a mark in the middle piece
+        with self.assertRaises(SystemExit) as e:
+            ui.element(self.entry(), lambda f: sheet, 0.15)
+        self.assertIn("a stretched edge is not uniform", str(e.exception))
+        # Repeated ("round") parts are not stretched: no such check.
+        sprite, _ = ui.element(self.entry(fill="round"), lambda f: sheet, 0.15)
+        self.assertEqual(sprite["ui"]["fill"], "round")
+
+    def test_a_still_keeps_its_pixels(self):
+        icon = np.zeros((16, 16, 4), np.uint8)
+        icon[4:12, 3:13] = (240, 200, 20, 255)
+        e = {"name": "icon_gold", "role": "ui", "kind": "still", "file": "i.png", "origin": "x"}
+        sprite, _ = ui.element(e, lambda f: icon, 0.15)
+        self.assertTrue((sprite["anims"][0]["cells"][0] == icon[4:12, 3:13]).all())
+        self.assertEqual(sprite["ui"]["slice"], [0, 0, 0, 0])
+        self.assertEqual(sprite["ui"]["outset"], [4, 3, 4, 3])
+
+    def test_a_still_without_a_margin_keeps_its_size(self):
+        """CLI-03l: a still without a transparent margin keeps its size and records an outset of zero."""
+        full = np.full((12, 10, 4), (30, 40, 50, 255), np.uint8)
+        e = {"name": "icon", "role": "ui", "kind": "still", "file": "i.png", "origin": "x"}
+        sprite, _ = ui.element(e, lambda f: full, 0.15)
+        self.assertEqual(sprite["ui"]["outset"], [0, 0, 0, 0])
+        self.assertTrue((sprite["anims"][0]["cells"][0] == full).all())
+
+    @staticmethod
+    def fill(rows=((200, 30, 30), (255, 62, 62), (178, 34, 73))):
+        """A 16 x 8 bar fill: `rows` of colours, every column the same, in a transparent margin."""
+        img = np.zeros((8, 16, 4), np.uint8)
+        for y, colour in enumerate(rows):
+            img[2 + y, :] = (*colour, 255)
+        return img
+
+    def test_a_recolour_maps_every_opaque_colour(self):
+        sheet = self.fill()
+        e = {"name": "fill_blue", "role": "ui", "kind": "still", "file": "f.png", "origin": "x",
+             "recolour": {"#c81e1e": "#000080", "#ff3e3e": "#41919d", "#b22249": "#4a6982"}}
+        sprite, report = ui.element(e, lambda f: sheet, 0.15)
+        img = sprite["anims"][0]["cells"][0]
+        self.assertEqual(img.shape, (3, 16, 4))
+        self.assertEqual([tuple(int(v) for v in img[y, 5]) for y in range(3)],
+                         [(0, 0, 128, 255), (65, 145, 157, 255), (74, 105, 130, 255)])
+        self.assertTrue((img == img[:, :1]).all())             # every column still the same
+        self.assertEqual(sprite["ui"]["outset"], [2, 0, 3, 0])
+        self.assertTrue((sheet[2, 0, :3] == (200, 30, 30)).all())   # the source is not changed
+
+    def test_a_recolour_leaving_a_colour_or_naming_an_absent_one_is_refused(self):
+        sheet = self.fill()
+        e = {"name": "fill_blue", "role": "ui", "kind": "still", "file": "f.png", "origin": "x",
+             "recolour": {"#ff3e3e": "#41919d", "#b22249": "#4a6982"}}
+        with self.assertRaises(SystemExit) as err:
+            ui.element(e, lambda f: sheet, 0.15)
+        self.assertIn("recolour leaves #c81e1e unmapped", str(err.exception))
+        e["recolour"] = {"#c81e1e": "#000080", "#ff3e3e": "#41919d", "#b22249": "#4a6982",
+                         "#123456": "#000000"}
+        with self.assertRaises(SystemExit) as err:
+            ui.element(e, lambda f: sheet, 0.15)
+        self.assertIn("recolour names #123456, which the source does not have", str(err.exception))
+
+    def test_a_bar_three_slice_has_a_uniform_middle_and_its_trough_as_content(self):
+        """The small bar's layout (CLI-03l): two ends and a middle on the lattice, the middle the
+        same in every column; the edge rule passes it, and refuses a textured middle."""
+        sheet = np.zeros((12, 40, 4), np.uint8)
+        for x0 in (0, 16, 32):
+            sheet[2:10, x0:x0 + 8] = (22, 28, 46, 255)          # the ink frame
+            sheet[4:7, x0:x0 + 8] = (91, 72, 72, 255)           # the trough
+        sheet[4:7, 0:3] = sheet[4:7, 37:40] = (22, 28, 46, 255)  # the ends close it
+        e = self.entry(kind="three", pieces={"columns": self.LATTICE["columns"],
+                                             "rows": [[0, 12]]}, slice=[0, 4, 0, 4],
+                       content=[2, 3, 3, 3])
+        sprite, report = ui.element(e, lambda f: sheet, 0.15)
+        self.assertEqual(sprite["anims"][0]["cells"][0].shape, (8, 24, 4))
+        self.assertEqual(report["edge"], 0.0)
+        self.assertEqual(sprite["ui"]["content"], [2, 3, 3, 3])
+        sheet[4:7, 20] = (255, 255, 255, 255)                   # a knot in the middle's wood
+        with self.assertRaises(SystemExit):
+            ui.element(e, lambda f: sheet, 0.15)
+        sprite, _ = ui.element({**e, "fill": "round"}, lambda f: sheet, 0.15)
+        self.assertEqual(sprite["ui"]["fill"], "round")
+
+    def test_ui_frames_land_only_on_ui_pages(self):
+        sheet = self.sheet()
+        element, _ = ui.element(self.entry(), lambda f: sheet, 0.15)
+        tile = {"name": "grass_c", "role": "tile", "cell_w": 16, "cell_h": 16, "baseline": 0,
+                "untrimmed": True, "anchor": (0, 0),
+                "anims": [{"name": "still", "fps": 1, "loop": False,
+                           "cells": [np.full((16, 16, 4), 180, np.uint8)]}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            index = atlas.pack([tile], self.S, out)
+            more = atlas.pack([element], self.S, out, build.UI_PREFIX, "ui", len(index["pages"]))
+            index["pages"] += more["pages"]
+            index["sprites"].update(more["sprites"])
+            pages = [json.loads((out / p["json"]).read_text()) for p in index["pages"]]
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify(pages, index, [tile, element], self.S)
+                # A `ui` frame listed on a world page is refused.
+                wrong = [dict(p) for p in index["pages"]]
+                wrong[1]["group"] = "world"
+                with self.assertRaises(AssertionError):
+                    build.verify(pages, {**index, "pages": wrong}, [tile, element], self.S)
+            finally:
+                build.OUT = saved
+            img = np.array(Image.open(out / "atlas-ui-0.png").convert("RGBA"))
+        self.assertEqual([p["group"] for p in index["pages"]], ["world", "ui"])
+        self.assertEqual([p["json"] for p in index["pages"]], ["atlas-0.json", "atlas-ui-0.json"])
+        self.assertEqual(index["sprites"]["button"]["page"], 1)
+        self.assertEqual(index["sprites"]["grass_c"]["page"], 0)
+        self.assertEqual(index["sprites"]["button"]["ui"]["slice"], [3, 2, 2, 2])
+        f = pages[1]["frames"]["button/regular/00"]["frame"]
+        self.assertFalse(img[f["y"] - 1, f["x"]:f["x"] + f["w"], 3].any())   # no extrusion
+
+    def test_ui_problems(self):
+        manifest = {"ui": [
+            {"name": "runt", "role": "ui", "kind": "nine", "file": "a.png", "origin": "x",
+             "slice": [1, 1, 1, 1], "content": [0, 0, 0, 0],
+             "pieces": {"columns": [[0, 8], [8, 16], [16, 24]], "rows": [[0, 8]]}},
+            {"name": "b", "role": "tile", "kind": "five", "fill": "tile", "file": "b.gif",
+             "drop": 3},
+            {"name": "c", "role": "ui", "kind": "three", "file": "c.png", "origin": "x",
+             "slice": [1, 2, 0, 2], "content": [0, 0, 0, 0], "states": {"hover": "h.png"},
+             "pieces": {"columns": [[0, 8], [8, 16], [16, 24]], "rows": [[0, 8]]}},
+        ]}
+        self.assertEqual(ui.problems(manifest, {"runt"}), [
+            "[[ui]] runt: the name is used twice",
+            "[[ui]] runt: pieces.rows [[0, 8]] is not 3 [y0, y1] bounds",
+            "[[ui]] b: role 'tile', not 'ui'",
+            "[[ui]] b: kind 'five', not one of nine, three, still",
+            "[[ui]] b: fill 'tile', not one of stretch, round",
+            "[[ui]] b: no origin",
+            "[[ui]] b: file 'b.gif' is not a PNG",
+            "[[ui]] b: `drop` goes with a pressed state, and only with one",
+            "[[ui]] b: slice None is not [top, right, bottom, left]",
+            "[[ui]] b: content None is not [top, right, bottom, left]",
+            "[[ui]] c: states {'hover': 'h.png'}, only `pressed` is known",
+            "[[ui]] c: a three-slice has left and right insets only"])
+
+    def test_ui_problems_of_a_recolour(self):
+        still = {"name": "f", "role": "ui", "kind": "still", "file": "f.png", "origin": "x"}
+        for bad in ({}, {"#FF3E3E": "#41919d"}, {"#ff3e3e": "blue"}, ["#ff3e3e"]):
+            self.assertEqual(ui.problems({"ui": [{**still, "recolour": bad}]}, set()), [
+                f"[[ui]] f: recolour {bad!r} is not a map of \"#rrggbb\" colours (lower case)"])
+        good = {**still, "recolour": {"#ff3e3e": "#41919d"}}
+        self.assertEqual(ui.problems({"ui": [good]}, set()), [])
 
 
 @unittest.skipIf(np is None, "needs the venv's NumPy and Pillow")

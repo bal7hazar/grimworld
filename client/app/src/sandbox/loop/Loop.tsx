@@ -6,8 +6,11 @@ import {
   useReducer,
   useState,
 } from "react";
+import { Button, ChromeProvider, Panel, Text } from "../../chrome/Chrome";
 import { HUB_VIEWS } from "../fixtures/hubs";
 import { gateOf } from "../fixtures/region";
+import { KeyHelpToggle, installKeys } from "../keyScope";
+import { KeyHelp } from "./KeyHelp";
 import { EntryScreen, GateScreen, ReportScreen, ServiceScreen, SheetSummary } from "./screens";
 import { HubScreen } from "./HubScreen";
 import { InstanceScreen } from "./InstanceScreen";
@@ -53,6 +56,9 @@ function reduce(model: LoopModel, event: LoopEvent): LoopModel {
  * The loop on fixed data (CLI-03c): a hub, its services and Gate screen, the entry moment, the
  * instance, the closing report, and back to a hub. Taps become intents; the machine
  * (`machine.ts`) and the fixed data answer them.
+ *
+ * The keyboard (CLI-03k): the loop listens to the document's keys for every screen, and holds the
+ * key help, opened by `?` on any screen or by "Keys ?" in the desktop's left panel.
  */
 export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
   const [model, dispatch] = useReducer(reduce, hub, (h) => ({
@@ -67,6 +73,13 @@ export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
     [],
   );
   const { screen } = model.state;
+  const [help, setHelp] = useState(false);
+  const toggleHelp = useCallback(() => setHelp((open) => !open), []);
+  const closeHelp = useCallback(() => setHelp(false), []);
+  useEffect(() => installKeys(), []);
+  // A new screen closes the help: it listed the screen before.
+  useEffect(() => setHelp(false), [screen.kind]);
+  const keyHelp = help && <KeyHelp screen={screen.kind} onClose={closeHelp} />;
   // Logged once a line is in the log (not in the reducer, which React may run twice).
   useEffect(() => {
     console.debug("[loop]", model.state.screen.kind, "·", model.log.at(-1));
@@ -132,28 +145,63 @@ export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
 
   if (!desktop) {
     return (
-      <div style={styles.page} data-layout="phone">
-        {content}
-      </div>
+      <KeyHelpToggle.Provider value={toggleHelp}>
+        <ChromeProvider style={styles.page} data-layout="phone">
+          {content}
+          {keyHelp}
+        </ChromeProvider>
+      </KeyHelpToggle.Provider>
     );
   }
   return (
-    <div style={{ ...styles.page, ...styles.desktop }} data-layout="desktop">
-      <aside style={styles.panel} aria-label="Character sheet and build">
-        <SheetSummary />
-        <div style={ui.label}>Last hub visited</div>
-        <div>{hubName(model.state.lastHub)}</div>
-      </aside>
-      <main style={styles.column}>{content}</main>
-      <aside style={styles.panel} aria-label="Log">
-        <div style={ui.label}>Log</div>
-        {model.log.map((line, i) => (
-          <div key={i} style={{ ...ui.muted, fontSize: 13, margin: "2px 0" }}>
-            {line}
-          </div>
-        ))}
-      </aside>
-    </div>
+    <KeyHelpToggle.Provider value={toggleHelp}>
+      <ChromeProvider style={{ ...styles.page, ...styles.desktop }} data-layout="desktop">
+        <Panel
+          variant="dark"
+          as="aside"
+          className="gw-side"
+          plain={styles.panel}
+          style={styles.panelPlace}
+          aria-label="Character sheet and build"
+        >
+          <SheetSummary portrait />
+          <Text tone="caption" plain={ui.label}>
+            Last hub visited
+          </Text>
+          <div>{hubName(model.state.lastHub)}</div>
+          <Button
+            variant="quiet"
+            plain={{ ...ui.button, ...ui.quiet, marginTop: 16 }}
+            onClick={toggleHelp}
+          >
+            Keys ?
+          </Button>
+        </Panel>
+        <main style={styles.column}>{content}</main>
+        <Panel
+          variant="dark"
+          as="aside"
+          className="gw-side"
+          plain={styles.panel}
+          style={styles.panelPlace}
+          aria-label="Log"
+        >
+          <Text tone="caption" plain={ui.label}>
+            Log
+          </Text>
+          {model.log.map((line, i) => (
+            <Text
+              key={i}
+              tone="muted"
+              plain={{ ...ui.muted, fontSize: "0.8125rem", margin: "2px 0" }}
+            >
+              {line}
+            </Text>
+          ))}
+        </Panel>
+        {keyHelp}
+      </ChromeProvider>
+    </KeyHelpToggle.Provider>
   );
 }
 
@@ -173,7 +221,7 @@ const styles: Record<string, CSSProperties> = {
     inset: 0,
     background: "#0b0b0e",
     color: "#eee",
-    font: "15px system-ui",
+    font: "0.9375rem system-ui",
   },
   desktop: { display: "flex", justifyContent: "center" },
   column: {
@@ -183,5 +231,6 @@ const styles: Record<string, CSSProperties> = {
     borderLeft: "1px solid #2a2a33",
     borderRight: "1px solid #2a2a33",
   },
-  panel: { flex: "0 1 280px", padding: 16, overflowY: "auto" },
+  panelPlace: { flex: "0 1 280px", overflowY: "auto" },
+  panel: { padding: 16 },
 };

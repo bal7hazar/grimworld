@@ -1,10 +1,13 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { Button, IconButton, useChromeMode } from "../chrome/Chrome";
 import type { Intent } from "../input/intent";
+import type { KeyCommand } from "../input/keys";
 import type { ZoomSettings } from "../render/renderer";
 import { SCALE_MODES, readScaleMode } from "../render/scaling";
 import type { Tile } from "../render/view";
 import { SandboxController, type SandboxInfo } from "./controller";
 import { FIXTURES } from "./fixtures";
+import { installKeys, useKeyLayer } from "./keyScope";
 import { FEET_RANGE } from "../render/renderer";
 import { Loop } from "./loop/Loop";
 import { ACROSS_RANGE, readAcross, readFeet, readParams } from "./params";
@@ -27,6 +30,39 @@ export function Sandbox() {
   );
 }
 
+/** What a screen's key handler gets of the map (CLI-03k). */
+export interface MapKeys {
+  /** Null while the renderer is still mounting: the screen's own keys work already. */
+  readonly controller: SandboxController | null;
+  /** The walk as last reported, or null before the first report. */
+  readonly walk: WalkInfo | null;
+  /** The map's own answer: a step, the zoom, ◎, or Esc on a planned walk. True when handled. */
+  handle(command: KeyCommand): boolean;
+}
+
+/** The map's own keys: each one the tap or button it stands for. */
+function mapKey(command: KeyCommand, controller: SandboxController | null, walk: WalkInfo | null) {
+  if (!controller) return false;
+  switch (command.kind) {
+    case "step":
+      controller.step(command);
+      return true;
+    case "zoom":
+      controller.zoomBy(command.by);
+      return true;
+    case "recentre":
+      controller.recentre();
+      return true;
+    case "escape":
+      // The counter's action (design/11 *Desktop*, "Esc cancel").
+      if (!walk || walk.steps === 0) return false;
+      controller.cancelWalk();
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * The rendering sandbox (CLI-03a): the map on the whole of its box, a button back to the
  * adventurer, and a debug panel. In the loop it opens on `world` (the instance, or a hub lived like
@@ -37,25 +73,34 @@ export function Sandbox() {
  *
  * For the browser check: the root's `data-frames` (frames drawn), `data-atlas`, `data-camera`
  * (tile (0, 0) on the canvas and the scale, after each frame), `data-tile` (where the adventurer
- * stands) and `data-walking`.
+ * stands) and `data-walking`; CLI-03g1's `data-ground` (`atlas` when the ground is drawn from the
+ * atlas's cells, `colours` otherwise) and `data-bake-ms` (the last chunk's bake, in ms).
+ *
+ * The keyboard (CLI-03k): the room is the map's key layer, a hub's or a zone's. A screen's
+ * `onKey` sees each command first and may hand it to the map (`MapKeys.handle`); without one, the
+ * map answers alone. Outside the loop (`?fixture=`) the room listens to the document itself. The
+ * screen places what marks a selection among `children`, from `onFrame`.
  */
 export function RoomSandbox({
   world,
   onTile,
   route,
   onFrame,
+  onKey,
   children,
 }: {
   world?: SandboxWorld;
   onTile?: (tile: Tile | null, walk: WalkInfo) => void;
   route?: (intent: Intent) => Intent | null;
   onFrame?: (controller: SandboxController) => void;
+  onKey?: (command: KeyCommand, map: MapKeys) => boolean;
   children?: ReactNode;
 } = {}) {
   const root = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const [controller, setController] = useState<SandboxController | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => readParams(window.location.search).panel);
+  const atlas = useChromeMode() === "atlas";
   const [info, setInfo] = useState<SandboxInfo | null>(null);
   const [walk, setWalk] = useState<WalkInfo | null>(null);
   const tileListener = useRef(onTile);
@@ -65,6 +110,22 @@ export function RoomSandbox({
   const frameListener = useRef(onFrame);
   frameListener.current = onFrame;
   const hub = world?.kind === "hub";
+  const lastWalk = useRef<WalkInfo | null>(null);
+  const keyListener = useRef(onKey);
+  keyListener.current = onKey;
+
+  // Outside the loop, the room listens itself; in the loop, the loop does.
+  useEffect(() => (world ? undefined : installKeys()), []);
+
+  useKeyLayer(hub ? "hub" : "instance", (command) => {
+    if (!command) return false;
+    const map: MapKeys = {
+      controller,
+      walk: lastWalk.current,
+      handle: (c) => mapKey(c, controller, lastWalk.current),
+    };
+    return keyListener.current ? keyListener.current(command, map) : map.handle(command);
+  });
 
   useEffect(() => {
     const element = host.current;
@@ -97,6 +158,7 @@ export function RoomSandbox({
   useEffect(() => {
     if (!controller) return;
     controller.listenToWalk((next) => {
+      lastWalk.current = next;
       setWalk(next);
       const tile = controller.adventurerTile();
       const element = root.current;
@@ -118,6 +180,14 @@ export function RoomSandbox({
         // Where tile (0, 0)'s centre is on the canvas, and CSS pixels per art pixel.
         const origin = controller.tileOnScreen({ x: 0, y: 0 });
         root.current.dataset.camera = `${origin.x} ${origin.y} ${controller.scale()}`;
+        // Written when they change only: a frame's callback stays as short as before.
+        const data = root.current.dataset;
+        const ground = stats.ground ?? "";
+        const obstacles = stats.obstacles ?? "";
+        const bake = stats.bakeMs == null ? "" : String(stats.bakeMs);
+        if (data.ground !== ground) data.ground = ground;
+        if (data.obstacles !== obstacles) data.obstacles = obstacles;
+        if (data.bakeMs !== bake) data.bakeMs = bake;
       }
       frameListener.current?.(controller);
     });
@@ -128,14 +198,18 @@ export function RoomSandbox({
     <div ref={root} style={styles.root}>
       <div ref={host} style={styles.canvas} />
       {controller && walk && !hub && <WalkCounter controller={controller} walk={walk} />}
-      <button
-        style={styles.centre}
+      <IconButton
+        glyph="◎"
+        label="Back to the adventurer"
+        plain={styles.centre}
+        plainText="◎"
+        style={styles.centrePlace}
         onClick={() => controller?.recentre()}
-        aria-label="Back to the adventurer"
+      />
+      <button
+        style={atlas ? { ...styles.toggle, ...styles.debugLook } : styles.toggle}
+        onClick={() => setPanelOpen((open) => !open)}
       >
-        ◎
-      </button>
-      <button style={styles.toggle} onClick={() => setPanelOpen((open) => !open)}>
         {panelOpen ? "× debug" : "debug"}
       </button>
       {panelOpen && controller && info && (
@@ -151,23 +225,33 @@ export function RoomSandbox({
  * steps left and their cost in ticks; a tap cancels. Under it, why the last walk stopped.
  */
 function WalkCounter({ controller, walk }: { controller: SandboxController; walk: WalkInfo }) {
+  const atlas = useChromeMode() === "atlas";
   if (walk.steps === 0 && !walk.stopped) return null;
+  const tag = atlas ? undefined : styles.stopped;
   return (
     <div style={styles.walk}>
       {walk.steps > 0 && (
-        <button
-          style={styles.counter}
+        <Button
+          variant="quiet"
+          plain={styles.counter}
+          style={{ pointerEvents: "auto" }}
           onClick={() => controller.cancelWalk()}
           aria-label="Cancel the planned path"
         >
           {walk.walking ? "▶" : "◌"} {walk.steps} {walk.steps === 1 ? "step" : "steps"} ·{" "}
           {walk.cost} {walk.cost === 1 ? "tick" : "ticks"} ✕
-        </button>
+        </Button>
       )}
       {walk.steps > 0 && !walk.walking && (
-        <div style={styles.stopped}>tap the tile again to walk</div>
+        <div className="gw-tag" style={tag}>
+          tap the tile again to walk
+        </div>
       )}
-      {walk.stopped && <div style={styles.stopped}>{walk.stopped}</div>}
+      {walk.stopped && (
+        <div className="gw-tag" style={tag}>
+          {walk.stopped}
+        </div>
+      )}
     </div>
   );
 }
@@ -182,10 +266,11 @@ function DebugPanel({
   /** The fixture can be changed (not in the loop's instance, whose world is the gate's). */
   fixtures: boolean;
 }) {
+  const atlas = useChromeMode() === "atlas";
   const zoom = info.zoom;
   const setZoom = (patch: Partial<ZoomSettings>) => controller.setZoom({ ...zoom, ...patch });
   return (
-    <div style={styles.panel}>
+    <div style={atlas ? { ...styles.panel, ...styles.debugFrame } : styles.panel}>
       {fixtures && (
         <label style={styles.row}>
           fixture{" "}
@@ -332,37 +417,48 @@ const styles: Record<string, CSSProperties> = {
   page: { position: "fixed", inset: 0 },
   root: { position: "absolute", inset: 0, overflow: "hidden", background: "#0b0b0e" },
   canvas: { position: "absolute", inset: 0, touchAction: "none" },
+  centrePlace: { position: "absolute", right: 16, bottom: 16 },
   centre: {
-    position: "absolute",
-    right: 16,
-    bottom: 16,
     width: 48,
     height: 48,
     borderRadius: 24,
-    fontSize: 22,
+    fontSize: "1.375rem",
     border: "none",
     background: "rgba(255,255,255,0.85)",
   },
+  /** The debug toggle: today's look, at least 44 px tall (design/11 I-6; CLI-03i). */
   toggle: {
     position: "absolute",
     left: 8,
     top: 8,
-    font: "12px system-ui",
+    minHeight: 44,
+    font: "0.75rem system-ui",
     padding: "4px 8px",
     border: "none",
     borderRadius: 4,
     background: "rgba(255,255,255,0.75)",
   },
+  /**
+   * With the pack's chrome, the debug controls say they are not game controls: red, dashed, never
+   * the pack's look (CLI-03i *What stays plain*).
+   */
+  debugLook: {
+    background: "rgba(80,0,0,0.75)",
+    color: "#ffb4b4",
+    border: "1px dashed #ff6b6b",
+    font: "0.75rem ui-monospace, monospace",
+  },
+  debugFrame: { border: "1px dashed #ff6b6b" },
   panel: {
     position: "absolute",
     left: 8,
-    top: 36,
+    top: 60,
     width: 260,
     maxHeight: "70vh",
     overflowY: "auto",
     padding: 8,
     borderRadius: 6,
-    font: "12px system-ui",
+    font: "0.75rem system-ui",
     color: "#eee",
     background: "rgba(0,0,0,0.78)",
   },
@@ -375,7 +471,7 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     gap: 4,
-    font: "14px system-ui",
+    font: "0.875rem system-ui",
     pointerEvents: "none",
   },
   counter: {
@@ -384,7 +480,7 @@ const styles: Record<string, CSSProperties> = {
     padding: "0 14px",
     borderRadius: 22,
     border: "none",
-    font: "14px system-ui",
+    font: "0.875rem system-ui",
     background: "rgba(255,255,255,0.88)",
   },
   stopped: {

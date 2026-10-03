@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Gas budgets of the game's Cairo workspace, enforced by a tool (docs/CAIRO.md §2).
 
-Runs `snforge test --workspace --fuzzer-seed 1` in the workspace (default `contracts/`) through the
-build lock, reads the l2 gas snforge measured for every test, reads the `#[available_gas(l2_gas: N)]`
+Runs `snforge test --workspace --fuzzer-seed 1 --max-threads 2` in the workspace (default
+`contracts/`) through the build lock, reads the l2 gas snforge measured for every test, reads the `#[available_gas(l2_gas: N)]`
 of every declared test from the sources, and:
 
   (default)    writes docs/BUDGETS.md and one GAS.md per package, deterministically;
@@ -539,7 +539,9 @@ def main():
     if args.from_output:
         text = read(args.from_output)
     else:
-        cmd = ["snforge", "test", "--workspace", "--fuzzer-seed", "1"]
+        # FND-20: two test threads keep the run under 8 GB of address space (8 threads: 8.29 GB, the
+        # heavy vector and shape tests at once; 2 threads: 4.88 GB, measured under prlimit).
+        cmd = ["snforge", "test", "--workspace", "--fuzzer-seed", "1", "--max-threads", "2"]
         if not args.no_lock:
             cmd = [os.path.join(ROOT, "scripts", "lock.sh"), "--heavy"] + cmd
         # D-176: a measured build is single-threaded, or the compiler's withdraw_gas placement follows

@@ -35,7 +35,8 @@ WORD = "sla" + "yer"        # the manga's name: never written nor printed (D-73,
 STILL_ROLES = ("building", "prop")  # the roles of a `[[still]]`: one image, no animation (CLI-03c/e)
 STILL_ANIM = "still"        # its one animation of one frame, the name the client draws
 TILE_ROLE = "tile"          # a cell of a `[[tileset]]` (CLI-03e): untrimmed, anchored top-left
-TILE = 64                   # a tileset cell's side, the art's base tile (design/10)
+TILE = 64                   # a tileset cell's side by default, the art's base tile (design/10)
+UI_PREFIX = "atlas-ui"      # the interface's pages (CLI-03i): `ui` frames only, never the map's
 USAGE = """usage: tools/art/build.py [--check] [--resample=area|area-blend|nearest]
        tools/art/build.py --fingerprint     fingerprints of the existing out/, no build
        tools/art/build.py --pack-heights    visible heights of the pack's own units
@@ -258,7 +259,7 @@ def forbidden_word_check():
 def main(opts):
     import tomllib
 
-    from artpipe import atlas, clean, fingerprint, preview, scale
+    from artpipe import atlas, clean, fingerprint, preview, scale, ui
 
     if opts["fingerprint"]:
         if not OUT.is_dir():
@@ -275,7 +276,7 @@ def main(opts):
     s = manifest["settings"]
     method = opts["resample"] or s["resample"]
     problems = (scale.validate_manifest(manifest, METHODS) + still_problems(manifest)
-                + tileset_problems(manifest))
+                + tileset_problems(manifest) + ui.problems(manifest, taken_names(manifest)))
     if problems:
         raise SystemExit("manifest.toml:\n  " + "\n  ".join(problems))
     specs = {sp["name"]: manifest["height"][sp["name"]] for sp in manifest["sprite"]}
@@ -328,12 +329,24 @@ def main(opts):
             sprites.append(sprite)
             origins[sprite["name"]] = ts["origin"]
             report["tiles"][sprite["name"]] = {
-                "role": TILE_ROLE, "origin": ts["origin"], "cell": [TILE, TILE], "baseline": 0}
+                "role": TILE_ROLE, "origin": ts["origin"], "cell": [sprite["cell_w"]] * 2,
+                "baseline": 0}
+    report["ui"], elements = {}, []
+    for e in manifest.get("ui", []):
+        sprite, line = ui.element(e, lambda f: read_rgba(ASSETS / f), s["ui_edge"])
+        elements.append(sprite)
+        origins[e["name"]] = e["origin"]
+        report["ui"][e["name"]] = line
     index = atlas.pack(sprites, s, OUT)
+    if elements:
+        more = atlas.pack(elements, s, OUT, UI_PREFIX, "ui", len(index["pages"]))
+        index["pages"] += more["pages"]
+        index["sprites"].update(more["sprites"])
+        sprites += elements
     for name, info in index["sprites"].items():
         entry = (report["sprites"].get(name) or report["stills"].get(name)
-                 or report["tiles"][name])
-        entry["page"] = f'atlas-{info["page"]}'
+                 or report["tiles"].get(name) or report["ui"][name])
+        entry["page"] = index["pages"][info["page"]]["json"].removesuffix(".json")
     pages = [json.loads((OUT / p["json"]).read_text()) for p in index["pages"]]
     verify(pages, index, sprites, s)
     (OUT / "sprites.json").write_text(json.dumps(index, indent=1) + "\n")
@@ -345,6 +358,23 @@ def main(opts):
     if opts["check"]:
         sys.stdout.flush()
         pixi_check()
+
+
+def taken_names(manifest):
+    """Every sprite name of the manifest but the interface's: sprites, stills, tileset cells."""
+    names = {sp["name"] for sp in manifest.get("sprite", [])}
+    names |= {st.get("name") for st in manifest.get("still", [])}
+    for ts in manifest.get("tileset", []):
+        names |= {f"{ts.get('name')}_{c}" for c in (ts.get("cells") or {})}
+    return names
+
+
+def read_rgba(path):
+    """A PNG of the pack as an RGBA array."""
+    from PIL import Image
+    import numpy as np
+    with Image.open(path) as img:
+        return np.array(img.convert("RGBA"))
 
 
 def still_problems(manifest):
@@ -378,9 +408,10 @@ def still_problems(manifest):
 
 
 def tileset_problems(manifest):
-    """The `[[tileset]]` entries (CLI-03e): a PNG of the pack, role `tile`, an origin, and named
-    cells `{name = [column, row]}`; every cell becomes the sprite `<tileset>_<cell>`, a name used
-    once in the whole manifest. Returns the list of problems."""
+    """The `[[tileset]]` entries (CLI-03e): a PNG of the pack, role `tile`, an origin, an optional
+    `cell` side in px (default TILE; CLI-03g2), and named cells `{name = [column, row]}`; every
+    cell becomes the sprite `<tileset>_<cell>`, a name used once in the whole manifest. Returns
+    the list of problems."""
     names = {sp["name"] for sp in manifest.get("sprite", [])}
     names |= {st.get("name") for st in manifest.get("still", [])}
     problems = []
@@ -395,6 +426,9 @@ def tileset_problems(manifest):
             problems.append(f"[[tileset]] {name}: file {ts.get('file')!r} is not a PNG")
         if not ts.get("origin"):
             problems.append(f"[[tileset]] {name}: no origin")
+        side = ts.get("cell", TILE)
+        if not (isinstance(side, int) and not isinstance(side, bool) and side > 0):
+            problems.append(f"[[tileset]] {name}: cell {side!r} is not a side in px")
         cells = ts.get("cells")
         if not isinstance(cells, dict) or not cells:
             problems.append(f"[[tileset]] {name}: no cells")
@@ -411,16 +445,17 @@ def tileset_problems(manifest):
 
 
 def tile_sprites(ts, path):
-    """A tileset's cells as the atlas packs them: each a sprite of one cell, TILE x TILE, untrimmed
-    (an edge cell keeps its transparent part, so cells laid side by side meet exactly), anchored at
-    its top-left corner, with one animation `still` of one frame; its edges extruded into the
-    gutter by `atlas.pack`."""
+    """A tileset's cells as the atlas packs them: each a sprite of one cell, of the entry's `cell`
+    side (TILE by default), untrimmed (an edge cell keeps its transparent part, so cells laid side
+    by side meet exactly), anchored at its top-left corner, with one animation `still` of one
+    frame; its edges extruded into the gutter by `atlas.pack`."""
     from artpipe import clean
+    side = ts.get("cell", TILE)
     out = []
     for cell, (column, row) in ts["cells"].items():
-        rgba = clean.tile(path, column, row, TILE)
-        out.append({"name": f"{ts['name']}_{cell}", "role": TILE_ROLE, "cell_w": TILE,
-                    "cell_h": TILE, "baseline": 0, "untrimmed": True, "anchor": (0, 0),
+        rgba = clean.tile(path, column, row, side)
+        out.append({"name": f"{ts['name']}_{cell}", "role": TILE_ROLE, "cell_w": side,
+                    "cell_h": side, "baseline": 0, "untrimmed": True, "anchor": (0, 0),
                     "anims": [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": [rgba]}]})
     return out
 
@@ -540,7 +575,8 @@ def feet_row(alpha):
 
 def verify(pages, index, sprites, s):
     """Checks on what was written: pages within limits, frames inside pages, one cell size and
-    one baseline per sprite, and every frame's pixels read back from the PNG."""
+    one baseline per sprite, every frame's pixels read back from the PNG, and the interface's
+    frames (role `ui`) on the `ui` pages only, every other frame off them."""
     from PIL import Image
     import numpy as np
     spec = {sp["name"]: sp for sp in sprites}
@@ -557,9 +593,20 @@ def verify(pages, index, sprites, s):
             assert abs(f["anchor"]["y"] - spec[name]["baseline"] / src["h"]) < 1e-5, key
             crop = img[fr["y"]:fr["y"] + fr["h"], fr["x"]:fr["x"] + fr["w"]]
             assert crop[..., 3].any(), key
+            assert (spec[name]["role"] == "ui") == (info.get("group") == "ui"), \
+                f"{key}: on a page of group {info.get('group')!r}"
+            if spec[name]["role"] == "ui":
+                # An interface element: its whole image, untrimmed, as the client cuts it.
+                assert (fr["w"], fr["h"]) == (src["w"], src["h"]) and not f["trimmed"], key
+                assert (sr["x"], sr["y"]) == (0, 0) and f["anchor"] == {"x": 0, "y": 0}, key
+                anim = key.split("/")[1]
+                cell = next(a["cells"][0] for a in spec[name]["anims"] if a["name"] == anim)
+                assert (crop == cell).all(), f"{key}: pixels differ from the composed image"
+                continue
             if spec[name]["role"] == TILE_ROLE:
-                # A tile: its whole cell, TILE x TILE, untrimmed, anchored at its top-left corner.
-                assert (fr["w"], fr["h"]) == (TILE, TILE) == (src["w"], src["h"]), key
+                # A tile: exactly its entry's whole cell, untrimmed, anchored at its top-left corner.
+                side = spec[name]["cell_w"]
+                assert (fr["w"], fr["h"]) == (side, side) == (src["w"], src["h"]), key
                 assert (sr["x"], sr["y"]) == (0, 0) and not f["trimmed"], key
                 assert f["anchor"] == {"x": 0, "y": 0}, key
                 continue
@@ -595,6 +642,10 @@ def print_report(report):
     for name, r in report.get("tiles", {}).items():
         print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'tile':<8}"
               f"{r['page']}")
+    for name, r in report.get("ui", {}).items():
+        centre = " ".join(f"{k} {v}" for k, v in r["centre"].items())
+        print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{r['kind']:<8}"
+              f"{r['page']}  edge {r['edge']:.2f}  centre {centre}")
     print_scale(report)
     fingerprint.report(OUT)
 
