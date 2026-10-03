@@ -106,8 +106,8 @@ pub impl InputsImpl of Inputs {
 pub mod Registry {
     use core::num::traits::Zero;
     use grimworld_logic::content::{
-        ARMOR_SET, CASTE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE, QUOTAS, SHOP, SKILL,
-        is_sequential, parts,
+        ARMOR_SET, CASTE, ITEM, LOCATION, MAX_READ, MODIFIER, OUTLINE, PACK, QUOTAS, SET_PIECE,
+        SHOP, SKILL, SPAWN_TABLE, is_sequential, parts,
     };
     use grimworld_logic::interface::IRegistryRead;
     use grimworld_logic::models::armor_set::{ArmorSetAssert, ArmorSetRecord};
@@ -118,6 +118,10 @@ pub mod Registry {
     use grimworld_logic::models::location::INDEX_BOUND;
     use grimworld_logic::models::modifier::{ModifierAssert, ModifierRecord};
     use grimworld_logic::models::outline::CHUNK_SET;
+    use grimworld_logic::models::pack::{PackAssert, PackRecord};
+    use grimworld_logic::models::quotas::{QuotaSetAssert, QuotaSetRecord};
+    use grimworld_logic::models::set_piece::{SetPieceAssert, SetPieceRecord};
+    use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
     use starknet::storage::{
@@ -281,6 +285,10 @@ pub mod Registry {
         ///   it names that the registry holds at most 63 strikes (DS-18, across records);
         /// - DS-18 in the other order: a `SKILL` above 63 strikes is refused while a caste names
         ///   its id (`caste_skills`), whether the skill is new or rewritten.
+        /// - the chunk reveal's records (ENG-05): `QUOTAS`, `SPAWN_TABLE`, `PACK` and `SET_PIECE`,
+        ///   each its model's `assert_legal` (kinds known and empty entries empty; a pack of at
+        ///   most 5 at its fewest, E-3; a set piece's corners wall, D-134, and its placements on its
+        ///   interior's floor). That the ids they name exist is the content pipeline's (OPS-01).
         /// Every other kind has no bound of design/20.
         fn assert_content(self: @ContractState, kind: u8, id: u32, record: Span<felt252>) {
             if kind == MODIFIER {
@@ -295,6 +303,14 @@ pub mod Registry {
                 }
             } else if kind == ITEM {
                 ItemRecord::unpack(record).assert_legal();
+            } else if kind == QUOTAS {
+                QuotaSetRecord::unpack(record).assert_legal();
+            } else if kind == SPAWN_TABLE {
+                SpawnTableRecord::unpack(record).assert_legal();
+            } else if kind == PACK {
+                PackRecord::unpack(record).assert_legal();
+            } else if kind == SET_PIECE {
+                SetPieceRecord::unpack(record).assert_legal();
             } else if kind == CASTE {
                 let caste = CasteRecord::unpack(record);
                 caste.assert_legal();

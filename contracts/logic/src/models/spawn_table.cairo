@@ -9,6 +9,13 @@ pub use super::index::{Spawn, SpawnTable};
 /// Entries of a spawn table.
 pub const COUNT: u8 = 7;
 
+pub mod errors {
+    /// An entry without a template that has a weight.
+    pub const EMPTY: felt252 = 'spawn table: empty weighted';
+    /// A density above 0 with no weight to draw a template by.
+    pub const WEIGHT: felt252 = 'spawn table: no weight';
+}
+
 #[generate_trait]
 pub impl SpawnTableImpl of SpawnTableTrait {
     fn new(spawns: [Spawn; 7], density: u8) -> SpawnTable {
@@ -41,6 +48,21 @@ pub impl SpawnTableImpl of SpawnTableTrait {
             }
         }
         template
+    }
+}
+
+#[generate_trait]
+pub impl SpawnTableAssert of SpawnTableAssertTrait {
+    /// `Registry`'s content check (ENG-05, after CBT-05a): an entry without a template has no
+    /// weight, and a density above 0 has some weight to draw by. That a template exists is the
+    /// content pipeline's (OPS-01).
+    fn assert_legal(self: @SpawnTable) {
+        for spawn in self.spawns.span() {
+            if *spawn.template == 0 {
+                assert(*spawn.weight == 0, errors::EMPTY);
+            }
+        }
+        assert(*self.density == 0 || self.weight() != 0, errors::WEIGHT);
     }
 }
 
@@ -94,7 +116,7 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
 mod tests {
     use crate::content::Record;
     use crate::packing::LIVE;
-    use super::{Spawn, SpawnTableRecord, SpawnTableTrait};
+    use super::{Spawn, SpawnTableAssert, SpawnTableRecord, SpawnTableTrait};
 
     #[test]
     #[available_gas(l2_gas: 136143)] // ceil(1.05 × 129660 measured)
@@ -135,5 +157,36 @@ mod tests {
         assert(table.pick(0) == 3, '0');
         assert(table.pick(1) == 3, '1');
         assert(table.pick(2) == 5, '2');
+    }
+
+    fn table(first: Spawn, density: u8) -> super::SpawnTable {
+        SpawnTableTrait::new(
+            [
+                first, Default::default(), Default::default(), Default::default(),
+                Default::default(), Default::default(), Default::default(),
+            ],
+            density,
+        )
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 54327)] // ceil(1.05 × 51740 measured)
+    fn test_spawn_table_legal() {
+        table(Spawn { template: 1, weight: 3 }, 128).assert_legal();
+        table(Default::default(), 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'spawn table: empty weighted')]
+    #[available_gas(l2_gas: 11183)] // ceil(1.05 × 10650 measured)
+    fn test_spawn_table_empty_weighted_refused() {
+        table(Spawn { template: 0, weight: 3 }, 0).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'spawn table: no weight')]
+    #[available_gas(l2_gas: 39039)] // ceil(1.05 × 37180 measured)
+    fn test_spawn_table_density_without_weight_refused() {
+        table(Spawn { template: 2, weight: 0 }, 64).assert_legal();
     }
 }

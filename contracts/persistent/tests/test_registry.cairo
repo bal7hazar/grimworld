@@ -5,8 +5,19 @@
 // content version by one, an unchanged rewrite does not (D-141). Everyone reads with `record`,
 // `records` and `bundle`, which returns the version first. A record never written reads as zeros.
 use grimworld_logic::content::{
-    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, QUEST, QUOTAS,
-    REGION, SHOP, SKILL, TASK, is_sequential, parts,
+    ARMOR_SET, BOOK, CASTE, GATE, ITEM, LAST_KIND, LOCATION, MODIFIER, OUTLINE, PACK, QUEST,
+    QUOTAS, REGION, SET_PIECE, SHOP, SKILL, SPAWN_TABLE, TASK, is_sequential, parts,
+};
+use grimworld_logic::models::chunk::Object;
+use grimworld_logic::models::pack::{PackCaste, PackRecord, PackTrait, errors as pack_errors};
+use grimworld_logic::models::quotas::{
+    Quota, QuotaSet, QuotaSetRecord, errors as quotas_errors, kind as quota_kind,
+};
+use grimworld_logic::models::set_piece::{
+    SetPack, SetPieceRecord, SetPieceTrait, errors as set_piece_errors,
+};
+use grimworld_logic::models::spawn_table::{
+    Spawn, SpawnTableRecord, SpawnTableTrait, errors as spawn_errors,
 };
 use grimworld_logic::interface::{
     IRegistryReadDispatcher, IRegistryReadDispatcherTrait, IRegistryReadSafeDispatcher,
@@ -183,21 +194,22 @@ fn test_set_record_composite_needs_parent() {
 // `QUOTAS` is keyed by its location's id (D-145): one record per location, refused while that
 // location does not exist; `last_id` stays 0.
 #[test]
-#[available_gas(l2_gas: 5950539)] // ceil(1.05 × 5667180 measured)
+// gas: raised, ENG-05: QUOTAS is checked (the registry's content check of the new kinds)
+#[available_gas(l2_gas: 6864564)] // ceil(1.05 × 6537680 measured)
 #[feature("safe_dispatcher")]
 fn test_set_record_quotas_keyed_by_location() {
     let r = Fixture::deploy();
-    let refused = r.safe.set_record(QUOTAS, 1, Felts::one(1));
+    let refused = r.safe.set_record(QUOTAS, 1, quotas_of(1));
     assert(*refused.unwrap_err().at(0) == NO_PARENT, 'no such location');
     r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
     r.admin.set_record(LOCATION, 2, Felts::two(0, 0));
     // Location 2's quotas first: ids are not in order, they are the locations'.
-    r.admin.set_record(QUOTAS, 2, Felts::one(7));
-    r.admin.set_record(QUOTAS, 1, Felts::one(8));
-    assert(r.read.record(QUOTAS, 2) == Felts::one(7), 'quotas of location 2');
-    assert(r.read.record(QUOTAS, 1) == Felts::one(8), 'quotas of location 1');
+    r.admin.set_record(QUOTAS, 2, quotas_of(7));
+    r.admin.set_record(QUOTAS, 1, quotas_of(8));
+    assert(r.read.record(QUOTAS, 2) == quotas_of(7), 'quotas of location 2');
+    assert(r.read.record(QUOTAS, 1) == quotas_of(8), 'quotas of location 1');
     assert(r.admin.last_id(QUOTAS) == 0, 'composite: last id 0');
-    let refused = r.safe.set_record(QUOTAS, 3, Felts::one(1));
+    let refused = r.safe.set_record(QUOTAS, 3, quotas_of(1));
     assert(*refused.unwrap_err().at(0) == NO_PARENT, 'location 3');
 }
 
@@ -587,11 +599,41 @@ fn plain_of(kind: u8, value: felt252) -> Span<felt252> {
         let (_, record) = source_record(bonus, Source::SetBonus);
         return record;
     }
+    // The chunk reveal's kinds (ENG-05), which the registry checks too.
+    if kind == QUOTAS {
+        return quotas_of(value.try_into().unwrap());
+    }
+    if kind == SET_PIECE {
+        return piece_of(value.try_into().unwrap(), 112, 100);
+    }
     let mut out = array![LIVE + value];
     for _ in 1..parts(kind) {
         out.append(value);
     }
     out.span()
+}
+
+/// `QUOTAS` of one exit through gate `gate`, once: a legal record (ENG-05).
+fn quotas_of(gate: u16) -> Span<felt252> {
+    QuotaSet {
+        quotas: [
+            Quota { kind: quota_kind::EXIT, param: gate, count: 1 }, Default::default(),
+            Default::default(), Default::default(), Default::default(), Default::default(),
+        ],
+    }
+        .pack()
+}
+
+/// A `SET_PIECE` walled on its ring, open inside, a pack of `template` on `pack` and a collector on
+/// `object` (ENG-05).
+fn piece_of(template: u16, pack: u8, object: u8) -> Span<felt252> {
+    let ring: felt252 = 0x1fffe000c00180030006000c00180030006000c00180030006000ffff;
+    SetPieceTrait::new(
+        ring,
+        [SetPack { tile: pack, template }, Default::default()],
+        [Object { tile: object, kind: 5, state: 0, param: 1 }, Default::default(), Default::default()],
+    )
+        .pack()
 }
 
 /// The id a new record of `kind` takes: the next one of a sequential kind; for a composite kind,
@@ -1031,4 +1073,111 @@ fn test_set_record_caste_rewrite_moves_the_bound() {
     assert_refused(r.safe.set_record(SKILL, 2, skill_of(64, none)), caste_errors::SKILL_ADRENALINE);
     assert_accepted(r.safe.set_record(CASTE, 2, caste_naming([0, 0, 0, 0])));
     assert_accepted(r.safe.set_record(SKILL, 2, skill_of(64, none)));
+}
+
+// --- set_record: the chunk reveal's records (ENG-05, after CBT-05a)
+// -------------------------------------------------------------------
+//
+// `QUOTAS`, `SPAWN_TABLE`, `PACK` and `SET_PIECE` are their models' `assert_legal` when written:
+// a legal record is accepted, each illegal shape refused with its error, nothing written.
+
+fn quota_set(first: Quota) -> Span<felt252> {
+    QuotaSetRecord::pack(
+        @QuotaSet {
+            quotas: [
+                first, Default::default(), Default::default(), Default::default(),
+                Default::default(), Default::default(),
+            ],
+        },
+    )
+}
+
+fn spawn_table(first: Spawn, density: u8) -> Span<felt252> {
+    SpawnTableRecord::pack(
+        @SpawnTableTrait::new(
+            [
+                first, Default::default(), Default::default(), Default::default(),
+                Default::default(), Default::default(), Default::default(),
+            ],
+            density,
+        ),
+    )
+}
+
+fn pack_of(a: PackCaste, b: PackCaste) -> Span<felt252> {
+    PackRecord::pack(
+        @PackTrait::new([a, b, Default::default(), Default::default(), Default::default()], 0),
+    )
+}
+
+#[test]
+#[available_gas(l2_gas: 18372152)] // ceil(1.05 × 17497287 measured)
+#[feature("safe_dispatcher")]
+fn test_set_record_reveal_records() {
+    let r = Fixture::deploy();
+    r.admin.set_record(LOCATION, 1, Felts::two(0, 0));
+    // QUOTAS
+    r.admin.set_record(QUOTAS, 1, quotas_of(5));
+    assert_refused(
+        r.safe.set_record(QUOTAS, 1, quota_set(Quota { kind: 0, param: 3, count: 0 })),
+        quotas_errors::EMPTY,
+    );
+    assert_refused(
+        r.safe.set_record(QUOTAS, 1, quota_set(Quota { kind: quota_kind::VEIN, param: 0, count: 0 })),
+        quotas_errors::COUNT,
+    );
+    // A kind past the last: the packer refuses it, so it is written as its felt (kind 7, count 1).
+    assert_refused(
+        r.safe.set_record(QUOTAS, 1, array![LIVE + 7 + 0x1000000].span()), quotas_errors::KIND,
+    );
+    assert(r.read.record(QUOTAS, 1) == quotas_of(5), 'quotas kept');
+    // SPAWN_TABLE
+    assert_accepted(try_write(r, SPAWN_TABLE, spawn_table(Spawn { template: 1, weight: 3 }, 128)));
+    assert_refused(
+        try_write(r, SPAWN_TABLE, spawn_table(Spawn { template: 0, weight: 3 }, 0)),
+        spawn_errors::EMPTY,
+    );
+    assert_refused(
+        try_write(r, SPAWN_TABLE, spawn_table(Spawn { template: 1, weight: 0 }, 64)),
+        spawn_errors::WEIGHT,
+    );
+    assert(r.admin.last_id(SPAWN_TABLE) == 1, 'one table');
+    // PACK
+    let none: PackCaste = Default::default();
+    assert_accepted(
+        try_write(
+            r,
+            PACK,
+            pack_of(PackCaste { caste: 1, min: 2, max: 3 }, PackCaste { caste: 2, min: 3, max: 9 }),
+        ),
+    );
+    assert_refused(
+        try_write(
+            r,
+            PACK,
+            pack_of(PackCaste { caste: 1, min: 1, max: 1 }, PackCaste { caste: 0, min: 0, max: 2 }),
+        ),
+        pack_errors::EMPTY,
+    );
+    assert_refused(try_write(r, PACK, pack_of(none, none)), pack_errors::NO_CASTE);
+    assert_refused(
+        try_write(
+            r,
+            PACK,
+            pack_of(PackCaste { caste: 1, min: 3, max: 3 }, PackCaste { caste: 2, min: 3, max: 4 }),
+        ),
+        pack_errors::SIZE,
+    );
+    assert(r.admin.last_id(PACK) == 1, 'one template');
+    // SET_PIECE: legal; a pack on the ring; an object on the ring; a corner open
+    assert_accepted(try_write(r, SET_PIECE, piece_of(1, 112, 100)));
+    assert_refused(try_write(r, SET_PIECE, piece_of(1, 105, 100)), set_piece_errors::TILE);
+    assert_refused(try_write(r, SET_PIECE, piece_of(1, 112, 7)), set_piece_errors::TILE);
+    let open = SetPieceTrait::new(
+        0x1fffe000c00180030006000c00180030006000c00180030006000fffe,
+        [Default::default(), Default::default()],
+        [Default::default(), Default::default(), Default::default()],
+    );
+    assert_refused(try_write(r, SET_PIECE, SetPieceRecord::pack(@open)), set_piece_errors::CORNER);
+    assert(r.admin.last_id(SET_PIECE) == 1, 'one set piece');
 }

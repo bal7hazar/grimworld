@@ -14,6 +14,12 @@ pub use super::index::{Pack, PackCaste};
 
 pub mod errors {
     pub const BOUNDS: felt252 = 'pack: min above max';
+    /// A caste entry of id 0 with bounds.
+    pub const EMPTY: felt252 = 'pack: empty with bounds';
+    /// A template that names no caste.
+    pub const NO_CASTE: felt252 = 'pack: no caste';
+    /// More goblins than a pack holds at its fewest (E-3: 5).
+    pub const SIZE: felt252 = 'pack: min above 5';
 }
 
 #[generate_trait]
@@ -83,6 +89,26 @@ pub impl PackAssert of PackAssertTrait {
             assert(*entry.min <= *entry.max, errors::BOUNDS);
         }
     }
+
+    /// `Registry`'s content check (ENG-05, after CBT-05a): `min ≤ max` for each caste, an entry
+    /// without a caste has no bounds, the template names a caste, and its castes' minimums sum to
+    /// at most 5 (E-3: a pack is at most 5 goblins; its maximum is held at 5 by `bounds`). That a
+    /// caste exists is the content pipeline's (OPS-01).
+    fn assert_legal(self: @Pack) {
+        self.assert_valid();
+        let mut castes: u8 = 0;
+        let mut low: u16 = 0;
+        for entry in self.castes.span() {
+            if *entry.caste == 0 {
+                assert(*entry.min == 0 && *entry.max == 0, errors::EMPTY);
+            } else {
+                castes += 1;
+                low += (*entry.min).into();
+            }
+        }
+        assert(castes != 0, errors::NO_CASTE);
+        assert(low <= MAX_PACK_SIZE.into(), errors::SIZE);
+    }
 }
 
 /// Its bits in a record's limb, and back (the field order of the record's layout).
@@ -137,7 +163,7 @@ pub impl PackRecord of Record<Pack> {
 mod tests {
     use crate::content::Record;
     use crate::packing::LIVE;
-    use super::{PackCaste, PackRecord, PackTrait};
+    use super::{PackAssert, PackCaste, PackRecord, PackTrait};
 
     #[test]
     #[available_gas(l2_gas: 153195)] // ceil(1.05 × 145900 measured)
@@ -190,5 +216,39 @@ mod tests {
         assert(pack.caste(4, 1) == 7 && pack.caste(4, 2) == 8 && pack.caste(4, 3) == 8, '4');
         // count 5: 7, 7, 8, 8, 8
         assert(pack.caste(5, 4) == 8, '5');
+    }
+
+    fn template(first: PackCaste, second: PackCaste) -> super::Pack {
+        PackTrait::new([first, second, Default::default(), Default::default(), Default::default()], 0)
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 34703)] // ceil(1.05 × 33050 measured)
+    fn test_pack_legal() {
+        template(PackCaste { caste: 1, min: 2, max: 3 }, PackCaste { caste: 2, min: 3, max: 9 })
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'pack: empty with bounds')]
+    #[available_gas(l2_gas: 26471)] // ceil(1.05 × 25210 measured)
+    fn test_pack_empty_with_bounds_refused() {
+        template(PackCaste { caste: 1, min: 1, max: 1 }, PackCaste { caste: 0, min: 0, max: 2 })
+            .assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'pack: no caste')]
+    #[available_gas(l2_gas: 36110)] // ceil(1.05 × 34390 measured)
+    fn test_pack_no_caste_refused() {
+        template(Default::default(), Default::default()).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'pack: min above 5')]
+    #[available_gas(l2_gas: 35858)] // ceil(1.05 × 34150 measured)
+    fn test_pack_min_above_five_refused() {
+        template(PackCaste { caste: 1, min: 3, max: 3 }, PackCaste { caste: 2, min: 3, max: 4 })
+            .assert_legal();
     }
 }

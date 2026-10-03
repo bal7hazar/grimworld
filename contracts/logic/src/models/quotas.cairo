@@ -29,6 +29,10 @@ pub const COUNT: u8 = 6;
 
 pub mod errors {
     pub const KIND: felt252 = 'quotas: kind';
+    /// A quota of kind 0 (none) with a param or a count.
+    pub const EMPTY: felt252 = 'quotas: empty with a value';
+    /// A quota that places nothing (count 0).
+    pub const COUNT: felt252 = 'quotas: count 0';
 }
 
 #[generate_trait]
@@ -44,6 +48,20 @@ pub impl QuotaSetAssert of QuotaSetAssertTrait {
     fn assert_valid(self: @QuotaSet) {
         for quota in self.quotas.span() {
             assert(*quota.kind <= kind::LAST, errors::KIND);
+        }
+    }
+
+    /// `Registry`'s content check (ENG-05, after CBT-05a): every kind known, a quota of kind 0
+    /// empty (no param, no count), a quota a count of at least 1. That a param names an existing
+    /// gate, template, collector, landmark or set piece is the content pipeline's (OPS-01).
+    fn assert_legal(self: @QuotaSet) {
+        self.assert_valid();
+        for quota in self.quotas.span() {
+            if *quota.kind == 0 {
+                assert(*quota.param == 0 && *quota.count == 0, errors::EMPTY);
+            } else {
+                assert(*quota.count != 0, errors::COUNT);
+            }
         }
     }
 }
@@ -100,7 +118,7 @@ pub impl QuotaSetRecord of Record<QuotaSet> {
 mod tests {
     use crate::content::Record;
     use crate::packing::LIVE;
-    use super::{Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind};
+    use super::{Quota, QuotaSet, QuotaSetAssert, QuotaSetRecord, QuotaSetTrait, kind};
 
     #[test]
     #[available_gas(l2_gas: 161574)] // ceil(1.05 × 153880 measured)
@@ -137,5 +155,35 @@ mod tests {
             ],
         };
         set.pack();
+    }
+
+    fn set(first: Quota) -> QuotaSet {
+        QuotaSet {
+            quotas: [
+                first, Default::default(), Default::default(), Default::default(),
+                Default::default(), Default::default(),
+            ],
+        }
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 62496)] // ceil(1.05 × 59520 measured)
+    fn test_quotas_legal() {
+        set(Quota { kind: kind::EXIT, param: 5, count: 1 }).assert_legal();
+        set(Default::default()).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'quotas: empty with a value')]
+    #[available_gas(l2_gas: 23300)] // ceil(1.05 × 22190 measured)
+    fn test_quotas_empty_with_a_count_refused() {
+        set(Quota { kind: 0, param: 0, count: 2 }).assert_legal();
+    }
+
+    #[test]
+    #[should_panic(expected: 'quotas: count 0')]
+    #[available_gas(l2_gas: 24423)] // ceil(1.05 × 23260 measured)
+    fn test_quotas_count_zero_refused() {
+        set(Quota { kind: kind::VEIN, param: 0, count: 0 }).assert_legal();
     }
 }
