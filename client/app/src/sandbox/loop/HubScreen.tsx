@@ -173,8 +173,8 @@ const styles: Record<string, CSSProperties> = {
   label: {
     padding: "1px 8px",
     borderRadius: 6,
-    font: "600 15px system-ui",
-    lineHeight: "20px",
+    font: "600 0.9375rem system-ui",
+    lineHeight: "1.25rem",
     whiteSpace: "nowrap",
     color: "#fff",
     background: "rgba(20,20,26,0.82)",

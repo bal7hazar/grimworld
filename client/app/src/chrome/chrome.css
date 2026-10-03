@@ -66,14 +66,16 @@
   color: #fff;
 }
 
-/* Buttons. The label is large text (bold, 18.67 px = 14 pt) in white with a one-device-pixel dark
+/* Buttons. The label is large text (bold, 18.67 px = 14 pt = 1.1669 rem at the default size) in white with a one-device-pixel dark
    outline on the blue and red faces; ink on the paper (contrast.ts). */
 [data-chrome="atlas"] .gw-button {
   --img: var(--face);
   --floor: 44px;
   padding: var(--pad);
-  font: 700 18.67px/20px system-ui;
+  font: 700 1.166875rem/1.25rem system-ui;
   white-space: nowrap;
+  /* At a larger text size a button keeps its label whole; its neighbours give way (rem text). */
+  flex-shrink: 0;
   color: #fff;
   text-shadow:
     var(--gw-px) 0 #111,
@@ -112,7 +114,7 @@
   --pad: 0 var(--gw-paper-pad-x, 14px);
   --repeat: round;
   --drop: 0px;
-  font: 600 15px/20px system-ui;
+  font: 600 0.9375rem/1.25rem system-ui;
   color: #111;
   text-shadow: none;
 }
@@ -155,7 +157,7 @@
   border-radius: 0;
   background: var(--gw-round-blue) center / 100% 100% no-repeat;
   image-rendering: pixelated;
-  font: 700 24px/1 system-ui;
+  font: 700 1.5rem/1 system-ui;
   color: #fff;
   text-shadow:
     var(--gw-px) 0 #111,
@@ -202,15 +204,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: var(--h);
+  min-height: var(--h);
   max-width: 100%;
   padding: var(--pad);
-  white-space: nowrap;
+  /* The ribbon grows taller (min-height) rather than clipping a long title at a larger text size. */
+  text-align: center;
   overflow: hidden;
   --repeat: round stretch;
 }
 [data-chrome="atlas"] .gw-ribbon-big {
-  font: 700 18.67px/20px system-ui;
+  font: 700 1.166875rem/1.25rem system-ui;
   color: #fff;
   text-shadow:
     var(--gw-px) 0 #111,
@@ -245,7 +248,7 @@
   --pad: var(--gw-ribbon-small-yellow-pad);
   --h: var(--gw-ribbon-small-yellow-h);
   --repeat: stretch;
-  font: 600 15px/20px system-ui;
+  font: 600 0.9375rem/1.25rem system-ui;
   color: #111;
 }
 
@@ -276,7 +279,6 @@
    row (over the map's lower edge, and below the screen), so the row keeps today's height. */
 [data-chrome="atlas"] .gw-service-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 8px 15px;
   border-image-outset: 13px 0 21px;

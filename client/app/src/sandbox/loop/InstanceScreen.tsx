@@ -82,7 +82,7 @@ export function InstanceScreen({
               <p style={{ marginTop: 0 }}>
                 {leaveQuestion(asking.kind === "leave" ? asking.gate : null)}
               </p>
-              <div style={ui.row}>
+              <div style={{ ...ui.row, flexWrap: "wrap" }}>
                 <Button
                   variant="quiet"
                   plain={{ ...ui.button, ...ui.quiet }}
