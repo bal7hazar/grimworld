@@ -452,7 +452,6 @@ mod layout_tests {
     }
 
     #[test]
-    // gas: raised, CBT-02c fix loop 2: the layout checks caste_skills' address too
     #[available_gas(l2_gas: 64638)] // ceil(1.05 × 61560 measured)
     fn test_registry_storage_addresses() {
         let state = @Registry::contract_state_for_testing();
@@ -537,7 +536,6 @@ mod version_cost_tests {
 
     // `bundle`'s part of the versions: one read of one slot, unpacked into the two (D-169).
     #[test]
-    // gas: raised, CBT-02f: the slot holds the content and inputs versions, unpacked at the read
     #[available_gas(l2_gas: 37989)] // ceil(1.05 × 36180 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
@@ -546,7 +544,6 @@ mod version_cost_tests {
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 524633)] // ceil(1.05 × 499650 measured)
     fn test_version_cost_raise() {
         let mut state = Registry::contract_state_for_testing();
@@ -556,7 +553,6 @@ mod version_cost_tests {
     // `set_record`'s part when the changed record is an input of the flattening (D-169): both
     // versions raised in the same write; against `test_version_cost_raise`, the added cost.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 525998)] // ceil(1.05 × 500950 measured)
     fn test_version_cost_raise_input() {
         let mut state = Registry::contract_state_for_testing();
@@ -574,7 +570,6 @@ mod version_cost_tests {
 
     // Every raise after the first: the slot holds a version, the write overwrites it.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 533264)] // ceil(1.05 × 507870 measured)
     fn test_version_cost_raise_again() {
         let mut state = Registry::contract_state_for_testing();
@@ -639,7 +634,6 @@ mod detection_cost_tests {
     }
 
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 1577814)] // ceil(1.05 × 1502680 measured)
     fn test_detection_cost_identical_blind() {
         let _state = Registry::contract_state_for_testing();
@@ -648,7 +642,6 @@ mod detection_cost_tests {
     }
 
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 1467690)] // ceil(1.05 × 1397800 measured)
     fn test_detection_cost_identical() {
         let mut state = Registry::contract_state_for_testing();
@@ -657,7 +650,6 @@ mod detection_cost_tests {
     }
 
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 1577814)] // ceil(1.05 × 1502680 measured)
     fn test_detection_cost_changed_blind() {
         let _state = Registry::contract_state_for_testing();
@@ -666,7 +658,6 @@ mod detection_cost_tests {
     }
 
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 1658990)] // ceil(1.05 × 1579990 measured)
     fn test_detection_cost_changed() {
         let mut state = Registry::contract_state_for_testing();

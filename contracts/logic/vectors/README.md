@@ -42,6 +42,29 @@ The cases:
 - `distance`: from `(7, 7)`, `(7, 8)` and `(0, 0)` to every tile, and a position outside the window (240, 255) at either end or both, whose distance is 255 (`FAR`, above every range).
 - `shape`: each shape at the corners, the edges, the centre and next to walls.
 
+## `hit.jsonl`: one hit (CBT-03a)
+
+Printed by `types::hit::tests::test_vectors`, with its digest. One line: `{"id", "case", "ok"}`.
+The case is the `Serde` of `(Hit, HitTarget)`, 28 felts, and `ok` the `Serde` of `HitOutcome`
+(1 felt for a stopped hit, 4 for a landed one); the order and meaning of every felt are in the
+module's header, `contracts/logic/src/types/hit.cairo`. A negative integer is `P − |v|`.
+
+The cases: the hand-written edges (each rule of design/19 §5.4–§5.6 and §6 at its bounds), then
+seeded cases over every input.
+
+**Moved by CBT-05a (D-179).** A sleeping target neither blocks nor evades its first hit. One edge
+was added, id 6: `(sword, asleep + evade)`, which lands critical (`[3, 140, 1, 0]`) where the old
+rule evaded it. Every later case moved up one id, and the table, 200 cases, lost its last seeded
+case. No case kept from before changed its outcome (checked against `origin/main`'s table).
+
+**Added by CBT-05a for track CV** (their mutation check of the mirror): three hand-picked cases after
+the seeded ones, so no earlier id moved, the table now 203 cases:
+- id 200: an axe hit from the front-side arc, landing below the clamp (no axe bonus);
+- id 201: the `ABOVE_HALF` damage passive at exactly half health, with a percent of 20 (it does not
+  apply);
+- id 202: FX-19's halving when the hit leaves the target at exactly half (300 − 60 = 240 of 480:
+  not halved).
+
 ## `fate.jsonl`: the Fate derivations (VEC-01)
 
 Printed by `fate::tests::test_vectors` (ids 0–226), one part, with its digest. ENG-05 added the

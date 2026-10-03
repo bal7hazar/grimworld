@@ -20,7 +20,6 @@ use snforge_std::{
 };
 
 #[test]
-// gas: raised, it calls a stub (`buy_skill` since CBT-08a) now `register` is written (ENG-04)
 #[available_gas(l2_gas: 4318755)] // ceil(1.05 × 4113100 measured)
 fn test_hub_deploys_and_stubs_revert() {
     let class = declare("Hub").unwrap().contract_class();
@@ -33,7 +32,6 @@ fn test_hub_deploys_and_stubs_revert() {
 }
 
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 3992919)] // ceil(1.05 × 3802780 measured)
 fn test_market_and_registry_deploy() {
     let class = declare("Market").unwrap().contract_class();

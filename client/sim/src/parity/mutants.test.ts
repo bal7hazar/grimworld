@@ -111,8 +111,8 @@ const MUTANTS: readonly Mutant[] = [
   {
     name: "evasion takes ranged hits too",
     file: "hit.ts",
-    from: "if (target.evade && hit.melee && open)",
-    to: "if (target.evade && open)",
+    from: "if (target.evade && hit.melee && open && !target.asleep)",
+    to: "if (target.evade && open && !target.asleep)",
   },
   {
     name: "critical from the rear-side arc too",
@@ -125,22 +125,18 @@ const MUTANTS: readonly Mutant[] = [
     file: "hit.ts",
     from: "(hit.arc === Arc.RearSide || hit.arc === Arc.Back)",
     to: "true",
-    survives:
-      "no axe hit from the front or front-side arc lands below the 65,535 clamp (each is stopped or saturates)",
   },
   {
     name: "the above-half guard holds at exactly half",
     file: "hit.ts",
     from: "if (hit.health * 2n > hit.max_health)",
     to: "if (hit.health * 2n >= hit.max_health)",
-    survives: "no case has its source at exactly half health with a percent above half",
   },
   {
     name: "FX-19's halving triggers at exactly half after the hit",
     file: "hit.ts",
     from: "after * 2n < target.max_health",
     to: "after * 2n <= target.max_health",
-    survives: "no weapon hit on a halving target leaves it at exactly half health",
   },
   {
     name: "a wrong domain separator (ENTRY's short string)",

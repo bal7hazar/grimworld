@@ -119,6 +119,20 @@ for later lots: **a class that passes 50 % of a limit is split before it grows f
 their size is unknown (ARC). Running `class_sizes.py` in CI is the orchestrator's step in
 `.github/` (§11, E-10).
 
+**Two exceptions to the 50 % (CBT-05a, route (c); decided by the project manager, 2026-10-02
+(D-200)).** The rule above stays the default for every class. Two classes have their own ceiling:
+- **`ExecutorLibrary`** (`contracts/logic/src/systems/executor.cairo`), the executor in its own
+  class, called once a carrier by `TickLibrary`'s step-1 hook: **at most 80,420 CASM felts**, the
+  limit (81,920) less 1,500 of margin. Accepted at 80,122 (97.81 %, measured at CBT-05a's
+  `f1a33f4`). Any growth beyond 80,420 goes to the project manager first; room is won back by a
+  later design lot (CBT-05a's option (3): only the carrier's sheets across the call, the snapshot
+  words split from the actors).
+- **`TickLibrary`**: **at most 75 %** (61,440 felts), to keep its room for CBT-05b's resolution
+  parts and ENG-07's act hook (45,427, 55.45 %, at `f1a33f4`).
+
+`contracts/tools/class_sizes.py` checks each class against its threshold: these two by name, every
+other at 50 %.
+
 **The tick's library class (CBT-02, M).** `TickLibrary`, in `grimworld_logic`
 (`contracts/logic/src/systems/tick.cairo`; the package's manifest declares `[lib]` and
 `[[target.starknet-contract]]`, since a contract target replaces the default library target). Its
@@ -1183,6 +1197,70 @@ which at most 8 awake (a larger set is refused where it is formed, before any ti
 | **CBT-04, the conditions' rules, per tick** (below; after SPK-15's L2, D-172): 23 applications (16 on the member, 7 on goblins), one member's kit read and 9 hits' and moves' predicates, on the actors' values (the executor's writes of them are CBT-05's) | — | 2,368,590 → 2,095,610 (re-measured: the member's kit read out of the 16 applications from goblins) → **+ 1,319,770**: 16 × 55,150 + 7 × 45,300 + 19,020 + 9 × 11,250; with the tick's share, **≤ 4,767,642 (3.24 ×)** alone; **with the row above's hits, ≤ 5,464,542 (3.72 ×)**: 3,447,872 (the tick's share) + 696,900 (15 hits) + 1,319,770 (the conditions) = 5,464,542, and 5,464,542 / 1,469,435 = 3.72 |
 | The awake set's selection over 100 candidates (§5.2), wherever ENG-07 runs it at step 0 | — | 4,264,890 → **4,663,510** (fix loop 1, COST-2: the maximum over a prior set of 8 at the array's start, its end and spread across it, kept and replaced, and none, with the distances falling, rising and the set nearest, `test_cost_awake_*` + the selection's straight-line part, 27,550, `test_cost_pair_awake_*`; the costliest, the set at the start kept. It forms the set apart in the pass that writes the flags) |
 | The geometry a tick calls (ENG-02, `types::window` on `hexx` 0.1.0-rc.1, D-173), per call (`test_cost_*`: the totals of a test making it twice less once; each figure holds 2,440 of the benchmark's own opaque inputs and check, `test_cost_overhead_*`): `sight` 22,176 (both ends tested, ENG-02 fix loop 1); `reach` 34,216; `distance` 16,230 (it guards a position outside the window, fix loop 3); `arc` 25,140 adjacent, 25,240 at range or on the window's ring, and `facing` 22,500 on every path (the line's first step in constant time); `front` 11,850; `shape` `DISC_1` 14,656, 69,926 on the window's ring; `tiles` of a `DISC_1` 57,151. A weapon hit asks `reach`, `distance` (its `melee`), `arc` and `front`: **87,536** | 8 goblins' weapon hits at range (700,288), 9 facings (the 8 and the member, 202,500), a bomb's `DISC_1` and its 7 tiles (71,807): **+ 974,595** | 15 hits each with `reach`, `distance`, `arc` and `front` (1,313,040, though a bomb's 7 `ITEM` hits take no arc), 9 facings (202,500), a `DISC_1` on the ring and its tiles (127,077): **+ 1,642,617**, 7.2 % of SPK-15's worst tick (22.8 M, D-172) |
+
+**The executor's row (CBT-05a, route (c), D-200), and the combined share recomputed on Scarb 2.20.1.**
+Every term is measured by one `snforge test --workspace --fuzzer-seed 1` on the VPS, at CBT-05a's
+code (the content's sheets carry the executor's fields, the actors their positions). Each term
+follows this section's own formula, per tick inside a batch of 10:
+
+| Term | Tests (snforge totals) | Per tick |
+|---|---|---:|
+| The pipeline's costliest tick | `test_cost_pair_term_tick` − `test_cost_pair_term_fixture` | 1,503,347 |
+| `run`'s loop | (`pair_representative_run_ten` − its fixture) / 10 − (`pair_representative_tick` − its fixture) | 4,907 |
+| Load and store, once a call | (`test_cost_load_bound` − its fixture) / 10 | 1,077,385 |
+| The library call, once a call | (`test_cost_library_call_all_dead` − `test_cost_library_baseline_all_dead`) / 10 | 786,926 |
+| The content, once a batch | (`test_content_read_worst` − `test_content_read_probe_alone`, 4,651,150; + 38 skill sheets × 42,430, 4 potions × 15,870, 5 castes × 41,150) / 10 | 653,272 |
+| **The tick's share** | 1,503,347 + 4,907 + 1,077,385 + 786,926 + 653,272 | **4,025,837** |
+| CBT-03a's 15 hits | 15 × (`test_cost_pair_hit_one` − `test_cost_pair_hit_none`, 46,440) | 696,600 |
+| CBT-04's conditions | 16 × 57,230 (a member's `knock`) + 7 × 44,980 (a goblin's) + 18,200 (the kit read) + 9 × 8,930 (predicates) | 1,329,110 |
+| **Running total, this section's form** | 4,025,837 + 696,600 + 1,329,110 | **6,051,547 (4.12 × 1,469,435)** |
+
+**The executor's line, measured (CBT-05a, the cost audit's F-1; option (3)'s levers 1 and 3).**
+Every figure is a whole call through `TickLibrary` (its hook choosing each carrier's sub-world,
+`ExecutorLibrary` running it, the words loaded back), measured on the VPS by `snforge`, each test
+less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake goblins one a tile
+(its ring of 6 and 2 behind, F-2), the worst content (38 skills, 4 potions, 5 castes), one tick.
+
+| Measure | Per tick |
+|---|---:|
+| **The worst tick measured: the member's activation (Cinder Ring on its ring) and the 8 goblins' attack skills conclude together** (`rep_all`) | **45,999,941** (115.0 % of 40 M; 4.18 % of 1.1×10⁹) |
+| The 8 goblin carriers alone (`rep_goblins`) | 36,895,379 (92.2 % of 40 M) |
+| A goblin's carrier through the class, its attack on the member (`rep_goblins` − `rep_idle`, over 8) | 4,090,351 |
+| The member's Cinder Ring on 6 goblins (`rep_member` − `rep_idle`) | 9,102,352 |
+| A `SINGLE` carrier in a 13-goblin state (`rep_far` − `rep_far_idle`): after lever 3 a weapon carrier carries only its source and target, so the row measures that the cost does not grow with the neighbours | 4,308,699 |
+| The idle tick, the whole call (`rep_idle`) | 4,172,567 |
+| Ten ticks, the 8 goblin carriers in the first (`rep_batch`) | 44,632,312 |
+
+- The table's figures are measured at `ba56f53` (lever 3), the ones the cost re-audit verified
+  and D-207 names. The delta review's first-record lookup in `Delegate` lowers them a little: at
+  the head that carries it, the worst tick measured 45,890,031, the 8 goblin carriers 36,809,939, a
+  goblin's carrier 4,079,671, the member's Cinder Ring 9,077,882 (the same tests).
+- **The worst tick measured, 45,999,941, is accepted as a batch of one tick** (the project
+  manager, 2026-10-03, D-207): 40 M is a batch target, not a protocol limit; a batch holds one such
+  tick when it occurs, and ENG-07 derives the batch weight from it. Combat rules are unchanged.
+- **Not measured: a bomb in place of Cinder Ring** (`TILE`, `DISC_1`, up to 13 goblins carried),
+  estimated **≈ 48.8 M (E)**, 4.4 % of 1.1×10⁹ (the cost re-audit of #334). CBT-05b or ENG-07
+  measures it, and its figure then replaces this estimate.
+- **The levers** (the project manager's option (b), 2026-10-03), measured one by one at the same
+  state:
+
+  | | Baseline | (1) each call carries only the records its loads need | (2) the decoded sheets sent across, **reverted** | (3) a `SINGLE` carrier carries only its source and target |
+  |---|---:|---:|---:|---:|
+  | A goblin's carrier | 6,495,595 | 6,190,565 | 7,250,510 | **4,090,351** |
+  | The member's Cinder Ring | 9,405,232 | 9,069,972 | 10,129,392 | **9,102,352** |
+  | The 8 goblin carriers' tick | 56,137,329 | 53,697,089 | 62,181,249 | **36,895,379** |
+  | `ExecutorLibrary`, CASM felts (≤ 80,420, D-200) | 80,122 | 80,122 | 79,349 | **80,122** |
+
+  Lever (2) cost more as calldata (the decoded entries and the kits) than the decoding it saved.
+- **The earlier, understated figure: 26,422,703** (17.98 ×), the tick's share above (4,025,837)
+  plus a line built from the class alone (5,571,338 + 8 × 2,103,191). It left out `TickLibrary`'s
+  side of each call and the worst content's load in each call; it is kept for the record only.
+- **Not in it:** the action phase's immediate carrier (CBT-05b, through the same entrypoint), and
+  ENG-07's step-2 carriers (the goblins' acts, through the same call). The bound of 8 goblin
+  carriers holds for `SINGLE` step-2 carriers; trap triggers' carriers are priced at ENG-07.
+- The tick's share and the running total above (4,025,837; 6,051,547) are the pipeline's alone, at
+  CBT-02d's fixtures; the measured figures of this table replace them for the tick with the
+  executor.
 
 **The conditions' row (CBT-04; fix loop 2, SPK-15's L2, D-172).** An application is written in
 place, split by condition: `apply` for Bleeding, Poison, Burning and Crippled, `knock` for Knocked

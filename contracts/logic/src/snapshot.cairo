@@ -21,6 +21,7 @@ use crate::packing::{
 };
 use crate::professions::ProfessionTrait;
 use crate::types::effect::guard;
+use crate::types::hit::HitTrait;
 use crate::types::passive::{Passive, Source, id};
 
 /// The widest unguarded armor (design/19 §7.2, F-20; F-21 settled by CBT-01): the weighted rating
@@ -1103,14 +1104,10 @@ pub impl SnapshotBuildImpl of SnapshotBuildTrait {
         if *loadout.personalised {
             weapon_damage = weapon_damage * PERSONALISED_DAMAGE_PERCENT / 100;
         }
-        let strength: u16 = STRENGTH_PER_RANK
-            * FlattenTrait::rank(points, runes, *loadout.weapon_attribute).into();
-        let cap: u16 = (*loadout.strength_cap).into();
-        let strength = if strength > cap {
-            cap
-        } else {
-            strength
-        };
+        // One copy of the rule (CBT-05a, carried from CBT-03a): the hit's.
+        let strength = HitTrait::weapon_strength(
+            FlattenTrait::rank(points, runes, *loadout.weapon_attribute), *loadout.strength_cap,
+        );
         let rating: i32 = (*loadout.rating).into();
         Snapshot {
             stats: MemberStats {
@@ -1772,7 +1769,6 @@ mod tests {
     // may hold a statistic at its per-source maximum (and, where no floor refuses it, its
     // minimum) flattens without overflow, to exactly the envelope.
     #[test]
-    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 12473132)] // ceil(1.05 × 11879173 measured)
     fn test_envelope_builds() {
         // Held slots at 30, insignias at their pieces' 15 / 10 / 5 / 5 / 5 (DS-23), runes and
@@ -2261,7 +2257,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-01: nine armors by damage type (FX-23, FX-24)
     #[available_gas(l2_gas: 573384)] // ceil(1.05 × 546080 measured)
     fn test_stats_layout() {
         let stats = MemberStats {
@@ -2299,7 +2294,6 @@ mod tests {
     }
 
     #[test]
-    // gas: raised, CBT-01: design/19's passives in the bar and the kit (FX-24)
     #[available_gas(l2_gas: 389991)] // ceil(1.05 × 371420 measured)
     fn test_bar_and_kit_layout() {
         let bar = MemberBar {

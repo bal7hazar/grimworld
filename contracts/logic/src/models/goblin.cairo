@@ -7,12 +7,14 @@
 //! frozen ones, pinned by the ephemeral package's `test_tick_words`.
 
 use crate::helpers::tick::{TickAssert, TickMathTrait, errors as tick_errors};
-use crate::packing::{N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P84, field, limbs, peel};
+use crate::packing::{
+    N16, N24, N28, N56, N6, N8, P108, P16, P28, P56, P8, P80, P84, field, limbs, peel,
+};
 use crate::types::combat::{activation, condition, skill_kind};
 use crate::types::infliction::{Infliction, InflictionTrait};
 use crate::types::tick::{
-    CasteSheetTrait, Held, Index, IndexTrait, Kit, MISSING, REGEN_OFFSET, Sheets, SheetsTrait,
-    SkillSheetTrait, ai,
+    ABSENT, CasteSheetTrait, Held, Index, IndexTrait, Kit, MISSING, REGEN_OFFSET, Sheets,
+    SheetsTrait, SkillSheetTrait, ai,
 };
 
 pub use super::index::{Goblin, GoblinWords};
@@ -140,11 +142,11 @@ pub impl GoblinImpl of GoblinTrait {
         let sheet = (*sheets.castes)[caste_at];
         let kit = (*sheets.kits)[caste_at];
         GoblinAssert::assert_kit(kit);
-        let regen: i32 = (*sheet.health_regen).into();
-        let effect_regen: i32 = if effect == 0 {
-            0
+        let (effect_at, effect_regen) = if effect == 0 {
+            (ABSENT, 0)
         } else {
-            (*sheets.skills)[index.skill(effect)].regen(rank)
+            let at = index.skill(effect);
+            (at, (*sheets.skills)[at].regen(rank))
         };
         GoblinAssert::assert_pips(effect_regen);
         Goblin {
@@ -165,11 +167,8 @@ pub impl GoblinImpl of GoblinTrait {
             effect_deadline,
             effect_regen: effect_regen.try_into().unwrap(),
             max_health: sheet.max_health(level).try_into().unwrap(),
-            health_regen: (regen - REGEN_OFFSET).try_into().unwrap(),
-            max_energy: *sheet.energy * 3,
-            energy_regen: *sheet.energy_regen,
-            adrenaline_cap: *kit.cap,
             caste_at,
+            effect_at,
             state: words.state,
             timers: words.timers,
         }
@@ -207,6 +206,31 @@ pub impl GoblinImpl of GoblinTrait {
     }
 
     /// Alive: neither dead nor looted.
+    /// Its caste's health regeneration, signed pips (`Caste.health_regen` − 10).
+    #[inline(always)]
+    fn health_regen(self: @Goblin, sheets: @Sheets) -> i8 {
+        let regen: i32 = (*(*sheets.castes)[*self.caste_at].health_regen).into();
+        (regen - REGEN_OFFSET).try_into().unwrap()
+    }
+
+    /// Its caste's max energy, in thirds.
+    #[inline(always)]
+    fn max_energy(self: @Goblin, sheets: @Sheets) -> u8 {
+        *(*sheets.castes)[*self.caste_at].energy * 3
+    }
+
+    /// Its caste's energy regeneration, thirds a tick.
+    #[inline(always)]
+    fn energy_regen(self: @Goblin, sheets: @Sheets) -> u8 {
+        *(*sheets.castes)[*self.caste_at].energy_regen
+    }
+
+    /// Its caste's adrenaline cap, in quarters (its kit's).
+    #[inline(always)]
+    fn adrenaline_cap(self: @Goblin, sheets: @Sheets) -> u8 {
+        *(*sheets.kits)[*self.caste_at].cap
+    }
+
     #[inline(always)]
     fn is_alive(self: @Goblin) -> bool {
         *self.ai < ai::DEAD
@@ -262,6 +286,32 @@ pub impl GoblinWordsImpl of GoblinWordsTrait {
             + TickMathTrait::delta(old.rank.into(), held.rank.into(), F246);
         self.effect_deadline = held.deadline;
         self.effect_regen = pips;
+    }
+}
+
+/// The fields of a goblin's words its hits read (CBT-05a; ENG-01 §3.2 offsets).
+#[generate_trait]
+pub impl GoblinPlaceImpl of GoblinPlaceTrait {
+    /// Its tile and facing (`GoblinState` x 0–7, y 8–15, facing 16–23).
+    #[inline(always)]
+    fn place(self: @Goblin) -> (u8, u8, u8) {
+        Self::at(*self.state)
+    }
+
+    /// The tile and facing a `GoblinState` word holds.
+    fn at(state: felt252) -> (u8, u8, u8) {
+        let (low, _) = limbs(state);
+        let mut rest = low;
+        let x = peel(ref rest, N8);
+        let y = peel(ref rest, N8);
+        let facing = peel(ref rest, N8);
+        (x.try_into().unwrap(), y.try_into().unwrap(), facing.try_into().unwrap())
+    }
+
+    /// Its level (`GoblinState` 80–87, the pack's).
+    fn level(self: @Goblin) -> u8 {
+        let (low, _) = limbs(*self.state);
+        field(low, P80, P8).try_into().unwrap()
     }
 }
 
@@ -344,19 +394,18 @@ pub impl GoblinTickImpl of GoblinTickTrait {
     /// Step 3 at tick `t` (§5.8) for an awake goblin alive: health by its caste's pips, its
     /// effect's and its conditions'; energy by the caste's pips in thirds; adrenaline decay when
     /// not Engaged (D-157 E).
-    fn regenerate(ref self: Goblin, t: u32) {
-        let mut pips: i32 = self.health_regen.into()
+    fn regenerate(ref self: Goblin, t: u32, sheets: @Sheets) {
+        let mut pips: i32 = self.health_regen(sheets).into()
             + TickMathTrait::degeneration(self.bleeding, self.poison, self.burning, t)
             + TickMathTrait::effect_pips(self.effect_regen, self.effect_deadline, t);
         self.health = TickMathTrait::heal(self.health, pips, self.max_health);
-        let energy: u16 = self.energy.into() + self.energy_regen.into();
-        self
-            .energy =
-                if energy > self.max_energy.into() {
-                    self.max_energy
-                } else {
-                    energy.try_into().unwrap()
-                };
+        let energy: u16 = self.energy.into() + self.energy_regen(sheets).into();
+        let max = self.max_energy(sheets);
+        self.energy = if energy > max.into() {
+            max
+        } else {
+            energy.try_into().unwrap()
+        };
         if self.ai != ai::ENGAGED {
             let decayed = TickMathTrait::decay(self.adrenaline.into());
             self.adrenaline = decayed.try_into().unwrap();
@@ -423,7 +472,7 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
 
     /// A holding effect on its one slot at `t` (§5.7): the same carrier held keeps the later
     /// deadline, the new one on a tie (FX-30); anything else replaces it (FX-13).
-    fn hold(ref self: Goblin, held: Held, t: u32, sheets: @Sheets) {
+    fn hold(ref self: Goblin, held: Held, at: u32, t: u32, sheets: @Sheets) {
         if !self.is_alive() {
             return;
         }
@@ -431,29 +480,31 @@ pub impl GoblinLifecycleImpl of GoblinLifecycleTrait {
         if old.deadline >= t && old.carrier == held.carrier && held.deadline < old.deadline {
             return;
         }
-        let pips: i32 = sheets.skill(held.carrier).regen(held.rank);
+        let pips: i32 = (*sheets.skills)[at].regen(held.rank);
         GoblinAssert::assert_pips(pips);
         self.set_effect(held, pips.try_into().unwrap());
+        self.effect_at = at;
     }
 
     /// Adrenaline gained, in quarters (§5.12), capped at its caste's cap (at most 252).
-    fn gain_adrenaline(ref self: Goblin, quarters: u8) {
-        if self.adrenaline < self.adrenaline_cap {
+    fn gain_adrenaline(ref self: Goblin, quarters: u8, sheets: @Sheets) {
+        let cap = self.adrenaline_cap(sheets);
+        if self.adrenaline < cap {
             let gained: u16 = self.adrenaline.into() + quarters.into();
-            let cap: u16 = self.adrenaline_cap.into();
+            let cap: u16 = cap.into();
             self.adrenaline = TickMathTrait::min16(gained, cap).try_into().unwrap();
         }
     }
 
     /// A weapon hit landed: 4 quarters (no `hits` counter: a member's modifier).
-    fn land_weapon_hit(ref self: Goblin) {
-        self.gain_adrenaline(4);
+    fn land_weapon_hit(ref self: Goblin, sheets: @Sheets) {
+        self.gain_adrenaline(4, sheets);
     }
 
     /// A hit taken while alive: 1 quarter.
-    fn take_hit(ref self: Goblin) {
+    fn take_hit(ref self: Goblin, sheets: @Sheets) {
         if self.is_alive() && self.health > 0 {
-            self.gain_adrenaline(1);
+            self.gain_adrenaline(1, sheets);
         }
     }
 }
@@ -558,7 +609,8 @@ mod tests {
     // member's kit lengthens its own condition and the knock-down (Bleeding 20 +33 %: 26 ticks,
     // D = 35; Knocked down 2 + 1: D = 12); no passive, the value itself.
     #[test]
-    #[available_gas(l2_gas: 1060521)] // ceil(1.05 × 1010020 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 1386725)] // ceil(1.05 × 1320690 measured)
     fn test_goblin_apply() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -581,7 +633,8 @@ mod tests {
     // a cure gives `t0 − 1`, an absent condition's cure nothing; a dead goblin takes nothing,
     // neither a condition nor a cure.
     #[test]
-    #[available_gas(l2_gas: 920273)] // ceil(1.05 × 876450 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 1081626)] // ceil(1.05 × 1030120 measured)
     fn test_goblin_apply_refresh_cure() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -611,7 +664,8 @@ mod tests {
     // at clock 51 knocks the Hobgoblin down for 2 ticks, t0 = 52: D = 53, the field none, R =
     // 52 + 10 − 1 = 61. A recovering goblin knocked down keeps its recovery (not an activation).
     #[test]
-    #[available_gas(l2_gas: 936243)] // ceil(1.05 × 891660 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 1099172)] // ceil(1.05 × 1046830 measured)
     fn test_goblin_knockdown_interrupts() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -632,7 +686,8 @@ mod tests {
     // goblin acts at 54 alone: D and D + 1); through 53 a weapon hit on it is critical from any
     // arc and it neither blocks nor evades.
     #[test]
-    #[available_gas(l2_gas: 6216339)] // ceil(1.05 × 5920322 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 6472696)] // ceil(1.05 × 6164472 measured)
     fn test_goblin_knocked_predicates() {
         let mut goblin = Fixture::goblin(40, HOB);
         goblin.knocked = 53;
@@ -649,7 +704,7 @@ mod tests {
     // recovers until B = 63 (it skips step 2 of tick 63); at 63, a move costs 1; with a
     // `MOVEMENT` effect, 1 (FX-18).
     #[test]
-    #[available_gas(l2_gas: 332315)] // ceil(1.05 × 316490 measured)
+    #[available_gas(l2_gas: 330425)] // ceil(1.05 × 314690 measured)
     fn test_goblin_crippled_move() {
         let mut goblin = Fixture::goblin(9, RUNT);
         goblin.set_crippled(62);
@@ -679,7 +734,7 @@ mod tests {
     // goblin on every condition, at the values 1, 20, 0 and 40,000, with "Rending" and without,
     // activating, recovering, a condition held to be kept or raised, and dead.
     #[test]
-    #[available_gas(l2_gas: 23387900)] // ceil(1.05 × 22274190 measured)
+    #[available_gas(l2_gas: 22929008)] // ceil(1.05 × 21837150 measured)
     fn test_goblin_apply_matches_oracle() {
         let sheets = Fixture::sheets();
         let rending = Infliction { condition: condition::BLEEDING, percent: 33, knockdown: 1 };
@@ -720,7 +775,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'tick: knock-down is knock')]
-    #[available_gas(l2_gas: 290892)] // ceil(1.05 × 277040 measured)
+    #[available_gas(l2_gas: 290577)] // ceil(1.05 × 276740 measured)
     fn test_goblin_apply_knockdown_refused() {
         let mut goblin = Fixture::goblin(9, HOB);
         let none: Infliction = Default::default();
@@ -730,7 +785,8 @@ mod tests {
     // The Sonnet run's note (fix loop 2): a knock-down that does not lengthen a held one still
     // interrupts, and finds nothing to interrupt (a knocked-down goblin skips step 2).
     #[test]
-    #[available_gas(l2_gas: 641004)] // ceil(1.05 × 610480 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 803513)] // ceil(1.05 × 765250 measured)
     fn test_goblin_knock_refresh_not_longer() {
         let sheets = Fixture::sheets();
         let none: Infliction = Default::default();
@@ -753,7 +809,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 613253)] // ceil(1.05 × 584050 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 778491)] // ceil(1.05 × 741420 measured)
     fn test_cost_goblin_condition_base() {
         let (goblin, _sheets) = condition_cost_state();
         opaque(goblin);
@@ -761,7 +818,8 @@ mod tests {
 
     // The base of the pairs that give a source.
     #[test]
-    #[available_gas(l2_gas: 614093)] // ceil(1.05 × 584850 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 779331)] // ceil(1.05 × 742220 measured)
     fn test_cost_goblin_source_base() {
         let (goblin, _sheets) = condition_cost_state();
         let _source: Infliction = opaque(Default::default());
@@ -770,7 +828,8 @@ mod tests {
 
     // The other paths' bases: no activation and a longer knock-down held; dead.
     #[test]
-    #[available_gas(l2_gas: 614513)] // ceil(1.05 × 585250 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 779751)] // ceil(1.05 × 742620 measured)
     fn test_cost_goblin_idle_base() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.clear();
@@ -780,7 +839,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 614513)] // ceil(1.05 × 585250 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 779751)] // ceil(1.05 × 742620 measured)
     fn test_cost_goblin_dead_base() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.ai = opaque(ai::DEAD);
@@ -789,7 +849,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 661532)] // ceil(1.05 × 630030 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 825720)] // ceil(1.05 × 786400 measured)
     fn test_cost_goblin_knock() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -798,7 +859,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 661952)] // ceil(1.05 × 630430 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 826140)] // ceil(1.05 × 786800 measured)
     fn test_cost_goblin_knock_idle() {
         let (mut goblin, sheets) = condition_cost_state();
         goblin.clear();
@@ -809,7 +871,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 644637)] // ceil(1.05 × 613940 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 808931)] // ceil(1.05 × 770410 measured)
     fn test_cost_goblin_apply_crippled() {
         let (mut goblin, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -818,7 +881,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 644637)] // ceil(1.05 × 613940 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 808931)] // ceil(1.05 × 770410 measured)
     fn test_cost_goblin_apply_bleeding() {
         let (mut goblin, _sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -827,7 +891,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 645057)] // ceil(1.05 × 614340 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 809351)] // ceil(1.05 × 770810 measured)
     fn test_cost_goblin_apply_dead() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.ai = opaque(ai::DEAD);
@@ -838,7 +903,8 @@ mod tests {
 
     // The pre-L2 application, the oracle, as a pair: what L2 saves on a knock-down.
     #[test]
-    #[available_gas(l2_gas: 693788)] // ceil(1.05 × 660750 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 856401)] // ceil(1.05 × 815620 measured)
     fn test_cost_goblin_oracle() {
         let (mut goblin, sheets) = condition_cost_state();
         let source: Infliction = opaque(Default::default());
@@ -849,7 +915,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 647063)] // ceil(1.05 × 616250 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 810726)] // ceil(1.05 × 772120 measured)
     fn test_cost_goblin_cure() {
         let (mut goblin, _sheets) = condition_cost_state();
         goblin.cure(opaque(condition::BLEEDING), opaque(52));
@@ -857,7 +924,8 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 623501)] // ceil(1.05 × 593810 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 788739)] // ceil(1.05 × 751180 measured)
     fn test_cost_goblin_predicates() {
         let (goblin, _sheets) = condition_cost_state();
         let t = opaque(52);
@@ -871,7 +939,8 @@ mod tests {
     // multiplier (design/03, design/05), its regeneration, its effect's pips at its rank; its
     // caste's position and cap, its kit's.
     #[test]
-    #[available_gas(l2_gas: 900522)] // ceil(1.05 × 857640 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 1087002)] // ceil(1.05 × 1035240 measured)
     fn test_goblin_load() {
         let caste = CasteSheet {
             id: 3,
@@ -881,6 +950,7 @@ mod tests {
             energy_regen: 2,
             weapon_ticks: 2,
             skills: [SMASH, 0, 0, 0],
+            ..Default::default(),
         };
         let mut smash = Fixture::skill(SMASH, skill_kind::SPELL, 0, 0);
         smash.regen0 = 1;
@@ -897,16 +967,18 @@ mod tests {
         let goblin = Fixture::load_goblin(
             GoblinWords { entity: 77, awake: false, state, timers }, @content,
         );
-        assert(goblin.max_health == 720 && goblin.health_regen == 2, 'health');
-        assert(goblin.max_energy == 60 && goblin.energy_regen == 2, 'energy');
+        let sheets = content.sheets();
+        assert(goblin.max_health == 720 && goblin.health_regen(@sheets) == 2, 'health');
+        assert(goblin.max_energy(@sheets) == 60 && goblin.energy_regen(@sheets) == 2, 'energy');
         assert(goblin.effect_regen == 3 && !goblin.awake, 'effect');
-        assert(goblin.caste_at == 1 && goblin.adrenaline_cap == 20, 'its kit');
+        assert(goblin.caste_at == 1 && goblin.adrenaline_cap(@sheets) == 20, 'its kit');
     }
 
     // `load` reads the hot fields of the words and derives the rest; `store` writes them back as
     // deltas, every other bit kept: a round trip is the identity, a change lands where it belongs.
     #[test]
-    #[available_gas(l2_gas: 1064028)] // ceil(1.05 × 1013360 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 1368738)] // ceil(1.05 × 1303560 measured)
     fn test_goblin_load_store() {
         let content = Fixture::content();
         // Caste 2, level 10.
@@ -931,7 +1003,8 @@ mod tests {
     // A caste skill missing from the content is refused when a goblin of the caste loads.
     #[test]
     #[should_panic(expected: 'tick: skill not in content')]
-    #[available_gas(l2_gas: 446607)] // ceil(1.05 × 425340 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 463313)] // ceil(1.05 × 441250 measured)
     fn test_goblin_load_missing_skill() {
         let content = Content {
             skills: array![Fixture::skill(24, skill_kind::ATTACK, 3, 10)].span(),
@@ -947,7 +1020,7 @@ mod tests {
 
     // AUD-182-9: the words' decoder is the goblin's own (`GoblinTrait::hot`).
     #[test]
-    #[available_gas(l2_gas: 333113)] // ceil(1.05 × 317250 measured)
+    #[available_gas(l2_gas: 332798)] // ceil(1.05 × 316950 measured)
     fn test_goblin_hot() {
         let goblin = Fixture::goblin(8, RUNT);
         let (state_ai, health, _, _, caste, slot, _, _, _, _, _, _, _, level, _, _) =
@@ -961,7 +1034,7 @@ mod tests {
     // AUD-182-6, conditions (§5.7, FX-6): a dead goblin takes nothing; Crippled lives in the
     // words.
     #[test]
-    #[available_gas(l2_gas: 605262)] // ceil(1.05 × 576440 measured)
+    #[available_gas(l2_gas: 603372)] // ceil(1.05 × 574640 measured)
     fn test_goblin_conditions() {
         let mut dead = Fixture::goblin(8, HOB);
         dead.ai = ai::DEAD;
@@ -975,14 +1048,15 @@ mod tests {
 
     // AUD-182-6, a goblin's one slot (FX-30, FX-13): refreshed by its carrier, replaced by another.
     #[test]
-    #[available_gas(l2_gas: 699489)] // ceil(1.05 × 666180 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 891576)] // ceil(1.05 × 849120 measured)
     fn test_goblin_hold() {
         let sheets = Fixture::hold_content().sheets();
         let mut goblin = Fixture::goblin(8, HOB);
-        goblin.hold(Fixture::held(11, false, 50, 3), 40, @sheets);
-        goblin.hold(Fixture::held(11, false, 45, 3), 40, @sheets);
+        goblin.hold(Fixture::held(11, false, 50, 3), 8, 40, @sheets);
+        goblin.hold(Fixture::held(11, false, 45, 3), 8, 40, @sheets);
         assert(goblin.effect_of().deadline == 50, 'goblin keeps the later');
-        goblin.hold(Fixture::held(15, false, 44, 12), 40, @sheets);
+        goblin.hold(Fixture::held(15, false, 44, 12), 12, 40, @sheets);
         let replaced = goblin.effect_of() == Fixture::held(15, false, 44, 12);
         assert(replaced && goblin.effect_regen == 1, 'replaced');
     }
@@ -990,7 +1064,8 @@ mod tests {
     // AUD-182-6, adrenaline (§5.12, FX-12): a goblin's gains capped at its caste's, at most 252;
     // a dead goblin gains nothing.
     #[test]
-    #[available_gas(l2_gas: 478065)] // ceil(1.05 × 455300 measured)
+    // gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+    #[available_gas(l2_gas: 660146)] // ceil(1.05 × 628710 measured)
     fn test_goblin_adrenaline_gain() {
         let mut heavy = Fixture::skill(25, skill_kind::ATTACK, 0, 0);
         heavy.adrenaline = 63;
@@ -1009,13 +1084,14 @@ mod tests {
             entity: 8, awake: true, state: Fixture::goblin(8, HOB).state, timers: LIVE + 255,
         };
         let mut goblin = Fixture::load_goblin(words, @content);
-        assert(goblin.adrenaline_cap == 252, 'goblin cap 252');
+        let sheets = content.sheets();
+        assert(goblin.adrenaline_cap(@sheets) == 252, 'goblin cap 252');
         goblin.adrenaline = 250;
-        goblin.land_weapon_hit();
+        goblin.land_weapon_hit(@sheets);
         assert(goblin.adrenaline == 252, 'goblin capped');
         goblin.ai = ai::DEAD;
         goblin.adrenaline = 0;
-        goblin.take_hit();
+        goblin.take_hit(@sheets);
         assert(goblin.adrenaline == 0, 'dead: nothing');
     }
 

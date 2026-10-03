@@ -94,7 +94,6 @@ fn setup() -> (IReadProbeDispatcher, ContractAddress) {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9270944)] // ceil(1.05 × 8829470 measured)
 fn test_read_cost_baseline() {
     let (probe, registry) = setup();
@@ -104,7 +103,6 @@ fn test_read_cost_baseline() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9421713)] // ceil(1.05 × 8973060 measured)
 fn test_read_cost_one_call_one_read() {
     let (probe, registry) = setup();
@@ -114,7 +112,6 @@ fn test_read_cost_one_call_one_read() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9498857)] // ceil(1.05 × 9046530 measured)
 fn test_read_cost_bundle_1() {
     let (probe, registry) = setup();
@@ -124,7 +121,6 @@ fn test_read_cost_bundle_1() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9561878)] // ceil(1.05 × 9106550 measured)
 fn test_read_cost_bundle_2() {
     let (probe, registry) = setup();
@@ -134,7 +130,6 @@ fn test_read_cost_bundle_2() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9940004)] // ceil(1.05 × 9466670 measured)
 fn test_read_cost_bundle_8() {
     let (probe, registry) = setup();
@@ -144,7 +139,6 @@ fn test_read_cost_bundle_8() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9627366)] // ceil(1.05 × 9168920 measured)
 fn test_read_cost_two_calls() {
     let (probe, registry) = setup();
@@ -154,7 +148,6 @@ fn test_read_cost_two_calls() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 10631271)] // ceil(1.05 × 10125020 measured)
 fn test_read_cost_eight_calls() {
     let (probe, registry) = setup();
@@ -164,7 +157,6 @@ fn test_read_cost_eight_calls() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9318089)] // ceil(1.05 × 8874370 measured)
 fn test_read_cost_local_1() {
     let (probe, _) = setup();
@@ -174,7 +166,6 @@ fn test_read_cost_local_1() {
 }
 
 #[test]
-// gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
 #[available_gas(l2_gas: 9558885)] // ceil(1.05 × 9103700 measured)
 fn test_read_cost_local_8() {
     let (probe, _) = setup();
@@ -289,7 +280,7 @@ fn content_setup() -> (IContentProbeDispatcher, ContractAddress) {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 89602716)] // ceil(1.05 × 85335920 measured)
+#[available_gas(l2_gas: 89921139)] // ceil(1.05 × 85639180 measured)
 fn test_content_read_probe_alone() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();
@@ -299,7 +290,7 @@ fn test_content_read_probe_alone() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 94486424)] // ceil(1.05 × 89987070 measured)
+#[available_gas(l2_gas: 94804847)] // ceil(1.05 × 90290330 measured)
 fn test_content_read_worst() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();
@@ -309,7 +300,7 @@ fn test_content_read_worst() {
 
 #[test]
 // gas: raised, D-166: the Registry checks each record (CBT-02c), its class deploys dearer
-#[available_gas(l2_gas: 91655729)] // ceil(1.05 × 87291170 measured)
+#[available_gas(l2_gas: 91974152)] // ceil(1.05 × 87594430 measured)
 fn test_content_read_representative() {
     let (probe, registry) = content_setup();
     let gas = get_available_gas();

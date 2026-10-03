@@ -280,7 +280,6 @@ fn test_cost_on_a_forbidden_source_refused() {
 // A counted statistic held twice by one modifier would count one source twice.
 #[test]
 #[should_panic(expected: 'passive: source adds too much')]
-// gas: raised, AUD-182-8: D-160's allows() branches run before this test's panic
 #[available_gas(l2_gas: 42809)] // ceil(1.05 × 40770 measured)
 fn test_damage_percent_as_benefit_and_cost_refused() {
     let drawback = Fixture::passive(id::DAMAGE_PERCENT, 0, 18);
@@ -289,7 +288,6 @@ fn test_damage_percent_as_benefit_and_cost_refused() {
 
 // CBT-2: the sources design/19 allows are accepted.
 #[test]
-// gas: raised, D-160: the validators check design/20's per-source bounds (DS-1, DS-4, DS-5)
 #[available_gas(l2_gas: 1529357)] // ceil(1.05 × 1456530 measured)
 fn test_sources_accepted() {
     Fixture::on(slot::PREFIX, Fixture::damage());
@@ -315,7 +313,8 @@ fn test_sources_accepted() {
 // CBT-3: an attack's hit modifier takes the attacked foe: `FOES`.
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 85470)] // ceil(1.05 × 81400 measured)
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+#[available_gas(l2_gas: 88169)] // ceil(1.05 × 83970 measured)
 fn test_attack_bonus_on_allies_refused() {
     let bonus = Fixture::modifier_on_foe(kind::ATTACK_BONUS);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..bonus });
@@ -323,14 +322,16 @@ fn test_attack_bonus_on_allies_refused() {
 
 #[test]
 #[should_panic(expected: 'carrier: modifier set')]
-#[available_gas(l2_gas: 85670)] // ceil(1.05 × 81590 measured)
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+#[available_gas(l2_gas: 88368)] // ceil(1.05 × 84160 measured)
 fn test_attack_hit_penetration_on_allies_refused() {
     let pierce = Fixture::modifier_on_foe(kind::HIT_PENETRATION);
     Fixture::attack_with(Entry { filter: filter::ALLIES, ..pierce });
 }
 
 #[test]
-#[available_gas(l2_gas: 397005)] // ceil(1.05 × 378100 measured)
+// gas: raised, CBT-05a: the sheets carry the executor's fields, actors their positions
+#[available_gas(l2_gas: 413196)] // ceil(1.05 × 393520 measured)
 fn test_attack_modifiers_on_foes_accepted() {
     Fixture::attack_with(Fixture::modifier_on_foe(kind::ATTACK_BONUS));
     Fixture::attack_with(Fixture::modifier_on_foe(kind::HIT_PENETRATION));

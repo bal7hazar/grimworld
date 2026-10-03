@@ -43,7 +43,6 @@ fn two_probes() -> (ICallProbeDispatcher, ICallProbeDispatcher) {
 
 // Eight records read by one call to their contract (the baseline of the pair).
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 5516375)] // ceil(1.05 × 5253690 measured)
 fn test_probe_read_direct() {
     let (_, b) = two_probes();
@@ -53,7 +52,6 @@ fn test_probe_read_direct() {
 // The same eight records through one more contract: the difference with the baseline is the
 // price of one call between contracts (snforge's meter).
 #[test]
-// gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
 #[available_gas(l2_gas: 5639970)] // ceil(1.05 × 5371400 measured)
 fn test_probe_read_through_a_call() {
     let (a, b) = two_probes();
