@@ -379,7 +379,7 @@ mod tests {
     // The sides against `hexx`'s seams (N-2): `Side::West` is column 14, `East` column 0, `South`
     // row 0, `North` row 14, ENG-01's edge order West, East, South, North; corners excluded.
     #[test]
-    #[available_gas(l2_gas: 84690)] // ceil(1.05 × 80657 measured)
+    #[available_gas(l2_gas: 92460)] // ceil(1.05 × 88057 measured)
     fn test_sides_against_seams() {
         let corners = 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224);
         let sides = [Side::West, Side::East, Side::South, Side::North];
@@ -395,7 +395,7 @@ mod tests {
 
     // An opening's line reaches the spine, a straight run of floor along its row or column.
     #[test]
-    #[available_gas(l2_gas: 311103)] // ceil(1.05 × 296288 measured)
+    #[available_gas(l2_gas: 543594)] // ceil(1.05 × 517708 measured)
     fn test_lines_reach_the_spine() {
         let ring = Bits::pow(at(0, 3))
             + Bits::pow(at(14, 11))
@@ -432,7 +432,7 @@ mod tests {
 
     // `nth` against a scan of the bits.
     #[test]
-    #[available_gas(l2_gas: 20363816)] // ceil(1.05 × 19394110 measured)
+    #[available_gas(l2_gas: 21949053)] // ceil(1.05 × 20903860 measured)
     fn test_nth_against_a_scan() {
         let bits = INTERIOR - SPINE + Bits::pow(224) + 1;
         let total = BoardTrait::count(bits);

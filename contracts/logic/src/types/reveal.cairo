@@ -985,7 +985,7 @@ pub mod tests {
     // The order of the edges (ENG-01: West, East, South, North) against `hexx`'s sides: a dungeon
     // chunk's edge bit `s` is open exactly when side `s` of its ring holds an opening.
     #[test]
-    #[available_gas(l2_gas: 41387224)] // ceil(1.05 × 39416403 measured)
+    #[available_gas(l2_gas: 46917469)] // ceil(1.05 × 44683303 measured)
     fn test_edges_against_hexx_sides() {
         let sides = [Side::West, Side::East, Side::South, Side::North];
         let mut seed: felt252 = 0;
@@ -1070,32 +1070,32 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 134875963)] // ceil(1.05 × 128453298 measured)
+    #[available_gas(l2_gas: 182306941)] // ceil(1.05 × 173625658 measured)
     fn test_invariants_meadow() {
         check_zone_words(biome::MEADOW, 0, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 138542117)] // ceil(1.05 × 131944873 measured)
+    #[available_gas(l2_gas: 186892454)] // ceil(1.05 × 177992813 measured)
     fn test_invariants_forest() {
         check_zone_words(biome::FOREST, 100, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 139987443)] // ceil(1.05 × 133321374 measured)
+    #[available_gas(l2_gas: 189320003)] // ceil(1.05 × 180304764 measured)
     fn test_invariants_cave() {
         check_zone_words(biome::CAVE, 200, 6);
     }
 
     #[test]
-    #[available_gas(l2_gas: 141835360)] // ceil(1.05 × 135081295 measured)
+    #[available_gas(l2_gas: 192026024)] // ceil(1.05 × 182881927 measured)
     fn test_invariants_ruin() {
         check_zone_words(biome::RUIN, 300, 6);
     }
 
     // The location's border and a void chunk close a side (D-134); an anchor on it stays open.
     #[test]
-    #[available_gas(l2_gas: 47593529)] // ceil(1.05 × 45327170 measured)
+    #[available_gas(l2_gas: 61135746)] // ceil(1.05 × 58224520 measured)
     fn test_border_and_void_closed_but_anchors() {
         // Chunks (0, 0), (1, 0) and (0, 1) of a 2 × 2 zone; (1, 1) is outside the outline.
         let mut site = zone(biome::FOREST, 2, 2, no_quotas());
@@ -1134,7 +1134,7 @@ pub mod tests {
     // A border chunk is cut by its tile mask after its edges are opened (N-4): nothing outside the
     // mask is floor, the ring included; a chunk of the set without a mask is whole.
     #[test]
-    #[available_gas(l2_gas: 34659032)] // ceil(1.05 × 33008601 measured)
+    #[available_gas(l2_gas: 46408080)] // ceil(1.05 × 44198171 measured)
     fn test_cut_by_the_outline() {
         // Columns 0 to 11 of the chunk, as the test region's chunk (2, 0).
         let mut mask: felt252 = 0;
@@ -1239,7 +1239,7 @@ pub mod tests {
     // drawn sides borders, the frontier would be (8, 8) alone, which cannot grow, and the floor
     // would close at 8 of 12. Over many words it reaches exactly `N`.
     #[test]
-    #[available_gas(l2_gas: 679520354)] // ceil(1.05 × 647162241 measured)
+    #[available_gas(l2_gas: 720109366)] // ceil(1.05 × 685818443 measured)
     fn test_dungeon_enclosure_keeps_growing() {
         // (chunk, edges): West 1, East 2, South 4, North 8.
         let state: [(u8, u8); 6] = [
@@ -1290,25 +1290,25 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 370842493)] // ceil(1.05 × 353183326 measured)
+    #[available_gas(l2_gas: 348615220)] // ceil(1.05 × 332014495 measured)
     fn test_dungeon_sweep_small_rectangle_0() {
         sweep(1000, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 375569467)] // ceil(1.05 × 357685206 measured)
+    #[available_gas(l2_gas: 350703947)] // ceil(1.05 × 334003759 measured)
     fn test_dungeon_sweep_small_rectangle_1() {
         sweep(2000, 5);
     }
 
     #[test]
-    #[available_gas(l2_gas: 275681975)] // ceil(1.05 × 262554261 measured)
+    #[available_gas(l2_gas: 326512666)] // ceil(1.05 × 310964443 measured)
     fn test_dungeon_closes_at_n_6() {
         check_dungeon(6, 0, 4);
     }
 
     #[test]
-    #[available_gas(l2_gas: 235120851)] // ceil(1.05 × 223924620 measured)
+    #[available_gas(l2_gas: 248456640)] // ceil(1.05 × 236625371 measured)
     fn test_dungeon_closes_at_n_12() {
         check_dungeon(12, 50, 2);
     }
@@ -1316,7 +1316,7 @@ pub mod tests {
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
     // revealed, whatever the order.
     #[test]
-    #[available_gas(l2_gas: 45518654)] // ceil(1.05 × 43351099 measured)
+    #[available_gas(l2_gas: 53342574)] // ceil(1.05 × 50802451 measured)
     fn test_zone_quotas_all_placed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1372,7 +1372,7 @@ pub mod tests {
     // A set piece's quota lays the authored chunk: its interior kept but for the openings' lines,
     // its placements kept, its edges joined.
     #[test]
-    #[available_gas(l2_gas: 5443226)] // ceil(1.05 × 5184024 measured)
+    #[available_gas(l2_gas: 7304225)] // ceil(1.05 × 6956404 measured)
     fn test_set_piece_laid() {
         // An authored arena: the interior open but a wall block at rows 2–4, columns 2–4.
         let mut walls = BOARD - INTERIOR;
@@ -1410,7 +1410,7 @@ pub mod tests {
 
     // D-140: no word panics, with any mask on any chunk.
     #[test]
-    #[available_gas(l2_gas: 65883025)] // ceil(1.05 × 62745738 measured)
+    #[available_gas(l2_gas: 79785762)] // ceil(1.05 × 75986440 measured)
     fn test_no_panic_any_mask() {
         let mut seed: felt252 = 0;
         while seed != 12 {
@@ -1435,7 +1435,7 @@ pub mod tests {
     // AC-4: the same chunk under the same entropy gives the same words; the feed is a set; a
     // reveal's word is under its own domain (never the entry draw's, never another chunk's).
     #[test]
-    #[available_gas(l2_gas: 8530002)] // ceil(1.05 × 8123811 measured)
+    #[available_gas(l2_gas: 9545226)] // ceil(1.05 × 9090691 measured)
     fn test_word_and_feed() {
         let site = zone(biome::FOREST, 3, 2, no_quotas());
         let mut first = ProgressTrait::new(@site, 'entropy');
@@ -1475,7 +1475,7 @@ pub mod tests {
     // and 2 revealed in either order, then chunk 1 between them (the same neighbours known), give
     // the same words for every chunk.
     #[test]
-    #[available_gas(l2_gas: 12909872)] // ceil(1.05 × 12295116 measured)
+    #[available_gas(l2_gas: 14184110)] // ceil(1.05 × 13508676 measured)
     fn test_reveal_order_free() {
         let site = zone(biome::CAVE, 3, 1, no_quotas());
         let mut ab = ProgressTrait::new(@site, 'order');
@@ -1513,7 +1513,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 137649894)] // ceil(1.05 × 131095137 measured)
+    #[available_gas(l2_gas: 155563262)] // ceil(1.05 × 148155487 measured)
     fn test_biome_shares_meadow_forest() {
         let meadow = share(biome::MEADOW, 24);
         println!("meadow {}", meadow);
@@ -1524,7 +1524,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 139304086)] // ceil(1.05 × 132670558 measured)
+    #[available_gas(l2_gas: 158436325)] // ceil(1.05 × 150891738 measured)
     fn test_biome_shares_cave_ruin() {
         let cave = share(biome::CAVE, 24);
         println!("cave {}", cave);
@@ -1593,7 +1593,7 @@ pub mod tests {
     }
 
     #[test]
-    #[available_gas(l2_gas: 108751817)] // ceil(1.05 × 103573159 measured)
+    #[available_gas(l2_gas: 123959335)] // ceil(1.05 × 118056509 measured)
     fn test_sight_against_a_scan() {
         let positions: [(u8, u8); 14] = [
             (21, 21), (15, 15), (29, 29), (15, 29), (29, 15), (20, 16), (24, 28), (16, 23),
@@ -1837,7 +1837,7 @@ pub mod tests {
     /// Part 2: a dungeon floor of `N` 6 to its close (the frontier's rules at `N − 1` and `N`),
     /// the quotas' draws in a zone, a set piece, a task's landmark.
     #[test]
-    #[available_gas(l2_gas: 290015048)] // ceil(1.05 × 276204807 measured)
+    #[available_gas(l2_gas: 305789118)] // ceil(1.05 × 291227731 measured)
     fn test_vectors_2() {
         let mut digest: Array<felt252> = array![];
         let mut id: u32 = PART_2;

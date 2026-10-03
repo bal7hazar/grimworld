@@ -204,8 +204,8 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` | 40,356 | **49.26 %** |
-| `Instances` (the entry reveal's reads and writes, `instance_region`) | 40,155 | **49.02 %** (29.05 % before) |
+| `RevealLibrary` | 40,595 | **49.55 %** |
+| `Instances` (the entry reveal's reads and writes, `instance_region`) | 39,494 | **48.21 %** (29.05 % before) |
 
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
 bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about
@@ -213,9 +213,13 @@ bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cos
 878 felts); the packers of a chunk's and a record's fields and the board's set operations not inlined
 (a few hundred L2 gas a reveal for about 3,100 felts); and the library returns a chunk's words
 packed, so that `Instances` holds no `Features` packer or unpacker (its view returns the words as
-stored), and `instance_region` computes a chunk's kind itself instead of building a `Site`. The
-margins left are thin (604 felts in the library, 805 in `Instances`): ENG-07's wiring of the reveal
-into `play` is measured against them first (ENG-05's report).
+stored), and `instance_region` computes a chunk's kind itself instead of building a `Site`. After
+the audit's frontier guard (#348, minor 3) two more: a power of two by two small `match`es (one
+128-arm match cost about 900 felts), and the loops of `decide` and of the guard start their state
+from a value the compiler cannot fold (`chunk / 255`, 0 for every chunk index): a loop whose state
+starts from constants is compiled twice, a copy specialised to them (1,471 felts in `decide` alone),
+at about 15 % of a reveal's gas. The margins left are thin (365 felts in the library, 1,466 in
+`Instances`): ENG-07's wiring of the reveal into `play` is measured against them first.
 
 ---
 
