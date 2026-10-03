@@ -52,7 +52,8 @@ CLIENT_PREFIXES = ("client/", "services/", "indexer/", "contracts/logic/vectors/
 CLIENT_FILES = ("tools/art/manifest.toml",)
 
 # The `contracts` package also reads these (gas budgets, GAS.md, class sizes, exp2 table, vectors).
-CONTRACTS_FILES = ("scripts/gas_budgets.py", "docs/BUDGETS.md")
+# contracts/tools/exp2_table.py checks the client's mirror of the table too (TS_PATH).
+CONTRACTS_FILES = ("scripts/gas_budgets.py", "docs/BUDGETS.md", "client/sim/src/exp2.ts")
 # What the class-artefacts job builds: only these files of contracts/ can change the bytes.
 CLASS_INPUT = re.compile(r"(\.cairo|(^|/)Scarb\.toml|(^|/)Scarb\.lock|(^|/)\.tool-versions)$")
 
@@ -63,14 +64,19 @@ TOOLING_FILES = ("docs/briefs/SPK-1-*",)
 
 # Paths that no test of CI reads. A markdown file is a document unless a job above claims it
 # (docs/BUDGETS.md, contracts/**/GAS.md, the SPK-1 brief).
-IGNORED_PREFIXES = ("docs/", "tools/", "spikes/", "assets")
-IGNORED_FILES = ("*.md", "LICENSE", ".gitmodules")
+IGNORED_PREFIXES = ("docs/", "tools/", "spikes/", "assets/")
+IGNORED_FILES = ("*.md", "LICENSE", ".gitmodules", "assets")
 
 # The indexer-node job: the indexer, and what its emitter and its node depend on (decided by the
 # orchestrator, 2026-10-03: the emitter builds from contracts/persistent and contracts/logic, the node
 # is the pinned devnet started by with-node.sh).
 INDEXER_PREFIXES = ("indexer/", "contracts/persistent/", "contracts/logic/")
-INDEXER_FILES = (".tool-versions", "scripts/with-node.sh")
+# contracts/Scarb.toml is the workspace manifest the members inherit from; the emitter and the spikes are
+# outside the workspace and resolve through their own Scarb.lock, so contracts/Scarb.lock is not an input.
+INDEXER_FILES = (".tool-versions", "scripts/with-node.sh", "contracts/Scarb.toml")
+# prettier checks client/ and indexer/ whatever the file type, markdown included (decided by the
+# orchestrator, 2026-10-03; reversed by a later lot that adds a .prettierignore for *.md).
+PRETTIER_PREFIXES = ("client/", "indexer/")
 
 ALL = "all"  # a tag: everything runs
 
@@ -96,8 +102,10 @@ def path_deps(manifest):
 
 
 def closure(root, manifests):
-    """The folders a job rooted at `root` compiles: itself, and (transitively) the folder of every path
-    dependency of a manifest at or below one of them. `manifests` maps a folder to its parsed Scarb.toml."""
+    """(folders, files) a job rooted at `root` compiles: the folders are its own and (transitively) the
+    folder of every path dependency of a manifest at or below one of them; the files are the manifests of
+    the workspaces that those folders are members of (they inherit version, edition and dependencies from
+    it). `manifests` maps a folder to its parsed Scarb.toml."""
     folders = {root}
     todo = [root]
     while todo:
@@ -110,7 +118,12 @@ def closure(root, manifests):
                 if not any(target == f or target.startswith(f + "/") for f in folders):
                     folders.add(target)
                     todo.append(target)
-    return folders
+    files = set()
+    for folder in folders:
+        for dir_, manifest in manifests.items():
+            if "workspace" in manifest and dir_ != folder and under(folder, dir_):
+                files.add(posixpath.join(dir_, "Scarb.toml"))
+    return folders, files
 
 
 def under(path, folder):
@@ -139,10 +152,13 @@ def classify(path, packages, closures, pins):
     if not is_markdown:
         for package in packages:
             root = package["dir"]
-            if any(under(path, folder) for folder in closures[root]):
+            folders, files = closures[root]
+            if path in files or any(under(path, folder) for folder in folders):
                 tags.add(f"pkg:{root}")
         if under(path, "contracts") and CLASS_INPUT.search(path):
             tags.add("classes")
+    if path.startswith(PRETTIER_PREFIXES):
+        tags.add("client")
     if not is_markdown:
         if path.startswith(CLIENT_PREFIXES) or path in CLIENT_FILES or matches(path, CLIENT_ROOT_FILES):
             tags.add("client")
@@ -269,14 +285,18 @@ def self_test():
         "contracts/ephemeral": {"dependencies": {"grimworld_logic": {"path": "../logic"}}},
         "indexer/emitter": {"dependencies": {"grimworld_persistent": {"path": "../../contracts/persistent"}}},
         "spikes/SPK-12": {"dependencies": {"grimworld_logic": {"path": "../../contracts/logic"}}},
+        "spikes/SPK-15": {"dependencies": {"grimworld_logic": {"path": "../../contracts/logic"}}},
         "spikes/SPK-5": {},
     }
-    dirs = ["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-5"]
+    dirs = ["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15", "spikes/SPK-5"]
     packages = [{"dir": d, "scarb": "2.20.1", "snforge": "0.64.0"} for d in dirs]
     closures = {d: closure(d, manifests) for d in dirs}
-    assert closures["indexer/emitter"] == {"indexer/emitter", "contracts/persistent", "contracts/logic"}, closures
-    assert closures["contracts"] == {"contracts"}, closures
-    pins = {"contracts": True, "indexer/emitter": True, "spikes/SPK-12": True, "spikes/SPK-5": False}
+    assert closures["indexer/emitter"] == (
+        {"indexer/emitter", "contracts/persistent", "contracts/logic"}, {"contracts/Scarb.toml"}), closures
+    assert closures["contracts"] == ({"contracts"}, set()), closures
+    assert closures["spikes/SPK-5"] == ({"spikes/SPK-5"}, set()), closures
+    pins = {"contracts": True, "indexer/emitter": True, "spikes/SPK-12": True, "spikes/SPK-15": True,
+            "spikes/SPK-5": False}
 
     def run(files, workflow="ci", event="pull_request", base_known=True):
         outputs, _ = decide(files, packages, closures, pins, workflow, event, base_known)
@@ -306,26 +326,38 @@ def self_test():
     assert run(["indexer/src/db.ts"]) == ([], False, True, True)
     # the contracts
     assert run(["contracts/ephemeral/src/lib.cairo"]) == (["contracts"], True, False, False)
-    assert run(["contracts/logic/src/hit.cairo"]) == (["contracts", "indexer/emitter", "spikes/SPK-12"], True, False, True)
+    assert run(["contracts/logic/src/hit.cairo"]) == (["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15"], True, False, True)
     assert run(["contracts/persistent/src/lib.cairo"]) == (["contracts", "indexer/emitter"], True, False, True)
     assert run(["contracts/ephemeral/src/lib.cairo"]) == (["contracts"], True, False, False)
     assert run(["contracts/logic/GAS.md"]) == (["contracts"], False, False, False)
     assert run(["scripts/with-node.sh"]) == ([], False, False, True)
     assert run(["scripts/with-node.sh"], "tooling") is True
     assert run(["contracts/logic/vectors/hit.jsonl"]) == (
-        ["contracts", "indexer/emitter", "spikes/SPK-12"], False, True, True)
+        ["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15"], False, True, True)
     assert run(["contracts/tools/class_sizes.py"]) == (["contracts"], False, False, False)
     assert run(["contracts/persistent/GAS.md"]) == (["contracts"], False, False, False)
     assert run(["docs/BUDGETS.md"]) == (["contracts"], False, False, False)
     assert run(["scripts/gas_budgets.py"]) == (["contracts"], False, False, False)
     assert run(["contracts/seed/test-region.json"]) == (["contracts"], False, True, False)
+    # the workspace manifest: its members, and the packages outside it that depend on them
+    assert run(["contracts/Scarb.toml"]) == (
+        ["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15"], True, False, True)
+    assert run(["contracts/Scarb.lock"]) == (["contracts"], True, False, False)
+    # the exp2 table is checked against the client's mirror
+    assert run(["client/sim/src/exp2.ts"]) == (["contracts"], False, True, False)
+    # prettier checks markdown under client/ and indexer/
+    assert run(["client/app/README.md"]) == ([], False, True, False)
+    assert run(["indexer/README.md"]) == ([], False, True, False)
+    assert run(["services/funder/README.md"]) == nothing
+    # assets is the submodule pointer, not a prefix
+    assert run(["assets"]) == nothing and run(["assets/x.txt"]) == nothing and run(["assetsfoo/x.rs"]) == everything
     # a spike and the emitter
     assert run(["spikes/SPK-5/src/lib.cairo"]) == (["spikes/SPK-5"], False, False, False)
     assert run(["spikes/SPK-12/Scarb.lock"]) == (["spikes/SPK-12"], False, False, False)
     assert run(["indexer/emitter/src/lib.cairo"]) == (["indexer/emitter"], False, True, True)
     # the root pins: every package whose pin is the root's, the pnpm jobs, the tooling checks
     assert run([".tool-versions"]) == (
-        ["contracts", "indexer/emitter", "spikes/SPK-12"], True, True, True)
+        ["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15"], True, True, True)
     assert run([".tool-versions"], "tooling") is True
     # the scripts and the one brief the launcher reads
     assert run(["scripts/lock.sh"], "tooling") is True and run(["scripts/lock.sh"]) == nothing

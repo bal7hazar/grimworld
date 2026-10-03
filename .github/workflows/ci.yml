@@ -47,8 +47,9 @@ jobs:
 
       # Which jobs does the change concern (FND-18, docs/briefs/FND-18-ci-paths.md)? The test jobs
       # below run only when a path they depend on changed: the Cairo packages (and the packages
-      # they depend on by path), `class-artefacts`, `client`, and `indexer-node` (only for
-      # indexer/, as before). A workflow or a CI helper runs everything, and so does a path that no
+      # they depend on by path), `class-artefacts`, `client`, and `indexer-node` (for indexer/ and
+      # what its emitter and node depend on: contracts/persistent, contracts/logic, contracts/Scarb.toml,
+      # the root .tool-versions, scripts/with-node.sh). A workflow or a CI helper runs everything, and so does a path that no
       # rule claims; a documents-only change runs no test. A pull request is compared with its base,
       # a push with the commit before it (a push to main still runs every job but `indexer-node`);
       # the base commit is fetched alone (the checkout is shallow). An unknown base (a new branch, a
