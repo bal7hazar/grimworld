@@ -42,7 +42,7 @@ locks, `.tool-versions`, the scripts and CI helpers it calls, the inputs it read
 | `class-artefacts` (ci) | the `contracts` package's paths (the row above, `contracts` only) | one clean build of `contracts/` kept for declarations; a change elsewhere cannot change the bytes |
 | `client` (ci) | `client/**`, `services/**`, `indexer/**`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, the root `.gitignore` and prettier or eslint config files, `.tool-versions`, `contracts/logic/vectors/**` and `contracts/seed/**` (the sim's parity tests read them), `tools/art/manifest.toml` (read by a client test) | install, lint, typecheck, test, build, prettier of the pnpm workspace (`client/*`, `services/*`, `indexer`) |
 | `indexer-node` (ci) | `indexer/**`, and what the emitter and the node depend on: `contracts/persistent/**`, `contracts/logic/**` (non-markdown), the root `.tool-versions`, `scripts/with-node.sh` | the scenario compiles the emitter from `contracts/persistent` (which depends on `contracts/logic`) and starts the pinned devnet through `with-node.sh` (decided by the orchestrator, 2026-10-03: Decided by the orchestrator, 1) |
-| `tooling` (tooling) — step group "tooling checks": shellcheck, launcher dry-run, `lock.sh` cases, `with-node.sh` cases, helper self-test | `scripts/**`, `.tool-versions`, `docs/briefs/SPK-1-*` (the dry-run reads that brief's grant line), `.github/**` | they exercise the scripts and the pinned devnet; nothing else in the repository reaches them |
+| `tooling` (tooling) — step group "tooling checks": shellcheck, launcher dry-run, `lock.sh` cases, `with-node.sh` cases, helper self-test | `scripts/**`, `.githooks/**` (shellcheck and FND-17's pre-push hook step), `.tool-versions`, `docs/briefs/SPK-1-*` (the dry-run reads that brief's grant line), `.github/**` | they exercise the scripts and the pinned devnet; nothing else in the repository reaches them |
 | `tooling` — steps "no asset file committed" and "assets pointer unchanged" (D-73) | every change | repository-policy guards, a `git ls-files` and a `git ls-tree`: an image added under `docs/` is exactly what they catch; they are not tests of code and cost seconds. They stay unconditional steps of the `tooling` job |
 | the workflow files, `.github/ci/**` | **everything runs** | a change to a workflow or a CI helper can change any job; it is checked by all of them |
 
@@ -51,7 +51,7 @@ Paths that no row claims are classified by the script, never guessed:
 - **Documents (no test):** `docs/**` (except `docs/BUDGETS.md` and `docs/briefs/SPK-1-*`, claimed above), every
   `*.md` outside what a row claims (`PLAN.md`, `STATUS.md`, `CHANGELOG.md`, `OPERATIONS.md`, `PROGRAMME.md`,
   `README.md`, `CONTEXT.md`, `CREDITS.md`, `AGENTS.md`, every `README.md`), `LICENSE`, `.gitmodules`, the
-  `assets` submodule pointer (guarded by the tooling job), `.githooks/**`, `tools/**` except
+  `assets` submodule pointer (guarded by the tooling job), `tools/**` except
   `tools/art/manifest.toml` (their tests are not in CI), `spikes/**` outside a package folder.
 - **Anything else is unclassified and runs every job** (a new top-level folder, an unknown extension at the
   root): the fail-safe direction. The step prints each unclassified path.

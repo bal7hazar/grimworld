@@ -51,6 +51,7 @@ jobs:
       # scarb, which prepush.sh's fmt step calls, fails if one reaches it); the self-test run with GIT_DIR
       # on a decoy repository leaves the decoy unchanged.
       - name: pre-push hook in a linked worktree
+        if: steps.changes.outputs.tooling == 'true'
         run: |
           set -euo pipefail
           src=$PWD; work=$RUNNER_TEMP/fnd17; mkdir -p "$work/bin"

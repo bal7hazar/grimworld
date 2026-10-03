@@ -58,12 +58,12 @@ CLASS_INPUT = re.compile(r"(\.cairo|(^|/)Scarb\.toml|(^|/)Scarb\.lock|(^|/)\.too
 
 # The tooling job's checks (shellcheck, launcher dry-run, lock.sh, with-node.sh, the self-tests): the
 # scripts, and the one brief the launcher dry-run reads for its Sepolia grant.
-TOOLING_PREFIXES = ("scripts/",)
+TOOLING_PREFIXES = ("scripts/", ".githooks/")  # shellcheck and the pre-push hook step read .githooks/
 TOOLING_FILES = ("docs/briefs/SPK-1-*",)
 
 # Paths that no test of CI reads. A markdown file is a document unless a job above claims it
 # (docs/BUDGETS.md, contracts/**/GAS.md, the SPK-1 brief).
-IGNORED_PREFIXES = ("docs/", "tools/", "spikes/", ".githooks/", "assets")
+IGNORED_PREFIXES = ("docs/", "tools/", "spikes/", "assets")
 IGNORED_FILES = ("*.md", "LICENSE", ".gitmodules")
 
 # The indexer-node job: the indexer, and what its emitter and its node depend on (decided by the
@@ -294,7 +294,7 @@ def self_test():
     # documents run no test
     for doc in ("docs/briefs/FND-18-ci-paths.md", "docs/architecture/x.md", "PLAN.md", "STATUS.md", "CHANGELOG.md",
                 "README.md", "contracts/README.md", "contracts/logic/vectors/README.md", "spikes/SPK-5/NOTES.md",
-                "LICENSE", ".githooks/pre-push", "tools/site/deploy-site.sh", "spikes/SPK-3/run.ts", "assets"):
+                "LICENSE", "tools/site/deploy-site.sh", "spikes/SPK-3/run.ts", "assets"):
         assert run([doc]) == nothing, doc
         assert run([doc], "tooling") is False, doc
     assert run(["PLAN.md", "docs/a.md", "STATUS.md"]) == nothing
@@ -329,6 +329,7 @@ def self_test():
     assert run([".tool-versions"], "tooling") is True
     # the scripts and the one brief the launcher reads
     assert run(["scripts/lock.sh"], "tooling") is True and run(["scripts/lock.sh"]) == nothing
+    assert run([".githooks/pre-push"], "tooling") is True and run([".githooks/pre-push"]) == nothing
     assert run(["docs/briefs/SPK-1-sepolia.md"], "tooling") is True
     assert run(["client/sim/src/hit.ts"], "tooling") is False
     # a workflow or a CI helper runs everything
