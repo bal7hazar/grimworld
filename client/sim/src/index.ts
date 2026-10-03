@@ -36,3 +36,41 @@ export {
   weapon_strength,
 } from "./hit";
 export type { Hit, HitOutcome, HitTarget } from "./hit";
+export {
+  BREW,
+  CHEST,
+  ENTRY,
+  HINT,
+  IDENTIFY,
+  LIFT,
+  LOOT,
+  PURPOSES,
+  RIFT_BOARD,
+  derive,
+  domain,
+} from "./fate";
+export {
+  LIVE,
+  LIVE_HIGH,
+  TWO_POW_128,
+  byte_at,
+  errors as packingErrors,
+  field,
+  fits,
+  join,
+  limbs,
+  low_field,
+  pack_bitmap,
+  pack_counter,
+  pack_lanes16,
+  pack_lanes32,
+  peel,
+  split,
+  u16_at,
+  u32_at,
+  unpack_bitmap,
+  unpack_counter,
+  unpack_lanes16,
+  unpack_lanes32,
+} from "./packing";
+export type { Bitmap, Counter, Lanes16, Lanes32 } from "./packing";
