@@ -327,10 +327,11 @@ jobs:
   # test:node`: deploy the test emitter on starknet-devnet, emit the nine events, reorgs of depth 1
   # to 5 by devnet_abortBlocks, restart, rebuild, pruning). It runs only when the change touches
   # indexer/ (`discover` compares the tree with the base; D-153's grant), or when the base is
-  # unknown, or for a change to a workflow or a CI helper (FND-18: those run every job). It does NOT
-  # run for a change elsewhere, even one it depends on: .tool-versions,
-  # scripts/setup-toolchain.sh, scripts/with-node.sh, contracts/persistent (the events).
-  # Such a change is checked by this job at the next change under indexer/, not before
+  # unknown, for a change to a workflow or a CI helper (FND-18: those run every job), or (orchestrator's
+  # decision of 2026-10-03, FND-18) for what the emitter and the node depend on: contracts/persistent/**,
+  # contracts/logic/**, the root .tool-versions, scripts/with-node.sh (.github/ci/changes.py). A change to
+  # scripts/setup-toolchain.sh alone does NOT run it: it is checked by this job at the next change above,
+  # not before
   # (widening the trigger is with the project manager). Every version comes from `discover` (validated
   # there) or is pinned here and checked against the repository's pins: starknet-devnet as
   # scripts/setup-toolchain.sh pins it, its release tarball verified by sha256 before it is

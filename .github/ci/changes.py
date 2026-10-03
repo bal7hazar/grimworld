@@ -66,6 +66,12 @@ TOOLING_FILES = ("docs/briefs/SPK-1-*",)
 IGNORED_PREFIXES = ("docs/", "tools/", "spikes/", ".githooks/", "assets")
 IGNORED_FILES = ("*.md", "LICENSE", ".gitmodules")
 
+# The indexer-node job: the indexer, and what its emitter and its node depend on (decided by the
+# orchestrator, 2026-10-03: the emitter builds from contracts/persistent and contracts/logic, the node
+# is the pinned devnet started by with-node.sh).
+INDEXER_PREFIXES = ("indexer/", "contracts/persistent/", "contracts/logic/")
+INDEXER_FILES = (".tool-versions", "scripts/with-node.sh")
+
 ALL = "all"  # a tag: everything runs
 
 
@@ -129,7 +135,7 @@ def classify(path, packages, closures, pins):
     if path == ".tool-versions":
         # every package whose Scarb or snforge pin is the root's, the pnpm jobs, the tooling checks
         tags |= {f"pkg:{p['dir']}" for p in packages if pins.get(p["dir"], True)}
-        tags |= {"classes", "client", "tooling"}
+        tags |= {"classes", "client", "tooling", "indexer"}
     if not is_markdown:
         for package in packages:
             root = package["dir"]
@@ -140,7 +146,7 @@ def classify(path, packages, closures, pins):
     if not is_markdown:
         if path.startswith(CLIENT_PREFIXES) or path in CLIENT_FILES or matches(path, CLIENT_ROOT_FILES):
             tags.add("client")
-        if path.startswith("indexer/"):
+        if path.startswith(INDEXER_PREFIXES) or path in INDEXER_FILES:
             tags.add("indexer")
     if tags:
         return tags
@@ -300,9 +306,14 @@ def self_test():
     assert run(["indexer/src/db.ts"]) == ([], False, True, True)
     # the contracts
     assert run(["contracts/ephemeral/src/lib.cairo"]) == (["contracts"], True, False, False)
-    assert run(["contracts/logic/src/hit.cairo"]) == (["contracts", "indexer/emitter", "spikes/SPK-12"], True, False, False)
+    assert run(["contracts/logic/src/hit.cairo"]) == (["contracts", "indexer/emitter", "spikes/SPK-12"], True, False, True)
+    assert run(["contracts/persistent/src/lib.cairo"]) == (["contracts", "indexer/emitter"], True, False, True)
+    assert run(["contracts/ephemeral/src/lib.cairo"]) == (["contracts"], True, False, False)
+    assert run(["contracts/logic/GAS.md"]) == (["contracts"], False, False, False)
+    assert run(["scripts/with-node.sh"]) == ([], False, False, True)
+    assert run(["scripts/with-node.sh"], "tooling") is True
     assert run(["contracts/logic/vectors/hit.jsonl"]) == (
-        ["contracts", "indexer/emitter", "spikes/SPK-12"], False, True, False)
+        ["contracts", "indexer/emitter", "spikes/SPK-12"], False, True, True)
     assert run(["contracts/tools/class_sizes.py"]) == (["contracts"], False, False, False)
     assert run(["contracts/persistent/GAS.md"]) == (["contracts"], False, False, False)
     assert run(["docs/BUDGETS.md"]) == (["contracts"], False, False, False)
@@ -314,7 +325,7 @@ def self_test():
     assert run(["indexer/emitter/src/lib.cairo"]) == (["indexer/emitter"], False, True, True)
     # the root pins: every package whose pin is the root's, the pnpm jobs, the tooling checks
     assert run([".tool-versions"]) == (
-        ["contracts", "indexer/emitter", "spikes/SPK-12"], True, True, False)
+        ["contracts", "indexer/emitter", "spikes/SPK-12"], True, True, True)
     assert run([".tool-versions"], "tooling") is True
     # the scripts and the one brief the launcher reads
     assert run(["scripts/lock.sh"], "tooling") is True and run(["scripts/lock.sh"]) == nothing

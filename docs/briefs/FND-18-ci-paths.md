@@ -41,7 +41,7 @@ locks, `.tool-versions`, the scripts and CI helpers it calls, the inputs it read
 | `cairo (<dir>)`, one per discovered package | the package's folder; the folder of every path dependency, transitively (`indexer/emitter` → `contracts/persistent`, `contracts/logic`; `spikes/SPK-12`, `spikes/SPK-15` → `contracts/logic`); any `Scarb.toml`, `Scarb.lock`, `.tool-versions` of those folders; the root `.tool-versions` (every package whose pin comes from it); for `contracts` also `scripts/gas_budgets.py`, `docs/BUDGETS.md`, `contracts/**/GAS.md`, `contracts/tools/**`, `contracts/logic/vectors/**`; a Cairo source (`*.cairo`) of the closure | format, build and `snforge test` of the folder and what it compiles; the `contracts` steps (gas budgets, class sizes, exp2 table, vectors, three clean builds) read those files. The contracts workspace is one package: any file under `contracts/` except the non-GAS markdown |
 | `class-artefacts` (ci) | the `contracts` package's paths (the row above, `contracts` only) | one clean build of `contracts/` kept for declarations; a change elsewhere cannot change the bytes |
 | `client` (ci) | `client/**`, `services/**`, `indexer/**`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, the root `.gitignore` and prettier or eslint config files, `.tool-versions`, `contracts/logic/vectors/**` and `contracts/seed/**` (the sim's parity tests read them), `tools/art/manifest.toml` (read by a client test) | install, lint, typecheck, test, build, prettier of the pnpm workspace (`client/*`, `services/*`, `indexer`) |
-| `indexer-node` (ci) | `indexer/**` only, as today | its comment: the devnet scenario is not widened to what it depends on (`.tool-versions`, `scripts/setup-toolchain.sh`, `scripts/with-node.sh`, `contracts/persistent`) without the project manager (see Open questions) |
+| `indexer-node` (ci) | `indexer/**`, and what the emitter and the node depend on: `contracts/persistent/**`, `contracts/logic/**` (non-markdown), the root `.tool-versions`, `scripts/with-node.sh` | the scenario compiles the emitter from `contracts/persistent` (which depends on `contracts/logic`) and starts the pinned devnet through `with-node.sh` (decided by the orchestrator, 2026-10-03: Decided by the orchestrator, 1) |
 | `tooling` (tooling) — step group "tooling checks": shellcheck, launcher dry-run, `lock.sh` cases, `with-node.sh` cases, helper self-test | `scripts/**`, `.tool-versions`, `docs/briefs/SPK-1-*` (the dry-run reads that brief's grant line), `.github/**` | they exercise the scripts and the pinned devnet; nothing else in the repository reaches them |
 | `tooling` — steps "no asset file committed" and "assets pointer unchanged" (D-73) | every change | repository-policy guards, a `git ls-files` and a `git ls-tree`: an image added under `docs/` is exactly what they catch; they are not tests of code and cost seconds. They stay unconditional steps of the `tooling` job |
 | the workflow files, `.github/ci/**` | **everything runs** | a change to a workflow or a CI helper can change any job; it is checked by all of them |
@@ -100,7 +100,7 @@ it fails if any needed job's result is `failure` or `cancelled`, and passes when
     location, the verification) if its CI section names the jobs.
 - Out: any trigger, permission, concurrency or retry step; any test command or its arguments; any step deleted,
   `continue-on-error` or `if: false` added; `discover.py`, `install-snforge.sh`, `build_stable.py`; the behaviour
-  of a push to `main` and of the `class-artefacts` artefact; widening `indexer-node`; setting branch protection.
+  of a push to `main` and of the `class-artefacts` artefact; widening `indexer-node` beyond the paths of Decided by the orchestrator, 1; setting branch protection.
 - Allowlist: `docs/briefs/FND-18-ci-paths.md`, `.github/workflows/ci.yml`, `.github/workflows/tooling.yml`,
   `.github/ci/changes.py`, `OPERATIONS.md`. Anything else is an escalation.
 - Rules for the implementer: edit the workflow files with the file-editing tool only, never with a script,
@@ -132,8 +132,8 @@ closed after its run is read; the job list of each quoted from `gh run view <id>
 1. docs only (a line in a file of `docs/`): expected `cairo`, `class-artefacts`, `client`, `indexer-node` skipped.
 2. client only (a comment in `client/sim/src`): expected `client` runs, the others skipped.
 3. contracts (a comment in a `.cairo` file of `contracts/logic/src`): expected `cairo (contracts)`,
-   `class-artefacts`, `client` (vectors), and the spikes that depend on `contracts/logic`; `indexer-node` per its
-   rule (no).
+   `class-artefacts`, `client` (vectors), and the spikes that depend on `contracts/logic`; `indexer-node` (it depends on
+   `contracts/logic`).
 4. workflow (a comment in `ci.yml`): expected every job.
 Plus `python3 .github/ci/changes.py --self-test` and `scripts/prepush.sh`.
 
@@ -141,12 +141,11 @@ Plus `python3 .github/ci/changes.py --self-test` and `scripts/prepush.sh`.
 None needed: no contract or cost change; the verification pull requests above prove the behaviour. A review of the
 workflow diff by another model is the pull request's usual one.
 
-## Open questions
-1. `indexer-node` and its dependencies: today it runs for `indexer/**` only, by D-153's grant, and the new rule
-   keeps that. Should a change to `contracts/persistent`, `contracts/logic`, `.tool-versions` or
-   `scripts/with-node.sh` run it too (it compiles the emitter from them)? Widening is the project manager's call.
-2. Should a push to `main` be filtered as well (a documents merge runs the full CI today)? This brief keeps the
-   push as it is, because `class-artefacts` on a push to `main` must stay.
-3. The D-73 guards run on every change by design: is a documents PR running `tooling` (two steps, seconds)
-   acceptable under "docs skip all tests"? The alternative is to restrict them to added files with an asset
-   extension, which makes the guard depend on a path list again.
+## Decided by the orchestrator (2026-10-03)
+1. `indexer-node` also runs when `contracts/persistent/**`, `contracts/logic/**` (non-markdown), the root
+   `.tool-versions` or `scripts/with-node.sh` change: the emitter depends on them. Reversed if: track CV, which
+   owns the indexer, prefers otherwise. (`scripts/setup-toolchain.sh` alone stays out, as the job's comment says.)
+2. A push to `main` is not filtered: it runs what it ran before (safety net; FND-12's artefacts). Reversed if: the
+   queue on `main` becomes the bottleneck.
+3. The two D-73 guard steps of `tooling` run on every change, a documents PR included: they are cheap guards.
+   Reversed if: they cost more than a few seconds.
