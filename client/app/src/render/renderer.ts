@@ -2,6 +2,7 @@ import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "
 import {
   type Camera,
   type Point,
+  ROW_HEIGHT,
   TILE_WIDTH,
   type Viewport,
   fitScale,
@@ -253,6 +254,31 @@ export const OFFSCREEN_BUCKET = 0.25;
 export const BACKGROUND = 0x0b0b0e;
 
 /**
+ * The rectangle the void leaves to the background (CLI-03g1): the tiles' centres' box, two hexes
+ * in on each side, so that the void's bands pass under the terrain's outer hexes and leave no
+ * notch between a row's hexes; null when the tiles are too few to hold one.
+ */
+function holeOf(tiles: readonly Tile[]): { x0: number; y0: number; x1: number; y1: number } | null {
+  if (tiles.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const tile of tiles) {
+    const c = tileToPixel(tile);
+    minX = Math.min(minX, c.x);
+    maxX = Math.max(maxX, c.x);
+    minY = Math.min(minY, c.y);
+    maxY = Math.max(maxY, c.y);
+  }
+  const x0 = minX + 2 * TILE_WIDTH;
+  const x1 = maxX - 2 * TILE_WIDTH;
+  const y0 = minY + 2 * ROW_HEIGHT;
+  const y1 = maxY - 2 * ROW_HEIGHT;
+  return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
+}
+
+/**
  * Draws a `ViewState` on demand. Every change (a view, the camera, the size) asks for one frame;
  * a step, a turn and the camera's pan ask for frames until they end; idle animations ask for one
  * frame per change of a sprite's frame, at most 15 per second, and none when they are off.
@@ -260,8 +286,13 @@ export const BACKGROUND = 0x0b0b0e;
 export class Renderer implements FrameClient {
   readonly scheduler: FrameScheduler;
   private readonly world = new Container();
-  /** The view's void beyond the tiles (CLI-03g1): one sprite over what the frame shows. */
-  private readonly voidSprite = new Sprite(Texture.WHITE);
+  /**
+   * The view's void beyond the tiles (CLI-03g1): four bands around `voidHole`, over what the frame
+   * shows. Inside the hole the background stays as before, so a seam between two chunks' bakes
+   * looks as it did; the bands reach two hexes into the terrain, under its outer hexes.
+   */
+  private readonly voidLayer = new Container();
+  private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
   /** The dropped steps of a planned path, fading out. */
@@ -328,9 +359,10 @@ export class Renderer implements FrameClient {
             ground: this.groundTextures() ? "atlas" : "colours",
           })),
     );
-    this.voidSprite.visible = false;
+    this.voidLayer.visible = false;
+    for (let i = 0; i < 4; i++) this.voidLayer.addChild(new Sprite(Texture.WHITE));
     // Under the chunks, in the ground's layer: the world's children keep their order.
-    this.ground.addChild(this.voidSprite);
+    this.ground.addChild(this.voidLayer);
     this.world.addChild(this.ground, this.overlay, this.fading, this.actorsLayer);
     this.passRoot.addChild(this.backdrop);
     this.mountStage();
@@ -341,6 +373,7 @@ export class Renderer implements FrameClient {
   setView(view: ViewState): void {
     const previous = this.view;
     this.view = view;
+    this.voidHole = holeOf(view.tiles);
     const now = this.host.now();
     this.syncStructures(view.structures ?? []);
     this.syncChunks(view);
@@ -630,23 +663,34 @@ export class Renderer implements FrameClient {
    */
   private placeVoid(scale: number, width: number, height: number, centre: Point): void {
     const ground = this.view?.void;
-    this.voidSprite.visible = ground !== undefined;
+    this.voidLayer.visible = ground !== undefined;
     if (ground === undefined) return;
-    const textures = this.groundTextures();
-    const texture =
-      ground === "water" ? textures?.water : ground === "grass" ? textures?.grass : null;
-    if (texture) {
-      this.voidSprite.texture = texture;
-      this.voidSprite.tint = 0xffffff;
-    } else {
-      this.voidSprite.texture = Texture.WHITE;
-      this.voidSprite.tint = VOID_COLOURS[ground];
-    }
+    // The water's cell is one flat colour: stretched, it is the same water as the baked cells.
+    const water = ground === "water" ? this.groundTextures()?.water : null;
     const left = Math.floor(centre.x - width / 2 / scale) - 1;
     const top = Math.floor(centre.y - height / 2 / scale) - 1;
-    this.voidSprite.position.set(left, top);
-    this.voidSprite.width = Math.ceil(width / scale) + 3;
-    this.voidSprite.height = Math.ceil(height / scale) + 3;
+    const right = left + Math.ceil(width / scale) + 3;
+    const bottom = top + Math.ceil(height / scale) + 3;
+    const hole = this.voidHole;
+    // Top, bottom, left, right of the hole, clipped to the frame; the whole frame without a hole.
+    const x0 = Math.min(Math.max(hole?.x0 ?? right, left), right);
+    const x1 = Math.max(Math.min(hole?.x1 ?? left, right), x0);
+    const y0 = Math.min(Math.max(hole?.y0 ?? bottom, top), bottom);
+    const y1 = Math.max(Math.min(hole?.y1 ?? top, bottom), y0);
+    const bands = [
+      [left, top, right, y0],
+      [left, y1, right, bottom],
+      [left, y0, x0, y1],
+      [x1, y0, right, y1],
+    ] as const;
+    bands.forEach(([bx0, by0, bx1, by1], i) => {
+      const band = this.voidLayer.children[i] as Sprite;
+      band.texture = water ?? Texture.WHITE;
+      band.tint = water ? 0xffffff : VOID_COLOURS[ground];
+      band.position.set(bx0, by0);
+      band.width = Math.max(0, bx1 - bx0);
+      band.height = Math.max(0, by1 - by0);
+    });
   }
 
   /** The atlas's ground cells, or null when the atlas has none (flat colours). */

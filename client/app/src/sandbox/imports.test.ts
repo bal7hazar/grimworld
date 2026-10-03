@@ -121,12 +121,14 @@ describe("placeholders.ts", () => {
     const readers = Object.entries(sources)
       .filter(([path]) => path.startsWith("./") && !/\.test\.tsx?$/.test(path))
       .filter(([path]) => !path.startsWith("./fixtures/"))
-      .filter(([, text]) => /\.ground\b/.test(text))
+      .filter(([, text]) => /terrain\??\.ground\b/.test(text))
       .map(([path]) => path);
     expect(readers).toEqual(["./wiring.ts"]);
     const wiring = sources["./wiring.ts"] ?? "";
     const toView = wiring.slice(wiring.indexOf("export function toView("));
     expect(wiring.match(/\.ground\b/g)).toHaveLength(1);
+    // The page reads only the renderer's report of where the ground came from (FrameStats).
+    expect(sources["./Sandbox.tsx"]).not.toMatch(/terrain|GroundKind/);
     expect(toView).toMatch(/terrain\.ground\?\.\[i\]/);
     // The fixtures' and the world's ground, and the renderer's, decide nothing: no placeholder.
     for (const path of ["../render/ground.ts", "./fixtures/zone.ts", "./fixtures/hubWorld.ts"]) {

@@ -37,7 +37,9 @@ export function Sandbox() {
  *
  * For the browser check: the root's `data-frames` (frames drawn), `data-atlas`, `data-camera`
  * (tile (0, 0) on the canvas and the scale, after each frame), `data-tile` (where the adventurer
- * stands) and `data-walking`.
+ * stands) and `data-walking`; CLI-03g1's `data-ground` (`atlas` when the ground is drawn from the
+ * atlas's cells, `colours` otherwise), `data-draw-ms` (the last frame's draw) and `data-bake-ms`
+ * (the last chunk's bake), in ms.
  */
 export function RoomSandbox({
   world,
@@ -118,6 +120,9 @@ export function RoomSandbox({
         // Where tile (0, 0)'s centre is on the canvas, and CSS pixels per art pixel.
         const origin = controller.tileOnScreen({ x: 0, y: 0 });
         root.current.dataset.camera = `${origin.x} ${origin.y} ${controller.scale()}`;
+        root.current.dataset.ground = stats.ground ?? "";
+        root.current.dataset.drawMs = stats.drawMs === null ? "" : String(stats.drawMs);
+        root.current.dataset.bakeMs = stats.bakeMs == null ? "" : String(stats.bakeMs);
       }
       frameListener.current?.(controller);
     });

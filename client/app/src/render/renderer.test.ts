@@ -606,19 +606,32 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     expect(host.quiet()).toBe(true);
   });
 
-  it("draws the void over what the frame shows, under the chunks; none without a void", () => {
-    const { surface, renderer } = mount(zoneView());
+  it("draws the void around the terrain, under the chunks; the background inside; none without", () => {
+    const view = zoneView();
+    const { renderer, surface } = mount(view);
+    renderer.draw();
     const ground = (surface.stage.children[0] as Container).children[0] as Container;
-    const backdrop = ground.children[0] as Sprite;
-    expect(backdrop.visible).toBe(true);
+    const voidLayer = ground.children[0] as Container;
+    expect(voidLayer.visible).toBe(true);
+    const bands = voidLayer.children as Sprite[];
+    const inBand = (p: { x: number; y: number }) =>
+      bands.some((b) => p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height);
+    const adventurer = view.actors.find((a) => a.id === view.adventurerId)!.tile;
+    // East of the terrain (x < 0), on screen: the void; four hexes inside: the background.
+    expect(inBand(tileToPixel({ x: -2, y: adventurer.y }))).toBe(true);
+    expect(inBand(tileToPixel({ x: 4, y: adventurer.y }))).toBe(false);
+    // The bands cover the whole frame but the hole: its corners are in a band.
     const { camera, viewport } = renderer.cameraState();
-    const b = backdrop.getBounds();
-    // In screen pixels: the sprite covers the viewport.
-    expect(b.minX).toBeLessThanOrEqual(0);
-    expect(b.minY).toBeLessThanOrEqual(0);
-    expect(b.maxX).toBeGreaterThanOrEqual(viewport.width);
-    expect(b.maxY).toBeGreaterThanOrEqual(viewport.height);
-    expect(camera.scale).toBeGreaterThan(0);
+    const half = { x: viewport.width / 2 / camera.scale, y: viewport.height / 2 / camera.scale };
+    for (const [sx, sy] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ] as const) {
+      const corner = { x: camera.centre.x + sx * half.x, y: camera.centre.y + sy * half.y };
+      if (corner.x > tileToPixel({ x: 2, y: 0 }).x) expect(inBand(corner)).toBe(true);
+    }
     const cave = mount(toView(initialState(fixtureNamed("cave"))));
     const caveGround = (cave.surface.stage.children[0] as Container).children[0] as Container;
     expect(caveGround.children[0]!.visible).toBe(false);
