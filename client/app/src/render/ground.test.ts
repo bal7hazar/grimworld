@@ -20,6 +20,7 @@ import {
   hexesWithin,
   polygonArea,
   voidFoam,
+  voidHole,
 } from "./ground";
 import { BAKE_CHUNK } from "./renderer";
 import type { GroundKind, Tile, TileKind, ViewTile } from "./view";
@@ -343,6 +344,44 @@ describe("the foam over the void (CLI-03g2)", () => {
       });
     const k = (p: GroundPlan["foam"][number]) => `${key(p.source)}|${p.points.join()}`;
     expect(voidFoam(tiles, "water").map(k).sort()).toEqual(fromRing.map(k).sort());
+  });
+});
+
+describe("the foam over a concave terrain's inner void (CLI-03h)", () => {
+  // A block of 15 × 15 grass with a notch of void cut from its South edge (y = 0) to its middle:
+  // the notch is inside the tiles' box, where the void's bands leave the background.
+  const inNotch = (t: Tile) => t.x >= 5 && t.x <= 9 && t.y <= 8;
+  const tiles = block(0, 14, 0, 14).filter((t) => !inNotch(t));
+  const present = new Set(tiles.map(key));
+  const hole = voidHole(tiles)!;
+  const underBands = (t: Tile) => {
+    const c = tileToPixel(t);
+    const xs = hexCorners(c).filter((_, i) => i % 2 === 0);
+    const ys = hexCorners(c).filter((_, i) => i % 2 === 1);
+    return (
+      Math.max(...xs) <= hole.x0 ||
+      Math.min(...xs) >= hole.x1 ||
+      Math.max(...ys) <= hole.y0 ||
+      Math.min(...ys) >= hole.y1
+    );
+  };
+
+  it("no foam over a void hex the bands do not cover; the foam outside stays", () => {
+    // The notch's deep hexes are void, next to land: without the rule they would get foam.
+    const deep = { x: 7, y: 7 };
+    expect(present.has(key(deep))).toBe(false);
+    expect(underBands(deep)).toBe(false);
+    expect(hexesWithin(deep, FOAM_REACH).some((t) => present.has(key(t)))).toBe(true);
+    const pieces = voidFoam(tiles, "water");
+    expect(pieces.length).toBeGreaterThan(0);
+    for (const piece of pieces) expect(underBands(piece.over)).toBe(true);
+    expect(pieces.some((p) => key(p.over) === key(deep))).toBe(false);
+    // Away from the notch, the outer void keeps the foam the block without a notch has.
+    const away = (p: GroundPlan["foam"][number]) => p.over.y > 10 || p.over.x < 3 || p.over.x > 11;
+    const k = (p: GroundPlan["foam"][number]) => `${key(p.source)}>${key(p.over)}|${p.points.join()}`;
+    const whole = voidFoam(block(0, 14, 0, 14), "water");
+    expect(pieces.filter(away).map(k).sort()).toEqual(whole.filter(away).map(k).sort());
+    expect(pieces.filter(away).length).toBeGreaterThan(0);
   });
 });
 
