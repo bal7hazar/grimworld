@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Gas budgets of the game's Cairo workspace, enforced by a tool (docs/CAIRO.md §2).
 
-Runs `snforge test --workspace --fuzzer-seed 1 --max-threads 2` in the workspace (default `contracts/`) through the
-build lock, reads the l2 gas snforge measured for every test, reads the `#[available_gas(l2_gas: N)]`
+Runs `snforge test --workspace --fuzzer-seed 1 --max-threads 2` in the workspace (default
+`contracts/`) through the build lock, reads the l2 gas snforge measured for every test, reads the `#[available_gas(l2_gas: N)]`
 of every declared test from the sources, and:
 
   (default)    writes docs/BUDGETS.md and one GAS.md per package, deterministically;
