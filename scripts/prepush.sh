@@ -57,7 +57,7 @@ compute_changed() {
 # --self-test (FND-21): scratch repositories with main moving under a branch that merges it. The git
 # environment is sanitised as above, each repository lives in its own temporary directory.
 self_test() {
-  local work rc=0 g
+  local work rc=0
   work=$(mktemp -d) || exit 2
   g() { git -c user.name=t -c user.email=t@t "$@"; }
   expect() { # <label> <expected files, space separated>
