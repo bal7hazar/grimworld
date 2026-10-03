@@ -38,6 +38,7 @@
 //! - a goblin hit while asleep or on watch notices: its AI state becomes Engaged (§5.5 step 9);
 //!   its pack's `alert` bits and the packs within 8 tiles are chunk features, ENG-07's.
 
+use core::dict::{Felt252Dict, Felt252DictTrait};
 use hexx::board::bits::Bits;
 use starknet::ClassHash;
 use crate::durations::effective_duration;
@@ -69,6 +70,10 @@ const MAX_PERCENT: i32 = 100;
 const MAX_ARMOR_EFFECT: i32 = 255;
 /// The bit of an actor's membership mask for the carrier's hit; entries 1–3 are bits 1, 2, 4.
 const HIT_BIT: u8 = 8;
+/// The keys of `subcontent`'s dictionary: a skill's id; a caste's + `CASTE_KEY`; a potion's +
+/// `POTION_KEY` (the content index's own offsets).
+const CASTE_KEY: felt252 = 0x10000;
+const POTION_KEY: felt252 = 0x100000000;
 
 pub mod errors {
     pub const ADDRESS: felt252 = 'executor: no such actor';
@@ -1273,9 +1278,29 @@ pub impl DelegateRules of Rules<Delegate> {
         let words = Words {
             clock: world.clock, members, goblins, killed: array![], defeated: false,
         };
+        // Option (3)'s lever (1): only the records the sub-world's loads need.
+        let content = ExecutorTrait::subcontent(@world, picked.span(), @self.content);
+        // The carrier's skill at its position in the trimmed content (the class loads that one).
+        let carrier = match carrier {
+            Carrier::Skill((
+                at, rank,
+            )) => {
+                let id = *self.content.skills[at].id;
+                let mut moved = 0;
+                let mut k = 0;
+                for sheet in content.skills {
+                    if *sheet.id == id {
+                        moved = k;
+                    }
+                    k += 1;
+                }
+                Carrier::Skill((moved, rank))
+            },
+            other => other,
+        };
         let library = IExecutorLibraryLibraryDispatcher { class_hash: self.executor };
         let (out, cache, place) = library
-            .execute(words, self.content, board, self.cache, sub, carrier, target, world.clock);
+            .execute(words, content, board, self.cache, sub, carrier, target, world.clock);
         self.cache = cache;
         if place {
             self.placed.append((target, actor));
@@ -1328,6 +1353,64 @@ pub impl ExecutorImpl of ExecutorTrait {
             return Executed::Illegal;
         }
         Self::execute(lever, ref cache, ref world, sheets, board, actor, carrier, address, t)
+    }
+
+    /// The records of `content` the loads of every member and of the goblins at `picked` need
+    /// (option (3)'s lever (1), CBT-05a): a member's bar skills, its held effects' skills and the
+    /// potions of its held potion effects; a goblin's caste, the caste's four skills and its held
+    /// effect's skill. One dictionary of the needed keys, then one pass over each list.
+    fn subcontent(world: @World, picked: Span<u32>, content: @Content) -> Content {
+        let mut needed: Felt252Dict<bool> = Default::default();
+        let count = world.member_count();
+        let mut m = 0;
+        while m < count {
+            let member = world.member(m);
+            let mut slot: u8 = 0;
+            while slot < 8 {
+                needed.insert(member.skill(slot).into(), true);
+                slot += 1;
+            }
+            let mut slot: u8 = 0;
+            while slot < 4 {
+                let held = member.effect_of(slot);
+                if held.potion {
+                    needed.insert(member.belt_item(held.carrier).into() + POTION_KEY, true);
+                } else {
+                    needed.insert(held.carrier.into(), true);
+                }
+                slot += 1;
+            }
+            m += 1;
+        }
+        for i in picked {
+            let goblin = world.goblin(*i);
+            needed.insert(goblin.caste.into() + CASTE_KEY, true);
+            needed.insert(goblin.effect_of().carrier.into(), true);
+            let [a, b, c, d] = *(*content.castes)[goblin.caste_at].skills;
+            needed.insert(a.into(), true);
+            needed.insert(b.into(), true);
+            needed.insert(c.into(), true);
+            needed.insert(d.into(), true);
+        }
+        let mut skills = array![];
+        for sheet in *content.skills {
+            if needed.get((*sheet.id).into()) {
+                skills.append(*sheet);
+            }
+        }
+        let mut potions = array![];
+        for sheet in *content.potions {
+            if needed.get((*sheet.id).into() + POTION_KEY) {
+                potions.append(*sheet);
+            }
+        }
+        let mut castes = array![];
+        for sheet in *content.castes {
+            if needed.get((*sheet.id).into() + CASTE_KEY) {
+                castes.append(*sheet);
+            }
+        }
+        Content { skills: skills.span(), potions: potions.span(), castes: castes.span() }
     }
 
     /// The carrier of `actor`'s activation `slot`: a member's bar skill at its rank, a goblin's
