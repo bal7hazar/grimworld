@@ -475,3 +475,4 @@ jobs:
           if bad:
               raise SystemExit("not passed: " + ", ".join(bad))
           PY
+# fnd-18 verification
