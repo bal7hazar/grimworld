@@ -24,7 +24,12 @@ function cli(args: string[], url = "http://127.0.0.1:1") {
   return { code: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
-describe("the CLI refuses, and says why", () => {
+// Each spawn of node strips the types of main.ts and its imports before it can refuse: real work. Measured
+// at a load average of 12: about 0.35 s a spawn, and the slowest case (several spawns) about 2 s, so a
+// busier machine passes vitest's 5 s default. The spawn's own 20 s limit stays; the test's sits above it.
+const CLI_TEST_TIMEOUT = 60_000;
+
+describe("the CLI refuses, and says why", { timeout: CLI_TEST_TIMEOUT }, () => {
   it("an RPC URL that is not http(s), without printing it (Opus 3)", () => {
     for (const url of [
       "ftp://user:SECRETKEY@rpc.example.com/",
