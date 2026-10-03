@@ -31,7 +31,8 @@
 // (default the untracked `.verify-out/`; D-73: never committed, attached or posted).
 //
 // Env: VERIFY_PORT (default 5197), VERIFY_CHANNEL, VERIFY_ROOT, VERIFY_MAIN, VERIFY_PLAIN,
-// VERIFY_STALE, VERIFY_RUNS, VERIFY_OUT, VERIFY_COMPARE, VERIFY_SHOTS, VERIFY_SHOTS_DIR. The
+// VERIFY_STALE, VERIFY_RUNS, VERIFY_WALKS_ONLY (the walks and frame times alone, to alternate runs
+// of `main` and this branch for AC-8), VERIFY_OUT, VERIFY_COMPARE, VERIFY_SHOTS, VERIFY_SHOTS_DIR. The
 // server inherits GRIMWORLD_ART_OUT.
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -47,6 +48,7 @@ const mainOnly = process.env.VERIFY_MAIN === "1";
 const plain = process.env.VERIFY_PLAIN === "1";
 const stale = process.env.VERIFY_STALE === "1";
 const runs = Number(process.env.VERIFY_RUNS ?? 3);
+const walksOnly = process.env.VERIFY_WALKS_ONLY === "1";
 const compare = process.env.VERIFY_COMPARE
   ? JSON.parse(readFileSync(process.env.VERIFY_COMPARE, "utf8"))
   : null;
@@ -213,8 +215,14 @@ async function open(page, location, hud) {
     await screenOf(page, "instance").waitFor();
   }
   const screen = location === "zone" ? "instance" : "hub";
+  // The room writes `data-atlas` on a drawn frame; without the art nothing animates, and the
+  // first frames may come before it listens: plain, the canvas is enough.
   await page
-    .locator(`[data-screen="${screen}"] [data-atlas]:not([data-atlas="loading"])`)
+    .locator(
+      plain
+        ? `[data-screen="${screen}"] canvas`
+        : `[data-screen="${screen}"] [data-atlas]:not([data-atlas="loading"])`,
+    )
     .first()
     .waitFor();
   if (!mainOnly) {
@@ -279,7 +287,7 @@ function measureBand() {
     portraitBox: box(band?.querySelector(".gw-portrait")),
     adrenaline: band?.querySelector('[aria-label^="Adrenaline"]')?.getAttribute("aria-label"),
     meters,
-    map: box(document.querySelector("[data-camera]")),
+    map: box(document.querySelector("[data-map-box]") ?? document.querySelector("[data-camera]")),
     controls: box(leave?.parentElement),
     side: box(document.querySelector('aside[aria-label="Character sheet and build"] .gw-portrait')),
     sidePortrait:
@@ -297,6 +305,7 @@ const record = { boxes: {}, walks: {}, frames: {} };
 
 /** AC-6 / AC-9 on one location at one size, ratio and `?hud=`. */
 async function check(page, label, location, hud, size) {
+  console.log(`  · ${label}`);
   const screen = await open(page, location, hud);
   const m = await page.evaluate(measureBand);
   record.boxes[label] = { band: m.band, map: m.map, meters: m.meters.map((x) => x.box) };
@@ -365,7 +374,7 @@ async function check(page, label, location, hud, size) {
   );
   await page.evaluate(() => (document.documentElement.style.fontSize = ""));
   await frames(page);
-  if (location === "town" && hud === "") {
+  if (location === "town" && hud === "" && !plain) {
     // Maren, a Warden, stands in the town (fixtures/hubs.ts): her portrait in the inspect dialog.
     await tapHex(page, "hub", { x: 7, y: 5 });
     const dialog = page.getByRole("dialog", { name: "Adventurer" });
@@ -579,7 +588,7 @@ try {
   const mode = mainOnly ? "main: records only" : plain ? "plain" : stale ? "stale" : "atlas";
   console.log(`browser launched: ${browser.version()} (${mode})`);
   for (const size of SIZES) {
-    for (const dpr of size.ratios) {
+    for (const dpr of walksOnly ? [] : size.ratios) {
       console.log(`=== ${size.name} @${dpr}x ===`);
       await pass(browser, size, dpr);
     }
