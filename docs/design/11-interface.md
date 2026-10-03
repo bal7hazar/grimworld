@@ -127,9 +127,9 @@ Hubs have no geometry on chain (D-03). On the client, a hub is lived like an exp
 │ Town A            gold 1 240 │
 ├──────────────────────────────┤
 │                              │
-│    illustration of the town  │   present adventurers walk by
-│    with its buildings        │   (decor; tap one to inspect)
-│                              │
+│    the town as a zone:       │   present adventurers walk by
+│    the hex map with its      │   (decor; tap one to inspect)
+│    buildings                 │
 ├──────────────────────────────┤
 │ Guild    Smith     Enchanter │
 │ Trainer  Armorer   Alchemist │
