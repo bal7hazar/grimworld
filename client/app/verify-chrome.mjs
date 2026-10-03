@@ -1,4 +1,4 @@
-/* global console, process, fetch, setTimeout, document, window, getComputedStyle */
+/* global console, process, fetch, setTimeout, document, window, getComputedStyle, requestAnimationFrame */
 /* eslint-disable no-empty */
 // The client's chrome in a real browser (CLI-03i): every screen of the loop at 375 × 812 (touch)
 // and 1440 × 900, each at device pixel ratios 1, 2 and 3, with the atlas built by
