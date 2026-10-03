@@ -1,5 +1,5 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Icon, IconButton, Panel, Ribbon } from "../../chrome/Chrome";
+import { Button, Icon, IconButton, Panel, Portrait, Ribbon } from "../../chrome/Chrome";
 import { targetIntent } from "../../input/hubTaps";
 import type { Intent, LoopIntent } from "../../input/intent";
 import type { KeyCommand } from "../../input/keys";
@@ -13,6 +13,8 @@ import { readParams } from "../params";
 import { type MapKeys, RoomSandbox } from "../Sandbox";
 import type { WalkInfo } from "../session";
 import { HubDoors } from "./hubDoors";
+import { portraitLabel } from "./hud";
+import { Hud, bandSheet } from "./Hud";
 import { goIntent, hubTargets, nextTarget, serviceIntent } from "./keyTargets";
 import { ui } from "./styles";
 
@@ -165,7 +167,8 @@ export function HubScreen({
           <Icon name="gold" text="gold" /> {view.gold.toLocaleString("en-GB").replace(",", " ")}
         </span>
       </header>
-      <div ref={mapBox} style={styles.map}>
+      <Hud sheet={bandSheet()} />
+      <div ref={mapBox} style={styles.map} data-map-box="">
         <RoomSandbox world={world} route={route} onTile={moved} onFrame={place} onKey={onKey}>
           <div ref={marker} className="gw-key-marker" style={keyUi.marker} aria-hidden />
           {view.places.map((p) => (
@@ -196,8 +199,11 @@ export function HubScreen({
               role="dialog"
               aria-label="Adventurer"
             >
-              <span>
-                <b>{figure.name}</b> · {figure.profession}, level {figure.level}
+              <span style={styles.inspectWho}>
+                <Portrait profession={figure.profession} size={40} label={portraitLabel(figure)} />
+                <span>
+                  <b>{figure.name}</b> · {figure.profession}, level {figure.level}
+                </span>
               </span>
               <IconButton
                 icon="close"
@@ -270,6 +276,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "space-between",
     gap: 8,
   },
+  inspectWho: { display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 },
   inspect: {
     padding: "4px 12px",
     borderRadius: 8,
