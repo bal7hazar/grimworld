@@ -1,6 +1,7 @@
 import type { Intent } from "../input/intent";
 import type { Tile, ViewActor, ViewState, ViewTile } from "../render/view";
 import {
+  type StepStops,
   TICKS_PER_STEP,
   arcsOf,
   facingToward,
@@ -17,6 +18,11 @@ import { type SandboxWorld, inBounds, kindAt, sameTile } from "./world";
  * The sandbox's wiring: applies an intent to the fixture's state through the placeholders, and
  * produces the view state. The only importer of `placeholders.ts`; CLI-03 replaces both with
  * `client/sim`.
+ *
+ * A world of kind `"hub"` (CLI-03f, D-202) walks with the same finder and step, and inherits none
+ * of the instance's stand-ins: every tile is in sight and every actor seen, nothing is revealed,
+ * no stop condition is evaluated, the path is not bounded by the D-120 window, and a tap on an
+ * actor selects nothing (no arcs). The hub kind is read here only.
  */
 
 export interface SandboxState {
@@ -46,9 +52,17 @@ export interface TapOptions {
 
 export const DEFAULT_TAP: TapOptions = { playOnTap: true };
 
+const isHub = (world: SandboxWorld) => world.kind === "hub";
+
+/** The actors the adventurer sees: in a hub, every one (nothing is hidden by sight). */
+function seen(world: SandboxWorld): ViewActor[] {
+  return isHub(world) ? [...world.actors] : visibleActors(world.terrain, world.actors);
+}
+
 export function initialState(world: SandboxWorld): SandboxState {
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
-  const terrain = adventurer ? revealInSight(world.terrain, adventurer.tile) : world.terrain;
+  const terrain =
+    adventurer && !isHub(world) ? revealInSight(world.terrain, adventurer.tile) : world.terrain;
   return {
     world: { ...world, terrain },
     selectedActorId: null,
@@ -115,7 +129,7 @@ export function applyIntent(
   const where = `(${tile.x}, ${tile.y})`;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
   if (!adventurer) return state;
-  const actor = visibleActors(terrain, world.actors).find((a) => sameTile(a.tile, tile));
+  const actor = seen(world).find((a) => sameTile(a.tile, tile));
   const kind = inBounds(terrain, tile) ? kindAt(terrain, tile) : null;
 
   if (intent.kind === "inspect") {
@@ -141,6 +155,8 @@ export function applyIntent(
   if (kind === null || kind === "unrevealed") {
     return cleared(before, `tap ${where}: outside, clear`);
   }
+  // In a hub an actor is never selected: the hub screen inspects a figure before the wiring.
+  if (actor && isHub(world)) return { ...state, said: `tap ${where}: ${describe(actor)}` };
   if (actor) {
     if (state.selectedActorId === actor.id) return cleared(before, `tap ${where}: deselect`);
     const facing = actor.side === "goblin" ? facingToward(adventurer.tile, actor.tile) : null;
@@ -157,7 +173,7 @@ export function applyIntent(
     };
   }
   if (kind !== "floor") return cleared(before, `tap ${where}: ${kind}, clear`);
-  const path = findPath(terrain, world.actors, adventurer.tile, tile);
+  const path = findPath(terrain, world.actors, adventurer.tile, tile, !isHub(world));
   if (!path) {
     return { ...before, selectedActorId: null, selectedTile: tile, said: `tap ${where}: no path` };
   }
@@ -210,14 +226,16 @@ export function walkStep(state: SandboxState): SandboxState {
   const actors = world.actors.map((a) =>
     a.id === adventurer.id ? { ...a, tile: step.tile, facing: step.facing } : a,
   );
-  const revealed = revealInSight(terrain, step.tile);
+  const revealed = isHub(world) ? terrain : revealInSight(terrain, step.tile);
   const walked: SandboxState = {
     ...state,
     world: { ...world, actors, terrain: revealed },
     path: state.path.slice(1),
     said: `${walk}: planned ${at(next)}, stepped to ${at(step.tile)}, facing ${step.facing}`,
   };
-  const stops = stopsAfterStep({ terrain, actors: world.actors }, { terrain: revealed, actors });
+  const stops: StepStops = isHub(world)
+    ? { entered: [], revealed: false }
+    : stopsAfterStep({ terrain, actors: world.actors }, { terrain: revealed, actors });
   const { entered } = stops;
   const reasons: string[] = [];
   if (entered.length > 0) reasons.push(`${listed(entered.map(nameOf))} came into sight`);
@@ -244,8 +262,10 @@ export function toView(state: SandboxState): ViewState {
       tiles.push({ x, y, kind: terrain.kinds[y * terrain.width + x] ?? "wall" });
     }
   }
-  const sight = tilesInSight(terrain, adventurer.tile);
-  const actors = visibleActors(terrain, world.actors);
+  const sight = isHub(world)
+    ? tiles.map(({ x, y }) => ({ x, y }))
+    : tilesInSight(terrain, adventurer.tile);
+  const actors = seen(world);
   const selected = actors.find((a) => a.id === state.selectedActorId);
   return {
     tiles,
@@ -256,5 +276,6 @@ export function toView(state: SandboxState): ViewState {
     path: state.path,
     dropped: state.dropped,
     selectedTile: state.selectedTile,
+    structures: world.structures ?? [],
   };
 }

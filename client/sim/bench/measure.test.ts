@@ -3,10 +3,11 @@
 // report; none is asserted or committed as a threshold (pins on Linux only, D-140).
 //
 // Poseidon: `poseidonHashMany` of `@scure/starknet` on three felts, the shape of `fate::domain`'s
-// input; `derive` itself waits for its vector table (CLI-02b).
+// input, and `fate::derive` itself, its argument checks included (CLI-02b).
 
 import { poseidonHashMany } from "@scure/starknet";
 import { describe, it } from "vitest";
+import { ENTRY, derive, domain } from "../src/fate";
 import { P } from "../src/felt";
 import { replay } from "../src/parity/replay";
 import { readTable } from "../src/parity/table";
@@ -47,6 +48,23 @@ describe("measurements", () => {
     console.log(
       `poseidonHashMany(3 felts): median ${perCall.toFixed(2)} µs a call (31 runs × 500 calls, ` +
         `after a warm-up of 500); first call ${first.toFixed(0)} µs; sink ${sink & 1n}`,
+    );
+  });
+
+  it("fate::derive", { timeout: 300_000 }, () => {
+    // Words vary per call and the index walks the u32 range, so that nothing is cached
+    const words = Array.from({ length: 64 }, (_, i) => P - 1n - 0x9e3779b97f4a7c15n * BigInt(i));
+    const dom = domain(1n, 0n, ENTRY);
+    let sink = 0n;
+    const cold = performance.now();
+    sink ^= derive(0n, dom, 0);
+    const first = (performance.now() - cold) * 1000;
+    const perCall = time(31, 500, (i) => {
+      sink ^= derive(words[i % words.length]!, dom, (i * 2654435761) % 2 ** 32);
+    });
+    console.log(
+      `derive: median ${perCall.toFixed(2)} µs a call (31 runs × 500 calls, after a warm-up of ` +
+        `500); first call ${first.toFixed(0)} µs; sink ${sink & 1n}`,
     );
   });
 

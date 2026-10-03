@@ -54,6 +54,17 @@ stream the indexer reads and the storage `Hub` keeps: ENG-R1b and every later lo
 `Hub`'s storage or events run `--expect` against it, and a change of it is a change of ENG-01's
 frozen events or layout (D-149). With `--expect <file>` it compares its stream with that file's and exits 1
 on the first difference.
+
+ENG-R1b (`Instances` and `Registry` on the store, AC-3): with `--scope r1b` the same two options
+write and compare another stream, of the same transactions: `Instances`' and `Registry`'s storage
+writes (key, value) and every event of `Instances` with its keys and data, in emission order; then
+every key of both contracts' storage with its last value. A value the entry draw feeds is recorded
+by its key alone, as `"draw"`: the entropy word of each instance entered (found by the instance's
+`instance_state`, whose third felt it is), the only stored value derived from the draw, which
+follows the transaction hash. `lifecycle-stream-before-r1b.json`, recorded on `main`'s code before
+ENG-R1b's first change, is what `Instances` and `Registry` keep: run
+`--scope r1b --expect contracts/tools/lifecycle-stream-before-r1b.json`. Without `--scope`, the
+stream is ENG-R1a's, unchanged.
 """
 import json
 import os
@@ -63,8 +74,12 @@ import sys
 import urllib.parse
 import urllib.request
 
-# ENG-R1a: `--stream <file>` writes the stream, `--expect <file>` compares it (see above).
+# ENG-R1a: `--stream <file>` writes the stream, `--expect <file>` compares it (see above);
+# ENG-R1b: `--scope r1b` makes it the stream of `Instances` and `Registry`.
 OPTIONS = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+SCOPE = OPTIONS.get("--scope", "hub")
+if SCOPE not in ("hub", "r1b"):
+    sys.exit("lifecycle_probe: --scope is hub (the default) or r1b")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONTRACTS = os.path.dirname(HERE)
 URL = os.environ["NODE_URL"]
@@ -213,15 +228,65 @@ WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
          int(instances, 16): "instances", int(flatten, 16): "flatten_class"}
 STREAM = []
+# ENG-R1b: the stream of `Instances` and `Registry`, and the keys whose value the entry draw feeds.
+STREAM_R1B = []
+DRAWN = set()
+OWNERS = {int(instances, 16): "instances", int(registry, 16): "registry"}
 
 
 def named(value):
     return NAMES.get(value, hex(value))
 
 
+def drawn(address, key, value):
+    """A stored value as the r1b stream records it: `"draw"` where the entry draw feeds it."""
+    return "draw" if (address, key) in DRAWN else named(value)
+
+
+def entropy_of(instance_id):
+    """The entropy word `instance_state` returns for `instance_id`: its third felt."""
+    out = sncast("ephemeral", "call", "--url", URL, "--contract-address", instances, "--function",
+                 "instance_state", "--calldata", hex(instance_id), "--block-id", "latest")
+    match = re.search(r"Response Raw:\s*\[([^\]]*)\]", out)
+    if not match:
+        raise RuntimeError(f"instance_state: no raw response in: {out}")
+    return int(match.group(1).split(",")[2].strip(), 16)
+
+
+def streamed_r1b(label, function, receipt, diff):
+    """ENG-R1b: the writes of `Instances` and `Registry` and the events of `Instances` of one
+    transaction, in order. An entered instance's entropy key joins `DRAWN` first."""
+    for event in receipt.get("events", []):
+        if int(event["from_address"], 16) == int(instances, 16) and len(event["keys"]) == 2 \
+                and len(event["data"]) == 3:
+            entropy = entropy_of(int(event["keys"][1], 16))
+            for entry in diff:
+                if int(entry["address"], 16) == int(instances, 16):
+                    for s in entry["storage_entries"]:
+                        if int(s["value"], 16) == entropy:
+                            DRAWN.add((int(instances, 16), int(s["key"], 16)))
+    writes = {}
+    for entry in diff:
+        address = int(entry["address"], 16)
+        if address in OWNERS:
+            writes[OWNERS[address]] = sorted(
+                [hex(int(s["key"], 16)), drawn(address, int(s["key"], 16), int(s["value"], 16))]
+                for s in entry["storage_entries"])
+    events = [{"keys": [named(int(k, 16)) for k in event["keys"]],
+               "data": [named(int(d, 16)) for d in event["data"]]}
+              for event in receipt.get("events", [])
+              if int(event["from_address"], 16) == int(instances, 16)]
+    STREAM_R1B.append({"label": label, "function": function,
+                       "status": receipt.get("execution_status"),
+                       "writes": dict(sorted(writes.items())), "events": events})
+
+
 def streamed(label, function, tx, receipt):
     """ENG-R1a: `Hub`'s writes and the events of `tx`, in order, for `--stream`."""
     trace = rpc("starknet_traceTransaction", {"transaction_hash": tx})
+    if SCOPE == "r1b":
+        streamed_r1b(label, function, receipt, (trace.get("state_diff") or {}).get("storage_diffs", []))
+        return
     writes = []
     for entry in (trace.get("state_diff") or {}).get("storage_diffs", []):
         if int(entry["address"], 16) == int(hub, 16):
@@ -389,10 +454,17 @@ for adventurer in (2, 3):
     invoke("enter", hub, "enter", adventurer, 1, record=False)
 invoke("set_account_owner, 3 inside", hub, "set_account_owner", 1, 0x2000)
 
-# ENG-R1a (AC-3): the stream, and every key of `Hub`'s storage with its last value.
-if OPTIONS:
+# ENG-R1a (AC-3): the stream, and every key of `Hub`'s storage with its last value. ENG-R1b: with
+# `--scope r1b`, `Instances`' and `Registry`'s.
+if SCOPE == "r1b":
+    STREAM = STREAM_R1B
+    storage = {who: sorted([hex(key), drawn(address, key, value)]
+                           for (address, key), value in KNOWN.items() if address == owner)
+               for owner, who in sorted(OWNERS.items(), key=lambda o: o[1])}
+elif OPTIONS:
     storage = sorted([hex(key), named(value)] for (address, key), value in KNOWN.items()
                      if address == int(hub, 16))
+if OPTIONS:
     stream = {"transactions": STREAM, "storage": storage}
     if "--stream" in OPTIONS:
         with open(OPTIONS["--stream"], "w") as out:
@@ -408,6 +480,9 @@ if OPTIONS:
         if len(expected["transactions"]) != len(STREAM):
             sys.exit("lifecycle_probe: not the same number of transactions")
         if expected["storage"] != storage:
-            sys.exit("lifecycle_probe: Hub's storage differs")
-        emit({"stream": "equal", "transactions": len(STREAM),
-              "events": sum(len(t["events"]) for t in STREAM), "hub_keys": len(storage)})
+            sys.exit(f"lifecycle_probe: the storage of the scope {SCOPE} differs")
+        keys = {f"{who}_keys": len(kept) for who, kept in storage.items()} \
+            if SCOPE == "r1b" else {"hub_keys": len(storage)}
+        emit({"stream": "equal", "scope": SCOPE, "transactions": len(STREAM),
+              "events": sum(len(t["events"]) for t in STREAM), **keys,
+              **({"drawn_keys": len(DRAWN)} if SCOPE == "r1b" else {})})

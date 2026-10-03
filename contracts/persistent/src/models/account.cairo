@@ -45,7 +45,17 @@ pub impl AccountRecordStorePacking of starknet::storage_access::StorePacking<
     }
 }
 
-/// Two consecutive slots: the owner, then the record.
+/// An account's two slots as `Hub` declares them (ENG-R1b, ENG-R1a's note 4): `Account`'s slots,
+/// the owner then the record as stored, at the same address, so that the store reads the record
+/// typed and needs no offset. Pinned against `Account` by the store's `test_account_slots`.
+#[derive(Copy, Drop, starknet::Store)]
+pub struct StoredAccount {
+    pub owner: ContractAddress,
+    pub record: super::stored_record::StoredRecord,
+}
+
+/// Two consecutive slots: the owner, then the record. The layout and the packer's oracle; `Hub`
+/// declares its storage with `StoredAccount`.
 #[derive(Copy, Drop, Serde, starknet::Store)]
 pub struct Account {
     pub owner: ContractAddress,

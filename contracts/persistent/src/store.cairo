@@ -10,8 +10,9 @@
 //!
 //! **Models and stored words.** A model whose paths need all of it is read and written through
 //! its `StorePacking` (the configuration, the counters, gold, items, the snapshot, the rules
-//! epoch, known skills, the account list's pages when read). The hot words that a path reads a few
-//! fields of, or changes one field of, are read and written as **stored models**, one file each
+//! epoch, known skills). The account list's pages are `StoredLanes` (below), read whole then
+//! `.decoded()` for the list, changed a lane at a time on write. The hot words that a path reads a
+//! few fields of, or changes one field of, are read and written as **stored models**, one file each
 //! (`models::stored_core`, `stored_place`, `stored_record`, `stored_build`): the word as stored,
 //! typed, its fields read and changed by the arithmetic the stored model pins against the model's
 //! packer (ENG-04's audit F-5: "preserving packed arithmetic where justified"; each file's doc
@@ -21,6 +22,19 @@
 //! arithmetic, only reads, writes, their order and loop bookkeeping. A slot never written reads 0
 //! as a stored word, which the views return as such (`IHubViews::account`, `IHubViews::adventurer`,
 //! frozen by ENG-01).
+//!
+//! **Typed slots, where they hold the rule** (ENG-R1a's note 4, measured in ENG-R1b after
+//! `Instances`' storage passed the rule). `Hub` declares `accounts` as `StoredAccount` (the owner,
+//! the record as stored), `account_adventurers` and `packs` as `StoredLanes`, each a one-felt
+//! `Store` (an identity `StorePacking`) at the address and in the layout the models had
+//! (`layout_tests`, `test_account_slots`): their store methods do no address arithmetic, and a path
+//! that reads or writes two slots of one account takes its sub-pointers once. **`adventurers` and
+//! `balances` keep their models' declaration and the offset access** (`AdventurerWordTrait`,
+//! `PageTrait`, `WordTrait` below): typed, they raised the expedition's path (ENG-R1b, l2 gas per
+//! call: `enter` +300 without a belt and +3,940 with 4 belt pages, the closing `report` crediting 4
+//! pages +3,940, `travel` +200; a balance page about +985, a single adventurer slot about +100),
+//! which D-144 leaves to the project manager; the rule of ENG-R1b's *Scope* keeps them as they
+//! were.
 //!
 //! **Tracking** (docs/CAIRO.md §7, D-147, D-149): **no model of `Hub` is tracked, so no `set_x`
 //! here emits**. The indexer reads ENG-01's events, frozen (D-149), and none of them matches the
@@ -40,12 +54,20 @@
 //! test of `Hub`'s storage addresses (`layout_tests`) is here because the store is what reads and
 //! writes them.
 //!
-//! **`Registry`'s storage** is ENG-R1b's: `StoreTrait` keeps its two path methods until then.
+//! **`Market`'s store is `MarketStoreTrait`**, on `Market`'s state the same way: only the
+//! constructor writes `Market`'s storage until the lot that writes its entrypoints, so it holds
+//! that path alone (ENG-R1b: no store method for a path no code takes). **No model of `Market` is
+//! tracked**: its events (`LotPosted`, `LotClosed`, `TradeOpened`, `TradeClosed`) are emitted by no
+//! code yet, and the lot that writes its entrypoints decides under D-149 (ENG-R1b, open question
+//! 4).
+//!
+//! **`Registry`'s storage** is ENG-R1b's second part, after CBT-05a: `StoreTrait` keeps its two
+//! path methods until then.
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes32};
 use starknet::storage::{
     Mutable, StorageAsPointer, StoragePath, StoragePathEntry, StoragePointerReadAccess,
-    StoragePointerWriteAccess,
+    StoragePointerWriteAccess, SubPointersForward, SubPointersMutForward,
 };
 use starknet::storage_access::{StorageBaseAddress, Store};
 use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
@@ -62,6 +84,7 @@ use crate::models::stored_place::StoredPlace;
 use crate::models::stored_record::StoredRecord;
 use crate::models::versions::Versions;
 use crate::systems::hub::Hub::ContractState as HubState;
+use crate::systems::market::Market::ContractState as MarketState;
 
 #[generate_trait]
 pub impl HubStoreImpl of HubStoreTrait {
@@ -186,36 +209,28 @@ pub impl HubStoreImpl of HubStoreTrait {
     /// The account's owner and its record as stored, the two slots under one address: what
     /// `set_account_owner` and the view read. The record is 0 for an account never registered.
     fn get_account(self: @HubState, account_id: u32) -> (ContractAddress, StoredRecord) {
-        let account = self.accounts.entry(account_id);
-        let record = account.as_ptr().__storage_pointer_address__.word(1);
-        (account.owner.read(), StoredRecord { word: record })
+        let slots = self.accounts.entry(account_id).sub_pointers();
+        (slots.owner.read(), slots.record.read())
     }
 
     /// A new account's two slots, its owner then its record, under one address.
     fn set_account(
         ref self: HubState, account_id: u32, owner: ContractAddress, record: StoredRecord,
     ) {
-        let account = self.accounts.entry(account_id);
-        account.owner.write(owner);
-        account.as_ptr().__storage_pointer_address__.set_word(1, record.word)
+        let slots = self.accounts.entry(account_id).sub_pointers_mut();
+        slots.owner.write(owner);
+        slots.record.write(record)
     }
 
     /// The account's record as stored, one read: 0 for an account never registered.
     #[inline(always)]
     fn get_account_record(self: @HubState, account_id: u32) -> StoredRecord {
-        StoredRecord {
-            word: self.accounts.entry(account_id).as_ptr().__storage_pointer_address__.word(1),
-        }
+        self.accounts.entry(account_id).record.read()
     }
 
     #[inline(always)]
     fn set_account_record(ref self: HubState, account_id: u32, record: StoredRecord) {
-        self
-            .accounts
-            .entry(account_id)
-            .as_ptr()
-            .__storage_pointer_address__
-            .set_word(1, record.word)
+        self.accounts.entry(account_id).record.write(record)
     }
 
     // The account's list of adventurers: `account_adventurers[(account, page)]`, a `Lanes32` of
@@ -230,7 +245,7 @@ pub impl HubStoreImpl of HubStoreTrait {
         while i != count {
             let (page, lane) = AdventurerListTrait::at(i);
             if lane == 0 {
-                page_ids = self.account_adventurers.entry((account_id, page)).read();
+                page_ids = self.account_adventurers.entry((account_id, page)).read().decoded();
             }
             ids.append(page_ids.get(lane));
             i += 1;
@@ -243,13 +258,13 @@ pub impl HubStoreImpl of HubStoreTrait {
     /// written without reading the page.
     fn add_adventurer_id(ref self: HubState, account_id: u32, count: u8, adventurer_id: u32) {
         let (page, lane) = AdventurerListTrait::at(count);
-        let entry = self.list_page(account_id, page);
+        let entry = self.account_adventurers.entry((account_id, page));
         let ids = if lane == 0 {
             StoredLanesTrait::new()
         } else {
-            StoredLanes { word: entry.word(0) }
+            entry.read()
         };
-        entry.set_word(0, ids.added(lane, adventurer_id).word)
+        entry.write(ids.added(lane, adventurer_id))
     }
 
     /// Removes `adventurer_id` from a list of `count` ids by a swap: the last id moves into its
@@ -260,8 +275,8 @@ pub impl HubStoreImpl of HubStoreTrait {
     fn remove_adventurer_id(ref self: HubState, account_id: u32, count: u8, adventurer_id: u32) {
         let last = count - 1;
         let (last_page, last_lane) = AdventurerListTrait::at(last);
-        let last_entry = self.list_page(account_id, last_page);
-        let last_stored = StoredLanes { word: last_entry.word(0) };
+        let last_entry = self.account_adventurers.entry((account_id, last_page));
+        let last_stored = last_entry.read();
         let last_ids = last_stored.decoded();
         let last_id = last_ids.get(last_lane);
         let mut last_new = last_stored.removed(last_lane, last_id);
@@ -274,8 +289,8 @@ pub impl HubStoreImpl of HubStoreTrait {
                 AdventurerListAssert::assert_listed(i, last);
                 let (page, lane) = AdventurerListTrait::at(i);
                 if lane == 0 && page != last_page {
-                    entry = self.list_page(account_id, page);
-                    stored = StoredLanes { word: entry.word(0) };
+                    entry = self.account_adventurers.entry((account_id, page));
+                    stored = entry.read();
                     ids = stored.decoded();
                 } else if lane == 0 {
                     ids = last_ids;
@@ -284,14 +299,14 @@ pub impl HubStoreImpl of HubStoreTrait {
                     if page == last_page {
                         last_new = last_new.replaced(lane, adventurer_id, last_id);
                     } else {
-                        entry.set_word(0, stored.replaced(lane, adventurer_id, last_id).word);
+                        entry.write(stored.replaced(lane, adventurer_id, last_id));
                     }
                     break;
                 }
                 i += 1;
             }
         }
-        last_entry.set_word(0, last_new.word)
+        last_entry.write(last_new)
     }
 
     // Adventurers: `adventurers[id]`, six slots (core, place, build, belt, equipped, name).
@@ -458,8 +473,7 @@ pub impl HubStoreImpl of HubStoreTrait {
     /// Page `page` of the equipment in its pack as stored, one read.
     #[inline(always)]
     fn get_pack_page(self: @HubState, adventurer_id: u32, page: u8) -> StoredLanes {
-        let entry = self.packs.entry((adventurer_id, page)).as_ptr().__storage_pointer_address__;
-        StoredLanes { word: entry.word(0) }
+        self.packs.entry((adventurer_id, page)).read()
     }
 
     /// The items worn, `entities` being `equipped`'s lanes: each non-empty lane's item read (two
@@ -490,6 +504,25 @@ pub impl HubStoreImpl of HubStoreTrait {
 }
 
 #[generate_trait]
+pub impl MarketStoreImpl of MarketStoreTrait {
+    /// The constructor's writes: the administrator, the hub, the registry, and the three counters
+    /// at their `LIVE` zero, so that the first posting and the first trade overwrite.
+    fn initialize(
+        ref self: MarketState,
+        admin: ContractAddress,
+        hub: ContractAddress,
+        registry: ContractAddress,
+    ) {
+        self.admin.write(admin);
+        self.hub.write(hub);
+        self.registry.write(registry);
+        self.lot_count.write(Counter { value: 0 });
+        self.open_lot_count.write(Counter { value: 0 });
+        self.trade_count.write(Counter { value: 0 });
+    }
+}
+
+#[generate_trait]
 pub impl StoreImpl of StoreTrait {
     /// `Registry.versions`, one slot: the content and inputs versions; 0 at deployment. Read by
     /// `bundle`, `content_version` and `set_record`.
@@ -505,7 +538,9 @@ pub impl StoreImpl of StoreTrait {
     }
 }
 
-/// Offsets of the words of `Adventurer` from its address.
+/// Offsets of the words of `Adventurer` from its address: `adventurers` keeps the offset access;
+/// typed, each slot read cost about +100 l2 gas on the expedition's path (the module's doc,
+/// ENG-R1b).
 const CORE: u8 = 0;
 const PLACE: u8 = 1;
 const BUILD: u8 = 2;
@@ -532,15 +567,11 @@ impl AdventurerWordImpl of AdventurerWordTrait {
     }
 }
 
-/// The addresses of the pages the store reads and writes as stored words.
+/// The addresses of the balance pages the store reads and writes as stored words: `balances`
+/// keeps the offset access, typed slots measured at about +985 l2 gas a page on `enter` and the
+/// closing `report` (the module's doc, ENG-R1b).
 #[generate_trait]
 impl PageImpl of PageTrait {
-    /// Page `page` of the account's list of adventurers.
-    #[inline(always)]
-    fn list_page(self: @HubState, account_id: u32, page: u8) -> StorageBaseAddress {
-        self.account_adventurers.entry((account_id, page)).as_ptr().__storage_pointer_address__
-    }
-
     /// Page `page` of the owner's balances.
     #[inline(always)]
     fn balance_page(self: @HubState, owner: felt252, page: u32) -> StorageBaseAddress {
@@ -579,6 +610,7 @@ mod layout_tests {
     }
 
     #[test]
+    // gas: raised, CBT-02e: the layout checks the snapshots' and flatten's addresses
     #[available_gas(l2_gas: 277641)] // ceil(1.05 × 264420 measured)
     fn test_hub_storage_addresses() {
         let state = @Hub::contract_state_for_testing();
@@ -689,13 +721,80 @@ mod layout_tests {
     }
 }
 
+/// The storage layout of `Market` is what docs/architecture/ENG-01-interfaces.md says: every
+/// variable's name and keys, hence its address. Here since ENG-R1b, as `Hub`'s.
+#[cfg(test)]
+mod market_layout_tests {
+    use snforge_std::map_entry_address;
+    use starknet::storage::{StorageAsPointer, StoragePathEntry};
+    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
+    use crate::systems::market::Market;
+
+    fn address_of(base: StorageBaseAddress) -> felt252 {
+        storage_address_from_base(base).into()
+    }
+
+    #[test]
+    #[available_gas(l2_gas: 57792)] // ceil(1.05 × 55040 measured)
+    fn test_market_storage_addresses() {
+        let state = @Market::contract_state_for_testing();
+        assert(
+            address_of(
+                state.lots.entry(5).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("lots"), array![5].span()),
+            'lots',
+        );
+        assert(
+            address_of(
+                state.seller_lots.entry((7, 0)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("seller_lots"), array![7, 0].span()),
+            'seller_lots',
+        );
+        assert(
+            address_of(
+                state.trades.entry(3).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("trades"), array![3].span()),
+            'trades',
+        );
+    }
+}
+
+/// `Market`'s constructor through the store: the configuration, and the counters at `LIVE`.
+#[cfg(test)]
+mod market_tests {
+    use grimworld_logic::packing::{Counter, LIVE};
+    use starknet::storage::StoragePointerReadAccess;
+    use starknet::storage_access::StorePacking;
+    use crate::systems::market::Market;
+    use super::MarketStoreTrait;
+
+    #[test]
+    #[available_gas(l2_gas: 3106142)] // ceil(1.05 × 2958230 measured)
+    fn test_market_initialize() {
+        let mut state = Market::contract_state_for_testing();
+        state.initialize(1.try_into().unwrap(), 2.try_into().unwrap(), 3.try_into().unwrap());
+        assert(state.admin.read() == 1.try_into().unwrap(), 'admin');
+        assert(state.hub.read() == 2.try_into().unwrap(), 'hub');
+        assert(state.registry.read() == 3.try_into().unwrap(), 'registry');
+        let zero: felt252 = StorePacking::pack(Counter { value: 0 });
+        assert(zero == LIVE, 'the LIVE zero');
+        assert(state.lot_count.read() == Counter { value: 0 }, 'lots');
+        assert(state.open_lot_count.read() == Counter { value: 0 }, 'open lots');
+        assert(state.trade_count.read() == Counter { value: 0 }, 'trades');
+    }
+}
+
 /// The store's methods across several slots, on `Hub`'s state: the account list's insertion and
 /// swap removal, the balance pages, the words the views return as stored.
 #[cfg(test)]
 mod tests {
     use grimworld_logic::packing::{LIVE, Lanes32};
-    use starknet::storage::{StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess};
-    use starknet::storage_access::StorePacking;
+    use starknet::storage::{
+        StorageAsPointer, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+    };
+    use starknet::storage_access::{Store, StorePacking};
+    use starknet::{ContractAddress, SyscallResultTrait};
+    use crate::models::account::{Account, AccountRecord};
     use crate::models::adventurer::{
         Adventurer, AdventurerCore, AdventurerPlace, AdventurerTrait, Build,
     };
@@ -716,7 +815,9 @@ mod tests {
     // Nine ids on two pages; removals of a hole on the first page, of the last id, of a hole on
     // the final page.
     #[test]
-    #[available_gas(l2_gas: 3412742)] // ceil(1.05 × 3250230 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    // gas: raised, ENG-R1b: account_adventurers declared with typed slots (note 4)
+    #[available_gas(l2_gas: 3426045)] // ceil(1.05 × 3262900 measured)
     fn test_list_insert_and_swap_removal() {
         let mut state = Hub::contract_state_for_testing();
         for i in 0..9_u8 {
@@ -737,7 +838,9 @@ mod tests {
 
     #[test]
     #[should_panic(expected: 'not in the account list')]
-    #[available_gas(l2_gas: 740019)] // ceil(1.05 × 704780 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    // gas: raised, ENG-R1b: account_adventurers declared with typed slots (note 4)
+    #[available_gas(l2_gas: 742991)] // ceil(1.05 × 707610 measured)
     fn test_remove_not_listed_refused() {
         let mut state = Hub::contract_state_for_testing();
         state.add_adventurer_id(1, 0, 11);
@@ -747,6 +850,7 @@ mod tests {
 
     // A page read once and written once whatever its changes; lanes filled and emptied counted.
     #[test]
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 2286123)] // ceil(1.05 × 2177260 measured)
     fn test_change_balances() {
         let mut state = Hub::contract_state_for_testing();
@@ -774,6 +878,7 @@ mod tests {
     // adventurer written through the typed path reads back through the store's words, and one
     // written through the store reads back through the typed path.
     #[test]
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
     #[available_gas(l2_gas: 7581840)] // ceil(1.05 × 7220800 measured)
     fn test_adventurer_offsets() {
         let mut state = Hub::contract_state_for_testing();
@@ -819,7 +924,9 @@ mod tests {
 
     // The views' words as stored: 0 where nothing was written, the stored models otherwise.
     #[test]
-    #[available_gas(l2_gas: 4060770)] // ceil(1.05 × 3867400 measured)
+    // gas: raised, Scarb 2.20.1 (FND-11, D-180): the compiler moved the cost
+    // gas: raised, ENG-R1b: accounts declared with typed slots (note 4)
+    #[available_gas(l2_gas: 4060875)] // ceil(1.05 × 3867500 measured)
     fn test_words_as_stored() {
         let mut state = Hub::contract_state_for_testing();
         assert(state.get_adventurer_words(5) == array![0, 0, 0, 0, 0, 0].span(), 'never created');
@@ -834,5 +941,27 @@ mod tests {
         assert(state.get_belt(5) == build.belt, 'belt');
         state.set_account_record(3, StoredRecordTrait::new());
         assert(state.get_account_record(3) == StoredRecordTrait::new(), 'record');
+    }
+
+    // `StoredAccount`'s slots against `Account`'s derived `Store`: an account written as the model
+    // reads back through the store, and one written through the store reads back as the model.
+    #[test]
+    #[available_gas(l2_gas: 2213169)] // ceil(1.05 × 2107780 measured)
+    fn test_account_slots() {
+        let mut state = Hub::contract_state_for_testing();
+        let owner: ContractAddress = 0xa11ce.try_into().unwrap();
+        let record = AccountRecord {
+            slots: 3, adventurers: 2, highest_rank: 1, vault_panes: 1, lots: 0,
+        };
+        let base = state.accounts.entry(3).as_ptr().__storage_pointer_address__;
+        Store::<Account>::write(0, base, Account { owner, record }).unwrap_syscall();
+        let (read_owner, stored) = state.get_account(3);
+        assert(read_owner == owner && state.get_owner(3) == owner, 'owner');
+        assert(stored.word == StorePacking::pack(record), 'record');
+        assert(state.get_account_record(3) == stored, 'record alone');
+        state.set_account(4, owner, stored);
+        let base = state.accounts.entry(4).as_ptr().__storage_pointer_address__;
+        let read = Store::<Account>::read(0, base).unwrap_syscall();
+        assert(read.owner == owner && read.record == record, 'typed account');
     }
 }
