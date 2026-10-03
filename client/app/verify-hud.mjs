@@ -155,24 +155,35 @@ function timeFrames() {
 }
 
 /**
- * Every response with COOP and COEP (a cross-origin isolated page: a clock in microseconds); in
- * VERIFY_STALE, `sprites.json` without the HUD's entries.
+ * For the walks: every response with COOP and COEP (a cross-origin isolated page, a clock in
+ * microseconds). A request cut short by a navigation goes on unchanged.
  */
-async function serve(context) {
+async function isolate(context) {
   await context.route("**/*", async (route) => {
-    const response = await route.fetch();
-    const headers = {
-      ...response.headers(),
-      "cross-origin-opener-policy": "same-origin",
-      "cross-origin-embedder-policy": "require-corp",
-    };
-    if (stale && route.request().url().endsWith("/art/sprites.json")) {
-      const index = await response.json();
-      for (const name of HUD_ENTRIES) delete index.sprites[name];
-      await route.fulfill({ response, headers, body: JSON.stringify(index) });
-      return;
+    try {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        headers: {
+          ...response.headers(),
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-embedder-policy": "require-corp",
+        },
+      });
+    } catch {
+      await route.continue().catch(() => {});
     }
-    await route.fulfill({ response, headers });
+  });
+}
+
+/** In VERIFY_STALE: the served `sprites.json` without the HUD's entries. */
+async function serve(context) {
+  if (!stale) return;
+  await context.route("**/art/sprites.json", async (route) => {
+    const response = await route.fetch();
+    const index = await response.json();
+    for (const name of HUD_ENTRIES) delete index.sprites[name];
+    await route.fulfill({ response, body: JSON.stringify(index) });
   });
 }
 
@@ -334,7 +345,8 @@ async function check(page, label, location, hud, size) {
       m.side?.[2] === 96 && m.sidePortrait === m.portrait,
       `${label}: the sheet's portrait ${m.side?.[2]} px, ${m.sidePortrait}`,
     );
-    if (!plain) {
+    // The cursors come with the HUD's art: none when the HUD is plain.
+    if (want[1] === "atlas") {
       ok(/image-set|url\(/.test(m.cursor), `${label}: the root's cursor is the pack's arrow`);
       ok(/image-set|url\(/.test(m.buttonCursor), `${label}: a button's cursor is the hand`);
     }
@@ -419,7 +431,7 @@ async function walks(browser, size) {
     isMobile: size.touch,
   });
   await context.addInitScript(timeFrames);
-  await serve(context);
+  await isolate(context);
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.stack ?? String(e)));
