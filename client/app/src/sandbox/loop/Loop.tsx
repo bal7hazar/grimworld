@@ -6,6 +6,7 @@ import {
   useReducer,
   useState,
 } from "react";
+import { ChromeProvider, Panel, Text } from "../../chrome/Chrome";
 import { HUB_VIEWS } from "../fixtures/hubs";
 import { gateOf } from "../fixtures/region";
 import { EntryScreen, GateScreen, ReportScreen, ServiceScreen, SheetSummary } from "./screens";
@@ -132,28 +133,46 @@ export function Loop({ hub, entryMs }: { hub: number; entryMs: number }) {
 
   if (!desktop) {
     return (
-      <div style={styles.page} data-layout="phone">
+      <ChromeProvider style={styles.page} data-layout="phone">
         {content}
-      </div>
+      </ChromeProvider>
     );
   }
   return (
-    <div style={{ ...styles.page, ...styles.desktop }} data-layout="desktop">
-      <aside style={styles.panel} aria-label="Character sheet and build">
+    <ChromeProvider style={{ ...styles.page, ...styles.desktop }} data-layout="desktop">
+      <Panel
+        variant="dark"
+        as="aside"
+        className="gw-side"
+        plain={styles.panel}
+        style={styles.panelPlace}
+        aria-label="Character sheet and build"
+      >
         <SheetSummary />
-        <div style={ui.label}>Last hub visited</div>
+        <Text tone="caption" plain={ui.label}>
+          Last hub visited
+        </Text>
         <div>{hubName(model.state.lastHub)}</div>
-      </aside>
+      </Panel>
       <main style={styles.column}>{content}</main>
-      <aside style={styles.panel} aria-label="Log">
-        <div style={ui.label}>Log</div>
+      <Panel
+        variant="dark"
+        as="aside"
+        className="gw-side"
+        plain={styles.panel}
+        style={styles.panelPlace}
+        aria-label="Log"
+      >
+        <Text tone="caption" plain={ui.label}>
+          Log
+        </Text>
         {model.log.map((line, i) => (
-          <div key={i} style={{ ...ui.muted, fontSize: 13, margin: "2px 0" }}>
+          <Text key={i} tone="muted" plain={{ ...ui.muted, fontSize: 13, margin: "2px 0" }}>
             {line}
-          </div>
+          </Text>
         ))}
-      </aside>
-    </div>
+      </Panel>
+    </ChromeProvider>
   );
 }
 
@@ -183,5 +202,6 @@ const styles: Record<string, CSSProperties> = {
     borderLeft: "1px solid #2a2a33",
     borderRight: "1px solid #2a2a33",
   },
-  panel: { flex: "0 1 280px", padding: 16, overflowY: "auto" },
+  panelPlace: { flex: "0 1 280px", overflowY: "auto" },
+  panel: { padding: 16 },
 };

@@ -34,6 +34,7 @@
   --min-w: var(--gw-paper-min-w);
   --min-h: var(--gw-paper-min-h);
   --pad: var(--gw-paper-pad);
+  --repeat: round;
 }
 [data-chrome="atlas"] .gw-panel-dark {
   --img: var(--gw-paper-dark);
@@ -42,6 +43,7 @@
   --min-w: var(--gw-paper-dark-min-w);
   --min-h: var(--gw-paper-dark-min-h);
   --pad: var(--gw-paper-dark-pad);
+  --repeat: round;
   color: #fff;
 }
 [data-chrome="atlas"] .gw-panel-scroll {
@@ -108,6 +110,7 @@
   --min-w: var(--gw-paper-min-w);
   --min-h: var(--gw-paper-min-h);
   --pad: 0 var(--gw-paper-pad-x, 14px);
+  --repeat: round;
   --drop: 0px;
   font: 600 15px/20px system-ui;
   color: #111;
@@ -244,6 +247,72 @@
   --repeat: stretch;
   font: 600 15px/20px system-ui;
   color: #111;
+}
+
+/* Secondary text: its colour follows the surface (contrast.ts). */
+[data-chrome="atlas"] .gw-text-caption,
+[data-chrome="atlas"] .gw-text-muted {
+  color: #9a9aa6;
+}
+[data-chrome="atlas"] .gw-panel-paper .gw-text-caption,
+[data-chrome="atlas"] .gw-panel-paper .gw-text-muted,
+[data-chrome="atlas"] .gw-panel-scroll .gw-text-caption,
+[data-chrome="atlas"] .gw-panel-scroll .gw-text-muted {
+  color: #5b4636;
+}
+[data-chrome="atlas"] .gw-panel-paper .gw-text-caption,
+[data-chrome="atlas"] .gw-panel-scroll .gw-text-caption {
+  font-weight: 600;
+}
+[data-chrome="atlas"] .gw-panel-dark .gw-text-caption {
+  color: #fff;
+  font-weight: 700;
+}
+[data-chrome="atlas"] .gw-panel-dark .gw-text-muted {
+  color: #e3e3e8;
+}
+
+/* The hub's service row on the wooden board: the board's thick frame is drawn partly outside the
+   row (over the map's lower edge, and below the screen), so the row keeps today's height. */
+[data-chrome="atlas"] .gw-service-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 10px 15px;
+  border-image-outset: 12px 0 20px;
+}
+[data-chrome="atlas"] .gw-service-row > .gw-button {
+  min-width: 0;
+}
+
+/* Panels stacked on a screen (the Gate's sheet), the entry's scroll within the column. */
+[data-chrome="atlas"] .gw-sheet {
+  margin-bottom: 10px;
+}
+[data-chrome="atlas"] .gw-entry {
+  max-width: calc(100% - 32px);
+}
+[data-chrome="atlas"] .gw-header-side {
+  min-width: var(--gw-round-blue-w) !important;
+}
+
+/* The desktop's side panels on the special paper. */
+[data-chrome="atlas"] .gw-side {
+  margin: 8px;
+}
+
+/* The walk's "stopped" line: a small paper-coloured tag (the paper's art is too large for it). */
+[data-chrome="atlas"] .gw-tag {
+  padding: 2px 8px;
+  border: 1px solid #111;
+  border-radius: 2px;
+  color: #111;
+  background: #eee1c6;
+}
+
+/* The debug controls keep a non-pack look on purpose (red, dashed). */
+[data-chrome="atlas"] .gw-debug {
+  border-image: none;
 }
 
 /* Focus: not in the pack. A 3 px outline in today's yellow with a dark halo, keyboard only. */

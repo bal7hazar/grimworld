@@ -1,4 +1,5 @@
 import { type CSSProperties, useMemo, useState } from "react";
+import { Button, Panel } from "../../chrome/Chrome";
 import type { LoopIntent } from "../../input/intent";
 import type { Tile } from "../../render/view";
 import { type GateRecord, locationOf } from "../fixtures/region";
@@ -40,27 +41,33 @@ export function InstanceScreen({
       <RoomSandbox world={world} onTile={(tile) => tile && onMoved(tile)}>
         <div style={styles.top}>
           {offerOpen && (
-            <button
-              style={{ ...ui.button, ...ui.primary }}
+            <Button
+              variant="action"
+              plain={{ ...ui.button, ...ui.primary }}
               onClick={() => setAsking({ kind: "leave", gate: offer })}
               aria-label="Leave by this gate"
             >
               Gate to {hubName(offer.destination)} · Leave ▸
-            </button>
+            </Button>
           )}
         </div>
         <div style={styles.right}>
-          <button
-            style={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
+          <Button
+            variant="action"
+            plain={{ ...ui.button, ...ui.quiet, opacity: gateHere === null ? 0.4 : 1 }}
             disabled={gateHere === null}
             onClick={() => gateHere && setAsking({ kind: "leave", gate: gateHere })}
             aria-label="Leave"
           >
             Leave
-          </button>
-          <button style={ui.button} onClick={() => setAsking({ kind: "travel back" })}>
+          </Button>
+          <Button
+            variant="action"
+            plain={ui.button}
+            onClick={() => setAsking({ kind: "travel back" })}
+          >
             Travel back
-          </button>
+          </Button>
           <button
             style={{ ...ui.button, ...ui.debug }}
             onClick={() => dispatch({ kind: "defeat now" })}
@@ -71,16 +78,21 @@ export function InstanceScreen({
         </div>
         {asking && (
           <div style={styles.scrim} role="dialog" aria-label="Confirm">
-            <div style={{ ...ui.card, maxWidth: 320 }}>
+            <Panel variant="scroll" plain={ui.card} style={{ maxWidth: 320 }}>
               <p style={{ marginTop: 0 }}>
                 {leaveQuestion(asking.kind === "leave" ? asking.gate : null)}
               </p>
               <div style={ui.row}>
-                <button style={{ ...ui.button, ...ui.quiet }} onClick={() => setAsking(null)}>
+                <Button
+                  variant="quiet"
+                  plain={{ ...ui.button, ...ui.quiet }}
+                  onClick={() => setAsking(null)}
+                >
                   Stay
-                </button>
-                <button
-                  style={{ ...ui.button, ...ui.primary }}
+                </Button>
+                <Button
+                  variant="commit"
+                  plain={{ ...ui.button, ...ui.primary }}
                   onClick={() => {
                     setAsking(null);
                     dispatch(
@@ -91,9 +103,9 @@ export function InstanceScreen({
                   }}
                 >
                   {asking.kind === "leave" ? "Leave" : "Travel back"}
-                </button>
+                </Button>
               </div>
-            </div>
+            </Panel>
           </div>
         )}
       </RoomSandbox>

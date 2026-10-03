@@ -571,7 +571,7 @@ cells = { c = [0, 0] }
 name = "paper"
 role = "ui"
 kind = "nine"
-fill = "stretch"
+fill = "round"
 file = "UI Elements/UI Elements/Papers/RegularPaper.png"
 origin = "Regular paper"
 pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64], [128, 192], [256, 320]] }
@@ -582,7 +582,7 @@ content = [24, 24, 24, 24]
 name = "paper_dark"
 role = "ui"
 kind = "nine"
-fill = "stretch"
+fill = "round"
 file = "UI Elements/UI Elements/Papers/SpecialPaper.png"
 origin = "Special paper"
 pieces = { columns = [[0, 64], [128, 192], [256, 320]], rows = [[0, 64], [128, 192], [256, 320]] }
