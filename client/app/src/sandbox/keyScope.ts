@@ -1,5 +1,7 @@
-import { createContext, useContext, useEffect, useRef } from "react";
+import { type CSSProperties, createContext, useContext, useEffect, useRef } from "react";
 import { type KeyCommand, type KeyLike, type KeyScreen, keyCommand } from "../input/keys";
+import type { Tile } from "../render/view";
+import type { SandboxController } from "./controller";
 
 /**
  * Who hears the keyboard (CLI-03k): one listener on the document, and a stack of layers. The
@@ -121,3 +123,53 @@ export function useKeyLayer(
     });
   }, [screen, active]);
 }
+
+/**
+ * A screen's root, focused when the screen opens (`tabIndex={-1}`, no ring: it is no control), so
+ * that no button of the screen before sits armed under Enter.
+ */
+export function useScreenFocus<T extends HTMLElement = HTMLDivElement>() {
+  const root = useRef<T>(null);
+  useEffect(() => {
+    root.current?.focus({ preventScroll: true });
+  }, []);
+  return root;
+}
+
+/** Whether a tile's centre is outside the map's box (or within `margin` px of its edge). */
+export function offScreen(
+  controller: SandboxController,
+  tile: Tile,
+  box: HTMLElement | null,
+  margin = 32,
+): boolean {
+  if (!box) return false;
+  const { x, y } = controller.tileOnScreen(tile);
+  return (
+    x < margin || y < margin || x > box.clientWidth - margin || y > box.clientHeight - margin
+  );
+}
+
+/** The keyboard's marks: the focus ring's colours live in `chrome.css` (`.gw-key-marker`). */
+export const keyUi: Record<string, CSSProperties> = {
+  /** A screen's root takes the focus but shows no ring. */
+  root: { outline: "none" },
+  /** The ring on a selected place's door or gate's hex, placed after each frame. */
+  marker: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    borderRadius: "50%",
+    visibility: "hidden",
+    pointerEvents: "none",
+  },
+  /** Read by a screen reader, not shown. */
+  hidden: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+    clipPath: "inset(50%)",
+    whiteSpace: "nowrap",
+  },
+};
