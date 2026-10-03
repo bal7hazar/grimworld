@@ -1,6 +1,6 @@
 # Status — track CV (the client's visual work)
 
-**2026-10-02** — written by the orchestrator of track CV, running in herdr as project `grimworld-cv`
+**2026-10-03** — written by the orchestrator of track CV, running in herdr as project `grimworld-cv`
 (it succeeds the Nexus session `[Opus 5.5] Orchestrateur CV (client visuel)`, stopped at the soft stop of
 2026-10-01). Mandate: [ORCH-client-visual](../briefs/ORCH-client-visual.md) (D-146, amended by D-149,
 D-151, D-152, D-153, D-162). Rewritten at each check-in; the project manager reads it like a track's
@@ -12,7 +12,17 @@ The track now runs in herdr: threads of project `grimworld-cv` on the VPS and on
 another model than the one that wrote the code; Nexus is not used. Audits stay the exception (D-177); none
 was asked for the two spikes, whose measurements carry them.
 
-**Done today:**
+**Merged since the last status (#318, 2026-10-02):**
+
+- **CLI-03f**, the hubs as zones (D-202; the hubs run on the zone's engine; design/11 *Hubs*' first line and sketch reworded) [#319](https://github.com/bal7hazar/grimworld/pull/319), its brief [#317](https://github.com/bal7hazar/grimworld/pull/317); the **CLI-03g** brief [#321](https://github.com/bal7hazar/grimworld/pull/321).
+- **CLI-02b part 1**, the mirror of Fate and packing, parity on 218 + 520 cases [#329](https://github.com/bal7hazar/grimworld/pull/329); one surviving mutant is asked of track game: an `unpack_counter` overflow case.
+- **CLI-03g1**, the pack's ground [#332](https://github.com/bal7hazar/grimworld/pull/332); **CLI-03g2**, foam shores [#335](https://github.com/bal7hazar/grimworld/pull/335); the relock of the emitter for hexx rc.2 with the PLAN rows [#333](https://github.com/bal7hazar/grimworld/pull/333).
+- **CLI-03h**, zone walls with the pack's obstacles [#336](https://github.com/bal7hazar/grimworld/pull/336); **CLI-03i**, the client chrome from the pack's UI [#337](https://github.com/bal7hazar/grimworld/pull/337) and [#338](https://github.com/bal7hazar/grimworld/pull/338); **CLI-03j**, text in rem [#339](https://github.com/bal7hazar/grimworld/pull/339); small follow-ups [#340](https://github.com/bal7hazar/grimworld/pull/340).
+- **The public site** [#316](https://github.com/bal7hazar/grimworld/pull/316): https://grimworld.bal7hazar.com serves `main`'s client, rebuilt within 5 minutes of a merge by a user timer (`tools/site/`); the pack's built atlas is served by the owner's decision (2026-10-02), never the raw pack files.
+
+**Decided by the orchestrator (reversible):** CLI-03g2 started without waiting for the owner's look; no display font (the pack has none); the zone-walls lot is named CLI-03h; the Gate screen's "Leave ▸" no longer shrinks at 375 px.
+
+**Done on 2026-10-02:**
 
 - **SPK-13** merged, [#252](https://github.com/bal7hazar/grimworld/pull/252) (`63fc5eb`), after three reviews
   and three fix loops ([reviews](../reports/SPK-13-review-d0c0788-sonnet.md),
@@ -63,18 +73,14 @@ autonomously; we will iterate later"; reversible):
 - **Q3, the pack's UI chrome:** not in the hubs alone; one later lot for the whole client's chrome (panels,
   buttons, plates), so that screens stay consistent.
 
-**Open pull requests of the track:** [#316](https://github.com/bal7hazar/grimworld/pull/316), the site lot
-(publish `main`'s client at grimworld.bal7hazar.com; the art stays off until the owner decides; the owner
-installs the timer, the ACL and the Caddy block); [#317](https://github.com/bal7hazar/grimworld/pull/317), the
-CLI-03f brief, with CLI-03f running from it; [#306](https://github.com/bal7hazar/grimworld/pull/306), CV-03,
-paused (phone work suspended).
+**Open pull request of the track:** [#306](https://github.com/bal7hazar/grimworld/pull/306), CV-03, paused (phone work suspended, D-151/D-152; branch kept).
 
 **The upstream SPK-13 issue** (the upstream issue 10434, filed 2026-10-02, https://github.com/starkware-libs/cairo/issues/10434):
-OPEN, 0 comment(s) at this writing. Watched at each status: a maintainer answer or a fix release changes
+OPEN, 0 comment(s) today. Watched at each status: a maintainer answer or a fix release changes
 D-176's pin.
 
 **Waiting for the owner (through the project manager):** SPK-12's Q1–Q6 and ADR-0001 (R-2); the owner's eye
-on CLI-03f (the hubs at the expected visual level, D-196).
+on the hubs and the zones' new look (D-196).
 **Waiting for the project manager:** PENDING-cv-market-queries; the `indexer-node` trigger paths.
 
 ## Tasks
@@ -87,7 +93,12 @@ on CLI-03f (the hubs at the expected visual level, D-196).
 | CLI-02a | **Client sim parity harness**, a mirror of the merged ENG-02 geometry ([brief](../briefs/CLI-02-sim-parity.md)) | Opus 5.5 | **Done**, [#292](https://github.com/bal7hazar/grimworld/pull/292) (`e405340`); CLI-02b (Fate/packing mirror) waits for track game's VEC-01, CLI-02c for ENG-07 |
 | CLI-03d | **Hubs follow-up**, mechanics only ([brief](../briefs/CLI-03d-hubs-followup.md)) | Sonnet 5.5 | **Done**, [#300](https://github.com/bal7hazar/grimworld/pull/300) (`1ab8817`); brief [#297](https://github.com/bal7hazar/grimworld/pull/297) |
 | CLI-03e | **Hubs at the expected visual level with the real assets** (D-196); choices above | Opus 5.5 | **Done**, [#307](https://github.com/bal7hazar/grimworld/pull/307) (`7a29d03`); brief [#301](https://github.com/bal7hazar/grimworld/pull/301) |
-| CLI-03f | **Walking on the hex grid in the hubs**, client-side presentation (D-196) | Opus 5.5 | **Running**, brief [#317](https://github.com/bal7hazar/grimworld/pull/317); then the owner's eye |
+| CLI-03f | **Hubs as zones** (D-202), the hubs run on the zone's engine | Opus 5.5 | **Done**, [#319](https://github.com/bal7hazar/grimworld/pull/319); brief [#317](https://github.com/bal7hazar/grimworld/pull/317) |
+| CLI-02b | **Fate and packing mirror**, part 1 | Opus 5.5 | **Part 1 done**, [#329](https://github.com/bal7hazar/grimworld/pull/329) (parity on 218 + 520 cases; a surviving mutant asked of track game); part 2 (the reveal) after track game's ENG-05 |
+| CLI-03g | **The pack's ground** (g1) and **foam shores** (g2) | Opus 5.5 | **Done**, [#332](https://github.com/bal7hazar/grimworld/pull/332), [#335](https://github.com/bal7hazar/grimworld/pull/335); brief [#321](https://github.com/bal7hazar/grimworld/pull/321) |
+| CLI-03h | **Zone walls with the pack's obstacles** | Opus 5.5 | **Done**, [#336](https://github.com/bal7hazar/grimworld/pull/336) |
+| CLI-03i | **The client chrome from the pack's UI** | Opus 5.5 | **Done**, [#337](https://github.com/bal7hazar/grimworld/pull/337), [#338](https://github.com/bal7hazar/grimworld/pull/338) |
+| CLI-03j | **Text in rem** | Opus 5.5 | **Done**, [#339](https://github.com/bal7hazar/grimworld/pull/339); follow-ups [#340](https://github.com/bal7hazar/grimworld/pull/340) |
 | CLI-03a check | **The owner's test of Playwright on the Mac through Nexus** (project manager, 2026-10-01): a verification run of the merged sandbox, no implementation; Playwright launched Chrome 154 headless, every browser-checkable criterion of CLI-03a passed at 375 × 812 and 1440 × 900, four commands refused by the profile (a compound command, two `ls` outside the worktree, `lsof`), no wait, no defect, nothing committed | Opus 5.5 | Done 08:34 UTC, `grimworld/impl-cli-03a`; [report](../reports/CLI-03a-browser-check.md); told to the project manager |
 | CV-01 | The Mac launcher, `scripts/mac/agent.sh` (retired by D-162: `nexus` starts the track's agents) | Opus 5.5 | Done, [#121](https://github.com/bal7hazar/grimworld/pull/121); [report](../reports/CV-01-mac-launcher.md), [audit](../reports/CV-01-audit-gpt-6-sol.md) |
 | CV-02 | The launcher's budget of 5, load 18, the pinned Node (D-149) | Sonnet 5.5 | Done, [#129](https://github.com/bal7hazar/grimworld/pull/129); [report](../reports/CV-02-launcher-budget.md), [audit](../reports/CV-02-audit-gpt-6-sol.md) |
@@ -104,7 +115,7 @@ on CLI-03f (the hubs at the expected visual level, D-196).
 
 ## Agents
 
-CLI-03f runs (Mac); the site lot (#316) and CV-03 (#306, paused) are open as pull requests. Threads run on the VPS and, through `--machine mac`, on the Mac (browser and heavy work); `machine-capacity` is read before they start.
+No agent of the track runs; CV-03 (#306, paused) is the only open pull request. Threads run on the VPS and, through `--machine mac`, on the Mac (browser and heavy work); `machine-capacity` is read before they start.
 
 ## Open questions
 
@@ -113,13 +124,12 @@ CLI-03f runs (Mac); the site lot (#316) and CV-03 (#306, paused) are open as pul
 | [2026-10-02-cv-integer-scale](../decisions/2026-10-02-cv-integer-scale.md) | The owner's eye on the sandbox, then SPK-6 | Accepted as proposed, D-194 |
 | [PENDING-cv-market-queries](../decisions/PENDING-cv-market-queries.md) | The project manager | The category of a balance; the unit of a lot's expiry |
 | The `indexer-node` trigger paths | The project manager | Both audits of IDX-01a: narrower than the job's dependencies |
-| The client chrome lot (panels, buttons, plates of the pack) | The owner, later | Planned, not briefed (CLI-03e's Q3) |
-| The art on the published site | The owner | Off until decided (D-73 and the licence) |
+| The pack's bars, icons, avatars and cursors | The orchestrator | With the HUD and character-sheet lots |
+| The art on the published site | The owner | Decided 2026-10-02: the pack's built atlas is served, never raw pack files |
 | design/10's mapping of the castes (ART-03) | The project manager | Told; the project manager updates design/10 and D-146 |
 
 ## Next
 
-1. CLI-03f to the owner's eye.
-2. CLI-02b (Fate/packing mirror) when track game's VEC-01 merges; CLI-02c after ENG-07.
-3. The client chrome lot, for the whole client.
-4. CV-03 and SPK-6.1: suspended (owner, 2026-10-02); they resume when phone work resumes.
+1. CLI-02b part 2 (the reveal) after track game's ENG-05; CLI-02c (the tick and its measure, with an audit) after ENG-07.
+2. The pack's bars, icons, avatars and cursors, with the HUD and character-sheet lots.
+3. CV-03 and SPK-6.1 when phone work resumes (suspended by the owner, 2026-10-02).
