@@ -13,6 +13,11 @@
 #   scripts/prepush.sh [--all]
 set -uo pipefail
 
+# No step inherits git's repository variables (FND-17: a hook in a linked worktree gets GIT_DIR, and a
+# test's fixture `git init` then rewrote the shared repository): the repository is found from the folder.
+# shellcheck disable=SC2046 # one variable name per word
+unset $(git rev-parse --local-env-vars) $(compgen -v | grep '^GIT_CONFIG')
+
 lock_wait=${PREPUSH_LOCK_WAIT:-90}
 have_flock=0
 if command -v flock > /dev/null 2>&1; then have_flock=1; fi

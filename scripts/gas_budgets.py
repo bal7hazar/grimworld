@@ -682,11 +682,23 @@ class SelfTest(unittest.TestCase):
 
     def test_provenance_needs_an_ancestor_of_main(self):  # 6
         import tempfile
+        from unittest import mock
 
-        with tempfile.TemporaryDirectory() as d:
+        # The fixture's git, and provenance_ok's, see none of git's repository variables (FND-17: run from
+        # a hook in a linked worktree, GIT_DIR made `git init` rewrite the real repository): only its own
+        # temporary repository, and discovery never climbs above it.
+        local = {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                 "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_PREFIX", "GIT_COMMON_DIR",
+                 "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS",
+                 "GIT_REPLACE_REF_BASE", "GIT_SHALLOW_FILE", "GIT_NAMESPACE"}
+        clean = {k: v for k, v in os.environ.items() if k not in local and not k.startswith("GIT_CONFIG")}
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, clean, clear=True):
+            os.environ["GIT_CEILING_DIRECTORIES"] = os.path.dirname(os.path.realpath(d))
+
             def git(*a):
                 return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a],
-                                      cwd=d, capture_output=True, text=True, check=True).stdout.strip()
+                                      cwd=d, capture_output=True, text=True, check=True,
+                                      env=dict(os.environ)).stdout.strip()
 
             git("init", "-q", "-b", "main")
             git("commit", "-q", "--allow-empty", "-m", "a")
