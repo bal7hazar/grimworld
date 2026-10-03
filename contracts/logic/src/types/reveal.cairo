@@ -1412,7 +1412,7 @@ pub mod tests {
     // closed at 7 of 8. The guard keeps growth always: 143 keeps North open whenever its draw is a
     // border.
     #[test]
-    #[available_gas(l2_gas: 813587363)] // ceil(1.05 × 774845107 measured)
+    #[available_gas(l2_gas: 813587258)] // ceil(1.05 × 774845007 measured)
     fn test_dungeon_two_edges_into_one_chunk() {
         let state: [(u8, u8); 5] = [(127, 1), (129, 2), (113, 0), (144, 2), (142, 0)];
         let revealed = BoardTrait::pow(127)

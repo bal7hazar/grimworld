@@ -1771,15 +1771,15 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 | Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
 | `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,702,400–6,782,400** | `lifecycle_probe.py`, five runs |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,702,400–6,782,400** | `lifecycle_probe.py`, six runs |
 | On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,172,400–13,252,400** | idem |
 | On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,462,400–7,582,400** | idem |
 | On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,556,640–8,196,640** | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,720,640–11,080,640** | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,680,640–11,080,640** | idem |
 
 The node's figures follow the entry draw, which follows the transaction hash: the same code gives
 another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
-`leave` to a dungeon floor). Each is the range over five runs of the same head.
+`leave` to a dungeon floor). Each is the range over six runs of the same code.
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M
