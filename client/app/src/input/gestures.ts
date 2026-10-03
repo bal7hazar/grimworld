@@ -22,6 +22,8 @@ export const TAP_SLOP = 10;
 export const LONG_PRESS_MS = 450;
 /** Wheel: the zoom factor per pixel of `deltaY`. */
 const WHEEL_RATE = 0.0015;
+/** One wheel notch (`deltaY` 100) toward zooming in, as a factor: the keyboard's `+` (CLI-03k). */
+export const WHEEL_NOTCH = Math.exp(100 * WHEEL_RATE);
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 const middle = (a: Point, b: Point) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });

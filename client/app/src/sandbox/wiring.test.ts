@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURES, fixtureNamed } from "./fixtures";
-import { applyIntent, initialState, toView, walkStep } from "./wiring";
+import type { Facing, Tile } from "../render/view";
+import { neighbour } from "./placeholders";
+import { applyIntent, initialState, stepTarget, toView, walkStep } from "./wiring";
 import { CHUNK } from "./world";
 
 describe("fixtures", () => {
@@ -93,5 +95,51 @@ describe("wiring", () => {
     const inspected = applyIntent(selected, { kind: "inspect", tile: goblin.tile });
     expect(inspected.world).toBe(selected.world);
     expect(inspected.said).toContain("inspect");
+  });
+});
+
+describe("stepTarget (CLI-03k): a step key is a tap on the adjacent hex", () => {
+  const FACINGS: readonly Facing[] = [0, 1, 2, 3, 4, 5];
+  const standingAt = (tile: Tile, facing: Facing) => {
+    const state = initialState(fixtureNamed("meadow"));
+    const { world } = state;
+    const actors = world.actors.map((a) =>
+      a.id === world.adventurerId ? { ...a, tile, facing } : a,
+    );
+    return { ...state, world: { ...world, actors } };
+  };
+
+  it("is the map library's next tile in each of the six directions, on both row parities", () => {
+    for (const tile of [
+      { x: 10, y: 10 },
+      { x: 10, y: 11 },
+    ]) {
+      for (const d of FACINGS) {
+        expect(stepTarget(standingAt(tile, 0), { direction: d })).toEqual(neighbour(tile, d));
+      }
+    }
+  });
+
+  it("↑ / ↓ take the upper or lower hex on the side faced, on both row parities", () => {
+    for (const tile of [
+      { x: 10, y: 10 },
+      { x: 10, y: 11 },
+    ]) {
+      for (const facing of FACINGS) {
+        const east = facing === 0 || facing === 1 || facing === 5;
+        const state = standingAt(tile, facing);
+        expect(stepTarget(state, { vertical: "up" })).toEqual(neighbour(tile, east ? 1 : 2));
+        expect(stepTarget(state, { vertical: "down" })).toEqual(neighbour(tile, east ? 5 : 4));
+      }
+    }
+  });
+
+  it("applied as a tap, it walks one step that way", () => {
+    const state = initialState(fixtureNamed("meadow"));
+    const start = state.world.actors[0]!.tile;
+    const tile = stepTarget(state, { direction: 3 })!;
+    const walked = walkStep(applyIntent(state, { kind: "tile", tile }));
+    expect(walked.world.actors[0]!.tile).toEqual(neighbour(start, 3));
+    expect(walked.world.actors[0]!.facing).toBe(3);
   });
 });
