@@ -779,7 +779,11 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
     const hidden = view.tiles.find((t) => t.kind === "unrevealed" && t.ground !== "water")!;
     const gone = view.tiles.find((t) => isRock(t))!;
     const tiles = view.tiles.map((t) =>
-      t === hidden ? { ...t, kind: "wall" as const } : t === gone ? { ...t, kind: "floor" as const } : t,
+      t === hidden
+        ? { ...t, kind: "wall" as const }
+        : t === gone
+          ? { ...t, kind: "floor" as const }
+          : t,
     );
     renderer.setView({ ...view, tiles });
     host.run(100);

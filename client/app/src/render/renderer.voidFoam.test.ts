@@ -35,7 +35,10 @@ describe("the foam over the void, planned again only when the terrain changes (C
   it("not for a step, the same view or a new selection; once for a changed tile or void", () => {
     const voidFoam = vi.mocked(ground.voidFoam);
     const host = new FakeHost(1000 / 120);
-    const renderer = new Renderer(new FakeSurface(), host, { idle: false, library: groundLibrary() });
+    const renderer = new Renderer(new FakeSurface(), host, {
+      idle: false,
+      library: groundLibrary(),
+    });
     renderer.resize({ width: 375, height: 812 });
     const view = toView(initialState(fixtureNamed("zone")));
     voidFoam.mockClear();

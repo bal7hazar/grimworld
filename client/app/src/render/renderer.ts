@@ -2,7 +2,6 @@ import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "
 import {
   type Camera,
   type Point,
-  ROW_HEIGHT,
   TILE_WIDTH,
   type Viewport,
   fitScale,
@@ -337,7 +336,10 @@ export class Renderer implements FrameClient {
    */
   private obstacleArt: readonly Obstacle[] = [];
   /** The wall hexes' obstacles drawn from the atlas, by hex (`"x,y"`), in the actors' layer. */
-  private readonly obstacleNodes = new Map<string, { readonly sprite: Sprite; readonly name: string }>();
+  private readonly obstacleNodes = new Map<
+    string,
+    { readonly sprite: Sprite; readonly name: string }
+  >();
   private readonly chunks = new Map<string, ChunkBake>();
   private readonly rings = new Map<string, { count: number; ring: readonly Tile[] }>();
   private view: ViewState | null = null;

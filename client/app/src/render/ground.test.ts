@@ -378,7 +378,8 @@ describe("the foam over a concave terrain's inner void (CLI-03h)", () => {
     expect(pieces.some((p) => key(p.over) === key(deep))).toBe(false);
     // Away from the notch, the outer void keeps the foam the block without a notch has.
     const away = (p: GroundPlan["foam"][number]) => p.over.y > 10 || p.over.x < 3 || p.over.x > 11;
-    const k = (p: GroundPlan["foam"][number]) => `${key(p.source)}>${key(p.over)}|${p.points.join()}`;
+    const k = (p: GroundPlan["foam"][number]) =>
+      `${key(p.source)}>${key(p.over)}|${p.points.join()}`;
     const whole = voidFoam(block(0, 14, 0, 14), "water");
     expect(pieces.filter(away).map(k).sort()).toEqual(whole.filter(away).map(k).sort());
     expect(pieces.filter(away).length).toBeGreaterThan(0);

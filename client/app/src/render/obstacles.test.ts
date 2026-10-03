@@ -31,7 +31,8 @@ function zoneWalls(): { x: number; y: number }[] {
 describe("the zone's wall obstacles (CLI-03h)", () => {
   it("every obstacle is a prop still of the manifest: rocks, bushes, stumps and trees", () => {
     const stills = manifestStills();
-    for (const { sprite } of OBSTACLES) expect([sprite, stills.get(sprite)]).toEqual([sprite, "prop"]);
+    for (const { sprite } of OBSTACLES)
+      expect([sprite, stills.get(sprite)]).toEqual([sprite, "prop"]);
     const kinds = new Set(OBSTACLES.map((o) => o.sprite.replace(/\d+$/, "")));
     expect(kinds).toEqual(new Set(["rock", "bush", "stump", "tree"]));
   });
