@@ -1646,9 +1646,12 @@ pub mod tests {
         assert(digest == DIGEST_2, 'vectors moved: regenerate');
     }
 
-    const PART_1: u32 = 0;
-    const PART_2: u32 = 0;
-    const DIGEST_0: felt252 = 0;
-    const DIGEST_1: felt252 = 0;
-    const DIGEST_2: felt252 = 0;
+    const PART_1: u32 = 171;
+    const PART_2: u32 = 186;
+    const DIGEST_0: felt252 =
+        436879411965584264744368046098895752638038888232554053137264668756436767440;
+    const DIGEST_1: felt252 =
+        1730085965442817502559636560502372965372808419812008069600142939674812239267;
+    const DIGEST_2: felt252 =
+        3412966375977423196561007787166312851933583076115214404143177946322873272316;
 }
