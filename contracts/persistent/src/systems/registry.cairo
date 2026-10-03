@@ -6,13 +6,8 @@
 //! A record that was never written reads as `parts(kind)` zeros: part 0 is 0, which is how every
 //! reader tells a missing record (a written record has `LIVE` in part 0).
 
-use core::pedersen::pedersen;
 use grimworld_logic::content::{ITEM, MODIFIER, SKILL};
-use starknet::storage_access::{
-    StorageAddress, storage_address_from_base, storage_base_address_from_felt252,
-};
-use starknet::syscalls::{storage_read_syscall, storage_write_syscall};
-use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
+use starknet::{ClassHash, ContractAddress};
 
 pub const VERSION: felt252 = 'grimworld-registry-1';
 pub const NOT_IMPLEMENTED: felt252 = 'not implemented';
@@ -48,34 +43,6 @@ pub trait IRegistryAdmin<T> {
     fn last_id(self: @T, kind: u8) -> u32;
     fn set_admin(ref self: T, admin: ContractAddress);
     fn upgrade(ref self: T, class_hash: ClassHash);
-}
-
-/// The parts of a record in `records`, read and written at their address without hashing the
-/// whole key for each part. The map hashes its key's members in order, a Pedersen chain from the
-/// variable's selector: `h(h(h(selector, kind), id), part)`. `key` is the record's two links,
-/// computed once; `address` adds the part's (tested against the map's own addresses:
-/// `test_part_address_is_the_maps`).
-#[generate_trait]
-pub impl PartsImpl of Parts {
-    #[inline(always)]
-    fn key(kind: u8, id: u32) -> felt252 {
-        pedersen(pedersen(selector!("records"), kind.into()), id.into())
-    }
-
-    #[inline(always)]
-    fn address(key: felt252, part: u8) -> StorageAddress {
-        storage_address_from_base(storage_base_address_from_felt252(pedersen(key, part.into())))
-    }
-
-    #[inline(always)]
-    fn read(address: StorageAddress) -> felt252 {
-        storage_read_syscall(0, address).unwrap_syscall()
-    }
-
-    #[inline(always)]
-    fn write(address: StorageAddress, value: felt252) {
-        storage_write_syscall(0, address, value).unwrap_syscall()
-    }
 }
 
 /// The record kinds the snapshot's flattening reads (D-169): a changed record of one of them
@@ -124,15 +91,15 @@ pub mod Registry {
     use grimworld_logic::models::skill::{SkillAssert, SkillRecord};
     use grimworld_logic::models::spawn_table::{SpawnTableAssert, SpawnTableRecord};
     use grimworld_logic::packing::{Counter, LIVE_HIGH};
-    use starknet::storage::{
-        Map, StorageAsPath, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
-        StoragePointerWriteAccess,
-    };
+    use starknet::storage::{Map, StorageMapReadAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address};
     use crate::models::versions::{Versions, VersionsTrait};
-    use crate::store::StoreTrait;
-    use super::{Inputs, NOT_IMPLEMENTED, Parts, VERSION, errors};
+    use crate::store::RegistryStoreTrait;
+    use super::{Inputs, NOT_IMPLEMENTED, VERSION, errors};
 
+    /// ENG-01 §3.5's layout (`store::registry_layout_tests`), read and written only by the store
+    /// (`RegistryStoreTrait`), but for the content's checks (`RegistryAssert::assert_content`; the
+    /// store's module doc says why).
     #[storage]
     pub struct Storage {
         pub admin: ContractAddress,
@@ -152,7 +119,7 @@ pub mod Registry {
 
     #[constructor]
     fn constructor(ref self: ContractState, admin: ContractAddress) {
-        self.admin.write(admin);
+        self.set_administrator(admin);
     }
 
     #[abi(embed_v0)]
@@ -160,7 +127,7 @@ pub mod Registry {
         /// `parts(kind)` felts; zeros for a record never written.
         fn record(self: @ContractState, kind: u8, id: u32) -> Span<felt252> {
             let mut out: Array<felt252> = array![];
-            self.read_into(kind, id, parts(kind), ref out);
+            self.read_record_into(kind, id, parts(kind), ref out);
             out.span()
         }
         /// The records of `ids`, one after the other, `parts(kind)` felts each.
@@ -169,7 +136,7 @@ pub mod Registry {
             let count = parts(kind);
             let mut out: Array<felt252> = array![];
             for id in ids {
-                self.read_into(kind, *id, count, ref out);
+                self.read_record_into(kind, *id, count, ref out);
             }
             out.span()
         }
@@ -178,13 +145,13 @@ pub mod Registry {
             let mut out: Array<felt252> = array![];
             for request in requests {
                 let (kind, id) = *request;
-                self.read_into(kind, id, parts(kind), ref out);
+                self.read_record_into(kind, id, parts(kind), ref out);
             }
-            let versions = self.stored_versions();
+            let versions = self.get_versions();
             (versions.content, versions.inputs, out.span())
         }
         fn content_version(self: @ContractState) -> u32 {
-            self.stored_versions().content
+            self.get_versions().content
         }
     }
 
@@ -202,21 +169,14 @@ pub mod Registry {
             RegistryAssert::assert_record(kind, id, record);
             self.assert_content(kind, id, record);
             if is_sequential(kind) {
-                let last = self.last_ids.read(kind).value;
+                let last = self.get_last_id(kind);
                 let id_wide: u64 = id.into();
                 if id_wide == last + 1 {
                     // A new id: none of its keys was ever written (ids are never reused, records
                     // never zeroed), so there is nothing to read or compare.
                     self.name_skills(kind, id, record);
-                    let key = Parts::key(kind, id);
-                    let mut part: u8 = 0;
-                    for felt in record {
-                        if *felt != 0 {
-                            Parts::write(Parts::address(key, part), *felt);
-                        }
-                        part += 1;
-                    }
-                    self.last_ids.write(kind, Counter { value: id_wide });
+                    self.set_new_record(kind, id, record);
+                    self.set_last_id(kind, id_wide);
                     self.raise_versions(false);
                     return;
                 }
@@ -225,19 +185,19 @@ pub mod Registry {
                 self.assert_parent(kind, id);
             }
             self.name_skills(kind, id, record);
-            if self.update(kind, id, record) {
+            if self.update_record(kind, id, record) {
                 self.raise_versions(Inputs::includes(kind));
             }
         }
         fn last_id(self: @ContractState, kind: u8) -> u32 {
             parts(kind);
-            self.last_ids.read(kind).value.try_into().unwrap()
+            self.get_last_id(kind).try_into().unwrap()
         }
         /// Hands the administrator role over; the caller loses it. Administrator only.
         fn set_admin(ref self: ContractState, admin: ContractAddress) {
             self.assert_admin();
             RegistryAssert::assert_new_admin(admin);
-            self.admin.write(admin);
+            self.set_administrator(admin);
         }
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
             core::panic_with_felt252(NOT_IMPLEMENTED)
@@ -250,7 +210,7 @@ pub mod Registry {
     pub impl RegistryAssert of RegistryAssertTrait {
         #[inline(always)]
         fn assert_admin(self: @ContractState) {
-            assert(get_caller_address() == self.admin.read(), errors::NOT_ADMIN);
+            assert(get_caller_address() == self.get_administrator(), errors::NOT_ADMIN);
         }
 
         /// `set_admin` never hands the role to the zero address, which would leave it to nobody.
@@ -356,7 +316,7 @@ pub mod Registry {
         /// A record exists when its part 0 is not 0 (ENG-01 §3.5).
         #[inline(always)]
         fn assert_exists(self: @ContractState, kind: u8, id: u32) {
-            assert(self.records.read((kind, id, 0)) != 0, errors::NO_PARENT);
+            assert(self.has_record(kind, id), errors::NO_PARENT);
         }
 
         #[inline(always)]
@@ -376,9 +336,9 @@ pub mod Registry {
                 return;
             }
             let new = CasteRecord::unpack(record).skills;
-            let old: [u16; 4] = if self.records.read((CASTE, id, 0)) != 0 {
+            let old: [u16; 4] = if self.has_record(CASTE, id) {
                 let mut out = array![];
-                self.read_into(CASTE, id, parts(CASTE), ref out);
+                self.read_record_into(CASTE, id, parts(CASTE), ref out);
                 CasteRecord::unpack(out.span()).skills
             } else {
                 [0; 4]
@@ -394,8 +354,8 @@ pub mod Registry {
                     seen.append(s);
                     let (before, now) = (Self::times(old, s), Self::times(new, s));
                     if before != now {
-                        let count = self.caste_skills.read(s.into());
-                        self.caste_skills.write(s.into(), count + now - before);
+                        let count = self.get_caste_count(s.into());
+                        self.set_caste_count(s.into(), count + now - before);
                     }
                 }
             }
@@ -413,106 +373,21 @@ pub mod Registry {
             n
         }
 
-        /// Appends the `count` parts of `(kind, id)` to `out`.
+        /// Appends the `count` parts of `(kind, id)` to `out`, through the store: the content's
+        /// checks' read (`assert_content`), kept by this name while ENG-05 and CBT-05b add checks
+        /// there.
         #[inline(always)]
         fn read_into(self: @ContractState, kind: u8, id: u32, count: u8, ref out: Array<felt252>) {
-            let key = Parts::key(kind, id);
-            for part in 0..count {
-                out.append(Parts::read(Parts::address(key, part)));
-            }
+            self.read_record_into(kind, id, count, ref out)
         }
-        /// The writer's change detection: each part compared with the stored felt, only the parts
-        /// that differ written. Whether any did, which raises the version once.
-        #[inline(always)]
-        fn update(ref self: ContractState, kind: u8, id: u32, record: Span<felt252>) -> bool {
-            let key = Parts::key(kind, id);
-            let mut changed = false;
-            let mut part: u8 = 0;
-            for felt in record {
-                let address = Parts::address(key, part);
-                if Parts::read(address) != *felt {
-                    Parts::write(address, *felt);
-                    changed = true;
-                }
-                part += 1;
-            }
-            changed
-        }
+
         /// The content version raised by one (D-141), and the inputs version with it when the
         /// record changed is an `input` of the flattening (D-169): one read and one write of one
         /// slot.
         #[inline(always)]
         fn raise_versions(ref self: ContractState, input: bool) {
-            let versions = self.stored_versions().raised(input);
-            StoreTrait::set_versions(self.versions.as_path(), versions);
-        }
-
-        /// The content and inputs versions, through the store: one read.
-        #[inline(always)]
-        fn stored_versions(self: @ContractState) -> Versions {
-            StoreTrait::get_versions(self.versions.as_path())
-        }
-    }
-}
-
-/// The storage layout of `Registry` is what docs/architecture/ENG-01-interfaces.md says: every
-/// variable's name and keys, hence its address.
-#[cfg(test)]
-mod layout_tests {
-    use snforge_std::map_entry_address;
-    use starknet::storage::{StorageAsPointer, StoragePathEntry};
-    use starknet::storage_access::{StorageBaseAddress, storage_address_from_base};
-    use super::{Parts, Registry};
-
-    fn address_of(base: StorageBaseAddress) -> felt252 {
-        storage_address_from_base(base).into()
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 64638)] // ceil(1.05 × 61560 measured)
-    fn test_registry_storage_addresses() {
-        let state = @Registry::contract_state_for_testing();
-        assert(
-            address_of(
-                state.records.entry((2, 5, 1)).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("records"), array![2, 5, 1].span()),
-            'records',
-        );
-        assert(
-            address_of(
-                state.last_ids.entry(2).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("last_ids"), array![2].span()),
-            'last_ids',
-        );
-        assert(
-            address_of(
-                state.versions.as_ptr().__storage_pointer_address__,
-            ) == selector!("versions"),
-            'versions',
-        );
-        assert(
-            address_of(
-                state.caste_skills.entry(7).as_ptr().__storage_pointer_address__,
-            ) == map_entry_address(selector!("caste_skills"), array![7].span()),
-            'caste_skills',
-        );
-    }
-
-    // The oracle of `Parts::key` and `Parts::address`: the map's own address, for the widest keys.
-    #[test]
-    #[available_gas(l2_gas: 178112)] // ceil(1.05 × 169630 measured)
-    fn test_part_address_is_the_maps() {
-        let state = @Registry::contract_state_for_testing();
-        let cases: Array<(u8, u32, u8)> = array![
-            (1, 1, 0), (2, 5, 1), (15, 7, 2), (25, 0xFFFFFFFF, 0), (3, 0xFFFFFF, 0),
-        ];
-        for case in cases {
-            let (kind, id, part) = case;
-            let expected: felt252 = address_of(
-                state.records.entry((kind, id, part)).as_ptr().__storage_pointer_address__,
-            );
-            let got: felt252 = Parts::address(Parts::key(kind, id), part).into();
-            assert(got == expected, 'part address');
+            let versions = self.get_versions().raised(input);
+            self.set_versions(versions);
         }
     }
 }
@@ -541,6 +416,7 @@ mod inputs_tests {
 #[cfg(test)]
 mod version_cost_tests {
     use snforge_std::{store, test_address};
+    use crate::store::RegistryStoreTrait;
     use super::Registry;
     use super::Registry::InternalTrait;
 
@@ -556,7 +432,7 @@ mod version_cost_tests {
     #[available_gas(l2_gas: 37989)] // ceil(1.05 × 36180 measured)
     fn test_version_cost_read() {
         let state = @Registry::contract_state_for_testing();
-        assert(state.stored_versions().content == 0, 'version 0');
+        assert(state.get_versions().content == 0, 'version 0');
     }
 
     // `set_record`'s part, when the record changed: the read and the write of the raise.
@@ -592,93 +468,5 @@ mod version_cost_tests {
         let mut state = Registry::contract_state_for_testing();
         store(test_address(), selector!("versions"), array![7].span());
         state.raise_versions(false);
-    }
-}
-
-/// The writer's change detection, apart from the version (ENG-03 fix loop 1, F-3): a stored
-/// 3-part record rewritten through `update` (read, compare, write what differs) against the same
-/// rewrite made blind (every part written, nothing read). Identical values and changed values
-/// each have their own matched pair; none of these raises the version.
-#[cfg(test)]
-mod detection_cost_tests {
-    use grimworld_logic::content::BOOK;
-    use grimworld_logic::packing::LIVE;
-    use snforge_std::{map_entry_address, store, test_address};
-    use super::Registry::InternalTrait;
-    use super::{Parts, Registry};
-
-    /// Book 1, stored with parts `(LIVE + 1, 2, 3)`.
-    #[generate_trait]
-    impl BookFixture of Book {
-        fn store() {
-            let parts = Self::stored();
-            for part in 0..3_u8 {
-                store(
-                    test_address(),
-                    map_entry_address(
-                        selector!("records"), array![BOOK.into(), 1, part.into()].span(),
-                    ),
-                    array![*parts[part.into()]].span(),
-                );
-            }
-        }
-
-        fn stored() -> Span<felt252> {
-            array![LIVE + 1, 2, 3].span()
-        }
-
-        fn changed() -> Span<felt252> {
-            array![LIVE + 4, 5, 6].span()
-        }
-
-        /// Every part written, nothing read or compared: a writer without change detection.
-        fn write_blind(record: Span<felt252>) {
-            let key = Parts::key(BOOK, 1);
-            let mut part: u8 = 0;
-            for felt in record {
-                Parts::write(Parts::address(key, part), *felt);
-                part += 1;
-            }
-        }
-    }
-
-    // The baseline of the four below: the record stored, nothing else.
-    #[test]
-    #[available_gas(l2_gas: 1344746)] // ceil(1.05 × 1280710 measured)
-    fn test_detection_cost_stored_baseline() {
-        let _state = Registry::contract_state_for_testing();
-        Book::store();
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 1577814)] // ceil(1.05 × 1502680 measured)
-    fn test_detection_cost_identical_blind() {
-        let _state = Registry::contract_state_for_testing();
-        Book::store();
-        Book::write_blind(Book::stored());
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 1467690)] // ceil(1.05 × 1397800 measured)
-    fn test_detection_cost_identical() {
-        let mut state = Registry::contract_state_for_testing();
-        Book::store();
-        assert(!state.update(BOOK, 1, Book::stored()), 'no change');
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 1577814)] // ceil(1.05 × 1502680 measured)
-    fn test_detection_cost_changed_blind() {
-        let _state = Registry::contract_state_for_testing();
-        Book::store();
-        Book::write_blind(Book::changed());
-    }
-
-    #[test]
-    #[available_gas(l2_gas: 1658990)] // ceil(1.05 × 1579990 measured)
-    fn test_detection_cost_changed() {
-        let mut state = Registry::contract_state_for_testing();
-        Book::store();
-        assert(state.update(BOOK, 1, Book::changed()), 'changed');
     }
 }

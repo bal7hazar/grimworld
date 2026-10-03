@@ -1,8 +1,15 @@
 # Status — game track
 
-**2026-10-02** — the track now runs in herdr (orchestrator: herdr project `grimworld-game`); written by its bookkeeping thread. Earlier text is by `[Opus 5.5] Orchestrateur Grim World (jeu)` (2026-10-01 14:15 UTC).
+**2026-10-03** — the track runs in herdr (orchestrator: herdr project `grimworld-game`); written by its bookkeeping thread. Earlier text is by `[Opus 5.5] Orchestrateur Grim World (jeu)` (2026-10-01 14:15 UTC).
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
+
+## 2026-10-03: the lots of 2026-10-02 and 2026-10-03 closed
+
+**Merged** (reports archived in `docs/reports/`, PLAN rows done, CHANGELOG entries written): **CBT-05a**, the executor ([#334](https://github.com/bal7hazar/grimworld/pull/334), `f50c1fc`); **ENG-R1b part 1** ([#320](https://github.com/bal7hazar/grimworld/pull/320), `6887010`); **VEC-01** ([#294](https://github.com/bal7hazar/grimworld/pull/294), `d1f3e93`); **FND-11** Scarb 2.20.1 ([#293](https://github.com/bal7hazar/grimworld/pull/293), `a3c3268`), **FND-12** ([#291](https://github.com/bal7hazar/grimworld/pull/291), `f1a0b41`), **FND-13** ([#303](https://github.com/bal7hazar/grimworld/pull/303), `a97f4f0`), **FND-14** ([#305](https://github.com/bal7hazar/grimworld/pull/305), `33dc4e5`), **FND-15** ([#314](https://github.com/bal7hazar/grimworld/pull/314), `86c0322`), **FND-16** ([#312](https://github.com/bal7hazar/grimworld/pull/312), `8ab3949`), **FND-17** ([#327](https://github.com/bal7hazar/grimworld/pull/327), `aa5bcc1`), **FND-18** ([#322](https://github.com/bal7hazar/grimworld/pull/322), `93eb1b6`), **FND-19** `hexx` rc.2 ([#331](https://github.com/bal7hazar/grimworld/pull/331), `ffef058`), **FND-20** ([#350](https://github.com/bal7hazar/grimworld/pull/350), `ac10593`) and **FND-21** ([#352](https://github.com/bal7hazar/grimworld/pull/352), `53f1095`). The game is on Scarb 2.20.1 and `hexx` 0.1.0-rc.2.
+**The tick** (ENG-01 §9.2, measured through `TickLibrary` at CBT-05a's head): the **worst measured tick is 45,999,941** (the member's activation and 8 goblin carriers, 115.0 % of 40 M, 4.18 % of the 1.1×10⁹ cap), accepted as a **one-tick batch** (D-207); **a goblin carrier through the class costs 4,090,351** (the owner's figure). The earlier figures (5,464,542, 3.72×, before the executor; 26,422,703, 17.98×, and 6,051,547, 4.12×, with it, understated) are history. A bomb tick (a `TILE`, `DISC_1` bomb and 8 goblins) may be ≈ 48.8 M (estimated): CBT-05b measures it. `ExecutorLibrary` 80,122 felts (97.81 % of D-200's 80,420, room 298), `TickLibrary` 61.04 % of 75 %.
+**Open**: ENG-05 ([#348](https://github.com/bal7hazar/grimworld/pull/348)) is in its fix loop, then a short re-audit on the randomness lens and the delta review before it merges; ENG-R1b part 2 (`Registry`) is running. **Next**: CBT-05b (the action's costs and traps) after ENG-05 merges; ENG-07 after ENG-05; ENG-R1c after ENG-07; the small lots FND-22, FND-23 and ENG-05b, and CBT-05c to CBT-05e, are in PLAN.
+**S1's running estimate**: ENG-05's entry and leave rises (`enter` +2.76 M to +3.52 M, `leave` +3.76 M to +6.73 M, accepted under D-144) and CBT-05a's tick go into S1's cost in ENG-07's lot (`cost.py`: R-2 is the whole expedition), not before.
 
 ## 2026-10-02: the track runs in herdr
 
@@ -10,10 +17,10 @@ are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 **ENG-02** ([#246](https://github.com/bal7hazar/grimworld/pull/246), `04e12d6`) and **CBT-03a** ([#229](https://github.com/bal7hazar/grimworld/pull/229), `3b27b9f`); **SPK-15** ([#234](https://github.com/bal7hazar/grimworld/pull/234), `3ccc42e`) merged 2026-10-01. Their reports are
 archived in `docs/reports/`, their PLAN rows done, their CHANGELOG entries written. `contracts/logic/vectors/check.py` runs in CI's
 `contracts` job; it reads `window.jsonl` (ENG-02) and `hit.jsonl` (CBT-03a).
-**The tick's share** (ENG-01 §9.2, with CBT-03a's hit and CBT-04's rules): **5,464,542**, **3.72×** the 1,469,435 target, before CBT-05's executor.
+**The tick's share** (history, 2026-10-02: ENG-01 §9.2 with CBT-03a's hit and CBT-04's rules, before the executor): 5,464,542, 3.72× the 1,469,435 target; replaced by the measured tick above.
 **Open**: CBT-05a (the executor, SPK-15's L3) is in progress; ENG-R1a's reading by the owner (ENG-R1b waits for it);
 ENG-05 waits for `hexx` rc.2 (track LIB). **Next**: FND-11 (Scarb 2.20.1, the pin kept) after CBT-05a.
-**Toolchain**: `scripts/setup-toolchain.sh` fails its `starknet-devnet` check on the VPS (command not found, expected 0.10.0); nothing of the game needs devnet so far.
+**Toolchain** (history, 2026-10-02): `scripts/setup-toolchain.sh` failed its `starknet-devnet` check on the VPS; fixed by FND-14 (devnet found through asdf).
 **S1's running estimate**: unchanged (≈ 663 M); none of these lots moves it: ENG-R1a's +0.4 % to +3.8 % a call is on entrypoints S1 prices only
 once an expedition, ENG-02 and CBT-04 add per-tick lines (ENG-01 §9.2) that S1 does not count, and SPK-15 says S1 should be judged on a
 representative fight tick nobody has measured. The worst tick's levers are in SPK-15's report (6.26 M to 4.74 M with the engineering levers).
@@ -57,10 +64,7 @@ service), FND-09 (`with-node.sh` on macOS) all done; the tick's cost and the sto
 | CBT-02f (D-169) | `enter` checks the flattening epoch: +40,000, once an expedition | +0.04 M |
 | **Now** | | **≈ 663 M ≈ $0.584** (E), before ENG-07 measures a tick inside a batch (CB-2, R-2) |
 
-**The worst tick against S1** (D-171): S1 above prices ENG-01's per-tick estimate. The worst tick inside a
-batch now measures **≈ 6,510,212** (CBT-02d's 3,447,872 + CBT-04's 2,368,590 + CBT-03a's 693,750),
-**4.43×** the 1,469,435 an average tick may cost; the representative tick, before the rules' writes,
-1,065,651. SPK-15 measures the levers, each with its gain on the worst tick and on S1.
+**The worst tick against S1** (D-171, replaced 2026-10-03): the worst tick **measured** is **45,999,941** (CBT-05a, a one-tick batch, D-207), **4,090,351** a goblin carrier through the class; the 1,469,435 an average tick may cost is what S1's $0.50 needs. The figures before the executor (≈ 6,510,212, 4.43×; 6.47 M, 4.4×; the representative tick before the rules' writes, 1,065,651) and 26,422,703 (17.98×) are history. SPK-15 measured the levers; D-207's levers (1) and (3) are in. ENG-07 derives the batch weight from the measured worst tick and re-measures the representative fight with 1-tick weapons first (a 10-tick batch of melee ticks near 369 M estimated reopens D-207 and R-2).
 
 **A tick against its budget** (1,469,435 L2 gas on average, what S1 needs for $0.50): the map library's
 part of a worst tick is **1.06–1.11 M** (window, flood at 15 layers, 8 walkers; LIB-05 M1-T9b), which
@@ -77,6 +81,10 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 
 | | |
 |---|---|
+| **CBT-05a** | [#334](https://github.com/bal7hazar/grimworld/pull/334): the executor in `ExecutorLibrary`; `ITickLibrary::run` gains the class hash and the board; D-179 (asleep no longer evades); worst tick measured 45,999,941, 4,090,351 a goblin carrier |
+| **ENG-R1b part 1** | [#320](https://github.com/bal7hazar/grimworld/pull/320): `Instances` and `Market` through a store; typed slots (also `Hub`'s accounts, account_adventurers, packs); `create_adventurer` +0.12 %, `delete_adventurer` +0.26 % |
+| **VEC-01** | [#294](https://github.com/bal7hazar/grimworld/pull/294): `fate.jsonl` (218) and `packing.jsonl` (520) in `check.py` |
+| **FND-11 to FND-21** | Scarb 2.20.1; class artefacts; prepush and the hook; heavy lock; CI by changed paths; `hexx` rc.2; tests under 8 GB (`--max-threads 2`); the prepush diff base. No game result changed |
 | **CBT-03a** | [#229](https://github.com/bal7hazar/grimworld/pull/229): `HitTrait::resolve`, one hit in 46,460; `hit.jsonl` (200 cases) in `check.py`; worst tick ≤ 5,464,542 with CBT-04 |
 | **ENG-02** | [#246](https://github.com/bal7hazar/grimworld/pull/246): the geometry on `hexx` rc.1 (`types::window`); `window.jsonl`, `check.py` in CI |
 | **CBT-04** | [#228](https://github.com/bal7hazar/grimworld/pull/228): the five conditions as tested rules; a cure on a dead goblin does nothing |
@@ -99,6 +107,9 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 
 | Lot (PR) | Built by | Now | Gate (D-177) |
 |---|---|---|---|
+| CBT-05a the executor ([#334](https://github.com/bal7hazar/grimworld/pull/334)) | Opus 5.5 | merged 2026-10-03 (`f50c1fc`) | done (review and cost audit, D-207) |
+| ENG-05 chunk reveal ([#348](https://github.com/bal7hazar/grimworld/pull/348)) | Opus 5.5 | in its fix loop (2026-10-03) | the delta review and a randomness re-audit (Opus), the project manager's gate |
+| ENG-R1b part 1 ([#320](https://github.com/bal7hazar/grimworld/pull/320)) | Opus 5.5 | merged 2026-10-03 (`6887010`); part 2 (`Registry`) running | done |
 | ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | merged 2026-10-02 (`d3ad22d`); the owner's reading pending | done |
 | CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | merged 2026-10-02 (`3b27b9f`) | done |
 | ENG-02 geometry on `hexx` rc.1 ([#246](https://github.com/bal7hazar/grimworld/pull/246)) | Opus 5.5 | merged 2026-10-02 (`04e12d6`) | done |
@@ -116,7 +127,7 @@ Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, 
 
 ## Next
 
-CBT-05a (the executor) in progress, then FND-11 (Scarb 2.20.1, the pin kept). The owner's reading of ENG-R1a (D-167) before ENG-R1b is briefed. ENG-05 when `hexx` rc.2 lands; ENG-07 after ENG-05.
+ENG-05 ([#348](https://github.com/bal7hazar/grimworld/pull/348)) in its fix loop and re-audit; CBT-05b (the action's costs and traps) and ENG-07 after it merges; ENG-R1b part 2 (`Registry`) running; ENG-R1c after ENG-07. The owner's reading of ENG-R1a (D-167) is done.
 
 ## Decisions needed
 
