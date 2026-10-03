@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { Button, IconButton, Panel, Ribbon, Text } from "../../chrome/Chrome";
+import { Button, IconButton, Panel, Portrait, Ribbon, Text } from "../../chrome/Chrome";
 import type { LoopIntent, ServiceId } from "../../input/intent";
 import { targetLabel } from "../../render/hubView";
 import { ADVENTURER, REPORT_FIGURES, type AdventurerSheet } from "../fixtures/hubs";
 import { keyUi, useKeyLayer, useScreenFocus } from "../keyScope";
+import { portraitLabel } from "./hud";
 import { gatesFrom, hubName, locationName } from "./machine";
 import { ui } from "./styles";
 
@@ -94,10 +95,24 @@ export function ServiceScreen({
   );
 }
 
-/** The build and the belt, as the Gate screen and the desktop's left panel show them. */
-export function SheetSummary({ sheet = ADVENTURER }: { sheet?: AdventurerSheet }) {
+/**
+ * The build and the belt, as the Gate screen and the desktop's left panel show them; the desktop's
+ * with the adventurer's portrait at the top (`portrait`, 96 CSS px, CLI-03l).
+ */
+export function SheetSummary({
+  sheet = ADVENTURER,
+  portrait = false,
+}: {
+  sheet?: AdventurerSheet;
+  portrait?: boolean;
+}) {
   return (
     <>
+      {portrait && (
+        <div style={{ ...ui.section, display: "flex", justifyContent: "center" }}>
+          <Portrait profession={sheet.profession} size={96} label={portraitLabel(sheet)} />
+        </div>
+      )}
       <div style={ui.section}>
         <Text tone="caption" plain={ui.label}>
           Adventurer
