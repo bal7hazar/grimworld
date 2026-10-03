@@ -32,7 +32,8 @@ export function Sandbox() {
 
 /** What a screen's key handler gets of the map (CLI-03k). */
 export interface MapKeys {
-  readonly controller: SandboxController;
+  /** Null while the renderer is still mounting: the screen's own keys work already. */
+  readonly controller: SandboxController | null;
   /** The walk as last reported, or null before the first report. */
   readonly walk: WalkInfo | null;
   /** The map's own answer: a step, the zoom, ◎, or Esc on a planned walk. True when handled. */
@@ -40,7 +41,8 @@ export interface MapKeys {
 }
 
 /** The map's own keys: each one the tap or button it stands for. */
-function mapKey(command: KeyCommand, controller: SandboxController, walk: WalkInfo | null) {
+function mapKey(command: KeyCommand, controller: SandboxController | null, walk: WalkInfo | null) {
+  if (!controller) return false;
   switch (command.kind) {
     case "step":
       controller.step(command);
@@ -116,7 +118,7 @@ export function RoomSandbox({
   useEffect(() => (world ? undefined : installKeys()), []);
 
   useKeyLayer(hub ? "hub" : "instance", (command) => {
-    if (!command || !controller) return false;
+    if (!command) return false;
     const map: MapKeys = {
       controller,
       walk: lastWalk.current,

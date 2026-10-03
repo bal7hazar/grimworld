@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { IconButton, Panel, Text } from "../../chrome/Chrome";
 import { BINDINGS, type KeyScreen, bindingsOf } from "../../input/keys";
 import type { Facing } from "../../render/view";
@@ -68,12 +68,14 @@ function Ring() {
  */
 export function KeyHelp({ screen, onClose }: { screen: KeyScreen; onClose: () => void }) {
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
-  useEffect(
-    () => () => {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // The ✕ takes the focus (again after a remount: the cleanup gives it back).
+    box.current?.querySelector("button")?.focus();
+    return () => {
       if (opener?.isConnected) opener.focus({ preventScroll: true });
-    },
-    [opener],
-  );
+    };
+  }, [opener]);
   // `?` is toggled by the loop before this layer; `Esc` closes; the screen's keys are inert.
   useKeyLayer(screen, (command) => {
     if (command?.kind !== "escape") return false;
@@ -83,7 +85,7 @@ export function KeyHelp({ screen, onClose }: { screen: KeyScreen; onClose: () =>
   const rows = bindingsOf(screen);
   const map = screen === "hub" || screen === "instance";
   return (
-    <div style={styles.scrim}>
+    <div ref={box} style={styles.scrim}>
       <Panel
         variant="scroll"
         plain={{ ...ui.card, ...styles.plain }}
@@ -102,7 +104,6 @@ export function KeyHelp({ screen, onClose }: { screen: KeyScreen; onClose: () =>
             plain={{ ...ui.button, ...ui.quiet }}
             plainText="✕"
             onClick={onClose}
-            autoFocus
           />
         </div>
         {map && <Ring />}

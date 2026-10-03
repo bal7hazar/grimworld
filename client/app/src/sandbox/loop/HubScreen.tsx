@@ -121,13 +121,13 @@ export function HubScreen({
         const next = nextTarget(targets.length, selected, command.by);
         setSelected(next);
         const target = next === null ? null : targets[next];
-        if (target && offScreen(map.controller, target.at, mapBox.current)) {
+        if (target && map.controller && offScreen(map.controller, target.at, mapBox.current)) {
           map.controller.lookAt(target.at);
         }
         return true;
       }
       case "go":
-        if (!chosen) return false;
+        if (!chosen || !map.controller) return false;
         map.controller.apply(goIntent(chosen.at));
         return true;
       case "service": {
@@ -182,6 +182,7 @@ export function HubScreen({
               style={styles.labelPlace}
               className={chosen?.id === p.id ? "gw-key-selected" : undefined}
               data-label={p.label}
+              data-door={`${p.at.x},${p.at.y}`}
               data-selected={chosen?.id === p.id ? "" : undefined}
             >
               {p.label}

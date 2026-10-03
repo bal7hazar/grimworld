@@ -82,13 +82,13 @@ export function InstanceScreen({
         const next = nextTarget(targets.length, selected, command.by);
         setSelected(next);
         const target = next === null ? null : targets[next];
-        if (target && offScreen(map.controller, target.tile, root.current)) {
+        if (target && map.controller && offScreen(map.controller, target.tile, root.current)) {
           map.controller.lookAt(target.tile);
         }
         return true;
       }
       case "go":
-        if (!chosen) return false;
+        if (!chosen || !map.controller) return false;
         map.controller.apply(goIntent(chosen.tile));
         return true;
       case "leave": {
@@ -191,13 +191,14 @@ function Confirm({
   const box = useRef<HTMLDivElement>(null);
   // Read on the first render, before Stay takes the focus.
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Stay, the first button, takes the focus (again after a remount: the cleanup gives it back).
+    box.current?.querySelector("button")?.focus();
+    return () => {
       if (opener?.isConnected && !(opener as HTMLButtonElement).disabled) opener.focus();
       else (document.querySelector('[data-screen="instance"]') as HTMLElement | null)?.focus();
-    },
-    [opener],
-  );
+    };
+  }, [opener]);
   useKeyLayer("instance", (command: KeyCommand | null, event: KeyLike) => {
     if (command?.kind === "escape") {
       stay();
@@ -219,7 +220,7 @@ function Confirm({
           {leaveQuestion(asking.kind === "leave" ? asking.gate : null)}
         </p>
         <div style={{ ...ui.row, flexWrap: "wrap" }}>
-          <Button variant="quiet" plain={{ ...ui.button, ...ui.quiet }} onClick={stay} autoFocus>
+          <Button variant="quiet" plain={{ ...ui.button, ...ui.quiet }} onClick={stay}>
             Stay
           </Button>
           <Button variant="commit" plain={{ ...ui.button, ...ui.primary }} onClick={confirm}>
