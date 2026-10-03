@@ -1007,7 +1007,8 @@ export class Renderer implements FrameClient {
   }
 
   private bakeTerrain(): void {
-    for (const chunk of [...this.chunks.values(), ...this.voidFoamBakes.values()]) {
+    // The void's foam first: the last bake reported (`bakeMs`) is a chunk's when both bake.
+    for (const chunk of [...this.voidFoamBakes.values(), ...this.chunks.values()]) {
       const resolution = this.bakeResolution(chunk.frame);
       if (!chunk.dirty && resolution === chunk.resolution) continue;
       const old = chunk.sprite.texture;
