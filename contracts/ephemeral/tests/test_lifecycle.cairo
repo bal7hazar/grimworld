@@ -22,7 +22,7 @@ use grimworld_ephemeral::systems::instances::{
     IInstancesSafeDispatcherTrait, InstanceView,
 };
 use grimworld_logic::content::{GATE, LOCATION, OUTLINE, PACK, QUOTAS, REGION, SPAWN_TABLE};
-use grimworld_logic::fate::{ENTRY, derive, domain};
+use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
 use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
@@ -37,6 +37,7 @@ use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
+use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
 use grimworld_logic::types::reveal::{ProgressTrait, RevealTrait, Site};
 use grimworld_logic::types::{ChunkKind, Outcome, Refusal, instance_id};
 use snforge_std::{
@@ -1279,7 +1280,7 @@ fn template() -> Pack {
 // reads it as `RevealTrait` expects); the header counts 2; no `ChunkRevealed` (ENG-01 §5, Open
 // question 6); `instance_region` tells void, not yet revealed and revealed apart.
 #[test]
-#[available_gas(l2_gas: 53947325)] // ceil(1.05 × 51378404 measured)
+#[available_gas(l2_gas: 58136802)] // ceil(1.05 × 55368382 measured)
 fn test_entry_reveal_through_the_engine() {
     let world = setup();
     let mask = zone_content(world);
@@ -1287,8 +1288,8 @@ fn test_entry_reveal_through_the_engine() {
     start_cheat_caller_address(world.instances, world.hub);
     let id = IInstanceEntryDispatcher { contract_address: world.instances }
         .create(HERO, addr(ALICE), FLOOR_TO_ZONE, snapshot().words(), tasks(3));
-    // The engine on the same content.
-    let site = Site {
+    // The engine on the same content, the zone's hosts above the masks (D-208).
+    let mut site = Site {
         target: 0,
         biome: 1,
         level_min: 1,
@@ -1306,9 +1307,28 @@ fn test_entry_reveal_through_the_engine() {
         pieces: array![].span(),
     };
     let draw = domain(id.into(), 0, ENTRY);
-    let mut progress = ProgressTrait::new(
-        @site, derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0),
+    let entropy = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
+    let mut progress = ProgressTrait::new(@site, entropy);
+    let hosts = QuotaPlacementTrait::hosts(
+        @site, progress.left.span(), EntropyTrait::hosts(entropy, id.into()),
     );
+    site
+        .masks =
+            array![
+                (16, QuotaPlacementTrait::with_hosts(mask, hosts.span(), 16)),
+                (15, QuotaPlacementTrait::with_hosts(0, hosts.span(), 15)),
+            ]
+        .span();
+    let mut quota: felt252 = 0;
+    let mut stored: u8 = 0;
+    for host in hosts.span() {
+        assert(read(world.instances, key(selector!("hosts"), array![1, quota])) == *host, 'hosts');
+        if *host != 0 {
+            stored += 1;
+        }
+        quota += 1;
+    }
+    assert(stored != 0, 'a quota hosted');
     let revealed = RevealTrait::reveal(
         @site, ref progress, id.into(), array![].span(), array![16, 15].span(),
     );

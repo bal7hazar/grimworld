@@ -219,7 +219,7 @@ pub mod Instances {
     use grimworld_logic::content::{
         GATE, LOCATION, OUTLINE, PACK, QUOTAS, SET_PIECE, SPAWN_TABLE, exists,
     };
-    use grimworld_logic::fate::{ENTRY, derive, domain};
+    use grimworld_logic::fate::{ENTRY, EntropyTrait, derive, domain};
     use grimworld_logic::interface::{
         IFateDispatcher, IFateDispatcherTrait, IInstanceEntry, IRegistryReadDispatcher,
         IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait,
@@ -235,6 +235,7 @@ pub mod Instances {
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::reveal::board::BoardTrait;
+    use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
     use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
         ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
@@ -297,6 +298,10 @@ pub mod Instances {
         pub chunks: Map<(u32, u8), Chunk>,
         /// `(slot, entity)`: two consecutive slots each.
         pub goblins: Map<(u32, u16), Goblin>,
+        /// `(slot, quota)`: a zone's quota hosts, a chunk bitmap per quota with a count, drawn once
+        /// at the generation's start (D-208, ENG-05); never read in a dungeon, stale beyond the
+        /// current generation's quotas.
+        pub hosts: Map<(u32, u8), felt252>,
     }
 
     #[event]
@@ -786,7 +791,21 @@ pub mod Instances {
                     tasks,
                     chunks.span(),
                 );
-            let progress = ProgressTrait::new(@site, derive(word, draw, 0));
+            let entropy = derive(word, draw, 0);
+            // A zone's quota hosts, drawn once (D-208), carried above each chunk's mask
+            let progress = ProgressTrait::new(@site, entropy);
+            let mut site = site;
+            let mut hosts: Span<felt252> = array![].span();
+            if *location.target == 0 {
+                let seed = EntropyTrait::hosts(entropy, id.into());
+                hosts = QuotaPlacementTrait::hosts(@site, progress.left.span(), seed).span();
+                let mut masks: Array<(u8, felt252)> = array![];
+                for entry in site.masks {
+                    let (chunk, mask) = *entry;
+                    masks.append((chunk, QuotaPlacementTrait::with_hosts(mask, hosts, chunk)));
+                }
+                site.masks = masks.span();
+            }
             let (progress, revealed) = IRevealLibraryLibraryDispatcher {
                 class_hash: self.get_reveal(),
             }
@@ -808,6 +827,13 @@ pub mod Instances {
             for chunk in revealed {
                 let (index, terrain, features) = *chunk;
                 self.set_chunk(slot, index, terrain, features);
+            }
+            let mut quota: u8 = 0;
+            for mask in hosts {
+                if *mask != 0 {
+                    self.set_hosts(slot, quota, *mask);
+                }
+                quota += 1;
             }
             self
                 .set_entering(

@@ -74,6 +74,14 @@ pub impl EntropyImpl of EntropyTrait {
     fn word(entropy: felt252, instance_id: felt252, chunk: u8) -> felt252 {
         derive(entropy, domain(instance_id, chunk.into(), REVEAL), 0)
     }
+
+    /// The seed of a zone's quota hosts (D-208, `PlacementTrait::hosts`), drawn once at `create`:
+    /// `derive(entropy, domain(instance_id, 225, REVEAL), 0)`, the word of chunk 225, which no
+    /// chunk has (chunks are 0–224).
+    #[inline]
+    fn hosts(entropy: felt252, instance_id: felt252) -> felt252 {
+        Self::word(entropy, instance_id, 225)
+    }
 }
 
 /// The vector table for the TypeScript mirror (VEC-01) is printed by `tests::test_vectors` and kept

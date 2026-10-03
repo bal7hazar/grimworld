@@ -2,15 +2,21 @@
 //! drawn order-free, forced at the end, the band of a chunk, then the packs and the objects in the
 //! `Features` word.
 //!
-//! - **Quotas** (`due`): each quota with a count draws `u = draw(total)` from the chunk's own word
-//!   (`total`: `N`, or the zone's chunk set), whatever was revealed before, and is due here when
-//!   `u < count` and something is left (probability `count / total`, **order-free**: the same
-//!   chunk draws the same `u` in any order of moves, audit #348, major 1). It is **forced** when
-//!   what is left reaches the chunks left (`left ≥ chunks left`), so **the last chunks hold what
-//!   is still owed**, and never placed with nothing left, so the count stays exact. At most one of
-//!   each quota a chunk. "Chunks left" counts this chunk: `N − revealed` in a dungeon, the chunk
-//!   set's count less the revealed in a zone. What stays order-dependent: the forced window (at
-//!   most the last `count` chunks of a quota) and, in a dungeon, which chunk is the `N`-th.
+//! - **Quotas** (`due`). In a zone (D-208, the project manager, 2026-10-03), each quota's host
+//!   chunks are drawn once at `create` (`hosts`): `count` chunks of the zone, a uniform draw
+//!   without replacement from the instance's entropy, one bitmap per quota; a chunk holds the
+//!   quota when it is one of its hosts. Order-free: no move chooses where a zone's quota lands. In
+//!   a dungeon, whose chunks are not known before they are revealed, each quota with a count draws
+//!   `u = draw(N)` from the chunk's own word and is due when `u < count` and something is left.
+//!   Both are **forced** when what is left reaches the chunks left (`left ≥ chunks left`), so the
+//!   last chunks hold what is still owed (in a zone only after a placement found no room), and
+//!   never placed with nothing left, so the count stays exact. At most one of each quota a chunk.
+//!   "Chunks left" counts this chunk: `N − revealed` in a dungeon, the chunk set's count less the
+//!   revealed in a zone. **A dungeon's quotas stay order-dependent** (D-208, accepted as the
+//!   dungeon's nature): its outline emerges from the order of the moves, so the forced window (at
+//!   most the last `count` chunks), a quota whose draws hit more chunks than its count (the first
+//!   revealed take it) and the `N`-th chunk follow that order; an exit's position with them. A
+//!   Heart's pack takes the band's top level wherever it lands, so that no order lowers the boss.
 //! - **Bands** (`level`): `level_min + (level_max − level_min) × min(d, D) / D`, `d` the chunk's
 //!   distance in chunks to the entry chunk (`|dcx| + |dcy|`), `D` the farthest a chunk can be (a
 //!   zone: `width + height − 2`; a dungeon: `N − 1`); a pack adds its template's offset, held
@@ -27,6 +33,7 @@
 //!   Every draw of a roll is made whether it can be placed or not, so that one roll never moves
 //!   another.
 
+use core::poseidon::poseidon_hash_span;
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
 use crate::content::CRITERION_REACH_LANDMARK;
@@ -37,7 +44,7 @@ use crate::models::quotas::kind as quota;
 use crate::models::set_piece::SetPiece;
 use crate::models::spawn_table::SpawnTableTrait;
 use crate::types::{MAX_OBJECTS_PER_CHUNK, MAX_PACKS_PER_CHUNK};
-use super::board::BoardTrait;
+use super::board::{BOARD, BoardTrait};
 use super::{Progress, Site, SiteTrait};
 
 /// Quotas of an instance: the location's 6, then 8 for the snapshotted tasks (ENG-01 §3.2).
@@ -108,8 +115,10 @@ pub impl PlacementImpl of PlacementTrait {
     }
 
     /// Bit `i` set: quota `i` is due in this chunk (module doc), with `progress.count` chunks
-    /// revealed before it. A draw for every quota with a count, so that no draw moves another.
-    fn due(site: @Site, progress: @Progress, ref rng: Rng) -> u16 {
+    /// revealed before it; `mask`, the chunk's mask word, in a zone the quotas it hosts above the
+    /// board (bit `225 + i`, D-208). A draw for every quota with a count, so that no draw moves
+    /// another.
+    fn due(site: @Site, progress: @Progress, mask: felt252, ref rng: Rng) -> u16 {
         let total = site.total();
         let revealed = *progress.count;
         let chunks: u8 = if total > revealed {
@@ -140,9 +149,11 @@ pub impl PlacementImpl of PlacementTrait {
                 0
             });
         }
+        let emerging = site.emerging();
         let mut lefts = progress.left.span();
         let mut due: u16 = 0;
         let mut bit: u16 = 1;
+        let mut host: u8 = 225;
         for count in counts {
             let left = match lefts.pop_front() {
                 Option::Some(left) => *left,
@@ -150,13 +161,83 @@ pub impl PlacementImpl of PlacementTrait {
             };
             if count != 0 {
                 let u = rng.draw(bound);
-                if left != 0 && (u < count.into() || left >= chunks) {
+                let hit = if emerging {
+                    u < count.into()
+                } else {
+                    BoardTrait::has(mask, host)
+                };
+                if left != 0 && (hit || left >= chunks) {
                     due += bit;
                 }
             }
             bit *= 2;
+            host += 1;
         }
         due
+    }
+
+    /// A zone's quota hosts (D-208, module doc): for each quota's `count` (`start`'s, which a new
+    /// `Progress` holds as `left`), `count` chunks of the zone (its chunk set, or its whole
+    /// rectangle) drawn without replacement from `seed` (`EntropyTrait::hosts`) as a bitmap: try
+    /// `t` reads `poseidon(seed, t)` as a row and a column of the rectangle, kept if the chunk is
+    /// in the zone and not drawn yet, up to `16 + 4 count` tries (uniform over the zone; a quota
+    /// above the zone's size keeps fewer hosts, and the forced rule places what stays owed).
+    /// Computed once at `create`, by `Instances`.
+    fn hosts(site: @Site, counts: Span<u8>, seed: felt252) -> Array<felt252> {
+        let set = *site.chunk_set;
+        let width: u128 = (*site.width).into();
+        let height: u128 = (*site.height).into();
+        let width: NonZero<u128> = width.try_into().unwrap();
+        let height: NonZero<u128> = height.try_into().unwrap();
+        let mut t: felt252 = 0;
+        let mut out: Array<felt252> = array![];
+        for count in counts {
+            let mut mask: felt252 = 0;
+            let mut k: u8 = 0;
+            let mut tries: u16 = 16 + 4 * (*count).into();
+            while k != *count && tries != 0 {
+                let word: u256 = poseidon_hash_span([seed, t].span()).into();
+                let (rest, cy) = DivRem::div_rem(word.low, height);
+                let (_, cx) = DivRem::div_rem(rest, width);
+                let cy: u8 = cy.try_into().unwrap();
+                let cx: u8 = cx.try_into().unwrap();
+                let chunk = 15 * cy + cx;
+                if (set == 0 || BoardTrait::has(set, chunk)) && !BoardTrait::has(mask, chunk) {
+                    // `2^chunk` as `2^cx · 2^(15 cy)`: short loops, no power table (D-200)
+                    let mut bit: felt252 = 1;
+                    for _ in 0..cx {
+                        bit *= 2;
+                    }
+                    for _ in 0..cy {
+                        bit *= 0x8000;
+                    }
+                    mask += bit;
+                    k += 1;
+                }
+                t += 1;
+                tries -= 1;
+            }
+            out.append(mask);
+        }
+        out
+    }
+
+    /// `mask`, a zone chunk's tile mask (0 for the whole board), with the quotas `chunk` hosts
+    /// above the board (bit `225 + i` for quota `i`, D-208): what `Site.masks` carries for it.
+    fn with_hosts(mask: felt252, hosts: Span<felt252>, chunk: u8) -> felt252 {
+        let mut word = if mask == 0 {
+            BOARD
+        } else {
+            BoardTrait::and(mask, BOARD)
+        };
+        let mut bit: felt252 = 0x200000000000000000000000000000000000000000000000000000000;
+        for host in hosts {
+            if *host != 0 && BoardTrait::has(*host, chunk) {
+                word += bit;
+            }
+            bit *= 2;
+        }
+        word
     }
 
     /// `left` less one for each quota placed (`placed`).
@@ -422,7 +503,12 @@ pub impl PlacementImpl of PlacementTrait {
                 } else if kind == quota::LANDMARK {
                     placement.object(ref rng, object::LANDMARK, param)
                 } else if kind == quota::HEART {
-                    placement.pack(ref rng, site, param, Option::None)
+                    // The band's top wherever the Heart lands (D-208): no order lowers the boss
+                    let band = placement.level;
+                    placement.level = *site.level_max;
+                    let done = placement.pack(ref rng, site, param, Option::None);
+                    placement.level = band;
+                    done
                 } else {
                     // A set piece is laid before the terrain (`RevealTrait`), or stays owed.
                     false

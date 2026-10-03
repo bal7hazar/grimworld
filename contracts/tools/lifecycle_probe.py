@@ -65,7 +65,10 @@ follows the transaction hash. ENG-05 adds the entry reveal's values, which follo
 each revealed chunk's terrain word (found by `instance_region`) and a dungeon's quotas word (its
 open edges are drawn), recorded by key alone; a chunk's features word, in the slot after its
 terrain, is left out of the stream: it is written only when the draw places something, so even its
-key depends on the draw (#348's delta review: the stream must not change between two runs).
+key depends on the draw (#348's delta review: the stream must not change between two runs). A
+zone's quota hosts (D-208), `Instances`' `hosts` entries `(slot, quota)` written at the entry, are
+drawn too: their keys are computed by starknet.js (the client's dependency, through Node, which
+`scripts/with-node.sh` provides) and their values recorded as `"draw"`.
 `RevealLibrary` is declared before `Hub`'s deployment, and its class hash given to `Instances`'
 constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
 recorded on `main`'s code before
@@ -100,7 +103,7 @@ LOGS = os.environ.get("WITH_NODE_LOG_DIR", os.path.join(os.getcwd(), ".with-node
 ACCOUNTS = os.path.join(LOGS, "accounts-eng06.json")
 
 LIVE = 1 << 250
-REGION, LOCATION, GATE, ITEM = 1, 2, 4, 11
+REGION, LOCATION, GATE, QUOTAS, ITEM = 1, 2, 4, 5, 11
 HUB_GATE, LINK, FLOOR = 1, 2, 3
 INGREDIENT, POTION = 1, 3
 
@@ -272,6 +275,23 @@ def entropy_of(instance_id):
     return view("instance_state", instance_id)[2]
 
 
+HOSTS_KEYS = {}
+
+
+def hosts_keys(slot):
+    """ENG-05 (D-208): the storage keys of `Instances`' `hosts` entries of `slot`, quotas 0-13: the
+    Pedersen chain of the map's name and the key's parts, as a storage address."""
+    if slot not in HOSTS_KEYS:
+        script = ("const {hash}=require('starknet');const b=hash.starknetKeccak('hosts');"
+                  f"for(let i=0;i<14;i++)console.log(hash.computePedersenHash("
+                  f"hash.computePedersenHash(b,{slot}),i));")
+        node_path = os.path.join(os.path.dirname(CONTRACTS), "client", "app", "node_modules")
+        out = subprocess.run(["node", "-e", script], env={**os.environ, "NODE_PATH": node_path},
+                             capture_output=True, text=True, check=True).stdout
+        HOSTS_KEYS[slot] = [int(line, 16) % (2 ** 251 - 256) for line in out.split()]
+    return HOSTS_KEYS[slot]
+
+
 def drawn_words(instance_id):
     """ENG-05: the stored values the entry reveal draws, beside the entropy: each revealed chunk's
     terrain word (`instance_region`'s, one chunk a call; its `features` word is the next slot) and,
@@ -296,6 +316,8 @@ def streamed_r1b(label, function, receipt, diff):
             entered_id = int(event["keys"][1], 16)
             entropy = entropy_of(entered_id)
             terrains, quotas = drawn_words(entered_id)
+            for key in hosts_keys(entered_id >> 32):
+                DRAWN.add((int(instances, 16), key))
             for entry in diff:
                 if int(entry["address"], 16) == int(instances, 16):
                     for s in entry["storage_entries"]:
@@ -401,6 +423,10 @@ records = [(REGION, 1, region(1, 0, 1, "Test Region")),
            (GATE, 4, gate(3, 2, (112, 112), (16, 110), LINK)),
            (GATE, 5, gate(3, 4, (0, 0), (112, 112), FLOOR)),
            (GATE, 6, gate(2, 3, (0, 105), (112, 112), LINK))]
+# ENG-05 (D-208): with `--quotas on`, the zone's `QUOTAS` of the seed (a collector, id 1, once), so
+# that `create` draws and writes a host; a measure, not the recorded streams (which run without).
+if OPTIONS.get("--quotas") == "on":
+    records.append((QUOTAS, 2, [LIVE + 4 + 1 * 2 ** 8 + 1 * 2 ** 24]))
 # Items 1 to 22 (sequential ids): potions 1, 8, 15, 22, one per pack page; the others ingredients.
 records += [(ITEM, i, item(POTION if i in POTIONS else INGREDIENT)) for i in range(1, 23)]
 for kind, rid, parts in records:

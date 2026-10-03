@@ -208,7 +208,10 @@ known, chunks) -> (progress, chunks revealed)` (`grimworld_logic::interface`), r
 (the location, its `QUOTAS`, `SPAWN_TABLE`, the `PACK`s and `SET_PIECE`s they name, a zone's chunk
 set and tile masks, the anchors, the snapshot's first 8 tasks), the instance's `Progress` (revealed
 set and count, open edges, quotas left, entropy), the terrain of the revealed neighbours, and the
-chunks to reveal with the side each is entered from. It returns the progress after them and each
+chunks to reveal. A zone chunk's mask word carries above its 225 tiles the quotas it hosts (bit
+`225 + i` for quota `i`, D-208): `Instances` draws a zone's hosts once (`PlacementTrait::hosts`),
+keeps them (`hosts`, §3.2) and sets those bits (`PlacementTrait::with_hosts`) on every mask it
+passes. It returns the progress after them and each
 chunk's two words packed as stored, which `Instances` writes as they are. `Instances` holds the
 class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as `Hub` holds
 `flatten`: an administrator's argument, no event) and calls it through
@@ -258,6 +261,7 @@ slot is reached only through a gate that `create` or a reveal rewrites.
 |---|---|---|
 | `headers[slot]` | the instance id: `header.generation` must equal the id's generation, else the call is refused (`Closed`) and views answer nothing | `create` (generation + 1, sequence 0, clock 0, counts reset) |
 | `entropy`, `revealed`, `quotas` | the header | `create` (entry draw; the chunks sight touches from the entry tile, ENG-05; the location's quotas less what the entry reveal placed) |
+| `hosts[(slot, quota)]` | the header's location (a zone) and its quotas with a count | `create` in a zone (D-208): every quota with a count, its hosts drawn once |
 | `tasks[(slot, page)]` | `header.tasks` (pages beyond `⌈tasks / 4⌉` are never read) | `create`, only the pages it needs: a page never used before is new then (§9.3) |
 | `members[(slot, m)]` | `header.members` (members beyond the count are never read) | `create`, all eight words; **every generation-changing path** (`create`, and `leave` through a gate to a location) writes every transient word for the new clock 0: state from the snapshot, timers with no activation (`act_slot` 255, deadlines 0), effects and recharges empty (fix loops 2 and 3, F-12, F-14) |
 | `roster[(slot, page)]` | `header.roster_count`: a compact list (removal moves the last entry into the hole). **Masked, not rewritten** (F-13): every read of a page, internal or in a view, zeroes the lanes of entries at or beyond the count (`RosterTrait::mask`), and no raw page is returned | nothing at `create`: the count is reset to 0 there, so stale lanes are masked without a write |
@@ -402,6 +406,7 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | `roster` | (slot, page 0–3) | 1 each | `Lanes16`: entity ids of goblins displaced from their spawn, alive or dead and not looted; a compact list of `header.roster_count` entries | a goblin is displaced, is looted or goes home |
 | `chunks` | (slot, chunk 0–224) | **2** each | `Chunk { terrain, features }` | reveal (both); a pack wakes or an object is used (`features`) |
 | `goblins` | (slot, entity) | **2** each | `Goblin { state, timers }` | a goblin leaves its first state, acts, dies, is looted |
+| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon | `create` and `leave` to a zone |
 
 **`Placement`** (1 felt): slot 0–31 · generation 32–63 · member 64–71 · inside 72–79 · `LIVE`.
 
@@ -1771,15 +1776,15 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 | Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
 | `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,702,400–6,782,400** | `lifecycle_probe.py`, six runs |
-| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,172,400–13,252,400** | idem |
-| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,462,400–7,582,400** | idem |
-| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,556,640–8,196,640** | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,680,640–11,080,640** | idem |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **7,142,400–7,262,400** | `lifecycle_probe.py`, two runs at the final code (D-208) |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,572,400–13,732,400**; with the zone's collector quota (`--quotas on`, its host drawn and written) **14,094,400** | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,942,400–8,062,400** | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,156,640–8,236,640** | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **11,080,640–11,120,640** | idem |
 
 The node's figures follow the entry draw, which follows the transaction hash: the same code gives
 another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
-`leave` to a dungeon floor). Each is the range over six runs of the same code.
+`leave` to a dungeon floor). D-208's zone hosts add about 400,000 to a zone's `enter` with no quota, and a host's new slot (453,524) and its quota's placement with one; every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M

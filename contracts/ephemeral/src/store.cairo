@@ -187,6 +187,17 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.quotas.entry(slot).write(StoredTrait::new(quotas))
     }
 
+    /// A zone's host chunks of `quota` (D-208).
+    #[inline(always)]
+    fn get_hosts(self: @InstancesState, slot: u32, quota: u8) -> felt252 {
+        self.hosts.entry((slot, quota)).read()
+    }
+
+    #[inline(always)]
+    fn set_hosts(ref self: InstancesState, slot: u32, quota: u8, hosts: felt252) {
+        self.hosts.entry((slot, quota)).write(hosts)
+    }
+
     /// The first `pages` task pages as stored, in order: the view's. Bound: 4 pages (`MAX_TASKS`).
     fn get_task_words(self: @InstancesState, slot: u32, pages: u8) -> Span<felt252> {
         let mut words: Array<felt252> = array![];
@@ -352,7 +363,8 @@ mod layout_tests {
 
     // Every map is named and keyed as documented: slot first (M-1), adventurer only for placements.
     #[test]
-    #[available_gas(l2_gas: 185126)] // ceil(1.05 × 176310 measured)
+    // gas: raised, ENG-05: D-208, a zone's quota hosts (drawn at entry, carried above the masks)
+    #[available_gas(l2_gas: 206115)] // ceil(1.05 × 196300 measured)
     fn test_instances_storage_addresses() {
         let state = @Instances::contract_state_for_testing();
         assert(
@@ -378,6 +390,12 @@ mod layout_tests {
                 state.revealed.entry(7).as_ptr().__storage_pointer_address__,
             ) == map_entry_address(selector!("revealed"), array![7].span()),
             'revealed',
+        );
+        assert(
+            address_of(
+                state.hosts.entry((7, 3)).as_ptr().__storage_pointer_address__,
+            ) == map_entry_address(selector!("hosts"), array![7, 3].span()),
+            'hosts',
         );
         assert(
             address_of(
