@@ -30,7 +30,7 @@ describe("parity with the Cairo code", () => {
 
   it("covers every fn of fate.jsonl with its count", () => {
     const counts = replay(table("fate.jsonl"), readTable("fate.jsonl"));
-    expect(Object.fromEntries(counts)).toEqual({ purpose: 8, domain: 120, derive: 90 });
+    expect(Object.fromEntries(counts)).toEqual({ purpose: 9, domain: 128, derive: 90 });
   });
 
   it("covers every fn of packing.jsonl with its count", () => {

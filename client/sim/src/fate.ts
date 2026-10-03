@@ -22,6 +22,8 @@ export const BREW = shortString("fate:brew");
 export const HINT = shortString("fate:hint");
 /** The day's five Rift identities (design/17). */
 export const RIFT_BOARD = shortString("fate:rift-board");
+/** A chunk's random word at its reveal (ENG-05): `derive(entropy, domain(instance, chunk, REVEAL), 0)`. */
+export const REVEAL = shortString("fate:reveal");
 
 /** Every purpose, in Cairo's order (`fate::PURPOSES`). */
 export const PURPOSES: readonly bigint[] = [
@@ -33,6 +35,7 @@ export const PURPOSES: readonly bigint[] = [
   BREW,
   HINT,
   RIFT_BOARD,
+  REVEAL,
 ];
 
 /** The domain of one draw: `poseidon(subject, counter, purpose)`. */
