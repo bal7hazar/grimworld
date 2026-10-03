@@ -7,8 +7,9 @@
 //
 // For each location and size: the ground is drawn from the atlas's cells (`data-ground`), a walk,
 // the camera follows, no frame once the walk ends, no page error. In the zone, the frame time at
-// the default zoom over a 10-step walk (AC-8): every display-frame callback is timed by a wrapper
-// of `requestAnimationFrame` installed before the page's scripts, so the same measure runs on a
+// the default zoom over a 10-step walk (AC-8): every display-frame callback that issued a WebGL draw
+// is timed by a wrapper of `requestAnimationFrame` installed before the page's scripts (the GPU's
+// own work is not in it), so the same measure runs on a
 // branch without CLI-03g1's `FrameStats` (`VERIFY_MAIN=1`: measures only, no ground check). The
 // median and 95th percentile go to `VERIFY_MEASURE_OUT` (JSON) when it is set; the last chunk's
 // bake (`data-bake-ms`) is printed. Headless Chromium renders in software: compare runs on the
@@ -95,13 +96,36 @@ async function isolate(context) {
 function timeFrames() {
   const raf = window.requestAnimationFrame.bind(window);
   window.__frameMs = [];
+  // A callback that drew issued a WebGL draw call: only those are frames (a callback that only
+  // advanced an animation without a change draws nothing).
+  window.__draws = 0;
+  for (const proto of [
+    window.WebGLRenderingContext?.prototype,
+    window.WebGL2RenderingContext?.prototype,
+  ]) {
+    if (!proto) continue;
+    for (const name of [
+      "drawElements",
+      "drawArrays",
+      "drawElementsInstanced",
+      "drawArraysInstanced",
+    ]) {
+      const original = proto[name];
+      if (!original) continue;
+      proto[name] = function (...args) {
+        window.__draws += 1;
+        return original.apply(this, args);
+      };
+    }
+  }
   window.requestAnimationFrame = (callback) =>
     raf((t) => {
+      const draws = window.__draws;
       const start = performance.now();
       try {
         callback(t);
       } finally {
-        window.__frameMs.push(performance.now() - start);
+        if (window.__draws > draws) window.__frameMs.push(performance.now() - start);
       }
     });
 }
@@ -228,7 +252,7 @@ async function location(browser, size, viewport, touch, [name, url, hub]) {
     };
     measures[size] = figures;
     console.log(
-      `  measure ${label}: ${figures.frames} frame callbacks over ${moved} steps, median ${figures.median.toFixed(3)} ms, p95 ${figures.p95.toFixed(3)} ms`,
+      `  measure ${label}: ${figures.frames} frames drawn over ${moved} steps, median ${figures.median.toFixed(3)} ms, p95 ${figures.p95.toFixed(3)} ms`,
     );
   }
   if (shots) await page.screenshot({ path: join(shots, `ground-${name}-${size}-walked.png`) });

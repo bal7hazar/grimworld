@@ -96,6 +96,9 @@ interface ChunkBake {
 /** The atlas's cells the ground is filled with (CLI-03e's `[[tileset]]`, CLI-03g1). */
 export const GROUND_TILES = { grass: "grass_c", water: "water_c" } as const;
 
+/** How far the void's bands reach past the terrain, in art px: beyond the furthest zoom's view. */
+export const VOID_REACH = 100_000;
+
 /** Flat colours of the void beyond the tiles, without the atlas (as `shapes.ts`'s layers). */
 const VOID_COLOURS: Readonly<Record<GroundKind, number>> = {
   grass: 0x5d7a3e,
@@ -287,12 +290,13 @@ export class Renderer implements FrameClient {
   readonly scheduler: FrameScheduler;
   private readonly world = new Container();
   /**
-   * The view's void beyond the tiles (CLI-03g1): four bands around `voidHole`, over what the frame
-   * shows. Inside the hole the background stays as before, so a seam between two chunks' bakes
+   * The view's void beyond the tiles (CLI-03g1): four bands around `voidHole`, reaching
+   * `VOID_REACH` past it, placed when the view's void or its tiles' box changes, never per frame. Inside the hole the background stays as before, so a seam between two chunks' bakes
    * looks as it did; the bands reach two hexes into the terrain, under its outer hexes.
    */
   private readonly voidLayer = new Container();
   private voidHole: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  private voidKey = "";
   private readonly ground = new Container();
   private readonly overlay = new Graphics();
   /** The dropped steps of a planned path, fading out. */
@@ -335,6 +339,8 @@ export class Renderer implements FrameClient {
   private readonly stepMs: number;
   /** The last chunk's bake, in ms (its drawing and its render into a texture), for `FrameStats`. */
   private lastBakeMs: number | null = null;
+  /** Where the ground's cells come from, kept by `setLibrary`: no lookup in a frame. */
+  private groundSource: "atlas" | "colours" = "colours";
 
   constructor(
     private readonly surface: Surface,
@@ -342,6 +348,7 @@ export class Renderer implements FrameClient {
     options: RendererOptions = {},
   ) {
     this.library = options.library ?? null;
+    this.groundSource = this.groundTextures() ? "atlas" : "colours";
     this.zoom = options.zoom ?? DEFAULT_ZOOM;
     this.idleOn = options.idle ?? true;
     this.mode = options.mode ?? "continuous";
@@ -356,7 +363,7 @@ export class Renderer implements FrameClient {
           onDraw({
             ...stats,
             bakeMs: this.lastBakeMs,
-            ground: this.groundTextures() ? "atlas" : "colours",
+            ground: this.groundSource,
           })),
     );
     this.voidLayer.visible = false;
@@ -373,7 +380,13 @@ export class Renderer implements FrameClient {
   setView(view: ViewState): void {
     const previous = this.view;
     this.view = view;
-    this.voidHole = holeOf(view.tiles);
+    const hole = holeOf(view.tiles);
+    const holeKey = `${view.void ?? ""} ${hole ? Object.values(hole).join(",") : ""}`;
+    this.voidHole = hole;
+    if (holeKey !== this.voidKey) {
+      this.voidKey = holeKey;
+      this.placeVoid();
+    }
     const now = this.host.now();
     this.syncStructures(view.structures ?? []);
     this.syncChunks(view);
@@ -475,6 +488,8 @@ export class Renderer implements FrameClient {
     this.structuresKey = "";
     if (this.view) this.syncStructures(this.view.structures ?? []);
     if (this.view) this.syncActors(this.view, this.host.now());
+    this.groundSource = this.groundTextures() ? "atlas" : "colours";
+    this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) chunk.key = "";
     if (this.view) this.syncChunks(this.view);
@@ -621,7 +636,6 @@ export class Renderer implements FrameClient {
       this.dropOffscreen();
       this.mountStage(false);
       this.placeWorld(scale, this.viewport.width, this.viewport.height, centre);
-      this.placeVoid(scale, this.viewport.width, this.viewport.height, centre);
       this.surface.render();
       return;
     }
@@ -631,7 +645,6 @@ export class Renderer implements FrameClient {
     this.mountStage(true);
     const offscreen = this.ensureOffscreen(plan);
     this.placeWorld(scale * plan.oversample, plan.width, plan.height, centre);
-    this.placeVoid(scale * plan.oversample, plan.width, plan.height, centre);
     this.backdrop.clear().rect(0, 0, plan.width, plan.height).fill(BACKGROUND);
     // Into the view (the frame's part of the reused texture), not the whole allocation.
     this.surface.renderTo(this.passRoot, offscreen.view);
@@ -661,35 +674,28 @@ export class Renderer implements FrameClient {
    * side, filled with the void's look; the water's atlas cell is one flat colour, so one sprite
    * stretched over it is the same water as the baked cells.
    */
-  private placeVoid(scale: number, width: number, height: number, centre: Point): void {
+  private placeVoid(): void {
     const ground = this.view?.void;
     this.voidLayer.visible = ground !== undefined;
     if (ground === undefined) return;
     // The water's cell is one flat colour: stretched, it is the same water as the baked cells.
     const water = ground === "water" ? this.groundTextures()?.water : null;
-    const left = Math.floor(centre.x - width / 2 / scale) - 1;
-    const top = Math.floor(centre.y - height / 2 / scale) - 1;
-    const right = left + Math.ceil(width / scale) + 3;
-    const bottom = top + Math.ceil(height / scale) + 3;
-    const hole = this.voidHole;
-    // Top, bottom, left, right of the hole, clipped to the frame; the whole frame without a hole.
-    const x0 = Math.min(Math.max(hole?.x0 ?? right, left), right);
-    const x1 = Math.max(Math.min(hole?.x1 ?? left, right), x0);
-    const y0 = Math.min(Math.max(hole?.y0 ?? bottom, top), bottom);
-    const y1 = Math.max(Math.min(hole?.y1 ?? top, bottom), y0);
+    const hole = this.voidHole ?? { x0: 0, y0: 0, x1: 0, y1: 0 };
+    // Placed once per view, never per frame: far past what the furthest zoom shows.
+    const far = VOID_REACH;
     const bands = [
-      [left, top, right, y0],
-      [left, y1, right, bottom],
-      [left, y0, x0, y1],
-      [x1, y0, right, y1],
+      [hole.x0 - far, hole.y0 - far, hole.x1 + far, hole.y0],
+      [hole.x0 - far, hole.y1, hole.x1 + far, hole.y1 + far],
+      [hole.x0 - far, hole.y0, hole.x0, hole.y1],
+      [hole.x1, hole.y0, hole.x1 + far, hole.y1],
     ] as const;
-    bands.forEach(([bx0, by0, bx1, by1], i) => {
+    bands.forEach(([x0, y0, x1, y1], i) => {
       const band = this.voidLayer.children[i] as Sprite;
       band.texture = water ?? Texture.WHITE;
       band.tint = water ? 0xffffff : VOID_COLOURS[ground];
-      band.position.set(bx0, by0);
-      band.width = Math.max(0, bx1 - bx0);
-      band.height = Math.max(0, by1 - by0);
+      band.position.set(x0, y0);
+      band.width = x1 - x0;
+      band.height = y1 - y0;
     });
   }
 
