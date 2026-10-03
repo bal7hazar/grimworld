@@ -2,6 +2,7 @@
 //! adventurer. Layouts: docs/architecture/ENG-01-interfaces.md, *Instances storage*. Every record
 //! carries `LIVE` (bit 250), so that a slot reused by the next instance is never 0.
 
+use grimworld_logic::types::reveal::Progress;
 use grimworld_logic::packing::{
     P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, byte_at, join, low_field, split, u16_at,
     u32_at,
@@ -128,10 +129,22 @@ pub impl HeaderAssert of HeaderAssertTrait {
 
 #[generate_trait]
 pub impl QuotasImpl of QuotasTrait {
-    /// A new generation's quotas: the location's target number of chunks `N` (0 in a zone). What
-    /// each quota has left to place is written by ENG-05, with `QUOTAS`' layout; until then 0.
+    /// A new generation's quotas before its first reveal: the location's target number of chunks
+    /// `N` (0 in a zone), nothing left to place. `create` writes them after the entry reveal
+    /// (`from_progress`).
     fn new(target: u8) -> Quotas {
         Quotas { target, open_edges: 0, left: [0; 14] }
+    }
+
+    /// The reveal's progress (ENG-05, `types::reveal::Progress`) of an instance whose quotas are
+    /// these, with its revealed set, its header's count and its entropy.
+    fn progress(self: @Quotas, revealed: felt252, count: u8, entropy: felt252) -> Progress {
+        Progress { revealed, count, open_edges: *self.open_edges, left: *self.left, entropy }
+    }
+
+    /// The quotas after a reveal's progress, `N` unchanged.
+    fn from_progress(target: u8, progress: @Progress) -> Quotas {
+        Quotas { target, open_edges: *progress.open_edges, left: *progress.left }
     }
 }
 
