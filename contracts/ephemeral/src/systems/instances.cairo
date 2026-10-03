@@ -225,17 +225,17 @@ pub mod Instances {
         IRegistryReadDispatcherTrait, IResultsDispatcher, IResultsDispatcherTrait,
         IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher, Results, facts,
     };
+    use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
+    use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
     use grimworld_logic::models::pack::{Pack, PackRecord};
     use grimworld_logic::models::quotas::{QuotaSet, QuotaSetRecord, kind as quota_kind};
     use grimworld_logic::models::set_piece::{SetPiece, SetPieceRecord};
     use grimworld_logic::models::spawn_table::{SpawnTable, SpawnTableRecord};
-    use grimworld_logic::types::reveal::board::BoardTrait;
-    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site, side as reveal_side};
-    use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_kind};
-    use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait};
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
+    use grimworld_logic::types::reveal::board::BoardTrait;
+    use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site, side as reveal_side};
     use grimworld_logic::types::{
         ChunkKind, InstanceId, Outcome, REGION_PAGE, Refusal, instance_id, instance_parts,
     };
@@ -255,8 +255,7 @@ pub mod Instances {
     };
     use crate::models::member::{DOWN, GONE, MemberState, MemberStateTrait, StoredMember};
     use crate::store::InstancesStoreTrait;
-    use super::errors;
-    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION};
+    use super::{InstanceView, InstancesAssert, NOT_IMPLEMENTED, RegionChunk, VERSION, errors};
 
     /// Tasks whose quotas a reveal places (ENG-01 §3.2: the location's 6, then 8).
     const TASK_QUOTAS: u32 = 8;
@@ -440,7 +439,8 @@ pub mod Instances {
             let (max_health, max_energy) = MemberStateTrait::maxima(
                 self.get_stats(slot, placement.member).word,
             );
-            // The reveal reads the first 8 tasks' quotas (2 pages at most); the count is kept whole.
+            // The reveal reads the first 8 tasks' quotas (2 pages at most); the count is kept
+            // whole.
             let read: u8 = if header.tasks < 8 {
                 header.tasks
             } else {
@@ -587,7 +587,10 @@ pub mod Instances {
                         0,
                     )
                 };
-                out.append(RegionChunk { chunk, kind, terrain, features, goblins: array![].span() });
+                out
+                    .append(
+                        RegionChunk { chunk, kind, terrain, features, goblins: array![].span() },
+                    );
                 chunk += 1;
             }
             out.span()
@@ -744,12 +747,13 @@ pub mod Instances {
         /// (`fate(poseidon(id, 0, ENTRY))`, ADR-0002; the entropy is the value derived from it),
         /// then **the entry reveal** (ENG-05, Open question 3): every chunk sight touches from the
         /// entry tile, the entry chunk first, in one call to the reveal's library; then its header
-        /// (the revealed count), entropy, revealed set, quotas and chunks, each written once, and the
-        /// member's four transient words for clock 0 (F-12, F-14): on the gate's entry tile, maxima
-        /// from `stats`, the belt's `belt` counts, no activation, condition, effect or recharge. The
-        /// placement follows. The caller has made every check: the draw comes last but for the
-        /// writes it feeds. `count` is the snapshot's task count, `tasks` at least its first 8 (their
-        /// quotas follow the location's). No `ChunkRevealed` here (ENG-01 §5: a batch, `open`, `mine`, `barter`;
+        /// (the revealed count), entropy, revealed set, quotas and chunks, each written once, and
+        /// the member's four transient words for clock 0 (F-12, F-14): on the gate's entry tile,
+        /// maxima from `stats`, the belt's `belt` counts, no activation, condition, effect or
+        /// recharge. The placement follows. The caller has made every check: the draw comes last
+        /// but for the writes it feeds. `count` is the snapshot's task count, `tasks` at least its
+        /// first 8 (their quotas follow the location's). No `ChunkRevealed` here (ENG-01 §5: a
+        /// batch, `open`, `mine`, `barter`;
         /// Open question 6): the client knows the entry from `InstanceEntered` and the header.
         fn begin(
             ref self: ContractState,

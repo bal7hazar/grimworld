@@ -56,9 +56,9 @@ pub fn derive(word: felt252, domain: felt252, index: u32) -> felt252 {
 /// An instance's entropy (ADR-0006 option C, ENG-01 §3.2): the entry draw plus one hash per
 /// irreversible fact, a **set**, not a sequence: `feed` adds `poseidon(fact)`, so two facts fed in
 /// either order give the same value, and the order of two actions that lead to the same state is
-/// not a free choice. Every feeder (a reveal here; a kill, health lost, a consumable, loot, a chest,
-/// a vein in their lots) calls `feed` with a fact whose first felt is its own tag, so that two
-/// kinds of fact never hash alike.
+/// not a free choice. Every feeder (a reveal here; a kill, health lost, a consumable, loot, a
+/// chest, a vein in their lots) calls `feed` with a fact whose first felt is its own tag, so that
+/// two kinds of fact never hash alike.
 #[generate_trait]
 pub impl EntropyImpl of EntropyTrait {
     /// The entropy with one more fact: `entropy + poseidon(fact)`.

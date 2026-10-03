@@ -2,12 +2,12 @@
 //! adventurer. Layouts: docs/architecture/ENG-01-interfaces.md, *Instances storage*. Every record
 //! carries `LIVE` (bit 250), so that a slot reused by the next instance is never 0.
 
-use grimworld_logic::types::reveal::Progress;
 use grimworld_logic::packing::{
     P112, P120, P16, P24, P32, P40, P48, P64, P72, P8, P96, byte_at, join, low_field, split, u16_at,
     u32_at,
 };
 use grimworld_logic::types::Refusal;
+use grimworld_logic::types::reveal::Progress;
 
 /// The reverts of `Instances`' lifecycle (ENG-06). A refusal of the game (a gate action that
 /// cannot run) is not a revert: it emits `Refused` and changes nothing (design/02).

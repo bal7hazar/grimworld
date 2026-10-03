@@ -1,6 +1,7 @@
 //! The chunk reveal as a library class (ENG-01 §1.3; ENG-05 Open question 1, decided by the
-//! orchestrator on 2026-10-03): `grimworld_logic`'s `RevealTrait::reveal` declared as its own class,
-//! which `Instances` calls by `library_call` with the class hash as configuration (`Instances`'
+//! orchestrator on 2026-10-03): `grimworld_logic`'s `RevealTrait::reveal` declared as its own
+//! class, which `Instances` calls by `library_call` with the class hash as configuration
+//! (`Instances`'
 //! constructor and `set_contracts`), once an invocation that reveals (`create`, `leave` to a
 //! location; ENG-07's batches). It has no storage and reads nothing: the location's records as
 //! `Instances` read them (`Site`), the instance's progress, the terrain of the revealed neighbours

@@ -65,8 +65,14 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
 
     fn pack(self: @SpawnTable) -> Span<felt252> {
         let [s0, s1, s2, s3, s4, s5, s6] = self.spawns;
-        let low = SpawnBitsTrait::bits(s0) + SpawnBitsTrait::bits(s1) * P24 + SpawnBitsTrait::bits(s2) * P48 + SpawnBitsTrait::bits(s3) * P72 + SpawnBitsTrait::bits(s4) * P96;
-        let high = SpawnBitsTrait::bits(s5) + SpawnBitsTrait::bits(s6) * P24 + (*self.density).into() * P48;
+        let low = SpawnBitsTrait::bits(s0)
+            + SpawnBitsTrait::bits(s1) * P24
+            + SpawnBitsTrait::bits(s2) * P48
+            + SpawnBitsTrait::bits(s3) * P72
+            + SpawnBitsTrait::bits(s4) * P96;
+        let high = SpawnBitsTrait::bits(s5)
+            + SpawnBitsTrait::bits(s6) * P24
+            + (*self.density).into() * P48;
         array![join(low, high)].span()
     }
 
@@ -80,9 +86,7 @@ pub impl SpawnTableRecord of Record<SpawnTable> {
         let s5 = SpawnBitsTrait::peel(ref high);
         let s6 = SpawnBitsTrait::peel(ref high);
         let density = peel(ref high, P8.try_into().unwrap());
-        SpawnTable {
-            spawns: [s0, s1, s2, s3, s4, s5, s6], density: density.try_into().unwrap(),
-        }
+        SpawnTable { spawns: [s0, s1, s2, s3, s4, s5, s6], density: density.try_into().unwrap() }
     }
 }
 
@@ -98,13 +102,19 @@ mod tests {
         let first = Spawn { template: 0xabcd, weight: 0x12 };
         let last = Spawn { template: 0x1234, weight: 0xff };
         let table = SpawnTableTrait::new(
-            [first, Default::default(), Default::default(), Default::default(), Default::default(), Default::default(), last],
+            [
+                first, Default::default(), Default::default(), Default::default(),
+                Default::default(), Default::default(), last,
+            ],
             0x80,
         );
         let parts = table.pack();
         let high: felt252 = (0x1234 + 0xff * 0x10000) * 0x1000000 + 0x80 * 0x1000000000000;
         assert(
-            *parts[0] == 0xabcd + 0x12 * 0x10000 + high * 0x100000000000000000000000000000000 + LIVE,
+            *parts[0] == 0xabcd
+                + 0x12 * 0x10000
+                + high * 0x100000000000000000000000000000000
+                + LIVE,
             'bits',
         );
         assert(SpawnTableRecord::unpack(parts) == table, 'round trip');

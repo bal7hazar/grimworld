@@ -6,8 +6,8 @@
 //!
 //! A pack's goblins stand on tiles named by their index in `OFFSETS`, the 19 tiles within 2 of the
 //! pack's tile (`PackPlacement.offsets`, 5 bits a goblin): the order is by row offset `dr`, then by
-//! `dq`, in axial coordinates (`q = x − ⌊y/2⌋`, `r = y`, global), so that it does not depend on
-//! the row's parity; index 9 is the pack's own tile. `PackPlacementTrait::member` turns an index
+//! `dq`, in axial coordinates (`q = x − ⌊y/2⌋`, `r = y`, global), so that it does not depend
+//! on the row's parity; index 9 is the pack's own tile. `PackPlacementTrait::member` turns an index
 //! into a tile of the chunk.
 
 use crate::packing::{
@@ -131,7 +131,8 @@ pub impl PackPlacementImpl of PackPlacementTrait {
         } else {
             dr / 2
         };
-        // `column + dq + half − 1` and `row + dr`, shifted by 3 and 2 so that no step is negative.
+        // `column + dq + half − 1` and `row + dr`, shifted by 3 and 2 so that no step is
+        // negative.
         let x = column + dq + half;
         let y = row + dr;
         if x < 3 || x > 17 || y < 2 || y > 16 {
@@ -258,20 +259,35 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 408051)] // ceil(1.05 × 388620 measured)
     fn test_words_round_trip() {
-        let terrain = Terrain { walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff, edges: 0xb };
+        let terrain = Terrain {
+            walls: 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff, edges: 0xb,
+        };
         let word = StorePacking::<Terrain, felt252>::pack(terrain);
-        assert(word == terrain.walls + 0xb * 0x200000000000000000000000000000000000000000000000000000000 + LIVE, 'terrain bits');
+        assert(
+            word == terrain.walls
+                + 0xb * 0x200000000000000000000000000000000000000000000000000000000
+                + LIVE,
+            'terrain bits',
+        );
         assert(StorePacking::<Terrain, felt252>::unpack(word) == terrain, 'terrain trip');
         let pack = PackPlacement {
             tile: 0xab, template: 0x1234, level: 0x56, count: 5, offsets: 0x1abcdef, alert: 2,
         };
         assert(
-            pack.bits() == 0xab + 0x1234 * 0x100 + 0x56 * 0x1000000 + 5 * 0x100000000
-                + 0x1abcdef * 0x1000000000 + 2 * 0x2000000000000000,
+            pack.bits() == 0xab
+                + 0x1234 * 0x100
+                + 0x56 * 0x1000000
+                + 5 * 0x100000000
+                + 0x1abcdef * 0x1000000000
+                + 2 * 0x2000000000000000,
             'pack bits',
         );
         let object = Object { tile: 0xcd, kind: 8, state: 1, param: 0xbeef };
-        let features = Features { packs: [pack, Default::default()], objects: [Default::default(), object, object], touched: 0x3ff };
+        let features = Features {
+            packs: [pack, Default::default()],
+            objects: [Default::default(), object, object],
+            touched: 0x3ff,
+        };
         let word = StorePacking::<Features, felt252>::pack(features);
         assert(StorePacking::<Features, felt252>::unpack(word) == features, 'features trip');
         let empty = FeaturesTrait::empty();
@@ -282,6 +298,12 @@ mod tests {
     #[should_panic(expected: 'packing: walls above bit 224')]
     #[available_gas(l2_gas: 10385)] // ceil(1.05 × 9890 measured)
     fn test_walls_refused_above_224() {
-        StorePacking::<Terrain, felt252>::pack(Terrain { walls: 0x2000000000000000000000000000000000000000000000000000000000, edges: 0 });
+        StorePacking::<
+            Terrain, felt252,
+        >::pack(
+            Terrain {
+                walls: 0x2000000000000000000000000000000000000000000000000000000000, edges: 0,
+            },
+        );
     }
 }

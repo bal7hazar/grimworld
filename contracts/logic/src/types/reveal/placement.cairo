@@ -3,14 +3,15 @@
 //! the `Features` word.
 //!
 //! - **Quotas** (`due`): for each quota with something left, one placed here with probability
-//!   `left / chunks left`, drawn as `draw(chunks left) < left`: 1 when they are equal, so **the last
-//!   chunks hold what is still owed**. At most one of each quota a chunk. "Chunks left" counts this
-//!   chunk: `N − revealed` in a dungeon, the chunk set's count less the revealed in a zone.
+//!   `left / chunks left`, drawn as `draw(chunks left) < left`: 1 when they are equal, so **the
+//!   last chunks hold what is still owed**. At most one of each quota a chunk. "Chunks left" counts
+//!   this chunk: `N − revealed` in a dungeon, the chunk set's count less the revealed in a zone.
 //! - **Bands** (`level`): `level_min + (level_max − level_min) × min(d, D) / D`, `d` the chunk's
 //!   distance in chunks to the entry chunk (`|dcx| + |dcy|`), `D` the farthest a chunk can be (a
-//!   zone: `width + height − 2`; a dungeon: `N − 1`); a pack adds its template's offset, held in
-//!   the band.
-//! - **Placement** (`place`), on the tiles allowed: the chunk's reachable interior floor, not within
+//!   zone: `width + height − 2`; a dungeon: `N − 1`); a pack adds its template's offset, held
+//!   in the band.
+//! - **Placement** (`place`), on the tiles allowed: the chunk's reachable interior floor, not
+//! within
 //!   2 of an opening or an anchor, not taken. In order: a set piece's own packs and objects; the
 //!   quotas due, in their order (an object, or a pack for a Heart); the spawn table's two pack
 //!   slots (each with probability `density / 256`, the template by weight); then a chest (1 chunk

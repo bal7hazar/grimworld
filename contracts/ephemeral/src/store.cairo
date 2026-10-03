@@ -37,11 +37,10 @@
 
 use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
 use grimworld_logic::snapshot::{MemberStats, SnapshotWords, TaskEntry, TaskPage};
-use starknet::{ClassHash, ContractAddress};
 use starknet::storage::{
-    StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
-    SubPointersMutForward,
+    StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, SubPointersMutForward,
 };
+use starknet::{ClassHash, ContractAddress};
 use crate::helpers::stored::{Stored, StoredTrait};
 use crate::models::chunk::{Chunk, Terrain, TerrainStorePacking};
 use crate::models::instance::{Header, Placement, Quotas};
@@ -238,8 +237,13 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
 
     /// The reveal's two writes of a chunk: its words as the reveal's library packed them.
     #[inline(always)]
-    fn set_chunk(ref self: InstancesState, slot: u32, chunk: u8, terrain: felt252, features: felt252) {
-        self.chunks.entry((slot, chunk)).write(Chunk { terrain: Stored { word: terrain }, features: Stored { word: features } })
+    fn set_chunk(
+        ref self: InstancesState, slot: u32, chunk: u8, terrain: felt252, features: felt252,
+    ) {
+        self
+            .chunks
+            .entry((slot, chunk))
+            .write(Chunk { terrain: Stored { word: terrain }, features: Stored { word: features } })
     }
 
     // Members: `members[(slot, member)]`, eight slots (`StoredMember`)

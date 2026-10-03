@@ -41,7 +41,6 @@
 
 pub mod board;
 pub mod placement;
-
 use hexx::board::bits::Bits;
 use hexx::board::rng::{Rng, RngTrait};
 use crate::fate::EntropyTrait;
@@ -235,9 +234,7 @@ pub impl ProgressImpl of ProgressTrait {
 pub impl RevealImpl of RevealTrait {
     /// The kind of `chunk` for the window and the views (module doc, *What is revealable*);
     /// `known`: the terrain of its revealed neighbours (a dungeon reads their edges).
-    fn kind(
-        site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8,
-    ) -> ChunkKind {
+    fn kind(site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8) -> ChunkKind {
         if !site.inside(chunk) {
             return ChunkKind::Void;
         }
@@ -275,9 +272,7 @@ pub impl RevealImpl of RevealTrait {
 
     /// Whether `chunk` can be revealed now: not revealed, and a zone's chunk inside the location,
     /// or a dungeon's entry chunk first, then a chunk faced by an open edge, before `N`.
-    fn revealable(
-        site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8,
-    ) -> bool {
+    fn revealable(site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8) -> bool {
         if progress.is_revealed(chunk) || !site.inside(chunk) {
             return false;
         }
@@ -351,7 +346,10 @@ pub impl RevealImpl of RevealTrait {
             let (at, tile) = *entry;
             if at == chunk && tile < 225 {
                 if BoardTrait::has(INTERIOR, tile) {
-                    inner = BoardTrait::or(inner, BoardTrait::pow(tile) + BoardTrait::anchor_line(tile));
+                    inner =
+                        BoardTrait::or(
+                            inner, BoardTrait::pow(tile) + BoardTrait::anchor_line(tile),
+                        );
                     anchors.append(tile);
                 } else if BoardTrait::has(BOARD - INTERIOR, tile) && !Self::corner(tile) {
                     ring = BoardTrait::or(ring, BoardTrait::pow(tile));
@@ -395,7 +393,8 @@ pub impl RevealImpl of RevealTrait {
         progress.count += 1;
         progress.open_edges = open_edges;
         progress
-            .entropy = EntropyTrait::feed(progress.entropy, EntropyTrait::reveal_fact(chunk, entered));
+            .entropy =
+                EntropyTrait::feed(progress.entropy, EntropyTrait::reveal_fact(chunk, entered));
         Revealed { chunk, terrain, features }
     }
 
@@ -588,9 +587,7 @@ pub impl RevealImpl of RevealTrait {
     }
 
     /// Whether a revealed neighbour faces `chunk` with an open edge.
-    fn faced_open(
-        site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8,
-    ) -> bool {
+    fn faced_open(site: @Site, progress: @Progress, known: Span<(u8, Terrain)>, chunk: u8) -> bool {
         let mut open = false;
         let mut side: u8 = 0;
         while side != 4 {
@@ -696,10 +693,13 @@ pub impl SightImpl of SightTrait {
 
     /// Whether the hexagon of radius 6 around `(x, y)` reaches chunk `(column, row)`, a neighbour
     /// of the tile's chunk: on the chunk's row nearest to `y`, the hexagon spans the columns
-    /// `x + dq + ⌊y'/2⌋ − ⌊y/2⌋` for `dq` in `[max(−6, −6 − dr), min(6, 6 − dr)]` (axial, `dr =
+    /// `x + dq + ⌊y'/2⌋ − ⌊y/2⌋` for `dq` in `[max(−6, −6 − dr), min(6, 6 − dr)]`
+    /// (axial, `dr =
     /// y' − y`), computed shifted by 12 and 6 so that nothing is negative.
     fn touches(x: u8, y: u8, column: u8, row: u8) -> bool {
-        let (x, y, column, row): (u16, u16, u16, u16) = (x.into(), y.into(), column.into(), row.into());
+        let (x, y, column, row): (u16, u16, u16, u16) = (
+            x.into(), y.into(), column.into(), row.into(),
+        );
         let top = row * 15;
         let near_y = if y < top {
             top
@@ -762,8 +762,9 @@ pub mod tests {
                 1,
                 Pack {
                     castes: [
-                        PackCaste { caste: 1, min: 1, max: 2 }, PackCaste { caste: 2, min: 1, max: 3 },
-                        Default::default(), Default::default(), Default::default(),
+                        PackCaste { caste: 1, min: 1, max: 2 },
+                        PackCaste { caste: 2, min: 1, max: 3 }, Default::default(),
+                        Default::default(), Default::default(),
                     ],
                     level: 0,
                 },
@@ -900,7 +901,9 @@ pub mod tests {
                 while k != *pack.count {
                     let (rest, index) = DivRem::div_rem(offsets, 32);
                     offsets = rest;
-                    let member = PackPlacementTrait::member(*pack.tile, index.try_into().unwrap(), row_odd)
+                    let member = PackPlacementTrait::member(
+                        *pack.tile, index.try_into().unwrap(), row_odd,
+                    )
                         .unwrap();
                     assert(BoardTrait::has(interior, member), 'member on floor');
                     assert(!BoardTrait::has(near, member), 'member near an opening');
@@ -920,7 +923,9 @@ pub mod tests {
     pub fn one(
         site: @Site, ref progress: Progress, known: Span<(u8, Terrain)>, chunk: u8, entered: u8,
     ) -> Revealed {
-        let out = RevealTrait::reveal(site, ref progress, INSTANCE, known, array![(chunk, entered)].span());
+        let out = RevealTrait::reveal(
+            site, ref progress, INSTANCE, known, array![(chunk, entered)].span(),
+        );
         assert(out.len() == 1, 'revealed');
         *out[0]
     }
@@ -964,32 +969,48 @@ pub mod tests {
             let c = one(@site, ref progress, array![(16, a.terrain)].span(), 31, side::SOUTH);
             check_chunk(@c);
             let d = one(
-                @site, ref progress, array![(17, b.terrain), (31, c.terrain)].span(), 32, side::EAST,
+                @site,
+                ref progress,
+                array![(17, b.terrain), (31, c.terrain)].span(),
+                32,
+                side::EAST,
             );
             check_chunk(@d);
             // Every shared edge open across its seam, from both sides (`hexx`'s seams, N-2).
             assert(
-                SeamTrait::is_open_across(15, 15, floor(@b.terrain), floor(@a.terrain), Side::East, true),
+                SeamTrait::is_open_across(
+                    15, 15, floor(@b.terrain), floor(@a.terrain), Side::East, true,
+                ),
                 'a-b from b',
             );
             assert(
-                SeamTrait::is_open_across(15, 15, floor(@a.terrain), floor(@b.terrain), Side::West, true),
+                SeamTrait::is_open_across(
+                    15, 15, floor(@a.terrain), floor(@b.terrain), Side::West, true,
+                ),
                 'a-b from a',
             );
             assert(
-                SeamTrait::is_open_across(15, 15, floor(@c.terrain), floor(@a.terrain), Side::South, false),
+                SeamTrait::is_open_across(
+                    15, 15, floor(@c.terrain), floor(@a.terrain), Side::South, false,
+                ),
                 'a-c from c',
             );
             assert(
-                SeamTrait::is_open_across(15, 15, floor(@a.terrain), floor(@c.terrain), Side::North, true),
+                SeamTrait::is_open_across(
+                    15, 15, floor(@a.terrain), floor(@c.terrain), Side::North, true,
+                ),
                 'a-c from a',
             );
             assert(
-                SeamTrait::is_open_across(15, 15, floor(@d.terrain), floor(@b.terrain), Side::South, false),
+                SeamTrait::is_open_across(
+                    15, 15, floor(@d.terrain), floor(@b.terrain), Side::South, false,
+                ),
                 'b-d from d',
             );
             assert(
-                SeamTrait::is_open_across(15, 15, floor(@d.terrain), floor(@c.terrain), Side::East, false),
+                SeamTrait::is_open_across(
+                    15, 15, floor(@d.terrain), floor(@c.terrain), Side::East, false,
+                ),
                 'c-d from d',
             );
             // A side at the location's edge (chunk 16's East is chunk 15, inside; chunk 0's East is
@@ -1037,7 +1058,9 @@ pub mod tests {
             check_chunk(@a);
             let ground = floor(@a.terrain);
             // East (outside) and South (outside) closed, but the anchor (row 7, column 0).
-            assert(BoardTrait::and(ground, super::board::EAST) == Bits::pow(105), 'east: the anchor');
+            assert(
+                BoardTrait::and(ground, super::board::EAST) == Bits::pow(105), 'east: the anchor',
+            );
             assert(BoardTrait::and(ground, super::board::SOUTH) == 0, 'south closed');
             let b = one(@site, ref progress, array![(0, a.terrain)].span(), 1, side::EAST);
             // (1, 0)'s North faces (1, 1), void: closed.
@@ -1129,9 +1152,9 @@ pub mod tests {
                         if progress.is_revealed(next) {
                             let other = RevealTrait::known(known.span(), next);
                             assert(
-                                RevealTrait::is_open(terrain.edges, s) == RevealTrait::is_open(
-                                    other.edges, RevealTrait::opposite(s),
-                                ),
+                                RevealTrait::is_open(
+                                    terrain.edges, s,
+                                ) == RevealTrait::is_open(other.edges, RevealTrait::opposite(s)),
                                 'edges agree',
                             );
                         }
@@ -1203,7 +1226,8 @@ pub mod tests {
         site
             .tasks =
                 array![
-                    TaskEntry { task: 1, kind: 1, param: 3 }, TaskEntry { task: 2, kind: 2, param: 7 },
+                    TaskEntry { task: 1, kind: 1, param: 3 },
+                    TaskEntry { task: 2, kind: 2, param: 7 },
                 ]
             .span();
         let progress = ProgressTrait::new(@site, 0);
@@ -1226,7 +1250,9 @@ pub mod tests {
             walls,
             packs: [Default::default(), Default::default()],
             objects: [
-                crate::models::chunk::Object { tile: 100, kind: object::LANDMARK, state: 0, param: 3 },
+                crate::models::chunk::Object {
+                    tile: 100, kind: object::LANDMARK, state: 0, param: 3,
+                },
                 Default::default(), Default::default(),
             ],
         };
@@ -1261,7 +1287,12 @@ pub mod tests {
             let a = one(@site, ref progress, array![].span(), 0, side::NONE);
             let b = one(@site, ref progress, array![(0, a.terrain)].span(), 1, side::EAST);
             assert(BoardTrait::minus(floor(@a.terrain), mask) == 0, 'cut');
-            assert(BoardTrait::and(floor(@b.terrain), 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224)) == 0, 'corners');
+            assert(
+                BoardTrait::and(
+                    floor(@b.terrain), 1 + Bits::pow(14) + Bits::pow(210) + Bits::pow(224),
+                ) == 0,
+                'corners',
+            );
             seed += 1;
         }
     }
@@ -1286,14 +1317,16 @@ pub mod tests {
         let f = EntropyTrait::reveal_fact(3, side::WEST);
         let g = EntropyTrait::reveal_fact(4, side::NONE);
         assert(
-            EntropyTrait::feed(EntropyTrait::feed(9, f), g) == EntropyTrait::feed(
-                EntropyTrait::feed(9, g), f,
-            ),
+            EntropyTrait::feed(
+                EntropyTrait::feed(9, f), g,
+            ) == EntropyTrait::feed(EntropyTrait::feed(9, g), f),
             'order independent',
         );
         assert(EntropyTrait::feed(9, f) != EntropyTrait::feed(9, g), 'facts differ');
         assert(
-            EntropyTrait::feed(9, f) != EntropyTrait::feed(9, EntropyTrait::reveal_fact(3, side::EAST)),
+            EntropyTrait::feed(
+                9, f,
+            ) != EntropyTrait::feed(9, EntropyTrait::reveal_fact(3, side::EAST)),
             'the side counts',
         );
         // The word's domain is the reveal's, per chunk.
@@ -1303,7 +1336,8 @@ pub mod tests {
         );
         // The reveal fed its fact: the entropy moved by exactly it.
         assert(
-            first.entropy == EntropyTrait::feed('entropy', EntropyTrait::reveal_fact(1, side::NONE)),
+            first
+                .entropy == EntropyTrait::feed('entropy', EntropyTrait::reveal_fact(1, side::NONE)),
             'fed',
         );
     }
@@ -1394,8 +1428,9 @@ pub mod tests {
         while ty <= y + 6 {
             let mut tx = x - 9;
             while tx <= x + 9 {
-                if tx >= 0 && ty >= 0 && tx < 15 * width.into() && ty < 15 * height.into()
-                    && distance(x, y, tx, ty) <= 6 {
+                if tx >= 0 && ty >= 0 && tx < 15
+                    * width.into() && ty < 15
+                    * height.into() && distance(x, y, tx, ty) <= 6 {
                     let chunk: u8 = ((ty / 15) * 15 + tx / 15).try_into().unwrap();
                     if !BoardTrait::has(touched, chunk) {
                         touched += Bits::pow(chunk);
@@ -1412,8 +1447,8 @@ pub mod tests {
     #[available_gas(l2_gas: 108751817)] // ceil(1.05 × 103573159 measured)
     fn test_sight_against_a_scan() {
         let positions: [(u8, u8); 14] = [
-            (21, 21), (15, 15), (29, 29), (15, 29), (29, 15), (20, 16), (24, 28), (16, 23), (28, 22),
-            (0, 0), (7, 7), (0, 40), (44, 44), (17, 19),
+            (21, 21), (15, 15), (29, 29), (15, 29), (29, 15), (20, 16), (24, 28), (16, 23),
+            (28, 22), (0, 0), (7, 7), (0, 40), (44, 44), (17, 19),
         ];
         for position in positions.span() {
             let (x, y) = *position;
@@ -1571,8 +1606,22 @@ pub mod tests {
         while kind != 5 {
             let site = zone(kind, 3, 3, no_quotas());
             let mut progress = ProgressTrait::new(@site, kind.into());
-            let out = emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(16, side::NONE)].span());
-            emit_reveal(ref digest, ref id, @site, ref progress, array![(16, *out[0].terrain)].span(), array![(1, side::NONE)].span());
+            let out = emit_reveal(
+                ref digest,
+                ref id,
+                @site,
+                ref progress,
+                array![].span(),
+                array![(16, side::NONE)].span(),
+            );
+            emit_reveal(
+                ref digest,
+                ref id,
+                @site,
+                ref progress,
+                array![(16, *out[0].terrain)].span(),
+                array![(1, side::NONE)].span(),
+            );
             kind += 1;
         }
         // Chunk 16 after its South, East, West and North neighbours, one at a time.
@@ -1580,16 +1629,32 @@ pub mod tests {
         let mut progress = ProgressTrait::new(@site, 'sides');
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![1_u8, 15, 17, 31].span() {
-            let out = emit_reveal(ref digest, ref id, @site, ref progress, known.span(), array![(*chunk, side::NONE)].span());
+            let out = emit_reveal(
+                ref digest,
+                ref id,
+                @site,
+                ref progress,
+                known.span(),
+                array![(*chunk, side::NONE)].span(),
+            );
             known.append((*chunk, *out[0].terrain));
         }
-        emit_reveal(ref digest, ref id, @site, ref progress, known.span(), array![(16, side::NORTH)].span());
+        emit_reveal(
+            ref digest, ref id, @site, ref progress, known.span(), array![(16, side::NORTH)].span(),
+        );
         // The edge of a 2 × 2 zone with (1, 1) outside its outline, an anchor on the East side.
         let mut site = zone(biome::MEADOW, 2, 2, no_quotas());
         site.chunk_set = 1 + 2 + Bits::pow(15);
         site.anchors = array![(0, 105)].span();
         let mut progress = ProgressTrait::new(@site, 'edge');
-        let out = emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(0, side::NONE), (16, side::NONE), (1, side::EAST)].span());
+        let out = emit_reveal(
+            ref digest,
+            ref id,
+            @site,
+            ref progress,
+            array![].span(),
+            array![(0, side::NONE), (16, side::NONE), (1, side::EAST)].span(),
+        );
         assert(out.len() == 2, 'void skipped');
         // A cut: columns 0 to 11.
         let mut mask: felt252 = 0;
@@ -1601,14 +1666,21 @@ pub mod tests {
         let mut site = zone(biome::RUIN, 3, 1, no_quotas());
         site.masks = array![(2, mask)].span();
         let mut progress = ProgressTrait::new(@site, 'cut');
-        emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(2, side::NONE), (1, side::WEST)].span());
+        emit_reveal(
+            ref digest,
+            ref id,
+            @site,
+            ref progress,
+            array![].span(),
+            array![(2, side::NONE), (1, side::WEST)].span(),
+        );
         let digest = poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST_1, 'vectors moved: regenerate');
     }
 
-    /// Part 2: a dungeon floor of `N` 6 to its close (the frontier's rules at `N − 1` and `N`), the
-    /// quotas' draws in a zone, a set piece, a task's landmark.
+    /// Part 2: a dungeon floor of `N` 6 to its close (the frontier's rules at `N − 1` and `N`),
+    /// the quotas' draws in a zone, a set piece, a task's landmark.
     #[test]
     #[available_gas(l2_gas: 300340784)] // ceil(1.05 × 286038841 measured)
     fn test_vectors_2() {
@@ -1623,7 +1695,14 @@ pub mod tests {
             let mut chunk: u8 = 0;
             while chunk != 225 && !grew {
                 if RevealTrait::revealable(@site, @progress, known.span(), chunk) {
-                    let out = emit_reveal(ref digest, ref id, @site, ref progress, known.span(), array![(chunk, side::NONE)].span());
+                    let out = emit_reveal(
+                        ref digest,
+                        ref id,
+                        @site,
+                        ref progress,
+                        known.span(),
+                        array![(chunk, side::NONE)].span(),
+                    );
                     known.append((chunk, *out[0].terrain));
                     grew = true;
                 }
@@ -1644,7 +1723,14 @@ pub mod tests {
         let mut progress = ProgressTrait::new(@site, 'quotas');
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![0_u8, 1, 15, 16].span() {
-            let out = emit_reveal(ref digest, ref id, @site, ref progress, known.span(), array![(*chunk, side::NONE)].span());
+            let out = emit_reveal(
+                ref digest,
+                ref id,
+                @site,
+                ref progress,
+                known.span(),
+                array![(*chunk, side::NONE)].span(),
+            );
             known.append((*chunk, *out[0].terrain));
         }
         assert(progress.left == [0; 14], 'all placed');
@@ -1652,9 +1738,13 @@ pub mod tests {
         walls += Bits::pow(2 * 15 + 2) * 7;
         let piece = SetPiece {
             walls,
-            packs: [crate::models::set_piece::SetPack { tile: 120, template: 1 }, Default::default()],
+            packs: [
+                crate::models::set_piece::SetPack { tile: 120, template: 1 }, Default::default(),
+            ],
             objects: [
-                crate::models::chunk::Object { tile: 100, kind: object::COLLECTOR, state: 0, param: 3 },
+                crate::models::chunk::Object {
+                    tile: 100, kind: object::COLLECTOR, state: 0, param: 3,
+                },
                 Default::default(), Default::default(),
             ],
         };
@@ -1667,7 +1757,14 @@ pub mod tests {
         let mut site = zone(biome::RUIN, 2, 1, quotas);
         site.pieces = array![(4, piece)].span();
         let mut progress = ProgressTrait::new(@site, 'piece');
-        emit_reveal(ref digest, ref id, @site, ref progress, array![].span(), array![(0, side::NONE), (1, side::EAST)].span());
+        emit_reveal(
+            ref digest,
+            ref id,
+            @site,
+            ref progress,
+            array![].span(),
+            array![(0, side::NONE), (1, side::EAST)].span(),
+        );
         let digest = poseidon_hash_span(digest.span());
         println!("digest {}", digest);
         assert(digest == DIGEST_2, 'vectors moved: regenerate');

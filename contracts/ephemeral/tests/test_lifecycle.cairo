@@ -27,7 +27,7 @@ use grimworld_logic::interface::{
     IInstanceEntryDispatcher, IInstanceEntryDispatcherTrait, IInstanceEntrySafeDispatcher,
     IInstanceEntrySafeDispatcherTrait, facts,
 };
-use grimworld_logic::models::chunk::{Terrain, TerrainStorePacking, FeaturesStorePacking};
+use grimworld_logic::models::chunk::{FeaturesStorePacking, Terrain, TerrainStorePacking};
 use grimworld_logic::models::gate::{GateRecord, GateTrait, kind as gate_kind};
 use grimworld_logic::models::location::{LocationRecord, LocationTrait, kind as location_kind};
 use grimworld_logic::models::outline::{CHUNK_SET, OutlineRecord, OutlineTrait};
@@ -35,14 +35,14 @@ use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, kind as quota_kind};
 use grimworld_logic::models::region::{RegionRecord, RegionTrait};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord};
-use grimworld_logic::types::reveal::{ProgressTrait, RevealTrait, Site};
 use grimworld_logic::packing::{LIVE, Lanes16};
 use grimworld_logic::snapshot::{Snapshot, SnapshotTrait, TaskEntry, TaskPage};
+use grimworld_logic::types::reveal::{ProgressTrait, RevealTrait, Site};
 use grimworld_logic::types::{ChunkKind, Outcome, Refusal, instance_id};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, EventSpyTrait,
-    EventsFilterTrait, declare, load,
-    map_entry_address, spy_events, start_cheat_caller_address, store,
+    EventsFilterTrait, declare, load, map_entry_address, spy_events, start_cheat_caller_address,
+    store,
 };
 use starknet::ContractAddress;
 use starknet::storage_access::StorePacking;
@@ -333,7 +333,9 @@ fn setup() -> World {
     let reveal = declare("RevealLibrary").unwrap().contract_class();
     let class = declare("Instances").unwrap().contract_class();
     let (instances, _) = class
-        .deploy(@array![ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into()])
+        .deploy(
+            @array![ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into()],
+        )
         .unwrap();
 
     let records = IRecordsDispatcher { contract_address: registry };
@@ -542,7 +544,8 @@ fn test_create_first_entry() {
     );
     assert(draws(world) == 1, 'one draw');
     assert(
-        read(world.instances, key(selector!("revealed"), array![1])) == LIVE + 1, 'chunk 0 revealed',
+        read(world.instances, key(selector!("revealed"), array![1])) == LIVE + 1,
+        'chunk 0 revealed',
     );
     let quotas: Quotas = StorePacking::unpack(
         read(world.instances, key(selector!("quotas"), array![1])),
@@ -1207,14 +1210,29 @@ fn test_set_controller() {
     assert(reports(world).outcome == 1, 'the new owner plays');
 }
 
-// ---- the entry reveal (ENG-05) --------------------------------------------------------------------
+// ---- the entry reveal (ENG-05)
+// --------------------------------------------------------------------
 
 /// The zone with its content: its chunk set (0, 1, 2, 15, 16), chunk 16's tile mask (rows 0–9,
 /// then columns 0–9), the collector's quota, a spawn table of one template.
 fn zone_content(world: World) -> felt252 {
     let records = IRecordsDispatcher { contract_address: world.registry };
     let zone = LocationTrait::new(
-        location_kind::ZONE, 1, 1, 1, 3, 0, 3, 2, 0, 0, 0, 1, false, 0, 105,
+        location_kind::ZONE,
+        1,
+        1,
+        1,
+        3,
+        0,
+        3,
+        2,
+        0,
+        0,
+        0,
+        1,
+        false,
+        0,
+        105,
         Lanes16 { lanes: [0; 15] },
     );
     records.set(LOCATION, ZONE.into(), zone.pack());
@@ -1294,7 +1312,9 @@ fn test_entry_reveal_through_the_engine() {
         pieces: array![].span(),
     };
     let draw = domain(id.into(), 0, ENTRY);
-    let mut progress = ProgressTrait::new(@site, derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0));
+    let mut progress = ProgressTrait::new(
+        @site, derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0),
+    );
     let revealed = RevealTrait::reveal(
         @site, ref progress, id.into(), array![].span(), array![(16, 4), (15, 4)].span(),
     );
@@ -1317,7 +1337,10 @@ fn test_entry_reveal_through_the_engine() {
     // The views: chunks 0–15, then 16–31.
     let region = play(world, ALICE).instance_region(id, 0, 16);
     assert(region.len() == 16, 'a page');
-    assert(*region[0].kind == ChunkKind::Unrevealed && *region[2].kind == ChunkKind::Unrevealed, 'in the set');
+    assert(
+        *region[0].kind == ChunkKind::Unrevealed && *region[2].kind == ChunkKind::Unrevealed,
+        'in the set',
+    );
     assert(*region[3].kind == ChunkKind::Void && *region[14].kind == ChunkKind::Void, 'beyond');
     assert(*region[15].kind == ChunkKind::Revealed, 'chunk 15');
     assert(*region[0].terrain == 0 && *region[0].features == 0, 'unrevealed: no word');

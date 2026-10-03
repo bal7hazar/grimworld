@@ -16,9 +16,11 @@ use grimworld_logic::models::gate::{Gate, GateRecord, GateTrait, kind as gate_ki
 use grimworld_logic::models::location::{Location, LocationRecord, LocationTrait, biome, kind};
 use grimworld_logic::models::outline::{CHUNK_SET, Outline, OutlineRecord, OutlineTrait};
 use grimworld_logic::models::pack::{Pack, PackCaste, PackRecord, PackTrait};
-use grimworld_logic::models::quotas::{Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind as quota};
-use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
+use grimworld_logic::models::quotas::{
+    Quota, QuotaSet, QuotaSetRecord, QuotaSetTrait, kind as quota,
+};
 use grimworld_logic::models::region::{Region, RegionRecord, RegionTrait};
+use grimworld_logic::models::spawn_table::{Spawn, SpawnTable, SpawnTableRecord, SpawnTableTrait};
 use grimworld_logic::packing::Lanes16;
 use grimworld_persistent::systems::registry::{
     IRegistryAdminDispatcher, IRegistryAdminDispatcherTrait,
@@ -181,9 +183,7 @@ impl RowImpl of Row {
     /// A pack template: five `(caste, min, max)`, then its level offset.
     fn pack(self: Span<felt252>) -> Pack {
         PackTrait::new(
-            [
-                self.caste(0), self.caste(1), self.caste(2), self.caste(3), self.caste(4),
-            ],
+            [self.caste(0), self.caste(1), self.caste(2), self.caste(3), self.caste(4)],
             self.field(16),
         )
     }
@@ -432,9 +432,7 @@ pub impl SeedImpl of SeedTrait {
             columns.append(format!("weight_{}", i));
         }
         columns.append("density");
-        let rows = SeedAssert::assert_columns(
-            self.spawn_table_fields, columns, *self.spawn_tables,
-        );
+        let rows = SeedAssert::assert_columns(self.spawn_table_fields, columns, *self.spawn_tables);
         for i in 0..rows {
             let row = self.spawn_tables.slice(SPAWN_TABLE_COLUMNS * i, SPAWN_TABLE_COLUMNS);
             written.add(row.field(0), @row.spawn_table());

@@ -2,9 +2,9 @@
 //! template (design/05): its castes with their count bounds and a level offset.
 //!
 //! **Which goblin is which caste** is derived from the template and the pack's `count` alone
-//! (`PackTrait::caste`), since a placed pack stores only its template and count (ENG-01 §3.2): each
-//! caste first takes its `min`, then the goblins left go to the castes in order, each up to its
-//! `max`.
+//! (`PackTrait::caste`), since a placed pack stores only its template and count (ENG-01 §3.2):
+//! each caste first takes its `min`, then the goblins left go to the castes in order, each up to
+//! its `max`.
 
 use crate::content::{PACK, Record};
 use crate::helpers::signed::SignedTrait;
@@ -113,7 +113,10 @@ pub impl PackRecord of Record<Pack> {
     fn pack(self: @Pack) -> Span<felt252> {
         self.assert_valid();
         let [c0, c1, c2, c3, c4] = self.castes;
-        let low = PackCasteBitsTrait::bits(c0) + PackCasteBitsTrait::bits(c1) * P32 + PackCasteBitsTrait::bits(c2) * P64 + PackCasteBitsTrait::bits(c3) * P96;
+        let low = PackCasteBitsTrait::bits(c0)
+            + PackCasteBitsTrait::bits(c1) * P32
+            + PackCasteBitsTrait::bits(c2) * P64
+            + PackCasteBitsTrait::bits(c3) * P96;
         let high = PackCasteBitsTrait::bits(c4) + SignedTrait::bits8(*self.level) * P32;
         array![join(low, high)].span()
     }
@@ -147,8 +150,11 @@ mod tests {
         let parts = pack.pack();
         let high: felt252 = 0x1234 + 2 * 0x10000 + 0xff * 0x1000000 + 0xfd * 0x100000000;
         assert(
-            *parts[0] == 0xabcd + 0x10000 + 0x12 * 0x1000000
-                + high * 0x100000000000000000000000000000000 + LIVE,
+            *parts[0] == 0xabcd
+                + 0x10000
+                + 0x12 * 0x1000000
+                + high * 0x100000000000000000000000000000000
+                + LIVE,
             'bits',
         );
         assert(PackRecord::unpack(parts) == pack, 'round trip');
@@ -159,7 +165,11 @@ mod tests {
     #[available_gas(l2_gas: 83370)] // ceil(1.05 × 79400 measured)
     fn test_pack_bounds_refused() {
         let wrong = PackCaste { caste: 1, min: 3, max: 2 };
-        PackTrait::new([wrong, Default::default(), Default::default(), Default::default(), Default::default()], 0).pack();
+        PackTrait::new(
+            [wrong, Default::default(), Default::default(), Default::default(), Default::default()],
+            0,
+        )
+            .pack();
     }
 
     // Each caste takes its `min`, then the rest in order up to each `max`; never above 5 (E-3).

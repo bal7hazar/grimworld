@@ -77,7 +77,10 @@ fn test_instances_set_admin_hands_over() {
     IInstancesAdminDispatcher { contract_address: instances }.set_admin(0xad2.try_into().unwrap());
     let result = safe
         .set_contracts(
-            2.try_into().unwrap(), 3.try_into().unwrap(), 0x66.try_into().unwrap(), 5.try_into().unwrap(),
+            2.try_into().unwrap(),
+            3.try_into().unwrap(),
+            0x66.try_into().unwrap(),
+            5.try_into().unwrap(),
         );
     assert(*result.unwrap_err().at(0) == NOT_ADMIN, 'former admin refused');
     let result = safe.set_admin(ADMIN.try_into().unwrap());
@@ -86,7 +89,10 @@ fn test_instances_set_admin_hands_over() {
     start_cheat_caller_address(instances, 0xad2.try_into().unwrap());
     safe
         .set_contracts(
-            2.try_into().unwrap(), 3.try_into().unwrap(), 0x66.try_into().unwrap(), 5.try_into().unwrap(),
+            2.try_into().unwrap(),
+            3.try_into().unwrap(),
+            0x66.try_into().unwrap(),
+            5.try_into().unwrap(),
         )
         .unwrap();
     assert(stored(instances) == (0xad2, 2, 3, 0x66, 5), 'the new admin sets');

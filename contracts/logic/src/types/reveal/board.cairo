@@ -20,7 +20,8 @@
 //! - **Within 2 of the openings** (`near_openings`): two hex dilations of the openings' set
 //!   (`dilate`, bit-parallel with the row parity, ring tiles included), equal to the union of
 //!   `HexagonTrait::hexagon`s of radius 2 (N-6), which the tests hold it against. `hexagon`'s table
-//!   path is not called: its tables and loop path cost `RevealLibrary` about 1,900 CASM felts (D-200).
+//!   path is not called: its tables and loop path cost `RevealLibrary` about 1,900 CASM felts
+//!   (D-200).
 //!
 //! **Corners are always wall** (D-134): no step opens one (`SIDES` holds no corner, `lines` and the
 //! spine lie in the interior, an anchor on a corner is not opened).
@@ -333,9 +334,9 @@ pub impl BoardImpl of BoardTrait {
     }
 
     /// `tiles` and their hex neighbours on the chunk, ring included (`hexx`'s odd-r layout with the
-    /// global parity: a globally even row's northern and southern neighbours are `x − 1` and `x`, an
-    /// odd row's `x` and `x + 1`). Each shift is a field product of tiles masked so that it never
-    /// crosses a side; the shifted sets are joined by OR, as two of them may meet.
+    /// global parity: a globally even row's northern and southern neighbours are `x − 1` and `x`,
+    /// an odd row's `x` and `x + 1`). Each shift is a field product of tiles masked so that it
+    /// never crosses a side; the shifted sets are joined by OR, as two of them may meet.
     fn dilate(tiles: felt252, odd: bool) -> felt252 {
         let wide: u256 = tiles.into();
         let (even_rows, odd_rows) = if odd {
@@ -495,7 +496,9 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 311103)] // ceil(1.05 × 296288 measured)
     fn test_lines_reach_the_spine() {
-        let ring = Bits::pow(at(0, 3)) + Bits::pow(at(14, 11)) + Bits::pow(at(4, 0))
+        let ring = Bits::pow(at(0, 3))
+            + Bits::pow(at(14, 11))
+            + Bits::pow(at(4, 0))
             + Bits::pow(at(9, 14));
         let lines = BoardTrait::lines(ring);
         let mut column: u8 = 1;
@@ -515,8 +518,11 @@ mod tests {
     #[test]
     #[available_gas(l2_gas: 42099)] // ceil(1.05 × 40094 measured)
     fn test_copy_faces_the_neighbour() {
-        let floor = Bits::pow(at(0, 4)) + Bits::pow(at(14, 6)) + Bits::pow(at(3, 14))
-            + Bits::pow(at(8, 0)) + Bits::pow(at(7, 7));
+        let floor = Bits::pow(at(0, 4))
+            + Bits::pow(at(14, 6))
+            + Bits::pow(at(3, 14))
+            + Bits::pow(at(8, 0))
+            + Bits::pow(at(7, 7));
         assert(BoardTrait::copy(0, floor) == Bits::pow(at(14, 4)), 'west');
         assert(BoardTrait::copy(1, floor) == Bits::pow(at(0, 6)), 'east');
         assert(BoardTrait::copy(2, floor) == Bits::pow(at(3, 0)), 'south');

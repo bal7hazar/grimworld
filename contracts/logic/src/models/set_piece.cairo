@@ -41,7 +41,10 @@ pub impl SetPieceRecord of Record<SetPiece> {
         assert(walls.high < P97, chunk_errors::WALLS);
         let [p0, p1] = self.packs;
         let [o0, o1, o2] = self.objects;
-        let low = SetPackBitsTrait::bits(p0) + SetPackBitsTrait::bits(p1) * P24 + o0.bits() * P48 + o1.bits() * P80;
+        let low = SetPackBitsTrait::bits(p0)
+            + SetPackBitsTrait::bits(p1) * P24
+            + o0.bits() * P48
+            + o1.bits() * P80;
         array![join(walls.low, walls.high), join(low, o2.bits())].span()
     }
 
@@ -78,7 +81,10 @@ mod tests {
         );
         let parts = piece.pack();
         assert(*parts[0] == walls + LIVE, 'walls');
-        let low: felt252 = 0x70 + 0xabcd * 0x100 + 0x71 * 0x1000000 + 0x1 * 0x100000000
+        let low: felt252 = 0x70
+            + 0xabcd * 0x100
+            + 0x71 * 0x1000000
+            + 0x1 * 0x100000000
             + (0x72 + 5 * 0x100 + 0x1234 * 0x10000) * 0x1000000000000;
         let high: felt252 = 0x73 + 6 * 0x100 + 0xbeef * 0x10000;
         assert(*parts[1] == low + high * 0x100000000000000000000000000000000 + LIVE, 'placements');

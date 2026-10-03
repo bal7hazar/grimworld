@@ -76,7 +76,10 @@ pub impl QuotaSetRecord of Record<QuotaSet> {
     fn pack(self: @QuotaSet) -> Span<felt252> {
         self.assert_valid();
         let [q0, q1, q2, q3, q4, q5] = self.quotas;
-        let low = QuotaBitsTrait::bits(q0) + QuotaBitsTrait::bits(q1) * P32 + QuotaBitsTrait::bits(q2) * P64 + QuotaBitsTrait::bits(q3) * P96;
+        let low = QuotaBitsTrait::bits(q0)
+            + QuotaBitsTrait::bits(q1) * P32
+            + QuotaBitsTrait::bits(q2) * P64
+            + QuotaBitsTrait::bits(q3) * P96;
         let high = QuotaBitsTrait::bits(q4) + QuotaBitsTrait::bits(q5) * P32;
         array![join(low, high)].span()
     }
@@ -105,7 +108,10 @@ mod tests {
         let exit = Quota { kind: kind::EXIT, param: 0xabcd, count: 0x12 };
         let last = Quota { kind: kind::SET_PIECE, param: 0x1234, count: 0xff };
         let set = QuotaSetTrait::new(
-            [exit, Default::default(), Default::default(), Default::default(), Default::default(), last],
+            [
+                exit, Default::default(), Default::default(), Default::default(),
+                Default::default(), last,
+            ],
         );
         let parts = set.pack();
         let quota_bits = 1 + 0xabcd * 0x100 + 0x12 * 0x1000000;
@@ -124,7 +130,12 @@ mod tests {
     #[available_gas(l2_gas: 91476)] // ceil(1.05 × 87120 measured)
     fn test_quotas_kind_refused() {
         let wrong = Quota { kind: 7, param: 0, count: 1 };
-        let set = QuotaSet { quotas: [wrong, Default::default(), Default::default(), Default::default(), Default::default(), Default::default()] };
+        let set = QuotaSet {
+            quotas: [
+                wrong, Default::default(), Default::default(), Default::default(),
+                Default::default(), Default::default(),
+            ],
+        };
         set.pack();
     }
 }

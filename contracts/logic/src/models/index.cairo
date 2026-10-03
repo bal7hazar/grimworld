@@ -367,8 +367,8 @@ pub struct Quota {
 }
 
 /// `QUOTAS`, 1 part, id = its location's id (D-145; ADR-0006 kind 2).
-/// Quota `i` (32 bits: kind 0–7 · param 8–23 · count 24–31) at `32 i` for `i` 0–3 (low limb) and
-/// at `128 + 32 (i − 4)` for `i` 4–5 · `LIVE`.
+/// Quota `i` (32 bits: kind 0–7 · param 8–23 · count 24–31) at `32 i` for `i` 0–3 (low
+/// limb) and at `128 + 32 (i − 4)` for `i` 4–5 · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct QuotaSet {
     pub quotas: [Quota; 6],
@@ -383,8 +383,8 @@ pub struct Spawn {
 }
 
 /// `SPAWN_TABLE`, 1 part (design/18 *Features*: 0 to 2 packs a chunk, from the location's table).
-/// Entry `i` (24 bits: template 0–15 · weight 16–23) at `24 i` for `i` 0–4 (low limb) and at `128
-/// + 24 (i − 5)` for `i` 5–6 · density 176–183 · `LIVE`.
+/// Entry `i` (24 bits: template 0–15 · weight 16–23) at `24 i` for `i` 0–4 (low limb) and at
+/// `128 + 24 (i − 5)` for `i` 5–6 · density 176–183 · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct SpawnTable {
     pub spawns: [Spawn; 7],
@@ -402,8 +402,8 @@ pub struct PackCaste {
 }
 
 /// `PACK`, 1 part (design/05; ENG-01 §3.5): a pack template.
-/// Caste `i` (32 bits: caste 0–15 · min 16–23 · max 24–31) at `32 i` for `i` 0–3 (low limb) and
-/// at 128 for `i` 4 · level offset 160–167 (`i8`, two's complement) · `LIVE`.
+/// Caste `i` (32 bits: caste 0–15 · min 16–23 · max 24–31) at `32 i` for `i` 0–3 (low
+/// limb) and at 128 for `i` 4 · level offset 160–167 (`i8`, two's complement) · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct Pack {
     pub castes: [PackCaste; 5],
@@ -422,7 +422,8 @@ pub struct SetPack {
 /// `SET_PIECE`, 2 parts (ADR-0006 *Set pieces*): an authored chunk. Its ring is joined at reveal
 /// like any chunk's; its interior and placements are kept.
 /// Part 0: walls, bit `15 row + column` (1 = wall), bits 0–224 · `LIVE`.
-/// Part 1: packs `i` (24 bits: tile 0–7 · template 8–23) at `24 i` for `i` 0–1 · objects `i`
+/// Part 1: packs `i` (24 bits: tile 0–7 · template 8–23) at `24 i` for `i` 0–1 · objects
+/// `i`
 /// (32 bits, `Object`'s layout, state 0) at 48, 80 (low limb) and 128 · `LIVE`.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 pub struct SetPiece {
@@ -432,8 +433,8 @@ pub struct SetPiece {
 }
 
 /// The terrain of a revealed chunk (ENG-01 §3.2): walls of the 225 tiles (bit `15 row + column`,
-/// 1 = wall) and, for a dungeon chunk, its four edges (bits 225–228: 1 open, 0 border; West, East,
-/// South, North), decided at its reveal.
+/// 1 = wall) and, for a dungeon chunk, its four edges (bits 225–228: 1 open, 0 border; West,
+/// East, South, North), decided at its reveal.
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct Terrain {
     pub walls: felt252,
