@@ -54,7 +54,7 @@ use crate::types::tick::{Content, ContentTrait, Index, NO_SLOT, Sheets, ai, flag
 /// What crosses the library call: the clock, the members (ascending entity id), the goblins the
 /// ticks may touch (ascending entity id), the goblins killed in resolution order (`GoblinKilled`)
 /// and whether the adventurer was defeated.
-#[derive(Drop, Serde, Debug, PartialEq)]
+#[derive(Clone, Drop, Serde, Debug, PartialEq)]
 pub struct Words {
     pub clock: u32,
     pub members: Array<MemberWords>,

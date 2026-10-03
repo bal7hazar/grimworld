@@ -1190,10 +1190,28 @@ pub impl DelegateRules of Rules<Delegate> {
         let board = self.board;
         // §5.9 in this class: the slot's carrier, and its target still legal (else nothing, the
         // costs stay paid); the carrier itself runs behind the call.
+        let lever = Levered {};
         let carrier = ExecutorTrait::carrier(@world, sheets, actor, slot);
-        if !ExecutorTrait::legal(@Levered {}, @world, sheets, @board, actor, carrier, target) {
+        if !ExecutorTrait::legal(@lever, @world, sheets, @board, actor, carrier, target) {
             return;
         }
+        // §5.14 step 2 before any sub-world: a `TRAP` carrier places its trap if its guard
+        // holds (CBT-05b writes the object), and nothing else runs (CBT-05a's review).
+        if let Carrier::Skill((at, _)) = carrier {
+            let first = lever.entry(sheets, at, 0);
+            if first.kind == kind::TRAP {
+                let entries = array![first].span();
+                let held = match actor {
+                    Actor::Member(i) => ExecutorTrait::guards(@world.member(i), entries),
+                    Actor::Goblin(i) => ExecutorTrait::guards(@world.goblin(i), entries),
+                };
+                if held & 1 == 1 {
+                    self.placed.append((target, actor));
+                }
+                return;
+            }
+        }
+        let (addressing, _) = ExecutorTrait::addressing(@lever, @world, sheets, actor, carrier);
         // The source's and the address's positions.
         let source_at = match actor {
             Actor::Member(i) => {
@@ -1205,21 +1223,24 @@ pub impl DelegateRules of Rules<Delegate> {
                 board.position(x, y)
             },
         };
-        let addressed = if target < FIRST_GOBLIN {
-            None
+        // The address by the carrier's addressing: a tile, an entity, or the source itself.
+        let mut addressed: Option<u32> = None;
+        let address_at = if addressing == target::TILE {
+            board.tile(target)
+        } else if addressing == target::SELF {
+            source_at
         } else {
-            world.find(target)
-        };
-        let address_at = if target < FIRST_GOBLIN && target.into() < world.member_count() {
-            let (x, y, _) = MemberSnapshotTrait::place(@world.member(target.into()));
-            board.position(x, y)
-        } else {
-            match addressed {
-                Some(i) => {
+            match ExecutorTrait::actor(@world, target) {
+                Some(Actor::Member(i)) => {
+                    let (x, y, _) = MemberSnapshotTrait::place(@world.member(i));
+                    board.position(x, y)
+                },
+                Some(Actor::Goblin(i)) => {
+                    addressed = Some(i);
                     let (x, y, _) = GoblinPlaceTrait::place(@world.goblin(i));
                     board.position(x, y)
                 },
-                None => board.tile(target),
+                None => source_at,
             }
         };
         // The goblins the carrier can reach, ascending index (so ascending entity id).
@@ -1341,22 +1362,7 @@ pub impl ExecutorImpl of ExecutorTrait {
         carrier: Carrier,
         address: u16,
     ) -> bool {
-        let (addressing, reach) = match carrier {
-            Carrier::Weapon => (target::FOE, Self::weapon_range(world, sheets, source)),
-            Carrier::Skill((
-                at, _,
-            )) => {
-                let sheet = (*sheets.skills)[at];
-                if *sheet.kind == skill_kind::ATTACK {
-                    (target::FOE, Self::weapon_range(world, sheets, source))
-                } else {
-                    (lever.entry(sheets, at, 0).target, *sheet.range)
-                }
-            },
-            Carrier::Potion((
-                at, _,
-            )) => (lever.potion_entry(sheets, at).target, *(*sheets.potions)[at].range),
-        };
+        let (addressing, reach) = Self::addressing(lever, world, sheets, source, carrier);
         if addressing == target::SELF {
             return true;
         }
@@ -1376,6 +1382,31 @@ pub impl ExecutorImpl of ExecutorTrait {
             }
         };
         board.window.reach(from, to, reach)
+    }
+
+    /// What `carrier` addresses (`target::SELF`, `FOE`, `ALLY`, `TILE`: its first entry's, an
+    /// attack's foe) and the reach its target must be in (the skill's range, a weapon's or an
+    /// attack skill's: the weapon's). The address is read by its entry, never by its value: a
+    /// `TILE` address is never taken for an entity (CBT-05a's review).
+    fn addressing<L, +Levers<L>>(
+        lever: @L, world: @World, sheets: @Sheets, source: Actor, carrier: Carrier,
+    ) -> (u8, u8) {
+        match carrier {
+            Carrier::Weapon => (target::FOE, Self::weapon_range(world, sheets, source)),
+            Carrier::Skill((
+                at, _,
+            )) => {
+                let sheet = (*sheets.skills)[at];
+                if *sheet.kind == skill_kind::ATTACK {
+                    (target::FOE, Self::weapon_range(world, sheets, source))
+                } else {
+                    (lever.entry(sheets, at, 0).target, *sheet.range)
+                }
+            },
+            Carrier::Potion((
+                at, _,
+            )) => (lever.potion_entry(sheets, at).target, *(*sheets.potions)[at].range),
+        }
     }
 
     /// Runs `carrier` of `source` on `address` (an entity id, or a location's tile `x + 256 y` for

@@ -327,7 +327,11 @@ impl BusyRules of Rules<Busy> {
 /// `health`, activating slot 0 due at `due` (0: none), the three degenerating conditions to
 /// `until`, its effect skill 43 to `until` at rank 4.
 fn goblin_words(entity: u16, awake: bool, health: u16, due: u32, until: u32) -> GoblinWords {
-    let state = LIVE + ai::ALERTED.into() * B24 + health.into() * B32 + 5 * B64 + 10 * B80;
+    // One goblin a tile (design/04; the cost audit of #334, F-2): goblin `e` on the window's
+    // position `e − 7`, the member on position 0.
+    let position: u16 = entity - 7;
+    let tile: felt252 = (position % 15).into() + (position / 15).into() * 0x100;
+    let state = LIVE + tile + ai::ALERTED.into() * B24 + health.into() * B32 + 5 * B64 + 10 * B80;
     let act: felt252 = if due == 0 {
         activation::NONE.into()
     } else {
@@ -3319,4 +3323,390 @@ fn board() -> Board {
     BoardTrait::new(
         WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), 0, 0,
     )
+}
+
+// ---- Route (c), behaviour and cost (CBT-05a, the review of #334)
+// ----------------------------------
+// `TickLibrary` runs each carrier through `ExecutorLibrary` with a sub-world (every member, the
+// source, the addressed goblin, the goblins within one tile of the source or the address). These
+// tests spread the goblins so that the sub-world is a strict subset and the source's sub-index
+// differs from its index, and compare the library's words with the in-process executor's.
+
+/// The member's tile in the window: (7, 7), position 112.
+const AT: u8 = 112;
+
+fn place(position: u8) -> felt252 {
+    let x: felt252 = (position % 15).into();
+    let y: felt252 = (position / 15).into();
+    x + y * two(8)
+}
+
+/// The fixtures' member at `AT`, level 20 (spell strength 60), health `health`.
+fn member_at(health: u16) -> Member {
+    let mut spec = Fixture::spec();
+    spec.health = health;
+    let mut member = Fixture::member(spec);
+    member.words.state += place(AT) * two(32);
+    member.words.stats += 20 * two(64);
+    member
+}
+
+/// A goblin of caste HOB at `position`, health `health`, awake if `awake`.
+fn goblin_at(entity: u16, position: u8, health: u16, awake: bool) -> Goblin {
+    let mut goblin = Fixture::goblin(entity, HOB);
+    goblin.state += place(position);
+    goblin.health = health;
+    goblin.awake = awake;
+    goblin
+}
+
+/// The tiles around `centre`, ascending.
+fn ring(centre: u8) -> Span<u8> {
+    let open = WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+    WindowTrait::tiles(open.shape(shape::RING_1, centre))
+}
+
+/// The fixtures' content with: bar skill 2, Cinder Ring (fire 80 and Burning 3 on `RING_1`, `SELF`,
+/// `FOES`); caste HOB's weapon `damage` at rank 15 and range `range`; caste skill 25, an attack
+/// skill of activation 1 (the implicit weapon hit).
+fn route_content(damage: u8, range: u8) -> Content {
+    let base = Fixture::content();
+    let fire = EntryTrait::new(
+        kind::DAMAGE, 4, 80, 80, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+    );
+    let burn = EntryTrait::new(
+        kind::CONDITION, 3, 3, 3, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+    );
+    let mut skills = array![];
+    for sheet in base.skills {
+        let mut sheet = *sheet;
+        if sheet.id == 2 {
+            sheet.entry1 = fire.pack();
+            sheet.entry2 = burn.pack();
+        }
+        skills.append(sheet);
+    }
+    let mut castes = array![];
+    for caste in base.castes {
+        let mut caste = *caste;
+        if caste.id == HOB {
+            caste.weapon = weapon::SWORD;
+            caste.weapon_damage = damage;
+            caste.damage_type = 1;
+            caste.weapon_range = range;
+            caste.rank = 15;
+        }
+        castes.append(caste);
+    }
+    Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
+}
+
+/// One tick through `TickLibrary` (route (c)) and the same tick in process with the in-class
+/// executor: their words must agree.
+fn agree(words: Words, content: Content) -> Words {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (mut world, sheets) = words.clone().load(@content);
+    let out = library.run(words, content, board(), executor(), 1);
+    let mut rules = ExecutorTrait::new(board());
+    TickTrait::run(ref world, @sheets, 1, ref rules);
+    assert(out == world.store(), 'route (c) = in process');
+    out
+}
+
+// The member's Cinder Ring concludes at tick 41 and kills goblins 9 and 10 (adjacent, 50 health;
+// 80 at x = 60 is 226), in tile order, which the sub-world reaches; goblins 8 and 11 are far and
+// stay out of the call. The library's words equal the in-process executor's.
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_route_c_kills_in_order() {
+    let tiles = ring(AT);
+    let mut member = member_at(400);
+    member.start(1, 0, 1, 40);
+    let goblins = array![
+        goblin_at(8, 0, 100, false), goblin_at(9, *tiles[0], 50, true),
+        goblin_at(10, *tiles[2], 50, true), goblin_at(11, 230, 100, false),
+    ];
+    let words = Fixture::world(40, array![member], goblins).store();
+    let out = agree(words, route_content(30, 1));
+    assert(out.killed.span() == array![9, 10].span(), 'killed in tile order');
+    assert(!out.defeated, 'not defeated');
+}
+
+// Goblin 10 (index 2; goblin 8, far, holds index 0) concludes its attack skill on the member at
+// tick 41: its sub-index in the call is 1, not 2. Its weapon hit (255 at rank 15, strength 75)
+// downs the member at 10 health: the tick stops, defeated. The words agree.
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_route_c_source_sub_index_and_defeat() {
+    let tiles = ring(AT);
+    let mut source = goblin_at(10, *tiles[1], 100, true);
+    source.start(1, 0, 1, 40);
+    let goblins = array![goblin_at(8, 230, 100, false), goblin_at(9, *tiles[0], 100, true), source];
+    let words = Fixture::world(40, array![member_at(10)], goblins).store();
+    let out = agree(words, route_content(255, 1));
+    assert(out.defeated, 'defeated');
+    assert(out.killed.len() == 0, 'no kill');
+}
+
+/// The representative worst tick (the review of #334, ENG-01 §9.2): 13 goblins within one tile of
+/// the member or of each other, the member's ring of 6 and 7 at distance 2; 8 of them awake, each
+/// concluding its attack skill on the member at tick 41 with a reach of 6 (all legal), so each
+/// call carries the member and the goblins within one tile of its source or of the member.
+fn worst_tick() -> (World, Sheets, grimworld_logic::types::tick::Index) {
+    let inner = ring(AT);
+    let mut outer: Array<u8> = array![];
+    let mut position: u8 = 0;
+    while position < 240 && outer.len() < 7 {
+        if WindowTrait::distance(position, AT) == 2 {
+            outer.append(position);
+        }
+        position += 1;
+    }
+    let mut goblins = array![];
+    let mut entity: u16 = 8;
+    let mut awake: u32 = 0;
+    for tile in inner {
+        let mut goblin = goblin_at(entity, *tile, 250, true);
+        goblin.start(1, 0, 1, 40);
+        goblins.append(goblin);
+        entity += 1;
+        awake += 1;
+    }
+    for tile in outer.span() {
+        let wake = awake < 8;
+        let mut goblin = goblin_at(entity, *tile, 250, wake);
+        if wake {
+            goblin.start(1, 0, 1, 40);
+            awake += 1;
+        }
+        goblins.append(goblin);
+        entity += 1;
+    }
+    let words = Fixture::world(40, array![member_at(480)], goblins).store();
+    let content = route_content(5, 6);
+    let (world, sheets, index) = words.indexed(@content);
+    (world, sheets, index)
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_route_c_tick_fixture() {
+    let (world, sheets, _) = worst_tick();
+    assert(opaque(world.goblin_count()) == 13 && sheets.skills.len() > 0, 'fixture');
+}
+
+// The worst tick in process with the in-class executor (route (a)'s shape): the pair's base.
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_route_c_tick_in_class() {
+    let (mut world, sheets, _) = worst_tick();
+    let mut rules = ExecutorTrait::new(board());
+    TickTrait::tick(ref world, @sheets, ref rules);
+    assert(rules.cache.hits == 8, 'eight hits');
+}
+
+// The same tick through route (c): `TickLibrary`'s hook builds each sub-world, calls
+// `ExecutorLibrary` and loads back what returns, 8 times.
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_route_c_tick() {
+    let (mut world, sheets, index) = worst_tick();
+    let content = route_content(5, 6);
+    let mut rules = grimworld_logic::types::executor::Delegate {
+        board: board(),
+        cache: Default::default(),
+        executor: executor(),
+        content,
+        index,
+        placed: array![],
+    };
+    TickTrait::tick(ref world, @sheets, ref rules);
+    assert(rules.cache.hits == 8 && !world.defeated, 'eight hits');
+}
+
+// ---- The representative worst, through `TickLibrary` (the cost audit of #334, F-1) --------------
+// The member at `AT`; 8 awake goblins one per tile, its ring of 6 and 2 behind (design/04, ENG-01
+// §9.2); the worst content (38 skills, 4 potions, 5 castes), caste 1's weapon of reach 6 so that
+// every goblin's attack is legal. Scenarios, one tick unless said: 0 idle; 1 the 8 goblins each
+// conclude an attack skill on the member; 2 the member concludes Cinder Ring on its ring; 3 one
+// goblin 3 tiles away concludes on the member, reaching 13 goblins (its 6 neighbours and the
+// member's 6); 4 scenario 3's state idle.
+
+fn rep_content() -> Content {
+    let base = worst_content(1);
+    let fire = EntryTrait::new(
+        kind::DAMAGE, 4, 80, 80, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+    );
+    let burn = EntryTrait::new(
+        kind::CONDITION, 3, 3, 3, 0, 0, 0, target::SELF, shape::RING_1, filter::FOES, 0, 0,
+    );
+    let mut skills = array![];
+    for sheet in base.skills {
+        let mut sheet = *sheet;
+        if sheet.id == 2 {
+            sheet.kind = skill_kind::SPELL;
+            sheet.entry1 = fire.pack();
+            sheet.entry2 = burn.pack();
+        }
+        skills.append(sheet);
+    }
+    let mut castes = array![];
+    for caste in base.castes {
+        let mut caste = *caste;
+        caste.weapon = weapon::BOW;
+        caste.weapon_damage = 5;
+        caste.damage_type = 2;
+        caste.weapon_range = 6;
+        caste.rank = 15;
+        castes.append(caste);
+    }
+    Content { skills: skills.span(), potions: base.potions, castes: castes.span() }
+}
+
+fn rep_words(scenario: u8) -> Words {
+    let mut member = member_at(480);
+    if scenario == 2 {
+        member.start(1, 0, 1, 40);
+    }
+    let mut goblins = array![];
+    let mut entity: u16 = 8;
+    if scenario >= 3 {
+        // The member's ring of 6 (frozen but alive), and around a source 3 tiles away its 6
+        // neighbours (frozen) and the source itself, awake.
+        let source = AT + 3;
+        let mut tiles: Array<u8> = array![];
+        for tile in ring(AT) {
+            tiles.append(*tile);
+        }
+        for tile in ring(source) {
+            tiles.append(*tile);
+        }
+        tiles.append(source);
+        // Ascending positions, ascending entities.
+        let sorted = ascending_u8(tiles.span());
+        for tile in sorted {
+            let own = *tile == source;
+            let mut goblin = goblin_at(entity, *tile, 250, own);
+            if own && scenario == 3 {
+                goblin.start(0, 0, 1, 40);
+            }
+            goblins.append(goblin);
+            entity += 1;
+        }
+    } else {
+        let mut tiles: Array<u8> = array![];
+        for tile in ring(AT) {
+            tiles.append(*tile);
+        }
+        let mut position: u8 = 0;
+        let mut behind: u32 = 0;
+        while position < 240 && behind < 2 {
+            if WindowTrait::distance(position, AT) == 2 {
+                tiles.append(position);
+                behind += 1;
+            }
+            position += 1;
+        }
+        for tile in ascending_u8(tiles.span()) {
+            let mut goblin = goblin_at(entity, *tile, 250, true);
+            if scenario == 1 {
+                goblin.start(0, 0, 1, 40);
+            }
+            goblins.append(goblin);
+            entity += 1;
+        }
+    }
+    Fixture::world(40, array![member], goblins).store()
+}
+
+/// `tiles` ascending (a selection: at most 13).
+fn ascending_u8(tiles: Span<u8>) -> Span<u8> {
+    let mut sorted: Array<u8> = array![];
+    let mut last: u16 = 0;
+    let mut first = true;
+    while sorted.len() < tiles.len() {
+        let mut least: u16 = 0x100;
+        for tile in tiles {
+            let t: u16 = (*tile).into();
+            if (first || t > last) && t < least {
+                least = t;
+            }
+        }
+        sorted.append(least.try_into().unwrap());
+        last = least;
+        first = false;
+    }
+    sorted.span()
+}
+
+fn rep_run(scenario: u8, ticks: u8) -> Words {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let executor = executor();
+    library.run(rep_words(scenario), rep_content(), board(), executor, ticks)
+}
+
+/// A fixture: the same arguments and classes, no call.
+fn rep_fixture(scenario: u8) {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let _ = executor();
+    let words = rep_words(scenario);
+    let content = rep_content();
+    assert(opaque(words.goblins.len()) > 0 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_fixture() {
+    rep_fixture(0);
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_far_fixture() {
+    rep_fixture(4);
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_idle() {
+    let words = rep_run(0, 1);
+    assert(words.members.len() == 1, 'ran');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_goblins() {
+    let words = rep_run(1, 1);
+    assert(!words.defeated, 'eight carriers');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_member() {
+    let words = rep_run(2, 1);
+    assert(words.killed.len() == 0, 'no kill');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_far() {
+    let words = rep_run(3, 1);
+    assert(words.goblins.len() == 13, 'thirteen');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_far_idle() {
+    let words = rep_run(4, 1);
+    assert(words.goblins.len() == 13, 'thirteen');
+}
+
+#[test]
+#[available_gas(l2_gas: 900000000)]
+fn test_cost_rep_batch() {
+    let words = rep_run(1, 10);
+    assert(words.clock == 50, 'ten ticks');
 }
