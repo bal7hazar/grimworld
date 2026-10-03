@@ -1,11 +1,13 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { Button, IconButton, useChromeMode } from "../chrome/Chrome";
 import type { Intent } from "../input/intent";
+import type { KeyCommand } from "../input/keys";
 import type { ZoomSettings } from "../render/renderer";
 import { SCALE_MODES, readScaleMode } from "../render/scaling";
 import type { Tile } from "../render/view";
 import { SandboxController, type SandboxInfo } from "./controller";
 import { FIXTURES } from "./fixtures";
+import { installKeys, useKeyLayer } from "./keyScope";
 import { FEET_RANGE } from "../render/renderer";
 import { Loop } from "./loop/Loop";
 import { ACROSS_RANGE, readAcross, readFeet, readParams } from "./params";
@@ -28,6 +30,37 @@ export function Sandbox() {
   );
 }
 
+/** What a screen's key handler gets of the map (CLI-03k). */
+export interface MapKeys {
+  readonly controller: SandboxController;
+  /** The walk as last reported, or null before the first report. */
+  readonly walk: WalkInfo | null;
+  /** The map's own answer: a step, the zoom, ◎, or Esc on a planned walk. True when handled. */
+  handle(command: KeyCommand): boolean;
+}
+
+/** The map's own keys: each one the tap or button it stands for. */
+function mapKey(command: KeyCommand, controller: SandboxController, walk: WalkInfo | null) {
+  switch (command.kind) {
+    case "step":
+      controller.step(command);
+      return true;
+    case "zoom":
+      controller.zoomBy(command.by);
+      return true;
+    case "recentre":
+      controller.recentre();
+      return true;
+    case "escape":
+      // The counter's action (design/11 *Desktop*, "Esc cancel").
+      if (!walk || walk.steps === 0) return false;
+      controller.cancelWalk();
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * The rendering sandbox (CLI-03a): the map on the whole of its box, a button back to the
  * adventurer, and a debug panel. In the loop it opens on `world` (the instance, or a hub lived like
@@ -40,18 +73,25 @@ export function Sandbox() {
  * (tile (0, 0) on the canvas and the scale, after each frame), `data-tile` (where the adventurer
  * stands) and `data-walking`; CLI-03g1's `data-ground` (`atlas` when the ground is drawn from the
  * atlas's cells, `colours` otherwise) and `data-bake-ms` (the last chunk's bake, in ms).
+ *
+ * The keyboard (CLI-03k): the room is the map's key layer, a hub's or a zone's. A screen's
+ * `onKey` sees each command first and may hand it to the map (`MapKeys.handle`); without one, the
+ * map answers alone. Outside the loop (`?fixture=`) the room listens to the document itself. The
+ * screen places what marks a selection among `children`, from `onFrame`.
  */
 export function RoomSandbox({
   world,
   onTile,
   route,
   onFrame,
+  onKey,
   children,
 }: {
   world?: SandboxWorld;
   onTile?: (tile: Tile | null, walk: WalkInfo) => void;
   route?: (intent: Intent) => Intent | null;
   onFrame?: (controller: SandboxController) => void;
+  onKey?: (command: KeyCommand, map: MapKeys) => boolean;
   children?: ReactNode;
 } = {}) {
   const root = useRef<HTMLDivElement>(null);
@@ -68,6 +108,22 @@ export function RoomSandbox({
   const frameListener = useRef(onFrame);
   frameListener.current = onFrame;
   const hub = world?.kind === "hub";
+  const lastWalk = useRef<WalkInfo | null>(null);
+  const keyListener = useRef(onKey);
+  keyListener.current = onKey;
+
+  // Outside the loop, the room listens itself; in the loop, the loop does.
+  useEffect(() => (world ? undefined : installKeys()), []);
+
+  useKeyLayer(hub ? "hub" : "instance", (command) => {
+    if (!command || !controller) return false;
+    const map: MapKeys = {
+      controller,
+      walk: lastWalk.current,
+      handle: (c) => mapKey(c, controller, lastWalk.current),
+    };
+    return keyListener.current ? keyListener.current(command, map) : map.handle(command);
+  });
 
   useEffect(() => {
     const element = host.current;
@@ -100,6 +156,7 @@ export function RoomSandbox({
   useEffect(() => {
     if (!controller) return;
     controller.listenToWalk((next) => {
+      lastWalk.current = next;
       setWalk(next);
       const tile = controller.adventurerTile();
       const element = root.current;
