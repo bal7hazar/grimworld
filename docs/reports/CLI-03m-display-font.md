@@ -40,6 +40,10 @@ Closes open question 2 of `docs/briefs/CLI-03i-client-chrome.md` (reverse: a pix
   11 and 10 at 1440), and the page does not scroll sideways. Screenshots are in the library folder, not committed.
 - **AC-6**: the four notes as above.
 
+## Follow-up: the atlas look at 375 px (measured on the live site)
+
+At 375 × 812 (scale 3) the town's service row put "Enchanter" (label 100 px) in a 111 px button, 1 px past its right frame (`scrollWidth` 112 against `clientWidth` 111); all other screens, sizes and `?hud=` values held (0 sideways scroll, `data-chrome="atlas"`, both faces loaded). Fix: at `max-width: 480px` the row's labels are 1 rem with 8 px side padding; "Enchanter" is then 91 px, 10 px clear of the frame (measured with the rule injected into the live page; confirmed after deploy).
+
 ## What was not checked
 
 - **The atlas look** (`data-chrome="atlas"`): this machine has neither the `assets` submodule nor a built

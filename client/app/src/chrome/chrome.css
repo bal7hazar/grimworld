@@ -286,6 +286,15 @@
 [data-chrome="atlas"] .gw-service-row > .gw-button {
   min-width: 0;
 }
+/* Three columns at 375 px give a button 111 px: the display face's widest label ("Enchanter",
+   100 px at 1.166875 rem) would run over the frame, so the row's labels are a little smaller
+   there (CLI-03m follow-up). */
+@media (max-width: 480px) {
+  [data-chrome="atlas"] .gw-service-row > .gw-button {
+    font-size: 1rem;
+    padding-inline: 8px;
+  }
+}
 
 /* Panels stacked on a screen (the Gate's sheet), the entry's scroll within the column. */
 [data-chrome="atlas"] .gw-sheet {
