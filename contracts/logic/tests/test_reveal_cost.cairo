@@ -199,7 +199,7 @@ fn hosts_plan() -> (felt252, felt252) {
 }
 
 #[test]
-#[available_gas(l2_gas: 220704)] // ceil(1.05 × 210194 measured)
+#[available_gas(l2_gas: 220599)] // ceil(1.05 × 210094 measured)
 fn test_cost_hosts_direct() {
     let _class = declare("HostsLibrary").unwrap().contract_class();
     let hosts = PlacementTrait::hosts(0, 3, 2, hosts_plan(), array![].span(), 'seed');
