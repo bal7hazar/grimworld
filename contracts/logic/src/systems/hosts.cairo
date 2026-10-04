@@ -1,0 +1,39 @@
+//! A zone's quota hosts as a library class (ENG-01 §1.3; ENG-05, D-208, D-210, the project
+//! manager, 2026-10-04): `grimworld_logic`'s `PlacementTrait::hosts` declared as its own class,
+//! which `Instances` calls by `library_call` with the class hash as configuration (`Instances`'
+//! constructor and `set_contracts`), once at `create` in a zone with quotas. It has no storage and
+//! reads nothing: the zone, its rectangle, the quotas' plan (`PlacementTrait::plan`: each count,
+//! kind and param), the location's set pieces, the masks of the chunks to reveal and the seed
+//! in; one bitmap a quota, and the masks with their chunks' hosts above the board, out.
+
+#[starknet::contract]
+pub mod HostsLibrary {
+    use crate::interface::IHostsLibrary;
+    use crate::models::set_piece::SetPiece;
+    use crate::types::reveal::placement::PlacementTrait;
+
+    #[storage]
+    struct Storage {}
+
+    #[abi(embed_v0)]
+    impl HostsLibraryImpl of IHostsLibrary<ContractState> {
+        fn hosts(
+            self: @ContractState,
+            zone: felt252,
+            width: u8,
+            height: u8,
+            plan: (felt252, felt252),
+            pieces: Span<(u16, SetPiece)>,
+            masks: Span<(u8, felt252)>,
+            seed: felt252,
+        ) -> (Span<felt252>, Span<(u8, felt252)>) {
+            let hosts = PlacementTrait::hosts(zone, width, height, plan, pieces, seed).span();
+            let mut hosted: Array<(u8, felt252)> = array![];
+            for entry in masks {
+                let (chunk, mask) = *entry;
+                hosted.append((chunk, PlacementTrait::with_hosts(mask, hosts, chunk)));
+            }
+            (hosts, hosted.span())
+        }
+    }
+}

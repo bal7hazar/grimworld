@@ -10,12 +10,16 @@
 //   chunk set), the spawn table at its density;
 // - three: the worst content, three chunks in one call, each knowing the ones before it;
 // - the library call: `RevealLibrary` by `library_call`, one chunk, against the same reveal direct.
-use grimworld_logic::interface::{IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher};
+use grimworld_logic::interface::{
+    IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRevealLibraryDispatcherTrait,
+    IRevealLibraryLibraryDispatcher,
+};
 use grimworld_logic::models::chunk::Terrain;
 use grimworld_logic::models::location::biome;
 use grimworld_logic::models::pack::{Pack, PackCaste};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, kind as quota};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable};
+use grimworld_logic::types::reveal::placement::PlacementTrait;
 use grimworld_logic::types::reveal::{Progress, ProgressTrait, RevealTrait, Site};
 use snforge_std::{ContractClassTrait, DeclareResultTrait, declare};
 
@@ -106,7 +110,7 @@ fn test_cost_reveal_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4269947)] // ceil(1.05 × 4066616 measured)
+#[available_gas(l2_gas: 4140705)] // ceil(1.05 × 3943528 measured)
 fn test_cost_reveal_worst_meadow() {
     let site = site(biome::MEADOW, true);
     let mut progress = progress(@site);
@@ -114,7 +118,7 @@ fn test_cost_reveal_worst_meadow() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4418135)] // ceil(1.05 × 4207747 measured)
+#[available_gas(l2_gas: 4263115)] // ceil(1.05 × 4060109 measured)
 fn test_cost_reveal_worst_forest() {
     let site = site(biome::FOREST, true);
     let mut progress = progress(@site);
@@ -122,7 +126,7 @@ fn test_cost_reveal_worst_forest() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4444391)] // ceil(1.05 × 4232753 measured)
+#[available_gas(l2_gas: 4247823)] // ceil(1.05 × 4045545 measured)
 fn test_cost_reveal_worst_cave() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
@@ -130,7 +134,7 @@ fn test_cost_reveal_worst_cave() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4417547)] // ceil(1.05 × 4207187 measured)
+#[available_gas(l2_gas: 4153813)] // ceil(1.05 × 3956012 measured)
 fn test_cost_reveal_worst_ruin() {
     let site = site(biome::RUIN, true);
     let mut progress = progress(@site);
@@ -158,7 +162,7 @@ fn test_cost_reveal_typical() {
 }
 
 #[test]
-#[available_gas(l2_gas: 12592023)] // ceil(1.05 × 11992402 measured)
+#[available_gas(l2_gas: 11487948)] // ceil(1.05 × 10940902 measured)
 fn test_cost_reveal_three() {
     let site = site(biome::CAVE, true);
     let mut progress = progress(@site);
@@ -169,7 +173,7 @@ fn test_cost_reveal_three() {
 }
 
 #[test]
-#[available_gas(l2_gas: 4456687)] // ceil(1.05 × 4244463 measured)
+#[available_gas(l2_gas: 4260118)] // ceil(1.05 × 4057255 measured)
 fn test_cost_library_baseline() {
     let _class = declare("RevealLibrary").unwrap().contract_class();
     let site = site(biome::CAVE, true);
@@ -178,7 +182,7 @@ fn test_cost_library_baseline() {
 }
 
 #[test]
-#[available_gas(l2_gas: 5028422)] // ceil(1.05 × 4788973 measured)
+#[available_gas(l2_gas: 4831854)] // ceil(1.05 × 4601765 measured)
 fn test_cost_library_call() {
     let class = declare("RevealLibrary").unwrap().contract_class();
     let library = IRevealLibraryLibraryDispatcher { class_hash: *class.class_hash };
@@ -186,4 +190,32 @@ fn test_cost_library_call() {
     let progress = progress(@site);
     let (_, out) = library.reveal(site, progress, INSTANCE, array![].span(), array![16].span());
     assert(out.len() == 1, 'one');
+}
+
+// D-210: `HostsLibrary` by `library_call` at `create` against the same draw direct: a 3 × 2 zone,
+// one collector, the masks of two chunks (the entry reveal's).
+fn hosts_plan() -> (felt252, felt252) {
+    (1 + 0x100 * quota::COLLECTOR.into() + 0x10000 * 1, 0)
+}
+
+#[test]
+#[available_gas(l2_gas: 220704)] // ceil(1.05 × 210194 measured)
+fn test_cost_hosts_direct() {
+    let _class = declare("HostsLibrary").unwrap().contract_class();
+    let hosts = PlacementTrait::hosts(0, 3, 2, hosts_plan(), array![].span(), 'seed');
+    let mut masks: Array<(u8, felt252)> = array![];
+    for chunk in array![0_u8, 15] {
+        masks.append((chunk, PlacementTrait::with_hosts(0, hosts.span(), chunk)));
+    }
+    assert(masks.len() == 2, 'two');
+}
+
+#[test]
+#[available_gas(l2_gas: 376776)] // ceil(1.05 × 358834 measured)
+fn test_cost_hosts_library_call() {
+    let class = declare("HostsLibrary").unwrap().contract_class();
+    let library = IHostsLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (_, masks) = library
+        .hosts(0, 3, 2, hosts_plan(), array![].span(), array![(0, 0), (15, 0)].span(), 'seed');
+    assert(masks.len() == 2, 'two');
 }

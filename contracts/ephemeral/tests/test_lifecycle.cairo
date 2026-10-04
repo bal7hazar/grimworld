@@ -332,10 +332,14 @@ fn setup() -> World {
     let class = declare("HubDouble").unwrap().contract_class();
     let (hub, _) = class.deploy(@array![]).unwrap();
     let reveal = declare("RevealLibrary").unwrap().contract_class();
+    let hosts = declare("HostsLibrary").unwrap().contract_class();
     let class = declare("Instances").unwrap().contract_class();
     let (instances, _) = class
         .deploy(
-            @array![ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into()],
+            @array![
+                ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into(),
+                (*hosts.class_hash).into(),
+            ],
         )
         .unwrap();
 
@@ -676,8 +680,8 @@ fn test_create_refusals() {
 
 // A sealed destination sets the header's flag (design/17).
 #[test]
-// gas: raised, ENG-05: the entry reveal (D-144) and a dearer deployment
-#[available_gas(l2_gas: 32557525)] // ceil(1.05 × 31007166 measured)
+// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
+#[available_gas(l2_gas: 34257287)] // ceil(1.05 × 32625987 measured)
 fn test_create_sealed() {
     let world = setup();
     create(world, HERO, ALICE, INTO_SEALED, 0);
@@ -1309,8 +1313,14 @@ fn test_entry_reveal_through_the_engine() {
     let draw = domain(id.into(), 0, ENTRY);
     let entropy = derive(poseidon_hash_span(array![WORD, draw].span()), draw, 0);
     let mut progress = ProgressTrait::new(@site, entropy);
+    let (low, high) = QuotaPlacementTrait::plan(@site, progress.left.span());
     let hosts = QuotaPlacementTrait::hosts(
-        @site, progress.left.span(), EntropyTrait::hosts(entropy, id.into()),
+        site.chunk_set,
+        site.width,
+        site.height,
+        (low, high),
+        site.pieces,
+        EntropyTrait::hosts(entropy, id.into()),
     );
     site
         .masks =
@@ -1383,7 +1393,7 @@ fn test_region_page_bound() {
 // the frontier open (it never closes before `N`); the chunks beyond an open edge not yet revealed,
 // the others void or undecided.
 #[test]
-#[available_gas(l2_gas: 34995813)] // ceil(1.05 × 33329345 measured)
+#[available_gas(l2_gas: 37270030)] // ceil(1.05 × 35495266 measured)
 fn test_entry_reveal_of_a_dungeon() {
     let world = setup();
     let id = create(world, HERO, ALICE, FAR_LINK, 0);
@@ -1421,6 +1431,33 @@ fn create_gas(gate: u16, chunks: u8) -> u128 {
     let spent = gas - get_available_gas();
     assert(header_of(world, 1).revealed_count == chunks, 'chunks revealed');
     spent
+}
+
+/// `create` into the test zone (2 chunks revealed), its content as `zone_content` writes it, with
+/// the camp's quota or with none: `begin`'s zone block (the plan, `HostsLibrary`'s call, the hosts
+/// written) runs only with a quota (D-210).
+fn create_gas_zone(quotas: bool) -> u128 {
+    let world = setup();
+    zone_content(world);
+    if !quotas {
+        let none = QuotaSet { quotas: [Default::default(); 6] };
+        IRecordsDispatcher { contract_address: world.registry }
+            .set(QUOTAS, ZONE.into(), QuotaSetRecord::pack(@none));
+    }
+    start_cheat_caller_address(world.instances, world.hub);
+    let gas = get_available_gas();
+    IInstanceEntryDispatcher { contract_address: world.instances }
+        .create(HERO, addr(ALICE), FLOOR_TO_ZONE, snapshot().words(), tasks(0));
+    gas - get_available_gas()
+}
+
+// D-210 (review note 5 at 46d7d89): `begin`'s cost with and without the zone block, on the same
+// zone; the difference also holds the collector's placement when a host is revealed.
+#[test]
+#[available_gas(l2_gas: 88630285)] // ceil(1.05 × 84409795 measured)
+fn test_cost_create_zone_block() {
+    println!("gas create, zone with a quota (the zone block): {}", create_gas_zone(true));
+    println!("gas create, zone without a quota (no zone block): {}", create_gas_zone(false));
 }
 
 #[test]

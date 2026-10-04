@@ -54,7 +54,7 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
     // Configuration: one slot each
 
     /// The constructor's writes: the administrator, the three registered contracts, the reveal's
-    /// library class (ENG-05), `next_slot` at 1.
+    /// and the hosts' library classes (ENG-05, D-210), `next_slot` at 1.
     fn initialize(
         ref self: InstancesState,
         admin: ContractAddress,
@@ -62,12 +62,14 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         registry: ContractAddress,
         fate: ContractAddress,
         reveal: ClassHash,
+        hosts_library: ClassHash,
     ) {
         self.admin.write(admin);
         self.hub.write(hub);
         self.registry.write(registry);
         self.fate.write(fate);
         self.reveal.write(reveal);
+        self.hosts_library.write(hosts_library);
         self.next_slot.write(Counter { value: 1 });
     }
 
@@ -103,6 +105,13 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         self.reveal.read()
     }
 
+    /// The hosts' library class (`HostsLibrary`, D-210), called once at `create` in a zone with
+    /// quotas.
+    #[inline(always)]
+    fn get_hosts_library(self: @InstancesState) -> ClassHash {
+        self.hosts_library.read()
+    }
+
     /// `set_contracts`' writes, in its order.
     fn set_registered(
         ref self: InstancesState,
@@ -110,11 +119,13 @@ pub impl InstancesStoreImpl of InstancesStoreTrait {
         registry: ContractAddress,
         fate: ContractAddress,
         reveal: ClassHash,
+        hosts_library: ClassHash,
     ) {
         self.hub.write(hub);
         self.registry.write(registry);
         self.fate.write(fate);
         self.reveal.write(reveal);
+        self.hosts_library.write(hosts_library);
     }
 
     /// A new slot, at an adventurer's first entry: `next_slot` read, then written one more. Slots
@@ -546,7 +557,7 @@ mod tests {
         let timers: felt252 = StorePacking::<MemberTimers>::pack(MemberTimersTrait::empty());
         assert(timers == EMPTY_TIMERS, 'the constant word');
         let zero: ContractAddress = 0.try_into().unwrap();
-        state.initialize(zero, zero, zero, zero, 0.try_into().unwrap());
+        state.initialize(zero, zero, zero, zero, 0.try_into().unwrap(), 0.try_into().unwrap());
         assert(state.new_slot() == 1 && state.new_slot() == 2, 'slots from 1');
     }
 }

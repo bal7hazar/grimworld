@@ -69,8 +69,8 @@ key depends on the draw (#348's delta review: the stream must not change between
 zone's quota hosts (D-208), `Instances`' `hosts` entries `(slot, quota)` written at the entry, are
 drawn too: their keys are computed by starknet.js (the client's dependency, through Node, which
 `scripts/with-node.sh` provides) and their values recorded as `"draw"`.
-`RevealLibrary` is declared before `Hub`'s deployment, and its class hash given to `Instances`'
-constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
+`RevealLibrary` and `HostsLibrary` (D-210) are declared before `Hub`'s deployment, and their class
+hashes given to `Instances`' constructor, so the transactions recorded are the same. `lifecycle-stream-before-r1b.json`,
 recorded on `main`'s code before
 ENG-R1b's first change, is what `Instances` and `Registry` keep: run
 `--scope r1b --expect contracts/tools/lifecycle-stream-before-r1b.json`. Without `--scope`, the
@@ -232,16 +232,17 @@ fate = deploy("persistent", declare("persistent", "TxHashFate"))
 # ENG-05: the reveal's library class, declared before `Hub`'s deployment so that the recorded
 # transactions are the ones they were; its class hash is `Instances`' constructor argument.
 reveal = declare("logic", "RevealLibrary")
+hosts_library = declare("logic", "HostsLibrary")
 hub = deploy("persistent", declare("persistent", "Hub"), ADDRESS, registry, 3, 4, fate)
 flatten = declare("logic", "FlattenLibrary")
 instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub, registry, fate,
-                   reveal)
+                   reveal, hosts_library)
 emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
-      "flatten_class": flatten, "reveal_class": reveal})
+      "flatten_class": flatten, "reveal_class": reveal, "hosts_class": hosts_library})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
          int(instances, 16): "instances", int(flatten, 16): "flatten_class",
-         int(reveal, 16): "reveal_class"}
+         int(reveal, 16): "reveal_class", int(hosts_library, 16): "hosts_class"}
 STREAM = []
 # ENG-R1b: the stream of `Instances` and `Registry`, and the keys whose value the entry draw feeds.
 STREAM_R1B = []

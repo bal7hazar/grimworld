@@ -14,13 +14,13 @@ use starknet::ContractAddress;
 
 fn deploy_instances() -> ContractAddress {
     let class = declare("Instances").unwrap().contract_class();
-    let (address, _) = class.deploy(@array![1, 2, 3, 4, 5]).unwrap();
+    let (address, _) = class.deploy(@array![1, 2, 3, 4, 5, 6]).unwrap();
     address
 }
 
 #[test]
-// gas: raised, ENG-05: Instances deploys dearer (the reveal wiring, its class grew)
-#[available_gas(l2_gas: 3346728)] // ceil(1.05 × 3187360 measured)
+// gas: raised, ENG-05: D-210, HostsLibrary wired into Instances
+#[available_gas(l2_gas: 3841100)] // ceil(1.05 × 3658190 measured)
 fn test_instances_deploys_and_stubs_revert() {
     let address = deploy_instances();
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');

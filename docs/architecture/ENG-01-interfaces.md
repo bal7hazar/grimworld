@@ -221,8 +221,9 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 
 | Class | CASM felts | Share |
 |---|---:|---:|
-| `RevealLibrary` | 40,938 | **49.97 %** |
-| `Instances` (the entry reveal's reads and writes, `instance_region`) | 39,494 | **48.21 %** (29.05 % before) |
+| `RevealLibrary` | 41,131 | **50.21 %** (D-209: at most 50.5 %) |
+| `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept) | 41,247 | **50.35 %** (D-209: at most 51 %; 29.05 % before ENG-05) |
+| `HostsLibrary` (D-210) | 5,033 | 6.14 % |
 
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
 bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about
@@ -240,7 +241,20 @@ the quotas' counts, 345 felts) and the delta review's guard (always one side tow
 the frontier's edges against the chunks owed; a side the mask cuts whole never opened) leave the
 library 22 felts under 50 %, `Instances` 1,466. Counting the distinct chunks behind the frontier's
 edges, the review's first proposal, measured 51.20 %. ENG-07's wiring of the reveal into `play` is
-measured against these margins first, and the library has no room left.
+measured against these margins first, and the library has no room left. D-208's zone hosts took
+`RevealLibrary` and `Instances` over 50 %: D-209 allows them 50.5 % and 51 % until the bit-parallel
+placement lot wins the room back, before ENG-07.
+
+**`HostsLibrary`** (D-210, the project manager, 2026-10-04): a zone's quota hosts
+(`types::reveal::placement::PlacementTrait::hosts`, D-208) as their own class, so that the exact
+draw and the caps leave `Instances` no larger. `IHostsLibrary::hosts(zone, width, height, plan,
+pieces, masks, seed) -> (hosts, masks)` takes the zone (its chunk set, 0 for the rectangle), the
+quotas' plan (`PlacementTrait::plan`: each quota's count, kind and param in two felts), the
+location's set pieces, the masks of the chunks the entry reveals and the seed
+(`EntropyTrait::hosts`); it returns one bitmap a quota and those masks with the quotas each chunk
+hosts above the board. `Instances` holds its class hash (`hosts_library`, §3.2) from its
+constructor and `set_contracts` and calls it **once at `create` in a zone with a quota** (none
+without), then writes the bitmaps (`hosts`, §3.2).
 
 ---
 
@@ -395,6 +409,7 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 |---|---|---:|---|---|
 | `admin`, `hub`, `registry`, `fate` | — | 4 | addresses | constructor, `set_contracts` |
 | `reveal` | — | 1 | `ClassHash` of `RevealLibrary` (ENG-05, §1.3) | constructor, `set_contracts` |
+| `hosts_library` | — | 1 | `ClassHash` of `HostsLibrary` (D-210, §1.3) | constructor, `set_contracts` |
 | `next_slot` | — | 1 | `Counter` | first entry of an adventurer |
 | `placements` | adventurer `u32` | 1 | `Placement` | `create`, `leave` |
 | `headers` | slot | 1 | `Header` | every invocation that runs an action |
@@ -862,7 +877,7 @@ instance_region(instance_id, first: u8, count: u8) -> Span<RegionChunk>     coun
 placement(adventurer_id) -> (u64, u8, bool)
 create(adventurer_id, controller, gate: u16, snapshot: Snapshot, tasks: Span<TaskEntry>) -> u64   Hub only
 set_controller(adventurer_id, controller)                                                         Hub only
-version, set_contracts(hub, registry, fate, reveal: ClassHash), set_admin, upgrade(class_hash)     admin
+version, set_contracts(hub, registry, fate, reveal: ClassHash, hosts_library: ClassHash), set_admin, upgrade(class_hash)     admin
 ```
 
 **The batch in one felt** (`grimworld_logic::actions`): count at bits 0–3 (1–10); actions 0–4 at
@@ -1776,15 +1791,15 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 | Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
 | `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **7,142,400–7,262,400** | `lifecycle_probe.py`, two runs at the final code (D-208) |
-| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,572,400–13,732,400**; with the zone's collector quota (`--quotas on`, its host drawn and written) **14,094,400** | idem |
-| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,942,400–8,062,400** | idem |
-| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,156,640–8,236,640** | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **11,080,640–11,120,640** | idem |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,902,400–7,022,400** | `lifecycle_probe.py`, three runs at the final code (D-210) |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,212,400–13,292,400**; with the zone's collector quota (`--quotas on`: `HostsLibrary` called, its host written) **14,214,400–14,254,400** | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,622,400–7,782,400** | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,076,640–8,236,640** | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,760,640–10,920,640** | idem |
 
 The node's figures follow the entry draw, which follows the transaction hash: the same code gives
 another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
-`leave` to a dungeon floor). D-208's zone hosts add about 400,000 to a zone's `enter` with no quota, and a host's new slot (453,524) and its quota's placement with one; every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs 12,061,667 with its quota and 10,017,658 without, the library call alone 358,834 against the same draw direct (`test_cost_hosts_*`). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M

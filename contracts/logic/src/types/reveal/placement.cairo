@@ -1,22 +1,27 @@
 //! The constraints and the placement of a reveal (ADR-0006 §3, design/18 *Features*): the quotas
-//! drawn order-free, forced at the end, the band of a chunk, then the packs and the objects in the
-//! `Features` word.
+//! (a zone's on hosts drawn at entry, a dungeon's hit or forced), the band of a chunk, then the
+//! packs and the objects in the `Features` word.
 //!
-//! - **Quotas** (`due`). In a zone (D-208, the project manager, 2026-10-03), each quota's host
-//!   chunks are drawn once at `create` (`hosts`): `count` chunks of the zone, a uniform draw
-//!   without replacement from the instance's entropy, one bitmap per quota; a chunk holds the
-//!   quota when it is one of its hosts. Order-free: no move chooses where a zone's quota lands. In
-//!   a dungeon, whose chunks are not known before they are revealed, each quota with a count draws
-//!   `u = draw(N)` from the chunk's own word and is due when `u < count` and something is left.
-//!   Both are **forced** when what is left reaches the chunks left (`left ≥ chunks left`), so the
-//!   last chunks hold what is still owed (in a zone only after a placement found no room), and
-//!   never placed with nothing left, so the count stays exact. At most one of each quota a chunk.
-//!   "Chunks left" counts this chunk: `N − revealed` in a dungeon, the chunk set's count less the
-//!   revealed in a zone. **A dungeon's quotas stay order-dependent** (D-208, accepted as the
-//!   dungeon's nature): its outline emerges from the order of the moves, so the forced window (at
-//!   most the last `count` chunks), a quota whose draws hit more chunks than its count (the first
-//!   revealed take it) and the `N`-th chunk follow that order; an exit's position with them. A
-//!   Heart's pack takes the band's top level wherever it lands, so that no order lowers the boss.
+//! - **Quotas** (`due`). **In a zone** (D-208, D-210, the project manager): each quota's host
+//!   chunks are drawn once at `create` by `HostsLibrary` (`hosts`): its `count` members of the
+//!   zone, an exact draw without replacement from the instance's entropy, no cap on the draws; a
+//!   member the quota would push past a chunk's caps (3 objects, 2 packs, one set piece, a set
+//!   piece's own objects and packs counted) is refused and the next member drawn, its successor,
+//!   takes its place; one bitmap per quota, carried above each chunk's mask (bit `225 + i`). A
+//!   chunk holds the quota exactly when it hosts it, and nothing is ever forced on "the last
+//!   chunks": no order of moves chooses where a zone's quota lands. A quota with fewer allowed
+//!   members than its count keeps fewer hosts; a host whose chunk has no allowed tile left (the
+//!   terrain, which no draw at entry knows) does not lay it either. **In a dungeon**, whose chunks
+//!   are not known before they are revealed, each quota with a count draws `u = draw(N)` from the
+//!   chunk's own word and is due when `u < count` and something is left, and is **forced** when
+//!   what is left reaches the chunks left (`left ≥ chunks left`, "chunks left" counting this one:
+//!   `N − revealed`), so the last chunks hold what is still owed; never placed with nothing left.
+//!   At most one of each quota a chunk. **A dungeon's quotas stay order-dependent** (D-208,
+//!   accepted as the dungeon's nature): its outline emerges from the order of the moves, so the
+//!   forced window (at most the last `count` chunks), a quota whose draws hit more chunks than its
+//!   count (the first revealed take it) and the `N`-th chunk follow that order; an exit's position
+//!   with them. A Heart's pack takes the band's top level wherever it lands, so that no order
+//!   lowers the boss.
 //! - **Bands** (`level`): `level_min + (level_max − level_min) × min(d, D) / D`, `d` the chunk's
 //!   distance in chunks to the entry chunk (`|dcx| + |dcy|`), `D` the farthest a chunk can be (a
 //!   zone: `width + height − 2`; a dungeon: `N − 1`); a pack adds its template's offset, held
@@ -161,12 +166,13 @@ pub impl PlacementImpl of PlacementTrait {
             };
             if count != 0 {
                 let u = rng.draw(bound);
+                // A zone's quota on its hosts alone (D-208): never forced on the last chunks
                 let hit = if emerging {
-                    u < count.into()
+                    u < count.into() || left >= chunks
                 } else {
                     BoardTrait::has(mask, host)
                 };
-                if left != 0 && (hit || left >= chunks) {
+                if left != 0 && hit {
                     due += bit;
                 }
             }
@@ -176,50 +182,168 @@ pub impl PlacementImpl of PlacementTrait {
         due
     }
 
-    /// A zone's quota hosts (D-208, module doc): for each quota's `count` (`start`'s, which a new
-    /// `Progress` holds as `left`), `count` chunks of the zone (its chunk set, or its whole
-    /// rectangle) drawn without replacement from `seed` (`EntropyTrait::hosts`) as a bitmap: try
-    /// `t` reads `poseidon(seed, t)` as a row and a column of the rectangle, kept if the chunk is
-    /// in the zone and not drawn yet, up to `16 + 4 count` tries (uniform over the zone; a quota
-    /// above the zone's size keeps fewer hosts, and the forced rule places what stays owed).
-    /// Computed once at `create`, by `Instances`.
-    fn hosts(site: @Site, counts: Span<u8>, seed: felt252) -> Array<felt252> {
-        let set = *site.chunk_set;
-        let width: u128 = (*site.width).into();
-        let height: u128 = (*site.height).into();
-        let width: NonZero<u128> = width.try_into().unwrap();
-        let height: NonZero<u128> = height.try_into().unwrap();
+    /// The quotas' plan for `hosts` (D-210): quota `i` of `counts` (`start`'s, which a new
+    /// `Progress` holds as `left`) as its count, kind and param in 32 bits, quotas 0–6 in the
+    /// first felt and 7–13 in the second; the location's quotas from `QUOTAS`, a task's a
+    /// landmark (`slot`). `(0, 0)` when nothing is owed. The library call's input.
+    fn plan(site: @Site, counts: Span<u8>) -> (felt252, felt252) {
+        let mut low: felt252 = 0;
+        let mut high: felt252 = 0;
+        let mut shift: felt252 = 1;
+        let mut quotas = site.quotas.quotas.span();
+        let mut i: u8 = 0;
+        for count in counts {
+            if i == 7 {
+                shift = 1;
+            }
+            let (kind, param): (u8, u16) = match quotas.pop_front() {
+                Option::Some(entry) => (*entry.kind, *entry.param),
+                Option::None => (quota::LANDMARK, 0),
+            };
+            let entry = shift * ((*count).into() + 0x100 * kind.into() + 0x10000 * param.into());
+            if *count == 0 {} else if i < 7 {
+                low += entry;
+            } else {
+                high += entry;
+            }
+            shift *= 0x100000000;
+            i += 1;
+        }
+        (low, high)
+    }
+
+    /// A zone's quota hosts (D-208, D-210, module doc), drawn once at `create` by `HostsLibrary`:
+    /// for each quota of the plan (`plan`), in order, its `count` chunks of the zone (`zone`, its
+    /// chunk set, or 0 for its whole `width × height` rectangle), an exact draw without
+    /// replacement from `seed` (`EntropyTrait::hosts`): draw `t` reads `poseidon(seed, t)` as a
+    /// cell of the rectangle and is passed over unless it is a member not tried yet for this quota,
+    /// so each member tried is uniform over those left; no cap on the draws. A member the quota
+    /// would push past a chunk's caps (`fits`: what the quotas before it lay there, a set piece's
+    /// own objects and packs from `pieces` counted) is refused, and the next member drawn, its
+    /// successor, takes its place: every host can lay its quota, whatever the order of the reveals.
+    /// A quota with fewer allowed members than its count keeps fewer hosts (every member tried);
+    /// nothing falls on "the last chunks".
+    fn hosts(
+        zone: felt252,
+        width: u8,
+        height: u8,
+        plan: (felt252, felt252),
+        pieces: Span<(u16, SetPiece)>,
+        seed: felt252,
+    ) -> Array<felt252> {
+        let wide: u128 = width.into();
+        let high: u128 = height.into();
+        let wide: NonZero<u128> = wide.try_into().unwrap();
+        let high: NonZero<u128> = high.try_into().unwrap();
+        // [Compute] The zone: its chunk set, or its rectangle's rows
+        let mut zone = zone;
+        if zone == 0 {
+            let row = BoardTrait::pow(width) - 1;
+            let mut cy: u8 = 0;
+            while cy != height {
+                zone += row * BoardTrait::pow(15 * cy);
+                cy += 1;
+            }
+        }
+        let (first, second) = plan;
+        let mut rest: u256 = first.into();
         let mut t: felt252 = 0;
         let mut out: Array<felt252> = array![];
-        for count in counts {
+        let mut needs: Array<u8> = array![];
+        let mut next: u256 = second.into();
+        let mut i: u8 = 0;
+        // Quota by quota, as far as any is left (a shorter list: the quotas after hold nothing)
+        while rest != 0 || next != 0 {
+            if i == 7 {
+                rest = next;
+                next = 0;
+            }
+            i += 1;
+            let (above, entry) = DivRem::div_rem(rest, 0x100000000);
+            rest = above;
+            if entry == 0 {
+                out.append(0);
+                needs.append(0);
+                continue;
+            }
+            let (above, count) = DivRem::div_rem(entry, 0x100);
+            let (param, kind) = DivRem::div_rem(above, 0x100);
+            let count: u8 = count.try_into().unwrap();
+            let need = Self::need(kind.try_into().unwrap(), param.try_into().unwrap(), pieces);
+            let mut tried: felt252 = 0;
             let mut mask: felt252 = 0;
             let mut k: u8 = 0;
-            let mut tries: u16 = 16 + 4 * (*count).into();
-            while k != *count && tries != 0 {
+            while k != count && tried != zone {
                 let word: u256 = poseidon_hash_span([seed, t].span()).into();
-                let (rest, cy) = DivRem::div_rem(word.low, height);
-                let (_, cx) = DivRem::div_rem(rest, width);
-                let cy: u8 = cy.try_into().unwrap();
-                let cx: u8 = cx.try_into().unwrap();
-                let chunk = 15 * cy + cx;
-                if (set == 0 || BoardTrait::has(set, chunk)) && !BoardTrait::has(mask, chunk) {
-                    // `2^chunk` as `2^cx · 2^(15 cy)`: short loops, no power table (D-200)
-                    let mut bit: felt252 = 1;
-                    for _ in 0..cx {
-                        bit *= 2;
-                    }
-                    for _ in 0..cy {
-                        bit *= 0x8000;
-                    }
-                    mask += bit;
-                    k += 1;
-                }
                 t += 1;
-                tries -= 1;
+                let (above, cy) = DivRem::div_rem(word.low, high);
+                let (_, cx) = DivRem::div_rem(above, wide);
+                let chunk: u8 = (15 * cy + cx).try_into().unwrap();
+                if BoardTrait::has(zone, chunk) && !BoardTrait::has(tried, chunk) {
+                    let bit = BoardTrait::pow(chunk);
+                    tried += bit;
+                    // [Compute] What the chunk holds from the quotas before, against the caps
+                    let mut held: u8 = 0;
+                    let mut earlier: u32 = 0;
+                    for hosts in out.span() {
+                        if BoardTrait::has(*hosts, chunk) {
+                            held += *needs[earlier];
+                        }
+                        earlier += 1;
+                    }
+                    if Self::fits(held, need) {
+                        mask += bit;
+                        k += 1;
+                    }
+                }
             }
             out.append(mask);
+            needs.append(need);
         }
         out
+    }
+
+    /// What a quota of `kind` and `param` lays in its chunk, as `hosts` counts it: objects + 4 ×
+    /// packs + 16 × set pieces; a set piece with its own objects and packs (laid first, `place`).
+    fn need(kind: u8, param: u16, pieces: Span<(u16, SetPiece)>) -> u8 {
+        if kind == quota::HEART {
+            4
+        } else if kind == quota::SET_PIECE {
+            let mut need: u8 = 16;
+            for entry in pieces {
+                let (at, set) = *entry;
+                if at == param {
+                    for pack in set.packs.span() {
+                        if *pack.template != 0 {
+                            need += 4;
+                        }
+                    }
+                    for object in set.objects.span() {
+                        if *object.kind != 0 {
+                            need += 1;
+                        }
+                    }
+                }
+            }
+            need
+        } else if kind == 0 {
+            0
+        } else {
+            1
+        }
+    }
+
+    /// Whether a chunk holding `held` can take `need` (`need`'s encoding): at most
+    /// `MAX_OBJECTS_PER_CHUNK` objects, `MAX_PACKS_PER_CHUNK` packs and one set piece.
+    fn fits(held: u8, need: u8) -> bool {
+        let (h_rest, h_objects) = DivRem::div_rem(held, 4);
+        let (h_pieces, h_packs) = DivRem::div_rem(h_rest, 4);
+        let (n_rest, n_objects) = DivRem::div_rem(need, 4);
+        let (n_pieces, n_packs) = DivRem::div_rem(n_rest, 4);
+        h_objects
+            + n_objects <= MAX_OBJECTS_PER_CHUNK && h_packs
+            + n_packs <= MAX_PACKS_PER_CHUNK && h_pieces
+            + n_pieces <= 1
     }
 
     /// `mask`, a zone chunk's tile mask (0 for the whole board), with the quotas `chunk` hosts

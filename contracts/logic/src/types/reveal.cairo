@@ -1284,7 +1284,7 @@ pub mod tests {
     // borders. 17 cannot grow (its other neighbours are revealed), so no open side of 2 faces
     // growth and the guard keeps North open: every floor reaches `N`.
     #[test]
-    #[available_gas(l2_gas: 330851754)] // ceil(1.05 × 315096908 measured)
+    #[available_gas(l2_gas: 330842682)] // ceil(1.05 × 315088268 measured)
     fn test_dungeon_reaudit_trace_keeps_growing() {
         // (chunk, edges): West 1, East 2, South 4, North 8.
         let state: [(u8, u8); 3] = [(16, 2 + 4), (15, 1 + 4), (1, 8 + 2 + 1)];
@@ -1508,7 +1508,7 @@ pub mod tests {
     // The last chunks hold what is owed: a zone's quotas are all placed when every chunk is
     // revealed, whatever the order.
     #[test]
-    #[available_gas(l2_gas: 51049749)] // ceil(1.05 × 48618808 measured)
+    #[available_gas(l2_gas: 55536103)] // ceil(1.05 × 52891526 measured)
     fn test_zone_quotas_all_placed() {
         let quotas = QuotaSet {
             quotas: [
@@ -1519,7 +1519,8 @@ pub mod tests {
         };
         let mut seed: felt252 = 0;
         while seed != 3 {
-            let site = zone(biome::MEADOW, 3, 2, quotas);
+            let mut site = zone(biome::MEADOW, 3, 2, quotas);
+            let _hosts = hosted(ref site, seed);
             let mut progress = ProgressTrait::new(@site, seed);
             assert(progress.left == [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'start');
             let mut known: Array<(u8, Terrain)> = array![];
@@ -1564,7 +1565,7 @@ pub mod tests {
     // A set piece's quota lays the authored chunk: its interior kept but for the openings' lines,
     // its placements kept, its edges joined.
     #[test]
-    #[available_gas(l2_gas: 7286564)] // ceil(1.05 × 6939584 measured)
+    #[available_gas(l2_gas: 7804984)] // ceil(1.05 × 7433318 measured)
     fn test_set_piece_laid() {
         // An authored arena: the interior open but a wall block at rows 2–4, columns 2–4.
         let mut walls = BOARD - INTERIOR;
@@ -1591,6 +1592,7 @@ pub mod tests {
         };
         let mut site = zone(biome::RUIN, 1, 1, quotas);
         site.pieces = array![(4, piece)].span();
+        let _hosts = hosted(ref site, 7);
         let mut progress = ProgressTrait::new(@site, 7);
         let a = one(@site, ref progress, array![].span(), 0);
         check_chunk(@a);
@@ -1683,14 +1685,41 @@ pub mod tests {
         assert(ab == ba, 'the same progress');
     }
 
-    /// Every chunk of a 3 × 3 zone, each mask word carrying the quotas the chunk hosts (D-208,
-    /// `PlacementTrait::with_hosts`).
-    fn hosted_masks(hosts: Span<felt252>) -> Span<(u8, felt252)> {
+    /// A zone's hosts as `Instances` draws them at `create` (D-208, D-210), from the progress's
+    /// entropy `entropy`: `site`'s masks rebuilt for every chunk of the zone, each carrying the
+    /// quotas the chunk hosts. Returns the hosts.
+    pub fn hosted(ref site: Site, entropy: felt252) -> Array<felt252> {
+        let start = ProgressTrait::new(@site, entropy);
+        let hosts = PlacementTrait::hosts(
+            site.chunk_set,
+            site.width,
+            site.height,
+            PlacementTrait::plan(@site, start.left.span()),
+            site.pieces,
+            EntropyTrait::hosts(entropy, INSTANCE),
+        );
         let mut masks: Array<(u8, felt252)> = array![];
-        for chunk in array![0_u8, 1, 2, 15, 16, 17, 30, 31, 32] {
-            masks.append((chunk, PlacementTrait::with_hosts(0, hosts, chunk)));
+        let mut cy: u8 = 0;
+        while cy != site.height {
+            let mut cx: u8 = 0;
+            while cx != site.width {
+                let chunk = 15 * cy + cx;
+                if site.chunk_set == 0 || BoardTrait::has(site.chunk_set, chunk) {
+                    let mut mask: felt252 = 0;
+                    for entry in site.masks {
+                        let (at, value) = *entry;
+                        if at == chunk {
+                            mask = value;
+                        }
+                    }
+                    masks.append((chunk, PlacementTrait::with_hosts(mask, hosts.span(), chunk)));
+                }
+                cx += 1;
+            }
+            cy += 1;
         }
-        masks.span()
+        site.masks = masks.span();
+        hosts
     }
 
     /// The quota objects each chunk of `order` holds (collector, landmark, vein: bits 1, 2, 4),
@@ -1722,7 +1751,7 @@ pub mod tests {
     // 6 entropies: each quota has `count` hosts, and in both orders every chunk holds exactly the
     // quotas it hosts, nothing forced, nothing owed at the end.
     #[test]
-    #[available_gas(l2_gas: 318516856)] // ceil(1.05 × 303349386 measured)
+    #[available_gas(l2_gas: 318207046)] // ceil(1.05 × 303054329 measured)
     fn test_zone_quota_hosts_order_free() {
         let quotas = QuotaSet {
             quotas: [
@@ -1737,14 +1766,10 @@ pub mod tests {
         let mut seed: felt252 = 0;
         while seed != 6 {
             let mut site = zone(biome::MEADOW, 3, 3, quotas);
-            let start = ProgressTrait::new(@site, seed);
-            let hosts = PlacementTrait::hosts(
-                @site, start.left.span(), EntropyTrait::hosts(seed, INSTANCE),
-            );
+            let hosts = hosted(ref site, seed);
             assert(BoardTrait::count(*hosts[0]) == 3, 'three collector hosts');
             assert(BoardTrait::count(*hosts[1]) == 2, 'two landmark hosts');
             assert(BoardTrait::count(*hosts[2]) == 1, 'one vein host');
-            site.masks = hosted_masks(hosts.span());
             let (mut a, end_a) = zone_objects(@site, seed, forward);
             let (mut b, end_b) = zone_objects(@site, seed, backward);
             for chunk in forward {
@@ -1767,10 +1792,109 @@ pub mod tests {
         }
     }
 
+    // The re-audit at 46d7d89 (major 1): a host must be able to lay its quota. A 2 × 1 zone with a
+    // set piece of three objects (the objects' cap) and a collector, each once: the collector is
+    // never drawn onto the set piece's chunk (refused, its successor taken), and lands on the
+    // other chunk in both orders, nothing owed.
+    #[test]
+    #[available_gas(l2_gas: 89715796)] // ceil(1.05 × 85443615 measured)
+    fn test_hosts_respect_the_caps() {
+        let mut walls = BOARD - INTERIOR;
+        walls += Bits::pow(2 * 15 + 2) * 7;
+        let piece = SetPiece {
+            walls,
+            packs: [Default::default(), Default::default()],
+            objects: [
+                crate::models::chunk::Object {
+                    tile: 100, kind: object::LANDMARK, state: 0, param: 3,
+                },
+                crate::models::chunk::Object {
+                    tile: 101, kind: object::LANDMARK, state: 0, param: 3,
+                },
+                crate::models::chunk::Object {
+                    tile: 102, kind: object::LANDMARK, state: 0, param: 3,
+                },
+            ],
+        };
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::SET_PIECE, param: 4, count: 1 },
+                Quota { kind: quota::COLLECTOR, param: 9, count: 1 }, Default::default(),
+                Default::default(), Default::default(), Default::default(),
+            ],
+        };
+        let mut seed: felt252 = 0;
+        while seed != 8 {
+            let mut site = zone(biome::RUIN, 2, 1, quotas);
+            site.pieces = array![(4, piece)].span();
+            let hosts = hosted(ref site, seed);
+            assert(*hosts[0] != 0 && *hosts[1] != 0, 'both hosted');
+            assert(*hosts[0] != *hosts[1], 'not on the set piece');
+            let collector: u8 = if BoardTrait::has(*hosts[1], 0) {
+                0
+            } else {
+                1
+            };
+            for order in array![array![0_u8, 1].span(), array![1_u8, 0].span()] {
+                let mut progress = ProgressTrait::new(@site, seed);
+                let mut known: Array<(u8, Terrain)> = array![];
+                for chunk in order {
+                    let r = one(@site, ref progress, known.span(), *chunk);
+                    let mut collectors: u8 = 0;
+                    for item in r.features.objects.span() {
+                        if *item.kind == object::COLLECTOR {
+                            collectors += 1;
+                        }
+                    }
+                    assert(
+                        collectors == if *chunk == collector {
+                            1
+                        } else {
+                            0
+                        },
+                        'the collector on its host',
+                    );
+                    known.append((*chunk, r.terrain));
+                }
+                assert(progress.left == [0; 14], 'nothing owed');
+            }
+            seed += 1;
+        }
+    }
+
+    // The re-audit at 46d7d89 (major 1) and the review's minor 1: an exact draw over the zone's
+    // members, no cap on the draws. A 15 × 15 rectangle whose chunk set is 16 chunks, a quota of
+    // 4: every quota finds its 4 hosts, all in the set.
+    #[test]
+    #[available_gas(l2_gas: 62124437)] // ceil(1.05 × 59166130 measured)
+    fn test_hosts_in_a_sparse_set() {
+        let quotas = QuotaSet {
+            quotas: [
+                Quota { kind: quota::COLLECTOR, param: 1, count: 4 }, Default::default(),
+                Default::default(), Default::default(), Default::default(), Default::default(),
+            ],
+        };
+        let mut set: felt252 = 0;
+        for chunk in array![
+            0_u8, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 14, 224,
+        ] {
+            set += BoardTrait::pow(chunk);
+        }
+        let mut seed: felt252 = 0;
+        while seed != 8 {
+            let mut site = zone(biome::MEADOW, 15, 15, quotas);
+            site.chunk_set = set;
+            let hosts = hosted(ref site, seed);
+            assert(BoardTrait::count(*hosts[0]) == 4, 'four hosts');
+            assert(BoardTrait::minus(*hosts[0], set) == 0, 'in the set');
+            seed += 1;
+        }
+    }
+
     // D-208: a Heart's pack takes the band's top level wherever it lands, here the entry chunk of
     // a dungeon (band 3 to 5, distance 0: level 3), its Heart forced there (6 owed of 6 chunks).
     #[test]
-    #[available_gas(l2_gas: 17310640)] // ceil(1.05 × 16486323 measured)
+    #[available_gas(l2_gas: 17309254)] // ceil(1.05 × 16485003 measured)
     fn test_heart_at_the_band_top() {
         let quotas = QuotaSet {
             quotas: [
@@ -2147,16 +2271,9 @@ pub mod tests {
         };
         let mut site = zone(biome::MEADOW, 2, 2, quotas);
         site.tasks = array![TaskEntry { task: 1, kind: 2, param: 12 }].span();
-        let mut progress = ProgressTrait::new(@site, 'quotas');
         // The zone's hosts above each chunk's mask (D-208), as `Instances` gives them
-        let hosts = PlacementTrait::hosts(
-            @site, progress.left.span(), EntropyTrait::hosts('quotas', INSTANCE),
-        );
-        let mut masks: Array<(u8, felt252)> = array![];
-        for chunk in array![0_u8, 1, 15, 16] {
-            masks.append((chunk, PlacementTrait::with_hosts(0, hosts.span(), chunk)));
-        }
-        site.masks = masks.span();
+        let _hosts = hosted(ref site, 'quotas');
+        let mut progress = ProgressTrait::new(@site, 'quotas');
         let mut known: Array<(u8, Terrain)> = array![];
         for chunk in array![0_u8, 1, 15, 16].span() {
             let out = emit_reveal(
@@ -2203,5 +2320,5 @@ pub mod tests {
     const DIGEST_1: felt252 =
         499845782167855331826439961529088808781201279688007834938530756287138363393;
     const DIGEST_2: felt252 =
-        3098502219495597096942339950943829884167009613579642733787371006424197704964;
+        1650752973733343143218738346291621832024875186682030611912877301196377371421;
 }
