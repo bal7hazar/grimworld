@@ -1799,7 +1799,7 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 
 The node's figures follow the entry draw, which follows the transaction hash: the same code gives
 another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
-`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs 12,061,667 with its quota and 10,017,658 without, the library call alone 358,834 against the same draw direct (`test_cost_hosts_*`). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs 12,061,667 with its quota and 10,017,658 without, the library call alone 358,834 against the same draw direct (210,194; two benchmarks run at `ab7017a`, then removed: their figures moved by 100 between runs, D-154). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M

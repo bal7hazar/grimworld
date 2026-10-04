@@ -421,8 +421,6 @@ Source of truth for the cost budgets of `contracts/` (docs/CAIRO.md §2, OPERATI
 | grimworld_logic | `test_packing::test_join_refuses_live_overflow` | 7810 | 8201 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_packing::test_lanes16` | 422180 | 443289 | 2026-10-02 | f55176c |
 | grimworld_logic | `test_packing::test_lanes32` | 102900 | 108045 | 2026-10-02 | f55176c |
-| grimworld_logic | `test_reveal_cost::test_cost_hosts_direct` | 210094 | 220599 | 2026-10-03 | 77cd429 |
-| grimworld_logic | `test_reveal_cost::test_cost_hosts_library_call` | 358734 | 376776 | 2026-10-03 | 77cd429 |
 | grimworld_logic | `test_reveal_cost::test_cost_library_baseline` | 4057255 | 4260118 | 2026-10-03 | 77cd429 |
 | grimworld_logic | `test_reveal_cost::test_cost_library_call` | 4601765 | 4831854 | 2026-10-03 | 77cd429 |
 | grimworld_logic | `test_reveal_cost::test_cost_reveal_baseline` | 194070 | 203774 | 2026-10-03 | ffef058 |

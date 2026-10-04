@@ -10,16 +10,12 @@
 //   chunk set), the spawn table at its density;
 // - three: the worst content, three chunks in one call, each knowing the ones before it;
 // - the library call: `RevealLibrary` by `library_call`, one chunk, against the same reveal direct.
-use grimworld_logic::interface::{
-    IHostsLibraryDispatcherTrait, IHostsLibraryLibraryDispatcher, IRevealLibraryDispatcherTrait,
-    IRevealLibraryLibraryDispatcher,
-};
+use grimworld_logic::interface::{IRevealLibraryDispatcherTrait, IRevealLibraryLibraryDispatcher};
 use grimworld_logic::models::chunk::Terrain;
 use grimworld_logic::models::location::biome;
 use grimworld_logic::models::pack::{Pack, PackCaste};
 use grimworld_logic::models::quotas::{Quota, QuotaSet, kind as quota};
 use grimworld_logic::models::spawn_table::{Spawn, SpawnTable};
-use grimworld_logic::types::reveal::placement::PlacementTrait;
 use grimworld_logic::types::reveal::{Progress, ProgressTrait, RevealTrait, Site};
 use snforge_std::{ContractClassTrait, DeclareResultTrait, declare};
 
@@ -190,32 +186,4 @@ fn test_cost_library_call() {
     let progress = progress(@site);
     let (_, out) = library.reveal(site, progress, INSTANCE, array![].span(), array![16].span());
     assert(out.len() == 1, 'one');
-}
-
-// D-210: `HostsLibrary` by `library_call` at `create` against the same draw direct: a 3 × 2 zone,
-// one collector, the masks of two chunks (the entry reveal's).
-fn hosts_plan() -> (felt252, felt252) {
-    (1 + 0x100 * quota::COLLECTOR.into() + 0x10000 * 1, 0)
-}
-
-#[test]
-#[available_gas(l2_gas: 220599)] // ceil(1.05 × 210094 measured)
-fn test_cost_hosts_direct() {
-    let _class = declare("HostsLibrary").unwrap().contract_class();
-    let hosts = PlacementTrait::hosts(0, 3, 2, hosts_plan(), array![].span(), 'seed');
-    let mut masks: Array<(u8, felt252)> = array![];
-    for chunk in array![0_u8, 15] {
-        masks.append((chunk, PlacementTrait::with_hosts(0, hosts.span(), chunk)));
-    }
-    assert(masks.len() == 2, 'two');
-}
-
-#[test]
-#[available_gas(l2_gas: 376776)] // ceil(1.05 × 358834 measured)
-fn test_cost_hosts_library_call() {
-    let class = declare("HostsLibrary").unwrap().contract_class();
-    let library = IHostsLibraryLibraryDispatcher { class_hash: *class.class_hash };
-    let (_, masks) = library
-        .hosts(0, 3, 2, hosts_plan(), array![].span(), array![(0, 0), (15, 0)].span(), 'seed');
-    assert(masks.len() == 2, 'two');
 }
