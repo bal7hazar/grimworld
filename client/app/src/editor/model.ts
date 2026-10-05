@@ -1,5 +1,6 @@
 import { acrossSide, hexesWithin } from "../render/ground";
 import type { GroundKind, Tile } from "../render/view";
+import type { MapObject, Quota } from "./objects";
 
 /**
  * The map editor's document (CLI-09a, brief `docs/briefs/CLI-09-map-editor.md` §4), unbounded since
@@ -49,6 +50,8 @@ export interface MapMeta {
   readonly levelMax: number;
   readonly rank: number;
   readonly spawnTable: number;
+  /** A zone's quota list (§4.2): at most 6 (R-10); empty for a town or an outpost. */
+  readonly quotas: readonly Quota[];
 }
 
 /**
@@ -91,6 +94,11 @@ export interface MapDocument {
    * pins them.
    */
   readonly obstacles: Map<number, string>;
+  /**
+   * The objects (CLI-09b, §4.2, §4.3), by an id unique in the document: the order they were
+   * placed in. Ids are not saved; a file's objects are numbered from 1 in its order.
+   */
+  readonly objects: Map<number, MapObject>;
   /** The last chosen chunk origin, null before the first fit (D-216). */
   origin: ChunkOrigin | null;
 }
@@ -151,9 +159,11 @@ export function createMap(fields: NewMap): MapDocument {
       levelMax: 1,
       rank: 0,
       spawnTable: 0,
+      quotas: [],
     },
     hexes: new Map(),
     obstacles: new Map(),
+    objects: new Map(),
     origin: null,
   };
 }
@@ -235,20 +245,61 @@ export type Swatch =
   | { readonly layer: "outline"; readonly value: 0 | 1 };
 
 /** One hex changed: its cell before and after, null for unpainted. */
-export interface Change {
+export interface HexChange {
   readonly key: number;
   readonly before: Cell | null;
   readonly after: Cell | null;
 }
 
+/** One object placed (`before` null), removed (`after` null) or edited (CLI-09b). */
+export interface ObjectChange {
+  readonly object: number;
+  readonly before: MapObject | null;
+  readonly after: MapObject | null;
+}
+
+/** The map's properties edited in the inspector (CLI-09b). */
+export interface MetaChange {
+  readonly meta: MapMeta;
+  readonly before: MapMeta;
+}
+
+/** One step's part: a step of the history is a list of them, undone in reverse. */
+export type Change = HexChange | ObjectChange | MetaChange;
+
 /** Writes changes (or undoes them, `back`), in order. */
 export function apply(doc: MapDocument, changes: readonly Change[], back = false): void {
   const ordered = back ? [...changes].reverse() : changes;
   for (const change of ordered) {
+    if ("meta" in change) {
+      doc.meta = back ? change.before : change.meta;
+      continue;
+    }
     const value = back ? change.before : change.after;
+    if ("object" in change) {
+      if (value === null) doc.objects.delete(change.object);
+      else doc.objects.set(change.object, value as MapObject);
+      continue;
+    }
     if (value === null) doc.hexes.delete(change.key);
-    else doc.hexes.set(change.key, value);
+    else doc.hexes.set(change.key, value as Cell);
   }
+}
+
+/** The id a new object takes: one past the highest. */
+export function nextObjectId(doc: MapDocument): number {
+  let max = 0;
+  for (const id of doc.objects.keys()) if (id > max) max = id;
+  return max + 1;
+}
+
+/** The objects on a hex, by id. */
+export function objectsAt(doc: MapDocument, tile: Tile): number[] {
+  const out: number[] = [];
+  for (const [id, object] of doc.objects) {
+    if (object.at.x === tile.x && object.at.y === tile.y) out.push(id);
+  }
+  return out;
 }
 
 /** The cell a swatch makes of a hex (null: it leaves the hex as it is). */
@@ -269,9 +320,9 @@ function painted(cell: Cell | null, swatch: Swatch): Cell | null {
 }
 
 /** The changes that put `swatch` on the hexes (none for a hex that already holds it). */
-export function paint(doc: MapDocument, tiles: readonly Tile[], swatch: Swatch): Change[] {
+export function paint(doc: MapDocument, tiles: readonly Tile[], swatch: Swatch): HexChange[] {
   if (swatch.layer === "outline" && !isZone(doc)) return [];
-  const changes: Change[] = [];
+  const changes: HexChange[] = [];
   for (const tile of tiles) {
     if (!inPlane(tile)) continue;
     const key = keyOf(tile);
@@ -286,9 +337,9 @@ export function paint(doc: MapDocument, tiles: readonly Tile[], swatch: Swatch):
  * Erase (§3): the hexes are unpainted, back to the void (D-216); with the outline tool, they go
  * outside the outline instead.
  */
-export function erase(doc: MapDocument, tiles: readonly Tile[], outline = false): Change[] {
+export function erase(doc: MapDocument, tiles: readonly Tile[], outline = false): HexChange[] {
   if (outline) return paint(doc, tiles, { layer: "outline", value: 0 });
-  const changes: Change[] = [];
+  const changes: HexChange[] = [];
   for (const tile of tiles) {
     if (!inPlane(tile)) continue;
     const key = keyOf(tile);
@@ -348,7 +399,7 @@ export function regionOf(
  * not reach the painted hexes' box grown by one hex (D-216). On the outline (§2.5), the region is the
  * painted hexes on the same side of the outline: bounded by it. Refused regions give the reason.
  */
-export function fill(doc: MapDocument, start: Tile, swatch: Swatch): Change[] | string {
+export function fill(doc: MapDocument, start: Tile, swatch: Swatch): HexChange[] | string {
   if (!inPlane(start)) return [];
   const startCell = cellAt(doc, start);
   let same: (key: number) => boolean;
@@ -391,7 +442,7 @@ export function pick(
  * one) goes inside and every other painted hex outside; with no hex given or no floor there, the
  * largest floor region (the lowest key wins a tie). Nothing changes when the map has no floor.
  */
-export function outlineFromFloor(doc: MapDocument, from: Tile | null): Change[] {
+export function outlineFromFloor(doc: MapDocument, from: Tile | null): HexChange[] {
   if (!isZone(doc)) return [];
   const isFloor = (k: number) => {
     const cell = doc.hexes.get(k);
@@ -418,7 +469,7 @@ export function outlineFromFloor(doc: MapDocument, from: Tile | null): Change[] 
   }
   if (region.length === 0) return [];
   const inside = new Set(region);
-  const changes: Change[] = [];
+  const changes: HexChange[] = [];
   for (const [key, before] of doc.hexes) {
     const after = inside.has(key) ? before & ~OUTSIDE : before | OUTSIDE;
     if (after !== before) changes.push({ key, before, after });
@@ -429,9 +480,10 @@ export function outlineFromFloor(doc: MapDocument, from: Tile | null): Change[] 
 /** A deep copy: the same document, nothing shared. */
 export function cloneMap(doc: MapDocument): MapDocument {
   return {
-    meta: { ...doc.meta },
+    meta: { ...doc.meta, quotas: [...doc.meta.quotas] },
     hexes: new Map(doc.hexes),
     obstacles: new Map(doc.obstacles),
+    objects: new Map(doc.objects),
     origin: doc.origin ? { ...doc.origin } : null,
   };
 }

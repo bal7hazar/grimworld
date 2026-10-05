@@ -19,6 +19,16 @@ import {
   terrainOf,
   tileOfKey,
 } from "./model";
+import {
+  BUILDING_NAMES,
+  FEATURE_KINDS,
+  GATE_KINDS,
+  type GateKind,
+  type MapObject,
+  QUOTA_KINDS,
+  type Quota,
+} from "./objects";
+import type { ServiceId } from "../input/intent";
 
 /**
  * The editor's own file (brief §6, `.grimmap.json`): one JSON document, the editor's to shape
@@ -33,6 +43,10 @@ import {
  *
  * `chunks` is the last chosen chunk origin and how it was chosen, or null before the first fit.
  * Pinned obstacle looks are a list of `{ x, y, sprite }`: a still's name, never pixels (§7).
+ *
+ * CLI-09b adds, still in format 2 (a file without them has none): the map's `quotas` (a zone's,
+ * `{ kind, param, count }`) and `objects`, a list of `{ kind, x, y, …its fields }` in the order
+ * they were placed (§4.2, §4.3; `objects.ts`). Sprite and building names, never pixels.
  *
  * Format 1 (CLI-09a) was a rectangle of whole chunks at `(0, 0)` with every hex filled: it opens,
  * converted, every hex painted and the chunk grid at `(0, 0)`.
@@ -73,6 +87,13 @@ export interface MapFile {
     readonly y: number;
     readonly sprite: string;
   }[];
+  readonly objects: readonly Record<string, unknown>[];
+}
+
+/** An object as the file writes it: its hex as `x`, `y`, then its fields. */
+function objectOut(object: MapObject): Record<string, unknown> {
+  const { kind, at, ...fields } = object;
+  return { kind, x: at.x, y: at.y, ...fields };
 }
 
 /** One span per painted row, from its lowest `x` to its highest, the rows by `y`. */
@@ -123,6 +144,9 @@ export function toFile(doc: MapDocument, editor = EDITOR_VERSION): MapFile {
     obstacles: [...doc.obstacles]
       .sort(([a], [b]) => a - b)
       .map(([key, sprite]) => ({ ...tileOfKey(key), sprite })),
+    objects: [...doc.objects]
+      .sort(([a], [b]) => a - b)
+      .map(([, object]) => objectOut(object)),
   };
 }
 
@@ -168,6 +192,23 @@ function readMeta(raw: unknown): MapMeta | string {
   for (const field of ["location", "levelMin", "levelMax", "rank", "spawnTable"] as const) {
     if (!isWhole(raw[field], 0)) return `${field} is not a whole number, 0 or more`;
   }
+  const quotas: Quota[] = [];
+  if (raw.quotas !== undefined) {
+    if (!Array.isArray(raw.quotas) || (kind !== "zone" && raw.quotas.length > 0)) {
+      return "the quotas are not a list (a zone's only)";
+    }
+    for (const q of raw.quotas) {
+      if (
+        !isObject(q) ||
+        !QUOTA_KINDS.includes(q.kind as Quota["kind"]) ||
+        !isWhole(q.param, 0) ||
+        !isWhole(q.count, 0)
+      ) {
+        return "a quota is not { kind, param, count }";
+      }
+      quotas.push({ kind: q.kind as Quota["kind"], param: q.param, count: q.count });
+    }
+  }
   return {
     kind,
     name,
@@ -177,7 +218,104 @@ function readMeta(raw: unknown): MapMeta | string {
     levelMax: raw.levelMax as number,
     rank: raw.rank as number,
     spawnTable: raw.spawnTable as number,
+    quotas,
   };
+}
+
+const SERVICES: readonly string[] = [
+  "guild",
+  "trainer",
+  "smith",
+  "armorer",
+  "enchanter",
+  "alchemist",
+  "market",
+  "vault",
+] satisfies readonly ServiceId[];
+
+/** One object of the file, or why it is refused; `zone` says which kinds the map holds. */
+function readObject(raw: unknown, zone: boolean): MapObject | string {
+  if (!isObject(raw) || !inPlane(raw.x) || !inPlane(raw.y)) return "not { kind, x, y, … }";
+  const at = { x: raw.x, y: raw.y };
+  const whole = (...names: string[]) => names.every((n) => isWhole(raw[n], 0));
+  const bool = (name: string) => typeof raw[name] === "boolean";
+  const object = ((): MapObject | null => {
+    switch (raw.kind) {
+      case "entry":
+        return { kind: "entry", at };
+      case "gate":
+        if (!whole("to", "rank", "quest", "entryChunk", "entryTile")) return null;
+        if (!GATE_KINDS.includes(raw.gate as never)) return null;
+        return {
+          kind: "gate",
+          at,
+          to: raw.to as number,
+          gate: raw.gate as GateKind,
+          rank: raw.rank as number,
+          quest: raw.quest as number,
+          entryChunk: raw.entryChunk as number,
+          entryTile: raw.entryTile as number,
+        };
+      case "candidate":
+        return whole("quota") ? { kind: "candidate", at, quota: raw.quota as number } : null;
+      case "feature":
+        return FEATURE_KINDS.includes(raw.feature as never)
+          ? { kind: "feature", at, feature: raw.feature as (typeof FEATURE_KINDS)[number] }
+          : null;
+      case "spawn":
+        return whole("template") ? { kind: "spawn", at, template: raw.template as number } : null;
+      case "place":
+        if (!whole("depth") || !bool("mirror")) return null;
+        if (raw.target !== "gate" && !SERVICES.includes(raw.target as string)) return null;
+        if (!BUILDING_NAMES.includes(raw.building as never)) return null;
+        return {
+          kind: "place",
+          at,
+          target: raw.target as ServiceId | "gate",
+          building: raw.building as (typeof BUILDING_NAMES)[number],
+          depth: raw.depth as number,
+          mirror: raw.mirror as boolean,
+        };
+      case "decor":
+        if (!whole("depth") || !bool("mirror")) return null;
+        if (!BUILDING_NAMES.includes(raw.building as never)) return null;
+        return {
+          kind: "decor",
+          at,
+          building: raw.building as (typeof BUILDING_NAMES)[number],
+          depth: raw.depth as number,
+          mirror: raw.mirror as boolean,
+        };
+      case "prop":
+        if (typeof raw.sprite !== "string" || !bool("mirror")) return null;
+        return { kind: "prop", at, sprite: raw.sprite, mirror: raw.mirror as boolean };
+      case "figure":
+        if (raw.facing !== "left" && raw.facing !== "right") return null;
+        return { kind: "figure", at, facing: raw.facing };
+      case "arrival":
+        return { kind: "arrival", at };
+      default:
+        return null;
+    }
+  })();
+  if (!object) return `an object ${JSON.stringify(raw.kind)} at (${at.x}, ${at.y}) is not read`;
+  const zoneKind = ["entry", "gate", "candidate", "feature", "spawn"].includes(object.kind);
+  if (zoneKind !== zone) {
+    return `a ${zone ? "zone" : "town or an outpost"} holds no ${object.kind}`;
+  }
+  return object;
+}
+
+function readObjects(raw: unknown, zone: boolean): Map<number, MapObject> | string {
+  const objects = new Map<number, MapObject>();
+  if (raw === undefined) return objects;
+  if (!Array.isArray(raw)) return "the objects are not a list";
+  for (const item of raw) {
+    const object = readObject(item, zone);
+    if (typeof object === "string") return object;
+    objects.set(objects.size + 1, object);
+  }
+  return objects;
 }
 
 function readObstacles(
@@ -261,8 +399,10 @@ function loadVersion2(raw: Record<string, unknown>, meta: MapMeta): LoadResult {
   if (typeof origin === "string") return { problem: `The file is refused: ${origin}.` };
   const obstacles = readObstacles(raw.obstacles, (x, y) => hexes.has(keyOf({ x, y })));
   if (typeof obstacles === "string") return { problem: `The file is refused: ${obstacles}.` };
+  const objects = readObjects(raw.objects, meta.kind === "zone");
+  if (typeof objects === "string") return { problem: `The file is refused: ${objects}.` };
   const editor = typeof raw.editor === "string" ? raw.editor : "unknown";
-  return { doc: { meta, hexes, obstacles, origin }, editor, notes: [] };
+  return { doc: { meta, hexes, obstacles, objects, origin }, editor, notes: [] };
 }
 
 // --- format 1 (CLI-09a), converted on load -------------------------------------------------------
@@ -340,7 +480,7 @@ function loadVersion1(raw: Record<string, unknown>, meta: MapMeta): LoadResult {
   if (typeof obstacles === "string") return { problem: `The file is refused: ${obstacles}.` };
   const editor = typeof raw.editor === "string" ? raw.editor : "unknown";
   return {
-    doc: { meta, hexes, obstacles, origin: { x: 0, y: 0, how: "nudged" } },
+    doc: { meta, hexes, obstacles, objects: new Map(), origin: { x: 0, y: 0, how: "nudged" } },
     editor,
     notes: [
       `Converted from format 1: its ${map.width} × ${map.height} chunks are painted, the chunk grid kept at (0, 0). Saving writes format ${FORMAT_VERSION}.`,

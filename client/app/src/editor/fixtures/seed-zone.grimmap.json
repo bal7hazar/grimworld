@@ -1,0 +1,330 @@
+{
+ "format": "grimworld-map",
+ "version": 2,
+ "editor": "fixture",
+ "map": {
+  "kind": "zone",
+  "name": "Seed meadow",
+  "location": 2,
+  "biome": "meadow",
+  "levelMin": 1,
+  "levelMax": 3,
+  "rank": 0,
+  "spawnTable": 1,
+  "quotas": [
+   {
+    "kind": "exit",
+    "param": 0,
+    "count": 1
+   },
+   {
+    "kind": "collector",
+    "param": 0,
+    "count": 1
+   }
+  ]
+ },
+ "rows": [
+  {
+   "y": -1,
+   "x": -1,
+   "terrain": "###############################################",
+   "ground": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+   "outline": "00000000000000000000000000000000000000000000000"
+  },
+  {
+   "y": 0,
+   "x": -1,
+   "terrain": "##........#........#........#........#.....####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 1,
+   "x": -1,
+   "terrain": "#.#........#........#........#........#....####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 2,
+   "x": -1,
+   "terrain": "#..#........#........#........#........#...####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 3,
+   "x": -1,
+   "terrain": "#...#........#........#........#........#..####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 4,
+   "x": -1,
+   "terrain": "#....#........#........#........#........#.####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 5,
+   "x": -1,
+   "terrain": "#.....#........#........#........#........#####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 6,
+   "x": -1,
+   "terrain": "#......#........#........#........#........####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 7,
+   "x": -1,
+   "terrain": "#.......#........#........#........#.......####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 8,
+   "x": -1,
+   "terrain": "#........#........#........#........#......####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 9,
+   "x": -1,
+   "terrain": "##........#........#........#........#.....####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 10,
+   "x": -1,
+   "terrain": "#.#........#........#........#........#....####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 11,
+   "x": -1,
+   "terrain": "#..#........#........#........#........#...####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 12,
+   "x": -1,
+   "terrain": "#...#........#........#........#........#..####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 13,
+   "x": -1,
+   "terrain": "#....#........#........#........#........#.####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 14,
+   "x": -1,
+   "terrain": "#.....#........#........#........#........#####",
+   "ground": "wggggggggggggggggggggggggggggggggggggggggggwwww",
+   "outline": "01111111111111111111111111111111111111111110000"
+  },
+  {
+   "y": 15,
+   "x": -1,
+   "terrain": "#......#........#........#.....################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 16,
+   "x": -1,
+   "terrain": "#.......#........#........#....################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 17,
+   "x": -1,
+   "terrain": "#........#........#........#...################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 18,
+   "x": -1,
+   "terrain": "##........#........#........#..################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 19,
+   "x": -1,
+   "terrain": "#.#........#........#........#.################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 20,
+   "x": -1,
+   "terrain": "#..#........#........#........#################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 21,
+   "x": -1,
+   "terrain": "#...#........#........#........################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 22,
+   "x": -1,
+   "terrain": "#....#........#........#.......################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 23,
+   "x": -1,
+   "terrain": "#.....#........#........#......################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 24,
+   "x": -1,
+   "terrain": "#......#........#........#.....################",
+   "ground": "wggggggggggggggggggggggggggggggwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111111110000000000000000"
+  },
+  {
+   "y": 25,
+   "x": -1,
+   "terrain": "#.......#........#........#####################",
+   "ground": "wgggggggggggggggggggggggggwwwwwwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111000000000000000000000"
+  },
+  {
+   "y": 26,
+   "x": -1,
+   "terrain": "#........#........#.......#####################",
+   "ground": "wgggggggggggggggggggggggggwwwwwwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111000000000000000000000"
+  },
+  {
+   "y": 27,
+   "x": -1,
+   "terrain": "##........#........#......#####################",
+   "ground": "wgggggggggggggggggggggggggwwwwwwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111000000000000000000000"
+  },
+  {
+   "y": 28,
+   "x": -1,
+   "terrain": "#.#........#........#.....#####################",
+   "ground": "wgggggggggggggggggggggggggwwwwwwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111000000000000000000000"
+  },
+  {
+   "y": 29,
+   "x": -1,
+   "terrain": "#..#........#........#....#####################",
+   "ground": "wgggggggggggggggggggggggggwwwwwwwwwwwwwwwwwwwww",
+   "outline": "01111111111111111111111111000000000000000000000"
+  },
+  {
+   "y": 30,
+   "x": -1,
+   "terrain": "###############################################",
+   "ground": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+   "outline": "00000000000000000000000000000000000000000000000"
+  }
+ ],
+ "chunks": {
+  "x": 0,
+  "y": 0,
+  "how": "fitted"
+ },
+ "obstacles": [],
+ "objects": [
+  {
+   "kind": "entry",
+   "x": 0,
+   "y": 7
+  },
+  {
+   "kind": "gate",
+   "x": 0,
+   "y": 7,
+   "to": 1,
+   "gate": "hub",
+   "rank": 0,
+   "quest": 0,
+   "entryChunk": 0,
+   "entryTile": 0
+  },
+  {
+   "kind": "gate",
+   "x": 41,
+   "y": 7,
+   "to": 101,
+   "gate": "hub",
+   "rank": 0,
+   "quest": 0,
+   "entryChunk": 0,
+   "entryTile": 0
+  },
+  {
+   "kind": "candidate",
+   "x": 38,
+   "y": 12,
+   "quota": 0
+  },
+  {
+   "kind": "candidate",
+   "x": 22,
+   "y": 26,
+   "quota": 0
+  },
+  {
+   "kind": "candidate",
+   "x": 10,
+   "y": 20,
+   "quota": 1
+  },
+  {
+   "kind": "candidate",
+   "x": 26,
+   "y": 4,
+   "quota": 1
+  },
+  {
+   "kind": "spawn",
+   "x": 21,
+   "y": 10,
+   "template": 1
+  },
+  {
+   "kind": "spawn",
+   "x": 18,
+   "y": 22,
+   "template": 1
+  },
+  {
+   "kind": "feature",
+   "x": 33,
+   "y": 2,
+   "feature": "chest"
+  }
+ ]
+}
