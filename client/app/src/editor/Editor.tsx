@@ -39,7 +39,7 @@ import {
   objectLabel,
   servicesOf,
 } from "./objects";
-import { type Marker, outlineSegments, seamSegments } from "./overlay";
+import { type Marker, outlineSegments, outsideMask, seamSegments } from "./overlay";
 import { EditorSession, NOTHING } from "./session";
 import { type Finding, tally, validate } from "./validate";
 import { footprintOf, frameOf } from "./walkWorld";
@@ -696,6 +696,7 @@ function EditorScreen({
     () => (session.zone ? outlineSegments(doc) : null),
     [doc, session, revision],
   );
+  const mask = useMemo(() => outsideMask(doc), [doc, revision]);
 
   // The objects' markers, a town's footprints, the hexes a finding names.
   const faults = useMemo(
@@ -753,6 +754,7 @@ function EditorScreen({
               return cell !== undefined && isOutside(cell);
             }
           : null,
+      outsideMask: session.zone && layers.outline ? mask : null,
       outlineEdges: layers.outline ? outlineEdges : null,
       seams: layers.seams ? seams : null,
       grid: layers.grid,

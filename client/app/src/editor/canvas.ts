@@ -78,6 +78,9 @@ export function mapZoom(viewport: Viewport, columns: number, rows: number): Zoom
   };
 }
 
+/** How many overlay frame times are kept. */
+const OVERLAY_SAMPLES = 600;
+
 /** What `0` fits when nothing is painted: a 3 × 2-chunk area from `(0, 0)`. */
 export const EMPTY_BOX: TileBox = { x0: 0, y0: 0, x1: 3 * CHUNK - 1, y1: 2 * CHUNK - 1 };
 
@@ -118,6 +121,8 @@ export class EditorCanvas {
   private window: TileBox | null = null;
   private spaceHeld = false;
   private overlayFrame: number | null = null;
+  /** The last overlay frames' drawing times in ms (the browser check reads them). */
+  readonly overlayMs: number[] = [];
   /** The editor's zoom (`mapZoom`), and whether the author zoomed by hand since `0`. */
   private zoom: ZoomSettings = DEFAULT_ZOOM;
   private zoomedByHand = false;
@@ -343,7 +348,10 @@ export class EditorCanvas {
     const { camera, viewport } = this.renderer.cameraState();
     const ratio = this.overlay.width / Math.max(1, viewport.width);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const start = performance.now();
     drawOverlays(ctx, camera, viewport, this.scene);
+    this.overlayMs.push(performance.now() - start);
+    if (this.overlayMs.length > OVERLAY_SAMPLES) this.overlayMs.shift();
   }
 
   private listen(): void {

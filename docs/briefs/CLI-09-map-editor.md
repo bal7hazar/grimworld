@@ -297,13 +297,21 @@ It opens from the top bar's light or with its key, as a drawer over the inspecto
 
 ### 2.7 Export and import dialog
 
+**Save and export are two things** (owner's request, 2026-10-05): the editor's JSON
+(`.grimmap.json`) is its **save format only**, the file "Save" writes and "Open file…" reads. The
+**export** is CLI-09c's and is **not JSON**: it produces the **on-chain encoding** ENG-08 defines,
+the packed felts as the Registry records them, written as **calldata or a multicall file ready to
+send** (§10). The top bar's button says so: **"Export for the chain…"**, with the file kind named in
+the dialog; "Save" stays the JSON file.
+
 ```
             +--------------------------------------------------------------+
-            | Export · Ashen Meadow                                        |
+            | Export for the chain · Ashen Meadow                          |
             |                                                              |
-            |  ( ) Map file (.grimmap.json): the editor's own, to reload   |
-            |  ( ) Registration (zone only): ENG-08's format — greyed      |
-            |      until CLI-09c (needs ENG-08's spike schema)             |
+            |  Writes the zone's Registry records as packed felts:         |
+            |  ( ) Calldata (one set_record call per record)               |
+            |  ( ) Multicall file (the records in one transaction's calls) |
+            |  ENG-08's encoding — greyed until CLI-09c (needs its spike)  |
             |                                                              |
             |  Validation: ● 0 errors · 2 warnings   [ Show ]              |
             |                                                              |
@@ -311,9 +319,14 @@ It opens from the top bar's light or with its key, as a drawer over the inspecto
             +--------------------------------------------------------------+
 ```
 
+The two kinds of export file are named here as the owner's request names them; which one CLI-09c
+writes first, and their exact shape, follow ENG-08's encoding (§10). A town is never exported (D-03):
+the button is a zone's only. Saving a map is not exporting it: a town and a zone both save as JSON.
+
 Import is "Open file…" on the map list and the same item in the editor's menu. It accepts an
-editor file, and in CLI-09c the registration format. A file of a newer editor version, or one that
-fails to read, is refused with the reason, and the current map is not touched.
+editor file (JSON), and in CLI-09c whatever ENG-08's encoding lets the editor read back. A file of
+a newer editor version, or one that fails to read, is refused with the reason, and the current map
+is not touched.
 
 ### 2.8 Preview walk
 
@@ -583,7 +596,8 @@ vector table printed from the Cairo models stays open for the spike (G-6).
 
 ## 6. Save, load, export
 
-- **Save** writes the map to a local file: a download of one JSON document (`<name>.grimmap.json`). It
+- **Save** writes the map to a local file: a download of one JSON document (`<name>.grimmap.json`), the
+  editor's **save format only**, never what goes on chain (owner's request, 2026-10-05). It
   carries the editor's format version, the editor's version (the client's commit), the kind and
   everything in §4. **Load** reads such a file from a file picker or by dropping it on the page.
   **Format 2** (owner's request, 2026-10-05; D-216) holds the painted hexes only (row spans: one row, from a column on, a
@@ -600,9 +614,11 @@ vector table printed from the Cairo models stays open for the spike (G-6).
 - **Town maps** are client data. A town file is what the game's hubs will read instead of the code
   fixtures. That move is a later lot (O-6), and it commits the town files as JSON under `client/app`.
   They are data, not art (D-73 holds: no image).
-- **Zone maps** are saved the same way. They are also **exported for registration in ENG-08's format** (CLI-09c)
-  (§10). The export file is handed to the administrator's content pipeline (OPS-01), which writes the
-  records. The editor never writes them.
+- **Zone maps** are saved the same way, as JSON. **The JSON is the save format only** (owner's
+  request, 2026-10-05). A zone is also **exported for the chain** (CLI-09c, §2.7, §10): the
+  **on-chain encoding** ENG-08 defines, the packed felts as the Registry records them, as calldata or
+  a multicall file ready to send. It is not JSON. The export file is handed to the administrator's
+  content pipeline (OPS-01), which sends it. The editor never sends it.
 - **Versions**: a file of an older format version is migrated on load, with a note. A newer one is
   refused, with the reason.
 
@@ -672,6 +688,13 @@ them to `tools/map-format/` (ENG-08 ruling 9, l.145).
 
 ## 10. Export format — ENG-08's, folded in
 
+**The export is the on-chain encoding, not JSON** (owner's request, 2026-10-05). CLI-09c's export
+writes **the packed felts as the Registry records them** (`records: Map<(kind, id, part), felt252>`,
+one `set_record` per record, ruling 10): **calldata** for those calls, or a **multicall file** holding
+them ready to send. The button reads "Export for the chain…" (§2.7). The editor's JSON
+(`.grimmap.json`, §6) is its save format only. Where this section speaks of ENG-08's schema below, it
+is the description the converter reads; what the export hands over is the encoded records.
+
 `docs/briefs/ENG-08-authored-zones-format.md` fixes the format's design and D-215 answers its first
 questions. **The exact JSON schema waits for ENG-08's spike. CLI-09c waits for it.** What is fixed now,
 in words:
@@ -720,8 +743,9 @@ in words:
   `tools/map-format/`. **CLI-09 never edits the schema or the converter**: a change it needs goes to
   track game. The editor builds against the files and the samples there.
 - **The editor's own file stays its own** (§6, `.grimmap.json`): it holds what an editor session needs
-  (the kind, the size, every layer, undo-free drafts), and the registration export is derived from it by
-  CLI-09c, to ENG-08's schema.
+  (the kind, every layer, undo-free drafts), and is its save format only. The export for the chain is
+  derived from it by CLI-09c into ENG-08's on-chain encoding: packed felts, as calldata or a multicall
+  file (owner's request, 2026-10-05).
 
 **Waits for ENG-08's spike (○), to settle in CLI-09c:** the JSON schema and the layers it carries beyond
 the walkable plane (G-1); what the editor's "Location id" is in the file (G-7); the chunk record's

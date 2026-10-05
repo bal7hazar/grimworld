@@ -122,6 +122,11 @@ export interface Marker {
 
 /** What one overlay frame draws. */
 export interface OverlayScene {
+  /**
+   * The outside as one image's pixels (`outsideMask`), for small hexes; the per-hex shapes above
+   * `RUN_BELOW_PX`.
+   */
+  readonly outsideMask?: OutsideMask | null;
   /** Whether a hex is painted and outside the outline (a zone with the outline layer on), else null. */
   readonly outside: ((tile: Tile) => boolean) | null;
   readonly outlineEdges: Segments | null;
@@ -139,6 +144,119 @@ export interface OverlayScene {
   readonly box?: { readonly from: Tile; readonly to: Tile } | null;
   /** Where a paste or a move would land. */
   readonly ghost?: readonly Tile[];
+}
+
+/**
+ * One period of the hex grid (one hex wide, two rows high: odd-r repeats every two rows), drawn
+ * once for a size in device pixels and kept: the grid is one pattern fill a frame, whatever the
+ * number of hexes in view (the owner's feedback, 2026-10-05). Pattern pixel `(u, v)` is world point
+ * `(u TILE_WIDTH / w, v 2 ROW_HEIGHT / h)`; world `(0, 0)` is tile `(0, 0)`'s centre.
+ */
+const periods = new Map<string, { canvas: HTMLCanvasElement; w: number; h: number }>();
+const PERIODS_KEPT = 48;
+
+function gridPeriod(
+  width: number,
+  height: number,
+): { canvas: HTMLCanvasElement; w: number; h: number } | null {
+  const w = Math.max(2, Math.round(width));
+  const h = Math.max(2, Math.round(height));
+  const key = `${w}x${h}`;
+  const kept = periods.get(key);
+  if (kept) return kept;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const kx = w / TILE_WIDTH;
+  const ky = h / (2 * ROW_HEIGHT);
+  ctx.beginPath();
+  // The hexes that cross world [0, TILE_WIDTH) × [0, 2 ROW_HEIGHT): x grows West, y North.
+  for (let y = -3; y <= 1; y++) {
+    for (let x = -2; x <= 2; x++) {
+      const c = hexCorners(tileToPixel({ x, y }));
+      ctx.moveTo(c[0]! * kx, c[1]! * ky);
+      for (let k = 2; k < 12; k += 2) ctx.lineTo(c[k]! * kx, c[k + 1]! * ky);
+      ctx.closePath();
+    }
+  }
+  ctx.strokeStyle = COLOURS.grid;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  if (periods.size >= PERIODS_KEPT) periods.clear();
+  const period = { canvas, w, h };
+  periods.set(key, period);
+  return period;
+}
+
+/**
+ * The outside of a zone's outline as an image's pixels (the outline layer's shading at small
+ * hexes): over the painted box, two pixels a hex (a half hex each, so that odd rows sit half a hex
+ * aside), one row a row, from the North-East corner (`x` grows West, `y` North).
+ */
+export interface OutsideMask {
+  /** The image's first column, in half hexes of world x. */
+  readonly left: number;
+  /** The highest row (the image's top). */
+  readonly y1: number;
+  readonly w: number;
+  readonly h: number;
+  /** 1 where a half hex is outside, by `row * w + column`. */
+  readonly bits: Uint8Array;
+}
+
+export function outsideMask(doc: MapDocument): OutsideMask | null {
+  if (!isZone(doc)) return null;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const key of doc.hexes.keys()) {
+    const { x, y } = tileOfKey(key);
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  if (x0 === Infinity) return null;
+  // A hex's left edge in half hexes of world x: -(2x + parity + 1).
+  const left = -(2 * x1 + 2);
+  const w = 2 * (x1 - x0 + 1) + 1;
+  const h = y1 - y0 + 1;
+  const bits = new Uint8Array(w * h);
+  for (const [key, cell] of doc.hexes) {
+    if (!isOutside(cell)) continue;
+    const { x, y } = tileOfKey(key);
+    const col = -(2 * x + (y & 1) + 1) - left;
+    const row = y1 - y;
+    bits[row * w + col] = 1;
+    bits[row * w + col + 1] = 1;
+  }
+  return { left, y1, w, h, bits };
+}
+
+const maskImages = new WeakMap<OutsideMask, HTMLCanvasElement>();
+
+function maskImage(mask: OutsideMask): HTMLCanvasElement | null {
+  const kept = maskImages.get(mask);
+  if (kept) return kept;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = mask.w;
+  canvas.height = mask.h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const image = ctx.createImageData(mask.w, mask.h);
+  for (let i = 0; i < mask.bits.length; i++) {
+    if (!mask.bits[i]) continue;
+    // COLOURS.outside: rgba(8, 8, 14, 0.55).
+    image.data.set([8, 8, 14, 140], i * 4);
+  }
+  ctx.putImageData(image, 0, 0);
+  maskImages.set(mask, canvas);
+  return canvas;
 }
 
 /** Below this hex width on screen (CSS px), the grid is not drawn: it would be a grey wash. */
@@ -197,6 +315,23 @@ export function drawOverlays(
       each((tile) => {
         if (outside(tile)) hexPath(tile, 0.5);
       });
+    } else if (scene.outsideMask) {
+      // One image of the outside, a pixel per half hex and a row per row, drawn scaled.
+      const image = maskImage(scene.outsideMask);
+      if (image) {
+        const m = scene.outsideMask;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(
+          image,
+          m.left * (TILE_WIDTH / 2) * scale + ox,
+          (-m.y1 * ROW_HEIGHT - ROW_HEIGHT / 2) * scale + oy,
+          m.w * (TILE_WIDTH / 2) * scale,
+          m.h * ROW_HEIGHT * scale,
+        );
+        ctx.restore();
+      }
+      ctx.beginPath();
     } else {
       for (let y = range.y0; y <= range.y1; y++) {
         let x = range.x0;
@@ -224,11 +359,24 @@ export function drawOverlays(
     ctx.fill();
   }
   if (scene.grid && TILE_WIDTH * scale >= GRID_MIN_PX) {
-    ctx.beginPath();
-    each((tile) => hexPath(tile));
-    ctx.strokeStyle = COLOURS.grid;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    // One fill of a cached pattern: one period of the grid, drawn once per zoom step.
+    const ratio = ctx.getTransform().a || 1;
+    const period = gridPeriod(TILE_WIDTH * scale * ratio, 2 * ROW_HEIGHT * scale * ratio);
+    const pattern = period && ctx.createPattern(period.canvas, "repeat");
+    if (period && pattern) {
+      pattern.setTransform(
+        new DOMMatrix([
+          (TILE_WIDTH * scale) / period.w,
+          0,
+          0,
+          (2 * ROW_HEIGHT * scale) / period.h,
+          ox,
+          oy,
+        ]),
+      );
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, viewport.width, viewport.height);
+    }
   }
   const segments = (s: Segments) => {
     ctx.beginPath();

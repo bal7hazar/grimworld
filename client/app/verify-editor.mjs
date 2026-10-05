@@ -1,4 +1,4 @@
-/* global console, process, fetch, setTimeout, localStorage, Buffer, URL, window, Event */
+/* global console, process, fetch, setTimeout, localStorage, Buffer, URL, window, Event, performance, requestAnimationFrame */
 /* eslint-disable no-empty */
 // The map editor in a real browser (CLI-09a, CLI-09a2): at 1440 × 900, with the art and in the plain
 // look (the art's `/art/` answered 404), a zone is created with no size, painted away from the
@@ -329,6 +329,11 @@ async function run(browser, look) {
     `a reload within the debounce keeps the stroke: ${before} → ${after} hexes, listed: ${row.replace(/\s+/g, " ")}`,
   );
 
+  if (look === "art") await gridPhase(page, look, shot);
+  if (process.env.VERIFY_GRID_ONLY === "1") {
+    await context.close();
+    return;
+  }
   await objectsPhase(page, look, shot, text);
 
   // Below 700 px: one line.
@@ -341,6 +346,111 @@ async function run(browser, look) {
   ok(foreign.length === 0, `no request beyond the page's origin (${foreign.length})`);
   ok(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
   await context.close();
+}
+
+/** A painted 225 × 225 zone (the largest), floor with a rock in nine, all inside its outline. */
+function largestZone() {
+  const rows = [];
+  for (let y = 0; y < 225; y += 1) {
+    let terrain = "";
+    for (let x = 0; x < 225; x += 1) terrain += (x * 7 + y * 11) % 9 === 0 ? "#" : ".";
+    rows.push({ y, x: 0, terrain, ground: "g".repeat(225), outline: "1".repeat(225) });
+  }
+  return JSON.stringify({
+    format: "grimworld-map",
+    version: 2,
+    editor: "verify",
+    map: {
+      kind: "zone",
+      name: "Largest",
+      location: 9,
+      biome: "meadow",
+      levelMin: 1,
+      levelMax: 1,
+      rank: 0,
+      spawnTable: 0,
+    },
+    rows,
+    chunks: { x: 0, y: 0, how: "fitted" },
+    obstacles: [],
+  });
+}
+
+const stat = (list) => {
+  const s = [...list].sort((a, b) => a - b);
+  const at = (q) => s[Math.min(s.length - 1, Math.floor(q * s.length))] ?? NaN;
+  return `median ${at(0.5).toFixed(1)} ms, p95 ${at(0.95).toFixed(1)} ms (${s.length} frames)`;
+};
+
+/**
+ * The grid's cost (the owner's feedback, 2026-10-05): a painted 225 × 225 zone at the widest zoom,
+ * panned then zoomed in and out for 240 frames each; the frame interval (requestAnimationFrame)
+ * and the overlay's drawing time, median and p95.
+ */
+async function gridPhase(page, look, shot) {
+  console.log(`--- ${look}: the grid's cost on a 225 × 225 map ---`);
+  await page.locator("[data-open-file]").setInputFiles({
+    name: "largest.grimmap.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(largestZone()),
+  });
+  await page.locator('[data-canvas]:not([data-atlas="loading"])').waitFor();
+  await page.waitForFunction(() => window.__editor !== undefined);
+  // The widest zoom (out to the zoom's bound), then 120 across (about 8 CSS px a hex, the widest
+  // zoom that draws the grid).
+  for (let i = 0; i < 40; i += 1) await page.keyboard.press("-");
+  let figures;
+  for (const at of ["widest", 120]) {
+    if (at !== "widest") {
+      await page.evaluate((n) => {
+        window.__editor.canvas.renderer.zoomTo(n);
+        window.__editor.canvas.cameraMoved();
+      }, at);
+    }
+    await page.waitForTimeout(1500);
+    const across = (await page.locator("[data-status]").innerText()).match(/zoom (\d+) across/)[1];
+    figures = await page.evaluate(async () => {
+      const { canvas } = window.__editor;
+      const renderer = canvas.renderer;
+      const frames = (n, move) =>
+        new Promise((done) => {
+          const gaps = [];
+          let last = performance.now();
+          const first = last;
+          let k = 0;
+          const tick = (now) => {
+            gaps.push(now - last);
+            last = now;
+            move(k);
+            canvas.cameraMoved();
+            k += 1;
+            // At most 30 s a sequence: a slow grid yields fewer frames, never a hung check.
+            if (k < n && now - first < 30_000) requestAnimationFrame(tick);
+            else done(gaps.slice(5));
+          };
+          requestAnimationFrame(tick);
+        });
+      canvas.overlayMs.length = 0;
+      const pan = await frames(240, (k) =>
+        renderer.pan(k % 120 < 60 ? 6 : -6, 2 * Math.sin(k / 9)),
+      );
+      const panOverlay = [...canvas.overlayMs];
+      canvas.overlayMs.length = 0;
+      const { viewport } = renderer.cameraState();
+      const mid = { x: viewport.width / 2, y: viewport.height / 2 };
+      const zoom = await frames(240, (k) => renderer.zoomAt(k % 40 < 20 ? 1.03 : 1 / 1.03, mid));
+      const zoomOverlay = [...canvas.overlayMs];
+      return { pan, panOverlay, zoom, zoomOverlay };
+    });
+    console.log(
+      `  ${across} across, pan: frame ${stat(figures.pan)}; overlay ${stat(figures.panOverlay)}`,
+    );
+    console.log(
+      `  ${across} across, zoom: frame ${stat(figures.zoom)}; overlay ${stat(figures.zoomOverlay)}`,
+    );
+    await shot(`12-largest-${at}`);
+  }
+  ok(figures.pan.length > 10 && figures.zoom.length > 10, "frames measured");
 }
 
 /** The canvas's page point of a hex of the editor's plane. */
