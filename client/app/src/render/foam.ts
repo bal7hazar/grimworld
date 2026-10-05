@@ -79,7 +79,11 @@ export class FoamMesh {
     private readonly frames: readonly Texture[],
   ) {
     const page = frames[0] ? new Texture({ source: frames[0].source }) : Texture.EMPTY;
-    this.mesh = new Mesh({ geometry: new MeshGeometry({}), texture: page });
+    // Never batched: a batched mesh's vertices are copied into PixiJS's batch, so its coordinates
+    // could not change in place, and a group that grew past 100 vertices broke the batcher.
+    const geometry = new MeshGeometry({});
+    geometry.batchMode = "no-batch";
+    this.mesh = new Mesh({ geometry, texture: page });
     this.setPieces(pieces);
   }
 

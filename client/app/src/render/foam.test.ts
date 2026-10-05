@@ -188,6 +188,10 @@ describe("the foam's meshes (CLI-03o)", () => {
     }
     const positions = mesh.mesh.geometry.getBuffer("aPosition").data as Float32Array;
     expect(positions.length).toBe(mesh.pieces.reduce((n, p) => n + p.points.length, 0));
+    // Never batched, whatever its size: its coordinates change in place.
+    expect(mesh.mesh.batched).toBe(false);
+    mesh.setPieces(pieces.slice(0, 2));
+    expect(mesh.mesh.batched).toBe(false);
     const geometry = mesh.mesh.geometry;
     mesh.destroy();
     expect(geometry.attributes).toBeNull();
