@@ -1,6 +1,13 @@
 import type { Intent } from "../input/intent";
 import { type StepKey, verticalDirection } from "../input/keys";
-import { type Explored, NOTHING_EXPLORED, drawnActors, explore, fogTiles } from "../render/fog";
+import {
+  type Explored,
+  NOTHING_EXPLORED,
+  drawnActors,
+  explore,
+  fogTiles,
+  tileKey,
+} from "../render/fog";
 import type { Tile, ViewActor, ViewState, ViewTile } from "../render/view";
 import {
   SIGHT_RADIUS,
@@ -156,6 +163,12 @@ export function applyIntent(
   if (intent.kind === "inspect") {
     const what = actor ? describe(actor) : (kind ?? "outside the location");
     return { ...state, said: `inspect ${where}: ${what}` };
+  }
+  // A tile not drawn, never in sight (CLI-03n, the orchestrator's decision of 2026-10-05): a tap
+  // there does nothing, neither a walk nor a selection, nor the end of one. A tile drawn is tapped
+  // as before, even when its path crosses tiles revealed but never seen.
+  if (kind !== null && !isHub(world) && !state.explored.has(tileKey(tile))) {
+    return { ...state, said: `tap ${where}: never seen, nothing` };
   }
   const previewed = !state.walking && state.path.length > 0 && state.selectedTile !== null;
   if (previewed && state.selectedTile && sameTile(state.selectedTile, tile)) {

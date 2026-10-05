@@ -117,6 +117,29 @@ describe("what the view draws (CLI-03n, AC-1)", () => {
     expect(tapped.said).not.toMatch(/select/);
   });
 
+  it("a tap on a tile never seen does nothing: no walk, no selection, a walk going on goes on", () => {
+    const start = initialState(fixtureNamed("meadow"));
+    const { terrain } = start.world;
+    const hero = heroOf(start).tile;
+    let unseen: Tile | null = null;
+    for (let i = 0; i < terrain.kinds.length && !unseen; i++) {
+      const tile = { x: i % terrain.width, y: Math.floor(i / terrain.width) };
+      if (terrain.kinds[i] === "floor" && !start.explored.has(tileKey(tile))) unseen = tile;
+    }
+    expect(unseen).not.toBeNull();
+    const idle = applyIntent(start, { kind: "tile", tile: unseen! });
+    expect(idle).toEqual({ ...start, said: idle.said });
+    expect(idle.said).toMatch(/never seen/);
+    // A walk planned to a tile drawn goes on; the tap ends nothing.
+    const walking = applyIntent(start, { kind: "tile", tile: { x: hero.x - 3, y: hero.y } });
+    expect(walking.walking).toBe(true);
+    const tapped = applyIntent(walking, { kind: "tile", tile: unseen! });
+    expect(tapped).toEqual({ ...walking, said: tapped.said });
+    // A tile drawn plans a path as before.
+    const seen = applyIntent(start, { kind: "tile", tile: { x: hero.x - 2, y: hero.y } });
+    expect(seen.path.length).toBeGreaterThan(0);
+  });
+
   it("after a walk away, the goblins seen stay drawn beyond sight", () => {
     const start = initialState(fixtureNamed("cave"));
     const { terrain } = start.world;
@@ -147,65 +170,105 @@ describe("the renderer's fog layers (CLI-03n)", () => {
     renderer.setView(toView(state, fog));
     host.run(100);
     const world = surface.stage.children[0] as Container;
-    const [grey, mask, ground] = world.children as [Container, Graphics, Container];
-    return { host, surface, renderer, grey, mask, ground };
+    const [grey, ground, cover, overlay] = world.children as [
+      Container,
+      Container,
+      Graphics,
+      Graphics,
+    ];
+    return { host, surface, renderer, grey, ground, cover, overlay };
   }
 
-  it("with fog: the grey twin under the ground, the ground masked to sight; one grey bake a chunk", () => {
-    const { host, surface, renderer, grey, mask, ground } = mount(
-      initialState(fixtureNamed("meadow")),
+  /** The styles of a Graphics' fills. */
+  const fills = (g: Graphics) =>
+    g.context.instructions
+      .filter((i) => i.action === "fill")
+      .map((i) => (i.data as { style: { texture: Texture; color: number; alpha: number } }).style);
+  /** The overlay's fills from a texture: the hexes in sight, filled from the colour bakes. */
+  const textured = (overlay: Graphics) => fills(overlay).filter((f) => f.texture !== Texture.WHITE);
+  /** The overlay's fills of a flat colour, opaque: the void's hexes in sight, without the atlas. */
+  const flat = (overlay: Graphics, colour: number) =>
+    fills(overlay).filter(
+      (f) => f.texture === Texture.WHITE && f.color === colour && f.alpha === 1,
     );
+
+  it("with fog: the grey twin, and the hexes in sight filled from the colour bakes; no mask", () => {
+    const start = initialState(fixtureNamed("meadow"));
+    const { host, surface, renderer, grey, ground, overlay } = mount(start);
     expect(grey.visible).toBe(true);
-    expect(mask).toBeInstanceOf(Graphics);
-    expect(ground.mask).toBe(mask);
+    // The ground in colour is not drawn: the overlay holds what is in sight, from its textures.
+    expect(ground.visible).toBe(false);
+    expect(ground.mask ?? null).toBeNull();
+    const chunks = new Set(ground.children.map((c) => (c as Sprite).texture));
+    const inSight = textured(overlay);
+    expect(inSight).toHaveLength(sightOf(start).length);
+    for (const fill of inSight) expect(chunks.has(fill.texture)).toBe(true);
     // The twins wait for the next frame drawn: not in the one that baked the colour.
     expect(surface.greyBakes).toHaveLength(0);
     renderer.scheduler.invalidate();
     host.run(100);
     expect(surface.greyBakes).toHaveLength(surface.bakes.length);
-    // The mask holds the sight's hexes (and the void's within the radius: none, the meadow has none).
-    expect(mask.context.instructions.length).toBeGreaterThan(0);
   });
 
-  it("without fog (a hub, `full`): no twin, no mask, no grey bake", () => {
+  it("without fog (a hub, `full`): no twin, the ground in colour, nothing in sight filled", () => {
     const view = HUB_VIEWS.get(TOWN)!;
     for (const [state, fog] of [
       [initialState(hubWorld(view, view.arrival)), "sight"],
       [initialState(fixtureNamed("meadow")), "full"],
     ] as const) {
-      const { surface, grey, ground } = mount(state, fog);
+      const { host, surface, renderer, grey, ground, overlay } = mount(state, fog);
+      renderer.scheduler.invalidate();
+      host.run(100);
       expect(grey.visible).toBe(false);
-      expect(ground.mask ?? null).toBeNull();
+      expect(ground.visible).toBe(true);
+      expect(textured(overlay)).toHaveLength(0);
       expect(surface.greyBakes).toHaveLength(0);
     }
   });
 
-  it("the mask is drawn again for a step, not for a view whose sight is the same", () => {
+  it("a step that explores bakes nothing: the tiles never in sight are covered, once a step", () => {
     const start = initialState(fixtureNamed("meadow"));
-    const { renderer, mask } = mount(start);
-    const drawn = () => mask.context.instructions.length;
-    const before = mask.context;
+    const { host, surface, renderer, cover, overlay } = mount(start);
+    const hidden = () => {
+      const view = renderer["view"]!;
+      return view.tiles.filter(
+        (t) =>
+          t.kind === "unrevealed" &&
+          view.revealed!.find((r) => r.x === t.x && r.y === t.y)!.kind !== "unrevealed",
+      );
+    };
+    // Each hidden tile: a fill and an edge, as an unrevealed tile in a bake.
+    expect(hidden().length).toBeGreaterThan(0);
+    expect(cover.context.instructions).toHaveLength(2 * hidden().length);
+    const bakes = surface.bakes.length;
+    const before = cover.context;
     renderer.setView(toView({ ...start, said: "the same sight" }));
-    expect(mask.context).toBe(before);
+    expect(cover.context).toBe(before);
+    expect(renderer["sightKey"]).toContain(tileKey(heroOf(start).tile));
     const hero = heroOf(start).tile;
-    const [, stepped] = walk(start, { x: hero.x - 1, y: hero.y });
-    renderer.setView(toView(stepped!));
-    expect(drawn()).toBeGreaterThan(0);
-    expect(renderer["sightKey"]).toContain(tileKey(heroOf(stepped!).tile));
+    const states = walk(start, { x: hero.x - 2, y: hero.y });
+    const last = states.at(-1)!;
+    expect(last.explored.size).toBeGreaterThan(start.explored.size);
+    renderer.setView(toView(last));
+    host.run(100);
+    expect(surface.bakes).toHaveLength(bakes);
+    expect(cover.context.instructions).toHaveLength(2 * hidden().length);
+    expect(renderer["sightKey"]).toContain(tileKey(heroOf(last).tile));
+    expect(textured(overlay)).toHaveLength(sightOf(last).length);
   });
 
   it("the void beyond the terrain: its grey twin is the void's grey, dimmed; in sight, colour", () => {
     const zone = initialState(fixtureNamed("zone"));
-    const { grey, mask } = mount(zone);
+    const { grey, overlay } = mount(zone);
     const bands = grey.children[0] as Container;
     expect(bands.visible).toBe(true);
     for (const band of bands.children as Sprite[]) {
       expect(band.texture).toBe(Texture.WHITE);
       expect(band.tint).toBe(dimmed(greyOf(0x3f8f8d)));
     }
-    // The zone opens by its edge: the mask reaches past its tiles, onto the void.
-    const masked = mask.context.instructions.length;
-    expect(masked).toBeGreaterThan(0);
+    // The zone opens by its edge: the void's hexes within the sight's radius are in colour, the
+    // water's (no atlas here: its flat colour), clipped to the bands.
+    expect(flat(overlay, 0x3f8f8d).length).toBeGreaterThan(0);
   });
 
   it("greyOf gives R = G = B, with the bakes' weights", () => {

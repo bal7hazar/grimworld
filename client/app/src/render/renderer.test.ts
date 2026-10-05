@@ -180,7 +180,7 @@ describe("the six facings (AC-4), against the library's Direction numbering", ()
           const tile = { x: 10, y };
           renderer.setView(oneGoblin(10, y, facing));
           const world = surface.stage.children[0] as Container;
-          const actors = world.children[6] as Container;
+          const actors = world.children[5] as Container;
           const node = actors.children.find(
             (c) => c.position.x === tileToPixel(tile).x && c.position.y === tileToPixel(tile).y,
           ) as Container;
@@ -392,7 +392,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(surface.passes).toHaveLength(0);
     expect(surface.renders).toBe(1);
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(7); // the world itself is on the stage
+    expect(world.children).toHaveLength(6); // the world itself is on the stage
     expect(renderer.zoomInfo()).toMatchObject({
       mode: "sharp",
       sharpFallback: true,
@@ -417,7 +417,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     host.run(1000);
     expect(surface.renders).toBe(renders); // no frame was needed for it
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(7); // grey ground, sight mask, ground, cover, overlay, dropped steps, actors
+    expect(world.children).toHaveLength(6); // grey ground, ground, cover, overlay, dropped steps, actors
   });
 });
 
@@ -448,7 +448,7 @@ describe("the feet in their tile (CLI-03b)", () => {
   function onScreen(surface: FakeSurface, node: Container): { x: number; y: number } {
     const top = surface.stage.children[0] as Container;
     const p = node.getGlobalPosition();
-    const k = top.children.length === 7 ? 1 : top.scale.x;
+    const k = top.children.length === 6 ? 1 : top.scale.x;
     return { x: p.x * k, y: p.y * k };
   }
 
@@ -553,7 +553,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
 
   /** The chunks' textures, as their sizes (the ground's layer: the void's sprite apart). */
   const textures = (surface: FakeSurface) =>
-    ((surface.stage.children[0] as Container).children[2] as Container).children
+    ((surface.stage.children[0] as Container).children[1] as Container).children
       .slice(1)
       .map((s) => `${(s as Sprite).texture.width}x${(s as Sprite).texture.height}`);
 
@@ -645,7 +645,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
   it("bakes the foam over the void with the atlas only, per group, again only when it changes", async () => {
     const view = zoneView();
     const { host, renderer, surface } = mount(view);
-    const voidLayer = ((surface.stage.children[0] as Container).children[2] as Container)
+    const voidLayer = ((surface.stage.children[0] as Container).children[1] as Container)
       .children[0] as Container;
     const foam = voidLayer.children[4] as Container;
     expect(foam.children).toHaveLength(0);
@@ -670,7 +670,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     const view = zoneView();
     const { renderer, surface } = mount(view);
     renderer.draw();
-    const ground = (surface.stage.children[0] as Container).children[2] as Container;
+    const ground = (surface.stage.children[0] as Container).children[1] as Container;
     const voidLayer = ground.children[0] as Container;
     expect(voidLayer.visible).toBe(true);
     const bands = voidLayer.children as Sprite[];
@@ -693,7 +693,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
       if (corner.x > tileToPixel({ x: 2, y: 0 }).x) expect(inBand(corner)).toBe(true);
     }
     const cave = mount(toView(initialState(fixtureNamed("cave"))));
-    const caveGround = (cave.surface.stage.children[0] as Container).children[2] as Container;
+    const caveGround = (cave.surface.stage.children[0] as Container).children[1] as Container;
     expect(caveGround.children[0]!.visible).toBe(false);
   });
 });
@@ -714,7 +714,7 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
     renderer.resize({ width: 375, height: 812 });
     renderer.setView(view);
     host.run(100);
-    const actorsLayer = (surface.stage.children[0] as Container).children[6] as Container;
+    const actorsLayer = (surface.stage.children[0] as Container).children[5] as Container;
     return { host, surface, renderer, stats, actorsLayer };
   }
 

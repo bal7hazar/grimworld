@@ -305,9 +305,11 @@ export function overlayPlan(view: ViewState): OverlayPlan {
  * What changes with the view but does not move: beyond sight dimmed, the planned path, the
  * selected tile, the selected actor's rear-side (a tint and a ring) and back (a tint and a cross).
  */
-export function drawOverlay(g: Graphics, view: ViewState): void {
+export function drawOverlay(g: Graphics, view: ViewState, under?: (g: Graphics) => void): void {
   const plan = overlayPlan(view);
   g.clear();
+  // What the renderer draws first, in the same Graphics: one draw call fewer (CLI-03n's sight).
+  under?.(g);
   for (const tile of plan.dimmed) {
     g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: DIM_ALPHA });
   }

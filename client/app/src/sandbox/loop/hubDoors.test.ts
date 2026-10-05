@@ -112,7 +112,7 @@ function setup(hub = TOWN, options: { at?: Tile; library?: SpriteLibrary } = {})
     const routed = doors.route({ kind, tile });
     if (routed) session.apply(routed);
   };
-  const actorsLayer = () => (surface.stage.children[0] as Container).children[6] as Container;
+  const actorsLayer = () => (surface.stage.children[0] as Container).children[5] as Container;
   return {
     view,
     host,
@@ -199,7 +199,8 @@ describe("the window stays a zone's (CLI-03f §4, the project manager's conditio
       for (let y = 0; y < terrain.height; y++) {
         for (let x = 0; x < terrain.width; x++) {
           const tile = { x, y };
-          if (kindAt(terrain, tile) !== "floor") continue;
+          // A tile never in sight is not drawn: a tap there plans nothing (CLI-03n).
+          if (kindAt(terrain, tile) !== "floor" || !state.explored.has(key(tile))) continue;
           const planned = applyIntent(state, { kind: "tile", tile }, { playOnTap: false }).path;
           const bounded = findPath(terrain, actors, me.tile, tile) ?? [];
           expect(planned, `${world.name} ${key(tile)}`).toEqual(bounded);

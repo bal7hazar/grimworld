@@ -1,6 +1,7 @@
-import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
+import { Container, Graphics, Matrix, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
 import {
   type Camera,
+  HEX_RADIUS,
   type Point,
   TILE_WIDTH,
   type Viewport,
@@ -302,6 +303,39 @@ export function dimmed(grey: number): number {
   return Math.round((grey & 0xff) * (1 - DIM_ALPHA)) * 0x010101;
 }
 
+/** The bake chunk a tile is in, as `syncChunks` keys them. */
+function chunkId(tile: Tile): string {
+  return `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
+}
+
+/** A convex polygon (flat x, y pairs) clipped to a rectangle (Sutherland–Hodgman); [] when none. */
+function clipToBox(points: readonly number[], box: Rectangle): number[] {
+  const edges: ((x: number, y: number) => number)[] = [
+    (x) => x - box.x,
+    (x) => box.x + box.width - x,
+    (_, y) => y - box.y,
+    (_, y) => box.y + box.height - y,
+  ];
+  let poly = [...points];
+  for (const inside of edges) {
+    const out: number[] = [];
+    const n = poly.length / 2;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = [poly[2 * i]!, poly[2 * i + 1]!];
+      const [bx, by] = [poly[(2 * i + 2) % poly.length]!, poly[(2 * i + 3) % poly.length]!];
+      const [da, db] = [inside(ax, ay), inside(bx, by)];
+      if (da >= 0) out.push(ax, ay);
+      if (da >= 0 !== db >= 0) {
+        const t = da / (da - db);
+        out.push(ax + t * (bx - ax), ay + t * (by - ay));
+      }
+    }
+    poly = out;
+    if (poly.length === 0) break;
+  }
+  return poly;
+}
+
 /**
  * The tiles a view hides (CLI-03n): unrevealed in `tiles`, revealed in `revealed`; as the chain
  * holds them, by `tileKey`.
@@ -363,17 +397,25 @@ export class Renderer implements FrameClient {
   private voidFoamKey: string | null = null;
   private readonly ground = new Container();
   /**
-   * Exploration by sight (CLI-03n, `ViewState.fog`): the ground's grayscale twin under it, the void's
-   * bands, its foam and each chunk baked grey (`Surface.bake`), never filtered in a frame; the
-   * ground in colour above it is masked to the hexes in sight (`sightMask`, drawn again on a step).
-   * Without fog the twin is hidden and the ground unmasked, as before.
+   * Exploration by sight (CLI-03n, `ViewState.fog`): the ground's grayscale twin, the void's
+   * bands, its foam and each chunk baked grey (`Surface.bake`), never filtered in a frame; over it
+   * the hexes in sight, each filled from the colour bake under it (the chunk's, or the void's
+   * bands and foam), first in the overlay's Graphics (`drawSight`). No mask: a stencil cost two
+   * draw calls and their state in every frame, and a Graphics of its own one more. The ground in
+   * colour is not drawn under fog; without fog the twin is hidden.
    */
   private readonly greyGround = new Container();
   private readonly greyBands = new Container();
   private readonly greyFoam = new Container();
   private readonly greyChunks = new Container();
-  private readonly sightMask = new Graphics();
   private sightKey = "";
+  /** The tiles in sight, and the void's hexes within the sight's radius, that the overlay fills. */
+  private sightTiles: readonly Tile[] = [];
+  private sightVoid: readonly Tile[] = [];
+  /** Whether the overlay is older than the view, or (under fog) than the bakes its sight is filled from. */
+  private overlayDirty = false;
+  /** The void's bands, as `placeVoid` placed them: what a void hex in sight is filled with. */
+  private voidBands: readonly Rectangle[] = [];
   /**
    * The tiles revealed on chain but never in sight (`ViewState.revealed`), drawn as unrevealed over
    * the ground, both twins: drawn again when they change (a step that explores), never baked, so
@@ -473,10 +515,8 @@ export class Renderer implements FrameClient {
     for (let i = 0; i < 4; i++) this.greyBands.addChild(new Sprite(Texture.WHITE));
     this.greyGround.addChild(this.greyBands, this.greyFoam, this.greyChunks);
     this.greyGround.visible = false;
-    this.sightMask.visible = false;
     this.world.addChild(
       this.greyGround,
-      this.sightMask,
       this.ground,
       this.cover,
       this.overlay,
@@ -506,9 +546,11 @@ export class Renderer implements FrameClient {
     this.syncObstacles(view);
     const hidden = hiddenTiles(view);
     const terrainChanged = this.syncChunks(view, hidden);
+    if (terrainChanged) this.overlayDirty = true;
     const coverChanged = this.syncCover(view, hidden);
     if (terrainChanged || coverChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
-    drawOverlay(this.overlay, view);
+    // Drawn in the next frame, after the bakes its sight is filled from (`drawSight`).
+    this.overlayDirty = true;
     this.syncDropped(view, now);
     this.syncActors(view, now);
     const adventurer = view.actors.find((a) => a.id === view.adventurerId);
@@ -759,6 +801,10 @@ export class Renderer implements FrameClient {
 
   draw(): void {
     this.bakeTerrain();
+    if (this.overlayDirty && this.view) {
+      this.overlayDirty = false;
+      drawOverlay(this.overlay, this.view, this.fogOn ? (g) => this.drawSight(g) : undefined);
+    }
     const { centre, scale } = this.camera;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
     if (!plan) {
@@ -808,7 +854,10 @@ export class Renderer implements FrameClient {
     const ground = this.view?.void;
     this.voidLayer.visible = ground !== undefined;
     this.greyBands.visible = ground !== undefined;
-    if (ground === undefined) return;
+    if (ground === undefined) {
+      this.voidBands = [];
+      return;
+    }
     // The water's cell is one flat colour: stretched, it is the same water as the baked cells.
     const water = ground === "water" ? this.groundTextures()?.water : null;
     const hole = this.voidHole ?? { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -821,6 +870,8 @@ export class Renderer implements FrameClient {
       [hole.x1, hole.y0, hole.x1 + far, hole.y1],
     ] as const;
     const greyWater = water ? this.greyTexture(water) : null;
+    this.voidBands = bands.map(([x0, y0, x1, y1]) => new Rectangle(x0, y0, x1 - x0, y1 - y0));
+    this.overlayDirty = true;
     bands.forEach(([x0, y0, x1, y1], i) => {
       const band = this.voidLayer.children[i] as Sprite;
       band.texture = water ?? Texture.WHITE;
@@ -839,19 +890,17 @@ export class Renderer implements FrameClient {
   }
 
   /**
-   * Exploration by sight (CLI-03n): with the view's `fog`, the grayscale twin shows and the ground
-   * in colour is masked to the hexes in sight, and to the void's hexes within the sight's radius of
-   * the adventurer (the void has no tile in sight; without them a coast in sight would meet a grey
-   * sea). The mask is drawn again only when those hexes change: once a step.
+   * Exploration by sight (CLI-03n): with the view's `fog`, the grayscale twin shows, and over it
+   * the hexes in sight, and the void's hexes within the sight's radius of the adventurer (the void
+   * has no tile in sight; without them a coast in sight would meet a grey sea). They change once a
+   * step; the overlay is drawn again in the next frame, from them (`drawSight`).
    */
   private syncFog(view: ViewState): void {
     const fog = view.fog ?? null;
     if ((fog !== null) !== this.fogOn) {
       this.fogOn = fog !== null;
       this.greyGround.visible = this.fogOn;
-      // A mask that is not visible masks everything out; without fog it would draw as hexes.
-      this.sightMask.visible = this.fogOn;
-      this.ground.mask = this.fogOn ? this.sightMask : null;
+      this.ground.visible = !this.fogOn;
       this.sightKey = "";
     }
     if (!fog) return;
@@ -859,16 +908,65 @@ export class Renderer implements FrameClient {
     const key = `${adventurer ? tileKey(adventurer.tile) : ""} ${fog.sightRadius} ${view.sight.map(tileKey).join(" ")}`;
     if (key === this.sightKey) return;
     this.sightKey = key;
-    const hexes: Tile[] = [...view.sight];
+    const voidHexes: Tile[] = [];
     if (adventurer && view.void !== undefined) {
       const tiles = new Set(view.tiles.map(tileKey));
       for (const hex of hexesWithin(adventurer.tile, fog.sightRadius)) {
-        if (!tiles.has(tileKey(hex))) hexes.push(hex);
+        if (!tiles.has(tileKey(hex))) voidHexes.push(hex);
       }
     }
-    // The hexes' own corners, not grown: they tile the plane, so the mask's edge is the hexes'.
-    this.sightMask.clear();
-    for (const hex of hexes) this.sightMask.poly(hexCorners(tileToPixel(hex))).fill(0xffffff);
+    this.sightTiles = view.sight;
+    this.sightVoid = voidHexes;
+  }
+
+  /**
+   * Fills the hexes in sight from the colour bakes, under the overlay, in a frame after the bakes: a
+   * tile from its chunk's texture, a void hex from the bands and the foam over them, each clipped
+   * to what it covers. The hexes' own corners, not grown: they tile the plane, so the edge of what
+   * is in colour is theirs. Not snapped to whole pixels as the bakes' sprites are (`roundPixels`):
+   * up to half a pixel apart from them, as two chunks' sprites can be.
+   */
+  private drawSight(g: Graphics): void {
+    const at = (frame: Rectangle) => new Matrix().translate(frame.x, frame.y);
+    for (const tile of this.sightTiles) {
+      const chunk = this.chunks.get(chunkId(tile));
+      if (!chunk || chunk.sprite.texture === Texture.EMPTY) continue;
+      g.poly(hexCorners(tileToPixel(tile))).fill({
+        texture: chunk.sprite.texture,
+        textureSpace: "global",
+        matrix: at(chunk.frame),
+      });
+    }
+    const ground = this.view?.void;
+    if (ground === undefined) return;
+    // The water's cell is one flat colour: stretched over the hex's box, as the bands stretch it.
+    const water = ground === "water" ? (this.groundTextures()?.water ?? null) : null;
+    for (const hex of this.sightVoid) {
+      const centre = tileToPixel(hex);
+      const corners = hexCorners(centre);
+      for (const band of this.voidBands) {
+        const piece = clipToBox(corners, band);
+        if (piece.length < 6) continue;
+        if (!water) {
+          g.poly(piece).fill(VOID_COLOURS[ground]);
+          continue;
+        }
+        const matrix = new Matrix()
+          .scale(TILE_WIDTH / water.width, (2 * HEX_RADIUS) / water.height)
+          .translate(centre.x - TILE_WIDTH / 2, centre.y - HEX_RADIUS);
+        g.poly(piece).fill({ texture: water, textureSpace: "global", matrix });
+      }
+      for (const foam of this.voidFoamBakes.values()) {
+        if (foam.sprite.texture === Texture.EMPTY) continue;
+        const piece = clipToBox(corners, foam.frame);
+        if (piece.length < 6) continue;
+        g.poly(piece).fill({
+          texture: foam.sprite.texture,
+          textureSpace: "global",
+          matrix: at(foam.frame),
+        });
+      }
+    }
   }
 
   /**
@@ -903,6 +1001,8 @@ export class Renderer implements FrameClient {
 
   /** Draws and rebakes the foam over the void, group by group, when its pieces change. */
   private syncVoidFoam(view: ViewState): void {
+    // A foam bake dropped or drawn again: `sight` is filled from them.
+    this.overlayDirty = true;
     const foam = this.groundTextures()?.foam ?? null;
     const pieces = foam ? voidFoam(view.tiles, view.void) : [];
     const keyOf = (p: FoamPiece) => `${p.source.x},${p.source.y}:${p.points.join(",")}`;
@@ -1105,7 +1205,7 @@ export class Renderer implements FrameClient {
     const groups = new Map<string, ViewTile[]>();
     const grounds = new Map<string, GroundKind | null>();
     for (const tile of tiles) {
-      const id = `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
+      const id = chunkId(tile);
       let group = groups.get(id);
       if (!group) groups.set(id, (group = []));
       group.push(tile);
@@ -1210,6 +1310,7 @@ export class Renderer implements FrameClient {
       chunk.dirty = false;
       chunk.resolution = resolution;
       chunk.greyStale = true;
+      this.overlayDirty = true;
       this.lastBakeMs = chunk.drawMs + (this.host.now() - start);
       chunk.drawMs = 0;
       baked = true;
