@@ -294,7 +294,9 @@ async function walking(browser) {
     page.on("pageerror", (e) => errors.push(e.stack ?? String(e)));
     for (const [hub, walk] of Object.entries(WALKS)) {
       const name = `walk ${hub} ${label}`;
-      await page.goto(`${base}/?hub=${hub}&idle=0`);
+      // `water=still`: the shore's foam loops at 10 fps whatever `idle=` says (CLI-03o), so it is held
+      // still here and the check below still catches a real redraw loop.
+      await page.goto(`${base}/?hub=${hub}&idle=0&water=still`);
       await screen(page, "hub").waitFor();
       await page.locator('[data-screen="hub"] [data-atlas]:not([data-atlas="loading"])').waitFor();
       const arrival = await walkerAt(page);
