@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { type FitScore, type Fitted, fitChunks, fitted } from "./fit";
 import { loadMap } from "./file";
 import { COORD_MAX, FLOOR, type MapDocument, WALL, apply, createMap, erase, paint } from "./model";
-import { outlineSegments, seamSegments, visibleRange } from "./overlay";
+import { outlineSegments, outsideMask, seamSegments, visibleRange } from "./overlay";
+import { TILE_WIDTH, tileToPixel } from "../input/coords";
+import { cellOf, keyOf } from "./model";
 import { DEFAULT_LAYERS, VIEW_MAX, VOID_PAD, editorView, holds, viewWindow } from "./view";
 
 describe("overlays (§2.3)", () => {
@@ -185,5 +187,39 @@ describe("the page (O-1)", () => {
     for (const [path, text] of Object.entries(sources).filter(([p]) => p.startsWith("./"))) {
       expect(text, path).not.toMatch(/from\s+["'][^"']*placeholders["']/);
     }
+  });
+});
+
+describe("the outside's mask (the owner's feedback, 2026-10-05)", () => {
+  it("covers each outside hex's half-hex columns, odd rows half a hex aside", () => {
+    const doc = createMap({ kind: "zone", name: "Mask", location: 2, biome: "meadow" });
+    for (const [x, y, out] of [
+      [0, 0, false],
+      [1, 0, true],
+      [0, 1, true],
+      [-2, -1, true],
+    ] as const) {
+      doc.hexes.set(keyOf({ x, y }), cellOf(FLOOR, 0, out));
+    }
+    const mask = outsideMask(doc)!;
+    expect(mask.h).toBe(3);
+    const lit: string[] = [];
+    for (let r = 0; r < mask.h; r++) {
+      for (let c = 0; c < mask.w; c++) if (mask.bits[r * mask.w + c]) lit.push(`${c},${r}`);
+    }
+    // Each outside hex lights two half-hex columns, at its left edge in world x.
+    const expected: string[] = [];
+    for (const [x, y] of [
+      [0, 1],
+      [1, 0],
+      [-2, -1],
+    ] as const) {
+      const left = (tileToPixel({ x, y }).x - TILE_WIDTH / 2) / (TILE_WIDTH / 2) - mask.left;
+      expected.push(`${left},${mask.y1 - y}`, `${left + 1},${mask.y1 - y}`);
+    }
+    expect(lit.sort()).toEqual(expected.sort());
+    expect(
+      outsideMask(createMap({ kind: "town", name: "T", location: 1, biome: "meadow" })),
+    ).toBeNull();
   });
 });

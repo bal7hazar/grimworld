@@ -1,7 +1,7 @@
 import { type Camera, ROW_HEIGHT, TILE_WIDTH, type Viewport, tileToPixel } from "../input/coords";
 import { hexCorners } from "../render/ground";
 import type { Tile } from "../render/view";
-import { type Fitted, chunkAt } from "./fit";
+import { FIT_SPAN_MAX, type Fitted, chunkAt } from "./fit";
 import { VIEW_MAX } from "./view";
 import {
   CHUNK,
@@ -112,8 +112,21 @@ export function visibleRange(camera: Camera, viewport: Viewport): TileBox {
   };
 }
 
+/** An object's marker (§2.3): a hex with a one- or two-letter label, never colour alone. */
+export interface Marker {
+  readonly tile: Tile;
+  readonly label: string;
+  /** A zone's object, a town's, or one the validation names. */
+  readonly tone: "zone" | "town" | "fault";
+}
+
 /** What one overlay frame draws. */
 export interface OverlayScene {
+  /**
+   * The outside as one image's pixels (`outsideMask`), for small hexes; the per-hex shapes above
+   * `RUN_BELOW_PX`.
+   */
+  readonly outsideMask?: OutsideMask | null;
   /** Whether a hex is painted and outside the outline (a zone with the outline layer on), else null. */
   readonly outside: ((tile: Tile) => boolean) | null;
   readonly outlineEdges: Segments | null;
@@ -122,6 +135,130 @@ export interface OverlayScene {
   /** The hexes under the brush at the pointer. */
   readonly brush: readonly Tile[];
   readonly hover: Tile | null;
+  /** The objects' markers (the objects layer), a town's footprints shaded. */
+  readonly markers?: readonly Marker[];
+  readonly footprints?: readonly Tile[];
+  /** The selection's hexes and objects' hexes. */
+  readonly selected?: readonly Tile[];
+  /** Select's box being dragged, between two hexes. */
+  readonly box?: { readonly from: Tile; readonly to: Tile } | null;
+  /** Where a paste or a move would land. */
+  readonly ghost?: readonly Tile[];
+}
+
+/**
+ * One period of the hex grid (one hex wide, two rows high: odd-r repeats every two rows), drawn
+ * once for a size in device pixels and kept: the grid is one pattern fill a frame, whatever the
+ * number of hexes in view (the owner's feedback, 2026-10-05). Pattern pixel `(u, v)` is world point
+ * `(u TILE_WIDTH / w, v 2 ROW_HEIGHT / h)`; world `(0, 0)` is tile `(0, 0)`'s centre.
+ */
+const periods = new Map<string, { canvas: HTMLCanvasElement; w: number; h: number }>();
+const PERIODS_KEPT = 48;
+
+function gridPeriod(
+  width: number,
+  height: number,
+): { canvas: HTMLCanvasElement; w: number; h: number } | null {
+  const w = Math.max(2, Math.round(width));
+  const h = Math.max(2, Math.round(height));
+  const key = `${w}x${h}`;
+  const kept = periods.get(key);
+  if (kept) return kept;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const kx = w / TILE_WIDTH;
+  const ky = h / (2 * ROW_HEIGHT);
+  ctx.beginPath();
+  // The hexes that cross world [0, TILE_WIDTH) × [0, 2 ROW_HEIGHT): x grows West, y North.
+  for (let y = -3; y <= 1; y++) {
+    for (let x = -2; x <= 2; x++) {
+      const c = hexCorners(tileToPixel({ x, y }));
+      ctx.moveTo(c[0]! * kx, c[1]! * ky);
+      for (let k = 2; k < 12; k += 2) ctx.lineTo(c[k]! * kx, c[k + 1]! * ky);
+      ctx.closePath();
+    }
+  }
+  ctx.strokeStyle = COLOURS.grid;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  if (periods.size >= PERIODS_KEPT) periods.clear();
+  const period = { canvas, w, h };
+  periods.set(key, period);
+  return period;
+}
+
+/**
+ * The outside of a zone's outline as an image's pixels (the outline layer's shading at small
+ * hexes): over the painted box, two pixels a hex (a half hex each, so that odd rows sit half a hex
+ * aside), one row a row, from the North-East corner (`x` grows West, `y` North).
+ */
+export interface OutsideMask {
+  /** The image's first column, in half hexes of world x. */
+  readonly left: number;
+  /** The highest row (the image's top). */
+  readonly y1: number;
+  readonly w: number;
+  readonly h: number;
+  /** 1 where a half hex is outside, by `row * w + column`. */
+  readonly bits: Uint8Array;
+}
+
+export function outsideMask(doc: MapDocument): OutsideMask | null {
+  if (!isZone(doc)) return null;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const key of doc.hexes.keys()) {
+    const { x, y } = tileOfKey(key);
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  if (x0 === Infinity) return null;
+  // Past the fit's span the image would be gigabytes: the per-row shading draws it (review of #366).
+  if (x1 - x0 >= FIT_SPAN_MAX || y1 - y0 >= FIT_SPAN_MAX) return null;
+  // A hex's left edge in half hexes of world x: -(2x + parity + 1).
+  const left = -(2 * x1 + 2);
+  const w = 2 * (x1 - x0 + 1) + 1;
+  const h = y1 - y0 + 1;
+  const bits = new Uint8Array(w * h);
+  for (const [key, cell] of doc.hexes) {
+    if (!isOutside(cell)) continue;
+    const { x, y } = tileOfKey(key);
+    const col = -(2 * x + (y & 1) + 1) - left;
+    const row = y1 - y;
+    bits[row * w + col] = 1;
+    bits[row * w + col + 1] = 1;
+  }
+  return { left, y1, w, h, bits };
+}
+
+const maskImages = new WeakMap<OutsideMask, HTMLCanvasElement>();
+
+function maskImage(mask: OutsideMask): HTMLCanvasElement | null {
+  const kept = maskImages.get(mask);
+  if (kept) return kept;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = mask.w;
+  canvas.height = mask.h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const image = ctx.createImageData(mask.w, mask.h);
+  for (let i = 0; i < mask.bits.length; i++) {
+    if (!mask.bits[i]) continue;
+    // COLOURS.outside: rgba(8, 8, 14, 0.55).
+    image.data.set([8, 8, 14, 140], i * 4);
+  }
+  ctx.putImageData(image, 0, 0);
+  maskImages.set(mask, canvas);
+  return canvas;
 }
 
 /** Below this hex width on screen (CSS px), the grid is not drawn: it would be a grey wash. */
@@ -136,6 +273,13 @@ const COLOURS = {
   grid: "rgba(0, 0, 0, 0.28)",
   brush: "#ffffff",
   label: "rgba(255, 255, 255, 0.85)",
+  footprint: "rgba(120, 60, 20, 0.35)",
+  zone: "#f2e9d0",
+  town: "#d8ecff",
+  fault: "#ff6b5b",
+  markerText: "#14141c",
+  selected: "#3df2ff",
+  ghost: "rgba(61, 242, 255, 0.8)",
 } as const;
 
 /** Draws the overlays in the renderer's camera. */
@@ -173,6 +317,23 @@ export function drawOverlays(
       each((tile) => {
         if (outside(tile)) hexPath(tile, 0.5);
       });
+    } else if (scene.outsideMask) {
+      // One image of the outside, a pixel per half hex and a row per row, drawn scaled.
+      const image = maskImage(scene.outsideMask);
+      if (image) {
+        const m = scene.outsideMask;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(
+          image,
+          m.left * (TILE_WIDTH / 2) * scale + ox,
+          (-m.y1 * ROW_HEIGHT - ROW_HEIGHT / 2) * scale + oy,
+          m.w * (TILE_WIDTH / 2) * scale,
+          m.h * ROW_HEIGHT * scale,
+        );
+        ctx.restore();
+      }
+      ctx.beginPath();
     } else {
       for (let y = range.y0; y <= range.y1; y++) {
         let x = range.x0;
@@ -200,11 +361,24 @@ export function drawOverlays(
     ctx.fill();
   }
   if (scene.grid && TILE_WIDTH * scale >= GRID_MIN_PX) {
-    ctx.beginPath();
-    each((tile) => hexPath(tile));
-    ctx.strokeStyle = COLOURS.grid;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    // One fill of a cached pattern: one period of the grid, drawn once per zoom step.
+    const ratio = ctx.getTransform().a || 1;
+    const period = gridPeriod(TILE_WIDTH * scale * ratio, 2 * ROW_HEIGHT * scale * ratio);
+    const pattern = period && ctx.createPattern(period.canvas, "repeat");
+    if (period && pattern) {
+      pattern.setTransform(
+        new DOMMatrix([
+          (TILE_WIDTH * scale) / period.w,
+          0,
+          0,
+          (2 * ROW_HEIGHT * scale) / period.h,
+          ox,
+          oy,
+        ]),
+      );
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, viewport.width, viewport.height);
+    }
   }
   const segments = (s: Segments) => {
     ctx.beginPath();
@@ -247,6 +421,88 @@ export function drawOverlays(
     ctx.lineWidth = Math.max(2, Math.min(4, TILE_WIDTH * scale * 0.08));
     ctx.lineCap = "round";
     segments(scene.outlineEdges);
+  }
+  const hexPx = TILE_WIDTH * scale;
+  const onScreen = (tile: Tile) => {
+    const p = tileToPixel(tile);
+    const x = p.x * scale + ox;
+    const y = p.y * scale + oy;
+    return x > -hexPx && y > -hexPx && x < viewport.width + hexPx && y < viewport.height + hexPx;
+  };
+  if (scene.footprints && scene.footprints.length > 0) {
+    ctx.beginPath();
+    for (const tile of scene.footprints) if (onScreen(tile)) hexPath(tile, 0.5);
+    ctx.fillStyle = COLOURS.footprint;
+    ctx.fill();
+  }
+  if (scene.markers && scene.markers.length > 0) {
+    // A marker: an inset hex filled by its tone, outlined dark, its letters in the middle. Below
+    // 10 CSS px a hex, a dot.
+    const small = hexPx < 10;
+    ctx.font = `700 ${Math.max(9, Math.min(15, hexPx * 0.32))}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // Several objects on one hex: the labels joined.
+    const byHex = new Map<string, Marker[]>();
+    for (const m of scene.markers) {
+      if (!onScreen(m.tile)) continue;
+      const k = `${m.tile.x},${m.tile.y}`;
+      byHex.set(k, [...(byHex.get(k) ?? []), m]);
+    }
+    for (const list of byHex.values()) {
+      const tile = list[0]!.tile;
+      const tone = list.some((m) => m.tone === "fault") ? "fault" : list[0]!.tone;
+      const p = tileToPixel(tile);
+      const x = p.x * scale + ox;
+      const y = p.y * scale + oy;
+      ctx.fillStyle = COLOURS[tone];
+      if (small) {
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+      ctx.beginPath();
+      hexPath(tile, (-hexPx * 0.12) / scale);
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = COLOURS.markerText;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = COLOURS.markerText;
+      ctx.fillText(list.map((m) => m.label).join(" "), x, y);
+    }
+  }
+  if (scene.selected && scene.selected.length > 0) {
+    ctx.beginPath();
+    for (const tile of scene.selected) if (onScreen(tile)) hexPath(tile, -1);
+    ctx.strokeStyle = COLOURS.selected;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+  if (scene.box) {
+    const a = tileToPixel(scene.box.from);
+    const b = tileToPixel(scene.box.to);
+    const half = TILE_WIDTH / 2;
+    const x0 = (Math.min(a.x, b.x) - half) * scale + ox;
+    const x1 = (Math.max(a.x, b.x) + half) * scale + ox;
+    const y0 = (Math.min(a.y, b.y) - half) * scale + oy;
+    const y1 = (Math.max(a.y, b.y) + half) * scale + oy;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = COLOURS.selected;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.setLineDash([]);
+  }
+  if (scene.ghost && scene.ghost.length > 0) {
+    ctx.beginPath();
+    for (const tile of scene.ghost) if (onScreen(tile)) hexPath(tile, -2);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = COLOURS.ghost;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   if (scene.brush.length > 0) {
     ctx.beginPath();

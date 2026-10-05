@@ -19,6 +19,15 @@ import {
   terrainOf,
   tileOfKey,
 } from "./model";
+import {
+  KINDS,
+  type MapObject,
+  OBJECT_KINDS,
+  type ObjectKind,
+  QUOTA_KINDS,
+  type Quota,
+  objectFrom,
+} from "./objects";
 
 /**
  * The editor's own file (brief §6, `.grimmap.json`): one JSON document, the editor's to shape
@@ -33,6 +42,10 @@ import {
  *
  * `chunks` is the last chosen chunk origin and how it was chosen, or null before the first fit.
  * Pinned obstacle looks are a list of `{ x, y, sprite }`: a still's name, never pixels (§7).
+ *
+ * CLI-09b adds, still in format 2 (a file without them has none): the map's `quotas` (a zone's,
+ * `{ kind, param, count }`) and `objects`, a list of `{ kind, x, y, …its fields }` in the order
+ * they were placed (§4.2, §4.3; `objects.ts`). Sprite and building names, never pixels.
  *
  * Format 1 (CLI-09a) was a rectangle of whole chunks at `(0, 0)` with every hex filled: it opens,
  * converted, every hex painted and the chunk grid at `(0, 0)`.
@@ -73,6 +86,13 @@ export interface MapFile {
     readonly y: number;
     readonly sprite: string;
   }[];
+  readonly objects: readonly Record<string, unknown>[];
+}
+
+/** An object as the file writes it: its hex as `x`, `y`, then its fields. */
+function objectOut(object: MapObject): Record<string, unknown> {
+  const { kind, at, ...fields } = object;
+  return { kind, x: at.x, y: at.y, ...fields };
 }
 
 /** One span per painted row, from its lowest `x` to its highest, the rows by `y`. */
@@ -123,6 +143,7 @@ export function toFile(doc: MapDocument, editor = EDITOR_VERSION): MapFile {
     obstacles: [...doc.obstacles]
       .sort(([a], [b]) => a - b)
       .map(([key, sprite]) => ({ ...tileOfKey(key), sprite })),
+    objects: [...doc.objects].sort(([a], [b]) => a - b).map(([, object]) => objectOut(object)),
   };
 }
 
@@ -168,6 +189,23 @@ function readMeta(raw: unknown): MapMeta | string {
   for (const field of ["location", "levelMin", "levelMax", "rank", "spawnTable"] as const) {
     if (!isWhole(raw[field], 0)) return `${field} is not a whole number, 0 or more`;
   }
+  const quotas: Quota[] = [];
+  if (raw.quotas !== undefined) {
+    if (!Array.isArray(raw.quotas) || (kind !== "zone" && raw.quotas.length > 0)) {
+      return "the quotas are not a list (a zone's only)";
+    }
+    for (const q of raw.quotas) {
+      if (
+        !isObject(q) ||
+        !QUOTA_KINDS.includes(q.kind as Quota["kind"]) ||
+        !isWhole(q.param, 0) ||
+        !isWhole(q.count, 0)
+      ) {
+        return "a quota is not { kind, param, count }";
+      }
+      quotas.push({ kind: q.kind as Quota["kind"], param: q.param, count: q.count });
+    }
+  }
   return {
     kind,
     name,
@@ -177,7 +215,37 @@ function readMeta(raw: unknown): MapMeta | string {
     levelMax: raw.levelMax as number,
     rank: raw.rank as number,
     spawnTable: raw.spawnTable as number,
+    quotas,
   };
+}
+
+/** One object of the file, read by its kind's row (`KINDS`), or why it is refused. */
+function readObject(raw: unknown, meta: MapMeta): MapObject | string {
+  if (!isObject(raw) || !inPlane(raw.x) || !inPlane(raw.y)) return "not { kind, x, y, … }";
+  const at = { x: raw.x, y: raw.y };
+  const kind = raw.kind as ObjectKind;
+  const spec = OBJECT_KINDS.includes(kind) ? KINDS[kind] : null;
+  const object = spec && objectFrom(kind, at, raw, meta);
+  if (!spec || !object) {
+    return `an object ${JSON.stringify(raw.kind)} at (${at.x}, ${at.y}) is not read`;
+  }
+  const zone = meta.kind === "zone";
+  if ((spec.map === "zone") !== zone) {
+    return `a ${zone ? "zone" : "town or an outpost"} holds no ${object.kind}`;
+  }
+  return object;
+}
+
+function readObjects(raw: unknown, meta: MapMeta): Map<number, MapObject> | string {
+  const objects = new Map<number, MapObject>();
+  if (raw === undefined) return objects;
+  if (!Array.isArray(raw)) return "the objects are not a list";
+  for (const item of raw) {
+    const object = readObject(item, meta);
+    if (typeof object === "string") return object;
+    objects.set(objects.size + 1, object);
+  }
+  return objects;
 }
 
 function readObstacles(
@@ -261,8 +329,10 @@ function loadVersion2(raw: Record<string, unknown>, meta: MapMeta): LoadResult {
   if (typeof origin === "string") return { problem: `The file is refused: ${origin}.` };
   const obstacles = readObstacles(raw.obstacles, (x, y) => hexes.has(keyOf({ x, y })));
   if (typeof obstacles === "string") return { problem: `The file is refused: ${obstacles}.` };
+  const objects = readObjects(raw.objects, meta);
+  if (typeof objects === "string") return { problem: `The file is refused: ${objects}.` };
   const editor = typeof raw.editor === "string" ? raw.editor : "unknown";
-  return { doc: { meta, hexes, obstacles, origin }, editor, notes: [] };
+  return { doc: { meta, hexes, obstacles, objects, origin }, editor, notes: [] };
 }
 
 // --- format 1 (CLI-09a), converted on load -------------------------------------------------------
@@ -340,7 +410,7 @@ function loadVersion1(raw: Record<string, unknown>, meta: MapMeta): LoadResult {
   if (typeof obstacles === "string") return { problem: `The file is refused: ${obstacles}.` };
   const editor = typeof raw.editor === "string" ? raw.editor : "unknown";
   return {
-    doc: { meta, hexes, obstacles, origin: { x: 0, y: 0, how: "nudged" } },
+    doc: { meta, hexes, obstacles, objects: new Map(), origin: { x: 0, y: 0, how: "nudged" } },
     editor,
     notes: [
       `Converted from format 1: its ${map.width} × ${map.height} chunks are painted, the chunk grid kept at (0, 0). Saving writes format ${FORMAT_VERSION}.`,

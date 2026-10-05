@@ -192,6 +192,7 @@ describe("format 1 (CLI-09a), converted on load", () => {
       levelMax: 1,
       rank: 0,
       spawnTable: 0,
+      quotas: [],
     });
     expect(notes[0]).toMatch(/Converted from format 1/);
     // The fitted records read as CLI-09a's did: one chunk, partly inside (two hexes out).

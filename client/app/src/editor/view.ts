@@ -6,11 +6,13 @@ import {
   type TileBox,
   WALL,
   groundOfCell,
+  isZone,
   keyOf,
   paintedBox,
   terrainOf,
   tileOfKey,
 } from "./model";
+import { townStructures } from "./walkWorld";
 
 /** The layers bar (§2.3): what the canvas shows. Objects are CLI-09b's; their box is kept. */
 export interface Layers {
@@ -92,6 +94,7 @@ export function holds(window: TileBox, visible: TileBox): boolean {
  * - Ground off: every painted hex is drawn as grass, so terrain alone reads.
  * - Obstacles off: walls are drawn with the renderer's unrevealed look (a flat dark hex) instead of
  *   their rocks, bushes and trees, so the walkable plane reads at a glance.
+ * - A town's buildings and props (CLI-09b) stand as the game draws them, with the objects layer.
  */
 export function editorView(doc: MapDocument, layers: Layers, window: TileBox): ViewState {
   const box = paintedBox(doc);
@@ -134,7 +137,7 @@ export function editorView(doc: MapDocument, layers: Layers, window: TileBox): V
     path: [],
     dropped: [],
     selectedTile: null,
-    structures: [],
+    structures: layers.objects && !isZone(doc) ? townStructures(doc) : [],
     void: "water",
   };
 }

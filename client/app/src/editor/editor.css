@@ -208,6 +208,100 @@
 .ed-chunks span[data-cell="outside"] {
   background: #3a3a46;
 }
+/* CLI-09b: the inspector's fields, the validation light and panel, the preview walk. */
+.ed-field {
+  display: grid;
+  grid-template-columns: 8.5em 1fr;
+  gap: 6px;
+  align-items: center;
+  margin: 3px 0;
+}
+.ed-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0;
+}
+.ed-quota {
+  margin: 6px 0;
+  padding: 4px 6px;
+  border: 1px solid var(--ed-line);
+  border-radius: 4px;
+}
+.ed-sev[data-severity="error"],
+.ed-light[data-light="error"] span {
+  color: #ff6b5b;
+}
+.ed-sev[data-severity="warning"],
+.ed-light[data-light="warning"] span {
+  color: #ffb43f;
+}
+.ed-sev[data-severity="hint"] {
+  color: #8fb8ff;
+}
+.ed-light[data-light="clear"] span {
+  color: #5bd67a;
+}
+.ed-validation {
+  width: 280px;
+  flex: none;
+  overflow-y: auto;
+  padding: 8px 12px;
+  background: var(--ed-panel);
+  border-left: 1px solid var(--ed-line);
+}
+.ed-validation-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.ed-findings {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-findings li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ed-line);
+}
+.ed-source {
+  display: inline-block;
+  min-width: 1.2em;
+  font-weight: 700;
+  text-align: center;
+}
+.ed-validation-key {
+  font-size: 0.75rem;
+}
+.ed-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ed-walk-top {
+  order: -1;
+}
+.ed-root [hidden],
+.ed-main[data-walking] > .ed-tools,
+.ed-main[data-walking] > .ed-inspector,
+.ed-main[data-walking] > .ed-validation,
+.ed-main[data-walking] .ed-layers {
+  display: none;
+}
+.ed-walk-help {
+  position: absolute;
+  right: 16px;
+  top: 48px;
+  padding: 8px 12px;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  border-radius: 6px;
+}
 .ed-narrow {
   display: none;
 }

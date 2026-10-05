@@ -17,14 +17,19 @@ import { createPixiSurface } from "../render/pixiSurface";
 import { DEFAULT_ZOOM, Renderer, type ZoomSettings } from "../render/renderer";
 import { browserHost } from "../render/scheduler";
 import type { Tile, ViewState } from "../render/view";
+import type { SandboxWorld } from "../sandbox/world";
 import { CHUNK, type TileBox } from "./model";
 import { type OverlayScene, drawOverlays, visibleRange } from "./overlay";
 import { holds, viewWindow } from "./view";
+import { WalkMode } from "./walk";
 
 /** What the canvas tells the editor: pointer strokes, the hovered hex, the brush wheel. */
 export interface CanvasEvents {
-  /** A stroke starts: the left button (or the right, `erase`), `alt` for Pick. */
-  strokeStart(tile: Tile, how: { readonly erase: boolean; readonly alt: boolean }): void;
+  /** A stroke starts: the left button (or the right, `erase`), `alt` for Pick, `shift` adds. */
+  strokeStart(
+    tile: Tile,
+    how: { readonly erase: boolean; readonly alt: boolean; readonly shift: boolean },
+  ): void;
   /** The hexes the pointer crossed since the last call, in order. */
   strokeMove(tiles: readonly Tile[]): void;
   strokeEnd(): void;
@@ -73,6 +78,9 @@ export function mapZoom(viewport: Viewport, columns: number, rows: number): Zoom
   };
 }
 
+/** How many overlay frame times are kept. */
+const OVERLAY_SAMPLES = 600;
+
 /** What `0` fits when nothing is painted: a 3 × 2-chunk area from `(0, 0)`. */
 export const EMPTY_BOX: TileBox = { x0: 0, y0: 0, x1: 3 * CHUNK - 1, y1: 2 * CHUNK - 1 };
 
@@ -113,6 +121,14 @@ export class EditorCanvas {
   private window: TileBox | null = null;
   private spaceHeld = false;
   private overlayFrame: number | null = null;
+  /** The last overlay frames' drawing times in ms (the browser check reads them). */
+  readonly overlayMs: number[] = [];
+  /** The editor's zoom (`mapZoom`), and whether the author zoomed by hand since `0`. */
+  private zoom: ZoomSettings = DEFAULT_ZOOM;
+  private zoomedByHand = false;
+  /** The preview walk on this renderer (§2.8), and the camera it gives back. */
+  private walk: { readonly mode: WalkMode; readonly centre: Point; readonly scale: number } | null =
+    null;
 
   private constructor(
     private readonly app: Application,
@@ -194,7 +210,7 @@ export class EditorCanvas {
 
   /** The document changed: the window's view again. */
   refreshView(): void {
-    if (!this.source) return;
+    if (!this.source || this.walk) return;
     const { camera, viewport } = this.renderer.cameraState();
     this.window = viewWindow(visibleRange(camera, viewport));
     this.renderer.setView(this.source(this.window));
@@ -202,6 +218,7 @@ export class EditorCanvas {
 
   /** Every camera move: a new window when the visible tiles leave the last one. */
   private cameraMoved(): void {
+    if (this.walk) return;
     const { camera, viewport } = this.renderer.cameraState();
     if (!this.window || !holds(this.window, visibleRange(camera, viewport))) this.refreshView();
     this.events.changed();
@@ -216,8 +233,15 @@ export class EditorCanvas {
   fit(): void {
     const { viewport } = this.renderer.cameraState();
     const { x0, y0, x1, y1 } = this.box;
-    this.renderer.setZoomSettings(mapZoom(viewport, x1 - x0 + 1, y1 - y0 + 1));
+    this.zoom = mapZoom(viewport, x1 - x0 + 1, y1 - y0 + 1);
+    this.zoomedByHand = false;
+    this.renderer.setZoomSettings(this.zoom);
     this.centreOn(mapCentre(this.box));
+  }
+
+  /** The validation's Show (§2.6): the camera on a hex, the zoom kept. */
+  showTile(tile: Tile): void {
+    this.centreOn(tileToPixel(tile));
   }
 
   private centreOn(target: Point): void {
@@ -231,6 +255,7 @@ export class EditorCanvas {
 
   zoomBy(by: 1 | -1): void {
     const { viewport } = this.renderer.cameraState();
+    this.zoomedByHand = true;
     this.renderer.zoomAt(by > 0 ? WHEEL_NOTCH : 1 / WHEEL_NOTCH, {
       x: viewport.width / 2,
       y: viewport.height / 2,
@@ -272,6 +297,43 @@ export class EditorCanvas {
     };
   }
 
+  /**
+   * The preview walk (§2.8): the game's world and session on this renderer, at the game's zoom,
+   * the overlays hidden and the editor's pointer off. `endWalk` gives the camera back.
+   */
+  beginWalk(world: SandboxWorld, fog: boolean, onChange: () => void): WalkMode {
+    this.endWalk();
+    const { camera } = this.renderer.cameraState();
+    this.overlay.style.display = "none";
+    this.renderer.setZoomSettings(DEFAULT_ZOOM);
+    const mode = new WalkMode(this.app.canvas, this.renderer, world, fog, onChange);
+    this.walk = { mode, centre: camera.centre, scale: camera.scale };
+    return mode;
+  }
+
+  /**
+   * The walk ends: the editor's view again, its zoom and its camera as they were (a scale the
+   * author chose by hand is kept; the fitted zoom follows the viewport, as before the walk).
+   */
+  endWalk(): void {
+    const walk = this.walk;
+    if (!walk) return;
+    walk.mode.destroy();
+    this.walk = null;
+    this.overlay.style.display = "";
+    this.renderer.setZoomSettings(this.zoom);
+    if (this.zoomedByHand) {
+      const { camera, viewport } = this.renderer.cameraState();
+      this.renderer.zoomAt(walk.scale / camera.scale, {
+        x: viewport.width / 2,
+        y: viewport.height / 2,
+      });
+    }
+    this.centreOn(walk.centre);
+    this.refreshView();
+    this.scheduleOverlay();
+  }
+
   private scheduleOverlay(): void {
     if (this.overlayFrame !== null) return;
     this.overlayFrame = window.requestAnimationFrame(() => {
@@ -282,11 +344,14 @@ export class EditorCanvas {
 
   private drawOverlay(): void {
     const ctx = this.overlay.getContext("2d");
-    if (!ctx || !this.scene) return;
+    if (!ctx || !this.scene || this.walk) return;
     const { camera, viewport } = this.renderer.cameraState();
     const ratio = this.overlay.width / Math.max(1, viewport.width);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const start = performance.now();
     drawOverlays(ctx, camera, viewport, this.scene);
+    this.overlayMs.push(performance.now() - start);
+    if (this.overlayMs.length > OVERLAY_SAMPLES) this.overlayMs.shift();
   }
 
   private listen(): void {
@@ -321,6 +386,7 @@ export class EditorCanvas {
           this.events.strokeStart(this.tileAt(point), {
             erase: event.button === 2,
             alt: event.altKey,
+            shift: event.shiftKey,
           });
         },
       ],
@@ -377,6 +443,7 @@ export class EditorCanvas {
           if (!event.ctrlKey && event.deltaX !== 0) {
             this.renderer.pan(-event.deltaX, -event.deltaY);
           } else {
+            this.zoomedByHand = true;
             this.renderer.zoomAt(
               Math.exp((-event.deltaY * Math.log(WHEEL_NOTCH)) / 100),
               at(event),
@@ -399,6 +466,8 @@ export class EditorCanvas {
 
   destroy(): void {
     this.destroyed = true;
+    this.walk?.mode.destroy();
+    this.walk = null;
     if (this.overlayFrame !== null) window.cancelAnimationFrame(this.overlayFrame);
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.renderer.destroy();

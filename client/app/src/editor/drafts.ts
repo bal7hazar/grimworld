@@ -1,6 +1,7 @@
 import { loadMap, saveMap } from "./file";
 import { fitted } from "./fit";
 import { type MapDocument, type MapKind, cloneMap } from "./model";
+import { tally, validate } from "./validate";
 
 /**
  * Drafts (O-5, decided): the open map kept in this browser's local storage after each change, so
@@ -18,6 +19,8 @@ export interface DraftEntry {
   /** The fitted chunk set's size, null before a fit; absent in an entry written by CLI-09a. */
   readonly chunks?: number | null;
   readonly location: number;
+  /** The validation's counts when it was written (CLI-09b); absent in an older entry. */
+  readonly problems?: { readonly errors: number; readonly warnings: number };
   /** When it was last written, ISO 8601. */
   readonly edited: string;
 }
@@ -54,8 +57,16 @@ export class Drafts {
     }
   }
 
-  /** Writes a draft; false when the storage refused it (full, blocked). */
-  put(id: string, doc: MapDocument, now = new Date()): boolean {
+  /**
+   * Writes a draft; false when the storage refused it (full, blocked). `problems` are the
+   * validation's counts, when the caller already holds them (the editor's screen).
+   */
+  put(
+    id: string,
+    doc: MapDocument,
+    now = new Date(),
+    problems: { readonly errors: number; readonly warnings: number } = tally(validate(doc)),
+  ): boolean {
     const fit = fitted(doc);
     const entry: DraftEntry = {
       id,
@@ -64,6 +75,7 @@ export class Drafts {
       hexes: doc.hexes.size,
       chunks: typeof fit === "string" ? null : fit.chunks,
       location: doc.meta.location,
+      problems,
       edited: now.toISOString(),
     };
     try {
