@@ -6,10 +6,10 @@
 // group and sends SIGTERM to that recorded group in `finally`.
 //
 // For each location and size: the ground is drawn from the atlas's cells (`data-ground`), a walk,
-// the camera follows, no frame once the walk ends, no page error. In the zone, the frame time at
-// the default zoom over a 10-step walk (AC-8): every display-frame callback that issued a WebGL draw
-// is timed by a wrapper of `requestAnimationFrame` installed before the page's scripts (the GPU's
-// own work is not in it), so the same measure runs on a
+// the camera follows, no frame once the walk ends but the foam's (CLI-03o), no page error. In the
+// zone, the frame time at the default zoom over a 10-step walk (AC-8): every display-frame
+// callback that issued a WebGL draw is timed by a wrapper of `requestAnimationFrame` installed
+// before the page's scripts (the GPU's own work is not in it), so the same measure runs on a
 // branch without CLI-03g1's `FrameStats` (`VERIFY_MAIN=1`: measures only, no ground check). The
 // median and 95th percentile go to `VERIFY_MEASURE_OUT` (JSON) when it is set; the last chunk's
 // bake (`data-bake-ms`) is printed. Headless Chromium renders in software: compare runs on the
@@ -248,9 +248,13 @@ async function location(browser, size, viewport, touch, [name, url, hub]) {
   ok(off < 2, `${label}: the camera followed (${off.toFixed(1)} px off the centre)`);
   const frames = Number(await room.getAttribute("data-frames"));
   await page.waitForTimeout(1000);
+  // The foam animates at 10 fps while it is on the screen (CLI-03o): at most its frames once the
+  // walk ends; none on a checkout without it (`?water=still` is checked by `verify-water.mjs`).
+  const after = Number(await room.getAttribute("data-frames")) - frames;
+  const allowed = mainOnly ? 0 : 11;
   ok(
-    Number(await room.getAttribute("data-frames")) === frames,
-    `${label}: no frame once the walk ends (${frames})`,
+    after <= allowed,
+    `${label}: once the walk ends, ${after} frames in a second (at most ${allowed}: ${mainOnly ? "nothing animates" : "the foam's 10 fps"})`,
   );
   if (name === "zone") {
     const figures = {

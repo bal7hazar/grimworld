@@ -65,19 +65,30 @@ export function pageWater(): WaterMode {
 export class FoamMesh {
   readonly mesh: Mesh<MeshGeometry>;
   /** The pieces' box, in world pixels: whether the mesh is on screen. */
-  readonly bounds: Rectangle;
-  readonly pieces: readonly FoamPiece[];
+  bounds = new Rectangle();
+  pieces: readonly FoamPiece[] = [];
   /** Per vertex: its position in its foam cell, in cell pixels. */
-  private readonly local: Float32Array;
+  private local = new Float32Array(0);
   /** Per vertex: its source's diagonal. */
-  private readonly diagonal: Int32Array;
-  private readonly uvs: Float32Array;
+  private diagonal = new Int32Array(0);
+  private uvs = new Float32Array(0);
   private shown: number | null | undefined = undefined;
 
   constructor(
     pieces: readonly FoamPiece[],
     private readonly frames: readonly Texture[],
   ) {
+    const page = frames[0] ? new Texture({ source: frames[0].source }) : Texture.EMPTY;
+    this.mesh = new Mesh({ geometry: new MeshGeometry({}), texture: page });
+    this.setPieces(pieces);
+  }
+
+  /**
+   * Draws other pieces with the same mesh: its buffers' contents change, the scene does not (no
+   * child added or removed, so PixiJS does not rebuild the stage's instructions). The frame shown
+   * is kept.
+   */
+  setPieces(pieces: readonly FoamPiece[]): void {
     this.pieces = pieces;
     let vertices = 0;
     let triangles = 0;
@@ -113,12 +124,13 @@ export class FoamMesh {
       }
     }
     this.bounds = vertices > 0 ? new Rectangle(x0, y0, x1 - x0, y1 - y0) : new Rectangle();
-    const page = frames[0] ? new Texture({ source: frames[0].source }) : Texture.EMPTY;
-    this.mesh = new Mesh({
-      geometry: new MeshGeometry({ positions, uvs: this.uvs, indices }),
-      texture: page,
-    });
-    this.show(null);
+    const { geometry } = this.mesh;
+    geometry.positions = positions;
+    geometry.uvs = this.uvs;
+    geometry.indices = indices;
+    const shown = this.shown;
+    this.shown = undefined;
+    this.show(shown ?? null);
   }
 
   /**
@@ -152,7 +164,10 @@ export class FoamMesh {
 
   destroy(): void {
     const page = this.mesh.texture;
+    const geometry = this.mesh.geometry;
     this.mesh.destroy({ children: true });
+    // PixiJS's mesh leaves its geometry: its buffers go with it here.
+    geometry.destroy(true);
     // The page's own texture stays: only the view made for the mesh goes.
     if (page !== Texture.EMPTY) page.destroy(false);
   }

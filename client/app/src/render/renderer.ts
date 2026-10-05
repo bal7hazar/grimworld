@@ -1157,7 +1157,10 @@ export class Renderer implements FrameClient {
     this.syncMeshes(this.greyFoamMeshes, grey, still, this.greyFoam, () => DIM_TINT);
   }
 
-  /** Builds the meshes of the groups whose pieces changed, and drops those of groups gone. */
+  /**
+   * The groups' meshes: a group whose pieces changed draws its new pieces with the same mesh (under
+   * fog, the group in sight at every step), so the scene only changes when a group comes or goes.
+   */
   private syncMeshes(
     meshes: Map<string, FoamMesh>,
     groups: ReadonlyMap<string, readonly FoamPiece[]>,
@@ -1167,12 +1170,17 @@ export class Renderer implements FrameClient {
   ): void {
     for (const [id, mesh] of meshes) {
       const pieces = groups.get(id);
-      if (pieces === mesh.pieces && pieces.length > 0) continue;
+      if (pieces && pieces.length > 0) continue;
       mesh.destroy();
       meshes.delete(id);
     }
     for (const [id, pieces] of groups) {
-      if (meshes.has(id) || pieces.length === 0) continue;
+      if (pieces.length === 0) continue;
+      const known = meshes.get(id);
+      if (known) {
+        if (known.pieces !== pieces) known.setPieces(pieces);
+        continue;
+      }
       const mesh = new FoamMesh(pieces, frames);
       mesh.mesh.tint = tint(id);
       layer.addChild(mesh.mesh);

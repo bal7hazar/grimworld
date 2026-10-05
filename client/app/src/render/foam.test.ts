@@ -175,6 +175,24 @@ describe("the foam's meshes (CLI-03o)", () => {
     mesh.destroy();
   });
 
+  it("draws other pieces with the same mesh, at the frame it showed; its geometry goes with it", () => {
+    const mesh = new FoamMesh(pieces.slice(0, 10), frames);
+    const node = mesh.mesh;
+    mesh.show(6);
+    mesh.setPieces(pieces.slice(10, 30));
+    expect(mesh.mesh).toBe(node);
+    expect(mesh.pieces).toHaveLength(20);
+    expect(mesh.shownTick()).toBe(6);
+    for (const piece of mesh.pieces) {
+      expect(frameOn(mesh, frames, piece)).toBe(foamFrame(6, piece.source, 16));
+    }
+    const positions = mesh.mesh.geometry.getBuffer("aPosition").data as Float32Array;
+    expect(positions.length).toBe(mesh.pieces.reduce((n, p) => n + p.points.length, 0));
+    const geometry = mesh.mesh.geometry;
+    mesh.destroy();
+    expect(geometry.attributes).toBeNull();
+  });
+
   it("its bounds hold its pieces", () => {
     const mesh = new FoamMesh(pieces, frames);
     for (const { points } of pieces) {

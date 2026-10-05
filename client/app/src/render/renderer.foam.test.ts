@@ -214,6 +214,30 @@ describe("the foam under fog (CLI-03n's exploration, CLI-03o)", () => {
     expect(grey().every((m) => m.shownTick() === null)).toBe(true);
   });
 
+  it("a step under fog draws the pieces in sight with the same mesh: no child added or removed", () => {
+    const state = initialState(fixtureNamed("zone"));
+    const { renderer, meshes } = mount(toView(state));
+    const sight = meshes()[0]!;
+    const layer = sight.mesh.parent!;
+    const before = sight.pieces;
+    // The view as if sight had moved: another hero tile, two steps on.
+    const hero = state.world.actors.find((a) => a.id === state.world.adventurerId)!;
+    const moved = {
+      ...state,
+      world: {
+        ...state.world,
+        actors: state.world.actors.map((a) =>
+          a.id === hero.id ? { ...a, tile: { x: a.tile.x + 2, y: a.tile.y } } : a,
+        ),
+      },
+    };
+    renderer.setView(toView(moved));
+    expect(meshes()[0]).toBe(sight);
+    expect(sight.mesh.parent).toBe(layer);
+    expect(layer.children).toHaveLength(1);
+    expect(sight.pieces).not.toBe(before);
+  });
+
   it("without fog, none over a tile hidden by the cover", () => {
     const base = toView(initialState(fixtureNamed("zone")));
     const view = { ...base, fog: undefined };
