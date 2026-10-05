@@ -18,6 +18,8 @@ import {
   tileOfKey,
 } from "./model";
 import { type MapObject, OBJECT_NAMES, QUOTA_NAMES, kindOf, servicesOf } from "./objects";
+import { doorOf, isPack } from "./pack";
+import { doorSide } from "./palette";
 import { footprintOf, townCovers } from "./walkWorld";
 
 /**
@@ -256,6 +258,9 @@ export function validate(doc: MapDocument): Finding[] {
   }
   if (zone) zoneChecks(doc, frame, span, out);
   else townChecks(doc, span, out);
+  // A town's footprints are checked with its places (E-16); a zone's are the pack's buildings.
+  if (zone) footprintChecks(doc, out);
+  packChecks(doc, out);
   groundChecks(doc, out);
   const rank: Record<Severity, number> = { error: 0, warning: 1, hint: 2 };
   return out.list.sort((a, b) => rank[a.severity] - rank[b.severity]);
@@ -648,42 +653,7 @@ function townChecks(doc: MapDocument, span: boolean, out: Findings): void {
     }
   }
 
-  // E-16: footprints on land, painted, and apart.
-  const water = GROUND_KINDS.indexOf("water");
-  const owner = new Map<number, number>();
-  const buildings = [...doc.objects]
-    .filter(([, o]) => kindOf(o).footprint)
-    .sort(([a], [b]) => a - b);
-  for (const [id, b] of buildings) {
-    const name = OBJECT_NAMES[b.kind];
-    const what = "building" in b ? b.building : b.kind;
-    const feet = footprintOf(b);
-    const off = feet.filter((t) => {
-      const cell = doc.hexes.get(keyOf(t));
-      return cell === undefined || groundOfCell(cell) === water;
-    });
-    if (off.length > 0) {
-      out.error(
-        "E-16",
-        `${name} ${what} ${where(b.at)} stands on ${off.length} hexes off the land.`,
-        off,
-        [id],
-      );
-    }
-    for (const t of feet) {
-      const other = owner.get(keyOf(t));
-      if (other !== undefined) {
-        out.error(
-          "E-16",
-          `${name} ${what} ${where(b.at)} overlaps another building at ${where(t)}.`,
-          [t],
-          [other, id],
-        );
-        break;
-      }
-    }
-    for (const t of feet) owner.set(keyOf(t), id);
-  }
+  footprintChecks(doc, out);
 
   // E-15: doors and the arrival on floor; every door reachable from the arrival.
   const covers = townCovers(doc);
@@ -740,4 +710,120 @@ export function tally(findings: readonly Finding[]): { errors: number; warnings:
     errors: findings.filter((f) => f.severity === "error").length,
     warnings: findings.filter((f) => f.severity !== "error").length,
   };
+}
+
+/** E-16: every footprint on land, painted, and apart from the others (a town's, a zone's). */
+function footprintChecks(doc: MapDocument, out: Findings): void {
+  const water = GROUND_KINDS.indexOf("water");
+  const owner = new Map<number, number>();
+  const buildings = [...doc.objects]
+    .filter(([, o]) => kindOf(o).footprint)
+    .sort(([a], [b]) => a - b);
+  for (const [id, b] of buildings) {
+    const name = OBJECT_NAMES[b.kind];
+    const what = "building" in b ? b.building : "type" in b ? b.type : b.kind;
+    const feet = footprintOf(b);
+    const off = feet.filter((t) => {
+      const cell = doc.hexes.get(keyOf(t));
+      return cell === undefined || groundOfCell(cell) === water;
+    });
+    if (off.length > 0) {
+      out.error(
+        "E-16",
+        `${name} ${what} ${where(b.at)} stands on ${off.length} hexes off the land.`,
+        off,
+        [id],
+      );
+    }
+    for (const t of feet) {
+      const other = owner.get(keyOf(t));
+      if (other !== undefined) {
+        out.error(
+          "E-16",
+          `${name} ${what} ${where(b.at)} overlaps another building at ${where(t)}.`,
+          [t],
+          [other, id],
+        );
+        break;
+      }
+    }
+    for (const t of feet) owner.set(keyOf(t), id);
+  }
+}
+
+/**
+ * The pack's objects (CLI-09e part 2), on a zone or a town. "Walkable" is a painted floor hex inside
+ * the outline that no object covers (a building's footprint but its door, a blocking prop's hex):
+ * what ENG-08's converter makes of it (track game, 2026-10-05).
+ *
+ * - E-20: a building's door is a hex of its footprint's border, and walkable.
+ * - E-21: a character stands on a walkable hex.
+ * - E-22: a prop stands on a painted hex inside the outline. A blocking one makes its hex
+ *   unwalkable: a door or a character on it is refused by E-20 or E-21.
+ * - E-23: the record ENG-08's export writes can be written: a kind of the table, a variant, a
+ *   facing, a depth in range.
+ */
+function packChecks(doc: MapDocument, out: Findings): void {
+  const covers = townCovers(doc);
+  const painted = (t: Tile) => {
+    const cell = doc.hexes.get(keyOf(t));
+    return cell !== undefined && !isOutside(cell);
+  };
+  const walkable = (t: Tile) => {
+    const cell = doc.hexes.get(keyOf(t));
+    return cell !== undefined && isWalkable(cell) && !covers.has(keyOf(t));
+  };
+  for (const [id, o] of [...doc.objects].sort(([a], [b]) => a - b)) {
+    if (!isPack(o)) continue;
+    const door = o.kind === "building" ? doorOf(o) : null;
+    const offBorder = o.kind === "building" && (!door || doorSide(footprintOf(o), door) === null);
+    const record = kindOf(o).record?.(o);
+    // A door off the border is E-20's: the record refuses it too, said once.
+    if (record && "problem" in record && !offBorder) {
+      out.error(
+        "E-23",
+        `${OBJECT_NAMES[o.kind]} ${o.type} ${where(o.at)}: ${record.problem}.`,
+        [o.at],
+        [id],
+      );
+    }
+    switch (o.kind) {
+      case "building": {
+        if (offBorder) {
+          const shown = door ? where(door) : `"${o.door}"`;
+          out.error(
+            "E-20",
+            `The ${o.type}'s door ${shown} is not on its footprint's border.`,
+            door ? [door] : [o.at],
+            [id],
+          );
+        } else if (door && !walkable(door)) {
+          out.error("E-20", `The ${o.type}'s door ${where(door)} is not walkable.`, [door], [id]);
+        }
+        break;
+      }
+      case "npc":
+        if (!walkable(o.at)) {
+          out.error(
+            "E-21",
+            `The ${o.type} ${where(o.at)} does not stand on a walkable hex.`,
+            [o.at],
+            [id],
+          );
+        }
+        break;
+      case "scenery":
+        if (!painted(o.at)) {
+          out.error(
+            "E-22",
+            `The ${o.type} ${where(o.at)} stands off the painted map.`,
+            [o.at],
+            [id],
+          );
+        }
+        break;
+      case "bridge":
+        break;
+    }
+  }
 }

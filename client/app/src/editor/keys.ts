@@ -39,6 +39,7 @@ export type EditorCommand =
   | { readonly kind: "copy" }
   | { readonly kind: "paste" }
   | { readonly kind: "mirror" }
+  | { readonly kind: "turn" }
   | { readonly kind: "validate" }
   | { readonly kind: "walk" };
 
@@ -188,6 +189,12 @@ export const EDITOR_BINDINGS: readonly EditorBinding[] = [
     keys: "H",
     label: "Mirror the selected buildings and props (towns)",
     matches: [{ code: "KeyH", command: { kind: "mirror" } }],
+  },
+  {
+    keys: "R",
+    label:
+      "Turn the selected characters and cannons; next variant of a prop, next door of a building",
+    matches: [{ code: "KeyR", command: { kind: "turn" } }],
   },
   {
     keys: "Y",

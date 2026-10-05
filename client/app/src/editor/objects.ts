@@ -4,6 +4,8 @@ import type { Tile } from "../render/view";
 import { footprint } from "../sandbox/fixtures/hubWorld";
 import { BUILDINGS, OUTPOST_SERVICES, TOWN_SERVICES } from "../sandbox/fixtures/hubs";
 import type { MapMeta } from "./model";
+import { PACK_ROWS, type PackObject } from "./pack";
+import type { RecordResult } from "./palette";
 
 /**
  * The objects a map holds (CLI-09b, brief §4.2 and §4.3), each on one hex. A tool's data, not a
@@ -103,7 +105,9 @@ export type MapObject =
     }
   | { readonly kind: "prop"; readonly at: Tile; readonly sprite: string; readonly mirror: boolean }
   | { readonly kind: "figure"; readonly at: Tile; readonly facing: "left" | "right" }
-  | { readonly kind: "arrival"; readonly at: Tile };
+  | { readonly kind: "arrival"; readonly at: Tile }
+  // The pack's buildings, characters, props and bridges (CLI-09e part 2, `pack.ts`).
+  | PackObject;
 
 export type ObjectKind = MapObject["kind"];
 
@@ -184,6 +188,8 @@ export interface PlaceChoice {
   readonly target?: PlaceTarget;
   readonly building?: BuildingName;
   readonly sprite?: string;
+  /** A pack object's kind id (CLI-09e: the palette's choice). */
+  readonly type?: string;
 }
 
 /**
@@ -199,7 +205,11 @@ export type FieldSpec =
       readonly key: string;
       readonly label: string;
       readonly type: "choice";
-      readonly options: (meta: MapMeta) => readonly (readonly [value: string, label: string])[];
+      /** The object is the one the inspector shows; null when a file is read. */
+      readonly options: (
+        meta: MapMeta,
+        object: MapObject | null,
+      ) => readonly (readonly [value: string, label: string])[];
       /** The value is a number written as the option's value. */
       readonly numeric?: boolean;
       readonly valid?: (value: unknown) => boolean;
@@ -213,6 +223,8 @@ export interface StructureLook {
   readonly width: number;
   readonly height: number;
   readonly shape?: "house" | "decor" | "gate";
+  /** Mirrored by the look itself (a prop's facing); else the object's `mirror` says. */
+  readonly mirror?: boolean;
 }
 
 /**
@@ -222,8 +234,8 @@ export interface StructureLook {
  * validation's flags read the row, not a switch.
  */
 export interface KindSpec<O extends MapObject = MapObject> {
-  /** Which maps hold it. */
-  readonly map: "zone" | "town";
+  /** Which maps hold it (the pack's objects: both). */
+  readonly map: "zone" | "town" | "both";
   readonly name: string;
   /** One a map: placing another moves it (§3, "one entry per map"). */
   readonly single?: boolean;
@@ -243,6 +255,8 @@ export interface KindSpec<O extends MapObject = MapObject> {
   readonly covers?: (object: O) => Tile[];
   /** How the renderer draws it (a building or a prop); none for a marker only. */
   readonly look?: (object: O) => StructureLook;
+  /** The record ENG-08's export writes for it, or what is wrong with it (a pack object). */
+  readonly record?: (object: O) => RecordResult;
 }
 
 /** A hub's footprints are measured from its origin; any origin gives the same hexes. */
@@ -474,6 +488,7 @@ export const KINDS: { readonly [K in ObjectKind]: KindSpec<Of<K>> } = {
     fields: [],
     create: (_, at) => ({ kind: "arrival", at }),
   },
+  ...PACK_ROWS,
 };
 
 /** A kind's row, for an object of any kind. */
@@ -482,8 +497,14 @@ export function kindOf(object: MapObject): KindSpec {
 }
 
 export const OBJECT_KINDS = Object.keys(KINDS) as ObjectKind[];
-export const ZONE_OBJECTS = OBJECT_KINDS.filter((k) => KINDS[k].map === "zone");
-export const TOWN_OBJECTS = OBJECT_KINDS.filter((k) => KINDS[k].map === "town");
+export const ZONE_OBJECTS = OBJECT_KINDS.filter((k) => KINDS[k].map !== "town");
+export const TOWN_OBJECTS = OBJECT_KINDS.filter((k) => KINDS[k].map !== "zone");
+
+/** Whether a map of that kind holds a kind of object. */
+export function mapHolds(zone: boolean, kind: ObjectKind): boolean {
+  const map = KINDS[kind].map;
+  return map === "both" || (map === "zone") === zone;
+}
 export const SINGLE = OBJECT_KINDS.filter((k) => KINDS[k].single);
 export const OBJECT_NAMES = Object.fromEntries(
   OBJECT_KINDS.map((k) => [k, KINDS[k].name]),
@@ -537,7 +558,9 @@ export function objectFrom(
     } else {
       const ok = field.valid
         ? field.valid(v)
-        : field.options(meta).some(([value]) => (field.numeric ? Number(value) : value) === v);
+        : field
+            .options(meta, null)
+            .some(([value]) => (field.numeric ? Number(value) : value) === v);
       if (!ok) return null;
     }
     out[field.key] = v;
