@@ -22,7 +22,6 @@ import {
   SHAPE_HEIGHT,
   SHAPE_IDLE,
   drawBody,
-  drawFoam,
   drawGhosts,
   drawMark,
   drawOverlay,
@@ -44,7 +43,9 @@ import {
   isRock,
   voidFoam,
   voidHole,
+  waterFoam,
 } from "./ground";
+import { FOAM_FPS, FoamMesh, type WaterMode, overlaps, pageWater } from "./foam";
 import { OBSTACLES, type Obstacle, obstacleOf } from "./obstacles";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import { type FogCounts, fogCounts, tileKey } from "./fog";
@@ -116,6 +117,8 @@ interface ChunkBake {
   dirty: boolean;
   /** How long drawing its `graphics` took, in ms: part of its bake's time. */
   drawMs: number;
+  /** The foam over its water hexes (CLI-03o): drawn over the bakes, never in them. */
+  foam: readonly FoamPiece[];
 }
 
 /** The atlas's cells the ground is filled with (CLI-03e's `[[tileset]]`, CLI-03g1). */
@@ -244,6 +247,11 @@ export interface RendererOptions {
   readonly feet?: number;
   /** A step's animation, in ms (`STEP_MS`); the sandbox walks a path at the same pace. */
   readonly stepMs?: number;
+  /**
+   * The foam (CLI-03o): `loop` animates it, `still` shows frame 0 as before, to compare. By default
+   * the page's `?water=` (`pageWater`).
+   */
+  readonly water?: WaterMode;
   readonly onDraw?: (stats: FrameStats) => void;
 }
 
@@ -354,25 +362,6 @@ function hiddenTiles(view: ViewState): ReadonlyMap<string, ViewTile> {
   return hidden;
 }
 
-/** The whole art pixels around some foam pieces: the frame their group is baked in. */
-function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const { points } of pieces) {
-    for (let i = 0; i < points.length; i += 2) {
-      minX = Math.min(minX, points[i]!);
-      maxX = Math.max(maxX, points[i]!);
-      minY = Math.min(minY, points[i + 1]!);
-      maxY = Math.max(maxY, points[i + 1]!);
-    }
-  }
-  const x = Math.floor(minX);
-  const y = Math.floor(minY);
-  return new Rectangle(x, y, Math.ceil(maxX) - x, Math.ceil(maxY) - y);
-}
-
 /**
  * Draws a `ViewState` on demand. Every change (a view, the camera, the size) asks for one frame;
  * a step, a turn and the camera's pan ask for frames until they end; idle animations ask for one
@@ -390,13 +379,29 @@ export class Renderer implements FrameClient {
   private voidHole: Box | null = null;
   private voidKey = "";
   /**
-   * The foam over the void (CLI-03g2, `voidFoam`): its pieces over the void's hexes, grouped by the
-   * chunk of the hex they lie in, each group baked as a chunk is; after the void's bands, under the
-   * chunks. Drawn again when its pieces change, never per frame.
+   * The foam (CLI-03g2, animated by CLI-03o): over the chunks' water and the void's, out of the
+   * bakes, as meshes of its pieces whose texture coordinates change with the frame (`FoamMesh`):
+   * a frame of the foam rebakes nothing. Without fog, every piece but those over a hidden tile, by
+   * group (a chunk's; the void's by the chunk of the hex they lie over), last in the ground's layer:
+   * under the cover and the overlay, which dims it beyond sight as it dims the ground. Under fog,
+   * only the pieces over the hexes in sight, in one group, first in the actors' layer: over the
+   * overlay's hexes in sight, which are filled from bakes without foam; its grayscale twin
+   * (`greyFoam`) holds every piece, still, under the cover.
    */
-  private readonly voidFoamLayer = new Container();
-  private readonly voidFoamBakes = new Map<string, ChunkBake>();
-  private voidFoamKey: string | null = null;
+  private readonly foamLayer = new Container();
+  private readonly foamMeshes = new Map<string, FoamMesh>();
+  private readonly greyFoamMeshes = new Map<string, FoamMesh>();
+  /** The foam over the void (`voidFoam`), by group, each group's pieces joined as its key. */
+  private voidPieces = new Map<string, { key: string; pieces: readonly FoamPiece[] }>();
+  /** Bumped whenever a chunk's or the void's pieces change: the sight's group is built again. */
+  private foamVersion = 0;
+  private sightFoamKey = "";
+  private readonly water: WaterMode;
+  /** The foam's frames and rate, kept by `setLibrary` (the loop, or the still alone). */
+  private foamFrames: readonly Texture[] = [];
+  private foamFps = FOAM_FPS;
+  /** The foam's frame count (its clock's), as `advance` last read it; null: shown still. */
+  private foamTick: number | null = null;
   private readonly ground = new Container();
   /**
    * Exploration by sight (CLI-03n, `ViewState.fog`): the ground's grayscale twin, the void's
@@ -409,8 +414,8 @@ export class Renderer implements FrameClient {
    */
   private readonly greyGround = new Container();
   private readonly greyBands = new Container();
-  private readonly greyFoam = new Container();
   private readonly greyChunks = new Container();
+  private readonly greyFoam = new Container();
   private sightKey = "";
   /** The tiles in sight, and the void's hexes within the sight's radius, that the overlay fills. */
   private sightTiles: readonly Tile[] = [];
@@ -507,6 +512,8 @@ export class Renderer implements FrameClient {
     this.mode = options.mode ?? "continuous";
     this.feet = options.feet ?? DEFAULT_FEET;
     this.stepMs = options.stepMs ?? STEP_MS;
+    this.water = options.water ?? pageWater();
+    this.foamFrames = this.foamTextures();
     const onDraw = options.onDraw;
     this.scheduler = new FrameScheduler(
       host,
@@ -522,12 +529,11 @@ export class Renderer implements FrameClient {
     );
     this.voidLayer.visible = false;
     for (let i = 0; i < 4; i++) this.voidLayer.addChild(new Sprite(Texture.WHITE));
-    this.voidLayer.addChild(this.voidFoamLayer);
     // Under the chunks, in the ground's layer: the world's children keep their order.
     this.ground.addChild(this.voidLayer);
     this.greyBands.visible = false;
     for (let i = 0; i < 4; i++) this.greyBands.addChild(new Sprite(Texture.WHITE));
-    this.greyGround.addChild(this.greyBands, this.greyFoam, this.greyChunks);
+    this.greyGround.addChild(this.greyBands, this.greyChunks, this.greyFoam);
     this.greyGround.visible = false;
     this.world.addChild(
       this.greyGround,
@@ -538,6 +544,8 @@ export class Renderer implements FrameClient {
       this.actorsLayer,
     );
     this.passRoot.addChild(this.backdrop);
+    // First in the actors' layer, which sorts by zIndex (under fog).
+    this.foamLayer.zIndex = -Infinity;
     this.mountStage();
   }
 
@@ -555,6 +563,7 @@ export class Renderer implements FrameClient {
       this.placeVoid();
     }
     const now = this.host.now();
+    const sightKey = this.sightKey;
     this.syncFog(view);
     this.syncStructures(view.structures ?? []);
     this.syncObstacles(view);
@@ -566,6 +575,8 @@ export class Renderer implements FrameClient {
     const hiddenChanged = hiddenKey !== this.hiddenKey;
     this.hiddenKey = hiddenKey;
     if (terrainChanged || hiddenChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
+    if (terrainChanged || hiddenChanged || holeKey !== previousVoid || sightKey !== this.sightKey)
+      this.syncFoam(hidden);
     this.drawOverlay();
     this.flushRetired();
     this.syncDropped(view, now);
@@ -675,9 +686,14 @@ export class Renderer implements FrameClient {
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) chunk.key = "";
-    this.voidFoamKey = null;
-    if (this.view) this.syncChunks(this.view, hiddenTiles(this.view));
-    if (this.view) this.syncVoidFoam(this.view);
+    this.foamFrames = this.foamTextures();
+    this.dropFoam();
+    if (this.view) {
+      const hidden = hiddenTiles(this.view);
+      this.syncChunks(this.view, hidden);
+      this.syncVoidFoam(this.view);
+      this.syncFoam(hidden);
+    }
     this.scheduler.invalidate();
   }
 
@@ -755,8 +771,8 @@ export class Renderer implements FrameClient {
   destroy(): void {
     this.scheduler.destroy();
     for (const chunk of this.chunks.values()) this.dropChunk(chunk);
-    for (const bake of this.voidFoamBakes.values()) this.dropChunk(bake);
     this.chunks.clear();
+    this.dropFoam();
     for (const node of this.obstacleNodes.values()) node.sprite.destroy();
     this.obstacleNodes.clear();
     this.dropGreyTextures();
@@ -764,6 +780,7 @@ export class Renderer implements FrameClient {
     this.screen.destroy();
     this.world.destroy({ children: true });
     this.passRoot.destroy({ children: true });
+    this.foamLayer.destroy();
     this.flushRetired();
   }
 
@@ -812,6 +829,15 @@ export class Renderer implements FrameClient {
         if (!node.move) idleChanged = true;
       }
     }
+    // The foam, an idle animation under the same cap: its next frame, if a piece of it is in view.
+    const foamTick = this.foamAnimates() ? tick(now, this.foamFps) : null;
+    if (foamTick !== this.foamTick && (idleDue || foamTick === null)) {
+      this.foamTick = foamTick;
+      if (this.foamInView()) {
+        changed = true;
+        if (foamTick !== null) idleChanged = true;
+      }
+    }
     if (idleChanged) this.lastIdle = now;
     if (moving) return { changed, next: now };
     return { changed, next: this.nextIdle(now) };
@@ -821,6 +847,7 @@ export class Renderer implements FrameClient {
     this.bakeTerrain();
     if (this.overlayDirty) this.drawOverlay();
     this.flushRetired();
+    this.cullFoam();
     const { centre, scale } = this.camera;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
     if (!plan) {
@@ -947,9 +974,9 @@ export class Renderer implements FrameClient {
 
   /**
    * Fills the hexes in sight from the colour bakes, under the overlay, in a frame after the bakes: a
-   * tile from its chunk's texture, a void hex from the bands and the foam over them, each clipped
-   * to what it covers. The hexes' own corners, not grown: they tile the plane, so the edge of what
-   * is in colour is theirs. Not snapped to whole pixels as the bakes' sprites are (`roundPixels`):
+   * tile from its chunk's texture, a void hex from the bands, each clipped to what it covers (the
+   * foam over them is `foamLayer`'s, CLI-03o). The hexes' own corners, not grown: they tile the
+   * plane, so the edge of what is in colour is theirs. Not snapped to whole pixels as the bakes' sprites are (`roundPixels`):
    * up to half a pixel apart from them, as two chunks' sprites can be.
    */
   private drawSight(g: Graphics): void {
@@ -981,16 +1008,6 @@ export class Renderer implements FrameClient {
           .scale(TILE_WIDTH / water.width, (2 * HEX_RADIUS) / water.height)
           .translate(centre.x - TILE_WIDTH / 2, centre.y - HEX_RADIUS);
         g.poly(piece).fill({ texture: water, textureSpace: "global", matrix });
-      }
-      for (const foam of this.voidFoamBakes.values()) {
-        if (foam.sprite.texture === Texture.EMPTY) continue;
-        const piece = clipToBox(corners, foam.frame);
-        if (piece.length < 6) continue;
-        g.poly(piece).fill({
-          texture: foam.sprite.texture,
-          textureSpace: "global",
-          matrix: at(foam.frame),
-        });
       }
     }
   }
@@ -1042,60 +1059,159 @@ export class Renderer implements FrameClient {
     this.greyTextures.clear();
   }
 
-  /** Draws and rebakes the foam over the void, group by group, when its pieces change. */
+  /**
+   * Plans the foam over the void again (`voidFoam`), grouped by the chunk of the hex each piece lies
+   * over; a group whose pieces are the same keeps its array, so its meshes are not built again.
+   */
   private syncVoidFoam(view: ViewState): void {
-    // A foam bake dropped or drawn again: `sight` is filled from them.
-    this.overlayDirty = true;
-    const foam = this.groundTextures()?.foam ?? null;
-    const pieces = foam ? voidFoam(view.tiles, view.void) : [];
-    const keyOf = (p: FoamPiece) => `${p.source.x},${p.source.y}:${p.points.join(",")}`;
-    const key = pieces.map(keyOf).join(" ");
-    if (key === this.voidFoamKey) return;
-    this.voidFoamKey = key;
+    const pieces = this.foamFrames.length > 0 ? voidFoam(view.tiles, view.void, true) : [];
     const groups = new Map<string, FoamPiece[]>();
     for (const piece of pieces) {
-      const id = `${Math.floor(piece.over.x / BAKE_CHUNK)},${Math.floor(piece.over.y / BAKE_CHUNK)}`;
+      const id = `v${chunkId(piece.over)}`;
       let group = groups.get(id);
       if (!group) groups.set(id, (group = []));
       group.push(piece);
     }
+    const keyOf = (p: FoamPiece) => `${p.source.x},${p.source.y}:${p.points.join(",")}`;
+    const next = new Map<string, { key: string; pieces: readonly FoamPiece[] }>();
     for (const [id, group] of groups) {
-      const groupKey = group.map(keyOf).join(" ");
-      const bake = this.voidFoamBakes.get(id);
-      if (bake?.key === groupKey) continue;
-      const start = this.host.now();
-      const graphics = new Graphics();
-      drawFoam(graphics, group, foam);
-      const drawMs = this.host.now() - start;
-      const frame = piecesFrame(group);
-      if (bake) {
-        bake.graphics.destroy();
-        Object.assign(bake, { key: groupKey, graphics, frame, dirty: true, drawMs });
-      } else {
-        const sprite = new Sprite(Texture.EMPTY);
-        const grey = new Sprite(Texture.EMPTY);
-        grey.tint = DIM_TINT;
-        this.voidFoamLayer.addChild(sprite);
-        this.greyFoam.addChild(grey);
-        this.voidFoamBakes.set(id, {
-          key: groupKey,
-          graphics,
-          frame,
-          sprite,
-          grey,
-          greyStale: true,
-          greySource: new Graphics(),
-          resolution: 0,
-          dirty: true,
-          drawMs,
-        });
+      const key = group.map(keyOf).join(" ");
+      const before = this.voidPieces.get(id);
+      next.set(id, before?.key === key ? before : { key, pieces: group });
+      if (before?.key !== key) this.foamVersion += 1;
+    }
+    if (next.size !== this.voidPieces.size) this.foamVersion += 1;
+    this.voidPieces = next;
+  }
+
+  /** The foam's frames: the atlas's loop, or its still alone (no loop, or not on one page). */
+  private foamTextures(): readonly Texture[] {
+    const art = this.library?.get(GROUND_TILES.foam);
+    const loop = art?.animations.loop;
+    if (loop && loop.textures.length > 1) {
+      const source = loop.textures[0]!.source;
+      if (loop.textures.every((t) => t.source === source)) {
+        this.foamFps = loop.fps;
+        return loop.textures;
       }
     }
-    for (const [id, bake] of this.voidFoamBakes) {
-      if (!groups.has(id)) {
-        this.dropChunk(bake);
-        this.voidFoamBakes.delete(id);
+    this.foamFps = FOAM_FPS;
+    const still = art?.animations[STILL]?.textures[0];
+    return still ? [still] : [];
+  }
+
+  /**
+   * The foam's meshes for the view (see `foamLayer`): a group whose pieces did not change keeps its
+   * mesh; under fog, the group in sight is built again when sight or the pieces change.
+   */
+  private syncFoam(hidden: ReadonlyMap<string, ViewTile>): void {
+    const groups = new Map<string, readonly FoamPiece[]>();
+    for (const [id, chunk] of this.chunks) if (chunk.foam.length > 0) groups.set(id, chunk.foam);
+    for (const [id, { pieces }] of this.voidPieces) groups.set(id, pieces);
+    const frames = this.foamFrames;
+    const colour = new Map<string, readonly FoamPiece[]>();
+    if (frames.length > 0 && this.fogOn) {
+      const key = `${this.sightKey}|${this.foamVersion}`;
+      const current = this.foamMeshes.get("sight");
+      if (key === this.sightFoamKey && current) colour.set("sight", current.pieces);
+      else {
+        const shown = new Set([...this.sightTiles, ...this.sightVoid].map(tileKey));
+        const inSight: FoamPiece[] = [];
+        for (const pieces of groups.values()) {
+          for (const piece of pieces) if (shown.has(tileKey(piece.over))) inSight.push(piece);
+        }
+        colour.set("sight", inSight);
       }
+      this.sightFoamKey = key;
+    } else if (frames.length > 0) {
+      for (const [id, pieces] of groups) {
+        // A tile hidden without fog: none over it (built again at each change, rare).
+        colour.set(
+          id,
+          hidden.size === 0 ? pieces : pieces.filter((p) => !hidden.has(tileKey(p.over))),
+        );
+      }
+    }
+    this.syncMeshes(this.foamMeshes, colour, frames, this.foamLayer, () => 0xffffff);
+    // Last in the ground's layer (after chunks added since), or first among the actors under fog.
+    const parent = this.fogOn ? this.actorsLayer : this.ground;
+    if (this.foamMeshes.size === 0) this.foamLayer.removeFromParent();
+    else if (
+      this.fogOn ? this.foamLayer.parent !== parent : parent.children.at(-1) !== this.foamLayer
+    )
+      parent.addChild(this.foamLayer);
+    // The grayscale twin, still: the frame 0 in grayscale, dimmed over the void as the bands are.
+    const fogged = frames[0] !== undefined && this.fogOn;
+    const grey = fogged ? groups : new Map<string, readonly FoamPiece[]>();
+    const still = fogged ? [this.greyTexture(frames[0]!)] : [];
+    this.syncMeshes(this.greyFoamMeshes, grey, still, this.greyFoam, (id) =>
+      id.startsWith("v") ? DIM_TINT : 0xffffff,
+    );
+  }
+
+  /** Builds the meshes of the groups whose pieces changed, and drops those of groups gone. */
+  private syncMeshes(
+    meshes: Map<string, FoamMesh>,
+    groups: ReadonlyMap<string, readonly FoamPiece[]>,
+    frames: readonly Texture[],
+    layer: Container,
+    tint: (id: string) => number,
+  ): void {
+    for (const [id, mesh] of meshes) {
+      const pieces = groups.get(id);
+      if (pieces === mesh.pieces && pieces.length > 0) continue;
+      mesh.destroy();
+      meshes.delete(id);
+    }
+    for (const [id, pieces] of groups) {
+      if (meshes.has(id) || pieces.length === 0) continue;
+      const mesh = new FoamMesh(pieces, frames);
+      mesh.mesh.tint = tint(id);
+      layer.addChild(mesh.mesh);
+      meshes.set(id, mesh);
+    }
+  }
+
+  private dropFoam(): void {
+    for (const mesh of [...this.foamMeshes.values(), ...this.greyFoamMeshes.values()]) {
+      mesh.destroy();
+    }
+    this.foamLayer.removeFromParent();
+    this.foamMeshes.clear();
+    this.greyFoamMeshes.clear();
+    this.sightFoamKey = "";
+    this.foamTick = null;
+  }
+
+  /** The world's rectangle the frame shows. */
+  private viewRect(): Rectangle {
+    const { centre, scale } = this.camera;
+    const w = this.viewport.width / scale;
+    const h = this.viewport.height / scale;
+    return new Rectangle(centre.x - w / 2, centre.y - h / 2, w, h);
+  }
+
+  /** Whether the foam loops (`?water=`, the atlas's loop): whether it asks for frames at all. */
+  private foamAnimates(): boolean {
+    return this.water === "loop" && this.foamFrames.length > 1 && this.foamMeshes.size > 0;
+  }
+
+  /** Whether a piece of the foam in colour is on the screen: only then does it ask for frames. */
+  private foamInView(): boolean {
+    const rect = this.viewRect();
+    for (const mesh of this.foamMeshes.values()) if (overlaps(mesh.bounds, rect)) return true;
+    return false;
+  }
+
+  /**
+   * Before a frame is drawn: the foam's meshes off the screen are not drawn; those on it show the
+   * clock's frame (`foamTick`), or frame 0 when the foam is still.
+   */
+  private cullFoam(): void {
+    const rect = this.viewRect();
+    for (const mesh of this.foamMeshes.values()) {
+      mesh.mesh.visible = overlaps(mesh.bounds, rect);
+      if (mesh.mesh.visible) mesh.show(this.foamTick);
     }
   }
 
@@ -1105,7 +1221,8 @@ export class Renderer implements FrameClient {
     const grass = still(GROUND_TILES.grass);
     const water = still(GROUND_TILES.water);
     const foam = still(GROUND_TILES.foam);
-    return grass || water || foam ? { grass, water, foam } : null;
+    // The foam is not baked (CLI-03o: `foamLayer`); it still makes the atlas's ground.
+    return grass || water || foam ? { grass, water } : null;
   }
 
   /**
@@ -1279,9 +1396,11 @@ export class Renderer implements FrameClient {
       const graphics = drawTerrain(group, this.covered, { around, textures, rocks });
       const drawMs = this.host.now() - start;
       const frame = chunkFrame(group);
+      const foam = this.foamFrames.length > 0 ? waterFoam(group, { around }) : [];
+      this.foamVersion += 1;
       if (chunk) {
         chunk.graphics.destroy();
-        Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs });
+        Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs, foam });
       } else {
         const sprite = new Sprite(Texture.EMPTY);
         const grey = new Sprite(Texture.EMPTY);
@@ -1298,6 +1417,7 @@ export class Renderer implements FrameClient {
           resolution: 0,
           dirty: true,
           drawMs,
+          foam,
         });
       }
     }
@@ -1347,8 +1467,7 @@ export class Renderer implements FrameClient {
   }
 
   private bakeTerrain(): void {
-    // The void's foam first: the last bake reported (`bakeMs`) is a chunk's when both bake.
-    for (const chunk of [...this.voidFoamBakes.values(), ...this.chunks.values()]) {
+    for (const chunk of this.chunks.values()) {
       const resolution = this.bakeResolution(chunk.frame);
       const colour = chunk.dirty || resolution !== chunk.resolution;
       // The grayscale twin only while the view has fog (CLI-03n); a hub never bakes it.
@@ -1643,9 +1762,12 @@ export class Renderer implements FrameClient {
 
   /** When the next idle frame is due, or null when nothing idles. */
   private nextIdle(now: number): number | null {
-    if (!this.idleOn || this.nodes.size === 0) return null;
     let next = Infinity;
-    for (const node of this.nodes.values()) {
+    // The foam's next frame (CLI-03o), only while a piece of it is on the screen.
+    if (this.foamAnimates() && this.foamInView()) {
+      next = ((tick(now, this.foamFps) + 1) * 1000) / this.foamFps;
+    }
+    for (const node of this.idleOn ? this.nodes.values() : []) {
       const animation = node.art ? node.art.animations.idle : null;
       const count = node.art ? (animation?.textures.length ?? 0) : SHAPE_IDLE.offsets.length;
       if (count < 2) continue;
