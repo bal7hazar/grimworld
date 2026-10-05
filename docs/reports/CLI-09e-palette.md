@@ -83,7 +83,7 @@ base row, and one row behind.
 | `…/Gnome Buildings/Gnome Tower.png` (128 × 256) | `gnome_tower` | 124 | 3 | added |
 | `Enemy Pack/Extra/Pirate Tower/Pirate Tower_Ground.png` (128 × 192) | `pirate_tower` | 108 | 3 | added |
 | `Enemy Pack/Extra/Dead Tree/Dead Tree.png` (384 × 320) | `dead_tree` (a hollow tree with a door) | 328 | 11 | added |
-| `Enemy Pack/Extra/Goblin Hut/Goblin Hut.png` | `goblin_hut` (cell 256, frame 0 of 12) | 230 | 7 | added |
+| `Enemy Pack/Extra/Goblin Hut/Goblin Hut.png` | `goblin_hut` (cell 192 × 256, frame 0 of 16) | 140 | 5 | added |
 | `Enemy Pack/Extra/Fish Hut/Fish Hut.png` | `fish_hut` (cell 192, frame 0 of 8) | 147 | 5 | added |
 | `Enemy Pack/Extra/Cave/Cave_Idle.png` | `cave` (cell 192, frame 0 of 8) | 154 | 5 | added |
 | `Enemy Pack/Extra/Pirate Tower/Pirate Tower_Water.png` (8 cells of 128 × 192) | — | — | — | left out: stands in water |
