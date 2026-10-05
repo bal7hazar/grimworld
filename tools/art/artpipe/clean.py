@@ -57,7 +57,11 @@ def still(path, frame=None, cell=None):
     img = np.array(Image.open(path).convert("RGBA"))
     if frame is not None or cell is not None:
         w, h = cell if cell is not None else (img.shape[0], img.shape[0])
-        if img.shape[0] != h or img.shape[1] % w:
+        if img.shape[0] != h:
+            raise SystemExit(f"{path.name}: {img.shape[1]} x {img.shape[0]} is not a strip of "
+                             f"{w} x {h} cells: the cell height {h} is not the sheet's height "
+                             f"{img.shape[0]}")
+        if img.shape[1] % w:
             raise SystemExit(f"{path.name}: {img.shape[1]} x {img.shape[0]} is not a strip of "
                              f"{w} x {h} cells: the cell width {w} does not divide the sheet's "
                              f"width {img.shape[1]} (a wrong cell takes in part of the next frame)")

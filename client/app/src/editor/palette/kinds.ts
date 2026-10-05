@@ -190,7 +190,7 @@ export const BUILDINGS: readonly BuildingKind[] = [
   building("fish_hut", 147),
   building("gnome_hut", 102),
   building("gnome_tower", 124),
-  building("goblin_hut", 230),
+  building("goblin_hut", 140),
   building("pirate_tower", 108),
 ];
 
