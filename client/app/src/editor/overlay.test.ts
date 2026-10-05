@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { type FitScore, type Fitted, fitChunks, fitted } from "./fit";
-import { FLOOR, type MapDocument, WALL, apply, createMap, erase, paint } from "./model";
+import { loadMap } from "./file";
+import { COORD_MAX, FLOOR, type MapDocument, WALL, apply, createMap, erase, paint } from "./model";
 import { outlineSegments, seamSegments, visibleRange } from "./overlay";
-import { DEFAULT_LAYERS, VOID_PAD, editorView, holds, viewWindow } from "./view";
+import { DEFAULT_LAYERS, VIEW_MAX, VOID_PAD, editorView, holds, viewWindow } from "./view";
 
 describe("overlays (§2.3)", () => {
   const zone = () => createMap({ kind: "zone", name: "O", location: 2, biome: "meadow" });
@@ -96,6 +97,73 @@ describe("the game's view of a map, near the view only (D-216)", () => {
     expect(
       editorView(doc, DEFAULT_LAYERS, viewWindow({ x0: 5000, y0: 0, x1: 5030, y1: 20 })).tiles,
     ).toEqual([]);
+  });
+});
+
+describe("two hexes at the plane's far corners (review of #362, minor 1)", () => {
+  const text = JSON.stringify({
+    format: "grimworld-map",
+    version: 2,
+    editor: "test",
+    map: {
+      kind: "zone",
+      name: "Far",
+      location: 2,
+      biome: "meadow",
+      levelMin: 1,
+      levelMax: 1,
+      rank: 0,
+      spawnTable: 0,
+    },
+    rows: [
+      { y: -COORD_MAX, x: -COORD_MAX, terrain: ".", ground: "g", outline: "1" },
+      { y: COORD_MAX, x: COORD_MAX, terrain: "#", ground: "g", outline: "1" },
+    ],
+    chunks: null,
+    obstacles: [],
+  });
+
+  it("the view sends at most VIEW_MAX tiles, whatever the window", () => {
+    const read = loadMap(text);
+    if ("problem" in read) throw new Error(read.problem);
+    const everything = { x0: -COORD_MAX, y0: -COORD_MAX, x1: COORD_MAX, y1: COORD_MAX };
+    const view = editorView(read.doc, DEFAULT_LAYERS, everything);
+    expect(view.tiles.length).toBeLessThanOrEqual(VIEW_MAX);
+    expect(view.tiles).toHaveLength(2);
+    // Two islands 2,000 hexes apart, zoomed out over both: still under the cap.
+    const doc = createMap({ kind: "zone", name: "Isles", location: 2, biome: "meadow" });
+    const isle = (x: number, y: number) => {
+      const tiles = [];
+      for (let dy = 0; dy < 30; dy++)
+        for (let dx = 0; dx < 30; dx++) tiles.push({ x: x + dx, y: y + dy });
+      return tiles;
+    };
+    apply(
+      doc,
+      paint(doc, [...isle(0, 0), ...isle(2000, 2000)], { layer: "terrain", value: FLOOR }),
+    );
+    const wide = editorView(
+      doc,
+      DEFAULT_LAYERS,
+      viewWindow({ x0: -500, y0: -500, x1: 2500, y1: 2500 }),
+    );
+    expect(wide.tiles).toHaveLength(2 * 900);
+  });
+
+  it("such a file opens, renders, outlines and refuses its fit, all well under a second", () => {
+    const start = performance.now();
+    const read = loadMap(text);
+    if ("problem" in read) throw new Error(read.problem);
+    const box = {
+      x0: -COORD_MAX - 10,
+      y0: -COORD_MAX - 10,
+      x1: COORD_MAX + 10,
+      y1: COORD_MAX + 10,
+    };
+    editorView(read.doc, DEFAULT_LAYERS, viewWindow(box));
+    outlineSegments(read.doc);
+    expect(fitChunks(read.doc)).toBe("wide");
+    expect(performance.now() - start).toBeLessThan(1000);
   });
 });
 

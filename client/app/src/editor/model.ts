@@ -327,8 +327,13 @@ export function regionOf(
       const next = sideOf(tile, side);
       const key = keyOf(next);
       if (seen.has(key) || !same(key)) continue;
+      // Past the plane's bound is open too.
       const out =
-        next.x < within.x0 || next.x > within.x1 || next.y < within.y0 || next.y > within.y1;
+        !inPlane(next) ||
+        next.x < within.x0 ||
+        next.x > within.x1 ||
+        next.y < within.y0 ||
+        next.y > within.y1;
       if (out) return "open";
       seen.add(key);
       pending.push(next);

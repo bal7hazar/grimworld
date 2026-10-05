@@ -2,6 +2,7 @@ import { type Camera, ROW_HEIGHT, TILE_WIDTH, type Viewport, tileToPixel } from 
 import { hexCorners } from "../render/ground";
 import type { Tile } from "../render/view";
 import { type Fitted, chunkAt } from "./fit";
+import { VIEW_MAX } from "./view";
 import {
   CHUNK,
   type MapDocument,
@@ -161,9 +162,11 @@ export function drawOverlays(
       for (let x = range.x0; x <= range.x1; x++) visit({ x, y });
     }
   };
-  // Outside the outline: shaded (§2.5). Small hexes are shaded by runs of a row, one rectangle a
-  // row high from flat side to flat side: tens of thousands of hexes in a few hundred rectangles.
-  if (scene.outside) {
+  // Outside the outline: shaded (§2.5), not past `VIEW_MAX` hexes in view (a far zoom's wash).
+  // Small hexes are shaded by runs of a row, one rectangle a row high from flat side to flat side:
+  // tens of thousands of hexes in a few hundred rectangles.
+  const inView = (range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1);
+  if (scene.outside && inView <= VIEW_MAX) {
     const outside = scene.outside;
     ctx.beginPath();
     if (TILE_WIDTH * scale >= RUN_BELOW_PX) {

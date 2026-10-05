@@ -14,8 +14,9 @@ import {
  * "Fit chunks" (CLI-09a2, D-216): the chunk grid is laid over the painted map afterwards, at the
  * origin that needs the fewest chunks.
  *
- * **Row parity.** The hexes are odd-r rows (`input/coords.ts:45`, the library's layout; ADR-0006 §4
- * "Row parity": a neighbour depends on the parity of the row). The fitted map's global `(0, 0)` is a
+ * **Row parity.** Derived from odd-r (`input/coords.ts:45`: every odd row is shifted by half a
+ * hex); the same reason as the window's even origin in ADR-0006 l.236 ("the library derives every
+ * neighbour from the parity of the **local** row"). The fitted map's global `(0, 0)` is a
  * translation of the editor's plane; moving by an odd number of rows would turn every row's
  * neighbours into the other parity's, and the painted shape into another shape. So the origin's
  * row is **even**. Seams repeat every 15 rows and 15 is odd: each of the 15 row residues has one

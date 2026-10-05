@@ -379,7 +379,7 @@ thin bar, so the layout is the game's desktop layout (design/11 l.169).
 | **Select** | Left click; drag for a box; `Shift`+click adds | `U` arms Select | Selects hexes or objects; the inspector follows |
 | **Move** | Drag a selected object | — | Objects only; terrain is moved by Cut and Paste |
 | **Cut / Copy / Paste** | — | `Ctrl/Cmd+X`, `+C`, `+V` | Read by character. Paste follows the pointer until a click; the paste keeps row parity (§4.1) |
-| **Delete selection** | — | `Delete` or `Backspace` | Objects deleted; selected hexes back to the start fill |
+| **Delete selection** | — | `Delete` or `Backspace` | Objects deleted; selected hexes unpainted (back to the void) (owner's request, 2026-10-05; D-216) |
 | **Place object** | Left click with Place armed | `O` arms Place | Places the palette's object; one entry per map |
 | **Outline** | Left drag inside, right drag outside, with Outline armed | `T` arms Outline | Zones only (§2.5) |
 | **Mirror** (towns) | — | `H` | A building, decor or prop: `mirror` on or off (`ViewStructure.mirror`, `view.ts:83-99`) |

@@ -9,6 +9,7 @@ import {
   keyOf,
   paintedBox,
   terrainOf,
+  tileOfKey,
 } from "./model";
 
 /** The layers bar (§2.3): what the canvas shows. Objects are CLI-09b's; their box is kept. */
@@ -46,6 +47,13 @@ export const DEFAULT_LAYERS: Layers = {
  * shrunk by two hexes (`voidHole`).
  */
 export const VOID_PAD = 3;
+
+/**
+ * The most tiles one view sends to the renderer. Past it (a far zoom over painted hexes thousands of
+ * hexes apart), the window's painted hexes alone are sent, up to this many, and the void's bands
+ * draw the water between them.
+ */
+export const VIEW_MAX = 250_000;
 
 /**
  * The tiles sent to the renderer for a view of `visible` (D-216: only what is near the view): the
@@ -93,18 +101,27 @@ export function editorView(doc: MapDocument, layers: Layers, window: TileBox): V
     const x1 = Math.min(window.x1, box.x1 + VOID_PAD);
     const y0 = Math.max(window.y0, box.y0 - VOID_PAD);
     const y1 = Math.min(window.y1, box.y1 + VOID_PAD);
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        const cell = doc.hexes.get(keyOf({ x, y }));
-        if (cell === undefined) {
-          tiles.push({ x, y, kind: "wall", ground: "water" });
-          continue;
+    const painted = (x: number, y: number, cell: number): ViewTile => {
+      const wall = terrainOf(cell) === WALL;
+      const kind = wall ? (layers.obstacles ? "wall" : "unrevealed") : "floor";
+      return layers.ground
+        ? { x, y, kind, ground: GROUND_KINDS[groundOfCell(cell)] }
+        : { x, y, kind };
+    };
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) <= VIEW_MAX) {
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const cell = doc.hexes.get(keyOf({ x, y }));
+          tiles.push(
+            cell === undefined ? { x, y, kind: "wall", ground: "water" } : painted(x, y, cell),
+          );
         }
-        const wall = terrainOf(cell) === WALL;
-        const kind = wall ? (layers.obstacles ? "wall" : "unrevealed") : "floor";
-        tiles.push(
-          layers.ground ? { x, y, kind, ground: GROUND_KINDS[groundOfCell(cell)] } : { x, y, kind },
-        );
+      }
+    } else {
+      for (const [key, cell] of doc.hexes) {
+        if (tiles.length >= VIEW_MAX) break;
+        const { x, y } = tileOfKey(key);
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) tiles.push(painted(x, y, cell));
       }
     }
   }
