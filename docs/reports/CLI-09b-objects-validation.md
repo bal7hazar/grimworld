@@ -138,8 +138,9 @@ East to (41, 7), on the border; a test checks that the game's own anchor fails E
 
 | AC | Command | Result |
 |---|---|---|
-| The brief's row: each non-○ check passes and fails, each ○ check warns, the fixtures validate and walk | `pnpm --filter @grimworld/app test` (`validate.test.ts`, `fixtures.test.ts`, `objects.test.ts`) | 54 files: 53 passed, 1 skipped; 609 tests passed, 1 skipped. The editor's: 130 in 10 files |
-| The browser check at 1440 × 900, with the art and plain | `GRIMWORLD_ART_OUT=/home/claude/site/grimworld/current/art VERIFY_PORT=5287 node client/app/verify-editor.mjs` | `ALL CHECKS PASSED`, 116 checks in the two looks |
+| The brief's row: each non-○ check passes and fails, each ○ check warns, the fixtures validate and walk | `pnpm --filter @grimworld/app test` (`validate.test.ts`, `fixtures.test.ts`, `objects.test.ts`) | 54 files: 53 passed, 1 skipped; 611 tests passed, 1 skipped |
+| The browser check at 1440 × 900, with the art and plain | `GRIMWORLD_ART_OUT=/home/claude/site/grimworld/current/art VERIFY_PORT=5287 node client/app/verify-editor.mjs` | `ALL CHECKS PASSED`, 117 checks in the two looks (the grid's phase included) |
+| The grid's cost (owner's feedback) | the same script's grid phase (`VERIFY_GRID_ONLY=1` runs it alone) | below, *The grid's figures* |
 | `lint`, `typecheck` | `pnpm --filter @grimworld/app lint`, `typecheck` | clean |
 | The game's bundle excludes the editor | `pnpm --filter @grimworld/app build`, then the editor's strings counted in each chunk | only `assets/editor-*.js` holds them; `index.html`'s `main-*.js` and its ten preloads hold none |
 | `sandbox/imports.test.ts` | in the test run | passes: no `placeholders` import, no `findPath(`, no `visited =` / `frontier` / `queue.shift(`, no find/search/route/flood function; the walk reaches the finder through the wiring (`SandboxSession`, `stepTarget`) |
@@ -158,6 +159,69 @@ error, no request beyond the page's origin. Captures went to the thread's librar
 largest, is validated in a median of 115–200 ms of 5 on the VPS (other work running beside it); the
 seed's zone (1,504 hexes) in 3.3 ms. The first version took 415 ms on the largest map: the checks now
 walk a dense grid of the painted box instead of sets of keys.
+
+### The grid's figures (owner's feedback, 2026-10-05)
+
+Measured by `verify-editor.mjs`'s grid phase on the VPS, headless Chromium (software rendering), with
+the site's built atlas: a painted 225 × 225 zone (a rock in nine), the canvas 960 × 792 CSS px.
+240 frames of panning (6 CSS px a frame), then 240 of zooming in and out by 3 % a frame, each
+sequence cut at 30 s; the frame interval (`requestAnimationFrame`) and the overlay's own drawing
+time (`EditorCanvas.overlayMs`). Before and after in the same session, one after the other.
+
+| Zoom | Gesture | Before: frame | Before: overlay | After: frame | After: overlay |
+|---|---|---|---|---|---|
+| 258 across (the widest) | pan | 50.0 / 100.0 ms | 6.5 / 14.1 ms | 33.4 / 66.7 ms | 0.2 / 0.4 ms |
+| 258 across | zoom | 66.7 / 633.3 ms | 3.1 / 7.3 ms | 66.7 / 533.3 ms | 0.1 / 0.2 ms |
+| 121 across (the widest that draws the grid) | pan | **1583.2 / 2783.3 ms** (18 frames in 30 s) | **1398.7 / 1627.8 ms** | 66.6 / 100.1 ms | 0.2 / 0.6 ms |
+| 121 across | zoom | 750.0 / 1499.9 ms (30 frames) | 314.3 / 847.2 ms | 66.7 / 1399.9 ms | 0.1 / 0.3 ms |
+
+(median / p95.) The final run of the whole check, on the last commit: overlay 0.1–0.2 ms median and
+1.3 ms p95 at most, frames 50–117 ms median.
+
+- **What changed.** The grid was one path per visible hex every frame (≈ 15,000 at 121 across). It
+  is now **one fill of a cached pattern**: one period of the grid (a hex wide, two rows high) drawn
+  once per zoom step (its size in device pixels) and kept (48 steps at most), placed by the pattern's
+  transform. The **outline's outside shading** at small hexes (below 14 CSS px) shared the cost (a
+  test per visible hex, 6.5 ms at the widest zoom): it is now **one image** of the painted box, a pixel
+  per half hex, rebuilt when the map changes and drawn scaled in one call. The chunk seams and the
+  outline's border are precomputed segments, culled per frame: they cost a fraction of a millisecond
+  and are unchanged.
+- **Where the grid is skipped**: below 7 CSS px a hex (`GRID_MIN_PX`, as before), that is past about
+  137 hexes across on this canvas.
+- **What is left.** The frame interval while zooming keeps a p95 of 0.5–2 s at both zooms: it is not
+  the overlay (0.1 ms). When a zoom crosses the edge of the view's window, the editor sends the
+  renderer a new window of tiles (up to 250,000, `VIEW_MAX`) and the renderer bakes its chunks again;
+  under software rendering that frame is long. Measuring and cutting it is a next step (a smaller
+  window at far zooms, or the bake spread over frames, which is `render/**`'s); not done in this lot.
+
+## Owner's feedback, 2026-10-05
+
+1. **The grid** — done, measured above.
+2. **The export is not JSON** — `docs/briefs/CLI-09-map-editor.md` §2.7, §6 and §10 say it: the
+   editor's JSON (`.grimmap.json`) is its **save format only**; CLI-09c's **export** writes the
+   **on-chain encoding** ENG-08 defines, packed felts as the Registry records them, as calldata or a
+   multicall file ready to send; the button reads **"Export for the chain…"** with the file kind named
+   in its dialog, and "Save" stays the JSON file. Each edit is marked "owner's request, 2026-10-05".
+   Outside those sections, §2.3's top bar still writes "Export…" and §9's CLI-09c row "registration
+   export": not edited (outside the lent sections); the next brief edit should align them. CLI-09b
+   adds no export button (CLI-09c's).
+3. **An open kind table for CLI-09e** — `KINDS` in `client/app/src/editor/objects.ts`, one row per
+   kind; no switch over the kinds is left in the editor. **Where a new kind plugs in:**
+   - **The model**: a member of the `MapObject` union and a row of `KINDS` (`map` zone or town,
+     `name`, `single`, `letters`, `fields`, `create`). TypeScript refuses a kind without a row.
+   - **The file**: nothing more. `objectFrom` reads any kind by its row's `fields` (a `number`, a
+     `choice` with its `valid` test, a `toggle`); the writer writes every field.
+   - **The palette**: `objectSwatches` in `Editor.tsx` lists what Place offers (a swatch is a
+     `PlaceChoice`); CLI-09e's palette in `editor/palette/**` can hand the screen its own choices.
+   - **The inspector**: nothing more. `ObjectFields` renders the row's `fields` and `note`.
+   - **The drawing**: `letters` (the marker); `look` (how the renderer draws it: building or prop,
+     sprite, size, shape) and `covers` (the walls it makes in the walk's world); `footprint` for a
+     building (shaded on the canvas). `townStructures` and `walkWorld` read them.
+   - **The validation**: the row's flags. `onWalkable` (R-14, E-10: on a walkable hex inside the
+     outline), `perChunk` (R-15: counted as a spawn point, an object, or a candidate ○), `footprint`
+     (E-16: on land, apart from the other buildings). A rule of its own goes in `validate.ts`
+     (`zoneChecks` or `townChecks`), with a passing and a failing map in `validate.test.ts`.
+   - Bridges (CLI-09f, D-217) need levels in the model and the renderer: not covered by a row alone.
 
 ## Choices made in this lot (reversible)
 
