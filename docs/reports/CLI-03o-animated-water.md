@@ -132,3 +132,76 @@ and is part 2's to judge.
   must fit one 2048 × 2048 page (16 cells of 192 px plus the gutter are two shelves, about 2000 × 400 px
   of a page, by arithmetic, not measured), but how many world pages the whole atlas then needs is only
   known from the build.
+
+# CLI-03o part 2 — The foam animated in the renderer
+
+Track CV. `client/app/src/render/**`, `verify-water.mjs`, `PLAN.md`. Pixels are given in words and
+hex values only (D-73); the captures stay in the thread's library folder.
+
+## What the renderer does now
+
+- **The foam is out of the chunk bakes.** A chunk bakes its water, grass, earth, lip, grid and
+  unrevealed hexes as before, without the foam; `voidFoam`'s groups are no longer baked either. The
+  foam's pieces (`waterFoam` per chunk, `voidFoam` over the void, the same pieces `groundPlan`
+  planned) are drawn by `FoamMesh`: one PixiJS `Mesh` per group (a chunk's water, or the void's by
+  the chunk of the hex it lies over), each piece a fan of triangles on its own vertices. The mesh's
+  texture is the atlas page that holds `foam_c/loop`; a piece's texture coordinates are its frame's
+  rectangle plus the point's offset in its cell. **A frame of the foam rewrites the coordinates of
+  the meshes on screen (one small buffer upload each), never a bake, never a geometry.**
+- **Why meshes.** Re-baking a chunk at 10 fps costs a bake a frame per chunk in view; 16 baked
+  variants per chunk cost 16 × the chunks' texture memory. A `Graphics` per group with 16 cached
+  contexts would hold 16 geometries per group and rebuild the render group's instructions at each
+  swap. The mesh holds one geometry; its position buffer never changes; only its UV buffer
+  (8 bytes a vertex) is rewritten, for the groups on screen. Groups off the screen are not drawn
+  (`cullFoam`) and their coordinates are not rewritten.
+- **The grass still covers the foam's inner part.** The pieces are clipped to their water hex, as
+  before; `trimFoam` also cuts each piece back from every side that faces a hex not drawn as water,
+  by what that hex grown by `GROW` covers (0.43 px): the foam drawn over the bake then stops where
+  the grass (or an unrevealed hex) baked over it stopped it. Order on screen: water, foam, grass, as
+  before.
+- **The phase.** `frame = (clock frame + q + r) mod 16`, axial `q = x − ⌊y / 2⌋`, `r = y`, per
+  piece's source (the land hex its cell is centred under): world position only, so seamless across
+  chunks and stable when the camera moves. Why `q + r`: `r` alone gives a whole row one frame, so a
+  straight East–West shore (the hubs' south shores) pulses in lockstep, which is what the owner
+  asked to avoid; `q` and `q + r` both step one frame per hex along a row and one frame per two
+  rows up a North–South shore. `q + r` makes a crest travel West to East and North to South, toward
+  the screen's bottom right. Captures: `water-town-1440x900.png` (an East–West shore),
+  `water-zone-1440x900.png` (a North–South one) in the library folder.
+- **Fog (CLI-03n).** Without fog (hubs, `?fog=full`), the foam is last in the ground's layer, under
+  the cover and the overlay (which dims it beyond sight as it dims the ground); no piece over a
+  hidden tile. Under fog, the foam in colour is only the pieces over the hexes in sight (and the
+  void within sight's radius), in one group, first in the actors' layer: over the overlay's hexes in
+  sight, which are filled from bakes that no longer hold foam. Its grayscale twin is **still**
+  (frame 0 in grayscale, baked once with `greyTexture`), in the grey ground, under the cover, dimmed
+  over the void as the bands are: what was explored is remembered, not live, and it costs no frame.
+  Never-seen tiles stay hidden: no colour piece lies over one, and the grey ones are under the cover.
+- **Power (ADR-0003).** The foam is an idle animation under the same cap (`IDLE_MAX_FPS`, 15): the
+  renderer asks for its next frame through `nextIdle`, the scheduler's timed path, only while a
+  colour mesh's bounds meet the view; nothing while the page is hidden (the scheduler), nothing with
+  `?water=still` or without the atlas's loop. The foam does not follow `?idle=0` (that is the
+  actors'): the walks that measure the frame budget run with `idle=0`, and must measure the foam.
+- **`?water=still`**: every piece at frame 0 (`foam_c/loop/00`, the still's pixels), no frame asked.
+  The renderer reads it from the page (`pageWater`) because the sandbox's controller, which builds
+  the renderer, is outside this lot's files; `SandboxParams.water` is not added for the same reason
+  (see the thread's escalation).
+- A PixiJS 8 trap found on the way: a child's `zIndex` makes its parent sort its children. The foam
+  layer's `-Infinity` (for the actors' layer) sorted it under the chunks in the ground's layer; it
+  is now set only while the layer is detached, and only for the actors' layer (a unit test holds it).
+
+## CLI-03n follow-up: the frontier
+
+Asked by the orchestrator (2026-10-05) after t-0124's measures on `main` at `776bf21`: the lip of an
+explored land hex was drawn toward a water hex never seen (median drop 58.9 in colour, 22.0 in
+grey). Cause: the lip and the foam were planned from the chain's grounds.
+
+- `PlanOptions.hidden` (the tiles drawn but never seen): the plan's `at` gives null for them, so no
+  lip faces them and no foam comes from them or lies over them; they are still baked with their
+  ground, under the cover. The renderer passes CLI-03n's hidden set to the bake and to `waterFoam`.
+- The bake's key marks a hidden tile only when it is water (a lip looks only for water): a step that
+  explores rebakes a chunk only when it reveals water beside land. The foam's own key marks every
+  hidden tile (its sources are land); the foam is not baked, so that costs no bake.
+- Unit tests: `ground.test.ts` *a coast at the frontier* (no lip toward hidden water, the lips
+  toward seen water unchanged, no foam from hidden land, none over hidden water, a land hex touching
+  water only through a hidden hex is no source); `renderer.textures.test.ts` (review t-0120's
+  deferred minor 2): every texture baked is held or destroyed across a reveal, a zoom step and
+  `destroy()`.

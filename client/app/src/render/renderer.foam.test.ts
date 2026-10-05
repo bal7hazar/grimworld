@@ -1,4 +1,4 @@
-import { type Container, Rectangle, Texture, TextureSource } from "pixi.js";
+import { type Container, type Graphics, Rectangle, Texture, TextureSource } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../input/coords";
 import { fixtureNamed } from "../sandbox/fixtures";
@@ -186,6 +186,32 @@ describe("the foam under fog (CLI-03n's exploration, CLI-03o)", () => {
       const key = tileKey(piece.over);
       if (hidden.includes(key)) expect(cover.has(key)).toBe(true);
     }
+  });
+
+  it("a chunk's grayscale twin is baked with its foam, still: frame 0, never a mesh", () => {
+    // The zone revealed on chain and explored everywhere: its own coasts have foam.
+    const world = fixtureNamed("zone");
+    const revealed = { ...world, terrain: { ...world.terrain, kinds: world.terrain.hidden } };
+    const { renderer, grey } = mount(toView(allExplored(initialState(revealed))));
+    const chunks = renderer["chunks"] as Map<
+      string,
+      { foam: readonly unknown[]; greySource: Graphics; grey: { texture: Texture } }
+    >;
+    const frame0 = (renderer["foamFrames"] as readonly Texture[])[0]!;
+    const withFoam = [...chunks.values()].filter((c) => c.foam.length > 0);
+    expect(withFoam.length).toBeGreaterThan(0);
+    for (const chunk of withFoam) {
+      const fills = chunk.greySource.context.instructions.filter((i) => i.action === "fill");
+      const foam = fills.filter(
+        (i) => (i.data as { style: { texture: Texture } }).style.texture === frame0,
+      );
+      expect(foam).toHaveLength(chunk.foam.length);
+    }
+    // The meshes of the twin are the void's alone.
+    for (const id of (renderer["greyFoamMeshes"] as Map<string, unknown>).keys()) {
+      expect(id.startsWith("v")).toBe(true);
+    }
+    expect(grey().every((m) => m.shownTick() === null)).toBe(true);
   });
 
   it("without fog, none over a tile hidden by the cover", () => {

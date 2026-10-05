@@ -22,6 +22,7 @@ import {
   SHAPE_HEIGHT,
   SHAPE_IDLE,
   drawBody,
+  drawFoam,
   drawGhosts,
   drawMark,
   drawOverlay,
@@ -387,8 +388,8 @@ export class Renderer implements FrameClient {
    * group (a chunk's; the void's by the chunk of the hex they lie over), last in the ground's layer:
    * under the cover and the overlay, which dims it beyond sight as it dims the ground. Under fog,
    * only the pieces over the hexes in sight, in one group, first in the actors' layer: over the
-   * overlay's hexes in sight, which are filled from bakes without foam; its grayscale twin
-   * (`greyFoam`) holds every piece, still, under the cover.
+   * overlay's hexes in sight, which are filled from bakes without foam. Its grayscale twin is still,
+   * under the cover: baked into each chunk's twin, and over the void a mesh per group (`greyFoam`).
    */
   private readonly foamLayer = new Container();
   private readonly foamMeshes = new Map<string, FoamMesh>();
@@ -1147,13 +1148,13 @@ export class Renderer implements FrameClient {
       this.foamLayer.zIndex = this.fogOn ? -Infinity : 0;
       parent.addChild(this.foamLayer);
     }
-    // The grayscale twin, still: the frame 0 in grayscale, dimmed over the void as the bands are.
+    // The grayscale twin over the void, still: the frame 0 in grayscale, dimmed as the bands are
+    // (a chunk's twin bakes its own foam, `bakeTerrain`).
     const fogged = frames[0] !== undefined && this.fogOn;
-    const grey = fogged ? groups : new Map<string, readonly FoamPiece[]>();
+    const grey = new Map<string, readonly FoamPiece[]>();
+    if (fogged) for (const [id, { pieces }] of this.voidPieces) grey.set(id, pieces);
     const still = fogged ? [this.greyTexture(frames[0]!)] : [];
-    this.syncMeshes(this.greyFoamMeshes, grey, still, this.greyFoam, (id) =>
-      id.startsWith("v") ? DIM_TINT : 0xffffff,
-    );
+    this.syncMeshes(this.greyFoamMeshes, grey, still, this.greyFoam, () => DIM_TINT);
   }
 
   /** Builds the meshes of the groups whose pieces changed, and drops those of groups gone. */
@@ -1211,8 +1212,8 @@ export class Renderer implements FrameClient {
   }
 
   /**
-   * Before a frame is drawn: the foam's meshes off the screen are not drawn; those on it show the
-   * clock's frame (`foamTick`), or frame 0 when the foam is still.
+   * Before a frame is drawn: the foam's meshes off the screen, colour and grey, are not drawn; those
+   * in colour on it show the clock's frame (`foamTick`), or frame 0 when the foam is still.
    */
   private cullFoam(): void {
     const rect = this.viewRect();
@@ -1220,6 +1221,9 @@ export class Renderer implements FrameClient {
       mesh.mesh.visible = overlaps(mesh.bounds, rect);
       if (mesh.mesh.visible) mesh.show(this.foamTick);
     }
+    // The grayscale twin is still: only off the screen or on it, one draw call each on it.
+    for (const mesh of this.greyFoamMeshes.values())
+      mesh.mesh.visible = overlaps(mesh.bounds, rect);
   }
 
   /** The atlas's ground cells, or null when the atlas has none (flat colours). */
@@ -1413,6 +1417,8 @@ export class Renderer implements FrameClient {
         chunk.foamKey = foamKey;
         chunk.foam = foamKey ? waterFoam(group, { around, hidden: unseen }) : [];
         this.foamVersion += 1;
+        // Its grayscale twin holds its foam, still (`bakeTerrain`).
+        chunk.greyStale = true;
       }
       if (chunk?.key === key) continue;
       changed = true;
@@ -1528,6 +1534,9 @@ export class Renderer implements FrameClient {
             textureSpace: "global",
             matrix: new Matrix().translate(frame.x, frame.y),
           });
+        // Its foam, still (CLI-03o): what was explored is remembered, not live; baked, it costs no
+        // frame. Over the colour bake's grass, cut back as `trimFoam` cuts it.
+        drawFoam(chunk.greySource, chunk.foam, this.foamFrames[0] ?? null);
         const old = chunk.grey.texture;
         chunk.grey.texture = this.surface.bake(chunk.greySource, frame, resolution, true);
         chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
