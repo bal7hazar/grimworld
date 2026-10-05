@@ -131,4 +131,20 @@ describe("the editor's keys (§3, AC-5)", () => {
     expect(editorCommand(press("KeyK", "k"))).toEqual({ kind: "layerFocus" });
     expect(editorCommand(press("KeyB", "b", { isComposing: true }))).toBeNull();
   });
+
+  it("Shift+0 fits the chunks; Shift+arrows nudge the origin, West and North as on screen", () => {
+    expect(editorCommand(press("Digit0", ")", { shiftKey: true }))).toEqual({ kind: "fitChunks" });
+    expect(editorCommand(press("Digit0", "0", { shiftKey: true }))).toEqual({ kind: "fitChunks" });
+    expect(editorCommand(press("ArrowLeft", "ArrowLeft", { shiftKey: true }))).toEqual({
+      kind: "nudge",
+      dx: 1,
+      dy: 0,
+    });
+    expect(editorCommand(press("ArrowUp", "ArrowUp", { shiftKey: true, repeat: true }))).toEqual({
+      kind: "nudge",
+      dx: 0,
+      dy: 1,
+    });
+    expect(editorCommand(press("ArrowDown", "ArrowDown"))).toEqual({ kind: "pan", dx: 0, dy: 1 });
+  });
 });
