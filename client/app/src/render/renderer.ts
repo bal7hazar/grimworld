@@ -418,11 +418,16 @@ export class Renderer implements FrameClient {
   private voidBands: readonly Rectangle[] = [];
   /**
    * The tiles revealed on chain but never in sight (`ViewState.revealed`), drawn as unrevealed over
-   * the ground, both twins: drawn again when they change (a step that explores), never baked, so
-   * that the chunks keep the chain's tiles and a step rebakes nothing (CLI-03n).
+   * the ground, both twins, never baked, so that the chunks keep the chain's tiles and a step
+   * rebakes nothing (CLI-03n). Drawn again only when it must (`syncCover`), not on every step that
+   * explores: building it again is most of such a step's frame.
    */
   private readonly cover = new Graphics();
-  private coverKey = "";
+  /** The tiles `cover` covers, by `tileKey`, and whether in grayscale. */
+  private coverTiles: ReadonlySet<string> = new Set();
+  private coverGrey = false;
+  /** The tiles the view hides, joined: the void's foam is planned again when they change. */
+  private hiddenKey = "";
   private fogOn = false;
   /** The atlas's stills in grayscale (the obstacles, the water's cell), baked once each. */
   private readonly greyTextures = new Map<Texture, Texture>();
@@ -547,8 +552,11 @@ export class Renderer implements FrameClient {
     const hidden = hiddenTiles(view);
     const terrainChanged = this.syncChunks(view, hidden);
     if (terrainChanged) this.overlayDirty = true;
-    const coverChanged = this.syncCover(view, hidden);
-    if (terrainChanged || coverChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
+    this.syncCover(view, hidden);
+    const hiddenKey = [...hidden.keys()].join(" ");
+    const hiddenChanged = hiddenKey !== this.hiddenKey;
+    this.hiddenKey = hiddenKey;
+    if (terrainChanged || hiddenChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
     // Drawn in the next frame, after the bakes its sight is filled from (`drawSight`).
     this.overlayDirty = true;
     this.syncDropped(view, now);
@@ -971,15 +979,32 @@ export class Renderer implements FrameClient {
 
   /**
    * Covers the tiles `ViewState.revealed` holds but `tiles` hides, as unrevealed (in its grayscale
-   * under fog, as the grey twin drew them); whether they changed.
+   * under fog, as the grey twin drew them). Under fog a tile just explored is in sight, and the
+   * hexes in sight are drawn over the cover (the overlay's `drawSight`): the cover is drawn again
+   * only when a tile it covers was explored and has left sight, or when a tile is hidden that it
+   * does not cover (a reveal). Without fog nothing is drawn over it: again at every change.
    */
-  private syncCover(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): boolean {
-    const key = `${view.fog ? "g" : "c"} ${[...hidden.keys()].join(" ")}`;
-    if (key === this.coverKey) return false;
-    this.coverKey = key;
+  private syncCover(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): void {
+    const grey = view.fog !== undefined;
+    let stale = grey !== this.coverGrey || (!grey && hidden.size !== this.coverTiles.size);
+    for (const key of hidden.keys()) {
+      if (stale) break;
+      if (!this.coverTiles.has(key)) stale = true;
+    }
+    if (!stale && this.coverTiles.size !== hidden.size) {
+      const inSight = new Set(view.sight.map(tileKey));
+      for (const key of this.coverTiles) {
+        if (!hidden.has(key) && !inSight.has(key)) {
+          stale = true;
+          break;
+        }
+      }
+    }
+    if (!stale) return;
+    this.coverTiles = new Set(hidden.keys());
+    this.coverGrey = grey;
     this.cover.clear();
-    drawUnrevealed(this.cover, [...hidden.values()], view.fog ? greyOf : undefined);
-    return true;
+    drawUnrevealed(this.cover, [...hidden.values()], grey ? greyOf : undefined);
   }
 
   /** A still of the atlas in grayscale (CLI-03n), baked once at its native size. */

@@ -226,7 +226,7 @@ describe("the renderer's fog layers (CLI-03n)", () => {
     }
   });
 
-  it("a step that explores bakes nothing: the tiles never in sight are covered, once a step", () => {
+  it("a step that explores bakes nothing; the cover is drawn again once a tile it covers leaves sight", () => {
     const start = initialState(fixtureNamed("meadow"));
     const { host, surface, renderer, cover, overlay } = mount(start);
     const hidden = () => {
@@ -241,20 +241,38 @@ describe("the renderer's fog layers (CLI-03n)", () => {
     expect(hidden().length).toBeGreaterThan(0);
     expect(cover.context.instructions).toHaveLength(2 * hidden().length);
     const bakes = surface.bakes.length;
-    const before = cover.context;
-    renderer.setView(toView({ ...start, said: "the same sight" }));
-    expect(cover.context).toBe(before);
-    expect(renderer["sightKey"]).toContain(tileKey(heroOf(start).tile));
+    const drawn = cover.context;
+    const show = (state: SandboxState) => {
+      renderer.setView(toView(state));
+      host.run(100);
+    };
+    // West: the tiles explored are in sight, drawn over the cover; it is not drawn again.
     const hero = heroOf(start).tile;
-    const states = walk(start, { x: hero.x - 2, y: hero.y });
-    const last = states.at(-1)!;
-    expect(last.explored.size).toBeGreaterThan(start.explored.size);
-    renderer.setView(toView(last));
-    host.run(100);
+    const west = walk(start, { x: hero.x - 2, y: hero.y }).at(-1)!;
+    expect(west.explored.size).toBeGreaterThan(start.explored.size);
+    show(west);
+    expect(surface.bakes).toHaveLength(bakes);
+    expect(cover.context).toBe(drawn);
+    expect(cover.context.instructions.length).toBeGreaterThan(2 * hidden().length);
+    expect(renderer["sightKey"]).toContain(tileKey(heroOf(west).tile));
+    expect(textured(overlay)).toHaveLength(sightOf(west).length);
+    // East, until tiles explored West are out of sight: the cover is drawn again.
+    // A walk stops when something comes into sight: tapped again, as a player would.
+    // The tile seen at the start furthest East that a tap walks to.
+    const target = [...start.explored]
+      .map((k) => k.split(",").map(Number) as [number, number])
+      .map(([x, y]) => ({ x, y }))
+      .filter((t) => applyIntent(west, { kind: "tile", tile: t }).path.length > 0)
+      .sort((p, q) => q.x - p.x)[0]!;
+    expect(target.x - hero.x).toBeGreaterThanOrEqual(4);
+    let east = west;
+    for (let i = 0; i < 10 && tileKey(heroOf(east).tile) !== tileKey(target); i++) {
+      east = walk(east, target).at(-1)!;
+    }
+    expect(heroOf(east).tile).toEqual(target);
+    show(east);
     expect(surface.bakes).toHaveLength(bakes);
     expect(cover.context.instructions).toHaveLength(2 * hidden().length);
-    expect(renderer["sightKey"]).toContain(tileKey(heroOf(last).tile));
-    expect(textured(overlay)).toHaveLength(sightOf(last).length);
   });
 
   it("the void beyond the terrain: its grey twin is the void's grey, dimmed; in sight, colour", () => {
