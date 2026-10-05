@@ -74,7 +74,9 @@ function mapKey(command: KeyCommand, controller: SandboxController | null, walk:
  * For the browser check: the root's `data-frames` (frames drawn), `data-atlas`, `data-camera`
  * (tile (0, 0) on the canvas and the scale, after each frame), `data-tile` (where the adventurer
  * stands) and `data-walking`; CLI-03g1's `data-ground` (`atlas` when the ground is drawn from the
- * atlas's cells, `colours` otherwise) and `data-bake-ms` (the last chunk's bake, in ms).
+ * atlas's cells, `colours` otherwise) and `data-bake-ms` (the last chunk's bake, in ms); CLI-03n's
+ * `data-fog` after every change (tiles drawn hidden, explored, in sight; goblins beyond sight; the
+ * explored set's size).
  *
  * The keyboard (CLI-03k): the room is the map's key layer, a hub's or a zone's. A screen's
  * `onKey` sees each command first and may hand it to the map (`MapKeys.handle`); without one, the
@@ -165,6 +167,12 @@ export function RoomSandbox({
       if (element) {
         element.dataset.tile = tile ? `${tile.x},${tile.y}` : "";
         element.dataset.walking = String(next.walking);
+        // CLI-03n: tiles drawn hidden, explored beyond sight, in sight; goblins beyond sight; the
+        // explored set's size.
+        const fog = controller.fogCounts();
+        element.dataset.fog = fog
+          ? `${fog.hidden} ${fog.explored} ${fog.inSight} ${fog.goblinsBeyond} ${fog.exploredSet}`
+          : "";
       }
       tileListener.current?.(tile, next);
     });

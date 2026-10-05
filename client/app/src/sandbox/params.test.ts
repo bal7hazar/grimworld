@@ -18,7 +18,11 @@ describe("URL parameters", () => {
       playOnTap: true,
       stepMs: STEP_MS,
       hud: null,
+      fog: "sight",
     });
+    // CLI-03n: `fog=full` only; anything else is the sight's grayscale.
+    expect(readParams("?fog=full").fog).toBe("full");
+    expect(readParams("?fog=none").fog).toBe("sight");
     expect(readParams("?scale=snap").scale).toBe("snap");
     expect(readParams("?scale=pixel").scale).toBe("continuous");
     expect(readParams("")).toMatchObject({

@@ -4,6 +4,7 @@ import { type Gesture, GestureTracker, WHEEL_NOTCH } from "../input/gestures";
 import type { Intent } from "../input/intent";
 import type { StepKey } from "../input/keys";
 import { loadAtlas } from "../render/atlas";
+import type { FogCounts } from "../render/fog";
 import { type PixiSurface, createPixiSurface, pixiTickersRunning } from "../render/pixiSurface";
 import { type ScaleMode, canvasResolution } from "../render/scaling";
 import { Renderer, type ZoomInfo, type ZoomSettings } from "../render/renderer";
@@ -13,7 +14,7 @@ import type { SpriteLibrary } from "../render/sprites";
 import type { Tile } from "../render/view";
 import { fixtureNamed } from "./fixtures";
 import { SandboxSession, type WalkInfo } from "./session";
-import { stepTarget } from "./wiring";
+import { type FogMode, stepTarget } from "./wiring";
 import type { SandboxWorld } from "./world";
 
 /** What the debug panel shows. */
@@ -48,6 +49,8 @@ export interface SandboxOptions {
   readonly feet: number;
   readonly playOnTap: boolean;
   readonly stepMs: number;
+  /** `?fog=full` (CLI-03n); `sight` when absent. */
+  readonly fog?: FogMode;
   /**
    * Applied to a map intent before the session (CLI-03f, the hub screen): another intent, or null
    * when the intent was answered outside the map. The zone passes none.
@@ -82,6 +85,7 @@ export class SandboxController {
     this.session = new SandboxSession(world, renderer, browserHost(), {
       playOnTap: options.playOnTap,
       stepMs: options.stepMs,
+      ...(options.fog ? { fog: options.fog } : {}),
       onChange: () => {
         // Every change, a tap's or a walk's step on its timer: what was planned and what was done.
         console.debug("[sandbox]", this.session.state.said);
@@ -345,6 +349,16 @@ export class SandboxController {
   listen(listener: ((info: SandboxInfo) => void) | null): void {
     this.listener = listener;
     this.notify();
+  }
+
+  /**
+   * What the map draws in each state of exploration (CLI-03n), and the size of the explored set
+   * it was drawn from (in an instance, the tiles drawn explored or in sight are exactly those), for
+   * the browser check.
+   */
+  fogCounts(): (FogCounts & { readonly exploredSet: number }) | null {
+    const counts = this.renderer.fogCounts();
+    return counts && { ...counts, exploredSet: this.session.state.explored.size };
   }
 
   /** Where the adventurer stands: the loop reads it after every change (a hub gate's anchor). */

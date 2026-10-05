@@ -49,9 +49,9 @@ Placed at generation, at least 2 tiles away from an opening to a neighbouring ch
 
 | | |
 |---|---|
-| Terrain | Of every chunk revealed in this instance |
+| Terrain | Drawn only once seen within sight; the chain still reveals whole chunks (owner's request, 2026-10-05; D-213) |
 | Goblins, remains, features that can change | Within **sight**: hexagon of radius 6, line of sight **not** required. Sight depends on the adventurer's position only: everything in sight is inside the simulation window, which follows the adventurer |
-| Beyond sight | Terrain, dimmed, as it was last seen; no goblins |
+| Beyond sight | The terrain as last seen, in grayscale, with goblins shown: live in the simulation window, in their last-held state outside it (owner's request, 2026-10-05; D-213) |
 | Hidden | Traps, until adjacent |
 | A chunk is revealed | When sight touches one of its tiles |
 

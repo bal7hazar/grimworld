@@ -217,13 +217,20 @@ describe("a stop for sight names goblins drawn after the step (Resume 1, bug 2)"
           for (let x = 0; x < world.terrain.width; x++) {
             if (kindAt(world.terrain, { x, y }) !== "floor") continue;
             let state = applyIntent(initialState(world), { kind: "tile", tile: { x, y } });
+            // The renderer's input: the goblins it draws in sight (CLI-03n: it also draws those
+            // on explored tiles beyond sight).
+            const inSight = (s: typeof state) => {
+              const view = toView(s);
+              const sight = new Set(view.sight.map((t) => `${t.x},${t.y}`));
+              return view.actors.filter((a) => sight.has(`${a.tile.x},${a.tile.y}`));
+            };
             while (state.walking) {
-              const before = new Set(toView(state).actors.map((a) => a.id));
+              const before = new Set(inSight(state).map((a) => a.id));
               state = walkStep(state);
               if (!/came into sight/.test(state.stopped)) continue;
               const hero = heroOf(state).tile;
               // The renderer's input after the step: the same visibleActors.
-              const drawn = toView(state).actors;
+              const drawn = inSight(state);
               const entered = drawn.filter((a) => a.side === "goblin" && !before.has(a.id));
               const what = `${name} to (${x}, ${y}), at (${hero.x}, ${hero.y}): ${state.stopped}`;
               expect(entered.length, what).toBeGreaterThan(0);

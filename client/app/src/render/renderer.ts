@@ -1,6 +1,7 @@
-import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
+import { Container, Graphics, Matrix, Rectangle, RenderTexture, Sprite, Texture } from "pixi.js";
 import {
   type Camera,
+  HEX_RADIUS,
   type Point,
   TILE_WIDTH,
   type Viewport,
@@ -27,6 +28,7 @@ import {
   drawOverlay,
   drawStructure,
   drawTerrain,
+  drawUnrevealed,
   drawWedge,
   DIM_ALPHA,
   type GroundTextures,
@@ -37,6 +39,7 @@ import {
   type FoamPiece,
   chunkFrame,
   groundOf,
+  hexCorners,
   hexesWithin,
   isRock,
   voidFoam,
@@ -44,6 +47,7 @@ import {
 } from "./ground";
 import { OBSTACLES, type Obstacle, obstacleOf } from "./obstacles";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
+import { type FogCounts, fogCounts, tileKey } from "./fog";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
@@ -56,8 +60,11 @@ export interface Surface {
   /** The GPU's largest texture side, read from the renderer. */
   readonly maxTextureSize: number;
   render(): void;
-  /** Renders `frame` of `target` into a texture of `resolution` pixels per world pixel. */
-  bake(target: Container, frame: Rectangle, resolution: number): Texture;
+  /**
+   * Renders `frame` of `target` into a texture of `resolution` pixels per world pixel; `grey`
+   * renders it through a grayscale filter (CLI-03n, `greyOf`'s weights), in the bake only.
+   */
+  bake(target: Container, frame: Rectangle, resolution: number, grey?: boolean): Texture;
   /**
    * Renders `container` (a root: no parent) into `target`'s frame only: the pass's viewport is
    * the frame, and nothing is cleared (the container paints its own backdrop over the frame).
@@ -99,6 +106,12 @@ interface ChunkBake {
   graphics: Graphics;
   frame: Rectangle;
   readonly sprite: Sprite;
+  /** Its grayscale twin (CLI-03n), under the colour, baked only while the view has `fog`. */
+  readonly grey: Sprite;
+  /** Whether `grey` is older than `sprite`'s bake. */
+  greyStale: boolean;
+  /** What `grey` is baked from: one quad of `sprite`'s texture. */
+  readonly greySource: Graphics;
   resolution: number;
   dirty: boolean;
   /** How long drawing its `graphics` took, in ms: part of its bake's time. */
@@ -274,6 +287,73 @@ export const BACKGROUND = 0x0b0b0e;
  */
 const DIM_TINT = 0x010101 * Math.round(255 * (1 - DIM_ALPHA));
 
+/**
+ * The grayscale of what was explored beyond sight (CLI-03n): PixiJS's `desaturate`, luma weights
+ * 0.3, 0.6, 0.1, so that a red, a green and a blue all end with R = G = B.
+ */
+export const LUMA = [0.3, 0.6, 0.1] as const;
+
+/** A flat colour in grayscale, as the bakes' filter gives it. */
+export function greyOf(colour: number): number {
+  const [r, g, b] = [(colour >> 16) & 0xff, (colour >> 8) & 0xff, colour & 0xff];
+  const y = Math.min(255, Math.round(LUMA[0] * r + LUMA[1] * g + LUMA[2] * b));
+  return y * 0x010101;
+}
+
+/** A grey dimmed as the overlay dims what was seen before (black at `DIM_ALPHA`). */
+export function dimmed(grey: number): number {
+  return Math.round((grey & 0xff) * (1 - DIM_ALPHA)) * 0x010101;
+}
+
+/** The bake chunk a tile is in, as `syncChunks` keys them. */
+function chunkId(tile: Tile): string {
+  return `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
+}
+
+/** A convex polygon (flat x, y pairs) clipped to a rectangle (Sutherland–Hodgman); [] when none. */
+function clipToBox(points: readonly number[], box: Rectangle): number[] {
+  const edges: ((x: number, y: number) => number)[] = [
+    (x) => x - box.x,
+    (x) => box.x + box.width - x,
+    (_, y) => y - box.y,
+    (_, y) => box.y + box.height - y,
+  ];
+  let poly = [...points];
+  for (const inside of edges) {
+    const out: number[] = [];
+    const n = poly.length / 2;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = [poly[2 * i]!, poly[2 * i + 1]!];
+      const [bx, by] = [poly[(2 * i + 2) % poly.length]!, poly[(2 * i + 3) % poly.length]!];
+      const [da, db] = [inside(ax, ay), inside(bx, by)];
+      if (da >= 0) out.push(ax, ay);
+      if (da >= 0 !== db >= 0) {
+        const t = da / (da - db);
+        out.push(ax + t * (bx - ax), ay + t * (by - ay));
+      }
+    }
+    poly = out;
+    if (poly.length === 0) break;
+  }
+  return poly;
+}
+
+/**
+ * The tiles a view hides (CLI-03n): unrevealed in `tiles`, revealed in `revealed`; as the chain
+ * holds them, by `tileKey`.
+ */
+function hiddenTiles(view: ViewState): ReadonlyMap<string, ViewTile> {
+  const hidden = new Map<string, ViewTile>();
+  if (!view.revealed) return hidden;
+  const unrevealed = new Set<string>();
+  for (const tile of view.tiles) if (tile.kind === "unrevealed") unrevealed.add(tileKey(tile));
+  for (const tile of view.revealed) {
+    const key = tileKey(tile);
+    if (tile.kind !== "unrevealed" && unrevealed.has(key)) hidden.set(key, tile);
+  }
+  return hidden;
+}
+
 /** The whole art pixels around some foam pieces: the frame their group is baked in. */
 function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
   let minX = Infinity;
@@ -318,6 +398,48 @@ export class Renderer implements FrameClient {
   private readonly voidFoamBakes = new Map<string, ChunkBake>();
   private voidFoamKey: string | null = null;
   private readonly ground = new Container();
+  /**
+   * Exploration by sight (CLI-03n, `ViewState.fog`): the ground's grayscale twin, the void's
+   * bands, its foam and each chunk baked grey (`Surface.bake`), never filtered in a frame; over it
+   * the hexes in sight, each filled from the colour bake under it (the chunk's, or the void's
+   * bands and foam), first in the overlay's Graphics (`drawSight`). A twin is baked from its colour
+   * bake, in the same frame. No mask: a stencil cost two
+   * draw calls and their state in every frame, and a Graphics of its own one more. The ground in
+   * colour is not drawn under fog; without fog the twin is hidden.
+   */
+  private readonly greyGround = new Container();
+  private readonly greyBands = new Container();
+  private readonly greyFoam = new Container();
+  private readonly greyChunks = new Container();
+  private sightKey = "";
+  /** The tiles in sight, and the void's hexes within the sight's radius, that the overlay fills. */
+  private sightTiles: readonly Tile[] = [];
+  private sightVoid: readonly Tile[] = [];
+  /** Whether the overlay is older than the bakes its hexes in sight are filled from. */
+  private overlayDirty = false;
+  /**
+   * Colour bakes replaced or dropped, destroyed once the overlay no longer fills from them
+   * (`flushRetired`): a texture destroyed under a Graphics that still holds it broke PixiJS's
+   * batch pool.
+   */
+  private retired: Texture[] = [];
+  /** The void's bands, as `placeVoid` placed them: what a void hex in sight is filled with. */
+  private voidBands: readonly Rectangle[] = [];
+  /**
+   * The tiles revealed on chain but never in sight (`ViewState.revealed`), drawn as unrevealed over
+   * the ground, both twins, never baked, so that the chunks keep the chain's tiles and a step
+   * rebakes nothing (CLI-03n). Drawn again only when it must (`syncCover`), not on every step that
+   * explores: building it again is most of such a step's frame.
+   */
+  private readonly cover = new Graphics();
+  /** The tiles `cover` covers, by `tileKey`, and whether in grayscale. */
+  private coverTiles: ReadonlySet<string> = new Set();
+  private coverGrey = false;
+  /** The tiles the view hides, joined: the void's foam is planned again when they change. */
+  private hiddenKey = "";
+  private fogOn = false;
+  /** The atlas's stills in grayscale (the obstacles, the water's cell), baked once each. */
+  private readonly greyTextures = new Map<Texture, Texture>();
   private readonly overlay = new Graphics();
   /** The dropped steps of a planned path, fading out. */
   private readonly fading = new Graphics();
@@ -338,7 +460,7 @@ export class Renderer implements FrameClient {
   /** The wall hexes' obstacles drawn from the atlas, by hex (`"x,y"`), in the actors' layer. */
   private readonly obstacleNodes = new Map<
     string,
-    { readonly sprite: Sprite; readonly name: string }
+    { readonly sprite: Sprite; readonly name: string; readonly texture: Texture }
   >();
   private readonly chunks = new Map<string, ChunkBake>();
   private readonly rings = new Map<string, { count: number; ring: readonly Tile[] }>();
@@ -403,7 +525,18 @@ export class Renderer implements FrameClient {
     this.voidLayer.addChild(this.voidFoamLayer);
     // Under the chunks, in the ground's layer: the world's children keep their order.
     this.ground.addChild(this.voidLayer);
-    this.world.addChild(this.ground, this.overlay, this.fading, this.actorsLayer);
+    this.greyBands.visible = false;
+    for (let i = 0; i < 4; i++) this.greyBands.addChild(new Sprite(Texture.WHITE));
+    this.greyGround.addChild(this.greyBands, this.greyFoam, this.greyChunks);
+    this.greyGround.visible = false;
+    this.world.addChild(
+      this.greyGround,
+      this.ground,
+      this.cover,
+      this.overlay,
+      this.fading,
+      this.actorsLayer,
+    );
     this.passRoot.addChild(this.backdrop);
     this.mountStage();
   }
@@ -422,11 +555,19 @@ export class Renderer implements FrameClient {
       this.placeVoid();
     }
     const now = this.host.now();
+    this.syncFog(view);
     this.syncStructures(view.structures ?? []);
     this.syncObstacles(view);
-    const terrainChanged = this.syncChunks(view);
-    if (terrainChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
-    drawOverlay(this.overlay, view);
+    const hidden = hiddenTiles(view);
+    const terrainChanged = this.syncChunks(view, hidden);
+    if (terrainChanged) this.overlayDirty = true;
+    this.syncCover(view, hidden);
+    const hiddenKey = [...hidden.keys()].join(" ");
+    const hiddenChanged = hiddenKey !== this.hiddenKey;
+    this.hiddenKey = hiddenKey;
+    if (terrainChanged || hiddenChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
+    this.drawOverlay();
+    this.flushRetired();
     this.syncDropped(view, now);
     this.syncActors(view, now);
     const adventurer = view.actors.find((a) => a.id === view.adventurerId);
@@ -529,12 +670,13 @@ export class Renderer implements FrameClient {
     this.obstacleArt = this.obstaclesInAtlas();
     for (const node of this.obstacleNodes.values()) node.sprite.destroy();
     this.obstacleNodes.clear();
+    this.dropGreyTextures();
     if (this.view) this.syncObstacles(this.view);
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) chunk.key = "";
     this.voidFoamKey = null;
-    if (this.view) this.syncChunks(this.view);
+    if (this.view) this.syncChunks(this.view, hiddenTiles(this.view));
     if (this.view) this.syncVoidFoam(this.view);
     this.scheduler.invalidate();
   }
@@ -617,10 +759,12 @@ export class Renderer implements FrameClient {
     this.chunks.clear();
     for (const node of this.obstacleNodes.values()) node.sprite.destroy();
     this.obstacleNodes.clear();
+    this.dropGreyTextures();
     this.dropOffscreen();
     this.screen.destroy();
     this.world.destroy({ children: true });
     this.passRoot.destroy({ children: true });
+    this.flushRetired();
   }
 
   // --- frames -------------------------------------------------------------------------------
@@ -675,6 +819,8 @@ export class Renderer implements FrameClient {
 
   draw(): void {
     this.bakeTerrain();
+    if (this.overlayDirty) this.drawOverlay();
+    this.flushRetired();
     const { centre, scale } = this.camera;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
     if (!plan) {
@@ -723,7 +869,11 @@ export class Renderer implements FrameClient {
   private placeVoid(): void {
     const ground = this.view?.void;
     this.voidLayer.visible = ground !== undefined;
-    if (ground === undefined) return;
+    this.greyBands.visible = ground !== undefined;
+    if (ground === undefined) {
+      this.voidBands = [];
+      return;
+    }
     // The water's cell is one flat colour: stretched, it is the same water as the baked cells.
     const water = ground === "water" ? this.groundTextures()?.water : null;
     const hole = this.voidHole ?? { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -735,18 +885,167 @@ export class Renderer implements FrameClient {
       [hole.x0 - far, hole.y0, hole.x0, hole.y1],
       [hole.x1, hole.y0, hole.x1 + far, hole.y1],
     ] as const;
+    const greyWater = water ? this.greyTexture(water) : null;
+    this.voidBands = bands.map(([x0, y0, x1, y1]) => new Rectangle(x0, y0, x1 - x0, y1 - y0));
+    this.overlayDirty = true;
     bands.forEach(([x0, y0, x1, y1], i) => {
       const band = this.voidLayer.children[i] as Sprite;
       band.texture = water ?? Texture.WHITE;
       band.tint = water ? 0xffffff : VOID_COLOURS[ground];
-      band.position.set(x0, y0);
-      band.width = x1 - x0;
-      band.height = y1 - y0;
+      // Its grayscale twin (CLI-03n): the water's cell baked grey, or the flat colour's grey; dimmed
+      // as the overlay dims the explored tiles beside it.
+      const grey = this.greyBands.children[i] as Sprite;
+      grey.texture = greyWater ?? Texture.WHITE;
+      grey.tint = greyWater ? DIM_TINT : dimmed(greyOf(VOID_COLOURS[ground]));
+      for (const sprite of [band, grey]) {
+        sprite.position.set(x0, y0);
+        sprite.width = x1 - x0;
+        sprite.height = y1 - y0;
+      }
     });
+  }
+
+  /**
+   * Exploration by sight (CLI-03n): with the view's `fog`, the grayscale twin shows, and over it
+   * the hexes in sight, and the void's hexes within the sight's radius of the adventurer (the void
+   * has no tile in sight; without them a coast in sight would meet a grey sea). They change once a
+   * step; the overlay is drawn with the view, from them (`drawSight`).
+   */
+  private syncFog(view: ViewState): void {
+    const fog = view.fog ?? null;
+    if ((fog !== null) !== this.fogOn) {
+      this.fogOn = fog !== null;
+      this.greyGround.visible = this.fogOn;
+      this.ground.visible = !this.fogOn;
+      this.sightKey = "";
+    }
+    if (!fog) return;
+    const adventurer = view.actors.find((a) => a.id === view.adventurerId);
+    const key = `${adventurer ? tileKey(adventurer.tile) : ""} ${fog.sightRadius} ${view.sight.map(tileKey).join(" ")}`;
+    if (key === this.sightKey) return;
+    this.sightKey = key;
+    const voidHexes: Tile[] = [];
+    if (adventurer && view.void !== undefined) {
+      const tiles = new Set(view.tiles.map(tileKey));
+      for (const hex of hexesWithin(adventurer.tile, fog.sightRadius)) {
+        if (!tiles.has(tileKey(hex))) voidHexes.push(hex);
+      }
+    }
+    this.sightTiles = view.sight;
+    this.sightVoid = voidHexes;
+  }
+
+  /**
+   * The overlay, and under fog the hexes in sight first: drawn with the view, as before CLI-03n,
+   * and again in a frame whose bakes replaced a texture its hexes in sight are filled from.
+   */
+  private drawOverlay(): void {
+    this.overlayDirty = false;
+    if (!this.view) return;
+    drawOverlay(this.overlay, this.view, this.fogOn ? (g) => this.drawSight(g) : undefined);
+  }
+
+  /**
+   * Fills the hexes in sight from the colour bakes, under the overlay, in a frame after the bakes: a
+   * tile from its chunk's texture, a void hex from the bands and the foam over them, each clipped
+   * to what it covers. The hexes' own corners, not grown: they tile the plane, so the edge of what
+   * is in colour is theirs. Not snapped to whole pixels as the bakes' sprites are (`roundPixels`):
+   * up to half a pixel apart from them, as two chunks' sprites can be.
+   */
+  private drawSight(g: Graphics): void {
+    const at = (frame: Rectangle) => new Matrix().translate(frame.x, frame.y);
+    for (const tile of this.sightTiles) {
+      const chunk = this.chunks.get(chunkId(tile));
+      if (!chunk || chunk.sprite.texture === Texture.EMPTY) continue;
+      g.poly(hexCorners(tileToPixel(tile))).fill({
+        texture: chunk.sprite.texture,
+        textureSpace: "global",
+        matrix: at(chunk.frame),
+      });
+    }
+    const ground = this.view?.void;
+    if (ground === undefined) return;
+    // The water's cell is one flat colour: stretched over the hex's box, as the bands stretch it.
+    const water = ground === "water" ? (this.groundTextures()?.water ?? null) : null;
+    for (const hex of this.sightVoid) {
+      const centre = tileToPixel(hex);
+      const corners = hexCorners(centre);
+      for (const band of this.voidBands) {
+        const piece = clipToBox(corners, band);
+        if (piece.length < 6) continue;
+        if (!water) {
+          g.poly(piece).fill(VOID_COLOURS[ground]);
+          continue;
+        }
+        const matrix = new Matrix()
+          .scale(TILE_WIDTH / water.width, (2 * HEX_RADIUS) / water.height)
+          .translate(centre.x - TILE_WIDTH / 2, centre.y - HEX_RADIUS);
+        g.poly(piece).fill({ texture: water, textureSpace: "global", matrix });
+      }
+      for (const foam of this.voidFoamBakes.values()) {
+        if (foam.sprite.texture === Texture.EMPTY) continue;
+        const piece = clipToBox(corners, foam.frame);
+        if (piece.length < 6) continue;
+        g.poly(piece).fill({
+          texture: foam.sprite.texture,
+          textureSpace: "global",
+          matrix: at(foam.frame),
+        });
+      }
+    }
+  }
+
+  /**
+   * Covers the tiles `ViewState.revealed` holds but `tiles` hides, as unrevealed (in its grayscale
+   * under fog, as the grey twin drew them). Under fog a tile just explored is in sight, and the
+   * hexes in sight are drawn over the cover (the overlay's `drawSight`): the cover is drawn again
+   * only when a tile it covers was explored and has left sight, or when a tile is hidden that it
+   * does not cover (a reveal). Without fog nothing is drawn over it: again at every change.
+   */
+  private syncCover(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): void {
+    const grey = view.fog !== undefined;
+    let stale = grey !== this.coverGrey || (!grey && hidden.size !== this.coverTiles.size);
+    for (const key of hidden.keys()) {
+      if (stale) break;
+      if (!this.coverTiles.has(key)) stale = true;
+    }
+    if (!stale && this.coverTiles.size !== hidden.size) {
+      const inSight = new Set(view.sight.map(tileKey));
+      for (const key of this.coverTiles) {
+        if (!hidden.has(key) && !inSight.has(key)) {
+          stale = true;
+          break;
+        }
+      }
+    }
+    if (!stale) return;
+    this.coverTiles = new Set(hidden.keys());
+    this.coverGrey = grey;
+    this.cover.clear();
+    drawUnrevealed(this.cover, [...hidden.values()], grey ? greyOf : undefined);
+  }
+
+  /** A still of the atlas in grayscale (CLI-03n), baked once at its native size. */
+  private greyTexture(texture: Texture): Texture {
+    const known = this.greyTextures.get(texture);
+    if (known) return known;
+    const sprite = new Sprite(texture);
+    const frame = new Rectangle(0, 0, texture.width, texture.height);
+    const grey = this.surface.bake(sprite, frame, 1, true);
+    sprite.destroy();
+    this.greyTextures.set(texture, grey);
+    return grey;
+  }
+
+  private dropGreyTextures(): void {
+    for (const grey of this.greyTextures.values()) grey.destroy(true);
+    this.greyTextures.clear();
   }
 
   /** Draws and rebakes the foam over the void, group by group, when its pieces change. */
   private syncVoidFoam(view: ViewState): void {
+    // A foam bake dropped or drawn again: `sight` is filled from them.
+    this.overlayDirty = true;
     const foam = this.groundTextures()?.foam ?? null;
     const pieces = foam ? voidFoam(view.tiles, view.void) : [];
     const keyOf = (p: FoamPiece) => `${p.source.x},${p.source.y}:${p.points.join(",")}`;
@@ -774,12 +1073,18 @@ export class Renderer implements FrameClient {
         Object.assign(bake, { key: groupKey, graphics, frame, dirty: true, drawMs });
       } else {
         const sprite = new Sprite(Texture.EMPTY);
+        const grey = new Sprite(Texture.EMPTY);
+        grey.tint = DIM_TINT;
         this.voidFoamLayer.addChild(sprite);
+        this.greyFoam.addChild(grey);
         this.voidFoamBakes.set(id, {
           key: groupKey,
           graphics,
           frame,
           sprite,
+          grey,
+          greyStale: true,
+          greySource: new Graphics(),
           resolution: 0,
           dirty: true,
           drawMs,
@@ -937,12 +1242,14 @@ export class Renderer implements FrameClient {
    * tiles' positions only (`chunkFrame`): the ground never changes the textures' size or count.
    * Whether any chunk was drawn again, added or dropped: the terrain changed.
    */
-  private syncChunks(view: ViewState): boolean {
-    const { tiles } = view;
+  private syncChunks(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): boolean {
+    // The chain's tiles (CLI-03n): what the adventurer has not seen is covered, not baked hidden.
+    const tiles =
+      hidden.size === 0 ? view.tiles : view.tiles.map((t) => hidden.get(tileKey(t)) ?? t);
     const groups = new Map<string, ViewTile[]>();
     const grounds = new Map<string, GroundKind | null>();
     for (const tile of tiles) {
-      const id = `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
+      const id = chunkId(tile);
       let group = groups.get(id);
       if (!group) groups.set(id, (group = []));
       group.push(tile);
@@ -977,12 +1284,17 @@ export class Renderer implements FrameClient {
         Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs });
       } else {
         const sprite = new Sprite(Texture.EMPTY);
+        const grey = new Sprite(Texture.EMPTY);
         this.ground.addChild(sprite);
+        this.greyChunks.addChild(grey);
         this.chunks.set(id, {
           key,
           graphics,
           frame,
           sprite,
+          grey,
+          greyStale: true,
+          greySource: new Graphics(),
           resolution: 0,
           dirty: true,
           drawMs,
@@ -1022,24 +1334,59 @@ export class Renderer implements FrameClient {
 
   private dropChunk(chunk: ChunkBake): void {
     chunk.graphics.destroy();
-    if (chunk.sprite.texture !== Texture.EMPTY) chunk.sprite.texture.destroy(true);
+    chunk.greySource.destroy();
+    if (chunk.sprite.texture !== Texture.EMPTY) this.retired.push(chunk.sprite.texture);
+    if (chunk.grey.texture !== Texture.EMPTY) chunk.grey.texture.destroy(true);
     chunk.sprite.destroy();
+    chunk.grey.destroy();
+  }
+
+  private flushRetired(): void {
+    for (const texture of this.retired) texture.destroy(true);
+    this.retired = [];
   }
 
   private bakeTerrain(): void {
     // The void's foam first: the last bake reported (`bakeMs`) is a chunk's when both bake.
     for (const chunk of [...this.voidFoamBakes.values(), ...this.chunks.values()]) {
       const resolution = this.bakeResolution(chunk.frame);
-      if (!chunk.dirty && resolution === chunk.resolution) continue;
-      const old = chunk.sprite.texture;
+      const colour = chunk.dirty || resolution !== chunk.resolution;
+      // The grayscale twin only while the view has fog (CLI-03n); a hub never bakes it.
+      const grey = this.fogOn && (colour || chunk.greyStale);
+      if (!colour && !grey) continue;
       const start = this.host.now();
-      chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+      if (colour) {
+        const old = chunk.sprite.texture;
+        chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+        chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
+        if (old !== Texture.EMPTY) this.retired.push(old);
+        chunk.dirty = false;
+        chunk.resolution = resolution;
+        chunk.greyStale = true;
+        // The overlay's hexes in sight are filled from the texture just replaced.
+        this.overlayDirty = true;
+      }
+      if (grey) {
+        // The colour bake through the filter, texel for texel: one quad, not the chunk's drawing
+        // again; into a texture, so that no filter runs in a frame. The quad is the chunk's, kept
+        // with it: a root destroyed right after its filtered bake broke PixiJS's batch pool.
+        const { frame } = chunk;
+        chunk.greySource
+          .clear()
+          .rect(frame.x, frame.y, frame.width, frame.height)
+          .fill({
+            texture: chunk.sprite.texture,
+            textureSpace: "global",
+            matrix: new Matrix().translate(frame.x, frame.y),
+          });
+        const old = chunk.grey.texture;
+        chunk.grey.texture = this.surface.bake(chunk.greySource, frame, resolution, true);
+        chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
+        if (old !== Texture.EMPTY) old.destroy(true);
+        chunk.greyStale = false;
+      }
       this.lastBakeMs = chunk.drawMs + (this.host.now() - start);
       chunk.drawMs = 0;
-      chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
-      if (old !== Texture.EMPTY) old.destroy(true);
-      chunk.dirty = false;
-      chunk.resolution = resolution;
     }
   }
 
@@ -1131,7 +1478,8 @@ export class Renderer implements FrameClient {
    * (`isRock`) shows the still `obstacleOf` gives it, placed as a prop (its base on the hex's
    * centre, at native size), sorted with the actors by that y; added and dropped as the revealed
    * walls change, never per frame. Beyond sight it is dimmed as the overlay dims the ground under
-   * it. Without the atlas, none: the bakes draw the rocks.
+   * it, and drawn from its still in grayscale under the view's fog (CLI-03n). Without the atlas,
+   * none: the bakes draw the rocks.
    */
   private syncObstacles(view: ViewState): void {
     if (this.obstacleArt.length === 0) return;
@@ -1154,11 +1502,14 @@ export class Renderer implements FrameClient {
         sprite.position.set(base.x, base.y);
         sprite.zIndex = base.y - 0.001;
         this.actorsLayer.addChild(sprite);
-        node = { sprite, name: choice.sprite };
+        node = { sprite, name: choice.sprite, texture };
         this.obstacleNodes.set(key, node);
       }
-      const tint = inSight.has(key) ? 0xffffff : DIM_TINT;
+      const now = inSight.has(key);
+      const tint = now ? 0xffffff : DIM_TINT;
       if (node.sprite.tint !== tint) node.sprite.tint = tint;
+      const texture = now || !this.fogOn ? node.texture : this.greyTexture(node.texture);
+      if (node.sprite.texture !== texture) node.sprite.texture = texture;
     }
     for (const [key, node] of this.obstacleNodes) {
       if (!seen.has(key)) {
@@ -1169,7 +1520,10 @@ export class Renderer implements FrameClient {
   }
 
   /** The obstacles drawn from the atlas, by hex (`"x,y"`): their sprite and still; for tests. */
-  obstacles(): ReadonlyMap<string, { readonly sprite: Sprite; readonly name: string }> {
+  obstacles(): ReadonlyMap<
+    string,
+    { readonly sprite: Sprite; readonly name: string; readonly texture: Texture }
+  > {
     return this.obstacleNodes;
   }
 
@@ -1301,6 +1655,11 @@ export class Renderer implements FrameClient {
     }
     if (next === Infinity) return null;
     return Math.max(next, this.lastIdle + 1000 / IDLE_MAX_FPS);
+  }
+
+  /** What the view draws in each state of exploration (CLI-03n), or null before a view. */
+  fogCounts(): FogCounts | null {
+    return this.view && fogCounts(this.view);
   }
 
   /** Eases the camera to a tile (CLI-03k: a place selected by key, off the screen). */

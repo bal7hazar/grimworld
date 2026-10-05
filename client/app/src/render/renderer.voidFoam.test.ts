@@ -2,6 +2,7 @@ import { Texture } from "pixi.js";
 import { describe, expect, it, vi } from "vitest";
 import { fixtureNamed } from "../sandbox/fixtures";
 import { initialState, toView } from "../sandbox/wiring";
+import { allExplored } from "../test/explored";
 import { FakeHost } from "../test/fakeHost";
 import { FakeSurface } from "../test/fakeSurface";
 import * as ground from "./ground";
@@ -40,7 +41,7 @@ describe("the foam over the void, planned again only when the terrain changes (C
       library: groundLibrary(),
     });
     renderer.resize({ width: 375, height: 812 });
-    const view = toView(initialState(fixtureNamed("zone")));
+    const view = toView(allExplored(initialState(fixtureNamed("zone"))));
     voidFoam.mockClear();
     renderer.setView(view);
     host.run(100);

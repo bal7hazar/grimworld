@@ -5,6 +5,7 @@ import { WHEEL_NOTCH } from "../input/gestures";
 import { fixtureNamed } from "../sandbox/fixtures";
 import { SandboxSession } from "../sandbox/session";
 import { initialState, toView } from "../sandbox/wiring";
+import { allExplored } from "../test/explored";
 import { FakeHost } from "../test/fakeHost";
 import { FakeSurface } from "../test/fakeSurface";
 import { LIBRARY_DIRECTIONS, libraryNext } from "../test/hexxLibrary";
@@ -65,8 +66,15 @@ describe("renderer on demand (AC-2)", () => {
     host.run(10_000);
     expect(surface.renders - 1).toBe(afterStep);
     expect(host.frames).toBe(frames);
-    // The terrain is not baked again for a step: only the tiles' kinds are baked.
+    // A step that explores bakes nothing (CLI-03n): the chunks hold the chain's tiles, and the
+    // tiles never in sight are covered.
     expect(surface.bakes).toHaveLength(2);
+    // Their grayscale twins, once each.
+    expect(surface.greyBakes).toHaveLength(2);
+    tap(1, 0);
+    host.run(1000);
+    expect(surface.bakes).toHaveLength(2);
+    expect(surface.greyBakes).toHaveLength(2);
   });
 
   it("with idle animations off: zero frames between inputs", () => {
@@ -171,7 +179,7 @@ describe("the six facings (AC-4), against the library's Direction numbering", ()
           const tile = { x: 10, y };
           renderer.setView(oneGoblin(10, y, facing));
           const world = surface.stage.children[0] as Container;
-          const actors = world.children[3] as Container;
+          const actors = world.children[5] as Container;
           const node = actors.children.find(
             (c) => c.position.x === tileToPixel(tile).x && c.position.y === tileToPixel(tile).y,
           ) as Container;
@@ -383,7 +391,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(surface.passes).toHaveLength(0);
     expect(surface.renders).toBe(1);
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(4); // the world itself is on the stage
+    expect(world.children).toHaveLength(6); // the world itself is on the stage
     expect(renderer.zoomInfo()).toMatchObject({
       mode: "sharp",
       sharpFallback: true,
@@ -408,7 +416,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     host.run(1000);
     expect(surface.renders).toBe(renders); // no frame was needed for it
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(4); // ground, overlay, dropped steps, actors
+    expect(world.children).toHaveLength(6); // grey ground, ground, cover, overlay, dropped steps, actors
   });
 });
 
@@ -418,7 +426,7 @@ describe("drawing order during a step", () => {
     host.run(100);
     tap(0, 1);
     host.run(60);
-    const actors = (surface.stage.children[0] as Container).children[3] as Container;
+    const actors = (surface.stage.children[0] as Container).children[5] as Container;
     for (const node of actors.children) expect(node.zIndex).toBe(node.position.y);
   });
 });
@@ -439,7 +447,7 @@ describe("the feet in their tile (CLI-03b)", () => {
   function onScreen(surface: FakeSurface, node: Container): { x: number; y: number } {
     const top = surface.stage.children[0] as Container;
     const p = node.getGlobalPosition();
-    const k = top.children.length === 4 ? 1 : top.scale.x;
+    const k = top.children.length === 6 ? 1 : top.scale.x;
     return { x: p.x * k, y: p.y * k };
   }
 
@@ -530,7 +538,7 @@ describe("the feet in their tile (CLI-03b)", () => {
 });
 
 describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
-  const zoneView = () => toView(initialState(fixtureNamed("zone")));
+  const zoneView = () => toView(allExplored(initialState(fixtureNamed("zone"))));
 
   function mount(view: ViewState, onDraw?: (stats: FrameStats) => void) {
     const host = new FakeHost(1000 / 120);
@@ -544,7 +552,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
 
   /** The chunks' textures, as their sizes (the ground's layer: the void's sprite apart). */
   const textures = (surface: FakeSurface) =>
-    ((surface.stage.children[0] as Container).children[0] as Container).children
+    ((surface.stage.children[0] as Container).children[1] as Container).children
       .slice(1)
       .map((s) => `${(s as Sprite).texture.width}x${(s as Sprite).texture.height}`);
 
@@ -636,7 +644,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
   it("bakes the foam over the void with the atlas only, per group, again only when it changes", async () => {
     const view = zoneView();
     const { host, renderer, surface } = mount(view);
-    const voidLayer = ((surface.stage.children[0] as Container).children[0] as Container)
+    const voidLayer = ((surface.stage.children[0] as Container).children[1] as Container)
       .children[0] as Container;
     const foam = voidLayer.children[4] as Container;
     expect(foam.children).toHaveLength(0);
@@ -661,7 +669,7 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     const view = zoneView();
     const { renderer, surface } = mount(view);
     renderer.draw();
-    const ground = (surface.stage.children[0] as Container).children[0] as Container;
+    const ground = (surface.stage.children[0] as Container).children[1] as Container;
     const voidLayer = ground.children[0] as Container;
     expect(voidLayer.visible).toBe(true);
     const bands = voidLayer.children as Sprite[];
@@ -684,13 +692,13 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
       if (corner.x > tileToPixel({ x: 2, y: 0 }).x) expect(inBand(corner)).toBe(true);
     }
     const cave = mount(toView(initialState(fixtureNamed("cave"))));
-    const caveGround = (cave.surface.stage.children[0] as Container).children[0] as Container;
+    const caveGround = (cave.surface.stage.children[0] as Container).children[1] as Container;
     expect(caveGround.children[0]!.visible).toBe(false);
   });
 });
 
 describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
-  const zoneView = () => toView(initialState(fixtureNamed("zone")));
+  const zoneView = () => toView(allExplored(initialState(fixtureNamed("zone"))));
   const key = (t: { x: number; y: number }) => `${t.x},${t.y}`;
 
   async function mount(library: SpriteLibrary | null, view: ViewState = zoneView()) {
@@ -705,7 +713,7 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
     renderer.resize({ width: 375, height: 812 });
     renderer.setView(view);
     host.run(100);
-    const actorsLayer = (surface.stage.children[0] as Container).children[3] as Container;
+    const actorsLayer = (surface.stage.children[0] as Container).children[5] as Container;
     return { host, surface, renderer, stats, actorsLayer };
   }
 
@@ -777,6 +785,35 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
     }
     expect(seen).toBeGreaterThan(0);
     expect(dimmed).toBeGreaterThan(0);
+  });
+
+  it("beyond sight, drawn from its still in grayscale (CLI-03n), baked once a still; in sight, its own", async () => {
+    const view = zoneView();
+    const { surface, renderer } = await mount(await obstacleLibrary(), view);
+    const inSight = new Set(view.sight.map(key));
+    const greys = new Set<Texture>();
+    let beyond = 0;
+    for (const [k, { sprite, texture }] of renderer.obstacles()) {
+      if (inSight.has(k)) {
+        expect(sprite.texture).toBe(texture);
+      } else {
+        expect(sprite.texture).not.toBe(texture);
+        greys.add(sprite.texture);
+        beyond += 1;
+      }
+    }
+    expect(beyond).toBeGreaterThan(0);
+    // One grey still for each still used beyond sight, at its native size.
+    const stills = new Set(
+      [...renderer.obstacles()].filter(([k]) => !inSight.has(k)).map(([, n]) => n.texture),
+    );
+    expect(greys.size).toBe(stills.size);
+    expect(surface.greyBakes.filter((r) => r === 1).length).toBeGreaterThanOrEqual(stills.size);
+    // Without fog (`full`): every obstacle from its own still.
+    renderer.setView({ ...view, fog: undefined });
+    for (const { sprite, texture } of renderer.obstacles().values()) {
+      expect(sprite.texture).toBe(texture);
+    }
   });
 
   it("follows the walls: kept for the same view, added on a reveal, dropped with the atlas", async () => {

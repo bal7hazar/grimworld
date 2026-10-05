@@ -119,12 +119,7 @@ export function drawTerrain(
     g.poly(earthHex(tile, plan)).fill({ color: COLOURS.earth, alpha: EARTH_ALPHA });
   }
   drawLip(g, plan.lip);
-  for (const tile of plan.unrevealed) {
-    g.poly(hexCorners(tileToPixel(tile), GROW)).fill(COLOURS.unrevealed);
-  }
-  for (const tile of plan.unrevealed) {
-    g.poly(hexCorners(tileToPixel(tile), -1)).stroke({ width: 1, color: COLOURS.unrevealedEdge });
-  }
+  drawUnrevealed(g, plan.unrevealed);
   for (const tile of plan.grid) {
     g.poly(hexCorners(tileToPixel(tile))).stroke({
       width: 1,
@@ -134,6 +129,26 @@ export function drawTerrain(
   }
   if (options.rocks ?? true) for (const tile of plan.rocks) drawRock(g, tile);
   return g;
+}
+
+/**
+ * Unrevealed hexes: the bakes' look, and the renderer's cover over the tiles never in sight
+ * (CLI-03n), whose colours pass through `colour` (its grayscale, under fog).
+ */
+export function drawUnrevealed(
+  g: Graphics,
+  tiles: readonly Tile[],
+  colour: (c: number) => number = (c) => c,
+): void {
+  for (const tile of tiles) {
+    g.poly(hexCorners(tileToPixel(tile), GROW)).fill(colour(COLOURS.unrevealed));
+  }
+  for (const tile of tiles) {
+    g.poly(hexCorners(tileToPixel(tile), -1)).stroke({
+      width: 1,
+      color: colour(COLOURS.unrevealedEdge),
+    });
+  }
 }
 
 /**
@@ -290,9 +305,11 @@ export function overlayPlan(view: ViewState): OverlayPlan {
  * What changes with the view but does not move: beyond sight dimmed, the planned path, the
  * selected tile, the selected actor's rear-side (a tint and a ring) and back (a tint and a cross).
  */
-export function drawOverlay(g: Graphics, view: ViewState): void {
+export function drawOverlay(g: Graphics, view: ViewState, under?: (g: Graphics) => void): void {
   const plan = overlayPlan(view);
   g.clear();
+  // What the renderer draws first, in the same Graphics: one draw call fewer (CLI-03n's sight).
+  under?.(g);
   for (const tile of plan.dimmed) {
     g.poly(hexCorners(tileToPixel(tile), 0.5)).fill({ color: COLOURS.dim, alpha: DIM_ALPHA });
   }

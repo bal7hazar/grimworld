@@ -1,7 +1,16 @@
 import type { Intent } from "../input/intent";
 import { type StepKey, verticalDirection } from "../input/keys";
+import {
+  type Explored,
+  NOTHING_EXPLORED,
+  drawnActors,
+  explore,
+  fogTiles,
+  tileKey,
+} from "../render/fog";
 import type { Tile, ViewActor, ViewState, ViewTile } from "../render/view";
 import {
+  SIGHT_RADIUS,
   type StepStops,
   TICKS_PER_STEP,
   arcsOf,
@@ -40,7 +49,20 @@ export interface SandboxState {
   readonly stopped: string;
   /** One line on what the last intent did, for the debug panel. */
   readonly said: string;
+  /**
+   * The tiles in sight at least once since the instance opened (CLI-03n, `render/fog.ts`): what
+   * the map draws. Grown on a step, started again with the instance; lost on a reload. None in
+   * a hub (it hides nothing).
+   */
+  readonly explored: Explored;
 }
+
+/**
+ * How an instance's map shows what was seen (CLI-03n, D-213): `sight` (the default) draws the
+ * explored tiles beyond sight in grayscale; `full` (`?fog=full`) keeps them in colour, dimmed.
+ * Either way a tile never in sight is hidden.
+ */
+export type FogMode = "sight" | "full";
 
 /** The one line of a walk ended by a tap: on the counter, or on the map. */
 export const CANCELLED = "walk cancelled";
@@ -64,8 +86,13 @@ export function initialState(world: SandboxWorld): SandboxState {
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
   const terrain =
     adventurer && !isHub(world) ? revealInSight(world.terrain, adventurer.tile) : world.terrain;
+  const explored =
+    adventurer && !isHub(world)
+      ? explore(NOTHING_EXPLORED, tilesInSight(terrain, adventurer.tile))
+      : NOTHING_EXPLORED;
   return {
     world: { ...world, terrain },
+    explored,
     selectedActorId: null,
     selectedTile: world.path.at(-1) ?? null,
     path: world.path,
@@ -136,6 +163,12 @@ export function applyIntent(
   if (intent.kind === "inspect") {
     const what = actor ? describe(actor) : (kind ?? "outside the location");
     return { ...state, said: `inspect ${where}: ${what}` };
+  }
+  // A tile not drawn, never in sight (CLI-03n, the orchestrator's decision of 2026-10-05): a tap
+  // there does nothing, neither a walk nor a selection, nor the end of one. A tile drawn is tapped
+  // as before, even when its path crosses tiles revealed but never seen.
+  if (kind !== null && !isHub(world) && !state.explored.has(tileKey(tile))) {
+    return { ...state, said: `tap ${where}: never seen, nothing` };
   }
   const previewed = !state.walking && state.path.length > 0 && state.selectedTile !== null;
   if (previewed && state.selectedTile && sameTile(state.selectedTile, tile)) {
@@ -253,6 +286,9 @@ export function walkStep(state: SandboxState): SandboxState {
   const walked: SandboxState = {
     ...state,
     world: { ...world, actors, terrain: revealed },
+    explored: isHub(world)
+      ? state.explored
+      : explore(state.explored, tilesInSight(revealed, step.tile)),
     path: state.path.slice(1),
     said: `${walk}: planned ${at(next)}, stepped to ${at(step.tile)}, facing ${step.facing}`,
   };
@@ -274,7 +310,7 @@ export function walkStep(state: SandboxState): SandboxState {
   return walked;
 }
 
-export function toView(state: SandboxState): ViewState {
+export function toView(state: SandboxState, fog: FogMode = "sight"): ViewState {
   const { world } = state;
   const { terrain } = world;
   const adventurer = world.actors.find((a) => a.id === world.adventurerId);
@@ -287,13 +323,15 @@ export function toView(state: SandboxState): ViewState {
       tiles.push({ x, y, kind: terrain.kinds[i] ?? "wall", ...(ground ? { ground } : {}) });
     }
   }
-  const sight = isHub(world)
-    ? tiles.map(({ x, y }) => ({ x, y }))
-    : tilesInSight(terrain, adventurer.tile);
-  const actors = seen(world);
-  const selected = actors.find((a) => a.id === state.selectedActorId);
+  const hub = isHub(world);
+  const sight = hub ? tiles.map(({ x, y }) => ({ x, y })) : tilesInSight(terrain, adventurer.tile);
+  // Drawn: a hub hides nothing; an instance, what was never in sight (CLI-03n). Selected: only an
+  // actor the adventurer sees (`seen`), as before.
+  const actors = hub ? [...world.actors] : drawnActors(world.actors, adventurer.id, state.explored);
+  const selected = seen(world).find((a) => a.id === state.selectedActorId);
   return {
-    tiles,
+    tiles: hub ? tiles : fogTiles(tiles, state.explored),
+    ...(hub ? {} : { revealed: tiles }),
     actors,
     adventurerId: adventurer.id,
     sight,
@@ -303,5 +341,6 @@ export function toView(state: SandboxState): ViewState {
     selectedTile: state.selectedTile,
     structures: world.structures ?? [],
     ...(world.void ? { void: world.void } : {}),
+    ...(!hub && fog === "sight" ? { fog: { sightRadius: SIGHT_RADIUS } } : {}),
   };
 }

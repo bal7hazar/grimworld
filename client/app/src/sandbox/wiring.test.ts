@@ -32,12 +32,20 @@ describe("fixtures", () => {
   });
 
   it("edge: unrevealed chunks, not in sight at the start", () => {
-    const view = toView(initialState(fixtureNamed("edge")));
-    expect(view.tiles.filter((t) => t.kind === "unrevealed")).toHaveLength(3 * CHUNK * CHUNK);
+    const state = initialState(fixtureNamed("edge"));
+    const { terrain } = state.world;
     const unrevealed = new Set(
-      view.tiles.filter((t) => t.kind === "unrevealed").map((t) => `${t.x},${t.y}`),
+      terrain.kinds.flatMap((kind, i) =>
+        kind === "unrevealed" ? [`${i % terrain.width},${Math.floor(i / terrain.width)}`] : [],
+      ),
     );
+    expect(unrevealed.size).toBe(3 * CHUNK * CHUNK);
+    const view = toView(state);
     expect(view.sight.some((t) => unrevealed.has(`${t.x},${t.y}`))).toBe(false);
+    // Drawn hidden (CLI-03n): the unrevealed chunks, and the revealed tiles never in sight.
+    const hidden = view.tiles.filter((t) => t.kind === "unrevealed");
+    expect(hidden.length).toBe(terrain.width * terrain.height - state.explored.size);
+    expect(hidden.length).toBeGreaterThan(unrevealed.size);
   });
 
   it("edge: one step West brings sight onto the unrevealed, and the move reveals it (ADR-0006)", () => {
@@ -49,8 +57,11 @@ describe("fixtures", () => {
     const kinds = new Map(view.tiles.map((t) => [`${t.x},${t.y}`, t.kind]));
     expect(view.sight.every((t) => kinds.get(`${t.x},${t.y}`) !== "unrevealed")).toBe(true);
     // The chunk (2, 0) sight touched is revealed; (2, 1) and (1, 1), out of sight, are not.
+    const { terrain } = state.world;
     const inChunk = (cx: number, cy: number) =>
-      view.tiles.filter((t) => Math.floor(t.x / CHUNK) === cx && Math.floor(t.y / CHUNK) === cy);
+      terrain.kinds
+        .map((kind, i) => ({ x: i % terrain.width, y: Math.floor(i / terrain.width), kind }))
+        .filter((t) => Math.floor(t.x / CHUNK) === cx && Math.floor(t.y / CHUNK) === cy);
     expect(inChunk(2, 0).some((t) => t.kind === "unrevealed")).toBe(false);
     expect(inChunk(2, 1).every((t) => t.kind === "unrevealed")).toBe(true);
     expect(inChunk(1, 1).every((t) => t.kind === "unrevealed")).toBe(true);
