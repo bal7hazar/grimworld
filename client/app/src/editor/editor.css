@@ -283,13 +283,15 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-.ed-walk {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--ed-bg);
-  z-index: 10;
+.ed-walk-top {
+  order: -1;
+}
+.ed-root [hidden],
+.ed-main[data-walking] > .ed-tools,
+.ed-main[data-walking] > .ed-inspector,
+.ed-main[data-walking] > .ed-validation,
+.ed-main[data-walking] .ed-layers {
+  display: none;
 }
 .ed-walk-help {
   position: absolute;

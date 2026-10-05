@@ -91,8 +91,12 @@ export class EditorSession {
   layerFocus = 0;
   /** Bumped on every change of the document. */
   revision = 0;
-  /** The revision of the last fit or nudge: a later one means the map was painted since. */
-  originRevision = 0;
+  /**
+   * Bumped on every change of the hexes (an object or a property leaves the fit as it is), and its
+   * value at the last fit or nudge: a later one means the map was painted since.
+   */
+  private painted = 0;
+  private originPainted = 0;
   /** What the status bar says after a refused action, until the next one. */
   said = "";
   /** What Place puts down (§2.3, the palette's objects). */
@@ -185,6 +189,7 @@ export class EditorSession {
     if (changes.length === 0) return;
     this.history.record(this.doc, changes);
     this.revision += 1;
+    if (changes.some((c) => "key" in c)) this.painted += 1;
     this.onChange();
   }
 
@@ -642,12 +647,12 @@ export class EditorSession {
   private originMoved(): void {
     // The draft keeps the origin: the document changed.
     this.revision += 1;
-    this.originRevision = this.revision;
+    this.originPainted = this.painted;
   }
 
   /** Painted since the last fit or nudge of this session. */
   get paintedSinceOrigin(): boolean {
-    return this.doc.origin !== null && this.revision !== this.originRevision;
+    return this.doc.origin !== null && this.painted !== this.originPainted;
   }
 
   // A stroke in progress ends first: its changes become one step before the undo, and the moves
@@ -665,6 +670,8 @@ export class EditorSession {
   /** An undo or a redo: the selection keeps only objects that still exist. */
   private afterHistory(): void {
     this.revision += 1;
+    // A step undone or redone may hold hexes: the fit is told it may be stale.
+    this.painted += 1;
     const objects = [...this.selection.objects].filter((id) => this.doc.objects.has(id));
     if (objects.length !== this.selection.objects.size) {
       this.selection = { hexes: this.selection.hexes, objects: new Set(objects) };

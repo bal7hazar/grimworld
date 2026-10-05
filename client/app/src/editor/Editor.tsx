@@ -959,7 +959,7 @@ function EditorScreen({
 
   return (
     <>
-      <header className="ed-bar" data-topbar="">
+      <header className="ed-bar" data-topbar="" hidden={walking}>
         <button type="button" onClick={onBack}>
           ◂ Maps
         </button>
@@ -1010,7 +1010,7 @@ function EditorScreen({
           ?
         </button>
       </header>
-      <div className="ed-main">
+      <div className="ed-main" data-walking={walking ? "" : undefined}>
         <aside className="ed-tools">
           <div className="ed-heading">Tools</div>
           <div className="ed-column">
@@ -1187,7 +1187,7 @@ function EditorScreen({
           </aside>
         )}
       </div>
-      <footer className="ed-bar ed-bottom" data-status="">
+      <footer className="ed-bar ed-bottom" data-status="" hidden={walking}>
         {hover ? (
           <span>
             x {hover.x} y {hover.y}
@@ -1211,7 +1211,13 @@ function EditorScreen({
         </button>
       </footer>
       {walking && frame && (
-        <WalkScreen doc={doc} frame={frame} starts={starts} onLeave={() => setWalking(false)} />
+        <WalkScreen
+          doc={doc}
+          frame={frame}
+          starts={starts}
+          editCanvas={canvas}
+          onLeave={() => setWalking(false)}
+        />
       )}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
     </>

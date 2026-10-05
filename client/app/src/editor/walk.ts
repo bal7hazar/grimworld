@@ -1,11 +1,8 @@
-import type { Application } from "pixi.js";
 import { screenToTile, tileToScreen } from "../input/coords";
 import { type Gesture, GestureTracker, WHEEL_NOTCH } from "../input/gestures";
 import type { Intent } from "../input/intent";
 import type { StepKey } from "../input/keys";
-import { loadAtlas } from "../render/atlas";
-import { createPixiSurface } from "../render/pixiSurface";
-import { DEFAULT_ZOOM, Renderer, STEP_MS } from "../render/renderer";
+import { type Renderer, STEP_MS } from "../render/renderer";
 import { browserHost } from "../render/scheduler";
 import type { Tile, ViewState } from "../render/view";
 import { SandboxSession, type ViewSink } from "../sandbox/session";
@@ -25,18 +22,17 @@ export function unfogged(view: ViewState): ViewState {
 }
 
 /**
- * The preview walk's canvas (CLI-09b, brief §2.8): the game's `Renderer` and `SandboxSession` on
- * the world `walkWorld` builds, with the game's gestures (tap walks, a press or a right click
- * inspects, drag pans, the wheel zooms) and the game's camera. Its own surface, so that the edit
- * canvas keeps its camera while it is hidden. Imperative, mounted by the editor's walk screen.
+ * The preview walk (CLI-09b, brief §2.8) on the edit canvas's own renderer (one PixiJS application
+ * a page: two share GPU state badly): the game's `SandboxSession` on the world `walkWorld` builds,
+ * the game's gestures on the renderer's canvas (tap walks, a press or a right click inspects, drag
+ * pans, the wheel zooms). `EditorCanvas.beginWalk` makes one and gives the camera back after it.
  */
-export class WalkCanvas {
+export class WalkMode {
   private readonly cleanups: (() => void)[] = [];
-  private destroyed = false;
   readonly session: SandboxSession;
 
-  private constructor(
-    private readonly app: Application,
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
     private readonly renderer: Renderer,
     world: SandboxWorld,
     fog: boolean,
@@ -51,50 +47,11 @@ export class WalkCanvas {
       fog: "sight",
       onChange,
     });
+    this.listen();
   }
 
-  static async mount(
-    host: HTMLElement,
-    world: SandboxWorld,
-    fog: boolean,
-    onChange: () => void,
-  ): Promise<WalkCanvas> {
-    const { app, surface } = await createPixiSurface(host, "continuous");
-    const renderer = new Renderer(surface, browserHost(), {
-      idle: false,
-      mode: "continuous",
-      zoom: DEFAULT_ZOOM,
-      stepMs: WALK_STEP_MS,
-    });
-    const canvas = new WalkCanvas(app, renderer, world, fog, onChange);
-    canvas.start(host);
-    return canvas;
-  }
-
-  private start(host: HTMLElement): void {
-    const resize = () => {
-      const width = Math.max(1, host.clientWidth);
-      const height = Math.max(1, host.clientHeight);
-      this.app.renderer.resize(width, height);
-      this.renderer.resize({ width, height });
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(host);
-    this.cleanups.push(() => observer.disconnect());
-    this.listen(this.app.canvas);
-    loadAtlas()
-      .then((library) => {
-        if (this.destroyed) return;
-        if (library) this.renderer.setLibrary(library);
-        else this.renderer.scheduler.invalidate();
-      })
-      .catch(() => {
-        if (!this.destroyed) this.renderer.scheduler.invalidate();
-      });
-  }
-
-  private listen(canvas: HTMLCanvasElement): void {
+  private listen(): void {
+    const canvas = this.canvas;
     const tracker = new GestureTracker((gesture) => this.onGesture(gesture), {
       set: (callback, ms) => window.setTimeout(callback, ms),
       clear: (handle) => window.clearTimeout(handle),
@@ -189,15 +146,12 @@ export class WalkCanvas {
   tileOnScreen(tile: Tile): { x: number; y: number } {
     const { camera, viewport } = this.renderer.cameraState();
     const p = tileToScreen(camera, viewport, tile);
-    const rect = this.app.canvas.getBoundingClientRect();
+    const rect = this.canvas.getBoundingClientRect();
     return { x: rect.left + p.x, y: rect.top + p.y };
   }
 
   destroy(): void {
-    this.destroyed = true;
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.session.destroy();
-    this.renderer.destroy();
-    this.app.destroy(true);
   }
 }

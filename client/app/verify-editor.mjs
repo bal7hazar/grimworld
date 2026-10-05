@@ -4,7 +4,10 @@
 // look (the art's `/art/` answered 404), a zone is created with no size, painted away from the
 // origin, outlined, its chunks fitted and nudged, saved, opened again from its file and saved
 // again: the two files are identical. Also: a format 1 file opens converted, a stroke survives a
-// reload within the draft's delay, a blur ends the Space pan mode. Run by hand, not by CI:
+// reload within the draft's delay, a blur ends the Space pan mode. CLI-09b: the seed's zone and the
+// town, opened from their committed files, validate with no error; each object kind is placed,
+// selected and moved, copied and pasted, mirrored; a failing map is fixed; each is walked in the
+// preview with the game's keys and taps. Run by hand, not by CI:
 // `node verify-editor.mjs`. Starts the dev server as its own process group and sends SIGTERM to that
 // recorded group in `finally`. The server inherits GRIMWORLD_ART_OUT (the built atlas, D-73: never
 // committed).
@@ -143,7 +146,7 @@ async function run(browser, look) {
   });
   const page = await context.newPage();
   const errors = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  page.on("pageerror", (e) => errors.push(String(e.stack ?? e)));
   // The plain look's `/art/` answers 404 on purpose: the browser logs it, the page does not fail.
   page.on("console", (m) => {
     const expected = look === "plain" && m.text().includes("status of 404");
@@ -326,6 +329,8 @@ async function run(browser, look) {
     `a reload within the debounce keeps the stroke: ${before} → ${after} hexes, listed: ${row.replace(/\s+/g, " ")}`,
   );
 
+  await objectsPhase(page, look, shot, text);
+
   // Below 700 px: one line.
   await page.setViewportSize({ width: 600, height: 900 });
   ok(
@@ -336,6 +341,219 @@ async function run(browser, look) {
   ok(foreign.length === 0, `no request beyond the page's origin (${foreign.length})`);
   ok(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
   await context.close();
+}
+
+/** The canvas's page point of a hex of the editor's plane. */
+const hexAt = (page, tile) => page.evaluate((t) => window.__editor.canvas.tileOnScreen(t), tile);
+const objectsOf = (page) =>
+  page.evaluate(() => [...window.__editor.session.doc.objects].map(([id, o]) => ({ id, ...o })));
+const light = (page) => page.locator(".ed-light").getAttribute("data-light");
+
+async function clickHex(page, tile, options = {}) {
+  const p = await hexAt(page, tile);
+  await page.mouse.click(p.x, p.y, options);
+}
+
+async function openFixture(page, name) {
+  await page.locator("[data-open-file]").setInputFiles(join(here, "src/editor/fixtures", name));
+  await page.locator('[data-canvas]:not([data-atlas="loading"])').waitFor();
+  await page.waitForFunction(() => window.__editor !== undefined);
+  await page.waitForTimeout(400);
+}
+
+/** The walk (§2.8): the game's taps and keys move the walker; P leaves, the camera kept. */
+async function walkPhase(page, look, shot, name, tap) {
+  const camera = () =>
+    page.evaluate(() => {
+      const { centre, scale } = window.__editor.canvas.renderer.cameraState().camera;
+      return [centre.x, centre.y, scale].map((n) => n.toFixed(3)).join(" ");
+    });
+  const cameraBefore = await camera();
+  await page.keyboard.press("p");
+  await page.locator("[data-walk]").waitFor();
+  await page.waitForFunction(() => window.__editorWalk !== undefined);
+  await page.waitForTimeout(600);
+  const start = await page.evaluate(() => window.__editorWalk.walkerTile());
+  const p = await page.evaluate((t) => window.__editorWalk.tileOnScreen(t), tap);
+  await page.mouse.click(p.x, p.y);
+  const arrived = await page
+    .waitForFunction(
+      (t) => {
+        const w = window.__editorWalk?.walkerTile();
+        return w && w.x === t.x && w.y === t.y;
+      },
+      tap,
+      { timeout: 10_000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  if (!arrived) {
+    const where = await page.evaluate(() => window.__editorWalk.walkerTile());
+    const said = await page.locator("[data-walk-said]").innerText();
+    throw new Error(`${name}: the walker is at (${where.x}, ${where.y}): ${said}`);
+  }
+  ok(true, `${name}: walked by a tap from (${start.x}, ${start.y}) to (${tap.x}, ${tap.y})`);
+  await page.keyboard.press("d");
+  await page.waitForTimeout(400);
+  const stepped = await page.evaluate(() => window.__editorWalk.walkerTile());
+  ok(
+    stepped.x === tap.x - 1 || stepped.x === tap.x,
+    `${name}: the game's D steps East: (${stepped.x}, ${stepped.y})`,
+  );
+  ok(
+    (await page.locator("[data-walk-said]").innerText()).length > 0,
+    `${name}: the wiring's line: ${await page.locator("[data-walk-said]").innerText()}`,
+  );
+  // The editor's keys are off while walking: B arms nothing, U selects nothing.
+  await page.keyboard.press("b");
+  await page.waitForTimeout(800);
+  await shot(`${name}-walk`);
+  if (await page.locator("input[data-walk-fog]").count()) {
+    await page.locator("input[data-walk-fog]").check();
+    await page.waitForTimeout(800);
+    ok(
+      (await page.locator("[data-walk]").getAttribute("data-walk-fog")) === "on",
+      `${name}: fog on`,
+    );
+    await shot(`${name}-walk-fog`);
+  }
+  await page.keyboard.press("p");
+  await page.locator("[data-walk]").waitFor({ state: "detached" });
+  await page.waitForTimeout(500);
+  const cameraAfter = await camera();
+  ok(
+    cameraAfter === cameraBefore,
+    `${name}: back to editing, the same camera (${cameraBefore} → ${cameraAfter})`,
+  );
+  ok(
+    !(await text_(page, "[data-armed]")).includes("Paint"),
+    `${name}: B pressed while walking armed nothing`,
+  );
+}
+
+const text_ = (page, selector) => page.locator(selector).innerText();
+
+async function objectsPhase(page, look, shot, text) {
+  console.log(`--- ${look}: objects, validation, walk (CLI-09b) ---`);
+  // The seed's zone.
+  await openFixture(page, "seed-zone.grimmap.json");
+  ok((await light(page)) === "clear", `the seed's zone validates: ${await text(".ed-light")}`);
+  ok(
+    (await objectsOf(page)).length === 10,
+    "its entry, 2 gates, 4 quota places, 2 spawns, a chest",
+  );
+  await page.waitForTimeout(500);
+  await shot("6-zone");
+
+  // Place each kind of a zone. A spawn point first: no template, a failing map.
+  const place = async (swatch, tile) => {
+    await page.locator(`[data-swatch="object-${swatch}"]`).click();
+    await clickHex(page, tile);
+  };
+  await place("spawn", { x: 5, y: 9 });
+  await page.waitForTimeout(400);
+  ok(
+    (await light(page)) === "error",
+    `a spawn point without a template: ${await text(".ed-light")}`,
+  );
+  await page.keyboard.press("y");
+  await page.locator('[data-finding="E-19"]').waitFor();
+  ok(true, "Y opens the panel: E-19 listed");
+  await shot("7-failing");
+  await page.locator('[data-finding="E-19"] [data-show]').click();
+  ok(
+    (await page.evaluate(() => window.__editor.session.selection.objects.size)) === 1,
+    "Show selects the spawn point",
+  );
+  // Fix it in the inspector: the panel closes, the template typed.
+  await page.locator('.ed-validation button[aria-label="Close the panel"]').click();
+  await page.locator('input[name="spawn-template"]').fill("4");
+  await page.locator('input[name="spawn-template"]').press("Enter");
+  await page.waitForTimeout(400);
+  ok((await light(page)) === "clear", `fixed: ${await text(".ed-light")}`);
+  await shot("8-fixed");
+  await place("feature-node", { x: 10, y: 3 });
+  await place("candidate-0", { x: 12, y: 9 });
+  await place("gate", { x: 0, y: 10 });
+  await place("entry", { x: 0, y: 7 });
+  const kinds = new Set((await objectsOf(page)).map((o) => o.kind));
+  ok(
+    ["entry", "gate", "candidate", "feature", "spawn"].every((k) => kinds.has(k)),
+    `every zone kind placed: ${[...kinds].join(", ")}`,
+  );
+  await page.waitForTimeout(400);
+  ok((await light(page)) === "clear", `still valid: ${await text(".ed-light")}`);
+
+  // Select and move: the node dragged two hexes West (x grows West) and a row up.
+  await page.keyboard.press("u");
+  await clickHex(page, { x: 10, y: 3 });
+  const from = await hexAt(page, { x: 10, y: 3 });
+  const to = await hexAt(page, { x: 12, y: 4 });
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await page.mouse.up();
+  const node = (await objectsOf(page)).find((o) => o.kind === "feature" && o.feature === "node");
+  ok(node?.at.x === 12 && node?.at.y === 4, `moved: the node at (${node?.at.x}, ${node?.at.y})`);
+
+  // Copy and paste: a box with the node, pasted onto an even row elsewhere.
+  const a = await hexAt(page, { x: 11, y: 2 });
+  const b = await hexAt(page, { x: 13, y: 4 });
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+  const picked = await page.evaluate(() => window.__editor.session.selection.hexes.size);
+  await page.keyboard.press("Control+c");
+  await page.keyboard.press("Control+v");
+  await clickHex(page, { x: 25, y: 21 });
+  const nodes = (await objectsOf(page)).filter((o) => o.kind === "feature" && o.feature === "node");
+  ok(
+    nodes.length === 2 && nodes[1].at.y % 2 === nodes[0].at.y % 2,
+    `pasted: ${picked} hexes and the node, at (${nodes[1]?.at.x}, ${nodes[1]?.at.y}): the row's parity kept`,
+  );
+  await page.waitForTimeout(500);
+  await shot("9-paste");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Escape");
+
+  await walkPhase(page, look, shot, "zone", { x: 4, y: 8 });
+
+  // The town.
+  await openFixture(page, "town-a.grimmap.json");
+  ok((await light(page)) === "clear", `the town validates: ${await text(".ed-light")}`);
+  await page.waitForTimeout(400);
+  await shot("10-town");
+  // On the island's free grass behind the castle (rows 14 and 15).
+  await place("decor", { x: 8, y: 14 });
+  await place("prop", { x: 1, y: 14 });
+  await page.keyboard.press("h");
+  const prop = (await objectsOf(page)).at(-1);
+  ok(prop?.kind === "prop" && prop.mirror === true, "a prop placed and mirrored (H)");
+  await place("figure", { x: 3, y: 14 });
+  await place("arrival", { x: 3, y: 0 });
+  // A second vault: E-14 fails, then Delete fixes it.
+  await place("place-vault", { x: 5, y: 15 });
+  await page.waitForTimeout(400);
+  ok((await light(page)) === "error", `a second vault: ${await text(".ed-light")}`);
+  await page.keyboard.press("Delete");
+  await page.waitForTimeout(400);
+  const townKinds = new Set((await objectsOf(page)).map((o) => o.kind));
+  ok(
+    ["place", "decor", "prop", "figure", "arrival"].every((k) => townKinds.has(k)),
+    `every town kind on the map: ${[...townKinds].join(", ")}`,
+  );
+  const lit = await light(page);
+  ok(lit !== "error", `the vault deleted: ${await text(".ed-light")}`);
+  await page.waitForTimeout(400);
+  await shot("11-town-pieces");
+  // A door in view of the arrival at the game's zoom: the market's.
+  const doors = await page.evaluate(() =>
+    [...window.__editor.session.doc.objects.values()]
+      .filter((o) => o.kind === "place" && o.target === "market")
+      .map((o) => o.at),
+  );
+  await walkPhase(page, look, shot, "town", doors[0]);
 }
 
 let browser;

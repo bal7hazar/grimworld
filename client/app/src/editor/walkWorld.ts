@@ -142,42 +142,22 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
       mark: null,
     },
   ];
-  const structures: ViewStructure[] = [];
   if (!zone) {
     let n = 0;
     for (const [id, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
-      if (object.kind === "figure") {
-        actors.push({
-          id: 100 + id,
-          side: "adventurer",
-          profession: FIGURES[n++ % FIGURES.length]!,
-          tile: at(object.at),
-          // West (3) for "left", East (0) for "right", as `hubWorld` turns a figure.
-          facing: object.facing === "left" ? 3 : 0,
-          mark: null,
-        });
-        continue;
-      }
-      if (object.kind !== "place" && object.kind !== "decor" && object.kind !== "prop") continue;
-      const size = object.kind === "prop" ? [TILE_WIDTH, TILE_WIDTH] : BUILDINGS[object.building];
-      structures.push({
-        key: `${object.kind}:${id}`,
-        kind: object.kind === "prop" ? "prop" : "building",
-        sprite: object.kind === "prop" ? object.sprite : object.building,
-        at: at(object.at),
-        width: size[0]!,
-        height: size[1]!,
-        ...(object.mirror ? { mirror: true } : {}),
-        ...(object.kind === "prop"
-          ? {}
-          : {
-              shape:
-                object.kind === "decor" ? "decor" : object.target === "gate" ? "gate" : "house",
-            }),
-        covers: coversOf(object).map(at),
+      if (object.kind !== "figure") continue;
+      actors.push({
+        id: 100 + id,
+        side: "adventurer",
+        profession: FIGURES[n++ % FIGURES.length]!,
+        tile: at(object.at),
+        // West (3) for "left", East (0) for "right", as `hubWorld` turns a figure.
+        facing: object.facing === "left" ? 3 : 0,
+        mark: null,
       });
     }
   }
+  const structures = zone ? [] : townStructures(doc, at);
   return {
     name: doc.meta.name,
     description: `${doc.meta.name}: the map editor's preview walk`,
@@ -188,6 +168,37 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
     path: [],
     ...(zone ? {} : { kind: "hub" as const, structures }),
   };
+}
+
+/**
+ * A town's buildings and props as the game's structures (`structures()`, `hubWorld.ts:72-108`),
+ * each on the hexes it covers; `at` places a hex of the editor's plane.
+ */
+export function townStructures(
+  doc: MapDocument,
+  at: (tile: Tile) => Tile = (t) => t,
+): ViewStructure[] {
+  const out: ViewStructure[] = [];
+  for (const [id, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
+    if (object.kind !== "place" && object.kind !== "decor" && object.kind !== "prop") continue;
+    const size = object.kind === "prop" ? [TILE_WIDTH, TILE_WIDTH] : BUILDINGS[object.building];
+    out.push({
+      key: `${object.kind}:${id}`,
+      kind: object.kind === "prop" ? "prop" : "building",
+      sprite: object.kind === "prop" ? object.sprite : object.building,
+      at: at(object.at),
+      width: size[0]!,
+      height: size[1]!,
+      ...(object.mirror ? { mirror: true } : {}),
+      ...(object.kind === "prop"
+        ? {}
+        : {
+            shape: object.kind === "decor" ? "decor" : object.target === "gate" ? "gate" : "house",
+          }),
+      covers: coversOf(object).map(at),
+    });
+  }
+  return out;
 }
 
 /** Where a hex of the editor's plane is in the preview's world, and back. */

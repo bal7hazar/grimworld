@@ -79,6 +79,17 @@ describe("Place (§3)", () => {
     ]);
   });
 
+  it("an object placed after a fit leaves the fit as it is; a stroke makes it stale", () => {
+    const s = new EditorSession(zone());
+    block(s, 4, 4);
+    s.fitChunks();
+    s.choosePlace({ kind: "entry" });
+    click(s, { x: 1, y: 1 });
+    expect(s.paintedSinceOrigin).toBe(false);
+    block(s, 5, 4);
+    expect(s.paintedSinceOrigin).toBe(true);
+  });
+
   it("a right click with Place or Select inspects the hex", () => {
     const s = new EditorSession(zone());
     s.choosePlace({ kind: "spawn" });

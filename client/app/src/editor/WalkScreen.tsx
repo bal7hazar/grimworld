@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { type KeyLike, bindingsOf, keyCommand } from "../input/keys";
 import type { Tile } from "../render/view";
 import { keyScope } from "../sandbox/keyScope";
 import { type MapDocument, isZone } from "./model";
-import { WalkCanvas } from "./walk";
+import type { EditorCanvas } from "./canvas";
+import type { WalkMode } from "./walk";
 import { type Frame, toFrame, walkWorld } from "./walkWorld";
 
 /** Where the walk starts (§2.8): the entry (a zone) or the arrival (a town), a gate, the selected hex. */
@@ -13,23 +14,24 @@ export interface WalkStart {
 }
 
 /**
- * The preview walk (CLI-09b, brief §2.8): the game's view of the map, the panels folded to a thin
- * bar. Only the game's `BINDINGS` are live (the instance screen's set, or the hub screen's in a
+ * The preview walk (CLI-09b, brief §2.8): the game's view of the map on the edit canvas, the
+ * panels folded to a thin bar above and below it. Only the game's `BINDINGS` are live (the instance screen's set, or the hub screen's in a
  * town), plus `P` to leave. The walk changes nothing in the map.
  */
 export function WalkScreen({
   doc,
   frame,
   starts,
+  editCanvas,
   onLeave,
 }: {
   doc: MapDocument;
   frame: Frame;
   starts: readonly WalkStart[];
+  editCanvas: RefObject<EditorCanvas | null>;
   onLeave: () => void;
 }) {
-  const host = useRef<HTMLDivElement>(null);
-  const canvas = useRef<WalkCanvas | null>(null);
+  const canvas = useRef<WalkMode | null>(null);
   const [start, setStart] = useState(0);
   const [fog, setFog] = useState(false);
   const [said, setSaid] = useState("");
@@ -42,30 +44,21 @@ export function WalkScreen({
     [doc, frame, from, fog],
   );
 
+  // The walk on the edit canvas: begun with the world, ended (the camera given back) when the
+  // screen goes or the start or the fog changes.
   useEffect(() => {
-    const element = host.current;
-    if (!element || !world) return;
-    let gone = false;
-    let mounted: WalkCanvas | null = null;
-    void WalkCanvas.mount(element, world, fog, () =>
-      setSaid(mounted?.session.state.said ?? ""),
-    ).then((made) => {
-      if (gone) {
-        made.destroy();
-        return;
-      }
-      mounted = made;
-      canvas.current = made;
-      // The browser check reads where the walker stands.
-      (window as unknown as { __editorWalk?: WalkCanvas }).__editorWalk = made;
-    });
+    const edit = editCanvas.current;
+    if (!edit || !world) return;
+    const mode = edit.beginWalk(world, fog, () => setSaid(mode.session.state.said));
+    canvas.current = mode;
+    // The browser check reads where the walker stands.
+    (window as unknown as { __editorWalk?: WalkMode }).__editorWalk = mode;
     return () => {
-      gone = true;
-      mounted?.destroy();
+      edit.endWalk();
       canvas.current = null;
-      delete (window as unknown as { __editorWalk?: WalkCanvas }).__editorWalk;
+      delete (window as unknown as { __editorWalk?: WalkMode }).__editorWalk;
     };
-  }, [world, fog]);
+  }, [editCanvas, world, fog]);
 
   // The game's keys, and P to leave: one key layer over the editor's (which is off meanwhile).
   useEffect(
@@ -107,8 +100,8 @@ export function WalkScreen({
   );
 
   return (
-    <div className="ed-walk" data-walk="" data-walk-fog={fog ? "on" : "off"}>
-      <header className="ed-bar">
+    <>
+      <header className="ed-bar ed-walk-top" data-walk="" data-walk-fog={fog ? "on" : "off"}>
         <strong>Walking · {doc.meta.name} (preview)</strong>
         <span className="ed-dim">Keys: the game&apos;s (Q W E A S D, arrows, 0, + −, Esc, ?)</span>
         <span className="ed-spacer" />
@@ -116,8 +109,7 @@ export function WalkScreen({
           [P] ◂ Edit
         </button>
       </header>
-      <div className="ed-canvas" ref={host} data-walk-canvas="" />
-      <footer className="ed-bar ed-bottom">
+      <footer className="ed-bar ed-bottom" data-walk-bottom="">
         <span>Start:</span>
         {starts.map((s, i) => (
           <label key={s.label}>
@@ -182,6 +174,6 @@ export function WalkScreen({
           </table>
         </div>
       )}
-    </div>
+    </>
   );
 }
