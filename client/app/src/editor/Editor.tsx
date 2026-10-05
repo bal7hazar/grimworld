@@ -3,8 +3,9 @@ import type { KeyLike } from "../input/keys";
 import type { Tile } from "../render/view";
 import { installKeys, keyScope } from "../sandbox/keyScope";
 import { type AtlasState, EditorCanvas } from "./canvas";
-import { type DraftEntry, Drafts, browserStorage, newDraftId } from "./drafts";
+import { type DraftEntry, DraftWriter, Drafts, browserStorage, newDraftId } from "./drafts";
 import { fileName, loadMap, saveMap } from "./file";
+import { type Fitted, chunkAt, fitted } from "./fit";
 import { EDITOR_BINDINGS, type EditorCommand, type EditorTool, editorCommand } from "./keys";
 import {
   BIOMES,
@@ -16,21 +17,19 @@ import {
   type MapDocument,
   type MapKind,
   NAME_MAX,
-  SIZE_MAX,
-  type StartFill,
   WALL,
-  chunkOf,
-  cloneMap,
+  cellAt,
   createMap,
-  inMap,
-  indexOf,
+  groundOfCell,
+  isOutside,
+  keyOf,
   newMapProblem,
-  outlineRecords,
-  tilesHigh,
-  tilesWide,
+  paintedBox,
+  terrainOf,
 } from "./model";
 import { outlineSegments, seamSegments } from "./overlay";
 import { EditorSession } from "./session";
+import { listenSpaceRelease } from "./spaceHold";
 import { LAYER_NAMES, type Layers, editorView } from "./view";
 
 /**
@@ -86,6 +85,8 @@ export function EditorApp() {
   const drafts = useMemo(() => new Drafts(browserStorage()), []);
   const [open, setOpen] = useState<{ id: string; doc: MapDocument } | null>(null);
   const [problem, setProblem] = useState("");
+  /** What a file's load says beside the map: a format 1 file's conversion. */
+  const [note, setNote] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => installKeys(), []);
@@ -99,6 +100,7 @@ export function EditorApp() {
         return;
       }
       setProblem("");
+      setNote(read.notes.join(" "));
       const id = newDraftId();
       drafts.put(id, read.doc);
       setOpen({ id, doc: read.doc });
@@ -155,8 +157,10 @@ export function EditorApp() {
           doc={open.doc}
           drafts={drafts}
           problem={problem}
+          note={note}
           onBack={() => {
             setProblem("");
+            setNote("");
             setOpen(null);
           }}
           onOpenFile={pickFile}
@@ -165,6 +169,7 @@ export function EditorApp() {
         <MapList
           drafts={drafts}
           problem={problem}
+          onProblem={setProblem}
           onOpen={(id) => {
             const doc = drafts.get(id);
             if (typeof doc === "string") setProblem(doc);
@@ -191,12 +196,14 @@ export function EditorApp() {
 function MapList({
   drafts,
   problem,
+  onProblem,
   onOpen,
   onCreate,
   onOpenFile,
 }: {
   drafts: Drafts;
   problem: string;
+  onProblem: (problem: string) => void;
   onOpen: (id: string) => void;
   onCreate: (doc: MapDocument) => void;
   onOpenFile: () => void;
@@ -253,7 +260,8 @@ function MapList({
               <tr>
                 <th>Kind</th>
                 <th>Name</th>
-                <th>Size (chunks)</th>
+                <th>Hexes</th>
+                <th>Chunks (fitted)</th>
                 <th>Location id</th>
                 <th>Edited</th>
                 <th>Problems</th>
@@ -265,9 +273,8 @@ function MapList({
                 <tr key={e.id} data-draft={e.id}>
                   <td>{KIND_NAMES[e.kind]}</td>
                   <td>{e.name}</td>
-                  <td>
-                    {e.width} × {e.height}
-                  </td>
+                  <td>{e.hexes ?? "—"}</td>
+                  <td>{e.chunks ?? "—"}</td>
                   <td>{e.location}</td>
                   <td>{stamp(e.edited)}</td>
                   <td className="ed-dim" title="Validation comes with CLI-09b">
@@ -280,9 +287,8 @@ function MapList({
                     <button
                       type="button"
                       onClick={() => {
-                        const doc = drafts.get(e.id);
-                        if (typeof doc === "string") return;
-                        drafts.put(newDraftId(), cloneMap(doc));
+                        // A refused copy says why (CLI-09a's review): the storage may be full.
+                        onProblem(drafts.duplicate(e.id) ?? "");
                         refresh();
                       }}
                     >
@@ -387,21 +393,9 @@ function NewMapDialog({
   const [kind, setKind] = useState<MapKind>("zone");
   const [name, setName] = useState("");
   const [location, setLocation] = useState("2");
-  const [width, setWidth] = useState("3");
-  const [height, setHeight] = useState("2");
   const [biome, setBiome] = useState<Biome>("meadow");
-  const [start, setStart] = useState<StartFill>("wall");
-  const fields = {
-    kind,
-    name,
-    location: Number(location),
-    width: Number(width),
-    height: Number(height),
-    biome,
-    start,
-  };
+  const fields = { kind, name, location: Number(location), biome };
   const problem = newMapProblem(fields);
-  const max = SIZE_MAX[kind];
   return (
     <Dialog
       title="New map"
@@ -450,29 +444,6 @@ function NewMapDialog({
           />{" "}
           <span className="ed-dim">the LOCATION id it will be</span>
         </span>
-        <span>Size</span>
-        <span>
-          width{" "}
-          <input
-            name="width"
-            inputMode="numeric"
-            size={3}
-            value={width}
-            onChange={(e) => setWidth(e.target.value)}
-          />{" "}
-          × height{" "}
-          <input
-            name="height"
-            inputMode="numeric"
-            size={3}
-            value={height}
-            onChange={(e) => setHeight(e.target.value)}
-          />{" "}
-          chunks{" "}
-          <span className="ed-dim">
-            (1–{max}) = {Number(width) * CHUNK || 0} × {Number(height) * CHUNK || 0} tiles
-          </span>
-        </span>
         <label htmlFor="ed-biome">Biome</label>
         <span>
           <select
@@ -490,22 +461,10 @@ function NewMapDialog({
           </select>{" "}
           <span className="ed-dim">(zone only)</span>
         </span>
-        <span>Start as</span>
-        <span>
-          {(["wall", "floor"] as const).map((s) => (
-            <label key={s} style={{ marginRight: 14 }}>
-              <input
-                type="radio"
-                name="start"
-                value={s}
-                checked={start === s}
-                onChange={() => setStart(s)}
-              />{" "}
-              All {s}
-            </label>
-          ))}
-        </span>
       </div>
+      <p className="ed-dim">
+        The map has no size: paint it anywhere, then fit the chunks to it (D-216).
+      </p>
       {problem && <p className="ed-problem">{problem}</p>}
     </Dialog>
   );
@@ -561,7 +520,7 @@ const LAYER_LABELS: Readonly<Record<keyof Layers, string>> = {
   obstacles: "Obstacles",
   objects: "Objects",
   outline: "Outline",
-  seams: "Chunk seams",
+  seams: "Fitted chunks",
   grid: "Grid",
 };
 
@@ -573,6 +532,7 @@ function EditorScreen({
   doc,
   drafts,
   problem,
+  note,
   onBack,
   onOpenFile,
 }: {
@@ -580,6 +540,7 @@ function EditorScreen({
   doc: MapDocument;
   drafts: Drafts;
   problem: string;
+  note: string;
   onBack: () => void;
   onOpenFile: () => void;
 }) {
@@ -598,11 +559,9 @@ function EditorScreen({
   const [dirty, setDirty] = useState(false);
   const [help, setHelp] = useState(false);
   const meta = doc.meta;
-  const columns = tilesWide(meta);
-  const rows = tilesHigh(meta);
-  const seams = useMemo(() => seamSegments(columns, rows), [columns, rows]);
+  const { revision, layers } = session;
 
-  // The canvas: mounted once per map.
+  // The canvas: mounted once per map. The renderer is sent the tiles around the view only.
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -626,8 +585,9 @@ function EditorScreen({
       }
       mounted = made;
       canvas.current = made;
-      made.setView(editorView(doc, session.layers));
-      made.setMapSize(columns, rows);
+      made.setPainted(paintedBox(doc));
+      made.setViewSource((window) => editorView(doc, session.layers, window));
+      made.fit();
       setAtlas(made.atlas);
       setAcross(made.across());
       rerender();
@@ -637,31 +597,37 @@ function EditorScreen({
       mounted?.destroy();
       canvas.current = null;
     };
-  }, [doc, session, columns, rows, rerender]);
+  }, [doc, session, rerender]);
 
   // The view: rebuilt when the document or the layers change, at most once a display frame.
-  const { revision, layers } = session;
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() =>
-      canvas.current?.setView(editorView(doc, layers)),
-    );
+    const frame = window.requestAnimationFrame(() => {
+      canvas.current?.setPainted(paintedBox(doc));
+      canvas.current?.refreshView();
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [doc, revision, layers]);
 
+  // The hexes are edited in place and the origin set on the document: the revision says when.
+  const fit = useMemo(() => fitted(doc), [doc, revision]);
+  const fit_ = typeof fit === "string" ? null : fit;
+  const seams = useMemo(() => (fit_ ? seamSegments(fit_) : null), [fit_]);
   const outlineEdges = useMemo(
-    () => (doc.outline ? outlineSegments(columns, rows, doc.outline) : null),
-    // The outline is edited in place: the revision says when.
-    [doc, columns, rows, revision],
+    () => (session.zone ? outlineSegments(doc) : null),
+    [doc, session, revision],
   );
-  const records = useMemo(() => (doc.outline ? outlineRecords(doc) : null), [doc, revision]);
 
   // The overlays.
-  const brush = hover && inMap(doc, hover) ? session.footprint(hover) : [];
+  const brush = hover ? session.footprint(hover) : [];
   useEffect(() => {
     canvas.current?.setScene({
-      width: columns,
-      height: rows,
-      outline: doc.outline && layers.outline ? doc.outline : null,
+      outside:
+        session.zone && layers.outline
+          ? (t) => {
+              const cell = doc.hexes.get(keyOf(t));
+              return cell !== undefined && isOutside(cell);
+            }
+          : null,
       outlineEdges: layers.outline ? outlineEdges : null,
       seams: layers.seams ? seams : null,
       grid: layers.grid,
@@ -670,22 +636,40 @@ function EditorScreen({
     });
   });
 
-  // The draft, written a moment after each change (§6).
+  // The draft, written a moment after each change, and at once when the screen goes or the tab
+  // is closed (§6, O-5).
+  const writer = useMemo(
+    () =>
+      new DraftWriter(
+        () => {
+          const ok = drafts.put(id, doc);
+          setSaved({ at: ok ? new Date() : null, failed: !ok });
+          setDirty(false);
+        },
+        DRAFT_DELAY_MS,
+        {
+          setTimeout: (run, ms) => window.setTimeout(run, ms),
+          clearTimeout: (timer) => window.clearTimeout(timer),
+        },
+      ),
+    [drafts, id, doc],
+  );
   useEffect(() => {
     if (revision === 0) return;
     setDirty(true);
-    const timer = window.setTimeout(() => {
-      const ok = drafts.put(id, doc);
-      setSaved({ at: ok ? new Date() : null, failed: !ok });
-      setDirty(false);
-    }, DRAFT_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [revision, drafts, id, doc]);
+    writer.changed();
+  }, [revision, writer]);
+  useEffect(() => {
+    const flush = () => writer.flush();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      writer.flush();
+    };
+  }, [writer]);
 
   const save = () => {
-    const ok = drafts.put(id, doc);
-    setSaved({ at: ok ? new Date() : null, failed: !ok });
-    setDirty(false);
+    writer.now();
     download(fileName(meta), saveMap(doc));
   };
 
@@ -703,6 +687,12 @@ function EditorScreen({
         return true;
       case "fit":
         c?.fit();
+        return true;
+      case "fitChunks":
+        session.fitChunks();
+        return true;
+      case "nudge":
+        session.nudgeOrigin(command.dx, command.dy);
         return true;
       case "brush":
         session.setBrush(session.brush + command.by);
@@ -739,22 +729,17 @@ function EditorScreen({
 
   useEditorKeys((event) => {
     if (event.code === "Space" && !event.ctrlKey && !event.metaKey) {
-      // Space held: a left drag pans (§3); its release is heard below.
+      // Space held: a left drag pans (§3); its release, a blur or a hidden page end it.
       canvas.current?.setSpace(true);
       return true;
     }
     const command = editorCommand(event);
     return command ? run(command) : false;
   }, !help);
-  useEffect(() => {
-    const up = (e: KeyboardEvent) => e.code === "Space" && canvas.current?.setSpace(false);
-    window.addEventListener("keyup", up);
-    return () => window.removeEventListener("keyup", up);
-  }, []);
+  useEffect(() => listenSpaceRelease(window, document, () => canvas.current?.setSpace(false)), []);
 
-  const hovered = hover && inMap(doc, hover) ? hover : null;
-  const at = hovered ? chunkOf(hovered) : null;
-  const hoverIndex = hovered ? indexOf(doc, hovered) : -1;
+  const cell = hover ? cellAt(doc, hover) : null;
+  const at = hover && fit_ ? chunkAt(hover, fit_) : null;
   const state = dirty
     ? "Unsaved changes"
     : saved.failed
@@ -769,6 +754,7 @@ function EditorScreen({
       : session.tool === "fill"
         ? `Fill: ${fillLabel ?? (session.group === "terrain" ? (session.terrain === WALL ? "Wall" : "Floor") : GROUND_KINDS[session.ground])}`
         : TOOLS.find((t) => t.tool === session.tool)!.label;
+  const box = paintedBox(doc);
 
   return (
     <>
@@ -777,8 +763,8 @@ function EditorScreen({
           ◂ Maps
         </button>
         <span>
-          <strong data-map-name="">{meta.name}</strong> · {KIND_NAMES[meta.kind]} · {meta.width}×
-          {meta.height} chunks · loc {meta.location}
+          <strong data-map-name="">{meta.name}</strong> · {KIND_NAMES[meta.kind]} ·{" "}
+          {doc.hexes.size} hexes · loc {meta.location}
         </span>
         <span className="ed-dim" data-save-state="">
           {state}
@@ -805,6 +791,11 @@ function EditorScreen({
         {problem && (
           <span className="ed-problem" role="alert">
             {problem}
+          </span>
+        )}
+        {note && (
+          <span className="ed-dim" data-note="">
+            {note}
           </span>
         )}
         <button type="button" onClick={onOpenFile}>
@@ -912,18 +903,28 @@ function EditorScreen({
         </div>
         <aside className="ed-inspector" data-inspector="">
           <div className="ed-heading">Hex</div>
-          {hovered && at ? (
+          {hover ? (
             <div data-hex="">
               <div>
-                ({hovered.x}, {hovered.y})
+                ({hover.x}, {hover.y})
               </div>
               <div className="ed-dim">
-                chunk {at.chunk} ({at.cx},{at.cy}) · tile {at.tile}
+                {at
+                  ? `global (${at.x}, ${at.y}) · chunk ${at.chunk} (${at.cx},${at.cy}) · tile ${at.tile}`
+                  : "no chunk grid yet"}
               </div>
-              <div>Terrain: {doc.terrain[hoverIndex] === WALL ? "Wall" : "Floor"}</div>
-              <div>Ground: {GROUND_KINDS[doc.ground[hoverIndex]!]}</div>
-              <div>Obstacle: {doc.obstacles.get(hoverIndex) ?? "auto"}</div>
-              {doc.outline && <div>Outline: {doc.outline[hoverIndex] ? "inside" : "outside"}</div>}
+              {cell === null ? (
+                <div className="ed-dim">Not painted (void)</div>
+              ) : (
+                <>
+                  <div>Terrain: {terrainOf(cell) === WALL ? "Wall" : "Floor"}</div>
+                  <div>Ground: {GROUND_KINDS[groundOfCell(cell)]}</div>
+                  <div>Obstacle: {doc.obstacles.get(keyOf(hover)) ?? "auto"}</div>
+                  {session.zone && (
+                    <div>Outline: {isOutside(cell) ? "outside" : "inside"}</div>
+                  )}
+                </>
+              )}
             </div>
           ) : (
             <div className="ed-dim">Point at a hex.</div>
@@ -932,12 +933,13 @@ function EditorScreen({
           <div>
             {KIND_NAMES[meta.kind]} “{meta.name}”, location {meta.location}
           </div>
-          <div>
-            {meta.width} × {meta.height} chunks = {columns} × {rows} tiles
+          <div data-painted="">
+            {doc.hexes.size} hexes painted
+            {box ? `, ${box.x1 - box.x0 + 1} × ${box.y1 - box.y0 + 1} across` : ""}
           </div>
           {meta.biome && <div>Biome: {meta.biome}</div>}
-          <div>Start fill: {meta.start}</div>
-          {records && (
+          <ChunksPanel session={session} fit={fit} />
+          {session.zone && (
             <>
               <div className="ed-heading">Outline</div>
               {session.tool === "outline" && (
@@ -949,18 +951,20 @@ function EditorScreen({
                   Outline from floor
                 </button>
               )}
-              <ChunkCells meta={meta} records={records} />
               <div className="ed-dim" data-chunk-set="">
-                {records.chunks.length} chunks in the set, {records.masks.size} on the border
+                {fit_
+                  ? `${fit_.chunkSet.length} chunks in the set, ${fit_.masks.size} on the border`
+                  : "Fit chunks to derive the chunk set."}
               </div>
             </>
           )}
         </aside>
       </div>
       <footer className="ed-bar ed-bottom" data-status="">
-        {hovered && at ? (
+        {hover ? (
           <span>
-            x {hovered.x} y {hovered.y} · chunk ({at.cx},{at.cy}) tile {at.tile}
+            x {hover.x} y {hover.y}
+            {at ? ` · chunk (${at.cx},${at.cy}) tile ${at.tile}` : ""}
           </span>
         ) : (
           <span className="ed-dim">—</span>
@@ -980,26 +984,85 @@ function EditorScreen({
   );
 }
 
-/** The chunk set as a small grid of chunk cells (§2.5): whole, border, or outside. */
-function ChunkCells({
-  meta,
-  records,
+/**
+ * The chunks (D-216): "Fit chunks", the origin and its nudge, the counts, and the fitted rectangle
+ * as a small grid of chunk cells (§2.5): whole, border, or outside.
+ */
+function ChunksPanel({
+  session,
+  fit,
 }: {
-  meta: MapDocument["meta"];
-  records: ReturnType<typeof outlineRecords>;
+  session: EditorSession;
+  fit: ReturnType<typeof fitted>;
 }) {
-  const inSet = new Set(records.chunks);
+  const origin = session.doc.origin;
+  const nudge = (label: string, title: string, dx: -1 | 0 | 1, dy: -1 | 0 | 1) => (
+    <button
+      type="button"
+      data-nudge={label}
+      title={title}
+      disabled={!origin}
+      onClick={() => session.nudgeOrigin(dx, dy)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <>
+      <div className="ed-heading">Chunks</div>
+      <button type="button" data-fit-chunks="" onClick={() => session.fitChunks()}>
+        Fit chunks [Shift+0]
+      </button>
+      <div data-origin="">
+        {origin ? `Origin (${origin.x}, ${origin.y}), ${origin.how}` : "No chunk grid yet."}
+      </div>
+      <div>
+        Nudge {nudge("◂", "West (Shift+←)", 1, 0)} {nudge("▸", "East (Shift+→)", -1, 0)}{" "}
+        {nudge("▴", "North (Shift+↑)", 0, 1)} {nudge("▾", "South (Shift+↓)", 0, -1)}
+      </div>
+      {typeof fit !== "string" ? (
+        <>
+          <div data-fit="">
+            {fit.chunks} chunks, {fit.partial} partly filled
+          </div>
+          <div className="ed-dim">
+            {fit.width} × {fit.height} chunks from global (0, 0) at ({fit.x0}, {fit.y0})
+            {fit.lowRow ? "; an empty chunk row at the foot keeps the rows' parity" : ""}
+          </div>
+          {session.paintedSinceOrigin && (
+            <div className="ed-dim" data-fit-stale="">
+              Painted since: Fit chunks again to check the best origin.
+            </div>
+          )}
+          {fit.problems.map((p) => (
+            <div key={p} className="ed-problem" data-fit-problem="">
+              {p}
+            </div>
+          ))}
+          <ChunkCells fit={fit} />
+        </>
+      ) : fit === "wide" ? (
+        <div className="ed-problem">The painted hexes span more than 1000 hexes.</div>
+      ) : null}
+    </>
+  );
+}
+
+/** The fitted rectangle's chunk cells: whole, border, or outside the chunk set. */
+function ChunkCells({ fit }: { fit: Fitted }) {
+  if (fit.width > CHUNK || fit.height > CHUNK) return null;
+  const inSet = new Set(fit.chunkSet);
   const cells: ReactNode[] = [];
   // Drawn as the map: x grows West (to the left), y North (up).
   for (let cy = CHUNK - 1; cy >= 0; cy--) {
     for (let cx = CHUNK - 1; cx >= 0; cx--) {
       const chunk = CHUNK * cy + cx;
-      const inside = cx < meta.width && cy < meta.height;
+      const inside = cx < fit.width && cy < fit.height;
       const cell = !inside
         ? undefined
         : !inSet.has(chunk)
           ? "outside"
-          : records.masks.has(chunk)
+          : fit.masks.has(chunk)
             ? "border"
             : "whole";
       cells.push(

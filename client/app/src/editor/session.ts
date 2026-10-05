@@ -1,4 +1,5 @@
 import type { Tile } from "../render/view";
+import { fitChunks, nudge } from "./fit";
 import { History } from "./history";
 import type { EditorTool } from "./keys";
 import {
@@ -11,6 +12,7 @@ import {
   brushAt,
   erase,
   fill,
+  isZone,
   outlineFromFloor,
   paint,
   pick,
@@ -42,6 +44,8 @@ export class EditorSession {
   layerFocus = 0;
   /** Bumped on every change of the document. */
   revision = 0;
+  /** The revision of the last fit or nudge: a later one means the map was painted since. */
+  originRevision = 0;
   /** What the status bar says after a refused action, until the next one. */
   said = "";
   /** The stroke's mode: what a drag does, fixed at its start. */
@@ -53,7 +57,11 @@ export class EditorSession {
   ) {}
 
   get zone(): boolean {
-    return this.doc.outline !== null;
+    return isZone(this.doc);
+  }
+
+  get stroking(): boolean {
+    return this.stroke !== null;
   }
 
   /** What Paint puts down. */
@@ -110,7 +118,7 @@ export class EditorSession {
   /** The hexes under the brush at a hex, for the tool armed (Fill and Pick take one). */
   footprint(tile: Tile): Tile[] {
     const radius = this.tool === "fill" || this.tool === "pick" ? 0 : this.brush;
-    return brushAt(this.doc, tile, radius);
+    return brushAt(tile, radius);
   }
 
   private record(changes: readonly Change[]): void {
@@ -138,8 +146,14 @@ export class EditorSession {
         const swatch: Swatch = this.fillOutline
           ? { layer: "outline", value: how.erase ? 0 : 1 }
           : this.swatch();
+        const changes = fill(this.doc, tile, swatch);
+        if (typeof changes === "string") {
+          this.said = changes;
+          this.onChange();
+          return;
+        }
         this.history.begin();
-        this.record(fill(this.doc, tile, swatch));
+        this.record(changes);
         this.history.end();
         return;
       }
@@ -160,7 +174,7 @@ export class EditorSession {
   strokeMove(tiles: readonly Tile[]): void {
     if (!this.stroke) return;
     for (const tile of tiles) {
-      const under = brushAt(this.doc, tile, this.brush);
+      const under = brushAt(tile, this.brush);
       let step: Change[];
       switch (this.stroke) {
         case "brush":
@@ -209,7 +223,47 @@ export class EditorSession {
     this.history.end();
   }
 
+  /**
+   * "Fit chunks" (D-216): the origin with the fewest chunks; the fitted grid's layer is shown. The
+   * origin is the document's, saved with it, and not a step of the history.
+   */
+  fitChunks(): void {
+    this.said = "";
+    const best = fitChunks(this.doc);
+    if (best === "empty") this.said = "Nothing to fit: paint the map first.";
+    else if (best === "wide") this.said = "The painted hexes span more than 1000 hexes: not fitted.";
+    else {
+      this.doc.origin = { ...best.origin, how: "fitted" };
+      this.originMoved();
+      this.layers = { ...this.layers, seams: true };
+    }
+    this.onChange();
+  }
+
+  /** The origin moved by hand, one hex (`dx` West, `dy` North): the counts follow. */
+  nudgeOrigin(dx: number, dy: number): void {
+    this.said = "";
+    this.doc.origin = nudge(this.doc.origin ?? { x: 0, y: 0 }, dx, dy);
+    this.originMoved();
+    this.layers = { ...this.layers, seams: true };
+    this.onChange();
+  }
+
+  private originMoved(): void {
+    // The draft keeps the origin: the document changed.
+    this.revision += 1;
+    this.originRevision = this.revision;
+  }
+
+  /** Painted since the last fit or nudge of this session. */
+  get paintedSinceOrigin(): boolean {
+    return this.doc.origin !== null && this.revision !== this.originRevision;
+  }
+
+  // A stroke in progress ends first: its changes become one step before the undo, and the moves
+  // that follow draw nothing until the next press (CLI-09a's review, minor c).
   undo(): void {
+    if (this.stroke) this.strokeEnd();
     if (this.history.undo(this.doc)) {
       this.revision += 1;
       this.onChange();
@@ -217,6 +271,7 @@ export class EditorSession {
   }
 
   redo(): void {
+    if (this.stroke) this.strokeEnd();
     if (this.history.redo(this.doc)) {
       this.revision += 1;
       this.onChange();
