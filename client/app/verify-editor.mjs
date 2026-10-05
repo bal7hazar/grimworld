@@ -1,4 +1,4 @@
-/* global console, process, fetch, setTimeout, localStorage, Buffer, URL */
+/* global console, process, fetch, setTimeout, localStorage, Buffer, URL, window, Event */
 /* eslint-disable no-empty */
 // The map editor in a real browser (CLI-09a, CLI-09a2): at 1440 × 900, with the art and in the plain
 // look (the art's `/art/` answered 404), a zone is created with no size, painted away from the
