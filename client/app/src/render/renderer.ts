@@ -316,6 +316,19 @@ export function dimmed(grey: number): number {
   return Math.round((grey & 0xff) * (1 - DIM_ALPHA)) * 0x010101;
 }
 
+/** Whether two plans of foam pieces are the same: same sources, water hexes and polygons, in order. */
+function samePieces(a: readonly FoamPiece[], b: readonly FoamPiece[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const [p, q] = [a[i]!, b[i]!];
+    if (p.source.x !== q.source.x || p.source.y !== q.source.y) return false;
+    if (p.over.x !== q.over.x || p.over.y !== q.over.y) return false;
+    if (p.points.length !== q.points.length) return false;
+    for (let k = 0; k < p.points.length; k++) if (p.points[k] !== q.points[k]) return false;
+  }
+  return true;
+}
+
 /** The bake chunk a tile is in, as `syncChunks` keys them. */
 function chunkId(tile: Tile): string {
   return `${Math.floor(tile.x / BAKE_CHUNK)},${Math.floor(tile.y / BAKE_CHUNK)}`;
@@ -1423,10 +1436,14 @@ export class Renderer implements FrameClient {
       const chunk = this.chunks.get(id);
       if (chunk && chunk.foamKey !== foamKey) {
         chunk.foamKey = foamKey;
-        chunk.foam = foamKey ? waterFoam(group, { around, hidden: unseen }) : [];
-        this.foamVersion += 1;
-        // Its grayscale twin holds its foam, still (`bakeTerrain`).
-        chunk.greyStale = true;
+        const foam = foamKey ? waterFoam(group, { around, hidden: unseen }) : [];
+        // A tile seen that changes none of its pieces (most exploring steps) changes nothing.
+        if (!samePieces(foam, chunk.foam)) {
+          chunk.foam = foam;
+          this.foamVersion += 1;
+          // Its grayscale twin holds its foam, still (`bakeTerrain`).
+          chunk.greyStale = true;
+        }
       }
       if (chunk?.key === key) continue;
       changed = true;

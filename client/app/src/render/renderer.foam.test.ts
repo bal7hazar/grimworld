@@ -7,7 +7,7 @@ import { allExplored } from "../test/explored";
 import { FakeHost } from "../test/fakeHost";
 import { FakeSurface } from "../test/fakeSurface";
 import { type FoamMesh, type WaterMode, foamFrame } from "./foam";
-import { FOAM_SIZE } from "./ground";
+import { FOAM_REACH, FOAM_SIZE, hexesWithin } from "./ground";
 import { tileKey } from "./fog";
 import { Renderer } from "./renderer";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
@@ -236,6 +236,30 @@ describe("the foam under fog (CLI-03n's exploration, CLI-03o)", () => {
     expect(sight.mesh.parent).toBe(layer);
     expect(layer.children).toHaveLength(1);
     expect(sight.pieces).not.toBe(before);
+  });
+
+  it("a step that sees a tile no foam looks at bakes nothing, not even a grey twin", () => {
+    const state = initialState(fixtureNamed("zone"));
+    const { host, surface, renderer } = mount(toView(state));
+    host.run(100);
+    const view = toView(state);
+    const chain = new Map((view.revealed ?? []).map((t) => [tileKey(t), t]));
+    const near = (t: { x: number; y: number }) =>
+      hexesWithin(t, FOAM_REACH + 1).some((n) => {
+        const c = chain.get(tileKey(n));
+        return !c || c.kind === "unrevealed" || c.ground === "water";
+      });
+    // A tile revealed on chain, never seen, with no water, void or unrevealed tile near it.
+    const tile = (view.revealed ?? []).find(
+      (t) => t.kind !== "unrevealed" && !state.explored.has(tileKey(t)) && !near(t),
+    )!;
+    expect(tile).toBeDefined();
+    const [bakes, greys] = [surface.bakes.length, surface.greyBakes.length];
+    const explored = new Set(state.explored).add(tileKey(tile));
+    renderer.setView(toView({ ...state, explored }));
+    host.run(100);
+    expect(surface.bakes).toHaveLength(bakes);
+    expect(surface.greyBakes).toHaveLength(greys);
   });
 
   it("without fog, none over a tile hidden by the cover", () => {
