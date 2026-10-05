@@ -132,13 +132,14 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
        land: Open question 3); **entry and gate points** (the entry chunk and tile `LOCATION` holds; gate
        anchors, with how a chunk names the gates it anchors, which answers the deferred gate index);
      - **the outline**: what an authored zone keeps of `OUTLINE` (the chunk set: void chunks, the
-       world map, TP-2) and whether its border tile masks are still written (Open question 6);
+       world map, TP-2) and its border chunks' tile masks, as today (Open question 6, decided);
      - **the record shape**: a new kind or an extension of `SET_PIECE`/`OUTLINE`, its id scheme
        (composite, keyed by the location and the chunk, as `OUTLINE`), its parts (≤ 3 keeps `bundle`'s
        bound of 32 records "at most 3 parts each"; more is a change of ENG-01 §4.5 to state), its
        `LOCATION` marker (how the reveal tells an authored zone from a generated one).
   2. **Registration**: the order of writes, the validators and the content checks, as `...Assert`
-     rules to add (written into ENG-01 §3.5's *The writer's checks*; built by ENG-09):
+     rules to add (written into ENG-01 §3.5's *The writer's checks*; the authored chunk's built by
+     ENG-09, the four deferred bounds by ENG-R1c and reused by ENG-09, Open question 8):
      - each authored chunk's local checks (fields within their widths; placements on floor; within
        E-3; whatever D-134 still requires, Open question 5);
      - **the four deferred bounds**: the chunk set ⊆ the `width × height` rectangle; a quota's count ≤
@@ -158,8 +159,8 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
        call of their own), the decode, the placement left (drawn or copied, Open questions 3 and 4),
        and the chunk's two words written, **against today's generated reveal**: the spike quotes
        ENG-05's measured figures at merge (in memory, worst and typical; `create` per chunk) and gives
-       the difference; whether the instance keeps copying the terrain into its own slot (Open
-       question 2), with both measured if both are open;
+       the difference; the terrain copied into the instance's chunk slot (Open question 2, decided),
+       the copy's write measured apart;
      - **classes under D-200**: the authored path's CASM felts measured in a spike class, and where
        ENG-09 can put it (`RevealLibrary`, `Instances`, `HostsLibrary` or a new class) against 50 % and
        D-209's exceptions and condition.
@@ -225,7 +226,8 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
   frozen, D-193), `IRevealLibrary`, `IHostsLibrary`, `IRegistryRead` (`record`, `records`, `bundle`) and
   `IRegistryAdmin.set_record` as merged.
 - **Proposed by ENG-08, built by ENG-09**: the authored chunk's record (kind, id, parts, bit layout,
-  model in `grimworld_logic::models`), its `...Assert`, the four bounds' checks, the `LOCATION` marker,
+  model in `grimworld_logic::models`), its `...Assert`, the four bounds as they apply to an authored
+  zone (built by ENG-R1c for generated zones, reused by ENG-09; Open question 8), the `LOCATION` marker,
   and the reveal's authored branch (what `Site` gains or what new entry the library takes). A change
   of a frozen interface (a new `Registry` entrypoint, `MAX_READ`, an event) is named as such and goes
   to the project manager.
@@ -305,6 +307,9 @@ reads that recommendation before the project manager decides.
    the authored terrain into the instance's chunk at reveal, as today, so §3.2 and the window are
    unchanged; the alternative (no terrain slot, the window reading `Registry` at every tick, a call
    a tick) is measured by the spike only if the copy's slot is a large share of the reveal.
+   **Decided by the orchestrator, 2026-10-05:** copied into the instance's chunk at reveal, as
+   recommended; ENG-01 §3.2 and the window unchanged. Reversed by a measure that puts the copy's slot
+   on the expedition's path beyond what the project manager accepts (D-144).
 3. **Quota placement on an authored map.** (a) drawn over the zone's chunks as ENG-05's hosts (D-210);
    (b) authored candidate places per quota, one drawn among them at `create` (design/18's "its place
    changes with each instance" kept); (c) authored and fixed. *Decider*: project manager. *ENG-08
@@ -322,6 +327,10 @@ reads that recommendation before the project manager decides.
 6. **Border tile masks in an authored zone.** The authored walls already cut the zone. *Decider*:
    orchestrator. *Recommendation*: an authored zone writes its chunk set (`OUTLINE` 255: void chunks,
    the world map, TP-2) and no tile masks; the converter derives nothing else.
+   **Decided by the orchestrator, 2026-10-05:** the chunk set's border masks only: an authored zone
+   keeps `OUTLINE` as it is today, its chunk set and the tile masks of its border chunks, and gains no
+   other outline record; the converter derives the masks from the authored walls and refuses a mask
+   that disagrees with them. Reversed by the project manager or the owner.
 7. **The generated zone path after ENG-09.** *Decider*: project manager (class room under D-209).
    *Recommendation*: kept as the fallback while any zone of the content is not authored; removed by the
    lot that authors the last one, its class room won back and measured.
@@ -329,6 +338,11 @@ reads that recommendation before the project manager decides.
    touches the registry's validators anyway; the dungeon bound (`width × height > N`) is `LOCATION`'s
    own and may land earlier with ENG-R1c; the orchestrator drops them from ENG-R1c's pending list
    when ENG-08 merges.
+   **Decided by the orchestrator, 2026-10-05:** the four bounds go to **ENG-R1c**, since they protect
+   today's generated zones; **ENG-09 reuses them for authored zones** (extending a bound only where an
+   authored record changes what it reads, e.g. a quota's count against its authored places under Open
+   question 3). ENG-08 specifies how they apply to an authored zone and builds none of them. Reversed
+   by the project manager.
 9. **Where the schema and the converter live after the spike.** They are shared by the game (the
    records) and track CV (the editor). *Decider*: project manager (the boundary between the two
    tracks). *Recommendation*: promoted by ENG-09 to a folder of their own outside `client/sim/**` and
