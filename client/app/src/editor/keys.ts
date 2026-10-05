@@ -15,7 +15,7 @@ import type { KeyLike } from "../input/keys";
  * - One action per press: auto-repeat is ignored but for the arrows, which pan.
  */
 
-export type EditorTool = "paint" | "erase" | "fill" | "pick" | "outline";
+export type EditorTool = "paint" | "erase" | "fill" | "pick" | "outline" | "select" | "place";
 
 export type EditorCommand =
   | { readonly kind: "tool"; readonly tool: EditorTool }
@@ -33,7 +33,14 @@ export type EditorCommand =
   | { readonly kind: "layerFocus" }
   | { readonly kind: "layerToggle" }
   | { readonly kind: "escape" }
-  | { readonly kind: "help" };
+  | { readonly kind: "help" }
+  | { readonly kind: "delete" }
+  | { readonly kind: "cut" }
+  | { readonly kind: "copy" }
+  | { readonly kind: "paste" }
+  | { readonly kind: "mirror" }
+  | { readonly kind: "validate" }
+  | { readonly kind: "walk" };
 
 /** One key: by position (`code`, Shift as `shift` says), by character (`key`), with Ctrl/Cmd or not. */
 export interface EditorMatch {
@@ -74,14 +81,16 @@ const nudgeArrow = (code: string, dx: -1 | 0 | 1, dy: -1 | 0 | 1): EditorMatch =
 });
 
 /**
- * The one table (CLI-09a's rows of §3, and CLI-09a2's Fit chunks and nudge; Select, Place, Mirror,
- * Validate, Walk come with CLI-09b).
+ * The one table (CLI-09a's rows of §3, CLI-09a2's Fit chunks and nudge, CLI-09b's Select, Place,
+ * Cut, Copy, Paste, Delete, Mirror, Validate and Walk).
  */
 export const EDITOR_BINDINGS: readonly EditorBinding[] = [
   tool("KeyB", "paint", "B", "Paint"),
   tool("KeyN", "erase", "N", "Erase"),
   tool("KeyG", "fill", "G", "Fill"),
   tool("KeyI", "pick", "I", "Pick"),
+  tool("KeyU", "select", "U", "Select; drag a selected object to move it"),
+  tool("KeyO", "place", "O", "Place the palette's object"),
   tool("KeyT", "outline", "T", "Outline (zones)"),
   {
     keys: "← → ↑ ↓",
@@ -159,6 +168,38 @@ export const EDITOR_BINDINGS: readonly EditorBinding[] = [
     matches: [{ key: "o", mod: true, command: { kind: "open" } }],
   },
   {
+    keys: "Ctrl/Cmd+X, C, V",
+    label: "Cut, copy, paste the selection (a paste follows the pointer until a click)",
+    matches: [
+      { key: "x", mod: true, command: { kind: "cut" } },
+      { key: "c", mod: true, command: { kind: "copy" } },
+      { key: "v", mod: true, command: { kind: "paste" } },
+    ],
+  },
+  {
+    keys: "Delete, Backspace",
+    label: "Delete the selection: objects removed, hexes unpainted",
+    matches: [
+      { code: "Delete", command: { kind: "delete" } },
+      { code: "Backspace", command: { kind: "delete" } },
+    ],
+  },
+  {
+    keys: "H",
+    label: "Mirror the selected buildings and props (towns)",
+    matches: [{ code: "KeyH", command: { kind: "mirror" } }],
+  },
+  {
+    keys: "Y",
+    label: "Validate now and open the panel",
+    matches: [{ code: "KeyY", command: { kind: "validate" } }],
+  },
+  {
+    keys: "P",
+    label: "Walk the map (the preview); P again to edit",
+    matches: [{ code: "KeyP", command: { kind: "walk" } }],
+  },
+  {
     keys: "J",
     label: "Toggle the grid",
     matches: [{ code: "KeyJ", command: { kind: "grid" } }],
@@ -173,7 +214,7 @@ export const EDITOR_BINDINGS: readonly EditorBinding[] = [
   },
   {
     keys: "Esc",
-    label: "End a stroke; close a dialog",
+    label: "End a stroke, a paste, a box; clear the selection; close a dialog",
     matches: [{ code: "Escape", command: { kind: "escape" } }],
   },
   {

@@ -6,6 +6,9 @@ import { type AtlasState, EditorCanvas } from "./canvas";
 import { type DraftEntry, DraftWriter, Drafts, browserStorage, newDraftId } from "./drafts";
 import { fileName, loadMap, saveMap } from "./file";
 import { type Fitted, chunkAt, fitted } from "./fit";
+import { SelectionPanel } from "./Inspector";
+import { ValidationLight, ValidationPanel } from "./ValidationPanel";
+import { type WalkStart, WalkScreen } from "./WalkScreen";
 import { EDITOR_BINDINGS, type EditorCommand, type EditorTool, editorCommand } from "./keys";
 import {
   BIOMES,
@@ -20,15 +23,26 @@ import {
   WALL,
   cellAt,
   createMap,
-  groundOfCell,
   isOutside,
   keyOf,
   newMapProblem,
   paintedBox,
-  terrainOf,
+  tileOfKey,
 } from "./model";
-import { outlineSegments, seamSegments } from "./overlay";
-import { EditorSession } from "./session";
+import {
+  DEFAULT_BUILDING,
+  FEATURE_KINDS,
+  FEATURE_NAMES,
+  OBJECT_NAMES,
+  type PlaceChoice,
+  QUOTA_NAMES,
+  objectLabel,
+  servicesOf,
+} from "./objects";
+import { type Marker, outlineSegments, seamSegments } from "./overlay";
+import { EditorSession, NOTHING } from "./session";
+import { type Finding, validate } from "./validate";
+import { footprintOf, frameOf } from "./walkWorld";
 import { listenSpaceRelease } from "./spaceHold";
 import { LAYER_NAMES, type Layers, editorView } from "./view";
 
@@ -512,6 +526,8 @@ const TOOLS: readonly { tool: EditorTool; key: string; label: string }[] = [
   { tool: "erase", key: "N", label: "Erase" },
   { tool: "fill", key: "G", label: "Fill" },
   { tool: "pick", key: "I", label: "Pick" },
+  { tool: "select", key: "U", label: "Select" },
+  { tool: "place", key: "O", label: "Place" },
   { tool: "outline", key: "T", label: "Outline" },
 ];
 
@@ -526,6 +542,43 @@ const LAYER_LABELS: Readonly<Record<keyof Layers, string>> = {
 
 /** How long after a change the draft is written (§6). */
 const DRAFT_DELAY_MS = 400;
+/** How long after a change the checks run again (§2.6: on every change, debounced). */
+const VALIDATE_DELAY_MS = 250;
+
+/** The palette's objects (§2.3): a zone's, or a town's pieces. */
+function objectSwatches(doc: MapDocument): { label: string; choice: PlaceChoice; id: string }[] {
+  if (doc.meta.kind === "zone") {
+    return [
+      { label: "E Entry", choice: { kind: "entry" }, id: "entry" },
+      { label: "G Gate", choice: { kind: "gate" }, id: "gate" },
+      ...doc.meta.quotas.map((q, i) => ({
+        label: `${objectLabel({ kind: "candidate", at: { x: 0, y: 0 }, quota: i }, 0, doc.meta.quotas)} Q${i + 1} ${QUOTA_NAMES[q.kind]} place`,
+        choice: { kind: "candidate", quota: i } as PlaceChoice,
+        id: `candidate-${i}`,
+      })),
+      ...FEATURE_KINDS.map((feature) => ({
+        label: `${objectLabel({ kind: "feature", at: { x: 0, y: 0 }, feature }, 0, [])} ${FEATURE_NAMES[feature]}`,
+        choice: { kind: "feature", feature } as PlaceChoice,
+        id: `feature-${feature}`,
+      })),
+      { label: "P Spawn point", choice: { kind: "spawn" }, id: "spawn" },
+    ];
+  }
+  const services = servicesOf(doc.meta.kind);
+  return [
+    ...[...services, "gate" as const].map((target) => ({
+      label: `${objectLabel({ kind: "place", at: { x: 0, y: 0 }, target, building: DEFAULT_BUILDING[target], depth: 1, mirror: false }, 0, [])} ${target[0]!.toUpperCase()}${target.slice(1)}`,
+      choice: { kind: "place", target } as PlaceChoice,
+      id: `place-${target}`,
+    })),
+    { label: "D Decor building", choice: { kind: "decor" }, id: "decor" },
+    { label: "p Prop", choice: { kind: "prop" }, id: "prop" },
+    { label: "A Figure spot", choice: { kind: "figure" }, id: "figure" },
+    { label: "In Arrival", choice: { kind: "arrival" }, id: "arrival" },
+  ];
+}
+
+const sameChoice = (a: PlaceChoice, b: PlaceChoice) => JSON.stringify(a) === JSON.stringify(b);
 
 function EditorScreen({
   id,
@@ -558,6 +611,9 @@ function EditorScreen({
   });
   const [dirty, setDirty] = useState(false);
   const [help, setHelp] = useState(false);
+  const [panel, setPanel] = useState(false);
+  const [walking, setWalking] = useState(false);
+  const [findings, setFindings] = useState<Finding[]>(() => validate(doc));
   const meta = doc.meta;
   const { revision, layers } = session;
 
@@ -590,12 +646,15 @@ function EditorScreen({
       made.fit();
       setAtlas(made.atlas);
       setAcross(made.across());
+      // The browser check reads the canvas and the session.
+      (window as unknown as Record<string, unknown>).__editor = { canvas: made, session };
       rerender();
     });
     return () => {
       gone = true;
       mounted?.destroy();
       canvas.current = null;
+      delete (window as unknown as Record<string, unknown>).__editor;
     };
   }, [doc, session, rerender]);
 
@@ -608,6 +667,13 @@ function EditorScreen({
     return () => window.cancelAnimationFrame(frame);
   }, [doc, revision, layers]);
 
+  // The checks, on every change, debounced (§2.6).
+  useEffect(() => {
+    if (revision === 0) return;
+    const timer = window.setTimeout(() => setFindings(validate(doc)), VALIDATE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [doc, revision]);
+
   // The hexes are edited in place and the origin set on the document: the revision says when.
   const fit = useMemo(() => fitted(doc), [doc, revision]);
   const fit_ = typeof fit === "string" ? null : fit;
@@ -617,8 +683,51 @@ function EditorScreen({
     [doc, session, revision],
   );
 
+  // The objects' markers, a town's footprints, the hexes a finding names.
+  const faults = useMemo(
+    () => new Set(findings.filter((f) => f.severity === "error").flatMap((f) => f.objects)),
+    [findings],
+  );
+  const { markers, footprints } = useMemo(() => {
+    const markers: Marker[] = [];
+    const footprints: Tile[] = [];
+    let gate = 0;
+    for (const [oid, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
+      if (object.kind === "gate") gate += 1;
+      markers.push({
+        tile: object.at,
+        label: objectLabel(object, gate, doc.meta.quotas),
+        tone: faults.has(oid) ? "fault" : session.zone ? "zone" : "town",
+      });
+      if (object.kind === "place" || object.kind === "decor") {
+        footprints.push(...footprintOf(object).filter((t) => t.x !== object.at.x || t.y !== object.at.y));
+      }
+    }
+    return { markers, footprints };
+  }, [doc, revision, faults, session]);
+
   // The overlays.
-  const brush = hover ? session.footprint(hover) : [];
+  const brush = hover && !walking ? session.footprint(hover) : [];
+  const selected: Tile[] = [
+    ...[...session.selection.hexes].map(tileOfKey),
+    ...[...session.selection.objects].flatMap((oid) => {
+      const o = doc.objects.get(oid);
+      return o ? [o.at] : [];
+    }),
+  ];
+  const ghost: Tile[] = [];
+  const offset = session.moveOffset();
+  if (offset) {
+    for (const oid of session.selection.objects) {
+      const o = doc.objects.get(oid);
+      if (o) ghost.push({ x: o.at.x + offset.x, y: o.at.y + offset.y });
+    }
+  } else if (session.pasting && session.clip && hover) {
+    const at = session.pasteOrigin(hover);
+    for (const c of [...session.clip.cells, ...session.clip.objects]) {
+      ghost.push({ x: at.x + c.dx, y: at.y + c.dy });
+    }
+  }
   useEffect(() => {
     canvas.current?.setScene({
       outside:
@@ -633,6 +742,11 @@ function EditorScreen({
       grid: layers.grid,
       brush,
       hover,
+      markers: layers.objects ? markers : [],
+      footprints: layers.objects ? footprints : [],
+      selected,
+      box: session.box,
+      ghost,
     });
   });
 
@@ -671,6 +785,61 @@ function EditorScreen({
   const save = () => {
     writer.now();
     download(fileName(meta), saveMap(doc));
+  };
+
+  const validateNow = () => {
+    setFindings(validate(doc));
+    setPanel(true);
+  };
+
+  /** Show (§2.6): the hexes and objects at fault selected, the camera on the first. */
+  const show = (finding: Finding) => {
+    const hexes = new Set(finding.hexes.map(keyOf));
+    // An object's hex is shown by its marker: select the object, not the hex under it.
+    for (const oid of finding.objects) {
+      const o = doc.objects.get(oid);
+      if (o) hexes.delete(keyOf(o.at));
+    }
+    session.select({ hexes, objects: new Set(finding.objects.filter((o) => doc.objects.has(o))) });
+    const first = finding.hexes[0] ?? doc.objects.get(finding.objects[0] ?? -1)?.at;
+    if (first) canvas.current?.showTile(first);
+  };
+
+  // The walk's world: the fitted map, or the best fit when none was chosen.
+  const frame = useMemo(() => frameOf(doc), [doc, revision]);
+  const starts = useMemo((): WalkStart[] => {
+    const out: WalkStart[] = [];
+    const objects = [...doc.objects].sort(([a], [b]) => a - b).map(([, o]) => o);
+    const home = objects.find((o) => o.kind === (session.zone ? "entry" : "arrival"));
+    if (home) out.push({ label: session.zone ? "the entry" : "the arrival", tile: home.at });
+    objects
+      .filter((o) => o.kind === "gate")
+      .forEach((g, i) => out.push({ label: `gate G${i + 1}`, tile: g.at }));
+    const picked =
+      session.selection.hexes.size === 1
+        ? tileOfKey([...session.selection.hexes][0]!)
+        : session.inspected;
+    if (picked) out.push({ label: "the selected hex", tile: picked });
+    return out;
+  }, [doc, revision, session, session.selection, session.inspected]);
+
+  const toggleWalk = () => {
+    if (walking) {
+      setWalking(false);
+      return;
+    }
+    if (!frame) {
+      session.said = "Nothing to walk: paint the map first.";
+      rerender();
+      return;
+    }
+    if (starts.length === 0) {
+      session.said = `Nothing to start from: place ${session.zone ? "an entry" : "an arrival"} or select a hex.`;
+      rerender();
+      return;
+    }
+    session.strokeEnd();
+    setWalking(true);
   };
 
   const run = (command: EditorCommand): boolean => {
@@ -719,10 +888,31 @@ function EditorScreen({
         session.toggleLayer(LAYER_NAMES[session.layerFocus]!);
         return true;
       case "escape":
-        session.strokeEnd();
+        session.escape();
         return true;
       case "help":
         setHelp(true);
+        return true;
+      case "delete":
+        session.deleteSelection();
+        return true;
+      case "cut":
+        session.cut();
+        return true;
+      case "copy":
+        session.copy();
+        return true;
+      case "paste":
+        session.paste();
+        return true;
+      case "mirror":
+        session.mirror();
+        return true;
+      case "validate":
+        validateNow();
+        return true;
+      case "walk":
+        toggleWalk();
         return true;
     }
   };
@@ -735,7 +925,7 @@ function EditorScreen({
     }
     const command = editorCommand(event);
     return command ? run(command) : false;
-  }, !help);
+  }, !help && !walking);
   useEffect(() => listenSpaceRelease(window, document, () => canvas.current?.setSpace(false)), []);
 
   const cell = hover ? cellAt(doc, hover) : null;
@@ -748,12 +938,17 @@ function EditorScreen({
         ? `Saved ${saved.at.toTimeString().slice(0, 5)} (draft)`
         : "Draft";
   const fillLabel = session.tool === "fill" && session.fillOutline ? "outline" : null;
-  const armed =
-    session.tool === "paint"
+  const swatches = objectSwatches(doc);
+  const placing = swatches.find((s) => sameChoice(s.choice, session.placing));
+  const armed = session.pasting
+    ? "Paste: click to land, right click or Esc to cancel"
+    : session.tool === "paint"
       ? `Paint: ${session.group === "terrain" ? (session.terrain === WALL ? "Wall" : "Floor") : GROUND_KINDS[session.ground]}`
       : session.tool === "fill"
         ? `Fill: ${fillLabel ?? (session.group === "terrain" ? (session.terrain === WALL ? "Wall" : "Floor") : GROUND_KINDS[session.ground])}`
-        : TOOLS.find((t) => t.tool === session.tool)!.label;
+        : session.tool === "place"
+          ? `Place: ${placing?.label ?? OBJECT_NAMES[session.placing.kind]}`
+          : TOOLS.find((t) => t.tool === session.tool)!.label;
   const box = paintedBox(doc);
 
   return (
@@ -787,6 +982,7 @@ function EditorScreen({
             ⟳
           </button>
         </span>
+        <ValidationLight findings={findings} onOpen={validateNow} />
         <span className="ed-spacer" />
         {problem && (
           <span className="ed-problem" role="alert">
@@ -837,7 +1033,9 @@ function EditorScreen({
                 key={label}
                 type="button"
                 data-swatch={`terrain-${label}`}
-                aria-pressed={session.group === "terrain" && session.terrain === value}
+                aria-pressed={
+                  session.tool === "paint" && session.group === "terrain" && session.terrain === value
+                }
                 onClick={() => session.choose("terrain", value)}
               >
                 <span className="ed-swatch" style={{ background: TERRAIN_COLOURS[label] }} />
@@ -852,13 +1050,32 @@ function EditorScreen({
                 key={g}
                 type="button"
                 data-swatch={`ground-${g}`}
-                aria-pressed={session.group === "ground" && session.ground === value}
+                aria-pressed={
+                  session.tool === "paint" && session.group === "ground" && session.ground === value
+                }
                 onClick={() => session.choose("ground", value)}
               >
                 <span className="ed-swatch" style={{ background: GROUND_COLOURS[g] }} />
                 {g[0]!.toUpperCase() + g.slice(1)}
               </button>
             ))}
+          </div>
+          <div className="ed-heading">{session.zone ? "Objects" : "Town pieces"}</div>
+          <div className="ed-column" data-palette-objects="">
+            {swatches.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                data-swatch={`object-${s.id}`}
+                aria-pressed={session.tool === "place" && sameChoice(session.placing, s.choice)}
+                onClick={() => session.choosePlace(s.choice)}
+              >
+                {s.label}
+              </button>
+            ))}
+            {session.zone && meta.quotas.length === 0 && (
+              <span className="ed-dim">Add a quota in the map&apos;s properties to mark its places.</span>
+            )}
           </div>
           <div className="ed-heading">Brush</div>
           <div>
@@ -901,68 +1118,66 @@ function EditorScreen({
             ))}
           </div>
         </div>
-        <aside className="ed-inspector" data-inspector="">
-          <div className="ed-heading">Hex</div>
-          {hover ? (
-            <div data-hex="">
-              <div>
-                ({hover.x}, {hover.y})
-              </div>
-              <div className="ed-dim">
-                {at
-                  ? `global (${at.x}, ${at.y}) · chunk ${at.chunk} (${at.cx},${at.cy}) · tile ${at.tile}`
-                  : "no chunk grid yet"}
-              </div>
-              {cell === null ? (
-                <div className="ed-dim">Not painted (void)</div>
-              ) : (
-                <>
-                  <div>Terrain: {terrainOf(cell) === WALL ? "Wall" : "Floor"}</div>
-                  <div>Ground: {GROUND_KINDS[groundOfCell(cell)]}</div>
-                  <div>Obstacle: {doc.obstacles.get(keyOf(hover)) ?? "auto"}</div>
-                  {session.zone && <div>Outline: {isOutside(cell) ? "outside" : "inside"}</div>}
-                </>
-              )}
+        {panel ? (
+          <ValidationPanel findings={findings} onShow={show} onClose={() => setPanel(false)} />
+        ) : (
+          <aside className="ed-inspector" data-inspector="">
+            <div className="ed-heading">
+              {session.selection.hexes.size + session.selection.objects.size > 0 || session.inspected
+                ? "Selection"
+                : "Map"}
             </div>
-          ) : (
-            <div className="ed-dim">Point at a hex.</div>
-          )}
-          <div className="ed-heading">Map</div>
-          <div>
-            {KIND_NAMES[meta.kind]} “{meta.name}”, location {meta.location}
-          </div>
-          <div data-painted="">
-            {doc.hexes.size} hexes painted
-            {box ? `, ${box.x1 - box.x0 + 1} × ${box.y1 - box.y0 + 1} across` : ""}
-          </div>
-          {meta.biome && <div>Biome: {meta.biome}</div>}
-          <ChunksPanel session={session} fit={fit} />
-          {session.zone && (
-            <>
-              <div className="ed-heading">Outline</div>
-              {session.tool === "outline" && (
-                <button
-                  type="button"
-                  data-outline-from-floor=""
-                  onClick={() => session.outlineFromFloor(null)}
-                >
-                  Outline from floor
-                </button>
-              )}
-              <div className="ed-dim" data-chunk-set="">
-                {fit_
-                  ? `${fit_.chunkSet.length} chunks in the set, ${fit_.masks.size} on the border`
-                  : "Fit chunks to derive the chunk set."}
-              </div>
-            </>
-          )}
-        </aside>
+            <div data-selection="">
+              <SelectionPanel session={session} fit={fit_} />
+            </div>
+            {(session.selection.hexes.size + session.selection.objects.size > 0 ||
+              session.inspected) && (
+              <>
+                <div className="ed-heading">Map</div>
+                <div>
+                  {KIND_NAMES[meta.kind]} “{meta.name}”, location {meta.location}{" "}
+                  <button type="button" data-map-properties="" onClick={() => session.select(NOTHING)}>
+                    Properties
+                  </button>
+                </div>
+              </>
+            )}
+            <div data-painted="">
+              {doc.hexes.size} hexes painted
+              {box ? `, ${box.x1 - box.x0 + 1} × ${box.y1 - box.y0 + 1} across` : ""}
+            </div>
+            <ChunksPanel session={session} fit={fit} />
+            {session.zone && (
+              <>
+                <div className="ed-heading">Outline</div>
+                {session.tool === "outline" && (
+                  <button
+                    type="button"
+                    data-outline-from-floor=""
+                    onClick={() => {
+                      const entry = [...doc.objects.values()].find((o) => o.kind === "entry");
+                      session.outlineFromFloor(entry?.at ?? null);
+                    }}
+                  >
+                    Outline from floor
+                  </button>
+                )}
+                <div className="ed-dim" data-chunk-set="">
+                  {fit_
+                    ? `${fit_.chunkSet.length} chunks in the set, ${fit_.masks.size} on the border`
+                    : "Fit chunks to derive the chunk set."}
+                </div>
+              </>
+            )}
+          </aside>
+        )}
       </div>
       <footer className="ed-bar ed-bottom" data-status="">
         {hover ? (
           <span>
             x {hover.x} y {hover.y}
             {at ? ` · chunk (${at.cx},${at.cy}) tile ${at.tile}` : ""}
+            {cell === null ? " · void" : ""}
           </span>
         ) : (
           <span className="ed-dim">—</span>
@@ -976,7 +1191,13 @@ function EditorScreen({
         <span className="ed-dim">
           Art: {atlas === "loaded" ? "atlas" : atlas === "loading" ? "loading" : "shapes"}
         </span>
+        <button type="button" data-walk-button="" onClick={toggleWalk}>
+          [P] Walk ▸
+        </button>
       </footer>
+      {walking && frame && (
+        <WalkScreen doc={doc} frame={frame} starts={starts} onLeave={() => setWalking(false)} />
+      )}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
     </>
   );

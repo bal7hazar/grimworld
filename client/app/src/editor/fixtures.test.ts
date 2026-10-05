@@ -255,8 +255,8 @@ describe("the committed fixtures (CLI-09b)", () => {
     expect(preview.terrain.kinds).toEqual(game.terrain.kinds);
     expect(preview.terrain.ground).toEqual(game.terrain.ground);
     expect(preview.kind).toBe(game.kind);
-    const shape = (w: SandboxWorld) =>
-      (w.structures ?? []).map(({ key: _key, ...s }) => s);
+    // The keys name the pieces differently (the hub's ids, the editor's object ids).
+    const shape = (w: SandboxWorld) => (w.structures ?? []).map((s) => ({ ...s, key: "" }));
     expect(shape(preview)).toEqual(shape(game));
     // The figures stand where the hub's stand, facing the same way.
     const figures = (w: SandboxWorld) =>

@@ -112,6 +112,14 @@ export function visibleRange(camera: Camera, viewport: Viewport): TileBox {
   };
 }
 
+/** An object's marker (§2.3): a hex with a one- or two-letter label, never colour alone. */
+export interface Marker {
+  readonly tile: Tile;
+  readonly label: string;
+  /** A zone's object, a town's, or one the validation names. */
+  readonly tone: "zone" | "town" | "fault";
+}
+
 /** What one overlay frame draws. */
 export interface OverlayScene {
   /** Whether a hex is painted and outside the outline (a zone with the outline layer on), else null. */
@@ -122,6 +130,15 @@ export interface OverlayScene {
   /** The hexes under the brush at the pointer. */
   readonly brush: readonly Tile[];
   readonly hover: Tile | null;
+  /** The objects' markers (the objects layer), a town's footprints shaded. */
+  readonly markers?: readonly Marker[];
+  readonly footprints?: readonly Tile[];
+  /** The selection's hexes and objects' hexes. */
+  readonly selected?: readonly Tile[];
+  /** Select's box being dragged, between two hexes. */
+  readonly box?: { readonly from: Tile; readonly to: Tile } | null;
+  /** Where a paste or a move would land. */
+  readonly ghost?: readonly Tile[];
 }
 
 /** Below this hex width on screen (CSS px), the grid is not drawn: it would be a grey wash. */
@@ -136,6 +153,13 @@ const COLOURS = {
   grid: "rgba(0, 0, 0, 0.28)",
   brush: "#ffffff",
   label: "rgba(255, 255, 255, 0.85)",
+  footprint: "rgba(120, 60, 20, 0.35)",
+  zone: "#f2e9d0",
+  town: "#d8ecff",
+  fault: "#ff6b5b",
+  markerText: "#14141c",
+  selected: "#3df2ff",
+  ghost: "rgba(61, 242, 255, 0.8)",
 } as const;
 
 /** Draws the overlays in the renderer's camera. */
@@ -247,6 +271,88 @@ export function drawOverlays(
     ctx.lineWidth = Math.max(2, Math.min(4, TILE_WIDTH * scale * 0.08));
     ctx.lineCap = "round";
     segments(scene.outlineEdges);
+  }
+  const hexPx = TILE_WIDTH * scale;
+  const onScreen = (tile: Tile) => {
+    const p = tileToPixel(tile);
+    const x = p.x * scale + ox;
+    const y = p.y * scale + oy;
+    return x > -hexPx && y > -hexPx && x < viewport.width + hexPx && y < viewport.height + hexPx;
+  };
+  if (scene.footprints && scene.footprints.length > 0) {
+    ctx.beginPath();
+    for (const tile of scene.footprints) if (onScreen(tile)) hexPath(tile, 0.5);
+    ctx.fillStyle = COLOURS.footprint;
+    ctx.fill();
+  }
+  if (scene.markers && scene.markers.length > 0) {
+    // A marker: an inset hex filled by its tone, outlined dark, its letters in the middle. Below
+    // 10 CSS px a hex, a dot.
+    const small = hexPx < 10;
+    ctx.font = `700 ${Math.max(9, Math.min(15, hexPx * 0.32))}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // Several objects on one hex: the labels joined.
+    const byHex = new Map<string, Marker[]>();
+    for (const m of scene.markers) {
+      if (!onScreen(m.tile)) continue;
+      const k = `${m.tile.x},${m.tile.y}`;
+      byHex.set(k, [...(byHex.get(k) ?? []), m]);
+    }
+    for (const list of byHex.values()) {
+      const tile = list[0]!.tile;
+      const tone = list.some((m) => m.tone === "fault") ? "fault" : list[0]!.tone;
+      const p = tileToPixel(tile);
+      const x = p.x * scale + ox;
+      const y = p.y * scale + oy;
+      ctx.fillStyle = COLOURS[tone];
+      if (small) {
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+      ctx.beginPath();
+      hexPath(tile, -hexPx * 0.12 / scale);
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = COLOURS.markerText;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = COLOURS.markerText;
+      ctx.fillText(list.map((m) => m.label).join(" "), x, y);
+    }
+  }
+  if (scene.selected && scene.selected.length > 0) {
+    ctx.beginPath();
+    for (const tile of scene.selected) if (onScreen(tile)) hexPath(tile, -1);
+    ctx.strokeStyle = COLOURS.selected;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+  if (scene.box) {
+    const a = tileToPixel(scene.box.from);
+    const b = tileToPixel(scene.box.to);
+    const half = TILE_WIDTH / 2;
+    const x0 = (Math.min(a.x, b.x) - half) * scale + ox;
+    const x1 = (Math.max(a.x, b.x) + half) * scale + ox;
+    const y0 = (Math.min(a.y, b.y) - half) * scale + oy;
+    const y1 = (Math.max(a.y, b.y) + half) * scale + oy;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = COLOURS.selected;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.setLineDash([]);
+  }
+  if (scene.ghost && scene.ghost.length > 0) {
+    ctx.beginPath();
+    for (const tile of scene.ghost) if (onScreen(tile)) hexPath(tile, -2);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = COLOURS.ghost;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   if (scene.brush.length > 0) {
     ctx.beginPath();

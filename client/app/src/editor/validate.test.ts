@@ -56,6 +56,13 @@ function only<K extends MapObject["kind"]>(doc: MapDocument, kind: K) {
   ][];
 }
 
+/** The first object of a kind. */
+function first<K extends MapObject["kind"]>(doc: MapDocument, kind: K) {
+  const found = only(doc, kind)[0];
+  if (!found) throw new Error(`no ${kind}`);
+  return found;
+}
+
 const findings = (doc: MapDocument, check: string): Finding[] =>
   validate(doc).filter((f) => f.check === check);
 
@@ -103,7 +110,7 @@ describe("R checks: ENG-08's content checks for map records", () => {
   it("R-2: the entry's chunk and tile are within the fitted map", () => {
     passes(zone(), "R-2");
     const doc = zone();
-    const [[id, entry]] = only(doc, "entry");
+    const [id, entry] = first(doc, "entry");
     // One hex West of the fitted map, on the ring of void painted around it.
     doc.objects.set(id, { ...entry, at: { x: -1, y: 7 } });
     fails(doc, "R-2");
@@ -112,11 +119,11 @@ describe("R checks: ENG-08's content checks for map records", () => {
   it("R-3: a gate's anchor and its entry in the destination are below 225", () => {
     passes(zone(), "R-3");
     const doc = zone();
-    const [[id, gate]] = only(doc, "gate");
+    const [id, gate] = first(doc, "gate");
     doc.objects.set(id, { ...gate, entryTile: 225 });
     fails(doc, "R-3");
     const far = zone();
-    const [[gid, g]] = only(far, "gate");
+    const [gid, g] = first(far, "gate");
     far.objects.set(gid, { ...g, at: { x: -1, y: 8 } });
     expect(fails(far, "R-3").some((f) => f.message.includes("outside the fitted map"))).toBe(true);
   });
@@ -212,7 +219,7 @@ describe("R checks: ENG-08's content checks for map records", () => {
   it("R-18: every gate anchor is on a walkable hex", () => {
     passes(zone(), "R-18");
     const doc = zone();
-    const [[id, gate]] = only(doc, "gate");
+    const [id, gate] = first(doc, "gate");
     // The rock at (0, 0), on the outline's border (x 0 is its West edge).
     doc.objects.set(id, { ...gate, at: ROCK });
     fails(doc, "R-18");
@@ -269,7 +276,7 @@ describe("E checks: the editor's own", () => {
     add(two, { kind: "entry", at: FLOOR_HEX });
     fails(two, "E-4");
     const wall = zone();
-    const [[id, entry]] = only(wall, "entry");
+    const [id, entry] = first(wall, "entry");
     wall.objects.set(id, { ...entry, at: ROCK });
     fails(wall, "E-4");
   });
@@ -277,7 +284,7 @@ describe("E checks: the editor's own", () => {
   it("E-5: every gate anchor is on the outline's border", () => {
     passes(zone(), "E-5");
     const doc = zone();
-    const [, [id, gate]] = only(doc, "gate");
+    const [id, gate] = only(doc, "gate")[1]!;
     // The client's own anchor of gate 102, one hex inside.
     doc.objects.set(id, { ...gate, at: { x: 40, y: 7 } });
     expect(fails(doc, "E-5")[0]!.message).toContain("G2");
@@ -335,7 +342,7 @@ describe("E checks: the editor's own", () => {
     passes(town(), "E-14");
     passes(fixture("outpost-b"), "E-14");
     const doc = town();
-    const [[id]] = only(doc, "place").filter(([, p]) => p.target === "market");
+    const [id] = only(doc, "place").find(([, p]) => p.target === "market")!;
     doc.objects.delete(id);
     expect(fails(doc, "E-14")[0]!.message).toBe("No place for the market.");
     const twice = town();
@@ -350,7 +357,7 @@ describe("E checks: the editor's own", () => {
   it("E-15: doors and the arrival are floor; every door is reachable from the arrival", () => {
     passes(town(), "E-15");
     const doc = town();
-    const [[id, arrival]] = only(doc, "arrival");
+    const [id, arrival] = first(doc, "arrival");
     doc.objects.set(id, { ...arrival, at: { x: 12, y: 3 } });
     expect(fails(doc, "E-15")[0]!.message).toContain("The arrival (12, 3) is not floor");
     const shut = town();
@@ -365,7 +372,7 @@ describe("E checks: the editor's own", () => {
   it("E-16: footprints on land, painted, and apart", () => {
     passes(town(), "E-16");
     const doc = town();
-    const [[id, decor]] = only(doc, "decor");
+    const [id, decor] = first(doc, "decor");
     // The windmill moved onto the castle.
     doc.objects.set(id, { ...decor, at: { x: 5, y: 12 } });
     expect(fails(doc, "E-16")[0]!.message).toContain("overlaps");

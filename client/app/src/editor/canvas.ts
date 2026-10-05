@@ -23,8 +23,11 @@ import { holds, viewWindow } from "./view";
 
 /** What the canvas tells the editor: pointer strokes, the hovered hex, the brush wheel. */
 export interface CanvasEvents {
-  /** A stroke starts: the left button (or the right, `erase`), `alt` for Pick. */
-  strokeStart(tile: Tile, how: { readonly erase: boolean; readonly alt: boolean }): void;
+  /** A stroke starts: the left button (or the right, `erase`), `alt` for Pick, `shift` adds. */
+  strokeStart(
+    tile: Tile,
+    how: { readonly erase: boolean; readonly alt: boolean; readonly shift: boolean },
+  ): void;
   /** The hexes the pointer crossed since the last call, in order. */
   strokeMove(tiles: readonly Tile[]): void;
   strokeEnd(): void;
@@ -220,6 +223,11 @@ export class EditorCanvas {
     this.centreOn(mapCentre(this.box));
   }
 
+  /** The validation's Show (§2.6): the camera on a hex, the zoom kept. */
+  showTile(tile: Tile): void {
+    this.centreOn(tileToPixel(tile));
+  }
+
   private centreOn(target: Point): void {
     const { camera } = this.renderer.cameraState();
     this.renderer.pan(
@@ -321,6 +329,7 @@ export class EditorCanvas {
           this.events.strokeStart(this.tileAt(point), {
             erase: event.button === 2,
             alt: event.altKey,
+            shift: event.shiftKey,
           });
         },
       ],

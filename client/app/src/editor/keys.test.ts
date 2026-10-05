@@ -44,7 +44,7 @@ const toolCodes = EDITOR_BINDINGS.flatMap((b) => b.matches)
 
 describe("the editor's keys (§3, AC-5)", () => {
   it("tool letters are read by position and arm the same tool on AZERTY and QWERTY", () => {
-    expect(toolCodes.sort()).toEqual(["KeyB", "KeyG", "KeyI", "KeyN", "KeyT"]);
+    expect(toolCodes.sort()).toEqual(["KeyB", "KeyG", "KeyI", "KeyN", "KeyO", "KeyT", "KeyU"]);
     for (const code of toolCodes) {
       const letter = code.slice(3).toLowerCase();
       // Both layouts print the same letter there: the same key, the same command.
@@ -146,5 +146,31 @@ describe("the editor's keys (§3, AC-5)", () => {
       dy: 1,
     });
     expect(editorCommand(press("ArrowDown", "ArrowDown"))).toEqual({ kind: "pan", dx: 0, dy: 1 });
+  });
+
+  it("CLI-09b's letters (U O H Y P) are same-place letters no game screen binds or reserves", () => {
+    const game = new Set(
+      BINDINGS.flatMap((b) => b.matches).flatMap((m) => (m.code ? [m.code] : [])),
+    );
+    const letters = { KeyU: "tool", KeyO: "tool", KeyH: "mirror", KeyY: "validate", KeyP: "walk" };
+    for (const [code, kind] of Object.entries(letters)) {
+      expect(SAME_PLACE).toContain(code.slice(3));
+      expect(game.has(code), code).toBe(false);
+      expect(editorCommand(press(code, code.slice(3).toLowerCase()))?.kind).toBe(kind);
+    }
+    expect(editorCommand(press("KeyU", "u"))).toEqual({ kind: "tool", tool: "select" });
+    expect(editorCommand(press("KeyO", "o"))).toEqual({ kind: "tool", tool: "place" });
+  });
+
+  it("cut, copy and paste by character; Delete and Backspace delete", () => {
+    expect(editorCommand(press("KeyX", "x", { ctrlKey: true }))).toEqual({ kind: "cut" });
+    expect(editorCommand(press("KeyC", "c", { metaKey: true }))).toEqual({ kind: "copy" });
+    expect(editorCommand(press("KeyV", "v", { ctrlKey: true }))).toEqual({ kind: "paste" });
+    // Without Ctrl, X C V are the game's (reserved belt keys): nothing in the editor.
+    for (const code of ["KeyX", "KeyC", "KeyV"]) {
+      expect(editorCommand(press(code, code.slice(3).toLowerCase()))).toBeNull();
+    }
+    expect(editorCommand(press("Delete", "Delete"))).toEqual({ kind: "delete" });
+    expect(editorCommand(press("Backspace", "Backspace"))).toEqual({ kind: "delete" });
   });
 });
