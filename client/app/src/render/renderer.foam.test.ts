@@ -80,6 +80,18 @@ describe("the foam animated (CLI-03o, ADR-0003's power rules)", () => {
     expect(host.frames - wakeups).toBe(surface.renders - renders);
   });
 
+  it("without fog, drawn after the chunks: last in the ground's layer, which does not sort", () => {
+    const { surface, renderer, meshes } = mount(zone(false));
+    const ground = (surface.stage.children[0] as Container).children[1] as Container;
+    expect(ground.children.at(-1)).toBe(meshes()[0]!.mesh.parent);
+    expect(ground.sortableChildren).toBe(false);
+    // Under fog and back: still last, still unsorted.
+    renderer.setView(zone(true));
+    renderer.setView(zone(false));
+    expect(ground.children.at(-1)).toBe(meshes()[0]!.mesh.parent);
+    expect(ground.sortableChildren).toBe(false);
+  });
+
   it("each mesh on the screen shows the clock's frame", () => {
     const { host, meshes } = mount(zone(false));
     host.run(1234);

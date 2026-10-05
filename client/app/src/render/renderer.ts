@@ -546,8 +546,6 @@ export class Renderer implements FrameClient {
       this.actorsLayer,
     );
     this.passRoot.addChild(this.backdrop);
-    // First in the actors' layer, which sorts by zIndex (under fog).
-    this.foamLayer.zIndex = -Infinity;
     this.mountStage();
   }
 
@@ -1138,13 +1136,17 @@ export class Renderer implements FrameClient {
       }
     }
     this.syncMeshes(this.foamMeshes, colour, frames, this.foamLayer, () => 0xffffff);
-    // Last in the ground's layer (after chunks added since), or first among the actors under fog.
+    // Last in the ground's layer (after chunks added since), or first among the actors under fog:
+    // a zIndex makes PixiJS sort its parent, so it is set only there, and while detached.
     const parent = this.fogOn ? this.actorsLayer : this.ground;
     if (this.foamMeshes.size === 0) this.foamLayer.removeFromParent();
     else if (
       this.fogOn ? this.foamLayer.parent !== parent : parent.children.at(-1) !== this.foamLayer
-    )
+    ) {
+      this.foamLayer.removeFromParent();
+      this.foamLayer.zIndex = this.fogOn ? -Infinity : 0;
       parent.addChild(this.foamLayer);
+    }
     // The grayscale twin, still: the frame 0 in grayscale, dimmed over the void as the bands are.
     const fogged = frames[0] !== undefined && this.fogOn;
     const grey = fogged ? groups : new Map<string, readonly FoamPiece[]>();
