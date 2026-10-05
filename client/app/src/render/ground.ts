@@ -276,6 +276,75 @@ function foamOver(targets: readonly Tile[], at: (tile: Tile) => GroundKind | nul
   return foam;
 }
 
+/**
+ * Clips a convex polygon (flat `x, y, …`) to the half-plane `(p − c) · (cos a, sin a) ≤ d`
+ * (Sutherland–Hodgman, one edge).
+ */
+function clipToHalfPlane(points: readonly number[], c: Point, angle: number, d: number): number[] {
+  const nx = Math.cos(angle);
+  const ny = Math.sin(angle);
+  const out: number[] = [];
+  const n = points.length / 2;
+  const depth = (i: number) => d - ((points[2 * i]! - c.x) * nx + (points[2 * i + 1]! - c.y) * ny);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [da, db] = [depth(i), depth(j)];
+    if (da >= 0) out.push(points[2 * i]!, points[2 * i + 1]!);
+    if (da >= 0 !== db >= 0) {
+      const t = da / (da - db);
+      out.push(
+        points[2 * i]! + t * (points[2 * j]! - points[2 * i]!),
+        points[2 * i + 1]! + t * (points[2 * j + 1]! - points[2 * i + 1]!),
+      );
+    }
+  }
+  return out.length >= 6 ? out : [];
+}
+
+/**
+ * How far a neighbour's hex, grown by `GROW`, reaches into a hex across their side: what the bakes
+ * draw over the foam's edge (the grass, the unrevealed) when the foam is under them (CLI-03o).
+ */
+export const GROWN_SIDE = GROW * Math.cos(Math.PI / 6);
+
+/**
+ * The foam pieces as the bakes leave them visible, for a foam drawn over the chunks (CLI-03o): each
+ * piece cut back from every side of its water hex that faces a hex not drawn as water (land,
+ * unrevealed: `at` gives null or a land ground), by what that hex grown covers (`GROWN_SIDE`). The
+ * grass then still covers the foam's inner part, as when the foam was baked under it.
+ */
+export function trimFoam(
+  pieces: readonly FoamPiece[],
+  at: (tile: Tile) => GroundKind | null,
+): FoamPiece[] {
+  const trimmed: FoamPiece[] = [];
+  for (const piece of pieces) {
+    const c = tileToPixel(piece.over);
+    let points: readonly number[] = piece.points;
+    for (let side = 0; side < 6 && points.length >= 6; side++) {
+      if (at(acrossSide(piece.over, side)) === "water") continue;
+      points = clipToHalfPlane(points, c, ((side + 1) * Math.PI) / 3, TILE_WIDTH / 2 - GROWN_SIDE);
+    }
+    if (points.length >= 6 && polygonArea(points) > 1e-9) trimmed.push({ ...piece, points });
+  }
+  return trimmed;
+}
+
+/**
+ * The foam over a chunk's own water hexes, as `groundPlan` plans it (`foam`), without the rest of
+ * the plan: the renderer draws it in its own layer (CLI-03o).
+ */
+export function waterFoam(tiles: readonly ViewTile[], options: PlanOptions = {}): FoamPiece[] {
+  const at = seenGround(tiles, options);
+  const hidden = options.hidden;
+  const water = tiles
+    .filter(
+      (t) => t.kind !== "unrevealed" && groundOf(t) === "water" && !hidden?.has(`${t.x},${t.y}`),
+    )
+    .map((t) => ({ x: t.x, y: t.y }));
+  return trimFoam(foamOver(water, at), at);
+}
+
 function layer(kind: "water" | "grass", hexes: readonly Tile[]): GroundLayer {
   const pieces = hexes.flatMap(hexPieces);
   const cells = new Map<string, Cell>();
@@ -291,6 +360,31 @@ export interface PlanOptions {
   readonly around?: (tile: Tile) => GroundKind | null;
   /** The wall hexes a structure stands on (`"x,y"`): no rock there (CLI-03f). */
   readonly covered?: ReadonlySet<string>;
+  /**
+   * The tiles drawn but never seen (`"x,y"`, CLI-03n's cover over them): their ground is unknown to
+   * the plan (CLI-03n follow-up), so no lip faces them and no foam comes from them or lies over
+   * them; they are still drawn with their ground, under the cover.
+   */
+  readonly hidden?: ReadonlySet<string>;
+}
+
+/**
+ * The ground of a tile as the player knows it: the chunk's own tiles, else `around`'s; null for an
+ * unrevealed tile, a tile never seen (`hidden`) or one nothing is known of.
+ */
+function seenGround(
+  tiles: readonly ViewTile[],
+  options: PlanOptions,
+): (tile: Tile) => GroundKind | null {
+  const own = new Map<string, ViewTile>(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
+  const hidden = options.hidden;
+  return (tile) => {
+    const k: string = `${tile.x},${tile.y}`;
+    if (hidden?.has(k)) return null;
+    const mine = own.get(k);
+    if (mine) return mine.kind === "unrevealed" ? null : groundOf(mine);
+    return options.around?.(tile) ?? null;
+  };
 }
 
 /**
@@ -298,13 +392,8 @@ export interface PlanOptions {
  * a revealed tile joins the water layer, or the grass layer (earth too, under its soft fill).
  */
 export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}): GroundPlan {
-  const own = new Map(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
   const covered = options.covered ?? new Set<string>();
-  const at = (tile: Tile): GroundKind | null => {
-    const mine = own.get(`${tile.x},${tile.y}`);
-    if (mine) return mine.kind === "unrevealed" ? null : groundOf(mine);
-    return options.around?.(tile) ?? null;
-  };
+  const at = seenGround(tiles, options);
   const water: Tile[] = [];
   const grass: Tile[] = [];
   const earth: Tile[] = [];
@@ -331,7 +420,10 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
     }
     if (isRock(tile, covered)) rocks.push(t);
   }
-  const foam = foamOver(water, at);
+  const foam = foamOver(
+    options.hidden ? water.filter((t) => !options.hidden!.has(`${t.x},${t.y}`)) : water,
+    at,
+  );
   const layers = [
     ...(water.length > 0 ? [layer("water", water)] : []),
     ...(grass.length > 0 ? [layer("grass", grass)] : []),
@@ -393,7 +485,12 @@ function outside(tile: Tile, box: Box | null): boolean {
  * notch) is not under the bands, which cover only the outside of `voidHole`: it shows the
  * background, and gets no foam (CLI-03h), as water there could hide land not sent yet.
  */
-export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefined): FoamPiece[] {
+export function voidFoam(
+  tiles: readonly ViewTile[],
+  beyond: GroundKind | undefined,
+  /** Cut back from the hexes not drawn as water (`trimFoam`): the foam drawn over the chunks. */
+  trim = false,
+): FoamPiece[] {
   if (beyond !== "water") return [];
   const hole = voidHole(tiles);
   const own = new Map<string, ViewTile>(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
@@ -412,7 +509,8 @@ export function voidFoam(tiles: readonly ViewTile[], beyond: GroundKind | undefi
       if (!own.has(k) && outside(hex, hole)) targets.set(k, hex);
     }
   }
-  return foamOver([...targets.values()], at);
+  const pieces = foamOver([...targets.values()], at);
+  return trim ? trimFoam(pieces, at) : pieces;
 }
 
 /**

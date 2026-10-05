@@ -21,6 +21,7 @@ import {
   polygonArea,
   voidFoam,
   voidHole,
+  waterFoam,
 } from "./ground";
 import { BAKE_CHUNK } from "./renderer";
 import type { GroundKind, Tile, TileKind, ViewTile } from "./view";
@@ -444,5 +445,47 @@ describe("chunkFrame (AC-4: the baked textures keep main's size)", () => {
       ]);
       g.destroy();
     }
+  });
+});
+
+describe("a coast at the frontier of what was seen (CLI-03n follow-up)", () => {
+  // Land West of x = 5, water from there: the coast between columns 4 and 5.
+  const tiles = block(0, 9, 0, 9, (t) => (t.x >= 5 ? "water" : "grass"));
+  const lipsOf = (plan: GroundPlan) =>
+    new Set(plan.lip.map((l) => key(acrossSide(l.tile, l.side))));
+
+  it("no lip toward a water hex never seen; the lip toward seen water stays", () => {
+    const seen = groundPlan(tiles);
+    // Rows 0..4 of the water column 5 never seen; rows 5..9 seen.
+    const hidden = new Set(block(5, 5, 0, 4).map(key));
+    const plan = groundPlan(tiles, { hidden });
+    const toward = lipsOf(plan);
+    for (const k of hidden) expect(toward.has(k)).toBe(false);
+    // Where both hexes were seen, the coast is as before: the same lips.
+    const kept = [...lipsOf(seen)].filter((k) => !hidden.has(k));
+    expect(kept.length).toBeGreaterThan(0);
+    for (const k of kept) expect(toward.has(k)).toBe(true);
+    expect(plan.lip.filter((l) => !hidden.has(key(acrossSide(l.tile, l.side))))).toEqual(
+      seen.lip.filter((l) => !hidden.has(key(acrossSide(l.tile, l.side)))),
+    );
+  });
+
+  it("no foam from a land hex never seen, none over a water hex never seen", () => {
+    // The coast's land column 4 never seen in rows 0..4; water column 5 never seen in rows 7..9.
+    const hidden = new Set([...block(4, 4, 0, 4), ...block(5, 5, 7, 9)].map(key));
+    for (const foam of [groundPlan(tiles, { hidden }).foam, waterFoam(tiles, { hidden })]) {
+      expect(foam.length).toBeGreaterThan(0);
+      for (const piece of foam) {
+        expect(hidden.has(key(piece.source))).toBe(false);
+        expect(hidden.has(key(piece.over))).toBe(false);
+      }
+    }
+    // A land hex that touches seen water only through a hex never seen is no source either.
+    const behind = new Set(block(5, 5, 0, 9).map(key));
+    const sources = new Set(groundPlan(tiles, { hidden: behind }).foam.map((p) => key(p.source)));
+    for (const k of block(4, 4, 0, 9).map(key)) expect(sources.has(k)).toBe(false);
+    // With everything seen, column 4 is the coast and makes foam.
+    const all = new Set(groundPlan(tiles).foam.map((p) => key(p.source)));
+    expect(block(4, 4, 0, 9).every((t) => all.has(key(t)))).toBe(true);
   });
 });

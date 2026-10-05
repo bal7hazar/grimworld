@@ -1,0 +1,280 @@
+import { type Container, type Graphics, Rectangle, Texture, TextureSource } from "pixi.js";
+import { describe, expect, it } from "vitest";
+import { tileToPixel } from "../input/coords";
+import { fixtureNamed } from "../sandbox/fixtures";
+import { initialState, toView } from "../sandbox/wiring";
+import { allExplored } from "../test/explored";
+import { FakeHost } from "../test/fakeHost";
+import { FakeSurface } from "../test/fakeSurface";
+import { type FoamMesh, type WaterMode, foamFrame } from "./foam";
+import { FOAM_REACH, FOAM_SIZE, hexesWithin } from "./ground";
+import { tileKey } from "./fog";
+import { Renderer } from "./renderer";
+import type { SpriteArt, SpriteLibrary } from "./sprites";
+import type { ViewState } from "./view";
+
+/** The ground's cells, and the foam's still and its loop of 16 frames on one page. */
+function foamLibrary(): SpriteLibrary {
+  const cell = (name: string, textures: Texture[], fps = 1): SpriteArt => ({
+    name,
+    role: "tile",
+    cell: { w: 64, h: 64 },
+    baseline: 0,
+    scale: 1,
+    animations: { still: { textures, fps, loop: false } },
+  });
+  const source = new TextureSource({ width: 16 * FOAM_SIZE, height: FOAM_SIZE });
+  const loop = Array.from(
+    { length: 16 },
+    (_, i) => new Texture({ source, frame: new Rectangle(i * FOAM_SIZE, 0, FOAM_SIZE, FOAM_SIZE) }),
+  );
+  const foam = cell("foam_c", [loop[0]!]);
+  return new Map([
+    ["grass_c", cell("grass_c", [Texture.WHITE])],
+    ["water_c", cell("water_c", [Texture.WHITE])],
+    [
+      "foam_c",
+      {
+        ...foam,
+        cell: { w: FOAM_SIZE, h: FOAM_SIZE },
+        animations: { ...foam.animations, loop: { textures: loop, fps: 10, loop: true } },
+      },
+    ],
+  ]);
+}
+
+/** The zone, every tile explored; `fog: false` draws it all in colour (a view without fog). */
+function zone(fog = true): ViewState {
+  const view = toView(allExplored(initialState(fixtureNamed("zone"))));
+  return fog ? view : { ...view, fog: undefined };
+}
+
+function mount(view: ViewState, water: WaterMode = "loop", idle = false) {
+  const host = new FakeHost(1000 / 120);
+  const surface = new FakeSurface();
+  const renderer = new Renderer(surface, host, { idle, water, library: foamLibrary() });
+  renderer.resize({ width: 375, height: 812 });
+  renderer.setView(view);
+  host.run(100);
+  const meshes = () => [...(renderer["foamMeshes"] as Map<string, FoamMesh>).values()];
+  const grey = () => [...(renderer["greyFoamMeshes"] as Map<string, FoamMesh>).values()];
+  return { host, surface, renderer, meshes, grey };
+}
+
+/** Frames drawn per second over `seconds`, after a second to settle. */
+function rate(host: FakeHost, surface: FakeSurface, seconds = 10): number {
+  host.run(1000);
+  const before = surface.renders;
+  host.run(seconds * 1000);
+  return (surface.renders - before) / seconds;
+}
+
+describe("the foam animated (CLI-03o, ADR-0003's power rules)", () => {
+  it("asks for 10 frames a second while foam is on the screen, through timers", () => {
+    const { host, surface, meshes } = mount(zone(false));
+    expect(meshes().some((m) => m.mesh.visible)).toBe(true);
+    const wakeups = host.frames;
+    const renders = surface.renders;
+    expect(rate(host, surface)).toBe(10);
+    // One display frame asked for per frame drawn: the rest slept on timers.
+    expect(host.frames - wakeups).toBe(surface.renders - renders);
+  });
+
+  it("without fog, drawn after the chunks: last in the ground's layer, which does not sort", () => {
+    const { surface, renderer, meshes } = mount(zone(false));
+    const ground = (surface.stage.children[0] as Container).children[1] as Container;
+    expect(ground.children.at(-1)).toBe(meshes()[0]!.mesh.parent);
+    expect(ground.sortableChildren).toBe(false);
+    // Under fog and back: still last, still unsorted.
+    renderer.setView(zone(true));
+    renderer.setView(zone(false));
+    expect(ground.children.at(-1)).toBe(meshes()[0]!.mesh.parent);
+    expect(ground.sortableChildren).toBe(false);
+  });
+
+  it("each mesh on the screen shows the clock's frame", () => {
+    const { host, meshes } = mount(zone(false));
+    host.run(1234);
+    const tick = Math.floor((host.now() * 10) / 1000);
+    for (const mesh of meshes().filter((m) => m.mesh.visible)) {
+      expect(mesh.shownTick()).toBe(tick % 16);
+    }
+    expect(foamFrame(tick, { x: 0, y: 0 }, 16)).toBe(tick % 16);
+  });
+
+  it("none when no foam is on the screen, and again when the camera comes back", () => {
+    const { host, surface, renderer, meshes } = mount(zone(false));
+    renderer.pan(100_000, 0);
+    host.run(500);
+    expect(meshes().every((m) => !m.mesh.visible)).toBe(true);
+    expect(rate(host, surface)).toBe(0);
+    expect(host.quiet()).toBe(true);
+    renderer.recentre();
+    expect(rate(host, surface)).toBe(10);
+  });
+
+  it("none while the page is hidden", () => {
+    const { host, surface } = mount(zone(false));
+    host.setHidden(true);
+    expect(rate(host, surface)).toBe(0);
+    expect(host.quiet()).toBe(true);
+    host.setHidden(false);
+    expect(rate(host, surface)).toBe(10);
+  });
+
+  it("none with `?water=still`: every piece at frame 0", () => {
+    const { host, surface, meshes } = mount(zone(false), "still");
+    expect(rate(host, surface)).toBe(0);
+    expect(host.quiet()).toBe(true);
+    expect(meshes().length).toBeGreaterThan(0);
+    for (const mesh of meshes()) expect(mesh.shownTick()).toBeNull();
+  });
+
+  it("none without the atlas's loop: the still alone", () => {
+    const library = new Map(foamLibrary());
+    const foam = library.get("foam_c")!;
+    library.set("foam_c", { ...foam, animations: { still: foam.animations.still! } });
+    const host = new FakeHost(1000 / 120);
+    const surface = new FakeSurface();
+    const renderer = new Renderer(surface, host, { idle: false, water: "loop", library });
+    renderer.resize({ width: 375, height: 812 });
+    renderer.setView(zone(false));
+    expect(rate(host, surface)).toBe(0);
+    expect(host.quiet()).toBe(true);
+  });
+
+  it("with the actors' idle animations: under the idle cap of 15 a second", () => {
+    const { host, surface } = mount(zone(false), "loop", true);
+    const perSecond = rate(host, surface);
+    expect(perSecond).toBeGreaterThanOrEqual(12);
+    expect(perSecond).toBeLessThanOrEqual(15);
+  });
+});
+
+describe("the foam under fog (CLI-03n's exploration, CLI-03o)", () => {
+  it("in colour only over the hexes in sight; never over a tile never seen", () => {
+    // The zone as it opens: most of it never seen.
+    const view = toView(initialState(fixtureNamed("zone")));
+    const { meshes, grey, renderer, surface } = mount(view);
+    const inSight = new Set(view.sight.map(tileKey));
+    const tiles = new Set(view.tiles.map(tileKey));
+    const adventurer = view.actors.find((a) => a.id === view.adventurerId)!.tile;
+    const colour = meshes().flatMap((m) => m.pieces);
+    expect(colour.length).toBeGreaterThan(0);
+    for (const piece of colour) {
+      const key = tileKey(piece.over);
+      // A tile in sight, or the void near the adventurer (it has no tile: drawn in colour by sight).
+      expect(inSight.has(key) || !tiles.has(key)).toBe(true);
+      if (!tiles.has(key)) {
+        const [a, b] = [tileToPixel(piece.over), tileToPixel(adventurer)];
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(7 * 64);
+      }
+    }
+    // Over the first among the actors (over the overlay's hexes in sight).
+    const world = surface.stage.children[0] as Container;
+    const actors = world.children[5] as Container;
+    expect(meshes()[0]!.mesh.parent?.parent).toBe(actors);
+    // The grayscale twin, still, in the grey ground: under the cover, which hides the unseen.
+    expect(grey().length).toBeGreaterThan(0);
+    for (const mesh of grey()) {
+      expect(mesh.shownTick()).toBeNull();
+      expect(mesh.mesh.parent?.parent).toBe(world.children[0]);
+    }
+    const cover = renderer["coverTiles"] as ReadonlySet<string>;
+    const hidden = view.tiles.filter((t) => t.kind === "unrevealed").map(tileKey);
+    for (const piece of grey().flatMap((m) => m.pieces)) {
+      const key = tileKey(piece.over);
+      if (hidden.includes(key)) expect(cover.has(key)).toBe(true);
+    }
+  });
+
+  it("a chunk's grayscale twin is baked with its foam, still: frame 0, never a mesh", () => {
+    // The zone revealed on chain and explored everywhere: its own coasts have foam.
+    const world = fixtureNamed("zone");
+    const revealed = { ...world, terrain: { ...world.terrain, kinds: world.terrain.hidden } };
+    const { renderer, grey } = mount(toView(allExplored(initialState(revealed))));
+    const chunks = renderer["chunks"] as Map<
+      string,
+      { foam: readonly unknown[]; greySource: Graphics; grey: { texture: Texture } }
+    >;
+    const frame0 = (renderer["foamFrames"] as readonly Texture[])[0]!;
+    const withFoam = [...chunks.values()].filter((c) => c.foam.length > 0);
+    expect(withFoam.length).toBeGreaterThan(0);
+    for (const chunk of withFoam) {
+      const fills = chunk.greySource.context.instructions.filter((i) => i.action === "fill");
+      const foam = fills.filter(
+        (i) => (i.data as { style: { texture: Texture } }).style.texture === frame0,
+      );
+      expect(foam).toHaveLength(chunk.foam.length);
+    }
+    // The meshes of the twin are the void's alone.
+    for (const id of (renderer["greyFoamMeshes"] as Map<string, unknown>).keys()) {
+      expect(id.startsWith("v")).toBe(true);
+    }
+    expect(grey().every((m) => m.shownTick() === null)).toBe(true);
+  });
+
+  it("a step under fog draws the pieces in sight with the same mesh: no child added or removed", () => {
+    const state = initialState(fixtureNamed("zone"));
+    const { renderer, meshes } = mount(toView(state));
+    const sight = meshes()[0]!;
+    const layer = sight.mesh.parent!;
+    const before = sight.pieces;
+    // The view as if sight had moved: another hero tile, two steps on.
+    const hero = state.world.actors.find((a) => a.id === state.world.adventurerId)!;
+    const moved = {
+      ...state,
+      world: {
+        ...state.world,
+        actors: state.world.actors.map((a) =>
+          a.id === hero.id ? { ...a, tile: { x: a.tile.x + 2, y: a.tile.y } } : a,
+        ),
+      },
+    };
+    renderer.setView(toView(moved));
+    expect(meshes()[0]).toBe(sight);
+    expect(sight.mesh.parent).toBe(layer);
+    expect(layer.children).toHaveLength(1);
+    expect(sight.pieces).not.toBe(before);
+  });
+
+  it("a step that sees a tile no foam looks at bakes nothing, not even a grey twin", () => {
+    const state = initialState(fixtureNamed("zone"));
+    const { host, surface, renderer } = mount(toView(state));
+    host.run(100);
+    const view = toView(state);
+    const chain = new Map((view.revealed ?? []).map((t) => [tileKey(t), t]));
+    const near = (t: { x: number; y: number }) =>
+      hexesWithin(t, FOAM_REACH + 1).some((n) => {
+        const c = chain.get(tileKey(n));
+        return !c || c.kind === "unrevealed" || c.ground === "water";
+      });
+    // A tile revealed on chain, never seen, with no water, void or unrevealed tile near it.
+    const tile = (view.revealed ?? []).find(
+      (t) => t.kind !== "unrevealed" && !state.explored.has(tileKey(t)) && !near(t),
+    )!;
+    expect(tile).toBeDefined();
+    const [bakes, greys] = [surface.bakes.length, surface.greyBakes.length];
+    const explored = new Set(state.explored).add(tileKey(tile));
+    renderer.setView(toView({ ...state, explored }));
+    host.run(100);
+    expect(surface.bakes).toHaveLength(bakes);
+    expect(surface.greyBakes).toHaveLength(greys);
+  });
+
+  it("without fog, none over a tile hidden by the cover", () => {
+    const base = toView(initialState(fixtureNamed("zone")));
+    const view = { ...base, fog: undefined };
+    const { meshes } = mount(view);
+    const hidden = new Set(
+      (view.revealed ?? [])
+        .filter((t) => t.kind !== "unrevealed")
+        .map(tileKey)
+        .filter((k) => view.tiles.some((t) => tileKey(t) === k && t.kind === "unrevealed")),
+    );
+    expect(hidden.size).toBeGreaterThan(0);
+    for (const piece of meshes().flatMap((m) => m.pieces)) {
+      expect(hidden.has(tileKey(piece.over))).toBe(false);
+    }
+  });
+});

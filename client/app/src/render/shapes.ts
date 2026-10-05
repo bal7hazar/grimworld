@@ -74,6 +74,8 @@ export interface GroundTextures {
 export interface TerrainOptions {
   /** The ground of the tiles around the chunk (`groundPlan`'s `around`): lips across chunks. */
   readonly around?: PlanOptions["around"];
+  /** The tiles never seen, under the cover: no lip toward them (`PlanOptions.hidden`). */
+  readonly hidden?: PlanOptions["hidden"];
   readonly textures?: GroundTextures | null;
   /**
    * Whether the walls draw their shaped rock (the default); false when the atlas's obstacles stand
@@ -95,7 +97,7 @@ export function drawTerrain(
   covered: ReadonlySet<string> = new Set(),
   options: TerrainOptions = {},
 ): Graphics {
-  const plan = groundPlan(tiles, { covered, around: options.around });
+  const plan = groundPlan(tiles, { covered, around: options.around, hidden: options.hidden });
   const g = new Graphics();
   for (const layer of plan.layers) {
     const texture = options.textures?.[layer.kind] ?? null;
