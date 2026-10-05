@@ -771,6 +771,43 @@ class Stills(unittest.TestCase):
         frame = page["frames"]["tree/still/00"]
         self.assertEqual((frame["frame"]["w"], frame["frame"]["h"]), (10, 13))
 
+    def test_a_wrong_cell_is_refused_or_warned(self):
+        """A cell that does not divide the sheet is refused; opaque pixels on a cell's side edge
+        warn (synthetic strip of two 20 x 30 cells; each block stands inside its cell)."""
+        import contextlib
+        img = np.zeros((30, 40, 4), np.uint8)
+        img[10:26, 4:14] = (200, 40, 40, 255)
+        img[10:26, 24:34] = (40, 200, 40, 255)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Hut.png"
+            Image.fromarray(img, "RGBA").save(path)
+            with self.assertRaises(SystemExit) as e:
+                clean.still(path, 0, (16, 30))                  # 40 is not a multiple of 16
+            self.assertIn("does not divide", str(e.exception))
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                clean.still(path, 0, (20, 30))                  # whole inside its cell
+            self.assertEqual(err.getvalue(), "")
+            with self.assertRaises(SystemExit) as e:
+                clean.still(path, 0, (20, 20))                  # right width, wrong height
+            self.assertIn("cell height 20", str(e.exception))
+            self.assertNotIn("does not divide", str(e.exception))
+            img[10:26, 38:40] = (9, 9, 9, 255)                  # reaches the right edge of cell 1
+            img[10:26, 0:2] = (9, 9, 9, 255)                    # and the left edge of cell 0
+            Image.fromarray(img, "RGBA").save(path)
+            for frame, side, other in ((0, "left", "right"), (1, "right", "left")):
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    clean.still(path, frame, (20, 30))
+                self.assertIn(f"on its {side} edge", err.getvalue())
+                self.assertNotIn(other, err.getvalue())
+            img[10:26, 18:20] = (9, 9, 9, 255)                  # cell 0 now touches both sides
+            Image.fromarray(img, "RGBA").save(path)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                clean.still(path, 0, (20, 30))
+            self.assertIn("on its left and right edge", err.getvalue())
+
     def test_an_npc_idle_strip_builds_as_the_manifest_makes_it(self):
         """CLI-09e: an `npc` entry (one idle strip) goes the strips' way, as `main` does: cut,
         placed, native, packed; the build's checks pass on the written page."""

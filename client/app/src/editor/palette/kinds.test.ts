@@ -175,4 +175,15 @@ describe("the footprints", () => {
       [3, 3, 3, 5, 9],
     );
   });
+
+  it("measure the animated huts at their visible width, not at a cell's (the Goblin Hut's cut)", () => {
+    // The pack's opaque columns of frame 0: the hut 140 px (x 26 to 166 of its 192 px cell), the
+    // Fish Hut 147, the cave 154. The old 256 px cut gave the Goblin Hut 230 px, a neighbour's 64 px
+    // included, and a footprint a hex too wide on the row behind.
+    const widths = (ids: string[]) => ids.map((id) => BUILDINGS.find((k) => k.id === id)?.width);
+    expect(widths(["goblin_hut", "fish_hut", "cave"])).toEqual([140, 147, 154]);
+    const hut = BUILDINGS.find((k) => k.id === "goblin_hut")!;
+    expect(footprintAt(hut, anchors[0]!)).toHaveLength(5);
+    expect(footprintAt({ ...hut, width: 230 }, anchors[0]!)).toHaveLength(7);
+  });
 });
