@@ -41,4 +41,14 @@ function devArt(): Plugin {
 
 export default defineConfig({
   plugins: [react(), devArt()],
+  build: {
+    rollupOptions: {
+      // The game (`index.html`) and the map editor (`editor.html`, CLI-09 O-1): two pages, two
+      // bundles; the editor imports the game's modules, the game nothing of the editor.
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        editor: fileURLToPath(new URL("./editor.html", import.meta.url)),
+      },
+    },
+  },
 });
