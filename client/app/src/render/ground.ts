@@ -335,14 +335,12 @@ export function trimFoam(
  * the plan: the renderer draws it in its own layer (CLI-03o).
  */
 export function waterFoam(tiles: readonly ViewTile[], options: PlanOptions = {}): FoamPiece[] {
-  const own = new Map(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
-  const at = (tile: Tile): GroundKind | null => {
-    const mine = own.get(`${tile.x},${tile.y}`);
-    if (mine) return mine.kind === "unrevealed" ? null : groundOf(mine);
-    return options.around?.(tile) ?? null;
-  };
+  const at = seenGround(tiles, options);
+  const hidden = options.hidden;
   const water = tiles
-    .filter((t) => t.kind !== "unrevealed" && groundOf(t) === "water")
+    .filter(
+      (t) => t.kind !== "unrevealed" && groundOf(t) === "water" && !hidden?.has(`${t.x},${t.y}`),
+    )
     .map((t) => ({ x: t.x, y: t.y }));
   return trimFoam(foamOver(water, at), at);
 }
@@ -362,6 +360,31 @@ export interface PlanOptions {
   readonly around?: (tile: Tile) => GroundKind | null;
   /** The wall hexes a structure stands on (`"x,y"`): no rock there (CLI-03f). */
   readonly covered?: ReadonlySet<string>;
+  /**
+   * The tiles drawn but never seen (`"x,y"`, CLI-03n's cover over them): their ground is unknown to
+   * the plan (CLI-03n follow-up), so no lip faces them and no foam comes from them or lies over
+   * them; they are still drawn with their ground, under the cover.
+   */
+  readonly hidden?: ReadonlySet<string>;
+}
+
+/**
+ * The ground of a tile as the player knows it: the chunk's own tiles, else `around`'s; null for an
+ * unrevealed tile, a tile never seen (`hidden`) or one nothing is known of.
+ */
+function seenGround(
+  tiles: readonly ViewTile[],
+  options: PlanOptions,
+): (tile: Tile) => GroundKind | null {
+  const own = new Map<string, ViewTile>(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
+  const hidden = options.hidden;
+  return (tile) => {
+    const k: string = `${tile.x},${tile.y}`;
+    if (hidden?.has(k)) return null;
+    const mine = own.get(k);
+    if (mine) return mine.kind === "unrevealed" ? null : groundOf(mine);
+    return options.around?.(tile) ?? null;
+  };
 }
 
 /**
@@ -369,13 +392,8 @@ export interface PlanOptions {
  * a revealed tile joins the water layer, or the grass layer (earth too, under its soft fill).
  */
 export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}): GroundPlan {
-  const own = new Map(tiles.map((t) => [`${t.x},${t.y}`, t] as const));
   const covered = options.covered ?? new Set<string>();
-  const at = (tile: Tile): GroundKind | null => {
-    const mine = own.get(`${tile.x},${tile.y}`);
-    if (mine) return mine.kind === "unrevealed" ? null : groundOf(mine);
-    return options.around?.(tile) ?? null;
-  };
+  const at = seenGround(tiles, options);
   const water: Tile[] = [];
   const grass: Tile[] = [];
   const earth: Tile[] = [];
@@ -402,7 +420,10 @@ export function groundPlan(tiles: readonly ViewTile[], options: PlanOptions = {}
     }
     if (isRock(tile, covered)) rocks.push(t);
   }
-  const foam = foamOver(water, at);
+  const foam = foamOver(
+    options.hidden ? water.filter((t) => !options.hidden!.has(`${t.x},${t.y}`)) : water,
+    at,
+  );
   const layers = [
     ...(water.length > 0 ? [layer("water", water)] : []),
     ...(grass.length > 0 ? [layer("grass", grass)] : []),

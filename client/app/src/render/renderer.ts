@@ -119,6 +119,8 @@ interface ChunkBake {
   drawMs: number;
   /** The foam over its water hexes (CLI-03o): drawn over the bakes, never in them. */
   foam: readonly FoamPiece[];
+  /** What its foam was planned from: the grounds as seen, in and around it. */
+  foamKey: string;
 }
 
 /** The atlas's cells the ground is filled with (CLI-03e's `[[tileset]]`, CLI-03g1). */
@@ -685,7 +687,10 @@ export class Renderer implements FrameClient {
     if (this.view) this.syncObstacles(this.view);
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
-    for (const chunk of this.chunks.values()) chunk.key = "";
+    for (const chunk of this.chunks.values()) {
+      chunk.key = "";
+      chunk.foamKey = "-";
+    }
     this.foamFrames = this.foamTextures();
     this.dropFoam();
     if (this.view) {
@@ -1379,29 +1384,51 @@ export class Renderer implements FrameClient {
     const textures = this.groundTextures();
     // The atlas's obstacles stand in the actors' layer (`syncObstacles`): no rock in the bakes.
     const rocks = this.obstacleArt.length === 0;
+    // CLI-03n follow-up: the lip and the foam are planned from what was seen; a tile never seen is
+    // unknown to them (`PlanOptions.hidden`), though baked with its ground under the cover.
+    const unseen: ReadonlySet<string> = new Set(hidden.keys());
+    // A lip looks only for water: a tile never seen changes the bake only if it is water.
+    const lipMark = (t: Tile, ground: GroundKind | null) =>
+      ground === "water" && unseen.has(tileKey(t)) ? "?" : (ground?.[0] ?? "-");
+    // The foam looks for land too (its sources): every tile never seen marks it.
+    const foamMark = (t: Tile, ground: GroundKind | null) =>
+      unseen.has(tileKey(t)) ? "?" : (ground?.[0] ?? "-");
     let changed = false;
     for (const [id, group] of groups) {
       const covered = (t: ViewTile) => (this.covered.has(`${t.x},${t.y}`) ? "c" : "");
-      const ground = (t: ViewTile) => groundOf(t)[0];
-      const own = group.map((t) => `${t.x},${t.y}${t.kind[0]}${ground(t)}${covered(t)}`).join("");
+      const ground = (t: ViewTile) => (t.kind === "unrevealed" ? null : groundOf(t));
+      const ownKey = (mark: typeof lipMark) =>
+        group.map((t) => `${t.x},${t.y}${t.kind[0]}${mark(t, ground(t))}${covered(t)}`).join("");
       // The lip and the foam look across the chunk's edge: the grounds around it join the key.
-      const ring = this.ringOf(id, group)
-        .map((t) => around(t)?.[0] ?? "-")
-        .join("");
-      const key = `${own}|${ring}`;
+      const ringKey = (mark: typeof lipMark) =>
+        this.ringOf(id, group)
+          .map((t) => mark(t, around(t)))
+          .join("");
+      const key = `${ownKey(lipMark)}|${ringKey(lipMark)}`;
+      const foamKey = this.foamFrames.length > 0 ? `${ownKey(foamMark)}|${ringKey(foamMark)}` : "";
       const chunk = this.chunks.get(id);
+      if (chunk && chunk.foamKey !== foamKey) {
+        chunk.foamKey = foamKey;
+        chunk.foam = foamKey ? waterFoam(group, { around, hidden: unseen }) : [];
+        this.foamVersion += 1;
+      }
       if (chunk?.key === key) continue;
       changed = true;
       const start = this.host.now();
-      const graphics = drawTerrain(group, this.covered, { around, textures, rocks });
+      const graphics = drawTerrain(group, this.covered, {
+        around,
+        textures,
+        rocks,
+        hidden: unseen,
+      });
       const drawMs = this.host.now() - start;
       const frame = chunkFrame(group);
-      const foam = this.foamFrames.length > 0 ? waterFoam(group, { around }) : [];
-      this.foamVersion += 1;
       if (chunk) {
         chunk.graphics.destroy();
-        Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs, foam });
+        Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs });
       } else {
+        const foam = foamKey ? waterFoam(group, { around, hidden: unseen }) : [];
+        this.foamVersion += 1;
         const sprite = new Sprite(Texture.EMPTY);
         const grey = new Sprite(Texture.EMPTY);
         this.ground.addChild(sprite);
@@ -1418,6 +1445,7 @@ export class Renderer implements FrameClient {
           dirty: true,
           drawMs,
           foam,
+          foamKey,
         });
       }
     }
