@@ -12,15 +12,17 @@
 > authored zone's reveal reads its terrain from the Registry instead of generating it). A
 > Grimscape-like room-kinds design for dungeons is a later PLAN row, not part of ENG-08.
 > Decisions: ADR-0006 (D-106, D-111, D-120, amended by D-208), D-134, D-136, D-144, D-145, D-165,
-> D-200, D-207, D-208, D-209, D-210; pins on Linux only (OPERATIONS.md §3).
+> D-200, D-207, D-208, D-209, D-210, D-213, D-214, **D-215** (the project manager's rulings on this
+> brief's questions, 2026-10-05); pins on Linux only (OPERATIONS.md §3).
 
 ## Goal
 After this lot **an authored zone has a format, measured, that the chain, the editor and the
 converter share**: the records that hold an authored zone in `Registry` (terrain per chunk as packed
-bits, features, quota places, entry and gate points, the outline), the content checks that guard
-them, what registering a zone and revealing an authored chunk cost (measured by a spike, against
-ENG-05's generated reveal), what stays random on an authored map, and a versioned JSON export with
-a schema and a converter (JSON → on-chain records) that track CV can build the editor against. ENG-08
+bits, features, quota candidates, entry and gate points, the outline), the Registry's content checks
+that guard them and that the editor reproduces exactly, what registering a zone and revealing an
+authored chunk cost (measured by a spike, against ENG-05's generated reveal), what stays random on
+an authored map, and a versioned JSON export with a schema and a converter (JSON → on-chain
+records) that track CV can build the editor against. ENG-08
 **implements no production contract**: it writes the design into the documents, proves the format
 and its costs in a spike, and leaves ENG-09 a design it can build without asking.
 
@@ -118,143 +120,200 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
 - docs/CAIRO.md §2 (tests first, gas a test result, measured on the worst case), §7 (layers, scoped
   functions, every stored entity a model); COMMON.md; the spike's precedent `spikes/SPK-15/`
   (`README.md`: method, pairs, two clean builds, D-154).
+- **The Registry checks no map record's content today.** At `origin/main`,
+  `RegistryAssert::assert_content` (`contracts/persistent/src/systems/registry.cairo`, from line 245)
+  bounds `MODIFIER`, `ARMOR_SET`, `SKILL`, `ITEM` and `CASTE` only; the map records (`LOCATION`,
+  `OUTLINE`, `GATE`) have only their models' pack-time checks (a field wider than its layout refused).
+  #348 adds the `assert_legal` of `QUOTAS`, `SPAWN_TABLE`, `PACK` and `SET_PIECE`. An authored zone's
+  records need checks of their own, and the editor must reproduce exactly those (deliverable 2).
+
+## Decided before the lot starts
+The questions this brief raised were answered on 2026-10-05; ENG-08 builds on them and does not
+reopen them. Each is reversible by its decider; a measure of the spike that contradicts one goes back
+to that decider with the figure.
+
+| # | Ruling | By |
+|---|---|---|
+| 1 | **Only the walkable plane on chain**; visual tile kinds are client-only; planes are reserved by a format version. Condition: if a rule needs more than walkable (sight blocking that differs from walking, e.g. water), it becomes a **reserved plane on chain**, never a client guess. ENG-08 lists which rules read terrain today | project manager, **D-215** |
+| 2 | **The authored terrain is copied into the instance's chunk at reveal**, as today: ENG-01 §3.2 and ENG-07's window unchanged. Reversed by a measure that puts the copy's slot on the expedition's path beyond what the project manager accepts (D-144) | orchestrator |
+| 3 | **Quotas are drawn among authored candidates**: the author marks candidate places per quota; the draw at entry picks among them (design/18 wants the collector's place to change each instance; the author keeps level-design control). **Order-free**, as D-208 and D-210 | project manager, **D-215** |
+| 4 | **Packs: authored spawn points**, their level (within the zone's band) and their count drawn at entry | project manager, **D-215** |
+| 5 | **D-134's corner walls are lifted for authored chunks** if no other code reads them (the spike checks); kept for generated chunks and set pieces | project manager, **D-215** |
+| 6 | **The chunk set's border masks only**: an authored zone keeps `OUTLINE` as today, its chunk set and the tile masks of its border chunks, and gains no other outline record; the converter derives the masks from the authored walls and refuses a mask that disagrees with them | orchestrator |
+| 7 | **The generated zone path stays as the fallback** until every zone is authored | project manager, **D-215** |
+| 8 | **The four deferred bounds are built by ENG-R1c** (they protect today's generated zones); **ENG-09 reuses them for authored zones**, extending a bound only where an authored record changes what it reads (a quota's count against its authored candidates, ruling 3). ENG-08 specifies how they apply to an authored zone and builds none of them | orchestrator |
+| 9 | **`tools/map-format/` is the shared folder**: track game owns the schema and the converter, track CV consumes them for the editor (CLI-09); promoted there by ENG-09 from the spike | project manager, **D-215** |
+| 10 | **No batched registration entrypoint**: an account's multicall writes many records in one transaction; the spike measures how many fit in one | project manager, **D-215** |
 
 ## Scope
 - In (the deliverables):
   1. **The on-chain format of an authored zone**, written into ENG-01 §3.5 as proposed layouts:
-     - **terrain per chunk**: the walkable plane (225 bits, one felt with `LIVE`, the convention of
-       `Terrain` and `SET_PIECE`: 1 = wall) and **kind bits** if Open question 1 keeps any on chain
-       (each bit of kind a further 225-bit plane, so one felt each); name exactly what fits in a felt
-       (225 tile bits, bits 225–249 free, `LIVE` at 250) and **how many felts a chunk takes**, the
-       spike measuring the packing, the read and the decode;
-     - **features**: authored packs (tile and template at least, as `SetPack`) and objects (chest,
-       node, terrain trap, landmark, lever, as `Object`) within E-3; **quota places** (where a quota may
-       land: Open question 3); **entry and gate points** (the entry chunk and tile `LOCATION` holds; gate
-       anchors, with how a chunk names the gates it anchors, which answers the deferred gate index);
-     - **the outline**: what an authored zone keeps of `OUTLINE` (the chunk set: void chunks, the
-       world map, TP-2) and its border chunks' tile masks, as today (Open question 6, decided);
+     - **terrain per chunk**: the walkable plane only (ruling 1): 225 bits, one felt with `LIVE`, the
+       convention of `Terrain` and `SET_PIECE` (1 = wall); name exactly what fits in a felt (225 tile
+       bits, bits 225–249 free, `LIVE` at 250) and **how many felts a chunk takes**, the spike measuring
+       the packing, the read and the decode; how a later version adds a reserved plane (ruling 1's
+       condition) without moving the first;
+     - **which rules read terrain today**, a table (ruling 1): movement and the flood (design/02, D-127),
+       line of sight ("walls block", design/04), placement and traps' tiles (design/19 §5.11), sight
+       and the window (ADR-0006 §4), each with what it reads (walkable only, or more) and its source;
+     - **features**: **authored spawn points** (tile and template, as `SetPack`; ruling 4) and objects
+       (chest, node, terrain trap, landmark, lever, as `Object`) within E-3; **quota candidates**, the
+       places the author marks per quota (ruling 3); **entry and gate points** (the entry chunk and tile
+       `LOCATION` holds; gate anchors, with how a chunk names the gates it anchors, which answers the
+       deferred gate index);
+     - **the outline**: the chunk set (void chunks, the world map, TP-2) and its border chunks' tile
+       masks, as today (ruling 6);
      - **the record shape**: a new kind or an extension of `SET_PIECE`/`OUTLINE`, its id scheme
        (composite, keyed by the location and the chunk, as `OUTLINE`), its parts (≤ 3 keeps `bundle`'s
        bound of 32 records "at most 3 parts each"; more is a change of ENG-01 §4.5 to state), its
-       `LOCATION` marker (how the reveal tells an authored zone from a generated one).
-  2. **Registration**: the order of writes, the validators and the content checks, as `...Assert`
-     rules to add (written into ENG-01 §3.5's *The writer's checks*; the authored chunk's built by
-     ENG-09, the four deferred bounds by ENG-R1c and reused by ENG-09, Open question 8):
-     - each authored chunk's local checks (fields within their widths; placements on floor; within
-       E-3; whatever D-134 still requires, Open question 5);
-     - **the four deferred bounds**: the chunk set ⊆ the `width × height` rectangle; a quota's count ≤
-       the zone's members (or the places it may land, under Open question 3); a Heart template's caste
-       minimums ≥ 1; a dungeon floor's `width × height` > `N`; for each, which record's write checks
-       it and what it reads, **whatever the order of writes** (CBT-02c's precedent, DS-18: a check that
-       holds when the other record is written later) or a stated order;
+       `LOCATION` marker (how the reveal tells an authored zone from a generated one, ruling 7).
+  2. **Registration and the Registry's content checks for authored map records**: the order of writes
+     and, as `...Assert` rules to add in `RegistryAssert::assert_content` (written into ENG-01 §3.5's
+     *The writer's checks*; built by ENG-09), **every content check of an authored map record**, since
+     today the Registry checks none (*Context*). **The editor reproduces exactly those checks**: the same
+     list, the same refusals, one table shared by the brief's reader, ENG-09 and track CV:
+     - each authored chunk's local checks (fields within their widths; spawn points, objects and quota
+       candidates on walkable tiles; within E-3; the corners per ruling 5);
+     - the checks between records an authored zone adds (a candidate per quota at least its count; a
+       spawn point's template named by the location's content; gates anchored on walkable tiles);
+     - **the four deferred bounds** (ruling 8: ENG-R1c builds them, ENG-09 reuses them): the chunk set ⊆
+       the `width × height` rectangle; a quota's count ≤ the zone's members, and for an authored zone ≤
+       its candidates; a Heart template's caste minimums ≥ 1; a dungeon floor's `width × height` > `N`;
+       for each, which record's write checks it and what it reads, **whatever the order of writes**
+       (CBT-02c's precedent, DS-18) or a stated order;
      - what stays the content pipeline's (OPS-01) and the converter's because no record holds it alone:
-       every walkable tile of the zone reachable from its entry, every gate anchor reachable, seams
-       between neighbouring chunks consistent.
+       every walkable tile of the zone reachable from its entry, every gate anchor and quota candidate
+       reachable, seams between neighbouring chunks consistent.
   3. **Cost, measured by the spike, not estimated** (L2 gas, snforge M and, where the node gives it, D):
      - **registration**, once per zone: one authored chunk's record written new (and rewritten), its
        content checks apart; a whole zone (at least the test zone's 5 chunks and the largest zone the
-       format allows, 15 × 15) as the sum of measured parts **and** one measured multi-record
-       registration; how many chunk records fit one transaction under 1.1 × 10⁹;
+       format allows, 15 × 15) as the sum of measured parts **and** one measured multicall registration;
+       **how many chunk records fit one transaction** under 1.1 × 10⁹ (ruling 10);
      - **the reveal of an authored chunk as a read**: the records read (in `create`'s `bundle` or a
-       call of their own), the decode, the placement left (drawn or copied, Open questions 3 and 4),
-       and the chunk's two words written, **against today's generated reveal**: the spike quotes
-       ENG-05's measured figures at merge (in memory, worst and typical; `create` per chunk) and gives
-       the difference; the terrain copied into the instance's chunk slot (Open question 2, decided),
-       the copy's write measured apart;
+       call of their own), the decode, the draws left (quota candidates at entry, ruling 3; each spawn
+       point's level and count, ruling 4), and the chunk's two words written, the terrain copied into
+       the instance's slot (ruling 2) and that write measured apart, **against today's generated
+       reveal**: the spike quotes ENG-05's measured figures at merge (in memory, worst and typical;
+       `create` per chunk) and gives the difference;
      - **classes under D-200**: the authored path's CASM felts measured in a spike class, and where
        ENG-09 can put it (`RevealLibrary`, `Instances`, `HostsLibrary` or a new class) against 50 % and
-       D-209's exceptions and condition.
-  4. **What stays random on an authored map**: quota placement **drawn** (ENG-05's hosts, D-208,
-     D-210) **or authored**, and the packs (the spawn table drawn per chunk, or authored spawn points
-     with their level and count drawn). ENG-08 **recommends, with reasons**; the project manager
-     decides (Open questions 3 and 4). Either way **ADR-0006's levers stay closed**: no order of moves,
-     no side entered and no reveal chooses where anything lands (D-208); what is drawn is drawn once at
-     entry or from the chunk's word fixed at entry. The recommendation states what a modified client
-     can still gain, in one sentence with a figure, as D-208's re-audit did for dungeons.
+       D-209's exceptions and condition, the generated fallback kept (ruling 7).
+  4. **What stays random on an authored map, as decided** (rulings 3 and 4): the quota draw among the
+     authored candidates at entry, and each spawn point's level (within the band) and count at entry;
+     from what each draw takes its word (the entry draw, a domain of its own, never a value another
+     decision uses: ADR-0002 rule 2) and how it extends `HostsLibrary` or replaces it for an authored
+     zone. **ADR-0006's levers stay closed**: no order of moves, no side entered and no reveal chooses
+     where anything lands or what it holds (D-208); an order-independence test proves it. The lot
+     states what a modified client can still gain, in one sentence with a figure, as D-208's re-audit
+     did for dungeons.
   5. **The JSON export the editor writes**: versioned (a `format` name and an integer `version`; the
      rule for a change that breaks readers), with a **JSON Schema** file and a **converter** (JSON →
-     the on-chain records, and to the seed's rows) defined and prototyped in the spike, so that track CV
-     can build the editor against it. It covers: the zone's identity and `LOCATION` fields (region,
+     the on-chain records, and to the seed's rows) defined and prototyped in the spike, laid out as
+     they will live in `tools/map-format/` (ruling 9; ENG-09 promotes them), so that track CV can build
+     the editor (CLI-09) against it. It covers: the zone's identity and `LOCATION` fields (region,
      biome, band, rank, size); the chunk set; the tiles in global coordinates with the hex layout pinned
      (pointy or flat, the row offset parity of ADR-0006 §4, `15 cy + cx`, `15 row + column`); the
-     on-chain layers and the **client-only layers** (decoration, visual tile kinds, props); features,
-     quota places, entry and gates (by name, the converter resolving registry ids from a content
-     manifest); **set pieces** (one authored chunk, for dungeons' `SET_PIECE` quotas: CM-7 asks for them
-     too); and **towns** (the same file, `kind` town: **everything client-only**, D-03, D-202; the
-     converter emits no town terrain, only what `LOCATION` and the hub gates already hold). The
-     converter refuses what the content checks of 2 would refuse, and checks the pipeline's rules of 2
-     (reachability, seams) itself.
-  6. **The documents**: design/18's zone rows (*Locations*: zones authored, D-214; *Biomes*: the order
-     of generation for generated locations only; *Features*: the collector's and the gate's rows as
-     Open question 3 is decided; *Open* TP-2 answered); ENG-01 §3.5 (the new layout, the checks, the
-     parts bound if it moves; §1.3 only if a class is proposed; §10 the spike's figures as proposed rows,
-     marked "SPK-16, not built"); ADR-0006 (authored zones beside generated locations: §2's "everything
-     is generated" narrowed to dungeons, §3 *Outlines* and *Set pieces*, *Judgement on complexity*'s
-     "zones can no longer be learnt", CM-7 closed or narrowed; marked D-214); and **a decision record
-     proposal** for the format (`docs/decisions/2026-10-xx-authored-zones-format.md`, "proposed", its
-     number given by the project manager at acceptance), listing every open question with its
-     recommendation and decider.
+     walkable layer (on chain) and the **client-only layers** (visual tile kinds, decoration, props;
+     ruling 1); spawn points, objects, quota candidates, entry and gates (by name, the converter
+     resolving registry ids from a content manifest); **set pieces** (one authored chunk, for dungeons'
+     `SET_PIECE` quotas: CM-7 asks for them too); and **towns** (the same file, `kind` town:
+     **everything client-only**, D-03, D-202; the converter emits no town terrain, only what `LOCATION`
+     and the hub gates already hold). The converter refuses exactly what deliverable 2's checks refuse,
+     and checks the pipeline's rules (reachability, seams) itself.
+  6. **D-214 against ADR-0006 and D-106.** D-214 reverses ADR-0006 §2 and D-106 ("everything is
+     generated") **for zones only**. ENG-08 states it in ADR-0006 and updates: ADR-0006 §2 (generated
+     at reveal: dungeons; zones authored), §3 *Outlines*, *Set pieces*, *Judgement on complexity*
+     ("zones can no longer be learnt" reversed), CM-7 closed or narrowed, each change marked D-214 and
+     D-215; design/18's zone rows (*Locations*: zones authored; *Biomes*: the order of generation for
+     generated locations only; *Features*: the pack, collector and gate rows per rulings 3 and 4;
+     *Open* TP-2 answered); and **ENG-05's text where it calls zones generated**: ENG-01's sections
+     (§3.2, §3.5, §10 where they name a zone's generation) and the doc comments of ENG-05's modules
+     (`contracts/logic/src/types/reveal*.cairo`, `models/{quotas,set_piece,chunk}.cairo`,
+     `systems/{reveal,hosts}.cairo`), **comments only, and only once #348 has merged**.
+  7. **The documents and the decision record**: ENG-01 §3.5 (the new layout, the checks of deliverable
+     2, the parts bound if it moves; §1.3 only if a class is proposed; §10 the spike's figures as
+     proposed rows, marked "SPK-16, not built"); and **a decision record** for the format
+     (`docs/decisions/2026-10-xx-authored-zones-format.md`, "proposed", its number given by the project
+     manager at acceptance), citing D-214 and D-215 and the orchestrator's rulings, and listing any
+     question the spike raises with its recommendation and decider.
 - **The spike**, `spikes/SPK-16-authored-zone/` (SPK-16 is the next free number: `spikes/` and PLAN
   go up to SPK-15), on SPK-15's pattern: its own `Scarb.toml` depending on `grimworld_logic` (and
   `grimworld_persistent` if it measures `Registry`) **by path, at `origin/main` with ENG-05 merged**;
-  its own `src/` (the prototype record, its packer and checks, the authored reveal); `tests/` (pairs
-  of tests that differ by the measured call alone, CBT-02d's method; two clean builds, D-154); the
-  JSON Schema, the converter (Python 3, standard library, as the repository's scripts) and its tests;
-  one sample zone (the test region's zone drawn as an authored 3 × 2 zone) and one sample town and set
-  piece; a golden file of the converter's output read back by a Cairo test (small: the build-size
-  rule); `README.md` with the method, the commands and their output. The spike measures `Registry` and
-  `RevealLibrary` **as they are**: a record of the new shape may be measured through an existing kind
-  of the same part count (`SET_PIECE`, 2 parts; `BOOK`, 3) and its checks apart, each proxy named.
-- Out: any production contract (`contracts/**`: ENG-09's); the editor and the client's reading of the
-  export (track CV, TOOL-01); the deployment scripts (OPS-01); the Grimscape-like room kinds of dungeons
-  (a later PLAN row); the bit-parallel placement (ENG-05b); ENG-07's window and play; `client/sim/**`.
+  its own `src/` (the prototype record, its packer and checks, the authored reveal and its draws);
+  `tests/` (pairs of tests that differ by the measured call alone, CBT-02d's method; two clean builds,
+  D-154); **a test that no code but the generation reads D-134's corner walls** (ruling 5: the window's
+  assembly, the tick, the flood, `SetPieceAssert`; or the list of what does); `map-format/` (the JSON
+  Schema, the converter in Python 3 with the standard library, as the repository's scripts, and its
+  tests); one sample zone (the test region's zone drawn as an authored 3 × 2 zone) and one sample
+  town and set piece; a golden file of the converter's output read back by a Cairo test (small: the
+  build-size rule); `README.md` with the method, the commands and their output. The spike measures
+  `Registry` and `RevealLibrary` **as they are**: a record of the new shape may be measured through an
+  existing kind of the same part count (`SET_PIECE`, 2 parts; `BOOK`, 3) and its checks apart, each
+  proxy named.
+- Out: any production contract code (`contracts/**` but the doc comments of deliverable 6: ENG-09's);
+  the four bounds' code (ENG-R1c); `tools/map-format/` itself (ENG-09 promotes the spike's files);
+  the editor and the client's reading of the export (track CV, CLI-09, TOOL-01); the deployment
+  scripts (OPS-01); the Grimscape-like room kinds of dungeons (a later PLAN row); the bit-parallel
+  placement (ENG-05b); ENG-07's window and play; `client/sim/**`.
 - Allowlist:
   - `spikes/SPK-16-authored-zone/**` (new);
   - `docs/design/18-rooms.md` (its zone rows and TP-2);
-  - `docs/architecture/ENG-01-interfaces.md` §3.5 (and §1.3, §4.5, §10 only as deliverable 6 says);
+  - `docs/architecture/ENG-01-interfaces.md` §3.5, and §1.3, §3.2, §4.5, §10 only as deliverables 6
+    and 7 say;
   - `docs/architecture/ADR-0006-chunked-maps.md`;
-  - `docs/decisions/2026-10-xx-authored-zones-format.md` (new, a proposal).
+  - `docs/decisions/2026-10-xx-authored-zones-format.md` (new, a proposal);
+  - **once #348 has merged**, the doc comments (`//!`, `///`) of ENG-05's modules named in deliverable
+    6, where they call zones generated: comments only, no code line.
   Anything else is an escalation. **Overlaps**: ENG-05 (#348) must have merged (ENG-01, ADR-0006 and
   the code the spike depends on); ENG-05b (bit-parallel placement, `contracts/logic/src/types/reveal*`,
-  class sizes) may run beside: the spike reads, never edits, `contracts/`; a figure ENG-05b moves is
-  re-quoted at ENG-08's merge if ENG-05b merged first. **CLI-03n** (track CV, D-213) also updates
-  design/18 (perception, display): ENG-08 edits only its zone rows and TP-2. Documents: whichever of
-  ENG-08, CLI-03n and a bookkeeping lot merges second merges `origin/main`.
+  class sizes) may run beside: the spike reads `contracts/` and ENG-08 edits only doc comments there,
+  so whichever of the two merges second merges `origin/main`; a figure ENG-05b moves is re-quoted at
+  ENG-08's merge if ENG-05b merged first. **ENG-R1c** (the four bounds, ruling 8) and **CLI-03n**
+  (track CV, D-213, design/18's perception and display) may run beside: ENG-08 edits only design/18's
+  zone rows and TP-2. Documents: whichever of ENG-08, CLI-03n and a bookkeeping lot merges second
+  merges `origin/main`.
 
 ## Interfaces
 - **Frozen, read only**: ENG-01 §3.2 (the chunk's stored words, `Instances`' layout), §5 (events,
   frozen, D-193), `IRevealLibrary`, `IHostsLibrary`, `IRegistryRead` (`record`, `records`, `bundle`) and
-  `IRegistryAdmin.set_record` as merged.
+  `IRegistryAdmin.set_record` as merged (no batched entrypoint, ruling 10).
 - **Proposed by ENG-08, built by ENG-09**: the authored chunk's record (kind, id, parts, bit layout,
-  model in `grimworld_logic::models`), its `...Assert`, the four bounds as they apply to an authored
-  zone (built by ENG-R1c for generated zones, reused by ENG-09; Open question 8), the `LOCATION` marker,
-  and the reveal's authored branch (what `Site` gains or what new entry the library takes). A change
-  of a frozen interface (a new `Registry` entrypoint, `MAX_READ`, an event) is named as such and goes
-  to the project manager.
-- **For track CV**: the schema (`spikes/SPK-16-authored-zone/schema/`, moved by Open question 9),
-  the converter's command line, and the samples.
+  model in `grimworld_logic::models`), its `...Assert` and the Registry's content checks of
+  deliverable 2, the four bounds as they apply to an authored zone (built by ENG-R1c for generated
+  zones, reused by ENG-09; ruling 8), the `LOCATION` marker, the draws at entry (rulings 3 and 4) and
+  the reveal's authored branch (what `Site` gains or what new entry the library takes). A change of a
+  frozen interface (a `Registry` entrypoint, `MAX_READ`, an event) is named as such and goes to the
+  project manager.
+- **For track CV** (CLI-09): the schema, the converter's command line, the checks' table of
+  deliverable 2 and the samples, in `spikes/SPK-16-authored-zone/map-format/` until ENG-09 moves them
+  to `tools/map-format/` (ruling 9).
 
 ## Acceptance criteria
-- [ ] AC-1 **Inventory first**: the report opens with a table of the six deliverables, each with where
-      it lives after this lot (document and section, or spike file) and the test or measure that holds
-      it.
+- [ ] AC-1 **Inventory first**: the report opens with a table of the seven deliverables, each with
+      where it lives after this lot (document and section, or spike file) and the test or measure that
+      holds it.
 - [ ] AC-2 The format: the authored chunk's record in ENG-01 §3.5 with its bit layout, what fits in a
-      felt, the felts a chunk takes, the `LOCATION` marker, the gate points; a spike model packs and
-      unpacks it, round-trip and bit tests.
-- [ ] AC-3 Registration: every content check of deliverable 2, the four deferred bounds among them,
-      written with the record that checks it and what it reads; each prototyped in the spike with a
-      refusal test.
-- [ ] AC-4 Cost: registration (one record, a zone) and the authored reveal against ENG-05's measured
-      reveal at merge, every figure with its command and output, every derived figure marked so with its
-      terms; the class-size forecast against D-200 and D-209.
-- [ ] AC-5 Randomness: the recommendation on quota placement and packs, with reasons and the sentence
-      with a figure; ADR-0006's levers shown closed (what is drawn, from what, when).
-- [ ] AC-6 The JSON export: the schema, the converter and the samples (zone, town, set piece); the
+      felt, the felts a chunk takes (the walkable plane only, the reserved planes' rule), the `LOCATION`
+      marker, spawn points, quota candidates, the gate points; the table of the rules that read
+      terrain; a spike model packs and unpacks it, round-trip and bit tests.
+- [ ] AC-3 The Registry's content checks of authored map records, the four bounds' authored form
+      among them, written with the record that checks it and what it reads; each prototyped in the spike
+      with a refusal test; **the converter refuses exactly the same cases** (one shared table, a test
+      that runs each case through both).
+- [ ] AC-4 Cost: registration (one record, a zone, records per transaction) and the authored reveal
+      against ENG-05's measured reveal at merge, every figure with its command and output, every
+      derived figure marked so with its terms; the class-size forecast against D-200 and D-209.
+- [ ] AC-5 Randomness as decided: the quota draw among candidates and the spawn points' level and
+      count, each from its own domain at entry; an order-independence test; the sentence with a figure.
+- [ ] AC-6 D-134's corners: the spike's test of what reads them, and ruling 5 applied or sent back to
+      the project manager with that list.
+- [ ] AC-7 The JSON export: the schema, the converter and the samples (zone, town, set piece); the
       converter's output decoded by a Cairo test equals the sample; the converter refuses an unreachable
       tile, an inconsistent seam and each content check's case.
-- [ ] AC-7 The documents of deliverable 6 updated; the decision record proposal lists every open
-      question, its recommendation and its decider.
-- [ ] AC-8 The Cairo builds capped; the committed figures from a Linux run; `scripts/prepush.sh` green;
+- [ ] AC-8 The documents of deliverables 6 and 7 updated: D-214's reversal of ADR-0006 §2 and D-106
+      for zones stated; ENG-05's text that calls zones generated corrected (after #348 merges); the
+      decision record proposal written.
+- [ ] AC-9 The Cairo builds capped; the committed figures from a Linux run; `scripts/prepush.sh` green;
       CI green.
 
 ## Verification
@@ -262,8 +321,8 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
 cd spikes/SPK-16-authored-zone
 prlimit --as=8589934592 ../../scripts/lock.sh --heavy scarb build
 prlimit --as=8589934592 snforge test
-python3 convert.py samples/zone.json --out samples/zone.records.json
-python3 -m unittest discover -s tests -p 'test_*.py'
+python3 map-format/convert.py samples/zone.json --out samples/zone.records.json
+python3 -m unittest discover -s map-format/tests -p 'test_*.py'
 cd ../..
 scripts/prepush.sh
 ```
@@ -285,71 +344,18 @@ shrink, never rerun uncapped.
 - No figure that was not measured; a derived figure is called one.
 
 ## Report
-The report as in `docs/briefs/COMMON.md` §7: the inventory (AC-1); the format; the registration and
-its checks; the cost tables (registration, reveal against ENG-05, classes) with their commands; the
-randomness recommendation; the export, its schema and converter; the documents changed; the open
-questions with their recommendations and deciders.
+The report as in `docs/briefs/COMMON.md` §7: the inventory (AC-1); the format and the rules that read
+terrain; the Registry's checks and the converter's; the cost tables (registration, reveal against
+ENG-05, classes) with their commands; the draws at entry and the order-independence test; D-134's
+corners; the export, its schema and converter; the documents changed; any question the spike raises,
+with its recommendation and decider.
 
 ## Audit
-A document and spike lot: a review, no audit by default. The orchestrator decides at the close; if
-ENG-08 recommends a change to what is drawn at entry or from a chunk's word, a short randomness lens
-reads that recommendation before the project manager decides.
+A document and spike lot: a review, no audit by default. The orchestrator decides at the close; the
+draws at entry of rulings 3 and 4 are new randomness, so a short randomness lens reads them (order
+independence, the domain of each draw, the sentence with a figure) before ENG-09 builds them.
 
 ## Open questions
-1. **Tile kinds on chain.** Today every rule reads one plane: a wall blocks movement and line of sight
-   (design/04: "walls block"). A kind that blocks one and not the other (water, a pit, low cover) needs
-   a second plane, so a rule that reads it. *Decider*: project manager (a rule of the game).
-   *Recommendation*: the walkable plane only on chain (one felt a chunk); every visual kind client-only
-   in the export; the format reserves the planes so that a later rule adds one by a new version.
-2. **Where an authored chunk's terrain is read during play.** `Instances` stores each revealed chunk's
-   `Terrain` (ENG-01 §3.2) and ENG-07's window assembles from it. *Decider*: orchestrator (the track's
-   layout; a rise on the expedition's path goes to the project manager, D-144). *Recommendation*: copy
-   the authored terrain into the instance's chunk at reveal, as today, so §3.2 and the window are
-   unchanged; the alternative (no terrain slot, the window reading `Registry` at every tick, a call
-   a tick) is measured by the spike only if the copy's slot is a large share of the reveal.
-   **Decided by the orchestrator, 2026-10-05:** copied into the instance's chunk at reveal, as
-   recommended; ENG-01 §3.2 and the window unchanged. Reversed by a measure that puts the copy's slot
-   on the expedition's path beyond what the project manager accepts (D-144).
-3. **Quota placement on an authored map.** (a) drawn over the zone's chunks as ENG-05's hosts (D-210);
-   (b) authored candidate places per quota, one drawn among them at `create` (design/18's "its place
-   changes with each instance" kept); (c) authored and fixed. *Decider*: project manager. *ENG-08
-   recommends with reasons and the figure of AC-5*; whichever is chosen, the draw stays at entry, so
-   the order of moves chooses nothing.
-4. **Packs on an authored map.** The spawn table drawn per chunk from the chunk's word (today), or
-   authored spawn points (tile and template, as `SetPack`) with level and count drawn. *Decider*:
-   project manager. *ENG-08 recommends*, with the placement's measured cost (2.10 M of a worst
-   generated reveal, ENG-05's profile) as one of its reasons.
-5. **D-134's corner tiles in an authored chunk.** D-134 makes a chunk's four corners wall so that a
-   reveal never depends on a diagonal neighbour; an authored chunk depends on no neighbour, and walls
-   every 15 tiles would show in a drawn zone. *Decider*: project manager (D-134 is its decision).
-   *Recommendation*: lifted for authored chunks if the spike shows no other code reads it (the window,
-   the tick, `SetPieceAssert` for set pieces only); kept for generated chunks and set pieces.
-6. **Border tile masks in an authored zone.** The authored walls already cut the zone. *Decider*:
-   orchestrator. *Recommendation*: an authored zone writes its chunk set (`OUTLINE` 255: void chunks,
-   the world map, TP-2) and no tile masks; the converter derives nothing else.
-   **Decided by the orchestrator, 2026-10-05:** the chunk set's border masks only: an authored zone
-   keeps `OUTLINE` as it is today, its chunk set and the tile masks of its border chunks, and gains no
-   other outline record; the converter derives the masks from the authored walls and refuses a mask
-   that disagrees with them. Reversed by the project manager or the owner.
-7. **The generated zone path after ENG-09.** *Decider*: project manager (class room under D-209).
-   *Recommendation*: kept as the fallback while any zone of the content is not authored; removed by the
-   lot that authors the last one, its class room won back and measured.
-8. **Who builds the four deferred bounds.** *Decider*: orchestrator. *Recommendation*: ENG-09, which
-   touches the registry's validators anyway; the dungeon bound (`width × height > N`) is `LOCATION`'s
-   own and may land earlier with ENG-R1c; the orchestrator drops them from ENG-R1c's pending list
-   when ENG-08 merges.
-   **Decided by the orchestrator, 2026-10-05:** the four bounds go to **ENG-R1c**, since they protect
-   today's generated zones; **ENG-09 reuses them for authored zones** (extending a bound only where an
-   authored record changes what it reads, e.g. a quota's count against its authored places under Open
-   question 3). ENG-08 specifies how they apply to an authored zone and builds none of them. Reversed
-   by the project manager.
-9. **Where the schema and the converter live after the spike.** They are shared by the game (the
-   records) and track CV (the editor). *Decider*: project manager (the boundary between the two
-   tracks). *Recommendation*: promoted by ENG-09 to a folder of their own outside `client/sim/**` and
-   `contracts/` (for example `tools/map-format/`), the game owning the converter, CV reading the
-   schema; a change of the format bumps its version and is announced in the CHANGELOG.
-10. **A batched registration entrypoint.** A zone of up to 225 chunk records is written by
-    `set_record` one record a call. *Decider*: project manager (a change of `IRegistryAdmin`, a
-    frozen interface). *Recommendation*: no new entrypoint: an account's multicall writes many
-    records in one transaction; the spike measures how many fit under 1.1 × 10⁹ and proposes one only
-    if the per-call overhead it measures is a large share.
+None left: every question this brief raised is decided above (D-215 and the orchestrator's rulings,
+2026-10-05). A question the spike raises goes into ENG-08's report and its decision record, with a
+recommendation and its decider.
