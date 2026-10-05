@@ -78,6 +78,31 @@ export function mapZoom(viewport: Viewport, columns: number, rows: number): Zoom
   };
 }
 
+/**
+ * The chunks a frame may bake that can wait (CLI-09g, `RendererOptions.bakesPerFrame`): a zoom that
+ * changes the bakes' resolution rebakes the whole window's chunks over the next frames, not in one.
+ */
+export const BAKES_PER_FRAME = 2;
+
+/**
+ * How many times sharper than the zoom wants the chunks' textures may stay (CLI-09g,
+ * `RendererOptions.keepSharper`): a zoom out to half the scale rebakes nothing.
+ */
+export const KEEP_SHARPER = 2;
+
+/**
+ * How long the zoom must be still before the chunks are baked at its resolution (CLI-09g,
+ * `RendererOptions.rescaleAfterMs`): a wheel or a pinch going on bakes nothing.
+ */
+export const RESCALE_AFTER_MS = 200;
+
+/**
+ * The camera's moves are told to the editor (`CanvasEvents.changed`: the status bar's zoom) at most
+ * once in this many ms, and once more after the last (CLI-09g): a zoom does not render the
+ * editor's screen again at every frame.
+ */
+export const CAMERA_NOTICE_MS = 250;
+
 /** How many overlay frame times are kept. */
 const OVERLAY_SAMPLES = 600;
 
@@ -121,6 +146,9 @@ export class EditorCanvas {
   private window: TileBox | null = null;
   private spaceHeld = false;
   private overlayFrame: number | null = null;
+  /** `CAMERA_NOTICE_MS`: the pending notice's timer, and whether the camera moved since the last. */
+  private noticeTimer: number | null = null;
+  private movedSinceNotice = false;
   /** The last overlay frames' drawing times in ms (the browser check reads them). */
   readonly overlayMs: number[] = [];
   /** The editor's zoom (`mapZoom`), and whether the author zoomed by hand since `0`. */
@@ -143,6 +171,9 @@ export class EditorCanvas {
     const renderer = new Renderer(surface, browserHost(), {
       idle: false,
       mode: "continuous",
+      bakesPerFrame: BAKES_PER_FRAME,
+      keepSharper: KEEP_SHARPER,
+      rescaleAfterMs: RESCALE_AFTER_MS,
       onDraw: () => canvas?.drawOverlay(),
     });
     const overlay = document.createElement("canvas");
@@ -221,7 +252,22 @@ export class EditorCanvas {
     if (this.walk) return;
     const { camera, viewport } = this.renderer.cameraState();
     if (!this.window || !holds(this.window, visibleRange(camera, viewport))) this.refreshView();
+    this.noticeMove();
+  }
+
+  /** The camera moved: the editor is told now, or when `CAMERA_NOTICE_MS` has passed. */
+  private noticeMove(): void {
+    if (this.noticeTimer !== null) {
+      this.movedSinceNotice = true;
+      return;
+    }
     this.events.changed();
+    this.noticeTimer = window.setTimeout(() => {
+      this.noticeTimer = null;
+      if (this.destroyed || !this.movedSinceNotice) return;
+      this.movedSinceNotice = false;
+      this.noticeMove();
+    }, CAMERA_NOTICE_MS);
   }
 
   setScene(scene: OverlayScene): void {
@@ -469,6 +515,7 @@ export class EditorCanvas {
     this.walk?.mode.destroy();
     this.walk = null;
     if (this.overlayFrame !== null) window.cancelAnimationFrame(this.overlayFrame);
+    if (this.noticeTimer !== null) window.clearTimeout(this.noticeTimer);
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.renderer.destroy();
     this.overlay.remove();
