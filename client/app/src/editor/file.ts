@@ -144,9 +144,7 @@ export function toFile(doc: MapDocument, editor = EDITOR_VERSION): MapFile {
     obstacles: [...doc.obstacles]
       .sort(([a], [b]) => a - b)
       .map(([key, sprite]) => ({ ...tileOfKey(key), sprite })),
-    objects: [...doc.objects]
-      .sort(([a], [b]) => a - b)
-      .map(([, object]) => objectOut(object)),
+    objects: [...doc.objects].sort(([a], [b]) => a - b).map(([, object]) => objectOut(object)),
   };
 }
 

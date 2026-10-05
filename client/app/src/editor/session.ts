@@ -47,7 +47,11 @@ export const NOTHING: Selection = { hexes: new Set(), objects: new Set() };
 /** What Copy keeps: hexes and objects, from an anchor on an even row (§4.1, the rows' parity). */
 export interface Clip {
   readonly cells: readonly { readonly dx: number; readonly dy: number; readonly cell: Cell }[];
-  readonly objects: readonly { readonly dx: number; readonly dy: number; readonly object: MapObject }[];
+  readonly objects: readonly {
+    readonly dx: number;
+    readonly dy: number;
+    readonly object: MapObject;
+  }[];
 }
 
 const mod2 = (n: number) => ((n % 2) + 2) % 2;

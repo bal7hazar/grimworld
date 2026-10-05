@@ -278,7 +278,7 @@ function MapList({
                 <th>Chunks (fitted)</th>
                 <th>Location id</th>
                 <th>Edited</th>
-                <th>Problems</th>
+                <th>Problems (errors · warnings)</th>
                 <th />
               </tr>
             </thead>
@@ -291,8 +291,12 @@ function MapList({
                   <td>{e.chunks ?? "—"}</td>
                   <td>{e.location}</td>
                   <td>{stamp(e.edited)}</td>
-                  <td className="ed-dim" title="Validation comes with CLI-09b">
-                    —
+                  <td
+                    data-problems=""
+                    className={e.problems?.errors ? "ed-problem" : "ed-dim"}
+                    title="Errors, warnings (§5)"
+                  >
+                    {e.problems ? `${e.problems.errors} · ${e.problems.warnings}` : "—"}
                   </td>
                   <td>
                     <button type="button" onClick={() => onOpen(e.id)}>
@@ -700,7 +704,9 @@ function EditorScreen({
         tone: faults.has(oid) ? "fault" : session.zone ? "zone" : "town",
       });
       if (object.kind === "place" || object.kind === "decor") {
-        footprints.push(...footprintOf(object).filter((t) => t.x !== object.at.x || t.y !== object.at.y));
+        footprints.push(
+          ...footprintOf(object).filter((t) => t.x !== object.at.x || t.y !== object.at.y),
+        );
       }
     }
     return { markers, footprints };
@@ -1034,7 +1040,9 @@ function EditorScreen({
                 type="button"
                 data-swatch={`terrain-${label}`}
                 aria-pressed={
-                  session.tool === "paint" && session.group === "terrain" && session.terrain === value
+                  session.tool === "paint" &&
+                  session.group === "terrain" &&
+                  session.terrain === value
                 }
                 onClick={() => session.choose("terrain", value)}
               >
@@ -1074,7 +1082,9 @@ function EditorScreen({
               </button>
             ))}
             {session.zone && meta.quotas.length === 0 && (
-              <span className="ed-dim">Add a quota in the map&apos;s properties to mark its places.</span>
+              <span className="ed-dim">
+                Add a quota in the map&apos;s properties to mark its places.
+              </span>
             )}
           </div>
           <div className="ed-heading">Brush</div>
@@ -1123,7 +1133,8 @@ function EditorScreen({
         ) : (
           <aside className="ed-inspector" data-inspector="">
             <div className="ed-heading">
-              {session.selection.hexes.size + session.selection.objects.size > 0 || session.inspected
+              {session.selection.hexes.size + session.selection.objects.size > 0 ||
+              session.inspected
                 ? "Selection"
                 : "Map"}
             </div>
@@ -1136,7 +1147,11 @@ function EditorScreen({
                 <div className="ed-heading">Map</div>
                 <div>
                   {KIND_NAMES[meta.kind]} “{meta.name}”, location {meta.location}{" "}
-                  <button type="button" data-map-properties="" onClick={() => session.select(NOTHING)}>
+                  <button
+                    type="button"
+                    data-map-properties=""
+                    onClick={() => session.select(NOTHING)}
+                  >
                     Properties
                   </button>
                 </div>

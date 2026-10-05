@@ -1,256 +1,256 @@
 {
- "format": "grimworld-map",
- "version": 2,
- "editor": "fixture",
- "map": {
-  "kind": "outpost",
-  "name": "Outpost B",
-  "location": 101,
-  "biome": null,
-  "levelMin": 1,
-  "levelMax": 1,
-  "rank": 0,
-  "spawnTable": 0,
-  "quotas": []
- },
- "rows": [
-  {
-   "y": 0,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
+  "format": "grimworld-map",
+  "version": 2,
+  "editor": "fixture",
+  "map": {
+    "kind": "outpost",
+    "name": "Outpost B",
+    "location": 101,
+    "biome": null,
+    "levelMin": 1,
+    "levelMax": 1,
+    "rank": 0,
+    "spawnTable": 0,
+    "quotas": []
   },
-  {
-   "y": 1,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "eeeeeeeewwwwwww"
+  "rows": [
+    {
+      "y": 0,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 1,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "eeeeeeeewwwwwww"
+    },
+    {
+      "y": 2,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 3,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "gggeggggwwwwwww"
+    },
+    {
+      "y": 4,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggegggwwwwwww"
+    },
+    {
+      "y": 5,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "gggeggggwwwwwww"
+    },
+    {
+      "y": 6,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggegggwwwwwww"
+    },
+    {
+      "y": 7,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 8,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 9,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 10,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 11,
+      "x": 0,
+      "terrain": "........#######",
+      "ground": "ggggggggwwwwwww"
+    },
+    {
+      "y": 12,
+      "x": 0,
+      "terrain": "###############",
+      "ground": "wwwwwwwwwwwwwww"
+    },
+    {
+      "y": 13,
+      "x": 0,
+      "terrain": "###############",
+      "ground": "wwwwwwwwwwwwwww"
+    },
+    {
+      "y": 14,
+      "x": 0,
+      "terrain": "###############",
+      "ground": "wwwwwwwwwwwwwww"
+    }
+  ],
+  "chunks": {
+    "x": 0,
+    "y": 0,
+    "how": "fitted"
   },
-  {
-   "y": 2,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
-  },
-  {
-   "y": 3,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "gggeggggwwwwwww"
-  },
-  {
-   "y": 4,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggegggwwwwwww"
-  },
-  {
-   "y": 5,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "gggeggggwwwwwww"
-  },
-  {
-   "y": 6,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggegggwwwwwww"
-  },
-  {
-   "y": 7,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
-  },
-  {
-   "y": 8,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
-  },
-  {
-   "y": 9,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
-  },
-  {
-   "y": 10,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
-  },
-  {
-   "y": 11,
-   "x": 0,
-   "terrain": "........#######",
-   "ground": "ggggggggwwwwwww"
-  },
-  {
-   "y": 12,
-   "x": 0,
-   "terrain": "###############",
-   "ground": "wwwwwwwwwwwwwww"
-  },
-  {
-   "y": 13,
-   "x": 0,
-   "terrain": "###############",
-   "ground": "wwwwwwwwwwwwwww"
-  },
-  {
-   "y": 14,
-   "x": 0,
-   "terrain": "###############",
-   "ground": "wwwwwwwwwwwwwww"
-  }
- ],
- "chunks": {
-  "x": 0,
-  "y": 0,
-  "how": "fitted"
- },
- "obstacles": [],
- "objects": [
-  {
-   "kind": "place",
-   "x": 2,
-   "y": 7,
-   "target": "guild",
-   "building": "fortress",
-   "depth": 1,
-   "mirror": false
-  },
-  {
-   "kind": "place",
-   "x": 5,
-   "y": 7,
-   "target": "trainer",
-   "building": "barracks",
-   "depth": 1,
-   "mirror": false
-  },
-  {
-   "kind": "place",
-   "x": 6,
-   "y": 2,
-   "target": "vault",
-   "building": "barn",
-   "depth": 1,
-   "mirror": false
-  },
-  {
-   "kind": "place",
-   "x": 1,
-   "y": 2,
-   "target": "gate",
-   "building": "watchtower",
-   "depth": 1,
-   "mirror": false
-  },
-  {
-   "kind": "decor",
-   "x": 0,
-   "y": 7,
-   "building": "hut",
-   "depth": 1,
-   "mirror": false
-  },
-  {
-   "kind": "decor",
-   "x": 4,
-   "y": 2,
-   "building": "straw_hut",
-   "depth": 0,
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 7,
-   "y": 8,
-   "sprite": "tree1",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 0,
-   "y": 8,
-   "sprite": "tree3",
-   "mirror": true
-  },
-  {
-   "kind": "prop",
-   "x": 7,
-   "y": 6,
-   "sprite": "tree4",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 6,
-   "y": 6,
-   "sprite": "stump2",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 1,
-   "y": 5,
-   "sprite": "stump1",
-   "mirror": true
-  },
-  {
-   "kind": "prop",
-   "x": 3,
-   "y": 4,
-   "sprite": "rock1",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 0,
-   "y": 4,
-   "sprite": "rock3",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 5,
-   "y": 0,
-   "sprite": "rock4",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 2,
-   "y": 0,
-   "sprite": "rock2",
-   "mirror": true
-  },
-  {
-   "kind": "prop",
-   "x": 2,
-   "y": 6,
-   "sprite": "bush2",
-   "mirror": false
-  },
-  {
-   "kind": "prop",
-   "x": 0,
-   "y": 6,
-   "sprite": "sheep",
-   "mirror": false
-  },
-  {
-   "kind": "figure",
-   "x": 2,
-   "y": 3,
-   "facing": "left"
-  },
-  {
-   "kind": "arrival",
-   "x": 1,
-   "y": 1
-  }
- ]
+  "obstacles": [],
+  "objects": [
+    {
+      "kind": "place",
+      "x": 2,
+      "y": 7,
+      "target": "guild",
+      "building": "fortress",
+      "depth": 1,
+      "mirror": false
+    },
+    {
+      "kind": "place",
+      "x": 5,
+      "y": 7,
+      "target": "trainer",
+      "building": "barracks",
+      "depth": 1,
+      "mirror": false
+    },
+    {
+      "kind": "place",
+      "x": 6,
+      "y": 2,
+      "target": "vault",
+      "building": "barn",
+      "depth": 1,
+      "mirror": false
+    },
+    {
+      "kind": "place",
+      "x": 1,
+      "y": 2,
+      "target": "gate",
+      "building": "watchtower",
+      "depth": 1,
+      "mirror": false
+    },
+    {
+      "kind": "decor",
+      "x": 0,
+      "y": 7,
+      "building": "hut",
+      "depth": 1,
+      "mirror": false
+    },
+    {
+      "kind": "decor",
+      "x": 4,
+      "y": 2,
+      "building": "straw_hut",
+      "depth": 0,
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 7,
+      "y": 8,
+      "sprite": "tree1",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 0,
+      "y": 8,
+      "sprite": "tree3",
+      "mirror": true
+    },
+    {
+      "kind": "prop",
+      "x": 7,
+      "y": 6,
+      "sprite": "tree4",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 6,
+      "y": 6,
+      "sprite": "stump2",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 1,
+      "y": 5,
+      "sprite": "stump1",
+      "mirror": true
+    },
+    {
+      "kind": "prop",
+      "x": 3,
+      "y": 4,
+      "sprite": "rock1",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 0,
+      "y": 4,
+      "sprite": "rock3",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 5,
+      "y": 0,
+      "sprite": "rock4",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 2,
+      "y": 0,
+      "sprite": "rock2",
+      "mirror": true
+    },
+    {
+      "kind": "prop",
+      "x": 2,
+      "y": 6,
+      "sprite": "bush2",
+      "mirror": false
+    },
+    {
+      "kind": "prop",
+      "x": 0,
+      "y": 6,
+      "sprite": "sheep",
+      "mirror": false
+    },
+    {
+      "kind": "figure",
+      "x": 2,
+      "y": 3,
+      "facing": "left"
+    },
+    {
+      "kind": "arrival",
+      "x": 1,
+      "y": 1
+    }
+  ]
 }

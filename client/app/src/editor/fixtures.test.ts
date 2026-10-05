@@ -27,8 +27,8 @@ import { frameOf, walkWorld } from "./walkWorld";
 /**
  * The seed's zone (`fixtures/zone.ts`) and the hubs (`fixtures/hubs.ts`) redrawn in the editor
  * (CLI-09b's acceptance), committed as files of the editor's format 2 under `fixtures/`. The
- * documents are built here from the game's fixtures; the committed files must be what they save
- * to. `GRIMWORLD_WRITE_FIXTURES=1` writes them again.
+ * documents are built here from the game's fixtures; the committed files must hold what they save
+ * to. `GRIMWORLD_WRITE_FIXTURES=1` writes them again (then `prettier --write` them).
  */
 
 const DIR = new URL("./fixtures/", import.meta.url);
@@ -138,7 +138,13 @@ function hubMap(id: typeof TOWN | typeof OUTPOST): MapDocument {
     });
   }
   for (const d of view.decor) {
-    put(doc, { kind: "decor", at: d.at, building: d.building as never, depth: d.depth ?? 1, mirror: false });
+    put(doc, {
+      kind: "decor",
+      at: d.at,
+      building: d.building as never,
+      depth: d.depth ?? 1,
+      mirror: false,
+    });
   }
   for (const p of view.props) {
     put(doc, { kind: "prop", at: p.at, sprite: p.sprite, mirror: p.mirror ?? false });
@@ -183,11 +189,14 @@ function walk(world: SandboxWorld, taps: readonly Tile[]): Tile[] {
 
 describe("the committed fixtures (CLI-09b)", () => {
   it.each(FILES)("%s is what the game's fixture redraws to", (name, build) => {
-    const text = saveMap(build(), EDITOR);
-    if (process.env.GRIMWORLD_WRITE_FIXTURES === "1") writeFileSync(new URL(name, DIR), text);
-    expect(readFileSync(new URL(name, DIR), "utf8")).toBe(text);
-    // And it reads back to the same document.
+    // Written by the editor's saver; Prettier formats it (the pre-push hook checks `client`).
+    if (process.env.GRIMWORLD_WRITE_FIXTURES === "1") {
+      writeFileSync(new URL(name, DIR), saveMap(build(), EDITOR));
+    }
     expect(fixture(name)).toEqual(build());
+    expect(JSON.parse(readFileSync(new URL(name, DIR), "utf8"))).toEqual(
+      JSON.parse(saveMap(build(), EDITOR)),
+    );
   });
 
   it("the seed's zone fits as the seed: origin (0, 0), 3 × 2 chunks, the seed's chunk set", () => {
@@ -208,7 +217,8 @@ describe("the committed fixtures (CLI-09b)", () => {
   it("the game's own anchor of gate 102 is refused by E-5 alone", () => {
     const doc = fixture("seed-zone.grimmap.json");
     for (const [id, o] of doc.objects) {
-      if (o.kind === "gate" && o.at.x === GATE_102_EDITOR.x) doc.objects.set(id, { ...o, at: GATE_102_GAME });
+      if (o.kind === "gate" && o.at.x === GATE_102_EDITOR.x)
+        doc.objects.set(id, { ...o, at: GATE_102_GAME });
     }
     const errors = validate(doc).filter((f) => f.severity === "error");
     expect(errors.map((f) => f.check)).toEqual(["E-5"]);

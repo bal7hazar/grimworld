@@ -159,8 +159,7 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
         continue;
       }
       if (object.kind !== "place" && object.kind !== "decor" && object.kind !== "prop") continue;
-      const size =
-        object.kind === "prop" ? [TILE_WIDTH, TILE_WIDTH] : BUILDINGS[object.building];
+      const size = object.kind === "prop" ? [TILE_WIDTH, TILE_WIDTH] : BUILDINGS[object.building];
       structures.push({
         key: `${object.kind}:${id}`,
         kind: object.kind === "prop" ? "prop" : "building",
@@ -171,7 +170,10 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
         ...(object.mirror ? { mirror: true } : {}),
         ...(object.kind === "prop"
           ? {}
-          : { shape: object.kind === "decor" ? "decor" : object.target === "gate" ? "gate" : "house" }),
+          : {
+              shape:
+                object.kind === "decor" ? "decor" : object.target === "gate" ? "gate" : "house",
+            }),
         covers: coversOf(object).map(at),
       });
     }

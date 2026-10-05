@@ -313,7 +313,7 @@ export function drawOverlays(
         continue;
       }
       ctx.beginPath();
-      hexPath(tile, -hexPx * 0.12 / scale);
+      hexPath(tile, (-hexPx * 0.12) / scale);
       ctx.globalAlpha = 0.85;
       ctx.fill();
       ctx.globalAlpha = 1;

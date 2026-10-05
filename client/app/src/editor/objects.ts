@@ -104,7 +104,13 @@ export type MapObject =
 
 export type ObjectKind = MapObject["kind"];
 
-export const ZONE_OBJECTS: readonly ObjectKind[] = ["entry", "gate", "candidate", "feature", "spawn"];
+export const ZONE_OBJECTS: readonly ObjectKind[] = [
+  "entry",
+  "gate",
+  "candidate",
+  "feature",
+  "spawn",
+];
 export const TOWN_OBJECTS: readonly ObjectKind[] = ["place", "decor", "prop", "figure", "arrival"];
 
 /** The kinds a map of that kind holds. */
@@ -166,7 +172,7 @@ const PLACE_LETTERS: Readonly<Record<PlaceTarget, string>> = {
 /**
  * The marker's label (§2.3): `E` the entry, `G1…` gates by their order, `Q…` candidates by their
  * quota's kind, `F…` features by kind, `P` spawn points; a town's places by service, `D` decor,
- * `p` props, `A` figures, `→` …the arrival as `In`.
+ * `p` props, `A` figures, `In` the arrival.
  */
 export function objectLabel(
   object: MapObject,

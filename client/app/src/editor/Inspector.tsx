@@ -266,7 +266,9 @@ function ObjectFields({
           name="prop-sprite"
           label="Prop"
           value={object.sprite}
-          options={PROP_SPRITES.includes(object.sprite) ? PROP_SPRITES : [object.sprite, ...PROP_SPRITES]}
+          options={
+            PROP_SPRITES.includes(object.sprite) ? PROP_SPRITES : [object.sprite, ...PROP_SPRITES]
+          }
           onChange={(sprite) => edit({ ...object, sprite })}
         />,
       );
@@ -329,7 +331,9 @@ function HexFields({
   return (
     <div data-hex="">
       <div>
-        <strong>Hex ({tile.x}, {tile.y})</strong>
+        <strong>
+          Hex ({tile.x}, {tile.y})
+        </strong>
       </div>
       <div className="ed-dim">
         {at
@@ -497,7 +501,9 @@ function MapFields({ session }: { session: EditorSession }) {
             value={meta.spawnTable}
             onCommit={(spawnTable) => session.editMeta({ ...meta, spawnTable })}
           />
-          <div className="ed-heading">Quotas ({quotas.length} of {QUOTAS_MAX})</div>
+          <div className="ed-heading">
+            Quotas ({quotas.length} of {QUOTAS_MAX})
+          </div>
           {quotas.map((q, i) => {
             const candidates = [...doc.objects.values()].filter(
               (o) => o.kind === "candidate" && o.quota === i,
@@ -577,13 +583,7 @@ function WalkableShare({ doc }: { doc: MapDocument }) {
 }
 
 /** The selection's panel, or the map's properties. */
-export function SelectionPanel({
-  session,
-  fit,
-}: {
-  session: EditorSession;
-  fit: Fitted | null;
-}) {
+export function SelectionPanel({ session, fit }: { session: EditorSession; fit: Fitted | null }) {
   const { hexes, objects } = session.selection;
   const total = hexes.size + objects.size;
   if (objects.size === 1 && hexes.size === 0) {

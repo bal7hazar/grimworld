@@ -86,9 +86,10 @@ function objectsOf<K extends MapObject["kind"]>(
   doc: MapDocument,
   kind: K,
 ): [number, Extract<MapObject, { kind: K }>][] {
-  return [...doc.objects]
-    .filter(([, o]) => o.kind === kind)
-    .sort(([a], [b]) => a - b) as [number, Extract<MapObject, { kind: K }>][];
+  return [...doc.objects].filter(([, o]) => o.kind === kind).sort(([a], [b]) => a - b) as [
+    number,
+    Extract<MapObject, { kind: K }>,
+  ][];
 }
 
 /** Grown by one hex: a region of painted hexes never reaches past it. */
@@ -439,7 +440,10 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
   });
 
   // R-15 per chunk, and its ○ part: whether a candidate counts against the three objects.
-  const perChunk = new Map<number, { spawns: number[]; features: number[]; candidates: number[] }>();
+  const perChunk = new Map<
+    number,
+    { spawns: number[]; features: number[]; candidates: number[] }
+  >();
   const chunkOf = (o: MapObject) => chunkAt(o.at, fit).chunk;
   const bucket = (chunk: number) => {
     let b = perChunk.get(chunk);
@@ -582,7 +586,9 @@ function townChecks(doc: MapDocument, out: Findings): void {
   if (arrivals.length !== 1) {
     out.error(
       "E-15",
-      arrivals.length === 0 ? "The hub has no arrival." : `The hub has ${arrivals.length} arrivals.`,
+      arrivals.length === 0
+        ? "The hub has no arrival."
+        : `The hub has ${arrivals.length} arrivals.`,
       arrivals.map(([, a]) => a.at),
       arrivals.map(([id]) => id),
     );

@@ -96,8 +96,8 @@ export function ValidationPanel({
         </ul>
       )}
       <p className="ed-dim ed-validation-key">
-        R = ENG-08&apos;s check · E = the editor&apos;s · ○ waits for the spike (a warning). Export is
-        refused while an error stands; saving never is.
+        R = ENG-08&apos;s check · E = the editor&apos;s · ○ waits for the spike (a warning). Export
+        is refused while an error stands; saving never is.
       </p>
     </aside>
   );

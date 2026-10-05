@@ -47,18 +47,18 @@ export function WalkScreen({
     if (!element || !world) return;
     let gone = false;
     let mounted: WalkCanvas | null = null;
-    void WalkCanvas.mount(element, world, fog, () => setSaid(mounted?.session.state.said ?? "")).then(
-      (made) => {
-        if (gone) {
-          made.destroy();
-          return;
-        }
-        mounted = made;
-        canvas.current = made;
-        // The browser check reads where the walker stands.
-        (window as unknown as { __editorWalk?: WalkCanvas }).__editorWalk = made;
-      },
-    );
+    void WalkCanvas.mount(element, world, fog, () =>
+      setSaid(mounted?.session.state.said ?? ""),
+    ).then((made) => {
+      if (gone) {
+        made.destroy();
+        return;
+      }
+      mounted = made;
+      canvas.current = made;
+      // The browser check reads where the walker stands.
+      (window as unknown as { __editorWalk?: WalkCanvas }).__editorWalk = made;
+    });
     return () => {
       gone = true;
       mounted?.destroy();
@@ -110,9 +110,7 @@ export function WalkScreen({
     <div className="ed-walk" data-walk="" data-walk-fog={fog ? "on" : "off"}>
       <header className="ed-bar">
         <strong>Walking · {doc.meta.name} (preview)</strong>
-        <span className="ed-dim">
-          Keys: the game&apos;s (Q W E A S D, arrows, 0, + −, Esc, ?)
-        </span>
+        <span className="ed-dim">Keys: the game&apos;s (Q W E A S D, arrows, 0, + −, Esc, ?)</span>
         <span className="ed-spacer" />
         <button type="button" data-leave-walk="" onClick={onLeave}>
           [P] ◂ Edit

@@ -204,7 +204,8 @@ describe("R checks: ENG-08's content checks for map records", () => {
     add(doc, { kind: "spawn", at: { x: 22, y: 20 }, template: 1 });
     expect(fails(doc, "R-15")[0]!.message).toBe("Chunk 16 holds 3 spawn points: at most 2.");
     const features = zone();
-    for (const x of [3, 4, 5, 6]) add(features, { kind: "feature", at: { x, y: 4 }, feature: "node" });
+    for (const x of [3, 4, 5, 6])
+      add(features, { kind: "feature", at: { x, y: 4 }, feature: "node" });
     expect(fails(features, "R-15")[0]!.message).toBe("Chunk 0 holds 4 features: at most 3.");
   });
 
@@ -346,11 +347,25 @@ describe("E checks: the editor's own", () => {
     doc.objects.delete(id);
     expect(fails(doc, "E-14")[0]!.message).toBe("No place for the market.");
     const twice = town();
-    add(twice, { kind: "place", at: { x: 7, y: 9 }, target: "gate", building: "hut", depth: 0, mirror: false });
+    add(twice, {
+      kind: "place",
+      at: { x: 7, y: 9 },
+      target: "gate",
+      building: "hut",
+      depth: 0,
+      mirror: false,
+    });
     expect(fails(twice, "E-14")[0]!.message).toBe("2 places for the gate: one only.");
     // A service the outpost does not hold: a warning.
     const outpost = fixture("outpost-b");
-    add(outpost, { kind: "place", at: { x: 4, y: 5 }, target: "smith", building: "hut", depth: 0, mirror: false });
+    add(outpost, {
+      kind: "place",
+      at: { x: 4, y: 5 },
+      target: "smith",
+      building: "hut",
+      depth: 0,
+      mirror: false,
+    });
     expect(findings(outpost, "E-14").map((f) => f.severity)).toEqual(["warning"]);
   });
 
