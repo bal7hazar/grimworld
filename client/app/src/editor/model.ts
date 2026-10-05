@@ -256,9 +256,7 @@ function painted(cell: Cell | null, swatch: Swatch): Cell | null {
   switch (swatch.layer) {
     case "terrain":
       // An unpainted hex becomes painted: the terrain, the default ground, inside the outline.
-      return cell === null
-        ? cellOf(swatch.value, defaultGround())
-        : (cell & ~1) | swatch.value;
+      return cell === null ? cellOf(swatch.value, defaultGround()) : (cell & ~1) | swatch.value;
     case "ground":
       return cell === null
         ? cellOf(FLOOR, swatch.value)
@@ -329,7 +327,8 @@ export function regionOf(
       const next = sideOf(tile, side);
       const key = keyOf(next);
       if (seen.has(key) || !same(key)) continue;
-      const out = next.x < within.x0 || next.x > within.x1 || next.y < within.y0 || next.y > within.y1;
+      const out =
+        next.x < within.x0 || next.x > within.x1 || next.y < within.y0 || next.y > within.y1;
       if (out) return "open";
       seen.add(key);
       pending.push(next);

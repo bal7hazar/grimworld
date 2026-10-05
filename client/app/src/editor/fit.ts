@@ -202,7 +202,11 @@ export function fitted(doc: MapDocument): Fitted | "unfitted" | "empty" | "wide"
   const masks = new Map<number, readonly number[]>();
   for (const chunk of chunkSet) {
     const list = tiles.get(chunk)!;
-    if (list.length < TILES) masks.set(chunk, list.sort((a, b) => a - b));
+    if (list.length < TILES)
+      masks.set(
+        chunk,
+        list.sort((a, b) => a - b),
+      );
   }
   const max = SIZE_MAX[doc.meta.kind];
   const problems: string[] = [];

@@ -74,10 +74,15 @@ export function seamSegments(fit: Fitted): Seams {
     const cy = Math.floor(chunk / CHUNK);
     const x = fit.x0 + CHUNK * cx;
     const y = fit.y0 + CHUNK * cy;
-    for (let dy = 0; dy < CHUNK; dy++) for (let dx = 0; dx < CHUNK; dx++) tiles.push({ x: x + dx, y: y + dy });
+    for (let dy = 0; dy < CHUNK; dy++)
+      for (let dx = 0; dx < CHUNK; dx++) tiles.push({ x: x + dx, y: y + dy });
     // Its top-right corner: x grows West, y North.
     const corner = tileToPixel({ x, y: y + CHUNK - 1 });
-    labels.push({ x: corner.x + TILE_WIDTH / 2, y: corner.y - TILE_WIDTH / 2, text: String(chunk) });
+    labels.push({
+      x: corner.x + TILE_WIDTH / 2,
+      y: corner.y - TILE_WIDTH / 2,
+      text: String(chunk),
+    });
   }
   const chunkOf = (t: Tile) => chunkAt(t, fit);
   const segments = edgesWhere(tiles, (tile, next) => {
@@ -85,7 +90,8 @@ export function seamSegments(fit: Fitted): Seams {
     const b = chunkOf(next);
     if (a.cx === b.cx && a.cy === b.cy) return false;
     // Between two chunks of the set, once: from the lower key.
-    const bIn = b.cx >= 0 && b.cy >= 0 && b.cx < fit.width && b.cy < fit.height && inSet.has(b.chunk);
+    const bIn =
+      b.cx >= 0 && b.cy >= 0 && b.cx < fit.width && b.cy < fit.height && inSet.has(b.chunk);
     return !bIn || keyOf(tile) < keyOf(next);
   });
   return { segments, labels };

@@ -8,7 +8,8 @@ describe("overlays (§2.3)", () => {
   const zone = () => createMap({ kind: "zone", name: "O", location: 2, biome: "meadow" });
   const fill = (doc: MapDocument, x: number, y: number, w: number, h: number) => {
     const tiles = [];
-    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) tiles.push({ x: x + dx, y: y + dy });
+    for (let dy = 0; dy < h; dy++)
+      for (let dx = 0; dx < w; dx++) tiles.push({ x: x + dx, y: y + dy });
     apply(doc, paint(doc, tiles, { layer: "terrain", value: FLOOR }));
   };
 
@@ -35,7 +36,9 @@ describe("overlays (§2.3)", () => {
     // Unpainting the hex instead: the same border.
     apply(doc, erase(doc, [{ x: 1007, y: -993 }]));
     expect(outlineSegments(doc).length / 4).toBe(all + 6);
-    expect(outlineSegments(createMap({ kind: "town", name: "T", location: 1, biome: "meadow" })).length).toBe(0);
+    expect(
+      outlineSegments(createMap({ kind: "town", name: "T", location: 1, biome: "meadow" })).length,
+    ).toBe(0);
   });
 
   it("the visible range covers the viewport's hexes, unbounded", () => {
@@ -51,7 +54,8 @@ describe("the game's view of a map, near the view only (D-216)", () => {
   it("painted hexes revealed and in sight, water void, no actor; layers off draw grass and flat walls", () => {
     const doc = createMap({ kind: "zone", name: "V", location: 2, biome: "meadow" });
     const tiles = [];
-    for (let y = 0; y < 15; y++) for (let x = 0; x < 15; x++) tiles.push({ x: x - 500, y: y + 300 });
+    for (let y = 0; y < 15; y++)
+      for (let x = 0; x < 15; x++) tiles.push({ x: x - 500, y: y + 300 });
     apply(doc, paint(doc, tiles, { layer: "terrain", value: WALL }));
     const everywhere = { x0: -10_000, y0: -10_000, x1: 10_000, y1: 10_000 };
     const view = editorView(doc, DEFAULT_LAYERS, everywhere);
@@ -64,9 +68,17 @@ describe("the game's view of a map, near the view only (D-216)", () => {
     const painted = view.tiles.filter((t) => t.ground !== "water");
     expect(painted).toHaveLength(225);
     expect(painted.every((t) => t.kind === "wall" && t.ground === "grass")).toBe(true);
-    expect(view.tiles.filter((t) => t.ground === "water").every((t) => t.kind === "wall")).toBe(true);
-    const flat = editorView(doc, { ...DEFAULT_LAYERS, ground: false, obstacles: false }, everywhere);
-    expect(flat.tiles.filter((t) => t.kind === "unrevealed" && t.ground === undefined)).toHaveLength(225);
+    expect(view.tiles.filter((t) => t.ground === "water").every((t) => t.kind === "wall")).toBe(
+      true,
+    );
+    const flat = editorView(
+      doc,
+      { ...DEFAULT_LAYERS, ground: false, obstacles: false },
+      everywhere,
+    );
+    expect(
+      flat.tiles.filter((t) => t.kind === "unrevealed" && t.ground === undefined),
+    ).toHaveLength(225);
   });
 
   it("only the window's part is sent; the window grows the view by half, snapped to 15", () => {
@@ -81,7 +93,9 @@ describe("the game's view of a map, near the view only (D-216)", () => {
     expect(holds(window, { ...visible, x1: 150 })).toBe(false);
     expect(editorView(doc, DEFAULT_LAYERS, window).tiles).toHaveLength(75 * 60);
     // Far from the painting: nothing sent.
-    expect(editorView(doc, DEFAULT_LAYERS, viewWindow({ x0: 5000, y0: 0, x1: 5030, y1: 20 })).tiles).toEqual([]);
+    expect(
+      editorView(doc, DEFAULT_LAYERS, viewWindow({ x0: 5000, y0: 0, x1: 5030, y1: 20 })).tiles,
+    ).toEqual([]);
   });
 });
 

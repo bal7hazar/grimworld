@@ -1,22 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Tile } from "../render/view";
 import { type FitScore, chunkAt, evenRow, fitChunks, fitted, nudge, scoreAt } from "./fit";
-import {
-  FLOOR,
-  type MapDocument,
-  apply,
-  createMap,
-  erase,
-  paint,
-  sideOf,
-} from "./model";
+import { FLOOR, type MapDocument, apply, createMap, erase, paint, sideOf } from "./model";
 
 const zone = () => createMap({ kind: "zone", name: "Fit", location: 2, biome: "meadow" });
 
 /** A map with a block of `w × h` floor hexes from `(x, y)`. */
 function block(x: number, y: number, w: number, h: number, doc = zone()): MapDocument {
   const tiles: Tile[] = [];
-  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) tiles.push({ x: x + dx, y: y + dy });
+  for (let dy = 0; dy < h; dy++)
+    for (let dx = 0; dx < w; dx++) tiles.push({ x: x + dx, y: y + dy });
   apply(doc, paint(doc, tiles, { layer: "terrain", value: FLOOR }));
   return doc;
 }
@@ -163,7 +156,13 @@ describe("the fitted records (§4.4, ADR-0006)", () => {
     const fit = fitted(doc);
     if (typeof fit === "string") throw new Error(fit);
     expect(fit.problems[0]).toMatch(/16 × 1 chunks: a zone is at most 15 × 15/);
-    const town = block(0, 0, 5 * 15, 1, createMap({ kind: "town", name: "T", location: 1, biome: "meadow" }));
+    const town = block(
+      0,
+      0,
+      5 * 15,
+      1,
+      createMap({ kind: "town", name: "T", location: 1, biome: "meadow" }),
+    );
     town.origin = { x: 0, y: 0, how: "nudged" };
     const t = fitted(town);
     expect(typeof t !== "string" && t.problems[0]).toMatch(/town is at most 4 × 4/);

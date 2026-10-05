@@ -231,7 +231,8 @@ export class EditorSession {
     this.said = "";
     const best = fitChunks(this.doc);
     if (best === "empty") this.said = "Nothing to fit: paint the map first.";
-    else if (best === "wide") this.said = "The painted hexes span more than 1000 hexes: not fitted.";
+    else if (best === "wide")
+      this.said = "The painted hexes span more than 1000 hexes: not fitted.";
     else {
       this.doc.origin = { ...best.origin, how: "fitted" };
       this.originMoved();

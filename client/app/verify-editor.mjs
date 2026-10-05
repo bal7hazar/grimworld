@@ -251,7 +251,10 @@ async function run(browser, look) {
     a.box.x0 > 30 && a.box.y0 > 15,
     `away from the origin: x ${a.box.x0}..${a.box.x1}, y ${a.box.y0}..${a.box.y1}`,
   );
-  ok(a.file.chunks?.how === "nudged", `the file keeps the origin: ${JSON.stringify(a.file.chunks)}`);
+  ok(
+    a.file.chunks?.how === "nudged",
+    `the file keeps the origin: ${JSON.stringify(a.file.chunks)}`,
+  );
   ok((await text("[data-save-state]")).startsWith("Saved"), "saved (draft)");
 
   // Reload the page: the draft is listed.
@@ -307,7 +310,7 @@ async function run(browser, look) {
   ok((await text("[data-fit]")) === "1 chunks, 0 partly filled", "its chunk at (0, 0)");
 
   // A stroke then a reload at once, inside the draft's 400 ms: the draft keeps it (minor a).
-  await page.locator("[data-tool=\"paint\"]").click();
+  await page.locator('[data-tool="paint"]').click();
   const before = Number((await text("[data-topbar]")).match(/(\d+) hexes/)[1]);
   // A right drag erases: the count moves.
   await page.mouse.move(cx - 60, cy);

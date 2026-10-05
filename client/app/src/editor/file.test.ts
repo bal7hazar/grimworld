@@ -98,9 +98,7 @@ describe("the file, format 2", () => {
     expect(file.version).toBe(FORMAT_VERSION);
     expect(FORMAT_VERSION).toBe(2);
     expect(file.editor).toBe("abc123");
-    expect(file.rows).toEqual([
-      { y: 5, x: 10, terrain: ".  #", ground: "g  g", outline: "1  1" },
-    ]);
+    expect(file.rows).toEqual([{ y: 5, x: 10, terrain: ".  #", ground: "g  g", outline: "1  1" }]);
     expect(file.chunks).toEqual({ x: 0, y: 0, how: "fitted" });
   });
 
@@ -118,12 +116,12 @@ describe("the file, format 2", () => {
     expect(problem(text({ format: "other" }))).toMatch(/not a Grim World map/);
     expect(problem("{")).toMatch(/not JSON/);
     expect(problem(text({ rows: [{ ...row, ground: "x".repeat(9) }] }))).toMatch(/one length/);
-    expect(problem(text({ rows: [{ ...row, terrain: "?.", ground: "gg", outline: "11" }] }))).toMatch(
-      /unknown character/,
-    );
-    expect(problem(text({ rows: [{ ...row, terrain: " .", ground: "gg", outline: "11" }] }))).toMatch(
-      /gap in one layer only/,
-    );
+    expect(
+      problem(text({ rows: [{ ...row, terrain: "?.", ground: "gg", outline: "11" }] })),
+    ).toMatch(/unknown character/);
+    expect(
+      problem(text({ rows: [{ ...row, terrain: " .", ground: "gg", outline: "11" }] })),
+    ).toMatch(/gap in one layer only/);
     expect(problem(text({ rows: [row, row] }))).toMatch(/comes twice/);
     expect(problem(text({ rows: [{ ...row, outline: undefined }] }))).toMatch(/no outline/);
     expect(problem(text({ chunks: { x: 0, y: 1, how: "fitted" } }))).toMatch(/y even/);
@@ -143,7 +141,9 @@ describe("format 1 (CLI-09a), converted on load", () => {
   function format1(patch: Record<string, unknown> = {}): string {
     const terrain = Array.from({ length: 15 }, (_, y) => (y === 3 ? "." : "#").repeat(15));
     const ground = Array.from({ length: 15 }, (_, y) => (y === 3 ? "e" : "g").repeat(15));
-    const outline = Array.from({ length: 15 }, (_, y) => (y === 3 ? "00" + "1".repeat(13) : "1".repeat(15)));
+    const outline = Array.from({ length: 15 }, (_, y) =>
+      y === 3 ? "00" + "1".repeat(13) : "1".repeat(15),
+    );
     return JSON.stringify({
       format: "grimworld-map",
       version: 1,
@@ -208,7 +208,9 @@ describe("format 1 (CLI-09a), converted on load", () => {
     expect(problem(format1({ map: { ...old.map, width: 16 } }))).toMatch(/size/);
     expect(problem(format1({ map: { ...old.map, start: "lava" } }))).toMatch(/start fill/);
     expect(
-      problem(format1({ layers: { ...old.layers, terrain: (old.layers!.terrain as string[]).slice(1) } })),
+      problem(
+        format1({ layers: { ...old.layers, terrain: (old.layers!.terrain as string[]).slice(1) } }),
+      ),
     ).toMatch(/15 rows/);
     expect(problem(format1({ obstacles: [{ x: 99, y: 0, sprite: "rock1" }] }))).toMatch(/obstacle/);
   });

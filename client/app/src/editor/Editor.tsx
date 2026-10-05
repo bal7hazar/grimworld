@@ -763,8 +763,8 @@ function EditorScreen({
           ◂ Maps
         </button>
         <span>
-          <strong data-map-name="">{meta.name}</strong> · {KIND_NAMES[meta.kind]} ·{" "}
-          {doc.hexes.size} hexes · loc {meta.location}
+          <strong data-map-name="">{meta.name}</strong> · {KIND_NAMES[meta.kind]} · {doc.hexes.size}{" "}
+          hexes · loc {meta.location}
         </span>
         <span className="ed-dim" data-save-state="">
           {state}
@@ -920,9 +920,7 @@ function EditorScreen({
                   <div>Terrain: {terrainOf(cell) === WALL ? "Wall" : "Floor"}</div>
                   <div>Ground: {GROUND_KINDS[groundOfCell(cell)]}</div>
                   <div>Obstacle: {doc.obstacles.get(keyOf(hover)) ?? "auto"}</div>
-                  {session.zone && (
-                    <div>Outline: {isOutside(cell) ? "outside" : "inside"}</div>
-                  )}
+                  {session.zone && <div>Outline: {isOutside(cell) ? "outside" : "inside"}</div>}
                 </>
               )}
             </div>
@@ -988,13 +986,7 @@ function EditorScreen({
  * The chunks (D-216): "Fit chunks", the origin and its nudge, the counts, and the fitted rectangle
  * as a small grid of chunk cells (§2.5): whole, border, or outside.
  */
-function ChunksPanel({
-  session,
-  fit,
-}: {
-  session: EditorSession;
-  fit: ReturnType<typeof fitted>;
-}) {
+function ChunksPanel({ session, fit }: { session: EditorSession; fit: ReturnType<typeof fitted> }) {
   const origin = session.doc.origin;
   const nudge = (label: string, title: string, dx: -1 | 0 | 1, dy: -1 | 0 | 1) => (
     <button

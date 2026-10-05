@@ -105,7 +105,9 @@ export class Drafts {
   duplicate(id: string, newId = newDraftId()): string | null {
     const doc = this.get(id);
     if (typeof doc === "string") return doc;
-    return this.put(newId, cloneMap(doc)) ? null : "Not duplicated: this browser refused the draft.";
+    return this.put(newId, cloneMap(doc))
+      ? null
+      : "Not duplicated: this browser refused the draft.";
   }
 
   forget(id: string): void {

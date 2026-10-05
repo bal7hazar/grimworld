@@ -78,13 +78,7 @@ describe("the plane", () => {
   });
 
   it("sideOf agrees with the drawing's hexes (acrossSide) on even, odd and negative rows", () => {
-    for (const tile of [
-      { x: 0, y: 0 },
-      { x: 0, y: 1 },
-      { x: -7, y: -3 },
-      { x: 12, y: -4 },
-      FAR,
-    ]) {
+    for (const tile of [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: -7, y: -3 }, { x: 12, y: -4 }, FAR]) {
       for (let side = 0; side < 6; side++) {
         expect(sideOf(tile, side), `${tile.x},${tile.y} side ${side}`).toEqual(
           acrossSide(tile, side),
@@ -95,9 +89,7 @@ describe("the plane", () => {
 
   it("brushes are hexagons of 1, 7, 19 and 37 hexes anywhere", () => {
     expect([0, 1, 2, 3].map((r) => brushAt(FAR, r).length)).toEqual([1, 7, 19, 37]);
-    expect([0, 1, 2, 3].map((r) => brushAt({ x: -40, y: -41 }, r).length)).toEqual([
-      1, 7, 19, 37,
-    ]);
+    expect([0, 1, 2, 3].map((r) => brushAt({ x: -40, y: -41 }, r).length)).toEqual([1, 7, 19, 37]);
   });
 });
 
@@ -164,7 +156,9 @@ describe("paint, erase, fill, pick on the sparse map", () => {
 
   it("fill on an unpainted hex: a closed hole takes the swatch, an open region is refused", () => {
     const doc = createMap(ZONE);
-    const ring = brushAt(FAR, 3).filter((t) => !brushAt(FAR, 2).some((u) => u.x === t.x && u.y === t.y));
+    const ring = brushAt(FAR, 3).filter(
+      (t) => !brushAt(FAR, 2).some((u) => u.x === t.x && u.y === t.y),
+    );
     painted(doc, ring, WALL);
     const hole = fill(doc, FAR, { layer: "terrain", value: FLOOR });
     expect(Array.isArray(hole) && hole).toHaveLength(19);
@@ -190,7 +184,9 @@ describe("paint, erase, fill, pick on the sparse map", () => {
     const doc = createMap(ZONE);
     painted(doc, brushAt(FAR, 3));
     // Outside: a ring of radius 3 around FAR, its inside still inside.
-    const ring = brushAt(FAR, 3).filter((t) => !brushAt(FAR, 2).some((u) => u.x === t.x && u.y === t.y));
+    const ring = brushAt(FAR, 3).filter(
+      (t) => !brushAt(FAR, 2).some((u) => u.x === t.x && u.y === t.y),
+    );
     apply(doc, erase(doc, ring, true));
     const changes = fill(doc, FAR, { layer: "outline", value: 0 });
     expect(Array.isArray(changes) && changes).toHaveLength(19);

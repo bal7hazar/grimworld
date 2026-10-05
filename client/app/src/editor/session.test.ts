@@ -80,7 +80,9 @@ describe("the tools on strokes (§3)", () => {
   });
 
   it("a town refuses the outline tool and says why", () => {
-    const s = new EditorSession(createMap({ kind: "town", name: "Town", location: 1, biome: "meadow" }));
+    const s = new EditorSession(
+      createMap({ kind: "town", name: "Town", location: 1, biome: "meadow" }),
+    );
     s.armTool("outline");
     expect(s.tool).toBe("paint");
     expect(s.said).toMatch(/no outline/);
@@ -196,7 +198,9 @@ describe("CLI-09a's deferred minors (review of #361)", () => {
 
   it("(b) the Space hold ends on its release, on a blur and when the page is hidden", () => {
     const win = new EventTarget();
-    const doc = Object.assign(new EventTarget(), { visibilityState: "visible" as DocumentVisibilityState });
+    const doc = Object.assign(new EventTarget(), {
+      visibilityState: "visible" as DocumentVisibilityState,
+    });
     const release = vi.fn();
     const stop = listenSpaceRelease(win as Window, doc as unknown as Document, release);
     win.dispatchEvent(Object.assign(new Event("keyup"), { code: "KeyA" }));
@@ -236,7 +240,11 @@ describe("drafts (O-5)", () => {
     s.strokeEnd();
     s.fitChunks();
     store.put("a", a, new Date("2026-10-05T10:00:00Z"));
-    store.put("b", createMap({ ...a.meta, name: "Other", biome: "cave" }), new Date("2026-10-05T11:00:00Z"));
+    store.put(
+      "b",
+      createMap({ ...a.meta, name: "Other", biome: "cave" }),
+      new Date("2026-10-05T11:00:00Z"),
+    );
     expect(store.list().map((e) => [e.id, e.hexes, e.chunks])).toEqual([
       ["b", 0, null],
       ["a", 7, 1],
@@ -266,13 +274,27 @@ describe("drafts (O-5)", () => {
         rank: 0,
         spawnTable: 0,
       },
-      layers: { terrain: Array(15).fill(".".repeat(15)), ground: Array(15).fill("g".repeat(15)), outline: null },
+      layers: {
+        terrain: Array(15).fill(".".repeat(15)),
+        ground: Array(15).fill("g".repeat(15)),
+        outline: null,
+      },
       obstacles: [],
     };
     storage.setItem("grimworld.editor.draft.x", JSON.stringify(old));
     storage.setItem(
       "grimworld.editor.drafts",
-      JSON.stringify([{ id: "x", kind: "town", name: "Old town", width: 1, height: 1, location: 1, edited: "2026-10-05T09:00:00.000Z" }]),
+      JSON.stringify([
+        {
+          id: "x",
+          kind: "town",
+          name: "Old town",
+          width: 1,
+          height: 1,
+          location: 1,
+          edited: "2026-10-05T09:00:00.000Z",
+        },
+      ]),
     );
     const store = new Drafts(storage);
     expect(store.list()[0]).toMatchObject({ id: "x", name: "Old town" });
