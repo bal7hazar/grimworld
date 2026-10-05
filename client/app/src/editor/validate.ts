@@ -6,14 +6,13 @@ import {
   GROUND_KINDS,
   type MapDocument,
   SIZE_MAX,
-  type TileBox,
   WALL,
   groundOfCell,
   isOutside,
   isZone,
   keyOf,
   paintedBox,
-  regionOf,
+  SIDE_STEPS,
   sideOf,
   terrainOf,
   tileOfKey,
@@ -27,7 +26,7 @@ import { footprintOf, townCovers } from "./walkWorld";
  * then). It runs on the **fitted** map (D-216): chunk and tile indices in the fitted map's
  * coordinates. A tool's checks, not game rules (mandate §6): they live in the editor's folder.
  *
- * Reachability is connectivity by hex neighbours over walkable hexes (`regionOf`, the drawing's
+ * Reachability is connectivity by hex neighbours over walkable hexes (`SIDE_STEPS`, the drawing's
  * neighbours), the reach `placeholders.ts`'s finder walks until CLI-02 gives `client/sim` its own.
  */
 
@@ -92,21 +91,75 @@ function objectsOf<K extends MapObject["kind"]>(
   ][];
 }
 
-/** Grown by one hex: a region of painted hexes never reaches past it. */
-function around(box: TileBox): TileBox {
-  return { x0: box.x0 - 1, y0: box.y0 - 1, x1: box.x1 + 1, y1: box.y1 + 1 };
+/**
+ * The painted hexes as a dense grid over their box (one validation reads it many times): index
+ * `(y - y0) w + (x - x0)`, each cell's value or -1 unpainted. Neighbours by `SIDE_STEPS`, the
+ * drawing's (odd-r: a row's parity is its `y`'s).
+ */
+class Plane {
+  readonly x0: number;
+  readonly y0: number;
+  readonly w: number;
+  readonly h: number;
+  readonly cells: Int32Array;
+
+  constructor(doc: MapDocument) {
+    const box = paintedBox(doc) ?? { x0: 0, y0: 0, x1: -1, y1: -1 };
+    this.x0 = box.x0;
+    this.y0 = box.y0;
+    this.w = box.x1 - box.x0 + 1;
+    this.h = box.y1 - box.y0 + 1;
+    this.cells = new Int32Array(Math.max(0, this.w * this.h)).fill(-1);
+    for (const [key, cell] of doc.hexes) {
+      const { x, y } = tileOfKey(key);
+      this.cells[(y - this.y0) * this.w + (x - this.x0)] = cell;
+    }
+  }
+
+  /** A hex's index, or -1 outside the box. */
+  index(tile: Tile): number {
+    const x = tile.x - this.x0;
+    const y = tile.y - this.y0;
+    return x < 0 || y < 0 || x >= this.w || y >= this.h ? -1 : y * this.w + x;
+  }
+
+  tile(i: number): Tile {
+    return { x: (i % this.w) + this.x0, y: Math.floor(i / this.w) + this.y0 };
+  }
+
+  /** The index across side `side` of index `i`, or -1 outside the box. */
+  side(i: number, side: number): number {
+    const x = i % this.w;
+    const y = Math.floor(i / this.w);
+    const step = SIDE_STEPS[(y + this.y0) & 1]![side]!;
+    const nx = x + step.x;
+    const ny = y + step.y;
+    return nx < 0 || ny < 0 || nx >= this.w || ny >= this.h ? -1 : ny * this.w + nx;
+  }
+
+  /** The indices connected to `from` over cells `accept` takes (1 in the result); none if not. */
+  reach(from: Tile, accept: (cell: number, i: number) => boolean): Uint8Array {
+    const seen = new Uint8Array(this.cells.length);
+    const first = this.index(from);
+    if (first < 0 || !accept(this.cells[first]!, first)) return seen;
+    seen[first] = 1;
+    const pending = [first];
+    while (pending.length > 0) {
+      const i = pending.pop()!;
+      for (let side = 0; side < 6; side++) {
+        const next = this.side(i, side);
+        if (next < 0 || seen[next] || !accept(this.cells[next]!, next)) continue;
+        seen[next] = 1;
+        pending.push(next);
+      }
+    }
+    return seen;
+  }
 }
 
-/**
- * The hexes connected to `from` over hexes `walkable` accepts, by key; empty when `from` is not
- * walkable or the region is past `FILL_MAX` (then the checks that read it say nothing).
- */
-function reach(doc: MapDocument, from: Tile, walkable: (key: number) => boolean): Set<number> {
-  const box = paintedBox(doc);
-  if (!box) return new Set();
-  const region = regionOf(from, walkable, around(box));
-  return new Set(Array.isArray(region) ? region : []);
-}
+/** Cell predicates over the plane's values (-1 unpainted). */
+const isIn = (cell: number) => cell >= 0 && !isOutside(cell);
+const isWalkable = (cell: number) => isIn(cell) && terrainOf(cell) === FLOOR;
 
 /** The fitted-map index checks of a hex: R-2 and R-3's bound. */
 function indicesOk(tile: Tile, fit: Fitted): boolean {
@@ -212,14 +265,13 @@ function groundChecks(doc: MapDocument, out: Findings): void {
 }
 
 function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
-  const inside = (key: number) => {
-    const cell = doc.hexes.get(key);
-    return cell !== undefined && !isOutside(cell);
+  const plane = new Plane(doc);
+  const cellOfTile = (t: Tile) => {
+    const i = plane.index(t);
+    return i < 0 ? -1 : plane.cells[i]!;
   };
-  const walkable = (key: number) => {
-    const cell = doc.hexes.get(key);
-    return cell !== undefined && !isOutside(cell) && terrainOf(cell) === FLOOR;
-  };
+  const inside = (key: number) => isIn(cellOfTile(tileOfKey(key)));
+  const walkable = (key: number) => isWalkable(cellOfTile(tileOfKey(key)));
   const floor = (key: number) => {
     const cell = doc.hexes.get(key);
     return cell !== undefined && terrainOf(cell) === FLOOR;
@@ -230,16 +282,27 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
   const features = objectsOf(doc, "feature");
   const spawns = objectsOf(doc, "spawn");
   const quotas = doc.meta.quotas;
-  const insideKeys = [...doc.hexes.keys()].filter(inside);
-  const walkableCount = insideKeys.filter(walkable).length;
+  let insideCount = 0;
+  let walkableCount = 0;
+  let firstInside = -1;
+  for (let i = 0; i < plane.cells.length; i++) {
+    const cell = plane.cells[i]!;
+    if (!isIn(cell)) continue;
+    insideCount += 1;
+    if (firstInside < 0) firstInside = i;
+    if (terrainOf(cell) === FLOOR) walkableCount += 1;
+  }
 
   // E-2: the outline, not empty, one connected region.
-  if (insideKeys.length === 0) {
+  if (insideCount === 0) {
     out.error("E-2", "The outline is empty: no painted hex is inside.");
   } else {
-    const first = reach(doc, tileOfKey(insideKeys[0]!), inside);
-    if (first.size < insideKeys.length) {
-      const rest = insideKeys.filter((k) => !first.has(k)).map(tileOfKey);
+    const first = plane.reach(plane.tile(firstInside), isIn);
+    const rest: Tile[] = [];
+    for (let i = 0; i < plane.cells.length; i++) {
+      if (isIn(plane.cells[i]!) && !first[i]) rest.push(plane.tile(i));
+    }
+    if (rest.length > 0) {
       out.error(
         "E-2",
         `The outline is not one region: ${rest.length} inside hexes are apart from the rest.`,
@@ -249,15 +312,15 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
   }
 
   // E-3: closed; an inside hex touches an unpainted one only as a wall or a gate anchor.
-  const anchors = new Set(gates.map(([, g]) => keyOf(g.at)));
+  const anchors = new Set(gates.map(([, g]) => plane.index(g.at)));
   const open: Tile[] = [];
-  for (const key of insideKeys) {
-    const tile = tileOfKey(key);
-    const cell = doc.hexes.get(key)!;
-    if (terrainOf(cell) === WALL || anchors.has(key)) continue;
+  for (let i = 0; i < plane.cells.length; i++) {
+    const cell = plane.cells[i]!;
+    if (!isIn(cell) || terrainOf(cell) === WALL || anchors.has(i)) continue;
     for (let side = 0; side < 6; side++) {
-      if (!doc.hexes.has(keyOf(sideOf(tile, side)))) {
-        open.push(tile);
+      const next = plane.side(i, side);
+      if (next < 0 || plane.cells[next]! < 0) {
+        open.push(plane.tile(i));
         break;
       }
     }
@@ -380,8 +443,11 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
   // E-6 and E-7: reachable from the entry over walkable hexes inside the outline.
   const entry = entries.length === 1 ? entries[0]![1] : null;
   if (entry && walkable(keyOf(entry.at))) {
-    const reached = reach(doc, entry.at, walkable);
-    const unreached = [...gates, ...candidates].filter(([, o]) => !reached.has(keyOf(o.at)));
+    const reached = plane.reach(entry.at, isWalkable);
+    const unreached = [...gates, ...candidates].filter(([, o]) => {
+      const i = plane.index(o.at);
+      return i < 0 || !reached[i];
+    });
     if (unreached.length > 0) {
       out.error(
         "E-6",
@@ -390,7 +456,10 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
         unreached.map(([id]) => id),
       );
     }
-    const sealed = insideKeys.filter((k) => walkable(k) && !reached.has(k)).map(tileOfKey);
+    const sealed: Tile[] = [];
+    for (let i = 0; i < plane.cells.length; i++) {
+      if (isWalkable(plane.cells[i]!) && !reached[i]) sealed.push(plane.tile(i));
+    }
     if (sealed.length > 0) {
       out.error(
         "E-7",
@@ -402,8 +471,8 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
 
   // E-13: a hint on the walkable share.
   const range = doc.meta.biome ? WALKABLE_SHARE[doc.meta.biome] : undefined;
-  if (range && insideKeys.length > 0) {
-    const share = Math.round((100 * walkableCount) / insideKeys.length);
+  if (range && insideCount > 0) {
+    const share = Math.round((100 * walkableCount) / insideCount);
     if (share < range[0] || share > range[1]) {
       out.add(
         "E-13",
@@ -485,14 +554,26 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
 
   // E-17 ○: two neighbouring chunks of the set with no walkable crossing on their seam.
   const crossings = new Set<string>();
-  for (const key of insideKeys) {
-    if (!walkable(key)) continue;
-    const tile = tileOfKey(key);
-    const a = chunkAt(tile, fit).chunk;
+  const chunkOfIndex = (i: number) => {
+    const x = (i % plane.w) + plane.x0 - fit.x0;
+    const y = Math.floor(i / plane.w) + plane.y0 - fit.y0;
+    return CHUNK * Math.floor(y / CHUNK) + Math.floor(x / CHUNK);
+  };
+  const edge = (n: number) => {
+    const m = ((n % CHUNK) + CHUNK) % CHUNK;
+    return m === 0 || m === CHUNK - 1;
+  };
+  for (let i = 0; i < plane.cells.length; i++) {
+    if (!isWalkable(plane.cells[i]!)) continue;
+    // Only a hex on its chunk's edge has a neighbour in another chunk.
+    const x = (i % plane.w) + plane.x0 - fit.x0;
+    const y = Math.floor(i / plane.w) + plane.y0 - fit.y0;
+    if (!edge(x) && !edge(y)) continue;
+    const a = chunkOfIndex(i);
     for (let side = 0; side < 6; side++) {
-      const next = sideOf(tile, side);
-      if (!walkable(keyOf(next))) continue;
-      const b = chunkAt(next, fit).chunk;
+      const next = plane.side(i, side);
+      if (next < 0 || !isWalkable(plane.cells[next]!)) continue;
+      const b = chunkOfIndex(next);
       if (a !== b) crossings.add(`${Math.min(a, b)} ${Math.max(a, b)}`);
     }
   }
@@ -601,8 +682,20 @@ function townChecks(doc: MapDocument, out: Findings): void {
   }
   const arrival = arrivals[0]?.[1];
   if (arrivals.length === 1 && arrival && walkable(keyOf(arrival.at))) {
-    const reached = reach(doc, arrival.at, walkable);
-    const shut = places.filter(([, p]) => walkable(keyOf(p.at)) && !reached.has(keyOf(p.at)));
+    const plane = new Plane(doc);
+    const covered = new Uint8Array(plane.cells.length);
+    for (const key of covers) {
+      const i = plane.index(tileOfKey(key));
+      if (i >= 0) covered[i] = 1;
+    }
+    const reached = plane.reach(
+      arrival.at,
+      (cell, i) => cell >= 0 && terrainOf(cell) === FLOOR && !covered[i],
+    );
+    const shut = places.filter(([, p]) => {
+      const i = plane.index(p.at);
+      return walkable(keyOf(p.at)) && (i < 0 || !reached[i]);
+    });
     if (shut.length > 0) {
       out.error(
         "E-15",

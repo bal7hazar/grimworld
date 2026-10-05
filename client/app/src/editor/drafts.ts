@@ -57,8 +57,16 @@ export class Drafts {
     }
   }
 
-  /** Writes a draft; false when the storage refused it (full, blocked). */
-  put(id: string, doc: MapDocument, now = new Date()): boolean {
+  /**
+   * Writes a draft; false when the storage refused it (full, blocked). `problems` are the
+   * validation's counts, when the caller already holds them (the editor's screen).
+   */
+  put(
+    id: string,
+    doc: MapDocument,
+    now = new Date(),
+    problems: { readonly errors: number; readonly warnings: number } = tally(validate(doc)),
+  ): boolean {
     const fit = fitted(doc);
     const entry: DraftEntry = {
       id,
@@ -67,7 +75,7 @@ export class Drafts {
       hexes: doc.hexes.size,
       chunks: typeof fit === "string" ? null : fit.chunks,
       location: doc.meta.location,
-      problems: tally(validate(doc)),
+      problems,
       edited: now.toISOString(),
     };
     try {

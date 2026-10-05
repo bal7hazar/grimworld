@@ -215,7 +215,7 @@ export function mapKeys(doc: MapDocument): number[] {
  * The six hexes around a hex, as offsets for an even and an odd row: odd-r rows, so a translation
  * by an even number of rows keeps them. Read once from the drawing's geometry (`acrossSide`).
  */
-const SIDE_STEPS: readonly (readonly Tile[])[] = [0, 1].map((p) =>
+export const SIDE_STEPS: readonly (readonly Tile[])[] = [0, 1].map((p) =>
   Array.from({ length: 6 }, (_, side) => {
     const next = acrossSide({ x: 0, y: p }, side);
     return { x: next.x, y: next.y - p };

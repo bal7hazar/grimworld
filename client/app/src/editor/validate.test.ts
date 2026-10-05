@@ -434,3 +434,25 @@ describe("○ checks: warnings until ENG-08's spike", () => {
     expect(findings(doc, "E-17")[0]!.message).toContain("Chunks 15 and 16");
   });
 });
+
+describe("the checks' time", () => {
+  it("a 225 × 225 painted zone (the largest) validates in well under a second", () => {
+    const doc = createMap({ kind: "zone", name: "Largest", location: 3, biome: "meadow" });
+    for (let y = 0; y < 225; y++) for (let x = 0; x < 225; x++) set(doc, { x, y }, FLOOR);
+    add(doc, { kind: "entry", at: { x: 5, y: 5 } });
+    const best = fitChunks(doc);
+    if (typeof best === "string") throw new Error(best);
+    doc.origin = { ...best.origin, how: "fitted" };
+    const times: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const t = performance.now();
+      validate(doc);
+      times.push(performance.now() - t);
+    }
+    const median = [...times].sort((a, b) => a - b)[2]!;
+    console.log(
+      `[CLI-09b] validate 225 × 225: median ${median.toFixed(1)} ms of 5 (${times.map((t) => t.toFixed(1)).join(", ")})`,
+    );
+    expect(median).toBeLessThan(1000);
+  });
+});

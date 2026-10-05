@@ -41,7 +41,7 @@ import {
 } from "./objects";
 import { type Marker, outlineSegments, seamSegments } from "./overlay";
 import { EditorSession, NOTHING } from "./session";
-import { type Finding, validate } from "./validate";
+import { type Finding, tally, validate } from "./validate";
 import { footprintOf, frameOf } from "./walkWorld";
 import { listenSpaceRelease } from "./spaceHold";
 import { LAYER_NAMES, type Layers, editorView } from "./view";
@@ -626,6 +626,8 @@ function EditorScreen({
   const [panel, setPanel] = useState(false);
   const [walking, setWalking] = useState(false);
   const [findings, setFindings] = useState<Finding[]>(() => validate(doc));
+  const findingsRef = useRef(findings);
+  findingsRef.current = findings;
   const meta = doc.meta;
   const { revision, layers } = session;
 
@@ -770,7 +772,8 @@ function EditorScreen({
     () =>
       new DraftWriter(
         () => {
-          const ok = drafts.put(id, doc);
+          // The screen's latest checks: the draft is written after them (400 ms against 250).
+          const ok = drafts.put(id, doc, new Date(), tally(findingsRef.current));
           setSaved({ at: ok ? new Date() : null, failed: !ok });
           setDirty(false);
         },
