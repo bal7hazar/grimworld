@@ -271,6 +271,18 @@ export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
       type: first(NPCS, choice.type),
       facing: 0,
     }),
+    // Its idle loop, played by the renderer (CLI-09e part 3), mirrored on the West facings.
+    look: (o) => {
+      const kind = kindOf(o.type);
+      return {
+        kind: "figure",
+        sprite: kind?.category === "npc" ? kind.sprite : o.type,
+        animation: kind?.category === "npc" ? kind.animation : "idle",
+        width: TILE_WIDTH / 2,
+        height: TILE_WIDTH / 2,
+        mirror: isMirrored(o.facing as Facing),
+      };
+    },
     record: recordFor,
   },
   scenery: {

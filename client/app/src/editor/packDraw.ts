@@ -1,21 +1,14 @@
 import { type Camera, type Viewport, tileToPixel } from "../input/coords";
-import { isMirrored } from "../render/facing";
 import type { SpriteLibrary } from "../render/sprites";
-import type { Facing, Tile } from "../render/view";
-import type { MapDocument } from "./model";
-import { kindOf } from "./objects";
-import { isPack } from "./pack";
-import { type ThumbArt, kindOf as packKindOf } from "./palette";
+import type { Tile } from "../render/view";
+import type { ThumbArt } from "./palette";
 
 /**
- * The pack's art the renderer does not draw in the editor (CLI-09e part 2), on the overlay's 2D
- * canvas, at the renderer's scale (one art pixel a world pixel) and anchored as the renderer
- * anchors a still (`defaultAnchor`, the art's baseline):
- *
- * - characters, always: the renderer's structures play stills only and the editor's view sends no
- *   actor (`view.ts`), so a character is drawn at its idle animation's frame 0;
- * - on a zone, the buildings, props and bridges too: the editor's view sends a town's structures
- *   alone (`view.ts`, `editorView`).
+ * The placement's preview of a pack object (CLI-09e part 2), on the overlay's 2D canvas, at the
+ * renderer's scale (one art pixel a world pixel) and anchored as the renderer anchors a still
+ * (`defaultAnchor`, the art's baseline). The objects placed are the renderer's (CLI-09e part 3:
+ * `editorView` sends them as structures, characters in their idle loop): the overlay draws only the
+ * preview, a character at its idle animation's frame 0.
  */
 
 /** A frame of a page, with the anchor the renderer gives it (fractions of the frame). */
@@ -44,40 +37,6 @@ export interface PackSprite {
   readonly animation: string;
   readonly at: Tile;
   readonly mirror: boolean;
-}
-
-/** The sprite a character draws: its idle frame, mirrored on the West facings. */
-export function npcSprite(type: string, at: Tile, facing: number): PackSprite | null {
-  const kind = packKindOf(type);
-  if (kind?.category !== "npc") return null;
-  return {
-    sprite: kind.sprite,
-    animation: kind.animation,
-    at,
-    mirror: isMirrored(facing as Facing),
-  };
-}
-
-/**
- * The pack's sprites of a map the overlay draws: its characters, and with `stills` (a zone) its
- * buildings, props and bridges as their kind's look draws them.
- */
-export function packSprites(doc: MapDocument, stills: boolean): PackSprite[] {
-  const out: PackSprite[] = [];
-  for (const [, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
-    if (!isPack(object)) continue;
-    if (object.kind === "npc") {
-      const sprite = npcSprite(object.type, object.at, object.facing);
-      if (sprite) out.push(sprite);
-      continue;
-    }
-    if (!stills) continue;
-    const look = kindOf(object).look?.(object);
-    if (!look) continue;
-    const mirror = look.mirror ?? ("mirror" in object && object.mirror);
-    out.push({ sprite: look.sprite, animation: "still", at: object.at, mirror });
-  }
-  return out;
 }
 
 /** Draws sprites in the camera, the farther (higher on screen) first, as the renderer sorts. */

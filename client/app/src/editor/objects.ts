@@ -218,8 +218,10 @@ export type FieldSpec =
 
 /** What the game draws for a town object (`structures()`, `hubWorld.ts:72-108`). */
 export interface StructureLook {
-  readonly kind: "building" | "prop";
+  /** A figure is a pack character (CLI-09e part 3): the renderer loops its `animation`. */
+  readonly kind: "building" | "prop" | "figure";
   readonly sprite: string;
+  readonly animation?: string;
   readonly width: number;
   readonly height: number;
   readonly shape?: "house" | "decor" | "gate";
@@ -253,7 +255,7 @@ export interface KindSpec<O extends MapObject = MapObject> {
   readonly footprint?: (object: O) => Tile[];
   /** The hexes it makes walls of in the walk's world (a place's door stays floor). */
   readonly covers?: (object: O) => Tile[];
-  /** How the renderer draws it (a building or a prop); none for a marker only. */
+  /** How the renderer draws it (a building, a prop or a character); none for a marker only. */
   readonly look?: (object: O) => StructureLook;
   /** The record ENG-08's export writes for it, or what is wrong with it (a pack object). */
   readonly record?: (object: O) => RecordResult;
