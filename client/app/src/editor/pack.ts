@@ -211,7 +211,7 @@ const still = (
   kind: StructureLook["kind"],
   sprite: string,
   width: number,
-  mirror = false,
+  mirror?: boolean,
 ): StructureLook => ({
   kind,
   sprite,
@@ -219,7 +219,8 @@ const still = (
   // The shape drawn without the atlas: the table keeps no height (the art's own is drawn).
   height: width,
   shape: "decor",
-  ...(mirror ? { mirror: true } : {}),
+  // Set whenever the look decides it (a facing prop's facing): the object's flag is then ignored.
+  ...(mirror !== undefined ? { mirror } : {}),
 });
 
 export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
