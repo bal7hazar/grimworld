@@ -251,3 +251,81 @@ prop's `blocks` or a building's footprint goes through ENG-08's schema, and the 
   footprint against its art were not seen drawn on the map: part 2's renderer shows them.
 - The Palette component is tested by server rendering only (no DOM in the tests); its thumbnails'
   drawing on a canvas is not run in a test.
+
+# Part 2 — the palette in the editor
+
+Opus 5.5, 2026-10-05. The palette of part 1 wired into the editor's screen: its four menus place
+the pack's buildings, characters, props and bridges on a zone or a town, in the records track game
+agreed for ENG-08 (D-215).
+
+## 6. What exists now
+
+- **The menus** sit under the editor's objects in the left panel, headed *The pack*, in the brief's
+  order: Buildings, Characters, Props, Bridges (part 1's "NPCs" menu is labelled *Characters*).
+  Choosing a kind arms Place with it; the armed kind stays pressed in the palette, and the status
+  line reads `Place: <kind>`. Thumbnails come from the atlas the canvas already loaded (PixiJS keeps
+  its pages: nothing is fetched twice); without the art, labels alone.
+- **Four object kinds** join CLI-09b's table (`editor/pack.ts`, rows in `KINDS`), held by zones and
+  towns alike (`map: "both"`): `building` (`type`, `depth`, `door` as the offset `"dx,dy"` from the
+  anchor), `npc` (`type`, `facing` 0 to 5), `scenery` (the pack's props: `type`, `variant`,
+  `facing`, `mirror`) and `bridge` (`type`, `mirror`; `at` is the southern end). Each row's
+  `record` is part 1's `recordOf`: the record ENG-08's export writes (building: kind, footprint,
+  anchor, door; NPC: template, hex, facing; prop: kind, hex, variant or flip, or facing; bridge:
+  kind, deck, ends). A placement whose record cannot be written (past the plane's bound) is refused
+  with its reason.
+- **Turn and mirror**: R (new, a same-place letter no game screen binds; the keys test checks it)
+  turns the selected characters and cannons a facing, takes a prop's next variant, and a building's
+  next door along its footprint's border. H mirrors a pack prop (its `flip`) and a bridge (its
+  deck's lean). The inspector edits every field; its door list is the footprint's border hexes.
+- **The walkable plane**: a building covers its footprint but its door, a blocking prop its hex
+  (`covers`). The walk's world of a town makes them walls; the checks read them (below).
+- **Drawing**: in a town, buildings, props and bridges are the renderer's structures (`look`), as
+  CLI-09b's; characters, and on a zone all four, are drawn on the editor's overlay at the renderer's
+  scale and anchor (`editor/packDraw.ts`), under the markers. The placement's preview (part 1's
+  `drawPreview`: footprint, door, doorstep, deck, facing) and the sprite at 60 % follow the pointer.
+- **The checks** (`validate.ts`), on zones and towns:
+  - E-16 now runs on a zone's footprints too (the pack's buildings): on land, painted, apart.
+  - **E-20**: a building's door is a hex of its footprint's border, and walkable.
+  - **E-21**: a character stands on a walkable hex.
+  - **E-22**: a prop stands on a painted hex inside the outline.
+  - **E-23**: the record can be written (a kind of the table, a variant, facing or depth in range).
+  "Walkable" is a painted floor hex inside the outline that no object covers: a blocking prop on a
+  door or under a character fails E-20 or E-21.
+- **The file**: format 2's `objects` list carries them by their rows' fields (`{ kind, x, y, type,
+  … }`); a file without them opens as before.
+
+## 7. Choices (reversible)
+
+1. **On both maps.** ENG-08's export is a zone's, and CLI-09d's town files replace `hubs.ts`: the
+   pack's objects are offered on both. To reverse: a row's `map`.
+2. **CLI-09b's town pieces stay** (`Decor building`, `Prop`, `Figure spot`): they serve the hubs'
+   fixtures. The pack's prop is named *Pack prop* in the inspector to keep the two apart; retiring
+   the old two is a later lot's.
+3. **Overlaps are a check, not a refusal**: a building over another fails E-16, as CLI-09b's
+   buildings do, so the author can fix rather than guess why a click did nothing (part 1 proposed
+   refusing).
+4. **The door is kept as an offset** from the anchor, so a moved building keeps its door; R and the
+   inspector offer the border only, and a file's door off it is E-20's.
+5. **An off-border door is said once**, by E-20, though the record refuses it too.
+6. **A bridge is checked only by E-23** (its hexes in the plane): its walking and its ends' rules
+   wait for ENG-08b (D-217).
+
+## 8. What the renderer would need (not edited: `render/**`, `editor/view.ts`, `editor/canvas.ts`)
+
+- **Characters' idle animation**: drawn at frame 0. To play it, the editor's view (`view.ts`) would
+  send the characters as actors, and the renderer's actors would take a sprite name and its `idle`
+  animation (they are drawn by profession today); or the structures would play an animation, not
+  only `still`.
+- **A zone's pack art by the renderer** (sorted with the walls' obstacles, under the fog): one line
+  in `view.ts`, `structures: layers.objects ? townStructures(doc) : []` (today towns only). Until
+  then the overlay draws them over the terrain.
+- The zone's preview walk shows no pack object and keeps a blocking prop's hex walkable
+  (`walkWorld` sends a zone no structures; making its covers walls would draw rocks there).
+
+## 9. Not checked
+
+- The cannon's six facings and the bridges' North-South lean were seen in one capture each, not
+  every facing.
+- E-6/E-7 (reach from a zone's entry) do not count a blocking prop or a building as a wall: the
+  converter's reach check will (ENG-08).
+- No phone or touch (O-3).
