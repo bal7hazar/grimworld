@@ -135,20 +135,18 @@ This is what opens at the editor's address. It lists the maps the author has ope
             |  Kind      (•) Zone   ( ) Town   ( ) Outpost         |
             |  Name      [ Ashen Meadow                ]  ≤ 15 ch  |
             |  Location  [ 2   ]  (the LOCATION id it will be)     |
-            |  Size      width [ 3 ] × height [ 2 ]  chunks        |
-            |            = 45 × 30 tiles                           |
             |  Biome     [ Meadow ▾ ]   (zone only)                |
-            |  Start as  (•) All wall  ( ) All floor               |
             |                                                      |
             |                         [ Cancel ]   [ Create ]      |
             +------------------------------------------------------+
 ```
 
-- **Size** is in whole chunks. For a zone it is 1 to 15 on each side (`LocationAssert::assert_valid`,
-  `location.cairo:110-111`, 4 bits each). For a town or an outpost it is 1 to 4 on each side: an editor
-  bound, since a hub has no size on chain (`LocationRecord.width` 0 for a hub,
-  `fixtures/region.ts:26-38`). The size can be changed later in the map's properties (§2.4). Shrinking
-  asks first and names what would be cut.
+- **No size, no start fill** (owner's request, 2026-10-05; D-216): the map is a theoretically endless plane; the author paints
+  it anywhere and the chunks are fitted afterwards ("Fit chunks", §2.3). The bound in whole chunks
+  moves to the fitted map: for a zone 1 to 15 on each side (`LocationAssert::assert_valid`,
+  `location.cairo:110-111`, 4 bits each); for a town or an outpost 1 to 4 on each side, an editor bound,
+  since a hub has no size on chain (`LocationRecord.width` 0 for a hub, `fixtures/region.ts:26-38`). A
+  fitted map past it is a problem shown with the fit.
 - **Name** is at most 15 characters, the bound of a short string in `REGION` (`models/index.cairo:22-33`).
   It is used for the file name and the list. Whether a location carries a name on chain waits for
   ENG-08's spike (G-8).
@@ -162,7 +160,7 @@ This is what opens at the editor's address. It lists the maps the author has ope
 
 ```
 +----------------------------------------------------------------------------------------------------+
-| ◂ Maps | Ashen Meadow · Zone · 3×2 chunks · loc 2 | Saved 14:02 (draft) | ⟲ ⟳ | Validate ● 0 | Export… |
+| ◂ Maps | Ashen Meadow · Zone · 1 204 hexes · loc 2 | Saved 14:02 (draft) | ⟲ ⟳ | Validate ● 0 | Export… |
 +----------+---------------------------------------------------------------------------+-------------+
 | TOOLS    |                                                                           | INSPECTOR   |
 | [B] Paint|                                                                           |             |
@@ -195,7 +193,7 @@ This is what opens at the editor's address. It lists the maps the author has ope
   Left column 200 px · canvas ≈ 960 × 780 px · right column 280 px · top bar and status bar 36 px each
 ```
 
-- **Top bar**: back to the map list; the map's kind, name, size and location id; the save state
+- **Top bar**: back to the map list; the map's kind, name, painted hexes (owner's request, 2026-10-05; D-216) and location id; the save state
   ("Saved 14:02 (draft)" or "Unsaved changes"); undo and redo; the validation light (green ● 0,
   amber ● warnings, red ● errors, with the count), which opens the validation panel (§2.6); Export…
   (§2.7).
@@ -203,7 +201,9 @@ This is what opens at the editor's address. It lists the maps the author has ope
   fog in the editor). The void around the map is drawn as the game draws it: `void: "water"`, as in
   `zoneWorld` and `hubWorld`. Over the art the editor draws overlays as plain shapes, never as art:
   - the hex grid (land only, as `ground.ts` does, or everywhere when the grid layer is on);
-  - **chunk seams** as dashed lines every 15 tiles, with the chunk index in each chunk's corner;
+  - **chunk seams** as dashed lines around the chunks of the **last fitted grid**, with the chunk index in
+    each chunk's corner. **No chunk grid while painting** (owner's request, 2026-10-05; D-216): the layer is off until "Fit
+    chunks" shows it, and the author may toggle it;
   - the **outline** as a thick line on the zone's border, with the tiles outside the outline shaded;
   - **objects** as hex markers with a one- or two-letter label: `E` the entry, `G1…` gates, `Q`
     candidate quota places by kind, `F` features by kind, `P` spawn points;
@@ -211,6 +211,18 @@ This is what opens at the editor's address. It lists the maps the author has ope
   - the hovered hex, the selection, and the brush's footprint under the pointer.
 
   Colour is never the only carrier of meaning (design/11 l.175-182): every marker has a letter.
+- **The canvas is unbounded** (owner's request, 2026-10-05; D-216): only the painted hexes are stored; an unpainted hex is the
+  void (drawn as the game's water). Pan and zoom have no map edge; `0` fits the painted hexes. The
+  renderer is sent only the tiles around the view (the visible tiles grown by half the view on each
+  side, snapped to multiples of 15), rebuilt when the camera leaves them.
+- **"Fit chunks"** (owner's request, 2026-10-05; D-216), in the inspector and `Shift+0`: tries every chunk grid origin compatible
+  with the hex layout (15 × 15: the column residue, and the row residue on an **even** row so that the
+  move to global coordinates keeps the rows' parity, §4.1) and keeps the one that covers the map's hexes
+  with the **fewest chunks**, then the **fewest partly filled chunks**, then the smallest rectangle, then
+  the lowest origin row and column. It shows the grid, the chunk count, the partly filled count and the
+  fitted rectangle. The author **nudges** the origin by one hex with `Shift`+arrows or the four small
+  buttons; the counts follow. The map's hexes are a town's painted hexes, and a zone's painted hexes
+  inside its outline (outside is void, §4.4).
 - **Tools column**: one tool is active at a time (§3).
 - **Palette**: three groups, terrain, ground and objects, each a column of swatches with a name.
   Choosing a terrain or ground swatch arms Paint. Choosing an object arms Place. Swatches of ground and
@@ -361,8 +373,8 @@ thin bar, so the layout is the game's desktop layout (design/11 l.169).
 | Action | Mouse | Key (edit mode) | Notes |
 |---|---|---|---|
 | **Paint** (terrain or ground) | Left drag with Paint armed | `B` arms Paint | Paints the palette's swatch under the brush |
-| **Erase** | Right drag with any brush tool, or left drag with Erase armed | `N` arms Erase | Terrain back to the map's start fill; removes objects in Place mode |
-| **Fill** | Left click with Fill armed | `G` arms Fill | Fills the connected region of the same terrain and ground (hex neighbours, inside the map) |
+| **Erase** | Right drag with any brush tool, or left drag with Erase armed | `N` arms Erase | The hexes are unpainted, back to the void (owner's request, 2026-10-05; D-216); removes objects in Place mode |
+| **Fill** | Left click with Fill armed | `G` arms Fill | Fills the connected region of the same terrain and ground (hex neighbours). On an unpainted hex, the region must be closed by painted hexes (it may not reach past the painted hexes' box) and no fill takes more than 50 625 hexes (a 15 × 15-chunk zone); else it is refused with the reason (owner's request, 2026-10-05; D-216) |
 | **Pick** (eyedropper) | `Alt`+left click with any tool, or left click with Pick armed | `I` arms Pick | Takes the hex's terrain and ground into the palette, then returns to the previous tool |
 | **Select** | Left click; drag for a box; `Shift`+click adds | `U` arms Select | Selects hexes or objects; the inspector follows |
 | **Move** | Drag a selected object | — | Objects only; terrain is moved by Cut and Paste |
@@ -373,8 +385,10 @@ thin bar, so the layout is the game's desktop layout (design/11 l.169).
 | **Mirror** (towns) | — | `H` | A building, decor or prop: `mirror` on or off (`ViewStructure.mirror`, `view.ts:83-99`) |
 | **Rotate / facing** | — | none | Not relevant: no record of a map carries a facing (`Gate`, `Location`, `models/index.cairo:43-92`), and authored pieces rotate nothing (ADR-0006 l.210). The adventurer's facing at arrival is the game's |
 | **Pan** | Middle drag, or `Space`+left drag, or two-finger trackpad scroll | Arrows (repeat) | `Space` is free in edit mode; it is reserved only on the instance screen, which edit mode is not |
-| **Zoom** | Wheel (trackpad pinch), at the pointer | `+` / `=` in, `−` out | As the game (`keys.ts:159-170`), same meaning; limits as `DEFAULT_ZOOM` but `minAcross` raised to fit the whole map (§2.3) |
-| **Fit / recentre** | — | `0` | Fits the whole map; the game's `0` recentres on the adventurer, the same idea |
+| **Zoom** | Wheel (trackpad pinch), at the pointer | `+` / `=` in, `−` out | As the game (`keys.ts:159-170`), same meaning; limits as `DEFAULT_ZOOM` but `minAcross` raised to fit the painted hexes and a full zone's room around them (§2.3) (owner's request, 2026-10-05; D-216) |
+| **Fit / recentre** | — | `0` | Fits the painted hexes (owner's request, 2026-10-05; D-216); the game's `0` recentres on the adventurer, the same idea |
+| **Fit chunks** | Inspector "Fit chunks" | `Shift+0` | The chunk grid with the fewest chunks (§2.3) (owner's request, 2026-10-05; D-216) |
+| **Nudge the chunk origin** | Inspector ◂ ▸ ▴ ▾ | `Shift`+arrows (repeat) | One hex West, East, North or South, as on screen (owner's request, 2026-10-05; D-216) |
 | **Brush size** | `Shift`+wheel | `[` smaller, `]` larger | A hexagon of radius 0, 1, 2 or 3 (1, 7, 19 or 37 hexes) |
 | **Undo / Redo** | Top bar ⟲ ⟳ | `Ctrl/Cmd+Z`; `Ctrl/Cmd+Shift+Z` or `Ctrl+Y` | One stroke (press to release) is one step; at least 200 steps |
 | **Toggle grid** | Layers bar | `J` | |
@@ -400,13 +414,19 @@ version (§6).
 
 ### 4.1 The map and its hexes
 
-- **The map**: its kind (zone, town or outpost), its name, its location id, its size in chunks (width
-  and height), and for a zone its biome, level band, rank required, spawn table id and quota list (§4.2).
-  The size in tiles is 15 × the size in chunks. Coordinates are the global `(x, y)` of the chain and of
-  the client (x grows West, y North; odd-r rows), so that no conversion is needed between the editor,
-  the game and the export. Chunk `(cx, cy) = (x / 15, y / 15)`; chunk index `15 cy + cx`; tile index
-  `15 (y mod 15) + (x mod 15)`.
+- **The map**: its kind (zone, town or outpost), its name, its location id, and for a zone its biome,
+  level band, rank required, spawn table id and quota list (§4.2); **no size** (owner's request, 2026-10-05; D-216). Its
+  **painted hexes** lie anywhere on an endless plane (x grows West, y North; odd-r rows, the client's
+  layout); only they are stored. The map also keeps its **last chosen chunk origin** and whether it was
+  fitted or nudged (§2.3). The **fitted map** is the plane moved so that the origin's chunk is global
+  `(0, 0)`: its width and height in chunks are the fitted rectangle's, its global `(x, y)` are the
+  chain's. Chunk `(cx, cy) = (x / 15, y / 15)`; chunk index `15 cy + cx`; tile index
+  `15 (y mod 15) + (x mod 15)`, in the fitted map's coordinates. The origin's row is even: a move by an
+  even number of rows keeps every row's parity (below), so the painted shape is the fitted shape. When
+  the best grid's even origin row lies a whole chunk below the lowest painted row, the fitted map keeps
+  an empty chunk row at its foot.
 - **Each hex** carries:
+  - whether it is **painted**: an unpainted hex is the void, not part of the map (owner's request, 2026-10-05; D-216);
   - its **terrain**: floor or wall. This is **the walkable plane**, the one bit the chain holds per
     tile (`Terrain`, 1 = wall; ENG-08 ruling 1, D-215). It is copied into the instance's chunk at reveal
     (ENG-08 ruling 2). An `unrevealed` hex does not exist in the editor: revealing is the game's.
@@ -463,7 +483,8 @@ row, plus its depth behind). Those hexes are walls but for the door, as `structu
 
 ### 4.4 The outline (zones)
 
-The author draws a set of inside hexes. The editor derives what ADR-0006 stores:
+The author sorts the painted hexes into inside and outside (a painted hex starts inside). The editor
+derives what ADR-0006 stores, **from the fitted map** (owner's request, 2026-10-05; D-216):
 
 - the **chunk set**: the chunks that hold at least one inside hex, bit `15 cy + cx`;
 - for each **border chunk** (partly inside), its **tile mask**: bit `15 row + column`, 1 when the tile
@@ -565,8 +586,13 @@ vector table printed from the Cairo models stays open for the spike (G-6).
 - **Save** writes the map to a local file: a download of one JSON document (`<name>.grimmap.json`). It
   carries the editor's format version, the editor's version (the client's commit), the kind and
   everything in §4. **Load** reads such a file from a file picker or by dropping it on the page.
+  **Format 2** (owner's request, 2026-10-05; D-216) holds the painted hexes only (row spans: one row, from a column on, a
+  character per hex, a space for an unpainted one), the objects as before, the outline, and the last
+  chosen chunk origin with whether it was fitted or nudged. A **format 1** file (CLI-09a, a rectangle
+  of whole chunks at `(0, 0)`) opens converted: every hex painted as it was, the chunk grid at `(0, 0)`,
+  with a note. Drafts the same way.
 - **Drafts**: the open map is also kept in the browser's local storage after each change, so that a
-  closed tab loses nothing. This is a convenience of one browser (O-5). The map list shows the drafts
+  closed tab loses nothing (the pending write is flushed when the screen goes or the tab closes). This is a convenience of one browser (O-5). The map list shows the drafts
   and warns that they live in this browser only. Every read and write of the storage is guarded: the
   editor works without it.
 - **Nothing on a server**: no upload, no account, no key, no Registry read, no chain call. The editor
@@ -637,6 +663,7 @@ in principle; the rest is **open, addressed to ENG-08's spike**. "ENG-08 l.N" is
 | **CLI-09a** | The page (O-1), the map list, the new map dialog, the canvas with the game's renderer, the camera, Paint, Erase, Fill, Pick, brush sizes, the layers bar, undo and redo, the outline tool, save and load of the editor's file, drafts | A 15 × 15-chunk zone is created, painted, outlined, saved, reloaded from the file and identical (a test compares the documents), and the browser check shows it at 1440 × 900 in shapes |
 | **CLI-09b** | Objects (entry, gates, **candidate quota places per quota, authored spawn points with a template id**, features; a town's places, decor, props, figure spots, arrival), the inspector, Select and Move, Cut, Copy and Paste, Mirror, the validation panel with every check of §5 that does not wait for ENG-08's spike, the preview walk | Each check of §5 that is not ○ has a failing and a passing fixture map in tests; each ○ check runs as a warning with a fixture. **The fixtures carry candidate quota places** (a quota with fewer candidates than its count fails R-13) **and spawn points** (a third spawn point in one chunk fails R-15; a spawn point on a wall fails R-14). The seed's zone (`fixtures/zone.ts`), given candidate quota places and spawn points, and the town (`fixtures/hubs.ts`), redrawn in the editor, validate with no error and walk in the preview as in the game |
 | **CLI-09c** (waits for ENG-08's spike) | The registration export (and its import) in ENG-08's schema, built against `spikes/SPK-16-authored-zone/map-format/` and then `tools/map-format/` (§10); the editor's checks run against the shared table of cases; the ○ checks settled | ENG-08's sample zone, loaded in the editor, validates and exports to what the converter takes; the converter's output for it equals the golden file of ENG-08's spike; every case of the shared table is refused or accepted by the editor's checks as the converter does |
+| **CLI-09a2** (owner's request, 2026-10-05; D-216) | The unbounded canvas: sparse painted hexes, no size in the new map dialog, "Fit chunks" (the origin with the fewest chunks, then the fewest partly filled, the rows' parity kept) and its nudge, format 2 with format 1 converted on load; CLI-09a's three deferred minors | A shape painted away from the origin is fitted, nudged, saved, reloaded and identical (a test compares the documents; the browser check at 1440 × 900); the fit's cases computed by hand pass; the fit of a 225 × 225 painted map is measured well under a second |
 | CLI-09d (O-6) | The game's hubs read town files made by the editor instead of `fixtures/hubs.ts` | The hub screens' existing tests and browser checks pass unchanged on the town and outpost files |
 
 CLI-09a and CLI-09b do not wait for track game: they use the editor's own file (§6), not ENG-08's
