@@ -98,6 +98,7 @@ played are never shown as queued ([02-core-loop](02-core-loop.md#planned-queues-
 | Flank, critical | A distinct hit mark and number colour |
 | Remains, veins, chests, collectors | Icons on tiles; remains glow by the best thing a goblin of that caste can drop |
 | Entrances | Arrows on the border, with the name of what is behind when known |
+| Sight, in an instance (CLI-03n) | A tile never in sight is not drawn, even when its chunk is revealed on chain; a tile seen before, now out of sight, is drawn in grayscale, its goblins still drawn in colour; a tile in sight is drawn in full colour. Hubs show everything. The explored tiles are kept by the client and lost on a reload (owner's request, 2026-10-05; PM decision on the grayscale variant (D-213); under D-178's lending) |
 
 ## The chain, unseen
 
