@@ -480,6 +480,20 @@ class Scale(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn("runt (73 px) is taller than the shortest profession", warnings[0])
 
+    def test_an_npc_is_neither_basic_nor_a_profession(self):
+        """CLI-09e: a native `npc` never counts as the shortest profession; one taller than
+        `tallest` is a warning, as between any native drawings."""
+        def entry(role, height):
+            return {"role": role, "scale": {"target": height, "height": height,
+                                            "idle": [height, height], "spec": "native"}}
+        order = {"basic": ["runt"], "tallest": "hob"}
+        sprites = {"runt": entry("caste", 60), "hob": entry("caste", 209),
+                   "cleric": entry("profession", 67), "npc_sheep": entry("npc", 44),
+                   "npc_giant": entry("npc", 230)}
+        warnings = build.check_scale(sprites, order, dict.fromkeys(sprites, "native"))
+        self.assertEqual(warnings, ["order rule between native drawings (the owner scales them "
+                                    "by eye): hob (209 px) is not taller than npc_giant (230 px)"])
+
 
 class RealManifest(unittest.TestCase):
     """The committed manifest.toml itself (stdlib only): the owner's mapping of 2026-09-29."""
@@ -496,6 +510,25 @@ class RealManifest(unittest.TestCase):
         "cleric": ("Units/Blue Units/Monk", {"idle", "move", "heal"}),
     }
 
+    # CLI-09e: the editor's idle NPCs, sprite: (root in the pack, its idle strip). Blue (D-178).
+    NPCS = {
+        "npc_pawn": ("Units/Blue Units/Pawn", "Pawn_Idle.png"),
+        "npc_pawn_axe": ("Units/Blue Units/Pawn", "Pawn_Idle Axe.png"),
+        "npc_pawn_gold": ("Units/Blue Units/Pawn", "Pawn_Idle Gold.png"),
+        "npc_pawn_hammer": ("Units/Blue Units/Pawn", "Pawn_Idle Hammer.png"),
+        "npc_pawn_knife": ("Units/Blue Units/Pawn", "Pawn_Idle Knife.png"),
+        "npc_pawn_meat": ("Units/Blue Units/Pawn", "Pawn_Idle Meat.png"),
+        "npc_pawn_pickaxe": ("Units/Blue Units/Pawn", "Pawn_Idle Pickaxe.png"),
+        "npc_pawn_wood": ("Units/Blue Units/Pawn", "Pawn_Idle Wood.png"),
+        "npc_lancer": ("Units/Blue Units/Lancer", "Lancer_Idle.png"),
+        "npc_trainee": ("Characters/1_Trainee", "1_Trainee_Idle.png"),
+        "npc_laborer": ("Characters/2_Laborer", "2_Laborer_Idle.png"),
+        "npc_expert": ("Characters/3_Expert", "3_Expert_Idle.png"),
+        "npc_master": ("Characters/4_Master", "4_Master_Idle.png"),
+        "npc_sheep": ("Terrain/Resources/Meat/Sheep", "Sheep_Idle.png"),
+        "npc_pig": ("Enemy Pack/Extra/Pig", "Pig_Idle.png"),
+    }
+
     @classmethod
     def setUpClass(cls):
         import tomllib
@@ -504,13 +537,45 @@ class RealManifest(unittest.TestCase):
     def test_exactly_the_eight_sprites_of_the_mapping(self):
         sprites = {sp["name"]: sp for sp in self.manifest["sprite"]}
         self.assertEqual(len(sprites), len(self.manifest["sprite"]))          # no duplicate
-        self.assertEqual(set(sprites), set(self.MAPPING))
+        mapped = {n for n, sp in sprites.items() if sp["role"] in ("caste", "profession")}
+        self.assertEqual(mapped, set(self.MAPPING))
+        self.assertEqual(set(sprites), set(self.MAPPING) | set(self.NPCS))
         for name, (root, anims) in self.MAPPING.items():
             self.assertEqual(sprites[name]["root"], root, name)
             self.assertEqual({a["name"] for a in sprites[name]["anim"]}, anims, name)
 
+    def test_the_editor_npcs_idle_only(self):
+        """CLI-09e: an NPC is one looping idle strip at the manifest's 12 fps, role `npc`."""
+        sprites = {sp["name"]: sp for sp in self.manifest["sprite"]}
+        for name, (root, file) in self.NPCS.items():
+            sp = sprites[name]
+            self.assertEqual((sp["role"], sp["root"]), ("npc", root), name)
+            self.assertEqual(sp["anim"], [{"name": "idle", "file": file, "fps": 12,
+                                           "loop": True}], name)
+
+    def test_the_editor_buildings_bridges_and_props(self):
+        """CLI-09e: the rest of `Buildings/Others/` (bridges included) and the extra pack's single
+        buildings; the props of `Terrain/` and of the extra pack; no other colour set than Blue."""
+        stills = {st["name"]: st for st in self.manifest["still"]}
+        others = {st["file"].split("/")[-1] for st in stills.values()
+                  if st["file"].startswith("Buildings/Others/")}
+        self.assertIn("Stone_Bridge.png", others)
+        self.assertIn("Covered_Bridge.png", others)
+        self.assertEqual(len(others), 34)                       # the folder's every building
+        self.assertFalse([st for st in stills.values() if st["file"].startswith(
+            tuple(f"Buildings/{c} Buildings/" for c in ("Black", "Purple", "Red", "Yellow")))])
+        extra = {n for n, st in stills.items() if st["file"].startswith("Enemy Pack/Extra/")}
+        self.assertEqual({n for n in extra if stills[n]["role"] == "building"}, {
+            "gnome_hut", "gnome_tower", "pirate_tower", "dead_tree", "goblin_hut", "fish_hut",
+            "cave"})
+        self.assertEqual({n for n in extra if stills[n]["role"] == "prop"}, {
+            "bones1", "bones2", "bones3", "skull_spike1", "skull_spike2", "cannon_right",
+            "cannon_upright", "cannon_downright"})
+        self.assertEqual(build.still_problems(self.manifest), [])
+
     def test_every_sprite_is_a_native_strip_and_none_is_generated(self):
-        self.assertEqual(self.manifest["height"], dict.fromkeys(self.MAPPING, "native"))
+        self.assertEqual(self.manifest["height"],
+                         dict.fromkeys([*self.MAPPING, *self.NPCS], "native"))
         for sp in self.manifest["sprite"]:
             self.assertNotIn("kind", sp)                     # there is one kind of source: strips
             for a in sp["anim"]:
@@ -539,7 +604,8 @@ class RealManifest(unittest.TestCase):
                                 "house1", "house2", "house3"})
         for name, st in stills.items():
             folder = st["file"].split("/")[0]
-            self.assertEqual(st["role"], "building" if folder == "Buildings" else "prop", name)
+            if folder != "Enemy Pack":                          # the extra pack has both (CLI-09e)
+                self.assertEqual(st["role"], "building" if folder == "Buildings" else "prop", name)
             if st["file"].startswith("Buildings/") and name not in blue:
                 self.assertTrue(st["file"].startswith("Buildings/Others/"), name)
         self.assertEqual(build.still_problems(self.manifest), [])
@@ -550,7 +616,7 @@ class RealManifest(unittest.TestCase):
         props = {st["name"]: st for st in self.manifest["still"] if st["role"] == "prop"}
         self.assertTrue(props)
         for name, st in props.items():
-            self.assertTrue(st["file"].startswith("Terrain/"), name)
+            self.assertTrue(st["file"].startswith(("Terrain/", "Enemy Pack/Extra/")), name)
             if "cell" in st:
                 self.assertEqual(st["frame"], 0, name)       # one frame: no idle animation in a hub
         tilesets = {ts["name"]: ts for ts in self.manifest["tileset"]}
@@ -704,6 +770,41 @@ class Stills(unittest.TestCase):
         self.assertEqual(index["sprites"]["tree"]["baseline"], 4 + 13)
         frame = page["frames"]["tree/still/00"]
         self.assertEqual((frame["frame"]["w"], frame["frame"]["h"]), (10, 13))
+
+    def test_an_npc_idle_strip_builds_as_the_manifest_makes_it(self):
+        """CLI-09e: an `npc` entry (one idle strip) goes the strips' way, as `main` does: cut,
+        placed, native, packed; the build's checks pass on the written page."""
+        s = {"atlas_max": 2048, "atlas_padding": 2, "cell_margin": 4, "palette_max": 64}
+        sp = {"name": "npc_pawn", "role": "npc", "root": ".", "origin": "synthetic",
+              "anim": [{"name": "idle", "file": "Pawn_Idle.png", "fps": 12, "loop": True}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            img = np.zeros((32, 96, 4), np.uint8)               # three square 32 px cells
+            for i in range(3):
+                img[10 - i:28, 32 * i + 10:32 * i + 20] = (60, 90, 200, 255)
+            Image.fromarray(img, "RGBA").save(Path(tmp) / "Pawn_Idle.png")
+            anims = [(a, clean.cut_strip(Path(tmp) / a["file"])) for a in sp["anim"]]
+            cell_w, cell_h, baseline, cells = clean.place(
+                [p for _, ps in anims for p in ps], s["cell_margin"])
+            cells, cell_w, cell_h, baseline, info = build.scale_sprite(
+                sp["name"], anims, cells, cell_w, baseline, "native", "area", s)
+            sprite = {"name": sp["name"], "role": sp["role"], "cell_w": cell_w,
+                      "cell_h": cell_h, "baseline": baseline,
+                      "anims": [{"name": "idle", "fps": 12, "loop": True, "cells": cells}]}
+            index = atlas.pack([sprite], s, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, [sprite], s)
+            finally:
+                build.OUT = saved
+        self.assertEqual(info["factor"], [1, 1])
+        self.assertEqual(index["sprites"]["npc_pawn"]["role"], "npc")
+        self.assertEqual(index["sprites"]["npc_pawn"]["animations"],
+                         {"idle": {"frames": 3, "fps": 12, "loop": True}})
+        self.assertEqual(page["animations"]["npc_pawn/idle"],
+                         ["npc_pawn/idle/00", "npc_pawn/idle/01", "npc_pawn/idle/02"])
 
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
