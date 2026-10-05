@@ -1,0 +1,220 @@
+/* The map editor's plain chrome (O-4): system-ui text, flat panels, sizes in rem. */
+.ed-root {
+  --ed-bg: #14141a;
+  --ed-panel: #1d1d25;
+  --ed-line: #34343f;
+  --ed-text: #e8e6e1;
+  --ed-dim: #a09d96;
+  --ed-accent: #ffd23f;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ed-bg);
+  color: var(--ed-text);
+  font: 0.875rem/1.4 system-ui, sans-serif;
+}
+.ed-root button,
+.ed-root input,
+.ed-root select {
+  font: inherit;
+  color: inherit;
+}
+.ed-root button {
+  background: #2a2a34;
+  border: 1px solid var(--ed-line);
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.ed-root button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ed-root button[aria-pressed="true"] {
+  border-color: var(--ed-accent);
+  background: #3b3522;
+}
+.ed-root input,
+.ed-root select {
+  background: #101016;
+  border: 1px solid var(--ed-line);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.ed-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--ed-panel);
+  border-bottom: 1px solid var(--ed-line);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ed-bar.ed-bottom {
+  border-top: 1px solid var(--ed-line);
+  border-bottom: none;
+}
+.ed-spacer {
+  flex: 1;
+}
+.ed-dim {
+  color: var(--ed-dim);
+}
+.ed-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.ed-tools {
+  width: 200px;
+  flex: none;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--ed-panel);
+  border-right: 1px solid var(--ed-line);
+}
+.ed-inspector {
+  width: 280px;
+  flex: none;
+  overflow-y: auto;
+  padding: 8px 12px;
+  background: var(--ed-panel);
+  border-left: 1px solid var(--ed-line);
+}
+.ed-heading {
+  margin: 10px 0 4px;
+  color: var(--ed-dim);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ed-column {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ed-column > button {
+  text-align: left;
+}
+.ed-swatch {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 6px;
+  border: 1px solid #000;
+  vertical-align: -0.05em;
+}
+.ed-centre {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ed-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.ed-layers {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--ed-panel);
+  border-top: 1px solid var(--ed-line);
+}
+.ed-layers label[data-focused] {
+  outline: 1px dashed var(--ed-accent);
+  outline-offset: 2px;
+}
+.ed-page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 40px;
+}
+.ed-table {
+  border-collapse: collapse;
+  min-width: 840px;
+  margin: 8px 0;
+}
+.ed-table th,
+.ed-table td {
+  border: 1px solid var(--ed-line);
+  padding: 4px 10px;
+  text-align: left;
+}
+.ed-table th {
+  color: var(--ed-dim);
+  font-weight: 600;
+}
+.ed-dialog-back {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+.ed-dialog {
+  min-width: 520px;
+  padding: 16px 20px;
+  background: var(--ed-panel);
+  border: 1px solid var(--ed-line);
+  border-radius: 6px;
+}
+.ed-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+}
+.ed-form {
+  display: grid;
+  grid-template-columns: 7em 1fr;
+  gap: 8px 12px;
+  align-items: center;
+}
+.ed-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.ed-problem {
+  color: #ff8f8f;
+}
+.ed-chunks {
+  display: grid;
+  grid-template-columns: repeat(15, 12px);
+  gap: 1px;
+  margin: 4px 0;
+}
+.ed-chunks span {
+  width: 12px;
+  height: 12px;
+  background: #101016;
+}
+.ed-chunks span[data-cell="whole"] {
+  background: var(--ed-accent);
+}
+.ed-chunks span[data-cell="border"] {
+  background: #8a7426;
+}
+.ed-chunks span[data-cell="outside"] {
+  background: #3a3a46;
+}
+.ed-narrow {
+  display: none;
+}
+@media (max-width: 699px) {
+  .ed-root > :not(.ed-narrow) {
+    display: none;
+  }
+  .ed-narrow {
+    display: block;
+    padding: 24px 16px;
+  }
+}

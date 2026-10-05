@@ -1,0 +1,185 @@
+import type { KeyLike } from "../input/keys";
+
+/**
+ * The editor's keys in edit mode (brief §3), one table that the key map reads and the help lists.
+ * No DOM, React or PixiJS here.
+ *
+ * - Tool letters are read by **position** (`event.code`), among the keys that sit at the same place
+ *   and carry the same letter on AZERTY and QWERTY, so the mnemonic holds on both; A, Q, W, Z and M
+ *   move between the layouts and arm nothing. None is a code the game binds or reserves.
+ * - Symbols (`+ − = ? [ ]`) are read by **character** (`event.key`), as CLI-03k reads its zoom.
+ *   On AZERTY `[` and `]` need AltGr (Ctrl+Alt on Windows): a symbol is read whatever the
+ *   modifiers.
+ * - Shortcuts with Ctrl or Cmd are read by **character**, as browsers do: Ctrl+Z is the key
+ *   labelled Z on both layouts.
+ * - One action per press: auto-repeat is ignored but for the arrows, which pan.
+ */
+
+export type EditorTool = "paint" | "erase" | "fill" | "pick" | "outline";
+
+export type EditorCommand =
+  | { readonly kind: "tool"; readonly tool: EditorTool }
+  | { readonly kind: "pan"; readonly dx: -1 | 0 | 1; readonly dy: -1 | 0 | 1 }
+  | { readonly kind: "zoom"; readonly by: 1 | -1 }
+  | { readonly kind: "fit" }
+  | { readonly kind: "brush"; readonly by: 1 | -1 }
+  | { readonly kind: "undo" }
+  | { readonly kind: "redo" }
+  | { readonly kind: "save" }
+  | { readonly kind: "open" }
+  | { readonly kind: "grid" }
+  | { readonly kind: "layerFocus" }
+  | { readonly kind: "layerToggle" }
+  | { readonly kind: "escape" }
+  | { readonly kind: "help" };
+
+/** One key: by position (`code`, Shift as `shift` says), by character (`key`), with Ctrl/Cmd or not. */
+export interface EditorMatch {
+  readonly code?: string;
+  readonly key?: string;
+  readonly shift?: boolean;
+  /** Ctrl (Cmd on macOS) held: a shortcut, read by character. */
+  readonly mod?: boolean;
+  /** Repeats while held (the arrows). */
+  readonly repeat?: boolean;
+  readonly command: EditorCommand;
+}
+
+export interface EditorBinding {
+  readonly keys: string;
+  readonly label: string;
+  readonly matches: readonly EditorMatch[];
+}
+
+const tool = (code: string, t: EditorTool, keys: string, label: string): EditorBinding => ({
+  keys,
+  label,
+  matches: [{ code, command: { kind: "tool", tool: t } }],
+});
+
+const arrow = (code: string, dx: -1 | 0 | 1, dy: -1 | 0 | 1): EditorMatch => ({
+  code,
+  repeat: true,
+  command: { kind: "pan", dx, dy },
+});
+
+/** The one table (CLI-09a's rows of §3; Select, Place, Mirror, Validate, Walk come with CLI-09b). */
+export const EDITOR_BINDINGS: readonly EditorBinding[] = [
+  tool("KeyB", "paint", "B", "Paint"),
+  tool("KeyN", "erase", "N", "Erase"),
+  tool("KeyG", "fill", "G", "Fill"),
+  tool("KeyI", "pick", "I", "Pick"),
+  tool("KeyT", "outline", "T", "Outline (zones)"),
+  {
+    keys: "← → ↑ ↓",
+    label: "Pan",
+    matches: [
+      arrow("ArrowLeft", -1, 0),
+      arrow("ArrowRight", 1, 0),
+      arrow("ArrowUp", 0, -1),
+      arrow("ArrowDown", 0, 1),
+    ],
+  },
+  {
+    keys: "+ / −",
+    label: "Zoom in, out",
+    matches: [
+      { key: "+", command: { kind: "zoom", by: 1 } },
+      { key: "=", command: { kind: "zoom", by: 1 } },
+      { code: "NumpadAdd", command: { kind: "zoom", by: 1 } },
+      { key: "-", command: { kind: "zoom", by: -1 } },
+      { code: "NumpadSubtract", command: { kind: "zoom", by: -1 } },
+    ],
+  },
+  {
+    keys: "0",
+    label: "Fit the whole map",
+    matches: [
+      { code: "Digit0", command: { kind: "fit" } },
+      { code: "Numpad0", command: { kind: "fit" } },
+    ],
+  },
+  {
+    keys: "[ / ]",
+    label: "Brush smaller, larger (also Shift+wheel)",
+    matches: [
+      { key: "[", command: { kind: "brush", by: -1 } },
+      { key: "]", command: { kind: "brush", by: 1 } },
+    ],
+  },
+  {
+    keys: "Ctrl/Cmd+Z",
+    label: "Undo",
+    matches: [{ key: "z", mod: true, command: { kind: "undo" } }],
+  },
+  {
+    keys: "Ctrl/Cmd+Shift+Z, Ctrl+Y",
+    label: "Redo",
+    matches: [
+      { key: "z", mod: true, shift: true, command: { kind: "redo" } },
+      { key: "y", mod: true, command: { kind: "redo" } },
+    ],
+  },
+  {
+    keys: "Ctrl/Cmd+S",
+    label: "Save: the draft, and download the file",
+    matches: [{ key: "s", mod: true, command: { kind: "save" } }],
+  },
+  {
+    keys: "Ctrl/Cmd+O",
+    label: "Open a file",
+    matches: [{ key: "o", mod: true, command: { kind: "open" } }],
+  },
+  {
+    keys: "J",
+    label: "Toggle the grid",
+    matches: [{ code: "KeyJ", command: { kind: "grid" } }],
+  },
+  {
+    keys: "K / Shift+K",
+    label: "Next layer in the layers bar; toggle it",
+    matches: [
+      { code: "KeyK", command: { kind: "layerFocus" } },
+      { code: "KeyK", shift: true, command: { kind: "layerToggle" } },
+    ],
+  },
+  {
+    keys: "Esc",
+    label: "End a stroke; close a dialog",
+    matches: [{ code: "Escape", command: { kind: "escape" } }],
+  },
+  {
+    keys: "?",
+    label: "These keys",
+    matches: [{ key: "?", command: { kind: "help" } }],
+  },
+];
+
+/** The keys typed by character that a shortcut reads lower-case (Shift gives `Z`). */
+const lower = (key: string) => (key.length === 1 ? key.toLowerCase() : key);
+
+function matches(match: EditorMatch, event: KeyLike): boolean {
+  const mod = event.ctrlKey || event.metaKey;
+  if (match.mod) {
+    // AltGr is Ctrl+Alt on Windows: never a shortcut.
+    if (!mod || event.altKey) return false;
+    return lower(event.key) === match.key && event.shiftKey === (match.shift ?? false);
+  }
+  // A symbol: with AltGr (Ctrl+Alt) too, but Ctrl or Cmd alone is the browser's (its zoom).
+  if (match.key !== undefined) return event.key === match.key && !(mod && !event.altKey);
+  if (mod || event.altKey) return false;
+  return match.code === event.code && event.shiftKey === (match.shift ?? false);
+}
+
+/** The command of a key press in edit mode, or null: the key is left to the page. */
+export function editorCommand(event: KeyLike): EditorCommand | null {
+  if (event.isComposing) return null;
+  for (const binding of EDITOR_BINDINGS) {
+    for (const match of binding.matches) {
+      if (!matches(match, event)) continue;
+      if (event.repeat && !match.repeat) return null;
+      return match.command;
+    }
+  }
+  return null;
+}
