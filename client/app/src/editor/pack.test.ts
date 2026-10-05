@@ -272,6 +272,47 @@ describe("placing the pack (CLI-09e part 2)", () => {
     expect(kinds()).toEqual(["building"]);
   });
 
+  it("H mirrors a flip prop and a bridge, one step each, undone and redone", () => {
+    const s = new EditorSession(block(zone()));
+    s.choosePlace({ kind: "scenery", type: "tree" });
+    click(s, { x: 4, y: 4 });
+    s.mirror();
+    const tree = () => [...s.doc.objects.values()][0]!;
+    expect(tree()).toMatchObject({ mirror: true });
+    s.undo();
+    expect(tree()).toMatchObject({ mirror: false });
+    s.redo();
+    expect(tree()).toMatchObject({ mirror: true });
+    s.choosePlace({ kind: "bridge", type: "stone_bridge" });
+    click(s, { x: 10, y: 4 });
+    s.mirror();
+    const span = () => [...s.doc.objects.values()][1]!;
+    expect(span()).toMatchObject({ mirror: true });
+    s.undo();
+    expect(span()).toMatchObject({ mirror: false });
+    s.redo();
+    expect(span()).toMatchObject({ mirror: true });
+  });
+
+  it("H leaves a cannon unchanged, with no undo step: it turns by facing (R)", () => {
+    const s = new EditorSession(block(zone()));
+    s.choosePlace({ kind: "scenery", type: "cannon" });
+    click(s, { x: 6, y: 6 });
+    const before = [...s.doc.objects.values()][0]!;
+    s.mirror();
+    expect([...s.doc.objects.values()][0]).toEqual(before);
+    expect(s.said).toContain("Mirror: select");
+    // The one step is the placing: undo removes the cannon.
+    s.undo();
+    expect(s.doc.objects.size).toBe(0);
+    // An East cannon whose file says mirror is drawn unmirrored: the look's facing decides.
+    const east = prop({ x: 6, y: 6 }, "cannon", 0, true, 0);
+    expect(kindOf(east).look!(east)).toMatchObject({ sprite: "cannon_right", mirror: false });
+    const doc = block(town());
+    add(doc, east);
+    expect(townStructures(doc)[0]!.mirror ?? false).toBe(false);
+  });
+
   it("a placement whose record cannot be written is refused, and says why", () => {
     const s = new EditorSession(zone());
     s.choosePlace({ kind: "bridge" });

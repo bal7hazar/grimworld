@@ -595,6 +595,8 @@ export class EditorSession {
     for (const id of this.selection.objects) {
       const before = this.doc.objects.get(id);
       if (!before || !mirrorable(before) || !("mirror" in before)) continue;
+      // A prop that turns by facing (the cannon) is turned with R: its record has no flip.
+      if (before.kind === "scenery" && facingProp(before.type)) continue;
       changes.push({ object: id, before, after: { ...before, mirror: !before.mirror } });
     }
     if (changes.length === 0) {
@@ -709,6 +711,12 @@ export class EditorSession {
     }
     this.onChange();
   }
+}
+
+/** Whether a pack prop's kind turns by facing (the cannon). */
+function facingProp(type: string): boolean {
+  const kind = packKindOf(type);
+  return kind?.category === "prop" && kind.turn === "facing";
 }
 
 /** An object turned by R, or null when it does not turn. */
