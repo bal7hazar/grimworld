@@ -13,7 +13,7 @@ import { readParams } from "../params";
 import { type MapKeys, RoomSandbox } from "../Sandbox";
 import type { WalkInfo } from "../session";
 import { HubDoors } from "./hubDoors";
-import { portraitLabel } from "./hud";
+import { portraitLabel } from "./hudModel";
 import { Hud, bandSheet } from "./Hud";
 import { goIntent, hubTargets, nextTarget, serviceIntent } from "./keyTargets";
 import { ui } from "./styles";

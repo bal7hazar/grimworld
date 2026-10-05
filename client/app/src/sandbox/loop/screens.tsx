@@ -4,7 +4,7 @@ import type { LoopIntent, ServiceId } from "../../input/intent";
 import { targetLabel } from "../../render/hubView";
 import { ADVENTURER, REPORT_FIGURES, type AdventurerSheet } from "../fixtures/hubs";
 import { keyUi, useKeyLayer, useScreenFocus } from "../keyScope";
-import { portraitLabel } from "./hud";
+import { portraitLabel } from "./hudModel";
 import { gatesFrom, hubName, locationName } from "./machine";
 import { ui } from "./styles";
 

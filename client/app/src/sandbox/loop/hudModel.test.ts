@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ADVENTURER, type AdventurerSheet } from "../fixtures/hubs";
 import { hudSheet, readHud } from "../params";
-import { hudModel, portraitLabel } from "./hud";
+import { hudModel, portraitLabel } from "./hudModel";
 
 /** The status band's content (CLI-03l AC-5), on the pure model: no DOM. */
 describe("hudModel", () => {
