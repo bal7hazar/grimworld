@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { History, UNDO_DEPTH } from "./history";
-import { FLOOR, WALL, createMap, indexOf, paint } from "./model";
+import { FLOOR, WALL, cellAt, createMap, paint, terrainOf } from "./model";
+import type { Tile } from "../render/view";
 
-const newZone = () =>
-  createMap({
-    kind: "zone",
-    name: "Steps",
-    location: 1,
-    width: 15,
-    height: 15,
-    biome: "meadow",
-    start: "wall",
-  });
+const newZone = () => createMap({ kind: "zone", name: "Steps", location: 1, biome: "meadow" });
+
+/** The terrain of a hex, null when it is not painted. */
+const terrainAt = (doc: ReturnType<typeof newZone>, tile: Tile) => {
+  const cell = cellAt(doc, tile);
+  return cell === null ? null : terrainOf(cell);
+};
+const row = (n: number) => Array.from({ length: n }, (_, x) => ({ x, y: 0 }));
 
 describe("undo and redo (O-7)", () => {
   it("a stroke is one step, undone and redone whole", () => {
@@ -23,11 +22,11 @@ describe("undo and redo (O-7)", () => {
     }
     history.end();
     expect(history.steps).toBe(1);
-    expect(doc.terrain[indexOf(doc, { x: 9, y: 0 })]).toBe(FLOOR);
+    expect(terrainAt(doc, { x: 9, y: 0 })).toBe(FLOOR);
     expect(history.undo(doc)).toBe(true);
-    expect(doc.terrain.slice(0, 10).every((v) => v === WALL)).toBe(true);
+    expect(row(10).every((t) => terrainAt(doc, t) === null)).toBe(true);
     expect(history.redo(doc)).toBe(true);
-    expect(doc.terrain.slice(0, 10).every((v) => v === FLOOR)).toBe(true);
+    expect(row(10).every((t) => terrainAt(doc, t) === FLOOR)).toBe(true);
   });
 
   it("keeps 200 steps: the 201st drops the oldest, and 200 undos bring back the state after it", () => {
@@ -44,13 +43,17 @@ describe("undo and redo (O-7)", () => {
     while (history.undo(doc)) undone += 1;
     expect(undone).toBe(200);
     // The first step stays: it was dropped from the history, not undone.
-    expect(doc.terrain[indexOf(doc, tile(0))]).toBe(FLOOR);
-    for (let k = 1; k <= 200; k++) expect(doc.terrain[indexOf(doc, tile(k))]).toBe(WALL);
+    expect(terrainAt(doc, tile(0))).toBe(FLOOR);
+    for (let k = 1; k <= 200; k++) expect(terrainAt(doc, tile(k))).toBeNull();
     // And 200 redos give the 201 hexes again.
     let redone = 0;
     while (history.redo(doc)) redone += 1;
     expect(redone).toBe(200);
-    for (let k = 0; k <= 200; k++) expect(doc.terrain[indexOf(doc, tile(k))]).toBe(FLOOR);
+    for (let k = 0; k <= 200; k++) expect(terrainAt(doc, tile(k))).toBe(FLOOR);
+    // A wall over a floor, undone: the floor again.
+    history.record(doc, paint(doc, [tile(0)], { layer: "terrain", value: WALL }));
+    history.undo(doc);
+    expect(terrainAt(doc, tile(0))).toBe(FLOOR);
   });
 
   it("a new step clears what was undone; an empty stroke is no step", () => {

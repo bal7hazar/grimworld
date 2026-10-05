@@ -22,6 +22,8 @@ export type EditorCommand =
   | { readonly kind: "pan"; readonly dx: -1 | 0 | 1; readonly dy: -1 | 0 | 1 }
   | { readonly kind: "zoom"; readonly by: 1 | -1 }
   | { readonly kind: "fit" }
+  | { readonly kind: "fitChunks" }
+  | { readonly kind: "nudge"; readonly dx: -1 | 0 | 1; readonly dy: -1 | 0 | 1 }
   | { readonly kind: "brush"; readonly by: 1 | -1 }
   | { readonly kind: "undo" }
   | { readonly kind: "redo" }
@@ -63,7 +65,18 @@ const arrow = (code: string, dx: -1 | 0 | 1, dy: -1 | 0 | 1): EditorMatch => ({
   command: { kind: "pan", dx, dy },
 });
 
-/** The one table (CLI-09a's rows of §3; Select, Place, Mirror, Validate, Walk come with CLI-09b). */
+/** Shift + an arrow nudges the chunk origin one hex that way on screen: `x` grows West, `y` North. */
+const nudgeArrow = (code: string, dx: -1 | 0 | 1, dy: -1 | 0 | 1): EditorMatch => ({
+  code,
+  shift: true,
+  repeat: true,
+  command: { kind: "nudge", dx, dy },
+});
+
+/**
+ * The one table (CLI-09a's rows of §3, and CLI-09a2's Fit chunks and nudge; Select, Place, Mirror,
+ * Validate, Walk come with CLI-09b).
+ */
 export const EDITOR_BINDINGS: readonly EditorBinding[] = [
   tool("KeyB", "paint", "B", "Paint"),
   tool("KeyN", "erase", "N", "Erase"),
@@ -93,10 +106,25 @@ export const EDITOR_BINDINGS: readonly EditorBinding[] = [
   },
   {
     keys: "0",
-    label: "Fit the whole map",
+    label: "Fit the painted map in the view",
     matches: [
       { code: "Digit0", command: { kind: "fit" } },
       { code: "Numpad0", command: { kind: "fit" } },
+    ],
+  },
+  {
+    keys: "Shift+0",
+    label: "Fit chunks: the chunk grid with the fewest chunks (D-216)",
+    matches: [{ code: "Digit0", shift: true, command: { kind: "fitChunks" } }],
+  },
+  {
+    keys: "Shift+← → ↑ ↓",
+    label: "Nudge the chunk origin by one hex",
+    matches: [
+      nudgeArrow("ArrowLeft", 1, 0),
+      nudgeArrow("ArrowRight", -1, 0),
+      nudgeArrow("ArrowUp", 0, 1),
+      nudgeArrow("ArrowDown", 0, -1),
     ],
   },
   {

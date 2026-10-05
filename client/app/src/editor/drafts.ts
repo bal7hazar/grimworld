@@ -1,5 +1,6 @@
 import { loadMap, saveMap } from "./file";
-import type { MapDocument, MapKind } from "./model";
+import { fitted } from "./fit";
+import { type MapDocument, type MapKind, cloneMap } from "./model";
 
 /**
  * Drafts (O-5, decided): the open map kept in this browser's local storage after each change, so
@@ -12,8 +13,10 @@ export interface DraftEntry {
   readonly id: string;
   readonly kind: MapKind;
   readonly name: string;
-  readonly width: number;
-  readonly height: number;
+  /** Painted hexes (D-216); absent in an entry written by CLI-09a. */
+  readonly hexes?: number;
+  /** The fitted chunk set's size, null before a fit; absent in an entry written by CLI-09a. */
+  readonly chunks?: number | null;
   readonly location: number;
   /** When it was last written, ISO 8601. */
   readonly edited: string;
@@ -53,12 +56,13 @@ export class Drafts {
 
   /** Writes a draft; false when the storage refused it (full, blocked). */
   put(id: string, doc: MapDocument, now = new Date()): boolean {
+    const fit = fitted(doc);
     const entry: DraftEntry = {
       id,
       kind: doc.meta.kind,
       name: doc.meta.name,
-      width: doc.meta.width,
-      height: doc.meta.height,
+      hexes: doc.hexes.size,
+      chunks: typeof fit === "string" ? null : fit.chunks,
       location: doc.meta.location,
       edited: now.toISOString(),
     };
@@ -75,7 +79,7 @@ export class Drafts {
     }
   }
 
-  /** A draft's map, or why it cannot be read. */
+  /** A draft's map, or why it cannot be read. A format 1 draft is converted (`loadMap`). */
   get(id: string): MapDocument | string {
     let text: string | null | undefined;
     try {
@@ -97,6 +101,15 @@ export class Drafts {
     }
   }
 
+  /** "Duplicate" on the map list: a copy under a new id; why it failed, or null. */
+  duplicate(id: string, newId = newDraftId()): string | null {
+    const doc = this.get(id);
+    if (typeof doc === "string") return doc;
+    return this.put(newId, cloneMap(doc))
+      ? null
+      : "Not duplicated: this browser refused the draft.";
+  }
+
   forget(id: string): void {
     try {
       this.storage?.removeItem(DRAFT(id));
@@ -110,4 +123,49 @@ export class Drafts {
 /** A new draft's id: unique in this browser. */
 export function newDraftId(now = Date.now(), salt = Math.random()): string {
   return `${now.toString(36)}-${Math.floor(salt * 36 ** 4).toString(36)}`;
+}
+
+/** What the draft writer needs of the window's timers. */
+export interface Timers {
+  setTimeout(run: () => void, ms: number): number;
+  clearTimeout(id: number): void;
+}
+
+/**
+ * The draft written a moment after each change (§6), and at once when the editor's screen goes
+ * away or the tab is closed (`flush`, on unmount and `pagehide`): a closed tab loses nothing (O-5).
+ */
+export class DraftWriter {
+  private timer: number | null = null;
+
+  constructor(
+    private readonly write: () => void,
+    private readonly delay: number,
+    private readonly timers: Timers,
+  ) {}
+
+  get pending(): boolean {
+    return this.timer !== null;
+  }
+
+  /** A change: the write is (re)scheduled. */
+  changed(): void {
+    if (this.timer !== null) this.timers.clearTimeout(this.timer);
+    this.timer = this.timers.setTimeout(() => {
+      this.timer = null;
+      this.write();
+    }, this.delay);
+  }
+
+  /** The pending write, now; nothing when none is pending. */
+  flush(): void {
+    if (this.timer !== null) this.now();
+  }
+
+  /** A write now (Save), the pending one cancelled. */
+  now(): void {
+    if (this.timer !== null) this.timers.clearTimeout(this.timer);
+    this.timer = null;
+    this.write();
+  }
 }

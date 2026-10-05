@@ -17,7 +17,9 @@ import { createPixiSurface } from "../render/pixiSurface";
 import { DEFAULT_ZOOM, Renderer, type ZoomSettings } from "../render/renderer";
 import { browserHost } from "../render/scheduler";
 import type { Tile, ViewState } from "../render/view";
-import { type OverlayScene, drawOverlays } from "./overlay";
+import { CHUNK, type TileBox } from "./model";
+import { type OverlayScene, drawOverlays, visibleRange } from "./overlay";
+import { holds, viewWindow } from "./view";
 
 /** What the canvas tells the editor: pointer strokes, the hovered hex, the brush wheel. */
 export interface CanvasEvents {
@@ -42,25 +44,42 @@ export function fitMapScale(viewport: Viewport, columns: number, rows: number): 
   return Math.min(viewport.width / width, viewport.height / height);
 }
 
-/**
- * The zoom of a map (§3, Zoom): as the game's `DEFAULT_ZOOM`, but `minAcross` raised so that the
- * whole map fits, and the default (where `0` goes) the whole map.
- */
-export function mapZoom(viewport: Viewport, columns: number, rows: number): ZoomSettings {
+/** The tiles across at which `columns × rows` tiles fit the viewport. */
+function acrossFor(viewport: Viewport, columns: number, rows: number): number {
   const wanted = fitMapScale(viewport, columns, rows);
   let across = 4;
   while (fitScale(viewport, across) > wanted && across < 4000) across += 1;
+  return across;
+}
+
+/** How far out the zoom goes at least (D-216): a full zone of 15 × 15 chunks and a chunk around it. */
+export const ZOOM_OUT_TILES = 17 * CHUNK;
+
+/**
+ * The zoom of a map (§3, Zoom): as the game's `DEFAULT_ZOOM`, the default (where `0` goes) the
+ * painted hexes, and `minAcross` raised so that they and a full zone's room around them fit.
+ */
+export function mapZoom(viewport: Viewport, columns: number, rows: number): ZoomSettings {
+  const across = acrossFor(viewport, columns, rows);
+  const room = acrossFor(
+    viewport,
+    Math.max(columns, ZOOM_OUT_TILES),
+    Math.max(rows, ZOOM_OUT_TILES),
+  );
   return {
     ...DEFAULT_ZOOM,
     defaultAcross: across,
-    minAcross: Math.max(DEFAULT_ZOOM.minAcross, across),
+    minAcross: Math.max(DEFAULT_ZOOM.minAcross, across, room),
   };
 }
 
-/** The world point at the middle of a map of `columns × rows` tiles. */
-export function mapCentre(columns: number, rows: number): Point {
-  const a = tileToPixel({ x: 0, y: 0 });
-  const b = tileToPixel({ x: columns - 1, y: rows - 1 });
+/** What `0` fits when nothing is painted: a 3 × 2-chunk area from `(0, 0)`. */
+export const EMPTY_BOX: TileBox = { x0: 0, y0: 0, x1: 3 * CHUNK - 1, y1: 2 * CHUNK - 1 };
+
+/** The world point at the middle of a box of tiles. */
+export function mapCentre(box: TileBox): Point {
+  const a = tileToPixel({ x: box.x0, y: box.y0 });
+  const b = tileToPixel({ x: box.x1, y: box.y1 });
   return { x: (a.x + b.x - TILE_WIDTH / 2) / 2, y: (a.y + b.y) / 2 };
 }
 
@@ -87,8 +106,11 @@ export class EditorCanvas {
   private readonly cleanups: (() => void)[] = [];
   private destroyed = false;
   private scene: OverlayScene | null = null;
-  private columns = 1;
-  private rows = 1;
+  private box: TileBox = EMPTY_BOX;
+  /** Builds the view of the tiles around a window (`editorView`). */
+  private source: ((window: TileBox) => ViewState) | null = null;
+  /** The window last sent to the renderer: rebuilt when the camera leaves it. */
+  private window: TileBox | null = null;
   private spaceHeld = false;
   private overlayFrame: number | null = null;
 
@@ -131,7 +153,7 @@ export class EditorCanvas {
       this.overlay.width = Math.round(width * ratio);
       this.overlay.height = Math.round(height * ratio);
       this.renderer.resize({ width, height });
-      this.events.changed();
+      this.cameraMoved();
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -155,15 +177,34 @@ export class EditorCanvas {
       });
   }
 
-  /** A new map's size: the zoom fits it and the camera centres it. */
-  setMapSize(columns: number, rows: number): void {
-    this.columns = columns;
-    this.rows = rows;
-    this.fit();
+  /** The painted hexes' box (null: nothing painted), which `0` fits. */
+  setPainted(box: TileBox | null): void {
+    this.box = box ?? EMPTY_BOX;
   }
 
-  setView(view: ViewState): void {
-    this.renderer.setView(view);
+  /**
+   * Where the view comes from (D-216): the renderer is sent only the tiles of a window around the
+   * visible ones (`viewWindow`), rebuilt when the document changes (`refreshView`) or the camera
+   * leaves the window.
+   */
+  setViewSource(source: (window: TileBox) => ViewState): void {
+    this.source = source;
+    this.refreshView();
+  }
+
+  /** The document changed: the window's view again. */
+  refreshView(): void {
+    if (!this.source) return;
+    const { camera, viewport } = this.renderer.cameraState();
+    this.window = viewWindow(visibleRange(camera, viewport));
+    this.renderer.setView(this.source(this.window));
+  }
+
+  /** Every camera move: a new window when the visible tiles leave the last one. */
+  private cameraMoved(): void {
+    const { camera, viewport } = this.renderer.cameraState();
+    if (!this.window || !holds(this.window, visibleRange(camera, viewport))) this.refreshView();
+    this.events.changed();
   }
 
   setScene(scene: OverlayScene): void {
@@ -171,11 +212,12 @@ export class EditorCanvas {
     this.scheduleOverlay();
   }
 
-  /** `0`: the whole map, centred. */
+  /** `0`: the painted hexes, centred. */
   fit(): void {
     const { viewport } = this.renderer.cameraState();
-    this.renderer.setZoomSettings(mapZoom(viewport, this.columns, this.rows));
-    this.centreOn(mapCentre(this.columns, this.rows));
+    const { x0, y0, x1, y1 } = this.box;
+    this.renderer.setZoomSettings(mapZoom(viewport, x1 - x0 + 1, y1 - y0 + 1));
+    this.centreOn(mapCentre(this.box));
   }
 
   private centreOn(target: Point): void {
@@ -184,7 +226,7 @@ export class EditorCanvas {
       (camera.centre.x - target.x) * camera.scale,
       (camera.centre.y - target.y) * camera.scale,
     );
-    this.events.changed();
+    this.cameraMoved();
   }
 
   zoomBy(by: 1 | -1): void {
@@ -193,14 +235,14 @@ export class EditorCanvas {
       x: viewport.width / 2,
       y: viewport.height / 2,
     });
-    this.events.changed();
+    this.cameraMoved();
   }
 
   /** The arrows: a quarter of the viewport. */
   panBy(dx: number, dy: number): void {
     const { viewport } = this.renderer.cameraState();
     this.renderer.pan(-dx * viewport.width * 0.25, -dy * viewport.height * 0.25);
-    this.events.changed();
+    this.cameraMoved();
   }
 
   /** Space held: a left drag pans. */
@@ -291,7 +333,7 @@ export class EditorCanvas {
           if (!drag || drag.id !== event.pointerId) return;
           if (drag.kind === "pan") {
             this.renderer.pan(point.x - drag.last.x, point.y - drag.last.y);
-            this.events.changed();
+            this.cameraMoved();
           } else {
             const tiles = hexesAlong(world(drag.last), world(point));
             if (tiles.length > 0) this.events.strokeMove(tiles);
@@ -340,7 +382,7 @@ export class EditorCanvas {
               at(event),
             );
           }
-          this.events.changed();
+          this.cameraMoved();
         },
         { passive: false },
       ],

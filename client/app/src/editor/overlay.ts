@@ -1,7 +1,18 @@
 import { type Camera, ROW_HEIGHT, TILE_WIDTH, type Viewport, tileToPixel } from "../input/coords";
 import { hexCorners } from "../render/ground";
 import type { Tile } from "../render/view";
-import { CHUNK, sideTable } from "./model";
+import { type Fitted, chunkAt } from "./fit";
+import { VIEW_MAX } from "./view";
+import {
+  CHUNK,
+  type MapDocument,
+  type TileBox,
+  isOutside,
+  isZone,
+  keyOf,
+  sideOf,
+  tileOfKey,
+} from "./model";
 
 /**
  * The editor's overlays (§2.3): plain shapes over the game's canvas, never art. They are drawn on
@@ -13,25 +24,19 @@ import { CHUNK, sideTable } from "./model";
 export type Segments = Float64Array;
 
 /**
- * The edges between neighbouring hexes of a `width × height` map where `cut(a, b)` holds (an index
- * against another, or -1 beyond the map), each drawn once. An edge of side `s` runs between the
- * hex's corners `s` and `s + 1` (`hexCorners`, `acrossSide`).
+ * The edges of the hexes `tiles` where `cut(tile, next)` holds, `next` the hex across the side. An
+ * edge of side `s` runs between the hex's corners `s` and `s + 1` (`hexCorners`, `acrossSide`).
  */
 export function edgesWhere(
-  width: number,
-  height: number,
-  cut: (index: number, other: number) => boolean,
+  tiles: Iterable<Tile>,
+  cut: (tile: Tile, next: Tile) => boolean,
 ): Segments {
-  const table = sideTable(width, height);
   const out: number[] = [];
-  for (let i = 0; i < width * height; i++) {
+  for (const tile of tiles) {
     let corners: number[] | null = null;
     for (let side = 0; side < 6; side++) {
-      const other = table[i * 6 + side]!;
-      // Each inner edge once: from its lower index.
-      if (other >= 0 && other < i) continue;
-      if (!cut(i, other)) continue;
-      corners ??= hexCorners(tileToPixel({ x: i % width, y: Math.floor(i / width) }));
+      if (!cut(tile, sideOf(tile, side))) continue;
+      corners ??= hexCorners(tileToPixel(tile));
       const a = side * 2;
       const b = ((side + 1) % 6) * 2;
       out.push(corners[a]!, corners[a + 1]!, corners[b]!, corners[b + 1]!);
@@ -40,46 +45,79 @@ export function edgesWhere(
   return Float64Array.from(out);
 }
 
-/** The seams between chunks (§2.3), inside the map. */
-export function seamSegments(width: number, height: number): Segments {
-  const chunk = (i: number) =>
-    Math.floor((i % width) / CHUNK) + 100 * Math.floor(i / width / CHUNK);
-  return edgesWhere(width, height, (i, other) => other >= 0 && chunk(i) !== chunk(other));
+/**
+ * The outline's border (§2.5): between a painted hex inside and a hex outside or unpainted, each
+ * edge once (from its inside hex).
+ */
+export function outlineSegments(doc: MapDocument): Segments {
+  if (!isZone(doc)) return new Float64Array(0);
+  const inside = (key: number) => {
+    const cell = doc.hexes.get(key);
+    return cell !== undefined && !isOutside(cell);
+  };
+  const tiles = [...doc.hexes.keys()].filter(inside).map(tileOfKey);
+  return edgesWhere(tiles, (_, next) => !inside(keyOf(next)));
 }
 
-/** The outline's border (§2.5): between an inside hex and an outside one or the map's edge. */
-export function outlineSegments(width: number, height: number, outline: Uint8Array): Segments {
-  return edgesWhere(width, height, (i, other) =>
-    other < 0 ? outline[i] === 1 : outline[i] !== outline[other],
-  );
+/** The fitted grid (D-216): the seams around the chunks of the set, and each chunk's index. */
+export interface Seams {
+  readonly segments: Segments;
+  /** World points of each chunk's top-right corner, with its index. */
+  readonly labels: readonly { readonly x: number; readonly y: number; readonly text: string }[];
 }
 
-/** The map's tiles whose hexes the viewport may show, as an index range per row. */
-export function visibleRange(
-  camera: Camera,
-  viewport: Viewport,
-  width: number,
-  height: number,
-): { x0: number; x1: number; y0: number; y1: number } {
+export function seamSegments(fit: Fitted): Seams {
+  const inSet = new Set(fit.chunkSet);
+  const tiles: Tile[] = [];
+  const labels: { x: number; y: number; text: string }[] = [];
+  for (const chunk of fit.chunkSet) {
+    const cx = chunk % CHUNK;
+    const cy = Math.floor(chunk / CHUNK);
+    const x = fit.x0 + CHUNK * cx;
+    const y = fit.y0 + CHUNK * cy;
+    for (let dy = 0; dy < CHUNK; dy++)
+      for (let dx = 0; dx < CHUNK; dx++) tiles.push({ x: x + dx, y: y + dy });
+    // Its top-right corner: x grows West, y North.
+    const corner = tileToPixel({ x, y: y + CHUNK - 1 });
+    labels.push({
+      x: corner.x + TILE_WIDTH / 2,
+      y: corner.y - TILE_WIDTH / 2,
+      text: String(chunk),
+    });
+  }
+  const chunkOf = (t: Tile) => chunkAt(t, fit);
+  const segments = edgesWhere(tiles, (tile, next) => {
+    const a = chunkOf(tile);
+    const b = chunkOf(next);
+    if (a.cx === b.cx && a.cy === b.cy) return false;
+    // Between two chunks of the set, once: from the lower key.
+    const bIn =
+      b.cx >= 0 && b.cy >= 0 && b.cx < fit.width && b.cy < fit.height && inSet.has(b.chunk);
+    return !bIn || keyOf(tile) < keyOf(next);
+  });
+  return { segments, labels };
+}
+
+/** The tiles whose hexes the viewport may show (unbounded: the plane has no edge). */
+export function visibleRange(camera: Camera, viewport: Viewport): TileBox {
   const halfW = viewport.width / 2 / camera.scale;
   const halfH = viewport.height / 2 / camera.scale;
   const { x: cx, y: cy } = camera.centre;
   // World x grows right and tile x left: x = -wx / TILE_WIDTH; y = -wy / ROW_HEIGHT.
-  const x0 = Math.max(0, Math.floor(-(cx + halfW) / TILE_WIDTH) - 1);
-  const x1 = Math.min(width - 1, Math.ceil(-(cx - halfW) / TILE_WIDTH) + 1);
-  const y0 = Math.max(0, Math.floor(-(cy + halfH) / ROW_HEIGHT) - 1);
-  const y1 = Math.min(height - 1, Math.ceil(-(cy - halfH) / ROW_HEIGHT) + 1);
-  return { x0, x1, y0, y1 };
+  return {
+    x0: Math.floor(-(cx + halfW) / TILE_WIDTH) - 1,
+    x1: Math.ceil(-(cx - halfW) / TILE_WIDTH) + 1,
+    y0: Math.floor(-(cy + halfH) / ROW_HEIGHT) - 1,
+    y1: Math.ceil(-(cy - halfH) / ROW_HEIGHT) + 1,
+  };
 }
 
 /** What one overlay frame draws. */
 export interface OverlayScene {
-  readonly width: number;
-  readonly height: number;
-  /** Inside the outline per hex (a zone with the outline layer on), else null. */
-  readonly outline: Uint8Array | null;
+  /** Whether a hex is painted and outside the outline (a zone with the outline layer on), else null. */
+  readonly outside: ((tile: Tile) => boolean) | null;
   readonly outlineEdges: Segments | null;
-  readonly seams: Segments | null;
+  readonly seams: Seams | null;
   readonly grid: boolean;
   /** The hexes under the brush at the pointer. */
   readonly brush: readonly Tile[];
@@ -111,7 +149,7 @@ export function drawOverlays(
   const ox = viewport.width / 2 - centre.x * scale;
   const oy = viewport.height / 2 - centre.y * scale;
   ctx.clearRect(0, 0, viewport.width, viewport.height);
-  const range = visibleRange(camera, viewport, scene.width, scene.height);
+  const range = visibleRange(camera, viewport);
   const hexPath = (tile: Tile, grow = 0) => {
     const corners = hexCorners(tileToPixel(tile), grow);
     ctx.moveTo(corners[0]! * scale + ox, corners[1]! * scale + oy);
@@ -119,30 +157,32 @@ export function drawOverlays(
       ctx.lineTo(corners[k]! * scale + ox, corners[k + 1]! * scale + oy);
     ctx.closePath();
   };
-  const each = (visit: (tile: Tile, index: number) => void) => {
+  const each = (visit: (tile: Tile) => void) => {
     for (let y = range.y0; y <= range.y1; y++) {
-      for (let x = range.x0; x <= range.x1; x++) visit({ x, y }, y * scene.width + x);
+      for (let x = range.x0; x <= range.x1; x++) visit({ x, y });
     }
   };
-  // Outside the outline: shaded (§2.5). Small hexes are shaded by runs of a row, one rectangle a
-  // row high from flat side to flat side: tens of thousands of hexes in a few hundred rectangles.
-  if (scene.outline) {
-    const outline = scene.outline;
+  // Outside the outline: shaded (§2.5), not past `VIEW_MAX` hexes in view (a far zoom's wash).
+  // Small hexes are shaded by runs of a row, one rectangle a row high from flat side to flat side:
+  // tens of thousands of hexes in a few hundred rectangles.
+  const inView = (range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1);
+  if (scene.outside && inView <= VIEW_MAX) {
+    const outside = scene.outside;
     ctx.beginPath();
     if (TILE_WIDTH * scale >= RUN_BELOW_PX) {
-      each((tile, i) => {
-        if (!outline[i]) hexPath(tile, 0.5);
+      each((tile) => {
+        if (outside(tile)) hexPath(tile, 0.5);
       });
     } else {
       for (let y = range.y0; y <= range.y1; y++) {
         let x = range.x0;
         while (x <= range.x1) {
-          if (outline[y * scene.width + x]) {
+          if (!outside({ x, y })) {
             x += 1;
             continue;
           }
           const start = x;
-          while (x <= range.x1 && !outline[y * scene.width + x]) x += 1;
+          while (x <= range.x1 && outside({ x, y })) x += 1;
           // x grows West: the run's right edge is its first hex's East side.
           const right = tileToPixel({ x: start, y }).x + TILE_WIDTH / 2;
           const top = tileToPixel({ x: start, y }).y - ROW_HEIGHT / 2;
@@ -188,21 +228,18 @@ export function drawOverlays(
     ctx.setLineDash([6, 5]);
     ctx.strokeStyle = COLOURS.seam;
     ctx.lineWidth = 1.5;
-    segments(scene.seams);
+    segments(scene.seams.segments);
     ctx.setLineDash([]);
-    // Each chunk's index in its top-right corner (tile (15 cx, 15 cy + 14)): x grows West.
+    // Each chunk's index in its top-right corner.
     ctx.fillStyle = COLOURS.label;
     ctx.font = "600 0.75rem system-ui, sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "top";
-    for (let cy = 0; cy * CHUNK < scene.height; cy++) {
-      for (let cx = 0; cx * CHUNK < scene.width; cx++) {
-        const corner = tileToPixel({ x: cx * CHUNK, y: cy * CHUNK + CHUNK - 1 });
-        const sx = (corner.x + TILE_WIDTH / 2) * scale + ox - 4;
-        const sy = (corner.y - TILE_WIDTH / 2) * scale + oy + 4;
-        if (sx < 0 || sy < 0 || sx > viewport.width + 40 || sy > viewport.height) continue;
-        ctx.fillText(String(CHUNK * cy + cx), sx, sy);
-      }
+    for (const label of scene.seams.labels) {
+      const sx = label.x * scale + ox - 4;
+      const sy = label.y * scale + oy + 4;
+      if (sx < 0 || sy < 0 || sx > viewport.width + 40 || sy > viewport.height) continue;
+      ctx.fillText(label.text, sx, sy);
     }
   }
   if (scene.outlineEdges) {
