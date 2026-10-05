@@ -15,6 +15,7 @@ import {
   sideOf,
 } from "./model";
 import type { MapObject } from "./objects";
+import { outsideMask } from "./overlay";
 import { type Finding, checkFitted, tally, validate } from "./validate";
 
 /**
@@ -454,5 +455,48 @@ describe("the checks' time", () => {
       `[CLI-09b] validate 225 × 225: median ${median.toFixed(1)} ms of 5 (${times.map((t) => t.toFixed(1)).join(", ")})`,
     );
     expect(median).toBeLessThan(1000);
+  });
+});
+
+describe("far-apart hexes (review of #366)", () => {
+  it("a legal file with hexes at (0, 0) and (30000, 30000) opens and validates quickly", () => {
+    const text = JSON.stringify({
+      format: "grimworld-map",
+      version: 2,
+      editor: "test",
+      map: {
+        kind: "zone",
+        name: "Far",
+        location: 3,
+        biome: "meadow",
+        levelMin: 1,
+        levelMax: 1,
+        rank: 0,
+        spawnTable: 0,
+      },
+      rows: [
+        { y: 0, x: 0, terrain: ".", ground: "g", outline: "1" },
+        { y: 30000, x: 30000, terrain: ".", ground: "g", outline: "1" },
+      ],
+      chunks: null,
+      obstacles: [],
+    });
+    const read = loadMap(text);
+    if ("problem" in read) throw new Error(read.problem);
+    const start = performance.now();
+    const found = validate(read.doc);
+    const ms = performance.now() - start;
+    console.log(`[review #366] validate (0, 0) + (30000, 30000): ${ms.toFixed(1)} ms`);
+    expect(ms).toBeLessThan(500);
+    expect(found.map((f) => f.message)).toContain(
+      "The painted hexes span more than 1000 hexes: the checks of reach are not run.",
+    );
+    expect(outsideMask(read.doc)).toBeNull();
+    // The town's reach (E-15) is skipped the same way.
+    const town = createMap({ kind: "town", name: "Far town", location: 4, biome: "meadow" });
+    set(town, { x: 0, y: 0 }, FLOOR);
+    set(town, { x: 30000, y: 30000 }, FLOOR);
+    add(town, { kind: "arrival", at: { x: 0, y: 0 } });
+    expect(validate(town).some((f) => f.check === "E-1")).toBe(true);
   });
 });

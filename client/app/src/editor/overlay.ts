@@ -1,7 +1,7 @@
 import { type Camera, ROW_HEIGHT, TILE_WIDTH, type Viewport, tileToPixel } from "../input/coords";
 import { hexCorners } from "../render/ground";
 import type { Tile } from "../render/view";
-import { type Fitted, chunkAt } from "./fit";
+import { FIT_SPAN_MAX, type Fitted, chunkAt } from "./fit";
 import { VIEW_MAX } from "./view";
 import {
   CHUNK,
@@ -221,6 +221,8 @@ export function outsideMask(doc: MapDocument): OutsideMask | null {
     if (y > y1) y1 = y;
   }
   if (x0 === Infinity) return null;
+  // Past the fit's span the image would be gigabytes: the per-row shading draws it (review of #366).
+  if (x1 - x0 >= FIT_SPAN_MAX || y1 - y0 >= FIT_SPAN_MAX) return null;
   // A hex's left edge in half hexes of world x: -(2x + parity + 1).
   const left = -(2 * x1 + 2);
   const w = 2 * (x1 - x0 + 1) + 1;

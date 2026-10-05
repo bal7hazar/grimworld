@@ -84,7 +84,7 @@ R-20) fail on a forged `Fitted` record (`checkFitted`).
 | R-10 at most 6 quotas | error | 7 quotas |
 | R-11 chunk set within the rectangle | error (construction) | the rectangle forged 2 chunks wide |
 | R-13 a quota's count at most its candidates | error | the exit counts 3 with 2 candidates; a candidate for a quota the list does not hold |
-| R-14 spawn points, features, candidates on walkable hexes | error | **a spawn point on a wall** (the task's case); a feature and a candidate on a wall |
+| R-14 spawn points, features, candidates on walkable hexes | error | **a spawn point on a wall** (the task's case); a feature and a candidate on a wall. R-14's first clause, "each authored chunk's fields fit their widths", waits for ENG-08's spike schema (the field widths are its layout): not checked, ○ |
 | R-15 at most 2 spawn points and 3 features a chunk | error | **a third spawn point in chunk 16** (the task's case); 4 features in chunk 0 |
 | R-16 corner tiles may be floor | no check (○, §5) | four floor corners in chunk 0: no finding, no error |
 | R-18 gate anchors walkable | error | a gate anchored on a rock |
@@ -132,14 +132,14 @@ committed file holds it, reads back to it, and validates with no error.
 
 **Found by the validation**: the client's fixture gate 102 (`FIXTURE_GATES`, not the seed's) anchors
 at (40, 7), one hex inside the outline's border, which E-5 refuses. The redrawn zone moves it one hex
-East to (41, 7), on the border; a test checks that the game's own anchor fails E-5 and nothing else.
+West (outwards: x grows West, `coords.ts:45`) to (41, 7), on the border; a test checks that the game's own anchor fails E-5 and nothing else.
 
 ## Acceptance, with commands
 
 | AC | Command | Result |
 |---|---|---|
-| The brief's row: each non-○ check passes and fails, each ○ check warns, the fixtures validate and walk | `pnpm --filter @grimworld/app test` (`validate.test.ts`, `fixtures.test.ts`, `objects.test.ts`) | 54 files: 53 passed, 1 skipped; 611 tests passed, 1 skipped (652 after merging main with CLI-09e part 1) |
-| The browser check at 1440 × 900, with the art and plain | `GRIMWORLD_ART_OUT=/home/claude/site/grimworld/current/art VERIFY_PORT=5287 node client/app/verify-editor.mjs` | `ALL CHECKS PASSED`, 117 checks in the two looks (the grid's phase included) |
+| The brief's row: each non-○ check passes and fails, each ○ check warns, the fixtures validate and walk | `pnpm --filter @grimworld/app test` (`validate.test.ts`, `fixtures.test.ts`, `objects.test.ts`) | 54 files: 53 passed, 1 skipped; 611 tests passed, 1 skipped (653 after merging main with CLI-09e part 1 and the review fix) |
+| The browser check at 1440 × 900, with the art and plain | `GRIMWORLD_ART_OUT=/home/claude/site/grimworld/current/art VERIFY_PORT=5287 node client/app/verify-editor.mjs` | `ALL CHECKS PASSED`, 117 checks in the two looks. Its grid phase only times frames (it checks that frames were measured, not their figures) |
 | The grid's cost (owner's feedback) | the same script's grid phase (`VERIFY_GRID_ONLY=1` runs it alone) | below, *The grid's figures* |
 | `lint`, `typecheck` | `pnpm --filter @grimworld/app lint`, `typecheck` | clean |
 | The game's bundle excludes the editor | `pnpm --filter @grimworld/app build`, then the editor's strings counted in each chunk | only `assets/editor-*.js` holds them; `index.html`'s `main-*.js` and its ten preloads hold none |
@@ -159,6 +159,17 @@ error, no request beyond the page's origin. Captures went to the thread's librar
 largest, is validated in a median of 115–200 ms of 5 on the VPS (other work running beside it); the
 seed's zone (1,504 hexes) in 3.3 ms. The first version took 415 ms on the largest map: the checks now
 walk a dense grid of the painted box instead of sets of keys.
+
+### Far-apart hexes (review t-0128 of #366, minor)
+
+`validate` built a dense grid of the whole painted box: a legal file with hexes at (0, 0) and
+(30000, 30000) asked for a 30001 × 30001 array (about 3.6 GB), and the editor did not mount. The
+grid is now built only when the painted box spans at most `FIT_SPAN_MAX` (1000) hexes a side, the
+fit's own bound. Past it, E-1 says "The painted hexes span more than 1000 hexes: the checks of reach
+are not run.", and E-2, E-3, E-6, E-7, E-15's doors and E-17 are skipped; every check of objects and
+chunks still runs. The overlay's outside image has the same cap (it would have been (2w + 1) × h
+bytes); past it, the per-row shading draws, as before. `validate.test.ts`, "far-apart hexes": the
+file opens and validates in 1.0–1.3 ms (three runs on the VPS).
 
 ### The grid's figures (owner's feedback, 2026-10-05)
 

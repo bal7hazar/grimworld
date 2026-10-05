@@ -38,7 +38,7 @@ const ground = (g: string) => GROUND_KINDS.indexOf(g as (typeof GROUND_KINDS)[nu
 
 /** The client's fixture gate 102 anchors at (40, 7), one hex inside the outline: E-5 refuses it. */
 const GATE_102_GAME = { x: 40, y: 7 };
-/** The redrawn zone moves it one hex East, onto the outline's border (x grows West). */
+/** The redrawn zone moves it one hex West, outwards onto the outline's border (x grows West). */
 const GATE_102_EDITOR = { x: 41, y: 7 };
 
 function put(doc: MapDocument, object: MapObject): void {
