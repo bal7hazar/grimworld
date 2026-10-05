@@ -61,7 +61,7 @@ server.stderr.on("data", (d) => (log += d));
 async function ready() {
   for (let i = 0; i < 100; i += 1) {
     try {
-      if ((await fetch(`${base}/editor.html`)).ok) return;
+      if ((await fetch(`${base}/editor/`)).ok) return;
     } catch {}
     await new Promise((r) => setTimeout(r, 200));
   }
@@ -158,7 +158,7 @@ async function run(browser, look) {
   const shot = (name) => page.screenshot({ path: join(shots, `editor-${look}-${name}.png`) });
   const text = (selector) => page.locator(selector).innerText();
 
-  await page.goto(`${base}/editor.html`);
+  await page.goto(`${base}/editor/`);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('[data-screen="list"]').waitFor();
