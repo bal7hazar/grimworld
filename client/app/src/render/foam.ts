@@ -17,9 +17,11 @@ export const FOAM_FPS = 10;
 
 /**
  * The diagonal the phase runs along, in axial coordinates (`q = x − ⌊y / 2⌋`, `r = y`): sources
- * with the same `q + r` share a frame. Chosen by look (CLI-03o's report): the crests then run from
- * the top left to the bottom right of the screen and travel across it, a slow wave; `r` alone
- * pulses whole rows, which reads as a flicker of horizontal bands.
+ * with the same `q + r` share a frame (CLI-03o's report). `r` alone gives a whole row one frame,
+ * so a straight East–West shore (the hubs') would pulse in lockstep; `q` and `q + r` both move one
+ * frame per hex along a row and one per two rows up a North–South shore, so every shore shows a
+ * wave. `q + r` (`x + ⌈y / 2⌉`) is kept: a crest travels from West to East and from North to
+ * South, toward the screen's bottom right.
  */
 export type FoamAxis = "q" | "r" | "q+r";
 export const FOAM_AXIS: FoamAxis = "q+r";
