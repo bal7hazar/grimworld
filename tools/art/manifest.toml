@@ -734,8 +734,8 @@ name = "goblin_hut"
 role = "building"
 file = "Enemy Pack/Extra/Goblin Hut/Goblin Hut.png"
 frame = 0
-cell = [256, 256]
-origin = "Goblin Hut, frame 0 of 12, enemy pack extra"
+cell = [192, 256]
+origin = "Goblin Hut, frame 0 of 16 (192 x 256 cells), enemy pack extra"
 
 [[still]]
 name = "fish_hut"

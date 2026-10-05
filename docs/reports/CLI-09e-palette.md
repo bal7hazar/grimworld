@@ -329,3 +329,13 @@ agreed for ENG-08 (D-215).
 - E-6/E-7 (reach from a zone's entry) do not count a blocking prop or a building as a wall: the
   converter's reach check will (ENG-08).
 - No phone or touch (O-3).
+
+## 10. Cut fix: the Goblin Hut
+
+The Goblin Hut's sheet is 3072 x 256 px: 16 frames of 192 x 256 px, not 12 of 256 x 256. The entry cut
+cells 256 px wide, so frame 0 took in the left 64 px of frame 1 (the hut is 140 px wide, drawn from x = 26
+to 166 in its 192 px cell, and the next hut starts at x = 218): the extra piece of hut on the right. The
+entry is now `cell = [192, 256]`. Every other still cut from a strip was measured and is whole in its
+cell, but for the rubber duck, whose frames' ripples touch the cell edges (a pack artefact, a few
+pixels, left as it is). `clean.still` now refuses a cell whose width does not divide the sheet's width
+and warns when frame pixels touch the cell's left or right edge (the duck's warning is expected).

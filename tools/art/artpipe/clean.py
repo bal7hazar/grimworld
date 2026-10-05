@@ -5,6 +5,7 @@ A pose is a `Pose`: a tight RGBA crop plus the position of its feet (anchor x, b
 the crop. Registration later places every pose of a sprite in one cell size on one baseline.
 """
 
+import sys
 from dataclasses import dataclass
 
 import numpy as np
@@ -58,11 +59,18 @@ def still(path, frame=None, cell=None):
         w, h = cell if cell is not None else (img.shape[0], img.shape[0])
         if img.shape[0] != h or img.shape[1] % w:
             raise SystemExit(f"{path.name}: {img.shape[1]} x {img.shape[0]} is not a strip of "
-                             f"{w} x {h} cells")
+                             f"{w} x {h} cells: the cell width {w} does not divide the sheet's "
+                             f"width {img.shape[1]} (a wrong cell takes in part of the next frame)")
         i = frame or 0
         if not 0 <= i < img.shape[1] // w:
             raise SystemExit(f"{path.name}: no frame {i} (it has {img.shape[1] // w})")
         img = img[:, i * w:(i + 1) * w]
+        if img.shape[1] > 1:
+            edges = [side for side, col in (("left", img[:, 0]), ("right", img[:, -1]))
+                     if (col[:, 3] > 0).any()]
+            if edges:
+                print(f"warning: {path.name}: frame {i} has opaque pixels on its {' and '.join(edges)} "
+                      f"edge: it may take in part of a neighbouring frame", file=sys.stderr)
     p = register(img)
     return Pose(p.rgba, p.rgba.shape[1] // 2, p.baseline)
 
