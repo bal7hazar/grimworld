@@ -15,6 +15,8 @@ import { isRock, voidFoam } from "./ground";
 import { OBSTACLES, obstacleOf } from "./obstacles";
 import { BAKE_CHUNK, DEFAULT_FEET, IDLE_MAX_FPS, Renderer, STEP_MS, feetOffset } from "./renderer";
 import { DIM_ALPHA, drawOverlay, drawTerrain, overlayPlan } from "./shapes";
+import type { FoamMesh, WaterMode } from "./foam";
+import { tileKey } from "./fog";
 import type { FrameStats } from "./scheduler";
 import { type SpriteArt, type SpriteLibrary, libraryFrom } from "./sprites";
 import type { Facing, ViewState, ViewTile } from "./view";
@@ -540,10 +542,14 @@ describe("the feet in their tile (CLI-03b)", () => {
 describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
   const zoneView = () => toView(allExplored(initialState(fixtureNamed("zone"))));
 
-  function mount(view: ViewState, onDraw?: (stats: FrameStats) => void) {
+  function mount(
+    view: ViewState,
+    onDraw?: (stats: FrameStats) => void,
+    water: WaterMode = "still",
+  ) {
     const host = new FakeHost(1000 / 120);
     const surface = new FakeSurface();
-    const renderer = new Renderer(surface, host, { idle: false, onDraw });
+    const renderer = new Renderer(surface, host, { idle: false, onDraw, water });
     renderer.resize({ width: 375, height: 812 });
     renderer.setView(view);
     host.run(100);
@@ -630,39 +636,46 @@ describe("the ground in the bakes (CLI-03g1, AC-4)", () => {
     expect(stats.at(-1)?.ground).toBe("colours");
     renderer.setLibrary(await groundLibrary());
     host.run(1000);
-    // Every chunk once, and the foam over the void once per group (CLI-03g2).
-    const foamGroups = voidFoamGroups(zoneView());
-    expect(foamGroups).toBeGreaterThan(0);
-    expect(surface.bakes).toHaveLength(12 + foamGroups);
+    // Every chunk once; the foam is not baked (CLI-03o), over the chunks' water nor over the void.
+    expect(surface.bakes).toHaveLength(12);
     expect(stats.at(-1)?.ground).toBe("atlas");
     expect(stats.at(-1)?.bakeMs).not.toBeNull();
     host.run(10_000);
-    expect(surface.bakes).toHaveLength(12 + foamGroups);
+    expect(surface.bakes).toHaveLength(12);
     expect(host.quiet()).toBe(true);
   });
 
-  it("bakes the foam over the void with the atlas only, per group, again only when it changes", async () => {
-    const view = zoneView();
+  it("draws the foam over the bakes with the atlas only: meshes per group, built again only when they change", async () => {
+    // Without fog (the explored set drawn in colour): every group in the ground's layer, last.
+    const view = { ...zoneView(), fog: undefined };
     const { host, renderer, surface } = mount(view);
-    const voidLayer = ((surface.stage.children[0] as Container).children[1] as Container)
-      .children[0] as Container;
-    const foam = voidLayer.children[4] as Container;
-    expect(foam.children).toHaveLength(0);
+    const ground = (surface.stage.children[0] as Container).children[1] as Container;
+    const meshes = () => [...(renderer["foamMeshes"] as Map<string, FoamMesh>).values()];
+    expect(meshes()).toHaveLength(0);
     renderer.setLibrary(await groundLibrary());
     host.run(100);
-    expect(foam.children).toHaveLength(voidFoamGroups(view));
-    // Each group's texture at its frame: the pieces' box, on whole art pixels.
-    for (const sprite of foam.children as Sprite[]) {
-      expect(Number.isInteger(sprite.x) && Number.isInteger(sprite.y)).toBe(true);
-      expect(sprite.texture).not.toBe(Texture.EMPTY);
-    }
-    // The same view: nothing baked again.
-    const bakes = surface.bakes.length;
+    const groups = new Set([
+      ...voidFoam(view.tiles, view.void).map((p) => `v${chunkOf(p.over)}`),
+      ...view.tiles.filter((t) => t.ground === "water").map(chunkOf),
+    ]);
+    expect(meshes().length).toBeGreaterThan(0);
+    expect(meshes().length).toBeLessThanOrEqual(groups.size);
+    expect(
+      meshes().some((m) =>
+        m.pieces.some((p) => !view.tiles.some((t) => tileKey(t) === tileKey(p.over))),
+      ),
+    ).toBe(true);
+    const layer = ground.children.at(-1) as Container;
+    expect(layer.children).toEqual(meshes().map((m) => m.mesh));
+    // The same view: no mesh built again.
+    const before = meshes();
     renderer.setView({ ...view });
     host.run(100);
-    expect(surface.bakes).toHaveLength(bakes);
+    expect(meshes()).toEqual(before);
+    for (const mesh of before) expect(meshes()).toContain(mesh);
     renderer.setLibrary(null);
-    expect(foam.children).toHaveLength(0);
+    expect(meshes()).toHaveLength(0);
+    expect(layer.parent).toBeNull();
   });
 
   it("draws the void around the terrain, under the chunks; the background inside; none without", () => {
@@ -843,13 +856,9 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
   });
 });
 
-/** The groups the foam over the void is baked in: the chunks of the void's hexes it lies over. */
-function voidFoamGroups(view: ViewState): number {
-  const ids = voidFoam(view.tiles, view.void).map(
-    (p) => `${Math.floor(p.over.x / BAKE_CHUNK)},${Math.floor(p.over.y / BAKE_CHUNK)}`,
-  );
-  return new Set(ids).size;
-}
+/** A tile's bake chunk, as the renderer keys it. */
+const chunkOf = (t: { x: number; y: number }) =>
+  `${Math.floor(t.x / BAKE_CHUNK)},${Math.floor(t.y / BAKE_CHUNK)}`;
 
 /** A library with the ground's cells (`grass_c`, `water_c`, `foam_c`) on a plain-colour texture. */
 async function groundLibrary(): Promise<SpriteLibrary> {
