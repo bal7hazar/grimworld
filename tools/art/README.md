@@ -257,6 +257,29 @@ To see the buildings in the hubs of the sandbox, on the Mac, with the pack:
 From a worktree without the pack, point the dev server at a checkout that built it:
 `GRIMWORLD_ART_OUT=<that checkout>/tools/art/out pnpm --filter @grimworld/app dev`.
 
+## The editor's palette: NPCs, more buildings and props, bridges (CLI-09e)
+
+The map editor's palette (`client/app/src/editor/palette/`, its kind table in `kinds.ts`) places
+what the pack draws; `docs/reports/CLI-09e-palette.md` is the inventory. The manifest adds:
+
+- **NPCs**: fifteen `[[sprite]]` entries of role `npc`, one looping `idle` strip each, native, at the
+  manifest's 12 fps (the pack's `.aseprite` files say 100 ms a frame): `npc_pawn` and its seven
+  tools (`npc_pawn_axe`, `_gold`, `_hammer`, `_knife`, `_meat`, `_pickaxe`, `_wood`), `npc_lancer`
+  (Blue units), `npc_trainee`, `npc_laborer`, `npc_expert`, `npc_master` (`Characters/`),
+  `npc_sheep`, `npc_pig`. The order rule compares them with `tallest` only, a warning between native
+  drawings. The Warrior, Archer, Monk and the goblins are NPCs from their own sprites' idle.
+- **Buildings**: the rest of `Buildings/Others/` (`abbey` is its Monastery: `monastery` is the Blue
+  one), the two bridges `stone_bridge` and `covered_bridge`, and the extra pack's `gnome_hut`,
+  `gnome_tower`, `pirate_tower`, `dead_tree`, `goblin_hut`, `fish_hut` and `cave` (the last three at
+  frame 0 of their strips). Blue only (D-178).
+- **Props**: `tool1`–`tool4`, `gold`, `gold_stone1`–`gold_stone6`, `meat`, `logs` (the wood
+  resource: `wood` is the interface's table), `water_rock1`–`water_rock4` and `duck` (frame 0),
+  `bones1`–`bones3`, `skull_spike1`–`skull_spike2`, and `cannon_right`, `cannon_upright`,
+  `cannon_downright` (the editor mirrors them for the West facings).
+
+Measured on 2026-10-05 with the pack on the Mac: the atlas keeps its two map pages (page 1 grows
+from 1944 × 456 to 2048 × 1396) and its one interface page; every page within 2048.
+
 ## UI elements: nine-slices, three-slices and the UI page (CLI-03i)
 
 The client's chrome (panels, buttons, ribbons, icons) comes from the pack's `UI Elements`, one

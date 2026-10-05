@@ -1,0 +1,40 @@
+/* The editor's palette (CLI-09e): the editor's plain chrome (`../editor.css`, O-4). */
+.ed-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.ed-palette-menus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ed-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.ed-palette-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.ed-palette-grid canvas,
+.ed-palette-none {
+  display: block;
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+}
+.ed-palette-none {
+  border: 1px dashed var(--ed-line, #34343f);
+  border-radius: 4px;
+}

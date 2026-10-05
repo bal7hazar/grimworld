@@ -30,6 +30,22 @@ hobgoblin = "native"   # Troll
 vanguard = "native"    # Warrior
 warden = "native"      # Archer
 cleric = "native"      # Monk
+# The editor's idle NPCs (CLI-09e), every one the pack's own drawing.
+npc_pawn = "native"           # Pawn, blue
+npc_pawn_axe = "native"
+npc_pawn_gold = "native"
+npc_pawn_hammer = "native"
+npc_pawn_knife = "native"
+npc_pawn_meat = "native"
+npc_pawn_pickaxe = "native"
+npc_pawn_wood = "native"
+npc_lancer = "native"         # Lancer, blue
+npc_trainee = "native"        # Characters 1, Trainee
+npc_laborer = "native"        # Characters 2, Laborer
+npc_expert = "native"         # Characters 3, Expert
+npc_master = "native"         # Characters 4, Master
+npc_sheep = "native"          # Sheep
+npc_pig = "native"            # Pig
 
 # What the build checks on the result (AC-2 of ART-02): no basic goblin taller than the shortest
 # profession, and `tallest` taller than every other sprite. A sprite of the pack keeps the pack's
@@ -244,6 +260,178 @@ origin = "original Monk strips, blue"
   fps = 12
   loop = false
 
+# ---------------------------------------------------------------- the editor's NPCs (CLI-09e)
+# Idle only: an NPC stands where the map's author put it (ENG-08, client-only). Role `npc`: the
+# order rule compares it with `tallest` only, a warning between native drawings. Blue, the one colour set (D-178). The pack's timing is 100 ms a
+# frame in every `.aseprite` (Pawn, Lancer, the four Characters, Sheep, Pig); the strips keep the
+# manifest's 12 fps, so an NPC idles at the professions' pace. The Warrior, the Archer, the Monk
+# and the goblins are NPCs too, from their own sprites' idle (client/app/src/editor/palette).
+
+[[sprite]]
+name = "npc_pawn"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_axe"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip with an axe, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Axe.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_gold"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip carrying gold, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Gold.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_hammer"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip with a hammer, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Hammer.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_knife"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip with a knife, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Knife.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_meat"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip carrying meat, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Meat.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_pickaxe"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip with a pickaxe, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Pickaxe.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pawn_wood"
+role = "npc"
+root = "Units/Blue Units/Pawn"
+origin = "original Pawn idle strip carrying wood, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pawn_Idle Wood.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_lancer"
+role = "npc"
+root = "Units/Blue Units/Lancer"
+origin = "original Lancer idle strip, blue"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Lancer_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_trainee"
+role = "npc"
+root = "Characters/1_Trainee"
+origin = "original Trainee idle strip (Characters 1)"
+  [[sprite.anim]]
+  name = "idle"
+  file = "1_Trainee_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_laborer"
+role = "npc"
+root = "Characters/2_Laborer"
+origin = "original Laborer idle strip (Characters 2)"
+  [[sprite.anim]]
+  name = "idle"
+  file = "2_Laborer_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_expert"
+role = "npc"
+root = "Characters/3_Expert"
+origin = "original Expert idle strip (Characters 3)"
+  [[sprite.anim]]
+  name = "idle"
+  file = "3_Expert_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_master"
+role = "npc"
+root = "Characters/4_Master"
+origin = "original Master idle strip (Characters 4)"
+  [[sprite.anim]]
+  name = "idle"
+  file = "4_Master_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_sheep"
+role = "npc"
+root = "Terrain/Resources/Meat/Sheep"
+origin = "original Sheep idle strip"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Sheep_Idle.png"
+  fps = 12
+  loop = true
+
+[[sprite]]
+name = "npc_pig"
+role = "npc"
+root = "Enemy Pack/Extra/Pig"
+origin = "original Pig idle strip"
+  [[sprite.anim]]
+  name = "idle"
+  file = "Pig_Idle.png"
+  fps = 12
+  loop = true
+
 # ---------------------------------------------------------------- buildings (hubs, CLI-03c)
 # Stills: the pack's buildings are single images, not strips. Each is one frame at native size,
 # anchored at its base and its horizontal centre (artpipe/clean.py `still`), packed as one
@@ -400,6 +588,171 @@ role = "building"
 file = "Buildings/Others/Rural_House.png"
 origin = "Rural House, others"
 
+# ---------------------------------------------------------------- the editor's buildings (CLI-09e)
+# The rest of `Buildings/Others/` (128 px wide; Hall of the Gods, Monastery and Sacrificial House
+# 320 px tall), its two bridges, and the single buildings of `Enemy Pack/Extra/`; an animated one
+# drawn at frame 0, as the props. Footprints, anchors and doors are the editor's kind table
+# (client/app/src/editor/palette/kinds.ts), not the atlas's. The Black, Purple, Red and Yellow sets
+# of the eight coloured buildings stay out: one colour set, Blue (D-178).
+
+[[still]]
+name = "acueduct"
+role = "building"
+file = "Buildings/Others/Acueduct.png"
+origin = "Acueduct, others"
+
+[[still]]
+name = "arbor"
+role = "building"
+file = "Buildings/Others/Arbor.png"
+origin = "Arbor, others"
+
+[[still]]
+name = "bourgeois_house"
+role = "building"
+file = "Buildings/Others/Bourgeois_House.png"
+origin = "Bourgeois House, others"
+
+[[still]]
+name = "church"
+role = "building"
+file = "Buildings/Others/Church.png"
+origin = "Church, others"
+
+[[still]]
+name = "farm"
+role = "building"
+file = "Buildings/Others/Farm.png"
+origin = "Farm, others"
+
+[[still]]
+name = "hall_of_the_gods"
+role = "building"
+file = "Buildings/Others/Hall_of_the_Gods.png"
+origin = "Hall of the Gods, others"
+
+[[still]]
+name = "hotel"
+role = "building"
+file = "Buildings/Others/Hotel.png"
+origin = "Hotel, others"
+
+[[still]]
+name = "abbey"
+role = "building"
+file = "Buildings/Others/Monastery.png"
+origin = "Monastery, others (named abbey: `monastery` is the Blue one)"
+
+[[still]]
+name = "pigsty"
+role = "building"
+file = "Buildings/Others/Pigsty.png"
+origin = "Pigsty, others"
+
+[[still]]
+name = "postal_relay"
+role = "building"
+file = "Buildings/Others/Postal_Relay.png"
+origin = "Postal Relay, others"
+
+[[still]]
+name = "sacrificial_house"
+role = "building"
+file = "Buildings/Others/Sacrificial_House.png"
+origin = "Sacrificial House, others"
+
+[[still]]
+name = "treehouse"
+role = "building"
+file = "Buildings/Others/Treehouse.png"
+origin = "Treehouse, others"
+
+[[still]]
+name = "urban_house"
+role = "building"
+file = "Buildings/Others/Urban_House.png"
+origin = "Urban House, others"
+
+[[still]]
+name = "urban_inn"
+role = "building"
+file = "Buildings/Others/Urban_Inn.png"
+origin = "Urban Inn, others"
+
+[[still]]
+name = "washhouse"
+role = "building"
+file = "Buildings/Others/Washhouse.png"
+origin = "Washhouse, others"
+
+[[still]]
+name = "watermill"
+role = "building"
+file = "Buildings/Others/Watermill.png"
+origin = "Watermill, others"
+
+# The bridges (D-217): whole images, the deck running North-South, posts at both ends; no deck
+# piece to repeat, so each spans one deck hex between its two end hexes (the kind table).
+[[still]]
+name = "stone_bridge"
+role = "building"
+file = "Buildings/Others/Stone_Bridge.png"
+origin = "Stone Bridge, others"
+
+[[still]]
+name = "covered_bridge"
+role = "building"
+file = "Buildings/Others/Covered_Bridge.png"
+origin = "Covered Bridge, others"
+
+[[still]]
+name = "gnome_hut"
+role = "building"
+file = "Enemy Pack/Extra/Gnome Buildings/Gnome Hut.png"
+origin = "Gnome Hut, enemy pack extra"
+
+[[still]]
+name = "gnome_tower"
+role = "building"
+file = "Enemy Pack/Extra/Gnome Buildings/Gnome Tower.png"
+origin = "Gnome Tower, enemy pack extra"
+
+[[still]]
+name = "pirate_tower"
+role = "building"
+file = "Enemy Pack/Extra/Pirate Tower/Pirate Tower_Ground.png"
+origin = "Pirate Tower on the ground, enemy pack extra"
+
+[[still]]
+name = "dead_tree"
+role = "building"
+file = "Enemy Pack/Extra/Dead Tree/Dead Tree.png"
+origin = "Dead Tree (a hollow tree with a door), enemy pack extra"
+
+[[still]]
+name = "goblin_hut"
+role = "building"
+file = "Enemy Pack/Extra/Goblin Hut/Goblin Hut.png"
+frame = 0
+cell = [256, 256]
+origin = "Goblin Hut, frame 0 of 12, enemy pack extra"
+
+[[still]]
+name = "fish_hut"
+role = "building"
+file = "Enemy Pack/Extra/Fish Hut/Fish Hut.png"
+frame = 0
+cell = [192, 192]
+origin = "Fish Hut, frame 0 of 8, enemy pack extra"
+
+[[still]]
+name = "cave"
+role = "building"
+file = "Enemy Pack/Extra/Cave/Cave_Idle.png"
+frame = 0
+cell = [192, 192]
+origin = "Cave, idle frame 0 of 8, enemy pack extra"
+
 # ---------------------------------------------------------------- props (CLI-03e)
 # Trees, bushes, rocks, stumps and a sheep around the hubs' buildings, and the zone's wall obstacles
 # (CLI-03h: every tree, bush, rock and stump below): stills of role `prop`. An animated strip is
@@ -525,6 +878,179 @@ name = "rock4"
 role = "prop"
 file = "Terrain/Decorations/Rocks/Rock4.png"
 origin = "Rock 4"
+
+# ---------------------------------------------------------------- the editor's props (CLI-09e)
+# The rest of the pack's ground decorations: tools, resources, gold stones, rocks in the water, the
+# rubber duck, bones and skull spikes, and the cannon in its three drawn directions (right, up
+# right, down right: the editor mirrors them for the three West facings). Animated strips at frame
+# 0. Left out: the clouds (the sky, not the ground), the wooden fence (a 64 px autotile that joins
+# by neighbours, a later lot), the gold highlights (an interaction).
+
+[[still]]
+name = "tool1"
+role = "prop"
+file = "Terrain/Resources/Tools/Tool_01.png"
+origin = "Tool 01"
+
+[[still]]
+name = "tool2"
+role = "prop"
+file = "Terrain/Resources/Tools/Tool_02.png"
+origin = "Tool 02"
+
+[[still]]
+name = "tool3"
+role = "prop"
+file = "Terrain/Resources/Tools/Tool_03.png"
+origin = "Tool 03"
+
+[[still]]
+name = "tool4"
+role = "prop"
+file = "Terrain/Resources/Tools/Tool_04.png"
+origin = "Tool 04"
+
+[[still]]
+name = "gold"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Resource/Gold_Resource.png"
+origin = "Gold resource"
+
+[[still]]
+name = "gold_stone1"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Stones/Gold Stone 1.png"
+origin = "Gold stone 1"
+
+[[still]]
+name = "gold_stone2"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Stones/Gold Stone 2.png"
+origin = "Gold stone 2"
+
+[[still]]
+name = "gold_stone3"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Stones/Gold Stone 3.png"
+origin = "Gold stone 3"
+
+[[still]]
+name = "gold_stone4"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Stones/Gold Stone 4.png"
+origin = "Gold stone 4"
+
+[[still]]
+name = "gold_stone5"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Stones/Gold Stone 5.png"
+origin = "Gold stone 5"
+
+[[still]]
+name = "gold_stone6"
+role = "prop"
+file = "Terrain/Resources/Gold/Gold Stones/Gold Stone 6.png"
+origin = "Gold stone 6"
+
+[[still]]
+name = "meat"
+role = "prop"
+file = "Terrain/Resources/Meat/Meat Resource/Meat Resource.png"
+origin = "Meat resource"
+
+[[still]]
+name = "logs"
+role = "prop"
+file = "Terrain/Resources/Wood/Wood Resource/Wood Resource.png"
+origin = "Wood resource (named logs: `wood` is the wood table of the interface)"
+
+[[still]]
+name = "water_rock1"
+role = "prop"
+file = "Terrain/Decorations/Rocks in the Water/Water Rocks_01.png"
+frame = 0
+cell = [64, 64]
+origin = "Water rocks 01, frame 0"
+
+[[still]]
+name = "water_rock2"
+role = "prop"
+file = "Terrain/Decorations/Rocks in the Water/Water Rocks_02.png"
+frame = 0
+cell = [64, 64]
+origin = "Water rocks 02, frame 0"
+
+[[still]]
+name = "water_rock3"
+role = "prop"
+file = "Terrain/Decorations/Rocks in the Water/Water Rocks_03.png"
+frame = 0
+cell = [64, 64]
+origin = "Water rocks 03, frame 0"
+
+[[still]]
+name = "water_rock4"
+role = "prop"
+file = "Terrain/Decorations/Rocks in the Water/Water Rocks_04.png"
+frame = 0
+cell = [64, 64]
+origin = "Water rocks 04, frame 0"
+
+[[still]]
+name = "duck"
+role = "prop"
+file = "Terrain/Decorations/Rubber Duck/Rubber duck.png"
+frame = 0
+cell = [32, 32]
+origin = "Rubber duck, frame 0"
+
+[[still]]
+name = "bones1"
+role = "prop"
+file = "Enemy Pack/Extra/Skull decorations/Bones_01.png"
+origin = "Bones 01, enemy pack extra"
+
+[[still]]
+name = "bones2"
+role = "prop"
+file = "Enemy Pack/Extra/Skull decorations/Bones_02.png"
+origin = "Bones 02, enemy pack extra"
+
+[[still]]
+name = "bones3"
+role = "prop"
+file = "Enemy Pack/Extra/Skull decorations/Bones_03.png"
+origin = "Bones 03, enemy pack extra"
+
+[[still]]
+name = "skull_spike1"
+role = "prop"
+file = "Enemy Pack/Extra/Skull decorations/Skull Spike_01.png"
+origin = "Skull spike 01, enemy pack extra"
+
+[[still]]
+name = "skull_spike2"
+role = "prop"
+file = "Enemy Pack/Extra/Skull decorations/Skull Spike_02.png"
+origin = "Skull spike 02, enemy pack extra"
+
+[[still]]
+name = "cannon_right"
+role = "prop"
+file = "Enemy Pack/Extra/Cannon/Cannon_Right.png"
+origin = "Cannon facing right, enemy pack extra"
+
+[[still]]
+name = "cannon_upright"
+role = "prop"
+file = "Enemy Pack/Extra/Cannon/Cannon_UpRight.png"
+origin = "Cannon facing up right, enemy pack extra"
+
+[[still]]
+name = "cannon_downright"
+role = "prop"
+file = "Enemy Pack/Extra/Cannon/Cannon_DownRight.png"
+origin = "Cannon facing down right, enemy pack extra"
 
 # ---------------------------------------------------------------- ground tiles (CLI-03e)
 # Named cells of a tileset, 64 x 64 unless the entry's `cell` says another side: each becomes the sprite `<name>_<cell>`, role `tile`, packed
