@@ -503,11 +503,19 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
           ))}
           <tr>
             <td>Right drag</td>
-            <td>Erase with a brush tool; outside with Outline</td>
+            <td>Erase with a brush tool; outside with Outline; cancel a paste</td>
           </tr>
           <tr>
             <td>Alt+click</td>
             <td>Pick</td>
+          </tr>
+          <tr>
+            <td>Right click</td>
+            <td>Inspect the hex, with Select or Place</td>
+          </tr>
+          <tr>
+            <td>Drag (Select)</td>
+            <td>A box; on a selected object, move it. Shift+click adds</td>
           </tr>
           <tr>
             <td>Middle drag, Space+drag</td>
