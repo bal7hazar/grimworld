@@ -1,4 +1,4 @@
-import { Application, TextureStyle, Ticker } from "pixi.js";
+import { Application, ColorMatrixFilter, TextureStyle, Ticker } from "pixi.js";
 import { BACKGROUND, type Surface } from "./renderer";
 import { type ScaleMode, canvasResolution } from "./scaling";
 
@@ -63,6 +63,8 @@ export async function createPixiSurface(
   });
   app.ticker.stop();
   stopPixiTickers();
+  // The bakes' grayscale (CLI-03n): made on the first grey bake, at the bake's own resolution.
+  let grey: ColorMatrixFilter | null = null;
   app.canvas.style.display = "block";
   app.canvas.style.touchAction = "none";
   host.appendChild(app.canvas);
@@ -76,8 +78,22 @@ export async function createPixiSurface(
     },
     maxTextureSize: gpuMaxTextureSize(app.renderer),
     render: () => app.render(),
-    bake: (target, frame, bakeResolution) =>
-      app.renderer.generateTexture({ target, frame, resolution: bakeResolution, antialias: false }),
+    bake: (target, frame, bakeResolution, greyed) => {
+      const generate = () =>
+        app.renderer.generateTexture({ target, frame, resolution: bakeResolution, antialias: false });
+      if (!greyed) return generate();
+      if (!grey) {
+        grey = new ColorMatrixFilter({ resolution: "inherit", antialias: "off" });
+        grey.desaturate();
+      }
+      const filters = target.filters;
+      target.filters = [grey];
+      try {
+        return generate();
+      } finally {
+        target.filters = filters ? [...filters] : null;
+      }
+    },
     // A Texture target's frame is the pass's viewport (PixiJS RenderTargetSystem.bind): only the
     // frame is drawn. No clear: a WebGL clear is not limited by the viewport; the container paints
     // its own backdrop over the frame.

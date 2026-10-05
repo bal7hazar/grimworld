@@ -6,7 +6,10 @@ export class FakeSurface implements Surface {
   readonly stage = new Container();
   maxTextureSize = 4096;
   renders = 0;
+  /** The colour bakes' resolutions. */
   readonly bakes: number[] = [];
+  /** The grayscale bakes' (CLI-03n): the chunks' twins and the atlas's stills. */
+  readonly greyBakes: number[] = [];
   /** Offscreen passes (`sharp`): the target of each. */
   readonly passes: Texture[] = [];
   /**
@@ -24,8 +27,8 @@ export class FakeSurface implements Surface {
     this.renders += 1;
   }
 
-  bake(_target: Container, frame: Rectangle, resolution: number): Texture {
-    this.bakes.push(resolution);
+  bake(_target: Container, frame: Rectangle, resolution: number, grey = false): Texture {
+    (grey ? this.greyBakes : this.bakes).push(resolution);
     return new Texture({ source: new TextureSource({ width: frame.width, height: frame.height }) });
   }
 

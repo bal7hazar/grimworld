@@ -37,6 +37,7 @@ import {
   type FoamPiece,
   chunkFrame,
   groundOf,
+  hexCorners,
   hexesWithin,
   isRock,
   voidFoam,
@@ -44,6 +45,7 @@ import {
 } from "./ground";
 import { OBSTACLES, type Obstacle, obstacleOf } from "./obstacles";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
+import { tileKey } from "./fog";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
@@ -56,8 +58,11 @@ export interface Surface {
   /** The GPU's largest texture side, read from the renderer. */
   readonly maxTextureSize: number;
   render(): void;
-  /** Renders `frame` of `target` into a texture of `resolution` pixels per world pixel. */
-  bake(target: Container, frame: Rectangle, resolution: number): Texture;
+  /**
+   * Renders `frame` of `target` into a texture of `resolution` pixels per world pixel; `grey`
+   * renders it through a grayscale filter (CLI-03n, `greyOf`'s weights), in the bake only.
+   */
+  bake(target: Container, frame: Rectangle, resolution: number, grey?: boolean): Texture;
   /**
    * Renders `container` (a root: no parent) into `target`'s frame only: the pass's viewport is
    * the frame, and nothing is cleared (the container paints its own backdrop over the frame).
@@ -99,6 +104,10 @@ interface ChunkBake {
   graphics: Graphics;
   frame: Rectangle;
   readonly sprite: Sprite;
+  /** Its grayscale twin (CLI-03n), under the colour, baked only while the view has `fog`. */
+  readonly grey: Sprite;
+  /** Whether `grey` is older than `sprite`'s bake. */
+  greyStale: boolean;
   resolution: number;
   dirty: boolean;
   /** How long drawing its `graphics` took, in ms: part of its bake's time. */
@@ -274,6 +283,19 @@ export const BACKGROUND = 0x0b0b0e;
  */
 const DIM_TINT = 0x010101 * Math.round(255 * (1 - DIM_ALPHA));
 
+/**
+ * The grayscale of what was explored beyond sight (CLI-03n): PixiJS's `desaturate`, luma weights
+ * 0.3, 0.6, 0.1, so that a red, a green and a blue all end with R = G = B.
+ */
+export const LUMA = [0.3, 0.6, 0.1] as const;
+
+/** A flat colour in grayscale, as the bakes' filter gives it. */
+export function greyOf(colour: number): number {
+  const [r, g, b] = [(colour >> 16) & 0xff, (colour >> 8) & 0xff, colour & 0xff];
+  const y = Math.min(255, Math.round(LUMA[0] * r + LUMA[1] * g + LUMA[2] * b));
+  return y * 0x010101;
+}
+
 /** The whole art pixels around some foam pieces: the frame their group is baked in. */
 function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
   let minX = Infinity;
@@ -318,6 +340,21 @@ export class Renderer implements FrameClient {
   private readonly voidFoamBakes = new Map<string, ChunkBake>();
   private voidFoamKey: string | null = null;
   private readonly ground = new Container();
+  /**
+   * Exploration by sight (CLI-03n, `ViewState.fog`): the ground's grayscale twin under it, the void's
+   * bands, its foam and each chunk baked grey (`Surface.bake`), never filtered in a frame; the
+   * ground in colour above it is masked to the hexes in sight (`sightMask`, drawn again on a step).
+   * Without fog the twin is hidden and the ground unmasked, as before.
+   */
+  private readonly greyGround = new Container();
+  private readonly greyBands = new Container();
+  private readonly greyFoam = new Container();
+  private readonly greyChunks = new Container();
+  private readonly sightMask = new Graphics();
+  private sightKey = "";
+  private fogOn = false;
+  /** The atlas's stills in grayscale (the obstacles, the water's cell), baked once each. */
+  private readonly greyTextures = new Map<Texture, Texture>();
   private readonly overlay = new Graphics();
   /** The dropped steps of a planned path, fading out. */
   private readonly fading = new Graphics();
@@ -338,7 +375,7 @@ export class Renderer implements FrameClient {
   /** The wall hexes' obstacles drawn from the atlas, by hex (`"x,y"`), in the actors' layer. */
   private readonly obstacleNodes = new Map<
     string,
-    { readonly sprite: Sprite; readonly name: string }
+    { readonly sprite: Sprite; readonly name: string; readonly texture: Texture }
   >();
   private readonly chunks = new Map<string, ChunkBake>();
   private readonly rings = new Map<string, { count: number; ring: readonly Tile[] }>();
@@ -403,7 +440,19 @@ export class Renderer implements FrameClient {
     this.voidLayer.addChild(this.voidFoamLayer);
     // Under the chunks, in the ground's layer: the world's children keep their order.
     this.ground.addChild(this.voidLayer);
-    this.world.addChild(this.ground, this.overlay, this.fading, this.actorsLayer);
+    this.greyBands.visible = false;
+    for (let i = 0; i < 4; i++) this.greyBands.addChild(new Sprite(Texture.WHITE));
+    this.greyGround.addChild(this.greyBands, this.greyFoam, this.greyChunks);
+    this.greyGround.visible = false;
+    this.sightMask.visible = false;
+    this.world.addChild(
+      this.greyGround,
+      this.sightMask,
+      this.ground,
+      this.overlay,
+      this.fading,
+      this.actorsLayer,
+    );
     this.passRoot.addChild(this.backdrop);
     this.mountStage();
   }
@@ -422,6 +471,7 @@ export class Renderer implements FrameClient {
       this.placeVoid();
     }
     const now = this.host.now();
+    this.syncFog(view);
     this.syncStructures(view.structures ?? []);
     this.syncObstacles(view);
     const terrainChanged = this.syncChunks(view);
@@ -529,6 +579,7 @@ export class Renderer implements FrameClient {
     this.obstacleArt = this.obstaclesInAtlas();
     for (const node of this.obstacleNodes.values()) node.sprite.destroy();
     this.obstacleNodes.clear();
+    this.dropGreyTextures();
     if (this.view) this.syncObstacles(this.view);
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
@@ -617,6 +668,7 @@ export class Renderer implements FrameClient {
     this.chunks.clear();
     for (const node of this.obstacleNodes.values()) node.sprite.destroy();
     this.obstacleNodes.clear();
+    this.dropGreyTextures();
     this.dropOffscreen();
     this.screen.destroy();
     this.world.destroy({ children: true });
@@ -723,6 +775,7 @@ export class Renderer implements FrameClient {
   private placeVoid(): void {
     const ground = this.view?.void;
     this.voidLayer.visible = ground !== undefined;
+    this.greyBands.visible = ground !== undefined;
     if (ground === undefined) return;
     // The water's cell is one flat colour: stretched, it is the same water as the baked cells.
     const water = ground === "water" ? this.groundTextures()?.water : null;
@@ -735,14 +788,69 @@ export class Renderer implements FrameClient {
       [hole.x0 - far, hole.y0, hole.x0, hole.y1],
       [hole.x1, hole.y0, hole.x1 + far, hole.y1],
     ] as const;
+    const greyWater = water ? this.greyTexture(water) : null;
     bands.forEach(([x0, y0, x1, y1], i) => {
       const band = this.voidLayer.children[i] as Sprite;
       band.texture = water ?? Texture.WHITE;
       band.tint = water ? 0xffffff : VOID_COLOURS[ground];
-      band.position.set(x0, y0);
-      band.width = x1 - x0;
-      band.height = y1 - y0;
+      // Its grayscale twin (CLI-03n): the water's cell baked grey, or the flat colour's grey.
+      const grey = this.greyBands.children[i] as Sprite;
+      grey.texture = greyWater ?? Texture.WHITE;
+      grey.tint = greyWater ? 0xffffff : greyOf(VOID_COLOURS[ground]);
+      for (const sprite of [band, grey]) {
+        sprite.position.set(x0, y0);
+        sprite.width = x1 - x0;
+        sprite.height = y1 - y0;
+      }
     });
+  }
+
+  /**
+   * Exploration by sight (CLI-03n): with the view's `fog`, the grayscale twin shows and the ground
+   * in colour is masked to the hexes in sight, and to the void's hexes within the sight's radius of
+   * the adventurer (the void has no tile in sight; without them a coast in sight would meet a grey
+   * sea). The mask is drawn again only when those hexes change: once a step.
+   */
+  private syncFog(view: ViewState): void {
+    const fog = view.fog ?? null;
+    if ((fog !== null) !== this.fogOn) {
+      this.fogOn = fog !== null;
+      this.greyGround.visible = this.fogOn;
+      this.ground.mask = this.fogOn ? this.sightMask : null;
+      this.sightKey = "";
+    }
+    if (!fog) return;
+    const adventurer = view.actors.find((a) => a.id === view.adventurerId);
+    const key = `${adventurer ? tileKey(adventurer.tile) : ""} ${fog.sightRadius} ${view.sight.map(tileKey).join(" ")}`;
+    if (key === this.sightKey) return;
+    this.sightKey = key;
+    const hexes: Tile[] = [...view.sight];
+    if (adventurer && view.void !== undefined) {
+      const tiles = new Set(view.tiles.map(tileKey));
+      for (const hex of hexesWithin(adventurer.tile, fog.sightRadius)) {
+        if (!tiles.has(tileKey(hex))) hexes.push(hex);
+      }
+    }
+    // The hexes' own corners, not grown: they tile the plane, so the mask's edge is the hexes'.
+    this.sightMask.clear();
+    for (const hex of hexes) this.sightMask.poly(hexCorners(tileToPixel(hex))).fill(0xffffff);
+  }
+
+  /** A still of the atlas in grayscale (CLI-03n), baked once at its native size. */
+  private greyTexture(texture: Texture): Texture {
+    const known = this.greyTextures.get(texture);
+    if (known) return known;
+    const sprite = new Sprite(texture);
+    const frame = new Rectangle(0, 0, texture.width, texture.height);
+    const grey = this.surface.bake(sprite, frame, 1, true);
+    sprite.destroy();
+    this.greyTextures.set(texture, grey);
+    return grey;
+  }
+
+  private dropGreyTextures(): void {
+    for (const grey of this.greyTextures.values()) grey.destroy(true);
+    this.greyTextures.clear();
   }
 
   /** Draws and rebakes the foam over the void, group by group, when its pieces change. */
@@ -774,12 +882,16 @@ export class Renderer implements FrameClient {
         Object.assign(bake, { key: groupKey, graphics, frame, dirty: true, drawMs });
       } else {
         const sprite = new Sprite(Texture.EMPTY);
+        const grey = new Sprite(Texture.EMPTY);
         this.voidFoamLayer.addChild(sprite);
+        this.greyFoam.addChild(grey);
         this.voidFoamBakes.set(id, {
           key: groupKey,
           graphics,
           frame,
           sprite,
+          grey,
+          greyStale: true,
           resolution: 0,
           dirty: true,
           drawMs,
@@ -977,12 +1089,16 @@ export class Renderer implements FrameClient {
         Object.assign(chunk, { key, graphics, frame, dirty: true, drawMs });
       } else {
         const sprite = new Sprite(Texture.EMPTY);
+        const grey = new Sprite(Texture.EMPTY);
         this.ground.addChild(sprite);
+        this.greyChunks.addChild(grey);
         this.chunks.set(id, {
           key,
           graphics,
           frame,
           sprite,
+          grey,
+          greyStale: true,
           resolution: 0,
           dirty: true,
           drawMs,
@@ -1022,24 +1138,40 @@ export class Renderer implements FrameClient {
 
   private dropChunk(chunk: ChunkBake): void {
     chunk.graphics.destroy();
-    if (chunk.sprite.texture !== Texture.EMPTY) chunk.sprite.texture.destroy(true);
-    chunk.sprite.destroy();
+    for (const sprite of [chunk.sprite, chunk.grey]) {
+      if (sprite.texture !== Texture.EMPTY) sprite.texture.destroy(true);
+      sprite.destroy();
+    }
   }
 
   private bakeTerrain(): void {
     // The void's foam first: the last bake reported (`bakeMs`) is a chunk's when both bake.
     for (const chunk of [...this.voidFoamBakes.values(), ...this.chunks.values()]) {
       const resolution = this.bakeResolution(chunk.frame);
-      if (!chunk.dirty && resolution === chunk.resolution) continue;
-      const old = chunk.sprite.texture;
+      const colour = chunk.dirty || resolution !== chunk.resolution;
+      // The grayscale twin only while the view has fog (CLI-03n); a hub never bakes it.
+      const grey = this.fogOn && (colour || chunk.greyStale);
+      if (!colour && !grey) continue;
       const start = this.host.now();
-      chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+      if (colour) {
+        const old = chunk.sprite.texture;
+        chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+        chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
+        if (old !== Texture.EMPTY) old.destroy(true);
+        chunk.dirty = false;
+        chunk.resolution = resolution;
+        chunk.greyStale = true;
+      }
+      if (grey) {
+        // Through the filter once, into a texture: no filter runs in a frame.
+        const old = chunk.grey.texture;
+        chunk.grey.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution, true);
+        chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
+        if (old !== Texture.EMPTY) old.destroy(true);
+        chunk.greyStale = false;
+      }
       this.lastBakeMs = chunk.drawMs + (this.host.now() - start);
       chunk.drawMs = 0;
-      chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
-      if (old !== Texture.EMPTY) old.destroy(true);
-      chunk.dirty = false;
-      chunk.resolution = resolution;
     }
   }
 
@@ -1131,7 +1263,8 @@ export class Renderer implements FrameClient {
    * (`isRock`) shows the still `obstacleOf` gives it, placed as a prop (its base on the hex's
    * centre, at native size), sorted with the actors by that y; added and dropped as the revealed
    * walls change, never per frame. Beyond sight it is dimmed as the overlay dims the ground under
-   * it. Without the atlas, none: the bakes draw the rocks.
+   * it, and drawn from its still in grayscale under the view's fog (CLI-03n). Without the atlas,
+   * none: the bakes draw the rocks.
    */
   private syncObstacles(view: ViewState): void {
     if (this.obstacleArt.length === 0) return;
@@ -1154,11 +1287,14 @@ export class Renderer implements FrameClient {
         sprite.position.set(base.x, base.y);
         sprite.zIndex = base.y - 0.001;
         this.actorsLayer.addChild(sprite);
-        node = { sprite, name: choice.sprite };
+        node = { sprite, name: choice.sprite, texture };
         this.obstacleNodes.set(key, node);
       }
-      const tint = inSight.has(key) ? 0xffffff : DIM_TINT;
+      const now = inSight.has(key);
+      const tint = now ? 0xffffff : DIM_TINT;
       if (node.sprite.tint !== tint) node.sprite.tint = tint;
+      const texture = now || !this.fogOn ? node.texture : this.greyTexture(node.texture);
+      if (node.sprite.texture !== texture) node.sprite.texture = texture;
     }
     for (const [key, node] of this.obstacleNodes) {
       if (!seen.has(key)) {
@@ -1169,7 +1305,10 @@ export class Renderer implements FrameClient {
   }
 
   /** The obstacles drawn from the atlas, by hex (`"x,y"`): their sprite and still; for tests. */
-  obstacles(): ReadonlyMap<string, { readonly sprite: Sprite; readonly name: string }> {
+  obstacles(): ReadonlyMap<
+    string,
+    { readonly sprite: Sprite; readonly name: string; readonly texture: Texture }
+  > {
     return this.obstacleNodes;
   }
 

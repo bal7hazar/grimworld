@@ -26,7 +26,8 @@ export type GroundKind = "grass" | "water" | "earth";
 /**
  * A tile to draw. Whether it is seen now or seen before is not a field: `ViewState.sight` is the
  * one source of truth. A revealed tile in `sight` is seen now (drawn bright); every other revealed
- * tile was seen before (design/18: terrain of every revealed chunk, dimmed beyond sight).
+ * tile was seen before, dimmed (and in grayscale under `ViewState.fog`). In an instance a tile
+ * never in sight is sent as unrevealed, whatever its chunk (CLI-03n, `fog.ts`).
  */
 export interface ViewTile extends Tile {
   readonly kind: TileKind;
@@ -101,7 +102,10 @@ export interface ViewStructure {
 export interface ViewState {
   /** Every tile to draw: revealed terrain, and the unrevealed tiles next to it. */
   readonly tiles: readonly ViewTile[];
-  /** The actors to draw: the adventurer, and the goblins in sight only. */
+  /**
+   * The actors to draw: the adventurer, and the goblins it has seen the tile of (on an explored
+   * tile, CLI-03n); in a hub, every one.
+   */
   readonly actors: readonly ViewActor[];
   readonly adventurerId: number;
   /** The tiles in sight (radius 6 around the adventurer): the only record of "seen now". */
@@ -123,4 +127,10 @@ export interface ViewState {
    * and no lip toward it.
    */
   readonly void?: GroundKind;
+  /**
+   * Exploration by sight (CLI-03n, D-213): the revealed tiles beyond sight are drawn in grayscale,
+   * and the void within `sightRadius` of the adventurer in colour, as the tiles in sight. Absent
+   * (a hub, `?fog=full`, a view written by hand): everything in colour.
+   */
+  readonly fog?: { readonly sightRadius: number };
 }

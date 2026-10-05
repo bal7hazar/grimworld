@@ -28,7 +28,7 @@ function setup(world: SandboxWorld | string, playOnTap = true) {
     session.apply({ kind: "tile", tile });
   };
   const drawnAt = () => {
-    const actors = (surface.stage.children[0] as Container).children[3] as Container;
+    const actors = (surface.stage.children[0] as Container).children[5] as Container;
     const target = tileToPixel(adventurer().tile);
     return actors.children.some(
       (c) => Math.abs(c.position.x - target.x) < 1e-9 && Math.abs(c.position.y - target.y) < 1e-9,
@@ -97,7 +97,7 @@ describe("the walk of a planned path (design/02, design/11)", () => {
       stopped: "walk cancelled",
     });
     expect(session.state.dropped).toHaveLength(4);
-    const fading = (surface.stage.children[0] as Container).children[2] as Container;
+    const fading = (surface.stage.children[0] as Container).children[4] as Container;
     expect(fading.alpha).toBe(1);
     host.run(FADE_MS / 2);
     expect(fading.alpha).toBeGreaterThan(0);
