@@ -21,7 +21,8 @@
 //
 // Env: VERIFY_PORT (default 5199), VERIFY_CHANNEL, VERIFY_SHOTS_DIR (default the untracked
 // `.verify-out/`; D-73: never committed, attached or posted), VERIFY_PLACES (`zone,town,outpost`),
-// VERIFY_FRONTIER=0 to skip the frontier. The server inherits GRIMWORLD_ART_OUT.
+// VERIFY_FRONTIER=0 to skip the frontier, VERIFY_ROOT (the checkout whose dev server runs; the
+// frontier alone runs on a checkout without CLI-03o). The server inherits GRIMWORLD_ART_OUT.
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -31,8 +32,8 @@ import { chromium } from "playwright-core";
 const here = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.VERIFY_PORT ?? 5199);
 const base = `http://127.0.0.1:${port}`;
-const root = join(here, "..", "..");
-const places = (process.env.VERIFY_PLACES ?? "zone,town,outpost").split(",");
+const root = process.env.VERIFY_ROOT ?? join(here, "..", "..");
+const places = (process.env.VERIFY_PLACES ?? "zone,town,outpost").split(",").filter(Boolean);
 const shots = process.env.VERIFY_SHOTS_DIR ?? join(here, ".verify-out");
 mkdirSync(shots, { recursive: true });
 
@@ -42,7 +43,7 @@ const LAW_SHARE = 0.9;
 const TOLERANCE = 6;
 /** The frontier: a drop at most this is no lip; the positive control's is above `LIP_DROP`. */
 const NO_LIP = 15;
-const LIP_DROP = 30;
+const LIP_DROP = { colour: 30, grey: 20 };
 
 let failures = 0;
 function ok(condition, message) {
@@ -87,9 +88,12 @@ async function camera(room) {
   return { x, y, scale };
 }
 
+/** The canvas's box: `data-camera` is tile (0, 0)'s centre on the canvas. */
+const canvasBox = (room) => room.locator("canvas").first().boundingBox();
+
 async function onScreen(room, point) {
   const c = await camera(room);
-  const box = await room.boundingBox();
+  const box = await canvasBox(room);
   return { x: box.x + c.x + point.x * c.scale, y: box.y + c.y + point.y * c.scale };
 }
 
@@ -199,34 +203,49 @@ async function prepare(page, place) {
   }, place);
 }
 
-/** The screen point of the in-colour foam piece nearest the screen's centre, and its world point. */
+/**
+ * The world point to bring to the canvas's centre: among the in-colour foam pieces, the one whose
+ * window of the canvas's size holds the most diagonals of foam (so that neighbouring diagonals are
+ * on the screen), the nearest to the centre among equals.
+ */
 async function nearestFoam(page, room) {
   const c = await camera(room);
-  const box = await room.boundingBox();
-  const centre = {
-    x: (box.width / 2 - c.x) / c.scale,
-    y: (box.height / 2 - c.y) / c.scale,
-  };
-  return page.evaluate((centre) => {
-    let best = null;
-    for (const p of window.__foam.pieces) {
-      const n = p.points.length / 2;
-      let x = 0;
-      let y = 0;
-      for (let i = 0; i < n; i++) {
-        x += p.points[2 * i] / n;
-        y += p.points[2 * i + 1] / n;
+  const box = await canvasBox(room);
+  const view = { w: box.width / c.scale, h: box.height / c.scale };
+  const centre = { x: (box.width / 2 - c.x) / c.scale, y: (box.height / 2 - c.y) / c.scale };
+  return page.evaluate(
+    ({ centre, view }) => {
+      const { foam } = window.__geo;
+      const middles = window.__foam.pieces.map((p) => {
+        const n = p.points.length / 2;
+        let x = 0;
+        let y = 0;
+        for (let i = 0; i < n; i++) {
+          x += p.points[2 * i] / n;
+          y += p.points[2 * i + 1] / n;
+        }
+        return { x, y, d: foam.foamDiagonal(p.source) };
+      });
+      let best = null;
+      for (const m of middles) {
+        const diagonals = new Set();
+        for (const o of middles) {
+          if (Math.abs(o.x - m.x) < view.w * 0.4 && Math.abs(o.y - m.y) < view.h * 0.4)
+            diagonals.add(o.d);
+        }
+        const d = Math.hypot(m.x - centre.x, m.y - centre.y);
+        if (!best || diagonals.size > best.n || (diagonals.size === best.n && d < best.d))
+          best = { n: diagonals.size, d, x: m.x, y: m.y };
       }
-      const d = Math.hypot(x - centre.x, y - centre.y);
-      if (!best || d < best.d) best = { d, x, y };
-    }
-    return best;
-  }, centre);
+      return best;
+    },
+    { centre, view },
+  );
 }
 
 /** Drags the map so that a world point comes to the screen's centre. */
 async function bringToCentre(page, room, point) {
-  const box = await room.boundingBox();
+  const box = await canvasBox(room);
   const from = await onScreen(room, point);
   const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   // Small drags, from points away from the HUD.
@@ -280,10 +299,13 @@ async function samplePhase(page, png, cam, box) {
       };
       const water = window.__water;
       const samples = [];
-      const step = Math.max(2, Math.round(3 * k));
+      const step = Math.max(1, Math.round(k));
       for (let dy = 0; dy < image.height; dy += step) {
         for (let dx = 0; dx < image.width; dx += step) {
           const css = { x: (dx + 0.5) / k, y: (dy + 0.5) / k };
+          // The canvas only (a hub's sits between its HUD and its menu), a few pixels in.
+          if (css.x < box.x + 4 || css.y < box.y + 4) continue;
+          if (css.x > box.x + box.width - 4 || css.y > box.y + box.height - 4) continue;
           const w = {
             x: (css.x - box.x - cam.x) / cam.scale,
             y: (css.y - box.y - cam.y) / cam.scale,
@@ -292,30 +314,42 @@ async function samplePhase(page, png, cam, box) {
           const candidates = (window.__foam.byHex.get(key(over)) ?? []).filter((p) =>
             inside(p.points, w.x, w.y, -1e-6),
           );
-          if (candidates.length !== 1) continue;
-          const piece = candidates[0];
-          if (!inside(piece.points, w.x, w.y, 1.5)) continue;
-          const lx = w.x - piece.origin.x;
-          const ly = w.y - piece.origin.y;
-          const fx = lx - Math.floor(lx);
-          const fy = ly - Math.floor(ly);
-          if (fx < 0.25 || fx > 0.75 || fy < 0.25 || fy > 0.75) continue;
+          if (candidates.length === 0) continue;
+          // Well inside every covering piece, and inside an art pixel of each cell.
+          if (!candidates.every((p) => inside(p.points, w.x, w.y, 1.5))) continue;
+          const locals = candidates.map((p) => [w.x - p.origin.x, w.y - p.origin.y]);
+          const centred = locals.every(([lx, ly]) =>
+            [lx, ly].every((v) => v - Math.floor(v) >= 0.25 && v - Math.floor(v) <= 0.75),
+          );
+          if (!centred) continue;
           const i = 4 * (dy * image.width + dx);
           const seen = [data[i], data[i + 1], data[i + 2]];
-          const matches = window.__frames.map((frame) => {
+          const pixel = (f, [lx, ly]) => {
+            const frame = window.__frames[f];
             const j = 4 * (Math.floor(ly) * frame.width + Math.floor(lx));
-            const want = frame.data[j + 3] === 0 ? water : [...frame.data.slice(j, j + 3)];
-            return want.slice(0, 3).every((v, c) => Math.abs(v - seen[c]) <= TOLERANCE);
-          });
-          // A sample most frames explain (water in most) tells little of the phase.
-          if (matches.filter(Boolean).length > 8) continue;
+            return frame.data[j + 3] === 0 ? null : [...frame.data.slice(j, j + 3)];
+          };
+          // The pieces over one hex are drawn in the plan's order: the last opaque one shows.
+          const laws = { "q+r": "q+r", q: "q", r: "r", step: null };
+          const matches = {};
+          for (const [name, axis] of Object.entries(laws)) {
+            matches[name] = Array.from({ length: 16 }, (_, t) => {
+              let want = water;
+              for (let c = candidates.length - 1; c >= 0; c--) {
+                const d = axis ? foam.foamDiagonal(candidates[c].source, axis) : 0;
+                const got = pixel((((t + d) % 16) + 16) % 16, locals[c]);
+                if (got) {
+                  want = got;
+                  break;
+                }
+              }
+              return want.slice(0, 3).every((v, ch) => Math.abs(v - seen[ch]) <= TOLERANCE);
+            });
+          }
+          // A sample most clocks explain under the law (water in most) tells little of the phase.
+          if (matches["q+r"].filter(Boolean).length > 8) continue;
           samples.push({
-            d: {
-              q: foam.foamDiagonal(piece.source, "q"),
-              r: foam.foamDiagonal(piece.source, "r"),
-              "q+r": foam.foamDiagonal(piece.source, "q+r"),
-              step: 0,
-            },
+            diagonals: candidates.map((p) => foam.foamDiagonal(p.source, "q+r")),
             matches,
           });
         }
@@ -330,9 +364,7 @@ async function samplePhase(page, png, cam, box) {
 function fit(samples, law) {
   let best = { share: 0, tick: 0 };
   for (let t = 0; t < 16; t++) {
-    let n = 0;
-    for (const s of samples) if (s.matches[(((t + s.d[law]) % 16) + 16) % 16]) n += 1;
-    const share = n / samples.length;
+    const share = samples.filter((s) => s.matches[law][t]).length / samples.length;
     if (share > best.share) best = { share, tick: t };
   }
   return best;
@@ -383,11 +415,16 @@ async function diffOnFoam(page, a, b, cam, box) {
         differ += 1;
         const p = i / 4;
         const css = { x: ((p % A.w) + 0.5) / k, y: (Math.floor(p / A.w) + 0.5) / k };
-        const w = { x: (css.x - box.x - cam.x) / cam.scale, y: (css.y - box.y - cam.y) / cam.scale };
+        const w = {
+          x: (css.x - box.x - cam.x) / cam.scale,
+          y: (css.y - box.y - cam.y) / cam.scale,
+        };
         const hex = coords.pixelToTile(w);
         const hexes = ground.hexesWithin(hex, 1);
         const onFoam = hexes.some((h) =>
-          (window.__foam.byHex.get(key(h)) ?? []).some((piece) => near(piece.points, w.x, w.y, 1.5)),
+          (window.__foam.byHex.get(key(h)) ?? []).some((piece) =>
+            near(piece.points, w.x, w.y, 1.5),
+          ),
         );
         if (!onFoam) {
           off += 1;
@@ -408,12 +445,15 @@ const SIZES = [
 ];
 
 /** Close enough to read art pixels, wide enough to hold several diagonals of foam. */
-const ZOOM = { "1440x900": 8, "375x812": 4 };
+const ZOOM = { "1440x900": 6, "375x812": 4 };
 
 const url = (place, size, extra = "") =>
   place === "zone"
     ? `${base}/?fixture=zone&idle=0&zoom=${ZOOM[size]}${extra}`
     : `${base}/?hub=${place}&entry=0&idle=0&zoom=${ZOOM[size]}${extra}`;
+
+/** Captures where q + r explained more than either other axis by 10 points or more. */
+let axesTold = 0;
 
 async function animated(browser, place, size, viewport, touch) {
   const label = `${place} ${size}`;
@@ -431,7 +471,7 @@ async function animated(browser, place, size, viewport, touch) {
   const target = await nearestFoam(page, room);
   if (target) await bringToCentre(page, room, target);
   const cam = await camera(room);
-  const box = await room.boundingBox();
+  const box = await canvasBox(room);
   // Two captures about 100 ms apart.
   const a = await shot(page);
   await page.waitForTimeout(100);
@@ -450,7 +490,7 @@ async function animated(browser, place, size, viewport, touch) {
   ]) {
     const samples = await samplePhase(page, png, cam, box);
     const laws = Object.fromEntries(["q+r", "q", "r", "step"].map((l) => [l, fit(samples, l)]));
-    const diagonals = new Set(samples.map((s) => s.d["q+r"])).size;
+    const diagonals = new Set(samples.flatMap((s) => s.diagonals)).size;
     const others = Math.max(laws.q.share, laws.r.share, laws.step.share);
     console.log(
       `  measure ${label} ${n}: ${samples.length} samples over ${diagonals} diagonals; explained by q+r ${(100 * laws["q+r"].share).toFixed(1)} % (clock ${laws["q+r"].tick}), q ${(100 * laws.q.share).toFixed(1)} %, r ${(100 * laws.r.share).toFixed(1)} %, all in step ${(100 * laws.step.share).toFixed(1)} %`,
@@ -459,10 +499,15 @@ async function animated(browser, place, size, viewport, touch) {
       samples.length >= 30 && diagonals >= 3,
       `${label} ${n}: enough samples (${samples.length}) over several diagonals (${diagonals})`,
     );
+    // Along one row of sources (a hub's straight shore) q and q + r differ by a constant, a clock
+    // shift: they cannot be told apart there; the run must tell them apart somewhere (below).
     ok(
-      laws["q+r"].share >= LAW_SHARE && laws["q+r"].share > others,
-      `${label} ${n}: frame = clock + (q + r) explains ${(100 * laws["q+r"].share).toFixed(1)} % (≥ ${100 * LAW_SHARE} %, more than any other law's ${(100 * others).toFixed(1)} %)`,
+      laws["q+r"].share >= LAW_SHARE &&
+        laws["q+r"].share >= others &&
+        laws["q+r"].share >= laws.step.share + 0.1,
+      `${label} ${n}: frame = clock + (q + r) explains ${(100 * laws["q+r"].share).toFixed(1)} % (≥ ${100 * LAW_SHARE} %, ≥ every other law, ≥ all in step + 10 points: ${(100 * laws.step.share).toFixed(1)} %)`,
     );
+    if (laws["q+r"].share > Math.max(laws.q.share, laws.r.share) + 0.1) axesTold += 1;
   }
   ok(errors.length === 0, `${label}: no page error`);
   for (const e of errors) console.log(`  page error: ${e.split("\n").slice(0, 2).join(" | ")}`);
@@ -543,80 +588,92 @@ function watchTiles() {
 }
 
 /**
- * In the page: the zone's grounds, the tiles explored by the tiles stood on (their sight), the
- * tiles in sight now; and, for a land hex's side toward a hex, the screen points 1.5 and 12 CSS px
- * inside the land hex along that side (5 each).
+ * In the page: the zone's grounds, the tiles explored by the tiles stood on (their sight) and the
+ * tiles in sight now; every side between a land hex seen and a water hex on the screen, as the
+ * screen points 1.5 and 12 CSS px inside the land hex along that side (5 each), with what each hex
+ * is to the player. `listed` pairs (t-0124's) are described too.
  */
-async function frontierFacts(page, hero, pairs, cam, box) {
+async function frontierFacts(page, hero, listed, cam, box) {
   return page.evaluate(
-    async ({ hero, pairs, cam, box }) => {
+    async ({ hero, listed, cam, box }) => {
       const fixtures = await import("/src/sandbox/fixtures/index.ts");
       const places = await import("/src/sandbox/placeholders.ts");
       const coords = await import("/src/input/coords.ts");
+      const ground = await import("/src/render/ground.ts");
       const { terrain } = fixtures.fixtureNamed("zone");
       const key = (t) => `${t.x},${t.y}`;
+      const inside = (t) => t.x >= 0 && t.y >= 0 && t.x < terrain.width && t.y < terrain.height;
       const groundOf = (t) =>
-        t.x < 0 || t.y < 0 || t.x >= terrain.width || t.y >= terrain.height
-          ? "void"
-          : (terrain.ground?.[t.y * terrain.width + t.x] ?? "grass");
+        inside(t) ? (terrain.ground?.[t.y * terrain.width + t.x] ?? "grass") : "void";
       const explored = new Set();
       for (const s of window.__tiles.filter(Boolean)) {
         const [x, y] = s.split(",").map(Number);
         for (const t of places.tilesInSight(terrain, { x, y })) explored.add(key(t));
       }
       const inSight = new Set(places.tilesInSight(terrain, hero).map(key));
-      const out = [];
-      for (const [land, other] of pairs) {
+      const state = (t) =>
+        inSight.has(key(t)) ? "inSight" : explored.has(key(t)) ? "explored" : "unseen";
+      const screen = (w) => ({
+        x: box.x + cam.x + w.x * cam.scale,
+        y: box.y + cam.y + w.y * cam.scale,
+      });
+      const onCanvas = (p) =>
+        p.x > box.x + 20 &&
+        p.y > box.y + 20 &&
+        p.x < box.x + box.width - 20 &&
+        p.y < box.y + box.height - 20;
+      const describe = (land, other) => {
         const a = coords.tileToPixel(land);
         const b = coords.tileToPixel(other);
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const normal = { x: (a.x - mid.x) / 32, y: (a.y - mid.y) / 32 };
         const along = { x: -normal.y, y: normal.x };
         const side = 64 / Math.sqrt(3);
-        const point = (t, inward) => {
-          const css = inward / cam.scale; // CSS px inward, in world px
-          const w = {
-            x: mid.x + along.x * t * side + normal.x * css,
-            y: mid.y + along.y * t * side + normal.y * css,
-          };
-          return { x: box.x + cam.x + w.x * cam.scale, y: box.y + cam.y + w.y * cam.scale };
-        };
+        const point = (t, inward) =>
+          screen({
+            x: mid.x + along.x * t * side + (normal.x * inward) / cam.scale,
+            y: mid.y + along.y * t * side + (normal.y * inward) / cam.scale,
+          });
         const ts = [-0.3, -0.15, 0, 0.15, 0.3];
-        out.push({
+        return {
           land,
           other,
           landGround: groundOf(land),
           otherGround: groundOf(other),
-          landSeen: explored.has(key(land)),
-          otherSeen: explored.has(key(other)),
-          landInSight: inSight.has(key(land)),
-          otherInSight: inSight.has(key(other)),
+          landState: state(land),
+          otherState: state(other),
           edge: ts.map((t) => point(t, 1.5)),
           inner: ts.map((t) => point(t, 12)),
-        });
-      }
-      // Positive controls: land in sight beside water in sight, near the hero.
-      const controls = [];
-      for (const t of places.tilesInSight(terrain, hero)) {
-        if (groundOf(t) === "water" || groundOf(t) === "void") continue;
-        for (const n of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const o = { x: t.x + n[0], y: t.y + n[1] };
-          if (groundOf(o) === "water" && inSight.has(key(o))) controls.push([t, o]);
+        };
+      };
+      const sides = [];
+      for (let y = 0; y < terrain.height; y++) {
+        for (let x = 0; x < terrain.width; x++) {
+          const land = { x, y };
+          const g = groundOf(land);
+          if (g === "water" || state(land) === "unseen") continue;
+          if (!onCanvas(screen(coords.tileToPixel(land)))) continue;
+          for (let s = 0; s < 6; s++) {
+            const other = ground.acrossSide(land, s);
+            if (!inside(other)) continue;
+            const og = groundOf(other);
+            // A side toward water, or toward land never seen (the negative control).
+            if (og === "water" || state(other) === "unseen") sides.push(describe(land, other));
+          }
         }
       }
-      return { facts: out, controls: controls.slice(0, 8) };
+      const counts = {
+        explored: explored.size,
+        inSight: inSight.size,
+        stood: window.__tiles.length,
+      };
+      return { sides, counts, listed: listed.map(([l, o]) => describe(l, o)) };
     },
-    { hero, pairs, cam, box },
+    { hero, listed, cam, box },
   );
 }
 
-async function luminance(page, points) {
-  const png = await shot(page);
+async function luminance(page, points, png) {
   return page.evaluate(
     async ({ png, points }) => {
       const image = new Image();
@@ -689,6 +746,8 @@ const FRONTIER = [
   },
 ];
 
+let frontierLeaks = 0;
+
 async function frontier(browser) {
   const label = "frontier zone 1440x900";
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -704,39 +763,60 @@ async function frontier(browser) {
     if (!walked) continue;
     await page.waitForTimeout(500);
     const cam = await camera(room);
-    const box = await room.boundingBox();
-    const { facts, controls } = await frontierFacts(page, hero, pairs, cam, box);
-    const control = await frontierFacts(page, hero, controls, cam, box);
+    const box = await canvasBox(room);
+    const { sides, listed, counts } = await frontierFacts(page, hero, pairs, cam, box);
+    console.log(`  note ${label}: ${JSON.stringify(counts)}, ${sides.length} sides`);
     await page.screenshot({ path: join(shots, `frontier-${hero.x}-${hero.y}.png`) });
-    const drops = [];
-    for (const f of facts) {
-      const edge = await luminance(page, f.edge);
-      const inner = await luminance(page, f.inner);
-      const drop = median(inner.map((p) => p.l)) - median(edge.map((p) => p.l));
-      const state = `land ${f.landGround} ${f.landInSight ? "in sight" : f.landSeen ? "explored" : "unseen"}, beside ${f.otherGround} ${f.otherInSight ? "in sight" : f.otherSeen ? "explored" : "never seen"}`;
+    const png = await shot(page);
+    const drop = async (f) => {
+      const edge = await luminance(page, f.edge, png);
+      const inner = await luminance(page, f.inner, png);
+      return {
+        drop: median(inner.map((p) => p.l)) - median(edge.map((p) => p.l)),
+        edge: edge[2].hex,
+      };
+    };
+    for (const f of listed) {
+      const d = await drop(f);
       console.log(
-        `  measure ${label}: (${f.land.x}, ${f.land.y}) → (${f.other.x}, ${f.other.y}) ${state}: drop ${drop.toFixed(1)} (edge ${edge[2].hex}, inside ${inner[2].hex})`,
+        `  measure ${label} at (${hero.x}, ${hero.y}): t-0124's (${f.land.x}, ${f.land.y}) → (${f.other.x}, ${f.other.y}): land ${f.landState}, ${f.otherGround} ${f.otherState}; drop ${d.drop.toFixed(1)} (edge ${d.edge})`,
       );
-      if (f.landSeen && !f.otherSeen && f.otherGround === "water") {
-        drops.push(drop);
-        ok(drop <= NO_LIP, `${label}: no lip toward the water never seen (drop ${drop.toFixed(1)} ≤ ${NO_LIP})`);
+    }
+    const groups = {};
+    for (const f of sides) {
+      const kind =
+        f.otherGround === "water"
+          ? `toward water ${f.otherState === "unseen" ? "never seen" : "seen"}`
+          : "toward land never seen";
+      const look = f.landState === "inSight" ? "colour" : "grey";
+      const group = `${kind}, ${look}`;
+      (groups[group] ??= []).push((await drop(f)).drop);
+    }
+    for (const [group, drops] of Object.entries(groups)) {
+      console.log(
+        `  measure ${label} at (${hero.x}, ${hero.y}): ${group}: ${drops.length} sides, median drop ${median(drops).toFixed(1)} (min ${Math.min(...drops).toFixed(1)}, max ${Math.max(...drops).toFixed(1)})`,
+      );
+    }
+    for (const look of ["colour", "grey"]) {
+      const leak = groups[`toward water never seen, ${look}`];
+      const control = groups[`toward water seen, ${look}`];
+      if (leak) {
+        ok(
+          Math.max(...leak) <= NO_LIP,
+          `${label} at (${hero.x}, ${hero.y}), ${look}: no lip toward water never seen (${leak.length} sides, max drop ${Math.max(...leak).toFixed(1)} ≤ ${NO_LIP})`,
+        );
+      }
+      if (control) {
+        ok(
+          median(control) >= LIP_DROP[look],
+          `${label} at (${hero.x}, ${hero.y}), ${look}: the lip toward seen water stays (${control.length} sides, median drop ${median(control).toFixed(1)} ≥ ${LIP_DROP[look]})`,
+        );
       }
     }
-    ok(drops.length > 0, `${label}: ${drops.length} of ${facts.length} cases still face water never seen`);
-    const controlDrops = [];
-    for (const f of control.facts) {
-      const edge = await luminance(page, f.edge);
-      const inner = await luminance(page, f.inner);
-      controlDrops.push(median(inner.map((p) => p.l)) - median(edge.map((p) => p.l)));
-    }
-    console.log(
-      `  measure ${label}: positive controls (land beside water, both in sight): ${controlDrops.map((d) => d.toFixed(1)).join(", ")}`,
-    );
-    ok(
-      controlDrops.length > 0 && median(controlDrops) >= LIP_DROP,
-      `${label}: the lip toward water in sight stays (median drop ${median(controlDrops).toFixed(1)} ≥ ${LIP_DROP})`,
-    );
+    frontierLeaks += groups["toward water never seen, colour"]?.length ?? 0;
+    frontierLeaks += groups["toward water never seen, grey"]?.length ?? 0;
   }
+  ok(frontierLeaks > 0, `${label}: ${frontierLeaks} sides toward water never seen were sampled`);
   ok(errors.length === 0, `${label}: no page error`);
   for (const e of errors) console.log(`  page error: ${e.split("\n").slice(0, 2).join(" | ")}`);
   await context.close();
@@ -754,6 +834,9 @@ try {
       await still(browser, place, size, viewport, touch, "still");
       await still(browser, place, size, viewport, touch, "plain");
     }
+  }
+  if (places.length > 0) {
+    ok(axesTold > 0, `the axis q + r told apart from q and r on ${axesTold} captures`);
   }
   if (process.env.VERIFY_FRONTIER !== "0") {
     console.log("=== frontier ===");
