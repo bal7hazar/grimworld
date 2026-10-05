@@ -94,6 +94,14 @@ names of stills, never pixels (§7); CLI-09a writes none. A 15 × 15-chunk zone 
   `BINDINGS` binds or reserves; Ctrl+Z is undo on QWERTY (`KeyZ`) and AZERTY (`KeyW`, key `z`), and
   AZERTY's `KeyZ` with Ctrl (key `w`) is not; symbols by character (AZERTY's `=` and `-`, `[` with AltGr).
 
+## What was checked of the others
+
+The existing verify scripts, with `GRIMWORLD_ART_OUT=/home/claude/site/grimworld/current/art`, on this
+branch: `verify-ground`, `verify-chrome`, `verify-keys` and `verify-hud` printed `ALL CHECKS PASSED`.
+`verify-hubs` timed out once loading `/?hub=town&entry=300` while the pre-push hook's tests ran beside it;
+run again alone, `ALL CHECKS PASSED`. The lot changes no module they load; `vite.config.ts`'s second entry
+applies to `vite build` only.
+
 ## Choices made in this lot (reversible)
 
 1. **Overlays on a 2D canvas over the renderer's**, in its camera (`cameraState()`, redrawn on its
