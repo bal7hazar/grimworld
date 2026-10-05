@@ -339,3 +339,63 @@ entry is now `cell = [192, 256]`. Every other still cut from a strip was measure
 cell, but for the rubber duck, whose frames' ripples touch the cell edges (a pack artefact, a few
 pixels, left as it is). `clean.still` now refuses a cell whose width does not divide the sheet's width
 and warns when frame pixels touch the cell's left or right edge (the duck's warning is expected).
+
+# Part 3 — characters idle, a zone's pack art drawn by the renderer
+
+The owner, on the editor: "the characters are not animated: put them at least in their idle
+animation". The project manager: the same in the game's renderer for NPCs, if it is the same code.
+
+## 11. What exists now
+
+- **The renderer's figures** (`render/figures.ts`, `renderer.ts`). A `ViewStructure` may carry an
+  `animation` (`kind: "figure"`): a pack character. It loops that animation at the sprite's fps
+  (the pack's characters: 6 to 12 frames at 12 fps) on the actors' idle path: the scheduler's timed
+  wake-ups, at most `IDLE_MAX_FPS`, nothing while the page is hidden, frame 0 with idle animations
+  off (`?idle=0`). A frame is asked for only while an animated figure is on the screen (its sprite's
+  box against the camera's rectangle, as the foam's). Its phase comes from its hex, world position
+  only, as the foam's: `q + 3r` in axial coordinates. The six neighbours of a hex differ by ±1, ±2
+  or ±3 frames, never by a whole loop of 4 frames or more, so two characters side by side never
+  breathe in step. A frame of a figure only swaps its sprite's texture: no bake, no rebuild.
+- **What the view hides.** A structure (figure, building, prop) on a hex the view hides (an
+  instance's hex never in sight, or a chunk not revealed) is not drawn. Beyond sight it is dimmed as
+  the walls' obstacles are, and under the view's fog it shows its still, or frame 0 for a figure,
+  in grayscale, and asks for no frame. A game hub sends every tile in sight and no `revealed`: no
+  change there.
+- **A structure's node** is built again when its sprite, animation, mirror or covered hexes change.
+  Before, only a changed key or hex rebuilt it, so by the code a prop's variant changed in the
+  inspector would keep its old sprite until the set changed. Read from main's `syncStructures`, not
+  reproduced in a browser.
+- **The game's hubs.** Their figures and present adventurers are actors (`hubWorld.ts`, profession
+  sprites), not structures. They already loop their idle, phased by actor id, and that code is
+  unchanged. The new path serves the pack's characters, in the editor and its preview walk. The game
+  draws no pack character yet.
+- **The editor.** A character's kind has a `look` (a figure, `animation: "idle"`, mirrored on the
+  West facings). `editorView` sends the map's structures on a zone as on a town
+  (`structures: layers.objects ? townStructures(doc) : []`). The overlay draws no pack art any more:
+  `packSprites` and the overlay's `under` hook are removed, so nothing is drawn twice. The
+  placement's preview stays on the overlay (a character at frame 0). The palette's thumbnails stay
+  at frame 0. The editor's renderer now runs idle animations (`?idle=0` stops them). Its overlay is
+  redrawn after a renderer frame only when the camera or the size moved (`rendererDrew`): an idle
+  frame or a deferred bake leaves it as it is, and a new scene still redraws it.
+- **The zone's preview walk** (`walkWorld.ts`). On a zone as on a town, a building's footprint (but
+  its door) and a blocking prop's hex are walls, as the validation counts them (review t-0134 note
+  3). The pack's objects are drawn as structures, and the renderer draws no rock under them. A bridge
+  is drawn only (its walking waits for ENG-08b, D-217). With fog, an object on a chunk not revealed
+  yet is not drawn.
+- **Review t-0140 of #373.** The camera's notice is `editor/notice.ts` (`Notice`), tested for its
+  leading notice, its trailing notice and its timer cleared on destroy. `renderer.bakes.test.ts`
+  proves that every texture a deferred bake replaces is destroyed, frame by frame. CLI-09g's report
+  has the three corrections.
+- §1's Goblin Hut row now gives cell 192 × 256, 16 frames, 140 px, 5 hexes (review t-0141 of #372).
+
+## 12. Choices (reversible)
+
+1. **Characters as structures, not actors.** An actor carries a facing wedge, a mark, steps and
+   arcs, and its sprite is named by profession. A pack character is placed authoring data that
+   never moves, as a building is. Reverse: actors that take a sprite name, if characters ever walk.
+2. **The phase `q + 3r`**, not the foam's diagonal: on a diagonal, neighbours would share a frame.
+3. **Grey and still beyond sight under fog**, as the explored water is: no grey texture per frame.
+4. **The editor's overlay follows the camera, not every frame.** Its drawing is the same; it is
+   only not repeated when nothing it shows has moved.
+5. `editor.html` in `main.tsx:6`, `Editor.tsx:63` and brief O-1: left as they are. #371 is not merged
+   (open at the time of this lot).
