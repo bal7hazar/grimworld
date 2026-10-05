@@ -138,7 +138,7 @@ East to (41, 7), on the border; a test checks that the game's own anchor fails E
 
 | AC | Command | Result |
 |---|---|---|
-| The brief's row: each non-○ check passes and fails, each ○ check warns, the fixtures validate and walk | `pnpm --filter @grimworld/app test` (`validate.test.ts`, `fixtures.test.ts`, `objects.test.ts`) | 54 files: 53 passed, 1 skipped; 611 tests passed, 1 skipped |
+| The brief's row: each non-○ check passes and fails, each ○ check warns, the fixtures validate and walk | `pnpm --filter @grimworld/app test` (`validate.test.ts`, `fixtures.test.ts`, `objects.test.ts`) | 54 files: 53 passed, 1 skipped; 611 tests passed, 1 skipped (652 after merging main with CLI-09e part 1) |
 | The browser check at 1440 × 900, with the art and plain | `GRIMWORLD_ART_OUT=/home/claude/site/grimworld/current/art VERIFY_PORT=5287 node client/app/verify-editor.mjs` | `ALL CHECKS PASSED`, 117 checks in the two looks (the grid's phase included) |
 | The grid's cost (owner's feedback) | the same script's grid phase (`VERIFY_GRID_ONLY=1` runs it alone) | below, *The grid's figures* |
 | `lint`, `typecheck` | `pnpm --filter @grimworld/app lint`, `typecheck` | clean |
