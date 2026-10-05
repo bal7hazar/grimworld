@@ -18,8 +18,22 @@ const press = (code: string, key: string, extra: Partial<KeyLike> = {}): KeyLike
  * What each layout types on a physical key (`event.code` → `event.key`), for the keys the tests
  * press. On AZERTY, A/Q, Z/W and M move; the tool letters stay.
  */
-const QWERTY: Record<string, string> = { KeyA: "a", KeyQ: "q", KeyW: "w", KeyZ: "z", KeySemicolon: ";", KeyM: "m" };
-const AZERTY: Record<string, string> = { KeyA: "q", KeyQ: "a", KeyW: "z", KeyZ: "w", KeySemicolon: "m", KeyM: "," };
+const QWERTY: Record<string, string> = {
+  KeyA: "a",
+  KeyQ: "q",
+  KeyW: "w",
+  KeyZ: "z",
+  KeySemicolon: ";",
+  KeyM: "m",
+};
+const AZERTY: Record<string, string> = {
+  KeyA: "q",
+  KeyQ: "a",
+  KeyW: "z",
+  KeyZ: "w",
+  KeySemicolon: "m",
+  KeyM: ",",
+};
 
 /** §3: the letters at the same place with the same label on AZERTY and QWERTY. */
 const SAME_PLACE = "BCDEFGHIJKLNOPRSTUVXY".split("");
@@ -57,7 +71,9 @@ describe("the editor's keys (§3, AC-5)", () => {
   });
 
   it("no editor key by position is a code the game binds or reserves", () => {
-    const game = new Set(BINDINGS.flatMap((b) => b.matches).flatMap((m) => (m.code ? [m.code] : [])));
+    const game = new Set(
+      BINDINGS.flatMap((b) => b.matches).flatMap((m) => (m.code ? [m.code] : [])),
+    );
     const editor = EDITOR_BINDINGS.flatMap((b) => b.matches)
       .filter((m) => m.code && m.command.kind === "tool")
       .map((m) => m.code!);

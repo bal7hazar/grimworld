@@ -335,7 +335,10 @@ export class EditorCanvas {
           if (!event.ctrlKey && event.deltaX !== 0) {
             this.renderer.pan(-event.deltaX, -event.deltaY);
           } else {
-            this.renderer.zoomAt(Math.exp(-event.deltaY * Math.log(WHEEL_NOTCH) / 100), at(event));
+            this.renderer.zoomAt(
+              Math.exp((-event.deltaY * Math.log(WHEEL_NOTCH)) / 100),
+              at(event),
+            );
           }
           this.events.changed();
         },

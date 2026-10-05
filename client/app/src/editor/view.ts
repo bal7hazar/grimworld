@@ -47,7 +47,9 @@ export function editorView(doc: MapDocument, layers: Layers): ViewState {
       const i = y * width + x;
       const wall = doc.terrain[i] === WALL;
       const kind = wall ? (layers.obstacles ? "wall" : "unrevealed") : "floor";
-      tiles[i] = layers.ground ? { x, y, kind, ground: GROUND_KINDS[doc.ground[i]!] } : { x, y, kind };
+      tiles[i] = layers.ground
+        ? { x, y, kind, ground: GROUND_KINDS[doc.ground[i]!] }
+        : { x, y, kind };
     }
   }
   return {

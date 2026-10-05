@@ -207,18 +207,21 @@ function MapList({
   const [help, setHelp] = useState(false);
   const refresh = () => setEntries(drafts.list());
 
-  useEditorKeys((event) => {
-    const command = editorCommand(event);
-    if (command?.kind === "open") {
-      onOpenFile();
-      return true;
-    }
-    if (command?.kind === "help") {
-      setHelp(true);
-      return true;
-    }
-    return false;
-  }, !creating && !forgetting && !help);
+  useEditorKeys(
+    (event) => {
+      const command = editorCommand(event);
+      if (command?.kind === "open") {
+        onOpenFile();
+        return true;
+      }
+      if (command?.kind === "help") {
+        setHelp(true);
+        return true;
+      }
+      return false;
+    },
+    !creating && !forgetting && !help,
+  );
 
   return (
     <>
@@ -317,9 +320,7 @@ function MapList({
             refresh();
           }}
         >
-          <p>
-            “{forgetting.name}” is removed from this browser. A file downloaded before is kept.
-          </p>
+          <p>“{forgetting.name}” is removed from this browser. A file downloaded before is kept.</p>
         </Dialog>
       )}
       {help && <HelpDialog onClose={() => setHelp(false)} />}
@@ -652,10 +653,7 @@ function EditorScreen({
     // The outline is edited in place: the revision says when.
     [doc, columns, rows, revision],
   );
-  const records = useMemo(
-    () => (doc.outline ? outlineRecords(doc) : null),
-    [doc, revision],
-  );
+  const records = useMemo(() => (doc.outline ? outlineRecords(doc) : null), [doc, revision]);
 
   // The overlays.
   const brush = hover && inMap(doc, hover) ? session.footprint(hover) : [];
@@ -901,7 +899,11 @@ function EditorScreen({
                   data-layer={name}
                   checked={session.layers[name]}
                   disabled={name === "outline" && !session.zone}
-                  onChange={() => session.toggleLayer(name)}
+                  onChange={(e) => {
+                    session.toggleLayer(name);
+                    // A focused input takes every key (`ignoredTarget`): give the keys back.
+                    e.currentTarget.blur();
+                  }}
                 />{" "}
                 {LAYER_LABELS[name]}
               </label>
@@ -1000,7 +1002,9 @@ function ChunkCells({
           : records.masks.has(chunk)
             ? "border"
             : "whole";
-      cells.push(<span key={chunk} data-cell={cell} title={inside ? `chunk ${chunk}` : undefined} />);
+      cells.push(
+        <span key={chunk} data-cell={cell} title={inside ? `chunk ${chunk}` : undefined} />,
+      );
     }
   }
   return <div className="ed-chunks">{cells}</div>;

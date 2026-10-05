@@ -42,7 +42,8 @@ export function edgesWhere(
 
 /** The seams between chunks (§2.3), inside the map. */
 export function seamSegments(width: number, height: number): Segments {
-  const chunk = (i: number) => Math.floor((i % width) / CHUNK) + 100 * Math.floor(i / width / CHUNK);
+  const chunk = (i: number) =>
+    Math.floor((i % width) / CHUNK) + 100 * Math.floor(i / width / CHUNK);
   return edgesWhere(width, height, (i, other) => other >= 0 && chunk(i) !== chunk(other));
 }
 
@@ -87,6 +88,8 @@ export interface OverlayScene {
 
 /** Below this hex width on screen (CSS px), the grid is not drawn: it would be a grey wash. */
 export const GRID_MIN_PX = 7;
+/** Below this hex width on screen (CSS px), the outside is shaded by runs of a row. */
+export const RUN_BELOW_PX = 14;
 
 const COLOURS = {
   outside: "rgba(8, 8, 14, 0.55)",
@@ -112,7 +115,8 @@ export function drawOverlays(
   const hexPath = (tile: Tile, grow = 0) => {
     const corners = hexCorners(tileToPixel(tile), grow);
     ctx.moveTo(corners[0]! * scale + ox, corners[1]! * scale + oy);
-    for (let k = 2; k < 12; k += 2) ctx.lineTo(corners[k]! * scale + ox, corners[k + 1]! * scale + oy);
+    for (let k = 2; k < 12; k += 2)
+      ctx.lineTo(corners[k]! * scale + ox, corners[k + 1]! * scale + oy);
     ctx.closePath();
   };
   const each = (visit: (tile: Tile, index: number) => void) => {
@@ -120,13 +124,38 @@ export function drawOverlays(
       for (let x = range.x0; x <= range.x1; x++) visit({ x, y }, y * scene.width + x);
     }
   };
-  // Outside the outline: shaded (§2.5).
+  // Outside the outline: shaded (§2.5). Small hexes are shaded by runs of a row, one rectangle a
+  // row high from flat side to flat side: tens of thousands of hexes in a few hundred rectangles.
   if (scene.outline) {
     const outline = scene.outline;
     ctx.beginPath();
-    each((tile, i) => {
-      if (!outline[i]) hexPath(tile, 0.5);
-    });
+    if (TILE_WIDTH * scale >= RUN_BELOW_PX) {
+      each((tile, i) => {
+        if (!outline[i]) hexPath(tile, 0.5);
+      });
+    } else {
+      for (let y = range.y0; y <= range.y1; y++) {
+        let x = range.x0;
+        while (x <= range.x1) {
+          if (outline[y * scene.width + x]) {
+            x += 1;
+            continue;
+          }
+          const start = x;
+          while (x <= range.x1 && !outline[y * scene.width + x]) x += 1;
+          // x grows West: the run's right edge is its first hex's East side.
+          const right = tileToPixel({ x: start, y }).x + TILE_WIDTH / 2;
+          const top = tileToPixel({ x: start, y }).y - ROW_HEIGHT / 2;
+          const width = (x - start) * TILE_WIDTH;
+          ctx.rect(
+            (right - width) * scale + ox,
+            top * scale + oy,
+            width * scale,
+            ROW_HEIGHT * scale,
+          );
+        }
+      }
+    }
     ctx.fillStyle = COLOURS.outside;
     ctx.fill();
   }

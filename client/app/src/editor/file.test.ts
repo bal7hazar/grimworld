@@ -105,11 +105,13 @@ describe("the file", () => {
     expect(problem(text({ format: "other" }))).toMatch(/not a Grim World map/);
     expect(problem("{")).toMatch(/not JSON/);
     const layers = good.layers as Record<string, string[]>;
+    expect(problem(text({ layers: { ...layers, terrain: layers.terrain!.slice(1) } }))).toMatch(
+      /15 rows/,
+    );
     expect(
-      problem(text({ layers: { ...layers, terrain: layers.terrain!.slice(1) } })),
-    ).toMatch(/15 rows/);
-    expect(
-      problem(text({ layers: { ...layers, ground: ["x".repeat(15), ...layers.ground!.slice(1)] } })),
+      problem(
+        text({ layers: { ...layers, ground: ["x".repeat(15), ...layers.ground!.slice(1)] } }),
+      ),
     ).toMatch(/unknown character/);
     expect(problem(text({ map: { ...(good.map as object), width: 16 } }))).toMatch(/size/);
     expect(problem(text({ map: { ...(good.map as object), biome: null } }))).toMatch(/biome/);

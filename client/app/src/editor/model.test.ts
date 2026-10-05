@@ -79,7 +79,9 @@ describe("indices (§4.1)", () => {
       { x: 0, y: 0 },
       { x: 44, y: 29 },
     ]) {
-      const fromTable = [...table.slice(at(doc, tile.x, tile.y) * 6, at(doc, tile.x, tile.y) * 6 + 6)]
+      const fromTable = [
+        ...table.slice(at(doc, tile.x, tile.y) * 6, at(doc, tile.x, tile.y) * 6 + 6),
+      ]
         .filter((i) => i >= 0)
         .sort((a, b) => a - b);
       const expected = hexesWithin(tile, 1)

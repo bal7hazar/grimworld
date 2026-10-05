@@ -21,7 +21,10 @@ describe("the tools on strokes (§3)", () => {
     s.choose("terrain", FLOOR);
     s.setBrush(1);
     s.strokeStart({ x: 10, y: 10 }, { erase: false, alt: false });
-    s.strokeMove([{ x: 11, y: 10 }, { x: 12, y: 10 }]);
+    s.strokeMove([
+      { x: 11, y: 10 },
+      { x: 12, y: 10 },
+    ]);
     s.strokeEnd();
     expect(doc.terrain.reduce((n, v) => n + (v === FLOOR ? 1 : 0), 0)).toBe(13);
     s.setBrush(0);
@@ -123,7 +126,11 @@ describe("drafts (O-5)", () => {
     const store = new Drafts(memory());
     const a = zone();
     store.put("a", a, new Date("2026-10-05T10:00:00Z"));
-    store.put("b", createMap({ ...a.meta, name: "Other", biome: "cave" }), new Date("2026-10-05T11:00:00Z"));
+    store.put(
+      "b",
+      createMap({ ...a.meta, name: "Other", biome: "cave" }),
+      new Date("2026-10-05T11:00:00Z"),
+    );
     expect(store.list().map((e) => e.id)).toEqual(["b", "a"]);
     expect(store.get("a")).toEqual(a);
     store.forget("b");

@@ -328,7 +328,10 @@ export function fill(doc: MapDocument, start: Tile, swatch: Swatch): Change[] {
 }
 
 /** Pick (§3): the hex's terrain and ground. */
-export function pick(doc: MapDocument, tile: Tile): { terrain: TerrainValue; ground: number } | null {
+export function pick(
+  doc: MapDocument,
+  tile: Tile,
+): { terrain: TerrainValue; ground: number } | null {
   if (!inMap(doc, tile)) return null;
   const i = indexOf(doc, tile);
   return { terrain: doc.terrain[i] as TerrainValue, ground: doc.ground[i]! };
@@ -396,7 +399,11 @@ export function outlineRecords(doc: MapDocument): OutlineRecords {
   const masks = new Map<number, readonly number[]>();
   for (const chunk of chunks) {
     const tiles = inside.get(chunk)!;
-    if (tiles.length < CHUNK * CHUNK) masks.set(chunk, [...tiles].sort((a, b) => a - b));
+    if (tiles.length < CHUNK * CHUNK)
+      masks.set(
+        chunk,
+        [...tiles].sort((a, b) => a - b),
+      );
   }
   return { chunks, masks };
 }

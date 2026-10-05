@@ -46,7 +46,11 @@ export interface MapFile {
     readonly ground: readonly string[];
     readonly outline: readonly string[] | null;
   };
-  readonly obstacles: readonly { readonly x: number; readonly y: number; readonly sprite: string }[];
+  readonly obstacles: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly sprite: string;
+  }[];
 }
 
 function rows(values: Uint8Array, width: number, chars: readonly string[]): string[] {
@@ -145,7 +149,8 @@ function readLayer(
   height: number,
   chars: readonly string[],
 ): Uint8Array | string {
-  if (!Array.isArray(raw) || raw.length !== height) return `layer ${name} does not have ${height} rows`;
+  if (!Array.isArray(raw) || raw.length !== height)
+    return `layer ${name} does not have ${height} rows`;
   const values = new Uint8Array(width * height);
   for (let y = 0; y < height; y++) {
     const row = raw[y];
@@ -208,7 +213,9 @@ export function loadMap(text: string): LoadResult {
       !isWhole(pin.y, 0, height - 1) ||
       typeof pin.sprite !== "string"
     ) {
-      return { problem: "The file is refused: an obstacle pin is not { x, y, sprite } in the map." };
+      return {
+        problem: "The file is refused: an obstacle pin is not { x, y, sprite } in the map.",
+      };
     }
     obstacles.set(pin.y * width + pin.x, pin.sprite);
   }

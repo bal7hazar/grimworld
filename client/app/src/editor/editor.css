@@ -12,7 +12,9 @@
   flex-direction: column;
   background: var(--ed-bg);
   color: var(--ed-text);
-  font: 0.875rem/1.4 system-ui, sans-serif;
+  font:
+    0.875rem/1.4 system-ui,
+    sans-serif;
 }
 .ed-root button,
 .ed-root input,
