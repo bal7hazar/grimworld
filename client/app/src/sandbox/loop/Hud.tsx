@@ -2,7 +2,7 @@ import { type CSSProperties, memo, useRef } from "react";
 import { Bar, Icon, Panel, Portrait, useHudMode } from "../../chrome/Chrome";
 import { ADVENTURER, type AdventurerSheet } from "../fixtures/hubs";
 import { hudSheet, readParams } from "../params";
-import { hudModel } from "./hud";
+import { hudModel } from "./hudModel";
 
 let shown: AdventurerSheet | null = null;
 
