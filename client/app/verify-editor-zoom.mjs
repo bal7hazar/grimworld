@@ -9,8 +9,9 @@
 // its own process group and sends SIGTERM to that recorded group in `finally`.
 //
 // Env: VERIFY_PORT (default 5288), VERIFY_CHANNEL, VERIFY_ROOT (the checkout whose dev server runs;
-// default this one), VERIFY_ZOOM_BEFORE=1 (the renderer's defaults, as before CLI-09g: every chunk
-// baked again in the frame its zoom's resolution changes), VERIFY_ZOOM_BUDGET=<n> (another
+// default this one), VERIFY_ZOOM_BEFORE=1 (as before CLI-09g: the renderer's defaults, every chunk
+// baked again in the frame its zoom's resolution changes; every camera move told to the editor's
+// screen at once), VERIFY_ZOOM_BUDGET=<n> (another
 // `bakesPerFrame` than the editor's, to compare), VERIFY_ZOOM_GRID=0 (the grid's layer off, to
 // tell its share), VERIFY_ZOOM_SIDE=<n> (a painted n × n map instead of 225 × 225: past the
 // widest view, the window is rebuilt as the camera moves), VERIFY_ZOOM_TARGET=1 fails the run past the target (zooming: p95 under 100 ms,
@@ -119,10 +120,10 @@ function measure(page, name, n) {
         // Out by 3 % a frame for 30 frames, then back in: from 120 across to the widest and back.
         sweep: (k) => renderer.zoomAt(k % 60 < 30 ? 1 / 1.03 : 1.03, mid),
         pan: (k) => renderer.pan(k % 120 < 60 ? 6 : -6, 2 * Math.sin(k / 9)),
-        // A wheel's notches: in by 3 % a frame for 10 frames, then 20 still (the chunks are baked
-        // at the new zoom then); the next 30 out, and so on.
+        // A wheel's notches: by 5 % a frame for 10 frames, then 20 still (the chunks are baked at
+        // the new zoom then); in twice, out twice, and so on: from the widest to 2.65 times closer.
         steps: (k) => {
-          if (k % 30 < 10) renderer.zoomAt(Math.floor(k / 30) % 2 === 0 ? 1.03 : 1 / 1.03, mid);
+          if (k % 30 < 10) renderer.zoomAt(Math.floor(k / 60) % 2 === 0 ? 1.05 : 1 / 1.05, mid);
         },
       };
       const move = moves[name];
@@ -297,6 +298,9 @@ try {
       renderer.bakesPerFrame = Infinity;
       renderer.keepSharper = 1;
       renderer.rescaleAfterMs = 0;
+      // Every camera move told to the editor's screen at once, as before.
+      const { canvas } = window.__editor;
+      canvas.noticeMove = () => canvas.events.changed();
     });
   }
   if (process.env.VERIFY_ZOOM_GRID === "0") await page.locator('[data-layer="grid"]').uncheck();
@@ -331,9 +335,10 @@ try {
     await page.waitForTimeout(2000);
   };
   for (const [where, name, n] of [
+    // First, from the textures baked at the widest zoom: its zooms in bake them again.
+    ["widest", "steps", 240],
     ["widest", "zoom", 240],
     [120, "sweep", 240],
-    ["widest", "steps", 240],
     ["widest", "pan", 240],
     [120, "pan", 240],
   ]) {
