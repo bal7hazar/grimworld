@@ -273,7 +273,9 @@ export function walkStep(state: SandboxState): SandboxState {
   const walked: SandboxState = {
     ...state,
     world: { ...world, actors, terrain: revealed },
-    explored: isHub(world) ? state.explored : explore(state.explored, tilesInSight(revealed, step.tile)),
+    explored: isHub(world)
+      ? state.explored
+      : explore(state.explored, tilesInSight(revealed, step.tile)),
     path: state.path.slice(1),
     said: `${walk}: planned ${at(next)}, stepped to ${at(step.tile)}, facing ${step.facing}`,
   };

@@ -80,7 +80,12 @@ export async function createPixiSurface(
     render: () => app.render(),
     bake: (target, frame, bakeResolution, greyed) => {
       const generate = () =>
-        app.renderer.generateTexture({ target, frame, resolution: bakeResolution, antialias: false });
+        app.renderer.generateTexture({
+          target,
+          frame,
+          resolution: bakeResolution,
+          antialias: false,
+        });
       if (!greyed) return generate();
       if (!grey) {
         grey = new ColorMatrixFilter({ resolution: "inherit", antialias: "off" });

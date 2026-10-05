@@ -210,5 +210,4 @@ describe("the renderer's fog layers (CLI-03n)", () => {
     }
     expect(greyOf(0xff0000)).toBe(0x4d4d4d); // 0.3 × 255 = 76.5 → 77
   });
-
 });
