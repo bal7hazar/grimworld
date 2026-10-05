@@ -69,8 +69,7 @@ describe("renderer on demand (AC-2)", () => {
     // A step that explores bakes nothing (CLI-03n): the chunks hold the chain's tiles, and the
     // tiles never in sight are covered.
     expect(surface.bakes).toHaveLength(2);
-    // The grayscale twins: none in the first frame, which baked the colour; both in the next one
-    // drawn (the step's), never in a frame of their own.
+    // Their grayscale twins, once each.
     expect(surface.greyBakes).toHaveLength(2);
     tap(1, 0);
     host.run(1000);

@@ -110,6 +110,8 @@ interface ChunkBake {
   readonly grey: Sprite;
   /** Whether `grey` is older than `sprite`'s bake. */
   greyStale: boolean;
+  /** What `grey` is baked from: one quad of `sprite`'s texture. */
+  readonly greySource: Graphics;
   resolution: number;
   dirty: boolean;
   /** How long drawing its `graphics` took, in ms: part of its bake's time. */
@@ -400,7 +402,8 @@ export class Renderer implements FrameClient {
    * Exploration by sight (CLI-03n, `ViewState.fog`): the ground's grayscale twin, the void's
    * bands, its foam and each chunk baked grey (`Surface.bake`), never filtered in a frame; over it
    * the hexes in sight, each filled from the colour bake under it (the chunk's, or the void's
-   * bands and foam), first in the overlay's Graphics (`drawSight`). No mask: a stencil cost two
+   * bands and foam), first in the overlay's Graphics (`drawSight`). A twin is baked from its colour
+   * bake, in the same frame. No mask: a stencil cost two
    * draw calls and their state in every frame, and a Graphics of its own one more. The ground in
    * colour is not drawn under fog; without fog the twin is hidden.
    */
@@ -412,8 +415,14 @@ export class Renderer implements FrameClient {
   /** The tiles in sight, and the void's hexes within the sight's radius, that the overlay fills. */
   private sightTiles: readonly Tile[] = [];
   private sightVoid: readonly Tile[] = [];
-  /** Whether the overlay is older than the view, or (under fog) than the bakes its sight is filled from. */
+  /** Whether the overlay is older than the bakes its hexes in sight are filled from. */
   private overlayDirty = false;
+  /**
+   * Colour bakes replaced or dropped, destroyed once the overlay no longer fills from them
+   * (`flushRetired`): a texture destroyed under a Graphics that still holds it broke PixiJS's
+   * batch pool.
+   */
+  private retired: Texture[] = [];
   /** The void's bands, as `placeVoid` placed them: what a void hex in sight is filled with. */
   private voidBands: readonly Rectangle[] = [];
   /**
@@ -557,8 +566,8 @@ export class Renderer implements FrameClient {
     const hiddenChanged = hiddenKey !== this.hiddenKey;
     this.hiddenKey = hiddenKey;
     if (terrainChanged || hiddenChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
-    // Drawn in the next frame, after the bakes its sight is filled from (`drawSight`).
-    this.overlayDirty = true;
+    this.drawOverlay();
+    this.flushRetired();
     this.syncDropped(view, now);
     this.syncActors(view, now);
     const adventurer = view.actors.find((a) => a.id === view.adventurerId);
@@ -755,6 +764,7 @@ export class Renderer implements FrameClient {
     this.screen.destroy();
     this.world.destroy({ children: true });
     this.passRoot.destroy({ children: true });
+    this.flushRetired();
   }
 
   // --- frames -------------------------------------------------------------------------------
@@ -809,10 +819,8 @@ export class Renderer implements FrameClient {
 
   draw(): void {
     this.bakeTerrain();
-    if (this.overlayDirty && this.view) {
-      this.overlayDirty = false;
-      drawOverlay(this.overlay, this.view, this.fogOn ? (g) => this.drawSight(g) : undefined);
-    }
+    if (this.overlayDirty) this.drawOverlay();
+    this.flushRetired();
     const { centre, scale } = this.camera;
     const plan = this.mode === "sharp" ? this.offscreenPlan() : null;
     if (!plan) {
@@ -901,7 +909,7 @@ export class Renderer implements FrameClient {
    * Exploration by sight (CLI-03n): with the view's `fog`, the grayscale twin shows, and over it
    * the hexes in sight, and the void's hexes within the sight's radius of the adventurer (the void
    * has no tile in sight; without them a coast in sight would meet a grey sea). They change once a
-   * step; the overlay is drawn again in the next frame, from them (`drawSight`).
+   * step; the overlay is drawn with the view, from them (`drawSight`).
    */
   private syncFog(view: ViewState): void {
     const fog = view.fog ?? null;
@@ -925,6 +933,16 @@ export class Renderer implements FrameClient {
     }
     this.sightTiles = view.sight;
     this.sightVoid = voidHexes;
+  }
+
+  /**
+   * The overlay, and under fog the hexes in sight first: drawn with the view, as before CLI-03n,
+   * and again in a frame whose bakes replaced a texture its hexes in sight are filled from.
+   */
+  private drawOverlay(): void {
+    this.overlayDirty = false;
+    if (!this.view) return;
+    drawOverlay(this.overlay, this.view, this.fogOn ? (g) => this.drawSight(g) : undefined);
   }
 
   /**
@@ -1066,6 +1084,7 @@ export class Renderer implements FrameClient {
           sprite,
           grey,
           greyStale: true,
+          greySource: new Graphics(),
           resolution: 0,
           dirty: true,
           drawMs,
@@ -1275,6 +1294,7 @@ export class Renderer implements FrameClient {
           sprite,
           grey,
           greyStale: true,
+          greySource: new Graphics(),
           resolution: 0,
           dirty: true,
           drawMs,
@@ -1314,47 +1334,59 @@ export class Renderer implements FrameClient {
 
   private dropChunk(chunk: ChunkBake): void {
     chunk.graphics.destroy();
-    for (const sprite of [chunk.sprite, chunk.grey]) {
-      if (sprite.texture !== Texture.EMPTY) sprite.texture.destroy(true);
-      sprite.destroy();
-    }
+    chunk.greySource.destroy();
+    if (chunk.sprite.texture !== Texture.EMPTY) this.retired.push(chunk.sprite.texture);
+    if (chunk.grey.texture !== Texture.EMPTY) chunk.grey.texture.destroy(true);
+    chunk.sprite.destroy();
+    chunk.grey.destroy();
+  }
+
+  private flushRetired(): void {
+    for (const texture of this.retired) texture.destroy(true);
+    this.retired = [];
   }
 
   private bakeTerrain(): void {
-    const bakes = [...this.voidFoamBakes.values(), ...this.chunks.values()];
-    let baked = false;
     // The void's foam first: the last bake reported (`bakeMs`) is a chunk's when both bake.
-    for (const chunk of bakes) {
+    for (const chunk of [...this.voidFoamBakes.values(), ...this.chunks.values()]) {
       const resolution = this.bakeResolution(chunk.frame);
-      if (!chunk.dirty && resolution === chunk.resolution) continue;
+      const colour = chunk.dirty || resolution !== chunk.resolution;
+      // The grayscale twin only while the view has fog (CLI-03n); a hub never bakes it.
+      const grey = this.fogOn && (colour || chunk.greyStale);
+      if (!colour && !grey) continue;
       const start = this.host.now();
-      const old = chunk.sprite.texture;
-      chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
-      chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
-      if (old !== Texture.EMPTY) old.destroy(true);
-      chunk.dirty = false;
-      chunk.resolution = resolution;
-      chunk.greyStale = true;
-      this.overlayDirty = true;
+      if (colour) {
+        const old = chunk.sprite.texture;
+        chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+        chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
+        if (old !== Texture.EMPTY) this.retired.push(old);
+        chunk.dirty = false;
+        chunk.resolution = resolution;
+        chunk.greyStale = true;
+        // The overlay's hexes in sight are filled from the texture just replaced.
+        this.overlayDirty = true;
+      }
+      if (grey) {
+        // The colour bake through the filter, texel for texel: one quad, not the chunk's drawing
+        // again; into a texture, so that no filter runs in a frame. The quad is the chunk's, kept
+        // with it: a root destroyed right after its filtered bake broke PixiJS's batch pool.
+        const { frame } = chunk;
+        chunk.greySource
+          .clear()
+          .rect(frame.x, frame.y, frame.width, frame.height)
+          .fill({
+            texture: chunk.sprite.texture,
+            textureSpace: "global",
+            matrix: new Matrix().translate(frame.x, frame.y),
+          });
+        const old = chunk.grey.texture;
+        chunk.grey.texture = this.surface.bake(chunk.greySource, frame, resolution, true);
+        chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
+        if (old !== Texture.EMPTY) old.destroy(true);
+        chunk.greyStale = false;
+      }
       this.lastBakeMs = chunk.drawMs + (this.host.now() - start);
       chunk.drawMs = 0;
-      baked = true;
-    }
-    // The grayscale twins only while the view has fog (CLI-03n; a hub never bakes one), in the
-    // next frame drawn that baked nothing else, never in a frame of their own: a twin goes stale
-    // only when its chunk is baked (a reveal, a zoom), and a chunk just revealed is in sight; the
-    // step's pan draws the next frames. Until then the older twin, or none, shows.
-    if (!this.fogOn || baked) return;
-    for (const chunk of bakes) {
-      if (!chunk.greyStale) continue;
-      const start = this.host.now();
-      // Through the filter once, into a texture: no filter runs in a frame.
-      const old = chunk.grey.texture;
-      chunk.grey.texture = this.surface.bake(chunk.graphics, chunk.frame, chunk.resolution, true);
-      chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
-      if (old !== Texture.EMPTY) old.destroy(true);
-      chunk.greyStale = false;
-      this.lastBakeMs = this.host.now() - start;
     }
   }
 

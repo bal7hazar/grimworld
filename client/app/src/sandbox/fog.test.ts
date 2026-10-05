@@ -203,8 +203,8 @@ describe("the renderer's fog layers (CLI-03n)", () => {
     const inSight = textured(overlay);
     expect(inSight).toHaveLength(sightOf(start).length);
     for (const fill of inSight) expect(chunks.has(fill.texture)).toBe(true);
-    // The twins wait for the next frame drawn: not in the one that baked the colour.
-    expect(surface.greyBakes).toHaveLength(0);
+    // One twin a chunk, baked from its colour bake in the same frame; none again for a frame.
+    expect(surface.greyBakes).toHaveLength(surface.bakes.length);
     renderer.scheduler.invalidate();
     host.run(100);
     expect(surface.greyBakes).toHaveLength(surface.bakes.length);
