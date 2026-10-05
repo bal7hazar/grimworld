@@ -13,7 +13,6 @@ import {
   hexesOf,
   overlaps,
   recordOf,
-  walkFrom,
 } from "./records";
 
 const placed = (result: RecordResult): PlacedRecord => {
@@ -71,21 +70,36 @@ describe("a building's record (ENG-08: kind, footprint, anchor, door)", () => {
     const anchor = { x: 0, y: 0 };
     const castle = kindOf("castle");
     if (castle?.category !== "building") throw new Error("castle");
-    const footprint = footprintAt(castle, anchor);
     const west = sideOf(anchor, SIDE.west);
     expect(recordOf({ category: "building", kind: "castle", anchor, door: west })).toMatchObject({
       record: { door: west },
     });
-    // The hexes behind the front row's middle are surrounded by the footprint.
-    const inner = walkFrom(anchor, [SIDE.northWest]);
+    // Two rows behind the base: the two hexes behind the anchor are surrounded by the footprint.
+    const footprint = footprintAt(castle, anchor, 2);
+    expect(footprint).toHaveLength(14);
+    const inner = sideOf(anchor, SIDE.northWest);
     expect(doorSide(footprint, inner)).toBeNull();
-    expect(problem({ category: "building", kind: "castle", anchor, door: inner })).toBe(
+    expect(problem({ category: "building", kind: "castle", anchor, depth: 2, door: inner })).toBe(
       "the door (0, 1) is not on the footprint's border",
     );
     const off = sideOf(anchor, SIDE.southEast);
     expect(problem({ category: "building", kind: "castle", anchor, door: off })).toMatch(/border/);
-    expect(doorChoices(footprint)).toHaveLength(8);
+    expect(doorChoices(footprint)).toHaveLength(12);
     expect(doorChoices(footprint)).not.toContainEqual(inner);
+  });
+
+  it("covers the placement's depth, or the kind's", () => {
+    const anchor = { x: 2, y: 4 };
+    const size = (depth?: number) => {
+      const result = recordOf({ category: "building", kind: "inn", anchor, depth });
+      return "problem" in result || result.category !== "building"
+        ? null
+        : result.record.footprint.length;
+    };
+    expect([size(), size(0), size(1), size(2)]).toEqual([5, 3, 5, 8]);
+    expect(problem({ category: "building", kind: "inn", anchor, depth: -1 })).toBe(
+      "depth -1 is not 0 to 8",
+    );
   });
 
   it("opens a door toward the viewer first", () => {
@@ -196,8 +210,8 @@ describe("hexes, overlaps and the plane's bound", () => {
     const castle = placed(
       recordOf({ category: "building", kind: "castle", anchor: { x: 0, y: 0 } }),
     );
-    expect(hexesOf(castle)).toHaveLength(10);
-    const npc = placed(recordOf({ category: "npc", kind: "pig", hex: { x: 0, y: 2 }, facing: 0 }));
+    expect(hexesOf(castle)).toHaveLength(9);
+    const npc = placed(recordOf({ category: "npc", kind: "pig", hex: { x: 0, y: 1 }, facing: 0 }));
     expect(overlaps(castle, npc)).toBe(true);
     expect(overlaps(castle, bridge)).toBe(true);
     const far = placed(recordOf({ category: "npc", kind: "pig", hex: { x: 9, y: 9 }, facing: 0 }));

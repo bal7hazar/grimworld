@@ -1,14 +1,13 @@
+import { TILE_WIDTH, tileToPixel } from "../../input/coords";
 import type { Facing, Tile } from "../../render/view";
 import { inPlane, keyOf, sideOf } from "../model";
 import {
   type BridgeKind,
   type BuildingKind,
-  FOOTPRINTS,
   type Kind,
   type NpcKind,
   type PropKind,
   SIDE,
-  type Walk,
   kindOf,
 } from "./kinds";
 
@@ -31,8 +30,10 @@ export interface BuildingPlacement {
   readonly category: "building";
   readonly kind: string;
   readonly anchor: Tile;
-  /** A hex of the footprint's border; the kind's door when absent. */
+  /** A hex of the footprint's border; the anchor when absent. */
   readonly door?: Tile;
+  /** The rows covered behind the base row, 0 to 8; the kind's when absent (the hubs' `depth`). */
+  readonly depth?: number;
 }
 
 export interface PropPlacement {
@@ -102,16 +103,24 @@ const isFacing = (value: unknown): value is Facing =>
 
 const same = (a: Tile, b: Tile) => a.x === b.x && a.y === b.y;
 
-/** The hex a walk from `start` ends on. */
-export function walkFrom(start: Tile, walk: Walk): Tile {
-  let tile = start;
-  for (const side of walk) tile = sideOf(tile, side);
-  return tile;
-}
-
-/** A building's footprint hexes, its anchor first. */
-export function footprintAt(kind: BuildingKind, anchor: Tile): Tile[] {
-  return (FOOTPRINTS[kind.footprint] as readonly Walk[]).map((walk) => walkFrom(anchor, walk));
+/**
+ * A building's footprint: the hexes whose centres lie within half its width of its anchor's,
+ * across, on the anchor's row and `depth` rows behind (North), row by row. The hubs' rule
+ * (`sandbox/fixtures/hubWorld.ts`, `footprint`), so a town drawn in the editor covers what the game
+ * covers (CLI-09 O-6).
+ */
+export function footprintAt(kind: BuildingKind, anchor: Tile, depth = kind.depth): Tile[] {
+  const centre = tileToPixel(anchor).x;
+  const half = kind.width / 2;
+  const reach = Math.ceil(kind.width / TILE_WIDTH) + 1;
+  const tiles: Tile[] = [];
+  for (let d = 0; d <= depth; d++) {
+    const y = anchor.y + d;
+    for (let x = anchor.x - reach; x <= anchor.x + reach; x++) {
+      if (Math.abs(tileToPixel({ x, y }).x - centre) <= half + 1e-9) tiles.push({ x, y });
+    }
+  }
+  return tiles;
 }
 
 /** The order a door's outward side is chosen in: the viewer's sides first. */
@@ -190,8 +199,12 @@ function npcRecord(p: NpcPlacement, kind: NpcKind): RecordResult {
 }
 
 function buildingRecord(p: BuildingPlacement, kind: BuildingKind): RecordResult {
-  const footprint = footprintAt(kind, p.anchor);
-  const door = p.door ?? walkFrom(p.anchor, kind.door);
+  const depth = p.depth ?? kind.depth;
+  if (!(Number.isInteger(depth) && depth >= 0 && depth <= 8)) {
+    return { problem: `depth ${String(depth)} is not 0 to 8` };
+  }
+  const footprint = footprintAt(kind, p.anchor, depth);
+  const door = p.door ?? p.anchor;
   if (doorSide(footprint, door) === null) {
     return { problem: `the door (${door.x}, ${door.y}) is not on the footprint's border` };
   }

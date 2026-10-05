@@ -5,8 +5,7 @@
  * schema (track game decides, under D-215), and the converter alone writes the walkable plane.
  *
  * Hex sides are numbered as `sideOf` walks them (`../model.ts`): 0 South-East, 1 South-West,
- * 2 West, 3 North-West, 4 North-East, 5 East. A shape is a list of walks from the anchor, one walk
- * a list of sides, so it holds on odd and even rows alike.
+ * 2 West, 3 North-West, 4 North-East, 5 East.
  */
 
 export type Category = "prop" | "building" | "npc" | "bridge";
@@ -20,36 +19,8 @@ export const SIDE = {
   east: 5,
 } as const;
 
-const { west, northWest, northEast, east } = SIDE;
-
-/** A walk from the anchor: the sides crossed, in order. `[]` is the anchor itself. */
-export type Walk = readonly number[];
-
-/**
- * Building footprints, by the art's visible width (the atlas cell less its 4 px margins): up to
- * 104 px one hex; up to 130 px the anchor and the two hexes behind it (the art's two hex widths);
- * up to 200 px a front row of three and two behind; past it a front row of three, four behind and
- * three behind those. The anchor is the front row's middle hex, where the sprite's base is drawn.
- */
-export const FOOTPRINTS = {
-  one: [[]],
-  three: [[], [northWest], [northEast]],
-  five: [[], [west], [east], [northWest], [northEast]],
-  ten: [
-    [],
-    [west],
-    [east],
-    [northWest, west],
-    [northWest],
-    [northEast],
-    [northEast, east],
-    [northWest, northWest],
-    [northWest, northEast],
-    [northEast, northEast],
-  ],
-} as const satisfies Record<string, readonly Walk[]>;
-
-export type FootprintName = keyof typeof FOOTPRINTS;
+/** The rows a building covers behind its base row by default: the hubs' (`DEFAULT_DEPTH`). */
+export const BUILDING_DEPTH = 1;
 
 interface KindBase {
   /** The kind id the editor's file and ENG-08's export carry: lower case, digits, `_`. */
@@ -71,13 +42,18 @@ export interface PropKind extends KindBase {
   readonly blocks: boolean;
 }
 
-/** A building: its sprite, its footprint and its door, a hex of the footprint's border. */
+/**
+ * A building: its sprite, the art's visible width in px (the pack's opaque columns, as the hubs'
+ * `BUILDINGS` table measures it) and the rows it covers behind its base row. Its footprint is the
+ * hubs' (`sandbox/fixtures/hubWorld.ts`, `footprint`): the hexes whose centres lie under its width,
+ * on its base row and `depth` rows behind. Its anchor, the base row's hex under its centre, is its
+ * door by default.
+ */
 export interface BuildingKind extends KindBase {
   readonly category: "building";
   readonly sprite: string;
-  readonly footprint: FootprintName;
-  /** The door by default: a walk from the anchor to a hex of the footprint's border. */
-  readonly door: Walk;
+  readonly width: number;
+  readonly depth: number;
 }
 
 /**
@@ -117,19 +93,13 @@ const prop = (
 const numbered = (stem: string, count: number) =>
   Array.from({ length: count }, (_, i) => `${stem}${i + 1}`);
 
-const building = (
-  id: string,
-  footprint: FootprintName,
-  sprite = id,
-  name = label(id),
-): BuildingKind => ({
+const building = (id: string, width: number, name = label(id)): BuildingKind => ({
   id,
   label: name,
   category: "building",
-  sprite,
-  footprint,
-  // The front row's middle hex: the door faces the viewer.
-  door: [],
+  sprite: id,
+  width,
+  depth: BUILDING_DEPTH,
 });
 
 const npc = (id: string, sprite: string, name = label(id)): NpcKind => ({
@@ -173,55 +143,55 @@ export const PROPS: readonly PropKind[] = [
 
 export const BUILDINGS: readonly BuildingKind[] = [
   // Blue, the one colour set (D-178).
-  building("castle", "ten"),
-  building("barracks", "five"),
-  building("archery", "five"),
-  building("monastery", "five"),
-  building("tower", "three"),
-  building("house1", "three", "house1", "House 1"),
-  building("house2", "three", "house2", "House 2"),
-  building("house3", "three", "house3", "House 3"),
+  building("castle", 312),
+  building("barracks", 184),
+  building("archery", 183),
+  building("monastery", 160),
+  building("tower", 120),
+  building("house1", 112, "House 1"),
+  building("house2", 128, "House 2"),
+  building("house3", 122, "House 3"),
   // `Buildings/Others/`.
-  building("abbey", "three"),
-  building("acueduct", "three"),
-  building("arbor", "three"),
-  building("barn", "three"),
-  building("bourgeois_house", "three"),
-  building("church", "three"),
-  building("cloister", "three"),
-  building("cottage", "three"),
-  building("farm", "three"),
-  building("forge", "three"),
-  building("fortress", "three"),
-  building("grain_silo", "one"),
-  building("hall_of_the_gods", "three"),
-  building("hotel", "three"),
-  building("hut", "one"),
-  building("inn", "three"),
-  building("market_hall", "three"),
-  building("pigsty", "three"),
-  building("postal_relay", "three"),
-  building("rural_house", "three"),
-  building("sacrificial_house", "three"),
-  building("small_house", "one"),
-  building("stable", "three"),
-  building("straw_hut", "one"),
-  building("tavern", "three"),
-  building("treehouse", "three"),
-  building("urban_house", "three"),
-  building("urban_inn", "three"),
-  building("washhouse", "three"),
-  building("watchtower", "one"),
-  building("watermill", "three"),
-  building("windmill", "three"),
-  // The extra pack's single buildings.
-  building("cave", "five"),
-  building("dead_tree", "ten", "dead_tree", "Hollow tree"),
-  building("fish_hut", "five"),
-  building("gnome_hut", "one"),
-  building("gnome_tower", "three"),
-  building("goblin_hut", "ten"),
-  building("pirate_tower", "three"),
+  building("abbey", 124),
+  building("acueduct", 124),
+  building("arbor", 116),
+  building("barn", 128),
+  building("bourgeois_house", 128),
+  building("church", 123),
+  building("cloister", 128),
+  building("cottage", 122),
+  building("farm", 126),
+  building("forge", 125),
+  building("fortress", 126),
+  building("grain_silo", 104),
+  building("hall_of_the_gods", 128),
+  building("hotel", 128),
+  building("hut", 100),
+  building("inn", 128),
+  building("market_hall", 127),
+  building("pigsty", 114),
+  building("postal_relay", 109),
+  building("rural_house", 122),
+  building("sacrificial_house", 116),
+  building("small_house", 100),
+  building("stable", 125),
+  building("straw_hut", 100),
+  building("tavern", 128),
+  building("treehouse", 128),
+  building("urban_house", 124),
+  building("urban_inn", 128),
+  building("washhouse", 106),
+  building("watchtower", 98),
+  building("watermill", 106),
+  building("windmill", 128),
+  // The extra pack's single buildings (an animated one at frame 0).
+  building("cave", 154),
+  building("dead_tree", 328, "Hollow tree"),
+  building("fish_hut", 147),
+  building("gnome_hut", 102),
+  building("gnome_tower", 124),
+  building("goblin_hut", 230),
+  building("pirate_tower", 108),
 ];
 
 export const NPCS: readonly NpcKind[] = [
@@ -287,7 +257,8 @@ const ID = /^[a-z][a-z0-9_]*$/;
 
 /**
  * What is wrong with a kind table: ids that repeat or are not lower case, a prop without art, a
- * facing prop without its six sprites, a door off its footprint, a deck shorter than one, or a
+ * facing prop without its six sprites, a building's width or depth out of range, a deck shorter
+ * than one, or a
  * sprite missing from `sprites` (the atlas's names) when given. Empty when sound.
  */
 export function kindTableProblems(table: readonly Kind[], sprites?: ReadonlySet<string>): string[] {
@@ -304,9 +275,11 @@ export function kindTableProblems(table: readonly Kind[], sprites?: ReadonlySet<
       }
     }
     if (kind.category === "building") {
-      const walks = FOOTPRINTS[kind.footprint] as readonly Walk[];
-      if (!walks.some((walk) => sameWalk(walk, kind.door))) {
-        problems.push(`${kind.id}: the door is not a hex of its footprint`);
+      if (!(Number.isInteger(kind.width) && kind.width >= 1 && kind.width <= 1024)) {
+        problems.push(`${kind.id}: a width of ${kind.width}`);
+      }
+      if (!(Number.isInteger(kind.depth) && kind.depth >= 0 && kind.depth <= 8)) {
+        problems.push(`${kind.id}: a depth of ${kind.depth}`);
       }
     }
     if (kind.category === "bridge" && !(Number.isInteger(kind.deck) && kind.deck >= 1)) {
@@ -319,8 +292,4 @@ export function kindTableProblems(table: readonly Kind[], sprites?: ReadonlySet<
     }
   }
   return problems;
-}
-
-function sameWalk(a: Walk, b: Walk): boolean {
-  return a.length === b.length && a.every((side, i) => side === b[i]);
 }

@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { tileToPixel } from "../../input/coords";
+import { BUILDINGS as HUB_BUILDINGS } from "../../sandbox/fixtures/hubs";
+import { DEFAULT_DEPTH, footprint } from "../../sandbox/fixtures/hubWorld";
 import { sideOf } from "../model";
 import {
   BRIDGES,
   BUILDINGS,
-  FOOTPRINTS,
+  BUILDING_DEPTH,
   KINDS,
   type Kind,
   NPCS,
@@ -15,7 +17,7 @@ import {
   kindTableProblems,
   spritesOf,
 } from "./kinds";
-import { walkFrom } from "./records";
+import { footprintAt } from "./records";
 
 /** Every sprite name `tools/art/manifest.toml` builds into the map's pages, with its role. */
 function manifestSprites(): Map<string, string> {
@@ -103,8 +105,8 @@ describe("the kind table (CLI-09e)", () => {
         label: "x",
         category: "building",
         sprite: "hall",
-        footprint: "three",
-        door: [SIDE.east],
+        width: 0,
+        depth: 9,
       },
       { id: "hall", label: "x", category: "bridge", sprite: "b", deck: 0 },
     ];
@@ -112,7 +114,8 @@ describe("the kind table (CLI-09e)", () => {
       "Rock: not a kind id",
       "Rock: no art",
       "gun: a facing prop needs six sprites",
-      "hall: the door is not a hex of its footprint",
+      "hall: a width of 0",
+      "hall: a depth of 9",
       "hall: no sprite hall in the atlas",
       "hall: the id is used twice",
       "hall: a deck of 0",
@@ -143,29 +146,33 @@ describe("the footprints", () => {
     }
   });
 
-  it("are distinct hexes, the anchor first and lowest, the same shape on every row", () => {
-    const sizes: Record<string, number> = {};
-    for (const [name, walks] of Object.entries(FOOTPRINTS)) {
-      sizes[name] = walks.length;
-      let shape: string | null = null;
-      for (const anchor of anchors) {
-        const hexes = walks.map((walk) => walkFrom(anchor, walk));
-        expect(new Set(hexes.map((t) => `${t.x},${t.y}`)).size, name).toBe(hexes.length);
-        expect(hexes[0]).toEqual(anchor);
-        const base = tileToPixel(anchor);
-        // Every other hex at or behind the anchor's row (North is up on screen).
-        for (const tile of hexes) expect(tileToPixel(tile).y).toBeLessThanOrEqual(base.y);
-        const offsets = hexes
-          .map((t) => {
-            const p = tileToPixel(t);
-            return `${Math.round(p.x - base.x)},${Math.round(p.y - base.y)}`;
-          })
-          .sort()
-          .join(" ");
-        shape ??= offsets;
-        expect(offsets, name).toBe(shape);
+  it("are the hubs' footprints, for every building, depth and row parity (CLI-09 O-6)", () => {
+    expect(BUILDING_DEPTH).toBe(DEFAULT_DEPTH);
+    for (const kind of BUILDINGS) {
+      for (const at of anchors) {
+        for (const depth of [0, 1, 2]) {
+          const hub = footprint({ origin: { x: 7, y: 11 } }, { at, width: kind.width, depth });
+          expect(footprintAt(kind, at, depth), kind.id).toEqual(hub);
+        }
       }
     }
-    expect(sizes).toEqual({ one: 1, three: 3, five: 5, ten: 10 });
+  });
+
+  it("take the hubs' widths for the buildings the hubs draw", () => {
+    for (const [id, [width]] of Object.entries(HUB_BUILDINGS)) {
+      const kind = BUILDINGS.find((k) => k.id === id);
+      expect(kind?.width, id).toBe(width);
+    }
+  });
+
+  it("cover three hexes for the small ones, five at 128 px, nine for the castle", () => {
+    const size = (id: string) =>
+      footprintAt(
+        BUILDINGS.find((k) => k.id === id)!,
+        anchors[0]!,
+      ).length;
+    expect([size("watchtower"), size("hut"), size("cottage"), size("inn"), size("castle")]).toEqual(
+      [3, 3, 3, 5, 9],
+    );
   });
 });
