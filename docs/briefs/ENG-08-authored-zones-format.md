@@ -4,8 +4,9 @@
 > editor and exported in a format the chain can hold. Dungeons stay generated (rooms of several
 > kinds, mazes, caves, connected or not, in the manner of Grimscape). Towns stay client-only (D-03,
 > D-202) but are drawn with the same editor. The owner's words: "Oui je confirme les cartes dessinées
-> des zones avec l'éditeur" (yes, I confirm the drawn maps of zones, with the editor). Its decision
-> file is to come (the orchestrator's bookkeeping).
+> des zones avec l'éditeur" (yes, I confirm the drawn maps of zones, with the editor). Record:
+> `docs/decisions/2026-10-05-zone-maps-editor.md` ("The format is track game's next design lot
+> after ENG-05. The editor is track CV's").
 > Order of the track: **ENG-05 merges first** (#348); then **ENG-08** (this lot: the design and the
 > format, documents plus a measured spike; profile impl-opus); then **ENG-09** (the engine lot: an
 > authored zone's reveal reads its terrain from the Registry instead of generating it). A
@@ -104,6 +105,9 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
 - **What the fog is today** (ADR-0006 §2, amended by D-208): every chunk's word is fixed at entry;
   the fog is "0 chunks deep for a client that reads the chain". An authored zone's terrain is public
   before any instance: the format hides nothing the fog held, and the community can map a zone again.
+  **D-213** (`docs/decisions/2026-10-05-exploration-display.md`): the client draws a tile only once it
+  has entered the adventurer's sight; the chain still reveals whole chunks. An authored zone keeps
+  both rules: the export's layers are drawn under the same fog on the client.
 - **Towns** (D-03: hubs have no on-chain geometry; D-202: a hub is lived like a zone on the client):
   the editor draws them in the same format; nothing of a town's map goes on chain.
 - **The seed's format** (`contracts/seed/README.md`, `test-region.json`): flat arrays read by snforge's
@@ -212,8 +216,9 @@ and its costs in a spike, and leaves ENG-09 a design it can build without asking
   Anything else is an escalation. **Overlaps**: ENG-05 (#348) must have merged (ENG-01, ADR-0006 and
   the code the spike depends on); ENG-05b (bit-parallel placement, `contracts/logic/src/types/reveal*`,
   class sizes) may run beside: the spike reads, never edits, `contracts/`; a figure ENG-05b moves is
-  re-quoted at ENG-08's merge if ENG-05b merged first. Documents: whichever of ENG-08 and a
-  bookkeeping lot merges second merges `origin/main`.
+  re-quoted at ENG-08's merge if ENG-05b merged first. **CLI-03n** (track CV, D-213) also updates
+  design/18 (perception, display): ENG-08 edits only its zone rows and TP-2. Documents: whichever of
+  ENG-08, CLI-03n and a bookkeeping lot merges second merges `origin/main`.
 
 ## Interfaces
 - **Frozen, read only**: ENG-01 §3.2 (the chunk's stored words, `Instances`' layout), §5 (events,
