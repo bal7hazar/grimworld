@@ -7,7 +7,9 @@
 // reload within the draft's delay, a blur ends the Space pan mode. CLI-09b: the seed's zone and the
 // town, opened from their committed files, validate with no error; each object kind is placed,
 // selected and moved, copied and pasted, mirrored; a failing map is fixed; each is walked in the
-// preview with the game's keys and taps. Run by hand, not by CI:
+// preview with the game's keys and taps. CLI-09e part 2: the pack's four menus are opened, a
+// building, a character, a prop and a bridge placed, the character turned (R), a building's door
+// failed and fixed (E-20), the map saved and opened again from its file. Run by hand, not by CI:
 // `node verify-editor.mjs`. Starts the dev server as its own process group and sends SIGTERM to that
 // recorded group in `finally`. The server inherits GRIMWORLD_ART_OUT (the built atlas, D-73: never
 // committed).
@@ -16,7 +18,8 @@
 // with the art are never committed, attached or posted).
 //
 // Env: VERIFY_PORT (default 5199), VERIFY_CHANNEL, VERIFY_ROOT (the checkout whose dev server runs;
-// default this one), VERIFY_SHOTS_DIR.
+// default this one), VERIFY_SHOTS_DIR, VERIFY_PACK_ONLY=1 (the pack's phase alone, after the map
+// list).
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -160,6 +163,13 @@ async function run(browser, look) {
   await page.reload();
   await page.locator('[data-screen="list"]').waitFor();
   ok(await page.getByText("No draft yet.").isVisible(), "the map list opens, no draft");
+  if (process.env.VERIFY_PACK_ONLY === "1") {
+    await packPhase(page, look, shot);
+    ok(foreign.length === 0, `no request beyond the page's origin (${foreign.length})`);
+    ok(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
+    await context.close();
+    return;
+  }
 
   // Create: no size in the dialog (D-216).
   await page.locator("[data-new-map]").click();
@@ -335,6 +345,8 @@ async function run(browser, look) {
     return;
   }
   await objectsPhase(page, look, shot, text);
+  await page.getByRole("button", { name: "◂ Maps" }).click();
+  await packPhase(page, look, shot);
 
   // Below 700 px: one line.
   await page.setViewportSize({ width: 600, height: 900 });
@@ -664,6 +676,136 @@ async function objectsPhase(page, look, shot, text) {
       .map((o) => o.at),
   );
   await walkPhase(page, look, shot, "town", doors[0]);
+}
+
+/** The E findings of a check listed in the validation panel, after Y. */
+async function listed(page, check) {
+  await page.keyboard.press("y");
+  await page.locator(".ed-validation").waitFor();
+  const n = await page.locator(`[data-finding="${check}"]`).count();
+  await page.locator('.ed-validation button[aria-label="Close the panel"]').click();
+  return n;
+}
+
+/**
+ * CLI-09e part 2: the pack's palette. A new zone, a floor block painted (set up through the
+ * session); each menu opened; a building, a character, a prop and a bridge placed from the menus;
+ * the character turned with R; the building's door failed (a wall painted under it) and fixed (R
+ * takes the next door); the map saved, opened again from its file, and its pack objects kept.
+ */
+async function packPhase(page, look, shot) {
+  console.log(`--- ${look}: the pack's palette (CLI-09e part 2) ---`);
+  await page.locator("[data-new-map]").click();
+  await page.locator("#ed-name").fill(`Pack ${look}`);
+  await page.locator("[data-confirm]").click();
+  await page.locator('[data-canvas]:not([data-atlas="loading"])').waitFor();
+  await page.waitForFunction(() => window.__editor !== undefined);
+  await page.evaluate(() => {
+    const s = window.__editor.session;
+    s.choose("terrain", 0);
+    const tiles = [];
+    for (let y = 0; y < 16; y += 1) for (let x = 0; x < 24; x += 1) tiles.push({ x, y });
+    s.strokeStart({ x: 0, y: 0 }, { erase: false, alt: false });
+    s.strokeMove(tiles);
+    s.strokeEnd();
+  });
+  await page.waitForTimeout(300);
+  await page.keyboard.press("0");
+  await page.waitForTimeout(400);
+
+  // Each menu: its kinds, with their thumbnails when the atlas is served.
+  const menus = [
+    ["building", "Buildings"],
+    ["npc", "Characters"],
+    ["prop", "Props"],
+    ["bridge", "Bridges"],
+  ];
+  for (const [category, label] of menus) {
+    await page.locator(`[data-category="${category}"]`).click();
+    const grid = page.locator(`.ed-palette-grid[data-menu="${category}"]`);
+    await grid.waitFor();
+    const kinds = await grid.locator("[data-kind]").count();
+    const thumbs = await grid.locator("canvas").count();
+    ok(
+      kinds > 0 && (look === "art" ? thumbs === kinds : thumbs === 0),
+      `${label}: ${kinds} kinds, ${thumbs} thumbnails`,
+    );
+    await shot(`12-menu-${category}`);
+  }
+
+  const pick = async (category, kind, tile) => {
+    await page.locator(`[data-category="${category}"]`).click();
+    await page.locator(`.ed-palette-grid [data-kind="${kind}"]`).click();
+    const armed = await page
+      .locator(".ed-palette-grid [aria-pressed='true']")
+      .getAttribute("data-kind");
+    const p = await hexAt(page, tile);
+    await page.mouse.move(p.x, p.y);
+    await page.waitForTimeout(150);
+    if (category === "building") await shot("13-preview");
+    await page.mouse.click(p.x, p.y);
+    return armed;
+  };
+  const anchor = { x: 8, y: 4 };
+  ok((await pick("building", "barracks", anchor)) === "barracks", "Place armed with the barracks");
+  await pick("npc", "pawn", { x: 4, y: 10 });
+  await page.keyboard.press("r");
+  await page.keyboard.press("r");
+  await pick("prop", "tree", { x: 16, y: 10 });
+  await page.keyboard.press("h");
+  await pick("bridge", "stone_bridge", { x: 20, y: 3 });
+  const objects = await objectsOf(page);
+  const of = (kind) => objects.find((o) => o.kind === kind);
+  ok(
+    of("building")?.type === "barracks" && of("building")?.at.x === 8,
+    "a building placed: barracks at (8, 4)",
+  );
+  ok(
+    of("npc")?.type === "pawn" && of("npc")?.facing === 2,
+    `a character placed and turned twice (R): facing ${of("npc")?.facing}`,
+  );
+  ok(
+    of("scenery")?.type === "tree" && of("scenery")?.mirror === true,
+    "a prop placed, mirrored (H)",
+  );
+  ok(of("bridge")?.type === "stone_bridge", "a bridge placed");
+  ok((await listed(page, "E-20")) === 0, "the building's door is walkable: no E-20");
+  ok((await listed(page, "E-21")) === 0, "the character stands on floor: no E-21");
+  await page.waitForTimeout(300);
+  await shot("14-placed");
+
+  // Fail the door: a wall painted on it. Fix it: the building selected, R takes the next door.
+  await page.locator('[data-swatch="terrain-wall"]').click();
+  await clickHex(page, anchor);
+  await page.waitForTimeout(400);
+  ok((await listed(page, "E-20")) === 1, "a wall under the door: E-20 fails");
+  await page.keyboard.press("y");
+  await page.locator('[data-finding="E-20"]').waitFor();
+  await shot("15-door-fails");
+  await page.locator('.ed-validation button[aria-label="Close the panel"]').click();
+  await page.keyboard.press("u");
+  await clickHex(page, anchor);
+  await page.keyboard.press("r");
+  await page.waitForTimeout(400);
+  const door = (await objectsOf(page)).find((o) => o.kind === "building")?.door;
+  ok((await listed(page, "E-20")) === 0, `the door turned to ${door}: E-20 passes`);
+  await shot("16-door-fixed");
+
+  // Save, then open the file again.
+  const path = join(shots, `pack-${look}.grimmap.json`);
+  const saved = JSON.parse(await saveWith(page, path));
+  const packed = saved.objects.filter((o) =>
+    ["building", "npc", "scenery", "bridge"].includes(o.kind),
+  );
+  ok(packed.length === 4, `saved: ${packed.map((o) => `${o.kind} ${o.type}`).join(", ")}`);
+  const before = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
+  await page.locator("[data-open-file]").setInputFiles(path);
+  await page.locator('[data-canvas]:not([data-atlas="loading"])').waitFor();
+  await page.waitForFunction(() => window.__editor !== undefined);
+  await page.waitForTimeout(500);
+  const after = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
+  ok(after === before, "opened again from its file: the same objects");
+  await shot("17-reloaded");
 }
 
 let browser;

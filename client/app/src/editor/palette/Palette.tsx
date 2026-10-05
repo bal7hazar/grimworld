@@ -13,6 +13,8 @@ export interface PaletteProps {
   /** Called with the selected kind, or null when the selection is cleared. */
   readonly onSelect: (kind: Kind | null) => void;
   readonly initial?: PaletteState;
+  /** The kind the editor's Place is armed with, shown pressed instead of the palette's own. */
+  readonly armed?: string | null;
 }
 
 /**
@@ -20,12 +22,18 @@ export interface PaletteProps {
  * grid of kinds with their thumbnails; one kind selected at a time. Part 2 places it in the
  * editor's side panel and places the selected kind on the map.
  */
-export function Palette({ thumbs, onSelect, initial = INITIAL_PALETTE }: PaletteProps): ReactNode {
+export function Palette({
+  thumbs,
+  onSelect,
+  initial = INITIAL_PALETTE,
+  armed,
+}: PaletteProps): ReactNode {
   const [state, dispatch] = useReducer(
     (s: PaletteState, a: Parameters<typeof paletteStep>[1]) => paletteStep(s, a),
     initial,
   );
   const shown = kindsMatching(state.category, state.filter);
+  const pressed = armed === undefined ? state.selected : armed;
   const choose = (kind: Kind) => {
     const next = paletteStep(state, { type: "select", id: kind.id });
     dispatch({ type: "select", id: kind.id });
@@ -58,7 +66,7 @@ export function Palette({ thumbs, onSelect, initial = INITIAL_PALETTE }: Palette
           <button
             key={kind.id}
             type="button"
-            aria-pressed={state.selected === kind.id}
+            aria-pressed={pressed === kind.id}
             data-kind={kind.id}
             title={kind.label}
             onClick={() => choose(kind)}

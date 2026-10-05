@@ -4,7 +4,8 @@ import { CATEGORIES, INITIAL_PALETTE, kindsMatching, paletteStep } from "./menu"
 
 describe("the palette's menus (CLI-09e)", () => {
   it("has one menu per category", () => {
-    expect(CATEGORIES.map((c) => c.id)).toEqual(["prop", "building", "npc", "bridge"]);
+    expect(CATEGORIES.map((c) => c.id)).toEqual(["building", "npc", "prop", "bridge"]);
+    expect(CATEGORIES.map((c) => c.label)).toEqual(["Buildings", "Characters", "Props", "Bridges"]);
   });
 
   it("lists a category's kinds in the table's order, filtered by every word", () => {

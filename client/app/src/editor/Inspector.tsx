@@ -163,7 +163,7 @@ function ObjectFields({
               </label>
             );
           case "choice": {
-            const options = field.options(session.doc.meta);
+            const options = field.options(session.doc.meta, object);
             const current = String(value);
             // A value the list lacks (a file's) stays shown, as it is.
             const all = options.some(([v]) => v === current)

@@ -1,5 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyLike } from "../input/keys";
+import { loadAtlas } from "../render/atlas";
+import type { SpriteLibrary } from "../render/sprites";
 import type { Tile } from "../render/view";
 import { installKeys, keyScope } from "../sandbox/keyScope";
 import { type AtlasState, EditorCanvas } from "./canvas";
@@ -36,9 +38,19 @@ import {
   OBJECT_NAMES,
   type PlaceChoice,
   QUOTA_NAMES,
+  newObject,
   objectLabel,
   servicesOf,
 } from "./objects";
+import { PACK_KIND_OF, isPack, placementOf } from "./pack";
+import { drawSprites, packSprites, spritesFromLibrary } from "./packDraw";
+import {
+  Palette,
+  drawPreview,
+  kindOf as packKindOf,
+  previewOf,
+  thumbsFromLibrary,
+} from "./palette";
 import { type Marker, outlineSegments, outsideMask, seamSegments } from "./overlay";
 import { EditorSession, NOTHING } from "./session";
 import { type Finding, tally, validate } from "./validate";
@@ -615,6 +627,9 @@ function EditorScreen({
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<EditorCanvas | null>(null);
   const [atlas, setAtlas] = useState<AtlasState>("loading");
+  // The atlas's library for the palette's thumbnails and the overlay's pack art: the pages the
+  // canvas already loaded (PixiJS's `Assets` keeps them; nothing is fetched twice).
+  const [library, setLibrary] = useState<SpriteLibrary | null>(null);
   const [hover, setHover] = useState<Tile | null>(null);
   const [across, setAcross] = useState(0);
   const [saved, setSaved] = useState<{ at: Date | null; failed: boolean }>({
@@ -671,6 +686,19 @@ function EditorScreen({
       delete (window as unknown as Record<string, unknown>).__editor;
     };
   }, [doc, session, rerender]);
+
+  useEffect(() => {
+    if (atlas !== "loaded") return;
+    let gone = false;
+    void loadAtlas().then((made) => {
+      if (!gone) setLibrary(made);
+    });
+    return () => {
+      gone = true;
+    };
+  }, [atlas]);
+  const thumbs = useMemo(() => (library ? thumbsFromLibrary(library) : null), [library]);
+  const sprites = useMemo(() => (library ? spritesFromLibrary(library) : null), [library]);
 
   // The view: rebuilt when the document or the layers change, at most once a display frame.
   useEffect(() => {
@@ -744,6 +772,18 @@ function EditorScreen({
       ghost.push({ x: at.x + c.dx, y: at.y + c.dy });
     }
   }
+  // The pack's art the renderer does not draw (`packDraw.ts`), and the placement's preview.
+  const packArt = useMemo(
+    () => (layers.objects ? packSprites(doc, session.zone) : []),
+    [doc, revision, layers, session],
+  );
+  const preview = useMemo(() => {
+    if (!hover || walking || session.tool !== "place" || !session.placing.type) return null;
+    const object = newObject(session.placing, hover);
+    if (!isPack(object)) return null;
+    const look = previewOf(placementOf(object));
+    return { look, object };
+  }, [hover, walking, session.tool, session.placing]);
   useEffect(() => {
     canvas.current?.setScene({
       outside:
@@ -764,6 +804,27 @@ function EditorScreen({
       selected,
       box: session.box,
       ghost,
+      under:
+        sprites && packArt.length > 0
+          ? (ctx, camera, viewport) => drawSprites(ctx, camera, viewport, packArt, sprites)
+          : null,
+      over: preview
+        ? (ctx, camera, viewport) => {
+            drawPreview(ctx, camera, viewport, preview.look);
+            const { look, object } = preview;
+            if (sprites && look.sprite && !look.problem) {
+              const animation = object.kind === "npc" ? "idle" : "still";
+              drawSprites(
+                ctx,
+                camera,
+                viewport,
+                [{ sprite: look.sprite, animation, at: object.at, mirror: look.mirrored }],
+                sprites,
+                0.6,
+              );
+            }
+          }
+        : null,
     });
   });
 
@@ -926,6 +987,9 @@ function EditorScreen({
       case "mirror":
         session.mirror();
         return true;
+      case "turn":
+        session.turn();
+        return true;
       case "validate":
         validateNow();
         return true;
@@ -957,7 +1021,7 @@ function EditorScreen({
         : "Draft";
   const fillLabel = session.tool === "fill" && session.fillOutline ? "outline" : null;
   const swatches = objectSwatches(doc);
-  const placing = swatches.find((s) => sameChoice(s.choice, session.placing));
+  const swatch = swatches.find((s) => sameChoice(s.choice, session.placing));
   const armed = session.pasting
     ? "Paste: click to land, right click or Esc to cancel"
     : session.tool === "paint"
@@ -965,7 +1029,7 @@ function EditorScreen({
       : session.tool === "fill"
         ? `Fill: ${fillLabel ?? (session.group === "terrain" ? (session.terrain === WALL ? "Wall" : "Floor") : GROUND_KINDS[session.ground])}`
         : session.tool === "place"
-          ? `Place: ${placing?.label ?? OBJECT_NAMES[session.placing.kind]}`
+          ? `Place: ${packKindOf(session.placing.type ?? "")?.label ?? swatch?.label ?? OBJECT_NAMES[session.placing.kind]}`
           : TOOLS.find((t) => t.tool === session.tool)!.label;
   const box = paintedBox(doc);
 
@@ -1099,6 +1163,14 @@ function EditorScreen({
               </span>
             )}
           </div>
+          <div className="ed-heading">The pack</div>
+          <Palette
+            thumbs={thumbs}
+            armed={session.tool === "place" ? (session.placing.type ?? null) : null}
+            onSelect={(kind) => {
+              if (kind) session.choosePlace({ kind: PACK_KIND_OF[kind.category], type: kind.id });
+            }}
+          />
           <div className="ed-heading">Brush</div>
           <div>
             {[0, 1, 2, 3].map((r) => (

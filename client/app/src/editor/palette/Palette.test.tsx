@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { BUILDINGS, PROPS } from "./kinds";
+import { BUILDINGS } from "./kinds";
 import { Palette } from "./Palette";
 
 describe("the palette component (CLI-09e)", () => {
@@ -10,8 +10,13 @@ describe("the palette component (CLI-09e)", () => {
       expect(html).toContain(`data-category="${category}"`);
     }
     expect(html).toContain('aria-label="Filter the kinds"');
-    expect(html.match(/data-kind="/g)).toHaveLength(PROPS.length);
-    expect(html).toContain('data-kind="cannon"');
+    // The brief's order (part 2): Buildings, Characters, Props, Bridges; Buildings open first.
+    expect(html.indexOf('data-category="building"')).toBeLessThan(
+      html.indexOf('data-category="npc"'),
+    );
+    expect(html).toContain(">Characters<");
+    expect(html.match(/data-kind="/g)).toHaveLength(BUILDINGS.length);
+    expect(html).toContain('data-kind="castle"');
     // Without an atlas, a kind shows its label alone.
     expect(html).not.toContain("<canvas");
   });
@@ -27,6 +32,19 @@ describe("the palette component (CLI-09e)", () => {
     expect(html.match(/data-kind="/g)).toHaveLength(BUILDINGS.length);
     expect(html).toMatch(/aria-pressed="true" data-kind="castle"/);
     expect(html).toMatch(/aria-pressed="true" data-category="building"/);
+  });
+
+  it("shows the kind the editor's Place is armed with as the pressed one (part 2)", () => {
+    const html = renderToStaticMarkup(
+      <Palette
+        thumbs={null}
+        onSelect={() => {}}
+        armed="tower"
+        initial={{ category: "building", filter: "", selected: "castle" }}
+      />,
+    );
+    expect(html).toMatch(/aria-pressed="true" data-kind="tower"/);
+    expect(html).toMatch(/aria-pressed="false" data-kind="castle"/);
   });
 });
 

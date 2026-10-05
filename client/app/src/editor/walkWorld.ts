@@ -168,7 +168,7 @@ export function townStructures(
       key: `${object.kind}:${id}`,
       ...look,
       at: at(object.at),
-      ...("mirror" in object && object.mirror ? { mirror: true } : {}),
+      ...((look.mirror ?? ("mirror" in object && object.mirror)) ? { mirror: true } : {}),
       covers: coversOf(object).map(at),
     });
   }

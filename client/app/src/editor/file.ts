@@ -26,6 +26,7 @@ import {
   type ObjectKind,
   QUOTA_KINDS,
   type Quota,
+  mapHolds,
   objectFrom,
 } from "./objects";
 
@@ -230,7 +231,7 @@ function readObject(raw: unknown, meta: MapMeta): MapObject | string {
     return `an object ${JSON.stringify(raw.kind)} at (${at.x}, ${at.y}) is not read`;
   }
   const zone = meta.kind === "zone";
-  if ((spec.map === "zone") !== zone) {
+  if (!mapHolds(zone, kind)) {
     return `a ${zone ? "zone" : "town or an outpost"} holds no ${object.kind}`;
   }
   return object;

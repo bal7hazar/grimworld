@@ -24,14 +24,17 @@ import {
   tileOfKey,
 } from "./model";
 import {
-  KINDS,
   type MapObject,
   type PlaceChoice,
   SINGLE,
+  kindOf,
+  mapHolds,
   mirrorable,
   movedBy,
   newObject,
 } from "./objects";
+import { buildingFootprint, doorOf, doorOffset } from "./pack";
+import { doorChoices, kindOf as packKindOf } from "./palette";
 import { DEFAULT_LAYERS, LAYER_NAMES, type Layers } from "./view";
 
 /** Which palette group Paint uses (§2.3). */
@@ -410,7 +413,7 @@ export class EditorSession {
    */
   placeAt(tile: Tile): void {
     const kind = this.placing.kind;
-    if ((KINDS[kind].map === "zone") !== this.zone) return;
+    if (!mapHolds(this.zone, kind)) return;
     const here = objectsAt(this.doc, tile).find((id) => this.doc.objects.get(id)!.kind === kind);
     if (here !== undefined) {
       this.select({ hexes: new Set(), objects: new Set([here]) }, tile);
@@ -424,8 +427,16 @@ export class EditorSession {
       id = single[0];
       this.step([{ object: id, before: single[1], after: { ...single[1], at: tile } }]);
     } else {
+      const object = newObject(this.placing, tile);
+      // A pack object whose record cannot be written (past the plane's bound) is not placed.
+      const record = kindOf(object).record?.(object);
+      if (record && "problem" in record) {
+        this.said = `Not placed: ${record.problem}.`;
+        this.onChange();
+        return;
+      }
       id = nextObjectId(this.doc);
-      this.step([{ object: id, before: null, after: newObject(this.placing, tile) }]);
+      this.step([{ object: id, before: null, after: object }]);
     }
     this.select({ hexes: new Set(), objects: new Set([id]) }, tile);
   }
@@ -594,6 +605,26 @@ export class EditorSession {
     this.step(changes);
   }
 
+  /**
+   * Turn (R): the selected characters and cannons a facing counter-clockwise, the other pack props
+   * to their next variant, the buildings' doors to the next hex of their footprint's border. One
+   * step.
+   */
+  turn(): void {
+    const changes: Change[] = [];
+    for (const id of this.selection.objects) {
+      const before = this.doc.objects.get(id);
+      const after = before && turned(before);
+      if (before && after) changes.push({ object: id, before, after });
+    }
+    if (changes.length === 0) {
+      this.said = "Turn: select a character, a pack prop or a pack building.";
+      this.onChange();
+      return;
+    }
+    this.step(changes);
+  }
+
   private pickAt(tile: Tile): void {
     const found = pick(this.doc, tile);
     if (!found) return;
@@ -677,5 +708,29 @@ export class EditorSession {
       this.selection = { hexes: this.selection.hexes, objects: new Set(objects) };
     }
     this.onChange();
+  }
+}
+
+/** An object turned by R, or null when it does not turn. */
+function turned(object: MapObject): MapObject | null {
+  switch (object.kind) {
+    case "npc":
+      return { ...object, facing: (object.facing + 1) % 6 };
+    case "scenery": {
+      const kind = packKindOf(object.type);
+      if (kind?.category !== "prop") return null;
+      if (kind.turn === "facing") return { ...object, facing: (object.facing + 1) % 6 };
+      if (kind.art.length < 2) return null;
+      return { ...object, variant: (object.variant + 1) % kind.art.length };
+    }
+    case "building": {
+      const choices = doorChoices(buildingFootprint(object));
+      if (choices.length === 0) return null;
+      const door = doorOf(object);
+      const i = door ? choices.findIndex((t) => t.x === door.x && t.y === door.y) : -1;
+      return { ...object, door: doorOffset(object.at, choices[(i + 1) % choices.length]!) };
+    }
+    default:
+      return null;
   }
 }

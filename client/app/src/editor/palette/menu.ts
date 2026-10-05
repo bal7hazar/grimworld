@@ -1,10 +1,10 @@
 import { type Category, KINDS, type Kind } from "./kinds";
 
-/** The palette's menus (CLI-09e): one per category, in this order. */
+/** The palette's menus (CLI-09e): one per category, in this order (part 2: the brief's). */
 export const CATEGORIES: readonly { readonly id: Category; readonly label: string }[] = [
-  { id: "prop", label: "Props" },
   { id: "building", label: "Buildings" },
-  { id: "npc", label: "NPCs" },
+  { id: "npc", label: "Characters" },
+  { id: "prop", label: "Props" },
   { id: "bridge", label: "Bridges" },
 ];
 
@@ -32,7 +32,7 @@ export interface PaletteState {
   readonly selected: string | null;
 }
 
-export const INITIAL_PALETTE: PaletteState = { category: "prop", filter: "", selected: null };
+export const INITIAL_PALETTE: PaletteState = { category: "building", filter: "", selected: null };
 
 export type PaletteAction =
   | { readonly type: "open"; readonly category: Category }
