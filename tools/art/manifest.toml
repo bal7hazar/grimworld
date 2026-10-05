@@ -556,6 +556,12 @@ origin = "Water foam, first frame"
 cell = 192
 cells = { c = [0, 0] }
 
+# The foam's animation (CLI-03o): the sheet's 16 cells of 192 x 192 along its one row, every one
+# whole and untrimmed, so each keeps the cell of frame 0 (`foam_c/still/00` stays as it is). Timing:
+# the pack's own, 100 ms a frame in the source `Water Foam.aseprite`, so 10 fps, looping. The frames
+# are `foam_c/loop/00` to `foam_c/loop/15`.
+animations = { loop = { cell = "c", frames = 16, fps = 10, loop = true } }
+
 # ---------------------------------------------------------------- interface (CLI-03i)
 # The client's chrome, from the pack's `UI Elements` (artpipe/ui.py; README *UI elements*). Packed
 # on their own page(s), `atlas-ui-N`, which the map never loads. `kind`: "nine" (a nine-slice),

@@ -330,7 +330,8 @@ def main(opts):
             origins[sprite["name"]] = ts["origin"]
             report["tiles"][sprite["name"]] = {
                 "role": TILE_ROLE, "origin": ts["origin"], "cell": [sprite["cell_w"]] * 2,
-                "baseline": 0}
+                "baseline": 0,
+                "animations": {a["name"]: len(a["cells"]) for a in sprite["anims"]}}
     report["ui"], elements = {}, []
     for e in manifest.get("ui", []):
         sprite, line = ui.element(e, lambda f: read_rgba(ASSETS / f), s["ui_edge"])
@@ -441,6 +442,38 @@ def tileset_problems(manifest):
             if not (isinstance(at, list) and len(at) == 2 and all(
                     isinstance(v, int) and v >= 0 for v in at)):
                 problems.append(f"[[tileset]] {name}: cell {cell} {at!r} is not [column, row]")
+        problems += tile_animation_problems(name, cells, ts.get("animations"))
+    return problems
+
+
+def tile_animation_problems(name, cells, animations):
+    """The optional `animations` of a `[[tileset]]` (CLI-03o): `{animation = {cell, frames, fps,
+    loop}}`, an animation of the named cell and the `frames - 1` cells after it on its row; `loop`
+    defaults to true. The name is not the still's (`STILL_ANIM`), `cell` is one of the entry's
+    cells, `frames` and `fps` are positive integers. Returns the list of problems."""
+    if animations is None:
+        return []
+    if not isinstance(animations, dict) or not animations:
+        return [f"[[tileset]] {name}: animations {animations!r} is not a table of animations"]
+    problems = []
+    for anim, a in animations.items():
+        where = f"[[tileset]] {name}: animation {anim!r}"
+        if anim == STILL_ANIM:
+            problems.append(f"{where}: the name is the still's")
+        if not isinstance(a, dict):
+            problems.append(f"{where}: {a!r} is not a table")
+            continue
+        if a.get("cell") not in cells:
+            problems.append(f"{where}: cell {a.get('cell')!r} is not one of the entry's cells")
+        for key in ("frames", "fps"):
+            v = a.get(key)
+            if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+                problems.append(f"{where}: {key} {v!r} is not a positive integer")
+        if not isinstance(a.get("loop", True), bool):
+            problems.append(f"{where}: loop {a.get('loop')!r} is not true or false")
+        extra = set(a) - {"cell", "frames", "fps", "loop"}
+        if extra:
+            problems.append(f"{where}: unknown keys {', '.join(sorted(extra))}")
     return problems
 
 
@@ -448,15 +481,25 @@ def tile_sprites(ts, path):
     """A tileset's cells as the atlas packs them: each a sprite of one cell, of the entry's `cell`
     side (TILE by default), untrimmed (an edge cell keeps its transparent part, so cells laid side
     by side meet exactly), anchored at its top-left corner, with one animation `still` of one
-    frame; its edges extruded into the gutter by `atlas.pack`."""
+    frame; its edges extruded into the gutter by `atlas.pack`.
+
+    A cell named by an entry's `animations` (CLI-03o) has those animations too: its `frames` whole
+    cells, the cell itself first and the ones after it on its row, each untrimmed like the still, so
+    every frame sits in the same cell box (the still is the animation's first frame again)."""
     from artpipe import clean
     side = ts.get("cell", TILE)
     out = []
     for cell, (column, row) in ts["cells"].items():
         rgba = clean.tile(path, column, row, side)
+        anims = [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": [rgba]}]
+        for anim, a in (ts.get("animations") or {}).items():
+            if a["cell"] == cell:
+                anims.append({"name": anim, "fps": a["fps"], "loop": a.get("loop", True),
+                              "cells": [clean.tile(path, column + i, row, side)
+                                        for i in range(a["frames"])]})
         out.append({"name": f"{ts['name']}_{cell}", "role": TILE_ROLE, "cell_w": side,
                     "cell_h": side, "baseline": 0, "untrimmed": True, "anchor": (0, 0),
-                    "anims": [{"name": STILL_ANIM, "fps": 1, "loop": False, "cells": [rgba]}]})
+                    "anims": anims})
     return out
 
 
@@ -640,7 +683,9 @@ def print_report(report):
         print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'still':<8}"
               f"{r['page']}")
     for name, r in report.get("tiles", {}).items():
-        print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}{'tile':<8}"
+        frames = sum(n for a, n in r["animations"].items() if a != STILL_ANIM)
+        print(f"{name:<14}{r['role']:<11}{r['cell'][0]}x{r['cell'][1]:<5}"
+              f"{('tile' + (f' +{frames}' if frames else '')):<8}"
               f"{r['page']}")
     for name, r in report.get("ui", {}).items():
         centre = " ".join(f"{k} {v}" for k, v in r["centre"].items())

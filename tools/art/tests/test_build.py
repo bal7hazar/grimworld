@@ -588,6 +588,13 @@ class RealManifest(unittest.TestCase):
         self.assertEqual((foam["file"], foam["cell"], foam["cells"]),
                          ("Terrain/Tileset/Water Foam.png", 192, {"c": [0, 0]}))
 
+    def test_the_foam_animation(self):
+        """CLI-03o: the foam's 16 cells as `foam_c/loop`, 10 fps (the pack's 100 ms a frame)."""
+        foam = {ts["name"]: ts for ts in self.manifest["tileset"]}["foam"]
+        self.assertEqual(foam["animations"],
+                         {"loop": {"cell": "c", "frames": 16, "fps": 10, "loop": True}})
+        self.assertEqual(build.tileset_problems(self.manifest), [])
+
 
 @unittest.skipIf(np is None, "needs the venv (NumPy, Pillow)")
 class Stills(unittest.TestCase):
@@ -804,6 +811,82 @@ class Tiles(unittest.TestCase):
         self.assertEqual(f["anchor"], {"x": 0, "y": 0})
         r = f["frame"]
         self.assertTrue((packed[r["y"]:r["y"] + 192, r["x"]:r["x"] + 192] == img[:, :192]).all())
+
+    def test_an_animation_of_cells_along_a_row(self):
+        """CLI-03o: `animations` cuts `frames` whole cells from the named cell to the right, in
+        order, untrimmed and in the same cell box, beside the still; the page's JSON lists the
+        frames, the animation and its rate."""
+        frames = 4
+        img = np.zeros((48, 48 * (frames + 1), 4), np.uint8)
+        for i in range(frames):
+            x = 48 * i + 10 + 5 * i                    # a different square in each cell
+            img[10:20, x:x + 8] = (200, 220, 255, 255)
+        img[:, 48 * frames:] = (255, 0, 0, 255)        # the cell after the strip: never cut
+        ts = {"name": "foam", "role": "tile", "file": "Foam.png", "origin": "synthetic",
+              "cell": 48, "cells": {"c": [0, 0]},
+              "animations": {"loop": {"cell": "c", "frames": frames, "fps": 10}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            Image.fromarray(img, "RGBA").save(Path(tmp) / "Foam.png")
+            sprites = build.tile_sprites(ts, Path(tmp) / "Foam.png")
+            index = atlas.pack(sprites, self.S, out)
+            page = json.loads((out / "atlas-0.json").read_text())
+            saved, build.OUT = build.OUT, out
+            try:
+                build.verify([page], index, sprites, self.S)
+            finally:
+                build.OUT = saved
+            packed = np.array(Image.open(out / "atlas-0.png").convert("RGBA"))
+        self.assertEqual(index["sprites"]["foam_c"]["animations"], {
+            "still": {"frames": 1, "fps": 1, "loop": False},
+            "loop": {"frames": frames, "fps": 10, "loop": True}})
+        self.assertEqual(page["animations"]["foam_c/loop"],
+                         [f"foam_c/loop/{i:02d}" for i in range(frames)])
+        self.assertEqual(page["meta"]["animationRates"]["foam_c/loop"], {"fps": 10, "loop": True})
+        for i in range(frames):
+            f = page["frames"][f"foam_c/loop/{i:02d}"]
+            self.assertEqual((f["frame"]["w"], f["frame"]["h"]), (48, 48))
+            self.assertEqual(f["spriteSourceSize"], {"x": 0, "y": 0, "w": 48, "h": 48})
+            self.assertEqual(f["sourceSize"], {"w": 48, "h": 48})
+            self.assertFalse(f["trimmed"])
+            self.assertEqual(f["anchor"], {"x": 0, "y": 0})
+            r = f["frame"]
+            self.assertTrue((packed[r["y"]:r["y"] + 48, r["x"]:r["x"] + 48]
+                             == img[:, 48 * i:48 * (i + 1)]).all(), i)
+        # The still is the first frame again.
+        a, b = page["frames"]["foam_c/still/00"]["frame"], page["frames"]["foam_c/loop/00"]["frame"]
+        self.assertTrue((packed[a["y"]:a["y"] + 48, a["x"]:a["x"] + 48]
+                         == packed[b["y"]:b["y"] + 48, b["x"]:b["x"] + 48]).all())
+
+    def test_an_animation_past_the_sheet_is_refused(self):
+        img = np.zeros((48, 96, 4), np.uint8)
+        ts = {"name": "foam", "cell": 48, "cells": {"c": [0, 0]},
+              "animations": {"loop": {"cell": "c", "frames": 3, "fps": 10}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            Image.fromarray(img, "RGBA").save(Path(tmp) / "Foam.png")
+            with self.assertRaises(SystemExit) as caught:
+                build.tile_sprites(ts, Path(tmp) / "Foam.png")
+        self.assertIn("no 48 px cell at column 2, row 0", str(caught.exception))
+
+    def test_animation_problems(self):
+        base = {"role": "tile", "file": "f.png", "origin": "x", "cells": {"c": [0, 0]}}
+        manifest = {"tileset": [
+            dict(base, name="a", animations={"still": {"cell": "c", "frames": 2, "fps": 10}}),
+            dict(base, name="b", animations={"loop": {"cell": "z", "frames": 0, "fps": "10"}}),
+            dict(base, name="c", animations={"loop": {"cell": "c", "frames": 2, "fps": 10,
+                                                      "loop": "yes", "speed": 2}}),
+            dict(base, name="d", animations={}),
+            dict(base, name="e", animations={"loop": {"cell": "c", "frames": 2, "fps": 10}}),
+        ]}
+        self.assertEqual(build.tileset_problems(manifest), [
+            "[[tileset]] a: animation 'still': the name is the still's",
+            "[[tileset]] b: animation 'loop': cell 'z' is not one of the entry's cells",
+            "[[tileset]] b: animation 'loop': frames 0 is not a positive integer",
+            "[[tileset]] b: animation 'loop': fps '10' is not a positive integer",
+            "[[tileset]] c: animation 'loop': loop 'yes' is not true or false",
+            "[[tileset]] c: animation 'loop': unknown keys speed",
+            "[[tileset]] d: animations {} is not a table of animations"])
 
     def test_a_cell_side_is_checked(self):
         manifest = {"tileset": [

@@ -304,6 +304,17 @@ device px per art px (nearest-neighbour) into an in-memory object URL, and lays 
 `border-image` at one image pixel per device pixel. Without the page, the screens keep their plain
 look (`data-chrome="plain"`).
 
+## Ground tiles and the foam's animation (CLI-03e, CLI-03g2, CLI-03o)
+
+A `[[tileset]]` entry of `manifest.toml` names cells of a pack sheet (`cells`, each `[column, row]`,
+`cell` px a side, 64 by default); each becomes the sprite `<tileset>_<cell>`, role `tile`, one whole
+untrimmed cell, anchored top-left, with the animation `still`. An optional `animations` table adds
+animations to a cell: `{ loop = { cell = "c", frames = 16, fps = 10, loop = true } }` cuts `frames`
+whole cells along the sheet's row, from that cell to the right, as `<tileset>_<cell>/<animation>/<nn>`.
+The foam's `loop` is the 16 cells of `Water Foam.png` at 10 fps, the 100 ms a frame of its source;
+see [the report](../../docs/reports/CLI-03o-animated-water.md). The tests make their sheets from
+synthetic images (`tests/test_build.py`, `Tiles`).
+
 ## PixiJS 8 check
 
 `check/` is a small Node package of its own (exact `pixi.js` version of `client/app`, lockfile
