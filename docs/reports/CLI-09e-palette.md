@@ -234,11 +234,16 @@ holds it (the build confirms: no palette string in `dist/`).
   written only for a kind of several sprites, `flip` only when true, `facing` only for `cannon`.
 - **Building**: `{ kind, footprint, anchor, door }`, the 47 ids of §1 *Buildings*. The footprint is
   written whole (the hubs' rule from `width` and `depth`, §2.2), so the converter needs no width
-  table. **Question**: the hubs keep the door walkable (their footprint is wall "but for the door",
-  `hubWorld.ts`); ENG-08's converter, as stated, marks the whole footprint unwalkable. One of the
-  two must change for the redrawn towns (O-6).
+  table. **Walkability, decided by track game on 2026-10-05**: the footprint is unwalkable but for
+  its door; the door hex is walkable and lies on the footprint's border (`doorChoices`), as
+  `hubWorld.ts` ships it. ENG-08 states this rule in the format and in the converter.
 - **NPC**: `{ template, hex, facing }`, the 23 template ids of §2.3, client-only.
-- **Bridge**: `{ kind, deck, ends }`, `stone_bridge` and `covered_bridge`, deck of one hex.
+- **Bridge**: `{ kind, deck, ends }`, `stone_bridge` and `covered_bridge`. Track game, 2026-10-05: a
+  one-hex deck with its two end hexes is a valid bridge in format v1.
+
+**The kind table's owner** (track game, 2026-10-05): after this merges, ENG-08 takes this section as
+the input to its kind table, and from then on the schema owns it. A later change to a kind id, a
+prop's `blocks` or a building's footprint goes through ENG-08's schema, and the palette follows.
 
 ## 5. Not checked
 

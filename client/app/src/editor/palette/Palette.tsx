@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useReducer, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useReducer, useRef } from "react";
 import type { Kind } from "./kinds";
 import { CATEGORIES, INITIAL_PALETTE, type PaletteState, kindsMatching, paletteStep } from "./menu";
 import { type ThumbLookup, drawThumb, thumbOf } from "./thumbs";
@@ -77,7 +77,11 @@ export function Palette({ thumbs, onSelect, initial = INITIAL_PALETTE }: Palette
 function Thumb({ kind, thumbs }: { kind: Kind; thumbs: ThumbLookup | null }): ReactNode {
   const canvas = useRef<HTMLCanvasElement>(null);
   const { sprite, animation, frame } = thumbOf(kind);
-  const art = thumbs?.(sprite, animation, frame) ?? null;
+  const art = useMemo(
+    () => thumbs?.(sprite, animation, frame) ?? null,
+    [thumbs, sprite, animation, frame],
+  );
+  // Drawn again only when the frame changes, not on every render of the palette.
   useEffect(() => {
     const ctx = canvas.current?.getContext("2d");
     if (ctx && art) drawThumb(ctx, art, THUMB_BOX);
