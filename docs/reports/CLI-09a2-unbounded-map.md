@@ -89,12 +89,12 @@ having to define that number from the start." It changes CLI-09a's model (#361).
 
 ## The parity rule, and where it comes from
 
-The hexes are **odd-r rows**. In the client, `input/coords.ts:45` shifts every odd row by half a hex,
-and the library's layout says "Pointy-top, odd-r offset" (`coords.ts:7`). A hex's neighbours depend on
-whether its row is odd (ADR-0006 §4, "Row parity": "the library derives every neighbour from the
-parity of the … row"; brief §4.1 "Row parity"). The fitted map is the editor's plane moved so that the
-origin is global `(0, 0)`. A move by an **odd** number of rows would give every row the other parity's
-neighbours and turn the painted shape into another shape. So **the origin's row is even.**
+The rule is derived from odd-r: `input/coords.ts:45` shifts every odd row by half a hex, so a
+hex's neighbours depend on whether its row is odd. It is the same reason as the window's even origin
+in ADR-0006 l.236 ("the library derives every neighbour from the parity of the **local** row"). The
+fitted map is the editor's plane moved so that the origin is global `(0, 0)`. A move by an **odd**
+number of rows would give every row the other parity's neighbours and turn the painted shape into
+another shape. So **the origin's row is even.**
 
 Seams repeat every 15 rows, and 15 is odd. Each row residue `r` therefore has exactly one even origin
 row below 30: `r` itself, or `r + 15` (`evenRow`). The 15 column residues and the 15 row residues are
@@ -142,6 +142,21 @@ hexes) on the VPS:
 - **`Shift+0` and `Shift`+arrows** avoid new letters: §3's rule leaves no free tool letter that is at
   the same place on AZERTY and QWERTY and unbound by the game. They pair with `0` (fit the view) and the
   arrows (pan).
+
+## Review of #362 (t-0117, PASS WITH FINDINGS), the three minors fixed
+
+1. **The tiles sent to the renderer are capped at `VIEW_MAX` (250,000).** Past it, the window's
+   painted hexes alone are sent, up to that many, and the renderer's void draws the water between
+   them. The overlay's outside shading also stops past that many hexes in view. Tests: a file with one
+   hex at (−32767, −32767) and one at (32767, 32767) opens, renders, outlines and refuses its fit in
+   well under a second; two 30 × 30 islands 2,000 hexes apart, zoomed out over both, send their 1,800
+   painted hexes.
+2. **The parity comment** (`fit.ts`) and the paragraph above cite odd-r (`coords.ts:45`) and ADR-0006
+   l.236 with its full quote.
+3. **Brief §3, Delete selection:** "selected hexes unpainted (back to the void)", marked.
+
+Of the optional notes, `regionOf` now treats a hex past the plane's bound as open. The fit's ranking
+is unchanged: a rectangle past `SIZE_MAX` is shown as a problem rather than ranked lower.
 
 ## Deviations
 
