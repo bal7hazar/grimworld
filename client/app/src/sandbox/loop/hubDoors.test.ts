@@ -112,7 +112,7 @@ function setup(hub = TOWN, options: { at?: Tile; library?: SpriteLibrary } = {})
     const routed = doors.route({ kind, tile });
     if (routed) session.apply(routed);
   };
-  const actorsLayer = () => (surface.stage.children[0] as Container).children[5] as Container;
+  const actorsLayer = () => (surface.stage.children[0] as Container).children[6] as Container;
   return {
     view,
     host,

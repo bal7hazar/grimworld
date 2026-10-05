@@ -318,6 +318,7 @@ export function toView(state: SandboxState, fog: FogMode = "sight"): ViewState {
   const selected = seen(world).find((a) => a.id === state.selectedActorId);
   return {
     tiles: hub ? tiles : fogTiles(tiles, state.explored),
+    ...(hub ? {} : { revealed: tiles }),
     actors,
     adventurerId: adventurer.id,
     sight,

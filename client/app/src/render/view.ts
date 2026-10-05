@@ -133,4 +133,10 @@ export interface ViewState {
    * (a hub, `?fog=full`, a view written by hand): everything in colour.
    */
   readonly fog?: { readonly sightRadius: number };
+  /**
+   * The tiles as the chain holds them, when `tiles` hides some (an instance, CLI-03n, either
+   * `FogMode`): the chunks are baked from these, so that a step that explores rebakes nothing,
+   * and the tiles hidden are covered as unrevealed, once a step. Absent: `tiles` are baked.
+   */
+  readonly revealed?: readonly ViewTile[];
 }

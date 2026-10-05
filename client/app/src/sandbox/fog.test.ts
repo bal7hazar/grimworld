@@ -152,10 +152,16 @@ describe("the renderer's fog layers (CLI-03n)", () => {
   }
 
   it("with fog: the grey twin under the ground, the ground masked to sight; one grey bake a chunk", () => {
-    const { surface, grey, mask, ground } = mount(initialState(fixtureNamed("meadow")));
+    const { host, surface, renderer, grey, mask, ground } = mount(
+      initialState(fixtureNamed("meadow")),
+    );
     expect(grey.visible).toBe(true);
     expect(mask).toBeInstanceOf(Graphics);
     expect(ground.mask).toBe(mask);
+    // The twins wait for the next frame drawn: not in the one that baked the colour.
+    expect(surface.greyBakes).toHaveLength(0);
+    renderer.scheduler.invalidate();
+    host.run(100);
     expect(surface.greyBakes).toHaveLength(surface.bakes.length);
     // The mask holds the sight's hexes (and the void's within the radius: none, the meadow has none).
     expect(mask.context.instructions.length).toBeGreaterThan(0);

@@ -27,6 +27,7 @@ import {
   drawOverlay,
   drawStructure,
   drawTerrain,
+  drawUnrevealed,
   drawWedge,
   DIM_ALPHA,
   type GroundTextures,
@@ -301,6 +302,22 @@ export function dimmed(grey: number): number {
   return Math.round((grey & 0xff) * (1 - DIM_ALPHA)) * 0x010101;
 }
 
+/**
+ * The tiles a view hides (CLI-03n): unrevealed in `tiles`, revealed in `revealed`; as the chain
+ * holds them, by `tileKey`.
+ */
+function hiddenTiles(view: ViewState): ReadonlyMap<string, ViewTile> {
+  const hidden = new Map<string, ViewTile>();
+  if (!view.revealed) return hidden;
+  const unrevealed = new Set<string>();
+  for (const tile of view.tiles) if (tile.kind === "unrevealed") unrevealed.add(tileKey(tile));
+  for (const tile of view.revealed) {
+    const key = tileKey(tile);
+    if (tile.kind !== "unrevealed" && unrevealed.has(key)) hidden.set(key, tile);
+  }
+  return hidden;
+}
+
 /** The whole art pixels around some foam pieces: the frame their group is baked in. */
 function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
   let minX = Infinity;
@@ -357,6 +374,13 @@ export class Renderer implements FrameClient {
   private readonly greyChunks = new Container();
   private readonly sightMask = new Graphics();
   private sightKey = "";
+  /**
+   * The tiles revealed on chain but never in sight (`ViewState.revealed`), drawn as unrevealed over
+   * the ground, both twins: drawn again when they change (a step that explores), never baked, so
+   * that the chunks keep the chain's tiles and a step rebakes nothing (CLI-03n).
+   */
+  private readonly cover = new Graphics();
+  private coverKey = "";
   private fogOn = false;
   /** The atlas's stills in grayscale (the obstacles, the water's cell), baked once each. */
   private readonly greyTextures = new Map<Texture, Texture>();
@@ -454,6 +478,7 @@ export class Renderer implements FrameClient {
       this.greyGround,
       this.sightMask,
       this.ground,
+      this.cover,
       this.overlay,
       this.fading,
       this.actorsLayer,
@@ -479,8 +504,10 @@ export class Renderer implements FrameClient {
     this.syncFog(view);
     this.syncStructures(view.structures ?? []);
     this.syncObstacles(view);
-    const terrainChanged = this.syncChunks(view);
-    if (terrainChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
+    const hidden = hiddenTiles(view);
+    const terrainChanged = this.syncChunks(view, hidden);
+    const coverChanged = this.syncCover(view, hidden);
+    if (terrainChanged || coverChanged || holeKey !== previousVoid) this.syncVoidFoam(view);
     drawOverlay(this.overlay, view);
     this.syncDropped(view, now);
     this.syncActors(view, now);
@@ -590,7 +617,7 @@ export class Renderer implements FrameClient {
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) chunk.key = "";
     this.voidFoamKey = null;
-    if (this.view) this.syncChunks(this.view);
+    if (this.view) this.syncChunks(this.view, hiddenTiles(this.view));
     if (this.view) this.syncVoidFoam(this.view);
     this.scheduler.invalidate();
   }
@@ -844,6 +871,19 @@ export class Renderer implements FrameClient {
     for (const hex of hexes) this.sightMask.poly(hexCorners(tileToPixel(hex))).fill(0xffffff);
   }
 
+  /**
+   * Covers the tiles `ViewState.revealed` holds but `tiles` hides, as unrevealed (in its grayscale
+   * under fog, as the grey twin drew them); whether they changed.
+   */
+  private syncCover(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): boolean {
+    const key = `${view.fog ? "g" : "c"} ${[...hidden.keys()].join(" ")}`;
+    if (key === this.coverKey) return false;
+    this.coverKey = key;
+    this.cover.clear();
+    drawUnrevealed(this.cover, [...hidden.values()], view.fog ? greyOf : undefined);
+    return true;
+  }
+
   /** A still of the atlas in grayscale (CLI-03n), baked once at its native size. */
   private greyTexture(texture: Texture): Texture {
     const known = this.greyTextures.get(texture);
@@ -1058,8 +1098,10 @@ export class Renderer implements FrameClient {
    * tiles' positions only (`chunkFrame`): the ground never changes the textures' size or count.
    * Whether any chunk was drawn again, added or dropped: the terrain changed.
    */
-  private syncChunks(view: ViewState): boolean {
-    const { tiles } = view;
+  private syncChunks(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): boolean {
+    // The chain's tiles (CLI-03n): what the adventurer has not seen is covered, not baked hidden.
+    const tiles =
+      hidden.size === 0 ? view.tiles : view.tiles.map((t) => hidden.get(tileKey(t)) ?? t);
     const groups = new Map<string, ViewTile[]>();
     const grounds = new Map<string, GroundKind | null>();
     for (const tile of tiles) {
@@ -1154,33 +1196,39 @@ export class Renderer implements FrameClient {
   }
 
   private bakeTerrain(): void {
+    const bakes = [...this.voidFoamBakes.values(), ...this.chunks.values()];
+    let baked = false;
     // The void's foam first: the last bake reported (`bakeMs`) is a chunk's when both bake.
-    for (const chunk of [...this.voidFoamBakes.values(), ...this.chunks.values()]) {
+    for (const chunk of bakes) {
       const resolution = this.bakeResolution(chunk.frame);
-      const colour = chunk.dirty || resolution !== chunk.resolution;
-      // The grayscale twin only while the view has fog (CLI-03n); a hub never bakes it.
-      const grey = this.fogOn && (colour || chunk.greyStale);
-      if (!colour && !grey) continue;
+      if (!chunk.dirty && resolution === chunk.resolution) continue;
       const start = this.host.now();
-      if (colour) {
-        const old = chunk.sprite.texture;
-        chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
-        chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
-        if (old !== Texture.EMPTY) old.destroy(true);
-        chunk.dirty = false;
-        chunk.resolution = resolution;
-        chunk.greyStale = true;
-      }
-      if (grey) {
-        // Through the filter once, into a texture: no filter runs in a frame.
-        const old = chunk.grey.texture;
-        chunk.grey.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution, true);
-        chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
-        if (old !== Texture.EMPTY) old.destroy(true);
-        chunk.greyStale = false;
-      }
+      const old = chunk.sprite.texture;
+      chunk.sprite.texture = this.surface.bake(chunk.graphics, chunk.frame, resolution);
+      chunk.sprite.position.set(chunk.frame.x, chunk.frame.y);
+      if (old !== Texture.EMPTY) old.destroy(true);
+      chunk.dirty = false;
+      chunk.resolution = resolution;
+      chunk.greyStale = true;
       this.lastBakeMs = chunk.drawMs + (this.host.now() - start);
       chunk.drawMs = 0;
+      baked = true;
+    }
+    // The grayscale twins only while the view has fog (CLI-03n; a hub never bakes one), in the
+    // next frame drawn that baked nothing else, never in a frame of their own: a twin goes stale
+    // only when its chunk is baked (a reveal, a zoom), and a chunk just revealed is in sight; the
+    // step's pan draws the next frames. Until then the older twin, or none, shows.
+    if (!this.fogOn || baked) return;
+    for (const chunk of bakes) {
+      if (!chunk.greyStale) continue;
+      const start = this.host.now();
+      // Through the filter once, into a texture: no filter runs in a frame.
+      const old = chunk.grey.texture;
+      chunk.grey.texture = this.surface.bake(chunk.graphics, chunk.frame, chunk.resolution, true);
+      chunk.grey.position.set(chunk.frame.x, chunk.frame.y);
+      if (old !== Texture.EMPTY) old.destroy(true);
+      chunk.greyStale = false;
+      this.lastBakeMs = this.host.now() - start;
     }
   }
 

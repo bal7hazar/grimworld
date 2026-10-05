@@ -66,15 +66,16 @@ describe("renderer on demand (AC-2)", () => {
     host.run(10_000);
     expect(surface.renders - 1).toBe(afterStep);
     expect(host.frames).toBe(frames);
-    // The terrain is baked again only where the step explored tiles (CLI-03n): one chunk here.
-    expect(surface.bakes).toHaveLength(3);
-    // Its grayscale twins: the two chunks at first, then the one the step changed.
-    expect(surface.greyBakes).toHaveLength(3);
-    // The step back explores nothing: nothing is baked.
+    // A step that explores bakes nothing (CLI-03n): the chunks hold the chain's tiles, and the
+    // tiles never in sight are covered.
+    expect(surface.bakes).toHaveLength(2);
+    // The grayscale twins: none in the first frame, which baked the colour; both in the next one
+    // drawn (the step's), never in a frame of their own.
+    expect(surface.greyBakes).toHaveLength(2);
     tap(1, 0);
     host.run(1000);
-    expect(surface.bakes).toHaveLength(3);
-    expect(surface.greyBakes).toHaveLength(3);
+    expect(surface.bakes).toHaveLength(2);
+    expect(surface.greyBakes).toHaveLength(2);
   });
 
   it("with idle animations off: zero frames between inputs", () => {
@@ -179,7 +180,7 @@ describe("the six facings (AC-4), against the library's Direction numbering", ()
           const tile = { x: 10, y };
           renderer.setView(oneGoblin(10, y, facing));
           const world = surface.stage.children[0] as Container;
-          const actors = world.children[5] as Container;
+          const actors = world.children[6] as Container;
           const node = actors.children.find(
             (c) => c.position.x === tileToPixel(tile).x && c.position.y === tileToPixel(tile).y,
           ) as Container;
@@ -391,7 +392,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     expect(surface.passes).toHaveLength(0);
     expect(surface.renders).toBe(1);
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(6); // the world itself is on the stage
+    expect(world.children).toHaveLength(7); // the world itself is on the stage
     expect(renderer.zoomInfo()).toMatchObject({
       mode: "sharp",
       sharpFallback: true,
@@ -416,7 +417,7 @@ describe("sharp bilinear (the offscreen pass)", () => {
     host.run(1000);
     expect(surface.renders).toBe(renders); // no frame was needed for it
     const world = surface.stage.children[0] as Container;
-    expect(world.children).toHaveLength(6); // grey ground, sight mask, ground, overlay, dropped steps, actors
+    expect(world.children).toHaveLength(7); // grey ground, sight mask, ground, cover, overlay, dropped steps, actors
   });
 });
 
@@ -447,7 +448,7 @@ describe("the feet in their tile (CLI-03b)", () => {
   function onScreen(surface: FakeSurface, node: Container): { x: number; y: number } {
     const top = surface.stage.children[0] as Container;
     const p = node.getGlobalPosition();
-    const k = top.children.length === 6 ? 1 : top.scale.x;
+    const k = top.children.length === 7 ? 1 : top.scale.x;
     return { x: p.x * k, y: p.y * k };
   }
 
@@ -713,7 +714,7 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
     renderer.resize({ width: 375, height: 812 });
     renderer.setView(view);
     host.run(100);
-    const actorsLayer = (surface.stage.children[0] as Container).children[5] as Container;
+    const actorsLayer = (surface.stage.children[0] as Container).children[6] as Container;
     return { host, surface, renderer, stats, actorsLayer };
   }
 
