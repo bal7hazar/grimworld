@@ -901,7 +901,7 @@ export class Renderer implements FrameClient {
       }
     }
     // The figures (CLI-09e part 3), under the same cap; off, each goes back to frame 0 at once.
-    if (idleDue || !this.idleOn) {
+    if (this.figures.size > 0 && (idleDue || !this.idleOn)) {
       const inView = new Set(this.figuresInView());
       for (const figure of this.figures.values()) {
         if (this.showFigure(figure, now) && (inView.has(figure) || !this.idleOn)) {
