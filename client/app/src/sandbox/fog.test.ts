@@ -1,7 +1,7 @@
 import { type Container, Graphics, type Sprite, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { explore, tileKey } from "../render/fog";
-import { Renderer, STEP_MS, greyOf } from "../render/renderer";
+import { Renderer, STEP_MS, dimmed, greyOf } from "../render/renderer";
 import type { Tile } from "../render/view";
 import { FakeHost } from "../test/fakeHost";
 import { FakeSurface } from "../test/fakeSurface";
@@ -188,14 +188,14 @@ describe("the renderer's fog layers (CLI-03n)", () => {
     expect(renderer["sightKey"]).toContain(tileKey(heroOf(stepped!).tile));
   });
 
-  it("the void beyond the terrain: its grey twin is the void's grey, in sight it stays in colour", () => {
+  it("the void beyond the terrain: its grey twin is the void's grey, dimmed; in sight, colour", () => {
     const zone = initialState(fixtureNamed("zone"));
     const { grey, mask } = mount(zone);
     const bands = grey.children[0] as Container;
     expect(bands.visible).toBe(true);
     for (const band of bands.children as Sprite[]) {
       expect(band.texture).toBe(Texture.WHITE);
-      expect(band.tint).toBe(greyOf(0x3f8f8d));
+      expect(band.tint).toBe(dimmed(greyOf(0x3f8f8d)));
     }
     // The zone opens by its edge: the mask reaches past its tiles, onto the void.
     const masked = mask.context.instructions.length;

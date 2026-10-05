@@ -296,6 +296,11 @@ export function greyOf(colour: number): number {
   return y * 0x010101;
 }
 
+/** A grey dimmed as the overlay dims what was seen before (black at `DIM_ALPHA`). */
+export function dimmed(grey: number): number {
+  return Math.round((grey & 0xff) * (1 - DIM_ALPHA)) * 0x010101;
+}
+
 /** The whole art pixels around some foam pieces: the frame their group is baked in. */
 function piecesFrame(pieces: readonly FoamPiece[]): Rectangle {
   let minX = Infinity;
@@ -793,10 +798,11 @@ export class Renderer implements FrameClient {
       const band = this.voidLayer.children[i] as Sprite;
       band.texture = water ?? Texture.WHITE;
       band.tint = water ? 0xffffff : VOID_COLOURS[ground];
-      // Its grayscale twin (CLI-03n): the water's cell baked grey, or the flat colour's grey.
+      // Its grayscale twin (CLI-03n): the water's cell baked grey, or the flat colour's grey; dimmed
+      // as the overlay dims the explored tiles beside it.
       const grey = this.greyBands.children[i] as Sprite;
       grey.texture = greyWater ?? Texture.WHITE;
-      grey.tint = greyWater ? 0xffffff : greyOf(VOID_COLOURS[ground]);
+      grey.tint = greyWater ? DIM_TINT : dimmed(greyOf(VOID_COLOURS[ground]));
       for (const sprite of [band, grey]) {
         sprite.position.set(x0, y0);
         sprite.width = x1 - x0;
@@ -816,6 +822,8 @@ export class Renderer implements FrameClient {
     if ((fog !== null) !== this.fogOn) {
       this.fogOn = fog !== null;
       this.greyGround.visible = this.fogOn;
+      // A mask that is not visible masks everything out; without fog it would draw as hexes.
+      this.sightMask.visible = this.fogOn;
       this.ground.mask = this.fogOn ? this.sightMask : null;
       this.sightKey = "";
     }
@@ -883,6 +891,7 @@ export class Renderer implements FrameClient {
       } else {
         const sprite = new Sprite(Texture.EMPTY);
         const grey = new Sprite(Texture.EMPTY);
+        grey.tint = DIM_TINT;
         this.voidFoamLayer.addChild(sprite);
         this.greyFoam.addChild(grey);
         this.voidFoamBakes.set(id, {

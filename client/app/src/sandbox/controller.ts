@@ -351,9 +351,14 @@ export class SandboxController {
     this.notify();
   }
 
-  /** What the map draws in each state of exploration (CLI-03n), for the browser check. */
-  fogCounts(): FogCounts | null {
-    return this.renderer.fogCounts();
+  /**
+   * What the map draws in each state of exploration (CLI-03n), and the size of the explored set
+   * it was drawn from (in an instance, the tiles drawn explored or in sight are exactly those), for
+   * the browser check.
+   */
+  fogCounts(): (FogCounts & { readonly exploredSet: number }) | null {
+    const counts = this.renderer.fogCounts();
+    return counts && { ...counts, exploredSet: this.session.state.explored.size };
   }
 
   /** Where the adventurer stands: the loop reads it after every change (a hub gate's anchor). */
