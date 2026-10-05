@@ -17,7 +17,7 @@ import {
   terrainOf,
   tileOfKey,
 } from "./model";
-import { type MapObject, OBJECT_NAMES, QUOTA_NAMES, servicesOf } from "./objects";
+import { type MapObject, OBJECT_NAMES, QUOTA_NAMES, kindOf, servicesOf } from "./objects";
 import { footprintOf, townCovers } from "./walkWorld";
 
 /**
@@ -279,7 +279,6 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
   const entries = objectsOf(doc, "entry");
   const gates = objectsOf(doc, "gate");
   const candidates = objectsOf(doc, "candidate");
-  const features = objectsOf(doc, "feature");
   const spawns = objectsOf(doc, "spawn");
   const quotas = doc.meta.quotas;
   let insideCount = 0;
@@ -382,7 +381,11 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
   });
 
   // R-14 and E-10: spawn points, features and candidates on walkable hexes inside the outline.
-  for (const [id, object] of [...spawns, ...features, ...candidates]) {
+  // Every kind whose row says it stands on a walkable hex (CLI-09e's kinds join by their row).
+  const onWalkable = [...doc.objects]
+    .filter(([, o]) => kindOf(o).onWalkable)
+    .sort(([a], [b]) => a - b);
+  for (const [id, object] of onWalkable) {
     const name = OBJECT_NAMES[object.kind];
     const key = keyOf(object.at);
     if (!floor(key)) {
@@ -519,9 +522,11 @@ function zoneChecks(doc: MapDocument, fit: Fitted | null, out: Findings): void {
     if (!b) perChunk.set(chunk, (b = { spawns: [], features: [], candidates: [] }));
     return b;
   };
-  for (const [id, o] of spawns) bucket(chunkOf(o)).spawns.push(id);
-  for (const [id, o] of features) bucket(chunkOf(o)).features.push(id);
-  for (const [id, o] of candidates) bucket(chunkOf(o)).candidates.push(id);
+  const lists = { spawn: "spawns", object: "features", candidate: "candidates" } as const;
+  for (const [id, o] of [...doc.objects].sort(([a], [b]) => a - b)) {
+    const counted = kindOf(o).perChunk;
+    if (counted) bucket(chunkOf(o))[lists[counted]].push(id);
+  }
   const tilesOf = (ids: number[]) => ids.map((id) => doc.objects.get(id)!.at);
   for (const [chunk, b] of [...perChunk].sort(([a], [z]) => a - z)) {
     if (b.spawns.length > SPAWNS_PER_CHUNK) {
@@ -628,8 +633,12 @@ function townChecks(doc: MapDocument, out: Findings): void {
   // E-16: footprints on land, painted, and apart.
   const water = GROUND_KINDS.indexOf("water");
   const owner = new Map<number, number>();
-  for (const [id, b] of [...places, ...objectsOf(doc, "decor")]) {
+  const buildings = [...doc.objects]
+    .filter(([, o]) => kindOf(o).footprint)
+    .sort(([a], [b]) => a - b);
+  for (const [id, b] of buildings) {
     const name = OBJECT_NAMES[b.kind];
+    const what = "building" in b ? b.building : b.kind;
     const feet = footprintOf(b);
     const off = feet.filter((t) => {
       const cell = doc.hexes.get(keyOf(t));
@@ -638,7 +647,7 @@ function townChecks(doc: MapDocument, out: Findings): void {
     if (off.length > 0) {
       out.error(
         "E-16",
-        `${name} ${b.building} ${where(b.at)} stands on ${off.length} hexes off the land.`,
+        `${name} ${what} ${where(b.at)} stands on ${off.length} hexes off the land.`,
         off,
         [id],
       );
@@ -648,7 +657,7 @@ function townChecks(doc: MapDocument, out: Findings): void {
       if (other !== undefined) {
         out.error(
           "E-16",
-          `${name} ${b.building} ${where(b.at)} overlaps another building at ${where(t)}.`,
+          `${name} ${what} ${where(b.at)} overlaps another building at ${where(t)}.`,
           [t],
           [other, id],
         );

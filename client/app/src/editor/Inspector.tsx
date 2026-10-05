@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Tile } from "../render/view";
 import { type Fitted, chunkAt } from "./fit";
 import {
@@ -17,21 +17,12 @@ import {
   tileOfKey,
 } from "./model";
 import {
-  BUILDING_NAMES,
-  type BuildingName,
-  FEATURE_KINDS,
-  FEATURE_NAMES,
-  type FeatureKind,
-  GATE_KINDS,
-  type GateKind,
   type MapObject,
   OBJECT_NAMES,
-  PROP_SPRITES,
   QUOTA_KINDS,
   QUOTA_NAMES,
   type QuotaKind,
-  mirrorable,
-  servicesOf,
+  kindOf,
 } from "./objects";
 import type { EditorSession } from "./session";
 import { QUOTAS_MAX, WALKABLE_SHARE } from "./validate";
@@ -123,7 +114,7 @@ function Choice<T extends string>({
 
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
-/** One object's fields (§2.4, §4.2, §4.3). */
+/** One object's fields (§2.4, §4.2, §4.3), as its kind's row lists them (`KINDS`). */
 function ObjectFields({
   session,
   id,
@@ -133,180 +124,66 @@ function ObjectFields({
   id: number;
   object: MapObject;
 }) {
-  const edit = (after: MapObject) => session.editObject(id, after);
-  const quotas = session.doc.meta.quotas;
-  const fields: ReactNode[] = [];
-  switch (object.kind) {
-    case "gate":
-      fields.push(
-        <NumberField
-          key="to"
-          name="gate-to"
-          label="Destination id"
-          value={object.to}
-          onCommit={(to) => edit({ ...object, to })}
-        />,
-        <Choice
-          key="gate"
-          name="gate-kind"
-          label="Gate kind"
-          value={object.gate}
-          options={GATE_KINDS}
-          names={{ hub: "HUB", link: "LINK", floor: "FLOOR", rift: "RIFT" }}
-          onChange={(gate: GateKind) => edit({ ...object, gate })}
-        />,
-        <NumberField
-          key="rank"
-          name="gate-rank"
-          label="Rank required"
-          value={object.rank}
-          onCommit={(rank) => edit({ ...object, rank })}
-        />,
-        <NumberField
-          key="quest"
-          name="gate-quest"
-          label="Quest (0 none)"
-          value={object.quest}
-          onCommit={(quest) => edit({ ...object, quest })}
-        />,
-        <NumberField
-          key="chunk"
-          name="gate-entry-chunk"
-          label="Entry chunk"
-          value={object.entryChunk}
-          onCommit={(entryChunk) => edit({ ...object, entryChunk })}
-        />,
-        <NumberField
-          key="tile"
-          name="gate-entry-tile"
-          label="Entry tile"
-          value={object.entryTile}
-          onCommit={(entryTile) => edit({ ...object, entryTile })}
-        />,
-      );
-      break;
-    case "candidate":
-      fields.push(
-        <Choice
-          key="quota"
-          name="candidate-quota"
-          label="For quota"
-          value={String(object.quota)}
-          options={quotas.map((_, i) => String(i))}
-          names={Object.fromEntries(quotas.map((q, i) => [i, `Q${i + 1} ${QUOTA_NAMES[q.kind]}`]))}
-          onChange={(q) => edit({ ...object, quota: Number(q) })}
-        />,
-      );
-      break;
-    case "feature":
-      fields.push(
-        <Choice
-          key="feature"
-          name="feature-kind"
-          label="Feature"
-          value={object.feature}
-          options={FEATURE_KINDS}
-          names={FEATURE_NAMES}
-          onChange={(feature: FeatureKind) => edit({ ...object, feature })}
-        />,
-      );
-      break;
-    case "spawn":
-      fields.push(
-        <NumberField
-          key="template"
-          name="spawn-template"
-          label="Pack template"
-          value={object.template}
-          onCommit={(template) => edit({ ...object, template })}
-        />,
-        <div key="drawn" className="ed-dim">
-          Its level and its goblin count are drawn at entry (D-215).
-        </div>,
-      );
-      break;
-    case "place": {
-      const kind = session.doc.meta.kind === "outpost" ? "outpost" : "town";
-      fields.push(
-        <Choice
-          key="target"
-          name="place-target"
-          label="Service"
-          value={object.target}
-          options={[...servicesOf(kind), "gate" as const]}
-          names={Object.fromEntries([...servicesOf(kind), "gate"].map((s) => [s, cap(s)]))}
-          onChange={(target) => edit({ ...object, target })}
-        />,
-      );
-    }
-    // falls through: a place is a building too.
-    case "decor":
-      fields.push(
-        <Choice
-          key="building"
-          name="building"
-          label="Building"
-          value={object.building}
-          options={BUILDING_NAMES}
-          onChange={(building: BuildingName) => edit({ ...object, building })}
-        />,
-        <NumberField
-          key="depth"
-          name="depth"
-          label="Depth (rows)"
-          value={object.depth}
-          onCommit={(depth) => edit({ ...object, depth })}
-        />,
-      );
-      break;
-    case "prop":
-      fields.push(
-        <Choice
-          key="sprite"
-          name="prop-sprite"
-          label="Prop"
-          value={object.sprite}
-          options={
-            PROP_SPRITES.includes(object.sprite) ? PROP_SPRITES : [object.sprite, ...PROP_SPRITES]
-          }
-          onChange={(sprite) => edit({ ...object, sprite })}
-        />,
-      );
-      break;
-    case "figure":
-      fields.push(
-        <Choice
-          key="facing"
-          name="figure-facing"
-          label="Faces"
-          value={object.facing}
-          options={["left", "right"] as const}
-          names={{ left: "Left", right: "Right" }}
-          onChange={(facing) => edit({ ...object, facing })}
-        />,
-      );
-      break;
-  }
+  const spec = kindOf(object);
+  const values = object as unknown as Readonly<Record<string, unknown>>;
+  const edit = (key: string, value: unknown) =>
+    session.editObject(id, { ...object, [key]: value } as MapObject);
   return (
     <div data-object={object.kind}>
       <div>
-        <strong>{OBJECT_NAMES[object.kind]}</strong> at ({object.at.x}, {object.at.y})
+        <strong>{spec.name}</strong> at ({object.at.x}, {object.at.y})
       </div>
-      {fields}
-      {mirrorable(object) && "mirror" in object && (
-        <label className="ed-field">
-          <span>Mirror [H]</span>
-          <input
-            type="checkbox"
-            name="mirror"
-            checked={object.mirror}
-            onChange={(e) => {
-              edit({ ...object, mirror: e.target.checked });
-              e.currentTarget.blur();
-            }}
-          />
-        </label>
-      )}
+      {spec.fields.map((field) => {
+        const name = `${object.kind}-${field.key}`;
+        const value = values[field.key];
+        switch (field.type) {
+          case "number":
+            return (
+              <NumberField
+                key={field.key}
+                name={name}
+                label={field.label}
+                value={value as number}
+                onCommit={(v) => edit(field.key, v)}
+              />
+            );
+          case "toggle":
+            return (
+              <label key={field.key} className="ed-field">
+                <span>{field.label}</span>
+                <input
+                  type="checkbox"
+                  name={name}
+                  checked={value as boolean}
+                  onChange={(e) => {
+                    edit(field.key, e.target.checked);
+                    e.currentTarget.blur();
+                  }}
+                />
+              </label>
+            );
+          case "choice": {
+            const options = field.options(session.doc.meta);
+            const current = String(value);
+            // A value the list lacks (a file's) stays shown, as it is.
+            const all = options.some(([v]) => v === current)
+              ? options
+              : [[current, current] as const, ...options];
+            return (
+              <Choice
+                key={field.key}
+                name={name}
+                label={field.label}
+                value={current}
+                options={all.map(([v]) => v)}
+                names={Object.fromEntries(all)}
+                onChange={(v) => edit(field.key, field.numeric ? Number(v) : v)}
+              />
+            );
+          }
+        }
+      })}
+      {spec.note && <div className="ed-dim">{spec.note}</div>}
       <button type="button" data-delete="" onClick={() => session.deleteSelection()}>
         Delete
       </button>

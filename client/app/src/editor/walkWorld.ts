@@ -1,7 +1,5 @@
-import { TILE_WIDTH } from "../input/coords";
 import type { GroundKind, Tile, TileKind, ViewActor, ViewStructure } from "../render/view";
-import { footprint } from "../sandbox/fixtures/hubWorld";
-import { ADVENTURER, BUILDINGS } from "../sandbox/fixtures/hubs";
+import { ADVENTURER } from "../sandbox/fixtures/hubs";
 import type { SandboxWorld } from "../sandbox/world";
 import { type FitScore, fitChunks, fitted } from "./fit";
 import {
@@ -15,7 +13,7 @@ import {
   keyOf,
   terrainOf,
 } from "./model";
-import type { MapObject } from "./objects";
+import { type MapObject, kindOf } from "./objects";
 
 /**
  * The map as the game builds it (CLI-09b, brief §2.8): a zone as an instance's `SandboxWorld`
@@ -25,33 +23,17 @@ import type { MapObject } from "./objects";
  * Presentation, not a rule.
  */
 
-/** A hub's footprints are measured from the hub's origin; any origin gives the same hexes. */
-const ROOM = { origin: { x: 0, y: 0 } };
-
-type Building = Extract<MapObject, { kind: "place" } | { kind: "decor" }>;
-
 /** The hexes a building stands on (`footprint`, `hubWorld.ts:44-56`), its door included. */
-export function footprintOf(object: Building): Tile[] {
-  const [width] = BUILDINGS[object.building];
-  return footprint(ROOM, { at: object.at, width, depth: object.depth });
+export function footprintOf(object: MapObject): Tile[] {
+  return kindOf(object).footprint?.(object) ?? [];
 }
 
 /**
- * The wall hexes each town object stands on, as `structures()` makes them (`hubWorld.ts:72-108`):
- * a place's footprint but its door, a decor's whole footprint, a prop's hex. Figures, the arrival
- * and the zone's objects cover nothing.
+ * The wall hexes an object stands on in the walk's world, from its kind's row (`structures()`,
+ * `hubWorld.ts:72-108`): a place's footprint but its door, a decor's whole footprint, a prop's hex.
  */
 export function coversOf(object: MapObject): Tile[] {
-  switch (object.kind) {
-    case "place":
-      return footprintOf(object).filter((t) => t.x !== object.at.x || t.y !== object.at.y);
-    case "decor":
-      return footprintOf(object);
-    case "prop":
-      return [object.at];
-    default:
-      return [];
-  }
+  return kindOf(object).covers?.(object) ?? [];
 }
 
 /** The hexes the town's buildings and props make walls of, by key. */
@@ -180,21 +162,13 @@ export function townStructures(
 ): ViewStructure[] {
   const out: ViewStructure[] = [];
   for (const [id, object] of [...doc.objects].sort(([a], [b]) => a - b)) {
-    if (object.kind !== "place" && object.kind !== "decor" && object.kind !== "prop") continue;
-    const size = object.kind === "prop" ? [TILE_WIDTH, TILE_WIDTH] : BUILDINGS[object.building];
+    const look = kindOf(object).look?.(object);
+    if (!look) continue;
     out.push({
       key: `${object.kind}:${id}`,
-      kind: object.kind === "prop" ? "prop" : "building",
-      sprite: object.kind === "prop" ? object.sprite : object.building,
+      ...look,
       at: at(object.at),
-      width: size[0]!,
-      height: size[1]!,
-      ...(object.mirror ? { mirror: true } : {}),
-      ...(object.kind === "prop"
-        ? {}
-        : {
-            shape: object.kind === "decor" ? "decor" : object.target === "gate" ? "gate" : "house",
-          }),
+      ...("mirror" in object && object.mirror ? { mirror: true } : {}),
       covers: coversOf(object).map(at),
     });
   }

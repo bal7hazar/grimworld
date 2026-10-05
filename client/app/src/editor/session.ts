@@ -24,6 +24,7 @@ import {
   tileOfKey,
 } from "./model";
 import {
+  KINDS,
   type MapObject,
   type PlaceChoice,
   SINGLE,
@@ -409,8 +410,7 @@ export class EditorSession {
    */
   placeAt(tile: Tile): void {
     const kind = this.placing.kind;
-    const zoneKinds = ["entry", "gate", "candidate", "feature", "spawn"];
-    if (zoneKinds.includes(kind) !== this.zone) return;
+    if ((KINDS[kind].map === "zone") !== this.zone) return;
     const here = objectsAt(this.doc, tile).find((id) => this.doc.objects.get(id)!.kind === kind);
     if (here !== undefined) {
       this.select({ hexes: new Set(), objects: new Set([here]) }, tile);

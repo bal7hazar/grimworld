@@ -20,15 +20,14 @@ import {
   tileOfKey,
 } from "./model";
 import {
-  BUILDING_NAMES,
-  FEATURE_KINDS,
-  GATE_KINDS,
-  type GateKind,
+  KINDS,
   type MapObject,
+  OBJECT_KINDS,
+  type ObjectKind,
   QUOTA_KINDS,
   type Quota,
+  objectFrom,
 } from "./objects";
-import type { ServiceId } from "../input/intent";
 
 /**
  * The editor's own file (brief §6, `.grimmap.json`): one JSON document, the editor's to shape
@@ -220,96 +219,29 @@ function readMeta(raw: unknown): MapMeta | string {
   };
 }
 
-const SERVICES: readonly string[] = [
-  "guild",
-  "trainer",
-  "smith",
-  "armorer",
-  "enchanter",
-  "alchemist",
-  "market",
-  "vault",
-] satisfies readonly ServiceId[];
-
-/** One object of the file, or why it is refused; `zone` says which kinds the map holds. */
-function readObject(raw: unknown, zone: boolean): MapObject | string {
+/** One object of the file, read by its kind's row (`KINDS`), or why it is refused. */
+function readObject(raw: unknown, meta: MapMeta): MapObject | string {
   if (!isObject(raw) || !inPlane(raw.x) || !inPlane(raw.y)) return "not { kind, x, y, … }";
   const at = { x: raw.x, y: raw.y };
-  const whole = (...names: string[]) => names.every((n) => isWhole(raw[n], 0));
-  const bool = (name: string) => typeof raw[name] === "boolean";
-  const object = ((): MapObject | null => {
-    switch (raw.kind) {
-      case "entry":
-        return { kind: "entry", at };
-      case "gate":
-        if (!whole("to", "rank", "quest", "entryChunk", "entryTile")) return null;
-        if (!GATE_KINDS.includes(raw.gate as never)) return null;
-        return {
-          kind: "gate",
-          at,
-          to: raw.to as number,
-          gate: raw.gate as GateKind,
-          rank: raw.rank as number,
-          quest: raw.quest as number,
-          entryChunk: raw.entryChunk as number,
-          entryTile: raw.entryTile as number,
-        };
-      case "candidate":
-        return whole("quota") ? { kind: "candidate", at, quota: raw.quota as number } : null;
-      case "feature":
-        return FEATURE_KINDS.includes(raw.feature as never)
-          ? { kind: "feature", at, feature: raw.feature as (typeof FEATURE_KINDS)[number] }
-          : null;
-      case "spawn":
-        return whole("template") ? { kind: "spawn", at, template: raw.template as number } : null;
-      case "place":
-        if (!whole("depth") || !bool("mirror")) return null;
-        if (raw.target !== "gate" && !SERVICES.includes(raw.target as string)) return null;
-        if (!BUILDING_NAMES.includes(raw.building as never)) return null;
-        return {
-          kind: "place",
-          at,
-          target: raw.target as ServiceId | "gate",
-          building: raw.building as (typeof BUILDING_NAMES)[number],
-          depth: raw.depth as number,
-          mirror: raw.mirror as boolean,
-        };
-      case "decor":
-        if (!whole("depth") || !bool("mirror")) return null;
-        if (!BUILDING_NAMES.includes(raw.building as never)) return null;
-        return {
-          kind: "decor",
-          at,
-          building: raw.building as (typeof BUILDING_NAMES)[number],
-          depth: raw.depth as number,
-          mirror: raw.mirror as boolean,
-        };
-      case "prop":
-        if (typeof raw.sprite !== "string" || !bool("mirror")) return null;
-        return { kind: "prop", at, sprite: raw.sprite, mirror: raw.mirror as boolean };
-      case "figure":
-        if (raw.facing !== "left" && raw.facing !== "right") return null;
-        return { kind: "figure", at, facing: raw.facing };
-      case "arrival":
-        return { kind: "arrival", at };
-      default:
-        return null;
-    }
-  })();
-  if (!object) return `an object ${JSON.stringify(raw.kind)} at (${at.x}, ${at.y}) is not read`;
-  const zoneKind = ["entry", "gate", "candidate", "feature", "spawn"].includes(object.kind);
-  if (zoneKind !== zone) {
+  const kind = raw.kind as ObjectKind;
+  const spec = OBJECT_KINDS.includes(kind) ? KINDS[kind] : null;
+  const object = spec && objectFrom(kind, at, raw, meta);
+  if (!spec || !object) {
+    return `an object ${JSON.stringify(raw.kind)} at (${at.x}, ${at.y}) is not read`;
+  }
+  const zone = meta.kind === "zone";
+  if ((spec.map === "zone") !== zone) {
     return `a ${zone ? "zone" : "town or an outpost"} holds no ${object.kind}`;
   }
   return object;
 }
 
-function readObjects(raw: unknown, zone: boolean): Map<number, MapObject> | string {
+function readObjects(raw: unknown, meta: MapMeta): Map<number, MapObject> | string {
   const objects = new Map<number, MapObject>();
   if (raw === undefined) return objects;
   if (!Array.isArray(raw)) return "the objects are not a list";
   for (const item of raw) {
-    const object = readObject(item, zone);
+    const object = readObject(item, meta);
     if (typeof object === "string") return object;
     objects.set(objects.size + 1, object);
   }
@@ -397,7 +329,7 @@ function loadVersion2(raw: Record<string, unknown>, meta: MapMeta): LoadResult {
   if (typeof origin === "string") return { problem: `The file is refused: ${origin}.` };
   const obstacles = readObstacles(raw.obstacles, (x, y) => hexes.has(keyOf({ x, y })));
   if (typeof obstacles === "string") return { problem: `The file is refused: ${obstacles}.` };
-  const objects = readObjects(raw.objects, meta.kind === "zone");
+  const objects = readObjects(raw.objects, meta);
   if (typeof objects === "string") return { problem: `The file is refused: ${objects}.` };
   const editor = typeof raw.editor === "string" ? raw.editor : "unknown";
   return { doc: { meta, hexes, obstacles, objects, origin }, editor, notes: [] };

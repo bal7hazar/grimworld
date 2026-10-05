@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Tile } from "../render/view";
 import { loadMap, saveMap } from "./file";
 import { FLOOR, cellAt, createMap, keyOf, objectsAt, sideOf, terrainOf } from "./model";
-import { objectLabel } from "./objects";
+import { KINDS, OBJECT_KINDS, newObject, objectLabel } from "./objects";
 import { EditorSession, NOTHING } from "./session";
 
 /**
@@ -323,5 +323,26 @@ describe("objects in the file (format 2, §6)", () => {
     const read = loadMap(JSON.stringify(old));
     if ("problem" in read) throw new Error(read.problem);
     expect(read.doc.objects.size).toBe(0);
+  });
+});
+
+describe("the kind table (open for CLI-09e)", () => {
+  it("every kind's row creates, labels, saves and reads back its object", () => {
+    for (const kind of OBJECT_KINDS) {
+      const spec = KINDS[kind];
+      const object = newObject({ kind }, { x: 3, y: 2 });
+      expect(object.kind).toBe(kind);
+      expect(spec.letters(object as never, { gate: 1, quotas: [] }).length).toBeGreaterThan(0);
+      const doc = createMap({
+        kind: spec.map === "zone" ? "zone" : "town",
+        name: "Row",
+        location: 1,
+        biome: "meadow",
+      });
+      doc.objects.set(1, object);
+      const back = loadMap(saveMap(doc, "test"));
+      if ("problem" in back) throw new Error(`${kind}: ${back.problem}`);
+      expect(back.doc.objects.get(1), kind).toEqual(object);
+    }
   });
 });

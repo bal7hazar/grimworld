@@ -1,6 +1,9 @@
+import { TILE_WIDTH } from "../input/coords";
 import type { ServiceId } from "../input/intent";
 import type { Tile } from "../render/view";
+import { footprint } from "../sandbox/fixtures/hubWorld";
 import { BUILDINGS, OUTPOST_SERVICES, TOWN_SERVICES } from "../sandbox/fixtures/hubs";
+import type { MapMeta } from "./model";
 
 /**
  * The objects a map holds (CLI-09b, brief §4.2 and §4.3), each on one hex. A tool's data, not a
@@ -104,22 +107,8 @@ export type MapObject =
 
 export type ObjectKind = MapObject["kind"];
 
-export const ZONE_OBJECTS: readonly ObjectKind[] = [
-  "entry",
-  "gate",
-  "candidate",
-  "feature",
-  "spawn",
-];
-export const TOWN_OBJECTS: readonly ObjectKind[] = ["place", "decor", "prop", "figure", "arrival"];
-
-/** The kinds a map of that kind holds. */
-export function objectKindsOf(zone: boolean): readonly ObjectKind[] {
-  return zone ? ZONE_OBJECTS : TOWN_OBJECTS;
-}
-
-/** One a map: placing another moves it (§3, "one entry per map"). */
-export const SINGLE: readonly ObjectKind[] = ["entry", "arrival"];
+/** One object of a kind. */
+type Of<K extends ObjectKind> = Extract<MapObject, { kind: K }>;
 
 /** The services a hub's list holds (E-14): the town's or the outpost's. */
 export function servicesOf(kind: "town" | "outpost"): readonly ServiceId[] {
@@ -169,56 +158,6 @@ const PLACE_LETTERS: Readonly<Record<PlaceTarget, string>> = {
   gate: "Ga",
 };
 
-/**
- * The marker's label (§2.3): `E` the entry, `G1…` gates by their order, `Q…` candidates by their
- * quota's kind, `F…` features by kind, `P` spawn points; a town's places by service, `D` decor,
- * `p` props, `A` figures, `In` the arrival.
- */
-export function objectLabel(
-  object: MapObject,
-  gateNumber: number,
-  quotas: readonly Quota[],
-): string {
-  switch (object.kind) {
-    case "entry":
-      return "E";
-    case "gate":
-      return `G${gateNumber}`;
-    case "candidate": {
-      const quota = quotas[object.quota];
-      return quota ? QUOTA_LETTERS[quota.kind] : "Q?";
-    }
-    case "feature":
-      return FEATURE_LETTERS[object.feature];
-    case "spawn":
-      return "P";
-    case "place":
-      return PLACE_LETTERS[object.target];
-    case "decor":
-      return "D";
-    case "prop":
-      return "p";
-    case "figure":
-      return "A";
-    case "arrival":
-      return "In";
-  }
-}
-
-/** The kind's name, as the palette, the inspector and the validation say it. */
-export const OBJECT_NAMES: Readonly<Record<ObjectKind, string>> = {
-  entry: "Entry",
-  gate: "Gate",
-  candidate: "Quota place",
-  feature: "Feature",
-  spawn: "Spawn point",
-  place: "Place",
-  decor: "Decor building",
-  prop: "Prop",
-  figure: "Figure spot",
-  arrival: "Arrival",
-};
-
 export const QUOTA_NAMES: Readonly<Record<QuotaKind, string>> = {
   exit: "Exit",
   heart: "Heart",
@@ -236,17 +175,7 @@ export const FEATURE_NAMES: Readonly<Record<FeatureKind, string>> = {
   lever: "Lever",
 };
 
-/** The same object moved by `(dx, dy)`. */
-export function movedBy(object: MapObject, dx: number, dy: number): MapObject {
-  return { ...object, at: { x: object.at.x + dx, y: object.at.y + dy } };
-}
-
-/** Whether `mirror` applies: a building, a decor or a prop (§3, Mirror). */
-export function mirrorable(object: MapObject): boolean {
-  return object.kind === "place" || object.kind === "decor" || object.kind === "prop";
-}
-
-/** A new object of a kind on a hex, with the palette's choices. */
+/** The palette's choices for a new object (§2.3). */
 export interface PlaceChoice {
   readonly kind: ObjectKind;
   /** The candidate's quota index. */
@@ -257,29 +186,211 @@ export interface PlaceChoice {
   readonly sprite?: string;
 }
 
-export function newObject(choice: PlaceChoice, at: Tile): MapObject {
-  switch (choice.kind) {
-    case "entry":
-      return { kind: "entry", at };
-    case "gate":
-      return {
-        kind: "gate",
-        at,
-        to: 0,
-        gate: "hub",
-        rank: 0,
-        quest: 0,
-        entryChunk: 0,
-        entryTile: 0,
-      };
-    case "candidate":
-      return { kind: "candidate", at, quota: choice.quota ?? 0 };
-    case "feature":
-      return { kind: "feature", at, feature: choice.feature ?? "chest" };
-    case "spawn":
-      // A template id is typed by the author: 0 is refused by E-19 until then.
-      return { kind: "spawn", at, template: 0 };
-    case "place": {
+/**
+ * A field of a kind (§2.4): what the inspector edits in place and the file reads back.
+ * - `number`: a whole number, 0 or more;
+ * - `choice`: one of `options` (the inspector's list for the map), or anything `valid` accepts when
+ *   a file is read (default: the options' values);
+ * - `toggle`: on or off.
+ */
+export type FieldSpec =
+  | { readonly key: string; readonly label: string; readonly type: "number" }
+  | {
+      readonly key: string;
+      readonly label: string;
+      readonly type: "choice";
+      readonly options: (meta: MapMeta) => readonly (readonly [value: string, label: string])[];
+      /** The value is a number written as the option's value. */
+      readonly numeric?: boolean;
+      readonly valid?: (value: unknown) => boolean;
+    }
+  | { readonly key: string; readonly label: string; readonly type: "toggle" };
+
+/** What the game draws for a town object (`structures()`, `hubWorld.ts:72-108`). */
+export interface StructureLook {
+  readonly kind: "building" | "prop";
+  readonly sprite: string;
+  readonly width: number;
+  readonly height: number;
+  readonly shape?: "house" | "decor" | "gate";
+}
+
+/**
+ * **The kind table** (CLI-09b; open for CLI-09e's props, buildings, NPCs and bridges): everything
+ * the editor knows of a kind, in one row. A new kind joins the `MapObject` union and adds its row
+ * here; the model, the file, the palette, the inspector, the markers, the walk's world and the
+ * validation's flags read the row, not a switch.
+ */
+export interface KindSpec<O extends MapObject = MapObject> {
+  /** Which maps hold it. */
+  readonly map: "zone" | "town";
+  readonly name: string;
+  /** One a map: placing another moves it (§3, "one entry per map"). */
+  readonly single?: boolean;
+  /** The marker's one or two letters (§2.3); `gate` is the gate's number, in placing order. */
+  readonly letters: (object: O, context: { gate: number; quotas: readonly Quota[] }) => string;
+  readonly fields: readonly FieldSpec[];
+  /** A line the inspector shows under the fields. */
+  readonly note?: string;
+  readonly create: (choice: PlaceChoice, at: Tile) => O;
+  /** A zone's on-chain object: on a walkable hex inside the outline (R-14, E-10). */
+  readonly onWalkable?: boolean;
+  /** What it counts against per chunk (R-15): spawn points, objects, or quota candidates (○). */
+  readonly perChunk?: "spawn" | "object" | "candidate";
+  /** A town's building: the hexes it stands on, its door included (E-16's footprint). */
+  readonly footprint?: (object: O) => Tile[];
+  /** The hexes it makes walls of in the walk's world (a place's door stays floor). */
+  readonly covers?: (object: O) => Tile[];
+  /** How the renderer draws it (a building or a prop); none for a marker only. */
+  readonly look?: (object: O) => StructureLook;
+}
+
+/** A hub's footprints are measured from its origin; any origin gives the same hexes. */
+const ROOM = { origin: { x: 0, y: 0 } };
+
+function buildingFootprint(object: { at: Tile; building: BuildingName; depth: number }): Tile[] {
+  const [width] = BUILDINGS[object.building];
+  return footprint(ROOM, { at: object.at, width, depth: object.depth });
+}
+
+const whole = (key: string, label: string): FieldSpec => ({ key, label, type: "number" });
+const named =
+  <T extends string>(
+    values: readonly T[],
+    label: (value: T) => string = (v) => v,
+  ): ((meta: MapMeta) => readonly (readonly [string, string])[]) =>
+  () =>
+    values.map((v) => [v, label(v)] as const);
+const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
+const MIRROR: FieldSpec = { key: "mirror", label: "Mirror [H]", type: "toggle" };
+const DEPTH = whole("depth", "Depth (rows)");
+const BUILDING: FieldSpec = {
+  key: "building",
+  label: "Building",
+  type: "choice",
+  options: named(BUILDING_NAMES),
+};
+
+/** Every service and the gate: what a file's place may name (a service off the hub's list warns). */
+const TARGETS: readonly PlaceTarget[] = [
+  "guild",
+  "trainer",
+  "smith",
+  "armorer",
+  "enchanter",
+  "alchemist",
+  "market",
+  "vault",
+  "gate",
+];
+
+export const KINDS: { readonly [K in ObjectKind]: KindSpec<Of<K>> } = {
+  entry: {
+    map: "zone",
+    name: "Entry",
+    single: true,
+    letters: () => "E",
+    fields: [],
+    create: (_, at) => ({ kind: "entry", at }),
+  },
+  gate: {
+    map: "zone",
+    name: "Gate",
+    letters: (_, { gate }) => `G${gate}`,
+    fields: [
+      whole("to", "Destination id"),
+      {
+        key: "gate",
+        label: "Gate kind",
+        type: "choice",
+        options: named(GATE_KINDS, (g) => g.toUpperCase()),
+      },
+      whole("rank", "Rank required"),
+      whole("quest", "Quest (0 none)"),
+      whole("entryChunk", "Entry chunk"),
+      whole("entryTile", "Entry tile"),
+    ],
+    create: (_, at) => ({
+      kind: "gate",
+      at,
+      to: 0,
+      gate: "hub",
+      rank: 0,
+      quest: 0,
+      entryChunk: 0,
+      entryTile: 0,
+    }),
+  },
+  candidate: {
+    map: "zone",
+    name: "Quota place",
+    letters: (o, { quotas }) => {
+      const quota = quotas[o.quota];
+      return quota ? QUOTA_LETTERS[quota.kind] : "Q?";
+    },
+    fields: [
+      {
+        key: "quota",
+        label: "For quota",
+        type: "choice",
+        numeric: true,
+        options: (meta) =>
+          meta.quotas.map((q, i) => [String(i), `Q${i + 1} ${QUOTA_NAMES[q.kind]}`]),
+        // A file may name a quota its list lacks: R-13 says so.
+        valid: (v) => typeof v === "number" && Number.isInteger(v) && v >= 0,
+      },
+    ],
+    create: (choice, at) => ({ kind: "candidate", at, quota: choice.quota ?? 0 }),
+    onWalkable: true,
+    perChunk: "candidate",
+  },
+  feature: {
+    map: "zone",
+    name: "Feature",
+    letters: (o) => FEATURE_LETTERS[o.feature],
+    fields: [
+      {
+        key: "feature",
+        label: "Feature",
+        type: "choice",
+        options: named(FEATURE_KINDS, (f) => FEATURE_NAMES[f]),
+      },
+    ],
+    create: (choice, at) => ({ kind: "feature", at, feature: choice.feature ?? "chest" }),
+    onWalkable: true,
+    perChunk: "object",
+  },
+  spawn: {
+    map: "zone",
+    name: "Spawn point",
+    letters: () => "P",
+    fields: [whole("template", "Pack template")],
+    note: "Its level and its goblin count are drawn at entry (D-215).",
+    // A template id is typed by the author: 0 is refused by E-19 until then.
+    create: (_, at) => ({ kind: "spawn", at, template: 0 }),
+    onWalkable: true,
+    perChunk: "spawn",
+  },
+  place: {
+    map: "town",
+    name: "Place",
+    letters: (o) => PLACE_LETTERS[o.target],
+    fields: [
+      {
+        key: "target",
+        label: "Service",
+        type: "choice",
+        options: (meta) =>
+          [...servicesOf(meta.kind === "outpost" ? "outpost" : "town"), "gate"].map(
+            (s) => [s, cap(s)] as const,
+          ),
+        valid: (v) => TARGETS.includes(v as PlaceTarget),
+      },
+      BUILDING,
+      DEPTH,
+      MIRROR,
+    ],
+    create: (choice, at) => {
       const target = choice.target ?? "gate";
       return {
         kind: "place",
@@ -289,14 +400,147 @@ export function newObject(choice: PlaceChoice, at: Tile): MapObject {
         depth: 1,
         mirror: false,
       };
+    },
+    footprint: buildingFootprint,
+    covers: (o) => buildingFootprint(o).filter((t) => t.x !== o.at.x || t.y !== o.at.y),
+    look: (o) => ({
+      kind: "building",
+      sprite: o.building,
+      width: BUILDINGS[o.building][0],
+      height: BUILDINGS[o.building][1],
+      shape: o.target === "gate" ? "gate" : "house",
+    }),
+  },
+  decor: {
+    map: "town",
+    name: "Decor building",
+    letters: () => "D",
+    fields: [BUILDING, DEPTH, MIRROR],
+    create: (choice, at) => ({
+      kind: "decor",
+      at,
+      building: choice.building ?? "cottage",
+      depth: 1,
+      mirror: false,
+    }),
+    footprint: buildingFootprint,
+    covers: buildingFootprint,
+    look: (o) => ({
+      kind: "building",
+      sprite: o.building,
+      width: BUILDINGS[o.building][0],
+      height: BUILDINGS[o.building][1],
+      shape: "decor",
+    }),
+  },
+  prop: {
+    map: "town",
+    name: "Prop",
+    letters: () => "p",
+    fields: [
+      {
+        key: "sprite",
+        label: "Prop",
+        type: "choice",
+        options: named(PROP_SPRITES),
+        // A still's name: the atlas may hold more than the list (CLI-09e).
+        valid: (v) => typeof v === "string" && v.length > 0,
+      },
+      MIRROR,
+    ],
+    create: (choice, at) => ({ kind: "prop", at, sprite: choice.sprite ?? "tree1", mirror: false }),
+    covers: (o) => [o.at],
+    look: (o) => ({ kind: "prop", sprite: o.sprite, width: TILE_WIDTH, height: TILE_WIDTH }),
+  },
+  figure: {
+    map: "town",
+    name: "Figure spot",
+    letters: () => "A",
+    fields: [
+      {
+        key: "facing",
+        label: "Faces",
+        type: "choice",
+        options: named(["left", "right"] as const, cap),
+      },
+    ],
+    create: (_, at) => ({ kind: "figure", at, facing: "right" }),
+  },
+  arrival: {
+    map: "town",
+    name: "Arrival",
+    single: true,
+    letters: () => "In",
+    fields: [],
+    create: (_, at) => ({ kind: "arrival", at }),
+  },
+};
+
+/** A kind's row, for an object of any kind. */
+export function kindOf(object: MapObject): KindSpec {
+  return KINDS[object.kind] as unknown as KindSpec;
+}
+
+export const OBJECT_KINDS = Object.keys(KINDS) as ObjectKind[];
+export const ZONE_OBJECTS = OBJECT_KINDS.filter((k) => KINDS[k].map === "zone");
+export const TOWN_OBJECTS = OBJECT_KINDS.filter((k) => KINDS[k].map === "town");
+export const SINGLE = OBJECT_KINDS.filter((k) => KINDS[k].single);
+export const OBJECT_NAMES = Object.fromEntries(
+  OBJECT_KINDS.map((k) => [k, KINDS[k].name]),
+) as Readonly<Record<ObjectKind, string>>;
+
+/** The kinds a map of that kind holds. */
+export function objectKindsOf(zone: boolean): readonly ObjectKind[] {
+  return zone ? ZONE_OBJECTS : TOWN_OBJECTS;
+}
+
+/** The marker's label (§2.3), from the kind's row. */
+export function objectLabel(
+  object: MapObject,
+  gateNumber: number,
+  quotas: readonly Quota[],
+): string {
+  return kindOf(object).letters(object, { gate: gateNumber, quotas });
+}
+
+/** Whether `mirror` applies (§3, Mirror): the kind has the field. */
+export function mirrorable(object: MapObject): boolean {
+  return kindOf(object).fields.some((f) => f.key === "mirror");
+}
+
+export function newObject(choice: PlaceChoice, at: Tile): MapObject {
+  return (KINDS[choice.kind] as unknown as KindSpec).create(choice, at);
+}
+
+/** The same object moved by `(dx, dy)`. */
+export function movedBy(object: MapObject, dx: number, dy: number): MapObject {
+  return { ...object, at: { x: object.at.x + dx, y: object.at.y + dy } };
+}
+
+/**
+ * An object read from a file by its kind's row: its fields checked as the inspector writes them;
+ * null when a field is missing or wrong.
+ */
+export function objectFrom(
+  kind: ObjectKind,
+  at: Tile,
+  raw: Readonly<Record<string, unknown>>,
+  meta: MapMeta,
+): MapObject | null {
+  const out: Record<string, unknown> = { kind, at };
+  for (const field of KINDS[kind].fields) {
+    const v = raw[field.key];
+    if (field.type === "number") {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return null;
+    } else if (field.type === "toggle") {
+      if (typeof v !== "boolean") return null;
+    } else {
+      const ok = field.valid
+        ? field.valid(v)
+        : field.options(meta).some(([value]) => (field.numeric ? Number(value) : value) === v);
+      if (!ok) return null;
     }
-    case "decor":
-      return { kind: "decor", at, building: choice.building ?? "cottage", depth: 1, mirror: false };
-    case "prop":
-      return { kind: "prop", at, sprite: choice.sprite ?? "tree1", mirror: false };
-    case "figure":
-      return { kind: "figure", at, facing: "right" };
-    case "arrival":
-      return { kind: "arrival", at };
+    out[field.key] = v;
   }
+  return out as unknown as MapObject;
 }

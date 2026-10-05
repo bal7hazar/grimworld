@@ -714,11 +714,10 @@ function EditorScreen({
         label: objectLabel(object, gate, doc.meta.quotas),
         tone: faults.has(oid) ? "fault" : session.zone ? "zone" : "town",
       });
-      if (object.kind === "place" || object.kind === "decor") {
-        footprints.push(
-          ...footprintOf(object).filter((t) => t.x !== object.at.x || t.y !== object.at.y),
-        );
-      }
+      // A building's footprint, its door apart (the door is marked).
+      footprints.push(
+        ...footprintOf(object).filter((t) => t.x !== object.at.x || t.y !== object.at.y),
+      );
     }
     return { markers, footprints };
   }, [doc, revision, faults, session]);
