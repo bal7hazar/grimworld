@@ -6,7 +6,6 @@ import {
   type TileBox,
   WALL,
   groundOfCell,
-  isZone,
   keyOf,
   paintedBox,
   terrainOf,
@@ -94,7 +93,9 @@ export function holds(window: TileBox, visible: TileBox): boolean {
  * - Ground off: every painted hex is drawn as grass, so terrain alone reads.
  * - Obstacles off: walls are drawn with the renderer's unrevealed look (a flat dark hex) instead of
  *   their rocks, bushes and trees, so the walkable plane reads at a glance.
- * - A town's buildings and props (CLI-09b) stand as the game draws them, with the objects layer.
+ * - The map's buildings, props and bridges (a town's and the pack's, CLI-09b and CLI-09e) stand as
+ *   the game draws them, with the objects layer, on a zone as on a town; its characters stand in
+ *   their idle loop (CLI-09e part 3). The renderer draws them all: the overlay draws none.
  */
 export function editorView(doc: MapDocument, layers: Layers, window: TileBox): ViewState {
   const box = paintedBox(doc);
@@ -137,7 +138,7 @@ export function editorView(doc: MapDocument, layers: Layers, window: TileBox): V
     path: [],
     dropped: [],
     selectedTile: null,
-    structures: layers.objects && !isZone(doc) ? townStructures(doc) : [],
+    structures: layers.objects ? townStructures(doc) : [],
     void: "water",
   };
 }

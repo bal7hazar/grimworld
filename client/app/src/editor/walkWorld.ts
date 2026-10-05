@@ -76,12 +76,15 @@ export const WALKER_ID = 1;
  *   are markers, not actors (§2.8).
  * - a town: its painted terrain and ground, the buildings and props as structures on the walls
  *   they cover (a place's door stays floor), the figures standing on their spots, as `hubWorld`.
+ * - on both, the pack's objects (CLI-09e part 3) stand as structures, characters in their idle
+ *   loop; a building's footprint but its door and a blocking prop's hex are walls, as the
+ *   validation counts them and as the converter will make them (ENG-08). A bridge is drawn only.
  */
 export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions): SandboxWorld {
   const zone = isZone(doc);
   const width = frame.width * CHUNK;
   const height = frame.height * CHUNK;
-  const covered = zone ? new Set<number>() : townCovers(doc);
+  const covered = townCovers(doc);
   const at = (t: Tile): Tile => ({ x: t.x - frame.x0, y: t.y - frame.y0 });
   const start = at(options.start);
   const inside = (x: number, y: number): boolean => {
@@ -139,7 +142,7 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
       });
     }
   }
-  const structures = zone ? [] : townStructures(doc, at);
+  const structures = townStructures(doc, at);
   return {
     name: doc.meta.name,
     description: `${doc.meta.name}: the map editor's preview walk`,
@@ -148,7 +151,8 @@ export function walkWorld(doc: MapDocument, frame: Frame, options: WalkOptions):
     actors,
     adventurerId: WALKER_ID,
     path: [],
-    ...(zone ? {} : { kind: "hub" as const, structures }),
+    structures,
+    ...(zone ? {} : { kind: "hub" as const }),
   };
 }
 

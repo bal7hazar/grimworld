@@ -22,10 +22,10 @@ import {
   propSprite,
   recordFor,
 } from "./pack";
-import { npcSprite, packSprites } from "./packDraw";
 import { BRIDGES, BUILDINGS, NPCS, PROPS, bridgeAt, doorChoices, footprintAt } from "./palette";
 import { EditorSession } from "./session";
 import { type Finding, validate } from "./validate";
+import { DEFAULT_LAYERS, editorView } from "./view";
 import { coversOf, townStructures, walkWorld } from "./walkWorld";
 
 /**
@@ -151,14 +151,15 @@ describe("the pack's rows (CLI-09e part 2)", () => {
       record: { template: "lancer", hex: { x: 3, y: 3 }, facing: 4 },
     });
     expect(coversOf(o)).toEqual([]);
-    // Drawn at its idle frame 0, mirrored on the West facings.
-    expect(npcSprite("lancer", o.at, 4)).toEqual({
+    // Drawn by the renderer in its idle loop (part 3), mirrored on the West facings.
+    expect(kindOf(o).look!(o)).toMatchObject({
+      kind: "figure",
       sprite: "npc_lancer",
       animation: "idle",
-      at: o.at,
       mirror: true,
     });
-    expect(npcSprite("lancer", o.at, 0)!.mirror).toBe(false);
+    const east = npc(o.at, "lancer", 0);
+    expect(kindOf(east).look!(east).mirror).toBe(false);
   });
 
   it("a prop's record: variant and flip for a flip prop, facing for the cannon; a blocking one covers its hex", () => {
@@ -197,29 +198,39 @@ describe("the pack's rows (CLI-09e part 2)", () => {
     expect(coversOf(o)).toEqual([]);
   });
 
-  it("the renderer draws a town's pack buildings, props and bridges; the overlay its characters", () => {
-    const doc = block(town());
-    add(doc, building({ x: 10, y: 4 }, "tower"));
-    add(doc, prop({ x: 2, y: 2 }, "rock", 1, true));
-    add(doc, bridge({ x: 20, y: 2 }));
-    add(doc, npc({ x: 3, y: 8 }, "pawn", 2));
-    const structures = townStructures(doc);
-    expect(structures.map((s) => [s.kind, s.sprite, s.mirror ?? false])).toEqual([
-      ["building", "tower", false],
-      ["prop", "rock2", true],
-      ["building", "stone_bridge", false],
-    ]);
-    expect(packSprites(doc, false)).toEqual([
-      { sprite: "npc_pawn", animation: "idle", at: { x: 3, y: 8 }, mirror: true },
-    ]);
-    // A zone's view sends no structure: the overlay draws them all.
-    expect(packSprites(doc, true).map((s) => s.sprite)).toEqual([
-      "tower",
-      "rock2",
-      "stone_bridge",
-      "npc_pawn",
-    ]);
-  });
+  it.each([
+    ["town", town],
+    ["zone", zone],
+  ] as const)(
+    "the editor's view of a %s sends its pack buildings, props, bridges and characters",
+    (_, make) => {
+      const doc = block(make());
+      add(doc, building({ x: 10, y: 4 }, "tower"));
+      add(doc, prop({ x: 2, y: 2 }, "rock", 1, true));
+      add(doc, bridge({ x: 20, y: 2 }));
+      add(doc, npc({ x: 3, y: 8 }, "pawn", 2));
+      const expected = [
+        ["building", "tower", undefined, false],
+        ["prop", "rock2", undefined, true],
+        ["building", "stone_bridge", undefined, false],
+        ["figure", "npc_pawn", "idle", true],
+      ];
+      const look = (s: ReturnType<typeof townStructures>[number]) => [
+        s.kind,
+        s.sprite,
+        s.animation,
+        s.mirror ?? false,
+      ];
+      expect(townStructures(doc).map(look)).toEqual(expected);
+      const window = { x0: -15, y0: -15, x1: 44, y1: 29 };
+      const view = editorView(doc, DEFAULT_LAYERS, window);
+      expect(view.structures!.map(look)).toEqual(expected);
+      // A character stands on its hex and covers nothing.
+      expect(view.structures![3]).toMatchObject({ at: { x: 3, y: 8 }, covers: [] });
+      // The objects layer off: none.
+      expect(editorView(doc, { ...DEFAULT_LAYERS, objects: false }, window).structures).toEqual([]);
+    },
+  );
 
   it("the walk's world of a town makes walls of a building's footprint but its door", () => {
     const doc = block(town());
@@ -234,6 +245,32 @@ describe("the pack's rows (CLI-09e part 2)", () => {
     for (const t of buildingFootprint(building({ x: 10, y: 4 }, "tower") as never)) {
       if (t.x !== 10 || t.y !== 4) expect(at(t)).toBe("wall");
     }
+  });
+
+  it("the walk's world of a zone makes walls of a footprint but its door and of a blocking prop", () => {
+    const doc = block(zone());
+    const hut = building({ x: 10, y: 4 }, "tower");
+    add(doc, hut);
+    add(doc, prop({ x: 2, y: 2 }, "tree"));
+    add(doc, prop({ x: 4, y: 2 }, "bush"));
+    add(doc, npc({ x: 6, y: 6 }, "pawn"));
+    const world = walkWorld(
+      doc,
+      { x0: 0, y0: 0, width: 2, height: 2 },
+      { start: { x: 1, y: 1 }, fog: false },
+    );
+    const at = (t: Tile) => world.terrain.hidden[t.y * world.terrain.width + t.x];
+    const footprint = buildingFootprint(hut as never);
+    expect(footprint.length).toBeGreaterThan(1);
+    for (const t of footprint) expect(at(t)).toBe(t.x === 10 && t.y === 4 ? "floor" : "wall");
+    // A tree blocks, a bush does not; a character stands on floor.
+    expect(at({ x: 2, y: 2 })).toBe("wall");
+    expect(at({ x: 4, y: 2 })).toBe("floor");
+    expect(at({ x: 6, y: 6 })).toBe("floor");
+    // Still a zone (no hub), its pack objects drawn as structures, the character in its idle loop.
+    expect(world.kind).toBeUndefined();
+    expect(world.structures!.map((s) => s.kind)).toEqual(["building", "prop", "prop", "figure"]);
+    expect(world.structures![0]!.covers).toHaveLength(footprint.length - 1);
   });
 });
 

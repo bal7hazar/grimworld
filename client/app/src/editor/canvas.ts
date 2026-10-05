@@ -19,6 +19,7 @@ import { browserHost } from "../render/scheduler";
 import type { Tile, ViewState } from "../render/view";
 import type { SandboxWorld } from "../sandbox/world";
 import { CHUNK, type TileBox } from "./model";
+import { Notice } from "./notice";
 import { type OverlayScene, drawOverlays, visibleRange } from "./overlay";
 import { holds, viewWindow } from "./view";
 import { WalkMode } from "./walk";
@@ -146,9 +147,13 @@ export class EditorCanvas {
   private window: TileBox | null = null;
   private spaceHeld = false;
   private overlayFrame: number | null = null;
-  /** `CAMERA_NOTICE_MS`: the pending notice's timer, and whether the camera moved since the last. */
-  private noticeTimer: number | null = null;
-  private movedSinceNotice = false;
+  /** The camera's notice to the editor, at most every `CAMERA_NOTICE_MS` (`notice.ts`). */
+  private readonly notice = new Notice(() => this.events.changed(), CAMERA_NOTICE_MS, {
+    setTimeout: (run, ms) => window.setTimeout(run, ms),
+    clearTimeout: (timer) => window.clearTimeout(timer),
+  });
+  /** The camera and size the overlay was last drawn for (`rendererDrew`). */
+  private overlayCamera = "";
   /** The last overlay frames' drawing times in ms (the browser check reads them). */
   readonly overlayMs: number[] = [];
   /** The editor's zoom (`mapZoom`), and whether the author zoomed by hand since `0`. */
@@ -169,12 +174,13 @@ export class EditorCanvas {
     const { app, surface } = await createPixiSurface(host, "continuous");
     let canvas: EditorCanvas | null = null;
     const renderer = new Renderer(surface, browserHost(), {
-      idle: false,
+      // The characters' idle loop (CLI-09e part 3); `?idle=0` stops it, as in the game.
+      idle: new URLSearchParams(window.location.search).get("idle") !== "0",
       mode: "continuous",
       bakesPerFrame: BAKES_PER_FRAME,
       keepSharper: KEEP_SHARPER,
       rescaleAfterMs: RESCALE_AFTER_MS,
-      onDraw: () => canvas?.drawOverlay(),
+      onDraw: () => canvas?.rendererDrew(),
     });
     const overlay = document.createElement("canvas");
     overlay.dataset.overlay = "";
@@ -252,22 +258,7 @@ export class EditorCanvas {
     if (this.walk) return;
     const { camera, viewport } = this.renderer.cameraState();
     if (!this.window || !holds(this.window, visibleRange(camera, viewport))) this.refreshView();
-    this.noticeMove();
-  }
-
-  /** The camera moved: the editor is told now, or when `CAMERA_NOTICE_MS` has passed. */
-  private noticeMove(): void {
-    if (this.noticeTimer !== null) {
-      this.movedSinceNotice = true;
-      return;
-    }
-    this.events.changed();
-    this.noticeTimer = window.setTimeout(() => {
-      this.noticeTimer = null;
-      if (this.destroyed || !this.movedSinceNotice) return;
-      this.movedSinceNotice = false;
-      this.noticeMove();
-    }, CAMERA_NOTICE_MS);
+    this.notice.moved();
   }
 
   setScene(scene: OverlayScene): void {
@@ -388,10 +379,25 @@ export class EditorCanvas {
     });
   }
 
+  /**
+   * The renderer drew a frame: the overlay follows it only when the camera or the size moved. An
+   * idle frame (a character's loop, CLI-09e part 3) or a deferred bake redraws nothing of it; a new
+   * scene redraws it on its own (`scheduleOverlay`).
+   */
+  private rendererDrew(): void {
+    if (this.overlayKey() !== this.overlayCamera) this.drawOverlay();
+  }
+
+  private overlayKey(): string {
+    const { camera, viewport } = this.renderer.cameraState();
+    return `${camera.centre.x},${camera.centre.y},${camera.scale},${viewport.width},${viewport.height},${this.overlay.width}`;
+  }
+
   private drawOverlay(): void {
     const ctx = this.overlay.getContext("2d");
     if (!ctx || !this.scene || this.walk) return;
     const { camera, viewport } = this.renderer.cameraState();
+    this.overlayCamera = this.overlayKey();
     const ratio = this.overlay.width / Math.max(1, viewport.width);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const start = performance.now();
@@ -515,7 +521,7 @@ export class EditorCanvas {
     this.walk?.mode.destroy();
     this.walk = null;
     if (this.overlayFrame !== null) window.cancelAnimationFrame(this.overlayFrame);
-    if (this.noticeTimer !== null) window.clearTimeout(this.noticeTimer);
+    this.notice.destroy();
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.renderer.destroy();
     this.overlay.remove();

@@ -47,6 +47,7 @@ import {
   waterFoam,
 } from "./ground";
 import { FOAM_FPS, FoamMesh, type WaterMode, overlaps, pageWater } from "./foam";
+import { type FigureNode, figureFrame, figurePhase, nextFrameAt, spriteBounds } from "./figures";
 import { OBSTACLES, type Obstacle, obstacleOf } from "./obstacles";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
 import { type FogCounts, fogCounts, tileKey } from "./fog";
@@ -235,6 +236,14 @@ interface ActorNode {
  */
 function tick(now: number, fps: number): number {
   return Math.floor((now * fps) / 1000 + 1e-6);
+}
+
+/** A structure as drawn: its container, and its sprite and still when the atlas has it. */
+interface StructureNode {
+  readonly container: Container;
+  readonly structure: ViewStructure;
+  readonly sprite: Sprite | null;
+  readonly still: Texture | null;
 }
 
 const spriteName = (actor: ViewActor) =>
@@ -488,8 +497,10 @@ export class Renderer implements FrameClient {
   private readonly actorsLayer = new Container({ sortableChildren: true });
   private readonly nodes = new Map<number, ActorNode>();
   /** The structures drawn (CLI-03f), by key; they never move, so they are built once per view's set. */
-  private readonly structureNodes = new Map<string, Container>();
+  private readonly structureNodes = new Map<string, StructureNode>();
   private structuresKey = "";
+  /** The structures that loop an animation (CLI-09e part 3: the characters), by key. */
+  private readonly figures = new Map<string, FigureNode & { readonly sprite: Sprite }>();
   /** The wall hexes a structure stands on (`"x,y"`): no rock there. */
   private covered: ReadonlySet<string> = new Set();
   /**
@@ -613,6 +624,7 @@ export class Renderer implements FrameClient {
     this.syncStructures(view.structures ?? []);
     this.syncObstacles(view);
     const hidden = hiddenTiles(view);
+    this.syncStructureLooks(view, hidden);
     const terrainChanged = this.syncChunks(view, hidden);
     if (terrainChanged) this.overlayDirty = true;
     this.syncCover(view, hidden);
@@ -728,6 +740,8 @@ export class Renderer implements FrameClient {
     this.obstacleNodes.clear();
     this.dropGreyTextures();
     if (this.view) this.syncObstacles(this.view);
+    // After the grey textures are dropped: a structure's grey still is made again from the new atlas.
+    if (this.view) this.syncStructureLooks(this.view, hiddenTiles(this.view));
     this.placeVoid();
     // The ground switches between flat colours and the atlas's cells: every chunk, once.
     for (const chunk of this.chunks.values()) {
@@ -884,6 +898,16 @@ export class Renderer implements FrameClient {
       if (this.foamInView()) {
         changed = true;
         if (foamTick !== null) idleChanged = true;
+      }
+    }
+    // The figures (CLI-09e part 3), under the same cap; off, each goes back to frame 0 at once.
+    if (this.figures.size > 0 && (idleDue || !this.idleOn)) {
+      const inView = new Set(this.figuresInView());
+      for (const figure of this.figures.values()) {
+        if (this.showFigure(figure, now) && (inView.has(figure) || !this.idleOn)) {
+          changed = true;
+          if (this.idleOn) idleChanged = true;
+        }
       }
     }
     if (idleChanged) this.lastIdle = now;
@@ -1700,35 +1724,114 @@ export class Renderer implements FrameClient {
    */
   private syncStructures(structures: readonly ViewStructure[]): void {
     const sorted = [...structures].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-    const key = sorted.map((s) => `${s.key}@${s.at.x},${s.at.y}`).join(" ");
+    // What a node is built from: an edit that changes a sprite, a mirror or a covered hex builds it again.
+    const key = sorted
+      .map(
+        (s) =>
+          `${s.key}@${s.at.x},${s.at.y}:${s.sprite}/${s.animation ?? ""}${s.mirror ? "~" : ""}` +
+          `[${s.covers.map((t) => `${t.x},${t.y}`).join(";")}]`,
+      )
+      .join(" ");
     if (key === this.structuresKey) return;
     this.structuresKey = key;
-    for (const node of this.structureNodes.values()) node.destroy({ children: true });
+    for (const node of this.structureNodes.values()) node.container.destroy({ children: true });
     this.structureNodes.clear();
+    this.figures.clear();
     this.covered = new Set(sorted.flatMap((s) => s.covers.map((t) => `${t.x},${t.y}`)));
     for (const structure of sorted) {
       const node = this.createStructure(structure);
-      this.actorsLayer.addChild(node);
+      this.actorsLayer.addChild(node.container);
       this.structureNodes.set(structure.key, node);
     }
   }
 
-  private createStructure(structure: ViewStructure): Container {
+  private createStructure(structure: ViewStructure): StructureNode {
     const base = tileToPixel(structure.at);
     const container = new Container();
     container.position.set(base.x, base.y);
     container.zIndex = base.y - 0.001;
-    const texture = this.library?.get(structure.sprite)?.animations[STILL]?.textures[0];
-    if (texture) {
-      const sprite = new Sprite(texture);
-      const anchor = texture.defaultAnchor;
-      sprite.anchor.set(anchor?.x ?? 0.5, anchor?.y ?? 1);
-      if (structure.mirror) sprite.scale.x = -1;
-      container.addChild(sprite);
-    } else {
+    const art = this.library?.get(structure.sprite);
+    const loop = structure.animation ? art?.animations[structure.animation] : undefined;
+    const texture = loop?.textures[0] ?? art?.animations[STILL]?.textures[0];
+    if (!texture) {
       container.addChild(drawStructure(structure));
+      return { container, structure, sprite: null, still: null };
     }
-    return container;
+    const sprite = new Sprite(texture);
+    const anchor = texture.defaultAnchor;
+    const ax = anchor?.x ?? 0.5;
+    const ay = anchor?.y ?? 1;
+    sprite.anchor.set(ax, ay);
+    if (structure.mirror) sprite.scale.x = -1;
+    container.addChild(sprite);
+    if (loop && loop.textures.length > 1) {
+      this.figures.set(structure.key, {
+        sprite,
+        textures: loop.textures,
+        fps: loop.fps ?? 12,
+        phase: figurePhase(structure.at),
+        bounds: spriteBounds(base, texture.frame.width, texture.frame.height, ax, ay),
+        animates: true,
+        grey: false,
+      });
+    }
+    return { container, structure, sprite, still: texture };
+  }
+
+  /**
+   * Each structure as the view shows its hex (CLI-09e part 3, as the walls' obstacles): not drawn
+   * on a hex the view hides, dimmed beyond sight, and in grayscale under the view's fog (a figure
+   * then stands still at frame 0). Every view, over the structures alone: no rebuild.
+   */
+  private syncStructureLooks(view: ViewState, hidden: ReadonlyMap<string, ViewTile>): void {
+    if (this.structureNodes.size === 0) return;
+    const inSight = new Set(view.sight.map((t) => `${t.x},${t.y}`));
+    // An instance (`revealed` given) also hides what stands on a chunk not revealed yet.
+    const unrevealed = new Set<string>();
+    if (view.revealed) {
+      for (const t of view.tiles) if (t.kind === "unrevealed") unrevealed.add(tileKey(t));
+    }
+    const now = this.host.now();
+    for (const [key, node] of this.structureNodes) {
+      const at = node.structure.at;
+      const drawn = !hidden.has(tileKey(at)) && !unrevealed.has(tileKey(at));
+      const seen = inSight.has(`${at.x},${at.y}`);
+      node.container.visible = drawn;
+      const tint = seen ? 0xffffff : DIM_TINT;
+      for (const child of node.container.children) {
+        if ("tint" in child && child.tint !== tint) child.tint = tint;
+      }
+      const grey = !seen && this.fogOn;
+      const figure = this.figures.get(key);
+      if (figure) {
+        figure.animates = drawn && !grey;
+        figure.grey = grey;
+        this.showFigure(figure, now);
+      } else if (node.sprite && node.still) {
+        const texture = grey ? this.greyTexture(node.still) : node.still;
+        if (node.sprite.texture !== texture) node.sprite.texture = texture;
+      }
+    }
+  }
+
+  /** Shows a figure's frame at `now`: whether its texture changed. */
+  private showFigure(figure: FigureNode & { readonly sprite: Sprite }, now: number): boolean {
+    const index =
+      this.idleOn && figure.animates
+        ? figureFrame(now, figure.fps, figure.phase, figure.textures.length)
+        : 0;
+    const first = figure.textures[0]!;
+    const texture = figure.grey ? this.greyTexture(first) : (figure.textures[index] ?? first);
+    if (figure.sprite.texture === texture) return false;
+    figure.sprite.texture = texture;
+    return true;
+  }
+
+  /** The figures that ask for frames: animated, drawn in colour, and on the screen. */
+  private figuresInView(): (FigureNode & { readonly sprite: Sprite })[] {
+    if (!this.idleOn || this.figures.size === 0) return [];
+    const rect = this.viewRect();
+    return [...this.figures.values()].filter((f) => f.animates && overlaps(f.bounds, rect));
   }
 
   /** The obstacles of `OBSTACLES` whose still the atlas has, in their order. */
@@ -1794,7 +1897,19 @@ export class Renderer implements FrameClient {
   structureFromAtlas(key: string): boolean | null {
     const node = this.structureNodes.get(key);
     if (!node) return null;
-    return node.children[0] instanceof Sprite;
+    return node.sprite !== null;
+  }
+
+  /** A structure's sprite, and whether it loops (a figure): for the page and tests. */
+  structureSprite(key: string): { readonly sprite: Sprite; readonly loops: boolean } | null {
+    const node = this.structureNodes.get(key);
+    if (!node?.sprite) return null;
+    return { sprite: node.sprite, loops: this.figures.has(key) };
+  }
+
+  /** Whether a structure is drawn (not on a hidden hex): for tests. */
+  structureVisible(key: string): boolean | null {
+    return this.structureNodes.get(key)?.container.visible ?? null;
   }
 
   /** A new set of dropped steps fades out from the ghosts' alpha to nothing. */
@@ -1911,6 +2026,8 @@ export class Renderer implements FrameClient {
     if (this.foamAnimates() && this.foamInView()) {
       next = ((tick(now, this.foamFps) + 1) * 1000) / this.foamFps;
     }
+    // The figures' next frame, only while one of them is on the screen (CLI-09e part 3).
+    for (const figure of this.figuresInView()) next = Math.min(next, nextFrameAt(now, figure.fps));
     for (const node of this.idleOn ? this.nodes.values() : []) {
       const animation = node.art ? node.art.animations.idle : null;
       const count = node.art ? (animation?.textures.length ?? 0) : SHAPE_IDLE.offsets.length;

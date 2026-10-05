@@ -140,4 +140,25 @@ describe("the chunks' bakes spread over frames (CLI-09g)", () => {
     expect(surface.bakes.length - before).toBe(16);
     expect(host.quiet()).toBe(true);
   });
+
+  it("bakesPerFrame: every texture a deferred bake replaces is destroyed, frame by frame (review t-0140)", () => {
+    const { host, renderer } = setUp({ bakesPerFrame: 2 });
+    host.run(1000);
+    const first = new Map(chunksOf(renderer).map((c) => [c, c.sprite.texture]));
+    expect(first.size).toBe(16);
+    renderer.zoomAt(2, { x: 187, y: 406 });
+    // Frame by frame: a chunk baked again has a new texture and its old one is destroyed; one not
+    // yet baked keeps its texture, alive.
+    for (let i = 0; i < 12; i++) {
+      host.run(1000 / 60);
+      for (const [chunk, old] of first) {
+        if (chunk.sprite.texture === old) expect(old.destroyed).toBe(false);
+        else expect(old.destroyed, "a replaced texture").toBe(true);
+      }
+    }
+    host.run(1000);
+    expect([...first.values()].every((t) => t.destroyed)).toBe(true);
+    expect(chunksOf(renderer).every((c) => !c.sprite.texture.destroyed)).toBe(true);
+    expect(renderer["retired"]).toEqual([]);
+  });
 });

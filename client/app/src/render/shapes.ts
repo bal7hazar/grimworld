@@ -248,6 +248,13 @@ function drawLip(g: Graphics, lip: GroundPlan["lip"]): void {
 export function drawStructure(structure: ViewStructure): Graphics {
   const { width: w, height: h } = structure;
   const g = new Graphics();
+  if (structure.kind === "figure") {
+    // A character without the atlas: a still standing figure, the size of an actor's body.
+    g.ellipse(0, 0, 12, 4).fill({ color: 0x000000, alpha: 0.25 });
+    g.roundRect(-8, -30, 16, 26, 5).fill(COLOURS.wallShade);
+    g.circle(0, -36, 7).fill(COLOURS.wall);
+    return g;
+  }
   if (structure.kind === "prop") {
     g.ellipse(0, 0, 20, 5).fill({ color: 0x000000, alpha: 0.25 });
     g.circle(0, -16, 16).fill(COLOURS.bush);

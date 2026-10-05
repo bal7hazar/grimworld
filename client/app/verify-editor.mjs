@@ -1,4 +1,4 @@
-/* global console, process, fetch, setTimeout, localStorage, Buffer, URL, window, Event, performance, requestAnimationFrame */
+/* global console, process, fetch, setTimeout, localStorage, Buffer, URL, window, Event, performance, requestAnimationFrame, Image, document */
 /* eslint-disable no-empty */
 // The map editor in a real browser (CLI-09a, CLI-09a2): at 1440 × 900, with the art and in the plain
 // look (the art's `/art/` answered 404), a zone is created with no size, painted away from the
@@ -695,6 +695,9 @@ async function listed(page, check) {
  */
 async function packPhase(page, look, shot) {
   console.log(`--- ${look}: the pack's palette (CLI-09e part 2) ---`);
+  // The foam still (`?water=still`): in part 3's captures, only the characters move.
+  await page.goto(`${base}/editor.html?water=still`);
+  await page.locator('[data-screen="list"]').waitFor();
   await page.locator("[data-new-map]").click();
   await page.locator("#ed-name").fill(`Pack ${look}`);
   await page.locator("[data-confirm]").click();
@@ -773,6 +776,7 @@ async function packPhase(page, look, shot) {
   ok((await listed(page, "E-21")) === 0, "the character stands on floor: no E-21");
   await page.waitForTimeout(300);
   await shot("14-placed");
+  if (look === "art") await idlePhase(page, shot, of("npc"));
 
   // Fail the door: a wall painted on it. Fix it: the building selected, R takes the next door.
   await page.locator('[data-swatch="terrain-wall"]').click();
@@ -806,6 +810,213 @@ async function packPhase(page, look, shot) {
   const after = JSON.stringify((await objectsOf(page)).map((o) => ({ ...o, id: 0 })));
   ok(after === before, "opened again from its file: the same objects");
   await shot("17-reloaded");
+}
+
+/** In the page: the device pixels that differ between two PNG screenshots, and their box (CSS px). */
+async function diffShots(page, a, b) {
+  return page.evaluate(
+    async ({ a, b }) => {
+      const decode = async (png) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${png}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const g = canvas.getContext("2d");
+        g.drawImage(image, 0, 0);
+        return { w: image.width, data: g.getImageData(0, 0, image.width, image.height).data };
+      };
+      const [A, B] = [await decode(a), await decode(b)];
+      const k = A.w / window.innerWidth;
+      let differ = 0;
+      const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      for (let i = 0; i < A.data.length; i += 4) {
+        if (
+          A.data[i] === B.data[i] &&
+          A.data[i + 1] === B.data[i + 1] &&
+          A.data[i + 2] === B.data[i + 2]
+        )
+          continue;
+        differ += 1;
+        const p = i / 4;
+        const x = (p % A.w) / k;
+        const y = Math.floor(p / A.w) / k;
+        box.x0 = Math.min(box.x0, x);
+        box.y0 = Math.min(box.y0, y);
+        box.x1 = Math.max(box.x1, x + 1 / k);
+        box.y1 = Math.max(box.y1, y + 1 / k);
+      }
+      return { differ, box };
+    },
+    { a: a.toString("base64"), b: b.toString("base64") },
+  );
+}
+
+/** In the page: a structure's sprite box on the screen (CSS px): PixiJS's bounds, on the canvas. */
+const spriteBox = (page, key) =>
+  page.evaluate((key) => {
+    const canvas = window.__editor.canvas;
+    const node = canvas.renderer.structureSprite(key);
+    if (!node) return null;
+    const rect = canvas.overlay.getBoundingClientRect();
+    const b = node.sprite.getBounds();
+    return {
+      loops: node.loops,
+      x0: rect.left + b.x,
+      x1: rect.left + b.x + b.width,
+      y0: rect.top + b.y,
+      y1: rect.top + b.y + b.height,
+    };
+  }, key);
+
+/**
+ * CLI-09e part 3: the placed character loops its idle in the renderer. Two captures 100 ms apart
+ * differ on it and nowhere else (the foam is still: `?water=still`). Then 50 characters on the
+ * screen: the frames a second and the script time a frame standing still, and the renderer's
+ * frame time while panning, with the objects layer on and off.
+ */
+async function idlePhase(page, shot, npc) {
+  console.log("--- art: the characters' idle loop (CLI-09e part 3) ---");
+  // The pointer off the map: no hover change between the captures.
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(400);
+  const box = await spriteBox(page, `npc:${npc.id}`);
+  ok(box?.loops === true, "the character is the renderer's, and it loops");
+  const a = await page.screenshot();
+  await page.waitForTimeout(100);
+  const b = await page.screenshot();
+  const { differ, box: changed } = await diffShots(page, a, b);
+  const margin = 1;
+  const inside =
+    differ > 0 &&
+    changed.x0 >= box.x0 - margin &&
+    changed.x1 <= box.x1 + margin &&
+    changed.y0 >= box.y0 - margin &&
+    changed.y1 <= box.y1 + margin;
+  ok(
+    inside,
+    `two captures 100 ms apart: ${differ} device px differ, in ` +
+      `[${changed.x0.toFixed(0)}, ${changed.x1.toFixed(0)}] × [${changed.y0.toFixed(0)}, ${changed.y1.toFixed(0)}], ` +
+      `the character's box [${box.x0.toFixed(0)}, ${box.x1.toFixed(0)}] × [${box.y0.toFixed(0)}, ${box.y1.toFixed(0)}]`,
+  );
+  await shot("14b-idle");
+
+  // 50 characters on the screen, one every other hex of the block's rows, every kind in turn.
+  const placed = await page.evaluate(() => {
+    const s = window.__editor.session;
+    const types = [
+      "pawn",
+      "pawn_axe",
+      "pawn_gold",
+      "pawn_hammer",
+      "pawn_knife",
+      "pawn_meat",
+      "pawn_pickaxe",
+      "pawn_wood",
+      "lancer",
+      "trainee",
+      "laborer",
+      "expert",
+      "master",
+      "sheep",
+      "pig",
+    ];
+    let n = 0;
+    for (let y = 6; y < 16 && n < 50; y += 2) {
+      for (let x = 1; x < 23 && n < 50; x += 2) {
+        if (x >= 6 && x <= 11 && y <= 7) continue;
+        s.choosePlace({ kind: "npc", type: types[n % types.length] });
+        s.strokeStart({ x, y }, { erase: false, alt: false, shift: false });
+        s.strokeEnd();
+        n += 1;
+      }
+    }
+    return n;
+  });
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(800);
+  const figures = await page.evaluate(() => window.__editor.canvas.renderer["figures"].size);
+  ok(
+    figures >= 50,
+    `${placed} characters placed, 51 with the first: the renderer loops ${figures}`,
+  );
+  await shot("14c-fifty");
+
+  // Timing the renderer's own work: its advance and draw, per frame.
+  const measure = (ms, pan) =>
+    page.evaluate(
+      async ({ ms, pan }) => {
+        const r = window.__editor.canvas.renderer;
+        const times = [];
+        const advance = r.advance;
+        const draw = r.draw;
+        let t0 = 0;
+        r.advance = function (now) {
+          t0 = performance.now();
+          return advance.call(this, now);
+        };
+        r.draw = function () {
+          draw.call(this);
+          times.push(performance.now() - t0);
+        };
+        const start = performance.now();
+        if (pan) {
+          await new Promise((done) => {
+            let n = 0;
+            const step = () => {
+              // 3 px a frame, back and forth every second: the characters stay on the screen.
+              const c = window.__editor.canvas;
+              c.renderer.pan(Math.floor(n++ / 60) % 2 === 0 ? -3 : 3, 0);
+              c.cameraMoved();
+              if (performance.now() - start < ms) requestAnimationFrame(step);
+              else done();
+            };
+            requestAnimationFrame(step);
+          });
+        } else {
+          await new Promise((done) => setTimeout(done, ms));
+        }
+        const seconds = (performance.now() - start) / 1000;
+        delete r.advance;
+        delete r.draw;
+        const sorted = [...times].sort((x, y) => x - y);
+        const at = (q) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
+        return {
+          frames: times.length,
+          fps: times.length / seconds,
+          mean: times.reduce((x, y) => x + y, 0) / Math.max(1, times.length),
+          median: at(0.5),
+          p95: at(0.95),
+        };
+      },
+      { ms, pan },
+    );
+  const loadavg = () => readFileSync("/proc/loadavg", "utf8").split(" ")[0];
+  const still = await measure(4000, false);
+  console.log(
+    `  standing still, 50 characters: ${still.fps.toFixed(1)} frames/s, script ` +
+      `${still.mean.toFixed(2)} ms a frame (median ${still.median.toFixed(2)}, p95 ${still.p95.toFixed(2)}); load ${loadavg()}`,
+  );
+  ok(still.fps <= 15.5, `idle frames at most 15 a second: ${still.fps.toFixed(1)}`);
+  ok(still.fps >= 10, `the characters loop standing still: ${still.fps.toFixed(1)} frames/s`);
+  const panOn = await measure(3000, true);
+  await page.locator('[data-layer="objects"]').uncheck();
+  await page.waitForTimeout(300);
+  const noneStill = await measure(2000, false);
+  const panOff = await measure(3000, true);
+  await page.locator('[data-layer="objects"]').check();
+  // The 50 characters undone, one step each: the map as the pack phase left it.
+  await page.evaluate((n) => {
+    for (let i = 0; i < n; i++) window.__editor.session.undo();
+  }, placed);
+  await page.waitForTimeout(300);
+  console.log(
+    `  panning, 50 characters: ${panOn.frames} frames, renderer ${panOn.median.toFixed(2)} / ${panOn.p95.toFixed(2)} ms ` +
+      `(median / p95); objects off: ${panOff.median.toFixed(2)} / ${panOff.p95.toFixed(2)} ms; load ${loadavg()}`,
+  );
+  ok(noneStill.frames === 0, `objects off, standing still: ${noneStill.frames} frames`);
+  ok(panOn.p95 < 16.7, `panning with 50 characters: p95 ${panOn.p95.toFixed(2)} ms under 16.7`);
 }
 
 let browser;

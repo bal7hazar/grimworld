@@ -77,16 +77,23 @@ export interface ViewArcs {
 }
 
 /**
- * A building or a prop standing on the map (CLI-03f): design/10's obstacle object of the wall
- * hexes it covers. It never moves. Drawn from the atlas's still `sprite` at native size, the middle
- * of its base on its hex's centre, or as a shape without the atlas.
+ * A building, a prop or a character standing on the map (CLI-03f, CLI-09e): design/10's obstacle
+ * object of the wall hexes it covers. It never moves. Drawn from the atlas's still `sprite` at native
+ * size (a character's `animation`, looped), the middle of its base on its hex's centre, or as a
+ * shape without the atlas. One on a hex the view hides is not drawn; beyond sight it is dimmed.
  */
 export interface ViewStructure {
   /** Unique in the view; breaks a tie of the drawing order. */
   readonly key: string;
-  readonly kind: "building" | "prop";
-  /** The still's name in the atlas (`tools/art`, roles `building` and `prop`). */
+  /** A figure is a character of the pack (CLI-09e): no wall, an idle loop. */
+  readonly kind: "building" | "prop" | "figure";
+  /** The sprite's name in the atlas (`tools/art`, roles `building`, `prop` and `npc`). */
   readonly sprite: string;
+  /**
+   * The atlas's animation it loops, at the sprite's fps, as the actors' idle (CLI-09e part 3):
+   * `idle` for a character. Absent: the still.
+   */
+  readonly animation?: string;
   /** The hex its base stands on. */
   readonly at: Tile;
   /** Its native size in art pixels: the shape drawn without the atlas. */
@@ -118,7 +125,8 @@ export interface ViewState {
   readonly dropped: readonly Tile[];
   readonly selectedTile: Tile | null;
   /**
-   * Buildings and props (a hub's, CLI-03f); none in a zone. Optional so that a view written by hand
+   * Buildings and props (a hub's, CLI-03f; the editor's map's, with its characters, CLI-09e); none
+   * in the game's zones. Optional so that a view written by hand
    * (the renderer's tests) stays a zone's; `toView` always gives it.
    */
   readonly structures?: readonly ViewStructure[];

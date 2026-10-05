@@ -151,8 +151,6 @@ export interface OverlayScene {
   readonly box?: { readonly from: Tile; readonly to: Tile } | null;
   /** Where a paste or a move would land. */
   readonly ghost?: readonly Tile[];
-  /** Drawn under the footprints and markers: the pack's art the renderer does not draw. */
-  readonly under?: OverlayPaint | null;
   /** Drawn over everything: the placement's preview. */
   readonly over?: OverlayPaint | null;
 }
@@ -440,11 +438,6 @@ export function drawOverlays(
     const y = p.y * scale + oy;
     return x > -hexPx && y > -hexPx && x < viewport.width + hexPx && y < viewport.height + hexPx;
   };
-  if (scene.under) {
-    ctx.save();
-    scene.under(ctx, camera, viewport);
-    ctx.restore();
-  }
   if (scene.footprints && scene.footprints.length > 0) {
     ctx.beginPath();
     for (const tile of scene.footprints) if (onScreen(tile)) hexPath(tile, 0.5);

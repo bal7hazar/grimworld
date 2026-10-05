@@ -43,7 +43,7 @@ import {
   servicesOf,
 } from "./objects";
 import { PACK_KIND_OF, isPack, placementOf } from "./pack";
-import { drawSprites, packSprites, spritesFromLibrary } from "./packDraw";
+import { drawSprites, spritesFromLibrary } from "./packDraw";
 import {
   Palette,
   drawPreview,
@@ -772,11 +772,7 @@ function EditorScreen({
       ghost.push({ x: at.x + c.dx, y: at.y + c.dy });
     }
   }
-  // The pack's art the renderer does not draw (`packDraw.ts`), and the placement's preview.
-  const packArt = useMemo(
-    () => (layers.objects ? packSprites(doc, session.zone) : []),
-    [doc, revision, layers, session],
-  );
+  // The placement's preview: the renderer draws the pack's objects placed (CLI-09e part 3).
   const preview = useMemo(() => {
     if (!hover || walking || session.tool !== "place" || !session.placing.type) return null;
     const object = newObject(session.placing, hover);
@@ -804,10 +800,6 @@ function EditorScreen({
       selected,
       box: session.box,
       ghost,
-      under:
-        sprites && packArt.length > 0
-          ? (ctx, camera, viewport) => drawSprites(ctx, camera, viewport, packArt, sprites)
-          : null,
       over: preview
         ? (ctx, camera, viewport) => {
             drawPreview(ctx, camera, viewport, preview.look);

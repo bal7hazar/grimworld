@@ -79,9 +79,13 @@ Textures baked in a sequence: before, 3,468 (zoom), 4,335–4,624 (sweep) and 2,
 - **Zooming at the widest zooms, p95 under 100 ms**: met at load 6.7 (67 ms) and on the sweep at
   load 12 (100 ms, which is not under). Not met at load 11–12 for the zoom from the widest (133 ms)
   or the wheel steps (117 ms).
-- **No frame over 250 ms**: met in five of the six "after" zoom figures. Not met once: 283 ms on the
-  zoom from the widest at load 10.9, and 567 ms on one sweep at load 8.5.
-- **Panning no worse**: met. Every "after" pan figure is at or below the "before" one beside it.
+- **No frame over 250 ms**: not met. There are five "after" zoom runs, not six, and two of them
+  miss the 250 ms maximum: 283 ms on the zoom from the widest at load 10.9, and 567 ms on the sweep at
+  load 8.5. The other three stay under it (83, 117 and 150 ms). *(Corrected in CLI-09e part 3,
+  review t-0140 of #373.)*
+- **Panning no worse**: the medians and the p95 are no worse: every "after" one is at or below the
+  "before" one beside it. One maximum is higher: 250 ms after against 233 ms before, at the widest
+  zoom in the second pair (17 ms more). *(Corrected in CLI-09e part 3, review t-0140 of #373.)*
 
 **What is left, and why.**
 - **React.** The longest main-thread frames after the change are React rendering the editor screen
@@ -116,7 +120,7 @@ Run on this branch with the site's atlas:
 | `node client/app/verify-fog.mjs` | ALL CHECKS PASSED (48 ok) |
 | `node client/app/verify-ground.mjs` | ALL CHECKS PASSED (42 ok) |
 | `node client/app/verify-water.mjs` | ALL CHECKS PASSED (103 ok) |
-| `node client/app/verify-hubs.mjs` | 126 ok, **4 FAILED**: "walk town/outpost 375x812 and 1440x900: data-frames stops growing once it stands". **The same 4 fail with main's `renderer.ts`** (run in this worktree with `src/render/renderer.ts` from `origin/main`, then restored): not this lot's. Likely cause: the hubs' foam animates (CLI-03o), so frames never stop. |
+| `node client/app/verify-hubs.mjs` | Passes at `bf4381a`: ALL CHECKS PASSED, 130 ok (t-0133's recheck). *(Corrected in CLI-09e part 3, review t-0140 of #373: this row first gave 126 ok and 4 failed, "data-frames stops growing once it stands"; those 4 came from a run before the rebase onto main. `bf4381a` contains #368, "verify-hubs allows the animated foam's frames": the likely difference.)* |
 | `node client/app/verify-editor.mjs` (run, not edited) | ALL CHECKS PASSED (117 ok) |
 
 Unit tests (`pnpm --filter @grimworld/app test`): 63 files passed, 1 skipped; 685 tests passed,

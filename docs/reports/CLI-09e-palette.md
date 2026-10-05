@@ -83,7 +83,7 @@ base row, and one row behind.
 | `…/Gnome Buildings/Gnome Tower.png` (128 × 256) | `gnome_tower` | 124 | 3 | added |
 | `Enemy Pack/Extra/Pirate Tower/Pirate Tower_Ground.png` (128 × 192) | `pirate_tower` | 108 | 3 | added |
 | `Enemy Pack/Extra/Dead Tree/Dead Tree.png` (384 × 320) | `dead_tree` (a hollow tree with a door) | 328 | 11 | added |
-| `Enemy Pack/Extra/Goblin Hut/Goblin Hut.png` | `goblin_hut` (cell 256, frame 0 of 12) | 230 | 7 | added |
+| `Enemy Pack/Extra/Goblin Hut/Goblin Hut.png` | `goblin_hut` (cell 192 × 256, frame 0 of 16) | 140 | 5 | added |
 | `Enemy Pack/Extra/Fish Hut/Fish Hut.png` | `fish_hut` (cell 192, frame 0 of 8) | 147 | 5 | added |
 | `Enemy Pack/Extra/Cave/Cave_Idle.png` | `cave` (cell 192, frame 0 of 8) | 154 | 5 | added |
 | `Enemy Pack/Extra/Pirate Tower/Pirate Tower_Water.png` (8 cells of 128 × 192) | — | — | — | left out: stands in water |
@@ -339,3 +339,140 @@ entry is now `cell = [192, 256]`. Every other still cut from a strip was measure
 cell, but for the rubber duck, whose frames' ripples touch the cell edges (a pack artefact, a few
 pixels, left as it is). `clean.still` now refuses a cell whose width does not divide the sheet's width
 and warns when frame pixels touch the cell's left or right edge (the duck's warning is expected).
+
+# Part 3 — characters idle, a zone's pack art drawn by the renderer
+
+The owner, on the editor: "the characters are not animated: put them at least in their idle
+animation". The project manager: the same in the game's renderer for NPCs, if it is the same code.
+
+## 11. What exists now
+
+- **The renderer's figures** (`render/figures.ts`, `renderer.ts`). A `ViewStructure` may carry an
+  `animation` (`kind: "figure"`): a pack character. It loops that animation at the sprite's fps
+  (the pack's characters: 6 to 12 frames at 12 fps) on the actors' idle path: the scheduler's timed
+  wake-ups, at most `IDLE_MAX_FPS`, nothing while the page is hidden, frame 0 with idle animations
+  off (`?idle=0`). A frame is asked for only while an animated figure is on the screen (its sprite's
+  box against the camera's rectangle, as the foam's). Its phase comes from its hex, world position
+  only, as the foam's: `q + 3r` in axial coordinates. The six neighbours of a hex differ by ±1, ±2
+  or ±3 frames, never by a whole loop of 4 frames or more, so two characters side by side never
+  breathe in step. A frame of a figure only swaps its sprite's texture: no bake, no rebuild.
+- **What the view hides.** A structure (figure, building, prop) on a hex the view hides (an
+  instance's hex never in sight, or a chunk not revealed) is not drawn. Beyond sight it is dimmed as
+  the walls' obstacles are, and under the view's fog it shows its still, or frame 0 for a figure,
+  in grayscale, and asks for no frame. A game hub sends every tile in sight and no `revealed`: no
+  change there.
+- **A structure's node** is built again when its sprite, animation, mirror or covered hexes change.
+  Before, only a changed key or hex rebuilt it, so by the code a prop's variant changed in the
+  inspector would keep its old sprite until the set changed. Read from main's `syncStructures`, not
+  reproduced in a browser.
+- **The game's hubs.** Their figures and present adventurers are actors (`hubWorld.ts`, profession
+  sprites), not structures. They already loop their idle, phased by actor id, and that code is
+  unchanged. The new path serves the pack's characters, in the editor and its preview walk. The game
+  draws no pack character yet.
+- **The editor.** A character's kind has a `look` (a figure, `animation: "idle"`, mirrored on the
+  West facings). `editorView` sends the map's structures on a zone as on a town
+  (`structures: layers.objects ? townStructures(doc) : []`). The overlay draws no pack art any more:
+  `packSprites` and the overlay's `under` hook are removed, so nothing is drawn twice. The
+  placement's preview stays on the overlay (a character at frame 0). The palette's thumbnails stay
+  at frame 0. The editor's renderer now runs idle animations (`?idle=0` stops them). Its overlay is
+  redrawn after a renderer frame only when the camera or the size moved (`rendererDrew`): an idle
+  frame or a deferred bake leaves it as it is, and a new scene still redraws it.
+- **The zone's preview walk** (`walkWorld.ts`). On a zone as on a town, a building's footprint (but
+  its door) and a blocking prop's hex are walls, as the validation counts them (review t-0134 note
+  3). The pack's objects are drawn as structures, and the renderer draws no rock under them. A bridge
+  is drawn only (its walking waits for ENG-08b, D-217). With fog, an object on a chunk not revealed
+  yet is not drawn.
+- **Review t-0140 of #373.** The camera's notice is `editor/notice.ts` (`Notice`), tested for its
+  leading notice, its trailing notice and its timer cleared on destroy. `renderer.bakes.test.ts`
+  proves that every texture a deferred bake replaces is destroyed, frame by frame. CLI-09g's report
+  has the three corrections.
+- §1's Goblin Hut row now gives cell 192 × 256, 16 frames, 140 px, 5 hexes (review t-0141 of #372).
+
+## 12. Choices (reversible)
+
+1. **Characters as structures, not actors.** An actor carries a facing wedge, a mark, steps and
+   arcs, and its sprite is named by profession. A pack character is placed authoring data that
+   never moves, as a building is. Reverse: actors that take a sprite name, if characters ever walk.
+2. **The phase `q + 3r`**, not the foam's diagonal: on a diagonal, neighbours would share a frame.
+3. **Grey and still beyond sight under fog**, as the explored water is: no grey texture per frame.
+4. **The editor's overlay follows the camera, not every frame.** Its drawing is the same; it is
+   only not repeated when nothing it shows has moved.
+5. `editor.html` in `main.tsx:6`, `Editor.tsx:63` and brief O-1: left as they are. #371 is not merged
+   (open at the time of this lot).
+
+## 13. Measures
+
+Headless Chromium 153 on the VPS (software GL), the site's built atlas (read only), one browser run
+at a time. Other projects shared the machine: `/proc/loadavg` (1 min) ran 3.0 to 14.9 over the runs.
+
+**Frame budget against main** (CLI-03n and CLI-03o's method). `verify-fog.mjs` (atlas look) and
+`verify-ground.mjs` walks, main/branch pairs, `main` at `2f2f964` (its own worktree), the frame time
+being the JavaScript of each display frame that drew. A game zone has no figure: what the branch
+adds there is a check per frame and per view.
+
+Series 1, branch at `e3d8c07`, three pairs per size:
+
+| Walk, size | median, main → branch (ms), per pair | median of the pairs' ratios | p95 ratio (pairs) | branch p95 max |
+|---|---|---|---|---|
+| fog 1440 × 900 | 1.513 → 1.200, 1.130 → 0.970, 0.955 → 1.105 | ×0.86 | ×0.96 (0.64, 0.96, 1.30) | 4.76 ms |
+| fog 375 × 812 | 0.905 → 0.790, 0.810 → 0.800, 0.805 → 0.865 | ×0.99 | ×0.81 (0.58, 1.01, 0.81) | 3.19 ms |
+| ground 1440 × 900 | 0.900 → 0.695, 0.685 → 0.732, 0.720 → 0.785 | ×1.07 | ×0.92 (0.41, 0.92, 1.27) | 2.70 ms |
+| ground 375 × 812 | 0.735 → 0.675, 0.680 → 0.680, 0.678 → 0.702 | ×1.00 | **×1.28** (0.77, 1.28, 1.30) | 2.77 ms |
+
+The ground 375 × 812 p95 ratio was over +25 %. Main's own p95 spread ×1.7 between its three runs
+(1.88 to 3.20 ms), so the frame was guarded rather than the figure trusted: with no figure, the
+frame's figure step is skipped (`d047591`). Series 2, branch at `d047591`, ground walks, three more pairs:
+
+| Walk, size | median, main → branch (ms), per pair | median ratio | p95 ratio (pairs) | branch p95 max |
+|---|---|---|---|---|
+| ground 1440 × 900 | 0.725 → 0.718, 0.710 → 0.735, 0.692 → 0.722 | ×1.04 | ×1.14 (1.20, 1.14, 1.00) | 2.94 ms |
+| ground 375 × 812 | 0.695 → 0.717, 0.710 → 0.690, 0.685 → 0.728 | ×1.03 | ×1.03 (1.24, 0.60, 1.03) | 2.44 ms |
+
+Budget (median at most +10 %, p95 at most +25 %, never past 16.7 ms at 1440): met by the medians in
+both series, by the p95 in series 2. The fog walks were not run again at `d047591`. Noise: main's
+medians spread by up to ×1.58 between its runs (fog 1440: 0.955 to 1.513 ms).
+
+**The editor, 50 characters on the screen** (`verify-editor.mjs`, 1440 × 900, `?water=still`, 51
+pack characters looping on a 24 × 16 zone; the renderer's `advance` and `draw` timed per frame,
+JavaScript only), two runs:
+
+| | run 1 (load 4.2–5.0) | run 2 (load 6.8–7.8) |
+|---|---|---|
+| standing still: frames a second | 12.0 | 12.0 |
+| standing still: script a frame, mean (median / p95) | 0.87 ms (0.60 / 1.80) | 0.82 ms (0.70 / 1.60) |
+| panning, 3 px a frame: renderer median / p95 | 1.00 / 6.00 ms (18 frames) | 0.60 / 1.10 ms (71 frames) |
+| the same pan, objects layer off | 0.50 / 2.70 ms | 0.50 / 1.00 ms |
+| objects off, standing still: frames | 0 | 0 |
+
+Standing still, the idle cost is the characters' 12 frames a second (the sprites' fps, under the cap
+of 15), under 1 ms of script each. The overlay is not redrawn for them. Run 1's pan drew 18 frames in
+3 s (the software GL at that load), too few for a p95. The GPU's work is not in these figures.
+
+## 14. Checks
+
+| Check | Result |
+|---|---|
+| `pnpm --filter @grimworld/app test` | 66 files passed, 1 skipped; 723 tests passed, 1 skipped |
+| `pnpm --filter @grimworld/app lint`, `typecheck`, `prettier --check client indexer` | pass (pre-push) |
+| `verify-editor.mjs` (extended) | ALL CHECKS PASSED, 154 ok. Two captures 100 ms apart: 360 device px differ, all in [950, 981] × [314, 355], inside the character's sprite box [946, 984] × [311, 358] |
+| `verify-hubs.mjs` | ALL CHECKS PASSED, 130 ok |
+| `verify-ground.mjs` | ALL CHECKS PASSED, 42 ok (each of the six branch runs) |
+| `verify-fog.mjs` | ALL CHECKS PASSED, 48 ok (both looks); 24 ok in each atlas-only pair run |
+| `verify-water.mjs` | ALL CHECKS PASSED, 103 ok |
+| `verify-keys.mjs` | ALL CHECKS PASSED, 92 ok |
+| The game's bundle | `vite build`: the editor-only strings ("The map editor needs a desktop window", "Fit chunks", "grimmap") are in `editor-*.js` only; `index.html` loads `main-*.js` and its imports, which hold none of them and do not import the editor's chunk |
+
+New unit tests: `render/renderer.figures.test.ts` (the frame at the sprite's fps from its phase;
+neighbours never in step for 6 to 12 frames; frames at most at `IDLE_MAX_FPS`, none with idle off,
+hidden or off the screen; hidden hexes, grey beyond sight under fog; a structure rebuilt when its look
+changes), `editor/notice.test.ts`, the deferred bakes' retired textures in
+`render/renderer.bakes.test.ts`, and in `editor/pack.test.ts` the editor's view of a zone and a town
+(its structures and characters) and the zone's walk walls.
+
+## 15. Not checked
+
+- No phone, no GPU: software GL only.
+- The fog walks' pairs were not run again after `d047591` (a guard that only removes work).
+- A figure under fog beyond sight was checked in unit tests only. No browser capture of the preview
+  walk's fog over the pack's objects.
+- Captures with the art are in the thread's library folder only (D-73).
