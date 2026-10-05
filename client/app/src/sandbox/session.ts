@@ -3,6 +3,7 @@ import type { ViewState } from "../render/view";
 import type { SandboxWorld } from "./world";
 import {
   type SandboxState,
+  type FogMode,
   type TapOptions,
   applyIntent,
   cancelWalk,
@@ -43,6 +44,8 @@ export interface SessionOptions extends TapOptions {
   readonly stepMs: number;
   /** Called after every change of the state (a tap, a step, a stop). */
   readonly onChange?: () => void;
+  /** How the map shows what was seen (CLI-03n); `sight` by default. */
+  readonly fog?: FogMode;
 }
 
 /**
@@ -71,7 +74,7 @@ export class SandboxSession {
   ) {
     this.options = options;
     this.current = initialState(world);
-    this.sink.setView(toView(this.current));
+    this.sink.setView(toView(this.current, options.fog));
     this.unsubscribe = timers.onVisibilityChange(() => this.visibilityChanged());
   }
 
@@ -156,7 +159,7 @@ export class SandboxSession {
   }
 
   private show(): void {
-    this.sink.setView(toView(this.current));
+    this.sink.setView(toView(this.current, this.options.fog));
     this.options.onChange?.();
   }
 }

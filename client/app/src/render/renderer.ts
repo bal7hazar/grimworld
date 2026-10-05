@@ -45,7 +45,7 @@ import {
 } from "./ground";
 import { OBSTACLES, type Obstacle, obstacleOf } from "./obstacles";
 import type { SpriteArt, SpriteLibrary } from "./sprites";
-import { tileKey } from "./fog";
+import { type FogCounts, fogCounts, tileKey } from "./fog";
 import type { GroundKind, Tile, ViewActor, ViewState, ViewStructure, ViewTile } from "./view";
 
 /** What the renderer draws on: a PixiJS application in the browser, a fake in tests. */
@@ -1440,6 +1440,11 @@ export class Renderer implements FrameClient {
     }
     if (next === Infinity) return null;
     return Math.max(next, this.lastIdle + 1000 / IDLE_MAX_FPS);
+  }
+
+  /** What the view draws in each state of exploration (CLI-03n), or null before a view. */
+  fogCounts(): FogCounts | null {
+    return this.view && fogCounts(this.view);
   }
 
   /** Eases the camera to a tile (CLI-03k: a place selected by key, off the screen). */

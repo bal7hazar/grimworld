@@ -7,6 +7,7 @@ import {
 } from "../render/renderer";
 import { type ScaleMode, readScaleMode } from "../render/scaling";
 import { type AdventurerSheet, HUB_NAMES } from "./fixtures/hubs";
+import type { FogMode } from "./wiring";
 
 /** The bounds of the default zoom, in tiles across: the debug panel's and the URL's. */
 export const ACROSS_RANGE = { min: 3, max: 31 } as const;
@@ -83,6 +84,8 @@ export interface SandboxParams {
   readonly stepMs: number;
   /** The HUD's presentation figures, `?hud=low|empty` (CLI-03l); null otherwise. */
   readonly hud: HudFigures | null;
+  /** How an instance's map shows what was seen (CLI-03n): `?fog=full`, else `sight`. */
+  readonly fog: FogMode;
 }
 
 /**
@@ -94,6 +97,7 @@ export interface SandboxParams {
  * `step=<ms>` (a step's duration, 60 to 1000). The loop (CLI-03c): `hub=town|outpost` opens it on
  * that hub, `loop=1` on the town; `entry=<ms>` the entry moment's wait (0 to 10000). An unknown
  * hub opens the room sandbox. `hud=low|empty` shows other figures in the HUD's band (CLI-03l).
+ * `fog=full` keeps the explored tiles in colour beyond sight (CLI-03n); anything else is `sight`.
  */
 export function readParams(search: string): SandboxParams {
   const params = new URLSearchParams(search);
@@ -112,5 +116,6 @@ export function readParams(search: string): SandboxParams {
     playOnTap: params.get("confirm") !== "1",
     stepMs: readBounded(params.get("step"), STEP_RANGE) ?? STEP_MS,
     hud: readHud(params.get("hud")),
+    fog: params.get("fog") === "full" ? "full" : "sight",
   };
 }

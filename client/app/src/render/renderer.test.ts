@@ -787,6 +787,35 @@ describe("the zone's walls as the pack's obstacles (CLI-03h)", () => {
     expect(dimmed).toBeGreaterThan(0);
   });
 
+  it("beyond sight, drawn from its still in grayscale (CLI-03n), baked once a still; in sight, its own", async () => {
+    const view = zoneView();
+    const { surface, renderer } = await mount(await obstacleLibrary(), view);
+    const inSight = new Set(view.sight.map(key));
+    const greys = new Set<Texture>();
+    let beyond = 0;
+    for (const [k, { sprite, texture }] of renderer.obstacles()) {
+      if (inSight.has(k)) {
+        expect(sprite.texture).toBe(texture);
+      } else {
+        expect(sprite.texture).not.toBe(texture);
+        greys.add(sprite.texture);
+        beyond += 1;
+      }
+    }
+    expect(beyond).toBeGreaterThan(0);
+    // One grey still for each still used beyond sight, at its native size.
+    const stills = new Set(
+      [...renderer.obstacles()].filter(([k]) => !inSight.has(k)).map(([, n]) => n.texture),
+    );
+    expect(greys.size).toBe(stills.size);
+    expect(surface.greyBakes.filter((r) => r === 1).length).toBeGreaterThanOrEqual(stills.size);
+    // Without fog (`full`): every obstacle from its own still.
+    renderer.setView({ ...view, fog: undefined });
+    for (const { sprite, texture } of renderer.obstacles().values()) {
+      expect(sprite.texture).toBe(texture);
+    }
+  });
+
   it("follows the walls: kept for the same view, added on a reveal, dropped with the atlas", async () => {
     const view = zoneView();
     const { host, renderer } = await mount(await obstacleLibrary(), view);
