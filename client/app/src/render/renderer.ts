@@ -255,6 +255,25 @@ export interface RendererOptions {
    * the page's `?water=` (`pageWater`).
    */
   readonly water?: WaterMode;
+  /**
+   * How many chunks a frame may bake that can wait (CLI-09g): a chunk off the screen, or one on it
+   * whose texture is only at another zoom's resolution. The rest are baked in the next frames, on
+   * the screen first, nearest the centre first. A chunk on the screen whose tiles changed, or that
+   * has no texture yet, is baked at once. By default no limit: every chunk in the frame, as before.
+   */
+  readonly bakesPerFrame?: number;
+  /**
+   * How many times sharper than the zoom wants a chunk's texture may stay before it is baked again
+   * at the zoom's resolution (CLI-09g): a zoom out within it rebakes nothing. By default 1: a chunk
+   * is baked again at every step of the zoom's resolution, as before.
+   */
+  readonly keepSharper?: number;
+  /**
+   * How long the zoom must be still before a chunk whose texture is only at another zoom's
+   * resolution is baked again (CLI-09g): while a zoom goes on, the textures it has are drawn
+   * scaled. By default 0: at once, as before.
+   */
+  readonly rescaleAfterMs?: number;
   readonly onDraw?: (stats: FrameStats) => void;
 }
 
@@ -512,6 +531,15 @@ export class Renderer implements FrameClient {
   private readonly stepMs: number;
   /** The last chunk's bake, in ms (its drawing and its render into a texture), for `FrameStats`. */
   private lastBakeMs: number | null = null;
+  /** `RendererOptions.bakesPerFrame`. */
+  private readonly bakesPerFrame: number;
+  /** `RendererOptions.keepSharper`. */
+  private readonly keepSharper: number;
+  /** `RendererOptions.rescaleAfterMs`, and when the scale last changed (host time). */
+  private readonly rescaleAfterMs: number;
+  private scaledAt = -Infinity;
+  /** Whether the last frame left chunks to bake (`bakesPerFrame`): the next frame bakes more. */
+  private bakesLeft = false;
   /** Where the ground's cells come from, kept by `setLibrary`: no lookup in a frame. */
   private groundSource: "atlas" | "colours" = "colours";
 
@@ -528,6 +556,9 @@ export class Renderer implements FrameClient {
     this.mode = options.mode ?? "continuous";
     this.feet = options.feet ?? DEFAULT_FEET;
     this.stepMs = options.stepMs ?? STEP_MS;
+    this.bakesPerFrame = options.bakesPerFrame ?? Infinity;
+    this.keepSharper = options.keepSharper ?? 1;
+    this.rescaleAfterMs = options.rescaleAfterMs ?? 0;
     this.water = options.water ?? pageWater();
     this.foamFrames = this.foamTextures();
     const onDraw = options.onDraw;
@@ -862,6 +893,8 @@ export class Renderer implements FrameClient {
 
   draw(): void {
     this.bakeTerrain();
+    // Chunks left to bake (`bakesPerFrame`): a frame more for them.
+    if (this.bakesLeft) this.scheduler.invalidate();
     if (this.overlayDirty) this.drawOverlay();
     this.flushRetired();
     this.cullFoam();
@@ -897,6 +930,7 @@ export class Renderer implements FrameClient {
   private setScale(wanted: number): void {
     this.wanted = wanted;
     const scale = this.mode === "snap" ? snapScale(wanted, this.surface.resolution) : wanted;
+    if (scale !== this.camera.scale) this.scaledAt = this.host.now();
     this.camera = { ...this.camera, scale };
   }
 
@@ -1527,10 +1561,56 @@ export class Renderer implements FrameClient {
     this.retired = [];
   }
 
-  private bakeTerrain(): void {
+  /** Whether a chunk's texture is to be baked again at `resolution` (`keepSharper`). */
+  private rescaleDue(chunk: ChunkBake, resolution: number): boolean {
+    return chunk.resolution < resolution || chunk.resolution > resolution * this.keepSharper;
+  }
+
+  /**
+   * The chunks to bake in this frame, in order: all of them without `bakesPerFrame` or
+   * `rescaleAfterMs`; else those on the screen whose tiles changed or that have no texture, then at
+   * most `bakesPerFrame` of the others (on the screen first, nearest the centre first), of which
+   * those only at another zoom's resolution once the zoom has been still `rescaleAfterMs`.
+   * `bakesLeft` says whether any waits.
+   */
+  private chunksToBake(): Iterable<ChunkBake> {
+    this.bakesLeft = false;
+    if (this.bakesPerFrame === Infinity && this.rescaleAfterMs === 0) return this.chunks.values();
+    const zooming = this.host.now() < this.scaledAt + this.rescaleAfterMs;
+    const rect = this.viewRect();
+    const { centre } = this.camera;
+    const now: ChunkBake[] = [];
+    const later: { chunk: ChunkBake; onScreen: boolean; distance: number }[] = [];
     for (const chunk of this.chunks.values()) {
+      const stale =
+        chunk.dirty ||
+        this.rescaleDue(chunk, this.bakeResolution(chunk.frame)) ||
+        (this.fogOn && chunk.greyStale);
+      if (!stale) continue;
+      const { frame } = chunk;
+      const onScreen = overlaps(frame, rect);
+      const unbaked = chunk.dirty || chunk.sprite.texture === Texture.EMPTY;
+      if (onScreen && unbaked) {
+        now.push(chunk);
+        continue;
+      }
+      if (zooming && !unbaked) {
+        this.bakesLeft = true;
+        continue;
+      }
+      const dx = frame.x + frame.width / 2 - centre.x;
+      const dy = frame.y + frame.height / 2 - centre.y;
+      later.push({ chunk, onScreen, distance: dx * dx + dy * dy });
+    }
+    later.sort((a, b) => Number(b.onScreen) - Number(a.onScreen) || a.distance - b.distance);
+    if (later.length > this.bakesPerFrame) this.bakesLeft = true;
+    return [...now, ...later.slice(0, this.bakesPerFrame).map((l) => l.chunk)];
+  }
+
+  private bakeTerrain(): void {
+    for (const chunk of this.chunksToBake()) {
       const resolution = this.bakeResolution(chunk.frame);
-      const colour = chunk.dirty || resolution !== chunk.resolution;
+      const colour = chunk.dirty || this.rescaleDue(chunk, resolution);
       // The grayscale twin only while the view has fog (CLI-03n); a hub never bakes it.
       const grey = this.fogOn && (colour || chunk.greyStale);
       if (!colour && !grey) continue;
