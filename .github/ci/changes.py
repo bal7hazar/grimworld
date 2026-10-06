@@ -5,7 +5,7 @@ Run by the first job of .github/workflows/ci.yml (`discover`) and by the first s
 job of .github/workflows/tooling.yml. It lists the files that differ from the base and sets the
 outputs that each test job's `if:` reads:
 
-  ci:      cairo (JSON list of the discovered packages to run, [] when none), classes, client, indexer
+  ci:      cairo (JSON list of the discovered packages to run, [] when none), classes, client, indexer, art
   tooling: tooling
 
 Every changed path is classified, never guessed: the paths a job depends on are the tables below; a
@@ -50,6 +50,11 @@ CLIENT_ROOT_FILES = (
 # manifest.
 CLIENT_PREFIXES = ("client/", "services/", "indexer/", "contracts/logic/vectors/", "contracts/seed/")
 CLIENT_FILES = ("tools/art/manifest.toml",)
+
+# The art job: the art pipeline's Python tests (tools/art/tests). They read the pipeline, its manifest and
+# its pinned requirements, all under tools/art/; the rest of tools/ stays ignored. The manifest also
+# feeds `client` (above).
+ART_PREFIXES = ("tools/art/",)
 
 # The `contracts` package also reads these (gas budgets, GAS.md, class sizes, exp2 table, vectors).
 # contracts/tools/exp2_table.py checks the client's mirror of the table too (TS_PATH).
@@ -159,6 +164,8 @@ def classify(path, packages, closures, pins):
             tags.add("classes")
     if path.startswith(PRETTIER_PREFIXES):
         tags.add("client")
+    if path.startswith(ART_PREFIXES):
+        tags.add("art")
     if not is_markdown:
         if path.startswith(CLIENT_PREFIXES) or path in CLIENT_FILES or matches(path, CLIENT_ROOT_FILES):
             tags.add("client")
@@ -199,6 +206,7 @@ def decide(files, packages, closures, pins, workflow, event, base_known):
         "classes": str(event == "push" or everything or "classes" in tags).lower(),
         "client": str(event == "push" or everything or "client" in tags).lower(),
         "indexer": str(everything or "indexer" in tags).lower(),
+        "art": str(event == "push" or everything or "art" in tags).lower(),
     }
     return outputs, notes
 
@@ -309,6 +317,10 @@ def self_test():
             outputs["indexer"] == "true",
         )
 
+    def art(files, event="pull_request", base_known=True):
+        outputs, _ = decide(files, packages, closures, pins, "ci", event, base_known)
+        return outputs["art"] == "true"
+
     nothing = ([], False, False, False)
     everything = (sorted(dirs), True, True, True)
     # documents run no test
@@ -324,6 +336,17 @@ def self_test():
     assert run(["pnpm-lock.yaml"]) == ([], False, True, False)
     assert run(["tools/art/manifest.toml"]) == ([], False, True, False)
     assert run(["indexer/src/db.ts"]) == ([], False, True, True)
+    # the art pipeline's tests: any file under tools/art/, and nothing else of tools/
+    for path in ("tools/art/requirements.txt", "tools/art/build.py", "tools/art/artpipe/png.py",
+                 "tools/art/tests/test_build.py", "tools/art/manifest.toml", "tools/art/README.md"):
+        assert art([path]), path
+    assert run(["tools/art/requirements.txt"]) == nothing and run(["tools/art/build.py"]) == nothing
+    assert art(["tools/art/manifest.toml"]) and run(["tools/art/manifest.toml"]) == ([], False, True, False)
+    for path in ("tools/site/deploy-site.sh", "tools/artifact/x.py", "docs/a.md", "client/sim/src/hit.ts",
+                 "contracts/logic/src/hit.cairo", "scripts/lock.sh", "PLAN.md", "assets"):
+        assert not art([path]), path
+    assert not art([]) and art([], base_known=False) and art(["PLAN.md"], event="push")
+    assert art([".github/workflows/ci.yml"]) and art(["newfolder/x.rs"])
     # the contracts
     assert run(["contracts/ephemeral/src/lib.cairo"]) == (["contracts"], True, False, False)
     assert run(["contracts/logic/src/hit.cairo"]) == (["contracts", "indexer/emitter", "spikes/SPK-12", "spikes/SPK-15"], True, False, True)

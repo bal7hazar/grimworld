@@ -2,7 +2,7 @@
 # "Merge on green CI" means the code works: every Cairo package is formatted, built and tested on
 # the toolchain of its own .tool-versions; the pnpm workspace (client and indexer) is installed,
 # linted, typechecked, tested, built and formatted; a change to indexer/ also runs the indexer on a
-# local starknet-devnet.
+# local starknet-devnet; a change under tools/art/ runs the art pipeline's Python tests.
 # No secret, no pull_request_target, read-only token, every third-party action pinned by SHA.
 name: ci
 
@@ -39,6 +39,7 @@ jobs:
       classes: ${{ steps.changes.outputs.classes }}
       client: ${{ steps.changes.outputs.client }}
       indexer: ${{ steps.changes.outputs.indexer }}
+      art: ${{ steps.changes.outputs.art }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -451,12 +452,47 @@ jobs:
         if: always()
         run: cat indexer/.scenario-results.txt 2> /dev/null || echo "no scenario output"
 
+  # The art pipeline's tests (`python -m unittest discover -s tools/art/tests`), only when a path under
+  # tools/art/ changed (`art` of .github/ci/changes.py). The `assets` submodule is private and never
+  # checked out (D-73): the tests that read the pack skip, as they do on a machine without it. The
+  # interpreter is the runner's python3, which must be one of build.py's PYTHONS (3.12 or 3.13); the
+  # dependencies are exactly tools/art/requirements.txt, installed with --require-hashes in a venv, so
+  # that NumPy and Pillow are present and the classes that need them run instead of skipping.
+  art:
+    needs: discover
+    if: needs.discover.outputs.art == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: python is one the art tools pin
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -c 'import sys; assert sys.version_info[:2] in ((3, 12), (3, 13)), sys.version'
+
+      - name: install the pinned requirements
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/art-venv"
+          "$RUNNER_TEMP/art-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r tools/art/requirements.txt
+
+      # -v lists every test with its result, so the log shows the count and what was skipped.
+      - name: test
+        run: |
+          set -euo pipefail
+          test ! -e assets/.git
+          "$RUNNER_TEMP/art-venv/bin/python" -m unittest discover -v -s tools/art/tests
+
   # FND-18: the one check that always runs, so that `gh pr checks` has a result whichever test jobs the
   # change concerned. It fails when a needed job failed or was cancelled, and passes when every one
   # succeeded or was skipped (a job its paths did not concern).
   result:
     name: ci result
-    needs: [discover, cairo, class-artefacts, client, indexer-node]
+    needs: [discover, cairo, class-artefacts, client, indexer-node, art]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
