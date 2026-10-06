@@ -51,6 +51,11 @@ Every mode (any other argument is refused):
     tools/art/build.py --pack-heights        # the visible height of every unit of the pack
     tools/art/.venv/bin/python -m unittest discover -s tools/art/tests    # the tests
 
+**In CI.** The `art` job of `.github/workflows/ci.yml` runs those tests when a path under `tools/art/`
+changes (`.github/ci/changes.py`). It uses the runner's Python (3.12 or 3.13, checked), a venv with
+exactly `requirements.txt` (`pip --require-hashes`, wheels only), and never checks out the private
+`assets` submodule (D-73).
+
 Nothing the build prints carries the manga's name: its output goes through a filter that replaces
 it.
 
