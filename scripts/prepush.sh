@@ -35,7 +35,7 @@ cd "$root" || exit 2
 # deepened (git fetch --deepen, at most 10 times) until the merge base appears, and if it does not (no
 # network, no origin) `why` says that the clone is shallow.
 compute_changed() {
-  local main up pushed own i
+  local main up pushed own
   main=$(git rev-parse --verify -q origin/main 2> /dev/null || true)
   up=$(git rev-parse --verify -q '@{upstream}' 2> /dev/null || true)
   base=
@@ -45,7 +45,7 @@ compute_changed() {
     why="origin/main does not resolve"
   elif ! git merge-base "$main" HEAD > /dev/null 2>&1; then
     if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
-      for i in 1 2 3 4 5 6 7 8 9 10; do
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
         git fetch -q --deepen=100 origin > /dev/null 2>&1 || break
         git merge-base "$main" HEAD > /dev/null 2>&1 && break
         [ "$(git rev-parse --is-shallow-repository)" = true ] || break
@@ -165,7 +165,7 @@ self_test() {
     cd "$work/shallow"
     git branch -q --unset-upstream
     [ "$(git rev-parse --is-shallow-repository)" = true ]
-    ! git merge-base origin/main HEAD > /dev/null 2>&1
+    if git merge-base origin/main HEAD > /dev/null 2>&1; then false; fi
     compute_changed
     if [ -z "$base" ] || ! grep -qx own1.txt <<< "$changed"; then
       echo "self-test FAILED: a shallow clone is deepened to its base: base [$base], changed [$changed]" >&2
