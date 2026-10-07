@@ -1382,9 +1382,34 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
 - **The worst tick measured, 45,999,941, is accepted as a batch of one tick** (the project
   manager, 2026-10-03, D-207): 40 M is a batch target, not a protocol limit; a batch holds one such
   tick when it occurs, and ENG-07 derives the batch weight from it. Combat rules are unchanged.
-- **Not measured: a bomb in place of Cinder Ring** (`TILE`, `DISC_1`, up to 13 goblins carried),
-  estimated **≈ 48.8 M (E)**, 4.4 % of 1.1×10⁹ (the cost re-audit of #334). CBT-05b or ENG-07
-  measures it, and its figure then replaces this estimate.
+- **The bomb, measured (CBT-05b)** in place of the estimate of ≈ 48.8 M: the member drinks a bomb
+  (fire 30, `TILE`, `DISC_1`, `FOES`, range 6) on the ring tile whose disc holds the most goblins,
+  then the tick of the 8 goblin carriers runs. Measured in process with `TickLibrary`'s rules
+  (`Delegate`: the bomb's carrier and each goblin's through `ExecutorLibrary`), each less its
+  fixture (`test_tick::test_cost_bomb_*`, 13,847,242): **the bomb and its tick 42,510,885**; the
+  bomb alone (legality, the belt, facing, its carrier through the class) 8,525,496; the 8 goblins'
+  tick alone 33,988,889. Through `TickLibrary` add the call's own work, 3,391,670 at this head
+  (`rep_goblins` less its fixture, 37,380,559, against the same tick in process): **≈ 45.9 M
+  (derived, E)**, below the worst tick measured, which stays the member's activation with the 8
+  goblins'. D-207: 106.3 % of the 40 M batch target in process, 3.9 % of the 1.1×10⁹ cap. The
+  bomb is not measured through `TickLibrary` itself: its action phase has no entrypoint there yet
+  (the next point).
+- **At CBT-05b's head the worst tick measured is 46,517,111** (`rep_all` 56,227,075 less
+  `rep_fixture` 9,709,964), +627,080 over CBT-05a's 45,890,031: the skill sheet carries the
+  header's energy and profession across each call (+2,420 a sheet read) and step 1 places a trap.
+  Sent to the project manager (D-144).
+- **The action phase's line (CBT-05b, design/19 §5.3; `types::action`)**, one action between two
+  ticks: its floor, a Wait (legality only), 40,840; a bomb 8,525,496 with its carrier (the
+  executor's own cost is the line above). Its class is the project manager's (CBT-05b's report):
+  in `TickLibrary` it measured 71,566 CASM felts (87.36 %, over D-200's 75 %), so `TickLibrary`
+  has no `act` entrypoint yet and ENG-07 calls the trait where the decision puts it.
+- **A trap's trigger replaces an application, never adds one: measured.** Snare's payload on a
+  goblin entering it (the lookup, the hit, Crippled, the used mark) costs **786,827** in process
+  (`trap::test_cost_trigger` less its fixture), against 4,090,351 for the goblin carrier it
+  replaces (a goblin that enters a trap ends its act, §5.11). It holds while the trigger runs in
+  the class of the move; through a library call of its own it would add the call (≈ 3.4 M, the
+  line above), and the sentence would need re-measuring. The in-class payload measured 37,462 CASM
+  felts in `TickLibrary` (87,409, 106.70 %): its class is the project manager's too.
 - **The levers** (the project manager's option (b), 2026-10-03), measured one by one at the same
   state:
 
@@ -1399,7 +1424,7 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
 - **The earlier, understated figure: 26,422,703** (17.98 ×), the tick's share above (4,025,837)
   plus a line built from the class alone (5,571,338 + 8 × 2,103,191). It left out `TickLibrary`'s
   side of each call and the worst content's load in each call; it is kept for the record only.
-- **Not in it:** the action phase's immediate carrier (CBT-05b, through the same entrypoint), and
+- **Not in it:** the action phase's immediate carrier (CBT-05b: measured above for a bomb), and
   ENG-07's step-2 carriers (the goblins' acts, through the same call). The bound of 8 goblin
   carriers holds for `SINGLE` step-2 carriers; trap triggers' carriers are priced at ENG-07.
 - The tick's share and the running total above (4,025,837; 6,051,547) are the pipeline's alone, at

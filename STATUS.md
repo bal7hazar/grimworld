@@ -138,7 +138,12 @@ ENG-05 merged (2026-10-07). ENG-08 running; then ENG-08b, ENG-10a and ENG-10b, a
 
 ## Decisions needed
 
-None open. Answered since 2026-09-29: D-141 to D-168.
+For the project manager, from CBT-05b (the action phase and traps, in review; its report has the measures):
+- **The class of the action phase and of a trap's trigger.** Option 2 (both in `TickLibrary`) does not fit D-200's 75 %: the action phase with an `act` entrypoint measured 71,566 CASM felts (87.36 %), the in-class trigger 87,409 (106.70 %). Both are built and tested as traits; neither class calls them yet.
+- **D-144**: 286 measured rises, all from the skill sheet's two new fields (+2,420 a sheet read, at most +5.70 %); the worst tick 46,517,111 (+627,080 over 45,890,031).
+- **Two mappings no word holds**: a skill's attribute to the quick-cast pairs' build-local indices (D-157 A), and an attack skill's attribute to its weapon (§3.4); the rules are built, these two inputs are not.
+
+Answered since 2026-09-29: D-141 to D-168.
 
 ## Build notes (D-154)
 
