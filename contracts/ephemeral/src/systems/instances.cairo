@@ -818,8 +818,8 @@ pub mod Instances {
                         plan,
                         site.pieces,
                         chunks.span(),
-                        EntropyTrait::outline(entropy, id.into()),
-                        EntropyTrait::hosts(entropy, id.into()),
+                        entropy,
+                        id.into(),
                     );
                 hosts = floor;
                 site.chunk_set = drawn.chunks;

@@ -13,6 +13,7 @@
 
 #[starknet::contract]
 pub mod HostsLibrary {
+    use crate::fate::EntropyTrait;
     use crate::interface::IHostsLibrary;
     use crate::models::set_piece::SetPiece;
     use crate::types::reveal::outline::{Outline, OutlineTrait};
@@ -54,13 +55,21 @@ pub mod HostsLibrary {
             plan: (felt252, felt252),
             pieces: Span<(u16, SetPiece)>,
             chunks: Span<u8>,
-            outline_seed: felt252,
-            hosts_seed: felt252,
+            entropy: felt252,
+            instance_id: felt252,
         ) -> (Outline, Span<felt252>, Span<(u8, felt252)>) {
-            let outline = OutlineTrait::draw(entry, n, width, height, outline_seed);
+            let outline = OutlineTrait::draw(
+                entry, n, width, height, EntropyTrait::outline(entropy, instance_id),
+            );
             let layers = outline.layers(entry);
             let hosts = PlacementTrait::hosts(
-                outline.chunks, width, height, plan, pieces, hosts_seed, layers.span(),
+                outline.chunks,
+                width,
+                height,
+                plan,
+                pieces,
+                EntropyTrait::hosts(entropy, instance_id),
+                layers.span(),
             )
                 .span();
             let mut hosted: Array<(u8, felt252)> = array![];

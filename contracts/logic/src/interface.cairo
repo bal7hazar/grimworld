@@ -166,10 +166,11 @@ pub trait IHostsLibrary<T> {
     ) -> (Span<felt252>, Span<(u8, felt252)>);
     /// A dungeon floor at `create` (ENG-10b; ADR-0006 §3, *A dungeon floor's outline, fixed at
     /// entry*): its outline of `n` chunks entered at `entry` in the `width × height` rectangle,
-    /// drawn from `outline_seed` (`OutlineTrait::draw`, `EntropyTrait::outline`); the host chunks
-    /// of each quota of `plan` over it, drawn from `hosts_seed` (`PlacementTrait::hosts`, the exit
-    /// and the Heart first, among its farthest chunks); and the masks of `chunks`, the chunks the
-    /// entry reveals, with the quotas each hosts above the board.
+    /// drawn from the instance's `entropy` (`OutlineTrait::draw`, seeded by
+    /// `EntropyTrait::outline`); the host chunks of each quota of `plan` over it
+    /// (`PlacementTrait::hosts`, seeded by `EntropyTrait::hosts`: the exit and the Heart first,
+    /// among its farthest chunks); and the masks of `chunks`, the chunks the entry reveals, with
+    /// the quotas each hosts above the board.
     fn floor(
         self: @T,
         entry: u8,
@@ -179,8 +180,8 @@ pub trait IHostsLibrary<T> {
         plan: (felt252, felt252),
         pieces: Span<(u16, SetPiece)>,
         chunks: Span<u8>,
-        outline_seed: felt252,
-        hosts_seed: felt252,
+        entropy: felt252,
+        instance_id: felt252,
     ) -> (Outline, Span<felt252>, Span<(u8, felt252)>);
 }
 
