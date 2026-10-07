@@ -336,7 +336,7 @@ jobs:
           flock "$GRIMWORLD_BUILD_LOCK" flock "$HEAVY_BUILD_LOCK" env GRIMWORLD_BUILD_LOCK_HELD=1 HEAVY_BUILD_LOCK_HELD=1 \
             env PATH=$lkd/bin:$PATH scripts/lock.sh --wait 1 snforge test
           s=$?; set -e
-          [ "$s" = 0 ] && [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
+          [ "$s" = 0 ] || { echo "nested lock.sh: exit $s, not 0" >&2; exit 1; }; [ -e "$lkd/ran" ]; rm -f "$lkd/ran"
           # Free again: the command runs under the locks.
           PATH=$lkd/bin:$PATH scripts/lock.sh --heavy --wait 5 scarb build; [ -e "$lkd/ran" ]
           for w in 0 x; do

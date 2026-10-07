@@ -46,7 +46,7 @@ compute_changed() {
   elif ! git merge-base "$main" HEAD > /dev/null 2>&1; then
     if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
       for _ in 1 2 3 4 5 6 7 8 9 10; do
-        git fetch -q --deepen=100 origin > /dev/null 2>&1 || break
+        GIT_TERMINAL_PROMPT=0 git -c core.sshCommand='ssh -o BatchMode=yes -o ConnectTimeout=10' fetch -q --deepen=100 origin > /dev/null 2>&1 || break
         git merge-base "$main" HEAD > /dev/null 2>&1 && break
         [ "$(git rev-parse --is-shallow-repository)" = true ] || break
       done
@@ -269,7 +269,7 @@ gas_check() {
 pnpmrun() {
   if [ "$have_flock" = 1 ]; then scripts/lock.sh --wait "$lock_wait" pnpm "$@"; else pnpm "$@"; fi
 }
-# vectors/check.py takes the lock through scripts/lock.sh when GRIMWORLD_LOCK_WAIT is set.
+# vectors/check.py takes the lock through scripts/lock.sh wherever flock exists (FND-22); GRIMWORLD_LOCK_WAIT bounds the wait.
 vectors_check() {
   if [ "$have_flock" = 1 ]; then
     GRIMWORLD_LOCK_WAIT=$lock_wait python3 contracts/logic/vectors/check.py
