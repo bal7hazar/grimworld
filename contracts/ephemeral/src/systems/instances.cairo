@@ -201,8 +201,9 @@ pub trait IInstancesAdmin<T> {
     fn version(self: @T) -> felt252;
     /// The registered contracts: the hub that may create instances and receives results, the
     /// registry, the randomness provider (configuration, ADR-0002); and the class of the chunk
-    /// reveal's library, `RevealLibrary` (ENG-01 §1.3, ENG-05), and of the hosts' library,
-    /// `HostsLibrary` (D-210), called by `library_call`.
+    /// reveal's library, `RevealLibrary` (ENG-01 §1.3, ENG-05), of the hosts' library,
+    /// `HostsLibrary` (D-210), and of the traps' library, `TrapLibrary` (CBT-05b, D-222), called by
+    /// `library_call`.
     fn set_contracts(
         ref self: T,
         hub: ContractAddress,
@@ -210,6 +211,7 @@ pub trait IInstancesAdmin<T> {
         fate: ContractAddress,
         reveal: ClassHash,
         hosts_library: ClassHash,
+        trap_library: ClassHash,
     );
     fn set_admin(ref self: T, admin: ContractAddress);
     /// Upgrade by class replacement: the address, hence the indexer's source, stays (SPK-11 §6).
@@ -238,7 +240,6 @@ pub mod Instances {
     use grimworld_logic::packing::{Bitmap, Counter, Lanes16};
     use grimworld_logic::snapshot::{SnapshotWords, TaskEntry, TaskPage};
     use grimworld_logic::types::reveal::board::BoardTrait;
-    use grimworld_logic::types::reveal::outline::Outline;
     use grimworld_logic::types::reveal::placement::PlacementTrait as QuotaPlacementTrait;
     use grimworld_logic::types::reveal::{ProgressTrait, SightTrait, Site};
     use grimworld_logic::types::{
@@ -283,6 +284,8 @@ pub mod Instances {
         pub reveal: ClassHash,
         /// The library class of a zone's quota hosts (D-210; ENG-01 §1.3).
         pub hosts_library: ClassHash,
+        /// The library class of a trap's trigger (CBT-05b, D-222; ENG-01 §1.3).
+        pub trap_library: ClassHash,
         /// The next slot handed out, at an adventurer's first entry; slots are never freed.
         pub next_slot: Counter,
         pub placements: Map<u32, Placement>,
@@ -336,8 +339,9 @@ pub mod Instances {
         fate: ContractAddress,
         reveal: ClassHash,
         hosts_library: ClassHash,
+        trap_library: ClassHash,
     ) {
-        self.initialize(admin, hub, registry, fate, reveal, hosts_library);
+        self.initialize(admin, hub, registry, fate, reveal, hosts_library, trap_library);
     }
 
     #[abi(embed_v0)]
@@ -580,7 +584,7 @@ pub mod Instances {
                     registry.record(OUTLINE, OutlineTrait::id(header.location, CHUNK_SET)),
                 )
             } else {
-                self.get_outline(slot).chunks
+                self.get_outline_chunks(slot)
             };
             let revealed = self.get_revealed(slot).model().bits;
             let last: u16 = first.into() + count.into();
@@ -702,9 +706,10 @@ pub mod Instances {
             fate: ContractAddress,
             reveal: ClassHash,
             hosts_library: ClassHash,
+            trap_library: ClassHash,
         ) {
             InstancesAssert::assert_admin(get_caller_address(), self.get_administrator());
-            self.set_registered(hub, registry, fate, reveal, hosts_library);
+            self.set_registered(hub, registry, fate, reveal, hosts_library, trap_library);
         }
 
         /// Hands the administrator role over; the caller loses it. Administrator only.
@@ -804,7 +809,6 @@ pub mod Instances {
             let progress = ProgressTrait::new(@site, entropy);
             let mut site = site;
             let mut hosts: Span<felt252> = array![].span();
-            let mut outline: Option<Outline> = Option::None;
             let plan = QuotaPlacementTrait::plan(@site, progress.left.span());
             if *location.target != 0 {
                 let (drawn, floor, masks) = IHostsLibraryLibraryDispatcher {
@@ -826,7 +830,8 @@ pub mod Instances {
                 site.west = drawn.west;
                 site.north = drawn.north;
                 site.masks = masks;
-                outline = Option::Some(drawn);
+                // [Effect] The floor's outline, once (its hosts with the zone's, below)
+                self.set_outline(slot, @drawn);
             } else if plan != (0, 0) {
                 let seed = EntropyTrait::hosts(entropy, id.into());
                 let (drawn, masks) = IHostsLibraryLibraryDispatcher {
@@ -865,9 +870,6 @@ pub mod Instances {
             for chunk in revealed {
                 let (index, terrain, features) = *chunk;
                 self.set_chunk(slot, index, terrain, features);
-            }
-            if let Option::Some(drawn) = outline {
-                self.set_outline(slot, @drawn);
             }
             let mut quota: u8 = 0;
             for mask in hosts {

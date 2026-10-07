@@ -233,16 +233,19 @@ fate = deploy("persistent", declare("persistent", "TxHashFate"))
 # transactions are the ones they were; its class hash is `Instances`' constructor argument.
 reveal = declare("logic", "RevealLibrary")
 hosts_library = declare("logic", "HostsLibrary")
+trap_library = declare("logic", "TrapLibrary")
 hub = deploy("persistent", declare("persistent", "Hub"), ADDRESS, registry, 3, 4, fate)
 flatten = declare("logic", "FlattenLibrary")
 instances = deploy("ephemeral", declare("ephemeral", "Instances"), ADDRESS, hub, registry, fate,
-                   reveal, hosts_library)
+                   reveal, hosts_library, trap_library)
 emit({"registry": registry, "fate": fate, "hub": hub, "instances": instances,
-      "flatten_class": flatten, "reveal_class": reveal, "hosts_class": hosts_library})
+      "flatten_class": flatten, "reveal_class": reveal, "hosts_class": hosts_library,
+      "trap_class": trap_library})
 WATCHED = {int(hub, 16): "hub", int(instances, 16): "instances"}
 NAMES = {int(registry, 16): "registry", int(fate, 16): "fate", int(hub, 16): "hub",
          int(instances, 16): "instances", int(flatten, 16): "flatten_class",
-         int(reveal, 16): "reveal_class", int(hosts_library, 16): "hosts_class"}
+         int(reveal, 16): "reveal_class", int(hosts_library, 16): "hosts_class",
+         int(trap_library, 16): "trap_class"}
 STREAM = []
 # ENG-R1b: the stream of `Instances` and `Registry`, and the keys whose value the entry draw feeds.
 STREAM_R1B = []

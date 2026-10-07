@@ -335,12 +335,13 @@ fn setup() -> World {
     let (hub, _) = class.deploy(@array![]).unwrap();
     let reveal = declare("RevealLibrary").unwrap().contract_class();
     let hosts = declare("HostsLibrary").unwrap().contract_class();
+    let traps = declare("TrapLibrary").unwrap().contract_class();
     let class = declare("Instances").unwrap().contract_class();
     let (instances, _) = class
         .deploy(
             @array![
                 ADMIN, hub.into(), registry.into(), fate.into(), (*reveal.class_hash).into(),
-                (*hosts.class_hash).into(),
+                (*hosts.class_hash).into(), (*traps.class_hash).into(),
             ],
         )
         .unwrap();

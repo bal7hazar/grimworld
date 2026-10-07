@@ -2,9 +2,11 @@
 //! in the shared package so that neither domain's package depends on the other's (ADR-0007).
 
 use starknet::{ClassHash, ContractAddress};
-use crate::models::chunk::Terrain;
+use crate::actions::Action;
+use crate::models::chunk::{Features, Terrain};
 use crate::models::set_piece::SetPiece;
 use crate::snapshot::{Loadout, SnapshotWords, TaskEntry, Worn};
+use crate::types::action::Illegal;
 use crate::types::executor::{Board, Cache, Carrier};
 use crate::types::reveal::outline::Outline;
 use crate::types::reveal::{Progress, Site};
@@ -129,6 +131,42 @@ pub trait ITickLibrary<T> {
     fn run(
         self: @T, words: Words, content: Content, board: Board, executor: ClassHash, ticks: u8,
     ) -> Words;
+    /// The adventurer's `action` (member 0) at the words' clock, then its ticks (design/19 §5.3,
+    /// CBT-05b, D-222): its legality, costs, facing and resolution through the executor's class
+    /// `executor`, a trap placed in `ground` (the chunks it can touch, ENG-07's). Returns the
+    /// words, the ground, and `None`, or why the action is illegal (nothing changed: the batch
+    /// stops).
+    fn act(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        executor: ClassHash,
+        ground: Array<(u8, Features)>,
+        action: Action,
+    ) -> (Words, Array<(u8, Features)>, Option<Illegal>);
+}
+
+/// A trap's trigger as its own library class (design/19 §5.11, CBT-05b, D-222): the move's owner
+/// (ENG-07) calls it through `ITrapLibraryLibraryDispatcher` once an actor entered a tile holding
+/// an unused trap, the class hash being `Instances`' configuration.
+#[starknet::interface]
+pub trait ITrapLibrary<T> {
+    /// The entity `entrant` entered the window's `position` of `board`: the tile's unused trap in
+    /// `ground` triggers if the entrant is a foe of its side, its payload through the executor with
+    /// the entrant its only actor (`TrapTrait::trigger`); `level` is the location band's lower
+    /// level (a terrain trap's source). Returns the words, the ground (the trap used) and whether
+    /// it triggered.
+    fn trigger(
+        self: @T,
+        words: Words,
+        content: Content,
+        board: Board,
+        ground: Array<(u8, Features)>,
+        entrant: u16,
+        position: u8,
+        level: u8,
+    ) -> (Words, Array<(u8, Features)>, bool);
 }
 
 /// The snapshot's flattening as a library class (ENG-01 §1.3, D-168): `Hub.set_build` calls it

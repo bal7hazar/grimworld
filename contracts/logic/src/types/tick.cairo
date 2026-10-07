@@ -93,11 +93,15 @@ pub struct Held {
 /// The fields of a `SKILL` a tick reads: kind, activation, recharge, and its `REGENERATION`
 /// entry's line (0, 0 without one); for the executor (CBT-05a), its range and its three entries as
 /// the record packs them (97 bits each, 0 an empty entry), decoded once a call into
-/// `Sheets.entries` (SPK-15's L3, D-172).
+/// `Sheets.entries` (SPK-15's L3, D-172); for the action phase (CBT-05b, its open question 4), the
+/// header's energy cost and profession (*Fieldcraft*'s `ENERGY_COST`, design/20 §1.3).
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Default)]
 pub struct SkillSheet {
     pub id: u16,
     pub kind: u8,
+    /// Its energy cost before reductions, and its profession (design/03's ids).
+    pub energy: u8,
+    pub profession: u8,
     /// Its adrenaline cost, in strikes (the caps of §5.12).
     pub adrenaline: u8,
     pub activation: u16,
@@ -235,6 +239,8 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         SkillSheet {
             id,
             kind: *skill.kind,
+            energy: *skill.energy,
+            profession: *skill.profession,
             adrenaline: *skill.adrenaline,
             activation: *skill.activation,
             recharge: *skill.recharge,
@@ -248,8 +254,9 @@ pub impl SkillSheetImpl of SkillSheetTrait {
     }
 
     /// The sheet of skill `id` read from its record's 2 parts (`models::skill` layout): only the
-    /// header's kind, activation and recharge, and the entries' kinds until the `REGENERATION`
-    /// one or an empty entry. `new` on the unpacked record is its oracle.
+    /// header's profession, kind, energy, adrenaline, activation, recharge and range, and the
+    /// entries' kinds until the `REGENERATION` one or an empty entry. `new` on the unpacked record
+    /// is its oracle.
     fn read(id: u16, parts: Span<felt252>) -> SkillSheet {
         let (header, first) = limbs(*parts[0]);
         let (second, third) = limbs(*parts[1]);
@@ -269,11 +276,13 @@ pub impl SkillSheetImpl of SkillSheetTrait {
                 break;
             }
         }
-        // The header: profession and attribute 0–15, kind, energy, adrenaline, activation,
+        // The header: profession 0–7, attribute 8–15, kind, energy, adrenaline, activation,
         // recharge.
-        let (mut rest, _) = DivRem::div_rem(header, N16);
+        let mut rest = header;
+        let profession = peel(ref rest, N8);
+        let _attribute = peel(ref rest, N8);
         let kind = peel(ref rest, N8);
-        let _energy = peel(ref rest, N8);
+        let energy = peel(ref rest, N8);
         let adrenaline = peel(ref rest, N8);
         let activation = peel(ref rest, N16);
         let recharge = peel(ref rest, N16);
@@ -281,6 +290,8 @@ pub impl SkillSheetImpl of SkillSheetTrait {
         SkillSheet {
             id,
             kind: kind.try_into().unwrap(),
+            energy: energy.try_into().unwrap(),
+            profession: profession.try_into().unwrap(),
             adrenaline: adrenaline.try_into().unwrap(),
             activation: activation.try_into().unwrap(),
             recharge: recharge.try_into().unwrap(),
