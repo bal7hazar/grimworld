@@ -1,0 +1,128 @@
+{
+ "format": "grimworld-export",
+ "version": 1,
+ "editor": "spike",
+ "kind": "set_piece",
+ "name": "boss_arena",
+ "origin": {
+  "x": 0,
+  "y": 0
+ },
+ "size": {
+  "width": 1,
+  "height": 1
+ },
+ "rows": [
+  {
+   "y": 0,
+   "x": 0,
+   "terrain": "###############",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 1,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 2,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 3,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 4,
+   "x": 0,
+   "terrain": "#....#...#....#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 5,
+   "x": 0,
+   "terrain": "#....#...#....#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 6,
+   "x": 0,
+   "terrain": "#....#...#....#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 7,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 8,
+   "x": 0,
+   "terrain": "#....#...#....#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 9,
+   "x": 0,
+   "terrain": "#....#...#....#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 10,
+   "x": 0,
+   "terrain": "#....#...#....#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 11,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 12,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 13,
+   "x": 0,
+   "terrain": "#.............#",
+   "ground": "eeeeeeeeeeeeeee"
+  },
+  {
+   "y": 14,
+   "x": 0,
+   "terrain": "###############",
+   "ground": "eeeeeeeeeeeeeee"
+  }
+ ],
+ "spawns": [
+  {
+   "template": "raiders",
+   "x": 7,
+   "y": 7
+  }
+ ],
+ "features": [
+  {
+   "feature": "chest",
+   "param": null,
+   "x": 2,
+   "y": 2
+  },
+  {
+   "feature": "lever",
+   "param": null,
+   "x": 12,
+   "y": 12
+  }
+ ]
+}

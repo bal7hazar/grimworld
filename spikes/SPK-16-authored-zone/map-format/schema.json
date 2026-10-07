@@ -1,0 +1,598 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://grimworld.example/map-format/schema.json",
+ "title": "Grim World map export, format 1",
+ "description": "What the map editor (track CV, CLI-09c) exports for registration: one map, a zone, a town, an outpost or a set piece. ENG-08 (D-214, D-215, D-216, D-217) owns it; map-format/convert.py turns it into the on-chain records. Coordinates are the editor's plane: x grows West, y North, odd-r rows (an odd row shifted by half a hex), whole numbers within ±32767. `origin` is the fitted map's global (0, 0) on that plane (fit.ts's x0, y0): y even, so that every row keeps its parity; the chain's global tile of a hex is (x − origin.x, y − origin.y), its chunk 15 ⌊y/15⌋ + ⌊x/15⌋ and its tile 15 (y mod 15) + (x mod 15). Names are resolved to registry ids by a content manifest. Versioning: `version` is an integer; a change a reader of an older version would misread (a field's meaning, a unit, a removed field) raises it, and the converter refuses a version it does not read; a new optional field does not.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "format",
+  "version",
+  "kind",
+  "name",
+  "origin",
+  "size",
+  "rows"
+ ],
+ "properties": {
+  "format": {
+   "const": "grimworld-export"
+  },
+  "version": {
+   "const": 1
+  },
+  "editor": {
+   "type": "string",
+   "description": "The editor's version that wrote the file."
+  },
+  "kind": {
+   "enum": [
+    "zone",
+    "town",
+    "outpost",
+    "set_piece"
+   ]
+  },
+  "name": {
+   "type": "string",
+   "minLength": 1,
+   "maxLength": 15
+  },
+  "location": {
+   "type": "string",
+   "minLength": 1,
+   "maxLength": 64,
+   "description": "The location's name in the manifest (a zone, a town or an outpost)."
+  },
+  "region": {
+   "type": "string",
+   "minLength": 1,
+   "maxLength": 64,
+   "description": "The region's name in the manifest."
+  },
+  "biome": {
+   "enum": [
+    "meadow",
+    "forest",
+    "cave",
+    "ruin"
+   ]
+  },
+  "level_min": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 255
+  },
+  "level_max": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 255
+  },
+  "rank": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 255
+  },
+  "spawn_table": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "A spawn table's name, or null. An authored zone places packs only on its spawn points; the table is kept for a generated fallback (D-215 ruling 7)."
+  },
+  "origin": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "x",
+    "y"
+   ],
+   "properties": {
+    "x": {
+     "type": "integer",
+     "minimum": -32767,
+     "maximum": 32767
+    },
+    "y": {
+     "type": "integer",
+     "minimum": -32766,
+     "maximum": 32766,
+     "description": "Even (D-216)."
+    }
+   }
+  },
+  "size": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "width",
+    "height"
+   ],
+   "properties": {
+    "width": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 15
+    },
+    "height": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 15
+    }
+   }
+  },
+  "rows": {
+   "type": "array",
+   "minItems": 1,
+   "description": "The painted hexes as row spans, the editor's format 2: one row y from column x on, one character per hex, a space for an unpainted hex.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "y",
+     "x",
+     "terrain"
+    ],
+    "properties": {
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "terrain": {
+      "type": "string",
+      "pattern": "[.# ]+",
+      "description": "The walkable plane, the one layer on chain: `.` floor, `#` wall."
+     },
+     "ground": {
+      "type": "string",
+      "pattern": "[gew ]+",
+      "description": "Client-only: grass, earth, water."
+     },
+     "outline": {
+      "type": "string",
+      "pattern": "[01 ]+",
+      "description": "A zone's: 1 inside the zone, 0 outside (a wall)."
+     }
+    }
+   }
+  },
+  "entry": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "x",
+    "y"
+   ],
+   "properties": {
+    "x": {
+     "type": "integer",
+     "minimum": -32767,
+     "maximum": 32767
+    },
+    "y": {
+     "type": "integer",
+     "minimum": -32767,
+     "maximum": 32767
+    }
+   }
+  },
+  "quotas": {
+   "type": "array",
+   "maxItems": 6,
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "param",
+     "count"
+    ],
+    "properties": {
+     "kind": {
+      "enum": [
+       "exit",
+       "heart",
+       "vein",
+       "collector",
+       "landmark",
+       "setPiece"
+      ]
+     },
+     "param": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "The pack (heart), collector or landmark by name; null for a vein."
+     },
+     "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 255
+     }
+    }
+   }
+  },
+  "candidates": {
+   "type": "array",
+   "description": "Candidate places of each quota (D-215 ruling 3): at most one per quota per chunk.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "quota",
+     "x",
+     "y"
+    ],
+    "properties": {
+     "quota": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     }
+    }
+   }
+  },
+  "spawns": {
+   "type": "array",
+   "description": "Authored spawn points (D-215 ruling 4): their level and count are drawn at entry.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "template",
+     "x",
+     "y"
+    ],
+    "properties": {
+     "template": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     }
+    }
+   }
+  },
+  "features": {
+   "type": "array",
+   "description": "Authored objects: chest, node, terrain trap (param: its skill), landmark (param: its name), lever.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "feature",
+     "x",
+     "y"
+    ],
+    "properties": {
+     "feature": {
+      "enum": [
+       "chest",
+       "node",
+       "trap",
+       "landmark",
+       "lever"
+      ]
+     },
+     "param": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     }
+    }
+   }
+  },
+  "gates": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "gate",
+     "to",
+     "kind",
+     "entry_chunk",
+     "entry_tile",
+     "x",
+     "y"
+    ],
+    "properties": {
+     "gate": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+     },
+     "to": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+     },
+     "kind": {
+      "enum": [
+       "hub",
+       "link",
+       "floor",
+       "rift"
+      ]
+     },
+     "rank": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+     },
+     "quest": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "entry_chunk": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 224
+     },
+     "entry_tile": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 224
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     }
+    }
+   }
+  },
+  "npcs": {
+   "type": "array",
+   "description": "Client-only.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "x",
+     "y",
+     "facing"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string"
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "facing": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+     }
+    }
+   }
+  },
+  "buildings": {
+   "type": "array",
+   "description": "Its footprint is unwalkable but for its door, a hex of the footprint's border (CLI-09e §4).",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "footprint",
+     "anchor",
+     "door"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string"
+     },
+     "footprint": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "integer",
+        "minimum": -32767,
+        "maximum": 32767
+       },
+       "minItems": 2,
+       "maxItems": 2
+      }
+     },
+     "anchor": {
+      "type": "array",
+      "items": {
+       "type": "integer",
+       "minimum": -32767,
+       "maximum": 32767
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "door": {
+      "type": "array",
+      "items": {
+       "type": "integer",
+       "minimum": -32767,
+       "maximum": 32767
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "depth": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8
+     },
+     "mirror": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "props": {
+   "type": "array",
+   "description": "A blocking kind (kinds.json) makes its hex unwalkable.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "x",
+     "y"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string"
+     },
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "variant": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "facing": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+     },
+     "flip": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "bridges": {
+   "type": "array",
+   "description": "The bridge plane (D-217): the deck hexes and the two end hexes; format 1: within one chunk, a one-hex deck valid. Its rules are ENG-08b's.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "deck",
+     "ends"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string"
+     },
+     "deck": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "integer",
+        "minimum": -32767,
+        "maximum": 32767
+       },
+       "minItems": 2,
+       "maxItems": 2
+      }
+     },
+     "ends": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "integer",
+        "minimum": -32767,
+        "maximum": 32767
+       },
+       "minItems": 2,
+       "maxItems": 2
+      }
+     }
+    }
+   }
+  },
+  "obstacles": {
+   "type": "array",
+   "description": "Client-only: pinned looks of wall hexes, as the editor's file.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "x",
+     "y",
+     "sprite"
+    ],
+    "properties": {
+     "x": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "y": {
+      "type": "integer",
+      "minimum": -32767,
+      "maximum": 32767
+     },
+     "sprite": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}
