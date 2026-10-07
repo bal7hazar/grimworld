@@ -4385,3 +4385,108 @@ fn test_cost_landing() {
     println!("landing: clock {} defeated {} killed {}", words.clock, words.defeated, words.killed.len());
     assert(words.clock == 41, 'one tick');
 }
+
+// ---- Lever 1 (CBT-05d; the project manager, 2026-10-07): at most 4 goblins attack a tick -------
+// A measure, not the rule: the fight batch's state with only goblins 8 to 11 attacking (Engaged,
+// skills recharging); goblins 12 to 15 stay awake, alive and free but do nothing (Returning), as
+// the cap would leave them, and they are the member's targets (12, 13, 14 × 3 each, 15), so the 4
+// attackers stand through the batch. The cap's own selection is not built: its cost is not in.
+
+fn lever_words(health: u16) -> Words {
+    let (words, _) = fight();
+    let mut goblins = array![];
+    let mut k: u32 = 0;
+    for goblin in words.goblins.span() {
+        let mut goblin = *goblin;
+        if k >= 4 {
+            goblin.state = goblin.state + 2 * two(24);
+        }
+        goblins.append(goblin);
+        k += 1;
+    }
+    let mut member = *words.members[0];
+    if health > 480 {
+        member.state += (health - 480).into() * two(64);
+        member.stats += (health - 480).into();
+    }
+    Words { goblins, members: array![member], ..words }
+}
+
+fn lever_actions() -> Span<Action> {
+    let mut actions = array![];
+    let mut k: u8 = 0;
+    while k < 10 {
+        actions.append(Action::Attack(12 + (k / 3).into()));
+        k += 1;
+    }
+    actions.span()
+}
+
+#[test]
+fn test_cost_lever_fixture() {
+    segment_fixture(lever_words(480), lever_actions());
+}
+
+#[test]
+fn test_cost_lever_fixture_whole() {
+    segment_fixture(lever_words(20000), lever_actions());
+}
+
+#[test]
+fn test_cost_lever_batch_real() {
+    let (out, done) = segment_of(lever_words(480), lever_actions());
+    println!(
+        "lever real: played {} clock {} defeated {} killed {} illegal {:?}",
+        done.played, out.clock, out.defeated, out.killed.len(), done.illegal,
+    );
+    assert(done.played > 0, 'played');
+}
+
+#[test]
+fn test_cost_lever_batch_whole() {
+    let (out, done) = segment_of(lever_words(20000), lever_actions());
+    println!(
+        "lever whole: played {} clock {} defeated {} killed {} illegal {:?}",
+        done.played, out.clock, out.defeated, out.killed.len(), done.illegal,
+    );
+    assert(done.played > 0, 'played');
+}
+
+// The tick alone: one tick through `TickLibrary`, the 4 goblins attacking, no action of the member.
+#[test]
+fn test_cost_lever_tick_fixture() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let _ = classes();
+    let words = lever_words(480);
+    let content = rep_content();
+    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+fn test_cost_lever_tick() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let words = ticks_of(library, lever_words(480), rep_content(), board(), 1);
+    assert(words.clock == 41, 'one tick');
+}
+
+// The same tick with the 8 attacking (the uncapped fight's), for the pair.
+#[test]
+fn test_cost_lever_tick_uncapped_fixture() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let _ = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let _ = classes();
+    let (words, _) = fight();
+    let content = rep_content();
+    assert(opaque(words.goblins.len()) == 8 && content.skills.len() == 38, 'fixture');
+}
+
+#[test]
+fn test_cost_lever_tick_uncapped() {
+    let class = declare("TickLibrary").unwrap().contract_class();
+    let library = ITickLibraryLibraryDispatcher { class_hash: *class.class_hash };
+    let (words, _) = fight();
+    let words = ticks_of(library, words, rep_content(), board(), 1);
+    assert(words.clock == 41, 'one tick');
+}
