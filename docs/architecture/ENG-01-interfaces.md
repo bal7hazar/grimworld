@@ -271,8 +271,9 @@ without), then writes the bitmaps (`hosts`, §3.2).
 **Proposed by ENG-10a (SPK-17, not built; ENG-10b builds it): a dungeon floor's outline at
 `create`.** ADR-0006 §3 (*A dungeon floor's outline, fixed at entry*): `HostsLibrary` gains the
 floor's call (`floor(entry, n, width, height, plan, pieces, chunks, outline_seed, hosts_seed) ->
-(outline, hosts, masks)`: the outline drawn, its farthest chunks, the hosts with the exit and the
-Heart among them, the entry reveal's masks), called once at `create` in a dungeon; `RevealLibrary`
+(outline, hosts, masks)`: the outline drawn (the winding law, D-223), its layers by distance, the
+hosts with the exit's and the Heart's drawn first in the farthest layer with room, the entry
+reveal's masks), called once at `create` in a dungeon; `RevealLibrary`
 reads the outline instead of drawing borders, and loses `decide`'s frontier guard. Measured on the
 spike's build (Linux, Scarb 2.20.1, `spikes/SPK-17-fixed-outline/sizes.py`; ENG-05's two classes from
 the same build as `build-external-contracts`, equal to the table above to the felt):
@@ -451,7 +452,7 @@ Every variable below is read and written only through `InstancesStoreTrait` (`co
 | `roster` | (slot, page 0–3) | 1 each | `Lanes16`: entity ids of goblins displaced from their spawn, alive or dead and not looted; a compact list of `header.roster_count` entries | a goblin is displaced, is looted or goes home |
 | `chunks` | (slot, chunk 0–224) | **2** each | `Chunk { terrain, features }` | reveal (both); a pack wakes or an object is used (`features`) |
 | `goblins` | (slot, entity) | **2** each | `Goblin { state, timers }` | a goblin leaves its first state, acts, dies, is looted |
-| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon (**ENG-10a, proposed**: a dungeon floor's too, its exit and Heart among the outline's farthest chunks) | `create` and `leave` to a zone (ENG-10a: and to a dungeon floor) |
+| `hosts` | (slot, quota 0–13) | 1 each | felt: a zone's host chunks of the quota, bit `15 cy + cx` (D-208, ENG-05); written only for a quota with a count; read for the current generation's quotas only, never in a dungeon (**ENG-10a, proposed**: a dungeon floor's too, its exit's and Heart's drawn first of all the quotas, in the outline's farthest layer with an allowed chunk, never owed: review t-0088, major 1) | `create` and `leave` to a zone (ENG-10a: and to a dungeon floor) |
 | `outline` | (slot, 0–2) | 1 each | **ENG-10a, proposed (ENG-10b builds it)**: a dungeon floor's outline drawn at `create` (ADR-0006 §3, *A dungeon floor's outline, fixed at entry*): 0 its chunks, 1 its open West seams (bit `c`: between `c` and `c + 1`), 2 its open North seams (bit `c`: between `c` and `c + 15`), bits `15 cy + cx`; read by every invocation that reveals in a dungeon, never in a zone | `create` and `leave` to a dungeon floor |
 
 **`Placement`** (1 felt): slot 0–31 · generation 32–63 · member 64–71 · inside 72–79 · `LIVE`.

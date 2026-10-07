@@ -69,16 +69,16 @@ fn test_pair_outline_frontier_12() {
     assert(outline.chunks != 0, 'drawn');
 }
 
-/// What `create` computes for a floor of 12: the outline, its farthest chunks, the hosts of the
-/// exit, the vein and the Heart, the entry chunk's mask.
+/// What `create` computes for a floor of 12 (the winding law, D-223): the outline, its layers by
+/// distance, the hosts (the exit and the Heart first, then the vein), the entry chunk's mask.
 #[test]
 fn test_pair_outline_floor_12() {
     let (outline_seed, hosts_seed, plan) = inputs(12);
     assert(outline_seed != hosts_seed && plan != (0, 0), 'inputs');
-    let outline = OutlineTrait::draw(ENTRY, 12, 15, 15, outline_seed);
-    let (far, _) = outline.far(ENTRY);
+    let outline = OutlineTrait::draw_winding(ENTRY, 12, 15, 15, outline_seed);
+    let layers = outline.layers(ENTRY);
     let hosts = PlacementTrait::hosts(
-        outline.chunks, 15, 15, plan, array![].span(), hosts_seed, far,
+        outline.chunks, 15, 15, plan, array![].span(), hosts_seed, layers.span(),
     )
         .span();
     let mask = PlacementTrait::with_hosts(0, hosts, ENTRY);

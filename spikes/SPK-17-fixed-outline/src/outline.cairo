@@ -13,9 +13,9 @@
 //! frontier.
 //! The member is the new chunk's **parent**: their seam is open, so the floor is connected; each
 //! other seam toward the floor is open but with probability 1 in 7 (`BORDER`, ENG-05's law of a
-//! dungeon's side). `draw_frontier`, the first law measured (uniform over the frontier at every
-//! step, a Poseidon word a draw), and `draw_winding` (the newest chunk as the member half the time)
-//! are kept for their figures.
+//! dungeon's side). **The law is `draw_winding`** (D-223): the member is the newest chunk with
+//! probability 1/2, else uniform. `draw` (uniform growth) and `draw_frontier` (uniform over the
+//! frontier at every step, a Poseidon word a draw) were measured and not kept.
 //!
 //! **In memory** as three felts (`Outline`): the chunks (bit `15 cy + cx`), the open seams West
 //! (bit `c`: between `c` and `c + 1`) and North (bit `c`: between `c` and `c + 15`). **Stored** as
@@ -313,6 +313,26 @@ pub impl OutlineImpl of OutlineTrait {
             depth += 1;
         }
         (layer, depth)
+    }
+
+    /// The chunks by distance from `entry` through the open seams, the farthest layer first, the
+    /// entry's last (where a dungeon's exit and Heart are drawn, `PlacementTrait::hosts`).
+    fn layers(self: @Outline, entry: u8) -> Array<felt252> {
+        let mut near: Array<felt252> = array![];
+        let mut layer = BoardTrait::pow(entry);
+        let mut seen = layer;
+        while layer != 0 {
+            near.append(layer);
+            layer = BoardTrait::minus(self.step(layer), seen);
+            seen = BoardTrait::or(seen, layer);
+        }
+        let mut out: Array<felt252> = array![];
+        let mut k = near.len();
+        while k != 0 {
+            k -= 1;
+            out.append(*near[k]);
+        }
+        out
     }
 
     /// The distance from `entry` to `chunk` through the open seams; 255 when not reached.

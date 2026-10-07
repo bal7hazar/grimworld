@@ -1,7 +1,9 @@
 //! **SPK-17 (ENG-10a): a copy of `grimworld_logic::types::reveal::placement` at 44961f2 (its
 //! tests left out), changed where a dungeon's outline is fixed at entry, each change marked
 //! `ENG-10a`:** `due` takes a dungeon's quotas from its hosts as a zone's (no forced window);
-//! `hosts` takes `far`, the outline's farthest chunks, where a dungeon's exit and Heart are drawn;
+//! `hosts` takes `layers`, the outline's chunks by distance from the entry, farthest first: a
+//! dungeon's exit and Heart are drawn first of all the quotas, in the farthest layer with an allowed
+//! chunk (review t-0088, major 1);
 //! `place` lays a dungeon's exit and Heart first, on the spine's core (`CORE`). The original
 //! documentation follows, as it was; where it speaks of a dungeon's forced quotas, the marked
 //! changes replace it.
@@ -49,6 +51,7 @@
 //!   Every draw of a roll is made whether it can be placed or not, so that one roll never moves
 //!   another.
 
+use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
 use grimworld_logic::content::CRITERION_REACH_LANDMARK;
 use grimworld_logic::models::chunk::{
@@ -241,7 +244,7 @@ pub impl PlacementImpl of PlacementTrait {
         plan: (felt252, felt252),
         pieces: Span<(u16, SetPiece)>,
         seed: felt252,
-        far: felt252,
+        layers: Span<felt252>,
     ) -> Array<felt252> {
         // [Compute] The zone: its rectangle's rows, and its chunk set within them
         let row = BoardTrait::pow(width) - 1;
@@ -263,10 +266,9 @@ pub impl PlacementImpl of PlacementTrait {
         let (first, second) = plan;
         let mut rest: u256 = first.into();
         let mut next: u256 = second.into();
-        let mut t: felt252 = 0;
-        let mut out: Array<felt252> = array![];
+        // [Compute] The plan's entries, by quota (a shorter list: the quotas after hold nothing)
+        let mut entries: Array<u256> = array![];
         let mut i: u8 = 0;
-        // Quota by quota, as far as any is left (a shorter list: the quotas after hold nothing)
         while rest != 0 || next != 0 {
             if i == 7 {
                 rest = next;
@@ -275,85 +277,111 @@ pub impl PlacementImpl of PlacementTrait {
             i += 1;
             let (above, entry) = DivRem::div_rem(rest, 0x100000000);
             rest = above;
-            if entry == 0 {
-                out.append(0);
-                continue;
+            entries.append(entry);
+        }
+        // ENG-10a (review t-0088, major 1; the orchestrator): in a dungeon (`layers` not empty) the
+        // exit's and the Heart's hosts are drawn first, before every other quota, so that no cap
+        // blocks them; a zone's quotas keep their order and their draws
+        let dungeon = layers.len() != 0;
+        let mut masks: Felt252Dict<felt252> = Default::default();
+        let mut t: felt252 = 0;
+        for pass in 0..2_u8 {
+            let mut i: felt252 = 0;
+            for entry in entries.span() {
+                let entry = *entry;
+                let (above, count) = DivRem::div_rem(entry, 0x100);
+                let (param, kind) = DivRem::div_rem(above, 0x100);
+                let kind: u8 = kind.try_into().unwrap();
+                let early = dungeon && (kind == quota::EXIT || kind == quota::HEART);
+                if entry != 0 && (pass == 0) == early {
+                    let count: u8 = count.try_into().unwrap();
+                    let need = Self::need(kind, param.try_into().unwrap(), pieces);
+                    let (rest_need, n_objects) = DivRem::div_rem(need, 4);
+                    let (n_pieces, n_packs) = DivRem::div_rem(rest_need, 4);
+                    // [Compute] The allowed members: not at a level the quota would pass
+                    let [o1, o2, o3] = objects;
+                    let [p1, p2] = packs;
+                    let mut blocked: felt252 = 0;
+                    if n_objects == 1 {
+                        blocked = o3;
+                    } else if n_objects == 2 {
+                        blocked = o2;
+                    } else if n_objects >= 3 {
+                        blocked = o1;
+                    }
+                    if n_packs == 1 {
+                        blocked = BoardTrait::or(blocked, p2);
+                    } else if n_packs >= 2 {
+                        blocked = BoardTrait::or(blocked, p1);
+                    }
+                    if n_pieces != 0 {
+                        blocked = BoardTrait::or(blocked, piece);
+                    }
+                    // ENG-10a: a dungeon's exit and Heart in the outline's farthest layer that has
+                    // an allowed chunk (`layers`, farthest first, the entry's last): never owed
+                    let allowed = if early {
+                        let mut found: felt252 = 0;
+                        for layer in layers {
+                            if found == 0 {
+                                found =
+                                    BoardTrait::minus(BoardTrait::and(zone, *layer), blocked);
+                            }
+                        }
+                        found
+                    } else {
+                        BoardTrait::minus(zone, blocked)
+                    };
+                    let left: u8 = BoardTrait::count(allowed);
+                    // [Compute] The indices the draw takes: as many as the subset or its
+                    // complement holds
+                    let wide: u16 = count.into() * 2;
+                    let draws: u8 = if count >= left {
+                        0
+                    } else if wide > left.into() {
+                        left - count
+                    } else {
+                        count
+                    };
+                    let mut indices: Array<u8> = array![];
+                    let mut k: u8 = 0;
+                    while k != draws {
+                        let word: u256 = poseidon_hash_span([seed, t].span()).into();
+                        t += 1;
+                        let bound: u128 = (left - k).into();
+                        let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
+                        indices.append(j.try_into().unwrap());
+                        k += 1;
+                    }
+                    let mask = Self::subset(allowed, left, count, indices.span());
+                    // [Compute] The levels after this quota's hosts
+                    let [mut o1, mut o2, mut o3] = objects;
+                    for _ in 0..n_objects {
+                        let at_two = BoardTrait::and(mask, o2);
+                        let at_one = BoardTrait::and(mask, o1);
+                        o3 = BoardTrait::or(o3, at_two);
+                        o2 = BoardTrait::or(o2, at_one);
+                        o1 = BoardTrait::or(o1, mask);
+                    }
+                    objects = [o1, o2, o3];
+                    let [mut p1, mut p2] = packs;
+                    for _ in 0..n_packs {
+                        p2 = BoardTrait::or(p2, BoardTrait::and(mask, p1));
+                        p1 = BoardTrait::or(p1, mask);
+                    }
+                    packs = [p1, p2];
+                    if n_pieces != 0 {
+                        piece = BoardTrait::or(piece, mask);
+                    }
+                    masks.insert(i, mask);
+                }
+                i += 1;
             }
-            let (above, count) = DivRem::div_rem(entry, 0x100);
-            let (param, kind) = DivRem::div_rem(above, 0x100);
-            let count: u8 = count.try_into().unwrap();
-            let need = Self::need(kind.try_into().unwrap(), param.try_into().unwrap(), pieces);
-            let (rest_need, n_objects) = DivRem::div_rem(need, 4);
-            let (n_pieces, n_packs) = DivRem::div_rem(rest_need, 4);
-            // [Compute] The allowed members: not at a level the quota would pass
-            let [o1, o2, o3] = objects;
-            let [p1, p2] = packs;
-            let mut blocked: felt252 = 0;
-            if n_objects == 1 {
-                blocked = o3;
-            } else if n_objects == 2 {
-                blocked = o2;
-            } else if n_objects >= 3 {
-                blocked = o1;
-            }
-            if n_packs == 1 {
-                blocked = BoardTrait::or(blocked, p2);
-            } else if n_packs >= 2 {
-                blocked = BoardTrait::or(blocked, p1);
-            }
-            if n_pieces != 0 {
-                blocked = BoardTrait::or(blocked, piece);
-            }
-            // ENG-10a: a dungeon's exit and Heart among the outline's farthest chunks (`far`, 0
-            // in a zone: no restriction)
-            let kind: u8 = kind.try_into().unwrap();
-            let zone_i = if far != 0 && (kind == quota::EXIT || kind == quota::HEART) {
-                BoardTrait::and(zone, far)
-            } else {
-                zone
-            };
-            let allowed = BoardTrait::minus(zone_i, blocked);
-            let left: u8 = BoardTrait::count(allowed);
-            // [Compute] The indices the draw takes: as many as the subset or its complement holds
-            let wide: u16 = count.into() * 2;
-            let draws: u8 = if count >= left {
-                0
-            } else if wide > left.into() {
-                left - count
-            } else {
-                count
-            };
-            let mut indices: Array<u8> = array![];
-            let mut k: u8 = 0;
-            while k != draws {
-                let word: u256 = poseidon_hash_span([seed, t].span()).into();
-                t += 1;
-                let bound: u128 = (left - k).into();
-                let (_, j) = DivRem::div_rem(word.low, bound.try_into().unwrap());
-                indices.append(j.try_into().unwrap());
-                k += 1;
-            }
-            let mask = Self::subset(allowed, left, count, indices.span());
-            // [Compute] The levels after this quota's hosts
-            let [mut o1, mut o2, mut o3] = objects;
-            for _ in 0..n_objects {
-                let at_two = BoardTrait::and(mask, o2);
-                let at_one = BoardTrait::and(mask, o1);
-                o3 = BoardTrait::or(o3, at_two);
-                o2 = BoardTrait::or(o2, at_one);
-                o1 = BoardTrait::or(o1, mask);
-            }
-            objects = [o1, o2, o3];
-            let [mut p1, mut p2] = packs;
-            for _ in 0..n_packs {
-                p2 = BoardTrait::or(p2, BoardTrait::and(mask, p1));
-                p1 = BoardTrait::or(p1, mask);
-            }
-            packs = [p1, p2];
-            if n_pieces != 0 {
-                piece = BoardTrait::or(piece, mask);
-            }
-            out.append(mask);
+        }
+        let mut out: Array<felt252> = array![];
+        let mut i: felt252 = 0;
+        for _ in entries.span() {
+            out.append(masks.get(i));
+            i += 1;
         }
         out
     }

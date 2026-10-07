@@ -41,7 +41,7 @@ and the re-audit measures it so.
   (`RevealLibrary`), `fate.cairo` (`EntropyTrait::word`, `hosts`), `contracts/ephemeral/src/systems/
   instances.cairo` (`begin`, `site`, `chunk_kind`, `instance_region`) and `store.cairo`.
 - **The measured residue** (D-208's record): SPK-17's `test_residue_eng05` on ENG-05's merged engine
-  puts the exit 1 chunk from the entry on 8 of 8 floors at `N` = 12, where the honest order put it at 7 to 11 chunks on five of them (45 chunks in all): the residue the gate removes.
+  puts the exit 1 chunk from the entry on 8 of 8 floors at `N` = 12, where the honest order put it at 7 to 11 chunks on five of them (45 chunks gained in all): the residue the gate removes.
 - **The cost rules**: D-144 (every rise on the expedition's path, `enter` and `leave` included, is
   the project manager's before the merge); D-200, D-209 (`RevealLibrary` ≤ 50.5 %, `Instances` ≤ 51 %),
   D-210 (`HostsLibrary` < 50 %). The ENG-05 ceilings of ENG-01 §10 (*The D-144 ceilings of ENG-05*).
@@ -113,10 +113,10 @@ and the re-audit measures it so.
 ## Acceptance criteria
 | # | Criterion | Shown by |
 |---|---|---|
-| A1 | **The zero-residue test**, named `test_zero_residue` (split by `N` and by seeds as the build's memory needs, FND-23): for at least 8 entropies at `N` = 6 and at least 8 at `N` = 12, every order of the reveals among at least six (by index, backward, nearest first, farthest first, two drawn), the entry first, gives **the same chunk set (the outline), the same exit chunk (exactly one exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest distance), and the same edges in every chunk**. On `RevealTrait` with the `Site` that `Instances` builds (its hosts from `HostsLibrary::floor`), not on a fixture that bypasses them | snforge, the test's output |
+| A1 | **The zero-residue test**, named `test_zero_residue` (split by `N` and by seeds as the build's memory needs, FND-23): for at least 8 entropies at `N` = 6 and at least 8 at `N` = 12, every order of the reveals among at least seven (by index, backward, nearest first, farthest first, two drawn, and **t-0077's forcing order**: the entry's first neighbour kept for the last reveal; review t-0088, minor 3), the entry first, gives **the same chunk set (the outline), the same exit chunk (exactly one exit, among the farthest), the same exit-to-entry distance through the revealed edges (the farthest distance), and the same edges in every chunk**; the walked distance in tiles from the entry tile to the exit's tile printed for every order (not compared: see the gate). On `RevealTrait` with the `Site` that `Instances` builds (its hosts from `HostsLibrary::floor`), not on a fixture that bypasses them | snforge, the test's output |
 | A2 | The same through `Instances`: a dungeon instance created (`leave` to a floor, or the entry that creates one), its stored outline and hosts equal to the pure draw from its entry draw; its chunks revealed in two orders give A1's outcome | `contracts/ephemeral/tests/`, snforge |
 | A3 | A zone is unchanged: every zone vector's output and every zone test's assertion unchanged; a zone's reveal gas within ±1 % (the kept draws) | `vectors/check.py`, the zone tests, GAS.md diff |
-| A4 | The exit and the Heart always land: over the A1 entropies, one exit and one Heart (on a last floor's content) on their host chunks; with a set piece hosted on the exit's chunk, both still land and the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
+| A4 | The exit and the Heart always land (review t-0088, major 1; the orchestrator: their hosts drawn **first**, before every other quota, in the farthest layer with an allowed chunk, never owed): over the A1 entropies, one exit and one Heart on their host chunks, in the farthest layer; **and a fixture of its own in the zero-residue test: floors whose farthest layer is a single chunk, with a set piece (2 packs, 3 objects) listed before the exit and the Heart, both placed in every order** (SPK-17 `test_zero_residue_piece_*`); with a set piece hosted on the exit's chunk, the set piece's own elements keep their tiles; the Heart at the band's top | snforge |
 | A5 | D-140: no panic on any legal content; a rectangle smaller than `N` gives the whole rectangle, connected | snforge (SPK-17 `test_outline_small_rectangle`) |
 | A6 | Classes: `RevealLibrary` under its D-209 ceiling and expected under 50 % (SPK-17: 39,878 felts, 48.68 %, against 41,109), `HostsLibrary` under 50 % (SPK-17: 11,372 felts, 13.88 %, against 6,580), `Instances` under D-209's 51 %; measured by `class_sizes.py` on Linux | CI's class-artefacts, the report |
 | A7 | Gas (D-223, ruling 4): the entry that creates a floor measured on the node (`lifecycle_probe.py`, three runs each), after the one-Poseidon-word lever is tried; the D-144 table below filled with those figures and sent to the project manager **before** the merge with the cause of each rise | the report, ENG-01 §10 |
@@ -125,11 +125,16 @@ and the re-audit measures it so.
 ## The re-audit gate (the merge gate)
 A **randomness re-audit** (lens: randomness and determinism, Opus) of the PR's head, before the merge,
 whose report states **in one sentence with a figure what a modified client can still gain in a
-dungeon**, and finds it **zero**: no chunk, seam, host, exit chunk or exit-to-entry distance that an
-order of moves changes. It checks: the seeds (227 for the outline, 225 for the hosts) read the entry
+dungeon**: **zero in chunks** (no chunk, seam, host, exit chunk or exit-to-entry distance in chunks
+that an order of moves changes) **and, in tiles, at most the measured bound** (review t-0088, minor
+2: the openings' tiles on a seam are drawn by whichever of its chunks is revealed first, so the walked
+distance from the entry tile to the exit's tile moves with the order: SPK-17 measured at most
+TILES_X tiles over the required orders; the re-audit re-measures it on the real path and states it
+as such, never as zero). A residue above zero in chunks stops the merge; the tile figure goes to
+the project manager, who takes it to the Overseer. It checks: the seeds (227 for the outline, 225 for the hosts) read the entry
 draw only and are computed once; nothing a reveal reads is written after `create` but by the reveal's
 own chunk words; the exit's and the Heart's tiles are drawn from the chunk's word on `CORE` whatever
-the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero, stops the merge
+the seams; A1 and A2 test the real path. A verdict FAIL, or a residue above zero in chunks, stops the merge
 (the Overseer, 2026-10-07).
 
 ## D-144: the rises it expects (E, from SPK-17; accepted in principle, D-223; the node's figures replace them before the merge)

@@ -61,7 +61,10 @@ pub mod FloorLibrary {
             masks: Span<(u8, felt252)>,
             seed: felt252,
         ) -> (Span<felt252>, Span<(u8, felt252)>) {
-            let hosts = PlacementTrait::hosts(zone, width, height, plan, pieces, seed, 0).span();
+            let hosts = PlacementTrait::hosts(
+                zone, width, height, plan, pieces, seed, array![].span(),
+            )
+                .span();
             let mut hosted: Array<(u8, felt252)> = array![];
             for entry in masks {
                 let (chunk, mask) = *entry;
@@ -82,10 +85,10 @@ pub mod FloorLibrary {
             outline_seed: felt252,
             hosts_seed: felt252,
         ) -> (Outline, Span<felt252>, Span<(u8, felt252)>) {
-            let outline = OutlineTrait::draw(entry, n, width, height, outline_seed);
-            let (far, _) = outline.far(entry);
+            let outline = OutlineTrait::draw_winding(entry, n, width, height, outline_seed);
+            let layers = outline.layers(entry);
             let hosts = PlacementTrait::hosts(
-                outline.chunks, width, height, plan, pieces, hosts_seed, far,
+                outline.chunks, width, height, plan, pieces, hosts_seed, layers.span(),
             )
                 .span();
             let mut hosted: Array<(u8, felt252)> = array![];
