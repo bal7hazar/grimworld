@@ -1,0 +1,18 @@
+{
+ "format": "grimworld-records",
+ "version": 1,
+ "source": "set_piece.json",
+ "writes": [
+  {
+   "order": 0,
+   "kind": "SET_PIECE",
+   "kind_id": 24,
+   "id": 1,
+   "parts": [
+    "0x4000001fffe000c00180030886110c22180030886110c22180030006000ffff",
+    "0x40000000000000000000000000000000000000007c000000120000000000170"
+   ],
+   "what": "the set piece"
+  }
+ ]
+}

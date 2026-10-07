@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them |
+| Status | **Accepted in principle by the owner on 2026-09-28**, revised the same day (and again by D-120: the window follows the adventurer, is 15 × 16 and is not stored): every location is generated, chunk by chunk, at reveal. Costs to be validated by spike SPK-7; the rule of sight is provisional until the owner has tested it. **Amended by the project manager, 2026-10-03 (D-208)**: §2's fog and what feeds the value, §3's quotas, as ENG-05 builds them. **Amended by the owner, 2026-10-05 (D-214), for zones only**: zones are **authored** with the map editor and held in the registry; dungeons stay generated; the format is ENG-08's (D-215, the project manager's rulings; `docs/decisions/2026-10-07-authored-zones-format.md`, proposed) |
 | Date | 2026-09-28 |
 | Decides | How a location larger than one felt is stored, generated, simulated and shown |
 | Supersedes | The room model of `docs/design/02-core-loop.md` (Map) and `docs/design/18-rooms.md` (size, entering a room, perception by room) |
@@ -37,7 +37,18 @@ which is what makes assembly a one-dimensional shift (§4).
 
 ### 2. Everything is generated, at reveal (D-106)
 
-Zones and dungeons use **one engine**. No location has a layout written in advance.
+> **Amended by the owner, 2026-10-05 (D-214), marked D-214 and D-215.** This section, and D-106,
+> now hold for **dungeons only**. A **zone is authored**: drawn with the map editor (TOOL-01,
+> CLI-09), exported, converted and written to the registry as one `ZONE_CHUNK` record a chunk (its
+> walkable plane and its features), with the zone's `CANDIDATES` and its `OUTLINE` (ENG-01 §3.5,
+> proposed by ENG-08, built by ENG-09). At reveal an authored chunk's walkable plane is **copied**
+> into the instance's chunk (D-215 ruling 2), not generated; what stays random is drawn at entry
+> (§3, *Quotas*, as amended). Towns are drawn with the same editor and stay client-only (D-03,
+> D-202). Until every zone is authored, a zone without the `LOCATION` marker is generated as
+> below (D-215 ruling 7). The fog of an authored zone holds no terrain: the map is public
+> before any instance, as the world map is (D-213's display rule unchanged).
+
+Dungeons use **one engine**; until D-214 zones did too. No dungeon has a layout written in advance.
 
 | | |
 |---|---|
@@ -197,6 +208,12 @@ spoiler.
 
 #### Outlines
 
+> **D-214, D-215 (ruling 6).** An authored zone keeps this table's zone column: its chunk set and
+> its border chunks' tile masks in `OUTLINE`, no other outline record. The converter derives both
+> from the painted map (the editor lays the 15 × 15 chunk grid afterwards, at an origin on an even
+> row, D-216) and the registry refuses a mask that disagrees with the chunk's walls (R-20). "Cut by
+> its mask" becomes: every tile outside the mask is a wall in the authored plane.
+
 | | Zones | Dungeons |
 |---|---|---|
 | Outline | **Drawn in advance**, in the registry: an irregular shape, any size | **Emerges** during exploration |
@@ -230,6 +247,10 @@ Rules that keep an emerging outline sound:
 
 #### Set pieces: where level design comes back
 
+> **D-214.** In a zone, level design is the whole map: a zone has no set-piece quota (R-29). Set
+> pieces stay a dungeon's: a `SET_PIECE` record (one authored chunk, D-134's corners kept), drawn
+> with the same editor and exported as `kind: set_piece` (ENG-08's export, CM-7).
+
 A quota can place an **authored chunk** instead of a generated one: a ruined village, a
 collector's camp, a boss arena, drawn by hand and stored in the registry. The engine
 places it, rotates nothing, and joins its edges like any other. Level design is not lost;
@@ -241,7 +262,7 @@ it becomes a library of pieces that the generator lays out.
 |---|---|
 | The engine | One, for zones and dungeons: one system to build, test and audit |
 | Difficulty | **Moderate, provided constraints stay within the three kinds.** The hard part is not constraints; it is joining edges and cost |
-| What it costs the design | Zones can no longer be learnt or mapped by the community. A zone has a character (biome, band, set pieces), not a geography |
+| What it costs the design | ~~Zones can no longer be learnt or mapped by the community.~~ **Reversed by D-214 for zones**: an authored zone has a geography the community can learn and map; its quotas' places (among the author's candidates) and its packs' levels and counts change with each instance (D-215). Dungeons keep this row: a character (biome, band, set pieces), not a geography |
 | Real risks | Cost of a reveal (generation + random request), and quality: generated open zones can feel samey. Set pieces are the answer to the second |
 
 ### 4. Simulation: the window
@@ -377,6 +398,6 @@ memory, Sierra gas) and from transactions on the local node, whose meter is not 
 
 | # | Question |
 |---|---|
-| CM-7 | Format of authored chunks and outline masks, and the tool to draw them |
+| CM-7 | ~~Format of authored chunks and outline masks, and the tool to draw them~~ **Answered by ENG-08 (D-214, D-215)**: the records `ZONE_CHUNK`, `BRIDGE` and `CANDIDATES` and the `LOCATION` marker (ENG-01 §3.5, proposed), the export `grimworld-export` version 1 and its converter (`spikes/SPK-16-authored-zone/map-format/`, promoted to `tools/map-format/` by ENG-09); the tool is CLI-09 (track CV). Open in it: a bridge's rules (ENG-08b) |
 | CM-9 | Exact `N` per grade within 6 to 12 |
 | CM-10 | A value fixed in advance and tied to gameplay, stronger than the present player entropy: to look for |

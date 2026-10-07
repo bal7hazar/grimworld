@@ -1,0 +1,42 @@
+{
+ "$comment": "A content manifest: the registry ids of the names an export uses (OPS-01 writes it).",
+ "regions": {
+  "test_region": 1
+ },
+ "locations": {
+  "test_town": 1,
+  "meadow_edge": 2,
+  "floor_1": 3
+ },
+ "gates": {
+  "to_town": 2,
+  "to_floor": 3
+ },
+ "packs": {
+  "raiders": 1,
+  "cubs": 2
+ },
+ "pack_bounds": {
+  "raiders": [
+   2,
+   5
+  ],
+  "cubs": [
+   1,
+   3
+  ]
+ },
+ "collectors": {
+  "camp": 1
+ },
+ "landmarks": {
+  "old_oak": 1
+ },
+ "skills": {},
+ "spawn_tables": {
+  "meadow": 1
+ },
+ "set_pieces": {
+  "boss_arena": 1
+ }
+}

@@ -145,6 +145,17 @@ to that decider with the figure.
 | 9 | **`tools/map-format/` is the shared folder**: track game owns the schema and the converter, track CV consumes them for the editor (CLI-09); promoted there by ENG-09 from the spike | project manager, **D-215** |
 | 10 | **No batched registration entrypoint**: an account's multicall writes many records in one transaction; the spike measures how many fit in one | project manager, **D-215** |
 
+## Additions decided since the brief merged (#357), folded into the lot
+
+| # | Addition | By |
+|---|---|---|
+| A1 | **D-216**: the editor paints on an unbounded plane and lays the 15 × 15 chunk grid afterwards, at the origin that covers the painted hexes with the fewest chunks. The format takes any chunk set at a chosen origin (not starting at 0, 0) and states the origin's constraints: its row even (the rows' parity), its column free, the map within `[0, 15 width) × [0, 15 height)` after the move, ±32,767 on the editor's plane | the owner, 2026-10-05 |
+| A2 | **The editor's objects** (track CV): NPC (hex, template, facing), building (kind, footprint, anchor, door on the footprint's border), prop (kind, hex, variant, facing or flip), in the export and the schema; on chain only through the walkable plane (a footprint unwalkable but its door; a blocking prop's hex unwalkable). The kind table from CLI-09e §4 (#367, merged) | the orchestrator under D-215 |
+| A3 | **D-217**: bridges on two levels. Format version 1 reserves a bridge plane: each bridge's deck hexes and two end hexes, in the export and on chain, a one-hex deck valid; its storage measured. The rules are ENG-08b's | the owner, 2026-10-05 |
+| A4 | **D-220**: a content bound on a zone's total quota draws, sized so that the worst legal plan stays under 100,000,000 L2 gas, from ENG-05's measure (98,153,254, `test_hosts_worst_half`) | the project manager, 2026-10-06 |
+| A5 | The deferred content bounds (ruling 8) are ENG-R1c's; ENG-08's checks reuse them: count ≤ members; chunk set ⊆ rectangle; a Heart template with a minimum ≥ 1 and a maximum ≥ 1; a floor rectangle larger than `N` | the orchestrator |
+| A6 | The PLAN rows of ENG-05's bookkeeping in this lot's first commit; the fixed dungeon outline as two rows, ENG-10a and ENG-10b, queued after ENG-08 (the residue blocks any non-test deployment until ENG-10b merges; ENG-10b's gate a re-audit measuring it at zero) | the project manager and the Overseer, 2026-10-07 |
+
 ## Scope
 - In (the deliverables):
   1. **The on-chain format of an authored zone**, written into ENG-01 §3.5 as proposed layouts:

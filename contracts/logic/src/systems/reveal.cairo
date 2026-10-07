@@ -7,7 +7,8 @@
 //! `Instances` read them (`Site`), the instance's progress, the terrain of the revealed neighbours
 //! and the chunks to reveal in; the progress and the chunks revealed out, each as its two words
 //! packed as stored (`(chunk, terrain, features)`), which `Instances` writes as they are (its
-//! typed slots: no packer of a chunk in its class, D-200).
+//! typed slots: no packer of a chunk in its class, D-200). It generates; an authored zone's chunks
+//! (D-214) are ENG-09's to copy (ENG-08's format).
 
 #[starknet::contract]
 pub mod RevealLibrary {

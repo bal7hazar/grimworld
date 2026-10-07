@@ -4,7 +4,9 @@
 //! constructor and `set_contracts`), once at `create` in a zone with quotas. It has no storage and
 //! reads nothing: the zone, its rectangle, the quotas' plan (`PlacementTrait::plan`: each count,
 //! kind and param), the location's set pieces, the masks of the chunks to reveal and the seed
-//! in; one bitmap a quota, and the masks with their chunks' hosts above the board, out.
+//! in; one bitmap a quota, and the masks with their chunks' hosts above the board, out. A
+//! generated zone's; an authored zone's quotas are drawn among the author's candidates instead
+//! (D-214, D-215 ruling 3; ENG-08's format, ENG-09).
 
 #[starknet::contract]
 pub mod HostsLibrary {

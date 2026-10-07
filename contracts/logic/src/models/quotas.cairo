@@ -1,6 +1,7 @@
 //! `QUOTAS`: its constructor, its checks and its record (layout: `models::index::QuotaSet`). A
 //! location's quotas (ADR-0006 kind 2): what its chunks must hold in total, placed by sampling
-//! without replacement at each reveal (`types::reveal`). Id = the location's (D-145).
+//! without replacement at each reveal (`types::reveal`); an authored zone's (D-214) among the
+//! author's candidates, drawn at entry (D-215 ruling 3, ENG-08). Id = the location's (D-145).
 
 use crate::content::{QUOTAS, Record};
 use crate::packing::{P16, P24, P32, P64, P8, P96, join, peel, split};

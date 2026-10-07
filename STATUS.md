@@ -4,6 +4,12 @@
 The live state of the game track only. The programme, the decisions and what waits for the owner
 are in [PROGRAMME.md](PROGRAMME.md), written by the project manager.
 
+## 2026-10-07: ENG-05 merged
+
+**Merged**: **ENG-05**, the chunk reveal engine ([#348](https://github.com/bal7hazar/grimworld/pull/348), `9ffd4ff`, 2026-10-07), with D-208 (a zone's quota hosts drawn once at entry, order-free), D-209 (`RevealLibrary` 50.18 % and `Instances` 50.35 %, under their exceptions until ENG-05b), D-210 (`HostsLibrary`, 8.03 %) and D-220 (the complement draw; the worst legal plan 98,153,254). Review t-0081 and randomness re-audit t-0082: PASS WITH FINDINGS. The D-144 ceilings of `enter` and `leave` are in ENG-01 §10.
+**The dungeon residue** (re-audits t-0077 and t-0082): a modified client can force a floor's exit 1 chunk from the entry, up to N − 2 = 10 of 12 chunks closer at N = 12, bounded only by N. It blocks any non-test deployment until ENG-10b merges (the Overseer, 2026-10-07); ENG-10a (design) and ENG-10b (engine) remove it, ENG-10b's merge gate a randomness re-audit measuring it at zero.
+**Open**: ENG-08, authored zones' format (running, its first commit this bookkeeping). **Next** (the project manager, 2026-10-07): ENG-08, then ENG-08b, ENG-10a and ENG-10b, ahead of CBT-05b and ENG-07; ENG-05b before ENG-07 (D-209).
+
 ## 2026-10-03: the lots of 2026-10-02 and 2026-10-03 closed
 
 **Merged** (reports archived in `docs/reports/`, PLAN rows done, CHANGELOG entries written): **CBT-05a**, the executor ([#334](https://github.com/bal7hazar/grimworld/pull/334), `f50c1fc`); **ENG-R1b part 1** ([#320](https://github.com/bal7hazar/grimworld/pull/320), `6887010`); **VEC-01** ([#294](https://github.com/bal7hazar/grimworld/pull/294), `d1f3e93`); **FND-11** Scarb 2.20.1 ([#293](https://github.com/bal7hazar/grimworld/pull/293), `a3c3268`), **FND-12** ([#291](https://github.com/bal7hazar/grimworld/pull/291), `f1a0b41`), **FND-13** ([#303](https://github.com/bal7hazar/grimworld/pull/303), `a97f4f0`), **FND-14** ([#305](https://github.com/bal7hazar/grimworld/pull/305), `33dc4e5`), **FND-15** ([#314](https://github.com/bal7hazar/grimworld/pull/314), `86c0322`), **FND-16** ([#312](https://github.com/bal7hazar/grimworld/pull/312), `8ab3949`), **FND-17** ([#327](https://github.com/bal7hazar/grimworld/pull/327), `aa5bcc1`), **FND-18** ([#322](https://github.com/bal7hazar/grimworld/pull/322), `93eb1b6`), **FND-19** `hexx` rc.2 ([#331](https://github.com/bal7hazar/grimworld/pull/331), `ffef058`), **FND-20** ([#350](https://github.com/bal7hazar/grimworld/pull/350), `ac10593`) and **FND-21** ([#352](https://github.com/bal7hazar/grimworld/pull/352), `53f1095`). The game is on Scarb 2.20.1 and `hexx` 0.1.0-rc.2.
@@ -108,7 +114,8 @@ both, the worst tick is about **6.47 M, 4.4×** the target, before CBT-05's exec
 | Lot (PR) | Built by | Now | Gate (D-177) |
 |---|---|---|---|
 | CBT-05a the executor ([#334](https://github.com/bal7hazar/grimworld/pull/334)) | Opus 5.5 | merged 2026-10-03 (`f50c1fc`) | done (review and cost audit, D-207) |
-| ENG-05 chunk reveal ([#348](https://github.com/bal7hazar/grimworld/pull/348)) | Opus 5.5 | in its fix loop (2026-10-03) | the delta review and a randomness re-audit (Opus), the project manager's gate |
+| ENG-08 authored zones' format | Opus 5.5 | running (2026-10-07) | review; a short randomness lens on the draws at entry |
+| ENG-05 chunk reveal ([#348](https://github.com/bal7hazar/grimworld/pull/348)) | Opus 5.5 | merged 2026-10-07 (`9ffd4ff`) | done (review t-0081, randomness re-audit t-0082) |
 | ENG-R1b part 1 ([#320](https://github.com/bal7hazar/grimworld/pull/320)) | Opus 5.5 | merged 2026-10-03 (`6887010`); part 2 (`Registry`) running | done |
 | ENG-R1a `Hub` on the pattern ([#221](https://github.com/bal7hazar/grimworld/pull/221)) | Opus 5.5 | merged 2026-10-02 (`d3ad22d`); the owner's reading pending | done |
 | CBT-03a one hit ([#229](https://github.com/bal7hazar/grimworld/pull/229)) | Opus 5.5 | merged 2026-10-02 (`3b27b9f`) | done |
@@ -127,7 +134,7 @@ Budget: slots in `~/orchestrator/slots` (`scripts/agent.sh slots`), 3 in total, 
 
 ## Next
 
-ENG-05 ([#348](https://github.com/bal7hazar/grimworld/pull/348)) in its fix loop and re-audit; CBT-05b (the action's costs and traps) and ENG-07 after it merges; ENG-R1b part 2 (`Registry`) running; ENG-R1c after ENG-07. The owner's reading of ENG-R1a (D-167) is done.
+ENG-05 merged (2026-10-07). ENG-08 running; then ENG-08b, ENG-10a and ENG-10b, ahead of CBT-05b (the action's costs and traps) and ENG-07; ENG-05b before ENG-07 (D-209); ENG-R1b part 2 (`Registry`) running; ENG-R1c after ENG-07. The owner's reading of ENG-R1a (D-167) is done.
 
 ## Decisions needed
 

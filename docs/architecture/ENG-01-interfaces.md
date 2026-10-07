@@ -225,6 +225,18 @@ class hash (`reveal`, §3.2) from its constructor and `set_contracts` (§4.1, as
 | `Instances` (the entry reveal's reads and writes, `instance_region`, a zone's hosts kept) | 41,247 | **50.35 %** (D-209: at most 51 %; 29.05 % before ENG-05) |
 | `HostsLibrary` (D-210, D-220) | 6,580 | 8.03 % |
 
+**Proposed by ENG-08 (SPK-16, not built): the authored path in a class of its own,
+`AuthoredLibrary`**, which ENG-09 builds: the hosts' draw among candidates at `create` and the
+reveal of an authored chunk (its record decoded, `Placement::pack` for the packs). The spike's class
+measures **20,437 CASM felts, 24.95 %** (Linux, Scarb 2.20.1, the spike's own build; `Registry` from
+the same build 29,568, 36.09 %, as main). It cannot join `RevealLibrary` (50.18 % + 24.95 %) nor
+`Instances` (50.35 %); `HostsLibrary` (8.03 %) could hold it (about 33 %, E) at the price of loading
+the reveal's placement into the class `create` calls once for the hosts: a class of its own is
+proposed. What `Instances` gains (the marker read, the authored branch of `begin`, the reads of
+`ZONE_CHUNK` and `CANDIDATES`, one more class hash) is not measured: D-209's condition holds it, so
+**ENG-09 starts after ENG-05b** has brought `Instances` under 50 % (D-221, the project manager,
+2026-10-07).
+
 Both stay under 50 % (D-200) by four choices of ENG-05, measured: "within 2 of an opening" is two
 bit-parallel hex dilations, not `hexx`'s `hexagon` (its tables and loop path cost the library about
 1,900 felts); one call site of `keep_component` (each call with constant dimensions compiled a copy,
@@ -855,6 +867,109 @@ ones.
 A `bundle` read costs about **36,000 a slot** in execution (107,620 a three-part record between 1
 and 32 records), which §9.3–§10 do not count beyond the call's C: ENG-06 and ENG-07 add it to the
 invocations that read content.
+
+**Authored zones (ENG-08; proposed, built by ENG-09; D-214, D-215, D-216, D-217, D-220).** Since
+D-214 a zone is drawn with the map editor and held in the registry; dungeons stay generated. The
+records below are **proposed, not built**: the spike `spikes/SPK-16-authored-zone/` packs, checks
+and reveals them (`src/`), its converter writes them (`map-format/`), and its README holds the
+measures (SPK-16). **Ids**: three new kinds after `COUNTER` (25); `PARTS` gains 2, 1, 3; no record
+passes 3 parts, so `bundle`'s bound ("at most 32 records, at most 3 parts each", §4.5) is unchanged.
+
+| Kind | Part | Bits |
+|---|---|---|
+| `ZONE_CHUNK` (26) | 0 | **ENG-08** (composite, id `location × 256 + chunk`, as `OUTLINE`; its parent the `LOCATION`): **the walkable plane** (D-215 ruling 1), bit `15 row + column`, 1 = wall, the convention of `Terrain` and `SET_PIECE`; a tile outside the chunk's mask is a wall (R-20). Bits 225–249: the reserved planes' flags, 0 in format version 1 (a reader of version 1 refuses a chunk with one set). One felt a plane: **225 tile bits, 25 free, `LIVE` at 250** |
+| `ZONE_CHUNK` | 1 | **the features**, `SET_PIECE`'s part 1 extended in its high limb: spawn points `i` of 2 (tile 0–7 · template 8–23, a `PACK`) at `24 i` (D-215 ruling 4: their level and count drawn at entry); objects at 48, 80 and 128, each in `Object`'s 32-bit layout (§3.2; chest, node, terrain trap, landmark, lever; state 0); **the candidate tile of quota `i`** of 6 at `160 + 8 i`, meaningful where `CANDIDATES` names the chunk for quota `i` (0 elsewhere, R-14); **the bridges** it holds 208–211 (`BRIDGE` records `0 … count − 1`); **the gates anchored here**, two `GATE` ids at 212 and 228 (0 none): the registry's index of a location's gates (#348's deferred item); 244–249 free |
+| `BRIDGE` (27) | 0 | **ENG-08** (D-217's reserved bridge plane; composite, id `location × 4096 + chunk × 16 + k`, `k` below its chunk's count): the deck, bit `15 row + column` (1 = a deck tile), 0–224 · end A 225–232 · end B 233–240 · 241–249 free. Format 1: a bridge lies in one chunk; a one-tile deck with its two ends is valid. The reveal does not read it in version 1: its rules are ENG-08b's |
+| `CANDIDATES` (28) | 0–2 | **ENG-08** (D-215 ruling 3; composite, id `location × 2 + k`): part `j`, quota `3 k + j`'s candidate chunks, bit `15 cy + cx`, 0–224. The draw at entry reads these one or two records, not every chunk |
+| `LOCATION` | 0 | **ENG-08, the marker**: bits 144–151, the map's format: 0 generated (every location today), 1 authored, format version 1. `LocationRecord::unpack` reads the rest of the high limb as the entry tile today: ENG-09 bounds the entry tile to 8 bits and reads the marker beside it. A zone without the marker is generated (D-215 ruling 7) |
+
+A chunk takes **two felts** (one plane and its features); a later plane (ruling 1's condition: a rule
+that needs more than walkable, such as sight across water) is a **third part** of `ZONE_CHUNK`, its
+presence told by a flag in part 0's bits 225–249, so part 0 never moves and `bundle`'s 3 parts hold.
+A zone of `C` chunks with `B` bridges and `M` border chunks writes `C` + `B` + `M` + 4 to 6 records
+(`LOCATION`, the chunk set, one or two `CANDIDATES`, `QUOTAS`, its gates).
+
+**The rules that read terrain today** (ruling 1; all read the walkable plane only, one bit a tile):
+
+| Rule | What it reads | Source |
+|---|---|---|
+| Movement and the flood (pathfinding of the tick, 15 layers) | a tile is walkable or a wall | design/02, D-127; `hexx`'s `Bfs` on the window |
+| Line of sight | walls block, actors do not; a wall at either end blocks | design/04 *Line of sight*; `WindowTrait::sight` (D-174) |
+| Shapes and reach of skills | a wall holds no actor and is skipped | design/19 §2.3, §5.5; `WindowTrait::shape`, `reach` |
+| Placement (packs within 2, objects) and traps' tiles | the allowed tiles: interior floor, not taken | design/18 *Features*, design/19 §5.11; `Placement` |
+| Sight and the window's assembly | the chunks' walls, a void chunk all wall | ADR-0006 §4, D-120, D-134 (ENG-07) |
+| The generation (dungeons, a zone not authored) | its own board, openings, the corners (D-134) | ADR-0006 §3; `types::reveal` |
+
+Water, a cliff or a fence is a wall in the walkable plane, so it blocks sight as walls do: **in v1
+a lake hides what lies beyond it**, a known design limit accepted by the project manager (D-221,
+2026-10-07; design/18). If a playtest asks for sight across water, it becomes a reserved plane
+(part 2), never a client guess (D-215).
+
+**Registration** (ruling 10: no batched entrypoint; an account's multicall writes many `set_record`
+calls). The converter writes in this order: `LOCATION` with the marker → the chunk set (`OUTLINE`,
+255) → `CANDIDATES` → `QUOTAS` → the border masks (`OUTLINE`) → each `ZONE_CHUNK` and its `BRIDGE`s
+→ the `GATE`s. **Every rule between two records is checked at the write of either, against the
+other when it exists** (CBT-02c's precedent, DS-18), so no order and no rewrite lets a breach
+through; the order above only makes each write find what it checks against. The table's
+*Reverse check* column names, for each rule, what the other record's write re-runs (review t-0084,
+minor 1): **ENG-09 implements every one**; the spike prototypes the two the review's scenario needs
+(`ZoneAssert::assert_candidates_write`, `assert_pack_write`, tested by `test_refuse_candidates_rewrite_count`,
+`_tile` and `test_refuse_pack_rewrite_heart`). A chunk of the set with no `ZONE_CHUNK`
+is the content pipeline's (every chunk written), and ENG-09 reveals it as wall.
+
+**The writer's checks of authored map records** (deliverable 2; `RegistryAssert::assert_content`,
+built by ENG-09 as `ZoneAssert` rules; ids R-1 … R-20 are CLI-09 §5's, the editor's validation;
+codes as the spike panics with them). **The editor reproduces exactly these**: one table,
+`spikes/SPK-16-authored-zone/map-format/checks.json` (each case run by the spike's Cairo test and
+by the converter, with the same code):
+
+| Id | Rule | Checked at (reads) | Reverse check (the other write re-runs it) | Code |
+|---|---|---|---|---|
+| R-11 | The chunk set within the `width × height` rectangle (ENG-R1c bound 1, reused) | the chunk set's `OUTLINE` (`LOCATION`) | a `LOCATION` rewrite, against the chunk set (ENG-09) | `zone: set outside rectangle` |
+| R-12 | A quota's count at most the zone's members (ENG-R1c bound 2) | `QUOTAS` (the chunk set) | a chunk set rewrite, against `QUOTAS` (ENG-09); a `CANDIDATES` write (spike) | `zone: count above members` |
+| R-13 | An authored zone's quota count at most its candidates (bound 2, authored form) | `QUOTAS` (`CANDIDATES`) | a `CANDIDATES` write, against `QUOTAS` (spike, `assert_candidates_write`) | `zone: count above candidates` |
+| R-14 | Spawn points, objects and candidate tiles on walkable tiles, no two on one tile; an object of an authored kind, untouched; an empty entry all zeros, a candidate tile 0 where `CANDIDATES` does not name the chunk | `ZONE_CHUNK` (`CANDIDATES`) | a `CANDIDATES` write, against each chunk whose candidacy changed (spike) | `zone chunk: tile not floor`, `… tile taken`, `… object`, `… empty with a value` |
+| R-15 | Within E-3 with every candidate counted (an object quota's against 3 objects, a Heart's against 2 packs), so every draw fits | `ZONE_CHUNK` (`CANDIDATES`, `QUOTAS`) | a `CANDIDATES` write, against those chunks (spike); a `QUOTAS` write that changes a kind, against its candidates' chunks (ENG-09) | `zone chunk: over its caps` |
+| R-16 | D-134's corners **lifted** for an authored chunk (ruling 5): no code but the generation and `SetPieceAssert` reads them (SPK-16, `test_corners.cairo`) | — | — | none |
+| R-18 | A gate's anchor walkable | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against the `GATE`s it names (ENG-09) | `zone: gate anchor not floor` |
+| R-20 | Every tile outside a border chunk's mask is a wall (ruling 6) | `ZONE_CHUNK` and the mask's `OUTLINE`, each the other | (both directions in the column before) | `zone: mask disagrees` |
+| R-24 | A `ZONE_CHUNK`'s chunk in the chunk set | `ZONE_CHUNK` (the chunk set) | a chunk set rewrite that drops a chunk with a `ZONE_CHUNK` (ENG-09) | `zone: chunk not in the set` |
+| R-25 | The anchor chunk names the gate among its two (the gate index) | `GATE` (its anchor's `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that drops a gate id whose `GATE` anchors there (the stored record read, ENG-09) | `zone: gate not indexed` |
+| R-26 | The entry tile walkable | `LOCATION` with the marker, and the entry chunk's `ZONE_CHUNK`, each the other | (both directions in the column before) | `zone: entry not floor` |
+| R-27 | A Heart's template exists, at least 1 at its fewest and at its most (ENG-R1c bound 3, extended) | `QUOTAS` (the Heart's `PACK`) | a `PACK` write that a Heart quota names: ENG-09 keeps a count of them per template, as `caste_skills` (spike, `assert_pack_write`) | `zone: heart template` |
+| R-28 | A dungeon floor's `width × height` above `N` (ENG-R1c bound 4; dungeons only) | `LOCATION` | — (one record) | `location: floor rectangle` |
+| R-29 | An authored zone's quotas place no exit and no set piece | `QUOTAS` (the marker) | a `LOCATION` write that sets the marker, against `QUOTAS` (ENG-09) | `zone: quota kind` |
+| R-30 | **The location's quotas draw at most 640 times together at entry**, `min(count, members − count)` each (D-220; a generated zone's members, an authored zone's candidates) | `QUOTAS` (the chunk set, `CANDIDATES`) | a `CANDIDATES` write (spike) and a chunk set rewrite (ENG-09), against `QUOTAS` | `zone: quota draws` |
+| R-31 | Every candidate chunk in the zone | `CANDIDATES` (the chunk set) | a chunk set rewrite, against `CANDIDATES` (ENG-09) | `candidates: outside the set` |
+| R-33 | A bridge has a deck; two distinct ends off it | `BRIDGE` | — (one record) | `bridge: deck empty`, `bridge: end` |
+| R-34 | Each end walkable and next to a deck tile | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite, against its `BRIDGE`s (ENG-09) | `bridge: end not floor`, `bridge: end not by the deck` |
+| R-35 | A bridge's index below its chunk's count | `BRIDGE` (its `ZONE_CHUNK`) | a `ZONE_CHUNK` rewrite that lowers its count below a written `BRIDGE` (ENG-09) | `bridge: index` |
+
+**R-30, sized from the measure** (D-220): ENG-05's worst legal plan (six passes of 112, 98,153,254 in
+`test_hosts_worst_half`) **with the snapshot's eight task quotas** measures **99,673,404** (SPK-16,
+`test_pair_plan_tasks_hosts`), 0.33 % under 100,000,000; at 640 draws with the tasks, **95,799,175**
+(`test_pair_plan_bound_hosts`); on the authored path (no task places anything there), six quotas of
+640 draws among 225 candidates measure **95,035,380** (`test_pair_hosts_bound_authored`, review
+t-0084 note 4). Without R-30 a legal generated zone is one code change from the
+bound; with it, 4.2 % below. R-30 binds generated zones too (D-221, the project manager,
+2026-10-07): ENG-R1c builds it beside its four bounds, ENG-09 reuses it. The layout's own bounds (at most 2 spawn points and 3 objects, one
+candidate a quota a chunk, two gates a chunk, 15 bridges a chunk, a bridge in one chunk) are
+refused by the converter before any record (`export: …` codes). What no record holds alone is
+**the content pipeline's and the converter's**: every walkable tile reachable from the entry (P-1;
+over the walkable plane only, so **a map whose only crossing is a bridge is refused until ENG-08b**
+gives the deck its rules),
+the records re-assembled across their seams equal to the painted map (P-2), a bridge's deck
+connected (P-3); a spawn point's template, a collector's and a landmark's existence (R-17, OPS-01's
+manifest).
+
+**What stays random on an authored zone** (rulings 3 and 4; built by ENG-09): the quotas' hosts,
+`count` chunks among each quota's candidates, drawn once at `create` from `derive(entropy,
+domain(instance, 226, REVEAL), 0)` by ENG-05's law (`PlacementTrait::subset`, D-220's complement
+draw); each chunk's spawn points' level (uniform in the band, the template's offset held in it) and
+count (in the template's bounds, at least 1) from `derive(entropy, domain(instance, 256 + chunk,
+REVEAL), 0)`; a Heart at the band's top (D-208). No reveal reads another's result: **no order of
+moves or reveals changes where anything lands or what it holds** (`test_authored_reveal_order_free`).
+A snapshot's task quota places nothing in an authored zone (its landmarks are the author's; D-221).
 
 ---
 
@@ -1791,15 +1906,58 @@ manager's under D-144**, on the expedition's path; snforge M, each test less its
 | Three chunks in one call, the worst content | **11,856,780** (3.95 M a chunk) | `test_cost_reveal_three` |
 | The library call itself (its syscall, the `Site` and the words through calldata) | 544,510 | `test_cost_library_call` |
 | `create` revealing 1, 2, 4 chunks (doubles, the call alone; the test zone has no quota and no spawn table: nothing to place) | 5,277,858 · 7,398,860 · 11,233,690: each chunk after the first about **2.0–2.1 M**, its two new slots included | `test_cost_create_reveals` |
-| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,902,400–7,022,400** | `lifecycle_probe.py`, three runs at the final code (D-210) |
-| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,212,400–13,292,400**; with the zone's collector quota (`--quotas on`: `HostsLibrary` called, its host written) **14,214,400–14,254,400** | idem |
-| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,622,400–7,782,400** | idem |
-| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **8,076,640–8,236,640** | idem |
-| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,760,640–10,920,640** | idem |
+| On the node, `enter` a later entry (1 chunk) | 3,942,400 → **6,862,400–7,022,400**; with the zone's collector quota **7,342,400–7,502,400** | `lifecycle_probe.py`, three runs each at #348's merged code (`9ffd4ff`, D-220) |
+| On the node, `enter` the adventurer's first (1 chunk, its 2 slots new) | 9,488,400 → **13,292,400–13,372,400**; with the zone's collector quota (`--quotas on`: `HostsLibrary` called, its host written) **14,174,400–14,254,400** | idem |
+| On the node, `enter` a later entry, the belt's worst case | 4,702,400 → **7,662,400–7,702,400**; with the quota **8,062,400–8,262,400** | idem |
+| On the node, `leave` to a dungeon floor (1 chunk, new in the slot) | 3,272,640 → **7,636,640–8,076,640**; with the quota 7,756,640–8,236,640 | idem |
+| On the node, `leave` back into the zone (2 chunks, new in the slot) | 3,272,640 → **10,800,640 · 11,120,640 · 11,280,640**; with the quota **11,400,640–11,520,640** | idem |
 
 The node's figures follow the entry draw, which follows the transaction hash: the same code gives
 another terrain, other placements and another cost at each run of the probe (up to 640,000 apart on
-`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs 12,061,667 with its quota and 10,017,658 without, the library call alone 358,834 against the same draw direct (210,194; two benchmarks run at `ab7017a`, then removed: their figures moved by 100 between runs, D-154). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+`leave` to a dungeon floor). D-210's zone block (the plan, `HostsLibrary`'s call, the bitmaps written) runs only in a zone with a quota: in snforge, `create` into the test zone costs **10,580,962** with its quota and **10,018,258** without (`test_cost_create_zone_block` at #348's merge; 12,061,667 before D-220), the library call alone 358,834 against the same draw direct (210,194; two benchmarks run at `ab7017a`, then removed: their figures moved by 100 between runs, D-154). Every figure stays near 1.3 % of the 1.1 × 10⁹ cap (CAIRO.md), D-208's condition.
+
+**The D-144 ceilings of ENG-05** (the project manager; on the expedition's path, every rise above them goes to the project manager first; ENG-05b resets every one from at least six runs, the maximum plus 5 %):
+
+| Entrypoint (on the node, `lifecycle_probe.py`) | Without a quota | With a zone quota | Decided |
+|---|---:|---:|---|
+| `enter`, the adventurer's first | 14,294,400 | 14,294,400 | 2026-10-04 (D-210's `HostsLibrary` call) |
+| `enter`, a later entry | 7,302,400 | 7,502,400 | 2026-10-03; with a quota 2026-10-04 |
+| `enter`, a later entry, the belt's worst case | 8,102,400 | 8,262,400 | idem |
+| `leave` to a dungeon floor | 8,276,640 | 8,276,640 | 2026-10-03 |
+| `leave` back into the zone | 11,320,640 | 11,640,640 | 2026-10-07 (the entry draw's spread); with a quota 2026-10-04 |
+
+**The worst legal plan of a zone's quota hosts (D-220)**: **98,153,254** L2 gas in snforge (`test_hosts_worst_half`, `contracts/logic/GAS.md`: 15 × 15, three object quotas, two Hearts and a set piece of 112 each, six passes of 112 draws, the complement draw), under D-220's 100,000,000; the content bound on a zone's total quota draws that keeps every legal plan there is ENG-08's R-30 (§3.5): with the snapshot's eight task quotas the same plan measures **99,673,404**, and at R-30's 640 draws 95,799,175 (SPK-16).
+
+**Proposed by ENG-08 (SPK-16, not built; snforge M, Linux, two clean builds equal to the unit,
+each a pair of tests that differ by the measured call alone, `spikes/SPK-16-authored-zone/pairs.txt`;
+E marks a figure derived from them, its terms named).** `Registry` and `library_call` as they are;
+a proposed kind written through an existing kind of its part count (`ZONE_CHUNK` as `SET_PIECE`,
+`CANDIDATES` as `BOOK`, `BRIDGE` as `OUTLINE`):
+
+| What | L2 gas | Source |
+|---|---:|---|
+| Registration: one `ZONE_CHUNK` written new (2 parts, `SetPieceAssert` included) | **2,389,631** | `test_pair_registry_chunk_new` |
+| … rewritten (its features part changed) | 706,081 | `test_pair_registry_one_rewrite` |
+| … one `CANDIDATES` new (3 parts) · one `BRIDGE` new (1 part, a one-tile deck) | 2,591,040 · **818,840** | `_candidates_new`, `_location_bridge_new` |
+| … the checks of a chunk in memory (R-14, R-15, R-20, R-24, the sample's fullest chunk) · of `QUOTAS` (R-12, R-13, R-27, R-29, R-30) | 403,317 · 137,832 | `test_pair_memory_check_*` |
+| … the sample zone (3 × 2, 14 records, its proposed kinds through their proxies) in one test | 18,964,435 | `test_pair_registry_sample_zone` |
+| … 225 chunk records in one test (the largest zone's chunks) | **341,295,595**, 1,516,869 a record on average (E) | `test_pair_registry_225_chunks` |
+| Records of 2 parts one multicall holds under 1.1 × 10⁹ (E: the cap ÷ 1,516,869, less the account's own share and about 41,000 of calldata a call at §10's 5,120 a felt, not measured) | about 700 | derived |
+| The reveal, read: one 2-part chunk in `create`'s `bundle` · with one 3-part `CANDIDATES` | 93,220 · 221,010 | `test_pair_read_*` |
+| The reveal in memory: the decode · the sample's entry chunk (a landmark) · its fullest chunk, every candidate hosted (a Heart, a collector, a spawn point, a lever) · E-3's worst (two spawn points of 2–5, three objects; without the decode) | 87,840 · 312,321 · **2,243,843** · **2,000,515** | `test_pair_reveal_*` |
+| The library call of the fullest chunk (`AuthoredLibrary`, its syscall and calldata) | 2,701,253: the call itself 457,410 (E) | `test_pair_library_reveal` |
+| The copy into the instance: the chunk's two words in two new slots (ruling 2) | **948,560** | `test_pair_slots_write` |
+| The draws at entry: the sample's three quotas among candidates · R-15's worst (five quotas of 112 among 225) · R-30's bound (six quotas, 640 draws) | 359,085 · 83,829,748 · **95,035,380** | `test_pair_hosts_*` |
+
+**Against ENG-05's generated reveal at its merge** (§10 above): in memory a generated chunk costs
+2,830,905 typical and 3,901,320–4,067,457 worst; an authored one 0.31–2.24 M on the sample and
+2.09 M at E-3's worst (2,000,515 + 87,840, E), the placement of two packs being most of it, as for
+ENG-05. In `create`, an authored chunk adds its read (93,220), its reveal and its two slots
+(948,560): **from 1.35 M (E: the entry chunk) to 3.13 M (E: E-3's worst)** a chunk, against ENG-05's
+2.0–2.1 M a chunk after the first with nothing to place (`test_cost_create_reveals`); a zone with
+quotas adds 221,010 for `CANDIDATES` and the hosts' draw (359,085 on the sample). The authored path
+is no dearer than the generated one at any measured point; ENG-09's node figures go to the project
+manager under D-144 (the expedition's path).
 
 Where a reveal's cost goes (ENG-05's profile, the worst case, before the audit's fixes; they added
 about 15 %, mostly the loops compiled once instead of specialised copies, for D-200): the board's steps 0.72 M

@@ -1,0 +1,38 @@
+[package]
+name = "spk16"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.20"
+
+[dependencies]
+starknet = "2.20"
+hexx = "0.1.0-rc.2"
+# The game's packages by path, main's code at the spike's base (ENG-05 merged, 9ffd4ff), as SPK-12
+# and SPK-15 do: `grimworld_logic` for the models, the reveal's placement and `Board`;
+# `grimworld_persistent` for `Registry`, measured as it is.
+grimworld_logic = { path = "../../contracts/logic" }
+grimworld_persistent = { path = "../../contracts/persistent" }
+
+[dev-dependencies]
+snforge_std = "0.64"
+assert_macros = "2.20"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+# The tests declare `Registry` to measure a record's write and read (ENG-08 deliverable 3).
+build-external-contracts = ["grimworld_persistent::systems::registry::Registry"]
+
+[lib]
+
+[cairo]
+sierra-replace-ids = true
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+[tool.snforge]
+max_n_steps = 4000000000
