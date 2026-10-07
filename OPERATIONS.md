@@ -286,6 +286,10 @@ verdict, findings table, coverage).
   the registry, records the publication in `docs/decisions/` and reports to the owner. A release
   candidate is a publication; a refusal says what is missing.
 
+### Deployment blockers
+
+- A non-test deployment is blocked while D-208's dungeon residue stands (see its decision file).
+
 ## 8. Phase gates and the definition of done
 
 A phase closes when all its tasks are merged; its exit criterion (PLAN) is **demonstrated, not
