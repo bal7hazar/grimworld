@@ -56,7 +56,7 @@ use crate::types::effect::{kind, target};
 use crate::interface::{ITrapLibraryDispatcherTrait, ITrapLibraryLibraryDispatcher};
 use crate::models::member::MemberTrait;
 use crate::types::executor::{
-    Board, BoardTrait, Carrier, Delegate, ExecutorTrait, Levered, Levers, ORIGIN,
+    Board, BoardTrait, Carrier, Delegate, Executor, ExecutorTrait, Levered, Levers, ORIGIN,
 };
 use crate::types::trap::{Ground, TrapTrait};
 use crate::types::tick::{ABSENT, Sheets, ai};
@@ -78,6 +78,28 @@ pub trait Enter<R> {
     fn enter(ref self: R, ref world: World, sheets: @Sheets, entrant: Actor, position: u8) -> bool;
     /// The window's tiles of the living goblins the world does not hold (a bitmap of the window).
     fn frozen(self: @R) -> felt252;
+}
+
+/// The in-process rules (`Executor`): the trap triggers in process (`TrapTrait::trigger`); a
+/// terrain trap's level is not read, since it triggers on members only (FX-34).
+pub impl ExecutorEnter of Enter<Executor> {
+    fn enter(
+        ref self: Executor, ref world: World, sheets: @Sheets, entrant: Actor, position: u8,
+    ) -> bool {
+        let mut cache = self.cache;
+        let mut ground = self.ground;
+        let board = self.board;
+        let triggered = TrapTrait::trigger(
+            @Levered {}, ref cache, ref world, sheets, ref ground, @board, entrant, position, 0,
+        );
+        self.cache = cache;
+        self.ground = ground;
+        triggered
+    }
+
+    fn frozen(self: @Executor) -> felt252 {
+        0
+    }
 }
 
 /// `AiLibrary`'s rules (`Delegate`): a trap through `TrapLibrary`, called only when the tile holds

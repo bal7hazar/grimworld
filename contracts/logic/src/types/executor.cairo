@@ -1151,8 +1151,10 @@ pub impl UnitBody of Body<Unit> {
     }
 }
 
-/// The rules of the tick's library class (ENG-01 §1.3): step 1's hook runs the executor on the
-/// activation that concluded; the others are ENG-07's (perception, the AI, the objectives). A
+/// The tick's rules in process (ENG-01 §1.3), `TickLibrary`'s `Delegate` without its calls: step
+/// 0's perception and awake set and step 2's acts as `Delegate` runs them (ENG-07; the executor and
+/// a trap's trigger in process), step 1's hook the executor on the activation that concluded; the
+/// objectives are ENG-07's. A
 /// `TRAP` carrier whose guard held is recorded in `placed` (the address, the source), for the
 /// placement (§5.11, CBT-05b).
 #[derive(Drop)]
@@ -1165,7 +1167,9 @@ pub struct Executor {
 }
 
 pub impl ExecutorRules of Rules<Executor> {
-    fn perceive(ref self: Executor, ref world: World) {}
+    fn perceive(ref self: Executor, ref world: World) {
+        TickTrait::perceive(ref world, @self.board);
+    }
 
     fn resolve(
         ref self: Executor, ref world: World, sheets: @Sheets, actor: Actor, slot: u8, target: u16,
@@ -1180,6 +1184,12 @@ pub impl ExecutorRules of Rules<Executor> {
     }
 
     fn act(ref self: Executor, ref world: World, sheets: @Sheets, index: u32) {}
+
+    fn step(
+        ref self: Executor, ref world: World, sheets: @Sheets, resolved: u128,
+    ) -> Option<bool> {
+        Some(crate::types::ai::AiTrait::step(ref world, sheets, ref self, resolved))
+    }
 
     fn objectives(ref self: Executor, ref world: World) {}
 }

@@ -25,9 +25,10 @@ fn test_instances_deploys_and_stubs_revert() {
     let address = deploy_instances();
     assert(IInstancesAdminDispatcher { contract_address: address }.version() == VERSION, 'version');
     let safe = IInstancesSafeDispatcher { contract_address: address };
+    // `play` is ENG-07's (D-236); `loot` stays a stub.
     #[feature("safe_dispatcher")]
-    let played = safe.play(0x100000001, 1, 0, 3, 1);
-    assert(*played.unwrap_err().at(0) == NOT_IMPLEMENTED, 'play is a stub');
+    let looted = safe.loot(0x100000001, 1, 0, 8);
+    assert(*looted.unwrap_err().at(0) == NOT_IMPLEMENTED, 'loot is a stub');
 }
 
 fn two_probes() -> (ICallProbeDispatcher, ICallProbeDispatcher) {
