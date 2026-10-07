@@ -448,3 +448,395 @@ pub impl QuickCastImpl of QuickCastTrait {
         }
     }
 }
+
+/// The action phase's unit tests (CBT-05b; D-167): each legality row refused, each legal kind with
+/// its tick cost, the costs, facing, quick cast (§10.6). The executor's fixtures
+/// (`executor::tests`), the in-class executor as the rules.
+#[cfg(test)]
+mod tests {
+    use crate::actions::Action;
+    use crate::models::chunk::FeaturesTrait;
+    use crate::models::member::{
+        Member, MemberConditionTrait, MemberSnapshotTrait, MemberTickTrait, MemberTrait,
+        MemberWordsTrait,
+    };
+    use crate::types::combat::{damage, skill_kind, weapon};
+    use crate::types::effect::{Entry, EntryTrait, filter, kind, shape, target};
+    use crate::types::executor::tests::{AT, SNARE, at, content, entry, goblin, member, skill};
+    use crate::types::executor::{BoardTrait, Executor, ExecutorTrait};
+    use crate::types::infliction::Infliction;
+    use crate::types::tick::{
+        ABSENT_LANE, Content, ContentTrait, Held, PotionSheet, Sheets, flag,
+    };
+    use crate::types::window::{FAR, WindowTrait};
+    use crate::types::world::fixtures::{Fixture, two};
+    use crate::types::world::{World, WorldTrait};
+    use crate::types::{LAST_TICK, Target};
+    use super::{ActionTrait, FIELDCRAFT_PER_RANK, Illegal, QuickCastTrait};
+
+    /// The tests' own skills, after the executor's (ids 60 on).
+    const GLYPH: u16 = 60;
+    const FIRE: u16 = 61;
+    const FIELD: u16 = 62;
+    const STANCE: u16 = 63;
+    const RAGE: u16 = 64;
+    const MEND: u16 = 65;
+    /// The bomb, belt slot 0's item (the fixtures' kit: 100–103).
+    const BOMB: u32 = 100;
+    const CLOCK: u32 = 200;
+
+    /// The executor's content (armor 40), its Snare as design/19 §10.10's (10 / 2 / 20), and:
+    /// a glyph (`NEXT_SPELL_COST` 4, 10 ticks); a fire spell (5 energy, activation 3, range 6, 40
+    /// fire on a foe); a Warden skill (8 energy, instant, a heal); a stance (instant); an attack
+    /// skill of 2 adrenaline; an instant heal on an ally of range 6. Belt slot 0's bomb: 30 fire on
+    /// `DISC_1` around a tile, range 6.
+    fn bench() -> Content {
+        let none: Entry = Default::default();
+        let bomb = entry(kind::DAMAGE, damage::FIRE, 30, 30, target::TILE, shape::DISC_1, filter::FOES);
+        let base = content(40, array![PotionSheet { id: BOMB, entry: bomb.pack(), range: 6, ..Default::default() }].span());
+        let mut skills = array![];
+        for sheet in base.skills {
+            let mut sheet = *sheet;
+            if sheet.id == SNARE {
+                sheet.energy = 10;
+                sheet.activation = 2;
+                sheet.recharge = 20;
+            }
+            skills.append(sheet);
+        }
+        let glyph = EntryTrait::new(
+            kind::NEXT_SPELL_COST, 0, 4, 4, 10, 10, 0, target::SELF, shape::SINGLE, filter::ALLIES, 0, 0,
+        );
+        let mut sheet = skill(GLYPH, skill_kind::GLYPH, 0, [glyph, none, none]);
+        sheet.activation = 0;
+        skills.append(sheet);
+        let fire = entry(kind::DAMAGE, damage::FIRE, 40, 40, target::FOE, shape::SINGLE, filter::FOES);
+        let mut sheet = skill(FIRE, skill_kind::SPELL, 6, [fire, none, none]);
+        sheet.energy = 5;
+        sheet.activation = 3;
+        skills.append(sheet);
+        let heal = entry(kind::HEAL, 0, 10, 10, target::SELF, shape::SINGLE, filter::ALLIES);
+        let mut sheet = skill(FIELD, skill_kind::SKILL, 0, [heal, none, none]);
+        sheet.energy = 8;
+        sheet.profession = 2;
+        sheet.activation = 0;
+        skills.append(sheet);
+        let mut sheet = skill(STANCE, skill_kind::STANCE, 0, [heal, none, none]);
+        sheet.activation = 0;
+        skills.append(sheet);
+        let mut sheet = skill(RAGE, skill_kind::ATTACK, 1, [none, none, none]);
+        sheet.adrenaline = 2;
+        sheet.activation = 0;
+        skills.append(sheet);
+        let mend = entry(kind::HEAL, 0, 10, 10, target::ALLY, shape::SINGLE, filter::ALLIES);
+        let mut sheet = skill(MEND, skill_kind::SKILL, 6, [mend, none, none]);
+        sheet.activation = 0;
+        skills.append(sheet);
+        Content { skills: skills.span(), potions: base.potions, castes: base.castes }
+    }
+
+    /// `id` on bar `slot` at `rank`, at its position in `sheets`.
+    fn equip(ref member: Member, sheets: @Sheets, slot: u8, id: u16, rank: u8) {
+        let lane: u128 = two(16 * slot.into()).try_into().unwrap();
+        let old = member.skill(slot);
+        member.words.bar += (id.into() - old.into()) * two(16 * slot.into());
+        let position: u128 = at(sheets, id).into();
+        member.bar_at = member.bar_at - member.position(slot) * lane + position * lane;
+        member.words.stats += rank.into() * two(128 + 4 * slot.into());
+    }
+
+    /// The member at `AT` (a sword), 10 energy, with `ids` on bar slots 0 on, rank 12.
+    fn adventurer(sheets: @Sheets, ids: Span<u16>) -> Member {
+        let mut member = member(AT, 0, weapon::SWORD);
+        let mut slot: u8 = 0;
+        for id in ids {
+            equip(ref member, sheets, slot, *id, 12);
+            slot += 1;
+        }
+        member
+    }
+
+    /// The location's tile `x + 256 y` of the window's `position` (the board at the origin).
+    fn tile(position: u8) -> u16 {
+        (position % 15).into() + 256 * (position / 15).into()
+    }
+
+    fn fresh() -> Executor {
+        let mut rules = ExecutorTrait::new(crate::types::executor::tests::board());
+        rules.ground = array![(0, FeaturesTrait::empty())];
+        rules
+    }
+
+    fn act(ref world: World, sheets: @Sheets, action: Action) -> Result<u8, Illegal> {
+        let mut rules = fresh();
+        ActionTrait::act(ref world, sheets, ref rules, 0, action)
+    }
+
+    // ---- Legal actions and their tick costs ---------------------------------------------------
+
+    // Wait costs 1 and writes nothing; Turn costs 0, sets the facing, and only once between two
+    // ticks (design/04); a knocked-down adventurer may only Wait (FX-7).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_wait_turn_knocked() {
+        let sheets = bench().sheets();
+        let mut world = Fixture::world(CLOCK, array![adventurer(@sheets, array![].span())], array![]);
+        let before = world.member(0);
+        assert(act(ref world, @sheets, Action::Wait) == Ok(1), 'wait 1');
+        assert(world.member(0) == before, 'wait writes nothing');
+        assert(act(ref world, @sheets, Action::Turn(3)) == Ok(0), 'turn 0');
+        let (_, _, facing) = world.member(0).place();
+        assert(facing == 3 && world.member(0).flags & flag::TURNED != 0, 'turned');
+        assert(act(ref world, @sheets, Action::Turn(4)) == Err(Illegal::Turned), 'second turn');
+        let mut member = world.member(0);
+        member.knocked = CLOCK + 1;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Attack(8)) == Err(Illegal::Knocked), 'knocked');
+        assert(act(ref world, @sheets, Action::Wait) == Ok(1), 'knocked: wait');
+        assert(act(ref world, @sheets, Action::Move(0)) == Err(Illegal::Knocked), 'knocked: move');
+    }
+
+    // The clock past `LAST_TICK` refuses any action (E-4); an adventurer at 0 acts no more; Move
+    // and Interact are ENG-07's.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_clock_absent_kind() {
+        let sheets = bench().sheets();
+        let mut world = Fixture::world(LAST_TICK + 1, array![adventurer(@sheets, array![].span())], array![]);
+        assert(act(ref world, @sheets, Action::Wait) == Err(Illegal::Clock), 'clock');
+        world.clock = LAST_TICK;
+        assert(act(ref world, @sheets, Action::Wait) == Ok(1), 'at LAST_TICK');
+        assert(act(ref world, @sheets, Action::Move(0)) == Err(Illegal::Kind), 'move: ENG-07');
+        assert(act(ref world, @sheets, Action::Interact(0)) == Err(Illegal::Kind), 'interact');
+        let mut member = world.member(0);
+        member.health = 0;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Wait) == Err(Illegal::Absent), 'absent');
+    }
+
+    // A weapon attack lands now and costs the weapon's `k` (1 here): the goblin hit, the member
+    // turned toward it. Refused: no such entity, a member, a dead goblin, one out of reach.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_attack() {
+        let sheets = bench().sheets();
+        let near = AT + 1;
+        let far = AT + 3;
+        let mut world = Fixture::world(
+            CLOCK,
+            array![adventurer(@sheets, array![].span())],
+            array![goblin(8, near, 0, 100), goblin(9, far, 0, 100), goblin(10, AT - 1, 0, 0)],
+        );
+        assert(act(ref world, @sheets, Action::Attack(77)) == Err(Illegal::Target), 'no such');
+        assert(act(ref world, @sheets, Action::Attack(0)) == Err(Illegal::Target), 'a member');
+        assert(act(ref world, @sheets, Action::Attack(10)) == Err(Illegal::Target), 'dead');
+        assert(act(ref world, @sheets, Action::Attack(9)) == Err(Illegal::Reach), 'out of reach');
+        assert(act(ref world, @sheets, Action::Attack(8)) == Ok(1), 'k = 1');
+        assert(world.goblin(0).health < 100, 'hit now');
+        let (_, _, facing) = world.member(0).place();
+        assert(facing == WindowTrait::facing(AT, near, 0), 'faces it');
+    }
+
+    // A spell with activation: its energy paid at once, its activation started (`A = c + n`), its
+    // tick cost `n`; the target an entity it addresses, in range and sight. Refused: an empty bar
+    // slot, recharging, energy short, a tile for an entity.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_spell_activation() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![FIRE].span());
+        member.bar_at = member.bar_at | (ABSENT_LANE * 0x10000);
+        let foe = AT + 4;
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, foe, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Err(Illegal::Empty), 'empty slot');
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Tile(foe.into())))) == Err(Illegal::Target), 'a tile');
+        let mut member = world.member(0);
+        member.set_recharge(0, CLOCK + 1);
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Recharging), 'recharging');
+        let mut member = world.member(0);
+        member.set_recharge(0, CLOCK);
+        member.energy = 14;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Energy), 'energy short');
+        let mut member = world.member(0);
+        member.energy = 30;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3), 'n = 3');
+        let member = world.member(0);
+        assert(member.energy == 15 && member.act_slot == 0, 'paid, started');
+        assert(member.act_deadline == CLOCK + 3 && member.act_target == 8, 'A = c + n');
+        assert(world.goblin(0).health == 100, 'resolves later');
+    }
+
+    // An instant skill resolves now, costs 0 ticks, sets its recharge from its use (`t₀ = c + 1`)
+    // and the flag: a second instant skill between two ticks is refused. An attack skill of 2
+    // adrenaline: refused short, else lands now for its weapon's `k` (FX-5).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_instant_and_attack_skill() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![STANCE, FIELD, RAGE].span());
+        member.health = 300;
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 1, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0), 'instant: 0');
+        let member = world.member(0);
+        assert(member.flags & flag::INSTANT != 0 && member.health == 310, 'now, flagged');
+        assert(member.recharge(0) == CLOCK + 1 + 10 - 1, 'R = c + r');
+        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(0)))) == Err(Illegal::Instant), 'second instant');
+        assert(act(ref world, @sheets, Action::Skill((2, Target::Entity(8)))) == Err(Illegal::Adrenaline), 'adrenaline short');
+        let mut member = world.member(0);
+        member.adrenaline = 9;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Skill((2, Target::Entity(8)))) == Ok(1), 'attack skill: k');
+        assert(world.member(0).adrenaline == 1 && world.goblin(0).health < 100, 'paid, landed');
+    }
+
+    // Energy after reductions (§5.3 step 2, §6): *Fieldcraft* takes `FIELDCRAFT_PER_RANK` a primary
+    // rank off a Warden's Warden skill, floored at 0; a held glyph takes its `NEXT_SPELL_COST` off a
+    // spell and is consumed, not off a skill of kind 11 (FX-25).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_energy_reductions() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![FIELD, FIRE, MEND].span());
+        // A Warden, Fieldcraft 12: the Warden skill's 8 energy floored at 0.
+        member.words.stats += 2 * two(72) + 12 * two(80);
+        assert(FIELDCRAFT_PER_RANK == 1, 'one a rank');
+        member.energy = 0;
+        let glyph = at(@sheets, GLYPH);
+        member.set_effect(0, Held { carrier: GLYPH, potion: false, charges: 0, deadline: CLOCK + 5, rank: 12 }, 0);
+        member.effect_at = (member.effect_at & ~0xFFFF_u128) | glyph.into();
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 4, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0), 'fieldcraft: free');
+        assert(world.member(0).effect_of(0).deadline == CLOCK + 5, 'not a spell: kept');
+        assert(act(ref world, @sheets, Action::Skill((2, Target::Entity(0)))) == Err(Illegal::Instant), 'instant');
+        let mut member = world.member(0);
+        member.flags = 0;
+        member.energy = 3;
+        world.set_member(0, member);
+        // The spell's 5 less the glyph's 4: 1 energy, 3 thirds.
+        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(3), 'glyph: 1');
+        let member = world.member(0);
+        assert(member.energy == 0 && member.effect_of(0).deadline == CLOCK, 'consumed');
+    }
+
+    // An ally skill reaches a living member, not a goblin; a `SELF` one leaves the facing alone
+    // (the same tile, D-174).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_ally_and_self() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![MEND, STANCE].span());
+        member.health = 300;
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, AT + 1, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Err(Illegal::Target), 'a goblin');
+        assert(act(ref world, @sheets, Action::Skill((1, Target::Entity(8)))) == Ok(0), 'self');
+        let (_, _, facing) = world.member(0).place();
+        assert(facing == 0, 'facing unchanged');
+        let mut member = world.member(0);
+        member.flags = 0;
+        world.set_member(0, member);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(0)))) == Ok(0), 'an ally');
+        assert(world.member(0).health == 320, 'healed twice');
+    }
+
+    // A potion: a bomb on a tile in range (its entry addresses a tile), the belt's count 1 less,
+    // 1 tick, the goblins of its `DISC_1` hit now. Refused: an empty count, an item the content
+    // lacks, out of reach.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_item_bomb() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![].span());
+        member.set_belt_count(0, 1);
+        let centre = AT + 2;
+        let mut world = Fixture::world(
+            CLOCK, array![member], array![goblin(8, centre, 0, 100), goblin(9, centre + 1, 0, 100)],
+        );
+        assert(act(ref world, @sheets, Action::Item((1, 8))) == Err(Illegal::Empty), 'not in content');
+        assert(act(ref world, @sheets, Action::Item((0, tile(AT + 7 * 15)))) == Err(Illegal::Reach), 'out of reach');
+        assert(act(ref world, @sheets, Action::Item((0, tile(centre)))) == Ok(1), 'one tick');
+        assert(world.member(0).belt_count(0) == 0, 'count 0');
+        assert(world.goblin(0).health < 100 && world.goblin(1).health < 100, 'both hit');
+        let (_, _, facing) = world.member(0).place();
+        assert(facing == WindowTrait::facing(AT, centre, 0), 'faces the tile');
+        assert(act(ref world, @sheets, Action::Item((0, tile(centre)))) == Err(Illegal::Belt), 'count 0');
+    }
+
+    // A trap tile that cannot take one refuses the skill (§5.11, FX-14): a wall (by sight), an actor on it,
+    // a full chunk; on an empty walkable tile in range, the activation starts (§10.10: 10 / 2 /
+    // 20 at clock 300, `A = 302`).
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_trap_tile() {
+        let sheets = bench().sheets();
+        let member = adventurer(@sheets, array![SNARE].span());
+        let spot: u16 = 7 + 256 * 9;
+        let position = 7 + 15 * 9;
+        let mut world = Fixture::world(300, array![member], array![goblin(8, position, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Tile(spot)))) == Err(Illegal::Trap), 'occupied');
+        world.set_goblin(0, goblin(8, position + 1, 0, 0));
+        let mut rules = fresh();
+        rules.board = BoardTrait::new(WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff - two(position.into())), 0, 0);
+        // A wall at the line's end blocks the sight first (D-174): refused all the same.
+        assert(ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Skill((0, Target::Tile(spot)))) == Err(Illegal::Reach), 'a wall');
+        let mut rules = fresh();
+        let chest = crate::models::chunk::Object { tile: 1, kind: crate::models::chunk::object::CHEST, state: 0, param: 0 };
+        rules.ground = array![(0, crate::models::chunk::Features { objects: [chest; 3], ..FeaturesTrait::empty() })];
+        assert(ActionTrait::act(ref world, @sheets, ref rules, 0, Action::Skill((0, Target::Tile(spot)))) == Err(Illegal::Trap), 'full chunk');
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Tile(spot)))) == Ok(2), 'n = 2');
+        let member = world.member(0);
+        assert(member.act_deadline == 302 && member.act_target == spot && member.act_tile == 1, 'A = 302');
+        assert(member.energy == 0, '10 energy');
+    }
+
+    // Facing (§5.3 step 3, ENG-02): toward a target two tiles away, the first step of the line.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_facing_first_step() {
+        let sheets = bench().sheets();
+        let member = adventurer(@sheets, array![FIRE].span());
+        let foe = AT + 2 * 15 + 1;
+        let mut world = Fixture::world(CLOCK, array![member], array![goblin(8, foe, 0, 100)]);
+        assert(act(ref world, @sheets, Action::Skill((0, Target::Entity(8)))) == Ok(3), 'started');
+        let (_, _, facing) = world.member(0).place();
+        assert(facing == WindowTrait::facing(AT, foe, 0) && facing != FAR, 'first step');
+    }
+
+    // §5.12, FX-39, FX-43: each pair whose spell matches moves its counter; at N it resets and
+    // gives 1; two pairs add; a pair of N 0 or not matching stays.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_quick_cast_counters() {
+        let pairs = [(1, 5), (2, 3)];
+        assert(QuickCastTrait::count([4, 2], pairs, 3) == ([0, 0], 2), 'both at N');
+        assert(QuickCastTrait::count([1, 1], pairs, 1) == ([2, 1], 0), 'first moves');
+        assert(QuickCastTrait::count([1, 1], pairs, 0) == ([1, 1], 0), 'none matches');
+        assert(QuickCastTrait::count([1, 1], [(1, 0), (2, 0)], 3) == ([1, 1], 0), 'N 0');
+    }
+
+    // §10.6: `QUICK_CAST_EVERY_N` Fire 5, `casts = 4`; a Fire spell of activation 3 starts at clock
+    // 200: `casts` 4 → 0, activation 2, `A = 202`. Knocked down in step 2 of 201: interrupted,
+    // energy stays paid, the recharge from `t₀ = 201`. The bonus is spent: the next Fire spell
+    // makes `casts` 1.
+    #[test]
+    #[available_gas(l2_gas: 100000000)]
+    fn test_example_fifth_cast_interrupted() {
+        let sheets = bench().sheets();
+        let mut member = adventurer(@sheets, array![FIRE].span());
+        member.set_casts(0, 4);
+        let (casts, bonus) = QuickCastTrait::count([member.casts(0), 0], [(1, 5), (0, 0)], 1);
+        assert(casts == [0, 0] && bonus == 1, 'fifth: bonus');
+        let [c0, _] = casts;
+        member.set_casts(0, c0);
+        member.energy -= 15;
+        member.start(0, 8, 3 - bonus, CLOCK);
+        assert(member.act_deadline == 202 && member.casts(0) == 0, 'A = 202');
+        member.knock(1, @Infliction { condition: 0, percent: 0, knockdown: 0 }, 201, @sheets);
+        assert(member.act_slot == crate::types::tick::NO_SLOT, 'interrupted');
+        assert(member.recharge(0) == 201 + 10 - 1 && member.energy == 15, 'R from 201, paid');
+        let (casts, _) = QuickCastTrait::count([member.casts(0), 0], [(1, 5), (0, 0)], 1);
+        assert(casts == [1, 0], 'next: casts 1');
+    }
+}

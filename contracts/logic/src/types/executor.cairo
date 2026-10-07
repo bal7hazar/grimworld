@@ -2687,9 +2687,9 @@ pub impl ExecutorImpl of ExecutorTrait {
 /// 10.4, 10.6–10.10), §5.14's steps and order, each kind of §3 the MVP's content uses, §5.7,
 /// §5.12, §5.13, §6's edges for carriers, the guard (SPK-15's) across two hits, and L3's pairs:
 /// each part levered alone against `Naive` (the totals of two tests that differ by the lever
-/// alone).
+/// alone). Its fixtures serve the action phase's and the traps' tests (CBT-05b).
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use snforge_std::{DeclareResultTrait, declare};
     use crate::interface::{IExecutorLibraryDispatcherTrait, IExecutorLibraryLibraryDispatcher};
     use crate::models::goblin::{
@@ -2715,41 +2715,41 @@ mod tests {
     // ---- Fixtures ------------------------------------------------------------------------------
 
     /// The member's tile: (7, 7), position 112, in the open window at the origin.
-    const AT: u8 = 112;
+    pub const AT: u8 = 112;
     /// Ids of the tests' skills, appended to the fixtures' content (positions 16 on).
-    const RING: u16 = 40;
-    const SKULLRING: u16 = 41;
-    const SIDESTEP: u16 = 42;
-    const BRACE: u16 = 43;
-    const CROSSING: u16 = 44;
-    const SNARE: u16 = 45;
-    const KNOCK: u16 = 46;
-    const KINDS: u16 = 47;
-    const SHIELD: u16 = 48;
-    const STRIKE: u16 = 49;
+    pub const RING: u16 = 40;
+    pub const SKULLRING: u16 = 41;
+    pub const SIDESTEP: u16 = 42;
+    pub const BRACE: u16 = 43;
+    pub const CROSSING: u16 = 44;
+    pub const SNARE: u16 = 45;
+    pub const KNOCK: u16 = 46;
+    pub const KINDS: u16 = 47;
+    pub const SHIELD: u16 = 48;
+    pub const STRIKE: u16 = 49;
 
-    fn open() -> Window {
+    pub fn open() -> Window {
         WindowTrait::new(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
     }
 
-    fn board() -> Board {
+    pub fn board() -> Board {
         BoardTrait::new(open(), 0, 0)
     }
 
-    fn xy(position: u8) -> (u8, u8) {
+    pub fn xy(position: u8) -> (u8, u8) {
         (position % 15, position / 15)
     }
 
     /// The tiles of `RING_1` around `centre`, ascending.
-    fn ring(centre: u8) -> Span<u8> {
+    pub fn ring(centre: u8) -> Span<u8> {
         WindowTrait::tiles(open().shape(shape::RING_1, centre))
     }
 
-    fn entry(kind: u8, param: u8, v0: i16, v12: i16, t: u8, s: u8, f: u8) -> Entry {
+    pub fn entry(kind: u8, param: u8, v0: i16, v12: i16, t: u8, s: u8, f: u8) -> Entry {
         EntryTrait::new(kind, param, v0, v12, 0, 0, 0, t, s, f, 0, 0)
     }
 
-    fn skill(id: u16, kind: u8, range: u8, entries: [Entry; 3]) -> SkillSheet {
+    pub fn skill(id: u16, kind: u8, range: u8, entries: [Entry; 3]) -> SkillSheet {
         let [a, b, c] = entries;
         SkillSheet {
             id,
@@ -2771,7 +2771,7 @@ mod tests {
     /// tests'
     /// skills after, castes of armor `armor`, a sword of damage 30 (rank 12: strength 60), one
     /// potion per `potions`.
-    fn content(armor: u8, potions: Span<PotionSheet>) -> Content {
+    pub fn content(armor: u8, potions: Span<PotionSheet>) -> Content {
         let base = Fixture::content();
         let none: Entry = Default::default();
         let mut skills = array![];
@@ -2858,12 +2858,12 @@ mod tests {
         Content { skills: skills.span(), potions, castes: castes.span() }
     }
 
-    fn sheets(armor: u8) -> Sheets {
+    pub fn sheets(armor: u8) -> Sheets {
         content(armor, array![].span()).sheets()
     }
 
     /// The position of skill `id` in `content`'s sheets.
-    fn at(sheets: @Sheets, id: u16) -> u32 {
+    pub fn at(sheets: @Sheets, id: u16) -> u32 {
         let mut i = 0;
         for sheet in *sheets.skills {
             if *sheet.id == id {
@@ -2876,7 +2876,7 @@ mod tests {
 
     /// The fixtures' member at `position` facing `facing`, level 20, a weapon of `class`,
     /// damage 27, range 1, strength 60, type slashing, its requirement met.
-    fn member(position: u8, facing: u8, class: u8) -> Member {
+    pub fn member(position: u8, facing: u8, class: u8) -> Member {
         let mut member = Fixture::member(Fixture::spec());
         place_member(ref member, position, facing);
         member.words.stats += 20 * two(64)
@@ -2889,13 +2889,13 @@ mod tests {
         member
     }
 
-    fn place_member(ref member: Member, position: u8, facing: u8) {
+    pub fn place_member(ref member: Member, position: u8, facing: u8) {
         let (x, y) = xy(position);
         member.words.state += x.into() * two(32) + y.into() * two(40) + facing.into() * two(48);
     }
 
     /// A fixtures' goblin of caste HOB at `position`, facing `facing`, health `health`.
-    fn goblin(entity: u16, position: u8, facing: u8, health: u16) -> Goblin {
+    pub fn goblin(entity: u16, position: u8, facing: u8, health: u16) -> Goblin {
         let mut goblin = Fixture::goblin(entity, HOB);
         let (x, y) = xy(position);
         goblin.state += x.into() + y.into() * two(8) + facing.into() * two(16);
@@ -2907,11 +2907,11 @@ mod tests {
     }
 
     /// The facing from `from` toward `to`.
-    fn toward(from: u8, to: u8) -> u8 {
+    pub fn toward(from: u8, to: u8) -> u8 {
         WindowTrait::facing(from, to, 0)
     }
 
-    fn levered() -> Levered {
+    pub fn levered() -> Levered {
         Levered {}
     }
 
