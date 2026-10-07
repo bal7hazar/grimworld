@@ -19,7 +19,7 @@
 | Q3 | **`ground` carried across the batch's ticks**, with A6's regression test | the orchestrator |
 | Q5 (**D-225**, the project manager) | **E-12's reveal weight measured end to end** by this lot, **set to 3 if the figures say so**, the figures stated in the report | the figures |
 | Q6 | **Interact in `play` refused as illegal** until its entrypoints (`open`, `mine`, `barter`) exist | the lot that builds them |
-| Q7 (**D-225**, the project manager) | **One level and the walkable plane** until ENG-08b merges | ENG-08b's rules |
+| Q7 (**D-225**; **D-227**, the owner) | **One level and the walkable plane.** Bridges have one level (D-227, ADR-0008, merged in #383): a deck is walkable ground over water, and nothing in ENG-07 changes for bridges beyond walkability | the owner |
 
 Q4 stays this lot's (D-172).
 
@@ -108,8 +108,12 @@ lot adds to the expedition's path is measured and sent to the project manager (D
      host; **`get_hosts` is read only for a quota whose count is non-zero in the current generation**
      (a reused slot keeps the bitmaps of an earlier generation: reading them for a quota with no count
      would host a quota that does not exist) (PLAN's ENG-07 row, from #348's re-audit note 4 and
-     review note 2). In a dungeon the reveal **reads the outline fixed at entry** (ENG-10b: the three
-     `outline` felts into `Site`, the hosts as a zone's) and draws nothing. The reveal's weight in the
+     review note 2). ENG-10b's review and re-audit restate it: **the in-play reveal writes a 0 hosts
+     mask, or reads hosts only for the quotas whose mask this generation wrote**; a reused slot
+     otherwise keeps a stale bitmap. In a dungeon the reveal **reads the outline fixed at entry**
+     (ENG-10b: the three `outline` felts into `Site`, the hosts as a zone's) and draws nothing: **a
+     dungeon's in-play reveal reads the stored outline, and its layout reads only data fixed at create
+     (D-229)**. The reveal's weight in the
      batch is Open question 5.
   7. **The clock**: one per instance, moved by each tick; no action runs past `LAST_TICK` (ENG-01
      §4.1, E-4); the refusal tested at the bound.
@@ -132,7 +136,7 @@ lot adds to the expedition's path is measured and sent to the project manager (D
   12. **Documents**: ENG-01 §1.3 (the classes), §9.2 (the move, the window, the AI, the batch
       weight), §10 (`play`'s measured figures beside its targets); PLAN's ENG-07 row; STATUS (S1's
       running estimate, D-158); `GAS.md` and `docs/BUDGETS.md` regenerated.
-- Out: bridges and levels (ENG-08b, Open question 7); authored zones' reveal (ENG-09); `loot`,
+- Out: anything of bridges beyond a deck's walkability (one level, D-227; ADR-0008); authored zones' reveal (ENG-09); `loot`,
   `open`, `mine`, `barter` as entrypoints (Open question 6 for Interact); the bit-parallel placement
   (ENG-05b); shrinking `TickLibrary` and `TrapLibrary` (CBT-05g, after this lot); the cost-lowering
   design lot (CBT-05d, weighed on this lot's representative tick); B′ unless fights pay for it.
@@ -224,10 +228,11 @@ Anything else is an escalation in the report.
 7. **Bridges (D-217).** *Decider*: the project manager rules ENG-08b's design; until ENG-08b merges
    ENG-07 **assumes one level: movement, the flood, sight and the window read the walkable plane only,
    and a `BRIDGE` record is ignored** (as the converter's reachability P-1 does, PLAN's ENG-08b row: a
-   map whose only crossing is a bridge is refused). ENG-08b's rules then change movement (a deck
-   entered and left only by its ends); the report lists where they will plug in.
+   map whose only crossing is a bridge is refused).
    **Decided by the project manager, 2026-10-07 (D-225):** one level and the walkable plane until
-   ENG-08b merges.
+   ENG-08b merges. **Settled by the owner, 2026-10-07 (D-227):** bridges have one level (ADR-0008,
+   merged in #383): a deck is walkable ground over water, entered and left like any walkable tile.
+   Nothing in ENG-07 changes for bridges beyond walkability.
 
 ## D-144: the expedition-path figures it adds, and the ceilings in force
 Every rise of an expedition-path figure, whatever its size, goes to **the project manager before the

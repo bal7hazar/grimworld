@@ -1427,7 +1427,7 @@ less its fixture (`test_tick::test_cost_rep_*`). The state: one member, 8 awake 
 - **At CBT-05b's head the worst tick measured is 46,517,111** (`rep_all` 56,227,075 less
   `rep_fixture` 9,709,964), +627,080 over CBT-05a's 45,890,031: the skill sheet carries the
   header's energy and profession across each call (+2,420 a sheet read) and step 1 places a trap.
-  Sent to the project manager (D-144).
+  Accepted as the worst tick's figure (the project manager, 2026-10-07, D-222).
 - **The action phase's line (CBT-05b, design/19 §5.3; `types::action`, `TickLibrary::act`, D-222)**,
   one action between two ticks: its floor, a Wait (legality only), 40,840 in process; through
   `act`, a Wait and its idle tick cost 4,211,967 against 4,291,507 for an idle tick through `run`
