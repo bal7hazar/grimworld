@@ -26,9 +26,12 @@ seam's openings come from the seam's own stream. Its zero-residue test on the re
 (`contracts/logic/tests/test_zero_residue.cairo`, 22 floors of 6 and 12 chunks, 7 orders each,
 t-0077's forcing order among them) finds the same chunks, exit chunk, exit-to-entry distance in
 chunks, edges, seam openings and walked distance in tiles in every order: **0 chunks and 0 tiles**
-on that sample. The merge gate is the randomness re-audit's figure (the Overseer, 2026-10-07): it
-replaces this paragraph's sample when it is recorded. Until ENG-10b merges, the residue above still
-blocks any non-test deployment.
+on that sample. The randomness re-audit (t-0099, Opus, at 1fdee83): a modified client gains 0
+chunks and 0 tiles in a dungeon, checked by reading every reveal path, while nothing feeds the
+instance's entropy (no production feeder exists). Its finding 1 bounds that figure: a seam's opening
+tiles are derived from the instance's current entropy, so the first lot that feeds it would move
+them again unless it re-seeds the seams from something fixed at `create` (PLAN, *The first entropy
+feeder*). Until ENG-10b merges, the residue above still blocks any non-test deployment.
 
 ## What would reverse it
 
