@@ -25,7 +25,9 @@ export { CATEGORIES, INITIAL_PALETTE, type PaletteState, kindsMatching, paletteS
 export { Palette, type PaletteProps, THUMB_BOX } from "./Palette";
 export { type Preview, type PreviewRole, drawPreview, previewOf } from "./preview";
 export {
+  BRIDGE_RUNS,
   type BridgePlacement,
+  type BridgeRun,
   type BridgeRecord,
   type BuildingPlacement,
   type BuildingRecord,

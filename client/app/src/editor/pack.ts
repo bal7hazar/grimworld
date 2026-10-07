@@ -5,7 +5,9 @@ import type { MapMeta } from "./model";
 import type { FieldSpec, KindSpec, PlaceChoice, StructureLook } from "./objects";
 import {
   BRIDGES,
+  BRIDGE_RUNS,
   BUILDINGS,
+  type BridgeRun,
   type Category,
   type Kind,
   NPCS,
@@ -52,7 +54,13 @@ export type PackObject =
       readonly facing: number;
       readonly mirror: boolean;
     }
-  | { readonly kind: "bridge"; readonly at: Tile; readonly type: string; readonly mirror: boolean };
+  | {
+      readonly kind: "bridge";
+      readonly at: Tile;
+      readonly type: string;
+      readonly mirror: boolean;
+      readonly run: BridgeRun;
+    };
 
 export type PackKind = PackObject["kind"];
 type Of<K extends PackKind> = Extract<PackObject, { kind: K }>;
@@ -134,7 +142,13 @@ export function placementOf(object: PackObject): Placement {
       };
     }
     case "bridge":
-      return { category: "bridge", kind: object.type, south: object.at, mirrored: object.mirror };
+      return {
+        category: "bridge",
+        kind: object.type,
+        south: object.at,
+        mirrored: object.mirror,
+        run: object.run,
+      };
   }
 }
 
@@ -314,13 +328,24 @@ export const PACK_ROWS: { readonly [K in PackKind]: KindSpec<Of<K>> } = {
     map: "both",
     name: "Bridge",
     letters: () => "Br",
-    fields: [typeField("Bridge", BRIDGES), MIRROR],
+    fields: [
+      typeField("Bridge", BRIDGES),
+      MIRROR,
+      {
+        key: "run",
+        label: "Runs",
+        type: "choice",
+        options: () => BRIDGE_RUNS.map((r) => [r, r === "north" ? "North" : "West"] as const),
+        fallback: "north",
+      },
+    ],
     note: "Placed and drawn only: its walking waits for ENG-08b (D-217).",
     create: (choice: PlaceChoice, at: Tile) => ({
       kind: "bridge",
       at,
       type: first(BRIDGES, choice.type),
       mirror: false,
+      run: "north",
     }),
     look: (o) => {
       const kind = kindOf(o.type);

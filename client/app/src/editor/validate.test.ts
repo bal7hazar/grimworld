@@ -187,7 +187,7 @@ describe("R checks: ENG-08's content checks for map records", () => {
     const id = add(doc, { kind: "spawn", at: ROCK, template: 2 });
     expect(fails(doc, "R-14")[0]!.objects).toEqual([id]);
     for (const object of [
-      { kind: "feature", at: ROCK, feature: "lever" },
+      { kind: "feature", at: ROCK, feature: "lever", param: 0 },
       { kind: "candidate", at: ROCK, quota: 0 },
     ] as MapObject[]) {
       const other = zone();
@@ -206,7 +206,7 @@ describe("R checks: ENG-08's content checks for map records", () => {
     expect(fails(doc, "R-15")[0]!.message).toBe("Chunk 16 holds 3 spawn points: at most 2.");
     const features = zone();
     for (const x of [3, 4, 5, 6])
-      add(features, { kind: "feature", at: { x, y: 4 }, feature: "node" });
+      add(features, { kind: "feature", at: { x, y: 4 }, feature: "node", param: 0 });
     expect(fails(features, "R-15")[0]!.message).toBe("Chunk 0 holds 4 features: at most 3.");
   });
 
@@ -317,7 +317,7 @@ describe("E checks: the editor's own", () => {
     const doc = zone();
     // A floor hex of the outside, painted: walkable, but outside.
     set(doc, { x: 44, y: 3 }, FLOOR, grass, true);
-    add(doc, { kind: "feature", at: { x: 44, y: 3 }, feature: "chest" });
+    add(doc, { kind: "feature", at: { x: 44, y: 3 }, feature: "chest", param: 0 });
     fails(doc, "E-10");
     passes(doc, "R-14");
   });
@@ -420,7 +420,7 @@ describe("○ checks: warnings until ENG-08's spike", () => {
 
   it("R-15 ○: a candidate counted against a chunk's three objects", () => {
     const doc = zone();
-    for (const x of [3, 4]) add(doc, { kind: "feature", at: { x, y: 4 }, feature: "node" });
+    for (const x of [3, 4]) add(doc, { kind: "feature", at: { x, y: 4 }, feature: "node", param: 0 });
     for (const x of [5, 6]) add(doc, { kind: "candidate", at: { x, y: 4 }, quota: 0 });
     warns(doc, "R-15");
     expect(findings(doc, "R-15").every((f) => f.source === "○")).toBe(true);

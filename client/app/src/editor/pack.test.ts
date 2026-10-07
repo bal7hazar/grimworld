@@ -104,6 +104,7 @@ const bridge = (at: Tile, type = "stone_bridge", mirror = false): PackObject => 
   at,
   type,
   mirror,
+  run: "north",
 });
 
 describe("the pack's rows (CLI-09e part 2)", () => {

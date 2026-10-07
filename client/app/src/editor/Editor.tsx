@@ -581,7 +581,7 @@ function objectSwatches(doc: MapDocument): { label: string; choice: PlaceChoice;
         id: `candidate-${i}`,
       })),
       ...FEATURE_KINDS.map((feature) => ({
-        label: `${objectLabel({ kind: "feature", at: { x: 0, y: 0 }, feature }, 0, [])} ${FEATURE_NAMES[feature]}`,
+        label: `${objectLabel({ kind: "feature", at: { x: 0, y: 0 }, feature, param: 0 }, 0, [])} ${FEATURE_NAMES[feature]}`,
         choice: { kind: "feature", feature } as PlaceChoice,
         id: `feature-${feature}`,
       })),

@@ -211,9 +211,9 @@ const EDITS: Record<string, () => unknown> = {
     e.bridges![0]!.ends[0] = [e.origin.x + 20, e.origin.y + 20];
     return e;
   },
-  schema: () => ({ ...load("zone.json"), biome: "lava" }),
-  format: () => ({ ...load("zone.json"), format: "grimworld-map" }),
-  version: () => ({ ...load("zone.json"), version: 2 }),
+  schema: () => ({ ...load<ExportFile>("zone.json"), biome: "lava" }),
+  format: () => ({ ...load<ExportFile>("zone.json"), format: "grimworld-map" }),
+  version: () => ({ ...load<ExportFile>("zone.json"), version: 2 }),
   hex_outside_size: () => {
     const e = load("zone.json");
     e.size.width = 2;
